@@ -20,6 +20,8 @@ import inochi2d.core.nodes.common;
 import std.string;
 import std.algorithm.searching;
 import std.algorithm.mutation;
+import std.range: enumerate;
+import std.typecons: tuple;
 import std.conv;
 import i18n;
 
@@ -966,6 +968,83 @@ void incInspectorModelPart(Part node) {
             igEndDragDropTarget();
         }
 
+        igSpacing();
+
+        // The sources that the part gets masked by. Depending on the masking mode
+        // either the sources will cut out things that don't overlap, or cut out
+        // things that do.
+        incText(_("Welding"));
+        if (igBeginListBox("###Welding", ImVec2(0, 128))) {
+            if (node.masks.length == 0) {
+                incText(_("(Drag a Part Here)"));
+            }
+
+            foreach(i; 0..node.welded.length) {
+                Drawable.WeldingLink* welded = &node.welded[i];
+                igPushID(cast(int)i);
+                    if (igBeginPopup("###WeldedLink")) {
+
+                        if (igMenuItem(__("Delete"))) {
+                            incActionPush(new DrawableRemoveWeldingAction(node, node.welded[i].target, node.welded[i].indices, node.welded[i].weight));
+                            igEndPopup();
+                            igPopID();
+                            igEndListBox();
+                            incEndCategory();
+                            return;
+                        }
+
+                        igEndPopup();
+                    }
+
+                    igSelectable(_("%s").format(welded.target.name).toStringz);
+                    
+                    if(igBeginDragDropTarget()) {
+                        const(ImGuiPayload)* payload = igAcceptDragDropPayload("_WELDINGITEM");
+                        if (payload !is null) {
+                        }
+                        
+                        igEndDragDropTarget();
+                    }
+
+                    // TODO: We really should account for left vs. right handedness
+                    if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                        igOpenPopup("###WeldedLink");
+                    }
+
+                    if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+                        igSetDragDropPayload("_WELDINGITEM", cast(void*)welded, Drawable.WeldingLink.sizeof, ImGuiCond.Always);
+                        incText(welded.target.name);
+                        igEndDragDropSource();
+                    }
+                igPopID();
+            }
+            igEndListBox();
+        }
+
+        if(igBeginDragDropTarget()) {
+            const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
+            if (payload !is null) {
+                if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
+
+                    // Make sure we don't mask against ourselves as well as don't double mask
+                    if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable)) {
+                        ptrdiff_t[] indices;
+                        foreach (i, v; node.vertices) {
+                            auto vv = node.transform.matrix * vec4(v, 0, 1);
+                            auto minDistance = payloadDrawable.vertices.enumerate.minElement!((a)=>(payloadDrawable.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
+                            if ((payloadDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
+                                indices ~= minDistance[0];
+                            else
+                                indices ~= -1;
+                        }
+                        incActionPush(new DrawableAddWeldingAction(node, payloadDrawable, indices, 0.5));
+                    }
+                }
+            }
+            
+            igEndDragDropTarget();
+        }
+        
         // Padding
         igSpacing();
         igSpacing();
