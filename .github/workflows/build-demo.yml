@@ -2,13 +2,14 @@
 # They are provided by a third-party and are governed by
 # separate terms of service, privacy policy, and support
 # documentation.
-name: Build & Release RC
+name: Build & Release Demo
 
 on:
   push:
-    # Push all release candidates
+    # Push all normally versioned tags
+    # Ignore release candidates!
     tags:
-      - '*-rc*'
+      - '*'
 
 permissions:
   contents: write
@@ -76,7 +77,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --build=release --config=linux-full
+        dub build --compiler=ldc2 --build=release --config=linux-demo
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -135,7 +136,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --build=release --config=win32-full
+        dub build --compiler=ldc2 --build=release --config=win32-demo
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -167,16 +168,25 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-          files: |
-            out/inochi-creator-win32-x86_64.msi
-            out/inochi-creator-win32-x86_64.zip
+        files: |
+          out/inochi-creator-win32-x86_64.msi
+          out/inochi-creator-win32-x86_64.zip
+
+    - name: Make Artifact of ZIP
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-win32
+        path: |
+          out/inochi-creator-win32-x86_64.zip
+          version.txt
+        retention-days: 1
 
   macOS-build:
-    runs-on: macos-12
+    runs-on: macos-14
 
     steps:
     - uses: actions/checkout@v3
-    - uses: LunaTheFoxgirl/setup-dlang@v1
+    - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-latest
   
@@ -184,6 +194,7 @@ jobs:
       continue-on-error: true
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
+        export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
         brew update
         brew install create-dmg gettext
 
@@ -191,7 +202,7 @@ jobs:
       continue-on-error: true
       run: |
         # Remove conflicting brew items
-        brew remove --ignore-dependencies aom cairo composer curl fontconfig freetype gd ghostscript httpd imagemagick jpeg-xl libavif libheif libxft mongodb-community@5.0 mongosh node@16 openjpeg php r sox webp libpng brotli
+        brew remove --ignore-dependencies libpng brotli harfbuzz
 
     - name: "Remove final conflicting files"
       continue-on-error: true
@@ -229,12 +240,12 @@ jobs:
         
         # First build ARM64 version...
         echo "Building arm64 binary..."
-        dub build --build=release --config=osx-full --arch=arm64-apple-macos
+        dub build --build=release --config=osx-demo --arch=arm64-apple-macos
         mv "out/Inochi Creator.app/Contents/MacOS/inochi-creator" "out/Inochi Creator.app/Contents/MacOS/inochi-creator-arm64"
 
         # Then the X86_64 version...
         echo "Building x86_64 binary..."
-        dub build --build=release --config=osx-full --arch=x86_64-apple-macos
+        dub build --build=release --config=osx-demo --arch=x86_64-apple-macos
         mv "out/Inochi Creator.app/Contents/MacOS/inochi-creator" "out/Inochi Creator.app/Contents/MacOS/inochi-creator-x86_64"
 
         # Glue them together with lipo
@@ -258,6 +269,15 @@ jobs:
         directory: 'out/'
         path: '*'
 
+    - name: Make Artifact of ZIP
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-osx
+        path: |
+          out/inochi-creator-macOS.zip
+          version.txt
+        retention-days: 1
+
     - name: 'Build DMG'
       run: |
         ./build-aux/osx/gendmg.sh
@@ -266,6 +286,4 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-          files: |
-            out/inochi-creator-macOS.zip
-            out/Install_Inochi_Creator.dmg
+          files: out/Install_Inochi_Creator.dmg

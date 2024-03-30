@@ -13,6 +13,7 @@ import creator.windows;
 import creator.utils.link;
 import creator;
 import creator.widgets.dialog;
+import creator.widgets.modal;
 import creator.backend.gl;
 import creator.io.autosave;
 
@@ -37,7 +38,13 @@ public import creator.core.font;
 public import creator.core.dpi;
 import i18n;
 
-version(linux) import dportals;
+version(OSX) {
+    enum const(char)*[] SDL_VERSIONS_MACOS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
+}
+
+version(linux) {
+    import dportals;
+}
 
 version(Windows) {
     import core.sys.windows.windows;
@@ -209,7 +216,17 @@ void incOpenWindow() {
             break;
     }
 
-    auto sdlSupport = loadSDL();
+
+    // Special case for macOS
+    version(OSX) {
+        foreach(ver; SDL_VERSIONS_MACOS) {
+            auto sdlSupport = loadSDL(ver);
+
+            if (sdlSupport != SDLSupport.noLibrary && 
+                sdlSupport != SDLSupport.badLibrary) break;
+        }
+    }
+    else auto sdlSupport = loadSDL();
     enforce(sdlSupport != SDLSupport.noLibrary, "SDL2 library not found!");
     enforce(sdlSupport != SDLSupport.badLibrary, "Bad SDL2 library found!");
     
@@ -607,7 +624,10 @@ void incBeginLoopNoEv() {
 
     // HACK: ImGui Crashes if a popup is rendered on the first frame, let's avoid that.
     if (firstFrame) firstFrame = false;
-    else incRenderDialogs();
+    else {
+        incModalRender();
+        incRenderDialogs();
+    }
     incStatusUpdate();
 }
 
