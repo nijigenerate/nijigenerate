@@ -753,10 +753,10 @@ void incInspectorTextureSlot(Part p, TextureUsage usage, string title, ImVec2 el
 
 void incInspectorModelPart(Part node) {
     if (incBeginCategory(__("Part"))) {
-        
         if (!node.getMesh().isReady()) { 
             igSpacing();
             igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Cannot inspect an unmeshed part"));
+            incEndCategory();
             return;
         }
         igSpacing();

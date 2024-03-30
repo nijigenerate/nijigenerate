@@ -121,6 +121,10 @@ protected:
                 igSameLine(0, 2);
                 if (igMenuItem(__("MeshGroup"), "", false, true)) incAddChildWithHistory(new MeshGroup(cast(Node)null), n);
 
+                incText(incTypeIdToIcon("DynamicComposite"));
+                igSameLine(0, 2);
+                if (igMenuItem(__("DynamicComposite"), "", false, true)) incAddChildWithHistory(new DynamicComposite(cast(Node)null), n);
+
                 igEndMenu();
             }
 
