@@ -12,7 +12,9 @@ import i18n;
 import creator.viewport;
 import creator.viewport.common;
 import creator.viewport.common.mesh;
+import creator.viewport.common.mesheditor.tools.enums;
 import creator.viewport.common.mesheditor.operations;
+import creator.viewport.common.mesheditor.brushes;
 import creator.viewport.common.spline;
 import creator.core.input;
 import creator.core.actionstack;
@@ -222,6 +224,11 @@ public:
     }
 
     override
+    float[] getVerticesInBrush(vec2 mousePos, Brush brush) {
+        return mesh.getVerticesInBrush(mousePos, brush);
+    }
+
+    override
     void removeVertexAt(vec2 vertex) {
         mesh.removeVertexAt(vertex);
     }
@@ -347,13 +354,7 @@ public:
             pushDeformAction();
         if (editorAction is null || !editorAction.action.isApplyable()) {
             auto deformAction = new DeformationAction(target.name, target);
-            switch (toolMode) {
-            case VertexToolMode.PathDeform:
-                editorAction = new MeshEditorPathDeformAction!DeformationAction(target, deformAction);
-                break;
-            default:
-                editorAction = new MeshEditorAction!DeformationAction(target, deformAction);
-            }
+            editorAction = tools[toolMode].editorAction(target, deformAction);
 
         } else {
             if (reset)
@@ -592,6 +593,11 @@ public:
     }
 
     override
+    float[] getVerticesInBrush(vec2 mousePos, Brush brush) {
+        return brush.weightsAt(mousePos, vertices);
+    }
+
+    override
     void removeVertexAt(vec2 vertex) { }
 
     override
@@ -690,13 +696,7 @@ public:
             pushDeformAction();
         if (editorAction is null || !editorAction.action.isApplyable()) {
             auto deformAction = new DeformationAction(target.name, target);
-            switch (toolMode) {
-            case VertexToolMode.PathDeform:
-                editorAction = new MeshEditorPathDeformAction!DeformationAction(target, deformAction);
-                break;
-            default:
-                editorAction = new MeshEditorAction!DeformationAction(target, deformAction);
-            }
+            editorAction = tools[toolMode].editorAction(target, deformAction);
 
         } else {
             if (reset)
