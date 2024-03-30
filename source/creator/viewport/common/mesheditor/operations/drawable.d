@@ -116,16 +116,33 @@ public:
         data.fixWinding();
 
         // Fix UVs
-        foreach(i; 0..data.uvs.length) {
+        // By dividing by width and height we should get the values in UV coordinate space.
+        if (cast(DynamicComposite)target !is null) {
+            import std.algorithm: map;
+            float minX = data.uvs.map!(a => a.x).minElement;
+            float maxX = data.uvs.map!(a => a.x).maxElement;
+            float minY = data.uvs.map!(a => a.y).minElement;
+            float maxY = data.uvs.map!(a => a.y).maxElement;
+            float width = maxX - minX;
+            float height = maxY - minY;
             if (Part part = cast(Part)target) {
-
-                // Texture 0 is always albedo texture
-                auto tex = part.textures[0];
-
-                // By dividing by width and height we should get the values in UV coordinate space.
-                data.uvs[i].x /= cast(float)tex.width;
-                data.uvs[i].y /= cast(float)tex.height;
-                data.uvs[i] += vec2(0.5, 0.5);
+                foreach(i; 0..data.uvs.length) {
+                    // Texture 0 is always albedo texture
+                    auto tex = part.textures[0];
+                    data.uvs[i].x /= width;
+                    data.uvs[i].y /= height;
+                    data.uvs[i] += vec2(0.5, 0.5);
+                }
+            }
+        } else {
+            foreach(i; 0..data.uvs.length) {
+                if (Part part = cast(Part)target) {
+                    // Texture 0 is always albedo texture
+                    auto tex = part.textures[0];
+                    data.uvs[i].x /= cast(float)tex.width;
+                    data.uvs[i].y /= cast(float)tex.height;
+                    data.uvs[i] += vec2(0.5, 0.5);
+                }
             }
         }
 
@@ -171,9 +188,7 @@ public:
         incActivePuppet().resetDrivers();
         vertexMapDirty = false;
 
-        if (auto mgroup = cast(MeshGroup)target) {
-            mgroup.clearCache();
-        }
+        target.clearCache();
         target.rebuffer(data);
 
         // reInterpolate MUST be called after rebuffer is called.
