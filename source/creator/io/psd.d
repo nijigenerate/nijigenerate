@@ -188,7 +188,7 @@ void incImportPSD(string file, IncPSDImportSettings settings = IncPSDImportSetti
                 );
 
 
-                part.enabled = (layer.psdLayerRef.flags & LayerFlags.Visible) == 0;
+                part.setEnabled((layer.psdLayerRef.flags & LayerFlags.Visible) == 0);
                 part.opacity = (cast(float)layer.psdLayerRef.opacity)/255;
                 part.blendingMode = layer.blendMode;
 

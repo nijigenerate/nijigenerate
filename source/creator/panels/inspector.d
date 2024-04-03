@@ -540,6 +540,7 @@ void incInspectorModelTRS(Node node) {
         float zsortB = zsortV;
         if (igInputFloat("###ZSort", &zsortV, 0.01, 0.05, "%0.2f")) {
             node.zSort = zsortV;
+            node.notifyChange(node);
             incActionPush(
                 new NodeValueChangeAction!(Node, float)(
                     _("Sorting"),
@@ -1149,7 +1150,9 @@ void incInspectorModelComposite(Composite node) {
         igSpacing();
 
         incText(_("Opacity"));
-        igSliderFloat("###Opacity", &node.opacity, 0, 1f, "%0.2f");
+        if (igSliderFloat("###Opacity", &node.opacity, 0, 1f, "%0.2f")) {
+            node.notifyChange(node);
+        }
         igSpacing();
         igSpacing();
 

@@ -444,6 +444,7 @@ void incViewportTransformHandle() {
                 } else {
                     selectedNode.localTransform.translation.vector[0] = newValueX;
                     selectedNode.localTransform.translation.vector[1] = newValueY;
+                    selectedNode.notifyChange(selectedNode);
                 }
             } else {
                 if (!armedParam) {
@@ -587,6 +588,7 @@ void incViewportTransformHandle() {
                             new NodeValueChangeAction!(Node, float)("Y", selectedNode, prevValue.y,
                                 selectedNode.localTransform.scale.vector[1], &selectedNode.localTransform.scale.vector[1]);
                     }
+                    selectedNode.notifyChange(selectedNode);
                 } 
                 if (incSelectedNodes.length > 1 && !groupingAction) {
                     groupingAction = true;
@@ -667,6 +669,7 @@ void incViewportTransformHandle() {
                     changeParameter(selectedNode, armedParam, "transform.r.z", index, newValue);
                 } else {
                     selectedNode.localTransform.rotation.vector[2] = newValue;
+                    selectedNode.notifyChange(selectedNode);
                 }
             } else {
                 vec2 origValue;
