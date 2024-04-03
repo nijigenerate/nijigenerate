@@ -241,6 +241,91 @@ public:
 
 alias PartAddMaskAction = PartAddRemoveMaskAction!true;
 alias PartRemoveMaskAction = PartAddRemoveMaskAction!false;
+/**
+    An action that happens when a node is changed
+*/
+class DrawableAddRemoveWeldingAction(bool addAction = false) : Action {
+public:
+
+    /**
+        Previous parent of node
+    */
+    Drawable drawable;
+    size_t offset;
+    Drawable target;
+    ptrdiff_t[] weldedVertexIndices;
+    float weight;
+
+    /**
+        Creates a new node change action
+    */
+    this(Drawable drawable, Drawable target, ptrdiff_t[] weldedVertexIndices, float weight) {
+        this.drawable = drawable;
+        this.target = target;
+
+        if (addAction) {
+            offset = drawable.welded.length;
+            drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+
+        } else {
+            drawable.removeWeldedTarget(target);
+        }
+        incActivePuppet().rescanNodes();
+    }
+
+    /**
+        Rollback
+    */
+    void rollback() {
+        if (addAction) {
+            drawable.removeWeldedTarget(target);
+        } else {
+            drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+        }
+        incActivePuppet().rescanNodes();
+    }
+
+    /**
+        Redo
+    */
+    void redo() {
+        if (addAction) {
+            drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+        } else {
+            drawable.removeWeldedTarget(target);
+        }
+        incActivePuppet().rescanNodes();
+    }
+
+    /**
+        Describe the action
+    */
+    string describe() {
+        if (addAction) return _("%s is added to welded targets of %s").format(target.name, drawable.name);
+        else return _("%s is deleted from welded targets of %s").format(target.name, drawable.name);
+    }
+
+    /**
+        Describe the action
+    */
+    string describeUndo() {
+        if (addAction) return _("%s is deleted from welded targets of %s").format(target.name, drawable.name);
+        else return _("%s is added to welded targets of %s").format(target.name, drawable.name);
+    }
+
+    /**
+        Gets name of this action
+    */
+    string getName() {
+        return this.stringof;
+    }
+    
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
+alias DrawableAddWeldingAction = DrawableAddRemoveWeldingAction!true;
+alias DrawableRemoveWeldingAction = DrawableAddRemoveWeldingAction!false;
 
 /**
     Action for whether a node was activated or deactivated
