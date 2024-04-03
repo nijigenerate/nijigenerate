@@ -28,7 +28,7 @@ import i18n;
 class NodesPanel : Panel {
 protected:
     void treeSetEnabled(Node n, bool enabled) {
-        n.enabled = enabled;
+        n.setEnabled(enabled);
         foreach(child; n.children) {
             treeSetEnabled(child, enabled);
         }
@@ -139,8 +139,8 @@ protected:
                     }
                 }
                 
-                if (igMenuItem(n.enabled ? /* Option to hide the node (and subnodes) */ __("Hide") :  /* Option to show the node (and subnodes) */ __("Show"))) {
-                    n.enabled = !n.enabled;
+                if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __("Hide") :  /* Option to show the node (and subnodes) */ __("Show"))) {
+                    n.setEnabled(!n.getEnabled());
                 }
 
                 if (igMenuItem(__("Delete"), "", false, !isRoot)) {
@@ -231,10 +231,10 @@ protected:
 
                         // Type Icon
                         static if (!isRoot) {
-                            if (n.enabled) incText(incTypeIdToIcon(n.typeId));
+                            if (n.getEnabled()) incText(incTypeIdToIcon(n.typeId));
                             else incTextDisabled(incTypeIdToIcon(n.typeId));
                             if (igIsItemClicked()) {
-                                n.enabled = !n.enabled;
+                                n.setEnabled(!n.getEnabled());
                             }
                         } else {
                             incText("");

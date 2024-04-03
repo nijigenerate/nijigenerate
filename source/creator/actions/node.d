@@ -97,12 +97,14 @@ public:
     */
     void rollback() {
         foreach(ref sn; nodes) {
+            sn.notifyChange(sn);
             if (sn.uuid in prevParents && prevParents[sn.uuid]) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(prevParents[sn.uuid]);
                 sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid]);
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
             } else sn.parent = null;
+            sn.notifyChange(sn);
         }
         incActivePuppet().rescanNodes();
     }
@@ -112,12 +114,14 @@ public:
     */
     void redo() {
         foreach(sn; nodes) {
+            sn.notifyChange(sn);
             if (newParent) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
                 sn.reparent(newParent, parentOffset);
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
             } else sn.parent = null;
+            sn.notifyChange(sn);
         }
         incActivePuppet().rescanNodes();
     }
@@ -185,6 +189,7 @@ public:
                 }
             }
         }
+        target.notifyChange(target);
         incActivePuppet().rescanNodes();
     }
 
@@ -193,9 +198,11 @@ public:
     */
     void rollback() {
         if (addAction) {
+            target.notifyChange(target);
             target.masks = target.masks.remove(offset);
         } else {
             target.masks.insertInPlace(offset, MaskBinding(maskSrc.uuid, mode, maskSrc));
+            target.notifyChange(target);
         }
         incActivePuppet().rescanNodes();
     }
@@ -206,7 +213,9 @@ public:
     void redo() {
         if (addAction) {
             target.masks.insertInPlace(offset, MaskBinding(maskSrc.uuid, mode, maskSrc));
+            target.notifyChange(target);
         } else {
+            target.notifyChange(target);
             target.masks = target.masks.remove(offset);
         }
         incActivePuppet().rescanNodes();
@@ -339,14 +348,14 @@ public:
         Rollback
     */
     void rollback() {
-        self.enabled = !newState;
+        self.setEnabled(!newState);
     }
 
     /**
         Redo
     */
     void redo() {
-        self.enabled = newState;
+        self.setEnabled(newState);
     }
 
     /**
@@ -494,6 +503,7 @@ public:
         this.oldValue = oldValue;
         this.newValue = newValue;
         this.valuePtr = valuePtr;
+        node.notifyChange(node);
     }
 
     /**
@@ -501,6 +511,7 @@ public:
     */
     void rollback() {
         *valuePtr = oldValue;
+        node.notifyChange(node);
     }
 
     /**
@@ -508,6 +519,7 @@ public:
     */
     void redo() {
         *valuePtr = newValue;
+        node.notifyChange(node);
     }
 
     /**
@@ -572,6 +584,7 @@ public:
     */
     void rollback() {
         this.node.lockToRoot = origState;
+        node.notifyChange(node);
     }
 
     /**
@@ -579,6 +592,7 @@ public:
     */
     void redo() {
         this.node.lockToRoot = state;
+        node.notifyChange(node);
     }
 
     /**
