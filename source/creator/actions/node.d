@@ -84,7 +84,7 @@ public:
                 sn.transformChanged();
                 sn.notifyChange(sn);
             } else sn.parent = null;
-            if (prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn);
+            if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn);
             newTransform[sn.uuid] = sn.localTransform;
         }
         incActivePuppet().rescanNodes();
