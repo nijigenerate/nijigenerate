@@ -99,14 +99,14 @@ public:
     */
     void rollback() {
         foreach(ref sn; nodes) {
-            sn.notifyChange(sn);
             if (sn.uuid in prevParents && prevParents[sn.uuid]) {
+                if (newParent) newParent.notifyChange(sn);
                 if (!sn.lockToRoot()) sn.setRelativeTo(prevParents[sn.uuid]);
                 sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid]);
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
+                sn.notifyChange(sn);
             } else sn.parent = null;
-            sn.notifyChange(sn);
         }
         incActivePuppet().rescanNodes();
     }
@@ -116,14 +116,14 @@ public:
     */
     void redo() {
         foreach(sn; nodes) {
-            sn.notifyChange(sn);
             if (newParent) {
+                if (prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn);
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
                 sn.reparent(newParent, parentOffset);
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
+                sn.notifyChange(sn);
             } else sn.parent = null;
-            sn.notifyChange(sn);
         }
         incActivePuppet().rescanNodes();
     }
