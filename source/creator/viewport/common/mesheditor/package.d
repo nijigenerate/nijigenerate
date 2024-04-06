@@ -158,6 +158,9 @@ public:
         foreach (drawing, editor; editors) {
             result = editor.update(io, camera, action) || result;
         }
+        foreach (drawing, editor; editors) {
+            editor.getTarget().notifyChange(editor.getTarget());
+        }
         incActionPopGroup();
         return result;
     }
