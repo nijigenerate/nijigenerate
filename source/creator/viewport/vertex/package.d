@@ -202,8 +202,15 @@ void incViewportVertexDraw(Camera camera) {
             if (Part part = cast(Part)target) {
                 // Draw albedo texture at 0, 0
                 auto origin = vec2(0, 0);
-                if (DynamicComposite dcomposite = cast(DynamicComposite)part) origin = dcomposite.textureOffset;
-                inDrawTextureAtPosition(part.textures[0], origin);
+                if (part.textures[0] !is null) {
+                    if (DynamicComposite dcomposite = cast(DynamicComposite)part) origin = dcomposite.textureOffset;
+                    inDrawTextureAtPosition(part.textures[0], origin);
+                } else {
+                    mat4 transform = part.transform.matrix.inverse;
+                    part.setOneTimeTransform(&transform);
+                    part.drawOne();
+                    part.setOneTimeTransform(null);
+                }
             } else if (MeshGroup mgroup = cast(MeshGroup)target) {
                 mat4 transform = mgroup.transform.matrix.inverse;
                 mgroup.setOneTimeTransform(&transform);

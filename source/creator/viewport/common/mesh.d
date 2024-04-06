@@ -352,6 +352,7 @@ public:
 
     final
     size_t getTriCount() {
+        if (vertices.length == 0) return 0;
         size_t tris;
 
         MeshVertex*[] visited;

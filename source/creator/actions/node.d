@@ -71,6 +71,7 @@ public:
         // Reparent
         foreach(ref sn; nodes) {
             
+            sn.notifyChange(sn);
             // Store ref to prev parent
             if (sn.parent) {
                 originalTransform[sn.uuid] = sn.localTransform;
@@ -82,6 +83,7 @@ public:
             if (new_) {
                 sn.reparent(new_, pOffset);
                 sn.transformChanged();
+                sn.notifyChange(sn);
             } else sn.parent = null;
             newTransform[sn.uuid] = sn.localTransform;
         }
