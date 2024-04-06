@@ -884,6 +884,12 @@ void incInspectorModelPart(Part node) {
         // before it gets discarded.
         incText(_("Threshold"));
         igSliderFloat("###Threshold", &node.maskAlphaThreshold, 0.0, 1.0, "%.2f");
+
+        if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
+            if (igCheckbox(__("Resize automatically"), &dcomposite.autoResizedMesh)) {
+            }
+            incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
+        }
         
         igSpacing();
 
