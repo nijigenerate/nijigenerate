@@ -1016,7 +1016,25 @@ void incInspectorModelPart(Part node) {
                         igEndPopup();
                     }
 
-                    igSelectable(_("%s").format(welded.target.name).toStringz);
+                    igSelectable("##%s".format(welded.target.name).toStringz);
+                    igSetItemAllowOverlap();
+                    igSameLine(0, 0);
+                    igText(welded.target.name.toStringz);
+                    igSameLine(0, 0);
+                    incDummy(ImVec2(-64, 0));
+                    igSameLine(0, 0);
+                    auto weight = welded.weight;
+                    igPushID("###id_weight:%s".format(i).toStringz);
+                    igSetNextItemWidth(64);
+                    if (igSliderFloat("###weight:%s".format(welded.target.name).toStringz, &weight, 0, 1f, "%0.2f")) {
+                        welded.weight = weight;
+                        auto index = welded.target.welded.countUntil!"a.target == b"(node);
+                        if (index != -1) {
+                            welded.target.welded[index].weight = 1 - weight;
+                        }
+                        node.notifyChange(node);
+                    }
+                    igPopID();
                     
                     if(igBeginDragDropTarget()) {
                         const(ImGuiPayload)* payload = igAcceptDragDropPayload("_WELDINGITEM");
@@ -1047,7 +1065,7 @@ void incInspectorModelPart(Part node) {
                 if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
 
                     // Make sure we don't mask against ourselves as well as don't double mask
-                    if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable)) {
+                    if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable) && payloadDrawable.vertices.length != 0) {
                         ptrdiff_t[] indices;
                         foreach (i, v; node.vertices) {
                             auto vv = node.transform.matrix * vec4(v, 0, 1);
