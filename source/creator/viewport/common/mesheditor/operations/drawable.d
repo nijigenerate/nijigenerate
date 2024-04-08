@@ -100,6 +100,12 @@ public:
     }
 
     override
+    void mergeMesh(ref MeshData data, mat4 matrix) {
+        mesh.merge_(data, matrix);
+        mesh.refresh();
+    }
+
+    override
     void applyOffsets(vec2[] offsets) {
     }
 
@@ -526,6 +532,12 @@ public:
     override
     void importMesh(ref MeshData data) {
         mesh.import_(data);
+        mesh.refresh();
+    }
+
+    override
+    void mergeMesh(ref MeshData data, mat4 matrix) {
+        mesh.merge_(data, matrix);
         mesh.refresh();
     }
 

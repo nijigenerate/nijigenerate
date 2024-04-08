@@ -287,6 +287,17 @@ void incVertexEditCopyMeshDataToTarget(Drawable target, Drawable drawable, ref M
     }
 }
 
+void incVertexEditMergeMeshDataToTarget(Drawable target, Drawable drawable, ref MeshData data) {
+    mat4 matrix = drawable.transform.matrix * target.transform.matrix.inverse;
+    if (editor.getEditorFor(target)) {
+        editor.getEditorFor(target).mergeMesh(data, matrix);
+    } else {
+        editor.addTarget(target);
+        assert(editor.getEditorFor(target));
+        editor.getEditorFor(target).mergeMesh(data, matrix);
+    }
+}
+
 bool incMeshEditGetIsApplySafe() {
     /* Disabled temporary
     Drawable target = cast(Drawable)editor.getTarget();

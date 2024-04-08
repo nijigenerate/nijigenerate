@@ -62,9 +62,11 @@ private:
     MeshData* data;
     vec2 eOrigin;
 
-    void mImport(ref MeshData data) {
+    void mImport(bool reset = true)(ref MeshData data, mat4 matrix=mat4.identity) {
         // Reset vertex length
-        vertices.length = 0;
+        if (reset) {
+            vertices.length = 0;
+        }
         eOrigin = data.origin;
 
         // Iterate over flat mesh and extract it in to
@@ -72,7 +74,7 @@ private:
         MeshVertex*[] iVertices;
         iVertices.length = data.vertices.length;
         foreach(idx, vertex; data.vertices) {
-            iVertices[idx] = new MeshVertex(vertex, []);
+            iVertices[idx] = new MeshVertex((matrix * vec4(vertex, 0, 1)).xy, []);
         }
 
         foreach(i; 0..data.indices.length/3) {
@@ -106,13 +108,15 @@ private:
         }
 
         axes = [];
-        if (data.isGrid()) {
-            foreach (axis; data.gridAxes) {
-                float[] newAxis;
-                foreach (axValue; axis) {
-                    newAxis ~= axValue;
+        if (reset) {
+            if (data.isGrid()) {
+                foreach (axis; data.gridAxes) {
+                    float[] newAxis;
+                    foreach (axValue; axis) {
+                        newAxis ~= axValue;
+                    }
+                    axes ~= newAxis;
                 }
-                axes ~= newAxis;
             }
         }
 
@@ -307,6 +311,11 @@ public:
     void import_(ref MeshData mesh) {
         data = &mesh;
         mImport(mesh);
+    }
+
+    final
+    void merge_(ref MeshData mesh, mat4 matrix) {
+        mImport!false(mesh, matrix);
     }
     
     /**

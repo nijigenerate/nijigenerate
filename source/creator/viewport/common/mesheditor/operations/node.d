@@ -66,6 +66,7 @@ public:
     }
 
     override void importMesh(ref MeshData data) {}
+    override void mergeMesh(ref MeshData data, mat4 matrix) {}
 
     override
     void applyOffsets(vec2[] offsets) {
