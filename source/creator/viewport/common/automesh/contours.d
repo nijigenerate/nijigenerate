@@ -169,6 +169,12 @@ public:
             }
 
         }
+
+        if (auto dcomposite = cast(DynamicComposite)target) {
+            foreach (vertex; mesh.vertices) {
+                vertex.position += dcomposite.textureOffset;
+            }
+        }
         
         return mesh.autoTriangulate();
     };
