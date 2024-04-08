@@ -801,7 +801,7 @@ void incInspectorModelPart(Part node) {
         // Header for the Blending options for Parts
         incText(_("Blending"));
         if (igBeginCombo("###Blending", __(node.blendingMode.text), ImGuiComboFlags.HeightLarge)) {
-
+            auto prevBlendingMode = node.blendingMode;
             // Normal blending mode as used in Photoshop, generally
             // the default blending mode photoshop starts a layer out as.
             if (igSelectable(__("Normal"), node.blendingMode == BlendMode.Normal)) node.blendingMode = BlendMode.Normal;
@@ -864,7 +864,9 @@ void incInspectorModelPart(Part node) {
             if (igSelectable(__("Slice from Lower"), node.blendingMode == BlendMode.SliceFromLower)) node.blendingMode = BlendMode.SliceFromLower;
             incTooltip(_("Special blending mode that causes (while respecting transparency) the part to be slice by everything underneath.\nBasically reverse Clip to Lower."));
             
-            node.notifyChange(node);
+            if (node.blendingMode != prevBlendingMode) {
+                node.notifyChange(node);
+            }
             igEndCombo();
         }
 
