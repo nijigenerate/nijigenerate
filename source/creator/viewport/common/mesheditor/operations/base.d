@@ -228,6 +228,7 @@ public:
     abstract void resetMesh();
     abstract void refreshMesh();
     abstract void importMesh(ref MeshData data);
+    abstract void mergeMesh(ref MeshData data, mat4 matrix);
     abstract void applyOffsets(vec2[] offsets);
     abstract vec2[] getOffsets();
 
