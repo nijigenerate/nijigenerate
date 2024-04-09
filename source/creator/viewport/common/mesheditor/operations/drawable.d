@@ -271,8 +271,8 @@ public:
     }
 
     override
-    ulong[] getInRect(vec2 min, vec2 max) { 
-        return mesh.getInRect(selectOrigin, mousePos);
+    ulong[] getInRect(vec2 min, vec2 max, uint groupId = 0) { 
+        return mesh.getInRect(selectOrigin, mousePos, groupId);
     }
     override 
     MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
@@ -371,6 +371,14 @@ public:
             mesh.drawPoints(trans);
         } else {
             mesh.draw(trans);
+        }
+
+        if (groupId != 0) {
+            MeshVertex*[] vertsInGroup = [];
+            foreach (v; mesh.vertices) {
+                if (v.groupId != groupId) vertsInGroup ~= v;
+            }
+            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
         }
 
         if (selected.length) {
@@ -606,7 +614,7 @@ public:
     }
 
     override
-    ulong[] getInRect(vec2 min, vec2 max) {
+    ulong[] getInRect(vec2 min, vec2 max, uint groupId) {
         if (min.x > max.x) swap(min.x, max.x);
         if (min.y > max.y) swap(min.y, max.y);
 
@@ -732,6 +740,14 @@ public:
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
             inDbgPointsSize(6);
             inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+        }
+
+        if (groupId != 0) {
+            MeshVertex*[] vertsInGroup = [];
+            foreach (v; mesh.vertices) {
+                if (v.groupId != groupId) vertsInGroup ~= v;
+            }
+            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
         }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {

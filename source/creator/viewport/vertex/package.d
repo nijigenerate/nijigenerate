@@ -38,6 +38,8 @@ void incViewportVertexTools() {
 }
 
 void incViewportVertexOptions() {
+    editor.displayGroupIds();
+
     igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
     igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         igBeginGroup();
