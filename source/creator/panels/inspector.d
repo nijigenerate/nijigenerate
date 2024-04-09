@@ -1017,6 +1017,9 @@ void incInspectorModelPart(Part node) {
                     }
 
                     igSelectable("##%s".format(welded.target.name).toStringz);
+                    if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                        igOpenPopup("###WeldedLink");
+                    }
                     igSetItemAllowOverlap();
                     igSameLine(0, 0);
                     igText(welded.target.name.toStringz);
@@ -1024,9 +1027,8 @@ void incInspectorModelPart(Part node) {
                     incDummy(ImVec2(-64, 0));
                     igSameLine(0, 0);
                     auto weight = welded.weight;
-                    igPushID("###id_weight:%s".format(i).toStringz);
                     igSetNextItemWidth(64);
-                    if (igSliderFloat("###weight:%s".format(welded.target.name).toStringz, &weight, 0, 1f, "%0.2f")) {
+                    if (igSliderFloat("###weight", &weight, 0, 1f, "%0.2f")) {
                         welded.weight = weight;
                         auto index = welded.target.welded.countUntil!"a.target == b"(node);
                         if (index != -1) {
@@ -1034,8 +1036,7 @@ void incInspectorModelPart(Part node) {
                         }
                         node.notifyChange(node);
                     }
-                    igPopID();
-                    
+                    /*
                     if(igBeginDragDropTarget()) {
                         const(ImGuiPayload)* payload = igAcceptDragDropPayload("_WELDINGITEM");
                         if (payload !is null) {
@@ -1043,17 +1044,15 @@ void incInspectorModelPart(Part node) {
                         
                         igEndDragDropTarget();
                     }
-
+                    */
                     // TODO: We really should account for left vs. right handedness
-                    if (igIsItemClicked(ImGuiMouseButton.Right)) {
-                        igOpenPopup("###WeldedLink");
-                    }
-
+                    /*
                     if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
                         igSetDragDropPayload("_WELDINGITEM", cast(void*)welded, Drawable.WeldingLink.sizeof, ImGuiCond.Always);
                         incText(welded.target.name);
                         igEndDragDropSource();
                     }
+                    */
                 igPopID();
             }
             igEndListBox();
