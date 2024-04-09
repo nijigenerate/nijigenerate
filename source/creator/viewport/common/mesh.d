@@ -22,6 +22,7 @@ import std.algorithm;
 struct MeshVertex {
     vec2 position;
     MeshVertex*[] connections;
+    uint groupId = 1;
 }
 
 void connect(MeshVertex* self, MeshVertex* other) {
@@ -66,6 +67,8 @@ private:
         // Reset vertex length
         if (reset) {
             vertices.length = 0;
+        } else {
+            maxGroupId = 2;
         }
         eOrigin = data.origin;
 
@@ -75,6 +78,7 @@ private:
         iVertices.length = data.vertices.length;
         foreach(idx, vertex; data.vertices) {
             iVertices[idx] = new MeshVertex((matrix * vec4(vertex, 0, 1)).xy, []);
+            if (!reset) iVertices[idx].groupId = 2;
         }
 
         foreach(i; 0..data.indices.length/3) {
@@ -299,6 +303,7 @@ public:
     MeshVertex*[] vertices;
     float[][] axes;
     bool changed;
+    uint maxGroupId = 1;
 
     /**
         Constructs a new IncMesh
@@ -592,7 +597,7 @@ public:
         }
     }
 
-    ulong[] getInRect(vec2 min, vec2 max) {
+    ulong[] getInRect(vec2 min, vec2 max, uint groupId = 0) {
         if (min.x > max.x) swap(min.x, max.x);
         if (min.y > max.y) swap(min.y, max.y);
 
@@ -602,6 +607,7 @@ public:
             if (min.y > vertex.position.y) continue;
             if (max.x < vertex.position.x) continue;
             if (max.y < vertex.position.y) continue;
+            if (groupId > 0 && groupId != vertex.groupId) continue;
             matching ~= idx;
         }
 
