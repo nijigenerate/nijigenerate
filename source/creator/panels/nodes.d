@@ -28,8 +28,7 @@ private {
 
     void copyToClipboard(Node[] nodes) {
         foreach (node; nodes) {
-            clipboardNodes ~= node.duplicate();
-            clipboardNodes[$-1].copyFrom(node);
+            clipboardNodes ~= node.dup;
         }
     }
 
