@@ -41,6 +41,13 @@ private {
             clipboardNodes.length = 0;
         }
     }
+
+    string[][string] conversionMap;
+    static this() {
+        conversionMap["Node"] = ["MeshGroup", "DynamicComposite"];
+        conversionMap["DynamicComposite"] = ["MeshGroup", "Node"];
+        conversionMap["MeshGroup"] = ["DynamicComposite"];
+    }
 }
 
 /**
@@ -176,6 +183,20 @@ protected:
 
                 if (igMenuItem(__("Recalculate origin"), "", false, true)) {
                     n.centralize();
+                }
+
+                if (n.typeId in conversionMap) {
+                    if (igBeginMenu(__("Convert To..."), true)) {
+                        foreach (type; conversionMap[n.typeId]) {
+                            incText(incTypeIdToIcon(type));
+                            igSameLine(0, 2);
+                            if (igMenuItem(__(type), "", false, true)) {
+                                Node node = inInstantiateNode(type);
+                                node.copyFrom(n, true, true);
+                            }
+                        }
+                        igEndMenu();
+                    }
                 }
             }
             igEndPopup();
