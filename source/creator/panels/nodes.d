@@ -23,6 +23,26 @@ import std.format;
 import std.conv;
 import i18n;
 
+private {
+    Node[] clipboardNodes;
+
+    void copyToClipboard(Node[] nodes) {
+        foreach (node; nodes) {
+            clipboardNodes ~= node.duplicate();
+            clipboardNodes[$-1].copyFrom(node);
+        }
+    }
+
+    void pasteFromClipboard(Node parent) {
+        if (parent !is null) {
+            foreach (node; clipboardNodes) {
+                node.reparent(parent, 0);
+            }
+            clipboardNodes.length = 0;
+        }
+    }
+}
+
 /**
     The logger frame
 */
@@ -116,8 +136,20 @@ protected:
                     // Make sure we don't keep selecting a node we've removed
                     incSelectNode(null);
                 }
-                
 
+                if (igMenuItem(__("Copy"), "", false, true)) {
+                    if (selected.length > 0)
+                        copyToClipboard(selected);
+                    else
+                        copyToClipboard([n]);
+                }
+            }
+                
+            if (igMenuItem(__("Paste"), "", false, clipboardNodes.length > 0)) {
+                pasteFromClipboard(n);
+            }
+
+            static if (!isRoot) {
                 if (igBeginMenu(__("More Info"), true)) {
                     if (selected.length > 1) {
                         foreach(sn; selected) {
