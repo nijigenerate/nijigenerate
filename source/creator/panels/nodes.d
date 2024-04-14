@@ -44,7 +44,7 @@ private {
     string[][string] conversionMap;
     static this() {
         conversionMap["Node"] = ["MeshGroup", "DynamicComposite"];
-        conversionMap["DynamicComposite"] = ["MeshGroup", "Node"];
+        conversionMap["DynamicComposite"] = ["MeshGroup", "Node", "Part"];
         conversionMap["MeshGroup"] = ["DynamicComposite"];
     }
 }
