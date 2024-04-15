@@ -14,6 +14,7 @@ import i18n;
 import std.exception;
 import std.array: insertInPlace;
 import std.algorithm.mutation: remove;
+import std.algorithm.searching;
 
 /**
     An action that happens when a node is changed
@@ -121,7 +122,7 @@ public:
                 sn.reparent(newParent, parentOffset);
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
-                if (prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn);
+                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn);
                 sn.notifyChange(sn);
             } else sn.parent = null;
         }
@@ -144,6 +145,110 @@ public:
         if (prevParents.length == 0) return _("Created %s").format(descrName);
         if (nodes.length == 1 && prevParents.length == 1 && prevParents.values[0]) return  _("Moved %s from %s").format(descrName, prevParents[nodes[0].uuid].name);
         return _("Moved %s from origin").format(descrName);
+    }
+
+    /**
+        Gets name of this action
+    */
+    string getName() {
+        return this.stringof;
+    }
+    
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
+/**
+    An action that happens when a node is replaced
+*/
+class NodeReplaceAction : Action {
+public:
+
+    /**
+        Descriptive name
+    */
+    string descrName;
+    
+    /**
+        Nodes that was moved
+    */
+    Node srcNode;
+    Node toNode;
+    Node[] children;
+    bool deepCopy;
+
+    /**
+        Creates a new node change action
+    */
+    this(Node src, Node to, bool deepCopy) {
+        srcNode = src;
+        toNode = to;
+
+        if (src.parent !is null)
+            children = src.children.dup;
+        else if (to.parent !is null)
+            children = to.children.dup;
+
+        if (cast(DynamicComposite)srcNode !is null && 
+            cast(DynamicComposite)toNode is null &&
+            cast(Part)toNode !is null) {
+            deepCopy = false;
+        }
+        this.deepCopy = deepCopy;
+
+        // Set visual name
+        descrName = src.name;
+
+        if (toNode.parent is null)
+            redo();
+    }
+
+    /**
+        Rollback
+    */
+    void rollback() {
+        auto parent = toNode.parent;
+        assert(parent !is null);
+        ulong pOffset = parent.children.countUntil(toNode);
+        toNode.reparent(null, 0);
+        srcNode.reparent(parent, pOffset);
+        if (deepCopy) {
+            foreach (i, child; children) {
+                child.reparent(srcNode, i);
+                child.notifyChange(child);
+            }
+        }
+    }
+
+    /**
+        Redo
+    */
+    void redo() {
+        auto parent = srcNode.parent;
+        assert(parent !is null);
+        ulong pOffset = parent.children.countUntil(srcNode);
+        srcNode.reparent(null, 0);
+        toNode.reparent(parent, pOffset);
+        if (deepCopy) {
+            foreach (i, child; children) {
+                child.reparent(toNode, i);
+                child.notifyChange(child);
+            }
+        }
+    }
+
+    /**
+        Describe the action
+    */
+    string describe() {
+        return _("Change type of %s to %s").format(descrName, toNode.typeId);
+    }
+
+    /**
+        Describe the action
+    */
+    string describeUndo() {
+        return _("Revert type of %s to %s").format(descrName, srcNode.typeId);
     }
 
     /**

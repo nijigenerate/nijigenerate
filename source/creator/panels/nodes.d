@@ -8,6 +8,7 @@ module creator.panels.nodes;
 import creator.viewport.vertex;
 import creator.widgets.dragdrop;
 import creator.actions;
+import creator.core.actionstack;
 import creator.panels;
 import creator.ext;
 import creator.utils.transform;
@@ -34,9 +35,7 @@ private {
 
     void pasteFromClipboard(Node parent) {
         if (parent !is null) {
-            foreach (node; clipboardNodes) {
-                node.reparent(parent, 0);
-            }
+            incActionPush(new NodeMoveAction(clipboardNodes, parent, 0));
             clipboardNodes.length = 0;
         }
     }
@@ -192,6 +191,7 @@ protected:
                             if (igMenuItem(__(type), "", false, true)) {
                                 Node node = inInstantiateNode(type);
                                 node.copyFrom(n, true, true);
+                                incActionPush(new NodeReplaceAction(n, node, true));
                             }
                         }
                         igEndMenu();
