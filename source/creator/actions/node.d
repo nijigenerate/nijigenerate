@@ -162,6 +162,29 @@ public:
     An action that happens when a node is replaced
 */
 class NodeReplaceAction : Action {
+    /**
+      Update the binding target of parameters.
+      This function must be called after redo / undo operations are done.
+     */
+    void updateParameterBindings() {
+        auto parent = srcNode.parent;
+        auto src = toNode;
+        auto to  = srcNode;
+        if (toNode.parent !is null) {
+            parent = toNode.parent;
+            src = srcNode;
+            to  = toNode;
+        }
+        assert(parent.puppet !is null);
+        auto parameters = parent.puppet.parameters;
+        foreach (param; parameters) {
+            foreach (binding; param.bindings) {
+                if (binding.getTarget().node == src) {
+                    binding.setTarget(to, binding.getTarget().paramName);
+                }
+            }
+        }
+    }
 public:
 
     /**
@@ -201,6 +224,8 @@ public:
 
         if (toNode.parent is null)
             redo();
+
+        updateParameterBindings();
     }
 
     /**
@@ -210,8 +235,11 @@ public:
         auto parent = toNode.parent;
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(toNode);
+        Transform tmpTransform = toNode.transform;
         toNode.reparent(null, 0);
+        toNode.localTransform = tmpTransform;
         srcNode.reparent(parent, pOffset);
+        updateParameterBindings();
         if (deepCopy) {
             foreach (i, child; children) {
                 child.reparent(srcNode, i);
@@ -227,8 +255,11 @@ public:
         auto parent = srcNode.parent;
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(srcNode);
+        Transform tmpTransform = srcNode.transform;
         srcNode.reparent(null, 0);
+        srcNode.localTransform = tmpTransform;
         toNode.reparent(parent, pOffset);
+        updateParameterBindings();
         if (deepCopy) {
             foreach (i, child; children) {
                 child.reparent(toNode, i);
