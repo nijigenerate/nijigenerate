@@ -17,12 +17,14 @@ import creator;
 import inochi2d;
 import bindbc.imgui;
 import std.stdio;
+import std.string;
 import bindbc.opengl;
 
 private {
     IncMeshEditor editor;
     AutoMeshProcessor[] autoMeshProcessors = [
-        new ContourAutoMeshProcessor()
+        new ContourAutoMeshProcessor(),
+        new GridAutoMeshProcessor()
     ];
     AutoMeshProcessor activeProcessor = null;
 }
@@ -128,6 +130,16 @@ void incViewportVertexOptions() {
             if (incBeginDropdownMenu("AUTOMESH_SETTINGS")) {
                 if (!activeProcessor)
                     activeProcessor = autoMeshProcessors[0];
+                
+                igBeginGroup();
+                foreach (processor; autoMeshProcessors) {
+                    if (incButtonColored(processor.icon().toStringz, ImVec2(0, 0), (processor == activeProcessor)? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                        activeProcessor = processor;
+                    }
+                    igSameLine(0, 2);
+                }
+                igEndGroup();
+
                 activeProcessor.configure();
 
                 // Button which bakes some auto generated content
