@@ -21,6 +21,8 @@ class GridAutoMeshProcessor : AutoMeshProcessor {
     float[] scaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
     float[] scaleY = [-0.1, 0.0, 0.5, 1.0, 1.1];
     float maskThreshold = 15;
+    float xSegments = 2, ySegments = 2;
+    float margin = 0.1;
 public:
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
@@ -139,6 +141,24 @@ public:
             }
         }
 
+        void divideAxes() {
+            scaleY.length = 0;
+            scaleX.length = 0;
+            if (margin != 0) {
+                scaleY ~= -margin;
+                scaleX ~= -margin;
+            }
+            foreach (y; 0..(ySegments+1)) {
+                scaleY ~= y / ySegments;
+            }
+            foreach (x; 0..(xSegments+1)) {                
+                scaleX ~= x / xSegments;
+            }
+            if (margin != 0) {
+                scaleY ~= 1 + margin;
+                scaleX ~= 1 + margin;
+            }
+        }
 
         igPushID("CONFIGURE_OPTIONS");
 
@@ -151,6 +171,45 @@ public:
                         1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
                     ) {
                         maskThreshold = maskThreshold;
+                    }
+                igPopID();
+            igUnindent();
+
+            incText(_("X Segments"));
+            igIndent();
+                igPushID("XSEGMENTS");
+                    igSetNextItemWidth(64);
+                    if (incDragFloat(
+                        "x_segments", &xSegments, 1,
+                        2, 20, "%.0f", ImGuiSliderFlags.NoRoundToFormat)
+                    ) {
+                        divideAxes();
+                    }
+                igPopID();
+            igUnindent();
+
+            incText(_("Y Segments"));
+            igIndent();
+                igPushID("YSEGMENTS");
+                    igSetNextItemWidth(64);
+                    if (incDragFloat(
+                        "y_segments", &ySegments, 1,
+                        2, 20, "%.0f", ImGuiSliderFlags.NoRoundToFormat)
+                    ) {
+                        divideAxes();
+                    }
+                igPopID();
+            igUnindent();
+
+            incText(_("Margin"));
+            igIndent();
+                igPushID("MARGIN");
+                    igSetNextItemWidth(64);
+                    if (incDragFloat(
+                        "margin", &margin, 0.1,
+                        0, 1, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
+                    ) {
+                        divideAxes();
                     }
                 igPopID();
             igUnindent();
