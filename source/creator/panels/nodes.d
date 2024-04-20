@@ -36,9 +36,21 @@ private {
     void pasteFromClipboard(Node parent) {
         if (parent !is null) {
             incActionPush(new NodeMoveAction(clipboardNodes, parent, 0));
+            foreach (node; clipboardNodes) {
+                reloadNode(node);
+            }
             clipboardNodes.length = 0;
         }
     }
+
+    void reloadNode(Node node) {
+        foreach (child; node.children) {
+            reloadNode(child);
+            child.notifyChange(child);
+        }
+        node.clearCache();
+    }
+
 
     string[][string] conversionMap;
     static this() {
@@ -153,6 +165,10 @@ protected:
                 
             if (igMenuItem(__("Paste"), "", false, clipboardNodes.length > 0)) {
                 pasteFromClipboard(n);
+            }
+
+            if (igMenuItem(__("Reload"), "", false, true)) {
+                reloadNode(n);
             }
 
             static if (!isRoot) {
