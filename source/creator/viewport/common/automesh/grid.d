@@ -62,25 +62,28 @@ public:
             }
         }
 
+        auto dcomposite = cast(DynamicComposite)target;
         MeshData meshData;
         
         mesh.axes = [[], []];
+        scaleY.sort!((a, b)=> a<b);
         foreach (y; scaleY) {
             mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
+            if (dcomposite !is null) {
+                mesh.axes[0][$ - 1] += dcomposite.textureOffset.y;
+            }
         }
+        scaleX.sort!((a, b)=> a<b);
         foreach (x; scaleX) {
             mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
+            if (dcomposite !is null) {
+                mesh.axes[1][$ - 1] += dcomposite.textureOffset.x;
+            }
         }
         meshData.gridAxes = mesh.axes[];
         meshData.regenerateGrid();
         mesh.copyFromMeshData(meshData);
 
-        if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) {
-                vertex.position += dcomposite.textureOffset;
-            }
-        }
-        
         return mesh;
     }
 
@@ -162,57 +165,60 @@ public:
 
         igPushID("CONFIGURE_OPTIONS");
 
-            incText(_("Mask threshold"));
-            igIndent();
-                igPushID("MASK_THRESHOLD");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "mask_threshold", &maskThreshold, 1,
-                        1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        maskThreshold = maskThreshold;
-                    }
-                igPopID();
-            igUnindent();
+            if (incBeginCategory(__("Auto Segmentation"))) {
+                incText(_("Mask threshold"));
+                igIndent();
+                    igPushID("MASK_THRESHOLD");
+                        igSetNextItemWidth(64);
+                        if (incDragFloat(
+                            "mask_threshold", &maskThreshold, 1,
+                            1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
+                        ) {
+                            maskThreshold = maskThreshold;
+                        }
+                    igPopID();
+                igUnindent();
 
-            incText(_("X Segments"));
-            igIndent();
-                igPushID("XSEGMENTS");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "x_segments", &xSegments, 1,
-                        2, 20, "%.0f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        divideAxes();
-                    }
-                igPopID();
-            igUnindent();
+                incText(_("X Segments"));
+                igIndent();
+                    igPushID("XSEGMENTS");
+                        igSetNextItemWidth(64);
+                        if (incDragFloat(
+                            "x_segments", &xSegments, 1,
+                            2, 20, "%.0f", ImGuiSliderFlags.NoRoundToFormat)
+                        ) {
+                            divideAxes();
+                        }
+                    igPopID();
+                igUnindent();
 
-            incText(_("Y Segments"));
-            igIndent();
-                igPushID("YSEGMENTS");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "y_segments", &ySegments, 1,
-                        2, 20, "%.0f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        divideAxes();
-                    }
-                igPopID();
-            igUnindent();
+                incText(_("Y Segments"));
+                igIndent();
+                    igPushID("YSEGMENTS");
+                        igSetNextItemWidth(64);
+                        if (incDragFloat(
+                            "y_segments", &ySegments, 1,
+                            2, 20, "%.0f", ImGuiSliderFlags.NoRoundToFormat)
+                        ) {
+                            divideAxes();
+                        }
+                    igPopID();
+                igUnindent();
 
-            incText(_("Margin"));
-            igIndent();
-                igPushID("MARGIN");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "margin", &margin, 0.1,
-                        0, 1, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        divideAxes();
-                    }
-                igPopID();
-            igUnindent();
+                incText(_("Margin"));
+                igIndent();
+                    igPushID("MARGIN");
+                        igSetNextItemWidth(64);
+                        if (incDragFloat(
+                            "margin", &margin, 0.1,
+                            0, 1, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
+                        ) {
+                            divideAxes();
+                        }
+                    igPopID();
+                igUnindent();
+            }
+            incEndCategory();
 
             if (incBeginCategory(__("X Scale"))) {
                 editScale(scaleX);
