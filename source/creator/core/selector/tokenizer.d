@@ -130,6 +130,8 @@ public:
         tokens.length = 0;
         size_t i = position;
         while (i < text.length) {
+//            import std.stdio;
+//            writefln("tok: %s", text[i..text.length]);
             // Check reserved words.
             bool found = false;
             foreach (token; reservedWord) {
@@ -173,7 +175,6 @@ public:
                     dchar next = text.decode(i);
                     while (true) {
                         if (!isNumber(next)) {
-                            i -= to!string(next).stride(0);
                             break;
                         }
                         literal ~= to!string(next);
@@ -181,7 +182,6 @@ public:
                         next = text.decode(i);
                     }
                     if (next == '.') {
-                        i ++;
                         literal ~= ".";
                         next = text.decode(i);
                         while (true) {

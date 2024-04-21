@@ -188,6 +188,8 @@ private:
         import std.stdio;
         Grammar grammar = context.target;
 
+//        writefln("GRM: %s", context.target);
+
         switch (grammar.type) {
             case Grammar.Type.And:
                 context.matched = true;
@@ -268,13 +270,13 @@ public:
     this(Tokenizer tokenizer) {
         this.tokenizer = tokenizer;
         registerGrammar("value",          _or([_id, _d, _str]) );
-        registerGrammar("attr",           _seq([_id, _t("="), _ref("value"), _opt([_t(","), _ref("attr")])]) );
+        registerGrammar("attr",           _seq([_t("["), _id, _t("="), _ref("value"), _t("]"), _opt(_ref("attr"))]) );
         registerGrammar("args",           _seq([_id, _opt([_t(","), _ref("args") ])]) );
         registerGrammar("pseudoClass",    _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]) );
 
-        registerGrammar("typeIdQuery",    _seq([_id,                       _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]) );
-        registerGrammar("nodeNameQuery",  _seq([_t("#"), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]) );
-        registerGrammar("nodeClassQuery", _seq([_t("."), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]) );
+        registerGrammar("typeIdQuery",    _seq([_id,                       _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
+        registerGrammar("nodeNameQuery",  _seq([_t("#"), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
+        registerGrammar("nodeClassQuery", _seq([_t("."), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
 
         registerGrammar("subQuery",       _seq([_opt(_t(">")), _ref("query", true)]) );
         registerGrammar("query",          _or([_ref("typeIdQuery"), _ref("nodeNameQuery"), _ref("nodeClassQuery")]) );
