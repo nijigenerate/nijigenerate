@@ -14,6 +14,7 @@ public:
         Token,
         And,
         Or,
+        ExOr,
         Empty,
         Reference,
         Invalid
@@ -75,7 +76,7 @@ public:
         Grammar result = new Grammar();
         result.type = type;
         result.priority = priority;
-        if (type == Type.And || type == Type.Or) {
+        if (type == Type.And || type == Type.Or || type == Type.ExOr) {
             result.subGrammars = subGrammars.map!(s=>s.dup).array;
         } else if (type == Type.Token) {
             result.token = token;
@@ -160,6 +161,10 @@ private:
         return new Grammar(0, Grammar.Type.Or, grammars);
     }
 
+    Grammar _xor(Grammar[] grammars) {
+        return new Grammar(0, Grammar.Type.ExOr, grammars);
+    }
+
     Grammar _opt(Grammar grammar) {
         return new Grammar(0, Grammar.Type.Or, [grammar, empty]);
     }
@@ -206,6 +211,7 @@ private:
                 break;
 
             case Grammar.Type.Or:
+            case Grammar.Type.ExOr:
                 EvalContext longestMatch = null;
                 foreach (sub; grammar.subGrammars) {
                     auto subContext = new EvalContext(context.scanner.dup, sub);
@@ -218,6 +224,7 @@ private:
                                 longestMatch = result;
                             }
                         }
+                        if (grammar.type == Grammar.Type.ExOr) break;
                     }
                 }
                 if (longestMatch !is null) {
@@ -269,17 +276,17 @@ public:
     Tokenizer tokenizer;
     this(Tokenizer tokenizer) {
         this.tokenizer = tokenizer;
-        registerGrammar("value",          _or([_id, _d, _str]) );
+        registerGrammar("value",          _xor([_id, _d, _str]) );
         registerGrammar("attr",           _seq([_t("["), _id, _t("="), _ref("value"), _t("]"), _opt(_ref("attr"))]) );
         registerGrammar("args",           _seq([_ref("value"), _opt([_t(","), _ref("args") ])]) );
         registerGrammar("pseudoClass",    _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]) );
 
-        registerGrammar("typeIdQuery",    _seq([_id,                       _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
-        registerGrammar("nodeNameQuery",  _seq([_t("#"), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
-        registerGrammar("nodeClassQuery", _seq([_t("."), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
+        registerGrammar("typeIdQuery",    _seq([_id,                        _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
+        registerGrammar("nodeNameQuery",  _seq([_t("#"), _xor([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
+        registerGrammar("nodeClassQuery", _seq([_t("."), _xor([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
 
         registerGrammar("subQuery",       _seq([_opt(_t(">")), _ref("query", true)]) );
-        registerGrammar("query",          _or([_ref("typeIdQuery"), _ref("nodeNameQuery"), _ref("nodeClassQuery")]) );
+        registerGrammar("query",          _xor([_ref("typeIdQuery"), _ref("nodeNameQuery"), _ref("nodeClassQuery")]) );
     }
 
     EvalContext parse(string text) {
