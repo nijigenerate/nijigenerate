@@ -271,7 +271,7 @@ public:
         this.tokenizer = tokenizer;
         registerGrammar("value",          _or([_id, _d, _str]) );
         registerGrammar("attr",           _seq([_t("["), _id, _t("="), _ref("value"), _t("]"), _opt(_ref("attr"))]) );
-        registerGrammar("args",           _seq([_id, _opt([_t(","), _ref("args") ])]) );
+        registerGrammar("args",           _seq([_ref("value"), _opt([_t(","), _ref("args") ])]) );
         registerGrammar("pseudoClass",    _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]) );
 
         registerGrammar("typeIdQuery",    _seq([_id,                       _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
