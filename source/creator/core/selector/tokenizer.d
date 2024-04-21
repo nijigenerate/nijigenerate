@@ -78,10 +78,14 @@ public:
     }
 
     bool opEquals(ref Token rhs) {
-        if (literal.length == 0)
+        if (type == Type.Identifier || type == Type.Digits || type == Type.String) {
+            if (literal.length == 0)
+                return type == rhs.type;
+            else
+                return type == rhs.type && literal == rhs.literal;
+        } else {
             return type == rhs.type;
-        else
-            return type == rhs.type && literal == rhs.literal;
+        }
     }
 
 }
