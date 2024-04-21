@@ -59,14 +59,19 @@ unittest {
     writeln(">>> Parsing test");
     writeln("---------------------------------------------------------");
 
+    test = "Node[name=\"日本語の文字列\"][uuid=11111111] Part[property0=12.33] > #\"Eye\"";
+    tokens.length = 0;
+    tokenizer.tokenize(test, 0, tokens, pos);
+    writefln("tokenized=%s", map!(t=>t.literal)(tokens).array);
+
     EvalContext context = parser.parse(test);
+    assert(context.matched);
     writefln("Parsed Tree: %s", context);
 
     auto sw = StopWatch();
     sw.start();
     for (int x = 0; x < 1000; x ++) {
         auto result = parser.parse(test);
-        assert(result.matched);
     }
     sw.stop();
     writefln("%f msecs / 1000 tries = usecs in average", sw.peek.total!"usecs"/1000.0);
