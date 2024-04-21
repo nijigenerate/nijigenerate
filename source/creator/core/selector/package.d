@@ -9,6 +9,7 @@ unittest {
     import std.stdio;
     import std.algorithm;
     import std.array;
+    import std.datetime.stopwatch;
 
     Tokenizer tokenizer = new Tokenizer();
     Parser parser = new Parser(tokenizer);
@@ -25,7 +26,7 @@ unittest {
     writeln("---------------------------------------------------------");
 
     foreach (e; parser.grammars.byKeyValue()) {
-        writefln("%s:\n  %s", e.key, e.value);
+        writefln("%s", e.value);
     }
 
     writeln();
@@ -60,4 +61,13 @@ unittest {
 
     EvalContext context = parser.parse(test);
     writefln("Parsed Tree: %s", context);
+
+    auto sw = StopWatch();
+    sw.start();
+    for (int x = 0; x < 1000; x ++) {
+        auto result = parser.parse(test);
+        assert(result.matched);
+    }
+    sw.stop();
+    writefln("%f msecs / 1000 tries = usecs in average", sw.peek.total!"usecs"/1000.0);
 }

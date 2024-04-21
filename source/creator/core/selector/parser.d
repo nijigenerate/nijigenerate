@@ -26,6 +26,7 @@ public:
 
     int priority = 0;
     Type type;
+    string name;
     union {
         Grammar[] subGrammars;
         Token token;
@@ -87,23 +88,24 @@ public:
     
     override
     string toString() {
+        string base = name.length > 0? "%s: ".format(name) : "";
         switch (type) {
             case Type.Token:
-                return "\"%s\"".format(token);
+                return base ~ "\"%s\"".format(token);
             case Type.And:
-                return to!string(subGrammars.map!(t=>to!string(t)).array.join(" "));
+                return base ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" "));
             case Type.Or:
                 if (subGrammars[$-1].type == Type.Empty)
-                    return "{" ~ to!string(subGrammars[0..$-1].map!(t=>to!string(t)).array.join(" | ")) ~ "}?";
-                return "{" ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" | ")) ~ "}";
+                    return base ~ "{" ~ to!string(subGrammars[0..$-1].map!(t=>to!string(t)).array.join(" | ")) ~ "}?";
+                return base ~ "{" ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" | ")) ~ "}";
             case Type.Empty:
-                return "---";
+                return base ~ "---";
             case Type.Reference:
-                return "-->%s".format(reference.name);
+                return base ~ "-->%s".format(reference.name);
             case Type.Invalid:
-                return "<Invalid>";
+                return base ~ "<Invalid>";
             default:
-                return "<Undefined>";
+                return base ~ "<Undefined>";
         }
     }
 }
@@ -137,6 +139,11 @@ class Parser {
 private:
     Token dummyToken = Token(Token.Type.Invalid);
     Grammar empty = new Grammar(-1, Grammar.Type.Empty);
+
+    void registerGrammar(string name, Grammar grammar) {
+        grammars[name] = grammar;
+        grammar.name = name;
+    }
 
     Grammar _t(string literal) { 
         if (literal in tokenizer.reservedDict) 
@@ -260,17 +267,17 @@ public:
     Tokenizer tokenizer;
     this(Tokenizer tokenizer) {
         this.tokenizer = tokenizer;
-        grammars["value"]          = _or([_id, _d, _str]);
-        grammars["attr"]           = _seq([_id, _t("="), _ref("value"), _opt([_t(","), _ref("attr")])]);
-        grammars["args"]           = _seq([_id, _opt([_t(","), _ref("args") ])]);
-        grammars["pseudoClass"]    = _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]);
+        registerGrammar("value",          _or([_id, _d, _str]) );
+        registerGrammar("attr",           _seq([_id, _t("="), _ref("value"), _opt([_t(","), _ref("attr")])]) );
+        registerGrammar("args",           _seq([_id, _opt([_t(","), _ref("args") ])]) );
+        registerGrammar("pseudoClass",    _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]) );
 
-        grammars["typeIdQuery"]    = _seq([_id,                       _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]);
-        grammars["nodeNameQuery"]  = _seq([_t("#"), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]);
-        grammars["nodeClassQuery"] = _seq([_t("."), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]);
+        registerGrammar("typeIdQuery",    _seq([_id,                       _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]) );
+        registerGrammar("nodeNameQuery",  _seq([_t("#"), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]) );
+        registerGrammar("nodeClassQuery", _seq([_t("."), _or([_id, _str]), _opt(_ref("pseudoClass")), _opt([_t("["), _ref("attr") , _t("]")]), _opt(_ref("subQuery"))]) );
 
-        grammars["subQuery"]       = _seq([_opt(_t(">")), _ref("query", true)]);
-        grammars["query"]          = _or([_ref("typeIdQuery"), _ref("nodeNameQuery"), _ref("nodeClassQuery")]);
+        registerGrammar("subQuery",       _seq([_opt(_t(">")), _ref("query", true)]) );
+        registerGrammar("query",          _or([_ref("typeIdQuery"), _ref("nodeNameQuery"), _ref("nodeClassQuery")]) );
     }
 
     EvalContext parse(string text) {
