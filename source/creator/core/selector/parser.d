@@ -17,6 +17,7 @@ public:
         ExOr,
         Empty,
         Reference,
+        Repeat,
         Invalid
     }
 
@@ -28,11 +29,13 @@ public:
     int priority = 0;
     Type type;
     string name;
+    bool forgetUnnamed = false;
     union {
         Grammar[] subGrammars;
         Token token;
         Ref reference;
     }
+    int minimumCount = 0;
 
     this(Grammar[] subGrammars, string name = null) {
         this(0, subGrammars, name);
@@ -82,8 +85,10 @@ public:
         Grammar result = new Grammar();
         result.name = name;
         result.type = type;
+        result.forgetUnnamed = forgetUnnamed;
+        result.minimumCount = minimumCount;
         result.priority = priority;
-        if (type == Type.And || type == Type.Or || type == Type.ExOr) {
+        if (type == Type.And || type == Type.Or || type == Type.ExOr || type == Type.Repeat) {
             result.subGrammars = subGrammars.map!(s=>s.dup).array;
         } else if (type == Type.Token) {
             result.token = token;
@@ -107,6 +112,8 @@ public:
                 if (subGrammars[$-1].type == Type.Empty)
                     return base ~ "{" ~ to!string(subGrammars[0..$-1].map!(t=>to!string(t)).array.join(" | ")) ~ "}?";
                 return base ~ "{" ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" | ")) ~ "}";
+            case Type.Repeat:
+                    return base ~ "{" ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" ")) ~ "}%s".format(minimumCount > 0? "+":"*");
             case Type.Empty:
                 return base ~ "---";
             case Type.Reference:
@@ -136,7 +143,7 @@ class EvalContext {
     string toString() {
         string body;
         if (subContexts.length > 0)
-            body = (subContexts.map!(t=>t.toString()).array.join(", "));
+            body = (subContexts.map!(t=>t.toString()).array.join(" "));
         else
             body = (matchedToken.type != Token.Type.Invalid? matchedToken.literal : target.toString());
         return "%s%s%s%s".format(matched? "✅":"❎", target.name? "%s:◀".format(target.name):"", body, target.name? "▶":"");
@@ -162,11 +169,15 @@ private:
     }
 
     Grammar _seq(Grammar[] grammars, string name = null) {
-        return new Grammar(0, Grammar.Type.And, grammars, name);
+        auto result = new Grammar(0, Grammar.Type.And, grammars, name);
+        if (name) result.forgetUnnamed = true;
+        return result;
     }
 
     Grammar _or(Grammar[] grammars, string name = null) {
-        return new Grammar(0, Grammar.Type.Or, grammars, name);
+        auto result = new Grammar(0, Grammar.Type.Or, grammars, name);
+        if (name) result.forgetUnnamed = true;
+        return result;
     }
 
     Grammar _xor(Grammar[] grammars, string name = null) {
@@ -178,7 +189,9 @@ private:
     }
 
     Grammar _opt(Grammar[] grammar, string name = null) {
-        return new Grammar(0, Grammar.Type.Or, [_seq(grammar), empty], name);
+        auto result = new Grammar(0, Grammar.Type.Or, [_seq(grammar), empty], name);
+        if (name) result.forgetUnnamed = true;
+        return result;
     }
 
     Grammar _id(string name = null) {
@@ -194,7 +207,19 @@ private:
     }
 
     Grammar _ref(string refName, bool lazyEval = false, string name = null) {
-        return new Grammar(0, refName, lazyEval);
+        return new Grammar(0, refName, lazyEval, name);
+    }
+
+    Grammar _repeat0(Grammar[] grammars, string name = null) {
+        auto result = new Grammar(0, Grammar.Type.Repeat, grammars, name);
+        if (name) result.forgetUnnamed = true;
+        return result;
+    }
+
+    Grammar _repeat1(Grammar[] grammars, string name = null) {
+        auto result = _repeat0(grammars, name);
+        result.minimumCount = 1;
+        return result;
     }
 
     EvalContext eval(EvalContext context) {
@@ -209,11 +234,39 @@ private:
                 for (int i = 0; i < grammar.subGrammars.length; i ++) {
                     auto subContext = new EvalContext(context.scanner, grammar.subGrammars[i]);
                     auto result = eval(subContext);
-                    context.subContexts ~= result;
+                    if (!grammar.forgetUnnamed || result.target.name)
+                        context.subContexts ~= result;
                     context.scanner = result.scanner;
                     if (!result.matched) {
                         context.matched = false;
                         break;
+                    }
+                }
+                break;
+
+            case Grammar.Type.Repeat:
+                int i = 0;
+                while (true) {
+                    Grammar thisTry = grammar.dup;
+                    thisTry.type = Grammar.Type.And;
+                    thisTry.name = "%d".format(i);
+                    auto subContext = new EvalContext(context.scanner.dup, thisTry);
+                    auto result = eval(subContext);
+                    if (result.matched) {
+                        context.matched = true;
+                        context.subContexts ~= result;
+                        context.scanner = result.scanner;
+                    } else {
+                        break;
+                    }
+                    i ++;
+                }
+                if (i == 0) {
+                    if (grammar.minimumCount == 0) {
+                        context.target = empty;
+                        context.matched = true;
+                    } else {
+                        context.matched = false;
                     }
                 }
                 break;
@@ -236,9 +289,9 @@ private:
                     }
                 }
                 if (longestMatch !is null) {
-                    context.subContexts = [longestMatch];
-                    context.scanner = longestMatch.scanner;
-                    context.matched = true;
+                    if (grammar.name)
+                        longestMatch.target.name = grammar.name;
+                    context = longestMatch;
                 } else {
                     context.subContexts.length = 0;
                     context.matched = false;
@@ -278,24 +331,10 @@ private:
 public:
     Grammar rootGrammar;
     Grammar[string] grammars;
-
-    const static string ROOT = "query";
-
     Tokenizer tokenizer;
+
     this(Tokenizer tokenizer) {
         this.tokenizer = tokenizer;
-        registerGrammar("value",          _xor([_id, _d, _str]) );
-        registerGrammar("attr",           _seq([_t("["), _id("name"), _t("="), _ref("value"), _t("]"), _opt(_ref("attr"))]) );
-        registerGrammar("args",           _seq([_ref("value"), _opt([_t(","), _ref("args") ])]) );
-        registerGrammar("pseudoClass",    _seq([_t(":"), _id("name"), _opt([_t("("), _ref("args"), _t(")")])]) );
-
-        registerGrammar("selectors",      _seq([_xor([_t("#"), _t(".")], "kind"), _xor([_id, _str], "name"), _opt(_ref("selectors"))]) );
-
-        registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")], "name"), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
-        registerGrammar("attrQuery",      _seq([_ref("selectors"),                                     _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
-
-        registerGrammar("subQuery",       _seq([_opt(_t(">", "kind")), _ref("query", true)]) );
-        registerGrammar("query",          _seq([_xor([_ref("typeIdQuery"), _ref("attrQuery")]), _opt(_ref("subQuery"))]) );
     }
 
     EvalContext parse(string text) {
@@ -304,7 +343,6 @@ public:
         tokenizer.tokenize(text, 0, tokens, nextPosition);
 
         Scanner scanner = new Scanner(tokens);
-        rootGrammar = grammars[ROOT].dup;
         EvalContext context = new EvalContext(scanner, rootGrammar);
 
         auto result = eval(context);
@@ -313,3 +351,28 @@ public:
     }
     
 }
+
+class SelectorParser : Parser {
+public:
+    const static string ROOT = "query";
+
+    this(Tokenizer tokenizer) {
+        super(tokenizer);
+        registerGrammar("value",          _xor([_id, _d, _str]) );
+        registerGrammar("attr",           _repeat1([_t("["), _id("name"), _xor([_t("=")], "matcher"), _ref("value"), _t("]")]) );
+        registerGrammar("args",           _repeat1([_ref("value", false, "arg"), _opt(_t(","))]) );
+        registerGrammar("pseudoClass",    _seq([_t(":"), _id("name"), _opt(_seq([_t("("), _ref("args"), _t(")")], "args"))]) );
+
+        registerGrammar("selectors",      _repeat1([_xor([_t("#"), _t(".")], "kind"), _xor([_id, _str], "name")]) );
+
+        registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")], "typeId"), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
+        registerGrammar("attrQuery",      _seq([_ref("selectors"),                                     _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
+
+        registerGrammar("query",          _repeat1([_xor([_ref("typeIdQuery"), _ref("attrQuery")]), _opt(_t(">", "kind"))]) );
+
+        foreach (grammar; grammars.byValue) {
+            grammar.forgetUnnamed = true;
+        }
+        rootGrammar = grammars[ROOT].dup;
+    }
+};
