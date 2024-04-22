@@ -34,42 +34,48 @@ public:
         Ref reference;
     }
 
-    this(Grammar[] subGrammars) {
-        this(0, subGrammars);
+    this(Grammar[] subGrammars, string name = null) {
+        this(0, subGrammars, name);
     }
 
-    this(int priority, Grammar[] subGrammars) {
+    this(int priority, Grammar[] subGrammars, string name = null) {
         this.priority = priority;
         type = Type.And;
         this.subGrammars = subGrammars[];
+        this.name = name;
     }
 
-    this(int priority, Token token) {
+    this(int priority, Token token, string name = null) {
         this.priority = priority;
         type = Type.Token;
         this.token = token;
+        this.name = name;
     }
 
-    this(int priority, Type type) {
+    this(int priority, Type type, string name = null) {
         this.priority = priority;
         this.type = type;
+        this.name = name;
     }
 
-    this(int priority, string refName, bool lazyEval = false) {
+    this(int priority, string refName, bool lazyEval = false, string name = null) {
         this.priority = priority;
         this.type = Type.Reference;
         this.reference.name = refName;       
         this.reference.lazyEval = lazyEval;
+        this.name = name;
     }
 
-    this(int priority, Type type, Grammar[] subGrammars) {
+    this(int priority, Type type, Grammar[] subGrammars, string name = null) {
         this.priority = priority;
         this.type = type;
         this.subGrammars = subGrammars;
+        this.name = name;
     }
 
     this() {
         this.type = Type.Invalid;
+        this.name = "";
     }
 
     Grammar dup() {
@@ -148,46 +154,46 @@ private:
         grammar.name = name;
     }
 
-    Grammar _t(string literal) { 
+    Grammar _t(string literal, string name = null) { 
         if (literal in tokenizer.reservedDict) 
-            return new Grammar(0, *tokenizer.reservedDict[literal]);
+            return new Grammar(0, *tokenizer.reservedDict[literal], name);
         else
-            return new Grammar(0, dummyToken);
+            return new Grammar(0, dummyToken, name);
     }
 
-    Grammar _seq(Grammar[] grammars) {
-        return new Grammar(0, Grammar.Type.And, grammars);
+    Grammar _seq(Grammar[] grammars, string name = null) {
+        return new Grammar(0, Grammar.Type.And, grammars, name);
     }
 
-    Grammar _or(Grammar[] grammars) {
-        return new Grammar(0, Grammar.Type.Or, grammars);
+    Grammar _or(Grammar[] grammars, string name = null) {
+        return new Grammar(0, Grammar.Type.Or, grammars, name);
     }
 
-    Grammar _xor(Grammar[] grammars) {
-        return new Grammar(0, Grammar.Type.ExOr, grammars);
+    Grammar _xor(Grammar[] grammars, string name = null) {
+        return new Grammar(0, Grammar.Type.ExOr, grammars, name);
     }
 
-    Grammar _opt(Grammar grammar) {
-        return new Grammar(0, Grammar.Type.Or, [grammar, empty]);
+    Grammar _opt(Grammar grammar, string name = null) {
+        return new Grammar(0, Grammar.Type.Or, [grammar, empty], name);
     }
 
-    Grammar _opt(Grammar[] grammar) {
-        return new Grammar(0, Grammar.Type.Or, [_seq(grammar), empty]);
+    Grammar _opt(Grammar[] grammar, string name = null) {
+        return new Grammar(0, Grammar.Type.Or, [_seq(grammar), empty], name);
     }
 
-    Grammar _id() {
-        return new Grammar(0, Token(Token.Type.Identifier));
+    Grammar _id(string name = null) {
+        return new Grammar(0, Token(Token.Type.Identifier), name);
     }
 
-    Grammar _d() {
-        return new Grammar(0, Token(Token.Type.Digits));
+    Grammar _d(string name = null) {
+        return new Grammar(0, Token(Token.Type.Digits), name);
     }
 
-    Grammar _str() {
-        return new Grammar(0, Token(Token.Type.String));
+    Grammar _str(string name = null) {
+        return new Grammar(0, Token(Token.Type.String), name);
     }
 
-    Grammar _ref(string refName, bool lazyEval = false) {
+    Grammar _ref(string refName, bool lazyEval = false, string name = null) {
         return new Grammar(0, refName, lazyEval);
     }
 
@@ -279,16 +285,16 @@ public:
     this(Tokenizer tokenizer) {
         this.tokenizer = tokenizer;
         registerGrammar("value",          _xor([_id, _d, _str]) );
-        registerGrammar("attr",           _seq([_t("["), _id, _t("="), _ref("value"), _t("]"), _opt(_ref("attr"))]) );
+        registerGrammar("attr",           _seq([_t("["), _id("name"), _t("="), _ref("value"), _t("]"), _opt(_ref("attr"))]) );
         registerGrammar("args",           _seq([_ref("value"), _opt([_t(","), _ref("args") ])]) );
-        registerGrammar("pseudoClass",    _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]) );
+        registerGrammar("pseudoClass",    _seq([_t(":"), _id("name"), _opt([_t("("), _ref("args"), _t(")")])]) );
 
-        registerGrammar("selectors",      _seq([_xor([_t("#"), _t(".")]), _xor([_id, _str]), _opt(_ref("selectors"))]) );
+        registerGrammar("selectors",      _seq([_xor([_t("#"), _t(".")], "kind"), _xor([_id, _str], "name"), _opt(_ref("selectors"))]) );
 
-        registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")]), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
-        registerGrammar("attrQuery",      _seq([_ref("selectors"),            _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
+        registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")], "name"), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
+        registerGrammar("attrQuery",      _seq([_ref("selectors"),                                     _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
 
-        registerGrammar("subQuery",       _seq([_opt(_t(">")), _ref("query", true)]) );
+        registerGrammar("subQuery",       _seq([_opt(_t(">", "kind")), _ref("query", true)]) );
         registerGrammar("query",          _seq([_xor([_ref("typeIdQuery"), _ref("attrQuery")]), _opt(_ref("subQuery"))]) );
     }
 
