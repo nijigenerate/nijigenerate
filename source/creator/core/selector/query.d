@@ -91,10 +91,18 @@ alias TypeIdFilter = NodeAttrFilter!("typeId", string, "==");
 alias UUIDFilter   = NodeAttrFilter!("uuid", uint, "==");
 alias NameFilter   = NodeAttrFilter!("name", string, "==");
 
-class SelectorBuilder {
+class Selector {
     NodeProcessor[] processors;
+    Tokenizer tokenizer;
+    SelectorParser parser;
 
-    void build(AST rootAST) {
+    this() {
+        tokenizer = new Tokenizer();
+        parser = new SelectorParser(tokenizer);
+    }
+
+    void build(string text) {
+        AST rootAST = parser.parse(text);
         processors.length = 0;
         processors ~= new PuppetWalker();
         foreach (idKey, filterAST; rootAST) {

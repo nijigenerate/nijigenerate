@@ -84,9 +84,8 @@ unittest {
     writeln("---------------------------------------------------------");
 
     test = "Part.\"目::R::MG\" Part.\"瞳\"";
-    ast = parser.parse(test);
-    auto selector = new SelectorBuilder();
-    selector.build(ast);
+    auto selector = new Selector();
+    selector.build(test);
     writefln("%s", selector.processors);
 
 }
