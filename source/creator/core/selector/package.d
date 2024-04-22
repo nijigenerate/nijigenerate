@@ -59,14 +59,15 @@ unittest {
     writeln(">>> Parsing test");
     writeln("---------------------------------------------------------");
 
-    test = "Node[name=\"日本語の文字列\"][uuid=11111111] Part[property0=12.33] > #\"Eye\":nth-child(10)";
+    test = "Node.class[name=\"日本語の文字列\"][uuid=11111111] Part[property0=12.33] > #\"Eye\":nth-child(10) *";
     tokens.length = 0;
     tokenizer.tokenize(test, 0, tokens, pos);
     writefln("tokenized=%s", map!(t=>t.literal)(tokens).array);
 
     EvalContext context = parser.parse(test);
     assert(context.matched);
-    writefln("Parsed Tree: %s", context);
+    writeln("\nParsed Tree:\n");
+    writefln("%s", context);
 
     auto sw = StopWatch();
     sw.start();
