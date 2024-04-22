@@ -36,7 +36,7 @@ unittest {
     Token[] tokens;
     size_t pos;
     tokenizer.tokenize(test, pos, tokens, pos);
-    writefln("tokenized=%s", map!(t=>t.literal)(tokens).array);
+    writefln("Tokenized:\n %s", map!(t=>t.literal)(tokens).array);
     int i = 0;
     assert(tokens[i++].literal == "Node");
     assert(tokens[i++].literal == "[");
@@ -60,14 +60,16 @@ unittest {
     writeln("---------------------------------------------------------");
 
     test = "Root Node.class[name=\"日本語の文字列\"][uuid=11111111] Part[property0=12.33] > #\"Eye\":nth-child(10, 0) *";
+    writefln("Text:\n %s\n", test);
+
     tokens.length = 0;
     tokenizer.tokenize(test, 0, tokens, pos);
-    writefln("tokenized=%s", map!(t=>t.literal)(tokens).array);
+    writefln("Tokenized:\n %s", map!(t=>t.literal)(tokens).array);
 
-    EvalContext context = parser.parse(test);
+    AST ast = parser.parse(test);
     writeln("\nParsed Tree:\n");
-    writefln("%s", context);
-    assert(context.matched);
+    writefln("%s", ast);
+//    assert(context.matched);
 
     auto sw = StopWatch();
     sw.start();
@@ -76,4 +78,15 @@ unittest {
     }
     sw.stop();
     writefln("%f msecs / 1000 tries = usecs in average", sw.peek.total!"usecs"/1000.0);
+
+    writeln();
+    writeln(">>> Selector test");
+    writeln("---------------------------------------------------------");
+
+    test = "Part.\"目::R::MG\" Part.\"瞳\"";
+    ast = parser.parse(test);
+    auto selector = new SelectorBuilder();
+    selector.build(ast);
+    writefln("%s", selector.processors);
+
 }
