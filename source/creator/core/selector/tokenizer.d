@@ -88,6 +88,14 @@ public:
         }
     }
 
+    bool equals(Type rhs) {
+        return type == rhs;
+    }
+
+    bool equals(string rhs) {
+        return literal == rhs;
+    }
+
 }
 
 class Tokenizer {

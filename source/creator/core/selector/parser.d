@@ -6,6 +6,7 @@ import std.uni;
 import std.utf;
 import std.algorithm;
 import std.array;
+import std.typecons;
 import creator.core.selector.tokenizer;
 
 class Grammar {
@@ -150,9 +151,53 @@ class EvalContext {
     }
 }
 
+class AST {
+    string name;
+    AST[string] children;
+    Token token;
+    this(EvalContext context) {
+        name = context.target? context.target.name: null;
+        token = context.matchedToken;
+        foreach (ctx; context.subContexts) {
+            if (ctx.target && ctx.target.name)
+                children[ctx.target.name] = new AST(ctx);
+        }
+    }
+
+    AST opIndex(string name) {
+        if (name in children)
+            return children[name];
+        return null;
+    }
+
+    int opApply(int delegate(string, AST) iter) {
+        int result = 0;
+        foreach (key; children.keys.sort!((a,b) => a<b)) {
+            auto child = children[key];
+            int r = iter(key, child);
+            if (r) {
+                result = r;
+                break;
+            }
+        }
+        return result;
+    }
+
+    override
+    string toString() {
+        return pretty(0);
+    }
+
+    string pretty(int index) {
+        string prefix;
+        foreach (i; 0..index) prefix ~= " ";
+        string childrenDesc = children.length > 0 ? "\n%s".format(children.keys.sort!((a,b)=>a<b).map!(t=>children[t].pretty(index + 2)).array.join("\n")): "";
+        return "%s◀%s: %s%s▶".format(prefix, name, token.literal, childrenDesc);
+    }
+}
 
 class Parser {
-private:
+protected:
     Token dummyToken = Token(Token.Type.Invalid);
     Grammar empty = new Grammar(-1, Grammar.Type.Empty);
 
@@ -337,7 +382,7 @@ public:
         this.tokenizer = tokenizer;
     }
 
-    EvalContext parse(string text) {
+    AST parse(string text) {
         Token[] tokens;
         size_t nextPosition;
         tokenizer.tokenize(text, 0, tokens, nextPosition);
@@ -347,7 +392,7 @@ public:
 
         auto result = eval(context);
 
-        return result;
+        return new AST(result);
     }
     
 }
