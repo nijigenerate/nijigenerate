@@ -74,6 +74,7 @@ public:
 
     Grammar dup() {
         Grammar result = new Grammar();
+        result.name = name;
         result.type = type;
         result.priority = priority;
         if (type == Type.And || type == Type.Or || type == Type.ExOr) {
@@ -96,6 +97,7 @@ public:
             case Type.And:
                 return base ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" "));
             case Type.Or:
+            case Type.ExOr:
                 if (subGrammars[$-1].type == Type.Empty)
                     return base ~ "{" ~ to!string(subGrammars[0..$-1].map!(t=>to!string(t)).array.join(" | ")) ~ "}?";
                 return base ~ "{" ~ to!string(subGrammars.map!(t=>to!string(t)).array.join(" | ")) ~ "}";
@@ -128,10 +130,10 @@ class EvalContext {
     string toString() {
         string body;
         if (subContexts.length > 0)
-            body = "◀" ~ (subContexts.map!(t=>t.toString()).array.join(", ")) ~ "▶";
+            body = (subContexts.map!(t=>t.toString()).array.join(", "));
         else
             body = (matchedToken.type != Token.Type.Invalid? matchedToken.literal : target.toString());
-        return "%s%s".format(matched? "✅":"❎", body);
+        return "%s%s%s%s".format(matched? "✅":"❎", target.name? "%s:◀".format(target.name):"", body, target.name? "▶":"");
     }
 }
 
@@ -281,12 +283,13 @@ public:
         registerGrammar("args",           _seq([_ref("value"), _opt([_t(","), _ref("args") ])]) );
         registerGrammar("pseudoClass",    _seq([_t(":"), _id, _opt([_t("("), _ref("args"), _t(")")])]) );
 
-        registerGrammar("typeIdQuery",    _seq([_id,                        _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
-        registerGrammar("nodeNameQuery",  _seq([_t("#"), _xor([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
-        registerGrammar("nodeClassQuery", _seq([_t("."), _xor([_id, _str]), _opt(_ref("pseudoClass")), _opt(_ref("attr")), _opt(_ref("subQuery"))]) );
+        registerGrammar("selectors",      _seq([_xor([_t("#"), _t(".")]), _xor([_id, _str]), _opt(_ref("selectors"))]) );
+
+        registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")]), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
+        registerGrammar("attrQuery",      _seq([_ref("selectors"),            _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
 
         registerGrammar("subQuery",       _seq([_opt(_t(">")), _ref("query", true)]) );
-        registerGrammar("query",          _xor([_ref("typeIdQuery"), _ref("nodeNameQuery"), _ref("nodeClassQuery")]) );
+        registerGrammar("query",          _seq([_xor([_ref("typeIdQuery"), _ref("attrQuery")]), _opt(_ref("subQuery"))]) );
     }
 
     EvalContext parse(string text) {
