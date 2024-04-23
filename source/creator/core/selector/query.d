@@ -91,12 +91,13 @@ class ResourceWalker(S: Node, T: Node, bool direct: false) : ResourceProcessor {
 
         void traverse(Node node, Resource source) {
             if (node.uuid !in uuidMap) {
-                result ~= new Proxy!Node(node);
-                result[$-1].source = source;
-                uuidMap[node.uuid] = true;
+                auto proxy = new Proxy!Node(node);
+                proxy.source = source;
                 foreach (child; node.children) {
-                    traverse(child, source);
+                    traverse(child, proxy);
                 }
+                uuidMap[node.uuid] = true;
+                result ~= proxy;
             }
         }
 
