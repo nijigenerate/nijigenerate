@@ -10,7 +10,7 @@ import std.algorithm;
 import std.array;
 import creator.core.selector.tokenizer;
 import creator.core.selector.parser;
-import creator.core.resource;
+import creator.core.selector.resource;
 import creator;
 
 
@@ -76,6 +76,7 @@ class ResourceWalker(S: Node, T: Node, bool direct: true) : ResourceProcessor {
             auto target = (cast(Proxy!Node)t).obj();
             foreach (child; target.children) {
                 result ~= new Proxy!Node(child);
+                result[$-1].source = t;
             }
         }
         return result;
@@ -88,12 +89,13 @@ class ResourceWalker(S: Node, T: Node, bool direct: false) : ResourceProcessor {
         Resource[] result;
         bool[uint] uuidMap;
 
-        void traverse(Node node) {
+        void traverse(Node node, Resource source) {
             if (node.uuid !in uuidMap) {
                 result ~= new Proxy!Node(node);
+                result[$-1].source = source;
                 uuidMap[node.uuid] = true;
                 foreach (child; node.children) {
-                    traverse(child);
+                    traverse(child, source);
                 }
             }
         }
@@ -101,7 +103,9 @@ class ResourceWalker(S: Node, T: Node, bool direct: false) : ResourceProcessor {
         foreach (t; targets) {
             if (!cast(Proxy!Node)t) continue;
             auto target = (cast(Proxy!Node)t).obj();
-            traverse(target);
+            foreach (child; target.children) {
+                traverse(child, t);
+            }
         }
         return result;
     }
@@ -115,10 +119,22 @@ class ResourceWalker(S: Parameter, T: ParameterBinding, bool direct: true) : Res
     Resource[] process(Resource[] targets) {
         Resource[] result;
         foreach (t; targets) {
+            Resource source = t.source;
+            Node targetNode = null;
+            while (source) {
+                if (source.type == ResourceType.Node) {
+                    targetNode = (cast(Proxy!Node)source).obj();
+                    break;
+                }
+                source = source.source;
+            }
             if (!cast(Proxy!Parameter)t) continue;
             auto target = (cast(Proxy!Parameter)t).obj();
             foreach (child; target.bindings) {
-                result ~= new Proxy!ParameterBinding(child);
+                if (!targetNode || child.getTarget().node == targetNode) {
+                    result ~= new Proxy!ParameterBinding(child);
+                    result[$-1].source = t;                
+                }
             }
         }
         return result;
@@ -131,6 +147,7 @@ alias ParameterChildWalker = ResourceWalker!(Parameter, ParameterBinding, true);
 class ResourceWalker(S: Node, T: ParameterBinding, bool direct: true) : ResourceProcessor {
     override
     Resource[] process(Resource[] targets) {
+        if (incActivePuppet is null) return [];
         Resource[] result;
         Parameter[] parameters = incActivePuppet().parameters;
         ParameterBinding[] bindings;
@@ -144,8 +161,10 @@ class ResourceWalker(S: Node, T: ParameterBinding, bool direct: true) : Resource
             auto target = (cast(Proxy!Node)t).obj();
 
             foreach (binding; bindings) {
-                if (binding.getTarget().node == target)
-                   result ~= new Proxy!ParameterBinding(binding);
+                if (binding.getTarget().node == target) {
+                    result ~= new Proxy!ParameterBinding(binding);
+                    result[$-1].source = t;
+                }
             }
         }
         return result;
@@ -156,6 +175,7 @@ class ResourceWalker(S: Node, T: ParameterBinding, bool direct: true) : Resource
 class ResourceWalker(S: Node, T: Parameter, bool direct: true) : ResourceProcessor {
     override
     Resource[] process(Resource[] targets) {
+        if (incActivePuppet is null) return [];
         Resource[] result;
         Parameter[] parameters = incActivePuppet().parameters;
         foreach (t; targets) {
@@ -166,6 +186,7 @@ class ResourceWalker(S: Node, T: Parameter, bool direct: true) : ResourceProcess
                 foreach (binding; param.bindings) {
                     if (binding.getTarget().node == target) {
                         result ~= new Proxy!Parameter(param);
+                        result[$-1].source = t;
                         break;
                     }
                 }
@@ -179,12 +200,13 @@ class ResourceWalker(S: Node, T: Parameter, bool direct: true) : ResourceProcess
 class PuppetWalker : NodeDescendantsWalker {
     override
     Resource[] process(Resource[] targets) {
-        if (incActivePuppet is null)
-            return [];
-        targets = [new Proxy!Node(incActivePuppet.root)];
+        if (incActivePuppet is null) return [];
+        auto root = new Proxy!Node(incActivePuppet.root);
+        targets = [root];
         auto result = super.process(targets);
         foreach (r; incActivePuppet.parameters.map!(t => new Proxy!Parameter(t))) {
             result ~= r;
+            r.source = root;
         }
         return result;
     }
@@ -208,6 +230,8 @@ class Selector {
         AST rootAST = parser.parse(text);
         processors.length = 0;
         string lastTypeIdStr = "";
+        bool lastHasSelectors = false;
+        int i = 0;
         foreach (idKey, filterAST; rootAST) {
             AST query = null;
             if (filterAST["typeIdQuery"]) { query = filterAST["typeIdQuery"]; }
@@ -215,19 +239,22 @@ class Selector {
             if (query is null) continue;
 
             auto typeId = query["typeId"];
-            string typeIdStr = typeId? typeId.token.literal: "";
+            auto selectors = query["selectors"];
 
+            string typeIdStr = typeId? typeId.token.literal: "";
             bool isPrevNode = inHasNodeType(lastTypeIdStr) || lastTypeIdStr == "" || lastTypeIdStr == "*";
             bool isNode = inHasNodeType(typeIdStr) || typeIdStr == "" || typeIdStr == "*";
 
             if (isPrevNode && isNode) {
-                if (filterAST["kind"] && filterAST["kind"].token.equals(">")) {
-                    processors ~= new NodeChildWalker;
-                } else {
-                    processors ~= new NodeDescendantsWalker;
+                if (i > 0) {
+                    if (filterAST["kind"] && filterAST["kind"].token.equals(">")) {
+                        processors ~= new NodeChildWalker;
+                    } else {
+                        processors ~= new NodeDescendantsWalker;
+                    }
                 }
             } else if (isPrevNode) {
-                if (lastTypeIdStr != "" && typeIdStr == "Parameter") {
+                if (i > 0 && typeIdStr == "Parameter") {
                     processors ~= new ResourceWalker!(Node, Parameter, true);
                 } else if (typeIdStr == "Binding") {
                     processors ~= new ResourceWalker!(Node, ParameterBinding, true);
@@ -241,7 +268,6 @@ class Selector {
                 if (typeId)
                     processors ~= new TypeIdFilter(typeId.token.literal);
             }
-            auto selectors = query["selectors"];
             if (selectors) {
                 foreach (selectKey, selector; selectors) {
                     if (selector["kind"] && selector["kind"].token.equals(".")) {
@@ -252,11 +278,13 @@ class Selector {
                         // Should not reached here.
                     }
                 }
-            }            
-            if (processors.length > 0) {
-                processors = cast(NodeProcessor[])[new PuppetWalker()] ~ processors;
             }
             lastTypeIdStr = typeIdStr;
+            lastHasSelectors = selectors !is null;
+            i ++;
+        }
+        if (i > 0) {
+            processors = cast(NodeProcessor[])[new PuppetWalker()] ~ processors;
         }
     }
 

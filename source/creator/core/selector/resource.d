@@ -1,4 +1,4 @@
-module creator.core.resource;
+module creator.core.selector.resource;
 
 import inochi2d;
 import std.string;
@@ -36,6 +36,7 @@ class Resource {
 protected:
     ResourceType type_;
 public:
+    Resource source;
     abstract string name();
     abstract uint uuid();
     abstract string typeId();

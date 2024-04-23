@@ -2,6 +2,7 @@ module creator.core.selector;
 
 public import creator.core.selector.tokenizer;
 public import creator.core.selector.parser;
+public import creator.core.selector.resource;
 public import creator.core.selector.query;
 
 
