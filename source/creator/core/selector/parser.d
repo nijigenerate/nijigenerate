@@ -408,7 +408,7 @@ public:
         registerGrammar("args",           _repeat1([_ref("value", false, "arg"), _opt(_t(","))]) );
         registerGrammar("pseudoClass",    _seq([_t(":"), _id("name"), _opt(_seq([_t("("), _ref("args"), _t(")")], "args"))]) );
 
-        registerGrammar("selectors",      _repeat1([_xor([_t("#"), _t(".")], "kind"), _xor([_id, _str], "name")]) );
+        registerGrammar("selectors",      _repeat1([_xor([_t("#"), _t(".")], "kind"), _xor([_id, _str, _d], "name")]) );
 
         registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")], "typeId"), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
         registerGrammar("attrQuery",      _seq([_ref("selectors"),                                     _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );

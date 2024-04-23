@@ -60,7 +60,7 @@ unittest {
     writeln(">>> Parsing test");
     writeln("---------------------------------------------------------");
 
-    test = "Root Node.class[name=\"日本語の文字列\"][uuid=11111111] Part[property0=12.33] > #\"Eye\":nth-child(10, 0) *";
+    test = "Root Node#1111111[name=\"日本語の文字列\"][uuid=11111111] Part[property0=12.33] > #\"Eye\":nth-child(10, 0) *";
     writefln("Text:\n %s\n", test);
 
     tokens.length = 0;

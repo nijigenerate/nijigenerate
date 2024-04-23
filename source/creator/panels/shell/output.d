@@ -19,11 +19,17 @@ interface Output {
 
 class ListOutput(T) : Output {
 protected:
+    ShellPanel panel;
+
     Resource[] nodes;
     Resource[][Resource] children;
     Resource[] roots;
     bool[Resource] nodeIncluded;
 public:
+    this(ShellPanel panel) {
+        this.panel = panel;
+    }
+
     override
     void onUpdate() {
         if (nodes.length > 0) {
@@ -53,10 +59,16 @@ public:
                 if (res !in nodeIncluded) {
                     igPushStyleColor(ImGuiCol.Text, igGetStyle().Colors[ImGuiCol.TextDisabled]);
                 }
-                if (igSelectable("%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.None, ImVec2(0, 0))) {
+                if (igSelectable("%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 0))) {
                     if (isNode) {
                         Node node = (cast(Proxy!Node)res).obj;
                         incSelectNode(node);
+                    }
+                }
+                if (igIsItemHovered() && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
+                    if (panel) {
+                        string selectorStr = " %s#%d".format(res.typeId, res.uuid);
+                        panel.addCommand(selectorStr);
                     }
                 }
                 if (res !in nodeIncluded) {

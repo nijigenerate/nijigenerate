@@ -12,6 +12,7 @@ import creator.core.selector.tokenizer;
 import creator.core.selector.parser;
 import creator.core.selector.resource;
 import creator;
+import std.stdio;
 
 
 class Processor(T) {
@@ -63,6 +64,10 @@ class ResourceAttrFilter(string name: "name", T, alias op) : ResourceProcessor {
         this.value = value;
     }
 }
+alias TypeIdFilter = ResourceAttrFilter!("typeId", string, "==");
+alias UUIDFilter   = ResourceAttrFilter!("uuid", uint, "==");
+alias NameFilter   = ResourceAttrFilter!("name", string, "==");
+
 
 class ResrouceWalker(S, T, bool direct = true) : ResourceProcessor {
 }
@@ -213,10 +218,6 @@ class PuppetWalker : NodeDescendantsWalker {
     }
 }
 
-alias TypeIdFilter = ResourceAttrFilter!("typeId", string, "==");
-alias UUIDFilter   = ResourceAttrFilter!("uuid", uint, "==");
-alias NameFilter   = ResourceAttrFilter!("name", string, "==");
-
 class Selector {
     NodeProcessor[] processors;
     Tokenizer tokenizer;
@@ -274,7 +275,13 @@ class Selector {
                     if (selector["kind"] && selector["kind"].token.equals(".")) {
                         processors ~= new NameFilter(selector["name"].token.literal);
                     } else if (selector["kind"] && selector["kind"].token.equals("#")) {
-                        processors ~= new UUIDFilter(parse!int(selector["name"].token.literal));
+                        try {
+                            string value = selector["name"].token.literal.dup;
+                            uint uuid = parse!uint(value);
+                            processors ~= new UUIDFilter(uuid);
+                        } catch (std.conv.ConvException e) {        
+                            writefln("parse error %s", selector["name"].token.literal);
+                        }
                     } else {
                         // Should not reached here.
                     }
