@@ -413,7 +413,7 @@ public:
         registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")], "typeId"), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
         registerGrammar("attrQuery",      _seq([_ref("selectors"),                                     _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
 
-        registerGrammar("query",          _repeat1([_xor([_ref("typeIdQuery"), _ref("attrQuery")]), _opt(_t(">", "kind"))]) );
+        registerGrammar("query",          _repeat1([_opt(_t(">", "kind")), _xor([_ref("typeIdQuery"), _ref("attrQuery")])]) );
 
         foreach (grammar; grammars.byValue) {
             grammar.forgetUnnamed = true;
