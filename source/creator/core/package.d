@@ -37,6 +37,7 @@ public import creator.core.path;
 public import creator.core.font;
 public import creator.core.dpi; 
 public import creator.core.selector;
+public import creator.core.resource;
 import i18n;
 
 version(OSX) {
