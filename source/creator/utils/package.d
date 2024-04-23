@@ -9,10 +9,12 @@ string incTypeIdToIcon(string typeId) {
         case "Part": return "\ue40a";
         case "Composite": return "";
         case "Mask": return "\ue14e";
-        case "SimplePhysics": return "\ue922";
+        case "SimplePhysics": return "";
         case "Camera": return "";
         case "MeshGroup": return "";
         case "DynamicComposite": return "";
+        case "Parameter": return "";
+        case "Binding": return "";
         default: return "\ue97a"; 
     }
 }
