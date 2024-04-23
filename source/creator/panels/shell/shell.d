@@ -63,25 +63,25 @@ protected:
             command = nextCommand;
             nextCommand = null;
         }
+        ImVec2 avail = incAvailableSpace();
+        if (incInputText("(Command)", avail.x, command) || forceUpdatePreview) {
+            updatePreview();
+            forceUpdatePreview = false;
+        }
+        if (igIsKeyPressed(ImGuiKey.Enter)) {
+            string newCommand = (cast(string)this.command).dup;
+            Selector selector = new Selector();
+            selector.build(newCommand);
+            Resource[] nodes = selector.run();
+            auto output = new NodeOutput(this);
+            output.setNodes(nodes);
+            this.command = "";
+            history ~= new Command(newCommand, output);
+            latestOutput = null;
+            setCommand(" ");
+        }
         if (igBeginChild("ShellMain", ImVec2(0, -30), false)) {
-            ImVec2 avail = incAvailableSpace();
 
-            if (incInputText("(Command)", avail.x, command) || forceUpdatePreview) {
-                updatePreview();
-                forceUpdatePreview = false;
-            }
-            if (igIsKeyPressed(ImGuiKey.Enter)) {
-                string newCommand = (cast(string)this.command).dup;
-                Selector selector = new Selector();
-                selector.build(newCommand);
-                Resource[] nodes = selector.run();
-                auto output = new NodeOutput(this);
-                output.setNodes(nodes);
-                this.command = "";
-                history ~= new Command(newCommand, output);
-                latestOutput = null;
-                setCommand(" ");
-            }
             if (latestOutput)
                 latestOutput.onUpdate();
 

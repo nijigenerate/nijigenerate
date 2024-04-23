@@ -68,7 +68,7 @@ public:
                 if (igIsItemHovered() && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
                     if (panel) {
                         string selectorStr = " %s#%d".format(res.typeId, res.uuid);
-                        panel.addCommand(selectorStr);
+                        panel.setCommand(selectorStr);
                     }
                 }
                 if (res !in nodeIncluded) {
