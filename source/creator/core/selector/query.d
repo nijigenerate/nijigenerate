@@ -227,7 +227,7 @@ class Selector {
                     processors ~= new NodeDescendantsWalker;
                 }
             } else if (isPrevNode) {
-                if (typeIdStr == "Parameter") {
+                if (lastTypeIdStr != "" && typeIdStr == "Parameter") {
                     processors ~= new ResourceWalker!(Node, Parameter, true);
                 } else if (typeIdStr == "Binding") {
                     processors ~= new ResourceWalker!(Node, ParameterBinding, true);
