@@ -38,6 +38,7 @@ protected:
 public:
     Resource source;
     bool explicit = false;
+    ulong index = 0;
     abstract string name();
     abstract uint uuid();
     abstract string typeId();

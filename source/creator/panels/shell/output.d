@@ -12,6 +12,7 @@ import creator.panels;
 import creator.utils;
 import creator.widgets;
 import creator.panels.shell;
+import creator.panels.parameters;
 
 interface Output {
     void onUpdate();
@@ -25,9 +26,15 @@ protected:
     Resource[][Resource] children;
     Resource[] roots;
     bool[Resource] nodeIncluded;
+    Resource focused = null;
+    string parameterGrabStr;
 public:
     this(ShellPanel panel) {
         this.panel = panel;
+    }
+
+    void onParameterView(ulong index, Parameter param) {
+        incParameterView!false(cast(int)index, param, &parameterGrabStr, false, incActivePuppet.parameters);
     }
 
     override
@@ -59,10 +66,15 @@ public:
                 if (res !in nodeIncluded) {
                     igPushStyleColor(ImGuiCol.Text, igGetStyle().Colors[ImGuiCol.TextDisabled]);
                 }
-                if (igSelectable("%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 0))) {
+                if (igSelectable("%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20)) || focused == res) {
+                    focused = res;
                     if (isNode) {
                         Node node = (cast(Proxy!Node)res).obj;
                         incSelectNode(node);
+                    }
+                    if (res.type == ResourceType.Parameter) {
+                        Parameter param = (cast(Proxy!Parameter)res).obj;
+                        onParameterView(res.index, param);
                     }
                 }
                 if (igIsItemHovered() && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
@@ -127,9 +139,9 @@ public:
                 rootMap[res] = true;
             }
         }
-        roots = rootMap.keys.sort!((a,b)=>a.name<b.name).array;
+        roots = rootMap.keys.sort!((a,b)=>a.index<b.index).array;
         foreach (item; childMap.byKeyValue) {
-            children[item.key] = item.value.keys.sort!((a,b)=>a.name<b.name).array;
+            children[item.key] = item.value.keys.sort!((a,b)=>a.index<b.index).array;
         }
     }
 }

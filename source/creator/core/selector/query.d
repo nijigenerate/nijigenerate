@@ -46,6 +46,7 @@ class ResourceAttrFilter(string name, T, alias op) : ResourceProcessor {
         Resource[] result;
         foreach(target; targets) {
             if (mixin(AttrComparison(name, op))) {
+                target.index = result.length;
                 result ~= target;
             }
         }
@@ -64,6 +65,7 @@ class ResourceAttrFilter(string name: "name", T, alias op) : ResourceProcessor {
         Resource[] result;
         foreach(target; targets) {
             if (mixin("(target.name.toStringz).fromStringz "~op~" value")) {
+                target.index = result.length;
                 result ~= target;
             }
         }
@@ -90,8 +92,10 @@ class ResourceWalker(S: Node, T: Node, bool direct: true) : ResourceProcessor {
             if (!cast(Proxy!Node)t) continue;
             auto target = (cast(Proxy!Node)t).obj();
             foreach (child; target.children) {
-                result ~= new Proxy!Node(child);
-                result[$-1].source = t;
+                auto proxy = new Proxy!Node(child);
+                proxy.source = t;
+                proxy.index = result.length;
+                result ~= proxy;
             }
         }
         return result;
@@ -108,6 +112,7 @@ class ResourceWalker(S: Node, T: Node, bool direct: false) : ResourceProcessor {
             if (node.uuid !in uuidMap) {
                 auto proxy = new Proxy!Node(node);
                 proxy.source = source;
+                proxy.index = result.length;
                 uuidMap[node.uuid] = true;
                 result ~= proxy;
                 foreach (child; node.children) {
@@ -148,8 +153,10 @@ class ResourceWalker(S: Parameter, T: ParameterBinding, bool direct: true) : Res
             auto target = (cast(Proxy!Parameter)t).obj();
             foreach (child; target.bindings) {
                 if (!targetNode || child.getTarget().node == targetNode) {
-                    result ~= new Proxy!ParameterBinding(child);
-                    result[$-1].source = t;                
+                    auto proxy = new Proxy!ParameterBinding(child);
+                    proxy.source = t;
+                    proxy.index = result.length;
+                    result ~= proxy;
                 }
             }
         }
@@ -178,8 +185,10 @@ class ResourceWalker(S: Node, T: ParameterBinding, bool direct: true) : Resource
 
             foreach (binding; bindings) {
                 if (binding.getTarget().node == target) {
-                    result ~= new Proxy!ParameterBinding(binding);
-                    result[$-1].source = t;
+                    auto proxy = new Proxy!ParameterBinding(binding);
+                    proxy.index = result.length;
+                    proxy.source = t;
+                    result ~= proxy;
                 }
             }
         }
@@ -201,8 +210,9 @@ class ResourceWalker(S: Node, T: Parameter, bool direct: true) : ResourceProcess
             foreach (param; parameters) {
                 foreach (binding; param.bindings) {
                     if (binding.getTarget().node == target) {
-                        result ~= new Proxy!Parameter(param);
-                        result[$-1].source = t;
+                        auto proxy = new Proxy!Parameter(param);
+                        proxy.source = t;
+                        result ~= proxy;
                         break;
                     }
                 }
@@ -221,6 +231,7 @@ class PuppetWalker : NodeDescendantsWalker {
         targets = [root];
         auto result = super.process(targets);
         foreach (r; incActivePuppet.parameters.map!(t => new Proxy!Parameter(t))) {
+            r.index = result.length;
             result ~= r;
             r.source = root;
         }
