@@ -91,11 +91,12 @@ public:
 
     void setNodes(Resource[] nodes_) {
         nodes = nodes_;
-        Resource[Resource] parentMap;
         roots.length = 0;
+        children.clear();
+        nodeIncluded.clear();
+        Resource[Resource] parentMap;
         bool[Resource] rootMap;
         bool[Resource][Resource] childMap;
-        nodeIncluded.clear();
         foreach (n; nodes) {
             nodeIncluded[n] = true;
         }
@@ -103,12 +104,10 @@ public:
         void addToMap(Resource res, int level = 0) {
             if (res in parentMap) return;
             auto source = res.source;
-            if (level > 0) {
-                while (source) {
-                    if (source.source is null) break;
-                    if (source in nodeIncluded) break;
-                    source = source.source;
-                }
+            while (source) {
+                if (source.source is null) break;
+                if (source in nodeIncluded || source.explicit) break;
+                source = source.source;
             }
             if (source) {
                 parentMap[res] = source;
@@ -129,7 +128,6 @@ public:
             }
         }
         roots = rootMap.keys.sort!((a,b)=>a.name<b.name).array;
-        children.clear();
         foreach (item; childMap.byKeyValue) {
             children[item.key] = item.value.keys.sort!((a,b)=>a.name<b.name).array;
         }
