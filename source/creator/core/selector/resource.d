@@ -37,6 +37,7 @@ protected:
     ResourceType type_;
 public:
     Resource source;
+    bool explicit = false;
     abstract string name();
     abstract uint uuid();
     abstract string typeId();

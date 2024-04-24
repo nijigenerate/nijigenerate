@@ -25,6 +25,16 @@ class Processor(T) {
 alias ResourceProcessor = Processor!Resource;
 alias NodeProcessor = Processor!Resource;
 
+class MarkerProcessor : ResourceProcessor {
+    override
+    Resource[] process(Resource[] targets) {
+        foreach (target; targets) {
+            target.explicit = true;
+        }
+        return targets;
+    }
+}
+
 string AttrComparison(string name, string op) {
     return "target." ~ name ~ op ~ " value";
 }
@@ -98,11 +108,11 @@ class ResourceWalker(S: Node, T: Node, bool direct: false) : ResourceProcessor {
             if (node.uuid !in uuidMap) {
                 auto proxy = new Proxy!Node(node);
                 proxy.source = source;
+                uuidMap[node.uuid] = true;
+                result ~= proxy;
                 foreach (child; node.children) {
                     traverse(child, proxy);
                 }
-                uuidMap[node.uuid] = true;
-                result ~= proxy;
             }
         }
 
@@ -287,6 +297,7 @@ class Selector {
                     }
                 }
             }
+            processors ~= new MarkerProcessor;
             lastTypeIdStr = typeIdStr;
             lastHasSelectors = selectors !is null;
             i ++;
