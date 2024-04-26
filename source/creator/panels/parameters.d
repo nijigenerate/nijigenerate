@@ -763,14 +763,16 @@ void incBindingList(Parameter param) {
 /**
     Generates a parameter view
 */
-void incParameterView(bool armedParam=false)(size_t idx, Parameter param, string* grabParam, bool canGroup, ref Parameter[] paramArr, vec3 groupColor = vec3.init) {
+void incParameterView(bool armedParam=false, bool showCategory = true, bool fixedWidth = false)(size_t idx, Parameter param, string* grabParam, bool canGroup, ref Parameter[] paramArr, vec3 groupColor = vec3.init) {
     igPushID(cast(void*)param);
     scope(exit) igPopID();
 
     
-    bool open;
-    if (!groupColor.isFinite) open = incBeginCategory(param.name.toStringz);
-    else open = incBeginCategory(param.name.toStringz, ImVec4(groupColor.r, groupColor.g, groupColor.b, 1));
+    bool open = true;
+    if (showCategory) {
+        if (!groupColor.isFinite) open = incBeginCategory(param.name.toStringz);
+        else open = incBeginCategory(param.name.toStringz, ImVec4(groupColor.r, groupColor.g, groupColor.b, 1));
+    }
 
     if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
         if (!dragDropData) dragDropData = new ParamDragDropData;
@@ -812,7 +814,7 @@ void incParameterView(bool armedParam=false)(size_t idx, Parameter param, string
         ImVec2 avail = incAvailableSpace();
 
         // We want to always show armed parameters but also make sure the child is begun.
-        bool childVisible = igBeginChild("###PARAM", ImVec2(avail.x-24, reqSpace));
+        bool childVisible = igBeginChild("###PARAM", ImVec2(fixedWidth? 166: avail.x-24, reqSpace));
         if (childVisible || armedParam) {
 
             // Popup for rightclicking the controller
@@ -1010,8 +1012,8 @@ void incParameterView(bool armedParam=false)(size_t idx, Parameter param, string
         }
         if (groupColor.isFinite) popColorScheme();
     }
-    
-    incEndCategory();
+    if (showCategory)
+        incEndCategory();
 }
 
 /**

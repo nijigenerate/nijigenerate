@@ -135,8 +135,6 @@ mixin incPanel!InspectorPanel;
 
 
 
-private:
-
 //
 // COMMON
 //
