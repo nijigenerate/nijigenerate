@@ -102,6 +102,7 @@ class Tokenizer {
 public:
     Token[] reservedWord;
     Token*[string] reservedDict;
+    int[dchar][int] reservedWordMap;
 
     this() {
         reservedWord ~= Token(Token.Type.Equals,    "==");
@@ -134,23 +135,74 @@ public:
         }
     }
 
-    void tokenize(string text, size_t position, out Token[] tokens, out size_t nextPosition, bool skipSpace = true) {
+    void build() {
+        int numInternalState = -1;
+        reservedWord.sort!((a, b)=> a.literal.length < b.literal.length);
+        foreach (token; reservedWord) {
+            ulong curLen = 0;
+            ulong tokenLen = token.literal.length;
+            int internalState = -1;
+            reservedWordMap.require(internalState);
+            foreach (next; token.literal) {
+                curLen ++;
+                if (next !in reservedWordMap[internalState]) {
+                    if (curLen == tokenLen) {
+                        reservedWordMap[internalState][next] = token.type;
+                    } else {
+                        reservedWordMap[internalState][next] = -- numInternalState;
+                    }
+                    internalState = reservedWordMap[internalState][next];
+                    reservedWordMap.require(internalState);
+                } else {
+                    internalState = reservedWordMap[internalState][next];
+                }
+            }
+        }
+        reservedWord.sort!((a, b)=> a.literal.length > b.literal.length);
+    }
+
+    void tokenize(bool useMap = false)(string text, size_t position, out Token[] tokens, out size_t nextPosition, bool skipSpace = true) {
         tokens.length = 0;
         size_t i = position;
+        if (useMap && reservedWordMap.length == 0) build();
+
         while (i < text.length) {
 //            import std.stdio;
 //            writefln("tok: %s", text[i..text.length]);
             // Check reserved words.
-            bool found = false;
-            foreach (token; reservedWord) {
-                if (token.match(text[i..$])) {
-                    tokens ~= token;
-                    i += token.literal.length;
-                    found = true;
-                    break;
+
+            if (!useMap) {
+                bool found = false;
+                foreach (token; reservedWord) {
+                    if (token.match(text[i..$])) {
+                        tokens ~= token;
+                        i += token.literal.length;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) continue;
+            } else {
+                int state = -1;
+                int size = 0;
+                Token.Type type = Token.Type.Invalid;
+                foreach (nextChar; text[i..$]) {
+                    if (nextChar !in reservedWordMap[state]) {
+                        break;
+                    } else if (reservedWordMap[state][nextChar] >= 0) {
+                        type = cast(Token.Type)reservedWordMap[state][nextChar];
+                        state = type;
+                    } else {
+                        state = reservedWordMap[state][nextChar];
+                    }
+                    size ++;
+                }
+                if (type != Token.Type.Invalid) {
+                    tokens ~= Token(type, text[i..(i+size)]);
+                    i += size;
+                    continue;
                 }
             }
-            if (found) continue;
 
             dchar head = text.decode(i);
 
