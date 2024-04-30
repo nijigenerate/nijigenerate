@@ -113,6 +113,9 @@ public:
         nextCommand = command ~ '\0';
         forceUpdatePreview = true;
     }
+
+    override
+    void addPopup(Resource) {}
 }
 
 /**

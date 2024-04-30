@@ -418,14 +418,14 @@ void incFreeMemory() {
 /**
     Gets puppet in active project
 */
-ref Puppet incActivePuppet() {
-    return activeProject.puppet;
+Puppet incActivePuppet() {
+    return activeProject? activeProject.puppet: null;
 }
 
 /**
     Gets active project
 */
-ref Project incActiveProject() {
+Project incActiveProject() {
     return activeProject;
 }
 

@@ -37,6 +37,8 @@ private:
     View[] history;
     bool forceUpdatePreview = false;
     uint historyIndex = 0;
+    Puppet activePuppet;
+    ViewOutput views;
 
 protected:
     void execFilter(View view) {
@@ -50,6 +52,13 @@ protected:
 
     override
     void onUpdate() {
+        if (incActivePuppet() != activePuppet) {
+            activePuppet = incActivePuppet();
+            forceUpdatePreview = true;
+        }
+        if (views is null) {
+            views = new ViewOutput(this);
+        }
         if (history.length == 0) {
             history ~= new View("*", null);
             execFilter(history[$-1]);
@@ -62,6 +71,7 @@ protected:
             history[historyIndex].output.onUpdate();
         }
         igEndChild();
+        views.onUpdate();
     }
 
 public:
@@ -80,6 +90,11 @@ public:
         history ~= new View(command, null);
         historyIndex ++;
         forceUpdatePreview = true;
+    }
+
+    override
+    void addPopup(Resource res) {
+        views.addResources([res]);
     }
 }
 
