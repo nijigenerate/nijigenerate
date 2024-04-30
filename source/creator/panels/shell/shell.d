@@ -18,6 +18,7 @@ import creator.panels;
 import creator.utils;
 import creator.widgets;
 import creator.panels.shell;
+import creator.widgets.output;
 
 class Command {
     string command;
@@ -32,7 +33,7 @@ public:
 /**
     The Shell frame
 */
-class ShellPanel : Panel {
+class ShellPanel : Panel, CommandIssuer {
 private:
     string command;
     string nextCommand = null;
@@ -52,7 +53,7 @@ protected:
                 if (!latestOutput) {
                     latestOutput = new NodeOutput(this);
                 }
-                (cast(NodeOutput)latestOutput).setNodes(nodes);
+                (cast(NodeOutput)latestOutput).setResources(nodes);
             }
         } catch (std.utf.UTFException e) {}
     }
@@ -74,7 +75,7 @@ protected:
             selector.build(newCommand);
             Resource[] nodes = selector.run();
             auto output = new NodeOutput(this);
-            output.setNodes(nodes);
+            output.setResources(nodes);
             this.command = "";
             history ~= new Command(newCommand, output);
             latestOutput = null;
@@ -101,11 +102,13 @@ public:
         super("Shell", _("Shell"), false);
     }
 
+    override
     void addCommand(string command) {
         nextCommand = this.command ~ command ~ '\0';
         forceUpdatePreview = true;
     }
 
+    override
     void setCommand(string command) {
         nextCommand = command ~ '\0';
         forceUpdatePreview = true;

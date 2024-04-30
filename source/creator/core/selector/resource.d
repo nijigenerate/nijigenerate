@@ -104,3 +104,9 @@ public:
         return target;
     }
 }
+
+T to(T)(Resource res) if (is(T==Node) || is(T==Parameter) || is(T==ParameterBinding)) {
+    if (auto proxy = cast(Proxy!T)res) {
+        return proxy.obj;
+    } else return null;
+}
