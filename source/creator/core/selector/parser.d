@@ -4,7 +4,7 @@ import std.string;
 import std.conv;
 import std.uni;
 import std.utf;
-import std.algorithm;
+import std.algorithm: remove, map, sort;
 import std.array;
 import std.typecons;
 import creator.core.selector.tokenizer;
@@ -230,7 +230,7 @@ protected:
     }
 
     Grammar _opt(Grammar grammar, string name = null) {
-        return new Grammar(0, Grammar.Type.Or, [grammar, empty], name);
+        return new Grammar(0, Grammar.Type.Or, [grammar, new Grammar(-1, Grammar.Type.Empty)], name);
     }
 
     Grammar _opt(Grammar[] grammar, string name = null) {
@@ -374,8 +374,13 @@ protected:
     }
 
 public:
+    const int EmptyState = -1;
+    const int GenerateEmpty = -2;
+    const int InsertState = -3;
     Grammar rootGrammar;
     Grammar[string] grammars;
+    int[Grammar] grammarIDs;
+    int[][int][int] grammarMap;
     Tokenizer tokenizer;
 
     this(Tokenizer tokenizer) {
@@ -393,6 +398,214 @@ public:
         auto result = eval(context);
 
         return new AST(result);
+    }
+
+    void parse2(string text) {
+        import std.stdio;
+
+        struct StackElement {
+            int id;
+            string literal;
+            Scanner scanner;
+            this(int i) { id = i; literal = null; }
+            this(int i, string l) { id = i; literal = l; }
+            StackElement[] candidates;
+        }
+
+        Token[] tokens;
+        StackElement[] stack;
+        size_t nextPosition;
+        tokenizer.tokenize(text, 0, tokens, nextPosition);
+
+        Scanner scanner = new Scanner(tokens);
+        stack ~= StackElement(-1);
+
+        // DEBUG------------------------------------------------------
+        Grammar[int] revMap;
+        foreach (k1, v1; grammarIDs) { revMap[v1] = k1; }
+        string toId(int k1) {
+            string state;
+            if (k1 == EmptyState) { state = "<>"; }
+            else if (k1 == GenerateEmpty) { state = "<>"; }
+            else if (k1 in revMap) {
+                state = "%s".format(revMap[k1]);
+            } else {
+                Token.Type type = cast(Token.Type)k1;
+                state = "%s".format(type);
+            }
+            return state;
+        }
+
+        void dumpStack() {
+            import std.stdio;
+            writefln("Stack:");
+            foreach (s; stack) {
+                writefln("  %s", toId(s.id));
+            }
+        }
+        // /DEBUG------------------------------------------------------
+
+        Token token;
+        bool tryEmpty = false;
+        bool found;
+        void iterate2() {
+            if (stack.length > 1) {
+                auto prevState = stack[$-2];
+                auto state = stack[$-1];
+                if (prevState.id in grammarMap && state.id in grammarMap[prevState.id]) {
+                    found = true;
+                    int[] next = grammarMap[prevState.id][state.id];
+                    stack = stack.remove(stack.length - 1);
+                    stack[$-1].id = next[0];
+                    stack[$-1].literal = token.literal;
+                } else {
+//                        writefln("Rule not found for %d, %d", prevState.id, state.id);
+                }
+            }
+            if (stack.length > 0) {
+                auto prevState = stack[$-1];
+                if (prevState.id in grammarMap && EmptyState in grammarMap[prevState.id]) {
+                    found = true;
+                    int[] next = grammarMap[prevState.id][EmptyState];
+                    stack[$-1].id = next[0];
+                    stack[$-1].literal = null;
+                } else {
+//                    writefln("Rule not found for %d, %d", prevState.id, EmptyState);
+                }
+            }
+        }
+
+        void iterate0() {
+            while (stack.length > 0) {
+                auto prevState = stack[$-1];
+                if (prevState.id in grammarMap && GenerateEmpty in grammarMap[prevState.id]) {
+                    found = true;
+                    int[] next = grammarMap[prevState.id][GenerateEmpty];
+                    stack[$-1].id = next[0];
+                    stack[$-1].literal = null;
+                    break;
+                } else {
+                    break;
+                }
+            }
+        }
+        while(stack.length > 0 && !scanner.isEnd()) {
+//            dumpStack();
+            found = false;
+            if (!tryEmpty) {
+                token = scanner.scan();
+            } else {
+                tryEmpty = false;
+            }
+            stack ~= StackElement(token.type, token.literal);
+//            writefln(">>>>>>Read token: %s", token);
+
+            iterate2();
+            if (found) continue;
+            stack = stack.remove(stack.length - 1);
+            tryEmpty = true;
+            iterate2();
+            if (found) continue;
+
+            iterate0();
+        }
+        found = true;
+        while (found) {
+            found = false;
+            iterate2();
+            if (found) continue;
+            iterate0();
+        }
+//        writeln("Last");
+//        dumpStack();
+    }
+
+    void build() {
+        int numIDs = 0;
+        void traverse(Grammar g) {
+            grammarIDs[g] = cast(int)(numIDs + Token.Type.Invalid + 1);
+            numIDs ++;
+            switch (g.type) {
+                case Grammar.Type.And:
+                case Grammar.Type.Repeat:
+                case Grammar.Type.Or:
+                case Grammar.Type.ExOr:
+                    foreach (child; g.subGrammars) {
+                        traverse(child);
+                    }
+                    break;
+                default:
+            }
+        }
+        foreach (g; [rootGrammar] ~ grammars.values.array) {
+            traverse(g);
+        }
+
+        void addMap(int state, int last, int nextState) {
+            grammarMap.require(state);
+            grammarMap[state].require(last);
+            grammarMap[state][last] ~= nextState;
+        }
+
+        int traverse2(Grammar g, int prevState) {
+            int state = prevState;
+            int targetId = grammarIDs[g];
+            int nextState;
+            switch (g.type) {
+                case Grammar.Type.And:
+                    foreach (i, sub; g.subGrammars) {
+                        nextState = traverse2(sub, state);
+                        grammarMap.require(state);
+                        state = nextState;
+                    }
+                    addMap(state, EmptyState, targetId);
+                    break;
+                case Grammar.Type.Repeat:
+                    foreach (i, sub; g.subGrammars) {
+                        nextState = traverse2(sub, state);
+                        grammarMap.require(state);
+                        state = nextState;
+                    }
+                    if (g.minimumCount == 0)
+                        addMap(state, GenerateEmpty, targetId);
+                    addMap(state, EmptyState, targetId);
+                    state = targetId;
+                    foreach (i, sub; g.subGrammars) {
+                        nextState = traverse2(sub, state);
+                        grammarMap.require(state);
+                        state = nextState;
+                    }
+                    addMap(targetId, targetId, targetId);
+                    break;
+
+                case Grammar.Type.Or:
+                case Grammar.Type.ExOr:
+                    foreach (i, sub; g.subGrammars) {
+                        int subId = traverse2(sub, state);
+                        addMap(subId, EmptyState, targetId);
+                    }
+                    break;
+                case Grammar.Type.Token:
+                    addMap(state, g.token.type, targetId);
+                    break;
+                case Grammar.Type.Empty:
+                    addMap(state, GenerateEmpty, targetId);
+                    break;
+                case Grammar.Type.Reference:
+                    if (g.reference.name in grammars) {
+                        Grammar sub = grammars[g.reference.name].dup;
+                        traverse(sub);
+                        int subId = traverse2(sub, state);
+                        addMap(subId, EmptyState, targetId);
+                    } else {
+                        // TBD: Should handle internal error.
+                    }
+                    break;
+                default:
+            }
+            return targetId;
+        }
+        traverse2(rootGrammar, EmptyState);
     }
     
 }
