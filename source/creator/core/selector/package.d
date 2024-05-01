@@ -151,6 +151,10 @@ unittest {
     writefln("Parse test 2");
     writeln();
 
+    ast = parser.parse2(test);
+    writeln("\nParsed Tree:\n");
+    writefln("%s", ast);
+    /*
     sw = StopWatch();
     sw.start();
     for (int x = 0; x < 1000; x ++) {
@@ -159,6 +163,6 @@ unittest {
     }
     sw.stop();
     writefln("%f msecs / 1000 tries = usecs in average", sw.peek.total!"usecs"/1000.0);
-
+    */
 
 }

@@ -271,7 +271,7 @@ class ResourceWalker(S: Node, T: Parameter, bool direct: true) : ResourceProcess
         Parameter[] parameters = incActivePuppet().parameters;
         foreach (t; targets) {
             if (!cast(Proxy!Node)t) continue;
-            auto target = (cast(Proxy!Node)t).obj();
+            auto target = to!Node(t);
 
             foreach (param; parameters) {
                 foreach (binding; param.bindings) {

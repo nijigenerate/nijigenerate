@@ -9,6 +9,7 @@ module creator.panels.shell.shell;
 import std.array;
 import std.string;
 import std.algorithm;
+import std.utf;
 import i18n;
 import inochi2d;
 import creator;
