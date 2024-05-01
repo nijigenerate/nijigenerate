@@ -52,9 +52,9 @@ protected:
             Resource[] nodes = selector.run();
             if (newCommand == "" || nodes.length > 0) {
                 if (!latestOutput) {
-                    latestOutput = new NodeOutput(this);
+                    latestOutput = new TreeOutput(this);
                 }
-                (cast(NodeOutput)latestOutput).setResources(nodes);
+                (cast(TreeOutput)latestOutput).setResources(nodes);
             }
         } catch (std.utf.UTFException e) {}
     }
@@ -75,7 +75,7 @@ protected:
             Selector selector = new Selector();
             selector.build(newCommand);
             Resource[] nodes = selector.run();
-            auto output = new NodeOutput(this);
+            auto output = new TreeOutput(this);
             output.setResources(nodes);
             this.command = "";
             history ~= new Command(newCommand, output);

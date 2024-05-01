@@ -22,9 +22,9 @@ import creator.widgets.output;
 
 class View {
     string command;
-    NodeOutput output;
+    TreeOutput output;
 public:
-    this(string command, NodeOutput output) {
+    this(string command, TreeOutput output) {
         this.command = command;
         this.output  = output;
     }
@@ -48,7 +48,7 @@ protected:
         selector.build(view.command ~ (armedParameter? ", Binding:active": ""));
         Resource[] nodes = selector.run();
         if (view.output is null)
-            view.output = new NodeOutput(this);
+            view.output = new IconTreeOutput(this);
         view.output.setResources(nodes);
     }
 

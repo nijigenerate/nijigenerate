@@ -353,6 +353,22 @@ private {
         (cast(ExPuppet)incActivePuppet()).addGroup(group);
         return group;
     }
+
+
+    void setTransparency(float alpha, float text) {
+        ImGuiCol[] colIDs = [ImGuiCol.WindowBg, ImGuiCol.Text, ImGuiCol.FrameBg, ImGuiCol.Button, ImGuiCol.Border, ImGuiCol.PopupBg];
+        foreach (id; colIDs) {
+            ImVec4 style;
+            style = *igGetStyleColorVec4(id);
+            style.w = id == ImGuiCol.Text? text: alpha;
+            igPushStyleColor(id, style);
+        }
+    }
+
+    void resetTransparency() {
+        igPopStyleColor(6);
+    }
+
 }
 
 struct ParamDragDropData {
@@ -766,6 +782,7 @@ void incBindingList(Parameter param) {
 void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, Parameter param, ref Parameter[] paramArr, bool childVisible = true) {
     if (childVisible || armedParam) {
         if (incEditMode == EditMode.ModelEdit) {
+            setTransparency(1.0, 1.0);
             if (igBeginPopup("###EditParam")) {
                 if (igMenuItem(__("Edit Properties"), "", false, true)) {
                     incPushWindowList(new ParamPropWindow(param));
@@ -881,6 +898,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 }
                 igEndPopup();
             }
+            resetTransparency();
             
             if (igButton("", ImVec2(24, 24))) {
                 igOpenPopup("###EditParam");

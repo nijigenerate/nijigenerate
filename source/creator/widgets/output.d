@@ -92,20 +92,6 @@ private {
         incParameterView!(false, false, true)(cast(int)index, param, &parameterGrabStr, false, incActivePuppet.parameters);
     }
 
-}
-
-
-interface CommandIssuer {
-    void addCommand(string);
-    void setCommand(string);
-    void addPopup(Resource);
-}
-
-interface Output {
-    void onUpdate();
-}
-
-private {
     void setTransparency(float alpha, float text) {
         ImGuiCol[] colIDs = [ImGuiCol.WindowBg, ImGuiCol.Text, ImGuiCol.FrameBg, ImGuiCol.Button, ImGuiCol.Border, ImGuiCol.PopupBg];
         foreach (id; colIDs) {
@@ -117,8 +103,20 @@ private {
     }    
 }
 
-class NodeOutput : Output {
+interface CommandIssuer {
+    void addCommand(string);
+    void setCommand(string);
+    void addPopup(Resource);
+}
+
+interface Output {
+    void onUpdate();
+}
+
+
+class TreeOutput : Output {
 protected:
+    enum IconSize = 20;
     CommandIssuer panel;
 
     Resource[] nodes;
@@ -126,6 +124,104 @@ protected:
     Resource[] roots;
     bool[Resource] nodeIncluded;
     Resource focused = null;
+    bool[uint] contentsDrawn;
+
+    void showContents(Resource res) {
+        ImVec2 size = ImVec2(20, 20);
+        if (igButton("\ue763", size)) {
+            if (panel)
+                panel.addPopup(res);
+        }
+
+        if (res.type == ResourceType.Node) {
+            igSameLine();
+            igText(res.name.toStringz);
+            Node node = to!Node(res);
+            onNodeView(node);
+        } else if (res.type == ResourceType.Parameter) {
+            Parameter param = to!Parameter(res);
+            igSameLine();
+            incParameterViewEditButtons!(false, true)(res.index, param, incActivePuppet.parameters, true);
+            igSameLine();
+            igText(res.name.toStringz);
+            onParameterView(res.index, param);
+        }
+    };
+
+    ImGuiTreeNodeFlags setFlag(Resource res) {
+        ImGuiTreeNodeFlags flags;
+        if (res !in children && res.type != ResourceType.Parameter) flags |= ImGuiTreeNodeFlags.Leaf;
+        flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        flags |= ImGuiTreeNodeFlags.OpenOnArrow;
+        return flags;
+    }
+
+    void drawTreeItem(Resource res) {
+        bool isNode = res.type == ResourceType.Node;
+        bool selected = false;
+        bool noIcon = false;
+        igSameLine();
+        if (isNode) {
+            Node node = (cast(Proxy!Node)res).obj;
+            selected = incNodeInSelection(node);
+            if (auto part = cast(Part)node) {
+                if (node.typeId == "Part") {
+                    noIcon = true;
+                    incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
+                }
+                igSameLine();
+            }
+        }
+        if (res !in nodeIncluded) {
+            igPushStyleColor(ImGuiCol.Text, igGetStyle().Colors[ImGuiCol.TextDisabled]);
+        }
+
+        bool isActive = false;
+        switch (res.type) {
+        case ResourceType.Parameter:
+            auto param = to!Parameter(res);
+            isActive = incArmedParameter() == param;
+            break;
+        case ResourceType.Binding:
+            auto binding = to!ParameterBinding(res);
+            if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
+                isActive = binding.isSet(incParamPoint());
+            }
+            break;
+        default:
+        }
+
+        if (igSelectable("%s%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), isActive? "":"", res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+            if (isNode) {
+                Node node = to!Node(res);
+                incSelectNode(node);
+            }
+        }
+        bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
+        const char* popupName = "###%x".format(res.uuid).toStringz;
+        if (isHovered && (isNode || res.type == ResourceType.Parameter)) {
+            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                igOpenPopup(popupName);
+            }
+        }
+
+        if (igBeginPopup(popupName)) {
+            if (res.uuid in contentsDrawn) return;
+            showContents(res);
+            contentsDrawn[res.uuid] = true;
+            igEndPopup();
+        }
+        if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
+            if (panel) {
+                string selectorStr = " %s#%d".format(res.typeId, res.uuid);
+                panel.setCommand(selectorStr);
+            }
+        }
+        if (res !in nodeIncluded) {
+            igPopStyleColor();
+        }
+    }
+    
 public:
     this(CommandIssuer panel) {
         this.panel = panel;
@@ -135,100 +231,13 @@ public:
     void onUpdate() {
         if (nodes.length > 0) {
             igPushID("Output");
-            bool[uint] contentsDrawn;
+            contentsDrawn.clear();
 
             void traverse(Resource res) {
-                ImGuiTreeNodeFlags flags;
-                bool isNode = res.type == ResourceType.Node;
-                if (res !in children && res.type != ResourceType.Parameter) flags |= ImGuiTreeNodeFlags.Leaf;
-                flags |= ImGuiTreeNodeFlags.DefaultOpen;
-                flags |= ImGuiTreeNodeFlags.OpenOnArrow;
+                ImGuiTreeNodeFlags flags = setFlag(res);
                 bool opened = igTreeNodeEx(cast(void*)res.uuid, flags, "");
-                bool selected = false;
-                bool noIcon = false;
-                igSameLine();
-                if (isNode) {
-                    Node node = (cast(Proxy!Node)res).obj;
-                    selected = incNodeInSelection(node);
-                    if (auto part = cast(Part)node) {
-                        if (node.typeId == "Part") {
-                            noIcon = true;
-                            incTextureSlotUntitled("ICON", part.textures[0], ImVec2(20, 20), 1, ImGuiWindowFlags.NoInputs);
-                        }
-                        igSameLine();
-                    }
-                }
-                if (res !in nodeIncluded) {
-                    igPushStyleColor(ImGuiCol.Text, igGetStyle().Colors[ImGuiCol.TextDisabled]);
-                }
 
-                bool isActive = false;
-                switch (res.type) {
-                case ResourceType.Parameter:
-                    auto param = to!Parameter(res);
-                    isActive = incArmedParameter() == param;
-                    break;
-                case ResourceType.Binding:
-                    auto binding = to!ParameterBinding(res);
-                    if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
-                        isActive = binding.isSet(incParamPoint());
-                    }
-                    break;
-                default:
-//                    incButtonColored(isArmed ? "" : "", ImVec2(24, 24), isArmed ? ImVec4(1f, 0f, 0f, 1f) : *igGetStyleColorVec4(ImGuiCol.Text));
-                }
-
-                if (igSelectable("%s%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), isActive? "":"", res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
-                    if (isNode) {
-                        Node node = (cast(Proxy!Node)res).obj;
-                        incSelectNode(node);
-                    }
-                }
-                bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
-                const char* popupName = "###%x".format(res.uuid).toStringz;
-                if (isHovered && (isNode || res.type == ResourceType.Parameter)) {
-                    if (igIsItemClicked(ImGuiMouseButton.Right)) {
-                        igOpenPopup(popupName);
-                    }
-                }
-
-                void showContents(Resource res) {
-                    if (res.uuid in contentsDrawn) return;
-                    ImVec2 size = ImVec2(20, 20);
-                    if (igButton("\ue763", size)) {
-                        if (panel)
-                            panel.addPopup(res);
-                    }
-
-                    if (res.type == ResourceType.Node) {
-                        igSameLine();
-                        igText(res.name.toStringz);
-                        Node node = to!Node(res);
-                        onNodeView(node);
-                    } else if (res.type == ResourceType.Parameter) {
-                        Parameter param = to!Parameter(res);
-                        igSameLine();
-                        incParameterViewEditButtons!(false, true)(res.index, param, incActivePuppet.parameters, true);
-                        igSameLine();
-                        igText(res.name.toStringz);
-                        onParameterView(res.index, param);
-                    }
-                    contentsDrawn[res.uuid] = true;
-                };
-
-                if (igBeginPopup(popupName)) {
-                    showContents(res);
-                    igEndPopup();
-                }
-                if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
-                    if (panel) {
-                        string selectorStr = " %s#%d".format(res.typeId, res.uuid);
-                        panel.setCommand(selectorStr);
-                    }
-                }
-                if (res !in nodeIncluded) {
-                    igPopStyleColor();
-                }
+                drawTreeItem(res);
 
                 if (opened) {
                     if (res in children)
@@ -237,9 +246,15 @@ public:
                     igTreePop();
                 }
             }
+
+            auto style = igGetStyle();
+            auto spacing = style.IndentSpacing;
+            style.IndentSpacing /= 2.5;
+
             foreach (r; roots) {
                 traverse(r);
             }
+            style.IndentSpacing = spacing;
             igPopID();
         }
     }
@@ -288,6 +303,103 @@ public:
         }
     }
 }
+
+
+class IconTreeOutput : TreeOutput {
+protected:
+    enum IconSize = 64;
+    string grabParam;
+
+    override
+    void drawTreeItem(Resource res) {
+        bool selected = false;
+        igSameLine();
+        switch (res.type) {
+            case ResourceType.Node:
+                Node node =to!Node(res);
+                selected = incNodeInSelection(node);
+
+                if (res !in nodeIncluded) {
+                    setTransparency(0.5, 0.5);
+                }
+
+                if (node.typeId == "Part") {
+                    auto part = cast(Part)node;
+                    if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize))) {
+                        incSelectNode(node);
+                    }
+                    igSetItemAllowOverlap();
+                    igSameLine();
+                    incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
+                    incTooltip(_(res.name));
+                } else {
+                    if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+                        incSelectNode(node);
+                    }
+                }
+
+                if (res !in nodeIncluded) {
+                    igPopStyleColor(6);
+                }
+                break;
+            case ResourceType.Parameter:
+                bool isActive = false;
+                auto param = to!Parameter(res);
+                isActive = incArmedParameter() == param;
+                if (auto exGroup = cast(ExParameterGroup)param) {
+                    if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+                    }
+                } else {
+                    igPushID(cast(void*)param);
+                    if (incController!(4, 4, 3)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
+                        if (igIsMouseDown(ImGuiMouseButton.Left)) {
+                            if (grabParam == null)
+                                grabParam = param.name;
+                        } else {
+                            grabParam = "";
+                        }
+                    }
+                    incTooltip(_(res.name));
+                    igPopID();
+                }
+                break;
+            case ResourceType.Binding:
+                bool isActive = false;
+                auto binding = to!ParameterBinding(res);
+                if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
+                    isActive = binding.isSet(incParamPoint());
+                }
+                break;
+            default:
+        }
+
+        bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
+        const char* popupName = "###%x".format(res.uuid).toStringz;
+        if (isHovered && (res.type == ResourceType.Node || res.type == ResourceType.Parameter)) {
+            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                igOpenPopup(popupName);
+            }
+        }
+
+        if (igBeginPopup(popupName)) {
+            if (res.uuid in contentsDrawn) return;
+            showContents(res);
+            contentsDrawn[res.uuid] = true;
+            igEndPopup();
+        }
+        if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
+            if (panel) {
+                string selectorStr = " %s#%d".format(res.typeId, res.uuid);
+                panel.setCommand(selectorStr);
+            }
+        }
+    }
+public:
+    this(CommandIssuer panel) {
+        super(panel);
+    }
+}
+
 
 class ViewOutput : Output {
 protected:
