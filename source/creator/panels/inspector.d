@@ -281,7 +281,11 @@ void incModelModeHeader(Node node) {
     igPushID(node.uuid);
         string typeString = "%s".format(incTypeIdToIcon(node.typeId()));
         auto len = incMeasureString(typeString);
-        incInputText("###MODEL_NODE_HEADER", incAvailableSpace().x-24, node.name);
+        if (incInputText("###MODEL_NODE_HEADER", incAvailableSpace().x-24, node.name)) {
+            try {
+                node.name = node.name.toStringz.fromStringz;
+            } catch (std.utf.UTFException e) {}
+        }
         igSameLine(0, 0);
         incDummy(ImVec2(-len.x, len.y));
         igSameLine(0, 0);
