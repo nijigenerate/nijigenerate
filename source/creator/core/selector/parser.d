@@ -4,10 +4,11 @@ import std.string;
 import std.conv;
 import std.uni;
 import std.utf;
-import std.algorithm: remove, map, sort;
+import std.algorithm: remove, map, sort, canFind;
 import std.array;
 import std.typecons;
 import creator.core.selector.tokenizer;
+import std.stdio;
 
 class Grammar {
 public:
@@ -164,6 +165,31 @@ class AST {
         }
     }
 
+    this() {
+        this.name = null;
+    }
+
+    this(string name) {
+        this.name = name;
+    }
+
+    this(string name, Token token) {
+        this.name = name;
+        this.token = token;
+    }
+
+    this(string name, AST[string] children) {
+        this.name = name;
+        this.children = children;
+    }
+
+    this(string name, AST[] children) {
+        this.name = name;
+        foreach (c; children) {
+            this.children[c.name] = c;
+        }
+    }
+
     AST opIndex(string name) {
         if (name in children)
             return children[name];
@@ -180,6 +206,13 @@ class AST {
                 break;
             }
         }
+        return result;
+    }
+
+    AST dup() {
+        auto result = new AST(name);
+        result.children = children.dup;
+        result.token = token;
         return result;
     }
 
@@ -268,7 +301,6 @@ protected:
     }
 
     EvalContext eval(EvalContext context) {
-        import std.stdio;
         Grammar grammar = context.target;
 
 //        writefln("GRM: %s", context.target);
@@ -286,6 +318,10 @@ protected:
                         context.matched = false;
                         break;
                     }
+                }
+                if (grammar.forgetUnnamed && context.subContexts.length == 1 && context.subContexts[0].target.name == "") {
+                    context.subContexts[0].target.name = context.target.name;
+                    context = context.subContexts[0];
                 }
                 break;
 
@@ -373,14 +409,79 @@ protected:
         return context;
     }
 
+    Grammar grammarFromId(int id) {
+        if (id in reverseIDs) return reverseIDs[id];
+        else return null;
+    }
+
 public:
-    const int EmptyState = -1;
-    const int GenerateEmpty = -2;
-    const int InsertState = -3;
     Grammar rootGrammar;
     Grammar[string] grammars;
+
+    const int EmptyState = -1;
+    const int GenerateEmpty = -2;
     int[Grammar] grammarIDs;
+    Grammar[int] reverseIDs;
     int[][int][int] grammarMap;
+    enum StackOp { Push, Pop }
+    struct StackOpFrame {
+        StackOp op;
+        ulong numValue;
+    }
+    StackOpFrame[int] stackOps;
+
+    struct ASTStack {
+        AST[] values;
+        Parser parser;
+
+        void pushItem(AST ast) {
+            values ~= ast;
+        }
+
+        AST popFrame(int targetId) {
+            if (targetId !in parser.stackOps) return null;
+            auto g = parser.grammarFromId(targetId);
+            AST targetAST = new AST(g? g.name: null);
+            ulong numValue = parser.stackOps[targetId].numValue;
+            if (values.length < numValue) {
+                writefln("|**| Something wrong happened. tried to took %d, stack has only %d", numValue, values.length);
+            } else {
+                AST[] subASTs = values[$-numValue..$];
+                values = values[0..$-numValue];
+                if (subASTs.length > 1) {
+                    writefln("Insert multiple children", values);
+                    foreach (i, ast; subASTs) {
+                        if (ast.name)
+                            targetAST.children[ast.name] = ast;
+//                        else
+//                            targetAST.children["%d".format(i)] = ast;
+                    }
+                } else if (subASTs.length == 1) {
+                    if (g.name) {
+                        if (subASTs[0].name) {
+                            writefln("Nest child: %s", subASTs[0]);
+                            targetAST.children[subASTs[0].name] = subASTs[0];
+                        } else {
+                            writefln("Replaced with child: %s", subASTs[0]);
+                            targetAST = subASTs[0];
+                            targetAST.name = g.name;
+                        }
+                    } else {
+                        writefln("Anonymous replacement: %s", subASTs[0]);
+                        targetAST = subASTs[0];
+                    }
+                } else {
+                    writefln("########### %s", subASTs.length);                    
+                }
+                writefln("|**| Took %d items", numValue);
+            }
+            return targetAST;
+        }
+        this(Parser parser) {
+            this.parser = parser;
+        }
+    }
+
     Tokenizer tokenizer;
 
     this(Tokenizer tokenizer) {
@@ -400,35 +501,33 @@ public:
         return new AST(result);
     }
 
-    void parse2(string text) {
-        import std.stdio;
-
-        struct StackElement {
+    AST parse2(string text) {
+        struct LRStackElement {
             int id;
             string literal;
-            Scanner scanner;
             this(int i) { id = i; literal = null; }
             this(int i, string l) { id = i; literal = l; }
-            StackElement[] candidates;
+            LRStackElement[] candidates;
         }
 
         Token[] tokens;
-        StackElement[] stack;
+        LRStackElement[] lrStack;
         size_t nextPosition;
         tokenizer.tokenize(text, 0, tokens, nextPosition);
+        ASTStack astStack = ASTStack(this);
 
         Scanner scanner = new Scanner(tokens);
-        stack ~= StackElement(-1);
+        lrStack ~= LRStackElement(-1);
+
+        AST result;
 
         // DEBUG------------------------------------------------------
-        Grammar[int] revMap;
-        foreach (k1, v1; grammarIDs) { revMap[v1] = k1; }
         string toId(int k1) {
             string state;
             if (k1 == EmptyState) { state = "<>"; }
             else if (k1 == GenerateEmpty) { state = "<>"; }
-            else if (k1 in revMap) {
-                state = "%s".format(revMap[k1]);
+            else if (k1 in reverseIDs) {
+                state = "%s".format(reverseIDs[k1]);
             } else {
                 Token.Type type = cast(Token.Type)k1;
                 state = "%s".format(type);
@@ -437,9 +536,8 @@ public:
         }
 
         void dumpStack() {
-            import std.stdio;
             writefln("Stack:");
-            foreach (s; stack) {
+            foreach (s; lrStack) {
                 writefln("  %s", toId(s.id));
             }
         }
@@ -448,27 +546,55 @@ public:
         Token token;
         bool tryEmpty = false;
         bool found;
+
+        enum MatchMode { ConsumeOne, Reduce, GenerateEmpty }
+        void buildASTFor(MatchMode mode)(LRStackElement prevState, LRStackElement state, int nextState) {
+            if (mode == MatchMode.GenerateEmpty) {
+                astStack.pushItem(new AST());
+            }
+            auto nextg = grammarFromId(nextState);
+            if (auto g = grammarFromId(state.id)) {
+                writefln("*******%s: %s --> %s", mode, grammarFromId(state.id), nextg);
+            } else if (state.id >= 0) {
+                astStack.pushItem(new AST(null, Token(cast(Token.Type)state.id, state.literal)));
+                writefln("*******%s: %s --> %s", mode, cast(Token.Type)state.id, nextg);
+            }
+            AST ast = astStack.popFrame(nextState);
+            if (ast) {
+                astStack.pushItem(ast);
+            }
+            writefln("|||| %s", astStack.values);
+        }
+
         void iterate2() {
-            if (stack.length > 1) {
-                auto prevState = stack[$-2];
-                auto state = stack[$-1];
+            if (lrStack.length > 1) {
+                auto prevState = lrStack[$-2];
+                auto state = lrStack[$-1];
                 if (prevState.id in grammarMap && state.id in grammarMap[prevState.id]) {
                     found = true;
                     int[] next = grammarMap[prevState.id][state.id];
-                    stack = stack.remove(stack.length - 1);
-                    stack[$-1].id = next[0];
-                    stack[$-1].literal = token.literal;
+
+                    buildASTFor!(MatchMode.ConsumeOne)(prevState, state, next[0]);
+
+                    lrStack = lrStack.remove(lrStack.length - 1);
+                    lrStack[$-1].id = next[0];
+                    lrStack[$-1].literal = token.literal;
+//                    writefln(" >>>>> move to %s", grammarFromId(lrStack[$-1].id));
                 } else {
 //                        writefln("Rule not found for %d, %d", prevState.id, state.id);
                 }
             }
-            if (stack.length > 0) {
-                auto prevState = stack[$-1];
+            if (lrStack.length > 0) {
+                auto prevState = lrStack[$-1];
                 if (prevState.id in grammarMap && EmptyState in grammarMap[prevState.id]) {
                     found = true;
                     int[] next = grammarMap[prevState.id][EmptyState];
-                    stack[$-1].id = next[0];
-                    stack[$-1].literal = null;
+
+                    buildASTFor!(MatchMode.Reduce)(prevState, prevState, next[0]);
+
+                    lrStack[$-1].id = next[0];
+                    lrStack[$-1].literal = null;
+//                    writefln(" >>>>> move to %s", grammarFromId(lrStack[$-1].id));
                 } else {
 //                    writefln("Rule not found for %d, %d", prevState.id, EmptyState);
                 }
@@ -476,20 +602,24 @@ public:
         }
 
         void iterate0() {
-            while (stack.length > 0) {
-                auto prevState = stack[$-1];
+            while (lrStack.length > 0) {
+                auto prevState = lrStack[$-1];
                 if (prevState.id in grammarMap && GenerateEmpty in grammarMap[prevState.id]) {
                     found = true;
                     int[] next = grammarMap[prevState.id][GenerateEmpty];
-                    stack[$-1].id = next[0];
-                    stack[$-1].literal = null;
+
+                        buildASTFor!(MatchMode.GenerateEmpty)(prevState, prevState, next[0]);
+
+                    lrStack[$-1].id = next[0];
+                    lrStack[$-1].literal = null;
+//                    writefln(" >>>>> move to %s", grammarFromId(lrStack[$-1].id));
                     break;
                 } else {
                     break;
                 }
             }
         }
-        while(stack.length > 0 && !scanner.isEnd()) {
+        while(lrStack.length > 0 && !scanner.isEnd()) {
 //            dumpStack();
             found = false;
             if (!tryEmpty) {
@@ -497,12 +627,12 @@ public:
             } else {
                 tryEmpty = false;
             }
-            stack ~= StackElement(token.type, token.literal);
+            lrStack ~= LRStackElement(token.type, token.literal);
 //            writefln(">>>>>>Read token: %s", token);
 
             iterate2();
             if (found) continue;
-            stack = stack.remove(stack.length - 1);
+            lrStack = lrStack.remove(lrStack.length - 1);
             tryEmpty = true;
             iterate2();
             if (found) continue;
@@ -518,6 +648,8 @@ public:
         }
 //        writeln("Last");
 //        dumpStack();
+        writefln("Final\n%s", astStack.values);
+        return result;
     }
 
     void build() {
@@ -558,35 +690,48 @@ public:
                         grammarMap.require(state);
                         state = nextState;
                     }
+                    if (g.name)
+                        stackOps[targetId] = StackOpFrame(StackOp.Pop, g.subGrammars.length);
                     addMap(state, EmptyState, targetId);
                     break;
                 case Grammar.Type.Repeat:
-                    foreach (i, sub; g.subGrammars) {
-                        nextState = traverse2(sub, state);
-                        grammarMap.require(state);
-                        state = nextState;
-                    }
                     if (g.minimumCount == 0)
                         addMap(state, GenerateEmpty, targetId);
-                    addMap(state, EmptyState, targetId);
-                    state = targetId;
                     foreach (i, sub; g.subGrammars) {
                         nextState = traverse2(sub, state);
                         grammarMap.require(state);
                         state = nextState;
-                    }
-                    addMap(targetId, targetId, targetId);
+                    }                    
+                    if (g.name)
+                        stackOps[targetId] = StackOpFrame(StackOp.Pop, g.subGrammars.length);
+                    
+                    Grammar repeated = g.dup;
+                    traverse(repeated);
+                    int repeatedTargetId = grammarIDs[repeated];
+                    addMap(state, GenerateEmpty, targetId);
+                    foreach (i, sub; repeated.subGrammars) {
+                        nextState = traverse2(sub, state);
+                        grammarMap.require(state);
+                        state = nextState;
+                    }                    
+                    addMap(state, EmptyState, repeatedTargetId);
+                    if (g.name)
+                        stackOps[repeatedTargetId] = StackOpFrame(StackOp.Pop, repeated.subGrammars.length);
                     break;
 
                 case Grammar.Type.Or:
                 case Grammar.Type.ExOr:
                     foreach (i, sub; g.subGrammars) {
                         int subId = traverse2(sub, state);
+                        if (g.name)
+                            stackOps[targetId] = StackOpFrame(StackOp.Pop, 1);
                         addMap(subId, EmptyState, targetId);
                     }
                     break;
                 case Grammar.Type.Token:
                     addMap(state, g.token.type, targetId);
+                    if (g.name)
+                        stackOps[targetId] = StackOpFrame(StackOp.Pop, 1);
                     break;
                 case Grammar.Type.Empty:
                     addMap(state, GenerateEmpty, targetId);
@@ -596,6 +741,8 @@ public:
                         Grammar sub = grammars[g.reference.name].dup;
                         traverse(sub);
                         int subId = traverse2(sub, state);
+                        if (g.name)
+                            stackOps[targetId] = StackOpFrame(StackOp.Pop, 1);
                         addMap(subId, EmptyState, targetId);
                     } else {
                         // TBD: Should handle internal error.
@@ -606,6 +753,7 @@ public:
             return targetId;
         }
         traverse2(rootGrammar, EmptyState);
+        foreach (k1, v1; grammarIDs) { reverseIDs[v1] = k1; }
     }
     
 }
@@ -626,7 +774,9 @@ public:
         registerGrammar("typeIdQuery",    _seq([_xor([_id, _t("*")], "typeId"), _opt(_ref("selectors")), _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
         registerGrammar("attrQuery",      _seq([_ref("selectors"),                                     _opt(_ref("pseudoClass")), _opt(_ref("attr"))]) );
 
-        registerGrammar("oneQuery",       _repeat1([_opt(_t(">", "kind")), _xor([_ref("typeIdQuery"), _ref("attrQuery")])]) );
+        registerGrammar("oneQuery",       _repeat1([_xor([
+                                                        _seq([_t(">", "kind"), _xor([_ref("typeIdQuery"), _ref("attrQuery")])], ""), 
+                                                        _xor([_ref("typeIdQuery"), _ref("attrQuery")])]) ]) );
         registerGrammar("query",          _repeat1([_ref("oneQuery"), _opt(_t(","))]) );
 
         foreach (grammar; grammars.byValue) {

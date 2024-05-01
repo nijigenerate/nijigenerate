@@ -12,6 +12,7 @@ import std.algorithm;
 import i18n;
 import inochi2d;
 import creator;
+import creator.ext;
 import creator.core;
 import creator.core.selector;
 import creator.panels;
@@ -38,22 +39,40 @@ private:
     bool forceUpdatePreview = false;
     uint historyIndex = 0;
     Puppet activePuppet;
+    Parameter armedParameter;
     ViewOutput views;
 
 protected:
     void execFilter(View view) {
         Selector selector = new Selector();
-        selector.build(view.command);
+        selector.build(view.command ~ (armedParameter? ", Binding:active": ""));
         Resource[] nodes = selector.run();
         if (view.output is null)
             view.output = new NodeOutput(this);
         view.output.setResources(nodes);
     }
 
+    void notifyChange(Node target, NotifyReason reason) {
+        import std.stdio;
+        if (reason == NotifyReason.StructureChanged) {
+            writefln("changed %s", target.name);
+            forceUpdatePreview = true;
+        }
+    }
+
     override
     void onUpdate() {
         if (incActivePuppet() != activePuppet) {
             activePuppet = incActivePuppet();
+            if (activePuppet) {
+                import std.stdio;
+                Node rootNode = activePuppet.root;
+                rootNode.addNotifyListener(&notifyChange);
+            }
+            forceUpdatePreview = true;
+        }
+        if (incArmedParameter() != armedParameter) {
+            armedParameter = incArmedParameter();
             forceUpdatePreview = true;
         }
         if (views is null) {
