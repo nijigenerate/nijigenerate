@@ -463,10 +463,10 @@ public:
                 } else if (lastChildUUID != InInvalidUUID) {
                     layout.require(lastChildUUID);
                     ImRect bounds = layout[lastChildUUID].bounds;
-                    result.Min.x = min(result.Min.x, bounds.Min.x);
-                    result.Min.y = min(result.Min.y, bounds.Min.y);
-                    result.Max.x = max(result.Max.x, bounds.Max.x);
-                    result.Max.y = max(result.Max.y, bounds.Max.y);
+                    bounds.Min.x = min(result.Min.x, bounds.Min.x);
+                    bounds.Min.y = min(result.Min.y, bounds.Min.y);
+                    bounds.Max.x = max(result.Max.x, bounds.Max.x);
+                    bounds.Max.y = max(result.Max.y, bounds.Max.y);
                     layout[lastChildUUID].bounds = bounds;
                 }
                 if (nextInHorizontal) {
