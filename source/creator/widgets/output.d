@@ -1,5 +1,6 @@
 module creator.widgets.output;
 
+import std.stdio;
 import std.array;
 import std.string;
 import std.algorithm;
@@ -116,7 +117,7 @@ interface Output {
 
 class TreeOutput : Output {
 protected:
-    enum IconSize = 20;
+    int IconSize = 20;
     CommandIssuer panel;
 
     Resource[] nodes;
@@ -230,7 +231,7 @@ public:
     override
     void onUpdate() {
         if (nodes.length > 0) {
-            igPushID("Output");
+            igPushID(cast(void*)this);
             contentsDrawn.clear();
 
             void traverse(Resource res) {
@@ -240,9 +241,10 @@ public:
                 drawTreeItem(res);
 
                 if (opened) {
-                    if (res in children)
+                    if (res in children) {
                         foreach (child; children[res])
                             traverse(child);
+                    }
                     igTreePop();
                 }
             }
@@ -307,8 +309,12 @@ public:
 
 class IconTreeOutput : TreeOutput {
 protected:
-    enum IconSize = 64;
     string grabParam;
+    struct SubItemLayout {
+        ImRect bounds;
+        bool nextInHorizontal = false;
+    }
+    SubItemLayout[uint] layout;
 
     override
     void drawTreeItem(Resource res) {
@@ -388,16 +394,106 @@ protected:
             igEndPopup();
         }
         if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
-            if (panel) {
-                string selectorStr = " %s#%d".format(res.typeId, res.uuid);
-                panel.setCommand(selectorStr);
-            }
+            if (res.uuid !in layout) {
+                layout.require(res.uuid);
+                layout[res.uuid].nextInHorizontal = true;
+            }else
+                layout[res.uuid].nextInHorizontal = ! layout[res.uuid].nextInHorizontal;
         }
     }
 public:
     this(CommandIssuer panel) {
         super(panel);
+        IconSize = 64;
     }
+
+    override
+    void onUpdate() {
+        if (nodes.length > 0) {
+            igPushID(cast(void*)this);
+            contentsDrawn.clear();
+
+            ImRect traverse(Resource res, ref bool prevHorz, ref uint lastChildUUID) {
+                ImGuiTreeNodeFlags flags = setFlag(res);
+                bool nextInHorizontal = res.uuid in layout && layout[res.uuid].nextInHorizontal;
+                if (nextInHorizontal || prevHorz) {
+                    if (prevHorz) {
+                        igEndChild();
+                        igSameLine();
+                    }
+                    layout.require(res.uuid);
+                    auto itemLayout = layout[res.uuid];
+                    igBeginChild("##horz%d".format(res.uuid).toStringz, ImVec2(max(IconSize * 1.5, 
+                                 itemLayout.bounds.Max.x - itemLayout.bounds.Min.x), itemLayout.bounds.Max.y - itemLayout.bounds.Min.y), 
+                                 false, ImGuiWindowFlags.NoScrollbar|ImGuiWindowFlags.NoScrollWithMouse);
+                    lastChildUUID = res.uuid;
+                }
+                
+                bool opened = igTreeNodeEx(cast(void*)res.uuid, flags, "");
+
+                drawTreeItem(res);
+                ImRect result;
+                igGetItemRectMin(&result.Min);
+                igGetItemRectMax(&result.Max);
+                if (result.Max.x > result.Min.x + IconSize * 1.5) {
+                    result.Max.x = result.Min.x + IconSize * 1.5;
+                }
+
+                if (opened) {
+                    if (res in children) {
+                        bool subHorz = false;
+                        uint subUUID = InInvalidUUID;
+                        foreach (child; children[res]) {
+                            ImRect subRect = traverse(child, subHorz, subUUID);
+                            result.Min.x = min(result.Min.x, subRect.Min.x);
+                            result.Min.y = min(result.Min.y, subRect.Min.y);
+                            result.Max.x = max(result.Max.x, subRect.Max.x);
+                            result.Max.y = max(result.Max.y, subRect.Max.y);
+                        }
+                        if (subUUID != InInvalidUUID) {
+                            igEndChild();
+                        }
+                    }
+                    igTreePop();
+                }
+                if (nextInHorizontal || prevHorz) {
+                    layout.require(res.uuid);
+                    layout[res.uuid].bounds = result;
+//                    igEndChild();
+                } else if (lastChildUUID != InInvalidUUID) {
+                    layout.require(lastChildUUID);
+                    ImRect bounds = layout[lastChildUUID].bounds;
+                    result.Min.x = min(result.Min.x, bounds.Min.x);
+                    result.Min.y = min(result.Min.y, bounds.Min.y);
+                    result.Max.x = max(result.Max.x, bounds.Max.x);
+                    result.Max.y = max(result.Max.y, bounds.Max.y);
+                    layout[lastChildUUID].bounds = bounds;
+                }
+                if (nextInHorizontal) {
+                    prevHorz = true;
+                } else {
+                    prevHorz = false;
+                }
+                return result;
+            }
+
+            auto style = igGetStyle();
+            auto spacing = style.IndentSpacing;
+            style.IndentSpacing /= 2.5;
+
+            foreach (r; roots) {
+                bool prevHorz = false;
+                uint lastChildUUID = InInvalidUUID;
+                traverse(r, prevHorz, lastChildUUID);
+                if (lastChildUUID != InInvalidUUID) {
+                    igEndChild();
+                }
+            }
+            style.IndentSpacing = spacing;
+            igPopID();
+        }
+    }
+
 }
 
 
