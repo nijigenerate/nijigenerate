@@ -3,6 +3,7 @@ module creator.widgets.output;
 import std.stdio;
 import std.array;
 import std.string;
+import std.math;
 import std.algorithm;
 import i18n;
 import inochi2d;
@@ -313,6 +314,7 @@ protected:
     struct SubItemLayout {
         ImRect bounds;
         bool nextInHorizontal = false;
+        bool scrolledOut = false;
     }
     SubItemLayout[uint] layout;
 
@@ -397,8 +399,9 @@ protected:
             if (res.uuid !in layout) {
                 layout.require(res.uuid);
                 layout[res.uuid].nextInHorizontal = true;
-            }else
+            }else {
                 layout[res.uuid].nextInHorizontal = ! layout[res.uuid].nextInHorizontal;
+            }
         }
     }
 public:
@@ -458,16 +461,22 @@ public:
                 }
                 if (nextInHorizontal || prevHorz) {
                     layout.require(res.uuid);
-                    layout[res.uuid].bounds = result;
-//                    igEndChild();
+                    if (result.Min.y != result.Max.y) {
+                        layout[res.uuid].bounds = result;
+                        layout[res.uuid].scrolledOut = false;
+                    } else {
+                        layout[res.uuid].scrolledOut = true;
+                    }
                 } else if (lastChildUUID != InInvalidUUID) {
                     layout.require(lastChildUUID);
-                    ImRect bounds = layout[lastChildUUID].bounds;
-                    bounds.Min.x = min(result.Min.x, bounds.Min.x);
-                    bounds.Min.y = min(result.Min.y, bounds.Min.y);
-                    bounds.Max.x = max(result.Max.x, bounds.Max.x);
-                    bounds.Max.y = max(result.Max.y, bounds.Max.y);
-                    layout[lastChildUUID].bounds = bounds;
+                    if (!layout[lastChildUUID].scrolledOut) {
+                        ImRect bounds = layout[lastChildUUID].bounds;
+                        bounds.Min.x = min(result.Min.x, bounds.Min.x);
+                        bounds.Min.y = min(result.Min.y, bounds.Min.y);
+                        bounds.Max.x = max(result.Max.x, bounds.Max.x);
+                        bounds.Max.y = max(result.Max.y, bounds.Max.y);
+                        layout[lastChildUUID].bounds = bounds;
+                    }
                 }
                 if (nextInHorizontal) {
                     prevHorz = true;
@@ -481,12 +490,33 @@ public:
             auto spacing = style.IndentSpacing;
             style.IndentSpacing /= 2.5;
 
+            auto oldLayout = layout.dup;
+
             foreach (r; roots) {
                 bool prevHorz = false;
                 uint lastChildUUID = InInvalidUUID;
                 traverse(r, prevHorz, lastChildUUID);
                 if (lastChildUUID != InInvalidUUID) {
                     igEndChild();
+                }
+            }
+
+            foreach (k; layout.keys) {
+                Resource node;
+                foreach (r; nodes) {
+                    if (r.uuid == k) {
+                        node = r;
+                        break;
+                    }
+                }
+                if (k in oldLayout) {
+                    writef("%s: %.0f,%.0f --> %.0f,%.0f", node.name, oldLayout[k].bounds.Max.x - oldLayout[k].bounds.Min.x, oldLayout[k].bounds.Max.y - oldLayout[k].bounds.Min.y, 
+                                                            layout[k].bounds.Max.x - layout[k].bounds.Min.x, layout[k].bounds.Max.y - layout[k].bounds.Min.y);
+                    if (layout[k].bounds.Max.y - layout[k].bounds.Min.y == 0.) {
+                        writefln(" [%.0f, %.0f, %.0f, %.0f]",  layout[k].bounds.Min.x,  layout[k].bounds.Min.y, layout[k].bounds.Max.x,  layout[k].bounds.Max.y);
+                    } else writeln();
+                } else if (node !is null) {
+                    writefln("%s: new: %.0f, %.0f", node.name, layout[k].bounds.Max.x - layout[k].bounds.Min.x, layout[k].bounds.Max.y - layout[k].bounds.Min.y);
                 }
             }
             style.IndentSpacing = spacing;
