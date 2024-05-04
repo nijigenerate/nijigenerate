@@ -871,7 +871,11 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                     pasteParameter(param, 2);
                     incViewportNodeDeformNotifyParamValueChanged();
                 }
+<<<<<<< HEAD
                 if (igMenuItem(__("Paste and Horiontal Flip"), "", false, true)) {
+=======
+                if (igMenuItem(__("Paste and Horizontal Flip"), "", false, true)) {
+>>>>>>> 21b52e8 (Shell/Selector: Checkpoint commit.)
                     pasteParameter(param, 0);
                     incViewportNodeDeformNotifyParamValueChanged();
                 }
@@ -905,7 +909,10 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 }
                 igEndPopup();
             }
+<<<<<<< HEAD
             resetTransparency();
+=======
+>>>>>>> 21b52e8 (Shell/Selector: Checkpoint commit.)
             
             if (igButton("", ImVec2(24, 24))) {
                 igOpenPopup("###EditParam");
