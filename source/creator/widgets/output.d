@@ -16,14 +16,15 @@ import creator.widgets;
 import creator.panels.shell;
 import creator.panels.inspector;
 import creator.panels.parameters;
+import creator.panels.nodes;
 import creator.ext;
 
 private {
     string parameterGrabStr;
+    enum NodeViewWidth = 250;
 
     void onNodeView(Node node) {
         if (node !is null && node != incActivePuppet().root) {
-
             // Per-edit mode inspector drawers
             switch(incEditMode()) {
                 case EditMode.ModelEdit:
@@ -127,6 +128,7 @@ protected:
     bool[Resource] nodeIncluded;
     Resource focused = null;
     bool[uint] contentsDrawn;
+    float contentHeight = 0;
 
     void showContents(Resource res) {
         ImVec2 size = ImVec2(20, 20);
@@ -136,6 +138,19 @@ protected:
         }
 
         if (res.type == ResourceType.Node) {
+            igSameLine();
+            if (igButton("\ue8b8", size)) {
+                Node node = to!Node(res);
+                igOpenPopup("##NodeMenu");
+                if (igBeginPopup("##NodeMenu")) {
+                    bool isRoot = node.parent is null;
+                    if (isRoot)
+                        incNodeActionMenu!true(node);
+                    else
+                        incNodeActionMenu!false(node);
+                    igEndPopup();
+                }
+            }
             igSameLine();
             igText(res.name.toStringz);
             Node node = to!Node(res);
@@ -164,7 +179,7 @@ protected:
         bool noIcon = false;
         igSameLine();
         if (isNode) {
-            Node node = (cast(Proxy!Node)res).obj;
+            Node node = to!Node(res);
             selected = incNodeInSelection(node);
             if (auto part = cast(Part)node) {
                 if (node.typeId == "Part") {
@@ -203,6 +218,7 @@ protected:
         const char* popupName = "###%x".format(res.uuid).toStringz;
         if (isHovered && (isNode || res.type == ResourceType.Parameter)) {
             if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                contentHeight = 0;
                 igOpenPopup(popupName);
             }
         }
@@ -385,6 +401,7 @@ protected:
         const char* popupName = "###%x".format(res.uuid).toStringz;
         if (isHovered && (res.type == ResourceType.Node || res.type == ResourceType.Parameter)) {
             if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                contentHeight = 0;
                 igOpenPopup(popupName);
             }
         }
@@ -553,10 +570,10 @@ public:
                 if (res.type == ResourceType.Node) {
                     igSameLine();
                     igText(res.name.toStringz);
-                    Node node = (cast(Proxy!Node)res).obj();
+                    Node node = to!Node(res);
                     onNodeView(node);
                 } else if (res.type == ResourceType.Parameter) {
-                    Parameter param = (cast(Proxy!Parameter)res).obj;
+                    Parameter param = to!Parameter(res);
                     igSameLine();
                     incParameterViewEditButtons!(false, true)(res.index, param, incActivePuppet.parameters, true);
                     igSameLine();
@@ -581,7 +598,7 @@ public:
                 igGetWindowPos(&windowPos);
                 ImVec2 windowSize;
                 if (res.type == ResourceType.Node) {
-                    windowSize.x = 250;
+                    windowSize.x = NodeViewWidth + 20;
                     igSetWindowSize(windowSize);
                 } else if (res.type == ResourceType.Parameter) {
                     Parameter param = (cast(Proxy!Parameter)res).obj;
