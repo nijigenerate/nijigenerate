@@ -90,6 +90,16 @@ protected:
             history[historyIndex].output.onUpdate();
         }
         igEndChild();
+        auto spacing = igGetStyle().ItemSpacing;
+        igGetStyle().ItemSpacing = ImVec2(0, 0);
+        igButton("\ue145");
+        igSameLine();
+        igButton("\ue872");
+        igSameLine();
+        igButton("\ue14d");
+        igSameLine();
+        igButton("\ue14f");
+        igGetStyle().ItemSpacing = spacing;
         views.onUpdate();
     }
 

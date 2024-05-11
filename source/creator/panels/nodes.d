@@ -52,12 +52,180 @@ private {
     }
 
 
-    string[][string] conversionMap;
-    static this() {
-        conversionMap["Node"] = ["MeshGroup", "DynamicComposite"];
-        conversionMap["DynamicComposite"] = ["MeshGroup", "Node", "Part"];
-        conversionMap["MeshGroup"] = ["DynamicComposite", "Node"];
-        conversionMap["Composite"] = ["DynamicComposite", "Node"];
+    string[][string] conversionMap = [
+        "Node": ["MeshGroup", "DynamicComposite"],
+        "DynamicComposite": ["MeshGroup", "Node", "Part"],
+        "MeshGroup": ["DynamicComposite", "Node"],
+        "Composite": ["DynamicComposite", "Node"]
+    ];
+
+    string[string] actionIconMap = [
+        "Add": "\ue145",
+        "Edit Mesh": "\ue3c9",
+        "Delete": "\ue872",
+        "Show": "\ue8f4",
+        "Hide": "\ue8f5",
+        "Copy": "\ue14d",
+        "Paste": "\ue14f",
+        "Reload": "\ue5d5",
+        "More Info": "\ue88e",
+        "Recalculate origin": "\ue57b",
+        "Convert To...": "\ue043",
+    ];
+
+    string nodeActionToIcon(bool icon)(string name) {
+        if (icon) {
+            if (name in actionIconMap) {
+                return actionIconMap[name];
+            }
+            return "--";
+        } else {
+            return name;
+        }
+    }
+}
+
+
+void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = false)(Node n) {
+    if (title == null || igBeginPopup(title)) {
+        
+        auto selected = incSelectedNodes();
+        
+        if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
+
+            incText(incTypeIdToIcon("Node"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("Node"), "", false, true)) incAddChildWithHistory(new Node(cast(Node)null), n);
+            
+            incText(incTypeIdToIcon("Mask"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("Mask"), "", false, true)) {
+                MeshData empty;
+                incAddChildWithHistory(new Mask(empty, cast(Node)null), n);
+            }
+            
+            incText(incTypeIdToIcon("Composite"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("Composite"), "", false, true)) {
+                incAddChildWithHistory(new Composite(cast(Node)null), n);
+            }
+            
+            incText(incTypeIdToIcon("SimplePhysics"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("Simple Physics"), "", false, true)) incAddChildWithHistory(new SimplePhysics(cast(Node)null), n);
+
+            
+            incText(incTypeIdToIcon("Camera"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("Camera"), "", false, true)) incAddChildWithHistory(new ExCamera(cast(Node)null), n);
+
+            incText(incTypeIdToIcon("MeshGroup"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("MeshGroup"), "", false, true)) incAddChildWithHistory(new MeshGroup(cast(Node)null), n);
+
+            incText(incTypeIdToIcon("DynamicComposite"));
+            igSameLine(0, 2);
+            if (igMenuItem(__("DynamicComposite"), "", false, true)) incAddChildWithHistory(new DynamicComposite(cast(Node)null), n);
+
+            igEndMenu();
+        }
+
+        static if (!isRoot) {
+
+            // Edit mesh option for drawables
+            if (Drawable d = cast(Drawable)n) {
+                if (!incArmedParameter()) {
+                    if (igMenuItem(__(nodeActionToIcon!icon("Edit Mesh")))) {
+                        incVertexEditStartEditing(d);
+                    }
+                }
+            }
+            
+            if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __(nodeActionToIcon!icon("Hide")) :  /* Option to show the node (and subnodes) */ __(nodeActionToIcon!icon("Show")))) {
+                n.setEnabled(!n.getEnabled());
+            }
+
+            if (igMenuItem(__(nodeActionToIcon!icon("Delete")), "", false, !isRoot)) {
+
+                if (selected.length > 1) {
+                    incDeleteChildrenWithHistory(selected);
+                    incSelectNode(null);
+                } else {
+
+                    // Make sure we don't keep selecting a node we've removed
+                    if (incNodeInSelection(n)) {
+                        incSelectNode(null);
+                    }
+
+                    incDeleteChildWithHistory(n);
+                }
+                
+                // Make sure we don't keep selecting a node we've removed
+                incSelectNode(null);
+            }
+
+            if (igMenuItem(__(nodeActionToIcon!icon("Copy")), "", false, true)) {
+                if (selected.length > 0)
+                    copyToClipboard(selected);
+                else
+                    copyToClipboard([n]);
+            }
+        }
+            
+        if (igMenuItem(__(nodeActionToIcon!icon("Paste")), "", false, clipboardNodes.length > 0)) {
+            pasteFromClipboard(n);
+        }
+
+        if (igMenuItem(__(nodeActionToIcon!icon("Reload")), "", false, true)) {
+            reloadNode(n);
+        }
+
+        static if (!isRoot) {
+            if (igBeginMenu(__(nodeActionToIcon!icon("More Info")), true)) {
+                if (selected.length > 1) {
+                    foreach(sn; selected) {
+                        
+                        // %s is the name of the node in the More Info menu
+                        // %u is the UUID of the node in the More Info menu
+                        incText(_("%s ID: %u").format(sn.name, sn.uuid));
+
+                        if (ExPart exp = cast(ExPart)sn) {
+                            incText(_("%s Layer: %s").format(exp.name, exp.layerPath));
+                        }
+                    }
+                } else {
+                    // %u is the UUID of the node in the More Info menu
+                    incText(_("ID: %u").format(n.uuid));
+
+                    if (ExPart exp = cast(ExPart)n) {
+                        incText(_("Layer: %s").format(exp.layerPath));
+                    }
+                }
+
+                igEndMenu();
+            }
+
+            if (igMenuItem(__(nodeActionToIcon!icon("Recalculate origin")), "", false, true)) {
+                n.centralize();
+            }
+
+            if (n.typeId in conversionMap) {
+                if (igBeginMenu(__(nodeActionToIcon!icon("Convert To...")), true)) {
+                    foreach (type; conversionMap[n.typeId]) {
+                        incText(incTypeIdToIcon(type));
+                        igSameLine(0, 2);
+                        if (igMenuItem(__(type), "", false, true)) {
+                            Node node = inInstantiateNode(type);
+                            node.copyFrom(n, true, true);
+                            incActionPush(new NodeReplaceAction(n, node, true));
+                        }
+                    }
+                    igEndMenu();
+                }
+            }
+        }
+        if (title != null)
+            igEndPopup();
     }
 }
 
@@ -73,151 +241,6 @@ protected:
         }
     }
 
-    void nodeActionsPopup(bool isRoot = false)(Node n) {
-        if (igIsItemClicked(ImGuiMouseButton.Right)) {
-            igOpenPopup("NodeActionsPopup");
-        }
-
-        if (igBeginPopup("NodeActionsPopup")) {
-            
-            auto selected = incSelectedNodes();
-            
-            if (igBeginMenu(__("Add"), true)) {
-
-                incText(incTypeIdToIcon("Node"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("Node"), "", false, true)) incAddChildWithHistory(new Node(cast(Node)null), n);
-                
-                incText(incTypeIdToIcon("Mask"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("Mask"), "", false, true)) {
-                    MeshData empty;
-                    incAddChildWithHistory(new Mask(empty, cast(Node)null), n);
-                }
-                
-                incText(incTypeIdToIcon("Composite"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("Composite"), "", false, true)) {
-                    incAddChildWithHistory(new Composite(cast(Node)null), n);
-                }
-                
-                incText(incTypeIdToIcon("SimplePhysics"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("Simple Physics"), "", false, true)) incAddChildWithHistory(new SimplePhysics(cast(Node)null), n);
-
-                
-                incText(incTypeIdToIcon("Camera"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("Camera"), "", false, true)) incAddChildWithHistory(new ExCamera(cast(Node)null), n);
-
-                incText(incTypeIdToIcon("MeshGroup"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("MeshGroup"), "", false, true)) incAddChildWithHistory(new MeshGroup(cast(Node)null), n);
-
-                incText(incTypeIdToIcon("DynamicComposite"));
-                igSameLine(0, 2);
-                if (igMenuItem(__("DynamicComposite"), "", false, true)) incAddChildWithHistory(new DynamicComposite(cast(Node)null), n);
-
-                igEndMenu();
-            }
-
-            static if (!isRoot) {
-
-                // Edit mesh option for drawables
-                if (Drawable d = cast(Drawable)n) {
-                    if (!incArmedParameter()) {
-                        if (igMenuItem(__("Edit Mesh"))) {
-                            incVertexEditStartEditing(d);
-                        }
-                    }
-                }
-                
-                if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __("Hide") :  /* Option to show the node (and subnodes) */ __("Show"))) {
-                    n.setEnabled(!n.getEnabled());
-                }
-
-                if (igMenuItem(__("Delete"), "", false, !isRoot)) {
-
-                    if (selected.length > 1) {
-                        incDeleteChildrenWithHistory(selected);
-                        incSelectNode(null);
-                    } else {
-
-                        // Make sure we don't keep selecting a node we've removed
-                        if (incNodeInSelection(n)) {
-                            incSelectNode(null);
-                        }
-
-                        incDeleteChildWithHistory(n);
-                    }
-                    
-                    // Make sure we don't keep selecting a node we've removed
-                    incSelectNode(null);
-                }
-
-                if (igMenuItem(__("Copy"), "", false, true)) {
-                    if (selected.length > 0)
-                        copyToClipboard(selected);
-                    else
-                        copyToClipboard([n]);
-                }
-            }
-                
-            if (igMenuItem(__("Paste"), "", false, clipboardNodes.length > 0)) {
-                pasteFromClipboard(n);
-            }
-
-            if (igMenuItem(__("Reload"), "", false, true)) {
-                reloadNode(n);
-            }
-
-            static if (!isRoot) {
-                if (igBeginMenu(__("More Info"), true)) {
-                    if (selected.length > 1) {
-                        foreach(sn; selected) {
-                            
-                            // %s is the name of the node in the More Info menu
-                            // %u is the UUID of the node in the More Info menu
-                            incText(_("%s ID: %u").format(sn.name, sn.uuid));
-
-                            if (ExPart exp = cast(ExPart)sn) {
-                                incText(_("%s Layer: %s").format(exp.name, exp.layerPath));
-                            }
-                        }
-                    } else {
-                        // %u is the UUID of the node in the More Info menu
-                        incText(_("ID: %u").format(n.uuid));
-
-                        if (ExPart exp = cast(ExPart)n) {
-                            incText(_("Layer: %s").format(exp.layerPath));
-                        }
-                    }
-
-                    igEndMenu();
-                }
-
-                if (igMenuItem(__("Recalculate origin"), "", false, true)) {
-                    n.centralize();
-                }
-
-                if (n.typeId in conversionMap) {
-                    if (igBeginMenu(__("Convert To..."), true)) {
-                        foreach (type; conversionMap[n.typeId]) {
-                            incText(incTypeIdToIcon(type));
-                            igSameLine(0, 2);
-                            if (igMenuItem(__(type), "", false, true)) {
-                                Node node = inInstantiateNode(type);
-                                node.copyFrom(n, true, true);
-                                incActionPush(new NodeReplaceAction(n, node, true));
-                            }
-                        }
-                        igEndMenu();
-                    }
-                }
-            }
-            igEndPopup();
-        }
-    }
 
     void treeAddNode(bool isRoot = false)(ref Node n) {
         igTableNextRow();
@@ -283,7 +306,11 @@ protected:
                                     break;
                             }
                         }
-                        this.nodeActionsPopup!isRoot(n);
+                        if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                            igOpenPopup("NodeActionsPopup");
+                        }
+
+                        incNodeActionsPopup!("NodeActionsPopup", isRoot)(n);
                     igEndGroup();
 
                     static if (!isRoot) {

@@ -103,7 +103,52 @@ private {
             style.w = id == ImGuiCol.Text? text: alpha;
             igPushStyleColor(id, style);
         }
-    }    
+    }
+
+    bool isWindowHovered() {
+        ImVec2 pos, size;
+        ImVec2 curPos;
+        igGetMousePos(&curPos);
+        igGetWindowPos(&pos);
+        igGetWindowSize(&size);
+        return pos.x <= curPos.x && curPos.x < pos.x + size.x &&
+               pos.y <= curPos.y && curPos.y < pos.y + size.y;
+    }
+
+    ImRect getOuterRect(ImGuiWindow* window) {
+        ImRect r_outer;
+        igGetPopupAllowedExtentRect(&r_outer, window);
+        return r_outer;
+    }
+
+    void adjustWindowPos(bool largePart)(ImVec2 minPos, ImVec2 maxPos, ImGuiWindow* window) {
+        if (window is null || window.RootWindow is null) return;
+        ImRect r_outer = getOuterRect(window);
+        float spaceLeft = minPos.x - r_outer.Min.x;
+        float spaceRight = r_outer.Max.x - r_outer.Min.x - maxPos.x;
+        float spaceUp = minPos.y - r_outer.Min.y;
+        float spaceDown = r_outer.Max.y - r_outer.Min.y - minPos.y;
+
+//        writefln("adjust: window: %.2f, %.2f, %.2f, %.2f", window.Pos.x, window.Pos.y, window.Size.x, window.Size.y);
+//        writefln("adjust: root: %.2f, %.2f, %.2f, %.2f", r_outer.Min.x, r_outer.Min.y, r_outer.Max.x, r_outer.Max.y);
+
+        if (largePart) {
+            if (spaceLeft > spaceRight) {
+                igSetWindowPos(window, ImVec2(minPos.x - window.Size.x, minPos.y));
+            } else {
+                igSetWindowPos(window, ImVec2(maxPos.x, minPos.y));
+            }
+        } else {
+            if (spaceLeft > spaceRight) {
+                igSetWindowPos(window, ImVec2(maxPos.x, minPos.y));
+            } else {
+                igSetWindowPos(window, ImVec2(minPos.x - window.Size.x, minPos.y));
+            }
+        }
+        if (window.Size.y >= spaceDown) {
+            igSetWindowPos(window, ImVec2(window.Pos.x, window.Pos.y - (window.Size.y - spaceDown)));
+        }
+    }
 }
 
 interface CommandIssuer {
@@ -121,6 +166,8 @@ class TreeOutput : Output {
 protected:
     int IconSize = 20;
     CommandIssuer panel;
+    Resource popupOpened = null;
+    ImVec2 panePos, paneSize;
 
     Resource[] nodes;
     Resource[][Resource] children;
@@ -128,32 +175,29 @@ protected:
     bool[Resource] nodeIncluded;
     Resource focused = null;
     bool[uint] contentsDrawn;
-    float contentHeight = 0;
 
     void showContents(Resource res) {
         ImVec2 size = ImVec2(20, 20);
         if (igButton("\ue763", size)) {
-            if (panel)
+            if (panel) {
                 panel.addPopup(res);
+                popupOpened = null;
+            }
         }
 
         if (res.type == ResourceType.Node) {
+            Node node = to!Node(res);
             igSameLine();
             if (igButton("\ue8b8", size)) {
-                Node node = to!Node(res);
-                igOpenPopup("##NodeMenu");
-                if (igBeginPopup("##NodeMenu")) {
-                    bool isRoot = node.parent is null;
-                    if (isRoot)
-                        incNodeActionMenu!true(node);
-                    else
-                        incNodeActionMenu!false(node);
-                    igEndPopup();
-                }
+                igOpenPopup("NodeActionsPopup2");
             }
+            bool isRoot = node.parent is null;
+            if (isRoot)
+                incNodeActionsPopup!("NodeActionsPopup2", true, true)(node);
+            else
+                incNodeActionsPopup!("NodeActionsPopup2", false, true)(node);
             igSameLine();
             igText(res.name.toStringz);
-            Node node = to!Node(res);
             onNodeView(node);
         } else if (res.type == ResourceType.Parameter) {
             Parameter param = to!Parameter(res);
@@ -177,9 +221,10 @@ protected:
         bool isNode = res.type == ResourceType.Node;
         bool selected = false;
         bool noIcon = false;
+        Node node;
         igSameLine();
         if (isNode) {
-            Node node = to!Node(res);
+            node = to!Node(res);
             selected = incNodeInSelection(node);
             if (auto part = cast(Part)node) {
                 if (node.typeId == "Part") {
@@ -210,25 +255,37 @@ protected:
 
         if (igSelectable("%s%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), isActive? "":"", res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
             if (isNode) {
-                Node node = to!Node(res);
+                node = to!Node(res);
                 incSelectNode(node);
             }
         }
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
-        const char* popupName = "###%x".format(res.uuid).toStringz;
+        const char* popupName  = "##TreeViewNodeView";
+        const char* popupName2 = "##TreeViewNodeMenu";
         if (isHovered && (isNode || res.type == ResourceType.Parameter)) {
             if (igIsItemClicked(ImGuiMouseButton.Right)) {
-                contentHeight = 0;
                 igOpenPopup(popupName);
+                if (isNode)
+                    igOpenPopup(popupName2);
             }
         }
-
         if (igBeginPopup(popupName)) {
             if (res.uuid in contentsDrawn) return;
             showContents(res);
             contentsDrawn[res.uuid] = true;
             igEndPopup();
         }
+
+        if (node !is null) {        
+            bool isRoot = node.parent is null;
+            auto flags = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoDocking;
+
+            if (isRoot)
+                incNodeActionsPopup!(popupName2, true, true)(node);
+            else
+                incNodeActionsPopup!(popupName2, false, true)(node);
+        }
+
         if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
             if (panel) {
                 string selectorStr = " %s#%d".format(res.typeId, res.uuid);
@@ -337,10 +394,15 @@ protected:
     override
     void drawTreeItem(Resource res) {
         bool selected = false;
+        ImVec2 spacing, minPos;
+        Node node;
+        bool mouseDown = igIsAnyMouseDown();
+        bool hovered = false;
+        ImVec2 widgetMinPos, widgetMaxPos;
         igSameLine();
         switch (res.type) {
             case ResourceType.Node:
-                Node node =to!Node(res);
+                node = to!Node(res);
                 selected = incNodeInSelection(node);
 
                 if (res !in nodeIncluded) {
@@ -348,18 +410,27 @@ protected:
                 }
 
                 if (node.typeId == "Part") {
+                    spacing = igGetStyle().ItemSpacing;
+                    igGetStyle().ItemSpacing = ImVec2(0, 0);
                     auto part = cast(Part)node;
                     if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize))) {
                         incSelectNode(node);
                     }
+                    hovered = igIsItemHovered();
                     igSetItemAllowOverlap();
                     igSameLine();
+                    igGetItemRectMin(&widgetMinPos);
+                    igGetCursorPos(&minPos);
                     incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
+                    igGetItemRectMax(&widgetMaxPos);
                     incTooltip(_(res.name));
                 } else {
+                    igGetItemRectMin(&widgetMinPos);
                     if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
                         incSelectNode(node);
                     }
+                    igGetItemRectMax(&widgetMaxPos);
+                    hovered = igIsItemHovered();
                 }
 
                 if (res !in nodeIncluded) {
@@ -371,9 +442,13 @@ protected:
                 auto param = to!Parameter(res);
                 isActive = incArmedParameter() == param;
                 if (auto exGroup = cast(ExParameterGroup)param) {
+                    igGetItemRectMin(&widgetMinPos);
                     if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
                     }
+                    hovered = igIsItemHovered();
+                    igGetItemRectMax(&widgetMaxPos);
                 } else {
+                    igGetItemRectMin(&widgetMinPos);
                     igPushID(cast(void*)param);
                     if (incController!(4, 4, 3)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
                         if (igIsMouseDown(ImGuiMouseButton.Left)) {
@@ -383,6 +458,8 @@ protected:
                             grabParam = "";
                         }
                     }
+                    hovered = igIsItemHovered();
+                    igGetItemRectMax(&widgetMaxPos);
                     incTooltip(_(res.name));
                     igPopID();
                 }
@@ -395,29 +472,71 @@ protected:
                 }
                 break;
             default:
+                igGetItemRectMin(&widgetMinPos);
+                igGetItemRectMax(&widgetMaxPos);
         }
+//        writefln("%s: L:%.2f(minPos=%.2f, winPos=%.2f),  R:%.2f(winSize=%.2f, maxPos=%.2f)", res.name, 
+//                    spaceLeft, widgetMinPos.x, panePos.x, 
+//                    spaceRight, paneSize.x, widgetMaxPos.x);
 
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
-        const char* popupName = "###%x".format(res.uuid).toStringz;
-        if (isHovered && (res.type == ResourceType.Node || res.type == ResourceType.Parameter)) {
-            if (igIsItemClicked(ImGuiMouseButton.Right)) {
-                contentHeight = 0;
-                igOpenPopup(popupName);
+        const char* popupName  = "##IconTreeViewNodeView";
+        const char* popupName2 = "##IconTreeViewNodeMenu";
+        bool menuOpened = isHovered && 
+            (res.type == ResourceType.Node || res.type == ResourceType.Parameter) &&
+            igIsItemClicked(ImGuiMouseButton.Right);
+
+        if (popupOpened == res) {
+            auto flags = ImGuiWindowFlags.NoCollapse | 
+                        ImGuiWindowFlags.NoDocking |
+                        ImGuiWindowFlags.AlwaysAutoResize | 
+                        ImGuiWindowFlags.NoTitleBar | 
+                        ImGuiWindowFlags.NoSavedSettings;
+            if (igBegin(popupName, null, flags)) {
+                hovered |= popupOpened == res && isWindowHovered();
+                if (res.uuid in contentsDrawn) return;
+                showContents(res);
+                contentsDrawn[res.uuid] = true;
+
+                auto window = igFindWindowByName(popupName);
+                adjustWindowPos!true(widgetMinPos, widgetMaxPos, window);
+            }
+            igEnd();
+
+            if (node !is null && popupOpened) {
+                bool isRoot = node.parent is null;
+
+                if (igBegin(popupName2, null, flags)) {
+                    hovered |= popupOpened == res && isWindowHovered();
+                    if (isRoot)
+                        incNodeActionsPopup!(null, true, true)(node);
+                    else
+                        incNodeActionsPopup!(null, false, true)(node);
+
+                    auto window = igFindWindowByName(popupName2);
+                    adjustWindowPos!false(widgetMinPos, widgetMaxPos, window);
+                }
+                igEnd();
+            }
+            if (!hovered && mouseDown) {
+                popupOpened = null;
+                igGetIO().MouseClicked[ImGuiMouseButton.Left] = false;
+                igGetIO().MouseClicked[ImGuiMouseButton.Right] = false;
             }
         }
-
-        if (igBeginPopup(popupName)) {
-            if (res.uuid in contentsDrawn) return;
-            showContents(res);
-            contentsDrawn[res.uuid] = true;
-            igEndPopup();
-        }
+        if (menuOpened && popupOpened is null)
+            popupOpened = res;
         if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
             if (res.uuid !in layout) {
                 layout.require(res.uuid);
                 layout[res.uuid].nextInHorizontal = true;
             }else {
                 layout[res.uuid].nextInHorizontal = ! layout[res.uuid].nextInHorizontal;
+            }
+        }
+        if (res.type == ResourceType.Node) {
+            if (node.typeId == "Part") {
+                igGetStyle().ItemSpacing = spacing;
             }
         }
     }
@@ -429,6 +548,8 @@ public:
 
     override
     void onUpdate() {
+        igGetWindowPos(&panePos);
+        igGetWindowSize(&paneSize);
         if (nodes.length > 0) {
             igPushID(cast(void*)this);
             contentsDrawn.clear();
@@ -531,6 +652,12 @@ public:
             style.IndentSpacing = spacing;
             igPopID();
         }
+    }
+
+    override
+    void setResources(Resource[] resources) {
+        super.setResources(resources);
+        popupOpened = null;
     }
 
 }
