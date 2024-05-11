@@ -106,6 +106,7 @@ private {
     }
 
     bool isWindowHovered() {
+        if (igIsWindowHovered(ImGuiHoveredFlags.ChildWindows)) return true;
         ImVec2 pos, size;
         ImVec2 curPos;
         igGetMousePos(&curPos);
@@ -167,7 +168,6 @@ protected:
     int IconSize = 20;
     CommandIssuer panel;
     Resource popupOpened = null;
-    ImVec2 panePos, paneSize;
 
     Resource[] nodes;
     Resource[][Resource] children;
@@ -390,13 +390,14 @@ protected:
         bool scrolledOut = false;
     }
     SubItemLayout[uint] layout;
+    bool prevMouseDown = false;
+    bool mouseDown = false;
 
     override
     void drawTreeItem(Resource res) {
         bool selected = false;
         ImVec2 spacing, minPos;
         Node node;
-        bool mouseDown = igIsAnyMouseDown();
         bool hovered = false;
         ImVec2 widgetMinPos, widgetMaxPos;
         igSameLine();
@@ -475,9 +476,6 @@ protected:
                 igGetItemRectMin(&widgetMinPos);
                 igGetItemRectMax(&widgetMaxPos);
         }
-//        writefln("%s: L:%.2f(minPos=%.2f, winPos=%.2f),  R:%.2f(winSize=%.2f, maxPos=%.2f)", res.name, 
-//                    spaceLeft, widgetMinPos.x, panePos.x, 
-//                    spaceRight, paneSize.x, widgetMaxPos.x);
 
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
         const char* popupName  = "##IconTreeViewNodeView";
@@ -518,7 +516,7 @@ protected:
                 }
                 igEnd();
             }
-            if (!hovered && mouseDown) {
+            if (!hovered && mouseDown && !prevMouseDown) {
                 popupOpened = null;
                 igGetIO().MouseClicked[ImGuiMouseButton.Left] = false;
                 igGetIO().MouseClicked[ImGuiMouseButton.Right] = false;
@@ -548,9 +546,8 @@ public:
 
     override
     void onUpdate() {
-        igGetWindowPos(&panePos);
-        igGetWindowSize(&paneSize);
         if (nodes.length > 0) {
+            mouseDown = igIsAnyMouseDown();
             igPushID(cast(void*)this);
             contentsDrawn.clear();
 
@@ -651,6 +648,7 @@ public:
             }
             style.IndentSpacing = spacing;
             igPopID();
+            prevMouseDown = mouseDown;
         }
     }
 
