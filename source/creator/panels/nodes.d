@@ -218,6 +218,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                             Node node = inInstantiateNode(type);
                             node.copyFrom(n, true, true);
                             incActionPush(new NodeReplaceAction(n, node, true));
+                            node.notifyChange(node, NotifyReason.StructureChanged);
                         }
                     }
                     igEndMenu();

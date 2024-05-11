@@ -245,7 +245,8 @@ public:
                 child.reparent(srcNode, i);
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
-        }
+        } else
+            srcNode.notifyChange(srcNode, NotifyReason.StructureChanged);
     }
 
     /**
@@ -265,7 +266,8 @@ public:
                 child.reparent(toNode, i);
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
-        }
+        } else
+            toNode.notifyChange(toNode, NotifyReason.StructureChanged);
     }
 
     /**
