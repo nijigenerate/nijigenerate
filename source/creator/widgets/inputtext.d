@@ -37,11 +37,13 @@ bool incInputText(string wId, float width, ref string buffer, ImGuiInputTextFlag
     if (buffer.ptr is null) {
         buffer = "";
     }
-
+    /*
     if (buffer.ptr[buffer.length] != '\0') {
         // If buffer.ptr does not end with '\0', recreate string to force '\0' at the end.
         buffer = buffer.ptr[0..buffer.length]~'\0';
     }
+    */
+    buffer = buffer.toStringz.fromStringz;
 
     // Push ID
     auto id = igGetID(wId.ptr, wId.ptr+wId.length);
