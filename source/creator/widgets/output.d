@@ -177,6 +177,69 @@ protected:
     Resource focused = null;
     bool[uint] contentsDrawn;
 
+    void setNodeReorderDragTarget(Resource res, bool horizontal = true, float width = -1) {
+        if (res.type == ResourceType.Node) {
+            auto selectedNodes = incSelectedNodes();
+            ImVec2 avail = incAvailableSpace();
+            width = horizontal? (width < 0? IconSize * 1.5: width): 4;
+            float height = horizontal? 4: max(avail.y, IconSize);
+            auto paddingY = igGetStyle().FramePadding.y;
+            igGetStyle().FramePadding.y = 0;
+            igInvisibleButton("###TARGET%d".format(res.uuid).toStringz, ImVec2(width, height));
+            igGetStyle().FramePadding.y = paddingY;
+
+            Node node = to!Node(res);
+            if(igBeginDragDropTarget()) {
+                const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
+                if (payload !is null) {
+                    Node payloadNode = *cast(Node*)payload.Data;
+                    auto index = node.parent.children.countUntil(node);
+                    
+                    try {
+                        if (selectedNodes.length > 1) incMoveChildrenWithHistory(selectedNodes, node.parent, index);
+                        else incMoveChildWithHistory(payloadNode, node.parent, index);
+                    } catch (Exception ex) {
+                        incDialog(__("Error"), ex.msg);
+                    }
+                }
+                igEndDragDropTarget();
+            }
+        }
+    }
+
+    void setNodeDragSource(Node node) {
+        bool isRoot = node.parent is null;
+        auto selectedNodes = incSelectedNodes();
+        if (!isRoot) {
+            if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+                igSetDragDropPayload("_PUPPETNTREE", cast(void*)&node, (&node).sizeof, ImGuiCond.Always);
+                if (selectedNodes.length > 1) {
+                    incDragdropNodeList(selectedNodes);
+                } else {
+                    incDragdropNodeList(node);
+                }
+                igEndDragDropSource();
+            }
+        }
+    }
+    void setNodeReparentDragTarget(Node node) {
+        if(igBeginDragDropTarget()) {
+            auto selectedNodes = incSelectedNodes();
+            const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
+            if (payload !is null) {
+                Node payloadNode = *cast(Node*)payload.Data;
+                
+                try {
+                    if (selectedNodes.length > 1) incMoveChildrenWithHistory(selectedNodes, node, 0);
+                    else incMoveChildWithHistory(payloadNode, node, 0);
+                } catch (Exception ex) {
+                    incDialog(__("Error"), ex.msg);
+                }
+            }
+            igEndDragDropTarget();
+        }
+    }
+
     void showContents(Resource res) {
         ImVec2 size = ImVec2(20, 20);
         if (igButton("\ue763", size)) {
@@ -260,6 +323,10 @@ protected:
                 incSelectNode(node);
             }
         }
+        if (isNode) {
+            setNodeDragSource(node);
+            setNodeReparentDragTarget(node);
+        }
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
         const char* popupName  = "##TreeViewNodeView";
         const char* popupName2 = "##TreeViewNodeMenu";
@@ -319,8 +386,10 @@ public:
 
                 if (opened) {
                     if (res in children) {
-                        foreach (child; children[res])
+                        foreach (child; children[res]) {
+                            setNodeReorderDragTarget(child, true, 128);
                             traverse(child);
+                        }
                     }
                     igTreePop();
                 }
@@ -425,7 +494,13 @@ protected:
                     igSameLine();
                     igGetItemRectMin(&widgetMinPos);
                     igGetCursorPos(&minPos);
+                    auto paddingY = igGetStyle().FramePadding.y;
+                    igGetStyle().FramePadding.y = 1;
                     incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
+                    igGetStyle().FramePadding.y = paddingY;
+                    if (igIsItemClicked()) {
+                        incSelectNode(node);
+                    }
                     igGetItemRectMax(&widgetMaxPos);
                     incTooltip(_(res.name));
                 } else {
@@ -440,33 +515,8 @@ protected:
                 if (res !in nodeIncluded) {
                     igPopStyleColor(6);
                 }
-                bool isRoot = node.parent is null;
-                auto selectedNodes = incSelectedNodes();
-                if (!isRoot) {
-                    if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
-                        igSetDragDropPayload("_PUPPETNTREE", cast(void*)&node, (&node).sizeof, ImGuiCond.Always);
-                        if (selectedNodes.length > 1) {
-                            incDragdropNodeList(selectedNodes);
-                        } else {
-                            incDragdropNodeList(node);
-                        }
-                        igEndDragDropSource();
-                    }
-                }
-                if(igBeginDragDropTarget()) {
-                    const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
-                    if (payload !is null) {
-                        Node payloadNode = *cast(Node*)payload.Data;
-                        
-                        try {
-                            if (selectedNodes.length > 1) incMoveChildrenWithHistory(selectedNodes, node, 0);
-                            else incMoveChildWithHistory(payloadNode, node, 0);
-                        } catch (Exception ex) {
-                            incDialog(__("Error"), ex.msg);
-                        }
-                    }
-                    igEndDragDropTarget();
-                }
+                setNodeDragSource(node);
+                setNodeReparentDragTarget(node);
                 break;
             case ResourceType.Parameter:
                 bool isActive = false;
@@ -571,7 +621,7 @@ protected:
 public:
     this(CommandIssuer panel) {
         super(panel);
-        IconSize = 64;
+        IconSize = 48;
     }
 
     override
@@ -614,6 +664,8 @@ public:
                         bool subHorz = false;
                         uint[] subParentUUIDs = parentUUIDs[];
                         foreach (child; children[res]) {
+                            setNodeReorderDragTarget(child, !subHorz);
+
                             ImRect subRect = traverse(child, subHorz, subParentUUIDs);
                             result.Min.x = min(result.Min.x, subRect.Min.x);
                             result.Min.y = min(result.Min.y, subRect.Min.y);
