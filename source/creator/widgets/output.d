@@ -8,6 +8,7 @@ import std.algorithm;
 import i18n;
 import inochi2d;
 import creator;
+import creator.actions;
 import creator.core;
 import creator.core.selector;
 import creator.panels;
@@ -312,7 +313,9 @@ public:
                 ImGuiTreeNodeFlags flags = setFlag(res);
                 bool opened = igTreeNodeEx(cast(void*)res.uuid, flags, "");
 
+                igPushID(cast(void*)res.uuid);
                 drawTreeItem(res);
+                igPopID();
 
                 if (opened) {
                     if (res in children) {
@@ -436,6 +439,33 @@ protected:
 
                 if (res !in nodeIncluded) {
                     igPopStyleColor(6);
+                }
+                bool isRoot = node.parent is null;
+                auto selectedNodes = incSelectedNodes();
+                if (!isRoot) {
+                    if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+                        igSetDragDropPayload("_PUPPETNTREE", cast(void*)&node, (&node).sizeof, ImGuiCond.Always);
+                        if (selectedNodes.length > 1) {
+                            incDragdropNodeList(selectedNodes);
+                        } else {
+                            incDragdropNodeList(node);
+                        }
+                        igEndDragDropSource();
+                    }
+                }
+                if(igBeginDragDropTarget()) {
+                    const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
+                    if (payload !is null) {
+                        Node payloadNode = *cast(Node*)payload.Data;
+                        
+                        try {
+                            if (selectedNodes.length > 1) incMoveChildrenWithHistory(selectedNodes, node, 0);
+                            else incMoveChildWithHistory(payloadNode, node, 0);
+                        } catch (Exception ex) {
+                            incDialog(__("Error"), ex.msg);
+                        }
+                    }
+                    igEndDragDropTarget();
                 }
                 break;
             case ResourceType.Parameter:
@@ -569,7 +599,9 @@ public:
                 }
                 bool opened = igTreeNodeEx(cast(void*)res.uuid, flags, "");
 
+                igPushID(cast(void*)res.uuid);
                 drawTreeItem(res);
+                igPopID();
                 ImRect result;
                 igGetItemRectMin(&result.Min);
                 igGetItemRectMax(&result.Max);
