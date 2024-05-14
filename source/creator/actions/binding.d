@@ -54,6 +54,8 @@ public:
             parent.bindings ~= self;
         else
             parent.removeBinding(self);
+        if (self.getTarget().node)
+            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
     }
 
     /**
@@ -64,6 +66,8 @@ public:
             parent.bindings ~= self;
         else
             parent.removeBinding(self);
+        if (self.getTarget().node)
+            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
     }
 
     /**

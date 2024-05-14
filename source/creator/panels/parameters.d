@@ -210,6 +210,7 @@ private {
             ParameterBinding b = param.getOrAddBinding(target, binding.getName());
             binding.copyKeypointToBinding(cParamPoint, b, cParamPoint);
         }
+        target.notifyChange(target, NotifyReason.StructureChanged);
 
         refreshBindingList(param);
     }
@@ -589,6 +590,62 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
 
 }
 
+void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelectedBindings) {
+    if (igMenuItem(__("Remove"), "", false, true)) {
+        auto action = new GroupAction();
+        foreach(binding; cSelectedBindings.byValue()) {
+            action.addAction(new ParameterBindingRemoveAction(param, binding));
+            param.removeBinding(binding);
+            binding.getTarget().node.notifyChange(binding.getTarget().node, NotifyReason.StructureChanged);
+        }
+        incActionPush(action);
+        incViewportNodeDeformNotifyParamValueChanged();
+    }
+
+    incKeypointActions(param, null, cSelectedBindings.values);
+
+    if (igBeginMenu(__("Interpolation Mode"), true)) {
+        if (igMenuItem(__("Nearest"), "", false, true)) {
+            foreach(binding; cSelectedBindings.values) {
+                binding.interpolateMode = InterpolateMode.Nearest;
+            }
+            incViewportNodeDeformNotifyParamValueChanged();
+        }
+        if (igMenuItem(__("Linear"), "", false, true)) {
+            foreach(binding; cSelectedBindings.values) {
+                binding.interpolateMode = InterpolateMode.Linear;
+            }
+            incViewportNodeDeformNotifyParamValueChanged();
+        }
+        if (igMenuItem(__("Cubic"), "", false, true)) {
+            foreach(binding; cSelectedBindings.values) {
+                binding.interpolateMode = InterpolateMode.Cubic;
+            }
+            incViewportNodeDeformNotifyParamValueChanged();
+        }
+        igEndMenu();
+    }
+
+    bool haveCompatible = cCompatibleNodes.length > 0;
+    if (igBeginMenu(__("Copy to"), haveCompatible)) {
+        foreach(cNode; cCompatibleNodes) {
+            if (igMenuItem(cNode.name.toStringz, "", false, true)) {
+                copySelectionToNode(param, cNode);
+            }
+        }
+        igEndMenu();
+    }
+    if (igBeginMenu(__("Swap with"), haveCompatible)) {
+        foreach(cNode; cCompatibleNodes) {
+            if (igMenuItem(cNode.name.toStringz, "", false, true)) {
+                swapSelectionWithNode(param, cNode);
+            }
+        }
+        igEndMenu();
+    }
+
+}
+
 void incBindingList(Parameter param) {
     if (incBeginCategory(__("Bindings"),IncCategoryFlags.None, (float w, float h) {
         if (selectedOnly)
@@ -635,58 +692,7 @@ void incBindingList(Parameter param) {
 
                     if (bindings is null) igPopStyleColor();
                     if (igBeginPopup("###BindingPopup")) {
-                        if (igMenuItem(__("Remove"), "", false, true)) {
-                            auto action = new GroupAction();
-                            foreach(binding; cSelectedBindings.byValue()) {
-                                action.addAction(new ParameterBindingRemoveAction(param, binding));
-                                param.removeBinding(binding);
-                            }
-                            incActionPush(action);
-                            incViewportNodeDeformNotifyParamValueChanged();
-                        }
-
-                        incKeypointActions(param, null, cSelectedBindings.values);
-
-                        if (igBeginMenu(__("Interpolation Mode"), true)) {
-                            if (igMenuItem(__("Nearest"), "", false, true)) {
-                                foreach(binding; cSelectedBindings.values) {
-                                    binding.interpolateMode = InterpolateMode.Nearest;
-                                }
-                                incViewportNodeDeformNotifyParamValueChanged();
-                            }
-                            if (igMenuItem(__("Linear"), "", false, true)) {
-                                foreach(binding; cSelectedBindings.values) {
-                                    binding.interpolateMode = InterpolateMode.Linear;
-                                }
-                                incViewportNodeDeformNotifyParamValueChanged();
-                            }
-                            if (igMenuItem(__("Cubic"), "", false, true)) {
-                                foreach(binding; cSelectedBindings.values) {
-                                    binding.interpolateMode = InterpolateMode.Cubic;
-                                }
-                                incViewportNodeDeformNotifyParamValueChanged();
-                            }
-                            igEndMenu();
-                        }
-
-                        bool haveCompatible = cCompatibleNodes.length > 0;
-                        if (igBeginMenu(__("Copy to"), haveCompatible)) {
-                            foreach(cNode; cCompatibleNodes) {
-                                if (igMenuItem(cNode.name.toStringz, "", false, true)) {
-                                    copySelectionToNode(param, cNode);
-                                }
-                            }
-                            igEndMenu();
-                        }
-                        if (igBeginMenu(__("Swap with"), haveCompatible)) {
-                            foreach(cNode; cCompatibleNodes) {
-                                if (igMenuItem(cNode.name.toStringz, "", false, true)) {
-                                    swapSelectionWithNode(param, cNode);
-                                }
-                            }
-                            igEndMenu();
-                        }
-
+                        incBindingMenuContents(param, cSelectedBindings);
                         igEndPopup();
                     }
                     if (igIsItemClicked(ImGuiMouseButton.Right)) {
