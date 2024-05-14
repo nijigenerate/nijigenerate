@@ -91,7 +91,7 @@ public:
     override
     string name() { return target.getName; }
     override
-    uint uuid() { return target.getNodeUUID; }
+    uint uuid() { return cast(uint)&target; }
     override
     string typeId() { return "Binding"; }
 

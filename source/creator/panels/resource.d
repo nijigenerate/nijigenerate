@@ -33,6 +33,7 @@ public:
 /**
     The Shell frame
 */
+@TypeId("ResourcePanel")
 class ResourcePanel : Panel, CommandIssuer {
 private:
     View[] history;
@@ -125,6 +126,45 @@ public:
     void addPopup(Resource res) {
         views.addResources([res]);
     }
+
+    void serialize(S)(ref S serializer) {
+        auto view = cast(IconTreeOutput)history[0];
+        if (view) {
+            auto state = serializer.objectBegin();
+                serializer.putKey("nextInHorizontal");
+                auto arr = serializer.arrayBegin();
+                    foreach(uuid; view.layout.keys()) {
+                        serializer.elemBegin;
+                        serializer.serializeValue(uuid);
+                    }
+                serializer.arrayEnd(arr);
+            serializer.objectEnd(state);
+        }
+    }
+
+    SerdeException deserializeFromFghj(Fghj data) {
+        import std.stdio : writeln;
+        import std.algorithm.searching: count;
+        if (data.isEmpty) return null;
+
+        if (history.length == 0) {
+            // TBD
+        }
+        
+        auto view = cast(IconTreeOutput)history[0];
+
+        auto elements = data["nextInHorizontal"].byElement;
+        while(!elements.empty) {
+            uint uuid;
+            elements.front.deserializeValue(uuid);
+            elements.popFront;
+            view.layout.require(uuid);
+            view.layout[uuid].nextInHorizontal = true;
+        }
+
+        return null;
+    }
+
 }
 
 /**

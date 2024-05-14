@@ -23,6 +23,12 @@ import creator.ext;
 private {
     string parameterGrabStr;
     enum NodeViewWidth = 250;
+    enum PopupSide {
+        HorzLarger,
+        HorzNarrower,
+        VertLarger,
+        VertNarrower
+    };
 
     void onNodeView(Node node) {
         if (node !is null && node != incActivePuppet().root) {
@@ -117,13 +123,18 @@ private {
                pos.y <= curPos.y && curPos.y < pos.y + size.y;
     }
 
+    // This code rlies on imgui_internal.h
+    // getting window rectangle for specified window.
+    // igGetPopupAllowedExtentRect is used in the implementation of Popup window.
     ImRect getOuterRect(ImGuiWindow* window) {
         ImRect r_outer;
         igGetPopupAllowedExtentRect(&r_outer, window);
         return r_outer;
     }
 
-    void adjustWindowPos(bool largePart)(ImVec2 minPos, ImVec2 maxPos, ImGuiWindow* window) {
+    // This code relies on imgui_internal.h
+    // Adjusting window position requires detailed internal information in ImGuiWindow.
+    void adjustWindowPos(PopupSide side)(ImVec2 minPos, ImVec2 maxPos, ImGuiWindow* window) {
         if (window is null || window.RootWindow is null) return;
         ImRect r_outer = getOuterRect(window);
         float spaceLeft = minPos.x - r_outer.Min.x;
@@ -131,25 +142,73 @@ private {
         float spaceUp = minPos.y - r_outer.Min.y;
         float spaceDown = r_outer.Max.y - r_outer.Min.y - minPos.y;
 
-//        writefln("adjust: window: %.2f, %.2f, %.2f, %.2f", window.Pos.x, window.Pos.y, window.Size.x, window.Size.y);
-//        writefln("adjust: root: %.2f, %.2f, %.2f, %.2f", r_outer.Min.x, r_outer.Min.y, r_outer.Max.x, r_outer.Max.y);
-
-        if (largePart) {
-            if (spaceLeft > spaceRight) {
-                igSetWindowPos(window, ImVec2(minPos.x - window.Size.x, minPos.y));
-            } else {
-                igSetWindowPos(window, ImVec2(maxPos.x, minPos.y));
+        switch (side) {
+            case PopupSide.HorzLarger:
+                if (spaceLeft > spaceRight) {
+                    igSetWindowPos(window, ImVec2(minPos.x - window.Size.x, minPos.y));
+                } else {
+                    igSetWindowPos(window, ImVec2(maxPos.x, minPos.y));
+                }
+                break;
+            case PopupSide.HorzNarrower:
+                if (spaceLeft > spaceRight) {
+                    igSetWindowPos(window, ImVec2(maxPos.x, minPos.y));
+                } else {
+                    igSetWindowPos(window, ImVec2(minPos.x - window.Size.x, minPos.y));
+                }
+                break;
+            case PopupSide.VertLarger:
+                if (spaceUp > spaceDown) {
+                    igSetWindowPos(window, ImVec2(minPos.x, minPos.y - window.Size.y));
+                } else {
+                    igSetWindowPos(window, ImVec2(minPos.x, maxPos.y));
+                }
+                break;
+            case PopupSide.VertNarrower:
+                if (spaceUp > spaceDown) {
+                    igSetWindowPos(window, ImVec2(minPos.x, maxPos.y));
+                } else {
+                    igSetWindowPos(window, ImVec2(minPos.x, minPos.y - window.Size.y));
+                }
+                break;
+            default:
+                break;
+        }
+        if (side == PopupSide.HorzLarger || side == PopupSide.HorzNarrower) {
+            if (window.Size.y >= spaceDown) {
+                igSetWindowPos(window, ImVec2(window.Pos.x, window.Pos.y - (window.Size.y - spaceDown)));
+            }
+            if (window.Pos.y < 0) {
+                igSetWindowPos(window, ImVec2(window.Pos.x, 0));
             }
         } else {
-            if (spaceLeft > spaceRight) {
-                igSetWindowPos(window, ImVec2(maxPos.x, minPos.y));
-            } else {
-                igSetWindowPos(window, ImVec2(minPos.x - window.Size.x, minPos.y));
+            if (window.Size.x >= spaceRight) {
+                igSetWindowPos(window, ImVec2(window.Pos.x - (window.Size.x - spaceRight), window.Pos.y));
+            }
+            if (window.Pos.x < 0) {
+                igSetWindowPos(window, ImVec2(0, window.Pos.y));
             }
         }
-        if (window.Size.y >= spaceDown) {
-            igSetWindowPos(window, ImVec2(window.Pos.x, window.Pos.y - (window.Size.y - spaceDown)));
-        }
+    }
+
+    string[string] transformName = [
+        "transform.t.x": "\ue89f-X",
+        "transform.t.y": "\ue89f-Y",
+        "transform.t.z": "\ue89f-Z",
+        "transform.s.x": "\ue8ff-X",
+        "transform.s.y": "\ue8ff-Y",
+        "transform.s.z": "\ue8ff-Z",
+        "transform.r.x": "\ue863-X",
+        "transform.r.y": "\ue863-Y",
+        "transform.r.z": "\ue863-Z",
+        "deform"       : "\ue3ea",
+    ];
+
+    string getTransformText(string name) {
+        if (name in transformName) {
+            return transformName[name];
+        } else
+            return name;
     }
 }
 
@@ -241,6 +300,19 @@ protected:
     }
 
     void showContents(Resource res) {
+        if (res.type == ResourceType.Binding) {
+            auto binding = to!ParameterBinding(res);
+            auto vimpl = cast(ValueParameterBinding)binding;
+            auto dimpl = cast(DeformationParameterBinding)binding;
+            ParameterBinding[BindTarget] bindings;
+            bindings[binding.getTarget()] = binding;
+            if (vimpl)
+                incBindingMenuContents(vimpl.parameter, bindings);
+            else if (dimpl)
+                incBindingMenuContents(dimpl.parameter, bindings);
+            return;
+        }
+
         ImVec2 size = ImVec2(20, 20);
         if (igButton("\ue763", size)) {
             if (panel) {
@@ -275,7 +347,8 @@ protected:
 
     ImGuiTreeNodeFlags setFlag(Resource res) {
         ImGuiTreeNodeFlags flags;
-        if (res !in children && res.type != ResourceType.Parameter) flags |= ImGuiTreeNodeFlags.Leaf;
+        if (res !in children) 
+            flags |= ImGuiTreeNodeFlags.Leaf;
         flags |= ImGuiTreeNodeFlags.DefaultOpen;
         flags |= ImGuiTreeNodeFlags.OpenOnArrow;
         return flags;
@@ -461,108 +534,129 @@ protected:
         bool nextInHorizontal = false;
         bool scrolledOut = false;
     }
-    SubItemLayout[uint] layout;
+    SubItemLayout[uint] _layout;
     bool prevMouseDown = false;
     bool mouseDown = false;
 
+    void drawNode(Resource res, Node node, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
+        bool selected = incNodeInSelection(node);
+        ImVec2 spacing;
+
+        if (res !in nodeIncluded) {
+            setTransparency(0.5, 0.5);
+        }
+
+        if (node.typeId == "Part") {
+            spacing = igGetStyle().ItemSpacing;
+            igGetStyle().ItemSpacing = ImVec2(0, 0);
+            auto part = cast(Part)node;
+            if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize))) {
+                incSelectNode(node);
+            }
+            hovered = igIsItemHovered();
+            igSetItemAllowOverlap();
+            igSameLine();
+            igGetItemRectMin(&widgetMinPos);
+            auto paddingY = igGetStyle().FramePadding.y;
+            igGetStyle().FramePadding.y = 1;
+            incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
+            igGetStyle().FramePadding.y = paddingY;
+            if (igIsItemClicked()) {
+                incSelectNode(node);
+            }
+            igGetItemRectMax(&widgetMaxPos);
+            incTooltip(_(res.name));
+        } else {
+            igGetItemRectMin(&widgetMinPos);
+            if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+                incSelectNode(node);
+            }
+            igGetItemRectMax(&widgetMaxPos);
+            hovered = igIsItemHovered();
+        }
+
+        if (res !in nodeIncluded) {
+            igPopStyleColor(6);
+        }
+        setNodeDragSource(node);
+        setNodeReparentDragTarget(node);
+        if (node.typeId == "Part")
+            igGetStyle().ItemSpacing = spacing;
+    }
+
+    void drawParameter(Resource res, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
+        bool isActive = false;
+        auto param = to!Parameter(res);
+        isActive = incArmedParameter() == param;
+        if (auto exGroup = cast(ExParameterGroup)param) {
+            igGetItemRectMin(&widgetMinPos);
+            if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, false, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+            }
+            igGetItemRectMax(&widgetMaxPos);
+        } else {
+            igGetItemRectMin(&widgetMinPos);
+            igPushID(cast(void*)param);
+            if (igSelectable(res.name.toStringz, incArmedParameter() == param, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
+            }
+            if (incController!(4, 4, 3)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
+                if (igIsMouseDown(ImGuiMouseButton.Left)) {
+                    if (grabParam == null)
+                        grabParam = param.name;
+                } else {
+                    grabParam = "";
+                }
+            }
+            hovered = igIsItemHovered();
+            igGetItemRectMax(&widgetMaxPos);
+            incTooltip(_(res.name));
+            igPopID();
+        }
+    }
+
+    void drawBinding(Resource res, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
+        bool isActive = false;
+        auto binding = to!ParameterBinding(res);
+        if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
+            isActive = binding.isSet(incParamPoint());
+        }
+        igGetItemRectMin(&widgetMinPos);
+        if (igSelectable("%s%s%s".format(isActive? "\ue5de": "", getTransformText(res.name), isActive? "\ue5df": "").toStringz, false, ImGuiSelectableFlags.None, ImVec2(0, 16))) {
+        }
+        hovered = igIsItemHovered();
+        igGetItemRectMax(&widgetMaxPos);
+    }
+
     override
     void drawTreeItem(Resource res) {
-        bool selected = false;
-        ImVec2 spacing, minPos;
         Node node;
         bool hovered = false;
         ImVec2 widgetMinPos, widgetMaxPos;
         igSameLine();
+        // Draw contents of TreeNodeEx
         switch (res.type) {
             case ResourceType.Node:
                 node = to!Node(res);
-                selected = incNodeInSelection(node);
-
-                if (res !in nodeIncluded) {
-                    setTransparency(0.5, 0.5);
-                }
-
-                if (node.typeId == "Part") {
-                    spacing = igGetStyle().ItemSpacing;
-                    igGetStyle().ItemSpacing = ImVec2(0, 0);
-                    auto part = cast(Part)node;
-                    if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize))) {
-                        incSelectNode(node);
-                    }
-                    hovered = igIsItemHovered();
-                    igSetItemAllowOverlap();
-                    igSameLine();
-                    igGetItemRectMin(&widgetMinPos);
-                    igGetCursorPos(&minPos);
-                    auto paddingY = igGetStyle().FramePadding.y;
-                    igGetStyle().FramePadding.y = 1;
-                    incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
-                    igGetStyle().FramePadding.y = paddingY;
-                    if (igIsItemClicked()) {
-                        incSelectNode(node);
-                    }
-                    igGetItemRectMax(&widgetMaxPos);
-                    incTooltip(_(res.name));
-                } else {
-                    igGetItemRectMin(&widgetMinPos);
-                    if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
-                        incSelectNode(node);
-                    }
-                    igGetItemRectMax(&widgetMaxPos);
-                    hovered = igIsItemHovered();
-                }
-
-                if (res !in nodeIncluded) {
-                    igPopStyleColor(6);
-                }
-                setNodeDragSource(node);
-                setNodeReparentDragTarget(node);
+                drawNode(res, node, widgetMinPos, widgetMaxPos, hovered);
                 break;
+
             case ResourceType.Parameter:
-                bool isActive = false;
-                auto param = to!Parameter(res);
-                isActive = incArmedParameter() == param;
-                if (auto exGroup = cast(ExParameterGroup)param) {
-                    igGetItemRectMin(&widgetMinPos);
-                    if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
-                    }
-                    hovered = igIsItemHovered();
-                    igGetItemRectMax(&widgetMaxPos);
-                } else {
-                    igGetItemRectMin(&widgetMinPos);
-                    igPushID(cast(void*)param);
-                    if (incController!(4, 4, 3)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
-                        if (igIsMouseDown(ImGuiMouseButton.Left)) {
-                            if (grabParam == null)
-                                grabParam = param.name;
-                        } else {
-                            grabParam = "";
-                        }
-                    }
-                    hovered = igIsItemHovered();
-                    igGetItemRectMax(&widgetMaxPos);
-                    incTooltip(_(res.name));
-                    igPopID();
-                }
+                drawParameter(res, widgetMinPos, widgetMaxPos, hovered);
                 break;
+
             case ResourceType.Binding:
-                bool isActive = false;
-                auto binding = to!ParameterBinding(res);
-                if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
-                    isActive = binding.isSet(incParamPoint());
-                }
+                drawBinding(res, widgetMinPos, widgetMaxPos, hovered);
                 break;
+
             default:
                 igGetItemRectMin(&widgetMinPos);
                 igGetItemRectMax(&widgetMaxPos);
         }
 
+        // Code for pseudo popup menu
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
         const char* popupName  = "##IconTreeViewNodeView";
         const char* popupName2 = "##IconTreeViewNodeMenu";
-        bool menuOpened = isHovered && 
-            (res.type == ResourceType.Node || res.type == ResourceType.Parameter) &&
-            igIsItemClicked(ImGuiMouseButton.Right);
+        bool menuOpened = isHovered && igIsItemClicked(ImGuiMouseButton.Right);
 
         if (popupOpened == res) {
             auto flags = ImGuiWindowFlags.NoCollapse | 
@@ -576,8 +670,9 @@ protected:
                 showContents(res);
                 contentsDrawn[res.uuid] = true;
 
+                // This code relies on imgui_internal.h, to obtain ImGuiWindow.
                 auto window = igFindWindowByName(popupName);
-                adjustWindowPos!true(widgetMinPos, widgetMaxPos, window);
+                adjustWindowPos!(PopupSide.HorzLarger)(widgetMinPos, widgetMaxPos, window);
             }
             igEnd();
 
@@ -591,8 +686,9 @@ protected:
                     else
                         incNodeActionsPopup!(null, false, true)(node);
 
+                    // This code relies on imgui_internal.h, to obtain ImGuiWindow.
                     auto window = igFindWindowByName(popupName2);
-                    adjustWindowPos!false(widgetMinPos, widgetMaxPos, window);
+                    adjustWindowPos!(PopupSide.VertLarger)(widgetMinPos, widgetMaxPos, window);
                 }
                 igEnd();
             }
@@ -604,17 +700,14 @@ protected:
         }
         if (menuOpened && popupOpened is null)
             popupOpened = res;
+
+        // Toggle direction of next tree item
         if (isHovered && igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
             if (res.uuid !in layout) {
                 layout.require(res.uuid);
                 layout[res.uuid].nextInHorizontal = true;
             }else {
                 layout[res.uuid].nextInHorizontal = ! layout[res.uuid].nextInHorizontal;
-            }
-        }
-        if (res.type == ResourceType.Node) {
-            if (node.typeId == "Part") {
-                igGetStyle().ItemSpacing = spacing;
             }
         }
     }
@@ -742,6 +835,10 @@ public:
         popupOpened = null;
     }
 
+    ref SubItemLayout[uint] layout() {
+        return this._layout;
+    }
+
 }
 
 
@@ -839,4 +936,6 @@ public:
     void addResources(Resource[] nodes_) {
         nodes ~= nodes_;
     }
+
+
 }
