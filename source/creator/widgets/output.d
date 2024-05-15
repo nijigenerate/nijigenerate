@@ -235,6 +235,7 @@ protected:
     bool[Resource] nodeIncluded;
     Resource focused = null;
     bool[uint] contentsDrawn;
+    ParamDragDropData* dragDropData;
 
     void setNodeReorderDragTarget(Resource res, bool horizontal = true, float width = -1) {
         if (res.type == ResourceType.Node) {
@@ -297,6 +298,38 @@ protected:
             }
             igEndDragDropTarget();
         }
+    }
+
+    void setParamDragSource(Parameter param) {
+        if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+            if (!dragDropData) dragDropData = new ParamDragDropData;
+            
+            dragDropData.param = param;
+
+            igSetDragDropPayload("_PARAMETER", cast(void*)&dragDropData, (&dragDropData).sizeof, ImGuiCond.Always);
+            incText(dragDropData.param.name);
+            igEndDragDropSource();
+        }        
+    }
+
+    void setParamDragTarget(ExParameterGroup group) {
+        incBeginDragDropFake();
+            auto peek = igAcceptDragDropPayload("_PARAMETER", ImGuiDragDropFlags.AcceptPeekOnly | ImGuiDragDropFlags.SourceAllowNullID);
+            if(peek && peek.Data) {
+                if (igBeginDragDropTarget()) {
+                    auto payload = igAcceptDragDropPayload("_PARAMETER");
+                    
+                    if (payload !is null) {
+                        ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
+                        (cast(ExParameter)payloadParam.param).setParent(group);
+                        auto root = incActivePuppet().root;
+                        root.notifyChange(root, NotifyReason.StructureChanged);
+                    }
+                    igEndDragDropTarget();
+                }
+            }
+        incEndDragDropFake();
+
     }
 
     void showContents(Resource res) {
@@ -592,13 +625,15 @@ protected:
             igGetItemRectMin(&widgetMinPos);
             if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, false, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
             }
+            setParamDragTarget(exGroup);
             igGetItemRectMax(&widgetMaxPos);
         } else {
             igGetItemRectMin(&widgetMinPos);
             igPushID(cast(void*)param);
             if (igSelectable(res.name.toStringz, incArmedParameter() == param, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
             }
-            if (incController!(4, 4, 3)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
+            setParamDragSource(param);
+            if (incController!(4, 4, 3, 1)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
                 if (igIsMouseDown(ImGuiMouseButton.Left)) {
                     if (grabParam == null)
                         grabParam = param.name;

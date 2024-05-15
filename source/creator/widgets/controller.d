@@ -21,7 +21,7 @@ struct EditableAxisPoint {
 /**
     A Parameter controller
 */
-bool incController(float oRectOffsetX=24, float oRectOffsetY=12, float circleSize = 6.0f)(string strId, ref Parameter param, ImVec2 size, bool forceSnap = false, string grabParam = "") {
+bool incController(float oRectOffsetX=24, float oRectOffsetY=12, float circleSize = 6.0f, float frameWidth = 2.0f)(string strId, ref Parameter param, ImVec2 size, bool forceSnap = false, string grabParam = "") {
     ImGuiWindow* window = igGetCurrentWindow();
     if (window.SkipItems) return false;
 
@@ -147,10 +147,10 @@ bool incController(float oRectOffsetX=24, float oRectOffsetY=12, float circleSiz
             }
 
             // OUTSIDE FRAME
-            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, oRect.Min.y), ImVec2(oRect.Max.x, oRect.Min.y), uLineColor, 2f);
-            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, oRect.Max.y), ImVec2(oRect.Max.x, oRect.Max.y), uLineColor, 2f);
-            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, oRect.Min.y), ImVec2(oRect.Min.x, oRect.Max.y), uLineColor, 2f);
-            ImDrawList_AddLine(drawList, ImVec2(oRect.Max.x, oRect.Min.y), ImVec2(oRect.Max.x, oRect.Max.y), uLineColor, 2f);
+            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, oRect.Min.y), ImVec2(oRect.Max.x, oRect.Min.y), uLineColor, frameWidth);
+            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, oRect.Max.y), ImVec2(oRect.Max.x, oRect.Max.y), uLineColor, frameWidth);
+            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, oRect.Min.y), ImVec2(oRect.Min.x, oRect.Max.y), uLineColor, frameWidth);
+            ImDrawList_AddLine(drawList, ImVec2(oRect.Max.x, oRect.Min.y), ImVec2(oRect.Max.x, oRect.Max.y), uLineColor, frameWidth);
             
             // AXES POINTS
             foreach(xIdx; 0..param.axisPoints[0].length) {
@@ -294,13 +294,13 @@ bool incController(float oRectOffsetX=24, float oRectOffsetY=12, float circleSiz
                         fYCenter+fYCenterLineLen1th
                     ), 
                     uLineColor, 
-                    2f, 
+                    frameWidth, 
                 );
             
             }
 
             // REF LINE
-            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, fYCenter), ImVec2(oRect.Max.x, fYCenter), uLineColor, 2f);
+            ImDrawList_AddLine(drawList, ImVec2(oRect.Min.x, fYCenter), ImVec2(oRect.Max.x, fYCenter), uLineColor, frameWidth);
             
             // AXES POINTS
             foreach(xIdx; 0..param.axisPoints[0].length) {
