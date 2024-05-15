@@ -340,22 +340,6 @@ private {
         return true;
     }
 
-    void moveParameter(Parameter from, ExParameterGroup to = null, int index = 0) {
-        (cast(ExParameter)from).setParent(to);
-    }
-
-    ExParameterGroup createParamGroup(int index = 0) {
-        import std.array : insertInPlace;
-
-        if (index < 0) index = 0;
-        else if (index > incActivePuppet().parameters.length) index = cast(int)incActivePuppet().parameters.length-1;
-
-        auto group = new ExParameterGroup(_("New Parameter Group"));
-        (cast(ExPuppet)incActivePuppet()).addGroup(group);
-        return group;
-    }
-
-
     void setTransparency(float alpha, float text) {
         ImGuiCol[] colIDs = [ImGuiCol.WindowBg, ImGuiCol.Text, ImGuiCol.FrameBg, ImGuiCol.Button, ImGuiCol.Border, ImGuiCol.PopupBg];
         foreach (id; colIDs) {
@@ -375,6 +359,23 @@ private {
 struct ParamDragDropData {
     Parameter param;
 }
+
+
+void incMoveParameter(Parameter from, ExParameterGroup to = null, int index = 0) {
+    (cast(ExParameter)from).setParent(to);
+}
+
+ExParameterGroup incCreateParamGroup(int index = 0) {
+    import std.array : insertInPlace;
+
+    if (index < 0) index = 0;
+    else if (index > incActivePuppet().parameters.length) index = cast(int)incActivePuppet().parameters.length-1;
+
+    auto group = new ExParameterGroup(_("New Parameter Group"));
+    (cast(ExPuppet)incActivePuppet()).addGroup(group);
+    return group;
+}
+
 
 void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, ParameterBinding[] targetBindings) {
     ParameterBinding[] bindings = (targetBindings !is null)? targetBindings: srcBindings;
@@ -980,9 +981,9 @@ void incParameterView(bool armedParam=false, bool showCategory = true, bool fixe
                     if (payload !is null) {
                         ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
 
-                        auto group = createParamGroup(cast(int)idx);
-                        moveParameter(param, group);
-                        moveParameter(payloadParam.param, group);
+                        auto group = incCreateParamGroup(cast(int)idx);
+                        incMoveParameter(param, group);
+                        incMoveParameter(payloadParam.param, group);
                     }
                     igEndDragDropTarget();
                 }
@@ -1060,6 +1061,112 @@ void incParameterView(bool armedParam=false, bool showCategory = true, bool fixe
         incEndCategory();
 }
 
+bool incParameterGropuMenuContents(ExParameterGroup group) {
+    bool result = false;
+    if (igMenuItem(__("Rename"))) {
+        incPushWindow(new RenameWindow(group.name));
+    }
+
+    if (igBeginMenu(__("Colors"))) {
+        auto flags = ImGuiColorEditFlags.NoLabel | ImGuiColorEditFlags.NoTooltip;
+        ImVec2 swatchSize = ImVec2(24, 24);
+
+        // COLOR SWATCHES
+        if (igColorButton("NONE", ImVec4(0, 0, 0, 0), flags | ImGuiColorEditFlags.AlphaPreview, swatchSize)) group.color = vec3(float.nan, float.nan, float.nan);
+        igSameLine(0, 4);
+        if (igColorButton("RED", ImVec4(1, 0, 0, 1), flags, swatchSize)) group.color = vec3(0.25, 0.15, 0.15);
+        igSameLine(0, 4);
+        if (igColorButton("GREEN", ImVec4(0, 1, 0, 1), flags, swatchSize)) group.color = vec3(0.15, 0.25, 0.15);
+        igSameLine(0, 4);
+        if (igColorButton("BLUE", ImVec4(0, 0, 1, 1), flags, swatchSize)) group.color = vec3(0.15, 0.15, 0.25);
+        igSameLine(0, 4);
+        if (igColorButton("PURPLE", ImVec4(1, 0, 1, 1), flags, swatchSize)) group.color = vec3(0.25, 0.15, 0.25);
+        igSameLine(0, 4);
+        if (igColorButton("CYAN", ImVec4(0, 1, 1, 1), flags, swatchSize)) group.color = vec3(0.15, 0.25, 0.25);
+        igSameLine(0, 4);
+        if (igColorButton("YELLOW", ImVec4(1, 1, 0, 1), flags, swatchSize)) group.color = vec3(0.25, 0.25, 0.15);
+        igSameLine(0, 4);
+        if (igColorButton("WHITE", ImVec4(1, 1, 1, 1), flags, swatchSize)) group.color = vec3(0.25, 0.25, 0.25);
+        
+        igSpacing();
+
+        // CUSTOM COLOR PICKER
+        // Allows user to select a custom color for parameter group.
+        igColorPicker3(__("Custom Color"), &group.color.vector, ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.DisplayHSV);
+        igEndMenu();
+    }
+
+    if (igMenuItem(__("Delete"))) {
+        foreach(child; group.children) {
+            auto exChild = cast(ExParameter)child;
+            exChild.setParent(null);
+        }
+        (cast(ExPuppet)incActivePuppet()).removeGroup(group);
+        
+        // End early.
+        result = true;
+    }
+    return result;
+}
+
+void incParameterMenuContents(Parameter[] parameters) {
+    if (igMenuItem(__("Add 1D Parameter (0..1)"), "", false, true)) {
+        Parameter param = new ExParameter(
+            "Param #%d\0".format(parameters.length),
+            false
+        );
+        incActivePuppet().parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+    }
+    if (igMenuItem(__("Add 1D Parameter (-1..1)"), "", false, true)) {
+        Parameter param = new ExParameter(
+            "Param #%d\0".format(parameters.length),
+            false
+        );
+        param.min.x = -1;
+        param.max.x = 1;
+        param.insertAxisPoint(0, 0.5);
+        incActivePuppet().parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+    }
+    if (igMenuItem(__("Add 2D Parameter (0..1)"), "", false, true)) {
+        Parameter param = new ExParameter(
+            "Param #%d\0".format(parameters.length),
+            true
+        );
+        incActivePuppet().parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+    }
+    if (igMenuItem(__("Add 2D Parameter (-1..+1)"), "", false, true)) {
+        Parameter param = new ExParameter(
+            "Param #%d\0".format(parameters.length),
+            true
+        );
+        param.min = vec2(-1, -1);
+        param.max = vec2(1, 1);
+        param.insertAxisPoint(0, 0.5);
+        param.insertAxisPoint(1, 0.5);
+        incActivePuppet().parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+    }
+    if (igMenuItem(__("Add Mouth Shape"), "", false, true)) {
+        Parameter param = new ExParameter(
+            "Mouth #%d\0".format(parameters.length),
+            true
+        );
+        param.min = vec2(-1, 0);
+        param.max = vec2(1, 1);
+        param.insertAxisPoint(0, 0.25);
+        param.insertAxisPoint(0, 0.5);
+        param.insertAxisPoint(0, 0.6);
+        param.insertAxisPoint(1, 0.3);
+        param.insertAxisPoint(1, 0.5);
+        param.insertAxisPoint(1, 0.6);
+        incActivePuppet().parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+    }
+}
+
 /**
     The logger frame
 */
@@ -1080,61 +1187,7 @@ protected:
         auto groups = (exPuppet !is null)? exPuppet.groups: [];
 
         if (igBeginPopup("###AddParameter")) {
-            if (igMenuItem(__("Add 1D Parameter (0..1)"), "", false, true)) {
-                Parameter param = new ExParameter(
-                    "Param #%d\0".format(parameters.length),
-                    false
-                );
-                incActivePuppet().parameters ~= param;
-                incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-            }
-            if (igMenuItem(__("Add 1D Parameter (-1..1)"), "", false, true)) {
-                Parameter param = new ExParameter(
-                    "Param #%d\0".format(parameters.length),
-                    false
-                );
-                param.min.x = -1;
-                param.max.x = 1;
-                param.insertAxisPoint(0, 0.5);
-                incActivePuppet().parameters ~= param;
-                incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-            }
-            if (igMenuItem(__("Add 2D Parameter (0..1)"), "", false, true)) {
-                Parameter param = new ExParameter(
-                    "Param #%d\0".format(parameters.length),
-                    true
-                );
-                incActivePuppet().parameters ~= param;
-                incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-            }
-            if (igMenuItem(__("Add 2D Parameter (-1..+1)"), "", false, true)) {
-                Parameter param = new ExParameter(
-                    "Param #%d\0".format(parameters.length),
-                    true
-                );
-                param.min = vec2(-1, -1);
-                param.max = vec2(1, 1);
-                param.insertAxisPoint(0, 0.5);
-                param.insertAxisPoint(1, 0.5);
-                incActivePuppet().parameters ~= param;
-                incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-            }
-            if (igMenuItem(__("Add Mouth Shape"), "", false, true)) {
-                Parameter param = new ExParameter(
-                    "Mouth #%d\0".format(parameters.length),
-                    true
-                );
-                param.min = vec2(-1, 0);
-                param.max = vec2(1, 1);
-                param.insertAxisPoint(0, 0.25);
-                param.insertAxisPoint(0, 0.5);
-                param.insertAxisPoint(0, 0.6);
-                param.insertAxisPoint(1, 0.3);
-                param.insertAxisPoint(1, 0.5);
-                param.insertAxisPoint(1, 0.6);
-                incActivePuppet().parameters ~= param;
-                incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-            }
+            incParameterMenuContents(parameters);
             igEndPopup();
         }
         if (igBeginChild("###FILTER", ImVec2(0, 32))) {
@@ -1181,53 +1234,13 @@ protected:
 
                                 // Popup
                                 if (igBeginPopup("###CategorySettings")) {
-                                    if (igMenuItem(__("Rename"))) {
-                                        incPushWindow(new RenameWindow(group.name));
-                                    }
-
-                                    if (igBeginMenu(__("Colors"))) {
-                                        auto flags = ImGuiColorEditFlags.NoLabel | ImGuiColorEditFlags.NoTooltip;
-                                        ImVec2 swatchSize = ImVec2(24, 24);
-
-                                        // COLOR SWATCHES
-                                        if (igColorButton("NONE", ImVec4(0, 0, 0, 0), flags | ImGuiColorEditFlags.AlphaPreview, swatchSize)) group.color = vec3(float.nan, float.nan, float.nan);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("RED", ImVec4(1, 0, 0, 1), flags, swatchSize)) group.color = vec3(0.25, 0.15, 0.15);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("GREEN", ImVec4(0, 1, 0, 1), flags, swatchSize)) group.color = vec3(0.15, 0.25, 0.15);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("BLUE", ImVec4(0, 0, 1, 1), flags, swatchSize)) group.color = vec3(0.15, 0.15, 0.25);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("PURPLE", ImVec4(1, 0, 1, 1), flags, swatchSize)) group.color = vec3(0.25, 0.15, 0.25);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("CYAN", ImVec4(0, 1, 1, 1), flags, swatchSize)) group.color = vec3(0.15, 0.25, 0.25);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("YELLOW", ImVec4(1, 1, 0, 1), flags, swatchSize)) group.color = vec3(0.25, 0.25, 0.15);
-                                        igSameLine(0, 4);
-                                        if (igColorButton("WHITE", ImVec4(1, 1, 1, 1), flags, swatchSize)) group.color = vec3(0.25, 0.25, 0.25);
-                                        
-                                        igSpacing();
-
-                                        // CUSTOM COLOR PICKER
-                                        // Allows user to select a custom color for parameter group.
-                                        igColorPicker3(__("Custom Color"), &group.color.vector, ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.DisplayHSV);
-                                        igEndMenu();
-                                    }
-
-                                    if (igMenuItem(__("Delete"))) {
-                                        foreach(child; group.children) {
-                                            auto exChild = cast(ExParameter)child;
-                                            exChild.setParent(null);
-                                        }
-                                        (cast(ExPuppet)incActivePuppet()).removeGroup(group);
-                                        
-                                        // End early.
-                                        igEndPopup();
+                                    bool deleted = incParameterGropuMenuContents(group);
+                                    igEndPopup();
+                                    if (deleted) {
                                         incEndCategory();
                                         igPopID();
                                         continue;
                                     }
-                                    igEndPopup();
                                 }
 
                                 // Allow drag/drop in to the category
@@ -1236,7 +1249,7 @@ protected:
                                     
                                     if (payload !is null) {
                                         ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
-                                        moveParameter(payloadParam.param, group);
+                                        incMoveParameter(payloadParam.param, group);
                                     }
                                     igEndDragDropTarget();
                                 }
@@ -1272,7 +1285,7 @@ protected:
             
             if (payload !is null) {
                 ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
-                moveParameter(payloadParam.param, null);
+                incMoveParameter(payloadParam.param, null);
             }
             igEndDragDropTarget();
         }

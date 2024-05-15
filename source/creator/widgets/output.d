@@ -321,7 +321,7 @@ protected:
                     
                     if (payload !is null) {
                         ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
-                        (cast(ExParameter)payloadParam.param).setParent(group);
+                        incMoveParameter(payloadParam.param, group);
                         auto root = incActivePuppet().root;
                         root.notifyChange(root, NotifyReason.StructureChanged);
                     }
@@ -333,28 +333,18 @@ protected:
     }
 
     void showContents(Resource res) {
-        if (res.type == ResourceType.Binding) {
-            auto binding = to!ParameterBinding(res);
-            auto vimpl = cast(ValueParameterBinding)binding;
-            auto dimpl = cast(DeformationParameterBinding)binding;
-            ParameterBinding[BindTarget] bindings;
-            bindings[binding.getTarget()] = binding;
-            if (vimpl)
-                incBindingMenuContents(vimpl.parameter, bindings);
-            else if (dimpl)
-                incBindingMenuContents(dimpl.parameter, bindings);
-            return;
-        }
-
         ImVec2 size = ImVec2(20, 20);
-        if (igButton("\ue763", size)) {
-            if (panel) {
-                panel.addPopup(res);
-                popupOpened = null;
+        void showPinning() {
+            if (igButton("\ue763", size)) {
+                if (panel) {
+                    panel.addPopup(res);
+                    popupOpened = null;
+                }
             }
         }
 
         if (res.type == ResourceType.Node) {
+            showPinning();
             Node node = to!Node(res);
             igSameLine();
             if (igButton("\ue8b8", size)) {
@@ -370,12 +360,39 @@ protected:
             onNodeView(node);
         } else if (res.type == ResourceType.Parameter) {
             Parameter param = to!Parameter(res);
-            igSameLine();
-            incParameterViewEditButtons!(false, true)(res.index, param, incActivePuppet.parameters, true);
-            igSameLine();
-            igText(res.name.toStringz);
-            onParameterView(res.index, param);
+            if (auto exGroup = cast(ExParameterGroup)param) {
+                if (exGroup.children.length == 0) {
+                    if (igMenuItem(__("New Parameter Group"), "", false, true)) {
+                        ExPuppet puppet = cast(ExPuppet)incActivePuppet();
+                        incCreateParamGroup(puppet? cast(int)puppet.groups.length: 0);
+                        auto root = incActivePuppet().root;
+                        root.notifyChange(root, NotifyReason.StructureChanged);
+                    }
+                    igSeparator();
+                    incParameterMenuContents(incActivePuppet().parameters);
+                } else {
+                    incParameterGropuMenuContents(exGroup);
+                }
+            } else {
+                showPinning();
+                igSameLine();
+                incParameterViewEditButtons!(false, true)(res.index, param, incActivePuppet.parameters, true);
+                igSameLine();
+                igText(res.name.toStringz);
+                onParameterView(res.index, param);
+            }
+        } else if (res.type == ResourceType.Binding) {
+            auto binding = to!ParameterBinding(res);
+            auto vimpl = cast(ValueParameterBinding)binding;
+            auto dimpl = cast(DeformationParameterBinding)binding;
+            ParameterBinding[BindTarget] bindings;
+            bindings[binding.getTarget()] = binding;
+            if (vimpl)
+                incBindingMenuContents(vimpl.parameter, bindings);
+            else if (dimpl)
+                incBindingMenuContents(dimpl.parameter, bindings);
         }
+
     };
 
     ImGuiTreeNodeFlags setFlag(Resource res) {
