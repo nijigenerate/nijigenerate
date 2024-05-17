@@ -596,12 +596,27 @@ protected:
             setTransparency(0.5, 0.5);
         }
 
+        void onSelect(Node n) {
+            auto io = igGetIO();
+            if (selected) {
+                if (incSelectedNodes().length > 1) {
+                    if (io.KeyCtrl) incRemoveSelectNode(n);
+                    else incSelectNode(n);
+                } else {
+                    incFocusCamera(n);
+                }
+            } else {
+                if (io.KeyCtrl) incAddSelectNode(n);
+                else incSelectNode(n);
+            }            if (igGetIO().KeyCtrl) {}
+        }
+
         if (node.typeId == "Part") {
             spacing = igGetStyle().ItemSpacing;
             igGetStyle().ItemSpacing = ImVec2(0, 0);
             auto part = cast(Part)node;
             if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize))) {
-                incSelectNode(node);
+                onSelect(node);
             }
             hovered = igIsItemHovered();
             igSetItemAllowOverlap();
@@ -609,17 +624,17 @@ protected:
             igGetItemRectMin(&widgetMinPos);
             auto paddingY = igGetStyle().FramePadding.y;
             igGetStyle().FramePadding.y = 1;
-            incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs);
+            incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs, selected);
             igGetStyle().FramePadding.y = paddingY;
             if (igIsItemClicked()) {
-                incSelectNode(node);
+                onSelect(node);
             }
             igGetItemRectMax(&widgetMaxPos);
             incTooltip(_(res.name));
         } else {
             igGetItemRectMin(&widgetMinPos);
             if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
-                incSelectNode(node);
+                onSelect(node);
             }
             igGetItemRectMax(&widgetMaxPos);
             hovered = igIsItemHovered();
