@@ -14,7 +14,6 @@ import creator.core.selector;
 import creator.panels;
 import creator.utils;
 import creator.widgets;
-import creator.panels.shell;
 import creator.panels.inspector;
 import creator.panels.parameters;
 import creator.panels.nodes;
@@ -191,18 +190,21 @@ private {
         }
     }
 
-    string[string] transformName = [
-        "transform.t.x": "\ue89f-X",
-        "transform.t.y": "\ue89f-Y",
-        "transform.t.z": "\ue89f-Z",
-        "transform.s.x": "\ue8ff-X",
-        "transform.s.y": "\ue8ff-Y",
-        "transform.s.z": "\ue8ff-Z",
-        "transform.r.x": "\ue863-X",
-        "transform.r.y": "\ue863-Y",
-        "transform.r.z": "\ue863-Z",
-        "deform"       : "\ue3ea",
-    ];
+    string[string] transformName;
+    static this() {
+        transformName = [
+            "transform.t.x": "\ue89f-X",
+            "transform.t.y": "\ue89f-Y",
+            "transform.t.z": "\ue89f-Z",
+            "transform.s.x": "\ue8ff-X",
+            "transform.s.y": "\ue8ff-Y",
+            "transform.s.z": "\ue8ff-Z",
+            "transform.r.x": "\ue863-X",
+            "transform.r.y": "\ue863-Y",
+            "transform.r.z": "\ue863-Z",
+            "deform"       : "\ue3ea",
+        ];
+    }
 
     string getTransformText(string name) {
         if (name in transformName) {

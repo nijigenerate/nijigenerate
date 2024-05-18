@@ -52,26 +52,29 @@ private {
     }
 
 
-    string[][string] conversionMap = [
-        "Node": ["MeshGroup", "DynamicComposite"],
-        "DynamicComposite": ["MeshGroup", "Node", "Part"],
-        "MeshGroup": ["DynamicComposite", "Node"],
-        "Composite": ["DynamicComposite", "Node"]
-    ];
-
-    string[string] actionIconMap = [
-        "Add": "\ue145",
-        "Edit Mesh": "\ue3c9",
-        "Delete": "\ue872",
-        "Show": "\ue8f4",
-        "Hide": "\ue8f5",
-        "Copy": "\ue14d",
-        "Paste": "\ue14f",
-        "Reload": "\ue5d5",
-        "More Info": "\ue88e",
-        "Recalculate origin": "\ue57b",
-        "Convert To...": "\ue043",
-    ];
+    string[][string] conversionMap;
+    string[string] actionIconMap;
+    static this() {
+        conversionMap = [
+            "Node": ["MeshGroup", "DynamicComposite"],
+            "DynamicComposite": ["MeshGroup", "Node", "Part"],
+            "MeshGroup": ["DynamicComposite", "Node"],
+            "Composite": ["DynamicComposite", "Node"]
+        ];
+        actionIconMap = [
+            "Add": "\ue145",
+            "Edit Mesh": "\ue3c9",
+            "Delete": "\ue872",
+            "Show": "\ue8f4",
+            "Hide": "\ue8f5",
+            "Copy": "\ue14d",
+            "Paste": "\ue14f",
+            "Reload": "\ue5d5",
+            "More Info": "\ue88e",
+            "Recalculate origin": "\ue57b",
+            "Convert To...": "\ue043",
+        ];
+    }
 
     string nodeActionToIcon(bool icon)(string name) {
         if (icon) {
