@@ -22,9 +22,10 @@ import creator.widgets.output;
 
 class View {
     string command;
-    TreeOutput output;
+    TreeStore store;
+    ListOutput output;
 public:
-    this(string command, TreeOutput output) {
+    this(string command, ListOutput output) {
         this.command = command;
         this.output  = output;
     }
@@ -48,9 +49,12 @@ protected:
         Selector selector = new Selector();
         selector.build(view.command ~ (armedParameter? ", Binding:active": ""));
         Resource[] nodes = selector.run();
+        if (view.store is null)
+            view.store = new TreeStore;
+        view.store.setResources(nodes);
         if (view.output is null)
-            view.output = new IconTreeOutput(this);
-        view.output.setResources(nodes);
+            view.output = new IconTreeOutput(view.store, this);
+        views.refresh(nodes);
     }
 
     void notifyChange(Node target, NotifyReason reason) {
@@ -151,15 +155,16 @@ public:
             // TBD
         }
         
-        auto view = cast(IconTreeOutput)history[0];
+        auto view = history[0];
+        auto output = cast(IconTreeOutput)view.output;
 
         auto elements = data["nextInHorizontal"].byElement;
         while(!elements.empty) {
             uint uuid;
             elements.front.deserializeValue(uuid);
             elements.popFront;
-            view.layout.require(uuid);
-            view.layout[uuid].nextInHorizontal = true;
+            output.layout.require(uuid);
+            output.layout[uuid].nextInHorizontal = true;
         }
 
         return null;
