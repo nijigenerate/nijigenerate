@@ -206,6 +206,7 @@ private {
         ];
     }
 
+
     string getTransformText(string name) {
         if (name in transformName) {
             return transformName[name];
@@ -224,17 +225,76 @@ interface Output {
     void onUpdate();
 }
 
-
-class TreeOutput : Output {
-protected:
-    int IconSize = 20;
+class TreeStore {
+public:
+//    int IconSize = 20;
     CommandIssuer panel;
-    Resource popupOpened = null;
+//    Resource popupOpened = null;
 
     Resource[] nodes;
     Resource[][Resource] children;
     Resource[] roots;
     bool[Resource] nodeIncluded;
+//    Resource focused = null;
+//    bool[uint] contentsDrawn;
+//    ParamDragDropData* dragDropData;
+    void setResources(Resource[] nodes_) {
+        nodes = nodes_;
+        roots.length = 0;
+        children.clear();
+        nodeIncluded.clear();
+        Resource[Resource] parentMap;
+        bool[Resource] rootMap;
+        bool[Resource][Resource] childMap;
+        foreach (n; nodes) {
+            nodeIncluded[n] = true;
+        }
+
+        void addToMap(Resource res, int level = 0) {
+            if (res in parentMap) return;
+            auto source = res.source;
+            while (source) {
+                if (source.source is null) break;
+                if (source in nodeIncluded || source.explicit) break;
+                source = source.source;
+            }
+            if (source) {
+                parentMap[res] = source;
+                childMap.require(source);
+                childMap[source][res] = true;
+                addToMap(source, level + 1);
+            } else {
+                rootMap[res] = true;
+            }
+        }
+
+        foreach (res; nodes) {
+            addToMap(res);
+        }
+        foreach (res; childMap.keys) {
+            if (res !in parentMap || parentMap[res] is null) {
+                rootMap[res] = true;
+            }
+        }
+        roots = rootMap.keys.sort!((a,b)=>a.index<b.index).array;
+        foreach (item; childMap.byKeyValue) {
+            children[item.key] = item.value.keys.sort!((a,b)=>a.index<b.index).array;
+        }
+    }
+}
+
+class ListOutput : Output {
+protected:
+    TreeStore self;
+
+    int IconSize = 20;
+    ref CommandIssuer panel() { return self.panel; }
+    Resource popupOpened = null;
+
+    ref Resource[] nodes() { return self.nodes; }
+    ref Resource[][Resource] children() { return self.children; }
+    ref Resource[] roots() { return self.roots; }
+    ref bool[Resource] nodeIncluded() { return self.nodeIncluded; }
     Resource focused = null;
     bool[uint] contentsDrawn;
     ParamDragDropData* dragDropData;
@@ -491,7 +551,8 @@ protected:
     }
     
 public:
-    this(CommandIssuer panel) {
+    this(TreeStore self, CommandIssuer panel) {
+        this.self = self;
         this.panel = panel;
     }
 
@@ -533,52 +594,13 @@ public:
     }
 
     void setResources(Resource[] nodes_) {
-        nodes = nodes_;
-        roots.length = 0;
-        children.clear();
-        nodeIncluded.clear();
-        Resource[Resource] parentMap;
-        bool[Resource] rootMap;
-        bool[Resource][Resource] childMap;
-        foreach (n; nodes) {
-            nodeIncluded[n] = true;
-        }
-
-        void addToMap(Resource res, int level = 0) {
-            if (res in parentMap) return;
-            auto source = res.source;
-            while (source) {
-                if (source.source is null) break;
-                if (source in nodeIncluded || source.explicit) break;
-                source = source.source;
-            }
-            if (source) {
-                parentMap[res] = source;
-                childMap.require(source);
-                childMap[source][res] = true;
-                addToMap(source, level + 1);
-            } else {
-                rootMap[res] = true;
-            }
-        }
-
-        foreach (res; nodes) {
-            addToMap(res);
-        }
-        foreach (res; childMap.keys) {
-            if (res !in parentMap || parentMap[res] is null) {
-                rootMap[res] = true;
-            }
-        }
-        roots = rootMap.keys.sort!((a,b)=>a.index<b.index).array;
-        foreach (item; childMap.byKeyValue) {
-            children[item.key] = item.value.keys.sort!((a,b)=>a.index<b.index).array;
-        }
+        self.setResources(nodes_);
     }
+
 }
 
 
-class IconTreeOutput : TreeOutput {
+class IconTreeOutput : ListOutput {
 protected:
     string grabParam;
     struct SubItemLayout {
@@ -592,6 +614,7 @@ protected:
 
     void drawNode(Resource res, Node node, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
         bool selected = incNodeInSelection(node);
+        bool isRoot = node.parent is null || node == incActivePuppet().root;
         ImVec2 spacing;
 
         if (res !in nodeIncluded) {
@@ -605,7 +628,7 @@ protected:
                     if (io.KeyCtrl) incRemoveSelectNode(n);
                     else incSelectNode(n);
                 } else {
-                    incFocusCamera(n);
+//                    incFocusCamera(n);
                 }
             } else {
                 if (io.KeyCtrl) incAddSelectNode(n);
@@ -613,7 +636,27 @@ protected:
             }            if (igGetIO().KeyCtrl) {}
         }
 
-        if (node.typeId == "Part") {
+        /*if (isRoot) {
+            spacing = igGetStyle().ItemSpacing;
+            igGetStyle().ItemSpacing = ImVec2(0, 0);
+            auto part = cast(Part)node;
+            if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize * 10))) {
+                onSelect(node);
+            }
+            hovered = igIsItemHovered();
+            igSetItemAllowOverlap();
+            igSameLine();
+            igGetItemRectMin(&widgetMinPos);
+            auto paddingY = igGetStyle().FramePadding.y;
+            igGetStyle().FramePadding.y = 1;
+            incTextureSlotUntitled("ICON", inSnapshot(incActivePuppet()), ImVec2(IconSize * 10, IconSize * 10), 1, ImGuiWindowFlags.NoInputs, selected);
+            igGetStyle().FramePadding.y = paddingY;
+            if (igIsItemClicked()) {
+                onSelect(node);
+            }
+            igGetItemRectMax(&widgetMaxPos);
+            incTooltip(_(res.name));
+        } else*/ if (node.typeId == "Part") {
             spacing = igGetStyle().ItemSpacing;
             igGetStyle().ItemSpacing = ImVec2(0, 0);
             auto part = cast(Part)node;
@@ -746,7 +789,7 @@ protected:
             igEnd();
 
             if (node !is null && popupOpened) {
-                bool isRoot = node.parent is null;
+                bool isRoot = node.parent is null || node == incActivePuppet().root;
 
                 if (igBegin(popupName2, null, flags)) {
                     hovered |= popupOpened == res && isWindowHovered();
@@ -781,8 +824,8 @@ protected:
         }
     }
 public:
-    this(CommandIssuer panel) {
-        super(panel);
+    this(TreeStore self, CommandIssuer panel) {
+        super(self, panel);
         IconSize = 48;
     }
 
@@ -793,7 +836,10 @@ public:
             igPushID(cast(void*)this);
             contentsDrawn.clear();
 
+            bool popupVisited = popupOpened is null;
+
             ImRect traverse(Resource res, ref bool prevHorz, ref uint[] parentUUIDs) {
+                if (popupOpened == res) popupVisited = true;
                 ImGuiTreeNodeFlags flags = setFlag(res);
                 bool nextInHorizontal = res.uuid in layout && layout[res.uuid].nextInHorizontal;
                 if (nextInHorizontal || prevHorz) {
@@ -883,6 +929,12 @@ public:
                 }
             }
 
+            if (!popupVisited) {
+                popupOpened = null;
+                mouseDown = false;
+                prevMouseDown = false;
+            }
+
             foreach (k; layout.keys) {
                 Resource node;
                 foreach (r; nodes) {
@@ -902,6 +954,8 @@ public:
     void setResources(Resource[] resources) {
         super.setResources(resources);
         popupOpened = null;
+        mouseDown = false;
+        prevMouseDown = false;
     }
 
     ref SubItemLayout[uint] layout() {
@@ -916,10 +970,6 @@ protected:
     CommandIssuer panel;
 
     Resource[] nodes;
-    Resource[][Resource] children;
-    Resource[] roots;
-    bool[uint] pinned;
-    bool[Resource] nodeIncluded;
     Resource focused = null;
     string parameterGrabStr;
 public:
@@ -929,6 +979,7 @@ public:
 
     override
     void onUpdate() {
+        if (incEditMode() == EditMode.VertexEdit) return;
         bool[uint] contentsDrawn;
         ulong[] removed;
         foreach (i, res; nodes) {
@@ -1000,6 +1051,18 @@ public:
         foreach_reverse (r; removed) {
             nodes = nodes.remove(r);
         }
+    }
+
+    void refresh(Resource[] resources) {
+        Resource[] newRes;
+        foreach (node; nodes) {
+            foreach (res; resources) {
+                if (res.uuid == node.uuid) {
+                    newRes ~= res;
+                }
+            }
+        }
+        nodes = newRes;
     }
 
     void addResources(Resource[] nodes_) {

@@ -23,6 +23,7 @@ import std.algorithm.mutation;
 import std.range: enumerate;
 import std.typecons: tuple;
 import std.conv;
+import std.utf;
 import i18n;
 
 // Drag drop data
