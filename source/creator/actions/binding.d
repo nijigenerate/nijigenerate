@@ -44,6 +44,7 @@ public:
     this(Parameter parent, ParameterBinding self) {
         this.parent = parent;
         this.self   = self;
+        self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
     }
 
     /**
