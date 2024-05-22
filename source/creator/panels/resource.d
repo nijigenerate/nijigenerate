@@ -60,7 +60,6 @@ protected:
     void notifyChange(Node target, NotifyReason reason) {
         import std.stdio;
         if (reason == NotifyReason.StructureChanged) {
-            writefln("changed %s", target.name);
             forceUpdatePreview = true;
         }
     }
@@ -70,10 +69,14 @@ protected:
         if (incActivePuppet() != activePuppet) {
             activePuppet = incActivePuppet();
             if (activePuppet) {
-                import std.stdio;
                 Node rootNode = activePuppet.root;
                 rootNode.addNotifyListener(&notifyChange);
             }
+            foreach (item; history) {
+                item.output.reset();
+            }
+            if (views)
+                views.reset();
             forceUpdatePreview = true;
         }
         if (incArmedParameter() != armedParameter) {

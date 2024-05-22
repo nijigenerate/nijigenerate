@@ -223,21 +223,25 @@ interface CommandIssuer {
 
 interface Output {
     void onUpdate();
+    void reset();
 }
 
 class TreeStore {
 public:
-//    int IconSize = 20;
     CommandIssuer panel;
-//    Resource popupOpened = null;
 
     Resource[] nodes;
     Resource[][Resource] children;
     Resource[] roots;
     bool[Resource] nodeIncluded;
-//    Resource focused = null;
-//    bool[uint] contentsDrawn;
-//    ParamDragDropData* dragDropData;
+
+    void reset() {
+        children.clear();
+        nodes.length = 0;
+        nodeIncluded.clear();
+        roots.length = 0;
+    }
+
     void setResources(Resource[] nodes_) {
         nodes = nodes_;
         roots.length = 0;
@@ -394,6 +398,8 @@ protected:
 
     }
 
+    // Show content view. (determined based on resource type.)
+    // This is called in popu window opened by right click.
     void showContents(Resource res) {
         ImVec2 size = ImVec2(20, 20);
         void showPinning() {
@@ -597,6 +603,12 @@ public:
         self.setResources(nodes_);
     }
 
+    void reset() {
+        focused = null;
+        contentsDrawn.clear();
+        self.reset();
+    }
+
 }
 
 
@@ -611,11 +623,13 @@ protected:
     SubItemLayout[uint] _layout;
     bool prevMouseDown = false;
     bool mouseDown = false;
+    bool showRootThumb = false;
+    Snapshot snapshot = null;
 
     void drawNode(Resource res, Node node, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
         bool selected = incNodeInSelection(node);
         bool isRoot = node.parent is null || node == incActivePuppet().root;
-        ImVec2 spacing;
+        auto spacing = igGetStyle().ItemSpacing;
 
         if (res !in nodeIncluded) {
             setTransparency(0.5, 0.5);
@@ -627,8 +641,6 @@ protected:
                 if (incSelectedNodes().length > 1) {
                     if (io.KeyCtrl) incRemoveSelectNode(n);
                     else incSelectNode(n);
-                } else {
-//                    incFocusCamera(n);
                 }
             } else {
                 if (io.KeyCtrl) incAddSelectNode(n);
@@ -636,27 +648,44 @@ protected:
             }            if (igGetIO().KeyCtrl) {}
         }
 
-        /*if (isRoot) {
-            spacing = igGetStyle().ItemSpacing;
-            igGetStyle().ItemSpacing = ImVec2(0, 0);
-            auto part = cast(Part)node;
-            if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize * 10))) {
-                onSelect(node);
+        if (isRoot) {
+            // Root node.
+            // Show thumbnail if specified. Show normal tree otherwise.
+            if (showRootThumb) {
+                // Show thumbnail.
+                spacing = igGetStyle().ItemSpacing;
+                igGetStyle().ItemSpacing = ImVec2(0, 0);
+                auto part = cast(Part)node;
+                if (igSelectable("###%s".format(res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, IconSize * 3))) {
+                    onSelect(node);
+                }
+                hovered = igIsItemHovered();
+                igSetItemAllowOverlap();
+                igSameLine();
+                igGetItemRectMin(&widgetMinPos);
+                auto paddingY = igGetStyle().FramePadding.y;
+                igGetStyle().FramePadding.y = 1;
+                if (snapshot is null)
+                    snapshot = Snapshot.get(incActivePuppet());
+                incTextureSlotUntitled("ICON", snapshot.capture(), ImVec2(IconSize * 3, IconSize * 3), 1, ImGuiWindowFlags.NoInputs, selected);
+                igGetStyle().FramePadding.y = paddingY;
+                if (igIsItemClicked()) {
+                    onSelect(node);
+                }
+                igGetItemRectMax(&widgetMaxPos);
+                incTooltip(_(res.name));
+            } else {
+                // Show normal tree node.
+                igGetItemRectMin(&widgetMinPos);
+                if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+                    onSelect(node);
+                }
+                igGetItemRectMax(&widgetMaxPos);
+                hovered = igIsItemHovered();
             }
-            hovered = igIsItemHovered();
-            igSetItemAllowOverlap();
-            igSameLine();
-            igGetItemRectMin(&widgetMinPos);
-            auto paddingY = igGetStyle().FramePadding.y;
-            igGetStyle().FramePadding.y = 1;
-            incTextureSlotUntitled("ICON", inSnapshot(incActivePuppet()), ImVec2(IconSize * 10, IconSize * 10), 1, ImGuiWindowFlags.NoInputs, selected);
-            igGetStyle().FramePadding.y = paddingY;
-            if (igIsItemClicked()) {
-                onSelect(node);
-            }
-            igGetItemRectMax(&widgetMaxPos);
-            incTooltip(_(res.name));
-        } else*/ if (node.typeId == "Part") {
+        } else if (node.typeId == "Part") {
+            // Part node.
+            // Show thumbnail of the Part image.
             spacing = igGetStyle().ItemSpacing;
             igGetStyle().ItemSpacing = ImVec2(0, 0);
             auto part = cast(Part)node;
@@ -677,6 +706,8 @@ protected:
             igGetItemRectMax(&widgetMaxPos);
             incTooltip(_(res.name));
         } else {
+            // Node other than Part object.
+            // Show icon and name.
             igGetItemRectMin(&widgetMinPos);
             if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
                 onSelect(node);
@@ -690,7 +721,7 @@ protected:
         }
         setNodeDragSource(node);
         setNodeReparentDragTarget(node);
-        if (node.typeId == "Part")
+        if (isRoot || node.typeId == "Part")
             igGetStyle().ItemSpacing = spacing;
     }
 
@@ -793,10 +824,20 @@ protected:
 
                 if (igBegin(popupName2, null, flags)) {
                     hovered |= popupOpened == res && isWindowHovered();
-                    if (isRoot)
+                    if (isRoot) {
                         incNodeActionsPopup!(null, true, true)(node);
-                    else
+                        if (igMenuItem(__("\ue84e"), null, false, true)) {
+                            showRootThumb = !showRootThumb;
+                            if (!showRootThumb) {
+                                if (snapshot) {
+                                    snapshot.release();
+                                    snapshot = null;
+                                }
+                            }
+                        }
+                    } else {
                         incNodeActionsPopup!(null, false, true)(node);
+                    }
 
                     // This code relies on imgui_internal.h, to obtain ImGuiWindow.
                     auto window = igFindWindowByName(popupName2);
@@ -962,6 +1003,18 @@ public:
         return this._layout;
     }
 
+    override
+    void reset() {
+        layout.clear();
+        prevMouseDown = false;
+        mouseDown = false;
+        popupOpened = null;
+        if (snapshot)
+            snapshot.release();
+        snapshot = null;
+        super.reset();
+    }
+
 }
 
 
@@ -1069,5 +1122,8 @@ public:
         nodes ~= nodes_;
     }
 
-
+    void reset() {
+        nodes.length = 0;
+        focused = null;
+    }
 }
