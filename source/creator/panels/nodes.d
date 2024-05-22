@@ -37,19 +37,13 @@ private {
         if (parent !is null) {
             incActionPush(new NodeMoveAction(clipboardNodes, parent, 0));
             foreach (node; clipboardNodes) {
-                reloadNode(node);
+                incReloadNode(node);
             }
             clipboardNodes.length = 0;
         }
     }
 
-    void reloadNode(Node node) {
-        foreach (child; node.children) {
-            reloadNode(child);
-            child.notifyChange(child);
-        }
-        node.clearCache();
-    }
+
 
 
     string[][string] conversionMap;
@@ -88,6 +82,13 @@ private {
     }
 }
 
+void incReloadNode(Node node) {
+    foreach (child; node.children) {
+        incReloadNode(child);
+        child.notifyChange(child);
+    }
+    node.clearCache();
+}
 
 void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = false)(Node n) {
     if (title == null || igBeginPopup(title)) {
@@ -180,7 +181,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
         }
 
         if (igMenuItem(__(nodeActionToIcon!icon("Reload")), "", false, true)) {
-            reloadNode(n);
+            incReloadNode(n);
         }
 
         static if (!isRoot) {
