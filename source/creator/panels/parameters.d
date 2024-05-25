@@ -17,6 +17,7 @@ import creator.ext.param;
 import creator.viewport.common.mesheditor;
 import creator.viewport.common.mesh;
 import creator.windows.flipconfig;
+import creator.viewport.model.onionslice;
 import creator.utils.transform;
 import creator;
 import std.string;
@@ -1022,6 +1023,9 @@ void incParameterView(bool armedParam=false, bool showCategory = true, bool fixe
 
             if (incController("###CONTROLLER", param, ImVec2(width, height), incArmedParameter() == param, *grabParam)) {
                 if (incArmedParameter() == param) {
+                    auto onion = OnionSlice.singleton;
+                    onion.capture(cParamPoint);
+
                     incViewportNodeDeformNotifyParamValueChanged();
                     paramPointChanged(param);
                 }
