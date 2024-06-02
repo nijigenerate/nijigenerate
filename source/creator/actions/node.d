@@ -408,9 +408,27 @@ public:
     /**
         Creates a new node change action
     */
-    this(Drawable drawable, Drawable target, ptrdiff_t[] weldedVertexIndices, float weight) {
+    this(Drawable drawable, Drawable target, ptrdiff_t[] weldedVertexIndices = null, float weight = -1) {
         this.drawable = drawable;
         this.target = target;
+
+        if (weldedVertexIndices is null || weight < 0) {
+            auto idx = drawable.welded.countUntil!((a)=>a.target == target);
+            if (idx >= 0) {
+                Drawable.WeldingLink link = drawable.welded[idx];
+                if (weldedVertexIndices is null) {
+                    weldedVertexIndices = link.indices;
+                }
+                if (weight < 0) {
+                    weight = link.weight;
+                }
+            } else {
+                throw new Exception("DrawableAddRemoveWeldingAction is created without any specific parameters.");
+            }
+        }
+
+        this.weight = weight;
+        this.weldedVertexIndices = weldedVertexIndices;
 
         if (addAction) {
             offset = drawable.welded.length;
@@ -679,11 +697,26 @@ GroupAction incDeleteMaskOfNode(Node n, GroupAction group = null) {
     return group;
 }
 
+GroupAction incDeleteWeldedLinksOfNode(Node n, GroupAction group = null) {
+    auto removedDrawables = incActivePuppet().findNodesType!Drawable(n);
+    auto parts = incActivePuppet().findNodesType!Part(incActivePuppet().root);
+    foreach (drawable; removedDrawables) {
+        foreach (target; parts) {
+            if (target.isWeldedBy(drawable)) {
+                if (group is null)
+                    group = new GroupAction();
+                group.addAction(new DrawableRemoveWeldingAction(drawable, target));
+            }
+        }
+    }
+    return group;
+}
 /**
     Deletes child with history
 */
 void incDeleteChildWithHistory(Node n) {
     auto group = incDeleteMaskOfNode(n);
+    group = incDeleteWeldedLinksOfNode(n, group);
     if (group !is null) {
         group.addAction(new NodeMoveAction(
             [n],
