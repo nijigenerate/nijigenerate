@@ -15,6 +15,7 @@ import creator.viewport.common.mesh;
 import creator.viewport.common.mesheditor.tools.enums;
 import creator.viewport.common.mesheditor.operations;
 import creator.viewport.common.mesheditor.brushes;
+import creator.viewport.common.mesheditor;
 import creator.viewport.common.spline;
 import creator.core.input;
 import creator.core.actionstack;
@@ -29,7 +30,22 @@ import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
+import std.range: enumerate;
 
+void incUpdateWeldedPoints(Drawable drawable) {
+    foreach (welded; drawable.welded) {
+        ptrdiff_t[] indices;
+        foreach (i, v; drawable.vertices) {
+            auto vv = drawable.transform.matrix * vec4(v, 0, 1);
+            auto minDistance = welded.target.vertices.enumerate.minElement!((a)=>(welded.target.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
+            if ((welded.target.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
+                indices ~= minDistance[0];
+            else
+                indices ~= -1;
+        }
+        incActionPush(new DrawableChangeWeldingAction(drawable, welded.target, indices, welded.weight));
+    }
+}
 
 class IncMeshEditorOneDrawable : IncMeshEditorOneImpl!Drawable {
 protected:
@@ -116,6 +132,7 @@ public:
 
     override
     void applyToTarget() {
+        incActionPushGroup();
         // Apply the model
         auto action = new DrawableChangeAction(target.name, target);
 
@@ -179,6 +196,12 @@ public:
 
         action.updateNewState();
         incActionPush(action);
+
+        if (auto drawable = cast(Drawable)target) {
+            incUpdateWeldedPoints(drawable);
+        }
+        
+        incActionPopGroup();
     }
 
     override

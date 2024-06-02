@@ -477,6 +477,108 @@ alias DrawableAddWeldingAction = DrawableAddRemoveWeldingAction!true;
 alias DrawableRemoveWeldingAction = DrawableAddRemoveWeldingAction!false;
 
 /**
+    An action that happens when a node is changed
+*/
+class DrawableChangeWeldingAction : Action {
+public:
+
+    /**
+        Previous parent of node
+    */
+    Drawable drawable;
+    Drawable.WeldingLink* link;
+    Drawable.WeldingLink* counterLink;
+    float oldWeight;
+    float newWeight;
+    float oldCounterWeight;
+    float newCounterWeight;
+    ptrdiff_t[] oldIndices;
+    ptrdiff_t[] newIndices;
+    ptrdiff_t[] oldCounterIndices;
+    ptrdiff_t[] newCounterIndices;
+
+    /**
+        Creates a new node change action
+    */
+    this(Drawable drawable, Drawable target, ptrdiff_t[] weldedVertexIndices, float weight) {
+        this.drawable = drawable;
+        auto index = drawable.welded.countUntil!((a)=>a.target == target)();
+        auto counterIndex = target.welded.countUntil!((a)=>a.target == drawable);
+        if (index >= 0 && counterIndex >= 0) {
+            link = &(drawable.welded[index]);
+            counterLink = &(target.welded[counterIndex]);
+
+            ptrdiff_t[] counterWeldedVertexIndices;
+            counterWeldedVertexIndices.length = target.vertices.length;
+            counterWeldedVertexIndices[0..$] = -1;
+            foreach (i, ind; weldedVertexIndices) {
+                if (ind != -1)
+                    counterWeldedVertexIndices[ind] = i;
+            }
+
+            oldWeight = link.weight;
+            newWeight = weight;
+            oldCounterWeight = counterLink.weight;
+            newCounterWeight = 1 - weight;
+            oldIndices = link.indices[];
+            oldCounterIndices = counterLink.indices[];
+            newIndices = weldedVertexIndices;
+            newCounterIndices = counterWeldedVertexIndices;
+            redo();
+        }
+    }
+
+    /**
+        Rollback
+    */
+    void rollback() {
+        if (link) {
+            link.weight = oldWeight;
+            link.indices = oldIndices;
+            counterLink.weight = oldCounterWeight;
+            counterLink.indices = oldCounterIndices;
+        }
+    }
+
+    /**
+        Redo
+    */
+    void redo() {
+        if (link) {
+            link.weight = newWeight;
+            link.indices = newIndices;
+            counterLink.weight = newCounterWeight;
+            counterLink.indices = newCounterIndices;
+            import std.stdio;
+        }
+    }
+
+    /**
+        Describe the action
+    */
+    string describe() {
+        return _("links of %s and %s are changed.").format(drawable.name, link.target.name);
+    }
+
+    /**
+        Describe the action
+    */
+    string describeUndo() {
+        return _("links of %s and %s are restored.").format(drawable.name, link.target.name);
+    }
+
+    /**
+        Gets name of this action
+    */
+    string getName() {
+        return this.stringof;
+    }
+    
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
+/**
     Action for whether a node was activated or deactivated
 */
 class NodeActiveAction : Action {
