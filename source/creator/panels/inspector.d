@@ -20,11 +20,11 @@ import inochi2d.core.nodes.common;
 import std.string;
 import std.algorithm.searching;
 import std.algorithm.mutation;
-import std.range: enumerate;
 import std.typecons: tuple;
 import std.conv;
 import std.utf;
 import i18n;
+import std.range: enumerate;
 
 // Drag drop data
 import creator.panels.parameters;
@@ -1068,16 +1068,7 @@ void incInspectorModelPart(Part node) {
 
                     // Make sure we don't mask against ourselves as well as don't double mask
                     if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable) && payloadDrawable.vertices.length != 0) {
-                        ptrdiff_t[] indices;
-                        foreach (i, v; node.vertices) {
-                            auto vv = node.transform.matrix * vec4(v, 0, 1);
-                            auto minDistance = payloadDrawable.vertices.enumerate.minElement!((a)=>(payloadDrawable.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
-                            if ((payloadDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
-                                indices ~= minDistance[0];
-                            else
-                                indices ~= -1;
-                        }
-                        incActionPush(new DrawableAddWeldingAction(node, payloadDrawable, indices, 0.5));
+                        incRegisterWeldedPoints(node, payloadDrawable);
                     }
                 }
             }
@@ -1905,4 +1896,18 @@ void incInspectorDeformSimplePhysics(SimplePhysics node, Parameter param, vec2u 
         igPopID();
     }
     incEndCategory();
+}
+
+ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
+    ptrdiff_t[] indices;
+    foreach (i, v; node.vertices) {
+        auto vv = node.transform.matrix * vec4(v, 0, 1);
+        auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>(counterDrawable.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
+        if ((counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
+            indices ~= minDistance[0];
+        else
+            indices ~= -1;
+    }
+    incActionPush(new DrawableAddWeldingAction(node, counterDrawable, indices, weight));
+    return indices;
 }
