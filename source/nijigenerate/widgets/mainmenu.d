@@ -470,8 +470,8 @@ void incMainMenu() {
                         if (string path = incShowImportDialog(filters, _("Import..."))) {
                             Puppet p = inLoadPuppet!ExPuppet(path);
 
-                            if ("com.nijilife.inochi-session.bindings" in p.extData) {
-                                incActivePuppet().extData["com.nijilife.inochi-session.bindings"] = p.extData["com.nijilife.inochi-session.bindings"].dup;
+                            if ("nijigenerate.nijiexpose.bindings" in p.extData) {
+                                incActivePuppet().extData["nijigenerate.nijiexpose.bindings"] = p.extData["nijigenerate.nijiexpose.bindings"].dup;
                                 incSetStatus(_("Successfully overwrote Inochi Session tracking data..."));
                             } else {
                                 incDialog(__("Error"), _("There was no Inochi Session data to import!"));

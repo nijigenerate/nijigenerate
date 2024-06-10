@@ -62,7 +62,7 @@ void crashdump(T...)(Throwable throwable, T state) {
 
     // Use appropriate system method to notify user where crash dump is.
     version(OSX) writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in ~/Library/Logs\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
-    else version(linux) writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in your log directory, XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/com.nijilife.nijigenerate.\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
+    else version(linux) writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in your log directory, XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/nijigenerate.nijigenerate.\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
     else version(Windows) ShowMessageBox(
         _("The application has unexpectedly crashed\nPlease send the developers the nijigenerate-crashdump.txt which has been put on your desktop\nVia https://github.com/nijigenerate/nijigenerate/issues"),
         _("nijigenerate Crashdump")

@@ -74,7 +74,7 @@ private {
     Puppet activePuppet = null;
 }
 
-static string FlipConfigPath = "com.nijilife.nijigenerate.FlipConfig";
+static string FlipConfigPath = "nijigenerate.nijigenerate.FlipConfig";
 
 void incLoadFlipConfig(Puppet puppet) {
     if (FlipConfigPath in puppet.extData && puppet.extData[FlipConfigPath].length > 0) {
