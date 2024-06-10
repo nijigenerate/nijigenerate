@@ -626,7 +626,7 @@ msgid "Inspector"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
+msgid "nijilive Ver."
 msgstr ""
 
 #: source/nijigenerate/panels/inspector.d:192
@@ -732,7 +732,7 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
 msgstr ""
 
@@ -801,7 +801,7 @@ msgstr ""
 msgid "Snap to Pixel"
 msgstr ""
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -811,7 +811,7 @@ msgid "Sorting"
 msgstr ""
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr ""
@@ -1874,7 +1874,7 @@ msgid "Krita Document"
 msgstr ""
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
+msgid "nijilive Puppet"
 msgstr ""
 
 #: source/nijigenerate/widgets/mainmenu.d:192
@@ -2071,7 +2071,7 @@ msgstr ""
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
 msgstr ""
 
@@ -2162,7 +2162,7 @@ msgid "Online Documentation"
 msgstr ""
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
+msgid "nijilive Documentation"
 msgstr ""
 
 #: source/nijigenerate/widgets/mainmenu.d:565
@@ -2765,5 +2765,5 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""

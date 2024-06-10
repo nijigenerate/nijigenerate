@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
 
     Authors:
@@ -22,8 +22,8 @@ import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
-import nijilife;
-import nijilife.core.dbg;
+import nijilive;
+import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;

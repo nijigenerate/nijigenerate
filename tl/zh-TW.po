@@ -644,8 +644,8 @@ msgid "Inspector"
 msgstr "檢視器"
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
-msgstr "nijilife 版本."
+msgid "nijilive Ver."
+msgstr "nijilive 版本."
 
 #: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
@@ -750,9 +750,9 @@ msgstr "使用點篩選"
 
 #: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
-msgstr "nijilife 會使用點過濾以避免模糊低畫質模型。"
+msgstr "nijilive 會使用點過濾以避免模糊低畫質模型。"
 
 #: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
 msgid "Transform"
@@ -819,7 +819,7 @@ msgstr "Y 軸旋轉"
 msgid "Snap to Pixel"
 msgstr "對齊像素"
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -829,7 +829,7 @@ msgid "Sorting"
 msgstr "排列中"
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "可繪製"
@@ -1943,8 +1943,8 @@ msgid "Krita Document"
 msgstr "Photoshop 檔案"
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
-msgstr "nijilife 模型"
+msgid "nijilive Puppet"
+msgstr "nijilive 模型"
 
 #: source/nijigenerate/widgets/mainmenu.d:192
 msgid "Import existing puppet file, editing options limited"
@@ -2143,7 +2143,7 @@ msgstr ""
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
 msgstr ""
 
@@ -2240,8 +2240,8 @@ msgid "Online Documentation"
 msgstr "線上說明書"
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
-msgstr "nijilife 說明書"
+msgid "nijilive Documentation"
+msgstr "nijilive 說明書"
 
 #: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
@@ -2859,7 +2859,7 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""
 
 #~ msgid "Edge Tool"

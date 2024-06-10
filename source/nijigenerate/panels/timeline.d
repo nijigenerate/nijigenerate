@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -7,14 +7,14 @@
 module nijigenerate.panels.timeline;
 import nijigenerate.panels;
 import i18n;
-import nijilife;
+import nijilive;
 import bindbc.imgui;
 import nijigenerate.widgets;
 import nijigenerate;
 import inmath.noise;
 import nijigenerate.ext.param;
 import nijigenerate.ext;
-import nijilife.core.animation.player;
+import nijilive.core.animation.player;
 import std.conv;
 
 private {

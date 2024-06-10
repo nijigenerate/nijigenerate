@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -21,7 +21,7 @@ import std.exception;
 
 import bindbc.sdl;
 import bindbc.opengl;
-import nijilife;
+import nijilive;
 import tinyfiledialogs;
 import std.string;
 import std.stdio;
@@ -323,7 +323,7 @@ void incOpenWindow() {
         }
     }
 
-    // Setup nijilife
+    // Setup nijilive
     inInit(() { return igGetTime(); });
     
     version(InBranding) incInitAda();
@@ -801,7 +801,7 @@ ImFont* incMainFont() {
 
 version (InBranding) {
     /**
-        Gets the nijilife Logo
+        Gets the nijilive Logo
     */
     Texture incGetLogo() {
         return incLogo;

@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
 
     Author: Asahi Lina
@@ -11,8 +11,8 @@ import nijigenerate.actions;
 import nijigenerate.core.actionstack;
 import nijigenerate.core;
 import nijigenerate;
-import nijilife;
-import nijilife.core.dbg;
+import nijilive;
+import nijilive.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.array;

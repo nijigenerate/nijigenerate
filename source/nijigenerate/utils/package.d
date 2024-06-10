@@ -2,7 +2,7 @@ module nijigenerate.utils;
 
 
 /**
-    Gets an icon from a nijilife Type ID
+    Gets an icon from a nijilive Type ID
 */
 string incTypeIdToIcon(string typeId) {
     switch(typeId) {

@@ -5,14 +5,14 @@
   <name>nijigenerate</name>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>BSD-2-Clause</project_license>
-  <summary>Tool to create and edit nijilife puppets.</summary>
+  <summary>Tool to create and edit nijilive puppets.</summary>
   <description>
     <p>
-      nijilife is a framework for realtime 2D puppet animation which can be used for VTubing, 
+      nijilive is a framework for realtime 2D puppet animation which can be used for VTubing, 
       game development and digital animation. 
     </p>
     <p>
-      nijigenerate is a tool that lets you create and edit nijilife puppets.
+      nijigenerate is a tool that lets you create and edit nijilive puppets.
     </p>
   </description>
   <url type="homepage">https://github.com/nijigenerate/nijigenerate</url>

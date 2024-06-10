@@ -1,7 +1,7 @@
 module nijigenerate.core.selector.query;
 
 
-import nijilife;
+import nijilive;
 import std.string;
 import std.conv;
 import std.uni;

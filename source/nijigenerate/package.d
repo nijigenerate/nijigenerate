@@ -1,13 +1,13 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
 */
 module nijigenerate;
-import nijilife;
-import nijilife.core.dbg;
-import nijilife.core.nodes.common;
+import nijilive;
+import nijilive.core.dbg;
+import nijilive.core.nodes.common;
 import nijigenerate.viewport;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
@@ -29,7 +29,7 @@ import std.path;
 import std.format;
 import i18n;
 import std.algorithm.searching;
-import nijilife.core.animation.player;
+import nijilive.core.animation.player;
 
 
 /**
@@ -346,7 +346,7 @@ void incImportFolder(string folder) {
 }
 
 /**
-    Imports an nijilife puppet
+    Imports an nijilive puppet
 */
 void incImportINP(string file) {
     import std.path : baseName;
@@ -372,7 +372,7 @@ void incImportINP(string file) {
 }
 
 /**
-    Exports an nijilife Puppet
+    Exports an nijilive Puppet
 */
 void incExportINP(string file) {
     import nijigenerate.windows.inpexport;

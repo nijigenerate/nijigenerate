@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, ImGui & nijilife Project
+    Copyright © 2020-2023, ImGui & nijilive Project
     Distributed under the MIT, see ImGui LICENSE file.
     
     Authors: Luna Nielsen
@@ -11,7 +11,7 @@ import bindbc.imgui;
 import core.stdc.stdio;
 import inmath;
 import bindbc.sdl;
-import nijilife : inGetRenderImage;
+import nijilive : inGetRenderImage;
 
 private {
     // OpenGL Data

@@ -657,8 +657,8 @@ msgid "Inspector"
 msgstr "Ispettore"
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
-msgstr "nijilife Ver."
+msgid "nijilive Ver."
+msgstr "nijilive Ver."
 
 #: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
@@ -766,10 +766,10 @@ msgstr "Usa il Filtraggio dei Punti"
 
 #: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
 msgstr ""
-"Fa sì che il modello nijilife utilizzi il filtraggio dei punti, eliminando "
+"Fa sì che il modello nijilive utilizzi il filtraggio dei punti, eliminando "
 "la sfocatura per i modelli a bassa risoluzione."
 
 #: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
@@ -841,7 +841,7 @@ msgstr "Scala asse Y"
 msgid "Snap to Pixel"
 msgstr "Aggancia al pixel"
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -852,7 +852,7 @@ msgid "Sorting"
 msgstr "Ordine"
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "Disegnabile"
@@ -1466,7 +1466,7 @@ msgstr ""
 "===   nijigenerate si è chiuso inaspettatamente   ===\n"
 "Per favore, invia agli sviluppatori il file nijigenerate-crashdump.txt che "
 "è stato salvato nella cartella home\n"
-"Allega il file come un problema git @ https://github.com/nijilife/inochi-"
+"Allega il file come un problema git @ https://github.com/nijilive/inochi-"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:65
@@ -1488,7 +1488,7 @@ msgstr ""
 "===   nijigenerate si è chiuso inaspettatamente   ===\n"
 "Per favore, invia agli sviluppatori il file nijigenerate-crashdump.txt che "
 "è stato salvato nella cartella home\n"
-"Allega il file come un problema git @ https://github.com/nijilife/inochi-"
+"Allega il file come un problema git @ https://github.com/nijilive/inochi-"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:67
@@ -2024,8 +2024,8 @@ msgid "Krita Document"
 msgstr "Documento Photoshop"
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
-msgstr "Pupazzo nijilife"
+msgid "nijilive Puppet"
+msgstr "Pupazzo nijilive"
 
 #: source/nijigenerate/widgets/mainmenu.d:192
 #, fuzzy
@@ -2229,10 +2229,10 @@ msgstr "Non ci sono dati di Inochi Session da importare!"
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
 msgstr ""
-"Importa i dati di tracciamento da un modello nijilife esportato che è stato "
+"Importa i dati di tracciamento da un modello nijilive esportato che è stato "
 "impostato in Inochi Session."
 
 #: source/nijigenerate/widgets/mainmenu.d:486
@@ -2333,8 +2333,8 @@ msgid "Online Documentation"
 msgstr "Documentazione online"
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
-msgstr "Documentazione nijilife"
+msgid "nijilive Documentation"
+msgstr "Documentazione nijilive"
 
 #: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
@@ -3003,7 +3003,7 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""
 
 #, fuzzy

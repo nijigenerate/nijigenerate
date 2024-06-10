@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -16,7 +16,7 @@ import nijigenerate.ext;
 import nijigenerate.io;
 import i18n;
 import inmath;
-import nijilife;
+import nijilive;
 
 /**
     Settings window

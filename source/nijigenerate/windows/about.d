@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -14,7 +14,7 @@ import nijigenerate.core;
 import nijigenerate;
 import std.string;
 import nijigenerate.utils.link;
-import nijilife;
+import nijilive;
 import i18n;
 import std.stdio;
 
@@ -116,7 +116,7 @@ protected:
             igSameLine(0, 8);
             /*
             if (igButton("Twitter", ImVec2(spacing, 0))) {
-                incOpenLink("https://twitter.com/nijilife");
+                incOpenLink("https://twitter.com/nijilive");
             }
             */
         }

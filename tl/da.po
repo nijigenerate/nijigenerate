@@ -645,8 +645,8 @@ msgid "Inspector"
 msgstr "Inspektør"
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
-msgstr "nijilife Ver."
+msgid "nijilive Ver."
+msgstr "nijilive Ver."
 
 #: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
@@ -751,10 +751,10 @@ msgstr "Brug Punktfiltrering"
 
 #: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
 msgstr ""
-"Får nijilife modellen til at bruge punktfiltering, som fjerner bløde kanter "
+"Får nijilive modellen til at bruge punktfiltering, som fjerner bløde kanter "
 "for modeller med lav opløsning."
 
 #: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
@@ -824,7 +824,7 @@ msgstr "Y Skalering"
 msgid "Snap to Pixel"
 msgstr "Lås til Pixel"
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -834,7 +834,7 @@ msgid "Sorting"
 msgstr "Sortering"
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "Tegnebar"
@@ -1938,8 +1938,8 @@ msgid "Krita Document"
 msgstr "Krita Dokument"
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
-msgstr "nijilife Model"
+msgid "nijilive Puppet"
+msgstr "nijilive Model"
 
 #: source/nijigenerate/widgets/mainmenu.d:192
 msgid "Import existing puppet file, editing options limited"
@@ -2135,10 +2135,10 @@ msgstr "Der var intent Inochi Session data at importerer!"
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
 msgstr ""
-"Importerer tracking data fra en eksporteret nijilife model som er blevet "
+"Importerer tracking data fra en eksporteret nijilive model som er blevet "
 "opsat i Inochi Session."
 
 #: source/nijigenerate/widgets/mainmenu.d:486
@@ -2234,8 +2234,8 @@ msgid "Online Documentation"
 msgstr "Online Dokumentation"
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
-msgstr "nijilife Dokumentation"
+msgid "nijilive Documentation"
+msgstr "nijilive Dokumentation"
 
 #: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
@@ -2851,7 +2851,7 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""
 
 #~ msgid "nijigenerate (Nightly)"

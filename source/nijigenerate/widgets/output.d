@@ -6,7 +6,7 @@ import std.string;
 import std.math;
 import std.algorithm;
 import i18n;
-import nijilife;
+import nijilive;
 import nijigenerate;
 import nijigenerate.actions;
 import nijigenerate.core;

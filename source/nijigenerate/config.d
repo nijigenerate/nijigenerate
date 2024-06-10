@@ -1,5 +1,5 @@
 /**
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -41,7 +41,7 @@ enum INC_FEATURE_REQ_URI = "https://github.com/nijigenerate/nijigenerate/issues/
 /**
     URI to website for the project, change this if you fork the project.
 */
-enum INC_INFO_WEBSITE_URI = "https://nijilife.com/";
+enum INC_INFO_WEBSITE_URI = "https://nijilive.com/";
 
 /**
     URI to buy a copy, unused for non-official builds
@@ -49,12 +49,12 @@ enum INC_INFO_WEBSITE_URI = "https://nijilife.com/";
 enum INC_INFO_BUY_URL = "https://lunafoxgirlvt.itch.io/nijigenerate";
 
 /**
-    URI to documentation provided for this software, by default it'll direct to the nijilife Documentation
+    URI to documentation provided for this software, by default it'll direct to the nijilive Documentation
 
     If you modify the software by adding new features it's highly recommended that you change this link to
     documentation which fits with the new featureset.
 */
-enum INC_INFO_DOCS_URI = "https://docs.nijilife.com/";
+enum INC_INFO_DOCS_URI = "https://docs.nijilive.com/";
 
 /**
     URI to the discord server where support is provided.

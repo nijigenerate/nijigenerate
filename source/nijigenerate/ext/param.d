@@ -1,6 +1,6 @@
 module nijigenerate.ext.param;
-import nijilife;
-import nijilife.fmt;
+import nijilive;
+import nijilive.fmt;
 import inmath;
 import nijigenerate;
 import nijigenerate.ext;

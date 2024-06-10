@@ -4,7 +4,7 @@
   [seagetch](https://twitter.com/seagetch)
 
 ## Designers
-### nijilife Logo
+### nijilive Logo
   [seagetch](https://twitter.com/seagetch) 
 
 ## Mascot

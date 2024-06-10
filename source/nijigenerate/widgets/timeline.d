@@ -1,7 +1,7 @@
 module nijigenerate.widgets.timeline;
-import nijilife.core.animation;
-import nijilife;
-import nijilife.core.animation.player;
+import nijilive.core.animation;
+import nijilive;
+import nijilive.core.animation.player;
 import nijigenerate.widgets;
 import bindbc.imgui;
 

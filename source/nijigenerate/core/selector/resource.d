@@ -1,6 +1,6 @@
 module nijigenerate.core.selector.resource;
 
-import nijilife;
+import nijilive;
 import std.string;
 import std.conv;
 import std.uni;

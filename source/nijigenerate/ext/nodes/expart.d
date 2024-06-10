@@ -1,18 +1,18 @@
 /*
-    nijilife Part extended with layer information
+    nijilive Part extended with layer information
 
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
 */
 module nijigenerate.ext.nodes.expart;
-import nijilife.core.nodes.part;
-import nijilife.core.nodes;
-import nijilife.core;
-import nijilife.fmt.serialize;
+import nijilive.core.nodes.part;
+import nijilive.core.nodes;
+import nijilive.core;
+import nijilive.fmt.serialize;
 import std.stdio : writeln;
-import nijilife.math;
+import nijilive.math;
 
 @TypeId("Part")
 class ExPart : Part {

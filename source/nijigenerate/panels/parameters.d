@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -21,7 +21,7 @@ import nijigenerate.viewport.model.onionslice;
 import nijigenerate.utils.transform;
 import nijigenerate;
 import std.string;
-import nijilife;
+import nijilive;
 import i18n;
 import std.uni : toLower;
 import std.stdio;

@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -9,7 +9,7 @@ import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.label;
 import nijigenerate.core.font;
 import bindbc.imgui;
-import nijilife;
+import nijilive;
 import i18n;
 
 enum DialogLevel : size_t {
