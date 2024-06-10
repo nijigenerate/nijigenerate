@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31729.503
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "Inochi Creator", "Inochi Creator.wixproj", "{786D71C2-12CD-4D88-AAF6-7BC5BD9E6B87}"
+Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "nijigenerate", "nijigenerate.wixproj", "{786D71C2-12CD-4D88-AAF6-7BC5BD9E6B87}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

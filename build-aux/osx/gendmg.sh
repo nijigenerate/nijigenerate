@@ -1,7 +1,7 @@
-DMGTITLE="Install Inochi Creator"
-DMGFILENAME="Install_Inochi_Creator.dmg"
+DMGTITLE="Install nijigenerate"
+DMGFILENAME="Install_Inochi_nijigenerate.dmg"
 
-if [ -d "out/Inochi Creator.app" ]; then
+if [ -d "out/nijigenerate.app" ]; then
     if [ -f "out/$DMGFILENAME" ]; then
         echo "Removing prior install dmg..."
         rm "out/$DMGFILENAME"
@@ -19,15 +19,15 @@ if [ -d "out/Inochi Creator.app" ]; then
 
     mkdir -p InstallVolume
     cp ../LICENSE LICENSE
-    cp -r "Inochi Creator.app" "InstallVolume/Inochi Creator.app"
+    cp -r "nijigenerate.app" "InstallVolume/nijigenerate.app"
     
     create-dmg \
         --volname "$DMGTITLE" \
-        --volicon "InochiCreator.icns" \
+        --volicon "Inochinijigenerate.icns" \
         --background "../build-aux/osx/dmgbg.png" \
         --window-size 800 600 \
-        --icon "Inochi Creator.app" 200 250 \
-        --hide-extension "Inochi Creator.app" \
+        --icon "nijigenerate.app" 200 250 \
+        --hide-extension "nijigenerate.app" \
         --eula "LICENSE" \
         --app-drop-link 600 250 \
         "$DMGFILENAME" InstallVolume/
@@ -38,6 +38,6 @@ if [ -d "out/Inochi Creator.app" ]; then
     echo "DMG generated as $PWD/$DMGFILENAME"
     cd ..
 else
-    echo "Could not find Inochi Creator for packaging..."
+    echo "Could not find nijigenerate for packaging..."
     exit 1
 fi

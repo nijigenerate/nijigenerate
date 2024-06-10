@@ -6,7 +6,7 @@
     <ProductVersion>3.10</ProductVersion>
     <ProjectGuid>786d71c2-12cd-4d88-aaf6-7bc5bd9e6b87</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>Inochi Creator</OutputName>
+    <OutputName>nijigenerate</OutputName>
     <OutputType>Package</OutputType>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
