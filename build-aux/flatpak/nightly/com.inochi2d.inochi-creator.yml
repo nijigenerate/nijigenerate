@@ -1,4 +1,4 @@
-id: com.nijilife.nijigenerate
+id: nijigenerate.nijigenerate
 runtime: org.freedesktop.Platform
 runtime-version: '22.08'
 sdk: org.freedesktop.Sdk
@@ -58,11 +58,11 @@ modules:
     buildsystem: simple
     build-commands:
 
-      - install -Dm644 com.nijilife.nijigenerate.metainfo.xml /app/share/metainfo/com.nijilife.nijigenerate.metainfo.xml
-      - install -Dm644 ./nijigenerate/icon_128.png /app/share/icons/hicolor/128x128/apps/com.nijilife.nijigenerate.png
-      - install -Dm644 ./nijigenerate/icon_256.png /app/share/icons/hicolor/256x256/apps/com.nijilife.nijigenerate.png
-      - install -Dm644 ./nijigenerate/icon_512.png /app/share/icons/hicolor/512x512/apps/com.nijilife.nijigenerate.png
-      - install -Dm644 nijigenerate.desktop /app/share/applications/com.nijilife.nijigenerate.desktop
+      - install -Dm644 nijigenerate.nijigenerate.metainfo.xml /app/share/metainfo/nijigenerate.nijigenerate.metainfo.xml
+      - install -Dm644 ./nijigenerate/icon_128.png /app/share/icons/hicolor/128x128/apps/nijigenerate.nijigenerate.png
+      - install -Dm644 ./nijigenerate/icon_256.png /app/share/icons/hicolor/256x256/apps/nijigenerate.nijigenerate.png
+      - install -Dm644 ./nijigenerate/icon_512.png /app/share/icons/hicolor/512x512/apps/nijigenerate.nijigenerate.png
+      - install -Dm644 nijigenerate.desktop /app/share/applications/nijigenerate.nijigenerate.desktop
 
     sources:
       - type: git

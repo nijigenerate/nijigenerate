@@ -9,7 +9,7 @@
 
 nijigenerate is an open source editor for the [nijilife puppet format](https://github.com/nijigenerate/nijilife), which is derived from Inochi2D (v0.8) technology.  This application allows you to rig models for use in games or for other real-time applications such as [VTubing](https://en.wikipedia.org/wiki/VTuber). Animation is achieved by morphing, transforming and in other ways distorting layered 2D textures in real-time. These distortions can trick the end user in to perciving 3D depth in the 2D art.
 
-If you are a VTuber wanting to use nijilife we highly recommend checking out [Inochi Session](https://github.com/nijilife/inochi-session) as well.
+If you are a VTuber wanting to use nijilife we highly recommend checking out [Inochi Session](https://github.com/nijilife/nijiexpose) as well.
 
 &nbsp;
 

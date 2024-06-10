@@ -274,7 +274,7 @@ jobs:
       options: --privileged
 
     env:
-      MANIFEST_PATH: build-aux/flatpak/nightly/com.nijilife.nijigenerate.yml
+      MANIFEST_PATH: build-aux/flatpak/nightly/nijigenerate.nijigenerate.yml
       FLATPAK_BRANCH: nightly
       FLATPAK_BUILD_DIR: build-dir
       FLATPAK_BUILD_REPO: build-repo
@@ -323,7 +323,7 @@ jobs:
     needs: build-flatpak
 
     env:
-      APP_ID: com.nijilife.nijigenerate
+      APP_ID: nijigenerate.nijigenerate
       FLATPAK_BUNDLE: nijigenerate
       FLATPAK_BRANCH: nightly
       FLATPAK_BUILD_REPO: build-repo

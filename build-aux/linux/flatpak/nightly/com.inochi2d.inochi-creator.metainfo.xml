@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
-  <id>com.nijilife.nijigenerate</id>
+  <id>nijigenerate.nijigenerate</id>
   <name>nijigenerate</name>
   <summary>Tool to create and edit nijilife puppets.</summary>
   <developer_name>Luna Nielsen</developer_name>
-  <launchable type="desktop-id">com.nijilife.nijigenerate.desktop</launchable>
+  <launchable type="desktop-id">nijigenerate.nijigenerate.desktop</launchable>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>BSD-2-Clause</project_license>
   <description>

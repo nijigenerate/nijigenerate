@@ -11,7 +11,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>nijigenerate</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.nijilife.Inochinijigenerate</string>
+	<string>nijigenerate.Inochinijigenerate</string>
 	<key>CFBundleVersion</key>
 	<string>0.8.4</string>
 	<key>CFBundlePackageType</key>
@@ -33,7 +33,7 @@
 			<string>Editor</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.nijilife.nijigenerate.project</string>
+				<string>nijigenerate.nijigenerate.project</string>
 			</array>
 		</dict>
 	</array>
@@ -41,7 +41,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.nijilife.nijigenerate.project</string>
+			<string>nijigenerate.nijigenerate.project</string>
 			<key>UTTypeReferenceURL</key>
 			<string>https://github.com/nijigenerate/nijilife/wiki/INP-Data-Interchange-Format</string>
 			<key>UTTypeDescription</key>
