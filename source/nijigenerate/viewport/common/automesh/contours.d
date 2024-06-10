@@ -4,7 +4,7 @@ import i18n;
 import nijigenerate.viewport.common.automesh.automesh;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
-import nijilife.core;
+import nijilive.core;
 import inmath;
 import dcv.core;
 import dcv.imgproc;

@@ -1,12 +1,12 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
 */
 module nijigenerate.widgets.viewport;
 import nijigenerate.widgets;
-import nijilife.math;
+import nijilive.math;
 
 private {
     struct ViewportToolAreaData {

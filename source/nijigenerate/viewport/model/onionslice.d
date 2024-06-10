@@ -1,9 +1,9 @@
 
 module nijigenerate.viewport.model.onionslice;
 
-import nijilife.core.texture;
-import nijilife.utils.snapshot;
-import nijilife;
+import nijilive.core.texture;
+import nijilive.utils.snapshot;
+import nijilive;
 import nijigenerate;
 import std.stdio;
 

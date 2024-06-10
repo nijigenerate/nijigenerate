@@ -3,7 +3,7 @@ import nijigenerate.widgets;
 import nijigenerate.core;
 import bindbc.imgui;
 import inmath;
-import nijilife;
+import nijilive;
 import std.math : quantize;
 import bindbc.opengl : GL_RGBA;
 

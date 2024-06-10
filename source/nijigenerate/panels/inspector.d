@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -15,8 +15,8 @@ import nijigenerate.windows;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate;
-import nijilife;
-import nijilife.core.nodes.common;
+import nijilive;
+import nijilive.core.nodes.common;
 import std.string;
 import std.algorithm.searching;
 import std.algorithm.mutation;
@@ -179,12 +179,12 @@ void incInspectorModelInfo() {
 
     // Version info
     {
-        len = incMeasureString(_("nijilife Ver."));
+        len = incMeasureString(_("nijilive Ver."));
         incText(puppet.meta.version_);
         igSameLine(0, 0);
         incDummy(ImVec2(-(len.x), len.y));
         igSameLine(0, 0);
-        incText(_("nijilife Ver."));
+        incText(_("nijilive Ver."));
     }
     
     igSpacing();
@@ -271,7 +271,7 @@ void incInspectorModelInfo() {
                 incActivePuppet().populateTextureSlots();
                 incActivePuppet().updateTextureState();
             }
-            incTooltip(_("Makes nijilife model use point filtering, removing blur for low-resolution models."));
+            incTooltip(_("Makes nijilive model use point filtering, removing blur for low-resolution models."));
         igPopID();
     }
     incEndCategory();
@@ -534,7 +534,7 @@ void incInspectorModelTRS(Node node) {
         igSpacing();
         igSpacing();
 
-        // The sorting order ID, which nijilife uses to sort
+        // The sorting order ID, which nijilive uses to sort
         // Parts to draw in the user specified order.
         // negative values = closer to camera
         // positive values = further away from camera
@@ -560,7 +560,7 @@ void incInspectorModelTRS(Node node) {
 
 void incInspectorModelDrawable(Drawable node) {
     // The main type of anything that can be drawn to the screen
-    // in nijilife.
+    // in nijilive.
     if (incBeginCategory(__("Drawable"))) {
         float adjustSpeed = 1;
         ImVec2 avail = incAvailableSpace();

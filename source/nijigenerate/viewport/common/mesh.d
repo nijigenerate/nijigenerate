@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
 
     Authors:
@@ -13,8 +13,8 @@
 module nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport;
 import nijigenerate.viewport.common.mesheditor.brushes;
-import nijilife;
-import nijilife.core.dbg;
+import nijilive;
+import nijilive.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.algorithm;

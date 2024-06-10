@@ -1,7 +1,7 @@
 module nijigenerate.core.input;
 import nijigenerate.core;
-import nijilife.core;
-import nijilife.math;
+import nijilive.core;
+import nijilive.math;
 import bindbc.imgui;
 import bindbc.sdl;
 import std.algorithm;

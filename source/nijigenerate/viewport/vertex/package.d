@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -14,7 +14,7 @@ import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import bindbc.imgui;
 import std.stdio;
 import std.string;

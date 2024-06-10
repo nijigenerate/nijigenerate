@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023,2022 nijilife Project
+    Copyright © 2020-2023,2022 nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
 */
 module nijigenerate.actions.parameter;
@@ -9,7 +9,7 @@ import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.actions.binding;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import std.format;
 import i18n;
 import std.algorithm.searching: countUntil;

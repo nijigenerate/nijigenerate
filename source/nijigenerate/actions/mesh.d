@@ -7,7 +7,7 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport;
 import nijigenerate.actions;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import std.format;
 import std.range;
 import i18n;

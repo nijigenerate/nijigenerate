@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -19,7 +19,7 @@ import nijigenerate.io.autosave;
 import nijigenerate.atlas.atlas : incInitAtlassing;
 import nijigenerate.ext;
 import nijigenerate.windows.flipconfig;
-import nijilife;
+import nijilive;
 import nijigenerate;
 import i18n;
 
@@ -62,7 +62,7 @@ int main(string[] args)
 
         inSetUpdateBounds(true);
 
-        // Initialize Window and nijilife
+        // Initialize Window and nijilive
         incInitPanels();
         incActionInit();
         incOpenWindow();
@@ -101,7 +101,7 @@ int main(string[] args)
         version(InDemo) incModalAdd(
             new Nagscreen(
                 _("Thank you!"), 
-                _("Thank you for downloading nijigenerate!\nSoftware is expensive to create and the same goes for nijigenerate.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://nijilife.com)"),
+                _("Thank you for downloading nijigenerate!\nSoftware is expensive to create and the same goes for nijigenerate.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://nijilive.com)"),
                 10
             )
         );
@@ -130,7 +130,7 @@ int main(string[] args)
 */
 void incUpdate() {
 
-    // Update nijilife
+    // Update nijilive
     incAnimationUpdate();
     inUpdate();
 
@@ -156,7 +156,7 @@ void incUpdate() {
 */
 void incUpdateNoEv() {
 
-    // Update nijilife
+    // Update nijilive
     incAnimationUpdate();
     inUpdate();
     

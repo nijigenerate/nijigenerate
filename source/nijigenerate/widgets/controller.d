@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors:
@@ -8,7 +8,7 @@
 */
 module nijigenerate.widgets.controller;
 import nijigenerate.widgets;
-import nijilife;
+import nijilive;
 import std.stdio;
 
 struct EditableAxisPoint {

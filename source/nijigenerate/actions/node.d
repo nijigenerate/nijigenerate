@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -8,7 +8,7 @@ module nijigenerate.actions.node;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import std.format;
 import i18n;
 import std.exception;

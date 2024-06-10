@@ -4,8 +4,8 @@ import nijigenerate.viewport.common.mesheditor.brushes.base;
 import nijigenerate.viewport;
 import nijigenerate.viewport.common;
 import nijigenerate.widgets.drag;
-import nijilife;
-import nijilife.core.dbg;
+import nijilive;
+import nijilive.core.dbg;
 import inmath;
 import bindbc.imgui;
 

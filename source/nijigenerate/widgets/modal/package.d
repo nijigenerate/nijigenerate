@@ -11,7 +11,7 @@ import nijigenerate.core.i18n;
 import std.string;
 import nijigenerate.utils.link;
 import i18n;
-import nijilife;
+import nijilive;
 import nijigenerate.ver;
 import nijigenerate.io;
 import nijigenerate;

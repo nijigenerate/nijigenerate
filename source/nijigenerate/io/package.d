@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -188,7 +188,7 @@ string incShowSaveDialog(const(TFD_Filter)[] filters, string fname, string title
 
 void incCreatePartsFromFiles(string[] files) {
     import std.path: baseName, extension;
-    import nijilife: ShallowTexture, inTexPremultiply, Puppet, inCreateSimplePart;
+    import nijilive: ShallowTexture, inTexPremultiply, Puppet, inCreateSimplePart;
     import nijigenerate.actions: incAddChildWithHistory;
     import nijigenerate.widgets: incDialog;
     import nijigenerate: incActivePuppet, incSelectedNode;

@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -9,10 +9,10 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.core.input;
-import nijilife.core.dbg;
+import nijilive.core.dbg;
 import nijigenerate.core;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import bindbc.imgui;
 import i18n;
 

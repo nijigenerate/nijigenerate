@@ -63,11 +63,11 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijilife/i2d-imgui.git --recurse-submodules
-        git clone -b v0_8 https://github.com/nijigenerate/nijilife.git
-        git clone https://github.com/nijilife/dcv-i2d
+        git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules
+        git clone -b v0_8 https://github.com/nijigenerate/nijilive.git
+        git clone https://github.com/nijilive/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilife/ "0.8.0"
+        dub add-local nijilive/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
 
     - name: 'Build nijigenerate'
@@ -113,11 +113,11 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijilife/i2d-imgui.git --recurse-submodules
-        git clone -b v0_8 https://github.com/nijigenerate/nijilife.git
-        git clone https://github.com/nijilife/dcv-i2d
+        git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules
+        git clone -b v0_8 https://github.com/nijigenerate/nijilive.git
+        git clone https://github.com/nijilive/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilife/ "0.8.0"
+        dub add-local nijilive/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
 
     - name: 'Build nijigenerate'
@@ -218,11 +218,11 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijilife/i2d-imgui.git --recurse-submodules
-        git clone -b v0_8 https://github.com/nijigenerate/nijilife.git
-        git clone https://github.com/nijilife/dcv-i2d
+        git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules
+        git clone -b v0_8 https://github.com/nijigenerate/nijilive.git
+        git clone https://github.com/nijilive/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilife/ "0.8.0"
+        dub add-local nijilive/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
 
     - name: 'Build nijigenerate'

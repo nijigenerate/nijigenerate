@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -14,8 +14,8 @@ import nijigenerate.utils.link;
 import nijigenerate.config;
 import nijigenerate.io.autosave;
 import nijigenerate;
-import nijilife;
-import nijilife.core.dbg;
+import nijilive;
+import nijilive.core.dbg;
 import tinyfiledialogs;
 import i18n;
 import nijigenerate.ext;
@@ -179,9 +179,9 @@ void incMainMenu() {
                         }
                         incTooltip(_("Import a standard Krita KRA file."));
 
-                        if (igMenuItem(__("nijilife Puppet"), "", false, true)) {
+                        if (igMenuItem(__("nijilive Puppet"), "", false, true)) {
                             const TFD_Filter[] filters = [
-                                { ["*.inp"], "nijilife Puppet (*.inp)" }
+                                { ["*.inp"], "nijilive Puppet (*.inp)" }
                             ];
 
                             string file = incShowOpenDialog(filters, _("Import..."));
@@ -248,7 +248,7 @@ void incMainMenu() {
                         if (igMenuItem(__("nijigenerate Project"), "", false, true)) {
                             incPopWelcomeWindow();
                             // const TFD_Filter[] filters = [
-                            //     { ["*.inp"], "nijilife Puppet (*.inp)" }
+                            //     { ["*.inp"], "nijilive Puppet (*.inp)" }
                             // ];
 
                             // c_str filename = tinyfd_openFileDialog(__("Import..."), "", filters, false);
@@ -262,9 +262,9 @@ void incMainMenu() {
                     }
 
                     if (igBeginMenu(__("Export"), true)) {
-                        if(igMenuItem(__("nijilife Puppet"), "", false, true)) {
+                        if(igMenuItem(__("nijilive Puppet"), "", false, true)) {
                             const TFD_Filter[] filters = [
-                                { ["*.inp"], "nijilife Puppet (*.inp)" }
+                                { ["*.inp"], "nijilive Puppet (*.inp)" }
                             ];
 
                             string file = incShowSaveDialog(filters, "", _("Export..."));
@@ -464,7 +464,7 @@ void incMainMenu() {
                     // Opens the directory where configuration resides in the user's file browser.
                     if (igMenuItem(__("Import Inochi Session Data"), null, false, true)) {
                         const TFD_Filter[] filters = [
-                            { ["*.inp"], "nijilife Puppet (*.inp)" }
+                            { ["*.inp"], "nijilive Puppet (*.inp)" }
                         ];
 
                         if (string path = incShowImportDialog(filters, _("Import..."))) {
@@ -480,7 +480,7 @@ void incMainMenu() {
                             destroy!false(p);
                         }
                     }
-                    incTooltip(_("Imports tracking data from an exported nijilife model which has been set up in Inochi Session."));
+                    incTooltip(_("Imports tracking data from an exported nijilive model which has been set up in Inochi Session."));
                     
 
                     igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Puppet Texturing"));
@@ -554,8 +554,8 @@ void incMainMenu() {
                         incOpenLink("https://github.com/nijigenerate/nijigenerate/wiki");
                     }
                     
-                    if(igMenuItem(__("nijilife Documentation"), "", false, true)) {
-                        incOpenLink("https://github.com/nijigenerate/nijilife/wiki");
+                    if(igMenuItem(__("nijilive Documentation"), "", false, true)) {
+                        incOpenLink("https://github.com/nijigenerate/nijilive/wiki");
                     }
                     igSpacing();
                     igSeparator();

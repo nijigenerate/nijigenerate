@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -17,7 +17,7 @@ import nijigenerate.core;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import bindbc.imgui;
 import i18n;
 import std.stdio;
@@ -197,7 +197,7 @@ void incViewportModelOptions() {
                 incDummy(ImVec2(4, 0));
                 igSameLine(0, 0);
                 if(incBeginDropdownMenu("COLOR", "", ImVec2(128, 0), ImVec2(float.max, float.max))) {
-                    import nijilife : inSetClearColor, inGetClearColor;
+                    import nijilive : inSetClearColor, inGetClearColor;
 
                     // Get clear color
                     vec3 clearColor;

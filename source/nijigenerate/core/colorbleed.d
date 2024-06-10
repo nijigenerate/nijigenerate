@@ -5,7 +5,7 @@
     This allows textures to be padded in such a way that there'll be no artifacts.
 */
 module nijigenerate.core.colorbleed;
-import nijilife.core.texture;
+import nijilive.core.texture;
 
 /**
     Does texture bleeding on a texture.

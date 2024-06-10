@@ -1,5 +1,5 @@
 # Language jp translations for PACKAGE package.
-# Copyright (C) 2022 nijilife Project
+# Copyright (C) 2022 nijilive Project
 # This file is distributed under the same license as the PACKAGE package.
 # Luna the Foxgirl <cli-luna@protonmail.com>, 2022.
 # Sae Okuri <sae.okuri@gmail.com>, 2022.
@@ -629,8 +629,8 @@ msgid "Inspector"
 msgstr "インスペクター"
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
-msgstr "nijilife バージョン"
+msgid "nijilive Ver."
+msgstr "nijilive バージョン"
 
 #: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
@@ -735,10 +735,10 @@ msgstr "ポイントフィルタを使用"
 
 #: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
 msgstr ""
-"モデルが低解像度の場合に、nijilifeモデルがポイントフィルタを利用することによ"
+"モデルが低解像度の場合に、nijiliveモデルがポイントフィルタを利用することによ"
 "り、ぼやけて表示されるのを防ぎます。"
 
 #: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
@@ -808,7 +808,7 @@ msgstr "Y軸スケール"
 msgid "Snap to Pixel"
 msgstr "ピクセルにスナップ"
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -818,7 +818,7 @@ msgid "Sorting"
 msgstr "ソート"
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "ドローアブル"
@@ -1924,8 +1924,8 @@ msgid "Krita Document"
 msgstr "Kritaファイル"
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
-msgstr "nijilife パペット"
+msgid "nijilive Puppet"
+msgstr "nijilive パペット"
 
 #: source/nijigenerate/widgets/mainmenu.d:192
 msgid "Import existing puppet file, editing options limited"
@@ -2121,10 +2121,10 @@ msgstr "インポート可能なInochi Sessionのデータがありません。"
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
 msgstr ""
-"Inochi Sessionでセットアップ後、エクスポートされたnijilifeモデルからトラッキ"
+"Inochi Sessionでセットアップ後、エクスポートされたnijiliveモデルからトラッキ"
 "ングデータをインポートします。"
 
 #: source/nijigenerate/widgets/mainmenu.d:486
@@ -2222,8 +2222,8 @@ msgid "Online Documentation"
 msgstr "オンラインドキュメント"
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
-msgstr "nijilifeについて"
+msgid "nijilive Documentation"
+msgstr "nijiliveについて"
 
 #: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
@@ -2793,7 +2793,7 @@ msgstr "ドキュメント"
 
 #: source/nijigenerate/windows/welcome.d:316
 msgid "Join our Discord"
-msgstr "nijilifeのDiscordに参加"
+msgstr "nijiliveのDiscordに参加"
 
 #: source/nijigenerate/windows/welcome.d:325
 msgid "Buy a copy"
@@ -2835,7 +2835,7 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""
 
 #~ msgid "nijigenerate (Nightly)"

@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023,2022 nijilife Project
+    Copyright © 2020-2023,2022 nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
 */
 module nijigenerate.actions.binding;
@@ -7,7 +7,7 @@ module nijigenerate.actions.binding;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import std.format;
 import std.stdio;
 import std.range;

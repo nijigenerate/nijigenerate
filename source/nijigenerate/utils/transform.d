@@ -12,7 +12,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.windows.flipconfig;
 import nijigenerate;
 import std.string;
-import nijilife;
+import nijilive;
 import i18n;
 import std.stdio;
 import nijigenerate.utils;

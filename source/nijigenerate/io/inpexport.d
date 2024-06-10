@@ -1,7 +1,7 @@
 module nijigenerate.io.inpexport;
 import nijigenerate.atlas;
 import nijigenerate.ext;
-import nijilife;
+import nijilive;
 import std.algorithm.sorting;
 import std.algorithm.mutation;
 import i18n;

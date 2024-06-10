@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -7,7 +7,7 @@
 module nijigenerate.viewport.test;
 import nijigenerate.core;
 import nijigenerate;
-import nijilife;
+import nijilive;
 import bindbc.imgui;
 import ft;
 

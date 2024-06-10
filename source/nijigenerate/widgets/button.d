@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -7,7 +7,7 @@
 module nijigenerate.widgets.button;
 import nijigenerate.widgets;
 import nijigenerate.core;
-import nijilife;
+import nijilive;
 import std.math : isFinite;
 import std.string;
 

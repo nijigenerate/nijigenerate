@@ -1,5 +1,5 @@
 # Language jp translations for PACKAGE package.
-# Copyright (C) 2022 nijilife Project
+# Copyright (C) 2022 nijilive Project
 # This file is distributed under the same license as the PACKAGE package.
 # Luna the Foxgirl <cli-luna@protonmail.com>, 2022.
 # LovelyA72 <a72@luotianyi.pro>, 2022.
@@ -642,8 +642,8 @@ msgid "Inspector"
 msgstr "属性"
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
-msgstr "nijilife 版本"
+msgid "nijilive Ver."
+msgstr "nijilive 版本"
 
 #: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
@@ -749,9 +749,9 @@ msgstr "使用点过滤"
 #: source/nijigenerate/panels/inspector.d:273
 #, fuzzy
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
-msgstr "使nijilife模型使用点过滤，这会去除低分辨率模型的模糊"
+msgstr "使nijilive模型使用点过滤，这会去除低分辨率模型的模糊"
 
 #: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
 msgid "Transform"
@@ -819,7 +819,7 @@ msgstr "Y轴缩放"
 msgid "Snap to Pixel"
 msgstr "吸附到像素"
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -829,7 +829,7 @@ msgid "Sorting"
 msgstr "排序"
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "可绘制对象"
@@ -1971,13 +1971,13 @@ msgid "Krita Document"
 msgstr "Krita 文件"
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
-msgstr "nijilife 模型"
+msgid "nijilive Puppet"
+msgstr "nijilive 模型"
 
 #: source/nijigenerate/widgets/mainmenu.d:192
 #, fuzzy
 msgid "Import existing puppet file, editing options limited"
-msgstr "导入一个已有的 nijilife 模型，但是部分参数无法被编辑"
+msgstr "导入一个已有的 nijilive 模型，但是部分参数无法被编辑"
 
 #: source/nijigenerate/widgets/mainmenu.d:194
 msgid "Image Folder"
@@ -2173,9 +2173,9 @@ msgstr "没有可导入的Inochi Session数据"
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
-msgstr "从已导出的，在Inochi Session中配置好的nijilife模型中导入捕捉数据"
+msgstr "从已导出的，在Inochi Session中配置好的nijilive模型中导入捕捉数据"
 
 #: source/nijigenerate/widgets/mainmenu.d:486
 msgid "Puppet Texturing"
@@ -2270,8 +2270,8 @@ msgid "Online Documentation"
 msgstr "在线文档"
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
-msgstr "nijilife 文档"
+msgid "nijilive Documentation"
+msgstr "nijilive 文档"
 
 #: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
@@ -2914,7 +2914,7 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""
 
 #~ msgid "nijigenerate (Nightly)"

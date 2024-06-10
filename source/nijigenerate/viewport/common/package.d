@@ -1,11 +1,11 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
 
     Author: Asahi Lina
 */
 module nijigenerate.viewport.common;
-import nijilife;
+import nijilive;
 
 vec3[] incCreateCircleBuffer(vec2 origin, vec2 radii, uint segments)
 {

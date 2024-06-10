@@ -43,7 +43,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>nijigenerate.nijigenerate.project</string>
 			<key>UTTypeReferenceURL</key>
-			<string>https://github.com/nijigenerate/nijilife/wiki/INP-Data-Interchange-Format</string>
+			<string>https://github.com/nijigenerate/nijilive/wiki/INP-Data-Interchange-Format</string>
 			<key>UTTypeDescription</key>
 			<string>nijigenerate Project</string>
 			<key>UTTypeIconFile</key>

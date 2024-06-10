@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, nijilife Project
+    Copyright © 2020-2023, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -13,8 +13,8 @@ import nijigenerate.core.colorbleed;
 import nijigenerate.panels;
 import nijigenerate.actions;
 import nijigenerate;
-import nijilife;
-import nijilife.core.dbg;
+import nijilive;
+import nijilive.core.dbg;
 import bindbc.imgui;
 import std.string;
 import i18n;
@@ -68,7 +68,7 @@ protected:
             currSize = ImVec2(0, 0);
         }
 
-        // Resize nijilife viewport according to frame
+        // Resize nijilive viewport according to frame
         // Also viewport of 0 is too small, minimum 128.
         currSize = ImVec2(clamp(currSize.x, 128, float.max), clamp(currSize.y, 128, float.max));
         

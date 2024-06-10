@@ -2,15 +2,15 @@
 <component type="desktop">
   <id>nijigenerate.nijigenerate</id>
   <name>nijigenerate</name>
-  <summary>Tool to create and edit nijilife puppets.</summary>
+  <summary>Tool to create and edit nijilive puppets.</summary>
   <developer_name>Luna Nielsen</developer_name>
   <launchable type="desktop-id">nijigenerate.nijigenerate.desktop</launchable>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>BSD-2-Clause</project_license>
   <description>
-    <p>nijilife is a framework for realtime 2D puppet animation which can be used for VTubing, 
+    <p>nijilive is a framework for realtime 2D puppet animation which can be used for VTubing, 
       game development and digital animation.</p>
-    <p>nijigenerate is a tool that lets you create and edit nijilife puppets.</p>
+    <p>nijigenerate is a tool that lets you create and edit nijilive puppets.</p>
   </description>
   <screenshots>
     <screenshot type="default">
@@ -30,7 +30,7 @@
   </releases>
   <url type="homepage">https://lunafoxgirlvt.itch.io/nijigenerate</url>
   <url type="bugtracker">https://github.com/nijigenerate/nijigenerate/issues</url>
-  <url type="help">https://docs.nijilife.com</url>
+  <url type="help">https://docs.nijilive.com</url>
   <url type="vcs-browser">https://github.com/nijigenerate/nijigenerate</url>
   <url type="contribute">https://github.com/nijigenerate/nijigenerate</url>
   <categories>

@@ -1,5 +1,5 @@
 # Spanish translations for nijigenerate package.
-# Copyright (C) 2022 nijilife Project
+# Copyright (C) 2022 nijilive Project
 # This file is distributed under the same license as the nijigenerate package.
 # Luna the Foxgirl <cli-luna@protonmail.com>, 2022.
 # Sae Okuri <sae.okuri@gmail.com>, 2022.
@@ -641,8 +641,8 @@ msgid "Inspector"
 msgstr "Inspector"
 
 #: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
-msgid "nijilife Ver."
-msgstr "nijilife Ver."
+msgid "nijilive Ver."
+msgstr "nijilive Ver."
 
 #: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
@@ -749,10 +749,10 @@ msgstr "Usar filtro de punto"
 
 #: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes nijilife model use point filtering, removing blur for low-resolution "
+"Makes nijilive model use point filtering, removing blur for low-resolution "
 "models."
 msgstr ""
-"Hace que el modelo nijilife use la técnica de filtrado de punto, reduciendo "
+"Hace que el modelo nijilive use la técnica de filtrado de punto, reduciendo "
 "el desenfoque en modelos de baja resolución."
 
 #: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
@@ -822,7 +822,7 @@ msgstr "Escala Y"
 msgid "Snap to Pixel"
 msgstr "Fijar a píxel"
 
-#. The sorting order ID, which nijilife uses to sort
+#. The sorting order ID, which nijilive uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
@@ -832,7 +832,7 @@ msgid "Sorting"
 msgstr "Ordenamiento"
 
 #. The main type of anything that can be drawn to the screen
-#. in nijilife.
+#. in nijilive.
 #: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "Dibujable"
@@ -1412,7 +1412,7 @@ msgstr ""
 "===   nijigenerate se ha cerrado inesperadamente  ===\n"
 "Por favor envíanos el archivo nijigenerate-crashdump.txt que se encuentra "
 "en ~/Library/Logs\n"
-"Adjunta el archivo como un issue de git en https://github.com/nijilife/"
+"Adjunta el archivo como un issue de git en https://github.com/nijilive/"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:65
@@ -1434,7 +1434,7 @@ msgstr ""
 "Por favor envíanos el archivo nijigenerate-crashdump.txt que se encuentra "
 "en el directorio XDG_STATE_HOME. En el caso de Flatpak, se encuentra en ~/."
 "var/app/nijigenerate.nijigenerate.\n"
-"Adjunta el archivo como un issue de git en https://github.com/nijilife/"
+"Adjunta el archivo como un issue de git en https://github.com/nijilive/"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:67
@@ -1939,8 +1939,8 @@ msgid "Krita Document"
 msgstr "Documento de Krita"
 
 #: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
-msgid "nijilife Puppet"
-msgstr "Marioneta nijilife"
+msgid "nijilive Puppet"
+msgstr "Marioneta nijilive"
 
 #: source/nijigenerate/widgets/mainmenu.d:192
 msgid "Import existing puppet file, editing options limited"
@@ -2137,10 +2137,10 @@ msgstr "¡No existen datos de Inochi Session para importar!"
 
 #: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported nijilife model which has been set up "
+"Imports tracking data from an exported nijilive model which has been set up "
 "in Inochi Session."
 msgstr ""
-"Importa la data de trackeo desde un modelo nijilife que ha sido configurado "
+"Importa la data de trackeo desde un modelo nijilive que ha sido configurado "
 "en Inochi Session."
 
 #: source/nijigenerate/widgets/mainmenu.d:486
@@ -2242,8 +2242,8 @@ msgid "Online Documentation"
 msgstr "Documentación en línea"
 
 #: source/nijigenerate/widgets/mainmenu.d:557
-msgid "nijilife Documentation"
-msgstr "Documentación de nijilife"
+msgid "nijilive Documentation"
+msgstr "Documentación de nijilive"
 
 #: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
@@ -2867,13 +2867,13 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
 msgstr ""
 "¡Gracias por descargar nijigenerate!\n"
 "Crear software es caro, y esto tambien es cierto para nijigenerate.\n"
 "¡Por favor considera poner de tu parte para finaciar su desarrollo!\n"
 "\n"
-"Para evitar este mensaje, [¡compra una copia hoy!](https://nijilife.com)"
+"Para evitar este mensaje, [¡compra una copia hoy!](https://nijilive.com)"
 
 #~ msgid "nijigenerate (Nightly)"
 #~ msgstr "nijigenerate (Nightly)"

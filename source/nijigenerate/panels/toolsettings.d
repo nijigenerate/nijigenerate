@@ -1,5 +1,5 @@
 /*
-    Copyright © 2022, nijilife Project
+    Copyright © 2022, nijilive Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
@@ -10,7 +10,7 @@ import nijigenerate.panels;
 import nijigenerate.windows;
 import nijigenerate : incActivePuppet;
 import bindbc.imgui;
-import nijilife;
+import nijilive;
 import std.conv;
 import i18n;
 

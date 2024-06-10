@@ -1,7 +1,7 @@
 module nijigenerate.widgets.dragdrop;
 import nijigenerate.widgets;
 import bindbc.imgui;
-import nijilife;
+import nijilive;
 
 void incDragdropNodeList(Node node) {
     enum ENTRY_SIZE = 48;
