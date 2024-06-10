@@ -1,13 +1,13 @@
 # nijigenerate
-![Image of nijigenerate](https://user-images.githubusercontent.com/7032834/194462402-74c4a3e0-50ca-4b50-8e8d-164d97371f5a.png)
-_Ada model by [ku-ini](https://twitter.com/duckmastah)_
+
+![screenshot](https://github.com/nijigenerate/nijigenerate/assets/449741/d8a8af13-4ea4-46aa-816f-dad7b630be4a)
 
 ----------------
 
 [![Support me on Patreon](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fshieldsio-patreon.vercel.app%2Fapi%3Fusername%3Dclipsey%26type%3Dpatrons&style=for-the-badge)](https://patreon.com/clipsey)
 [![Join the Discord](https://img.shields.io/discord/855173611409506334?label=Community&logo=discord&logoColor=FFFFFF&style=for-the-badge)](https://discord.com/invite/abnxwN6r9v)
 
-nijigenerate is an open source editor for the [nijilife puppet format](https://github.com/nijigenerate/nijilife).  This application allows you to rig models for use in games or for other real-time applications such as [VTubing](https://en.wikipedia.org/wiki/VTuber). Animation is achieved by morphing, transforming and in other ways distorting layered 2D textures in real-time. These distortions can trick the end user in to perciving 3D depth in the 2D art.
+nijigenerate is an open source editor for the [nijilife puppet format](https://github.com/nijigenerate/nijilife), which is derived from Inochi2D (v0.8) technology.  This application allows you to rig models for use in games or for other real-time applications such as [VTubing](https://en.wikipedia.org/wiki/VTuber). Animation is achieved by morphing, transforming and in other ways distorting layered 2D textures in real-time. These distortions can trick the end user in to perciving 3D depth in the 2D art.
 
 If you are a VTuber wanting to use nijilife we highly recommend checking out [Inochi Session](https://github.com/nijilife/inochi-session) as well.
 
