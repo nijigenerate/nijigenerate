@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report an issue with Inochi Creator
+description: Report an issue with nijigenerate
 title: "[BUG]"
 labels: ["Bug", "Triage"] 
 body:
@@ -56,7 +56,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: The version of Inochi Creator you are running, or the commit hash if you are running a nightly / main branch build
+      description: The version of nijigenerate you are running, or the commit hash if you are running a nightly / main branch build
   - type: textarea
     id: logs
     attributes:

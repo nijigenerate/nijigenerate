@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
-  <id>inochi-creator</id>
-  <launchable type="desktop-id">inochi-creator.desktop</launchable>
-  <name>Inochi Creator</name>
+  <id>nijigenerate</id>
+  <launchable type="desktop-id">nijigenerate.desktop</launchable>
+  <name>nijigenerate</name>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>BSD-2-Clause</project_license>
-  <summary>Tool to create and edit Inochi2D puppets.</summary>
+  <summary>Tool to create and edit nijilife puppets.</summary>
   <description>
     <p>
-      Inochi2D is a framework for realtime 2D puppet animation which can be used for VTubing, 
+      nijilife is a framework for realtime 2D puppet animation which can be used for VTubing, 
       game development and digital animation. 
     </p>
     <p>
-      Inochi Creator is a tool that lets you create and edit Inochi2D puppets.
+      nijigenerate is a tool that lets you create and edit nijilife puppets.
     </p>
   </description>
-  <url type="homepage">https://github.com/Inochi2D/inochi-creator</url>
-  <url type="help">https://github.com/Inochi2D/inochi-creator</url>
-  <url type="bugtracker">https://github.com/Inochi2D/inochi-creator/issues</url>
+  <url type="homepage">https://github.com/nijigenerate/nijigenerate</url>
+  <url type="help">https://github.com/nijigenerate/nijigenerate</url>
+  <url type="bugtracker">https://github.com/nijigenerate/nijigenerate/issues</url>
   <screenshots>
     <screenshot type="default">
       <caption>Title screen</caption>

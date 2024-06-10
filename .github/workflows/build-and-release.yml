@@ -65,14 +65,14 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/Inochi2D/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/Inochi2D/inochi2d.git
-        git clone https://github.com/Inochi2D/dcv-i2d
+        git clone https://github.com/nijilife/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/nijilife.git
+        git clone https://github.com/nijilife/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local inochi2d/ "0.8.0"
+        dub add-local nijilife/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
 
-    - name: 'Build Inochi Creator'
+    - name: 'Build nijigenerate'
       run: |
         # Build metadata (like version information and icons)
         dub build --config=meta
@@ -84,7 +84,7 @@ jobs:
       uses: thedoctor0/zip-release@main
       with:
         type: 'zip'
-        filename: 'inochi-creator-linux-x86_64.zip'
+        filename: 'nijigenerate-linux-x86_64.zip'
         directory: 'out/'
         path: '*'
 
@@ -93,10 +93,10 @@ jobs:
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
         CHANNEL: linux
-        ITCH_GAME: inochi-creator
+        ITCH_GAME: nijigenerate
         ITCH_USER: LunaFoxgirlVT
         VERSION_FILE: version.txt
-        PACKAGE: 'out/inochi-creator-linux-x86_64.zip'
+        PACKAGE: 'out/nijigenerate-linux-x86_64.zip'
 
   windows-build:
     runs-on: windows-latest
@@ -116,14 +116,14 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/Inochi2D/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/Inochi2D/inochi2d.git
-        git clone https://github.com/Inochi2D/dcv-i2d
+        git clone https://github.com/nijilife/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/nijilife.git
+        git clone https://github.com/nijilife/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local inochi2d/ "0.8.0"
+        dub add-local nijilife/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
 
-    - name: 'Build Inochi Creator'
+    - name: 'Build nijigenerate'
       run: |
         function Invoke-VSDevEnvironment {
         $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -147,7 +147,7 @@ jobs:
       uses: thedoctor0/zip-release@main
       with:
         type: 'zip'
-        filename: 'inochi-creator-win32-x86_64.zip'
+        filename: 'nijigenerate-win32-x86_64.zip'
         directory: 'out/'
         path: '*'
     
@@ -163,10 +163,10 @@ jobs:
         nuget install WixToolset.UI.wixext -version 4.0.0 -OutputDirectory packages/
 
         # Build solution
-        msbuild "Inochi Creator.sln" -property:Configuration=Release
+        msbuild "nijigenerate.sln" -property:Configuration=Release
 
         # Copy installer out
-        mv "bin/Release/Inochi Creator.msi" "../../../out/inochi-creator-win32-x86_64.msi"
+        mv "bin/Release/nijigenerate.msi" "../../../out/nijigenerate-win32-x86_64.msi"
         cd ../../../
 
     - name: Make Artifact
@@ -174,8 +174,8 @@ jobs:
       with:
         name: release-win32
         path: |
-          out/inochi-creator-win32-x86_64.msi
-          out/inochi-creator-win32-x86_64.zip
+          out/nijigenerate-win32-x86_64.msi
+          out/nijigenerate-win32-x86_64.zip
           version.txt
         retention-days: 1
 
@@ -194,20 +194,20 @@ jobs:
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
         CHANNEL: windows
-        ITCH_GAME: inochi-creator
+        ITCH_GAME: nijigenerate
         ITCH_USER: LunaFoxgirlVT
         VERSION_FILE: version.txt
-        PACKAGE: 'out/inochi-creator-win32-x86_64.zip'
+        PACKAGE: 'out/nijigenerate-win32-x86_64.zip'
 
     - name: 'Publish to Itch (MSI)'
       uses: manleydev/butler-publish-itchio-action@master
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
         CHANNEL: windows-msi
-        ITCH_GAME: inochi-creator
+        ITCH_GAME: nijigenerate
         ITCH_USER: LunaFoxgirlVT
         VERSION_FILE: version.txt
-        PACKAGE: 'out/inochi-creator-win32-x86_64.msi'
+        PACKAGE: 'out/nijigenerate-win32-x86_64.msi'
 
     - uses: geekyeggo/delete-artifact@v1
       with:
@@ -256,14 +256,14 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/Inochi2D/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/Inochi2D/inochi2d.git
-        git clone https://github.com/Inochi2D/dcv-i2d
+        git clone https://github.com/nijilife/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/nijilife.git
+        git clone https://github.com/nijilife/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local inochi2d/ "0.8.0"
+        dub add-local nijilife/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
 
-    - name: 'Build Inochi Creator'
+    - name: 'Build nijigenerate'
       env:
         DFLAGS: "-force-dwarf-frame-section=false"
       run: |
@@ -273,31 +273,31 @@ jobs:
         # First build ARM64 version...
         echo "Building arm64 binary..."
         dub build --build=release --config=osx-full --arch=arm64-apple-macos
-        mv "out/Inochi Creator.app/Contents/MacOS/inochi-creator" "out/Inochi Creator.app/Contents/MacOS/inochi-creator-arm64"
+        mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
 
         # Then the X86_64 version...
         echo "Building x86_64 binary..."
         dub build --build=release --config=osx-full --arch=x86_64-apple-macos
-        mv "out/Inochi Creator.app/Contents/MacOS/inochi-creator" "out/Inochi Creator.app/Contents/MacOS/inochi-creator-x86_64"
+        mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64"
 
         # Glue them together with lipo
         echo "Gluing them together..."
-        lipo "out/Inochi Creator.app/Contents/MacOS/inochi-creator-x86_64" "out/Inochi Creator.app/Contents/MacOS/inochi-creator-arm64" -output "out/Inochi Creator.app/Contents/MacOS/inochi-creator" -create
+        lipo "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64" -output "out/nijigenerate.app/Contents/MacOS/nijigenerate" -create
 
         # Print some nice info
         echo "Done!"
-        lipo -info "out/Inochi Creator.app/Contents/MacOS/inochi-creator"
+        lipo -info "out/nijigenerate.app/Contents/MacOS/nijigenerate"
 
         # Cleanup and bundle
         echo "Cleaning up..."
-        rm "out/Inochi Creator.app/Contents/MacOS/inochi-creator-x86_64" "out/Inochi Creator.app/Contents/MacOS/inochi-creator-arm64"
+        rm "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
         ./build-aux/osx/osxbundle.sh
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
       with:
         type: 'zip'
-        filename: 'inochi-creator-macOS.zip'
+        filename: 'nijigenerate-macOS.zip'
         directory: 'out/'
         path: '*'
 
@@ -310,8 +310,8 @@ jobs:
       with:
         name: release-osx
         path: |
-          out/inochi-creator-macOS.zip
-          out/Install_Inochi_Creator.dmg
+          out/nijigenerate-macOS.zip
+          out/Install_Inochi_nijigenerate.dmg
           version.txt
         retention-days: 1
 
@@ -330,20 +330,20 @@ jobs:
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
         CHANNEL: osx
-        ITCH_GAME: inochi-creator
+        ITCH_GAME: nijigenerate
         ITCH_USER: LunaFoxgirlVT
         VERSION_FILE: version.txt
-        PACKAGE: out/inochi-creator-macOS.zip
+        PACKAGE: out/nijigenerate-macOS.zip
 
     - name: 'Publish to Itch (DMG)'
       uses: manleydev/butler-publish-itchio-action@master
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
         CHANNEL: osx-dmg
-        ITCH_GAME: inochi-creator
+        ITCH_GAME: nijigenerate
         ITCH_USER: LunaFoxgirlVT
         VERSION_FILE: version.txt
-        PACKAGE: out/Install_Inochi_Creator.dmg
+        PACKAGE: out/Install_Inochi_nijigenerate.dmg
 
     - uses: geekyeggo/delete-artifact@v1
       with:

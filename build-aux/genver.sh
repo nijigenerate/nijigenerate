@@ -1,1 +1,1 @@
-dub run gitver -- --prefix INC --file source/creator/ver.d --mod creator.ver --appname "Inochi Creator" --itchfile version.txt
+dub run gitver -- --prefix INC --file source/nijigenerate/ver.d --mod nijigenerate.ver --appname "nijigenerate" --itchfile version.txt

@@ -3,13 +3,13 @@ docs.json
 __dummy.html
 docs/
 out/
-/inochi-creator
-inochi-creator.so
-inochi-creator.dylib
-inochi-creator.dll
-inochi-creator.a
-inochi-creator.lib
-inochi-creator-test-*
+/nijigenerate
+nijigenerate.so
+nijigenerate.dylib
+nijigenerate.dll
+nijigenerate.a
+nijigenerate.lib
+nijigenerate-test-*
 *.exe
 *.o
 *.obj
@@ -31,7 +31,7 @@ settings.json
 *.mo
 .vscode
 
-source/creator/ver.d
+source/nijigenerate/ver.d
 
 .DS_Store
 

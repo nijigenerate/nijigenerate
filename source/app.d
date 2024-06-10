@@ -1,30 +1,30 @@
 /*
-    Copyright © 2020-2023, Inochi2D Project
+    Copyright © 2020-2023, nijilife Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
 */
 import std.stdio;
 import std.string;
-import creator.core;
-import creator.core.settings;
-import creator.utils.crashdump;
-import creator.panels;
-import creator.windows;
-import creator.widgets;
-import creator.core.actionstack;
-import creator.core.i18n;
-import creator.io;
-import creator.io.autosave;
-import creator.atlas.atlas : incInitAtlassing;
-import creator.ext;
-import creator.windows.flipconfig;
-import inochi2d;
-import creator;
+import nijigenerate.core;
+import nijigenerate.core.settings;
+import nijigenerate.utils.crashdump;
+import nijigenerate.panels;
+import nijigenerate.windows;
+import nijigenerate.widgets;
+import nijigenerate.core.actionstack;
+import nijigenerate.core.i18n;
+import nijigenerate.io;
+import nijigenerate.io.autosave;
+import nijigenerate.atlas.atlas : incInitAtlassing;
+import nijigenerate.ext;
+import nijigenerate.windows.flipconfig;
+import nijilife;
+import nijigenerate;
 import i18n;
 
 version(D_X32) {
-    pragma(msg, "Inochi Creator does not support compilation on 32 bit platforms");
+    pragma(msg, "nijigenerate does not support compilation on 32 bit platforms");
     static assert(0, "😎👉👉 no");
 }
 
@@ -62,7 +62,7 @@ int main(string[] args)
 
         inSetUpdateBounds(true);
 
-        // Initialize Window and Inochi2D
+        // Initialize Window and nijilife
         incInitPanels();
         incActionInit();
         incOpenWindow();
@@ -93,7 +93,7 @@ int main(string[] args)
         version(InNightly) incModalAdd(
             new Nagscreen(
                 _("Warning!"), 
-                _("You're running a nightly build of Inochi Creator!\nInochi Creator may crash unexpectedly and you will likely encounter bugs.\nMake sure to save and back up your work often!"),
+                _("You're running a nightly build of nijigenerate!\nnijigenerate may crash unexpectedly and you will likely encounter bugs.\nMake sure to save and back up your work often!"),
                 5
             )
         );
@@ -101,7 +101,7 @@ int main(string[] args)
         version(InDemo) incModalAdd(
             new Nagscreen(
                 _("Thank you!"), 
-                _("Thank you for downloading Inochi Creator!\nSoftware is expensive to create and the same goes for Inochi Creator.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://inochi2d.com)"),
+                _("Thank you for downloading nijigenerate!\nSoftware is expensive to create and the same goes for nijigenerate.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://nijilife.com)"),
                 10
             )
         );
@@ -130,7 +130,7 @@ int main(string[] args)
 */
 void incUpdate() {
 
-    // Update Inochi2D
+    // Update nijilife
     incAnimationUpdate();
     inUpdate();
 
@@ -156,7 +156,7 @@ void incUpdate() {
 */
 void incUpdateNoEv() {
 
-    // Update Inochi2D
+    // Update nijilife
     incAnimationUpdate();
     inUpdate();
     

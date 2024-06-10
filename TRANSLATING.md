@@ -1,7 +1,7 @@
-# Translating Inochi Creator
-Inochi Creator uses gettext to handle translation, currently pluralization is not support but will be added soon(TM).  
+# Translating nijigenerate
+nijigenerate uses gettext to handle translation, currently pluralization is not support but will be added soon(TM).  
 You'll need a distribution of gettext to work on translation files.  
-Currently the language support within Inochi Creator is limited, as such there may be rendering errors for some languages.  
+Currently the language support within nijigenerate is limited, as such there may be rendering errors for some languages.  
 We do not support languages that are right-to-left due to limitations within our UI library.  
 
 &nbsp;
@@ -15,7 +15,7 @@ msginit --locale=<langcode> --input=tl/template.pot -o tl/<langcode>.po
 replace `<langcode>` with your language's language code.
 
 #### NOTE
- * Make sure to update the charset variable in your .po file to UTF-8. Inochi Creator only supports UTF-8.
+ * Make sure to update the charset variable in your .po file to UTF-8. nijigenerate only supports UTF-8.
 
 &nbsp;
 &nbsp;
@@ -47,9 +47,9 @@ The `<langcode>.mo` file can be put in the configuration directory, or next to t
 &nbsp;
 
 # Translation Storage
-Final translations will be stored in the .inochi-creator folder, which resides in
- * `~/.config/.inochi-creator` on Linux
- * `~/Library/Application Support/.inochi-creator` on macOS
- * `%AppData%/.inochi-creator` on Windows
+Final translations will be stored in the .nijigenerate folder, which resides in
+ * `~/.config/.nijigenerate` on Linux
+ * `~/Library/Application Support/.nijigenerate` on macOS
+ * `%AppData%/.nijigenerate` on Windows
 
-But Inochi Creator will also try to locate translation files in the current executable directory, as well as the current working directory.
+But nijigenerate will also try to locate translation files in the current executable directory, as well as the current working directory.

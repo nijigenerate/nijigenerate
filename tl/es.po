@@ -1,6 +1,6 @@
-# Spanish translations for inochi-creator package.
-# Copyright (C) 2022 Inochi2D Project
-# This file is distributed under the same license as the inochi-creator package.
+# Spanish translations for nijigenerate package.
+# Copyright (C) 2022 nijilife Project
+# This file is distributed under the same license as the nijigenerate package.
 # Luna the Foxgirl <cli-luna@protonmail.com>, 2022.
 # Sae Okuri <sae.okuri@gmail.com>, 2022.
 # Yukusai <85849071+p-yukusai@users.noreply.github.com>, 2022
@@ -22,267 +22,267 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Poedit 3.3.2\n"
 
-#: source/creator/actions/binding.d:74
+#: source/nijigenerate/actions/binding.d:74
 #, c-format
 msgid "Added binding %s"
 msgstr "Conexión %s fue agregada"
 
-#: source/creator/actions/binding.d:76
+#: source/nijigenerate/actions/binding.d:76
 #, c-format
 msgid "Removed binding %s"
 msgstr "Conexión %s fue eliminada"
 
-#: source/creator/actions/binding.d:84
+#: source/nijigenerate/actions/binding.d:84
 #, c-format
 msgid "Binding %s was removed"
 msgstr "La conexión %s ha sido eliminada"
 
-#: source/creator/actions/binding.d:86
+#: source/nijigenerate/actions/binding.d:86
 #, c-format
 msgid "Binding %s was added"
 msgstr "La conexión %s ha sido agregada"
 
-#: source/creator/actions/binding.d:155 source/creator/actions/binding.d:258
-#: source/creator/actions/parameter.d:200
-#: source/creator/actions/parameter.d:279
+#: source/nijigenerate/actions/binding.d:155 source/nijigenerate/actions/binding.d:258
+#: source/nijigenerate/actions/parameter.d:200
+#: source/nijigenerate/actions/parameter.d:279
 #, c-format
 msgid "%s->%s changed"
 msgstr "%s->%s ha cambiado"
 
-#: source/creator/actions/binding.d:162 source/creator/actions/binding.d:265
-#: source/creator/actions/parameter.d:210
-#: source/creator/actions/parameter.d:287
+#: source/nijigenerate/actions/binding.d:162 source/nijigenerate/actions/binding.d:265
+#: source/nijigenerate/actions/parameter.d:210
+#: source/nijigenerate/actions/parameter.d:287
 #, c-format
 msgid "%s->%s change cancelled"
 msgstr "El cambio %s->%s ha sido cancelado"
 
-#: source/creator/actions/drawable.d:88
+#: source/nijigenerate/actions/drawable.d:88
 #, c-format
 msgid "Changed drawable mesh of %s"
 msgstr "Ha cambiado la malla dibujable de %s"
 
-#: source/creator/actions/drawable.d:96
+#: source/nijigenerate/actions/drawable.d:96
 #, c-format
 msgid "Drawable %s was changed"
 msgstr "El dibujable %s ha sido cambiado"
 
-#: source/creator/actions/mesh.d:58
+#: source/nijigenerate/actions/mesh.d:58
 #, c-format
 msgid "Mesh %s change is restored."
 msgstr "El cambio a la malla %s se ha restaurado."
 
-#: source/creator/actions/mesh.d:65
+#: source/nijigenerate/actions/mesh.d:65
 #, c-format
 msgid "Mesh %s was edited."
 msgstr "La malla %s fue editada."
 
-#: source/creator/actions/mesh.d:133 source/creator/actions/mesh.d:234
+#: source/nijigenerate/actions/mesh.d:133 source/nijigenerate/actions/mesh.d:234
 #, c-format
 msgid "%s: vertex was added."
 msgstr "%s: vertice fue agregado."
 
-#: source/creator/actions/mesh.d:141 source/creator/actions/mesh.d:226
+#: source/nijigenerate/actions/mesh.d:141 source/nijigenerate/actions/mesh.d:226
 #, c-format
 msgid "%s: vertex was removed."
 msgstr "%s: vertice fue eliminado."
 
-#: source/creator/actions/mesh.d:315 source/creator/actions/mesh.d:323
-#: source/creator/actions/mesh.d:402 source/creator/actions/mesh.d:410
-#: source/creator/actions/mesh.d:489 source/creator/actions/mesh.d:497
+#: source/nijigenerate/actions/mesh.d:315 source/nijigenerate/actions/mesh.d:323
+#: source/nijigenerate/actions/mesh.d:402 source/nijigenerate/actions/mesh.d:410
+#: source/nijigenerate/actions/mesh.d:489 source/nijigenerate/actions/mesh.d:497
 #, c-format
 msgid "%s: vertex was translated."
 msgstr "%s: vertice fue trasladado."
 
-#: source/creator/actions/parameter.d:114
+#: source/nijigenerate/actions/parameter.d:114
 #, c-format
 msgid "Added parameter %s"
 msgstr "Se ha añadido el parámetro %s"
 
-#: source/creator/actions/parameter.d:116
+#: source/nijigenerate/actions/parameter.d:116
 #, c-format
 msgid "Removed parameter %s"
 msgstr "Se ha eliminado el parámetro %s"
 
-#: source/creator/actions/parameter.d:124
+#: source/nijigenerate/actions/parameter.d:124
 #, c-format
 msgid "Parameter %s was removed"
 msgstr "El parámetro %s fue eliminado"
 
-#: source/creator/actions/parameter.d:126
+#: source/nijigenerate/actions/parameter.d:126
 #, c-format
 msgid "Parameter %s was added"
 msgstr "El parámetro %s fue agregado"
 
-#: source/creator/actions/parameter.d:202 source/creator/actions/node.d:432
+#: source/nijigenerate/actions/parameter.d:202 source/nijigenerate/actions/node.d:432
 #, c-format
 msgid "%s->%s changed to %s"
 msgstr "%s->%s cambió a %s"
 
-#: source/creator/actions/parameter.d:212 source/creator/actions/node.d:439
+#: source/nijigenerate/actions/parameter.d:212 source/nijigenerate/actions/node.d:439
 #, c-format
 msgid "%s->%s changed from %s"
 msgstr "%s->%s cambió de %s"
 
 #. Enforce reparenting rules
-#: source/creator/actions/node.d:69
+#: source/nijigenerate/actions/node.d:69
 #, c-format
 msgid "%s can not be reparented in to %s due to a circular dependency."
 msgstr "%s no puede ser reemparentado a %s debido a una dependencia circular."
 
-#: source/creator/actions/node.d:92
+#: source/nijigenerate/actions/node.d:92
 msgid "nodes"
 msgstr "nodos"
 
-#: source/creator/actions/node.d:129 source/creator/actions/node.d:138
+#: source/nijigenerate/actions/node.d:129 source/nijigenerate/actions/node.d:138
 #, c-format
 msgid "Created %s"
 msgstr "Se creó %s"
 
-#: source/creator/actions/node.d:130
+#: source/nijigenerate/actions/node.d:130
 #, c-format
 msgid "Deleted %s"
 msgstr "Se borró %s"
 
-#: source/creator/actions/node.d:131
+#: source/nijigenerate/actions/node.d:131
 #, c-format
 msgid "Moved %s to %s"
 msgstr "Se movió %s a %s"
 
-#: source/creator/actions/node.d:139
+#: source/nijigenerate/actions/node.d:139
 #, c-format
 msgid "Moved %s from %s"
 msgstr "Se movió %s desde %s"
 
-#: source/creator/actions/node.d:140
+#: source/nijigenerate/actions/node.d:140
 #, c-format
 msgid "Moved %s from origin"
 msgstr "Se movió %s desde su origen"
 
-#: source/creator/actions/node.d:219 source/creator/actions/node.d:228
+#: source/nijigenerate/actions/node.d:219 source/nijigenerate/actions/node.d:228
 #, c-format
 msgid "%s is added to mask of %s"
 msgstr "%s se agrego a la mascara de %s"
 
-#: source/creator/actions/node.d:220 source/creator/actions/node.d:227
+#: source/nijigenerate/actions/node.d:220 source/nijigenerate/actions/node.d:227
 #, c-format
 msgid "%s is deleted from mask of %s"
 msgstr "%s se borro de la mascara de %s"
 
-#: source/creator/actions/node.d:271 source/creator/actions/node.d:278
+#: source/nijigenerate/actions/node.d:271 source/nijigenerate/actions/node.d:278
 msgid "Enabled"
 msgstr "Activado"
 
-#: source/creator/actions/node.d:271 source/creator/actions/node.d:278
+#: source/nijigenerate/actions/node.d:271 source/nijigenerate/actions/node.d:278
 msgid "Disabled"
 msgstr "Desactivado"
 
-#: source/creator/actions/node.d:278
+#: source/nijigenerate/actions/node.d:278
 #, c-format
 msgid "%s was %s"
 msgstr "%s fue %s"
 
-#: source/creator/actions/node.d:325
+#: source/nijigenerate/actions/node.d:325
 msgid "Unnamed "
 msgstr "No nombrado "
 
-#: source/creator/actions/node.d:503 source/creator/actions/node.d:511
+#: source/nijigenerate/actions/node.d:503 source/nijigenerate/actions/node.d:511
 #, c-format
 msgid "%s locked to root node"
 msgstr "%s fijado al nodo raiz"
 
-#: source/creator/actions/node.d:504 source/creator/actions/node.d:512
+#: source/nijigenerate/actions/node.d:504 source/nijigenerate/actions/node.d:512
 #, c-format
 msgid "%s unlocked from root node"
 msgstr "%s liberado del nodo raiz"
 
-#: source/creator/actions/mesheditor.d:157
+#: source/nijigenerate/actions/mesheditor.d:157
 #, c-format
 msgid "%s->Edited deformation of %s."
 msgstr "%s->Se modifico la deformación de %s."
 
-#: source/creator/actions/mesheditor.d:164
+#: source/nijigenerate/actions/mesheditor.d:164
 #, c-format
 msgid "%s->deformation of %s was edited."
 msgstr "%s->La deformación de %s fue modificada."
 
-#: source/creator/core/dpi.d:54 source/creator/core/dpi.d:58
+#: source/nijigenerate/core/dpi.d:54 source/nijigenerate/core/dpi.d:58
 msgid "100% (Locked)"
 msgstr "100% (Bloqueado)"
 
 #. The name of the language this translation is a translation to
 #. in the native script of the language (for the region)
 #. Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
-#: source/creator/core/i18n.d:18
+#: source/nijigenerate/core/i18n.d:18
 msgid "LANG_NAME"
 msgstr "Español"
 
-#: source/creator/core/package.d:269
+#: source/nijigenerate/core/package.d:269
 msgid "(Debug Mode)"
 msgstr "(Modo de depuración)"
 
-#: source/creator/core/package.d:271
+#: source/nijigenerate/core/package.d:271
 msgid "(Unsupported)"
 msgstr "(Sin soporte)"
 
-#: source/creator/io/imageexport.d:13 source/creator/windows/inpexport.d:369
+#: source/nijigenerate/io/imageexport.d:13 source/nijigenerate/windows/inpexport.d:369
 #, c-format
 msgid "%s was exported..."
 msgstr "%s ha sido exportado..."
 
-#: source/creator/io/imageexport.d:15
+#: source/nijigenerate/io/imageexport.d:15
 #, c-format
 msgid "%s failed to export with error (%s)..."
 msgstr "Falló la exportación de %s con el error (%s)..."
 
 #. If this is executed it's a bug, using enforce here to prevent infinite loop.
-#: source/creator/io/inpexport.d:276
+#: source/nijigenerate/io/inpexport.d:276
 msgid "A texture is too big for the atlas."
 msgstr "Una de las texturas es muy grande para el atlas."
 
-#: source/creator/io/psd.d:26 source/creator/io/kra.d:26
-#: source/creator/panels/inspector.d:698 source/creator/widgets/mainmenu.d:187
-#: source/creator/widgets/mainmenu.d:209 source/creator/widgets/mainmenu.d:222
-#: source/creator/widgets/mainmenu.d:237 source/creator/widgets/mainmenu.d:470
-#: source/creator/windows/inpexport.d:207 source/creator/windows/welcome.d:248
+#: source/nijigenerate/io/psd.d:26 source/nijigenerate/io/kra.d:26
+#: source/nijigenerate/panels/inspector.d:698 source/nijigenerate/widgets/mainmenu.d:187
+#: source/nijigenerate/widgets/mainmenu.d:209 source/nijigenerate/widgets/mainmenu.d:222
+#: source/nijigenerate/widgets/mainmenu.d:237 source/nijigenerate/widgets/mainmenu.d:470
+#: source/nijigenerate/windows/inpexport.d:207 source/nijigenerate/windows/welcome.d:248
 msgid "Import..."
 msgstr "Importar..."
 
-#: source/creator/io/psd.d:233 source/creator/io/kra.d:240
-#: source/creator/package.d:359
+#: source/nijigenerate/io/psd.d:233 source/nijigenerate/io/kra.d:240
+#: source/nijigenerate/package.d:359
 #, c-format
 msgid "%s was imported..."
 msgstr "%s ha sido importado..."
 
-#: source/creator/io/psd.d:236 source/creator/io/kra.d:243
-#: source/creator/package.d:364
+#: source/nijigenerate/io/psd.d:236 source/nijigenerate/io/kra.d:243
+#: source/nijigenerate/package.d:364
 msgid "Import failed..."
 msgstr "Importación fallida..."
 
 #. Write error
-#: source/creator/io/psd.d:237 source/creator/io/kra.d:244
-#: source/creator/io/package.d:212 source/creator/io/package.d:213
-#: source/creator/package.d:239 source/creator/package.d:297
-#: source/creator/package.d:363 source/creator/panels/viewport.d:242
-#: source/creator/panels/nodes.d:283 source/creator/panels/nodes.d:310
-#: source/creator/panels/inspector.d:635 source/creator/panels/inspector.d:654
-#: source/creator/panels/inspector.d:655 source/creator/panels/inspector.d:666
-#: source/creator/viewport/vertex/package.d:308
-#: source/creator/widgets/mainmenu.d:242 source/creator/widgets/mainmenu.d:477
-#: source/creator/windows/imgexport.d:144
-#: source/creator/windows/inpexport.d:217
-#: source/creator/windows/inpexport.d:244
-#: source/creator/windows/inpexport.d:374
-#: source/creator/windows/paramaxes.d:187
-#: source/creator/windows/paramprop.d:105
-#: source/creator/windows/videoexport.d:148
-#: source/creator/windows/videoexport.d:284
-#: source/creator/windows/videoexport.d:294
-#: source/creator/windows/videoexport.d:302
-#: source/creator/windows/welcome.d:242 source/creator/windows/welcome.d:284
+#: source/nijigenerate/io/psd.d:237 source/nijigenerate/io/kra.d:244
+#: source/nijigenerate/io/package.d:212 source/nijigenerate/io/package.d:213
+#: source/nijigenerate/package.d:239 source/nijigenerate/package.d:297
+#: source/nijigenerate/package.d:363 source/nijigenerate/panels/viewport.d:242
+#: source/nijigenerate/panels/nodes.d:283 source/nijigenerate/panels/nodes.d:310
+#: source/nijigenerate/panels/inspector.d:635 source/nijigenerate/panels/inspector.d:654
+#: source/nijigenerate/panels/inspector.d:655 source/nijigenerate/panels/inspector.d:666
+#: source/nijigenerate/viewport/vertex/package.d:308
+#: source/nijigenerate/widgets/mainmenu.d:242 source/nijigenerate/widgets/mainmenu.d:477
+#: source/nijigenerate/windows/imgexport.d:144
+#: source/nijigenerate/windows/inpexport.d:217
+#: source/nijigenerate/windows/inpexport.d:244
+#: source/nijigenerate/windows/inpexport.d:374
+#: source/nijigenerate/windows/paramaxes.d:187
+#: source/nijigenerate/windows/paramprop.d:105
+#: source/nijigenerate/windows/videoexport.d:148
+#: source/nijigenerate/windows/videoexport.d:284
+#: source/nijigenerate/windows/videoexport.d:294
+#: source/nijigenerate/windows/videoexport.d:302
+#: source/nijigenerate/windows/welcome.d:242 source/nijigenerate/windows/welcome.d:284
 msgid "Error"
 msgstr "Error"
 
-#: source/creator/io/psd.d:237
+#: source/nijigenerate/io/psd.d:237
 #, c-format
 msgid ""
 "An error occured during PSD import:\n"
@@ -291,11 +291,11 @@ msgstr ""
 "Ha ocurrido un error durante la importación del PSD:\n"
 "%s"
 
-#: source/creator/io/videoexport.d:65
+#: source/nijigenerate/io/videoexport.d:65
 msgid "Automatic"
 msgstr "Automatico"
 
-#: source/creator/io/kra.d:244
+#: source/nijigenerate/io/kra.d:244
 #, c-format
 msgid ""
 "An error occured during KRA import:\n"
@@ -304,32 +304,32 @@ msgstr ""
 "Ha ocurrido un error durante la importación del KRA:\n"
 "%s"
 
-#: source/creator/io/package.d:212 source/creator/panels/viewport.d:242
-#: source/creator/panels/inspector.d:654 source/creator/panels/inspector.d:666
+#: source/nijigenerate/io/package.d:212 source/nijigenerate/panels/viewport.d:242
+#: source/nijigenerate/panels/inspector.d:654 source/nijigenerate/panels/inspector.d:666
 #, c-format
 msgid "%s is not supported"
 msgstr "No hay soporte para %s"
 
-#: source/creator/package.d:196
+#: source/nijigenerate/package.d:196
 msgid "New Project"
 msgstr "Nuevo Proyecto"
 
-#: source/creator/package.d:264
+#: source/nijigenerate/package.d:264
 #, c-format
 msgid "%s opened successfully."
 msgstr "%s se ha abierto exitosamente."
 
-#: source/creator/package.d:293
+#: source/nijigenerate/package.d:293
 #, c-format
 msgid "%s saved successfully."
 msgstr "%s ha sido guardado exitosamente."
 
-#: source/creator/package.d:296
+#: source/nijigenerate/package.d:296
 #, c-format
 msgid "Failed to save %s"
 msgstr "No se ha podido guardar %s"
 
-#: source/creator/package.d:332
+#: source/nijigenerate/package.d:332
 #, c-format
 msgid ""
 "The following errors occured during file loading\n"
@@ -338,160 +338,160 @@ msgstr ""
 "Los siguientes errores han ocurrido durante la carga del archivo\n"
 "%s"
 
-#: source/creator/package.d:343
+#: source/nijigenerate/package.d:343
 msgid "Folder import completed with errors..."
 msgstr "La importación de la carpeta ha sido completada con errores..."
 
-#: source/creator/package.d:344
+#: source/nijigenerate/package.d:344
 msgid "Folder import completed..."
 msgstr "La importación de la carpeta ha sido completada..."
 
-#: source/creator/package.d:391
+#: source/nijigenerate/package.d:391
 msgid "Mipmap generation completed."
 msgstr "La generación de mipmaps ha sido completada."
 
-#: source/creator/package.d:406
+#: source/nijigenerate/package.d:406
 msgid "Texture bleeding completed."
 msgstr "La fusión del color de la textura ha sido completada."
 
-#: source/creator/panels/actionhistory.d:26
-#: source/creator/windows/settings.d:146
+#: source/nijigenerate/panels/actionhistory.d:26
+#: source/nijigenerate/windows/settings.d:146
 msgid "Undo History"
 msgstr "Historial de acciones deshechas"
 
-#: source/creator/panels/actionhistory.d:56
+#: source/nijigenerate/panels/actionhistory.d:56
 msgid "Clear History"
 msgstr "Borrar el historial"
 
 #. Ugly hack to please imgui
-#: source/creator/panels/actionhistory.d:62
+#: source/nijigenerate/panels/actionhistory.d:62
 #, c-format
 msgid "%d of %d"
 msgstr "%d de %d"
 
-#: source/creator/panels/actionhistory.d:71
+#: source/nijigenerate/panels/actionhistory.d:71
 msgid "History"
 msgstr "Historial"
 
-#: source/creator/panels/animlist.d:34
+#: source/nijigenerate/panels/animlist.d:34
 msgid "Edit..."
 msgstr "Editar..."
 
-#: source/creator/panels/animlist.d:37 source/creator/panels/timeline.d:107
-#: source/creator/panels/nodes.d:142 source/creator/panels/inspector.d:904
-#: source/creator/panels/inspector.d:1107
-#: source/creator/panels/parameters.d:951
-#: source/creator/panels/parameters.d:1171
+#: source/nijigenerate/panels/animlist.d:37 source/nijigenerate/panels/timeline.d:107
+#: source/nijigenerate/panels/nodes.d:142 source/nijigenerate/panels/inspector.d:904
+#: source/nijigenerate/panels/inspector.d:1107
+#: source/nijigenerate/panels/parameters.d:951
+#: source/nijigenerate/panels/parameters.d:1171
 msgid "Delete"
 msgstr "Borrar"
 
-#: source/creator/panels/animlist.d:73
+#: source/nijigenerate/panels/animlist.d:73
 msgid "Animation List"
 msgstr "Lista de Animación"
 
-#: source/creator/panels/logger.d:25
+#: source/nijigenerate/panels/logger.d:25
 msgid "Logger"
 msgstr "Registro"
 
-#: source/creator/panels/scene.d:29
+#: source/nijigenerate/panels/scene.d:29
 msgid "Ambient Light"
 msgstr "Luz de ambiente"
 
-#: source/creator/panels/scene.d:38
+#: source/nijigenerate/panels/scene.d:38
 msgid "Scene"
 msgstr "Escena"
 
-#: source/creator/panels/timeline.d:73
+#: source/nijigenerate/panels/timeline.d:73
 msgid "Interpolation"
 msgstr "Interpolación"
 
-#: source/creator/panels/timeline.d:74 source/creator/panels/parameters.d:539
+#: source/nijigenerate/panels/timeline.d:74 source/nijigenerate/panels/parameters.d:539
 msgid "Nearest"
 msgstr "Más cercano"
 
-#: source/creator/panels/timeline.d:77
+#: source/nijigenerate/panels/timeline.d:77
 msgid "Stepped"
 msgstr "Escalonado"
 
-#: source/creator/panels/timeline.d:80 source/creator/panels/parameters.d:545
+#: source/nijigenerate/panels/timeline.d:80 source/nijigenerate/panels/parameters.d:545
 msgid "Linear"
 msgstr "Lineal"
 
-#: source/creator/panels/timeline.d:83 source/creator/panels/parameters.d:551
+#: source/nijigenerate/panels/timeline.d:83 source/nijigenerate/panels/parameters.d:551
 msgid "Cubic"
 msgstr "Cubico"
 
-#: source/creator/panels/timeline.d:89
+#: source/nijigenerate/panels/timeline.d:89
 msgid "Merge Mode"
 msgstr "Modo de Combinación"
 
-#: source/creator/panels/timeline.d:93 source/creator/windows/editanim.d:90
+#: source/nijigenerate/panels/timeline.d:93 source/nijigenerate/windows/editanim.d:90
 msgid "Additive"
 msgstr "Aditivo"
 
-#: source/creator/panels/timeline.d:96
+#: source/nijigenerate/panels/timeline.d:96
 msgid "Multiplicative"
 msgstr "Multiplicativo"
 
-#: source/creator/panels/timeline.d:101
+#: source/nijigenerate/panels/timeline.d:101
 msgid "Forced"
 msgstr "Forzado"
 
-#: source/creator/panels/timeline.d:211
+#: source/nijigenerate/panels/timeline.d:211
 msgid "Lock playback to animation framerate"
 msgstr "Restringir reproducción a framerate de animación"
 
-#: source/creator/panels/timeline.d:281
+#: source/nijigenerate/panels/timeline.d:281
 msgid "Not in Animation Edit mode..."
 msgstr "No disponible fuera del modo de Edición de Animación..."
 
-#: source/creator/panels/timeline.d:288
+#: source/nijigenerate/panels/timeline.d:288
 msgid "Timeline"
 msgstr "Línea de tiempo"
 
-#: source/creator/panels/toolsettings.d:31
+#: source/nijigenerate/panels/toolsettings.d:31
 msgid "Tool Settings"
 msgstr "Ajustes de herramientas"
 
 #. Appended to the name of a face tracking receiver
 #. in the Tracking settings panel
-#: source/creator/panels/tracking.d:32
+#: source/nijigenerate/panels/tracking.d:32
 #, c-format
 msgid "%s Receiver"
 msgstr "%s Receptor"
 
-#: source/creator/panels/tracking.d:60
+#: source/nijigenerate/panels/tracking.d:60
 msgid "A reciever which uses your phone and associated app to track your body"
 msgstr ""
 "Un receptor que usa tu célular y la aplicación asociada para seguir tu cuerpo"
 
-#: source/creator/panels/tracking.d:64
+#: source/nijigenerate/panels/tracking.d:64
 msgid "Bind Address"
 msgstr "Direccion de conexión"
 
-#: source/creator/panels/tracking.d:73
+#: source/nijigenerate/panels/tracking.d:73
 msgid ""
 "The IP address that the VMC binding server should listen on, default 0.0.0.0"
 msgstr ""
 "La dirección IP que el servidor VMC debería escuchar. Por defecto es 0.0.0.0"
 
-#: source/creator/panels/tracking.d:76
+#: source/nijigenerate/panels/tracking.d:76
 msgid "Port"
 msgstr "Puerto"
 
-#: source/creator/panels/tracking.d:85
+#: source/nijigenerate/panels/tracking.d:85
 msgid "The port that the VMC binding server should listen on, default 39540"
 msgstr "El puerto al que el servidor VMC debería escuchar. Por defecto 39540"
 
-#: source/creator/panels/tracking.d:88
+#: source/nijigenerate/panels/tracking.d:88
 msgid "A reciever which uses the VTubeStudio iOS app"
 msgstr "Un receptor que usa la aplicación de IOS VTubeStudio"
 
-#: source/creator/panels/tracking.d:91
+#: source/nijigenerate/panels/tracking.d:91
 msgid "iPhone IP"
 msgstr "IP del iPhone"
 
-#: source/creator/panels/tracking.d:100
+#: source/nijigenerate/panels/tracking.d:100
 msgid ""
 "The IP Address of your iPhone,\n"
 "You can find it in the VSeeFace Config panel in VTube Studio"
@@ -499,263 +499,263 @@ msgstr ""
 "La dirección IP de tu iPhone,\n"
 "La puedes encontrar en el panel de configuración VSeeFace en Vtube Studio"
 
-#: source/creator/panels/tracking.d:103
+#: source/nijigenerate/panels/tracking.d:103
 msgid "A receiver which uses OpenSeeFace application"
 msgstr "Un receptor que utiliza la aplicación OpenSeeFace"
 
-#: source/creator/panels/tracking.d:105
+#: source/nijigenerate/panels/tracking.d:105
 msgid "OSF Bind Address"
 msgstr "Dirección de OSF"
 
-#: source/creator/panels/tracking.d:116
+#: source/nijigenerate/panels/tracking.d:116
 msgid "OSF Listen Port"
 msgstr "Puerto de OSF"
 
-#: source/creator/panels/tracking.d:128
+#: source/nijigenerate/panels/tracking.d:128
 msgid "Tracking Bindings"
 msgstr "Conexiones de seguimiento"
 
-#: source/creator/panels/tracking.d:133
+#: source/nijigenerate/panels/tracking.d:133
 #, c-format
 msgid "%s bound to %s"
 msgstr "%s conectado a %s"
 
-#: source/creator/panels/tracking.d:148
+#: source/nijigenerate/panels/tracking.d:148
 msgid "Not in Test Mode..."
 msgstr "No disponible fuera de modo de prueba..."
 
-#: source/creator/panels/tracking.d:154
+#: source/nijigenerate/panels/tracking.d:154
 msgid "Tracking"
 msgstr "Rastreo"
 
-#: source/creator/panels/viewport.d:304 source/creator/panels/inspector.d:979
-#: source/creator/windows/settings.d:83
+#: source/nijigenerate/panels/viewport.d:304 source/nijigenerate/panels/inspector.d:979
+#: source/nijigenerate/windows/settings.d:83
 msgid "Viewport"
 msgstr "Ventana de visualización"
 
-#: source/creator/panels/nodes.d:92
+#: source/nijigenerate/panels/nodes.d:92
 msgid "Add"
 msgstr "Agregar"
 
-#: source/creator/panels/nodes.d:96
+#: source/nijigenerate/panels/nodes.d:96
 msgid "Node"
 msgstr "Nodo"
 
-#: source/creator/panels/nodes.d:100 source/creator/panels/inspector.d:898
-#: source/creator/panels/inspector.d:1101
+#: source/nijigenerate/panels/nodes.d:100 source/nijigenerate/panels/inspector.d:898
+#: source/nijigenerate/panels/inspector.d:1101
 msgid "Mask"
 msgstr "Máscara"
 
-#: source/creator/panels/nodes.d:107 source/creator/panels/inspector.d:993
-#: source/creator/panels/inspector.d:1694
+#: source/nijigenerate/panels/nodes.d:107 source/nijigenerate/panels/inspector.d:993
+#: source/nijigenerate/panels/inspector.d:1694
 msgid "Composite"
 msgstr "Composición"
 
-#: source/creator/panels/nodes.d:113 source/creator/panels/inspector.d:1729
+#: source/nijigenerate/panels/nodes.d:113 source/nijigenerate/panels/inspector.d:1729
 msgid "Simple Physics"
 msgstr "Físicas simples"
 
-#: source/creator/panels/nodes.d:118 source/creator/panels/inspector.d:977
-#: source/creator/windows/imgexport.d:97
-#: source/creator/windows/videoexport.d:161
+#: source/nijigenerate/panels/nodes.d:118 source/nijigenerate/panels/inspector.d:977
+#: source/nijigenerate/windows/imgexport.d:97
+#: source/nijigenerate/windows/videoexport.d:161
 msgid "Camera"
 msgstr "Cámara"
 
-#: source/creator/panels/nodes.d:122 source/creator/panels/inspector.d:1319
+#: source/nijigenerate/panels/nodes.d:122 source/nijigenerate/panels/inspector.d:1319
 msgid "MeshGroup"
 msgstr "GrupoDeMallas"
 
-#. Switches Inochi Creator over to Mesh Edit mode
+#. Switches nijigenerate over to Mesh Edit mode
 #. and selects the mesh that you had selected previously
 #. in Model Edit mode.
-#: source/creator/panels/nodes.d:132
-#: source/creator/viewport/model/package.d:156
+#: source/nijigenerate/panels/nodes.d:132
+#: source/nijigenerate/viewport/model/package.d:156
 msgid "Edit Mesh"
 msgstr "Editar malla"
 
 #. Option to hide the node (and subnodes)
-#: source/creator/panels/nodes.d:138
+#: source/nijigenerate/panels/nodes.d:138
 msgid "Hide"
 msgstr "Ocultar"
 
 #. Option to show the node (and subnodes)
-#: source/creator/panels/nodes.d:138
+#: source/nijigenerate/panels/nodes.d:138
 msgid "Show"
 msgstr "Mostrar"
 
-#: source/creator/panels/nodes.d:162
+#: source/nijigenerate/panels/nodes.d:162
 msgid "More Info"
 msgstr "Más información"
 
 #. %s is the name of the node in the More Info menu
 #. %u is the UUID of the node in the More Info menu
-#: source/creator/panels/nodes.d:168
+#: source/nijigenerate/panels/nodes.d:168
 #, c-format
 msgid "%s ID: %u"
 msgstr "%s ID: %u"
 
-#: source/creator/panels/nodes.d:171
+#: source/nijigenerate/panels/nodes.d:171
 #, c-format
 msgid "%s Layer: %s"
 msgstr "%s Capa: %s"
 
 #. %u is the UUID of the node in the More Info menu
-#: source/creator/panels/nodes.d:176
+#: source/nijigenerate/panels/nodes.d:176
 #, c-format
 msgid "ID: %u"
 msgstr "ID: %u"
 
-#: source/creator/panels/nodes.d:179
+#: source/nijigenerate/panels/nodes.d:179
 #, c-format
 msgid "Layer: %s"
 msgstr "Capa: %s"
 
-#: source/creator/panels/nodes.d:186
+#: source/nijigenerate/panels/nodes.d:186
 msgid "Recalculate origin"
 msgstr "Recalcular origen"
 
 #. Selectable
-#: source/creator/panels/nodes.d:241 source/creator/panels/inspector.d:168
+#: source/nijigenerate/panels/nodes.d:241 source/nijigenerate/panels/inspector.d:168
 msgid "Puppet"
 msgstr "Marioneta"
 
-#: source/creator/panels/nodes.d:342 source/creator/panels/inspector.d:42
-#: source/creator/panels/parameters.d:1028
+#: source/nijigenerate/panels/nodes.d:342 source/nijigenerate/panels/inspector.d:42
+#: source/nijigenerate/panels/parameters.d:1028
 msgid "In vertex edit mode..."
 msgstr "En modo de edición de vértices..."
 
-#: source/creator/panels/nodes.d:443
+#: source/nijigenerate/panels/nodes.d:443
 msgid "Nodes"
 msgstr "Nodos"
 
-#: source/creator/panels/inspector.d:116
+#: source/nijigenerate/panels/inspector.d:116
 msgid "No nodes selected..."
 msgstr "No hay nodos seleccionados..."
 
-#: source/creator/panels/inspector.d:118
+#: source/nijigenerate/panels/inspector.d:118
 msgid "Can only inspect a single node..."
 msgstr "Solo se puede inspeccionar un único nodo..."
 
-#: source/creator/panels/inspector.d:124
+#: source/nijigenerate/panels/inspector.d:124
 msgid "Inspector"
 msgstr "Inspector"
 
-#: source/creator/panels/inspector.d:181 source/creator/panels/inspector.d:186
-msgid "Inochi2D Ver."
-msgstr "Inochi2D Ver."
+#: source/nijigenerate/panels/inspector.d:181 source/nijigenerate/panels/inspector.d:186
+msgid "nijilife Ver."
+msgstr "nijilife Ver."
 
-#: source/creator/panels/inspector.d:192
+#: source/nijigenerate/panels/inspector.d:192
 msgid "General Info"
 msgstr "Información general"
 
-#: source/creator/panels/inspector.d:194
+#: source/nijigenerate/panels/inspector.d:194
 msgid "Part Count"
 msgstr "Conteo de Partes"
 
-#: source/creator/panels/inspector.d:200
+#: source/nijigenerate/panels/inspector.d:200
 msgid "Name"
 msgstr "Nombre"
 
-#: source/creator/panels/inspector.d:201
+#: source/nijigenerate/panels/inspector.d:201
 msgid "Name of the puppet"
 msgstr "Nombre de la marioneta"
 
-#: source/creator/panels/inspector.d:207
+#: source/nijigenerate/panels/inspector.d:207
 msgid "Artist(s)"
 msgstr "Artista(s)"
 
-#: source/creator/panels/inspector.d:208
+#: source/nijigenerate/panels/inspector.d:208
 msgid "Artists who've drawn the puppet, seperated by comma"
 msgstr "Artistas que dibujaron la marioneta, separados por coma"
 
-#: source/creator/panels/inspector.d:214
+#: source/nijigenerate/panels/inspector.d:214
 msgid "Rigger(s)"
 msgstr "Rigueador(es)"
 
-#: source/creator/panels/inspector.d:215
+#: source/nijigenerate/panels/inspector.d:215
 msgid "Riggers who've rigged the puppet, seperated by comma"
 msgstr "Rigueadores que riguearon la marioneta, separados por coma"
 
-#: source/creator/panels/inspector.d:221
+#: source/nijigenerate/panels/inspector.d:221
 msgid "Contact"
 msgstr "Contacto"
 
-#: source/creator/panels/inspector.d:222
+#: source/nijigenerate/panels/inspector.d:222
 msgid "Where to contact the main author of the puppet"
 msgstr "Donde contactar al autor principal de la marioneta"
 
-#: source/creator/panels/inspector.d:228
+#: source/nijigenerate/panels/inspector.d:228
 msgid "Licensing"
 msgstr "Licencia"
 
-#: source/creator/panels/inspector.d:230
+#: source/nijigenerate/panels/inspector.d:230
 msgid "License URL"
 msgstr "URL de la licencia"
 
-#: source/creator/panels/inspector.d:231
+#: source/nijigenerate/panels/inspector.d:231
 msgid "Link/URL to license"
 msgstr "Enlace/URL de la licencia"
 
-#: source/creator/panels/inspector.d:237
+#: source/nijigenerate/panels/inspector.d:237
 msgid "Copyright"
 msgstr "Derechos de autor"
 
-#: source/creator/panels/inspector.d:238
+#: source/nijigenerate/panels/inspector.d:238
 msgid "Copyright holder information of the puppet"
 msgstr ""
 "Información respecto del titular de los derechos de autor de la marioneta"
 
-#: source/creator/panels/inspector.d:244
+#: source/nijigenerate/panels/inspector.d:244
 msgid "Origin"
 msgstr "Origen"
 
-#: source/creator/panels/inspector.d:245
+#: source/nijigenerate/panels/inspector.d:245
 msgid "Where the model comes from on the internet."
 msgstr "Desde dónde proviene el modelo en el internet."
 
-#: source/creator/panels/inspector.d:251
+#: source/nijigenerate/panels/inspector.d:251
 msgid "Physics Globals"
 msgstr "Parametros de física globales"
 
-#: source/creator/panels/inspector.d:253
+#: source/nijigenerate/panels/inspector.d:253
 msgid "Pixels per meter"
 msgstr "Píxeles por metro"
 
-#: source/creator/panels/inspector.d:254
+#: source/nijigenerate/panels/inspector.d:254
 msgid "Number of pixels that correspond to 1 meter in the physics engine."
 msgstr "Número de píxeles que corresponden a 1 metro en el motor de física."
 
-#: source/creator/panels/inspector.d:260
+#: source/nijigenerate/panels/inspector.d:260
 msgid "Gravity"
 msgstr "Gravedad"
 
-#: source/creator/panels/inspector.d:261
+#: source/nijigenerate/panels/inspector.d:261
 msgid "Acceleration due to gravity, in m/s². Earth gravity is 9.8."
 msgstr ""
 "Aceleración debido a la gravedad, en m/s². La gravedad de la tierra es 9.8."
 
-#: source/creator/panels/inspector.d:262
+#: source/nijigenerate/panels/inspector.d:262
 #, c-format
 msgid "%.2f m/s²"
 msgstr "%.2f m/s²"
 
-#: source/creator/panels/inspector.d:267
+#: source/nijigenerate/panels/inspector.d:267
 msgid "Rendering Settings"
 msgstr "Ajustes de renderizado"
 
-#: source/creator/panels/inspector.d:269
+#: source/nijigenerate/panels/inspector.d:269
 msgid "Use Point Filtering"
 msgstr "Usar filtro de punto"
 
-#: source/creator/panels/inspector.d:273
+#: source/nijigenerate/panels/inspector.d:273
 msgid ""
-"Makes Inochi2D model use point filtering, removing blur for low-resolution "
+"Makes nijilife model use point filtering, removing blur for low-resolution "
 "models."
 msgstr ""
-"Hace que el modelo Inochi2D use la técnica de filtrado de punto, reduciendo "
+"Hace que el modelo nijilife use la técnica de filtrado de punto, reduciendo "
 "el desenfoque en modelos de baja resolución."
 
-#: source/creator/panels/inspector.d:293 source/creator/panels/inspector.d:1538
+#: source/nijigenerate/panels/inspector.d:293 source/nijigenerate/panels/inspector.d:1538
 msgid "Transform"
 msgstr "Transformar"
 
@@ -763,21 +763,21 @@ msgstr "Transformar"
 #. Translation
 #.
 #. Translation portion of the transformation matrix.
-#: source/creator/panels/inspector.d:309 source/creator/panels/inspector.d:1553
+#: source/nijigenerate/panels/inspector.d:309 source/nijigenerate/panels/inspector.d:1553
 msgid "Translation"
 msgstr "Traslación"
 
 #. Button which locks all transformation to be based off the root node
 #. of the puppet, this more or less makes the item stay in place
 #. even if the parent moves.
-#: source/creator/panels/inspector.d:371 source/creator/panels/inspector.d:372
+#: source/nijigenerate/panels/inspector.d:371 source/nijigenerate/panels/inspector.d:372
 msgid "Lock to Root Node"
 msgstr "Fijar al nodo raíz"
 
 #. Button which locks all transformation to be based off the root node
 #. of the puppet, this more or less makes the item stay in place
 #. even if the parent moves.
-#: source/creator/panels/inspector.d:384
+#: source/nijigenerate/panels/inspector.d:384
 msgid ""
 "Makes so that the translation of this node is based off the root node, "
 "making it stay in place even if its parent moves."
@@ -786,243 +786,243 @@ msgstr ""
 "mantenga en su sitio aún si el nodo padre se mueve."
 
 #. Rotation portion of the transformation matrix.
-#: source/creator/panels/inspector.d:399 source/creator/panels/inspector.d:1590
+#: source/nijigenerate/panels/inspector.d:399 source/nijigenerate/panels/inspector.d:1590
 msgid "Rotation"
 msgstr "Rotación"
 
-#: source/creator/panels/inspector.d:411
+#: source/nijigenerate/panels/inspector.d:411
 msgid "Rotation X"
 msgstr "Rotación X"
 
-#: source/creator/panels/inspector.d:431
+#: source/nijigenerate/panels/inspector.d:431
 msgid "Rotation Y"
 msgstr "Rotación Y"
 
-#: source/creator/panels/inspector.d:451
+#: source/nijigenerate/panels/inspector.d:451
 msgid "Rotation Z"
 msgstr "Rotación Z"
 
 #. Scaling portion of the transformation matrix.
-#: source/creator/panels/inspector.d:471 source/creator/panels/inspector.d:1622
+#: source/nijigenerate/panels/inspector.d:471 source/nijigenerate/panels/inspector.d:1622
 msgid "Scale"
 msgstr "Escala"
 
-#: source/creator/panels/inspector.d:479
+#: source/nijigenerate/panels/inspector.d:479
 msgid "Scale X"
 msgstr "Escala X"
 
-#: source/creator/panels/inspector.d:496
+#: source/nijigenerate/panels/inspector.d:496
 msgid "Scale Y"
 msgstr "Escala Y"
 
 #. An option in which positions will be snapped to whole integer values.
 #. In other words texture will always be on a pixel.
-#: source/creator/panels/inspector.d:513 source/creator/panels/inspector.d:514
-#: source/creator/panels/inspector.d:519
+#: source/nijigenerate/panels/inspector.d:513 source/nijigenerate/panels/inspector.d:514
+#: source/nijigenerate/panels/inspector.d:519
 msgid "Snap to Pixel"
 msgstr "Fijar a píxel"
 
-#. The sorting order ID, which Inochi2D uses to sort
+#. The sorting order ID, which nijilife uses to sort
 #. Parts to draw in the user specified order.
 #. negative values = closer to camera
 #. positive values = further away from camera
-#: source/creator/panels/inspector.d:536 source/creator/panels/inspector.d:543
-#: source/creator/panels/inspector.d:1642
+#: source/nijigenerate/panels/inspector.d:536 source/nijigenerate/panels/inspector.d:543
+#: source/nijigenerate/panels/inspector.d:1642
 msgid "Sorting"
 msgstr "Ordenamiento"
 
 #. The main type of anything that can be drawn to the screen
-#. in Inochi2D.
-#: source/creator/panels/inspector.d:558
+#. in nijilife.
+#: source/nijigenerate/panels/inspector.d:558
 msgid "Drawable"
 msgstr "Dibujable"
 
-#: source/creator/panels/inspector.d:563
+#: source/nijigenerate/panels/inspector.d:563
 msgid "Texture Offset"
 msgstr "Desplazamiento de la textura"
 
-#: source/creator/panels/inspector.d:635
+#: source/nijigenerate/panels/inspector.d:635
 msgid "Size of given texture does not match the Albedo texture."
 msgstr "Tamaño de la textura no coincide con la textura Albedo."
 
 #. Allow saving texture to file
-#: source/creator/panels/inspector.d:677
+#: source/nijigenerate/panels/inspector.d:677
 msgid "Save to File"
 msgstr "Guardar a un archivo"
 
 #. Allow saving texture to file
-#: source/creator/panels/inspector.d:691
+#: source/nijigenerate/panels/inspector.d:691
 msgid "Load from File"
 msgstr "Cargar desde Archivo"
 
-#: source/creator/panels/inspector.d:705 source/creator/panels/parameters.d:526
-#: source/creator/windows/inpexport.d:222
+#: source/nijigenerate/panels/inspector.d:705 source/nijigenerate/panels/parameters.d:526
+#: source/nijigenerate/windows/inpexport.d:222
 msgid "Remove"
 msgstr "Eliminar"
 
 #. Option which causes the Albedo color to be the emission color.
 #. The item will glow the same color as it, itself is.
-#: source/creator/panels/inspector.d:714
+#: source/nijigenerate/panels/inspector.d:714
 msgid "Make Emissive"
 msgstr "Hacer emisivo"
 
-#: source/creator/panels/inspector.d:755 source/creator/panels/inspector.d:1649
+#: source/nijigenerate/panels/inspector.d:755 source/nijigenerate/panels/inspector.d:1649
 msgid "Part"
 msgstr "Parte"
 
-#: source/creator/panels/inspector.d:759
+#: source/nijigenerate/panels/inspector.d:759
 msgid "Cannot inspect an unmeshed part"
 msgstr "No se puede inspeccionar a una parte sin malla"
 
-#: source/creator/panels/inspector.d:772
+#: source/nijigenerate/panels/inspector.d:772
 msgid "Albedo"
 msgstr "Albedo"
 
-#: source/creator/panels/inspector.d:774
+#: source/nijigenerate/panels/inspector.d:774
 msgid "Emissive"
 msgstr "Emisión"
 
-#: source/creator/panels/inspector.d:776
+#: source/nijigenerate/panels/inspector.d:776
 msgid "Bumpmap"
 msgstr "Bumpmap"
 
-#: source/creator/panels/inspector.d:781 source/creator/panels/inspector.d:1003
-#: source/creator/panels/inspector.d:1656
-#: source/creator/panels/inspector.d:1701
+#: source/nijigenerate/panels/inspector.d:781 source/nijigenerate/panels/inspector.d:1003
+#: source/nijigenerate/panels/inspector.d:1656
+#: source/nijigenerate/panels/inspector.d:1701
 msgid "Tint (Multiply)"
 msgstr "Tinte (Multiplicar)"
 
-#: source/creator/panels/inspector.d:784 source/creator/panels/inspector.d:1006
-#: source/creator/panels/inspector.d:1661
-#: source/creator/panels/inspector.d:1706
+#: source/nijigenerate/panels/inspector.d:784 source/nijigenerate/panels/inspector.d:1006
+#: source/nijigenerate/panels/inspector.d:1661
+#: source/nijigenerate/panels/inspector.d:1706
 msgid "Tint (Screen)"
 msgstr "Tinte (Trama)"
 
-#: source/creator/panels/inspector.d:787 source/creator/panels/inspector.d:1665
+#: source/nijigenerate/panels/inspector.d:787 source/nijigenerate/panels/inspector.d:1665
 msgid "Emission Strength"
 msgstr "Intensidad de Emision"
 
 #. Header for the Blending options for Parts
-#: source/creator/panels/inspector.d:799 source/creator/panels/inspector.d:1010
-#: source/creator/windows/inpexport.d:261
+#: source/nijigenerate/panels/inspector.d:799 source/nijigenerate/panels/inspector.d:1010
+#: source/nijigenerate/windows/inpexport.d:261
 msgid "Blending"
 msgstr "Modo de fusión"
 
 #. Normal blending mode as used in Photoshop, generally
 #. the default blending mode photoshop starts a layer out as.
-#: source/creator/panels/inspector.d:804 source/creator/panels/inspector.d:1015
-#: source/creator/windows/inpexport.d:269
+#: source/nijigenerate/panels/inspector.d:804 source/nijigenerate/panels/inspector.d:1015
+#: source/nijigenerate/windows/inpexport.d:269
 msgid "Normal"
 msgstr "Normal"
 
 #. Multiply blending mode, in which this texture's color data
 #. will be multiplied with the color data already in the framebuffer.
-#: source/creator/panels/inspector.d:808 source/creator/panels/inspector.d:1019
-#: source/creator/windows/inpexport.d:273
+#: source/nijigenerate/panels/inspector.d:808 source/nijigenerate/panels/inspector.d:1019
+#: source/nijigenerate/windows/inpexport.d:273
 msgid "Multiply"
 msgstr "Multiplicar"
 
 #. Screen blending mode
-#: source/creator/panels/inspector.d:811 source/creator/panels/inspector.d:1022
-#: source/creator/windows/inpexport.d:276
+#: source/nijigenerate/panels/inspector.d:811 source/nijigenerate/panels/inspector.d:1022
+#: source/nijigenerate/windows/inpexport.d:276
 msgid "Screen"
 msgstr "Trama"
 
 #. Overlay blending mode
-#: source/creator/panels/inspector.d:814 source/creator/panels/inspector.d:1025
-#: source/creator/windows/inpexport.d:279
+#: source/nijigenerate/panels/inspector.d:814 source/nijigenerate/panels/inspector.d:1025
+#: source/nijigenerate/windows/inpexport.d:279
 msgid "Overlay"
 msgstr "Superponer"
 
 #. Darken blending mode
-#: source/creator/panels/inspector.d:817 source/creator/panels/inspector.d:1028
-#: source/creator/windows/inpexport.d:282
+#: source/nijigenerate/panels/inspector.d:817 source/nijigenerate/panels/inspector.d:1028
+#: source/nijigenerate/windows/inpexport.d:282
 msgid "Darken"
 msgstr "Oscurecer"
 
 #. Lighten blending mode
-#: source/creator/panels/inspector.d:820 source/creator/panels/inspector.d:1031
-#: source/creator/windows/inpexport.d:285
+#: source/nijigenerate/panels/inspector.d:820 source/nijigenerate/panels/inspector.d:1031
+#: source/nijigenerate/windows/inpexport.d:285
 msgid "Lighten"
 msgstr "Aclarar"
 
 #. Color Dodge blending mode
-#: source/creator/panels/inspector.d:823 source/creator/panels/inspector.d:1034
-#: source/creator/windows/inpexport.d:288
+#: source/nijigenerate/panels/inspector.d:823 source/nijigenerate/panels/inspector.d:1034
+#: source/nijigenerate/windows/inpexport.d:288
 msgid "Color Dodge"
 msgstr "Sobreexponer color"
 
 #. Linear Dodge blending mode
-#: source/creator/panels/inspector.d:826 source/creator/panels/inspector.d:1037
-#: source/creator/windows/inpexport.d:291
+#: source/nijigenerate/panels/inspector.d:826 source/nijigenerate/panels/inspector.d:1037
+#: source/nijigenerate/windows/inpexport.d:291
 msgid "Linear Dodge"
 msgstr "Sobreexposición lineal"
 
 #. Add (Glow) blending mode
-#: source/creator/panels/inspector.d:829 source/creator/panels/inspector.d:1040
-#: source/creator/windows/inpexport.d:294
+#: source/nijigenerate/panels/inspector.d:829 source/nijigenerate/panels/inspector.d:1040
+#: source/nijigenerate/windows/inpexport.d:294
 msgid "Add (Glow)"
 msgstr "Agregar (Resplandor)"
 
 #. Color Burn blending mode
-#: source/creator/panels/inspector.d:832 source/creator/panels/inspector.d:1043
-#: source/creator/windows/inpexport.d:297
+#: source/nijigenerate/panels/inspector.d:832 source/nijigenerate/panels/inspector.d:1043
+#: source/nijigenerate/windows/inpexport.d:297
 msgid "Color Burn"
 msgstr "Subexponer color"
 
 #. Hard Light blending mode
-#: source/creator/panels/inspector.d:835 source/creator/panels/inspector.d:1046
-#: source/creator/windows/inpexport.d:300
+#: source/nijigenerate/panels/inspector.d:835 source/nijigenerate/panels/inspector.d:1046
+#: source/nijigenerate/windows/inpexport.d:300
 msgid "Hard Light"
 msgstr "Luz fuerte"
 
 #. Soft Light blending mode
-#: source/creator/panels/inspector.d:838 source/creator/panels/inspector.d:1049
-#: source/creator/windows/inpexport.d:303
+#: source/nijigenerate/panels/inspector.d:838 source/nijigenerate/panels/inspector.d:1049
+#: source/nijigenerate/windows/inpexport.d:303
 msgid "Soft Light"
 msgstr "Luz suave"
 
 #. Subtract blending mode
-#: source/creator/panels/inspector.d:841 source/creator/panels/inspector.d:1052
-#: source/creator/windows/inpexport.d:306
+#: source/nijigenerate/panels/inspector.d:841 source/nijigenerate/panels/inspector.d:1052
+#: source/nijigenerate/windows/inpexport.d:306
 msgid "Subtract"
 msgstr "Restar"
 
 #. Difference blending mode
-#: source/creator/panels/inspector.d:844 source/creator/panels/inspector.d:1055
-#: source/creator/windows/inpexport.d:309
+#: source/nijigenerate/panels/inspector.d:844 source/nijigenerate/panels/inspector.d:1055
+#: source/nijigenerate/windows/inpexport.d:309
 msgid "Difference"
 msgstr "Diferencia"
 
 #. Exclusion blending mode
-#: source/creator/panels/inspector.d:847 source/creator/panels/inspector.d:1058
-#: source/creator/windows/inpexport.d:312
+#: source/nijigenerate/panels/inspector.d:847 source/nijigenerate/panels/inspector.d:1058
+#: source/nijigenerate/windows/inpexport.d:312
 msgid "Exclusion"
 msgstr "Exclusión"
 
 #. Inverse blending mode
-#: source/creator/panels/inspector.d:850 source/creator/panels/inspector.d:1061
-#: source/creator/windows/inpexport.d:315
+#: source/nijigenerate/panels/inspector.d:850 source/nijigenerate/panels/inspector.d:1061
+#: source/nijigenerate/windows/inpexport.d:315
 msgid "Inverse"
 msgstr "Invertir"
 
-#: source/creator/panels/inspector.d:851 source/creator/panels/inspector.d:1062
-#: source/creator/windows/inpexport.d:316
+#: source/nijigenerate/panels/inspector.d:851 source/nijigenerate/panels/inspector.d:1062
+#: source/nijigenerate/windows/inpexport.d:316
 msgid "Inverts the color by a factor of the overlying color"
 msgstr "Invierte el color por el factor del color superpuesto"
 
 #. Destination In blending mode
-#: source/creator/panels/inspector.d:854 source/creator/panels/inspector.d:1065
-#: source/creator/windows/inpexport.d:319
+#: source/nijigenerate/panels/inspector.d:854 source/nijigenerate/panels/inspector.d:1065
+#: source/nijigenerate/windows/inpexport.d:319
 msgid "Destination In"
 msgstr "Destino Dentro"
 
 #. Clip to Lower blending mode
-#: source/creator/panels/inspector.d:857 source/creator/windows/inpexport.d:322
+#: source/nijigenerate/panels/inspector.d:857 source/nijigenerate/windows/inpexport.d:322
 msgid "Clip to Lower"
 msgstr "Recortar hacia el fondo"
 
-#: source/creator/panels/inspector.d:858 source/creator/windows/inpexport.d:323
+#: source/nijigenerate/panels/inspector.d:858 source/nijigenerate/windows/inpexport.d:323
 msgid ""
 "Special blending mode that causes (while respecting transparency) the part "
 "to be clipped to everything underneath"
@@ -1031,11 +1031,11 @@ msgstr ""
 "se recorte con respecto a lo que tiene debajo."
 
 #. Slice from Lower blending mode
-#: source/creator/panels/inspector.d:861
+#: source/nijigenerate/panels/inspector.d:861
 msgid "Slice from Lower"
 msgstr "Recortar desde el fondo"
 
-#: source/creator/panels/inspector.d:862
+#: source/nijigenerate/panels/inspector.d:862
 msgid ""
 "Special blending mode that causes (while respecting transparency) the part "
 "to be slice by everything underneath.\n"
@@ -1045,148 +1045,148 @@ msgstr ""
 "sea cortada por todo lo que tiene debajo.\n"
 "Básicamente lo opuesto de Recortar hacia el fondo."
 
-#: source/creator/panels/inspector.d:869 source/creator/panels/inspector.d:1072
-#: source/creator/panels/inspector.d:1680
-#: source/creator/panels/inspector.d:1720
-#: source/creator/windows/inpexport.d:334
+#: source/nijigenerate/panels/inspector.d:869 source/nijigenerate/panels/inspector.d:1072
+#: source/nijigenerate/panels/inspector.d:1680
+#: source/nijigenerate/panels/inspector.d:1720
+#: source/nijigenerate/windows/inpexport.d:334
 msgid "Opacity"
 msgstr "Opacidad"
 
-#: source/creator/panels/inspector.d:874 source/creator/panels/inspector.d:1077
+#: source/nijigenerate/panels/inspector.d:874 source/nijigenerate/panels/inspector.d:1077
 msgid "Masks"
 msgstr "Máscaras"
 
 #. Threshold slider name for adjusting how transparent a pixel can be
 #. before it gets discarded.
-#: source/creator/panels/inspector.d:879 source/creator/panels/inspector.d:1082
-#: source/creator/panels/inspector.d:1687
+#: source/nijigenerate/panels/inspector.d:879 source/nijigenerate/panels/inspector.d:1082
+#: source/nijigenerate/panels/inspector.d:1687
 msgid "Threshold"
 msgstr "Umbral"
 
 #. The sources that the part gets masked by. Depending on the masking mode
 #. either the sources will cut out things that don't overlap, or cut out
 #. things that do.
-#: source/creator/panels/inspector.d:887 source/creator/panels/inspector.d:1090
+#: source/nijigenerate/panels/inspector.d:887 source/nijigenerate/panels/inspector.d:1090
 msgid "Mask Sources"
 msgstr "Fuentes de máscaras"
 
-#: source/creator/panels/inspector.d:890 source/creator/panels/inspector.d:1093
+#: source/nijigenerate/panels/inspector.d:890 source/nijigenerate/panels/inspector.d:1093
 msgid "(Drag a Part or Mask Here)"
 msgstr "(Arrastra una parte o una máscara aquí)"
 
-#: source/creator/panels/inspector.d:897 source/creator/panels/inspector.d:1100
+#: source/nijigenerate/panels/inspector.d:897 source/nijigenerate/panels/inspector.d:1100
 msgid "Mode"
 msgstr "Modo"
 
-#: source/creator/panels/inspector.d:899 source/creator/panels/inspector.d:1102
+#: source/nijigenerate/panels/inspector.d:899 source/nijigenerate/panels/inspector.d:1102
 msgid "Dodge"
 msgstr "Sobreexpocición"
 
-#: source/creator/panels/inspector.d:916 source/creator/panels/inspector.d:1120
+#: source/nijigenerate/panels/inspector.d:916 source/nijigenerate/panels/inspector.d:1120
 #, c-format
 msgid "%s (Mask)"
 msgstr "%s (Máscara)"
 
-#: source/creator/panels/inspector.d:917 source/creator/panels/inspector.d:1121
+#: source/nijigenerate/panels/inspector.d:917 source/nijigenerate/panels/inspector.d:1121
 #, c-format
 msgid "%s (Dodge)"
 msgstr "%s (Sobreexpocición)"
 
-#: source/creator/panels/inspector.d:1174
+#: source/nijigenerate/panels/inspector.d:1174
 #, fuzzy
 msgid "Propagate MeshGroup"
 msgstr "Propagar GrupoDeMallas"
 
-#: source/creator/panels/inspector.d:1180
+#: source/nijigenerate/panels/inspector.d:1180
 msgid "Allow ascendant MeshGroup to deform children of Composite"
 msgstr "Permite al GrupoDeMallas deformar a hijos de un Nodo de composición"
 
-#: source/creator/panels/inspector.d:1190
+#: source/nijigenerate/panels/inspector.d:1190
 msgid "SimplePhysics"
 msgstr "Físicas simples"
 
-#: source/creator/panels/inspector.d:1202 source/creator/windows/psdmerge.d:276
-#: source/creator/windows/kramerge.d:280
+#: source/nijigenerate/panels/inspector.d:1202 source/nijigenerate/windows/psdmerge.d:276
+#: source/nijigenerate/windows/kramerge.d:280
 msgid "Unmap"
 msgstr "Desasignar"
 
-#: source/creator/panels/inspector.d:1207
+#: source/nijigenerate/panels/inspector.d:1207
 msgid "Unassigned"
 msgstr "Sin asignar"
 
-#: source/creator/panels/inspector.d:1213 source/creator/windows/trkbind.d:47
+#: source/nijigenerate/panels/inspector.d:1213 source/nijigenerate/windows/trkbind.d:47
 msgid "Parameter"
 msgstr "Parámetro"
 
-#: source/creator/panels/inspector.d:1214
+#: source/nijigenerate/panels/inspector.d:1214
 msgid "(unassigned)"
 msgstr "(sin asignar)"
 
-#: source/creator/panels/inspector.d:1232
+#: source/nijigenerate/panels/inspector.d:1232
 msgid "Type"
 msgstr "Tipo"
 
-#: source/creator/panels/inspector.d:1235
+#: source/nijigenerate/panels/inspector.d:1235
 msgid "Pendulum"
 msgstr "Péndulo"
 
-#: source/creator/panels/inspector.d:1237
+#: source/nijigenerate/panels/inspector.d:1237
 msgid "SpringPendulum"
 msgstr "Péndulo resorte"
 
-#: source/creator/panels/inspector.d:1244
+#: source/nijigenerate/panels/inspector.d:1244
 msgid "Mapping mode"
 msgstr "Modo de mapeo"
 
-#: source/creator/panels/inspector.d:1247
+#: source/nijigenerate/panels/inspector.d:1247
 msgid "AngleLength"
 msgstr "Largo del ángulo"
 
-#: source/creator/panels/inspector.d:1249
+#: source/nijigenerate/panels/inspector.d:1249
 msgid "XY"
 msgstr "XY"
 
-#: source/creator/panels/inspector.d:1259
+#: source/nijigenerate/panels/inspector.d:1259
 msgid "Local Transform Lock"
 msgstr "Fijar Transformación Local"
 
-#: source/creator/panels/inspector.d:1260
+#: source/nijigenerate/panels/inspector.d:1260
 msgid ""
 "Whether the physics system only listens to the movement of the physics node "
 "itself"
 msgstr ""
 "Define si el sistema de fisica solo responde al movimiento del nodo de fisica"
 
-#: source/creator/panels/inspector.d:1266
-#: source/creator/panels/inspector.d:1734
+#: source/nijigenerate/panels/inspector.d:1266
+#: source/nijigenerate/panels/inspector.d:1734
 msgid "Gravity scale"
 msgstr "Escala de gravedad"
 
-#: source/creator/panels/inspector.d:1273
-#: source/creator/panels/inspector.d:1741
+#: source/nijigenerate/panels/inspector.d:1273
+#: source/nijigenerate/panels/inspector.d:1741
 msgid "Length"
 msgstr "Largo"
 
-#: source/creator/panels/inspector.d:1280
-#: source/creator/panels/inspector.d:1748
+#: source/nijigenerate/panels/inspector.d:1280
+#: source/nijigenerate/panels/inspector.d:1748
 msgid "Resonant frequency"
 msgstr "Frecuencia de resonancia"
 
-#: source/creator/panels/inspector.d:1287
-#: source/creator/panels/inspector.d:1755
+#: source/nijigenerate/panels/inspector.d:1287
+#: source/nijigenerate/panels/inspector.d:1755
 msgid "Damping"
 msgstr "Amortiguación"
 
-#: source/creator/panels/inspector.d:1298
-#: source/creator/panels/inspector.d:1766
+#: source/nijigenerate/panels/inspector.d:1298
+#: source/nijigenerate/panels/inspector.d:1766
 msgid "Output scale"
 msgstr "Escala de salida"
 
-#: source/creator/panels/inspector.d:1325
+#: source/nijigenerate/panels/inspector.d:1325
 msgid "Dynamic Deformation (slower)"
 msgstr "Deformación dinamica (lento)"
 
-#: source/creator/panels/inspector.d:1328
+#: source/nijigenerate/panels/inspector.d:1328
 msgid ""
 "Whether the MeshGroup should dynamically deform children,\n"
 "this is an expensive operation and should not be overused."
@@ -1194,319 +1194,319 @@ msgstr ""
 "Define si el Grupo de Mallas debe deformar dinamicamente a los hijos.\n"
 "Esta es una operación costosa, por lo que no se recomienda abusar de ella."
 
-#: source/creator/panels/inspector.d:1331
+#: source/nijigenerate/panels/inspector.d:1331
 msgid "Translate origins"
 msgstr "Trasladar origenes"
 
-#: source/creator/panels/inspector.d:1334
+#: source/nijigenerate/panels/inspector.d:1334
 msgid "Translate origin of child nodes for non-Drawable object."
 msgstr "Traladar origen de los nodos hijos de objetos no dibujables."
 
 #. Header for texture options
-#: source/creator/panels/inspector.d:1653
-#: source/creator/panels/inspector.d:1698
+#: source/nijigenerate/panels/inspector.d:1653
+#: source/nijigenerate/panels/inspector.d:1698
 msgid "Textures"
 msgstr "Texturas"
 
-#: source/creator/panels/parameters.d:268
+#: source/nijigenerate/panels/parameters.d:268
 msgid "Unset"
 msgstr "Desarmar"
 
-#: source/creator/panels/parameters.d:277
+#: source/nijigenerate/panels/parameters.d:277
 msgid "Set to current"
 msgstr "Aplicar al actual"
 
-#: source/creator/panels/parameters.d:286
-#: source/creator/viewport/model/package.d:209
+#: source/nijigenerate/panels/parameters.d:286
+#: source/nijigenerate/viewport/model/package.d:209
 msgid "Reset"
 msgstr "Restablecer"
 
-#: source/creator/panels/parameters.d:295 source/creator/windows/trkbind.d:110
+#: source/nijigenerate/panels/parameters.d:295 source/nijigenerate/windows/trkbind.d:110
 msgid "Invert"
 msgstr "Invertir"
 
-#: source/creator/panels/parameters.d:304
-#: source/creator/panels/parameters.d:894
+#: source/nijigenerate/panels/parameters.d:304
+#: source/nijigenerate/panels/parameters.d:894
 msgid "Mirror"
 msgstr "Reflejar"
 
-#: source/creator/panels/parameters.d:305
-#: source/creator/panels/parameters.d:348
-#: source/creator/panels/parameters.d:895
+#: source/nijigenerate/panels/parameters.d:305
+#: source/nijigenerate/panels/parameters.d:348
+#: source/nijigenerate/panels/parameters.d:895
 msgid "Horizontally"
 msgstr "Horizontalmente"
 
-#: source/creator/panels/parameters.d:314
-#: source/creator/panels/parameters.d:365
-#: source/creator/panels/parameters.d:899
+#: source/nijigenerate/panels/parameters.d:314
+#: source/nijigenerate/panels/parameters.d:365
+#: source/nijigenerate/panels/parameters.d:899
 msgid "Vertically"
 msgstr "Verticalmente"
 
-#: source/creator/panels/parameters.d:325
+#: source/nijigenerate/panels/parameters.d:325
 msgid "Flip Deform"
 msgstr "Voltear Deformación"
 
-#: source/creator/panels/parameters.d:347
-#: source/creator/panels/parameters.d:402
+#: source/nijigenerate/panels/parameters.d:347
+#: source/nijigenerate/panels/parameters.d:402
 msgid "Set from mirror"
 msgstr "Aplicar desde el reflejo"
 
-#: source/creator/panels/parameters.d:382
+#: source/nijigenerate/panels/parameters.d:382
 msgid "Diagonally"
 msgstr "Diagonalmente"
 
-#: source/creator/panels/parameters.d:421
-#: source/creator/panels/parameters.d:930 source/creator/widgets/mainmenu.d:342
+#: source/nijigenerate/panels/parameters.d:421
+#: source/nijigenerate/panels/parameters.d:930 source/nijigenerate/widgets/mainmenu.d:342
 msgid "Copy"
 msgstr "Copiar"
 
-#: source/creator/panels/parameters.d:429
-#: source/creator/panels/parameters.d:933 source/creator/widgets/mainmenu.d:343
+#: source/nijigenerate/panels/parameters.d:429
+#: source/nijigenerate/panels/parameters.d:933 source/nijigenerate/widgets/mainmenu.d:343
 msgid "Paste"
 msgstr "Pegar"
 
-#: source/creator/panels/parameters.d:481
+#: source/nijigenerate/panels/parameters.d:481
 msgid "Bindings"
 msgstr "Conexiones"
 
-#: source/creator/panels/parameters.d:489
+#: source/nijigenerate/panels/parameters.d:489
 msgid "Show all nodes"
 msgstr "Mostrar todos los nodos"
 
-#: source/creator/panels/parameters.d:489
+#: source/nijigenerate/panels/parameters.d:489
 msgid "Show only selected nodes"
 msgstr "Mostrar solo nodos seleccionados"
 
-#: source/creator/panels/parameters.d:538
+#: source/nijigenerate/panels/parameters.d:538
 msgid "Interpolation Mode"
 msgstr "Modo de interpolación"
 
-#: source/creator/panels/parameters.d:561
+#: source/nijigenerate/panels/parameters.d:561
 msgid "Copy to"
 msgstr "Copiar a"
 
-#: source/creator/panels/parameters.d:569
+#: source/nijigenerate/panels/parameters.d:569
 msgid "Swap with"
 msgstr "Cambiar con"
 
-#: source/creator/panels/parameters.d:753
+#: source/nijigenerate/panels/parameters.d:753
 msgid "New Parameter Group"
 msgstr "Nuevo grupo de parámetros"
 
-#: source/creator/panels/parameters.d:857
+#: source/nijigenerate/panels/parameters.d:857
 msgid "Edit Properties"
 msgstr "Editar propiedades"
 
-#: source/creator/panels/parameters.d:861
+#: source/nijigenerate/panels/parameters.d:861
 msgid "Edit Axes Points"
 msgstr "Editar los puntos de ejes"
 
-#: source/creator/panels/parameters.d:865
+#: source/nijigenerate/panels/parameters.d:865
 msgid "Split"
 msgstr "Dividir"
 
-#: source/creator/panels/parameters.d:869
+#: source/nijigenerate/panels/parameters.d:869
 msgid "To 2D"
 msgstr "A 2D"
 
-#: source/creator/panels/parameters.d:874
+#: source/nijigenerate/panels/parameters.d:874
 msgid "Flip X"
 msgstr "Voltear X"
 
-#: source/creator/panels/parameters.d:880
+#: source/nijigenerate/panels/parameters.d:880
 msgid "Flip Y"
 msgstr "Voltear Y"
 
-#: source/creator/panels/parameters.d:887
+#: source/nijigenerate/panels/parameters.d:887
 msgid "Flip"
 msgstr "Voltear"
 
-#: source/creator/panels/parameters.d:905
+#: source/nijigenerate/panels/parameters.d:905
 msgid "Mirrored Autofill"
 msgstr "Autocompletar reflejado"
 
-#: source/creator/panels/parameters.d:937
+#: source/nijigenerate/panels/parameters.d:937
 msgid "Paste and Horiontal Flip"
 msgstr "Pegar y Voltear Horizontalmente"
 
-#: source/creator/panels/parameters.d:942
+#: source/nijigenerate/panels/parameters.d:942
 msgid "Duplicate"
 msgstr "Duplicar"
 
 #. Sets the default value of the param
-#: source/creator/panels/parameters.d:963
+#: source/nijigenerate/panels/parameters.d:963
 msgid "Set Starting Position"
 msgstr "Fijar posición inicial"
 
 #. Arms the parameter for recording values.
-#: source/creator/panels/parameters.d:989
+#: source/nijigenerate/panels/parameters.d:989
 msgid "Arm Parameter"
 msgstr "Armar parámetro"
 
-#: source/creator/panels/parameters.d:1002
+#: source/nijigenerate/panels/parameters.d:1002
 msgid "Add Keyframe"
 msgstr "Agregar Keyframe"
 
-#: source/creator/panels/parameters.d:1037
+#: source/nijigenerate/panels/parameters.d:1037
 msgid "Add 1D Parameter (0..1)"
 msgstr "Agregar parámetro 1D (0..1)"
 
-#: source/creator/panels/parameters.d:1045
+#: source/nijigenerate/panels/parameters.d:1045
 msgid "Add 1D Parameter (-1..1)"
 msgstr "Agregar parámetro 1D (-1..1)"
 
-#: source/creator/panels/parameters.d:1056
+#: source/nijigenerate/panels/parameters.d:1056
 msgid "Add 2D Parameter (0..1)"
 msgstr "Agregar parámetro 2D (0..1)"
 
-#: source/creator/panels/parameters.d:1064
+#: source/nijigenerate/panels/parameters.d:1064
 msgid "Add 2D Parameter (-1..+1)"
 msgstr "Agregar parámetro 2D (-1..+1)"
 
-#: source/creator/panels/parameters.d:1076
+#: source/nijigenerate/panels/parameters.d:1076
 msgid "Add Mouth Shape"
 msgstr "Agregar deformación de boca"
 
-#: source/creator/panels/parameters.d:1098
+#: source/nijigenerate/panels/parameters.d:1098
 msgid "Filter, search for specific parameters"
 msgstr "Filtrar, buscar por parámetros específicos"
 
 #. Textbox
-#: source/creator/panels/parameters.d:1138 source/creator/windows/rename.d:42
-#: source/creator/windows/rename.d:57
+#: source/nijigenerate/panels/parameters.d:1138 source/nijigenerate/windows/rename.d:42
+#: source/nijigenerate/windows/rename.d:57
 msgid "Rename"
 msgstr "Renombrar"
 
-#: source/creator/panels/parameters.d:1142
+#: source/nijigenerate/panels/parameters.d:1142
 msgid "Colors"
 msgstr "Colores"
 
 #. CUSTOM COLOR PICKER
 #. Allows user to select a custom color for parameter group.
-#: source/creator/panels/parameters.d:1167
+#: source/nijigenerate/panels/parameters.d:1167
 msgid "Custom Color"
 msgstr "Color personalizado"
 
-#: source/creator/panels/parameters.d:1243
+#: source/nijigenerate/panels/parameters.d:1243
 msgid "Add Parameter"
 msgstr "Añadir parámetro"
 
-#: source/creator/panels/parameters.d:1248
+#: source/nijigenerate/panels/parameters.d:1248
 msgid "Parameters"
 msgstr "Parámetros"
 
 #. Use appropriate system method to notify user where crash dump is.
-#: source/creator/utils/crashdump.d:64
+#: source/nijigenerate/utils/crashdump.d:64
 msgid ""
 "\n"
 "\n"
 "\n"
-"===   Inochi Creator has crashed   ===\n"
-"Please send us the inochi-creator-crashdump.txt file in ~/Library/Logs\n"
-"Attach the file as a git issue @ https://github.com/Inochi2D/inochi-creator/"
+"===   nijigenerate has crashed   ===\n"
+"Please send us the nijigenerate-crashdump.txt file in ~/Library/Logs\n"
+"Attach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/"
 "issues"
 msgstr ""
 "\n"
 "\n"
 "\n"
-"===   Inochi Creator se ha cerrado inesperadamente  ===\n"
-"Por favor envíanos el archivo inochi-creator-crashdump.txt que se encuentra "
+"===   nijigenerate se ha cerrado inesperadamente  ===\n"
+"Por favor envíanos el archivo nijigenerate-crashdump.txt que se encuentra "
 "en ~/Library/Logs\n"
-"Adjunta el archivo como un issue de git en https://github.com/Inochi2D/"
-"inochi-creator/issues"
+"Adjunta el archivo como un issue de git en https://github.com/nijilife/"
+"nijigenerate/issues"
 
-#: source/creator/utils/crashdump.d:65
+#: source/nijigenerate/utils/crashdump.d:65
 msgid ""
 "\n"
 "\n"
 "\n"
-"===   Inochi Creator has crashed   ===\n"
-"Please send us the inochi-creator-crashdump.txt file in your log directory, "
-"XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/com.inochi2d.inochi-"
-"creator.\n"
-"Attach the file as a git issue @ https://github.com/Inochi2D/inochi-creator/"
+"===   nijigenerate has crashed   ===\n"
+"Please send us the nijigenerate-crashdump.txt file in your log directory, "
+"XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/com.nijilife.inochi-"
+"nijigenerate.\n"
+"Attach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/"
 "issues"
 msgstr ""
 "\n"
 "\n"
 "\n"
-"===   Inochi Creator se ha cerrado inesperadamente  ===\n"
-"Por favor envíanos el archivo inochi-creator-crashdump.txt que se encuentra "
+"===   nijigenerate se ha cerrado inesperadamente  ===\n"
+"Por favor envíanos el archivo nijigenerate-crashdump.txt que se encuentra "
 "en el directorio XDG_STATE_HOME. En el caso de Flatpak, se encuentra en ~/."
-"var/app/com.inochi2d.inochi-creator.\n"
-"Adjunta el archivo como un issue de git en https://github.com/Inochi2D/"
-"inochi-creator/issues"
+"var/app/com.nijilife.nijigenerate.\n"
+"Adjunta el archivo como un issue de git en https://github.com/nijilife/"
+"nijigenerate/issues"
 
-#: source/creator/utils/crashdump.d:67
+#: source/nijigenerate/utils/crashdump.d:67
 msgid ""
 "The application has unexpectedly crashed\n"
-"Please send the developers the inochi-creator-crashdump.txt which has been "
+"Please send the developers the nijigenerate-crashdump.txt which has been "
 "put on your desktop\n"
-"Via https://github.com/Inochi2D/inochi-creator/issues"
+"Via https://github.com/nijigenerate/nijigenerate/issues"
 msgstr ""
 "La aplicación se ha cerrado inesperadamente\n"
-"Por favor envia a los desarrolladores el archivo inochi-creator-crashdump."
+"Por favor envia a los desarrolladores el archivo nijigenerate-crashdump."
 "txt que ha sido creado en tu escritorio\n"
-"A través de https://github.com/Inochi2D/inochi-creator/issues"
+"A través de https://github.com/nijigenerate/nijigenerate/issues"
 
-#: source/creator/utils/crashdump.d:68
-msgid "Inochi Creator Crashdump"
-msgstr "Registro de caida de Inochi Creator"
+#: source/nijigenerate/utils/crashdump.d:68
+msgid "nijigenerate Crashdump"
+msgstr "Registro de caida de nijigenerate"
 
-#: source/creator/viewport/common/automesh/contours.d:183
-#: source/creator/viewport/common/automesh/contours.d:185
+#: source/nijigenerate/viewport/common/automesh/contours.d:183
+#: source/nijigenerate/viewport/common/automesh/contours.d:185
 msgid "Presets"
 msgstr "Preajustes"
 
-#: source/creator/viewport/common/automesh/contours.d:186
+#: source/nijigenerate/viewport/common/automesh/contours.d:186
 msgid "Normal parts"
 msgstr "Partes normales"
 
-#: source/creator/viewport/common/automesh/contours.d:194
+#: source/nijigenerate/viewport/common/automesh/contours.d:194
 msgid "Detailed mesh"
 msgstr "Malla detallada"
 
-#: source/creator/viewport/common/automesh/contours.d:202
+#: source/nijigenerate/viewport/common/automesh/contours.d:202
 msgid "Large parts"
 msgstr "Partes grandes"
 
-#: source/creator/viewport/common/automesh/contours.d:210
+#: source/nijigenerate/viewport/common/automesh/contours.d:210
 msgid "Small parts"
 msgstr "Partes pequeñas"
 
-#: source/creator/viewport/common/automesh/contours.d:219
+#: source/nijigenerate/viewport/common/automesh/contours.d:219
 msgid "Thin and minimum parts"
 msgstr "Partes delgadas y mínimas"
 
-#: source/creator/viewport/common/automesh/contours.d:228
+#: source/nijigenerate/viewport/common/automesh/contours.d:228
 msgid "Preserve edges"
 msgstr "Conservar bordes"
 
-#: source/creator/viewport/common/automesh/contours.d:242
+#: source/nijigenerate/viewport/common/automesh/contours.d:242
 msgid "Details"
 msgstr "Detalles"
 
-#: source/creator/viewport/common/automesh/contours.d:245
+#: source/nijigenerate/viewport/common/automesh/contours.d:245
 msgid "Sampling rate"
 msgstr "Tasa de muestreo"
 
-#: source/creator/viewport/common/automesh/contours.d:260
+#: source/nijigenerate/viewport/common/automesh/contours.d:260
 msgid "Mask threshold"
 msgstr "Umbral de enmascaramiento"
 
-#: source/creator/viewport/common/automesh/contours.d:273
+#: source/nijigenerate/viewport/common/automesh/contours.d:273
 msgid "Distance between vertices"
 msgstr "Distancia entre vértices"
 
-#: source/creator/viewport/common/automesh/contours.d:275
+#: source/nijigenerate/viewport/common/automesh/contours.d:275
 msgid "Minimum"
 msgstr "Mínimo"
 
-#: source/creator/viewport/common/automesh/contours.d:289
+#: source/nijigenerate/viewport/common/automesh/contours.d:289
 msgid "Maximum"
 msgstr "Máximo"
 
-#: source/creator/viewport/common/automesh/contours.d:357
+#: source/nijigenerate/viewport/common/automesh/contours.d:357
 msgid ""
 "Specifying scaling factor to apply for contours. If multiple scales are "
 "specified, vertices are populated per scale factors."
@@ -1514,279 +1514,279 @@ msgstr ""
 "Especificar un factor de escala para aplicar a los bordes. Si se definen "
 "multiples escalas, se agregaran vértices a cada una de ellas."
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:161
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:216
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
 msgid "Deform"
 msgstr "Deformar"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:161
-#: source/creator/viewport/common/mesheditor/tools/connect.d:34
-#: source/creator/viewport/common/mesheditor/tools/connect.d:36
-#: source/creator/viewport/common/mesheditor/tools/grid.d:240
-#: source/creator/viewport/common/mesheditor/tools/grid.d:241
-#: source/creator/viewport/common/mesheditor/tools/grid.d:242
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:216
-#: source/creator/viewport/common/mesheditor/tools/point.d:97
-#: source/creator/viewport/common/mesheditor/tools/point.d:311
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:97
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:311
 msgid "Left Mouse"
 msgstr "Click izquierdo"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:162
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:162
 #, fuzzy
 msgid "Snap to X/Y axis"
 msgstr "Fijar a píxel"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:162
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:162
 msgid "SHIFT"
 msgstr "SHIFT"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:163
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:163
 #, fuzzy
 msgid "Select vertices"
 msgstr "Ocultar vértices"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:163
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:163
 msgid "ALT"
 msgstr "ALT"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:260
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:260
 #, fuzzy
 msgid "Drag mode"
 msgstr "Modo de arrastre"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:270
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:270
 msgid "Flow mode"
 msgstr "Modo fluido"
 
-#: source/creator/viewport/common/mesheditor/tools/brush.d:297
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:297
 msgid "Brush Tool"
 msgstr "Brocha de vertices"
 
-#: source/creator/viewport/common/mesheditor/tools/connect.d:34
-#: source/creator/viewport/common/mesheditor/tools/point.d:97
-#: source/creator/viewport/common/mesheditor/tools/point.d:311
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:97
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:311
 msgid "Select"
 msgstr "Seleccionar"
 
-#: source/creator/viewport/common/mesheditor/tools/connect.d:36
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
 msgid "Connect/Disconnect"
 msgstr "Conectar/Desconectar"
 
-#: source/creator/viewport/common/mesheditor/tools/connect.d:37
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
 msgid "Connect Multiple"
 msgstr "Conectar múltiples"
 
-#: source/creator/viewport/common/mesheditor/tools/connect.d:37
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
 msgid "Shift+Left Mouse"
 msgstr "Shift+Click izquierdo"
 
-#: source/creator/viewport/common/mesheditor/tools/connect.d:115
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:454
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:115
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:454
 msgid "Path Deform Tool"
 msgstr "Herramienta de deformación del trazado"
 
-#: source/creator/viewport/common/mesheditor/tools/grid.d:240
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
 msgid "Drag to define 2x2 mesh"
 msgstr "Arrastrar para crear una malla de 2x2"
 
-#: source/creator/viewport/common/mesheditor/tools/grid.d:241
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
 msgid "Add/remove key points to axes"
 msgstr "Agregar/eliminar puntos a los ejes"
 
-#: source/creator/viewport/common/mesheditor/tools/grid.d:242
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
 msgid "Change key point position in the axis"
 msgstr "Traslada la posición de los puntos en el eje"
 
-#: source/creator/viewport/common/mesheditor/tools/grid.d:377
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:377
 msgid "Grid Vertex Tool"
 msgstr "Herramienta de grilla de vértices"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:217
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:220
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
 msgid "Switch Mode"
 msgstr "Cambiar modo"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:217
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:220
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
 msgid "TAB"
 msgstr "TAB"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:219
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:219
 msgid "Create/Destroy"
 msgstr "Crear/Destruir"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:219
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:219
 msgid "Left Mouse (x2)"
 msgstr "Click izquierdo (x2)"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:222
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
 msgid "Toggle locked point"
 msgstr "Alternar bloqueo de punto"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:222
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
 msgid "Ctrl"
 msgstr "Ctrl"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:223
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
 msgid "Move point along with the path"
 msgstr "Mover punto sobre el trazo"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:223
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
 msgid "Shift"
 msgstr "Shift"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:410
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:410
 msgid "Define paths"
 msgstr "Definir trazo"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:421
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:421
 #, fuzzy
 msgid "Transform path"
 msgstr "Transformar trazo"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:434
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:434
 #, fuzzy
 msgid "Set rotation center"
 msgstr "Aplicar al actual"
 
-#: source/creator/viewport/common/mesheditor/tools/pathdeform.d:447
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:447
 #, fuzzy
 msgid "Move points along the path"
 msgstr "Mover punto sobre el trazo"
 
 #. Done button
-#: source/creator/viewport/common/mesheditor/tools/point.d:98
-#: source/creator/windows/editanim.d:124
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:98
+#: source/nijigenerate/windows/editanim.d:124
 msgid "Create"
 msgstr "Crear"
 
-#: source/creator/viewport/common/mesheditor/tools/point.d:98
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:98
 msgid "Ctrl+Left Mouse"
 msgstr "Ctrl+Click izquierdo"
 
-#: source/creator/viewport/common/mesheditor/tools/point.d:435
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:435
 msgid "Vertex Tool"
 msgstr "Herramienta de vértices"
 
-#: source/creator/viewport/common/mesheditor/package.d:279
+#: source/nijigenerate/viewport/common/mesheditor/package.d:279
 #, fuzzy
 msgid "Reset selected"
 msgstr "No hay nodos seleccionados..."
 
-#: source/creator/viewport/common/mesheditor/package.d:282
+#: source/nijigenerate/viewport/common/mesheditor/package.d:282
 #, fuzzy
 msgid "Flip selected from mirror"
 msgstr "Aplicar desde el reflejo"
 
-#: source/creator/viewport/model/package.d:62
+#: source/nijigenerate/viewport/model/package.d:62
 msgid "Focus Selected"
 msgstr "Seleccionar"
 
-#: source/creator/viewport/model/package.d:110
+#: source/nijigenerate/viewport/model/package.d:110
 msgid "No parts found"
 msgstr "No se han encontrado partes"
 
-#: source/creator/viewport/model/package.d:129
+#: source/nijigenerate/viewport/model/package.d:129
 msgid " Copy Mesh"
 msgstr " Copiar Malla"
 
-#: source/creator/viewport/model/package.d:129
+#: source/nijigenerate/viewport/model/package.d:129
 msgid " Edit Mesh"
 msgstr " Editar malla"
 
-#: source/creator/viewport/model/package.d:137
+#: source/nijigenerate/viewport/model/package.d:137
 msgid "Copy Mesh Data"
 msgstr "Copiar datos de malla"
 
-#: source/creator/viewport/model/package.d:171
+#: source/nijigenerate/viewport/model/package.d:171
 msgid "Hide Vertices"
 msgstr "Ocultar vértices"
 
-#: source/creator/viewport/model/package.d:171
+#: source/nijigenerate/viewport/model/package.d:171
 msgid "Show Vertices"
 msgstr "Mostrar vértices"
 
-#: source/creator/viewport/model/package.d:177
+#: source/nijigenerate/viewport/model/package.d:177
 msgid "Hide Bounds"
 msgstr "Ocultar limites"
 
-#: source/creator/viewport/model/package.d:177
+#: source/nijigenerate/viewport/model/package.d:177
 msgid "Show Bounds"
 msgstr "Mostrar limites"
 
-#: source/creator/viewport/model/package.d:183
+#: source/nijigenerate/viewport/model/package.d:183
 msgid "Hide Orientation Gizmo"
 msgstr "Ocultar manipuladores de orientación"
 
-#: source/creator/viewport/model/package.d:183
+#: source/nijigenerate/viewport/model/package.d:183
 msgid "Show Orientation Gizmo"
 msgstr "Mostrar manipuladores de orientación"
 
 #. Set clear color
-#: source/creator/viewport/model/package.d:198
+#: source/nijigenerate/viewport/model/package.d:198
 msgid "COLOR"
 msgstr "COLOR"
 
-#: source/creator/viewport/model/package.d:213
+#: source/nijigenerate/viewport/model/package.d:213
 msgid "Background Color"
 msgstr "Color de fondo"
 
-#: source/creator/viewport/model/package.d:217
+#: source/nijigenerate/viewport/model/package.d:217
 msgid "Gizmos"
 msgstr "Manipuladores"
 
-#: source/creator/viewport/vertex/package.d:51
+#: source/nijigenerate/viewport/vertex/package.d:51
 msgid "Flip Horizontally"
 msgstr "Voltear horizontalmente"
 
-#: source/creator/viewport/vertex/package.d:62
+#: source/nijigenerate/viewport/vertex/package.d:62
 msgid "Flip Vertically"
 msgstr "Voltear verticalmente"
 
-#: source/creator/viewport/vertex/package.d:72
+#: source/nijigenerate/viewport/vertex/package.d:72
 msgid "Mirror Horizontally"
 msgstr "Reflejar horizontalmente"
 
-#: source/creator/viewport/vertex/package.d:80
+#: source/nijigenerate/viewport/vertex/package.d:80
 msgid "Mirror Vertically"
 msgstr "Reflejar verticalmente"
 
-#: source/creator/viewport/vertex/package.d:91
+#: source/nijigenerate/viewport/vertex/package.d:91
 msgid "Triangulate vertices"
 msgstr "Triangular vértices"
 
 #. Button which bakes some auto generated content
 #. In this case, a mesh is baked from the triangulation.
-#: source/creator/viewport/vertex/package.d:98
-#: source/creator/viewport/vertex/package.d:133
+#: source/nijigenerate/viewport/vertex/package.d:98
+#: source/nijigenerate/viewport/vertex/package.d:133
 msgid "Bake"
 msgstr "Quemar"
 
-#: source/creator/viewport/vertex/package.d:105
+#: source/nijigenerate/viewport/vertex/package.d:105
 msgid "Bakes the triangulation, applying it to the mesh."
 msgstr "Quema la triangulación, aplicándola a la malla."
 
-#: source/creator/viewport/vertex/package.d:109
+#: source/nijigenerate/viewport/vertex/package.d:109
 msgid "Triangulation Options"
 msgstr "Opciones de triangulación"
 
-#: source/creator/viewport/vertex/package.d:141
+#: source/nijigenerate/viewport/vertex/package.d:141
 msgid "Bakes the auto mesh."
 msgstr "Quema la malla generada."
 
-#: source/creator/viewport/vertex/package.d:145
+#: source/nijigenerate/viewport/vertex/package.d:145
 msgid "Auto Meshing Options"
 msgstr "Opciones de generación de malla"
 
-#: source/creator/viewport/vertex/package.d:154
+#: source/nijigenerate/viewport/vertex/package.d:154
 msgid " Apply"
 msgstr " Aplicar"
 
-#: source/creator/viewport/vertex/package.d:160
+#: source/nijigenerate/viewport/vertex/package.d:160
 msgid "Are you sure?"
 msgstr "¿Estás seguro?"
 
-#: source/creator/viewport/vertex/package.d:161
+#: source/nijigenerate/viewport/vertex/package.d:161
 msgid ""
 "The layout of the mesh has changed, all deformations to this mesh will be "
 "deleted if you continue."
@@ -1794,25 +1794,25 @@ msgstr ""
 "La distribución de la malla ha cambiado, todas las deformaciones a esta "
 "malla serán borradas si continuas."
 
-#: source/creator/viewport/vertex/package.d:172
-#: source/creator/windows/paramsplit.d:171
+#: source/nijigenerate/viewport/vertex/package.d:172
+#: source/nijigenerate/windows/paramsplit.d:171
 msgid "Apply"
 msgstr "Aplicar"
 
-#: source/creator/viewport/vertex/package.d:176
+#: source/nijigenerate/viewport/vertex/package.d:176
 msgid " Cancel"
 msgstr " Cancelar"
 
 #. Cancels the edited state for the axies points
 #.
-#: source/creator/viewport/vertex/package.d:189
-#: source/creator/widgets/dialog.d:116 source/creator/windows/paramaxes.d:169
-#: source/creator/windows/videoexport.d:264
-#: source/creator/windows/flipconfig.d:488
+#: source/nijigenerate/viewport/vertex/package.d:189
+#: source/nijigenerate/widgets/dialog.d:116 source/nijigenerate/windows/paramaxes.d:169
+#: source/nijigenerate/windows/videoexport.d:264
+#: source/nijigenerate/windows/flipconfig.d:488
 msgid "Cancel"
 msgstr "Cancelar"
 
-#: source/creator/viewport/vertex/package.d:308
+#: source/nijigenerate/viewport/vertex/package.d:308
 msgid ""
 "Cannot apply invalid mesh\n"
 "At least 3 vertices forming a triangle is needed."
@@ -1820,93 +1820,93 @@ msgstr ""
 "No se puede aplicar malla inválida\n"
 "Al menos 3 vértices formando un triángulo son necesarios."
 
-#: source/creator/viewport/package.d:269
+#: source/nijigenerate/viewport/package.d:269
 msgid "No tool selected..."
 msgstr "Ninguna herramienta seleccionada..."
 
-#: source/creator/viewport/package.d:511
+#: source/nijigenerate/viewport/package.d:511
 msgid "Editing armed parameter..."
 msgstr "Editando parametro armado..."
 
-#: source/creator/viewport/package.d:511
+#: source/nijigenerate/viewport/package.d:511
 msgid "Editing base transform..."
 msgstr "Editando transformación base..."
 
-#: source/creator/widgets/dialog.d:124
+#: source/nijigenerate/widgets/dialog.d:124
 msgid "OK"
 msgstr "OK"
 
-#: source/creator/widgets/dialog.d:132
+#: source/nijigenerate/widgets/dialog.d:132
 msgid "Yes"
 msgstr "Sí"
 
-#: source/creator/widgets/dialog.d:140
+#: source/nijigenerate/widgets/dialog.d:140
 msgid "No"
 msgstr "No"
 
-#: source/creator/widgets/toolbar.d:41
+#: source/nijigenerate/widgets/toolbar.d:41
 msgid "Enable physics"
 msgstr "Habilitar físicas"
 
-#: source/creator/widgets/toolbar.d:48
+#: source/nijigenerate/widgets/toolbar.d:48
 msgid "Enable post processing"
 msgstr "Habilitar postratamiento"
 
-#: source/creator/widgets/toolbar.d:53
+#: source/nijigenerate/widgets/toolbar.d:53
 msgid "Reset physics"
 msgstr "Reiniciar físicas"
 
-#: source/creator/widgets/toolbar.d:60
+#: source/nijigenerate/widgets/toolbar.d:60
 msgid "Configure Flip Pairings"
 msgstr "Configurar pares de invertidos"
 
-#: source/creator/widgets/toolbar.d:69
+#: source/nijigenerate/widgets/toolbar.d:69
 msgid "Reset parameters"
 msgstr "Resetear parámetros"
 
-#: source/creator/widgets/toolbar.d:89
+#: source/nijigenerate/widgets/toolbar.d:89
 msgid "Edit Puppet"
 msgstr "Editar marioneta"
 
-#: source/creator/widgets/toolbar.d:94
+#: source/nijigenerate/widgets/toolbar.d:94
 msgid "Edit Animation"
 msgstr "Editar animación"
 
-#: source/creator/widgets/toolbar.d:99
+#: source/nijigenerate/widgets/toolbar.d:99
 msgid "Test Puppet"
 msgstr "Probar marioneta"
 
-#: source/creator/widgets/mainmenu.d:42 source/creator/windows/welcome.d:231
-#: source/creator/windows/welcome.d:236
+#: source/nijigenerate/widgets/mainmenu.d:42 source/nijigenerate/windows/welcome.d:231
+#: source/nijigenerate/windows/welcome.d:236
 msgid "Open..."
 msgstr "Abrir..."
 
-#: source/creator/widgets/mainmenu.d:60
+#: source/nijigenerate/widgets/mainmenu.d:60
 msgid "Save..."
 msgstr "Guardar..."
 
-#: source/creator/widgets/mainmenu.d:72 source/creator/widgets/mainmenu.d:166
+#: source/nijigenerate/widgets/mainmenu.d:72 source/nijigenerate/widgets/mainmenu.d:166
 msgid "Save As..."
 msgstr "Guardar como..."
 
-#: source/creator/widgets/mainmenu.d:126
+#: source/nijigenerate/widgets/mainmenu.d:126
 msgid "File"
 msgstr "Archivo"
 
-#: source/creator/widgets/mainmenu.d:127
+#: source/nijigenerate/widgets/mainmenu.d:127
 msgid "New"
 msgstr "Nuevo"
 
-#: source/creator/widgets/mainmenu.d:131
+#: source/nijigenerate/widgets/mainmenu.d:131
 msgid "Open"
 msgstr "Abrir"
 
-#: source/creator/widgets/mainmenu.d:137
+#: source/nijigenerate/widgets/mainmenu.d:137
 msgid "Recent"
 msgstr "Reciente"
 
-#: source/creator/widgets/mainmenu.d:139 source/creator/windows/settings.d:91
-#: source/creator/windows/settings.d:173
+#: source/nijigenerate/widgets/mainmenu.d:139 source/nijigenerate/windows/settings.d:91
+#: source/nijigenerate/windows/settings.d:173
 msgid "Autosaves"
 msgstr "Autoguardados"
 
@@ -1914,262 +1914,262 @@ msgstr "Autoguardados"
 #. Settings are autosaved, but in case the user
 #. feels more safe with a save button then we have
 #. it here.
-#: source/creator/widgets/mainmenu.d:162 source/creator/windows/editanim.d:124
-#: source/creator/windows/imgexport.d:122
-#: source/creator/windows/paramaxes.d:176
-#: source/creator/windows/paramprop.d:102 source/creator/windows/trkbind.d:129
-#: source/creator/windows/flipconfig.d:495
+#: source/nijigenerate/widgets/mainmenu.d:162 source/nijigenerate/windows/editanim.d:124
+#: source/nijigenerate/windows/imgexport.d:122
+#: source/nijigenerate/windows/paramaxes.d:176
+#: source/nijigenerate/windows/paramprop.d:102 source/nijigenerate/windows/trkbind.d:129
+#: source/nijigenerate/windows/flipconfig.d:495
 msgid "Save"
 msgstr "Guardar"
 
-#: source/creator/widgets/mainmenu.d:170
+#: source/nijigenerate/widgets/mainmenu.d:170
 msgid "Import"
 msgstr "Importar"
 
-#: source/creator/widgets/mainmenu.d:171 source/creator/widgets/mainmenu.d:204
+#: source/nijigenerate/widgets/mainmenu.d:171 source/nijigenerate/widgets/mainmenu.d:204
 msgid "Photoshop Document"
 msgstr "Documento de Photoshop"
 
-#: source/creator/widgets/mainmenu.d:175 source/creator/widgets/mainmenu.d:180
+#: source/nijigenerate/widgets/mainmenu.d:175 source/nijigenerate/widgets/mainmenu.d:180
 msgid "Import a standard Photoshop PSD file."
 msgstr "Importar un archivo PSD estándar de Photoshop."
 
-#: source/creator/widgets/mainmenu.d:176 source/creator/widgets/mainmenu.d:217
+#: source/nijigenerate/widgets/mainmenu.d:176 source/nijigenerate/widgets/mainmenu.d:217
 msgid "Krita Document"
 msgstr "Documento de Krita"
 
-#: source/creator/widgets/mainmenu.d:182 source/creator/widgets/mainmenu.d:265
-msgid "Inochi2D Puppet"
-msgstr "Marioneta Inochi2D"
+#: source/nijigenerate/widgets/mainmenu.d:182 source/nijigenerate/widgets/mainmenu.d:265
+msgid "nijilife Puppet"
+msgstr "Marioneta nijilife"
 
-#: source/creator/widgets/mainmenu.d:192
+#: source/nijigenerate/widgets/mainmenu.d:192
 msgid "Import existing puppet file, editing options limited"
 msgstr "Importar archivo existente de marioneta, opciones de edición limitadas"
 
-#: source/creator/widgets/mainmenu.d:194
+#: source/nijigenerate/widgets/mainmenu.d:194
 msgid "Image Folder"
 msgstr "Carpeta de imagenes"
 
-#: source/creator/widgets/mainmenu.d:195
+#: source/nijigenerate/widgets/mainmenu.d:195
 msgid "Select a Folder..."
 msgstr "Selecciona una carpeta..."
 
-#: source/creator/widgets/mainmenu.d:200
+#: source/nijigenerate/widgets/mainmenu.d:200
 msgid "Supports PNGs, TGAs and JPEGs."
 msgstr "Soporta PNGs, TGAs y JPEGs."
 
-#: source/creator/widgets/mainmenu.d:203 source/creator/windows/psdmerge.d:416
-#: source/creator/windows/kramerge.d:420
+#: source/nijigenerate/widgets/mainmenu.d:203 source/nijigenerate/windows/psdmerge.d:416
+#: source/nijigenerate/windows/kramerge.d:420
 msgid "Merge"
 msgstr "Fusionar"
 
-#: source/creator/widgets/mainmenu.d:215
+#: source/nijigenerate/widgets/mainmenu.d:215
 msgid "Merge layers from Photoshop document"
 msgstr "Fusionar capas de documento Photoshop"
 
-#: source/creator/widgets/mainmenu.d:228
+#: source/nijigenerate/widgets/mainmenu.d:228
 msgid "Merge layers from Krita document"
 msgstr "Fusionar capas de documento Krita"
 
-#: source/creator/widgets/mainmenu.d:230
+#: source/nijigenerate/widgets/mainmenu.d:230
 msgid "Image Files"
 msgstr "Imágenes"
 
-#: source/creator/widgets/mainmenu.d:246
+#: source/nijigenerate/widgets/mainmenu.d:246
 msgid "Merges (adds) selected image files to project"
 msgstr "Mezcla (agrega) las imágenes seleccionadas al proyecto"
 
-#: source/creator/widgets/mainmenu.d:248
-msgid "Inochi Creator Project"
-msgstr "Projecto de Inochi Creator"
+#: source/nijigenerate/widgets/mainmenu.d:248
+msgid "nijigenerate Project"
+msgstr "Projecto de nijigenerate"
 
-#: source/creator/widgets/mainmenu.d:259
-msgid "Merge another Inochi Creator project in to this one"
-msgstr "Fusionar otro projecto de Inochi Creator en este"
+#: source/nijigenerate/widgets/mainmenu.d:259
+msgid "Merge another nijigenerate project in to this one"
+msgstr "Fusionar otro projecto de nijigenerate en este"
 
-#: source/creator/widgets/mainmenu.d:264 source/creator/windows/inpexport.d:364
-#: source/creator/windows/videoexport.d:229
+#: source/nijigenerate/widgets/mainmenu.d:264 source/nijigenerate/windows/inpexport.d:364
+#: source/nijigenerate/windows/videoexport.d:229
 msgid "Export"
 msgstr "Exportar"
 
-#: source/creator/widgets/mainmenu.d:270 source/creator/widgets/mainmenu.d:279
-#: source/creator/widgets/mainmenu.d:288 source/creator/widgets/mainmenu.d:297
-#: source/creator/widgets/mainmenu.d:311
+#: source/nijigenerate/widgets/mainmenu.d:270 source/nijigenerate/widgets/mainmenu.d:279
+#: source/nijigenerate/widgets/mainmenu.d:288 source/nijigenerate/widgets/mainmenu.d:297
+#: source/nijigenerate/widgets/mainmenu.d:311
 msgid "Export..."
 msgstr "Exportar..."
 
-#: source/creator/widgets/mainmenu.d:273
+#: source/nijigenerate/widgets/mainmenu.d:273
 msgid "Image"
 msgstr "Imagen"
 
-#: source/creator/widgets/mainmenu.d:274
+#: source/nijigenerate/widgets/mainmenu.d:274
 msgid "PNG (*.png)"
 msgstr "PNG (*.png)"
 
-#: source/creator/widgets/mainmenu.d:283
+#: source/nijigenerate/widgets/mainmenu.d:283
 msgid "JPEG (*.jpeg)"
 msgstr "JPEG (*.jpeg)"
 
-#: source/creator/widgets/mainmenu.d:292
+#: source/nijigenerate/widgets/mainmenu.d:292
 msgid "TARGA (*.tga)"
 msgstr "TARGA (*.tga)"
 
-#: source/creator/widgets/mainmenu.d:303
+#: source/nijigenerate/widgets/mainmenu.d:303
 msgid "Video"
 msgstr "Video"
 
 #. Close Project option
-#: source/creator/widgets/mainmenu.d:323
+#: source/nijigenerate/widgets/mainmenu.d:323
 msgid "Close Project"
 msgstr "Cerrar projecto"
 
 #. Quit option
-#: source/creator/widgets/mainmenu.d:332
+#: source/nijigenerate/widgets/mainmenu.d:332
 msgid "Quit"
 msgstr "Cerrar"
 
-#: source/creator/widgets/mainmenu.d:336
+#: source/nijigenerate/widgets/mainmenu.d:336
 msgid "Edit"
 msgstr "Editar"
 
-#: source/creator/widgets/mainmenu.d:337
+#: source/nijigenerate/widgets/mainmenu.d:337
 msgid "Undo"
 msgstr "Deshacer"
 
-#: source/creator/widgets/mainmenu.d:338
+#: source/nijigenerate/widgets/mainmenu.d:338
 msgid "Redo"
 msgstr "Rehacer"
 
-#: source/creator/widgets/mainmenu.d:341
+#: source/nijigenerate/widgets/mainmenu.d:341
 msgid "Cut"
 msgstr "Cortar"
 
-#: source/creator/widgets/mainmenu.d:346 source/creator/windows/settings.d:227
+#: source/nijigenerate/widgets/mainmenu.d:346 source/nijigenerate/windows/settings.d:227
 msgid "Settings"
 msgstr "Ajustes"
 
-#: source/creator/widgets/mainmenu.d:354
+#: source/nijigenerate/widgets/mainmenu.d:354
 msgid "ImGui Debugging"
 msgstr "Depuración de ImGui"
 
-#: source/creator/widgets/mainmenu.d:357
+#: source/nijigenerate/widgets/mainmenu.d:357
 msgid "Style Editor"
 msgstr "Editor de estilos"
 
-#: source/creator/widgets/mainmenu.d:358
+#: source/nijigenerate/widgets/mainmenu.d:358
 msgid "ImGui Debugger"
 msgstr "Depurador de ImGui"
 
-#: source/creator/widgets/mainmenu.d:359
+#: source/nijigenerate/widgets/mainmenu.d:359
 msgid "ImGui Metrics"
 msgstr "Métricas de ImGui"
 
-#: source/creator/widgets/mainmenu.d:360
+#: source/nijigenerate/widgets/mainmenu.d:360
 msgid "ImGui Stack Tool"
 msgstr "Visualizador del Stack de ImGui"
 
-#: source/creator/widgets/mainmenu.d:365
+#: source/nijigenerate/widgets/mainmenu.d:365
 msgid "View"
 msgstr "Vista"
 
-#: source/creator/widgets/mainmenu.d:366
+#: source/nijigenerate/widgets/mainmenu.d:366
 msgid "Reset Layout"
 msgstr "Restablecer el diseño"
 
-#: source/creator/widgets/mainmenu.d:375
+#: source/nijigenerate/widgets/mainmenu.d:375
 msgid "Panels"
 msgstr "Paneles"
 
-#: source/creator/widgets/mainmenu.d:393
+#: source/nijigenerate/widgets/mainmenu.d:393
 msgid "Panel is not visible in current edit mode."
 msgstr "Este panel no es visible en el modo de edición actual."
 
-#: source/creator/widgets/mainmenu.d:401
+#: source/nijigenerate/widgets/mainmenu.d:401
 msgid "Configuration"
 msgstr "Configuración"
 
 #. Opens the directory where configuration resides in the user's file browser.
-#: source/creator/widgets/mainmenu.d:404
+#: source/nijigenerate/widgets/mainmenu.d:404
 msgid "Open Configuration Folder"
 msgstr "Abrir la carpeta de configuración"
 
-#: source/creator/widgets/mainmenu.d:413
+#: source/nijigenerate/widgets/mainmenu.d:413
 msgid "Extras"
 msgstr "Extras"
 
-#: source/creator/widgets/mainmenu.d:416
+#: source/nijigenerate/widgets/mainmenu.d:416
 msgid "Save Screenshot"
 msgstr "Guardar captura de pantalla"
 
-#: source/creator/widgets/mainmenu.d:421
+#: source/nijigenerate/widgets/mainmenu.d:421
 msgid "Save Screenshot..."
 msgstr "Guardar captura de pantalla..."
 
-#: source/creator/widgets/mainmenu.d:447
+#: source/nijigenerate/widgets/mainmenu.d:447
 msgid "Saves screenshot as PNG of the editor framebuffer."
 msgstr "Guarda captura de pantalla del framebuffer del editor como PNG."
 
-#: source/creator/widgets/mainmenu.d:449
+#: source/nijigenerate/widgets/mainmenu.d:449
 msgid "Show Stats for Nerds"
 msgstr "Mostrar estadísticas para ñoños"
 
-#: source/creator/widgets/mainmenu.d:458
+#: source/nijigenerate/widgets/mainmenu.d:458
 msgid "Tools"
 msgstr "Herramientas"
 
-#: source/creator/widgets/mainmenu.d:461
+#: source/nijigenerate/widgets/mainmenu.d:461
 msgid "Puppet Data"
 msgstr "Datos de marioneta"
 
 #. Opens the directory where configuration resides in the user's file browser.
-#: source/creator/widgets/mainmenu.d:465
+#: source/nijigenerate/widgets/mainmenu.d:465
 msgid "Import Inochi Session Data"
 msgstr "Importar datos de Inochi Session"
 
-#: source/creator/widgets/mainmenu.d:475
+#: source/nijigenerate/widgets/mainmenu.d:475
 msgid "Successfully overwrote Inochi Session tracking data..."
 msgstr ""
 "Los datos de trackeo de Inochi Session se sobreescribieron con éxito..."
 
-#: source/creator/widgets/mainmenu.d:477
+#: source/nijigenerate/widgets/mainmenu.d:477
 msgid "There was no Inochi Session data to import!"
 msgstr "¡No existen datos de Inochi Session para importar!"
 
-#: source/creator/widgets/mainmenu.d:483
+#: source/nijigenerate/widgets/mainmenu.d:483
 msgid ""
-"Imports tracking data from an exported Inochi2D model which has been set up "
+"Imports tracking data from an exported nijilife model which has been set up "
 "in Inochi Session."
 msgstr ""
-"Importa la data de trackeo desde un modelo Inochi2D que ha sido configurado "
+"Importa la data de trackeo desde un modelo nijilife que ha sido configurado "
 "en Inochi Session."
 
-#: source/creator/widgets/mainmenu.d:486
+#: source/nijigenerate/widgets/mainmenu.d:486
 msgid "Puppet Texturing"
 msgstr "Texturización de marionetas"
 
 #. Premultiply textures, causing every pixel value in every texture to
 #. be multiplied by their Alpha (transparency) component
-#: source/creator/widgets/mainmenu.d:491
+#: source/nijigenerate/widgets/mainmenu.d:491
 msgid "Premultiply textures"
 msgstr "Pre-multiplicar las texturas"
 
-#: source/creator/widgets/mainmenu.d:495
+#: source/nijigenerate/widgets/mainmenu.d:495
 msgid ""
 "Premultiplies textures by their alpha component.\n"
 "\n"
 "Only use this if your textures look garbled after importing files from an "
-"older version of Inochi Creator."
+"older version of nijigenerate."
 msgstr ""
 "Pre-múltipica las texturas por su componente alpha.\n"
 "\n"
 "Solo utiliza esto si tus texturas aparecen desordenadas despues de importar "
-"archivos de una versión anterior de Inochi Creator."
+"archivos de una versión anterior de nijigenerate."
 
-#: source/creator/widgets/mainmenu.d:497
+#: source/nijigenerate/widgets/mainmenu.d:497
 msgid "Bleed textures..."
 msgstr "Fusionar el color de las texturas..."
 
-#: source/creator/widgets/mainmenu.d:500
+#: source/nijigenerate/widgets/mainmenu.d:500
 msgid ""
 "Causes color to bleed out in to fully transparent pixels, this solves "
 "outlines on straight alpha compositing.\n"
@@ -2182,33 +2182,33 @@ msgstr ""
 "Solo utiliza esto si tu motor de juegos no puede utilizar alphas pre-"
 "multipicados."
 
-#: source/creator/widgets/mainmenu.d:502
+#: source/nijigenerate/widgets/mainmenu.d:502
 msgid "Generate Mipmaps..."
 msgstr "Generar mipmaps..."
 
-#: source/creator/widgets/mainmenu.d:505
+#: source/nijigenerate/widgets/mainmenu.d:505
 msgid "Regenerates the puppet's mipmaps."
 msgstr "Regenerar los mipmaps de la marioneta."
 
-#: source/creator/widgets/mainmenu.d:507
+#: source/nijigenerate/widgets/mainmenu.d:507
 msgid "Generate fake layer name info..."
 msgstr "Genera información falsa para capas..."
 
-#: source/creator/widgets/mainmenu.d:517
+#: source/nijigenerate/widgets/mainmenu.d:517
 msgid "Generates fake layer info based on node names"
 msgstr ""
 "Genera información falsa en las capas basandose en el nombre de los nodos"
 
-#: source/creator/widgets/mainmenu.d:523
+#: source/nijigenerate/widgets/mainmenu.d:523
 msgid "Puppet Recovery"
 msgstr "Recuperación de marioneta"
 
 #. FULL REPAIR
-#: source/creator/widgets/mainmenu.d:527
+#: source/nijigenerate/widgets/mainmenu.d:527
 msgid "Attempt full repair..."
 msgstr "Intentar reparación total..."
 
-#: source/creator/widgets/mainmenu.d:530
+#: source/nijigenerate/widgets/mainmenu.d:530
 msgid ""
 "Attempts all the recovery and repair methods below on the currently loaded "
 "model"
@@ -2217,206 +2217,206 @@ msgstr ""
 "modelo cargado actualmente"
 
 #. REGEN NODE IDs
-#: source/creator/widgets/mainmenu.d:533
+#: source/nijigenerate/widgets/mainmenu.d:533
 msgid "Regenerate Node IDs"
 msgstr "Regenerar IDs de nodos"
 
-#: source/creator/widgets/mainmenu.d:537
+#: source/nijigenerate/widgets/mainmenu.d:537
 msgid "Regenerates all the unique IDs for the model"
 msgstr "Regenera todas las IDs únicas para el modelo"
 
-#: source/creator/widgets/mainmenu.d:543
+#: source/nijigenerate/widgets/mainmenu.d:543
 msgid "Verify INP File..."
 msgstr "Verificar archivo INP..."
 
-#: source/creator/widgets/mainmenu.d:546
+#: source/nijigenerate/widgets/mainmenu.d:546
 msgid "Attempts to verify and repair INP files"
 msgstr "Intenta verificar y recuperar archivos INP"
 
-#: source/creator/widgets/mainmenu.d:551
+#: source/nijigenerate/widgets/mainmenu.d:551
 msgid "Help"
 msgstr "Ayuda"
 
-#: source/creator/widgets/mainmenu.d:553
+#: source/nijigenerate/widgets/mainmenu.d:553
 msgid "Online Documentation"
 msgstr "Documentación en línea"
 
-#: source/creator/widgets/mainmenu.d:557
-msgid "Inochi2D Documentation"
-msgstr "Documentación de Inochi2D"
+#: source/nijigenerate/widgets/mainmenu.d:557
+msgid "nijilife Documentation"
+msgstr "Documentación de nijilife"
 
-#: source/creator/widgets/mainmenu.d:565
+#: source/nijigenerate/widgets/mainmenu.d:565
 msgid "Report a Bug"
 msgstr "Reporta un error"
 
-#: source/creator/widgets/mainmenu.d:568
+#: source/nijigenerate/widgets/mainmenu.d:568
 msgid "Request a Feature"
 msgstr "Solicita una funcionalidad"
 
-#: source/creator/widgets/mainmenu.d:576 source/creator/windows/about.d:133
+#: source/nijigenerate/widgets/mainmenu.d:576 source/nijigenerate/windows/about.d:133
 msgid "About"
 msgstr "Acerca de"
 
 #. Donate button
 #. NOTE: Is this too obstructive in the UI?
-#: source/creator/widgets/mainmenu.d:590 source/creator/widgets/mainmenu.d:606
-#: source/creator/windows/about.d:124
+#: source/nijigenerate/widgets/mainmenu.d:590 source/nijigenerate/widgets/mainmenu.d:606
+#: source/nijigenerate/windows/about.d:124
 msgid "Donate"
 msgstr "Donar aquí"
 
-#: source/creator/widgets/mainmenu.d:609
+#: source/nijigenerate/widgets/mainmenu.d:609
 msgid "Support development via Patreon"
 msgstr "Apóya el desarrollo a través de Patreon"
 
-#: source/creator/widgets/modal/nagscreen.d:116
-#: source/creator/windows/videoexport.d:270
+#: source/nijigenerate/widgets/modal/nagscreen.d:116
+#: source/nijigenerate/windows/videoexport.d:270
 msgid "Close"
 msgstr "Cerrar"
 
-#: source/creator/windows/autosave.d:45
-msgid "Inochi Creator closed unexpectedly while editing this file."
+#: source/nijigenerate/windows/autosave.d:45
+msgid "nijigenerate closed unexpectedly while editing this file."
 msgstr ""
-"Inochi Creator se cerró inesperadamente mientras se editaba este archivo."
+"nijigenerate se cerró inesperadamente mientras se editaba este archivo."
 
-#: source/creator/windows/autosave.d:46
+#: source/nijigenerate/windows/autosave.d:46
 msgid "Restore data from a backup?"
 msgstr "¿Restaurar datos desde el último respaldo?"
 
-#: source/creator/windows/autosave.d:55
+#: source/nijigenerate/windows/autosave.d:55
 msgid "Discard"
 msgstr "Descartar"
 
-#: source/creator/windows/autosave.d:61
+#: source/nijigenerate/windows/autosave.d:61
 msgid "Restore"
 msgstr "Restaurar"
 
-#: source/creator/windows/autosave.d:72
+#: source/nijigenerate/windows/autosave.d:72
 msgid "Restore Autosave"
 msgstr "Restaurar Autoguardado"
 
-#: source/creator/windows/editanim.d:36 source/creator/windows/editanim.d:46
+#: source/nijigenerate/windows/editanim.d:36 source/nijigenerate/windows/editanim.d:46
 msgid "Invalid Name"
 msgstr "Nombre Inválido"
 
-#: source/creator/windows/editanim.d:37
+#: source/nijigenerate/windows/editanim.d:37
 msgid "Name can not be empty!"
 msgstr "¡El nombre no puede estar vacío!"
 
-#: source/creator/windows/editanim.d:47
+#: source/nijigenerate/windows/editanim.d:47
 #, c-format
 msgid "%s is already taken! Please chose another animation name."
 msgstr "¡%s ya esta tomado! Por favor elije otro nombre para la animación."
 
-#: source/creator/windows/editanim.d:89
+#: source/nijigenerate/windows/editanim.d:89
 msgid "Options"
 msgstr "Opciones"
 
-#: source/creator/windows/editanim.d:91
+#: source/nijigenerate/windows/editanim.d:91
 msgid "Weight"
 msgstr "Peso"
 
-#: source/creator/windows/editanim.d:93
+#: source/nijigenerate/windows/editanim.d:93
 msgid "Frames"
 msgstr "Frames"
 
-#: source/creator/windows/editanim.d:96
+#: source/nijigenerate/windows/editanim.d:96
 msgid "Lead In"
 msgstr "Entrada"
 
-#: source/creator/windows/editanim.d:97
+#: source/nijigenerate/windows/editanim.d:97
 msgid "Lead Out"
 msgstr "Salida"
 
-#: source/creator/windows/editanim.d:100
-#: source/creator/windows/videoexport.d:195
+#: source/nijigenerate/windows/editanim.d:100
+#: source/nijigenerate/windows/videoexport.d:195
 msgid "Framerate"
 msgstr "Framerate"
 
-#: source/creator/windows/editanim.d:112
+#: source/nijigenerate/windows/editanim.d:112
 msgid "Custom Framerate"
 msgstr "Escoger Framerate"
 
-#: source/creator/windows/editanim.d:119
+#: source/nijigenerate/windows/editanim.d:119
 #, c-format
 msgid "%ss %sms"
 msgstr "%ss %sms"
 
-#: source/creator/windows/editanim.d:139
+#: source/nijigenerate/windows/editanim.d:139
 msgid "120 FPS"
 msgstr "120 FPS"
 
-#: source/creator/windows/editanim.d:140
+#: source/nijigenerate/windows/editanim.d:140
 msgid "60 FPS"
 msgstr "60 FPS"
 
-#: source/creator/windows/editanim.d:141
+#: source/nijigenerate/windows/editanim.d:141
 msgid "30 FPS"
 msgstr "30 FPS"
 
-#: source/creator/windows/editanim.d:142
+#: source/nijigenerate/windows/editanim.d:142
 msgid "25 FPS"
 msgstr "25 FPS"
 
-#: source/creator/windows/editanim.d:143
+#: source/nijigenerate/windows/editanim.d:143
 msgid "Custom Framrate"
 msgstr "Elegir Framerate"
 
-#: source/creator/windows/editanim.d:157
+#: source/nijigenerate/windows/editanim.d:157
 msgid "New Animation..."
 msgstr "Nueva Animación..."
 
-#: source/creator/windows/editanim.d:170
+#: source/nijigenerate/windows/editanim.d:170
 #, c-format
 msgid "Edit %s..."
 msgstr "Editar %s..."
 
-#: source/creator/windows/imgexport.d:93
-#: source/creator/windows/videoexport.d:157
+#: source/nijigenerate/windows/imgexport.d:93
+#: source/nijigenerate/windows/videoexport.d:157
 msgid "Export Settings"
 msgstr "Exporta ajustes"
 
-#: source/creator/windows/imgexport.d:110
-#: source/creator/windows/videoexport.d:174
+#: source/nijigenerate/windows/imgexport.d:110
+#: source/nijigenerate/windows/videoexport.d:174
 msgid "Allow Transparency"
 msgstr "Permitir transparencia"
 
-#: source/creator/windows/imgexport.d:111
-#: source/creator/windows/videoexport.d:175
+#: source/nijigenerate/windows/imgexport.d:111
+#: source/nijigenerate/windows/videoexport.d:175
 msgid "Use Post Processing"
 msgstr "Usar post-procesamiento"
 
-#: source/creator/windows/imgexport.d:137
+#: source/nijigenerate/windows/imgexport.d:137
 msgid "Export Image..."
 msgstr "Exportar imagen..."
 
-#: source/creator/windows/imgexport.d:144
-#: source/creator/windows/videoexport.d:294
+#: source/nijigenerate/windows/imgexport.d:144
+#: source/nijigenerate/windows/videoexport.d:294
 msgid "No cameras to export from in Scene, please add a Camera."
 msgstr ""
 "No hay cámaras desde donde exportar en la Escena , por favor agrega una "
 "Cámara."
 
-#: source/creator/windows/inpexport.d:106
+#: source/nijigenerate/windows/inpexport.d:106
 msgid "Atlassing"
 msgstr "Atlassing"
 
-#: source/creator/windows/inpexport.d:110
+#: source/nijigenerate/windows/inpexport.d:110
 msgid "Decoration"
 msgstr "Decoración"
 
-#: source/creator/windows/inpexport.d:140
+#: source/nijigenerate/windows/inpexport.d:140
 msgid "Atlas Settings"
 msgstr "Ajustes del Atlas"
 
-#: source/creator/windows/inpexport.d:142
+#: source/nijigenerate/windows/inpexport.d:142
 msgid "Resolution"
 msgstr "Resolución"
 
-#: source/creator/windows/inpexport.d:158
+#: source/nijigenerate/windows/inpexport.d:158
 msgid "Non-linear Scaling"
 msgstr "Escalamiento no lineal"
 
-#: source/creator/windows/inpexport.d:159
+#: source/nijigenerate/windows/inpexport.d:159
 msgid ""
 "Whether too large parts should individually be scaled down instead of all "
 "parts being scaled down uniformly."
@@ -2424,49 +2424,49 @@ msgstr ""
 "Define si partes demasiado grandes deben ser escaladas individualmente en "
 "vez de que todas escalen uniformemente."
 
-#: source/creator/windows/inpexport.d:162
+#: source/nijigenerate/windows/inpexport.d:162
 msgid "Texture Scale"
 msgstr "Escala de la textura"
 
-#: source/creator/windows/inpexport.d:168
+#: source/nijigenerate/windows/inpexport.d:168
 msgid "Padding"
 msgstr "Separación"
 
-#: source/creator/windows/inpexport.d:174
+#: source/nijigenerate/windows/inpexport.d:174
 msgid "Optimizations"
 msgstr "Optimizaciones"
 
-#: source/creator/windows/inpexport.d:176
+#: source/nijigenerate/windows/inpexport.d:176
 msgid "Prune unused nodes"
 msgstr "Eliminar nodos no utilizados"
 
-#: source/creator/windows/inpexport.d:177
+#: source/nijigenerate/windows/inpexport.d:177
 msgid "Prune nodes which have been disabled from the export."
 msgstr "Eliminar nodos que han sido desactivados de la exportación."
 
-#: source/creator/windows/inpexport.d:193
+#: source/nijigenerate/windows/inpexport.d:193
 msgid "Watermark"
 msgstr "Marca de agua"
 
 #. Allow saving texture to file
-#: source/creator/windows/inpexport.d:200
+#: source/nijigenerate/windows/inpexport.d:200
 msgid "Load"
 msgstr "Cargar"
 
-#: source/creator/windows/inpexport.d:256
+#: source/nijigenerate/windows/inpexport.d:256
 msgid "Preview"
 msgstr "Vista previa"
 
-#: source/creator/windows/inpexport.d:329
-#: source/creator/windows/videoexport.d:192
+#: source/nijigenerate/windows/inpexport.d:329
+#: source/nijigenerate/windows/videoexport.d:192
 msgid "Loops"
 msgstr "Ciclos"
 
-#: source/creator/windows/inpexport.d:342 source/creator/windows/settings.d:191
+#: source/nijigenerate/windows/inpexport.d:342 source/nijigenerate/windows/settings.d:191
 msgid "No settings for this category."
 msgstr "No hay ajustes para esta categoría."
 
-#: source/creator/windows/inpexport.d:356
+#: source/nijigenerate/windows/inpexport.d:356
 msgid ""
 "A texture was too large to fit the texture atlas, the textures have been "
 "scaled down."
@@ -2474,20 +2474,20 @@ msgstr ""
 "Una textura era muy grande para encajar en el atlas de texturas. Se ha "
 "disminuido el tamaño de las texturas."
 
-#: source/creator/windows/inpexport.d:375
+#: source/nijigenerate/windows/inpexport.d:375
 msgid "Export failed..."
 msgstr "La exportación ha fallado..."
 
-#: source/creator/windows/inpexport.d:384
+#: source/nijigenerate/windows/inpexport.d:384
 msgid "Export Options"
 msgstr "Ajustes de exportación"
 
 #. Points where the user can set parameter values
-#: source/creator/windows/paramaxes.d:156
+#: source/nijigenerate/windows/paramaxes.d:156
 msgid "Breakpoints"
 msgstr "Puntos"
 
-#: source/creator/windows/paramaxes.d:187
+#: source/nijigenerate/windows/paramaxes.d:187
 msgid "One or more axes points are overlapping, this is not allowed."
 msgstr ""
 "Uno o más puntos de eje están en superposición, esto no está permitido."
@@ -2496,50 +2496,50 @@ msgstr ""
 #. This window allows adjusting axies in the
 #. Parameter it's attached to.
 #. Keypoints show up on every intersecting axis line.
-#: source/creator/windows/paramaxes.d:246
+#: source/nijigenerate/windows/paramaxes.d:246
 msgid "Parameter Axes Points"
 msgstr "Puntos de eje del parámetro"
 
-#: source/creator/windows/paramprop.d:43
+#: source/nijigenerate/windows/paramprop.d:43
 msgid "Parameter Name"
 msgstr "Nombre del parámetro"
 
-#: source/creator/windows/paramprop.d:48
+#: source/nijigenerate/windows/paramprop.d:48
 msgid "Parameter Constraints"
 msgstr "Límites del parámetro"
 
-#: source/creator/windows/paramprop.d:105
+#: source/nijigenerate/windows/paramprop.d:105
 msgid "Name is already taken"
 msgstr "El nombre ya ha sido utilizado"
 
 #. Title for the parameter properties window.
-#: source/creator/windows/paramprop.d:138
+#: source/nijigenerate/windows/paramprop.d:138
 msgid "Parameter Properties"
 msgstr "Propiedades del parámetro"
 
-#: source/creator/windows/psdmerge.d:238 source/creator/windows/kramerge.d:242
+#: source/nijigenerate/windows/psdmerge.d:238 source/nijigenerate/windows/kramerge.d:242
 #, c-format
 msgid "%s  %s"
 msgstr "%s  %s"
 
-#: source/creator/windows/psdmerge.d:281 source/creator/windows/kramerge.d:285
+#: source/nijigenerate/windows/psdmerge.d:281 source/nijigenerate/windows/kramerge.d:285
 msgid "Ignore"
 msgstr "Ignorar"
 
-#: source/creator/windows/psdmerge.d:281 source/creator/windows/kramerge.d:285
+#: source/nijigenerate/windows/psdmerge.d:281 source/nijigenerate/windows/kramerge.d:285
 msgid "Use"
 msgstr "Usar"
 
-#: source/creator/windows/psdmerge.d:378 source/creator/windows/kramerge.d:382
+#: source/nijigenerate/windows/psdmerge.d:378 source/nijigenerate/windows/kramerge.d:382
 msgid "Only show unmapped"
 msgstr "Solo mostrar no mapeados"
 
 #. Auto-rename
-#: source/creator/windows/psdmerge.d:398 source/creator/windows/kramerge.d:402
+#: source/nijigenerate/windows/psdmerge.d:398 source/nijigenerate/windows/kramerge.d:402
 msgid "Auto-rename"
 msgstr "Auto-renombrar"
 
-#: source/creator/windows/psdmerge.d:399
+#: source/nijigenerate/windows/psdmerge.d:399
 msgid ""
 "Renames all mapped nodes to match the names of the PSD layer that was merged "
 "in to them."
@@ -2547,202 +2547,202 @@ msgstr ""
 "Renombra todos los nodos mapeados para coincidir con los nombres de las "
 "capas PSD a las que fueron fusionados."
 
-#: source/creator/windows/psdmerge.d:402 source/creator/windows/kramerge.d:406
+#: source/nijigenerate/windows/psdmerge.d:402 source/nijigenerate/windows/kramerge.d:406
 msgid "Re-translate"
 msgstr "Volver a trasladar"
 
-#: source/creator/windows/psdmerge.d:403 source/creator/windows/kramerge.d:407
+#: source/nijigenerate/windows/psdmerge.d:403 source/nijigenerate/windows/kramerge.d:407
 msgid ""
 "Moves all nodes so that they visually match their position in the canvas."
 msgstr ""
 "Mueve todos los nodos para que visualmente coincidan con su posición en el "
 "lienzo."
 
-#: source/creator/windows/psdmerge.d:451
+#: source/nijigenerate/windows/psdmerge.d:451
 msgid "PSD Merging"
 msgstr "Fusionar PSD"
 
-#: source/creator/windows/rename.d:64
+#: source/nijigenerate/windows/rename.d:64
 #, c-format
 msgid "Rename %s..."
 msgstr "Renombrar %s..."
 
-#: source/creator/windows/texviewer.d:47
+#: source/nijigenerate/windows/texviewer.d:47
 msgid "Texture Viewer"
 msgstr "Visor de texturas"
 
-#: source/creator/windows/trkbind.d:61
+#: source/nijigenerate/windows/trkbind.d:61
 msgid "Bind To"
 msgstr "Conectar con"
 
-#: source/creator/windows/trkbind.d:82
+#: source/nijigenerate/windows/trkbind.d:82
 msgid "Bone Input"
 msgstr "Propieadad del hueso"
 
-#: source/creator/windows/trkbind.d:83
+#: source/nijigenerate/windows/trkbind.d:83
 msgid "Position (X)"
 msgstr "Posición (X)"
 
-#: source/creator/windows/trkbind.d:84
+#: source/nijigenerate/windows/trkbind.d:84
 msgid "Position (Y)"
 msgstr "Posición (Y)"
 
-#: source/creator/windows/trkbind.d:85
+#: source/nijigenerate/windows/trkbind.d:85
 msgid "Position (Z)"
 msgstr "Posición (Z)"
 
-#: source/creator/windows/trkbind.d:86
+#: source/nijigenerate/windows/trkbind.d:86
 msgid "Rotation (X)"
 msgstr "Rotación (X)"
 
-#: source/creator/windows/trkbind.d:87
+#: source/nijigenerate/windows/trkbind.d:87
 msgid "Rotation (Y)"
 msgstr "Rotación (Y)"
 
-#: source/creator/windows/trkbind.d:88
+#: source/nijigenerate/windows/trkbind.d:88
 msgid "Rotation (Z)"
 msgstr "Rotación (Z)"
 
-#: source/creator/windows/trkbind.d:94
+#: source/nijigenerate/windows/trkbind.d:94
 msgid "Binding Axis"
 msgstr "Eje de unión"
 
-#: source/creator/windows/trkbind.d:115
+#: source/nijigenerate/windows/trkbind.d:115
 msgid "Refresh Bindable"
 msgstr "Actualizar conectables"
 
 #. Title for the parameter properties window.
-#: source/creator/windows/trkbind.d:144
+#: source/nijigenerate/windows/trkbind.d:144
 msgid "Bind Tracking to Parameter"
 msgstr "Conectar seguimiento a parámetro"
 
-#: source/creator/windows/videoexport.d:179
+#: source/nijigenerate/windows/videoexport.d:179
 msgid "Output"
 msgstr "Salida"
 
-#: source/creator/windows/videoexport.d:180
+#: source/nijigenerate/windows/videoexport.d:180
 msgid "Animation"
 msgstr "Animación"
 
-#: source/creator/windows/videoexport.d:193
+#: source/nijigenerate/windows/videoexport.d:193
 msgid "How many times the animation should loop"
 msgstr "Cuántas veces se debe repetir la animación"
 
-#: source/creator/windows/videoexport.d:198
+#: source/nijigenerate/windows/videoexport.d:198
 msgid "[AUTO]"
 msgstr "[AUTO]"
 
-#: source/creator/windows/videoexport.d:200
+#: source/nijigenerate/windows/videoexport.d:200
 msgid "Framerate of the video file"
 msgstr "Framerate del video"
 
-#: source/creator/windows/videoexport.d:202
+#: source/nijigenerate/windows/videoexport.d:202
 msgid "Lock to Animation Framerate"
 msgstr "Fijar al framerate de animación"
 
-#: source/creator/windows/videoexport.d:204
+#: source/nijigenerate/windows/videoexport.d:204
 msgid "Codec"
 msgstr "Codec"
 
-#: source/creator/windows/videoexport.d:281
+#: source/nijigenerate/windows/videoexport.d:281
 msgid "Export Video..."
 msgstr "Exportar Video..."
 
-#: source/creator/windows/videoexport.d:284
+#: source/nijigenerate/windows/videoexport.d:284
 msgid "FFMPEG was not found, please install FFMPEG to export video."
 msgstr ""
 "No se encontró FFMPEG. Por favor instala FFMPEG para exportar el video."
 
-#: source/creator/windows/videoexport.d:302
+#: source/nijigenerate/windows/videoexport.d:302
 msgid "No animations are defined for this model, please add an animation."
 msgstr ""
 "No se han definido animaciones para este modelo, por favor agrega una "
 "animación."
 
-#: source/creator/windows/paramsplit.d:48
+#: source/nijigenerate/windows/paramsplit.d:48
 msgid " (Split)"
 msgstr " (Dividir)"
 
-#: source/creator/windows/paramsplit.d:182
+#: source/nijigenerate/windows/paramsplit.d:182
 msgid "Split Parameter"
 msgstr "Dividir Parámetro"
 
-#: source/creator/windows/settings.d:79 source/creator/windows/settings.d:110
+#: source/nijigenerate/windows/settings.d:79 source/nijigenerate/windows/settings.d:110
 msgid "Look and Feel"
 msgstr "Visualizacion"
 
-#: source/creator/windows/settings.d:87
+#: source/nijigenerate/windows/settings.d:87
 msgid "Accessbility"
 msgstr "Accesibilidad"
 
-#: source/creator/windows/settings.d:111 source/creator/windows/welcome.d:174
+#: source/nijigenerate/windows/settings.d:111 source/nijigenerate/windows/welcome.d:174
 msgid "Color Theme"
 msgstr "Tema"
 
-#: source/creator/windows/settings.d:111 source/creator/windows/settings.d:112
-#: source/creator/windows/welcome.d:174 source/creator/windows/welcome.d:175
+#: source/nijigenerate/windows/settings.d:111 source/nijigenerate/windows/settings.d:112
+#: source/nijigenerate/windows/welcome.d:174 source/nijigenerate/windows/welcome.d:175
 msgid "Dark"
 msgstr "Oscuro"
 
-#: source/creator/windows/settings.d:111 source/creator/windows/settings.d:113
-#: source/creator/windows/welcome.d:174 source/creator/windows/welcome.d:176
+#: source/nijigenerate/windows/settings.d:111 source/nijigenerate/windows/settings.d:113
+#: source/nijigenerate/windows/welcome.d:174 source/nijigenerate/windows/welcome.d:176
 msgid "Light"
 msgstr "Claro"
 
-#: source/creator/windows/settings.d:119 source/creator/windows/welcome.d:160
+#: source/nijigenerate/windows/settings.d:119 source/nijigenerate/windows/welcome.d:160
 msgid "Language"
 msgstr "Lenguage"
 
-#: source/creator/windows/settings.d:138 source/creator/windows/welcome.d:186
+#: source/nijigenerate/windows/settings.d:138 source/nijigenerate/windows/welcome.d:186
 msgid "UI Scale"
 msgstr "Escala de la interfaz"
 
-#: source/creator/windows/settings.d:148
+#: source/nijigenerate/windows/settings.d:148
 msgid "Max Undo History"
 msgstr "Máximo largo del historial"
 
-#: source/creator/windows/settings.d:154
+#: source/nijigenerate/windows/settings.d:154
 msgid "Linux Tweaks"
 msgstr "Ajustes para Linux"
 
-#: source/creator/windows/settings.d:156
+#: source/nijigenerate/windows/settings.d:156
 msgid "Disable Compositor"
 msgstr "Desactivar el compositor"
 
-#: source/creator/windows/settings.d:163
+#: source/nijigenerate/windows/settings.d:163
 msgid "Accessibility"
 msgstr "Accesibilidad"
 
-#: source/creator/windows/settings.d:165
+#: source/nijigenerate/windows/settings.d:165
 msgid "Use OpenDyslexic Font"
 msgstr "Usar fuente OpenDyslexic"
 
-#: source/creator/windows/settings.d:169
+#: source/nijigenerate/windows/settings.d:169
 msgid "Use the OpenDyslexic font for Latin text characters."
 msgstr "Usar la fuente OpenDyslexic para caracteres Latinos."
 
-#: source/creator/windows/settings.d:175
+#: source/nijigenerate/windows/settings.d:175
 msgid "Enable Autosaves"
 msgstr "Activar Autoguardado"
 
-#: source/creator/windows/settings.d:180
+#: source/nijigenerate/windows/settings.d:180
 msgid "Save Interval (Minutes)"
 msgstr "Intervalo de guardado (Minutos)"
 
-#: source/creator/windows/settings.d:185
+#: source/nijigenerate/windows/settings.d:185
 msgid "Maximum Autosaves"
 msgstr "Cantidad máxima de autoguardados"
 
-#: source/creator/windows/settings.d:204 source/creator/windows/welcome.d:198
-msgid "Inochi Creator needs to be restarted for some changes to take effect."
+#: source/nijigenerate/windows/settings.d:204 source/nijigenerate/windows/welcome.d:198
+msgid "nijigenerate needs to be restarted for some changes to take effect."
 msgstr ""
-"Inochi Creator necesita ser reiniciado para que algunos cambios tomen efecto."
+"nijigenerate necesita ser reiniciado para que algunos cambios tomen efecto."
 
-#: source/creator/windows/settings.d:212
+#: source/nijigenerate/windows/settings.d:212
 msgid "Done"
 msgstr "Hecho"
 
-#: source/creator/windows/kramerge.d:403
+#: source/nijigenerate/windows/kramerge.d:403
 msgid ""
 "Renames all mapped nodes to match the names of the KRA layer that was merged "
 "in to them."
@@ -2750,97 +2750,97 @@ msgstr ""
 "Renombra todos los nodos mapeados para coincidir con los nombres de las "
 "capas KRA a las que fueron fusionados."
 
-#: source/creator/windows/kramerge.d:454
+#: source/nijigenerate/windows/kramerge.d:454
 msgid "KRA Merging"
 msgstr "Fusionar KRA"
 
-#: source/creator/windows/flipconfig.d:317
+#: source/nijigenerate/windows/flipconfig.d:317
 msgid "<< Not assigned >>"
 msgstr "<< No asignado >>"
 
-#: source/creator/windows/flipconfig.d:379
+#: source/nijigenerate/windows/flipconfig.d:379
 msgid "< Add new row >"
 msgstr "< Agregar nueva fila >"
 
-#: source/creator/windows/flipconfig.d:443
+#: source/nijigenerate/windows/flipconfig.d:443
 msgid "Pair"
 msgstr "Par"
 
-#: source/creator/windows/flipconfig.d:451
+#: source/nijigenerate/windows/flipconfig.d:451
 msgid "Part 1"
 msgstr "Parte 1"
 
-#: source/creator/windows/flipconfig.d:452
+#: source/nijigenerate/windows/flipconfig.d:452
 msgid "Part 2"
 msgstr "Parte 2"
 
-#: source/creator/windows/flipconfig.d:528
+#: source/nijigenerate/windows/flipconfig.d:528
 msgid "Flip Pairing"
 msgstr "Invertir par"
 
-#: source/creator/windows/welcome.d:113
+#: source/nijigenerate/windows/welcome.d:113
 msgid "Unsupported"
 msgstr "Sin soporte"
 
-#: source/creator/windows/welcome.d:149
+#: source/nijigenerate/windows/welcome.d:149
 msgid "Quick Setup"
 msgstr "Configuración rápida"
 
-#: source/creator/windows/welcome.d:211
+#: source/nijigenerate/windows/welcome.d:211
 msgid "Next"
 msgstr "Siguiente"
 
-#: source/creator/windows/welcome.d:223
+#: source/nijigenerate/windows/welcome.d:223
 msgid "Create Project"
 msgstr "Crear projecto"
 
-#: source/creator/windows/welcome.d:226
+#: source/nijigenerate/windows/welcome.d:226
 msgid "New..."
 msgstr "Nuevo..."
 
-#: source/creator/windows/welcome.d:253
+#: source/nijigenerate/windows/welcome.d:253
 msgid "Import PSD..."
 msgstr "Importar PSD..."
 
-#: source/creator/windows/welcome.d:259
+#: source/nijigenerate/windows/welcome.d:259
 msgid "Import KRA..."
 msgstr "Importar KRA..."
 
-#: source/creator/windows/welcome.d:271
+#: source/nijigenerate/windows/welcome.d:271
 msgid "Recent Projects"
 msgstr "Projectos recientes"
 
-#: source/creator/windows/welcome.d:299
+#: source/nijigenerate/windows/welcome.d:299
 msgid "On the Web"
 msgstr "En la web"
 
-#: source/creator/windows/welcome.d:304
+#: source/nijigenerate/windows/welcome.d:304
 msgid "Website"
 msgstr "Página web"
 
-#: source/creator/windows/welcome.d:310
+#: source/nijigenerate/windows/welcome.d:310
 msgid "Documentation"
 msgstr "Documentación"
 
-#: source/creator/windows/welcome.d:316
+#: source/nijigenerate/windows/welcome.d:316
 msgid "Join our Discord"
 msgstr "Únete a nuestro Discord"
 
-#: source/creator/windows/welcome.d:325
+#: source/nijigenerate/windows/welcome.d:325
 msgid "Buy a copy"
 msgstr "Comprar una copia"
 
-#: source/creator/windows/welcome.d:330
+#: source/nijigenerate/windows/welcome.d:330
 msgid "Patreon"
 msgstr "Patreon"
 
-#: source/creator/windows/welcome.d:334
+#: source/nijigenerate/windows/welcome.d:334
 msgid "Github Sponsors"
 msgstr "Patrocinadores de Github"
 
-#: source/creator/windows/welcome.d:362
-msgid "Inochi Creator Start"
-msgstr "Inicio de Inochi Creator"
+#: source/nijigenerate/windows/welcome.d:362
+msgid "nijigenerate Start"
+msgstr "Inicio de nijigenerate"
 
 #: source/app.d:95
 msgid "Warning!"
@@ -2848,12 +2848,12 @@ msgstr "¡Alerta!"
 
 #: source/app.d:96
 msgid ""
-"You're running a nightly build of Inochi Creator!\n"
-"Inochi Creator may crash unexpectedly and you will likely encounter bugs.\n"
+"You're running a nightly build of nijigenerate!\n"
+"nijigenerate may crash unexpectedly and you will likely encounter bugs.\n"
 "Make sure to save and back up your work often!"
 msgstr ""
-"¡Estás corriendo una versión nightly de Inochi Creator!\n"
-"Inochi Creator se puede caer inesperadamente y es probable que encuentres "
+"¡Estás corriendo una versión nightly de nijigenerate!\n"
+"nijigenerate se puede caer inesperadamente y es probable que encuentres "
 "bugs.\n"
 "¡Asegúrate de guardar y realizar respaldos de tu trabajo!"
 
@@ -2863,20 +2863,20 @@ msgstr "¡Gracias!"
 
 #: source/app.d:104
 msgid ""
-"Thank you for downloading Inochi Creator!\n"
-"Software is expensive to create and the same goes for Inochi Creator.\n"
+"Thank you for downloading nijigenerate!\n"
+"Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://inochi2d.com)"
+"To remove this nagscreen, [buy a copy today!](https://nijilife.com)"
 msgstr ""
-"¡Gracias por descargar Inochi Creator!\n"
-"Crear software es caro, y esto tambien es cierto para Inochi Creator.\n"
+"¡Gracias por descargar nijigenerate!\n"
+"Crear software es caro, y esto tambien es cierto para nijigenerate.\n"
 "¡Por favor considera poner de tu parte para finaciar su desarrollo!\n"
 "\n"
-"Para evitar este mensaje, [¡compra una copia hoy!](https://inochi2d.com)"
+"Para evitar este mensaje, [¡compra una copia hoy!](https://nijilife.com)"
 
-#~ msgid "Inochi Creator (Nightly)"
-#~ msgstr "Inochi Creator (Nightly)"
+#~ msgid "nijigenerate (Nightly)"
+#~ msgstr "nijigenerate (Nightly)"
 
 #~ msgid "Edge Tool"
 #~ msgstr "Herramienta de aristas"
