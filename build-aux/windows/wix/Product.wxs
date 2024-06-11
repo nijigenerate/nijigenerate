@@ -6,22 +6,22 @@
 		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
 		<MediaTemplate EmbedCab="yes" />
 
-		<Feature Id="InochinijigenerateFeatureGroup" Title="nijigenerate" Description="nijigenerate" Level="1">
+		<Feature Id="nijigenerateFeatureGroup" Title="nijigenerate" Description="nijigenerate" Level="1">
 			
-			<Feature Id="InochinijigenerateFeature" Title="Main Files" Description="The core nijigenerate files" Level="1" AllowAdvertise="no" Absent="disallow">
+			<Feature Id="nijigenerateFeature" Title="Main Files" Description="The core nijigenerate files" Level="1" AllowAdvertise="no" Absent="disallow">
 				<ComponentGroupRef Id="ApplicationFiles" Primary="yes" />
 				<ComponentRef Id='ProgramMenuDir' />
 			</Feature>
 
-			<Feature Id="InochinijigenerateAssocFeature" Title="File Association" Description="Associate .inx files with nijigenerate" Level="1">
+			<Feature Id="nijigenerateAssocFeature" Title="File Association" Description="Associate .inx files with nijigenerate" Level="1">
 				<ComponentRef Id="FileAssoc" />
 			</Feature>
 
-			<Feature Id="InochinijigenerateTranslationFeature" Title="Translations" Description="Translations for nijigenerate" Level="1">
+			<Feature Id="nijigenerateTranslationFeature" Title="Translations" Description="Translations for nijigenerate" Level="1">
 				<ComponentGroupRef Id="Translations" />
 			</Feature>
 
-			<Feature Id="InochinijigenerateDesktopiconFeature" Title="Desktop Icon" Description="Create Desktop Icon" Level="1">
+			<Feature Id="nijigenerateDesktopiconFeature" Title="Desktop Icon" Description="Create Desktop Icon" Level="1">
 				<ComponentRef Id='DesktopIcon' />
 			</Feature>
 			
@@ -68,11 +68,11 @@
 		<!-- nijigenerate main app -->
 		<ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
 
-			<Component Id="Inochinijigenerate" Win64="yes" Guid="1f5acf16-5f1d-491e-9102-2abcf5d631d4">
+			<Component Id="nijigenerate" Win64="yes" Guid="1f5acf16-5f1d-491e-9102-2abcf5d631d4">
 				<File Id="nijigenerateEXE.exe" Name="nijigenerate.exe" Source="..\..\..\out\nijigenerate.exe" KeyPath="yes" />
 				
 				<!-- File Association for INX-->
-				<ProgId Id='Inochinijigenerate.inx' Description='nijigenerate Project File' Icon="nijigenerateEXE.exe">
+				<ProgId Id='nijigenerate.inx' Description='nijigenerate Project File' Icon="nijigenerateEXE.exe">
 					<Extension Id='inx' ContentType='application/inx'>
 						<Verb Id='open' Command='Open' TargetFile='nijigenerateEXE.exe' Argument='"%1"' />
 					</Extension>
@@ -110,7 +110,7 @@
 
 		<Component Id="DesktopIcon" Win64="yes" Guid="5495a276-0643-4197-876c-bdefcae95fd8" Directory="INSTALLFOLDER">
 			<RegistryValue Root="HKCU"
-						   Key="Software\Microsoft\Inochinijigenerate"
+						   Key="Software\Microsoft\nijigenerate"
 						   Name="installed"
 						   Type="integer"
 						   Value="1"

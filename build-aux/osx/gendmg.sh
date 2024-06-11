@@ -23,7 +23,7 @@ if [ -d "out/nijigenerate.app" ]; then
     
     create-dmg \
         --volname "$DMGTITLE" \
-        --volicon "Inochinijigenerate.icns" \
+        --volicon "nijigenerate.icns" \
         --background "../build-aux/osx/dmgbg.png" \
         --window-size 800 600 \
         --icon "nijigenerate.app" 200 250 \
