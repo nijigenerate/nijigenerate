@@ -9,7 +9,7 @@
 
 #define VER_COMPANYNAME_STR         "nijilive Project"
 #define VER_FILEDESCRIPTION_STR     "nijigenerate"
-#define VER_INTERNALNAME_STR        "Inochinijigenerate"
+#define VER_INTERNALNAME_STR        "nijigenerate"
 #define VER_LEGALCOPYRIGHT_STR      "Copyright © 2021 nijilive Project"
 #define VER_LEGALTRADEMARKS1_STR    "BSD 2-clause licensed"
 #define VER_ORIGINALFILENAME_STR    "nijigenerate.exe"
