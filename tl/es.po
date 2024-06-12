@@ -1412,7 +1412,7 @@ msgstr ""
 "===   nijigenerate se ha cerrado inesperadamente  ===\n"
 "Por favor envíanos el archivo nijigenerate-crashdump.txt que se encuentra "
 "en ~/Library/Logs\n"
-"Adjunta el archivo como un issue de git en https://github.com/nijilive/"
+"Adjunta el archivo como un issue de git en https://github.com/nijigenerate/"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:65
@@ -1434,7 +1434,7 @@ msgstr ""
 "Por favor envíanos el archivo nijigenerate-crashdump.txt que se encuentra "
 "en el directorio XDG_STATE_HOME. En el caso de Flatpak, se encuentra en ~/."
 "var/app/nijigenerate.nijigenerate.\n"
-"Adjunta el archivo como un issue de git en https://github.com/nijilive/"
+"Adjunta el archivo como un issue de git en https://github.com/nijigenerate/"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:67
@@ -2472,7 +2472,7 @@ msgid ""
 "scaled down."
 msgstr ""
 "Una textura era muy grande para encajar en el atlas de texturas. Se ha "
-"disminuido el tamaño de las texturas."
+"dismnijiuido el tamaño de las texturas."
 
 #: source/nijigenerate/windows/inpexport.d:375
 msgid "Export failed..."

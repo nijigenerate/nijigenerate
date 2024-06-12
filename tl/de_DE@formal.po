@@ -1415,7 +1415,7 @@ msgstr ""
 "===   nijigenerate ist abgestürzt   ===\n"
 "Bitte senden Sie uns die nijigenerate-crashdump.txt Datei in ~/Library/"
 "Logs\n"
-"Hängen Sie die Datei als Git Issue an https://github.com/nijilive/inochi-"
+"Hängen Sie die Datei als Git Issue an https://github.com/nijigenerate/inochi-"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:65
@@ -1437,7 +1437,7 @@ msgstr ""
 "Bitte senden Sie uns die nijigenerate-crashdump.txt Datei in Ihrem Log "
 "Ordner, XDG_STATE_HOME. Für Flatpak, ist das in ~/.var/app/nijigenerate."
 "nijigenerate.\n"
-"Hängen Sie die Datei als Git Issue an https://github.com/nijilive/inochi-"
+"Hängen Sie die Datei als Git Issue an https://github.com/nijigenerate/inochi-"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:67

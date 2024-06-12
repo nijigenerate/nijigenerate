@@ -1466,7 +1466,7 @@ msgstr ""
 "===   nijigenerate si è chiuso inaspettatamente   ===\n"
 "Per favore, invia agli sviluppatori il file nijigenerate-crashdump.txt che "
 "è stato salvato nella cartella home\n"
-"Allega il file come un problema git @ https://github.com/nijilive/inochi-"
+"Allega il file come un problema git @ https://github.com/nijigenerate/inochi-"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:65
@@ -1488,7 +1488,7 @@ msgstr ""
 "===   nijigenerate si è chiuso inaspettatamente   ===\n"
 "Per favore, invia agli sviluppatori il file nijigenerate-crashdump.txt che "
 "è stato salvato nella cartella home\n"
-"Allega il file come un problema git @ https://github.com/nijilive/inochi-"
+"Allega il file come un problema git @ https://github.com/nijigenerate/inochi-"
 "nijigenerate/issues"
 
 #: source/nijigenerate/utils/crashdump.d:67

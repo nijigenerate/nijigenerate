@@ -39,9 +39,9 @@ modules:
       append-path: /usr/lib/sdk/ldc/bin
     build-commands:
       - chmod +x ./gentl.sh; ./gentl.sh
-      - git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules;
+      - git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules;
         git clone https://github.com/nijigenerate/nijilive.git;
-        git clone https://github.com/nijilive/dcv-i2d;
+        git clone https://github.com/nijigenerate/dcv-i2d;
         dub add-local i2d-imgui/ "0.8.0";
         dub add-local nijilive/ "0.8.0";
         dub add-local dcv-i2d/ "0.3.0";
@@ -66,7 +66,7 @@ modules:
 
     sources:
       - type: git
-        url: https://github.com/nijilive/branding.git
+        url: https://github.com/nijigenerate/branding.git
         commit: a412602d346ba69c63237217ae286112e300927d
 
       - type: dir

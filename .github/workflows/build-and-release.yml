@@ -65,9 +65,9 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijilive/dcv-i2d
+        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
@@ -116,9 +116,9 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijilive/dcv-i2d
+        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
@@ -256,9 +256,9 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijilive/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijilive/dcv-i2d
+        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.8.0"
         dub add-local dcv-i2d/ "0.3.0"
