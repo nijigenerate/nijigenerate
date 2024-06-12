@@ -259,7 +259,7 @@ jobs:
       with:
         name: 'Nightly Build'
         tag_name: nightly
-        files: 'out/Install_Inochi_nijigenerate.dmg'
+        files: 'out/Install_nijigenerate.dmg'
 
   build-flatpak:
     runs-on: ubuntu-latest
