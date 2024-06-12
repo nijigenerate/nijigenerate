@@ -305,7 +305,7 @@ jobs:
         name: release-osx
         path: |
           out/nijigenerate-macOS.zip
-          out/Install_Inochi_nijigenerate.dmg
+          out/Install_nijigenerate.dmg
           version.txt
         retention-days: 1
 
@@ -337,7 +337,7 @@ jobs:
 #        ITCH_GAME: nijigenerate
 #        ITCH_USER: LunaFoxgirlVT
 #        VERSION_FILE: version.txt
-#        PACKAGE: out/Install_Inochi_nijigenerate.dmg
+#        PACKAGE: out/Install_nijigenerate.dmg
 
     - uses: geekyeggo/delete-artifact@v1
       with:
