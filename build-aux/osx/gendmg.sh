@@ -1,5 +1,5 @@
 DMGTITLE="Install nijigenerate"
-DMGFILENAME="Install_Inochi_nijigenerate.dmg"
+DMGFILENAME="Install_nijigenerate.dmg"
 
 if [ -d "out/nijigenerate.app" ]; then
     if [ -f "out/$DMGFILENAME" ]; then
