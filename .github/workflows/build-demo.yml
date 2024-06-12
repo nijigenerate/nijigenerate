@@ -64,12 +64,10 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.8.0"
-        dub add-local dcv-i2d/ "0.3.0"
+        dub add-local nijilive/ "0.0.1"
 
     - name: 'Build nijigenerate'
       run: |
@@ -77,7 +75,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --build=release --config=linux-demo
+        dub build --compiler=ldc2 --build=release --config=linux-full
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -111,13 +109,11 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.8.0"
-        dub add-local dcv-i2d/ "0.3.0"
-
+        dub add-local nijilive/ "0.0.1"
+        
     - name: 'Build nijigenerate'
       run: |
         function Invoke-VSDevEnvironment {
@@ -136,7 +132,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --build=release --config=win32-demo
+        dub build --compiler=ldc2 --build=release --config=win32-full
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -224,13 +220,11 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.8.0"
-        dub add-local dcv-i2d/ "0.3.0"
-
+        dub add-local nijilive/ "0.0.1"
+        
     - name: 'Build nijigenerate'
       env:
         DFLAGS: "-force-dwarf-frame-section=false"
@@ -240,12 +234,12 @@ jobs:
         
         # First build ARM64 version...
         echo "Building arm64 binary..."
-        dub build --build=release --config=osx-demo --arch=arm64-apple-macos
+        dub build --build=release --config=osx-full --arch=arm64-apple-macos
         mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
 
         # Then the X86_64 version...
         echo "Building x86_64 binary..."
-        dub build --build=release --config=osx-demo --arch=x86_64-apple-macos
+        dub build --build=release --config=osx-full --arch=x86_64-apple-macos
         mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64"
 
         # Glue them together with lipo
