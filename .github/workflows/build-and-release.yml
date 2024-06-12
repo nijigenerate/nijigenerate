@@ -65,12 +65,10 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.8.0"
-        dub add-local dcv-i2d/ "0.3.0"
+        dub add-local nijilive/ "0.0.1"
 
     - name: 'Build nijigenerate'
       run: |
@@ -88,15 +86,15 @@ jobs:
         directory: 'out/'
         path: '*'
 
-    - name: 'Publish to Itch'
-      uses: manleydev/butler-publish-itchio-action@master
-      env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-        CHANNEL: linux
-        ITCH_GAME: nijigenerate
-        ITCH_USER: LunaFoxgirlVT
-        VERSION_FILE: version.txt
-        PACKAGE: 'out/nijigenerate-linux-x86_64.zip'
+#    - name: 'Publish to Itch'
+#      uses: manleydev/butler-publish-itchio-action@master
+#      env:
+#        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+#        CHANNEL: linux
+#        ITCH_GAME: nijigenerate
+#        ITCH_USER: LunaFoxgirlVT
+#        VERSION_FILE: version.txt
+#        PACKAGE: 'out/nijigenerate-linux-x86_64.zip'
 
   windows-build:
     runs-on: windows-latest
@@ -116,12 +114,10 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.8.0"
-        dub add-local dcv-i2d/ "0.3.0"
+        dub add-local nijilive/ "0.0.1"
 
     - name: 'Build nijigenerate'
       run: |
@@ -179,35 +175,35 @@ jobs:
           version.txt
         retention-days: 1
 
-  windows-itch:
-    name: Itch Release (Windows)
-    runs-on: ubuntu-latest
-    needs: windows-build
-    steps:
-    - name: Download from artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: release-win32
+#  windows-itch:
+#    name: Itch Release (Windows)
+#    runs-on: ubuntu-latest
+#    needs: windows-build
+#    steps:
+#    - name: Download from artifacts
+#      uses: actions/download-artifact@v3
+#      with:
+#        name: release-win32
 
-    - name: 'Publish to Itch'
-      uses: manleydev/butler-publish-itchio-action@master
-      env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-        CHANNEL: windows
-        ITCH_GAME: nijigenerate
-        ITCH_USER: LunaFoxgirlVT
-        VERSION_FILE: version.txt
-        PACKAGE: 'out/nijigenerate-win32-x86_64.zip'
+#    - name: 'Publish to Itch'
+#      uses: manleydev/butler-publish-itchio-action@master
+#      env:
+#        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+#        CHANNEL: windows
+#        ITCH_GAME: nijigenerate
+#        ITCH_USER: LunaFoxgirlVT
+#        VERSION_FILE: version.txt
+#        PACKAGE: 'out/nijigenerate-win32-x86_64.zip'
 
-    - name: 'Publish to Itch (MSI)'
-      uses: manleydev/butler-publish-itchio-action@master
-      env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-        CHANNEL: windows-msi
-        ITCH_GAME: nijigenerate
-        ITCH_USER: LunaFoxgirlVT
-        VERSION_FILE: version.txt
-        PACKAGE: 'out/nijigenerate-win32-x86_64.msi'
+#    - name: 'Publish to Itch (MSI)'
+#      uses: manleydev/butler-publish-itchio-action@master
+#      env:
+#        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+#        CHANNEL: windows-msi
+#        ITCH_GAME: nijigenerate
+#        ITCH_USER: LunaFoxgirlVT
+#        VERSION_FILE: version.txt
+#        PACKAGE: 'out/nijigenerate-win32-x86_64.msi'
 
     - uses: geekyeggo/delete-artifact@v1
       with:
@@ -256,12 +252,10 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/nijigenerate/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
-        git clone https://github.com/nijigenerate/dcv-i2d
         dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.8.0"
-        dub add-local dcv-i2d/ "0.3.0"
+        dub add-local nijilive/ "0.0.1"
 
     - name: 'Build nijigenerate'
       env:
@@ -315,35 +309,35 @@ jobs:
           version.txt
         retention-days: 1
 
-  macOS-itch:
-    name: Itch Release (macOS)
-    runs-on: ubuntu-latest
-    needs: macOS-build
-    steps:
-    - name: Download from artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: release-osx
-
-    - name: 'Publish to Itch'
-      uses: manleydev/butler-publish-itchio-action@master
-      env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-        CHANNEL: osx
-        ITCH_GAME: nijigenerate
-        ITCH_USER: LunaFoxgirlVT
-        VERSION_FILE: version.txt
-        PACKAGE: out/nijigenerate-macOS.zip
-
-    - name: 'Publish to Itch (DMG)'
-      uses: manleydev/butler-publish-itchio-action@master
-      env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
-        CHANNEL: osx-dmg
-        ITCH_GAME: nijigenerate
-        ITCH_USER: LunaFoxgirlVT
-        VERSION_FILE: version.txt
-        PACKAGE: out/Install_Inochi_nijigenerate.dmg
+#  macOS-itch:
+#    name: Itch Release (macOS)
+#    runs-on: ubuntu-latest
+#    needs: macOS-build
+#    steps:
+#    - name: Download from artifacts
+#      uses: actions/download-artifact@v3
+#      with:
+#        name: release-osx
+#
+#    - name: 'Publish to Itch'
+#      uses: manleydev/butler-publish-itchio-action@master
+#      env:
+#        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+#        CHANNEL: osx
+#        ITCH_GAME: nijigenerate
+#        ITCH_USER: LunaFoxgirlVT
+#        VERSION_FILE: version.txt
+#        PACKAGE: out/nijigenerate-macOS.zip
+#
+#    - name: 'Publish to Itch (DMG)'
+#      uses: manleydev/butler-publish-itchio-action@master
+#      env:
+#        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+#        CHANNEL: osx-dmg
+#        ITCH_GAME: nijigenerate
+#        ITCH_USER: LunaFoxgirlVT
+#        VERSION_FILE: version.txt
+#        PACKAGE: out/Install_Inochi_nijigenerate.dmg
 
     - uses: geekyeggo/delete-artifact@v1
       with:
