@@ -1,5 +1,5 @@
 /*
-    Copyright © 2020-2023, ImGui & nijilive Project
+    Copyright © 2020-2023, ImGui & nijigenerate Project
     Distributed under the MIT, see ImGui LICENSE file.
     
     Authors: Luna Nielsen

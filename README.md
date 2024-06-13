@@ -29,7 +29,7 @@ No official build provided for time being.
 &nbsp;
 
 ## For package maintainers
-We do not officially support packages that we don't officially build ourselves, we ask that you build using the barebones configurations, as the branding assets are copyright the nijilive Project.  
+We do not officially support packages that we don't officially build ourselves, we ask that you build using the barebones configurations, as the branding assets are copyright the nijigenerate Project.  
 You may request permission to use our branding assets in your package by submitting an issue.
 
 Barebones builds are more or less equivalent to official builds with the exception that branding is removed,  
