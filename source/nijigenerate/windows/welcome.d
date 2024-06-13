@@ -102,7 +102,7 @@ protected:
                 //Logo
                 igSetCursorPos(ImVec2(0, 0));
                 version(InBranding) {
-                    igImage(cast(void*)bannerLogo.getTextureId(), ImVec2(bannerLogo.width/4, bannerLogo.height/4));
+                    igImage(cast(void*)bannerLogo.getTextureId(), ImVec2(bannerLogo.width/5, bannerLogo.height/5));
                 } else {
                     igSetCursorPosY(origin.y+12);
                     igSetCursorPosX(origin.x+12);
