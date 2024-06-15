@@ -74,7 +74,7 @@ private {
     Puppet activePuppet = null;
 }
 
-static string FlipConfigPath = "nijigenerate.nijigenerate.FlipConfig";
+static string FlipConfigPath = "com.inochi2d.creator.FlipConfig";
 
 void incLoadFlipConfig(Puppet puppet) {
     if (FlipConfigPath in puppet.extData && puppet.extData[FlipConfigPath].length > 0) {
