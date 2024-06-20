@@ -287,6 +287,7 @@ public:
     this() {
         super("Timeline", _("Timeline"), false);
         this.flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
+        activeModes = EditMode.AnimEdit;
     }
 }
 
