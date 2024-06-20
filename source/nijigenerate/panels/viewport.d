@@ -5,7 +5,9 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.panels.viewport;
+import nijigenerate.viewport.model.onionslice;
 import nijigenerate.viewport;
+import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.widgets.viewport;
 import nijigenerate.core;
@@ -87,7 +89,7 @@ protected:
                 incEndDragInViewport(btn);
             }
         }
-        if (igBeginChild("##ViewportView", ImVec2(0, -32), false, flags)) {
+        if (igBeginChild("##ViewportView", ImVec2(0, -38), false, flags)) {
             igGetContentRegionAvail(&currSize);
             currSize = ImVec2(
                 clamp(currSize.x, 128, float.max), 
@@ -271,7 +273,7 @@ protected:
                 }
                 if (incViewportTargetZoom != 1) {
                     igSameLine(0, 8);
-                    if (igButton("", ImVec2(0, 0))) {
+                    if (incButtonColored("", ImVec2(0, 0))) {
                         incViewportTargetZoom = 1;
                     }
                 }
@@ -283,13 +285,70 @@ protected:
                 incText("x = %.2f y = %.2f".format(incViewportTargetPosition.x, incViewportTargetPosition.y));
                 if (incViewportTargetPosition != vec2(0)) {
                     igSameLine(0, 8);
-                    if (igButton("##2", ImVec2(0, 0))) {
+                    if (incButtonColored("##2", ImVec2(0, 0))) {
                         incViewportTargetPosition = vec2(0, 0);
                     }
                 }
 
 
             igPopItemWidth();
+        }
+        igEndChild();
+
+        igGetContentRegionAvail(&currSize);
+        igSameLine();
+        igDummy(ImVec2(currSize.x-currSize.x-(32*7), 0));
+        igSameLine();
+
+        if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
+            if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                if (incActivePuppet() !is null)
+                    incActivePuppet().enableDrivers = !incActivePuppet().enableDrivers;
+            }
+            incTooltip(_("Enable physics"));
+
+            igSameLine(0, 0);
+
+            if (incButtonColored("", ImVec2(32, 0), incShouldPostProcess ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                if (incActivePuppet() !is null)
+                    incShouldPostProcess = !incShouldPostProcess;
+            }
+            incTooltip(_("Enable post processing"));
+
+            igSameLine();
+
+            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
+                if (incActivePuppet() !is null)
+                    incActivePuppet().resetDrivers();
+            }
+            incTooltip(_("Reset physics"));
+
+            igSameLine(0, 0);
+
+            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
+                if (incActivePuppet() !is null)
+                    incPushWindow(new FlipPairWindow());
+            }
+            incTooltip(_("Configure Flip Pairings"));
+            
+            igSameLine();
+
+            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
+                if (incActivePuppet()) {
+                    foreach(ref parameter; incActivePuppet().parameters) {
+                        parameter.value = parameter.defaults;
+                    }
+                }
+            }
+            incTooltip(_("Reset parameters"));
+            
+            igSameLine(0, 0);
+
+            auto onion = OnionSlice.singleton;
+            if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
+                onion.toggle();
+            }
+            incTooltip(_("Onion slice"));
         }
         igEndChild();
 

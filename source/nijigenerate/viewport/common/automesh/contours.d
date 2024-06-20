@@ -332,18 +332,18 @@ public:
                                         if (i == SCALES.length - 1) {
                                             incDummy(ImVec2(-52, 32));
                                             igSameLine(0, 0);
-                                            if (igButton("", ImVec2(24, 24))) {
+                                            if (incButtonColored("", ImVec2(24, 24))) {
                                                 deleteIndex = cast(int)i;
                                             }
                                             igSameLine(0, 0);
-                                            if (igButton("", ImVec2(24, 24))) {
+                                            if (incButtonColored("", ImVec2(24, 24))) {
                                                 SCALES ~= 1.0;
                                             }
 
                                         } else {
                                             incDummy(ImVec2(-28, 32));
                                             igSameLine(0, 0);
-                                            if (igButton("", ImVec2(24, 24))) {
+                                            if (incButtonColored("", ImVec2(24, 24))) {
                                                 deleteIndex = cast(int)i;
                                             }
                                         }
@@ -352,7 +352,7 @@ public:
                             } else {
                                 incDummy(ImVec2(-28, 24));
                                 igSameLine(0, 0);
-                                if (igButton("", ImVec2(24, 24))) {
+                                if (incButtonColored("", ImVec2(24, 24))) {
                                     SCALES ~= 1.0;
                                 }
                             }

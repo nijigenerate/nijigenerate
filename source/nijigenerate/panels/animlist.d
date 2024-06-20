@@ -61,7 +61,7 @@ protected:
             incDummy(ImVec2(-26, 0));
             igSameLine(0, 0);
 
-            if (igButton("", ImVec2(24, 24))) {
+            if (incButtonColored("", ImVec2(24, 24))) {
                 incPushWindow(new EditAnimationWindow());
             }
         }

@@ -10,6 +10,7 @@ import nijigenerate.widgets.label;
 import nijigenerate.widgets.markdown;
 import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.modal;
+import nijigenerate.widgets.button;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
 import std.string;
@@ -117,7 +118,7 @@ protected:
                     }
 
                     igBeginDisabled(timeLeft > 0);
-                        if (igButton(btnText, ImVec2(64, 24))) {
+                        if (incButtonColored(btnText, ImVec2(64, 24))) {
                             incModalCloseTop();
                         }
                     igEndDisabled();

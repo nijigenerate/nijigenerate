@@ -119,7 +119,7 @@ protected:
             incDummy(ImVec2(-64, 0));
             igSameLine(0, 0);
 
-            if (igButton(__("Save"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Save"), ImVec2(64, 24))) {
                 this.export_();
                 this.close();
             }

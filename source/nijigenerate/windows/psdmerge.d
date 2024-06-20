@@ -413,7 +413,7 @@ protected:
 
             // 
             igSameLine(0, 0);
-            if (igButton(__("Merge"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Merge"), ImVec2(64, 24))) {
                 appliedTextures = true;
                 apply();
                 this.close();

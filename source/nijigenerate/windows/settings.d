@@ -209,7 +209,7 @@ protected:
             incDummy(ImVec2(-64, 0));
             igSameLine(0, 0);
 
-            if (igButton(__("Done"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Done"), ImVec2(64, 24))) {
                 this.close();
             }
         }
