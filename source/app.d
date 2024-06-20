@@ -101,7 +101,7 @@ int main(string[] args)
         version(InDemo) incModalAdd(
             new Nagscreen(
                 _("Thank you!"), 
-                _("Thank you for downloading nijigenerate!\nSoftware is expensive to create and the same goes for nijigenerate.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://nijilive.com)"),
+                _("Thank you for downloading nijigenerate!\nSoftware is expensive to create and the same goes for nijigenerate.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://github.com/nijigenerate)"),
                 10
             )
         );

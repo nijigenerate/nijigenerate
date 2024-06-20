@@ -82,7 +82,7 @@ protected:
                 incText("nijigenerate");
                 incText(INC_VERSION);
                 igSeparator();
-                igTextColored(ImVec4(0.5, 0.5, 0.5, 1), "I2D v. %s", (IN_VERSION~"\0").ptr);
+                igTextColored(ImVec4(0.5, 0.5, 0.5, 1), "nijilive v. %s", (IN_VERSION~"\0").ptr);
                 igTextColored(ImVec4(0.5, 0.5, 0.5, 1), "imgui v. %s", igGetVersion());
             }
             igEndChild();

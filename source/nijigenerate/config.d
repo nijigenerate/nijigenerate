@@ -41,7 +41,7 @@ enum INC_FEATURE_REQ_URI = "https://github.com/nijigenerate/nijigenerate/issues/
 /**
     URI to website for the project, change this if you fork the project.
 */
-enum INC_INFO_WEBSITE_URI = "https://nijilive.com/";
+enum INC_INFO_WEBSITE_URI = "https://github.com/nijigenerate/";
 
 /**
     URI to buy a copy, unused for non-official builds
@@ -54,7 +54,7 @@ enum INC_INFO_BUY_URL = "https://lunafoxgirlvt.itch.io/nijigenerate";
     If you modify the software by adding new features it's highly recommended that you change this link to
     documentation which fits with the new featureset.
 */
-enum INC_INFO_DOCS_URI = "https://docs.nijilive.com/";
+enum INC_INFO_DOCS_URI = "https://docs.github.com/nijigenerate/";
 
 /**
     URI to the discord server where support is provided.
