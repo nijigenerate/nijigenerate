@@ -52,8 +52,6 @@ void incBeginViewportToolArea(string id_str, ImGuiDir hdir, ImGuiDir vdir = ImGu
         )
     );
 
-    igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
-
     enum FLAGS = ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     igBeginChild("CONTENT_CHILD", ImVec2(data.contentSize.x, data.contentSize.y), false, FLAGS);
 }
@@ -63,9 +61,6 @@ void incEndViewportToolArea() {
     
     // End the child
     igEndChild();
-
-    // Pop style vars
-    igPopStyleVar();
 
     // NOTE: now that we're outside the child we can actually set the ViewportToolAreaData.
     // Since we set the state storage outside of the child in the beginning
