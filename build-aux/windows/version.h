@@ -15,6 +15,6 @@
 #define VER_ORIGINALFILENAME_STR    "nijigenerate.exe"
 #define VER_PRODUCTNAME_STR         "nijigenerate"
 
-#define VER_COMPANYDOMAIN_STR       "nijilive.com"
+#define VER_COMPANYDOMAIN_STR       "github.com/nijigenerate"
 
 #endif // VERSION_H
