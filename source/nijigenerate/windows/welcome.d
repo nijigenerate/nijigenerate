@@ -7,6 +7,7 @@
 module nijigenerate.windows.welcome;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.dummy;
+import nijigenerate.widgets.button;
 import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
@@ -208,7 +209,7 @@ protected:
                     // Move button to the right
                     incDummy(ImVec2(-64, 24));
                     igSameLine(0, 0);
-                    if (igButton(__("Next"), ImVec2(64, 24))) {
+                    if (incButtonColored(__("Next"), ImVec2(64, 24))) {
                         incSettingsSet!bool("hasDoneQuickSetup", true);
                         step++;
                     }

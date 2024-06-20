@@ -112,7 +112,7 @@ protected:
             igEndChild();
 
             if (igBeginChild("###SettingsBtns", ImVec2(0, 0))) {
-                if (igButton(__("Refresh Bindable"), ImVec2(0, 24))) {
+                if (incButtonColored(__("Refresh Bindable"), ImVec2(0, 24))) {
                     this.currBindable = incViewportTestGetCurrBindable();
                 }
 
@@ -126,7 +126,7 @@ protected:
                     // Settings are autosaved, but in case the user
                     // feels more safe with a save button then we have
                     // it here.
-                    if (igButton(__("Save"), ImVec2(64, 24))) {
+                    if (incButtonColored(__("Save"), ImVec2(64, 24))) {
                         incTestAddTrackingBinding(binding);
                         this.close();
                     }

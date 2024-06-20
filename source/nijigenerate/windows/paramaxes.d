@@ -79,18 +79,18 @@ protected:
                                 if (i == endPoint.vector[axis]) {
                                     incDummy(ImVec2(-52, 32));
                                     igSameLine(0, 0);
-                                    if (igButton("", ImVec2(24, 24))) {
+                                    if (incButtonColored("", ImVec2(24, 24))) {
                                         deleteIndex = cast(int)i;
                                     }
                                     igSameLine(0, 0);
-                                    if (igButton("", ImVec2(24, 24))) {
+                                    if (incButtonColored("", ImVec2(24, 24))) {
                                         createPoint(axis);
                                     }
 
                                 } else {
                                     incDummy(ImVec2(-28, 32));
                                     igSameLine(0, 0);
-                                    if (igButton("", ImVec2(24, 24))) {
+                                    if (incButtonColored("", ImVec2(24, 24))) {
                                         deleteIndex = cast(int)i;
                                     }
                                 }
@@ -99,7 +99,7 @@ protected:
                     } else {
                         incDummy(ImVec2(-28, 24));
                         igSameLine(0, 0);
-                        if (igButton("", ImVec2(24, 24))) {
+                        if (incButtonColored("", ImVec2(24, 24))) {
                             createPoint(axis);
                         }
                     }
@@ -166,14 +166,14 @@ protected:
                     igSameLine(0, 0);
 
                     // Cancels the edited state for the axies points
-                    if (igButton(__("Cancel"), ImVec2(64, 24))) {
+                    if (incButtonColored(__("Cancel"), ImVec2(64, 24))) {
                         this.close();
                     }
 
                     igSameLine(0, 4);
 
                     // Actually saves the edited state for the axies points
-                    if (igButton(__("Save"), ImVec2(64, 24))) {
+                    if (incButtonColored(__("Save"), ImVec2(64, 24))) {
                         bool success = true;
                         
                         // Make sure there isn't any invalid state

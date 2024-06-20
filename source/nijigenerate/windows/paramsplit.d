@@ -9,6 +9,7 @@ import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.label;
+import nijigenerate.widgets.button;
 import nijigenerate;
 import std.string;
 import nijigenerate.utils.link;
@@ -168,7 +169,7 @@ protected:
         igBeginGroup();
             incDummy(ImVec2(-64, 24));
             igSameLine(0, 0);
-            if (igButton(__("Apply"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Apply"), ImVec2(64, 24))) {
                 this.apply();
             }
         igEndGroup();

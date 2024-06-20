@@ -130,7 +130,7 @@ void incViewportModelConfirmBar() {
             auto io = igGetIO();
             const(char)* text = incHasDragDrop("_PUPPETNTREE") ? (io.KeyCtrl ? __(" Merge Mesh"): __(" Copy Mesh")) : __(" Edit Mesh");
             
-            if (igButton(text, ImVec2(0, 26))) {
+            if (incButtonColored(text, ImVec2(0, 26))) {
                 incVertexEditStartEditing(node);
             }
 
@@ -170,24 +170,24 @@ void incViewportModelConfirmBar() {
 }
 
 void incViewportModelOptions() {
-    igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
-    igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
+//    igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
+//    igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         if (!incArmedParameter()) {
             if(incBeginDropdownMenu("GIZMOS", "")) {
 
-                if (incButtonColored("", ImVec2(0, 0), incShowVertices ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("", ImVec2(0, 0), incShowVertices ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowVertices = !incShowVertices;
                 }
                 incTooltip(incShowVertices ? _("Hide Vertices") : _("Show Vertices"));
                     
                 igSameLine(0, 4);
-                if (incButtonColored("", ImVec2(0, 0), incShowBounds ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("", ImVec2(0, 0), incShowBounds ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowBounds = !incShowBounds;
                 }
                 incTooltip(incShowBounds ? _("Hide Bounds") : _("Show Bounds"));
 
                 igSameLine(0, 4);
-                if (incButtonColored("", ImVec2(0, 0), incShowOrientation ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("", ImVec2(0, 0), incShowOrientation ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowOrientation = !incShowOrientation;
                 }
                 incTooltip(incShowOrientation ? _("Hide Orientation Gizmo") : _("Show Orientation Gizmo"));
@@ -216,7 +216,7 @@ void incViewportModelOptions() {
                     inSetClearColor(clearColor.r, clearColor.g, clearColor.b, a);
                     incDummy(ImVec2(0, 4));
 
-                    if (igButton(__("Reset"), ImVec2(space.x, 0))) incResetClearColor();
+                    if (incButtonColored(__("Reset"), ImVec2(space.x, 0))) incResetClearColor();
                     
                     incEndDropdownMenu();
                 }
@@ -228,7 +228,7 @@ void incViewportModelOptions() {
         } else {
             incViewportModelDeformOptions();
         }
-    igPopStyleVar(2);
+//    igPopStyleVar(2);
 }
 
 void incViewportModelNodeSelectionChanged() {

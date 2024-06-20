@@ -346,7 +346,7 @@ private:
             igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
             igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
                 igSetWindowFontScale(0.55);
-                    if (igButton("", ImVec2(16, 16))) {
+                    if (incButtonColored("", ImVec2(16, 16))) {
                         deleted = cast(int)i;
                     }
                 igSetWindowFontScale(1);
@@ -374,7 +374,22 @@ protected:
 
     override
     void onBeginUpdate() {
-        igSetNextWindowSizeConstraints(ImVec2(480, 480), ImVec2(float.max, float.max));
+        flags |= ImGuiWindowFlags.NoSavedSettings;
+        incIsSettingsOpen = true;
+        
+        ImVec2 wpos = ImVec2(
+            igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
+            igGetMainViewport().Pos.y+(igGetMainViewport().Size.y/2),
+        );
+
+        ImVec2 uiSize = ImVec2(
+            800, 
+            600
+        );
+
+        igSetNextWindowPos(wpos, ImGuiCond.Appearing, ImVec2(0.5, 0.5));
+        igSetNextWindowSize(uiSize, ImGuiCond.Appearing);
+        igSetNextWindowSizeConstraints(uiSize, ImVec2(float.max, float.max));
         super.onBeginUpdate();
     }
 
@@ -431,7 +446,7 @@ protected:
             if (igBeginChild("###Pairs", ImVec2(childWidth, childHeight))) {
                 incInputText("##part1", (childWidth - 50) / 2, part1Pattern);
                 igSameLine(0, 0);
-                if (igButton(__("Pair"), ImVec2(48, 0))) {
+                if (incButtonColored(__("Pair"), ImVec2(48, 0))) {
                     autoPair(part1Pattern, part2Pattern);
                 }
                 igSameLine(0, 0);
@@ -476,14 +491,14 @@ protected:
             incDummy(ImVec2(-192, 0));
             igSameLine(0, 0);
             // 
-            if (igButton(__("Cancel"), ImVec2(96, 24))) {
+            if (incButtonColored(__("Cancel"), ImVec2(96, 24))) {
                 this.close();
                 
                 igEndGroup();
                 return;
             }
             igSameLine(0, 0);
-            if (igButton(__("Save"), ImVec2(96, 24))) {
+            if (incButtonColored(__("Save"), ImVec2(96, 24))) {
                 apply();
                 this.close();
                 
@@ -517,6 +532,7 @@ public:
         }
 
         super(_("Flip Pairing"));
+        flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     }
 }
 

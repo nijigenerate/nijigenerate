@@ -25,6 +25,7 @@ public import nijigenerate.widgets.texture;
 public import nijigenerate.widgets.category;
 public import nijigenerate.widgets.dragdrop;
 public import nijigenerate.widgets.timeline;
+public import nijigenerate.widgets.notification;
 public import nijigenerate.widgets.modal;
 
 bool incBegin(const(char)* name, bool* pOpen, ImGuiWindowFlags flags) {

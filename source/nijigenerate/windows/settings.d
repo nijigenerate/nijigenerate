@@ -59,8 +59,8 @@ protected:
         );
 
         ImVec2 uiSize = ImVec2(
-            512, 
-            256+128
+            640, 
+            480
         );
 
         igSetNextWindowPos(wpos, ImGuiCond.Appearing, ImVec2(0.5, 0.5));
@@ -209,7 +209,7 @@ protected:
             incDummy(ImVec2(-64, 0));
             igSameLine(0, 0);
 
-            if (igButton(__("Done"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Done"), ImVec2(64, 24))) {
                 this.close();
             }
         }

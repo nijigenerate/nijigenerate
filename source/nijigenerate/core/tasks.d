@@ -1,4 +1,5 @@
 module nijigenerate.core.tasks;
+import nijigenerate.widgets.notification;
 import core.thread.fiber;
 import bindbc.imgui;
 
@@ -8,9 +9,7 @@ __gshared:
     string status_ = "No pending tasks...";
     float progress_ = -1;
 
-    string status;
-    float statusTime = 0;
-    enum STATUS_TIME_SET = 5.0;
+    enum STATUS_TIME_SET = 15.0;
 }
 
 public:
@@ -108,26 +107,19 @@ void incHoverStatus(string status_) {
     Sets status in status area
 */
 void incSetStatus(string status_) {
-    status = status_;
-    statusTime = STATUS_TIME_SET;
+    NotificationPopup.instance().popup(status_, STATUS_TIME_SET);
 }
 
 /**
     Gets status in status area
 */
 string incGetStatus() {
-    return status;
+    return NotificationPopup.instance().status;
 }
 
 /**
     Updates the status system
 */
 void incStatusUpdate() {
-    if (statusTime > 0) {
-        statusTime -= igGetIO().DeltaTime;
-
-        if (statusTime <= 0) {
-            status = null;
-        }
-    }
+    NotificationPopup.instance().onUpdate();
 }

@@ -466,7 +466,7 @@ protected:
         
         if (incEditMode() == EditMode.ModelEdit) {
             auto selected = incSelectedNodes();
-            if (igButton("", ImVec2(24, 24))) {
+            if (incButtonColored("", ImVec2(24, 24))) {
                 foreach(payloadNode; selected) incDeleteChildWithHistory(payloadNode);
             }
 

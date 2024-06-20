@@ -94,19 +94,19 @@ protected:
             execFilter(history[$-1]);
             forceUpdatePreview = false;
         }
-        if (igBeginChild("ShellMain", ImVec2(0, -30), false)) {
+        if (igBeginChild("ShellMain", ImVec2(0, -34), false)) {
             history[historyIndex].output.onUpdate();
         }
         igEndChild();
         auto spacing = igGetStyle().ItemSpacing;
         igGetStyle().ItemSpacing = ImVec2(0, 0);
-        igButton("\ue145");
+        incButtonColored("\ue145");
         igSameLine();
-        igButton("\ue872");
+        incButtonColored("\ue872");
         igSameLine();
-        igButton("\ue14d");
+        incButtonColored("\ue14d");
         igSameLine();
-        igButton("\ue14f");
+        incButtonColored("\ue14f");
         igGetStyle().ItemSpacing = spacing;
         views.onUpdate();
     }

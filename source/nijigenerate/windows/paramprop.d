@@ -99,7 +99,7 @@ protected:
                 // Settings are autosaved, but in case the user
                 // feels more safe with a save button then we have
                 // it here.
-                if (igButton(__("Save"), ImVec2(64, 24))) {
+                if (incButtonColored(__("Save"), ImVec2(64, 24))) {
                     
                     if (!isValidName) {
                         incDialog(__("Error"), _("Name is already taken"));
