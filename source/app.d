@@ -139,13 +139,13 @@ void incUpdate() {
     // Begin IMGUI loop
     incBeginLoop();
         if (incShouldProcess()) {
-            incStatusbar();
 
             incHandleShortcuts();
             incMainMenu();
 
             incUpdatePanels();
             incUpdateWindows();
+            incStatusUpdate();
         }
     incEndLoop();
 }
@@ -162,13 +162,13 @@ void incUpdateNoEv() {
     // Begin IMGUI loop
     incBeginLoopNoEv();
         if (incShouldProcess()) {
-            incStatusbar();
 
             incHandleShortcuts();
             incMainMenu();
 
             incUpdatePanels();
             incUpdateWindows();
+            incStatusUpdate();
         }
     incEndLoop();
 }

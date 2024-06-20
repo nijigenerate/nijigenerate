@@ -532,9 +532,9 @@ void incInitStyling() {
     style.Colors[ImGuiCol.Text] = black;
 
     // 背景色の設定
-    style.Colors[ImGuiCol.WindowBg] = white;
-    style.Colors[ImGuiCol.PopupBg] = white;
-    style.Colors[ImGuiCol.MenuBarBg] = white; // メニューバーの背景を白に設定
+    style.Colors[ImGuiCol.WindowBg] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    style.Colors[ImGuiCol.PopupBg] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    style.Colors[ImGuiCol.MenuBarBg] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
 
     // ウィンドウのタイトルバーの背景色を変更
     style.Colors[ImGuiCol.TitleBg] = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
@@ -720,7 +720,6 @@ void incBeginLoopNoEv() {
         incModalRender();
         incRenderDialogs();
     }
-    incStatusUpdate();
 }
 
 void incSetDefaultLayout() {

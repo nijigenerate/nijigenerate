@@ -68,7 +68,7 @@ enum IncCategoryFlags {
 */
 bool incBeginCategory(const(char)* title, IncCategoryFlags flags = IncCategoryFlags.None, void function(float w, float h) callback = null) {
     ImVec4 col = igGetStyle().Colors[ImGuiCol.WindowBg];
-    col = ImVec4(col.x-0.025, col.y-0.025, col.z-0.025, col.w);
+//    col = ImVec4(col.x-0.025, col.y-0.025, col.z-0.025, col.w);
     return incBeginCategory(title, col, flags, callback);
 }
 
@@ -80,7 +80,7 @@ bool incBeginCategory(const(char)* title, IncCategoryFlags flags = IncCategoryFl
 bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags = IncCategoryFlags.None, void function(float w, float h) callback = null) {
     import inmath : clamp;
 
-    // We do not support transparency
+    // We do not support transparency 
     color.w = 1;
     color.x = clamp(color.x, 0.15, 1);
     color.y = clamp(color.y, 0.15, 1);
@@ -131,7 +131,7 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
         igGetWindowDrawList(),
         ImVec2(cursor.x, cursor.y),
         ImVec2(cursor.x+data.contentBounds.z, cursor.y+data.contentBounds.w+1),
-        igGetColorU32(bgColor)
+        igGetColorU32(bgColor), 6.0
     );
     
     // Draw "shadow" underneath
@@ -139,7 +139,7 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
         igGetWindowDrawList(),
         ImVec2(cursor.x, cursor.y+data.contentBounds.w-1),
         ImVec2(cursor.x+data.contentBounds.z, cursor.y+data.contentBounds.w+1),
-        igGetColorU32(shadowColor)
+        igGetColorU32(shadowColor), 6.0
     );
 
     // Our fancy tree node which will be used to open/close the category.
@@ -152,6 +152,24 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
 
     if (callback !is null)
         callback(data.contentBounds.z, data.contentBounds.w);
+
+    if (data.open) {
+        ImVec2 newCursor;
+        igGetCursorScreenPos(&newCursor);
+
+        float diffY = newCursor.y-cursor.y;
+
+        // Draw lighter fill color for contents when open
+        ImDrawList_AddRectFilled(
+            igGetWindowDrawList(),
+            ImVec2(cursor.x+1, cursor.y+1),
+            ImVec2(cursor.x+data.contentBounds.z-1, newCursor.y+data.contentBounds.w-diffY),
+            igGetColorU32(color), 6.0
+        );
+    }
+
+    window.ContentRegionRect.Min.x += paddingX;
+    window.WorkRect.Min.x += paddingX;
 
     if ((data.flags & IncCategoryFlags.NoCollapse) == IncCategoryFlags.NoCollapse) {
         data.open = true;
@@ -166,24 +184,6 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
         );
     }
 
-    window.ContentRegionRect.Min.x += paddingX;
-    window.WorkRect.Min.x += paddingX;
-
-    if (data.open) {
-        ImVec2 newCursor;
-        igGetCursorScreenPos(&newCursor);
-
-        float diffY = newCursor.y-cursor.y;
-
-        // Draw lighter fill color for contents when open
-        ImDrawList_AddRectFilled(
-            igGetWindowDrawList(),
-            ImVec2(newCursor.x+2, newCursor.y),
-            ImVec2(newCursor.x+data.contentBounds.z-2, newCursor.y+data.contentBounds.w-(diffY+1)),
-            igGetColorU32(color)
-        );
-    }
-    
     // NOTE: We use these instead of incDummy since otherwise you can't drag
     // the tree node via drag/drop.
     igSetCursorPosY(igGetCursorPosY()+2);
