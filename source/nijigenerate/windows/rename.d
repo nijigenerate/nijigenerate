@@ -54,7 +54,7 @@ protected:
         incDummy(ImVec2(0, -24));
         incDummy(ImVec2(avail.x-(doneLength+8), 20));
         igSameLine(0, 0);
-        if (igButton(__("Rename"), ImVec2(doneLength+8, 20))) {
+        if (incButtonColored(__("Rename"), ImVec2(doneLength+8, 20))) {
             this.apply();
         }
     }

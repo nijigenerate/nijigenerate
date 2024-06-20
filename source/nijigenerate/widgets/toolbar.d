@@ -19,9 +19,9 @@ void incToolbar() {
         ImGuiWindowFlags.NoScrollbar |
         ImGuiWindowFlags.MenuBar;
 
-    igPushStyleColor(ImGuiCol.Border, ImVec4(0, 0, 0, 0));
-    igPushStyleColor(ImGuiCol.BorderShadow, ImVec4(0, 0, 0, 0));
-    igPushStyleColor(ImGuiCol.Separator, ImVec4(0, 0, 0, 0));
+//    igPushStyleColor(ImGuiCol.Border, ImVec4(0, 0, 0, 0));
+//    igPushStyleColor(ImGuiCol.BorderShadow, ImVec4(0, 0, 0, 0));
+//    igPushStyleColor(ImGuiCol.Separator, ImVec4(0, 0, 0, 0));
         igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 10));
         if (igBeginViewportSideBar("##Toolbar", igGetMainViewport(), ImGuiDir.Up, 32, flags)) {
             if (igBeginMenuBar()) {
@@ -32,8 +32,8 @@ void incToolbar() {
                 igSetCursorPos(ImVec2(pos.x-igGetStyle().WindowPadding.x, pos.y));
 
                 // Render toolbar
-                igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 0));
-                igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
+//                igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 0));
+//                igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
                     igBeginDisabled(incWelcomeWindowOnTop());
 
                         if (incButtonColored("", ImVec2(32, 32), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
@@ -81,7 +81,7 @@ void incToolbar() {
                         // Draw the toolbar relevant for that viewport
                         incViewportToolbar();
                     igEndDisabled();
-                igPopStyleVar(2);
+//                igPopStyleVar(2);
 
                 // Render mode switch buttons
                 ImVec2 avail;
@@ -120,9 +120,9 @@ void incToolbar() {
         } else {
             igPopStyleVar();
         }
-    igPopStyleColor();
-    igPopStyleColor();
-    igPopStyleColor();
+//    igPopStyleColor();
+//    igPopStyleColor();
+//    igPopStyleColor();
 }
 
 bool incBeginInnerToolbar(float height, bool matchTitlebar=false, bool offset=true) {
@@ -179,7 +179,7 @@ void incEndInnerToolbar() {
     A toolbar button
 */
 bool incToolbarButton(const(char)* text, float width = 0) {
-    bool clicked = igButton(text, ImVec2(width, incAvailableSpace().y));
+    bool clicked = incButtonColored(text, ImVec2(width, incAvailableSpace().y));
     igSameLine(0, 0);
     return clicked;
 }

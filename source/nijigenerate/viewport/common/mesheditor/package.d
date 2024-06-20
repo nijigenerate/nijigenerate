@@ -208,14 +208,14 @@ public:
                 igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(10, 1));
                 igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(8, 10));
 
-                    if (incButtonColored("All", ImVec2(0, 0), editor.getGroupId() == 0 ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                    if (incButtonColored("All", ImVec2(0, 0), editor.getGroupId() == 0 ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                         foreach (e; editors) {
                             e.setGroupId(0);
                         }
                     }
                     igSameLine();
                     foreach (i; 1..1+editor.getMesh().maxGroupId) {
-                        if (incButtonColored("%d".format(i).toStringz, ImVec2(0, 0), i == editor.getGroupId() ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                        if (incButtonColored("%d".format(i).toStringz, ImVec2(0, 0), i == editor.getGroupId() ? colorUndefined: ImVec4(0.6, 0.6, 0.6, 1))) {
                             foreach (e; editors) {
                                 e.setGroupId(i);
                             }

@@ -19,6 +19,7 @@ import nijigenerate.viewport.test;
 import nijigenerate.widgets.viewport;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.tooltip;
+import nijigenerate.widgets.button;
 import i18n;
 import bindbc.imgui;
 import std.algorithm.sorting;
@@ -484,7 +485,7 @@ void incViewportTransformHandle() {
 
     // Move handle
     incBeginViewportToolArea(name, ImVec2(bounds.x - HandleSize, bounds.y - HandleSize));
-    igButton("", ImVec2(HandleSize, HandleSize));
+    incButtonColored("", ImVec2(HandleSize, HandleSize));
     if (igIsItemHovered() && igIsMouseDown(btn)) {
         foreach (selectedNode; incSelectedNodes) {
             if (isOwned(selectedNode, incSelectedNodes))
@@ -615,7 +616,7 @@ void incViewportTransformHandle() {
     // Scale handle
     if (incSelectedNodes.length == 1) {
         incBeginViewportToolArea(name, ImVec2(bounds.x - HandleSize, bounds.w));
-        igButton("", ImVec2(HandleSize, HandleSize));
+        incButtonColored("", ImVec2(HandleSize, HandleSize));
         if (igIsItemHovered() && igIsMouseDown(btn)) {
             foreach (selectedNode; incSelectedNodes) {
                 if (isOwned(selectedNode, incSelectedNodes))
@@ -707,7 +708,7 @@ void incViewportTransformHandle() {
     // Rotation handle
     if (incSelectedNodes.length == 1) {
         incBeginViewportToolArea(name, ImVec2(bounds.z, bounds.y - HandleSize));
-        igButton("", ImVec2(HandleSize, HandleSize));
+        incButtonColored("", ImVec2(HandleSize, HandleSize));
         if (igIsItemHovered() && igIsMouseDown(btn)) {
             foreach (selectedNode; incSelectedNodes) {
                 if (isOwned(selectedNode, incSelectedNodes))

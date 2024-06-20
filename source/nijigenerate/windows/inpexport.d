@@ -10,6 +10,7 @@ import nijigenerate.widgets.tooltip;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.texture;
+import nijigenerate.widgets.button;
 import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate.io.inpexport;
@@ -361,7 +362,7 @@ protected:
             incDummy(ImVec2(-64, 0));
             igSameLine(0, 0);
 
-            if (igButton(__("Export"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Export"), ImVec2(64, 24))) {
                 try {
 
                     // Write the puppet to file

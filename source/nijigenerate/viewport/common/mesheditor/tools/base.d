@@ -92,7 +92,7 @@ class ToolInfoBase(T) : ToolInfo {
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         bool result = false;
-        if (incButtonColored(icon.toStringz, ImVec2(0, 0), toolMode == mode ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+        if (incButtonColored(icon.toStringz, ImVec2(0, 0), toolMode == mode ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
             result = true;
             foreach (e; editors) {
                 setupToolMode(e, mode);

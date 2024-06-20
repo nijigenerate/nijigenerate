@@ -226,7 +226,7 @@ protected:
             igSameLine(0, 4);
 
             if (!vctx) {
-                if (igButton(__("Export"), ImVec2(64, 24))) {
+                if (incButtonColored(__("Export"), ImVec2(64, 24))) {
                     playback = player.createOrGet(animToExport);
 
                     loops = clamp(loops, 1, int.max);
@@ -261,13 +261,13 @@ protected:
                 }
             } else {
                 if (!done) {
-                    if (igButton(__("Cancel"), ImVec2(64, 24))) {
+                    if (incButtonColored(__("Cancel"), ImVec2(64, 24))) {
                         vctx.end();
                         incEndExportVideo();
                         this.close();
                     }
                 } else {
-                    if (igButton(__("Close"), ImVec2(64, 24))) {
+                    if (incButtonColored(__("Close"), ImVec2(64, 24))) {
                         this.close();
                     }
                 }

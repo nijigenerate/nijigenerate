@@ -346,7 +346,7 @@ private:
             igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
             igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
                 igSetWindowFontScale(0.55);
-                    if (igButton("", ImVec2(16, 16))) {
+                    if (incButtonColored("", ImVec2(16, 16))) {
                         deleted = cast(int)i;
                     }
                 igSetWindowFontScale(1);
@@ -431,7 +431,7 @@ protected:
             if (igBeginChild("###Pairs", ImVec2(childWidth, childHeight))) {
                 incInputText("##part1", (childWidth - 50) / 2, part1Pattern);
                 igSameLine(0, 0);
-                if (igButton(__("Pair"), ImVec2(48, 0))) {
+                if (incButtonColored(__("Pair"), ImVec2(48, 0))) {
                     autoPair(part1Pattern, part2Pattern);
                 }
                 igSameLine(0, 0);
@@ -476,14 +476,14 @@ protected:
             incDummy(ImVec2(-192, 0));
             igSameLine(0, 0);
             // 
-            if (igButton(__("Cancel"), ImVec2(96, 24))) {
+            if (incButtonColored(__("Cancel"), ImVec2(96, 24))) {
                 this.close();
                 
                 igEndGroup();
                 return;
             }
             igSameLine(0, 0);
-            if (igButton(__("Save"), ImVec2(96, 24))) {
+            if (incButtonColored(__("Save"), ImVec2(96, 24))) {
                 apply();
                 this.close();
                 

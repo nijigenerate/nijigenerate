@@ -9,6 +9,7 @@ import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.markdown;
+import nijigenerate.widgets.button;
 import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate;
@@ -109,13 +110,13 @@ protected:
             space = incAvailableSpace();
             float spacing = (space.x/3)-8;
 
-            if (igButton("GitHub", ImVec2(8+spacing, 0))) {
+            if (incButtonColored("GitHub", ImVec2(8+spacing, 0))) {
                 incOpenLink("https://github.com/nijigenerate/nijigenerate");
             }
 
             igSameLine(0, 8);
             /*
-            if (igButton("Twitter", ImVec2(spacing, 0))) {
+            if (incButtonColored("Twitter", ImVec2(spacing, 0))) {
                 incOpenLink("https://twitter.com/nijilive");
             }
             */

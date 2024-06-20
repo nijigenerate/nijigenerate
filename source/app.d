@@ -143,7 +143,6 @@ void incUpdate() {
 
             incHandleShortcuts();
             incMainMenu();
-            incToolbar();
 
             incUpdatePanels();
             incUpdateWindows();
@@ -167,7 +166,6 @@ void incUpdateNoEv() {
 
             incHandleShortcuts();
             incMainMenu();
-            incToolbar();
 
             incUpdatePanels();
             incUpdateWindows();

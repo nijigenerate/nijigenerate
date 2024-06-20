@@ -31,6 +31,10 @@ import nijigenerate.panels.parameters;
 
 import nijigenerate.actions.node;
 
+private {
+    ImVec4 CategoryTextColor = ImVec4(0.36f, 0.45f, 0.35f, 1.00f); // 画像の緑色に基づく
+}
+
 /**
     The inspector panel
 */
@@ -192,34 +196,34 @@ void incInspectorModelInfo() {
 
     if (incBeginCategory(__("General Info"))) {
         igPushID("Part Count");
-            incTextColored(ImVec4(0.7, 0.5, 0.5, 1), _("Part Count"));
-            incTextColored(ImVec4(0.7, 0.5, 0.5, 1), "%s".format(incActivePuppet().getRootParts().length));
+            incTextColored(CategoryTextColor, _("Part Count"));
+            incTextColored(CategoryTextColor, "%s".format(incActivePuppet().getRootParts().length));
         igPopID();
         igSpacing();
 
         igPushID("Name");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Name"));
+            igTextColored(CategoryTextColor, __("Name"));
             incTooltip(_("Name of the puppet"));
             incInputText("META_NAME", puppet.meta.name);
         igPopID();
         igSpacing();
 
         igPushID("Artists");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Artist(s)"));
+            igTextColored(CategoryTextColor, __("Artist(s)"));
             incTooltip(_("Artists who've drawn the puppet, seperated by comma"));
             incInputText("META_ARTISTS", puppet.meta.artist);
         igPopID();
         igSpacing();
 
         igPushID("Riggers");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Rigger(s)"));
+            igTextColored(CategoryTextColor, __("Rigger(s)"));
             incTooltip(_("Riggers who've rigged the puppet, seperated by comma"));
             incInputText("META_RIGGERS", puppet.meta.rigger);
         igPopID();
         igSpacing();
 
         igPushID("Contact");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Contact"));
+            igTextColored(CategoryTextColor, __("Contact"));
             incTooltip(_("Where to contact the main author of the puppet"));
             incInputText("META_CONTACT", puppet.meta.contact);
         igPopID();
@@ -228,21 +232,21 @@ void incInspectorModelInfo() {
 
     if (incBeginCategory(__("Licensing"))) {
         igPushID("LicenseURL");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("License URL"));
+            igTextColored(CategoryTextColor, __("License URL"));
             incTooltip(_("Link/URL to license"));
             incInputText("META_LICENSEURL", puppet.meta.licenseURL);
         igPopID();
         igSpacing();
 
         igPushID("Copyright");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Copyright"));
+            igTextColored(CategoryTextColor, __("Copyright"));
             incTooltip(_("Copyright holder information of the puppet"));
             incInputText("META_COPYRIGHT", puppet.meta.copyright);
         igPopID();
         igSpacing();
 
         igPushID("Origin");
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Origin"));
+            igTextColored(CategoryTextColor, __("Origin"));
             incTooltip(_("Where the model comes from on the internet."));
             incInputText("META_ORIGIN", puppet.meta.reference);
         igPopID();
@@ -311,7 +315,7 @@ void incInspectorModelTRS(Node node) {
         //
 
         // Translation portion of the transformation matrix.
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Translation"));
+        igTextColored(CategoryTextColor, __("Translation"));
         igPushItemWidth((avail.x-4f)/3f);
 
             // Translation X
@@ -374,7 +378,7 @@ void incInspectorModelTRS(Node node) {
                 // of the puppet, this more or less makes the item stay in place
                 // even if the parent moves.
                 ImVec2 textLength = incMeasureString(_("Lock to Root Node"));
-                igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Lock to Root Node"));
+                igTextColored(CategoryTextColor, __("Lock to Root Node"));
 
                 incSpacer(ImVec2(-12, 1));
                 bool lockToRoot = node.lockToRoot;
@@ -401,7 +405,7 @@ void incInspectorModelTRS(Node node) {
         igSpacing();
         
         // Rotation portion of the transformation matrix.
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Rotation"));
+        igTextColored(CategoryTextColor, __("Rotation"));
         igPushItemWidth((avail.x-4f)/3f);
             float rotationDegrees;
 
@@ -473,7 +477,7 @@ void incInspectorModelTRS(Node node) {
         igSpacing();
         
         // Scaling portion of the transformation matrix.
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Scale"));
+        igTextColored(CategoryTextColor, __("Scale"));
         igPushItemWidth((avail.x-14f)/2f);
             
             // Scale X
@@ -516,7 +520,7 @@ void incInspectorModelTRS(Node node) {
         // An option in which positions will be snapped to whole integer values.
         // In other words texture will always be on a pixel.
         textLength = incMeasureString(_("Snap to Pixel"));
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Snap to Pixel"));
+        igTextColored(CategoryTextColor, __("Snap to Pixel"));
         incSpacer(ImVec2(-12, 1));
         if (incLockButton(&node.localTransform.pixelSnap, "pix_lk")) {
             incActionPush(
@@ -538,7 +542,7 @@ void incInspectorModelTRS(Node node) {
         // Parts to draw in the user specified order.
         // negative values = closer to camera
         // positive values = further away from camera
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Sorting"));
+        igTextColored(CategoryTextColor, __("Sorting"));
         float zsortV = node.relZSort;
         float zsortB = zsortV;
         if (igInputFloat("###ZSort", &zsortV, 0.01, 0.05, "%0.2f")) {
@@ -566,7 +570,7 @@ void incInspectorModelDrawable(Drawable node) {
         ImVec2 avail = incAvailableSpace();
 
         igBeginGroup();
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Texture Offset"));
+            igTextColored(CategoryTextColor, __("Texture Offset"));
             igPushItemWidth((avail.x-4f)/2f);
 
                 // Translation X
@@ -761,7 +765,7 @@ void incInspectorModelPart(Part node) {
     if (incBeginCategory(__("Part"))) {
         if (!node.getMesh().isReady()) { 
             igSpacing();
-            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Cannot inspect an unmeshed part"));
+            igTextColored(CategoryTextColor, __("Cannot inspect an unmeshed part"));
             incEndCategory();
             return;
         }
@@ -882,7 +886,7 @@ void incInspectorModelPart(Part node) {
         igSpacing();
         igSpacing();
 
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Masks"));
+        igTextColored(CategoryTextColor, __("Masks"));
         igSpacing();
 
         // Threshold slider name for adjusting how transparent a pixel can be
@@ -1186,7 +1190,7 @@ void incInspectorModelComposite(Composite node) {
         igSpacing();
         igSpacing();
 
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Masks"));
+        igTextColored(CategoryTextColor, __("Masks"));
         igSpacing();
 
         // Threshold slider name for adjusting how transparent a pixel can be
@@ -1666,7 +1670,7 @@ void incInspectorDeformTRS(Node node, Parameter param, vec2u cursor) {
 
 
         // Translation portion of the transformation matrix.
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Translation"));
+        igTextColored(CategoryTextColor, __("Translation"));
         igPushItemWidth((avail.x-4f)/3f);
 
             // Translation X
@@ -1703,7 +1707,7 @@ void incInspectorDeformTRS(Node node, Parameter param, vec2u cursor) {
         igSpacing();
         
         // Rotation portion of the transformation matrix.
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Rotation"));
+        igTextColored(CategoryTextColor, __("Rotation"));
         igPushItemWidth((avail.x-4f)/3f);
 
             // Rotation X
@@ -1735,7 +1739,7 @@ void incInspectorDeformTRS(Node node, Parameter param, vec2u cursor) {
         igSpacing();
         
         // Scaling portion of the transformation matrix.
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Scale"));
+        igTextColored(CategoryTextColor, __("Scale"));
         igPushItemWidth((avail.x-14f)/2f);
             
             // Scale X
@@ -1755,7 +1759,7 @@ void incInspectorDeformTRS(Node node, Parameter param, vec2u cursor) {
         igSpacing();
         igSpacing();
 
-        igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Sorting"));
+        igTextColored(CategoryTextColor, __("Sorting"));
         incInspectorDeformInputFloat("zSort", "zSort", 0.01, 0.05, node, param, cursor);
     }
     incEndCategory();

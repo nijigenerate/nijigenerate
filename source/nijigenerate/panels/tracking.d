@@ -140,7 +140,7 @@ protected:
                     igEndListBox();
                 }
 
-                if (igButton("", ImVec2(0, 32))) {
+                if (incButtonColored("", ImVec2(0, 32))) {
                     incPushWindowList(new TrackingBindingWindow(incViewportTestGetCurrBindable()));
                 }
             }
