@@ -374,7 +374,22 @@ protected:
 
     override
     void onBeginUpdate() {
-        igSetNextWindowSizeConstraints(ImVec2(480, 480), ImVec2(float.max, float.max));
+        flags |= ImGuiWindowFlags.NoSavedSettings;
+        incIsSettingsOpen = true;
+        
+        ImVec2 wpos = ImVec2(
+            igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
+            igGetMainViewport().Pos.y+(igGetMainViewport().Size.y/2),
+        );
+
+        ImVec2 uiSize = ImVec2(
+            800, 
+            600
+        );
+
+        igSetNextWindowPos(wpos, ImGuiCond.Appearing, ImVec2(0.5, 0.5));
+        igSetNextWindowSize(uiSize, ImGuiCond.Appearing);
+        igSetNextWindowSizeConstraints(uiSize, ImVec2(float.max, float.max));
         super.onBeginUpdate();
     }
 
@@ -517,6 +532,7 @@ public:
         }
 
         super(_("Flip Pairing"));
+        flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     }
 }
 

@@ -358,9 +358,25 @@ protected:
 
     override
     void onBeginUpdate() {
-        igSetNextWindowSizeConstraints(ImVec2(640, 480), ImVec2(float.max, float.max));
+        flags |= ImGuiWindowFlags.NoSavedSettings;
+        incIsSettingsOpen = true;
+        
+        ImVec2 wpos = ImVec2(
+            igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
+            igGetMainViewport().Pos.y+(igGetMainViewport().Size.y/2),
+        );
+
+        ImVec2 uiSize = ImVec2(
+            800, 
+            600
+        );
+
+        igSetNextWindowPos(wpos, ImGuiCond.Appearing, ImVec2(0.5, 0.5));
+        igSetNextWindowSize(uiSize, ImGuiCond.Appearing);
+        igSetNextWindowSizeConstraints(uiSize, ImVec2(float.max, float.max));
         super.onBeginUpdate();
     }
+
 
     override
     void onUpdate() {
@@ -368,7 +384,7 @@ protected:
         float gapspace = 8;
         float childWidth = (space.x/2);
         float childHeight = space.y-(24);
-        float filterWidgetHeight = 24;
+        float filterWidgetHeight = 45;
         float optionsListHeight = 24;
 
         igBeginGroup();
@@ -452,6 +468,7 @@ public:
         document = parseDocument(path);
         this.populateBindings();
         super(_("KRA Merging"));
+        flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     }
 }
 
