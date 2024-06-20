@@ -170,8 +170,8 @@ void incViewportModelConfirmBar() {
 }
 
 void incViewportModelOptions() {
-    igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
-    igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
+//    igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
+//    igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         if (!incArmedParameter()) {
             if(incBeginDropdownMenu("GIZMOS", "")) {
 
@@ -228,7 +228,7 @@ void incViewportModelOptions() {
         } else {
             incViewportModelDeformOptions();
         }
-    igPopStyleVar(2);
+//    igPopStyleVar(2);
 }
 
 void incViewportModelNodeSelectionChanged() {

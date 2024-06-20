@@ -182,7 +182,7 @@ protected:
             }
             igPopStyleVar();
 
-            igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
+            //igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
                 incBeginViewportToolArea("ToolArea", ImGuiDir.Left);
                     igPushStyleVar_Vec2(ImGuiStyleVar.FramePadding, ImVec2(6, 6));
                         incViewportDrawTools();
@@ -200,7 +200,7 @@ protected:
                 incEndViewportToolArea();
                 if (incEditMode == EditMode.ModelEdit)
                     incViewportTransformHandle();
-            igPopStyleVar();
+            //igPopStyleVar();
 
             lastSize = currSize;
             igEndChild();

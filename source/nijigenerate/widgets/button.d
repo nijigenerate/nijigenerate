@@ -220,3 +220,19 @@ void incEndDropdownMenu() {
     igEndPopup();
     igPopID();
 }
+
+bool ngBeginTabItem(const(char)* text, bool* open = null, ImGuiTabItemFlags flags = ImGuiTabItemFlags.None) {
+    bool pressed = false;
+    if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+        igPushStyleColor(ImGuiCol.Text, buttonTextColor);
+        pressed = igBeginTabItem(text, open, flags);
+        igPopStyleColor();
+    } else {
+        pressed = igBeginTabItem(text, open, flags);
+    }
+    return pressed;
+}
+
+void ngEndTabItem() {
+    igEndTabItem();
+}

@@ -566,30 +566,39 @@ void incMainMenu() {
         }
         ImVec2 avail;
         igGetContentRegionAvail(&avail);
-        debug(InExperimental) igDummy(ImVec2(avail.x-(32*3), 0));
-        else igDummy(ImVec2(avail.x-(32*2), 0));
-        igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 0));
-        igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
-            igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
-                if(incEditMode != EditMode.VertexEdit) {
-                    if (incButtonColored("", ImVec2(32, 32), incEditMode == EditMode.ModelEdit ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+        float tabBarWidth;
+        debug(InExperimental) {
+            tabBarWidth = clamp(avail.x-128*3, 0, int.max);
+        } else {
+            tabBarWidth = clamp(avail.x-128*2, 0, int.max);
+        }
+        igDummy(ImVec2(tabBarWidth, 0));
+        igSetNextItemWidth (avail.x - tabBarWidth);
+        igBeginTabBar("###ModeTab");
+            if(incEditMode != EditMode.VertexEdit) {
+                if (igBeginTabItem("%s".format(_("Edit Puppet")).toStringz, null)) {
+                    bool alreadySelected = incEditMode == EditMode.ModelEdit;
+                    if (!alreadySelected)
                         incSetEditMode(EditMode.ModelEdit);
-                    }
-                    incTooltip(_("Edit Puppet"));
-
-                    if (incButtonColored("", ImVec2(32, 32), incEditMode == EditMode.AnimEdit ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                        incSetEditMode(EditMode.AnimEdit);
-                    }
-                    incTooltip(_("Edit Animation"));
-                    debug(InExperimental) {
-                        if (incButtonColored("", ImVec2(32, 32), incEditMode == EditMode.ModelTest ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                            incSetEditMode(EditMode.ModelTest);
-                        }
-                        incTooltip(_("Test Puppet"));
-                    }
+                    igEndTabItem();
                 }
-            igPopStyleVar();
-        igPopStyleVar(2);
+                incTooltip(_("Edit Puppet"));
+
+                if (igBeginTabItem("%s".format(_("Edit Animation")).toStringz, null)) {
+                    bool alreadySelected = incEditMode == EditMode.AnimEdit;
+                    if (!alreadySelected)
+                        incSetEditMode(EditMode.AnimEdit);
+                    igEndTabItem();
+                }
+                incTooltip(_("Edit Animation"));
+                debug(InExperimental) {
+                    if (incButtonColored("", ImVec2(32, 32), incEditMode == EditMode.ModelTest ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                        incSetEditMode(EditMode.ModelTest);
+                    }
+                    incTooltip(_("Test Puppet"));
+                }
+            }
+        igEndTabBar();
         igEndMainMenuBar();
 
         // For quick-setup stuff
