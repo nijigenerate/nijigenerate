@@ -52,13 +52,13 @@ protected:
             incDummy(ImVec2(-128, 0));
             igSameLine(0, 0);
 
-            if (igButton(__("Discard"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Discard"), ImVec2(64, 24))) {
                 incOpenProject(projectPath, "");
                 this.close();
             }
             igSameLine(0, 0);
 
-            if (igButton(__("Restore"), ImVec2(64, 24))) {
+            if (incButtonColored(__("Restore"), ImVec2(64, 24))) {
                 string backupDir = getAutosaveDir(projectPath.stripExtension);
                 auto entries = currentBackups(backupDir);
                 incOpenProject(projectPath, entries[$-1]);

@@ -45,7 +45,7 @@ void incViewportVertexOptions() {
     igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
     igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         igBeginGroup();
-            if (igButton("")) {
+            if (incButtonColored("")) {
                 foreach (d; incSelectedNodes) {
                     auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d);
                     if (meshEditor)
@@ -56,7 +56,7 @@ void incViewportVertexOptions() {
 
             igSameLine(0, 0);
 
-            if (igButton("")) {
+            if (incButtonColored("")) {
                 foreach (d; incSelectedNodes) {
                     auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d);
                     if (meshEditor)
@@ -69,7 +69,7 @@ void incViewportVertexOptions() {
         igSameLine(0, 4);
 
         igBeginGroup();
-            if (incButtonColored("", ImVec2(0, 0), editor.getMirrorHoriz() ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+            if (incButtonColored("", ImVec2(0, 0), editor.getMirrorHoriz() ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                 editor.setMirrorHoriz(!editor.getMirrorHoriz());
                 editor.refreshMesh();
             }
@@ -77,7 +77,7 @@ void incViewportVertexOptions() {
 
             igSameLine(0, 0);
 
-            if (incButtonColored("", ImVec2(0, 0), editor.getMirrorVert() ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+            if (incButtonColored("", ImVec2(0, 0), editor.getMirrorVert() ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                 editor.setMirrorVert(!editor.getMirrorVert());
                 editor.refreshMesh();
             }
@@ -88,7 +88,7 @@ void incViewportVertexOptions() {
 
         igBeginGroup();
             if (incButtonColored("", ImVec2(0, 0),
-                editor.getPreviewTriangulate() ? ImVec4(1, 1, 0, 1) : ImVec4.init)) {
+                editor.getPreviewTriangulate() ? ImVec4(1, 1, 0, 1) : colorUndefined)) {
                 editor.setPreviewTriangulate(!editor.getPreviewTriangulate());
                 editor.refreshMesh();
             }
@@ -100,7 +100,7 @@ void incViewportVertexOptions() {
                 // Button which bakes some auto generated content
                 // In this case, a mesh is baked from the triangulation.
                 if (incButtonColored(__("Bake"), ImVec2(incAvailableSpace().x, 0),
-                    editor.previewingTriangulation() ? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                    editor.previewingTriangulation() ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     if (editor.previewingTriangulation()) {
                         editor.applyPreview();
                         editor.refreshMesh();
@@ -117,7 +117,7 @@ void incViewportVertexOptions() {
         igSameLine(0, 4);
 
         igBeginGroup();
-            if (igButton("")) {
+            if (incButtonColored("")) {
                 if (!activeProcessor)
                     activeProcessor = autoMeshProcessors[0];
                 foreach (drawable; editor.getTargets()) {
@@ -133,7 +133,7 @@ void incViewportVertexOptions() {
                 
                 igBeginGroup();
                 foreach (processor; autoMeshProcessors) {
-                    if (incButtonColored(processor.icon().toStringz, ImVec2(0, 0), (processor == activeProcessor)? ImVec4.init : ImVec4(0.6, 0.6, 0.6, 1))) {
+                    if (incButtonColored(processor.icon().toStringz, ImVec2(0, 0), (processor == activeProcessor)? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                         activeProcessor = processor;
                     }
                     igSameLine(0, 2);
@@ -144,7 +144,7 @@ void incViewportVertexOptions() {
 
                 // Button which bakes some auto generated content
                 // In this case, a mesh is baked from the triangulation.
-                if (igButton(__("Bake"),ImVec2(incAvailableSpace().x, 0))) {
+                if (incButtonColored(__("Bake"),ImVec2(incAvailableSpace().x, 0))) {
                     foreach (drawable; editor.getTargets()) {
                         auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
                         if (e !is null)
@@ -165,7 +165,7 @@ void incViewportVertexOptions() {
 void incViewportVertexConfirmBar() {
     auto target = editor.getTargets();
     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-        if (igButton(__(" Apply"), ImVec2(0, 26))) {
+        if (incButtonColored(__(" Apply"), ImVec2(0, 26))) {
             if (incMeshEditGetIsApplySafe()) {
                 incMeshEditApply();
             } else {
@@ -187,7 +187,7 @@ void incViewportVertexConfirmBar() {
         
         igSameLine(0, 0);
 
-        if (igButton(__(" Cancel"), ImVec2(0, 26))) {
+        if (incButtonColored(__(" Cancel"), ImVec2(0, 26))) {
             if (igGetIO().KeyShift) {
                 incMeshEditReset();
             } else {

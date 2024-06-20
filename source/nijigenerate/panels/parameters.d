@@ -908,7 +908,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             }
             resetTransparency();
             
-            if (igButton("", ImVec2(24, 24))) {
+            if (incButtonColored("", ImVec2(24, 24))) {
                 igOpenPopup("###EditParam");
             }
             
@@ -917,7 +917,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             }
             
             bool isArmed = incArmedParameter() == param;
-            if (incButtonColored(isArmed ? "" : "", ImVec2(24, 24), isArmed ? ImVec4(1f, 0f, 0f, 1f) : *igGetStyleColorVec4(ImGuiCol.Text))) {
+            if (incButtonColored(isArmed ? "" : "", ImVec2(24, 24), isArmed ? ImVec4(1f, 0f, 0f, 1f) : colorUndefined)) {
                 if (incArmedParameter() == param) {
                     incDisarmParameter();
                 } else {
@@ -936,7 +936,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 igSameLine();
             }
             igBeginDisabled(incAnimationGet() is null);
-                if (igButton("", ImVec2(24, 24))) {
+                if (incButtonColored("", ImVec2(24, 24))) {
                     if (param.isVec2) {
                         incAnimationKeyframeAdd(param, 0, param.value.vector[0]);
                         incAnimationKeyframeAdd(param, 1, param.value.vector[1]);
@@ -1300,7 +1300,7 @@ protected:
         igSameLine(0, 0);
 
         // Add button
-        if (igButton("", ImVec2(32, 32))) {
+        if (incButtonColored("", ImVec2(32, 32))) {
             igOpenPopup("###AddParameter");
         }
         incTooltip(_("Add Parameter"));

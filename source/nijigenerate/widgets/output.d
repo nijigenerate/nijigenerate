@@ -403,7 +403,7 @@ protected:
     void showContents(Resource res) {
         ImVec2 size = ImVec2(20, 20);
         void showPinning() {
-            if (igButton("\ue763", size)) {
+            if (incButtonColored("\ue763", size)) {
                 if (panel) {
                     panel.addPopup(res);
                     popupOpened = null;
@@ -415,7 +415,7 @@ protected:
             showPinning();
             Node node = to!Node(res);
             igSameLine();
-            if (igButton("\ue8b8", size)) {
+            if (incButtonColored("\ue8b8", size)) {
                 igOpenPopup("NodeActionsPopup2");
             }
             bool isRoot = node.parent is null;
@@ -1042,7 +1042,7 @@ public:
                 igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
                 igPushStyleVar(ImGuiStyleVar.ItemInnerSpacing, ImVec2(0, 0));
                 igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0.0f);
-                if (igButton("\ue5cd", size)) {                    
+                if (incButtonColored("\ue5cd", size)) {                    
                     removed ~= i;
                 }
 

@@ -77,16 +77,6 @@ private {
 void incMainMenu() {
     auto io = igGetIO();
     
-    // Save these for rendering popups
-    auto border = igGetStyle().Colors[ImGuiCol.Border];
-    auto borderShadow = igGetStyle().Colors[ImGuiCol.BorderShadow];
-    auto seperator = igGetStyle().Colors[ImGuiCol.Separator];
-
-    // Otherwise, hide borders.
-    igPushStyleColor(ImGuiCol.Border, ImVec4(0, 0, 0, 0));
-    igPushStyleColor(ImGuiCol.BorderShadow, ImVec4(0, 0, 0, 0));
-    igPushStyleColor(ImGuiCol.Separator, ImVec4(0, 0, 0, 0));
-
         if (incShortcut("Ctrl+N")) fileNew();
         if (incShortcut("Ctrl+O")) fileOpen();
         if (incShortcut("Ctrl+S")) fileSave();
@@ -118,11 +108,6 @@ void incMainMenu() {
                 igSeparator();
             }
 
-
-            // We do want borders on our popup menus.
-            igPushStyleColor(ImGuiCol.Border, border);
-            igPushStyleColor(ImGuiCol.BorderShadow, borderShadow);
-            igPushStyleColor(ImGuiCol.Separator, seperator);
                 if (igBeginMenu(__("File"), true)) {
                     if(igMenuItem(__("New"), "Ctrl+N", false, true)) {
                         fileNew();
@@ -578,19 +563,46 @@ void incMainMenu() {
                     }
                     igEndMenu();
                 }
-                
-            igPopStyleColor();
-            igPopStyleColor();
-            igPopStyleColor();            
         }
+        ImVec2 avail;
+        igGetContentRegionAvail(&avail);
+        float tabBarWidth;
+        debug(InExperimental) {
+            tabBarWidth = clamp(avail.x-128*3, 0, int.max);
+        } else {
+            tabBarWidth = clamp(avail.x-128*2, 0, int.max);
+        }
+        igDummy(ImVec2(tabBarWidth, 0));
+        igSetNextItemWidth (avail.x - tabBarWidth);
+        igBeginTabBar("###ModeTab");
+            if(incEditMode != EditMode.VertexEdit) {
+                if (igBeginTabItem("%s".format(_("Edit Puppet")).toStringz, null)) {
+                    bool alreadySelected = incEditMode == EditMode.ModelEdit;
+                    if (!alreadySelected)
+                        incSetEditMode(EditMode.ModelEdit);
+                    igEndTabItem();
+                }
+                incTooltip(_("Edit Puppet"));
+
+                if (igBeginTabItem("%s".format(_("Edit Animation")).toStringz, null)) {
+                    bool alreadySelected = incEditMode == EditMode.AnimEdit;
+                    if (!alreadySelected)
+                        incSetEditMode(EditMode.AnimEdit);
+                    igEndTabItem();
+                }
+                incTooltip(_("Edit Animation"));
+                debug(InExperimental) {
+                    if (incButtonColored("", ImVec2(32, 32), incEditMode == EditMode.ModelTest ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                        incSetEditMode(EditMode.ModelTest);
+                    }
+                    incTooltip(_("Test Puppet"));
+                }
+            }
+        igEndTabBar();
         igEndMainMenuBar();
 
         // For quick-setup stuff
         if (!incSettingsGet("hasDoneQuickSetup", false)) igEndDisabled();
-
-    igPopStyleColor();
-    igPopStyleColor();
-    igPopStyleColor();
 
     // ImGui Debug Stuff
     if (dbgShowStyleEditor) igShowStyleEditor(igGetStyle());

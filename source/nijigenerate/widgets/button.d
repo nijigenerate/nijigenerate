@@ -11,15 +11,48 @@ import nijilive;
 import std.math : isFinite;
 import std.string;
 
-bool incButtonColored(const(char)* text, const ImVec2 size, const ImVec4 textColor = ImVec4(float.nan, float.nan, float.nan, float.nan)) {
-    if (!isFinite(textColor.x) || !isFinite(textColor.y) || !isFinite(textColor.z) || !isFinite(textColor.w)) {
-        return igButton(text, size);
+const ImVec4 colorUndefined = ImVec4.init;
+
+private {
+    ImVec4 buttonTextColor = colorUndefined;
+}
+
+ImVec4 ngButtonTextColor() {
+    return buttonTextColor;
+}
+
+void ngButtonTextColor(ImVec4 color) {
+    buttonTextColor = color;
+}
+
+bool incButtonColored(const(char)* text, const ImVec2 size = ImVec2(0, 0), const ImVec4 textColor = colorUndefined) {
+
+    auto style = igGetStyle();
+    bool pressed = false;
+    ImVec2 originalFramePadding = style.FramePadding;
+
+    if (size.x != 0) {
+        style.FramePadding.x = 0;
+    }
+    if (size.y != 0) {
+        style.FramePadding.y = 0;
     }
 
-    igPushStyleColor(ImGuiCol.Text, textColor);
-    scope(exit) igPopStyleColor();
-
-    return igButton(text, size);
+    if (!isFinite(textColor.x) || !isFinite(textColor.y) || !isFinite(textColor.z) || !isFinite(textColor.w)) {
+        if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+            igPushStyleColor(ImGuiCol.Text, buttonTextColor);
+            pressed = igButton(text, size);
+            igPopStyleColor();
+        } else {
+            pressed = igButton(text, size);
+        }
+    } else {
+        igPushStyleColor(ImGuiCol.Text, textColor);
+        pressed = igButton(text, size);
+        igPopStyleColor();
+    }
+    style.FramePadding = originalFramePadding;
+    return pressed;
 }
 
 bool incDropdownButtonIcon(string idStr, string icon, ImVec2 size = ImVec2(-1, -1), bool open=false) {
@@ -65,7 +98,12 @@ bool incDropdownButtonIcon(string idStr, string icon, ImVec2 size = ImVec2(-1, -
     igRenderFrame(bb.Min, bb.Max, bgCol, true, ctx.Style.FrameRounding);
     string s = "";
     ImVec2 ssize = incMeasureString(s);
-    
+
+
+    if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+        igPushStyleColor(ImGuiCol.Text, buttonTextColor);
+    }
+
     igRenderText(ImVec2(
         bb.Min.x + max(0.0f, 4), 
         bb.Min.y + max(0.0f, (size.y - isize.y) * 0.5f)
@@ -75,6 +113,11 @@ bool incDropdownButtonIcon(string idStr, string icon, ImVec2 size = ImVec2(-1, -
         bb.Min.x + max(0.0f, (size.x - (ssize.x+2))), 
         bb.Min.y + max(0.0f, (size.y - ssize.y) * 0.5f)
     ), s.ptr, s.ptr+s.length, true);
+
+    if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+        igPopStyleColor();
+    }
+
     return pressed;
 }
 
@@ -116,10 +159,19 @@ bool incDropdownButton(string idStr, ImVec2 size = ImVec2(-1, -1), bool open=fal
     const(string) s = "";
     ImVec2 ssize = incMeasureString(s);
 
+    if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+        igPushStyleColor(ImGuiCol.Text, buttonTextColor);
+    }
+
     igRenderText(ImVec2(
         bb.Min.x + max(0.0f, (size.x - ssize.x) * 0.5f), 
         bb.Min.y + max(0.0f, (size.y - ssize.y) * 0.5f)
     ), s.ptr, s.ptr+s.length, true);
+
+    if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+        igPopStyleColor();
+    }
+
     return pressed;
 }
 
@@ -167,4 +219,20 @@ bool incBeginDropdownMenu(string idStr, string icon="", ImVec2 cMin=ImVec2(192, 
 void incEndDropdownMenu() {
     igEndPopup();
     igPopID();
+}
+
+bool ngBeginTabItem(const(char)* text, bool* open = null, ImGuiTabItemFlags flags = ImGuiTabItemFlags.None) {
+    bool pressed = false;
+    if (isFinite(buttonTextColor.x)&&isFinite(buttonTextColor.y)&&isFinite(buttonTextColor.z)&&isFinite(buttonTextColor.w)) {
+        igPushStyleColor(ImGuiCol.Text, buttonTextColor);
+        pressed = igBeginTabItem(text, open, flags);
+        igPopStyleColor();
+    } else {
+        pressed = igBeginTabItem(text, open, flags);
+    }
+    return pressed;
+}
+
+void ngEndTabItem() {
+    igEndTabItem();
 }

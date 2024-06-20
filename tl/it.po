@@ -3003,7 +3003,7 @@ msgid ""
 "Software is expensive to create and the same goes for nijigenerate.\n"
 "Kindly consider chipping in to fund the development!\n"
 "\n"
-"To remove this nagscreen, [buy a copy today!](https://nijilive.com)"
+"To remove this nagscreen, [buy a copy today!](https://github.com/nijigenerate)"
 msgstr ""
 
 #, fuzzy

@@ -16,6 +16,7 @@ import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.modal;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
+import nijigenerate.widgets.button;
 
 import std.exception;
 
@@ -425,6 +426,7 @@ void incCreateContext() {
 void incInitStyling() {
     //style.WindowBorderSize = 0;
     auto style = igGetStyle();
+
     style.FrameBorderSize = 1;
     style.TabBorderSize = 1;
     style.ChildBorderSize = 1;
@@ -432,6 +434,7 @@ void incInitStyling() {
     style.FrameBorderSize = 1;
     style.TabBorderSize = 1;
 
+    /*
     style.WindowRounding = 4;
     style.ChildRounding = 0;
     style.FrameRounding = 3;
@@ -448,6 +451,7 @@ void incInitStyling() {
     style.GrabMinSize = 13;
     style.ScrollbarSize = 14;
     style.ChildBorderSize = 1;
+    */
 
     // Don't draw the silly roll menu
     style.WindowMenuButtonPosition = ImGuiDir.None;
@@ -515,6 +519,92 @@ void incInitStyling() {
     incDarkModeColors = style.Colors.dup;
     
     igStyleColorsLight(style);
+    // 緑と黒の色味を設定
+    ImVec4 accentGreen = ImVec4(0.36f, 0.45f, 0.35f, 1.00f); // 画像の緑色に基づく
+    ImVec4 darkGreen = ImVec4(0.18f, 0.23f, 0.18f, 1.00f); // 画像の暗い緑色に基づく
+    ImVec4 lightGreen = ImVec4(0.67f, 0.75f, 0.63f, 1.00f); // 画像の明るい緑色に基づく
+    ImVec4 black = ImVec4(0.10f, 0.10f, 0.10f, 1.00f); // 黒色
+    ImVec4 white = ImVec4(1.00f, 1.00f, 1.00f, 1.00f); // 白色
+    ImVec4 grey = ImVec4(0.80f, 0.80f, 0.80f, 1.00f); // 灰色
+    ImVec4 lightGrey = ImVec4(0.90f, 0.90f, 0.90f, 1.00f); // 明るい灰色
+
+    // 文字色を黒に変更
+    style.Colors[ImGuiCol.Text] = black;
+
+    // 背景色の設定
+    style.Colors[ImGuiCol.WindowBg] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    style.Colors[ImGuiCol.PopupBg] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    style.Colors[ImGuiCol.MenuBarBg] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+
+    // ウィンドウのタイトルバーの背景色を変更
+    style.Colors[ImGuiCol.TitleBg] = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
+    style.Colors[ImGuiCol.TitleBgActive] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
+    style.Colors[ImGuiCol.TitleBgCollapsed] = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
+
+    // ステータスバーやツールバーの背景色を設定
+    style.Colors[ImGuiCol.DockingPreview] = lightGrey; // ドッキングプレビューの背景を明るい灰色に設定
+    style.Colors[ImGuiCol.DockingEmptyBg] = white; // ドッキングエリアの背景を白に設定
+
+    // プログレスバーの色を変更
+    style.Colors[ImGuiCol.PlotHistogram] = accentGreen;
+    style.Colors[ImGuiCol.PlotHistogramHovered] = darkGreen;
+
+    // ボタンのスタイル設定
+    style.Colors[ImGuiCol.Button] = accentGreen;
+    style.Colors[ImGuiCol.ButtonHovered] = darkGreen;
+    style.Colors[ImGuiCol.ButtonActive] = black;
+
+    // チェックボックスのチェックマークの色を緑色に変更
+    style.Colors[ImGuiCol.CheckMark] = accentGreen;
+
+    // InputTextの背景色を白に変更し、ボーダーカラーをグレーに設定
+    style.Colors[ImGuiCol.FrameBg] = white;
+    style.Colors[ImGuiCol.FrameBgHovered] = grey;
+    style.Colors[ImGuiCol.FrameBgActive] = lightGreen;
+    style.Colors[ImGuiCol.Border] = grey; // ボーダーカラーをグレーに設定
+
+    // タブの背景色を変更
+    style.Colors[ImGuiCol.Tab] = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
+    style.Colors[ImGuiCol.TabHovered] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
+    style.Colors[ImGuiCol.TabActive] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    style.Colors[ImGuiCol.TabUnfocused] = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
+    style.Colors[ImGuiCol.TabUnfocusedActive] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
+
+    // リストなどの選択行の背景色を変更
+    style.Colors[ImGuiCol.Header] = grey;
+    style.Colors[ImGuiCol.HeaderHovered] = lightGreen;
+    style.Colors[ImGuiCol.HeaderActive] = darkGreen;
+
+    // スクロールバーの背景色をバックグラウンドと同じ色に設定
+    style.Colors[ImGuiCol.ScrollbarBg] = white;
+
+    // スクロールバーの色を設定
+    style.Colors[ImGuiCol.ScrollbarGrab] = grey;
+    style.Colors[ImGuiCol.ScrollbarGrabHovered] = darkGreen;
+    style.Colors[ImGuiCol.ScrollbarGrabActive] = black;
+
+    // スライダーバーの色を設定
+    style.Colors[ImGuiCol.SliderGrab] = accentGreen;
+    style.Colors[ImGuiCol.SliderGrabActive] = darkGreen;
+
+    // 他のスタイルパラメータを設定
+    style.FrameRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.WindowRounding = 4.0f;
+    style.ChildRounding = 4.0f;
+    style.PopupRounding = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.TabRounding = 4.0f;
+
+    // ボタンとテキスト間のマージンを設定
+    style.FramePadding = ImVec2(12.0f, 8.0f); // ボタン内のテキストとボタンの間のパディング
+    style.ItemSpacing = ImVec2(8.0f, 4.0f); // ボタン同士のスペーシング
+    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f); // ボタン内の要素間のスペーシング
+    style.ButtonTextAlign = ImVec2(0.5f, 0.5f); // ボタンのテキストを中央揃え
+    style.DisplaySafeAreaPadding = ImVec2(10.0f, 10.0f); // ボタンの周りにマージンを追加
+    ngButtonTextColor = ImVec4(1, 1, 1, 1);
+
+    /*
     style.Colors[ImGuiCol.Border] = ImVec4(0.8, 0.8, 0.8, 0.5);
     style.Colors[ImGuiCol.BorderShadow] = ImVec4(0, 0, 0, 0.05);
     style.Colors[ImGuiCol.TitleBg] = ImVec4(0.902, 0.902, 0.902, 1);
@@ -539,6 +629,7 @@ void incInitStyling() {
     style.Colors[ImGuiCol.PopupBg] = ImVec4(0.941, 0.941, 0.941, 1);  
     style.Colors[ImGuiCol.Header] = ImVec4(0.990, 0.990, 0.990, 1);  
     style.Colors[ImGuiCol.HeaderHovered] = ImVec4(1, 1, 1, 1);
+    */
     incLightModeColors = style.Colors.dup;
     
     style.Colors = isDarkMode ? incDarkModeColors : incLightModeColors;
@@ -629,7 +720,6 @@ void incBeginLoopNoEv() {
         incModalRender();
         incRenderDialogs();
     }
-    incStatusUpdate();
 }
 
 void incSetDefaultLayout() {

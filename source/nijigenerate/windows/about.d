@@ -9,6 +9,7 @@ import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.markdown;
+import nijigenerate.widgets.button;
 import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate;
@@ -60,7 +61,7 @@ protected:
 
         // Draw the actual about dialog
         igSetCursorScreenPos(sPos);
-        if (igBeginChild("##LogoArea", ImVec2(0, 92))) {
+        if (igBeginChild("##LogoArea", ImVec2(0, 102))) {
 
             version (InBranding) {
                 igImage(
@@ -76,12 +77,12 @@ protected:
             igSameLine(0, 8);
             igSeparatorEx(ImGuiSeparatorFlags.Vertical);
             igSameLine(0, 8);
-            if (igBeginChild("##LogoTextArea", ImVec2(0, -24))) {
+            if (igBeginChild("##LogoTextArea", ImVec2(0, -28))) {
 
                 incText("nijigenerate");
                 incText(INC_VERSION);
                 igSeparator();
-                igTextColored(ImVec4(0.5, 0.5, 0.5, 1), "I2D v. %s", (IN_VERSION~"\0").ptr);
+                igTextColored(ImVec4(0.5, 0.5, 0.5, 1), "nijilive v. %s", (IN_VERSION~"\0").ptr);
                 igTextColored(ImVec4(0.5, 0.5, 0.5, 1), "imgui v. %s", igGetVersion());
             }
             igEndChild();
@@ -94,7 +95,7 @@ protected:
 
         igPushStyleColor(ImGuiCol.Button, ImVec4(0.176, 0.447, 0.698, 1));
         igPushStyleColor(ImGuiCol.ButtonHovered, ImVec4(0.313, 0.521, 0.737, 1));
-            if (igBeginChild("##CreditsArea", ImVec2(0, -28))) {
+            if (igBeginChild("##CreditsArea", ImVec2(0, -36))) {
                 incMarkdown(import("CONTRIBUTORS.md"), cfg);
             }
         igPopStyleColor();
@@ -103,19 +104,19 @@ protected:
 
         if (igBeginChild("##ButtonArea", ImVec2(0, 0))) {
             ImVec2 space = incAvailableSpace();
-            incDummy(ImVec2(space.x/2, space.y));
+            incDummy(ImVec2(space.x*3/4, space.y));
             igSameLine(0, 0);
 
             space = incAvailableSpace();
-            float spacing = (space.x/3)-8;
+            float spacing = (space.x/1)-8;
 
-            if (igButton("GitHub", ImVec2(8+spacing, 0))) {
+            if (incButtonColored("GitHub", ImVec2(8+spacing, 0))) {
                 incOpenLink("https://github.com/nijigenerate/nijigenerate");
             }
 
             igSameLine(0, 8);
             /*
-            if (igButton("Twitter", ImVec2(spacing, 0))) {
+            if (incButtonColored("Twitter", ImVec2(spacing, 0))) {
                 incOpenLink("https://twitter.com/nijilive");
             }
             */
