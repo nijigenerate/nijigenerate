@@ -59,8 +59,8 @@ protected:
         );
 
         ImVec2 uiSize = ImVec2(
-            512, 
-            256+128
+            640, 
+            480
         );
 
         igSetNextWindowPos(wpos, ImGuiCond.Appearing, ImVec2(0.5, 0.5));
