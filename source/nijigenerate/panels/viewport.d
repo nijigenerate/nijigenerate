@@ -139,7 +139,7 @@ protected:
             ImDrawList_AddRectFilled(drawList,
                 rect.Min,
                 rect.Max,
-                igGetColorU32(color),
+                igGetColorU32(ImVec4(0,0,0,1)),
             );
 
             // Render our viewport
