@@ -117,7 +117,7 @@ private {
 
     ImFont* mainFont;
 
-    bool isDarkMode = true;
+    bool isDarkMode = false;
     string[] files;
     bool isWayland;
     bool isTilingWM;
@@ -856,7 +856,11 @@ void incDebugImGuiState(string msg, int indent = 0) {
     Resets the clear color
 */
 void incResetClearColor() {
-    inSetClearColor(0, 0, 0, 0);
+    if (incGetDarkMode()) {
+        inSetClearColor(0, 0, 0, 1);
+    } else {
+        inSetClearColor(1, 1, 1, 1);
+    }
 }
 
 /**
