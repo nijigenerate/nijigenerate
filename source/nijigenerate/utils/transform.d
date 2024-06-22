@@ -70,7 +70,7 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     */
 void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, vec2u index, uint axis, bool extrapolation = true, ulong[]* selected = null) {
 
-    T extrapolateValueAt(T)(ParameterBindingImpl!T binding, vec2u index, uint axis) {
+    T extrapolateValueAt(T, TargetClass=Node, ParamId=string)(ParameterBindingImpl!(T, TargetClass, ParamId) binding, vec2u index, uint axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
 
         switch (axis) {
@@ -87,7 +87,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
 
         return binding.interpolate(srcIndex, subOffset);            
     }
-    T interpolateValueAt(T)(ParameterBindingImpl!T binding, vec2u index, uint axis) {
+    T interpolateValueAt(T, TargetClass=Node, ParamId=string)(ParameterBindingImpl!(T, TargetClass, ParamId) binding, vec2u index, uint axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
         vec2u srcIndex;
         vec2 subOffset;
