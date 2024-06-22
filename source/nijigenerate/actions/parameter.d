@@ -147,16 +147,16 @@ alias ParameterRemoveAction = ParameterAddRemoveAction!false;
 /**
     Action to remove parameter from active puppet.
 */
-class ParameterValueChangeAction(T) : LazyBoundAction {
+class ParameterValueChangeAction(T, TargetClass = Node, ParamId = string) : LazyBoundAction {
 public:
     alias TSelf = typeof(this);
-    string name;
+    ParamId name;
     Parameter self;
     T oldValue;
     T newValue;
     T* valuePtr;
 
-    this(string name, Parameter self, T oldValue, T newValue, T* valuePtr) {
+    this(ParamId name, Parameter self, T oldValue, T newValue, T* valuePtr) {
         this.name     = name;
         this.self     = self;
         this.oldValue = oldValue;
@@ -164,7 +164,7 @@ public:
         this.valuePtr = valuePtr;
     }
 
-    this(string name, Parameter self, T* valuePtr, void delegate() update = null) {
+    this(ParamId name, Parameter self, T* valuePtr, void delegate() update = null) {
         this.name     = name;
         this.self     = self;
         this.valuePtr = valuePtr;
@@ -218,7 +218,7 @@ public:
     /**
         Gets name of this action
     */
-    string getName() {
+    ParamId getName() {
         return name;
     }
     
@@ -333,10 +333,12 @@ class ParameterRemoveBindingsAction : AbstractParameterChangeBindingsAction!(Par
 */
 
 Action BindingChangeMapper(ParameterBinding binding) {
-    if (auto typedBinding = cast(ParameterBindingImpl!float)binding) {
+    if (auto typedBinding = cast(ValueParameterBinding)binding) {
         return new ParameterBindingAllValueChangeAction!(float)(typedBinding.getName(), typedBinding);
-    } else if (auto typedBinding = cast(ParameterBindingImpl!Deformation)binding) {
+    } else if (auto typedBinding = cast(DeformationParameterBinding)binding) {
         return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+    } else if (auto typedBinding = cast(ParameterParameterBinding)binding) {
+        return new ParameterBindingAllValueChangeAction!(float, Parameter, int)(typedBinding.getName(), typedBinding);
     } else {
         return null;
     }
@@ -353,10 +355,12 @@ class ParameterChangeBindingsAction : AbstractParameterChangeBindingsAction!() {
 */
 
 Action BindingValueChangeMapper(ParameterBinding binding, int pointx, int pointy) {
-    if (auto typedBinding = cast(ParameterBindingImpl!float)binding) {
+    if (auto typedBinding = cast(ValueParameterBinding)binding) {
         return new ParameterBindingValueChangeAction!(float)(typedBinding.getName(), typedBinding, pointx, pointy);
-    } else if (auto typedBinding = cast(ParameterBindingImpl!Deformation)binding) {
+    } else if (auto typedBinding = cast(DeformationParameterBinding)binding) {
         return new ParameterBindingValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding, pointx, pointy);
+    } else if (auto typedBinding = cast(ParameterParameterBinding)binding) {
+        return new ParameterBindingValueChangeAction!(float, Parameter, int)(typedBinding.getName(), typedBinding, pointx, pointy);
     } else {
         return null;
     }

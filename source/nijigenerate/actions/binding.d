@@ -11,6 +11,7 @@ import nijilive;
 import std.format;
 import std.stdio;
 import std.range;
+import std.conv;
 import std.algorithm.mutation;
 import i18n;
 
@@ -108,16 +109,16 @@ alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!false;
 /**
     Action for change of all of binding values (and isSet value) at once
 */
-class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
+class ParameterBindingAllValueChangeAction(T, TargetClass = Node, ParamId = string)  : LazyBoundAction {
     alias TSelf    = typeof(this);
-    alias TBinding = ParameterBindingImpl!(T);
-    string   name;
+    alias TBinding = ParameterBindingImpl!(T, TargetClass, ParamId);
+    ParamId   name;
     TBinding self;
     T[][] values;
     bool[][] isSet;
     bool undoable = true;
 
-    this(string name, TBinding self, void delegate() update = null) {
+    this(ParamId name, TBinding self, void delegate() update = null) {
         this.name = name;
         this.self = self;
         values = duplicate!T(self.values);
@@ -197,10 +198,10 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
 /**
     Action to change binding value (and isSet) of specified keypoint.
 */
-class ParameterBindingValueChangeAction(T)  : LazyBoundAction {
+class ParameterBindingValueChangeAction(T, TargetClass = Node, ParamId = string)  : LazyBoundAction {
     alias TSelf    = typeof(this);
     string name;
-    alias TBinding = ParameterBindingImpl!(T);
+    alias TBinding = ParameterBindingImpl!(T, TargetClass, ParamId);
     TBinding self;
     int  pointx;
     int  pointy;
@@ -211,6 +212,21 @@ class ParameterBindingValueChangeAction(T)  : LazyBoundAction {
 
     this(string name, TBinding self, int pointx, int pointy, void delegate() update = null) {
         this.name  = name;
+        this.self  = self;
+        this.pointx = pointx;
+        this.pointy = pointy;
+        this.value  = self.values[pointx][pointy];
+        this.isSet  = self.isSet_[pointx][pointy];
+        this.undoable = true;
+        this._dirty = false;
+        if (update !is null) {
+            update();
+            updateNewState();
+        }
+    }
+
+    this(int name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+        this.name  = to!string(name);
         this.self  = self;
         this.pointx = pointx;
         this.pointy = pointy;
