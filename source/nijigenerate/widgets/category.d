@@ -150,9 +150,6 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
     window.WorkRect.Min.x -= paddingX;
     igSetCursorPosX(igGetCursorPosX()+paddingX);
 
-    if (callback !is null)
-        callback(data.contentBounds.z, data.contentBounds.w);
-
     if (data.open) {
         ImVec2 newCursor;
         igGetCursorScreenPos(&newCursor);
@@ -167,6 +164,9 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
             igGetColorU32(color), 6.0
         );
     }
+
+    if (callback !is null)
+        callback(data.contentBounds.z, data.contentBounds.w);
 
     window.ContentRegionRect.Min.x += paddingX;
     window.WorkRect.Min.x += paddingX;
