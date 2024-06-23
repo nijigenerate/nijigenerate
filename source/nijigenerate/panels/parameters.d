@@ -56,6 +56,10 @@ private {
                 if (target in cSelectedBindings) newSelectedBindings[target] = binding;
                 if (!selectedOnly || selected.countUntil(target.node) >= 0)
                     cParamBindingEntriesAll[nBinding.getNode()] ~= binding;
+            } else if (auto pBinding = cast(ParameterBindingBase!(Parameter, int))binding) {
+                auto target = pBinding.getTarget();
+                if (!selectedOnly)
+                    cParamBindingEntriesAll[pBinding.getNode()] ~= binding;
             }
         }
         cAllBoundNodes = cParamBindingEntriesAll.keys.dup;
@@ -974,12 +978,10 @@ void incBindingList(Parameter param) {
 
 
             }
-            writefln("end menu");
 
             igPopStyleVar();
             igPopStyleVar();
         igEndChild();
-        writefln("end child;");
     }
     incEndCategory();
 }
