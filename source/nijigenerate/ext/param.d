@@ -33,8 +33,8 @@ public:
 
     override
     FghjException deserializeFromFghj(Fghj data) {
-        data["groupUUID"].deserializeValue(this.uuid);
-        if (!data["name"].isEmpty) data["name"].deserializeValue(this.name);
+        data["groupUUID"].deserializeValue(this.uuid_);
+        if (!data["name"].isEmpty) data["name"].deserializeValue(this.name_);
         if (!data["color"].isEmpty) data["color"].deserializeValue(this.color.vector);
         if (!data["children"].isEmpty)
             foreach (childData; data["children"].byElement) {
@@ -51,7 +51,7 @@ public:
             foreach (child; children) {
                 if (auto exparam = cast(ExParameter)child) {
                     exparam.parent = this;
-                    exparam.parentUUID = uuid;
+                    exparam.parentUUID = uuid_;
                 }
                 if (puppet.findParameter(name) is null)
                     puppet.parameters ~= child;
@@ -155,11 +155,20 @@ public:
         newParam.axisPoints = axisPoints.dup;
 
         foreach(binding; bindings) {
-            ParameterBinding newBinding = newParam.createBinding(
-                binding.getNode(),
-                binding.getName(),
-                false
-            );
+            ParameterBinding newBinding;
+            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
+                newBinding = newParam.createBinding(
+                    nBinding.getNode(),
+                    nBinding.getName(),
+                    false
+                );
+            } else if (auto pBinding = cast(ParameterBindingBase!(Parameter, int))binding) {
+                newBinding = newParam.createBinding(
+                    pBinding.getNode(),
+                    pBinding.getName(),
+                    false
+                );
+            }
             newBinding.interpolateMode = binding.interpolateMode;
             foreach(x; 0..axisPointCount(0)) {
                 foreach(y; 0..axisPointCount(1)) {
