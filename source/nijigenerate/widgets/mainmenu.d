@@ -572,7 +572,21 @@ void incMainMenu() {
         } else {
             tabBarWidth = clamp(avail.x-128*2, 0, int.max);
         }
-        igDummy(ImVec2(tabBarWidth, 0));
+        // We need to pre-calculate the size of the right adjusted section
+        // This code is very ugly because imgui doesn't really exactly understand this
+        // stuff natively.
+        ImVec2 secondSectionLength = ImVec2(0, 0);
+        if (incShowStatsForNerds) { // Extra padding I guess
+            secondSectionLength.x += igGetStyle().ItemSpacing.x;
+            secondSectionLength.x += incMeasureString("1000ms").x;
+        }
+        igDummy(ImVec2(tabBarWidth - secondSectionLength.x, 0));
+        if (incShowStatsForNerds) {
+            string fpsText = "%.0fms".format(1000f/io.Framerate);
+            float textAreaDummyWidth = incMeasureString("1000ms").x-incMeasureString(fpsText).x;
+            incDummy(ImVec2(textAreaDummyWidth, 0));
+            incText(fpsText);
+        }
         igSetNextItemWidth (avail.x - tabBarWidth);
         igBeginTabBar("###ModeTab");
             if(incEditMode != EditMode.VertexEdit) {
@@ -592,8 +606,11 @@ void incMainMenu() {
                 }
                 incTooltip(_("Edit Animation"));
                 debug(InExperimental) {
-                    if (incButtonColored("", ImVec2(32, 32), incEditMode == EditMode.ModelTest ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                        incSetEditMode(EditMode.ModelTest);
+                    if (igBeginTabItem("%s".format(_("Test Puppet")).toStringz, null)) {
+                        bool alreadySelected = incEditMode == EditMode.ModelTest;
+                        if (!alreadySelected)
+                            incSetEditMode(EditMode.ModelTest);
+                        igEndTabItem();
                     }
                     incTooltip(_("Test Puppet"));
                 }
