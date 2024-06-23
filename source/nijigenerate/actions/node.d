@@ -184,8 +184,10 @@ class NodeReplaceAction : Action {
         auto parameters = parent.puppet.parameters;
         foreach (param; parameters) {
             foreach (binding; param.bindings) {
-                if (binding.getTarget().node == src) {
-                    binding.setTarget(to, binding.getTarget().paramName);
+                if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
+                    if (nBinding.getTarget().node == src) {
+                        nBinding.setTarget(to, nBinding.getTarget().paramName);
+                    }
                 }
             }
         }

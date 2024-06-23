@@ -89,7 +89,15 @@ class Proxy(T: ParameterBinding) : Resource {
     T target;
 public:
     override
-    string name() { return target.getName; }
+    string name() {
+        if (auto nBinding = cast(ParameterBindingBase!(Node, string))target) {
+            return nBinding.getName; 
+        } else if (auto pBinding = cast(ParameterBindingBase!(Parameter, int))target) {
+            return pBinding.getName == 0 ? "X": "Y";
+        } else {
+            return null;
+        }
+    }
     override
     uint uuid() { return cast(uint)&target; }
     override

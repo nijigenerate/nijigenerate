@@ -22,7 +22,7 @@ import std.algorithm.searching: countUntil;
 
 ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pair, string name, bool forceCreate = false) {
     Node pairNode;
-    ParameterBinding result = null;
+    ParameterBindingBase!(Node, string) result = null;
     if (pair !is null && pair.parts[0] !is null && pair.parts[0].uuid == target.uuid) {
         pairNode = pair.parts[1];
     } else if (pair !is null) {
@@ -33,12 +33,14 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     }
     if (pairNode !is null) {
         foreach (ParameterBinding binding; param.bindings) {
-            if (binding.getTarget().node.uuid == pairNode.uuid && binding.getName() == name)
-                return binding;
+            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
+                if (nBinding.getTarget().node.uuid == pairNode.uuid && nBinding.getName() == name)
+                    return binding;
+            }
         }
     }
     if (forceCreate) {
-        result = param.createBinding(pairNode, name);
+        result = cast(ParameterBindingBase!(Node, string))param.createBinding(pairNode, name);
         // Skip if trying to add a deform binding to a node that can't get deformed
         if(name == "deform" && cast(Drawable)pairNode is null) return null;
         param.addBinding(result);

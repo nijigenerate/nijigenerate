@@ -32,16 +32,17 @@ private:
 
     void buildMapping() {
         foreach(i, ref binding; param.bindings) {
-            if (binding.getNodeUUID() !in mappings) {
-                mappings[binding.getNodeUUID()] = ParamMapping(
-                    i,
-                    [],
-                    binding.getNode(),
-                    false
-                );
+            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
+                if (nBinding.getNodeUUID() !in mappings) {
+                    mappings[nBinding.getNodeUUID()] = ParamMapping(
+                        i,
+                        [],
+                        nBinding.getNode(),
+                        false
+                    );
+                }
+                mappings[nBinding.getNodeUUID()].bindings ~= binding;
             }
-
-            mappings[binding.getNodeUUID()].bindings ~= binding;
         }
     }
 

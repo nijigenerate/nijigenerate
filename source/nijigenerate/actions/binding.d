@@ -37,15 +37,21 @@ private {
 /**
     Action for add / remove of binding
 */
-class ParameterBindingAddRemoveAction(bool added = true) : Action {
+class ParameterBindingAddRemoveAction(bool added = true, TargetClass = Node, ParamId = string) : Action {
 public:
     Parameter        parent;
-    ParameterBinding self;
+    ParameterBindingBase!(TargetClass, ParamId) self;
 
-    this(Parameter parent, ParameterBinding self) {
+    void notifyChange(T, P)(ParameterBindingBase!(T, P) self) { }
+    void notifyChange(T : Node, P : string)(ParameterBindingBase!(T, P) self) {
+        if (self.getTarget().node)
+            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+    }
+
+    this(Parameter parent, ParameterBindingBase!(TargetClass, ParamId) self) {
         this.parent = parent;
         this.self   = self;
-        self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+        notifyChange(self);
     }
 
     /**
@@ -56,8 +62,7 @@ public:
             parent.bindings ~= self;
         else
             parent.removeBinding(self);
-        if (self.getTarget().node)
-            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+        notifyChange(self);
     }
 
     /**
@@ -68,8 +73,7 @@ public:
             parent.bindings ~= self;
         else
             parent.removeBinding(self);
-        if (self.getTarget().node)
-            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+        notifyChange(self);
     }
 
     /**
@@ -103,8 +107,10 @@ public:
     bool canMerge(Action other) { return false; }
 }
 
-alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!true;
-alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!false;
+alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true, Node, string);
+alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false, Node, string);
+alias ParameterParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true, Parameter, int);
+alias ParameterParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false, Parameter, int);
 
 /**
     Action for change of all of binding values (and isSet value) at once

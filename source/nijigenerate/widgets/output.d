@@ -11,6 +11,7 @@ import nijigenerate;
 import nijigenerate.actions;
 import nijigenerate.core;
 import nijigenerate.core.selector;
+import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType;
 import nijigenerate.panels;
 import nijigenerate.utils;
 import nijigenerate.widgets;
@@ -454,11 +455,13 @@ protected:
             auto vimpl = cast(ValueParameterBinding)binding;
             auto dimpl = cast(DeformationParameterBinding)binding;
             ParameterBinding[BindTarget] bindings;
-            bindings[binding.getTarget()] = binding;
-            if (vimpl)
-                incBindingMenuContents(vimpl.parameter, bindings);
-            else if (dimpl)
-                incBindingMenuContents(dimpl.parameter, bindings);
+            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
+                bindings[nBinding.getTarget()] = binding;
+                if (vimpl)
+                    incBindingMenuContents(vimpl.parameter, bindings);
+                else if (dimpl)
+                    incBindingMenuContents(dimpl.parameter, bindings);
+            }
         }
 
     };
