@@ -1023,26 +1023,28 @@ void incInspectorModelPart(Part node) {
                         igEndPopup();
                     }
 
-                    igSelectable("##%s".format(welded.target.name).toStringz);
+                    igSelectable(welded.target.name.toStringz, false, ImGuiSelectableFlags.AllowItemOverlap, ImVec2(0, 17));
                     if (igIsItemClicked(ImGuiMouseButton.Right)) {
                         igOpenPopup("###WeldedLink");
                     }
-                    igSetItemAllowOverlap();
                     igSameLine(0, 0);
-                    igText(welded.target.name.toStringz);
-                    igSameLine(0, 0);
-                    incDummy(ImVec2(-64, 0));
-                    igSameLine(0, 0);
-                    auto weight = welded.weight;
-                    igSetNextItemWidth(64);
-                    if (igSliderFloat("###weight", &weight, 0, 1f, "%0.2f")) {
-                        welded.weight = weight;
-                        auto index = welded.target.welded.countUntil!"a.target == b"(node);
-                        if (index != -1) {
-                            welded.target.welded[index].weight = 1 - weight;
+                    if (igBeginChild("###%s".format(welded.target.name).toStringz, ImVec2(0, 15),false, ImGuiWindowFlags.NoScrollbar|ImGuiWindowFlags.AlwaysAutoResize)) {
+                        incDummy(ImVec2(-64, 1));
+                        igSameLine(0, 0);
+                        auto weight = welded.weight;
+                        igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
+                        igSetNextItemWidth(64);
+                        if (igSliderFloat("###weight", &weight, 0, 1f, "%0.2f")) {
+                            welded.weight = weight;
+                            auto index = welded.target.welded.countUntil!"a.target == b"(node);
+                            if (index != -1) {
+                                welded.target.welded[index].weight = 1 - weight;
+                            }
+                            node.notifyChange(node, NotifyReason.StructureChanged);
                         }
-                        node.notifyChange(node, NotifyReason.StructureChanged);
+                        igPopStyleVar();
                     }
+                    igEndChild();
                     /*
                     if(igBeginDragDropTarget()) {
                         const(ImGuiPayload)* payload = igAcceptDragDropPayload("_WELDINGITEM");

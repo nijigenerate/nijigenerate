@@ -51,7 +51,7 @@ public:
             {
                 igText(messagez);
                 igSameLine();
-                if (incButtonColored("x", ImVec2(20, 20))){
+                if (incButtonColored("\ue5cd", ImVec2(20, 20))){
                     message = null;
                 }
             }
