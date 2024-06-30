@@ -304,12 +304,12 @@ public:
     Actions to add bindings to parameter at once.
 */
 
-Action BindingAddMapper(TargetClass, ParamId)(ParameterBindingBase!(TargetClass, ParamId) binding, Parameter parent) {
+Action BindingAddMapper(ParameterBinding binding, Parameter parent) {
     return new ParameterBindingAddAction(parent, binding);
 }
-class ParameterAddBindingsAction(TargetClass, ParamId) : AbstractParameterChangeBindingsAction!(Parameter) {
-    this(string name, Parameter self, ParameterBindingBase!(TargetClass, ParamId)[] bindings) {
-        super(name, self, bindings, &BindingAddMapper!(TargetClass, ParamId), self);
+class ParameterAddBindingsAction : AbstractParameterChangeBindingsAction!(Parameter) {
+    this(string name, Parameter self, ParameterBinding[] bindings) {
+        super(name, self, bindings, &BindingAddMapper, self);
     }
 }
 
@@ -318,12 +318,12 @@ class ParameterAddBindingsAction(TargetClass, ParamId) : AbstractParameterChange
     Actions to remove bindings from parameter at once.
 */
 
-Action BindingRemoveMapper(TargetClass, ParamId)(ParameterBindingBase!(TargetClass, ParamId) binding, Parameter parent) {
+Action BindingRemoveMapper(ParameterBinding binding, Parameter parent) {
     return new ParameterBindingRemoveAction(parent, binding);
 }
-class ParameterRemoveBindingsAction(TargetClass, ParamId) : AbstractParameterChangeBindingsAction!(Parameter) {
-    this(string name, Parameter self, ParameterBindingBase!(TargetClass, ParamId)[] bindings) {
-        super(name, self, bindings, &BindingRemoveMapper!(TargetClass, ParamId), self);
+class ParameterRemoveBindingsAction : AbstractParameterChangeBindingsAction!(Parameter) {
+    this(string name, Parameter self, ParameterBinding[] bindings) {
+        super(name, self, bindings, &BindingRemoveMapper, self);
     }
 }
 
