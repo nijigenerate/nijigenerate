@@ -201,14 +201,12 @@ class ResourceWalker(S: Parameter, T: ParameterBinding, bool direct: true) : Res
             if (!cast(Proxy!Parameter)t) continue;
             auto target = to!Parameter(t);
             foreach (child; target.bindings) {
-                if (auto nChild = cast(ParameterBindingBase!(Node, string))child) {
-                    if (!targetNode || nChild.getTarget().node == targetNode) {
-                        auto proxy = cache.create(child, (proxy) {
-                            proxy.source = t;
-                            proxy.index = result.length;
-                        });
-                        result ~= proxy;
-                    }
+                if (!targetNode || child.getTarget().target == targetNode) {
+                    auto proxy = cache.create(child, (proxy) {
+                        proxy.source = t;
+                        proxy.index = result.length;
+                    });
+                    result ~= proxy;
                 }
             }
         }
@@ -246,14 +244,12 @@ class ResourceWalker(S: Node, T: ParameterBinding, bool direct: true) : Resource
             auto target = to!Node(t);
 
             foreach (binding; bindings) {
-                if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
-                    if (nBinding.getTarget().node == target) {
-                        auto proxy = cache.create(binding, (proxy) {
-                            proxy.index = result.length;
-                            proxy.source = t;
-                        });
-                        result ~= proxy;
-                    }
+                if (binding.getTarget().target == target) {
+                    auto proxy = cache.create(binding, (proxy) {
+                        proxy.index = result.length;
+                        proxy.source = t;
+                    });
+                    result ~= proxy;
                 }
             }
         }
@@ -279,15 +275,13 @@ class ResourceWalker(S: Node, T: Parameter, bool direct: true) : ResourceProcess
 
             foreach (param; parameters) {
                 foreach (binding; param.bindings) {
-                    if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
-                        if (nBinding.getTarget().node == target) {
-                            auto proxy = cache.create(param, (proxy) {
-                                proxy.source = t;
-                                proxy.index = result.length;
-                            });
-                            result ~= proxy;
-                            break;
-                        }
+                    if (binding.getTarget().target == target) {
+                        auto proxy = cache.create(param, (proxy) {
+                            proxy.source = t;
+                            proxy.index = result.length;
+                        });
+                        result ~= proxy;
+                        break;
                     }
                 }
             }

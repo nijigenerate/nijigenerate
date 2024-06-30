@@ -455,13 +455,11 @@ protected:
             auto vimpl = cast(ValueParameterBinding)binding;
             auto dimpl = cast(DeformationParameterBinding)binding;
             ParameterBinding[BindTarget] bindings;
-            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
-                bindings[nBinding.getTarget()] = binding;
-                if (vimpl)
-                    incBindingMenuContents(vimpl.parameter, bindings);
-                else if (dimpl)
-                    incBindingMenuContents(dimpl.parameter, bindings);
-            }
+            bindings[binding.getTarget()] = binding;
+            if (vimpl)
+                incBindingMenuContents(vimpl.parameter, bindings);
+            else if (dimpl)
+                incBindingMenuContents(dimpl.parameter, bindings);
         }
 
     };

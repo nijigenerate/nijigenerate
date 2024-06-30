@@ -37,18 +37,17 @@ private {
 /**
     Action for add / remove of binding
 */
-class ParameterBindingAddRemoveAction(bool added = true, TargetClass = Node, ParamId = string) : Action {
+class ParameterBindingAddRemoveAction(bool added = true) : Action {
 public:
     Parameter        parent;
-    ParameterBindingBase!(TargetClass, ParamId) self;
+    ParameterBinding self;
 
-    void notifyChange(T, P)(ParameterBindingBase!(T, P) self) { }
-    void notifyChange(T : Node, P : string)(ParameterBindingBase!(T, P) self) {
-        if (self.getTarget().node)
-            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+    void notifyChange(ParameterBinding self) {
+        if (auto node = cast(Node)self.getTarget().target)
+            node.notifyChange(node, NotifyReason.StructureChanged);
     }
 
-    this(Parameter parent, ParameterBindingBase!(TargetClass, ParamId) self) {
+    this(Parameter parent, ParameterBinding self) {
         this.parent = parent;
         this.self   = self;
         notifyChange(self);
@@ -107,24 +106,22 @@ public:
     bool canMerge(Action other) { return false; }
 }
 
-alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true, Node, string);
-alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false, Node, string);
-alias ParameterParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true, Parameter, int);
-alias ParameterParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false, Parameter, int);
+alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true);
+alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false);
 
 /**
     Action for change of all of binding values (and isSet value) at once
 */
-class ParameterBindingAllValueChangeAction(T, TargetClass = Node, ParamId = string)  : LazyBoundAction {
+class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
     alias TSelf    = typeof(this);
-    alias TBinding = ParameterBindingImpl!(T, TargetClass, ParamId);
-    ParamId   name;
+    alias TBinding = ParameterBindingImpl!(T);
+    string   name;
     TBinding self;
     T[][] values;
     bool[][] isSet;
     bool undoable = true;
 
-    this(ParamId name, TBinding self, void delegate() update = null) {
+    this(string name, TBinding self, void delegate() update = null) {
         this.name = name;
         this.self = self;
         values = duplicate!T(self.values);
@@ -204,10 +201,10 @@ class ParameterBindingAllValueChangeAction(T, TargetClass = Node, ParamId = stri
 /**
     Action to change binding value (and isSet) of specified keypoint.
 */
-class ParameterBindingValueChangeAction(T, TargetClass = Node, ParamId = string)  : LazyBoundAction {
+class ParameterBindingValueChangeAction(T)  : LazyBoundAction {
     alias TSelf    = typeof(this);
     string name;
-    alias TBinding = ParameterBindingImpl!(T, TargetClass, ParamId);
+    alias TBinding = ParameterBindingImpl!(T);
     TBinding self;
     int  pointx;
     int  pointy;

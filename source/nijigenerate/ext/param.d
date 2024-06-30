@@ -156,19 +156,11 @@ public:
 
         foreach(binding; bindings) {
             ParameterBinding newBinding;
-            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
-                newBinding = newParam.createBinding(
-                    nBinding.getNode(),
-                    nBinding.getName(),
-                    false
-                );
-            } else if (auto pBinding = cast(ParameterBindingBase!(Parameter, int))binding) {
-                newBinding = newParam.createBinding(
-                    pBinding.getNode(),
-                    pBinding.getName(),
-                    false
-                );
-            }
+            newBinding = newParam.createBinding(
+                binding.getTarget.target,
+                binding.getTarget.name,
+                false
+            );
             newBinding.interpolateMode = binding.interpolateMode;
             foreach(x; 0..axisPointCount(0)) {
                 foreach(y; 0..axisPointCount(1)) {
