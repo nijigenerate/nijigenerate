@@ -333,10 +333,12 @@ class ParameterRemoveBindingsAction : AbstractParameterChangeBindingsAction!(Par
 */
 
 Action BindingChangeMapper(ParameterBinding binding) {
-    if (auto typedBinding = cast(ParameterBindingImpl!float)binding) {
+    if (auto typedBinding = cast(ValueParameterBinding)binding) {
         return new ParameterBindingAllValueChangeAction!(float)(typedBinding.getName(), typedBinding);
-    } else if (auto typedBinding = cast(ParameterBindingImpl!Deformation)binding) {
+    } else if (auto typedBinding = cast(DeformationParameterBinding)binding) {
         return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+    } else if (auto typedBinding = cast(ParameterParameterBinding)binding) {
+        return new ParameterBindingAllValueChangeAction!(float)(typedBinding.getName(), typedBinding);
     } else {
         return null;
     }
@@ -353,10 +355,12 @@ class ParameterChangeBindingsAction : AbstractParameterChangeBindingsAction!() {
 */
 
 Action BindingValueChangeMapper(ParameterBinding binding, int pointx, int pointy) {
-    if (auto typedBinding = cast(ParameterBindingImpl!float)binding) {
+    if (auto typedBinding = cast(ValueParameterBinding)binding) {
         return new ParameterBindingValueChangeAction!(float)(typedBinding.getName(), typedBinding, pointx, pointy);
-    } else if (auto typedBinding = cast(ParameterBindingImpl!Deformation)binding) {
+    } else if (auto typedBinding = cast(DeformationParameterBinding)binding) {
         return new ParameterBindingValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding, pointx, pointy);
+    } else if (auto typedBinding = cast(ParameterParameterBinding)binding) {
+        return new ParameterBindingValueChangeAction!(float)(typedBinding.getName(), typedBinding, pointx, pointy);
     } else {
         return null;
     }

@@ -11,6 +11,7 @@ import nijilive;
 import std.format;
 import std.stdio;
 import std.range;
+import std.conv;
 import std.algorithm.mutation;
 import i18n;
 
@@ -41,10 +42,15 @@ public:
     Parameter        parent;
     ParameterBinding self;
 
+    void notifyChange(ParameterBinding self) {
+        if (auto node = cast(Node)self.getTarget().target)
+            node.notifyChange(node, NotifyReason.StructureChanged);
+    }
+
     this(Parameter parent, ParameterBinding self) {
         this.parent = parent;
         this.self   = self;
-        self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+        notifyChange(self);
     }
 
     /**
@@ -55,8 +61,7 @@ public:
             parent.bindings ~= self;
         else
             parent.removeBinding(self);
-        if (self.getTarget().node)
-            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+        notifyChange(self);
     }
 
     /**
@@ -67,8 +72,7 @@ public:
             parent.bindings ~= self;
         else
             parent.removeBinding(self);
-        if (self.getTarget().node)
-            self.getTarget().node.notifyChange(self.getTarget().node, NotifyReason.StructureChanged);
+        notifyChange(self);
     }
 
     /**
@@ -102,8 +106,8 @@ public:
     bool canMerge(Action other) { return false; }
 }
 
-alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!true;
-alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!false;
+alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true);
+alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false);
 
 /**
     Action for change of all of binding values (and isSet value) at once
@@ -211,6 +215,21 @@ class ParameterBindingValueChangeAction(T)  : LazyBoundAction {
 
     this(string name, TBinding self, int pointx, int pointy, void delegate() update = null) {
         this.name  = name;
+        this.self  = self;
+        this.pointx = pointx;
+        this.pointy = pointy;
+        this.value  = self.values[pointx][pointy];
+        this.isSet  = self.isSet_[pointx][pointy];
+        this.undoable = true;
+        this._dirty = false;
+        if (update !is null) {
+            update();
+            updateNewState();
+        }
+    }
+
+    this(int name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+        this.name  = to!string(name);
         this.self  = self;
         this.pointx = pointx;
         this.pointy = pointy;

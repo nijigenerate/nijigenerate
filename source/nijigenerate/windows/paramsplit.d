@@ -20,7 +20,7 @@ import std.array : insertInPlace;
 struct ParamMapping {
     size_t idx;
     ParameterBinding[] bindings;
-    Node node;
+    nijilive.core.Resource node;
     bool take;
 }
 
@@ -40,7 +40,6 @@ private:
                     false
                 );
             }
-
             mappings[binding.getNodeUUID()].bindings ~= binding;
         }
     }
