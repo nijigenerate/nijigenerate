@@ -20,7 +20,7 @@ import std.array : insertInPlace;
 struct ParamMapping {
     size_t idx;
     ParameterBinding[] bindings;
-    Node node;
+    nijilive.core.Resource node;
     bool take;
 }
 
@@ -32,17 +32,15 @@ private:
 
     void buildMapping() {
         foreach(i, ref binding; param.bindings) {
-            if (auto nBinding = cast(ParameterBindingBase!(Node, string))binding) {
-                if (nBinding.getNodeUUID() !in mappings) {
-                    mappings[nBinding.getNodeUUID()] = ParamMapping(
-                        i,
-                        [],
-                        nBinding.getNode(),
-                        false
-                    );
-                }
-                mappings[nBinding.getNodeUUID()].bindings ~= binding;
+            if (binding.getNodeUUID() !in mappings) {
+                mappings[binding.getNodeUUID()] = ParamMapping(
+                    i,
+                    [],
+                    binding.getNode(),
+                    false
+                );
             }
+            mappings[binding.getNodeUUID()].bindings ~= binding;
         }
     }
 
