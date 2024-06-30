@@ -33,10 +33,8 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     }
     if (pairNode !is null) {
         foreach (ParameterBinding binding; param.bindings) {
-            if (auto nBinding = cast(ParameterBinding)binding) {
-                if (nBinding.getTarget().node.uuid == pairNode.uuid && nBinding.getName() == name)
-                    return binding;
-            }
+            if (binding.getTarget().target.uuid == pairNode.uuid && binding.getTarget.name == name)
+                return binding;
         }
     }
     if (forceCreate) {
