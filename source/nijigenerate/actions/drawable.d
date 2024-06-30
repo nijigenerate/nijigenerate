@@ -42,8 +42,8 @@ public:
     override
     void clear() {}
 
-    void addBinding(TargetClass, ParamId)(Parameter param, ParameterBindingBase!(TargetClass, ParamId) binding) {
-        addAction(new ParameterBindingRemoveAction(param, binding));
+    void addBinding(Parameter param, ParameterBinding binding) {
+        addAction(new ParameterBindingAddAction(param, binding));
     }
 
     /**
