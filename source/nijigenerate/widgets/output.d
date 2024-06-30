@@ -11,6 +11,7 @@ import nijigenerate;
 import nijigenerate.actions;
 import nijigenerate.core;
 import nijigenerate.core.selector;
+import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType;
 import nijigenerate.panels;
 import nijigenerate.utils;
 import nijigenerate.widgets;

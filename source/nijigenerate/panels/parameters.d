@@ -32,11 +32,12 @@ import std.algorithm.mutation : remove;
 
 private {
 
-    ParameterBinding[][Node] cParamBindingEntries;
-    ParameterBinding[][Node] cParamBindingEntriesAll;
-    Node[] cAllBoundNodes;
+    ParameterBinding[][nijilive.core.Resource] cParamBindingEntries;
+    ParameterBinding[][nijilive.core.Resource] cParamBindingEntriesAll;
+    nijilive.core.Resource[] cAllBoundNodes;
     ParameterBinding[BindTarget] cSelectedBindings;
-    Node[] cCompatibleNodes;
+//    ParameterBinding[BindTargetBase!(Parameter, int)] cSelectedParameterParameterBindings;
+    nijilive.core.Resource[] cCompatibleNodes;
     vec2u cParamPoint;
     vec2u cClipboardPoint;
     ParameterBinding[BindTarget] cClipboardBindings;
@@ -50,13 +51,30 @@ private {
         auto selected = selectedOnly? incSelectedNodes() : [];
         cParamBindingEntriesAll.clear();
         foreach(ParameterBinding binding; param.bindings) {
-            BindTarget target = binding.getTarget();
+            auto target = binding.getTarget();
             if (target in cSelectedBindings) newSelectedBindings[target] = binding;
             if (!selectedOnly || selected.countUntil(target.node) >= 0)
                 cParamBindingEntriesAll[binding.getNode()] ~= binding;
         }
         cAllBoundNodes = cParamBindingEntriesAll.keys.dup;
-        cAllBoundNodes.sort!((x, y) => x.name < y.name);
+        bool compare(nijilive.core.Resource x, nijilive.core.Resource y) {
+            Node nx, ny;
+            nx = cast(Node)x;
+            ny = cast(Node)y;
+            if (nx && ny) {
+                return nx.name < ny.name;
+            }
+            if (nx) return true;
+            if (ny) return false;
+            Parameter px, py;
+            px = cast(Parameter)x;
+            py = cast(Parameter)y;
+            if (px && py) {
+                return px.name < py.name;
+            }
+            return false;
+        }
+        cAllBoundNodes.sort!(compare);
         cSelectedBindings = newSelectedBindings;
         paramPointChanged(param);
     }
@@ -67,7 +85,7 @@ private {
         cParamPoint = param.findClosestKeypoint();
         foreach(ParameterBinding binding; param.bindings) {
             if (binding.isSet(cParamPoint)) {
-                cParamBindingEntries[binding.getNode()] ~= binding;
+                cParamBindingEntries[binding.getTarget.target] ~= binding;
             }
         }
     }
@@ -95,24 +113,24 @@ private {
         auto action = new ParameterChangeBindingsAction("Mirror Auto Fill", param, null);
 
         foreach(ParameterBinding binding; param.bindings) {
+            if (auto target = cast(Node)binding.getTarget().target) {
+                auto pair = incGetFlipPairFor(target);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, true);
+                // Check if the binding was found or created
+                if(targetBinding is null) continue;
 
-            Node target = binding.getTarget().node;
-            auto pair = incGetFlipPairFor(target);
-            auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), true);
-            // Check if the binding was found or created
-            if(targetBinding is null) continue;
+                uint xCount = param.axisPointCount(0);
+                uint yCount = param.axisPointCount(1);
+                foreach(x; 0..xCount) {
+                    float offX = param.axisPoints[0][x];
+                    if (axis == 0 && (offX < min || offX > max)) continue;
+                    foreach(y; 0..yCount) {
+                        float offY = param.axisPoints[1][y];
+                        if (axis == 1 && (offY < min || offY > max)) continue;
 
-            uint xCount = param.axisPointCount(0);
-            uint yCount = param.axisPointCount(1);
-            foreach(x; 0..xCount) {
-                float offX = param.axisPoints[0][x];
-                if (axis == 0 && (offX < min || offX > max)) continue;
-                foreach(y; 0..yCount) {
-                    float offY = param.axisPoints[1][y];
-                    if (axis == 1 && (offY < min || offY > max)) continue;
-
-                    vec2u index = vec2u(x, y);
-                    if (!targetBinding.isSet(index)) incBindingAutoFlip(targetBinding, binding, index, axis);
+                        vec2u index = vec2u(x, y);
+                        if (!targetBinding.isSet(index)) incBindingAutoFlip(targetBinding, binding, index, axis);
+                    }
                 }
             }
         }
@@ -128,22 +146,24 @@ private {
         auto action = new ParameterChangeBindingsAction("Paste", param, null);
 
         foreach(ParameterBinding srcBinding; cClipboardParameter.bindings) {
+            if (auto target = cast(Node)srcBinding.getTarget().target) {
+                FlipPair pair = null;
+                if (axis != 2)
+                    pair = incGetFlipPairFor(target);
+                auto binding = incBindingGetPairFor(param, target, pair, srcBinding.getTarget.name, true);
+                // Check if the binding was found or created
+                if(binding is null) continue;
 
-            Node target = srcBinding.getTarget().node;
-            FlipPair pair = null;
-            if (axis != 2)
-                pair = incGetFlipPairFor(target);
-            auto binding = incBindingGetPairFor(param, target, pair, srcBinding.getName(), true);
-            // Check if the binding was found or created
-            if(binding is null) continue;
-
-            uint xCount = param.axisPointCount(0);
-            uint yCount = param.axisPointCount(1);
-            foreach(x; 0..xCount) {
-                foreach(y; 0..yCount) {
-                    vec2u index = vec2u(x, y);
-                    incBindingAutoFlip(binding, srcBinding, index, axis, false);
+                uint xCount = param.axisPointCount(0);
+                uint yCount = param.axisPointCount(1);
+                foreach(x; 0..xCount) {
+                    foreach(y; 0..yCount) {
+                        vec2u index = vec2u(x, y);
+                        incBindingAutoFlip(binding, srcBinding, index, axis, false);
+                    }
                 }
+            } else {
+                //FIXME: must be implemented.                
             }
         }
         action.updateNewState();
@@ -154,62 +174,72 @@ private {
 
     void fixScales(Parameter param) {
         auto action = new ParameterChangeBindingsAction("Fix Scale", param, null);
-        foreach(ParameterBinding binding; param.bindings) {                        
-            switch(binding.getName()) {
-                case "transform.s.x":
-                case "transform.s.y":
-                if (ValueParameterBinding b = cast(ValueParameterBinding)binding) {
-                    uint xCount = param.axisPointCount(0);
-                    uint yCount = param.axisPointCount(1);
-                    foreach(x; 0..xCount) {
-                        foreach(y; 0..yCount) {
-                            vec2u index = vec2u(x, y);
-                            if (b.isSet(index)) {
-                                b.values[x][y] += 1;
+        foreach(ParameterBinding binding; param.bindings) {
+            if (auto node = cast(Node)binding.getTarget().target) {
+                switch(binding.getTarget.name) {
+                    case "transform.s.x":
+                    case "transform.s.y":
+                    if (ValueParameterBinding b = cast(ValueParameterBinding)binding) {
+                        uint xCount = param.axisPointCount(0);
+                        uint yCount = param.axisPointCount(1);
+                        foreach(x; 0..xCount) {
+                            foreach(y; 0..yCount) {
+                                vec2u index = vec2u(x, y);
+                                if (b.isSet(index)) {
+                                    b.values[x][y] += 1;
+                                }
                             }
                         }
+                        b.reInterpolate();
                     }
-                    b.reInterpolate();
+                    break;
+                    default: break;
                 }
-                break;
-                default: break;
             }
         }
         action.updateNewState();
         incActionPush(action);
     }
 
-    Node[] getCompatibleNodes() {
+    nijilive.core.Resource[] getCompatibleNodes() {
         Node thisNode = null;
 
         foreach(binding; cSelectedBindings.byValue()) {
-            if (thisNode is null) thisNode = binding.getNode();
-            else if (!(binding.getNode() is thisNode)) return null;
+            if (auto node = cast(Node)binding.getTarget.target) {
+                if (thisNode is null) thisNode = node;
+                else if (node !is thisNode) return null;
+            }
         }
         if (thisNode is null) return null;
 
-        Node[] compatible;
-        nodeLoop: foreach(otherNode; cParamBindingEntriesAll.byKey()) {
+        nijilive.core.Resource[] compatible;
+        nodeLoop: foreach(another; cParamBindingEntriesAll.byKey()) {
+            Node otherNode = cast(Node)(another);
             if (otherNode is thisNode) continue;
 
             foreach(binding; cSelectedBindings.byValue()) {
-                if (!binding.isCompatibleWithNode(otherNode))
+                if (!binding.isCompatibleWithNode(otherNode)) {
                     continue nodeLoop;
+                } else {
+                    continue nodeLoop;
+                }
             }
-            compatible ~= otherNode;
+            compatible ~= cast(nijilive.core.Resource)otherNode;
         }
 
         return compatible;
     }
 
     void copySelectionToNode(Parameter param, Node target) {
-        Node src = cSelectedBindings.keys[0].node;
+        nijilive.core.Resource src = cSelectedBindings.keys[0].target;
 
         foreach(binding; cSelectedBindings.byValue()) {
-            assert(binding.getNode() is src, "selection mismatch");
+            if (auto node = cast(Node)binding.getTarget.target) {
+                assert(binding.getTarget.target is src, "selection mismatch");
 
-            ParameterBinding b = param.getOrAddBinding(target, binding.getName());
-            binding.copyKeypointToBinding(cParamPoint, b, cParamPoint);
+                ParameterBinding b = param.getOrAddBinding(target, binding.getTarget.name);
+                binding.copyKeypointToBinding(cParamPoint, b, cParamPoint);
+            }
         }
         target.notifyChange(target, NotifyReason.StructureChanged);
 
@@ -217,13 +247,15 @@ private {
     }
 
     void swapSelectionWithNode(Parameter param, Node target) {
-        Node src = cSelectedBindings.keys[0].node;
+        nijilive.core.Resource src = cSelectedBindings.keys[0].target;
 
         foreach(binding; cSelectedBindings.byValue()) {
-            assert(binding.getNode() is src, "selection mismatch");
+            if (auto node = cast(Node)binding.getTarget.target) {
+                assert(binding.getTarget().target is src, "selection mismatch");
 
-            ParameterBinding b = param.getOrAddBinding(target, binding.getName());
-            binding.swapKeypointWithBinding(cParamPoint, b, cParamPoint);
+                ParameterBinding b = param.getOrAddBinding(target, binding.getTarget().name);
+                binding.swapKeypointWithBinding(cParamPoint, b, cParamPoint);
+            }
         }
 
         refreshBindingList(param);
@@ -245,7 +277,7 @@ private {
                 newParam.insertAxisPoint(0, key);
             }
             foreach(binding; param.bindings) {
-                ParameterBinding b = newParam.getOrAddBinding(binding.getTarget().node, binding.getName());
+                ParameterBinding b = newParam.getOrAddBinding(binding.getTarget().target, binding.getTarget().name);
                 auto srcKeyIndex  = param.findClosestKeypoint(param.unmapValue(vec2(key, 0)));
                 auto destKeyIndex = newParam.findClosestKeypoint(newParam.unmapValue(vec2(key, newParam.min.y)));
                 binding.copyKeypointToBinding(srcKeyIndex, b, destKeyIndex);
@@ -464,13 +496,14 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
                 incActionPushGroup();
                 auto action = new ParameterChangeBindingsValueAction("set From Mirror (Horizontally)", param, bindings, cParamPoint.x, cParamPoint.y);
                 foreach(binding; bindings) {
-                    Node target = binding.getTarget().node;
-                    auto pair = incGetFlipPairFor(target);
-                    auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), targetBindings is null);
-                    if (targetBindings !is null)
-                        incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
-                    else if(targetBinding !is null)
-                        incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
+                    if (auto target = cast(Node)binding.getTarget().target) {
+                        auto pair = incGetFlipPairFor(target);
+                        auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindings is null);
+                        if (targetBindings !is null)
+                            incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
+                        else if(targetBinding !is null)
+                            incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
+                    }
                 }
                 action.updateNewState();
                 incActionPush(action);
@@ -481,13 +514,14 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
                 incActionPushGroup();
                 auto action = new ParameterChangeBindingsValueAction("set From Mirror (Vertically)", param, bindings, cParamPoint.x, cParamPoint.y);
                 foreach(binding; bindings) {
-                    Node target = binding.getTarget().node;
-                    auto pair = incGetFlipPairFor(target);
-                    auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), targetBindings is null);
-                    if (targetBindings !is null)
-                        incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
-                    else if(targetBinding !is null)
-                        incBindingAutoFlip(targetBinding, binding, cParamPoint, 1);
+                    if (auto target = cast(Node)binding.getTarget().target) {
+                        auto pair = incGetFlipPairFor(target);
+                        auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindings is null);
+                        if (targetBindings !is null)
+                            incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
+                        else if(targetBinding !is null)
+                            incBindingAutoFlip(targetBinding, binding, cParamPoint, 1);
+                    }
                 }
                 action.updateNewState();
                 incActionPush(action);
@@ -498,13 +532,14 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
                 incActionPushGroup();
                 auto action = new ParameterChangeBindingsValueAction("set From Mirror (Diagonally)", param, bindings, cParamPoint.x, cParamPoint.y);
                 foreach(binding; bindings) {
-                    Node target = binding.getTarget().node;
-                    auto pair = incGetFlipPairFor(target);
-                    auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), targetBindings is null);
-                    if (targetBindings !is null)
-                        incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
-                    else if(targetBinding !is null)
-                        incBindingAutoFlip(targetBinding, binding, cParamPoint, -1);
+                    if (auto target = cast(Node)binding.getTarget().target) {
+                        auto pair = incGetFlipPairFor(target);
+                        auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindings is null);
+                        if (targetBindings !is null)
+                            incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
+                        else if(targetBinding !is null)
+                            incBindingAutoFlip(targetBinding, binding, cParamPoint, -1);
+                    }
                 }
                 action.updateNewState();
                 incActionPush(action);
@@ -518,13 +553,14 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
             incActionPushGroup();
             auto action = new ParameterChangeBindingsValueAction("set From Mirror", param, bindings, cParamPoint.x, cParamPoint.y);
             foreach(binding; bindings) {
-                Node target = binding.getTarget().node;
-                auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), targetBindings is null);
-                if (targetBindings !is null)
-                    incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
-                else if(targetBinding !is null)
-                    incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
+                if (auto target = cast(Node)binding.getTarget().target) {
+                    auto pair = incGetFlipPairFor(target);
+                    auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, targetBindings is null);
+                    if (targetBindings !is null)
+                        incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
+                    else if(targetBinding !is null)
+                        incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
+                }
             }
             action.updateNewState();
             incActionPush(action);
@@ -598,7 +634,8 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
         foreach(binding; cSelectedBindings.byValue()) {
             action.addAction(new ParameterBindingRemoveAction(param, binding));
             param.removeBinding(binding);
-            binding.getTarget().node.notifyChange(binding.getTarget().node, NotifyReason.StructureChanged);
+            if (auto node = cast(Node)binding.getTarget().target)
+                node.notifyChange(node, NotifyReason.StructureChanged);
         }
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
@@ -630,17 +667,21 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
 
     bool haveCompatible = cCompatibleNodes.length > 0;
     if (igBeginMenu(__("Copy to"), haveCompatible)) {
-        foreach(cNode; cCompatibleNodes) {
-            if (igMenuItem(cNode.name.toStringz, "", false, true)) {
-                copySelectionToNode(param, cNode);
+        foreach(c; cCompatibleNodes) {
+            if (Node cNode = cast(Node)c) {
+                if (igMenuItem(cNode.name.toStringz, "", false, true)) {
+                    copySelectionToNode(param, cNode);
+                }
             }
         }
         igEndMenu();
     }
     if (igBeginMenu(__("Swap with"), haveCompatible)) {
-        foreach(cNode; cCompatibleNodes) {
-            if (igMenuItem(cNode.name.toStringz, "", false, true)) {
-                swapSelectionWithNode(param, cNode);
+        foreach(c; cCompatibleNodes) {
+            if (Node cNode = cast(Node)c) {
+                if (igMenuItem(cNode.name.toStringz, "", false, true)) {
+                    swapSelectionWithNode(param, cNode);
+                }
             }
         }
         igEndMenu();
@@ -670,9 +711,9 @@ void incBindingList(Parameter param) {
             igPushStyleVar(ImGuiStyleVar.CellPadding, ImVec2(4, 1));
             igPushStyleVar(ImGuiStyleVar.IndentSpacing, 14);
 
-            foreach(node; cAllBoundNodes) {
-                ParameterBinding[] allBindings = cParamBindingEntriesAll[node];
-                ParameterBinding[] *bindings = (node in cParamBindingEntries);
+            foreach(n; cAllBoundNodes) {
+                ParameterBinding[] allBindings = cParamBindingEntriesAll[n];
+                ParameterBinding[] *bindings = (n in cParamBindingEntries);
 
                 // Figure out if node is selected ( == all bindings selected)
                 bool nodeSelected = true;
@@ -689,9 +730,9 @@ void incBindingList(Parameter param) {
                     flags |= ImGuiTreeNodeFlags.Selected;
 
                 if (bindings is null) igPushStyleColor(ImGuiCol.Text, inactiveColor);
-                string nodeName = incTypeIdToIcon(node.typeId) ~ " " ~ node.name;
-                if (igTreeNodeEx(cast(void*)node.uuid, flags, nodeName.toStringz)) {
-
+                Node node = cast(Node)n;
+                string nodeName = node? (incTypeIdToIcon(node.typeId) ~ " " ~ node.name): n.name;
+                if (igTreeNodeEx(cast(void*)n.uuid, flags, nodeName.toStringz)) {
                     if (bindings is null) igPopStyleColor();
                     if (igBeginPopup("###BindingPopup")) {
                         incBindingMenuContents(param, cSelectedBindings);
@@ -771,10 +812,11 @@ void incBindingList(Parameter param) {
                                 if (selected) cSelectedBindings.remove(binding.getTarget());
                                 else cSelectedBindings[binding.getTarget()] = binding;
                             }
+                        
                     }
-                    
                     igTreePop();
                 } else if (bindings is null) igPopStyleColor();
+
             }
 
             igPopStyleVar();
@@ -892,6 +934,72 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                     }
                     incActionPush(new ParameterRemoveAction(param, &paramArr));
                     incActivePuppet().removeParameter(param);
+                }
+
+                igNewLine();
+                igSeparator();
+
+                void addBinding(Parameter p, int fromAxis, int toAxis) {
+                    auto binding = param.createBinding(p, toAxis);
+                    param.addBinding(binding);
+//                    writefln("%s", param.bindings);
+                    auto ppBinding = cast(ParameterParameterBinding)binding;
+                    vec2 pos;
+                    vec2u index;
+
+                    pos = vec2(0, 0);
+                    pos.vector[fromAxis] = param.min.vector[fromAxis];
+                    index = param.findClosestKeypoint(pos);
+                    ppBinding.values[index.vector[0]][index.vector[1]] = p.min.vector[toAxis];
+                    ppBinding.isSet_[index.vector[0]][index.vector[1]] = true;
+
+                    pos = vec2(0, 0);
+                    pos.vector[fromAxis] = param.max.vector[fromAxis];
+                    index = param.findClosestKeypoint(pos);
+                    ppBinding.values[index.vector[0]][index.vector[1]] = p.max.vector[toAxis];
+                    ppBinding.isSet_[index.vector[0]][index.vector[1]] = true;
+
+                    ppBinding.reInterpolate();
+                    auto action = new ParameterBindingAddAction(param, binding);
+                    incActionPush(action);
+                }
+                void listParams(int fromAxis) {
+                    foreach (p; incActivePuppet().parameters) {
+                        if (param == p) continue;
+                        if (p.isVec2) {
+                            if (igBeginMenu(p.name.toStringz, true)) {
+                                if (igMenuItem(__("X"))) {
+                                    int toAxis = 0;
+                                    addBinding(p, fromAxis, toAxis);
+                                }
+                                if (igMenuItem(__("Y"))) {
+                                    int toAxis = 1;
+                                    addBinding(p, fromAxis, toAxis);
+                                }
+                                igEndMenu();
+                            } 
+                        } else if (igMenuItem(p.name.toStringz, null, false, true)) {
+                            int toAxis = 0;
+                            addBinding(p, fromAxis, toAxis);
+                        }
+                    }
+                }
+
+                if (param.isVec2) {
+                    if (igBeginMenu(__("Link X to..."), true)) {
+                        listParams(0);
+                        igEndMenu();
+                    }
+
+                    if (igBeginMenu(__("Link Y to .."), true)) {
+                        listParams(1);
+                        igEndMenu();
+                    }
+                } else {
+                    if (igBeginMenu(__("Link parameter to..."), true)) {
+                        listParams(0);
+                        igEndMenu();
+                    }
                 }
 
                 igNewLine();
@@ -1068,7 +1176,7 @@ void incParameterView(bool armedParam=false, bool showCategory = true, bool fixe
 bool incParameterGropuMenuContents(ExParameterGroup group) {
     bool result = false;
     if (igMenuItem(__("Rename"))) {
-        incPushWindow(new RenameWindow(group.name));
+        incPushWindow(new RenameWindow(group.name_));
     }
 
     if (igBeginMenu(__("Colors"))) {

@@ -89,7 +89,9 @@ class Proxy(T: ParameterBinding) : Resource {
     T target;
 public:
     override
-    string name() { return target.getName; }
+    string name() {
+        return target.getTarget().name;
+    }
     override
     uint uuid() { return cast(uint)&target; }
     override

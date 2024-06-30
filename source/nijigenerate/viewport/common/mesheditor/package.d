@@ -284,14 +284,16 @@ public:
             auto binding = cast(DeformationParameterBinding)(param.getOrAddBinding(drawing, "deform"));
             assert (binding !is null);
 
-            Node target = binding.getTarget().node;
-            auto pair = incGetFlipPairFor(target);
-            auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), false);
+            Node target = cast(Node)binding.getTarget().node;
+            if (target) {
+                auto pair = incGetFlipPairFor(target);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getName(), false);
 
-            if (true)
-                incBindingAutoFlip(binding, targetBinding, cParamPoint, 0, true, &editor.selected);
-            else
-                incBindingAutoFlip(targetBinding, binding, cParamPoint, 0, true, &editor.selected);
+                if (true)
+                    incBindingAutoFlip(binding, targetBinding, cParamPoint, 0, true, &editor.selected);
+                else
+                    incBindingAutoFlip(targetBinding, binding, cParamPoint, 0, true, &editor.selected);
+            }
         }
         action.updateNewState();
         incActionPush(action);

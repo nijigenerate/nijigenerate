@@ -43,7 +43,7 @@ public:
     void clear() {}
 
     void addBinding(Parameter param, ParameterBinding binding) {
-        addAction(new ParameterBindingRemoveAction(param, binding));
+        addAction(new ParameterBindingAddAction(param, binding));
     }
 
     /**

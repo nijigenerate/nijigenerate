@@ -33,12 +33,12 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     }
     if (pairNode !is null) {
         foreach (ParameterBinding binding; param.bindings) {
-            if (binding.getTarget().node.uuid == pairNode.uuid && binding.getName() == name)
+            if (binding.getTarget().target.uuid == pairNode.uuid && binding.getTarget.name == name)
                 return binding;
         }
     }
     if (forceCreate) {
-        result = param.createBinding(pairNode, name);
+        result = cast(ParameterBinding)param.createBinding(pairNode, name);
         // Skip if trying to add a deform binding to a node that can't get deformed
         if(name == "deform" && cast(Drawable)pairNode is null) return null;
         param.addBinding(result);
@@ -70,7 +70,7 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     */
 void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, vec2u index, uint axis, bool extrapolation = true, ulong[]* selected = null) {
 
-    T extrapolateValueAt(T)(ParameterBindingImpl!T binding, vec2u index, uint axis) {
+    T extrapolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, uint axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
 
         switch (axis) {
@@ -87,7 +87,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
 
         return binding.interpolate(srcIndex, subOffset);            
     }
-    T interpolateValueAt(T)(ParameterBindingImpl!T binding, vec2u index, uint axis) {
+    T interpolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, uint axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
         vec2u srcIndex;
         vec2 subOffset;

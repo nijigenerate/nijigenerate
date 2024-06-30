@@ -185,7 +185,7 @@ class NodeReplaceAction : Action {
         foreach (param; parameters) {
             foreach (binding; param.bindings) {
                 if (binding.getTarget().node == src) {
-                    binding.setTarget(to, binding.getTarget().paramName);
+                    binding.setTarget(to, binding.getTarget().name);
                 }
             }
         }
