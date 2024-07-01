@@ -109,7 +109,7 @@ public:
         return displayNamePtr;
     }
 
-    final bool isActive() {
+    bool isActive() {
         return (incEditMode() & this.activeModes) > 0;
     }
 
