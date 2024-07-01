@@ -1,6 +1,6 @@
 # <div align="center"><img src="https://github.com/nijigenerate/nijigenerate/blob/main/res/ui/banner-logo.png" width="384" alt="nijigenerate"></div>
 
-![screenshot](https://github.com/nijigenerate/nijigenerate/assets/449741/d8a8af13-4ea4-46aa-816f-dad7b630be4a)
+![image](https://github.com/nijigenerate/nijigenerate/assets/449741/f51669f9-0732-465f-9182-470e22d8fba6)
 
 ----------------
 <!--
