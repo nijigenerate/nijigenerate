@@ -44,10 +44,6 @@ version(OSX) {
     enum const(char)*[] SDL_VERSIONS_MACOS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
 }
 
-version(linux) {
-    import dportals;
-}
-
 version(Windows) {
     import core.sys.windows.windows;
     import core.sys.windows.winuser;
@@ -365,9 +361,6 @@ void incOpenWindow() {
     // Load Settings
     incShowStatsForNerds = incSettingsCanGet("NerdStats") ? incSettingsGet!bool("NerdStats") : false;
 
-    version(linux) {
-        dpInit();
-    }
 }
 
 void incCreateContext() {
@@ -689,10 +682,6 @@ void incBeginLoopNoEv() {
     // Do our DPI pre-processing
     igNewFrame();
     incGLBackendBeginRender();
-
-    version(linux) dpUpdate();
-
-
 
     if (files.length > 0) {
         if (igBeginDragDropSource(ImGuiDragDropFlags.SourceExtern)) {
