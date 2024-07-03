@@ -726,10 +726,11 @@ protected:
             igGetStyle().ItemSpacing = spacing;
     }
 
-    void drawParameter(Resource res, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
+    bool drawParameter(Resource res, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
         bool isActive = false;
         auto param = to!Parameter(res);
         isActive = incArmedParameter() == param;
+        bool menuOpened = false;
         if (auto exGroup = cast(ExParameterGroup)param) {
             igGetItemRectMin(&widgetMinPos);
             if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, false, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
@@ -740,6 +741,9 @@ protected:
             igGetItemRectMin(&widgetMinPos);
             igPushID(cast(void*)param);
             if (igSelectable(res.name.toStringz, incArmedParameter() == param, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
+            }
+            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                menuOpened = true;
             }
             setParamDragSource(param);
             if (incController!(4, 4, 3, 1)("###CONTROLLER", param, ImVec2(IconSize, IconSize), false, grabParam)) {
@@ -755,6 +759,7 @@ protected:
             incTooltip(_(res.name));
             igPopID();
         }
+        return menuOpened;
     }
 
     void drawBinding(Resource res, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
@@ -777,6 +782,7 @@ protected:
         ImVec2 widgetMinPos, widgetMaxPos;
         igSameLine();
         // Draw contents of TreeNodeEx
+        bool menuOpened = false;
         switch (res.type) {
             case ResourceType.Node:
                 node = to!Node(res);
@@ -784,7 +790,7 @@ protected:
                 break;
 
             case ResourceType.Parameter:
-                drawParameter(res, widgetMinPos, widgetMaxPos, hovered);
+                menuOpened = drawParameter(res, widgetMinPos, widgetMaxPos, hovered);
                 break;
 
             case ResourceType.Binding:
@@ -800,7 +806,7 @@ protected:
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
         const char* popupName  = "##IconTreeViewNodeView";
         const char* popupName2 = "##IconTreeViewNodeMenu";
-        bool menuOpened = isHovered && igIsItemClicked(ImGuiMouseButton.Right);
+        menuOpened = menuOpened || (isHovered && igIsItemClicked(ImGuiMouseButton.Right));
 
         if (popupOpened == res) {
             auto flags = ImGuiWindowFlags.NoCollapse | 
