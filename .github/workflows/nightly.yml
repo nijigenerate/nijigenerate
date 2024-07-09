@@ -74,7 +74,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --config=linux-nightly --debug=InExperimental
+        dub build --compiler=ldc2 --config=linux-nightly
           
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -135,7 +135,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --config=win32-nightly --debug=InExperimental
+        dub build --compiler=ldc2 --config=win32-nightly
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
