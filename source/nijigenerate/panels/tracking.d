@@ -5,6 +5,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.panels.tracking;
+debug (InExperimental) {
 import nijigenerate.core;
 import nijigenerate.viewport.test;
 import nijigenerate.panels;
@@ -159,5 +160,6 @@ public:
     Generate tracking panel frame
 */
 debug(InExperimental) mixin incPanel!TrackingPanel;
+}
 
 
