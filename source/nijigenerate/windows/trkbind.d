@@ -5,6 +5,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.trkbind;
+debug(InExperimental) {
 import nijigenerate.viewport.test;
 import nijigenerate.windows;
 import nijigenerate.widgets;
@@ -143,4 +144,5 @@ public:
         // Title for the parameter properties window.
         super(_("Bind Tracking to Parameter"));
     }
+}
 }
