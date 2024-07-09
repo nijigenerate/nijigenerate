@@ -5,6 +5,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.viewport.test;
+version(InExperimental) {
 import nijigenerate.core;
 import nijigenerate;
 import nijilive;
@@ -227,4 +228,5 @@ void incViewportTestWithdraw() {
     if (adaptor) {
         adaptor.stop();
     }
+}
 }
