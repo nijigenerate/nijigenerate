@@ -385,6 +385,11 @@ void incInspectorModelTRS(Node node) {
                 if (incLockButton(&lockToRoot, "root_lk")) {
                     incLockToRootNode(node);
                 }
+
+                bool pinToMesh = node.pinToMesh;
+                if (igCheckbox(__("Pin origin to parent mesh."), &pinToMesh)) {
+                    node.pinToMesh = pinToMesh;
+                }
             igEndGroup();
 
             // Button which locks all transformation to be based off the root node
