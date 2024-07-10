@@ -156,10 +156,11 @@ bool incIsTilingWM() {
     Finalizes everything by freeing imgui resources, etc.
 */
 void incFinalize() {
-
+    debug (InExperimental) {
     // This is important to prevent thread leakage
     import nijigenerate.viewport.test : incViewportTestWithdraw;
     incViewportTestWithdraw();
+    }
 
     // Save settings
     igSaveIniSettingsToDisk(igGetIO().IniFilename);
