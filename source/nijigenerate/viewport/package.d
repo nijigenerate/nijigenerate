@@ -47,9 +47,11 @@ void incViewportDraw() {
             case EditMode.AnimEdit:
                 incViewportAnimDraw(camera);
                 break;
+            debug (InExperimental) {
             case EditMode.ModelTest:
                 incViewportTestDraw(camera);
                 break;
+            }
             default: assert(0);
         }
     inEndScene();
@@ -88,9 +90,11 @@ void incViewportDrawOptions() {
         case EditMode.AnimEdit:
             incViewportAnimOverlay();
             break;
+        debug (InExperimental) {
         case EditMode.ModelTest:
             incViewportTestOverlay();
             break;
+        }
         default: assert(0);
     }
 }
@@ -143,9 +147,11 @@ void incViewportUpdate(bool localOnly = false) {
         case EditMode.AnimEdit:
             incViewportAnimUpdate(io, camera);
             break;
+        debug (InExperimental) {
         case EditMode.ModelTest:
             incViewportTestUpdate(io, camera);
             break;
+        }
         default: assert(0);
     }
 }
@@ -164,9 +170,11 @@ void incViewportToolbar() {
         case EditMode.AnimEdit:
             incViewportAnimToolbar();
             break;
+        debug (InExperimental) {
         case EditMode.ModelTest:
             incViewportTestToolbar();
             break;
+        }
         default: assert(0);
     }
 }
@@ -185,9 +193,11 @@ void incViewportPresentMode(EditMode mode) {
         case EditMode.AnimEdit:
             incViewportAnimPresent();
             break;
+        debug (InExperimental) {
         case EditMode.ModelTest:
             incViewportTestPresent();
             break;
+        }
         default: assert(0);
     }
 }
@@ -206,9 +216,11 @@ void incViewportWithdrawMode(EditMode mode) {
         case EditMode.AnimEdit:
             incViewportAnimWithdraw();
             break;
+        debug (InExperimental) {
         case EditMode.ModelTest:
             incViewportTestWithdraw();
             break;
+        }
         default: assert(0);
     }
 }
