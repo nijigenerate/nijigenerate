@@ -14,7 +14,6 @@ public import nijigenerate.widgets.toolbar;
 public import nijigenerate.widgets.mainmenu;
 public import nijigenerate.widgets.tooltip;
 public import nijigenerate.widgets.statusbar;
-public import nijigenerate.widgets.secrets;
 public import nijigenerate.widgets.dummy;
 public import nijigenerate.widgets.drag;
 public import nijigenerate.widgets.lock;
