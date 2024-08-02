@@ -44,11 +44,6 @@ enum INC_FEATURE_REQ_URI = "https://github.com/nijigenerate/nijigenerate/issues/
 enum INC_INFO_WEBSITE_URI = "https://github.com/nijigenerate/";
 
 /**
-    URI to buy a copy, unused for non-official builds
-*/
-enum INC_INFO_BUY_URL = "https://lunafoxgirlvt.itch.io/nijigenerate";
-
-/**
     URI to documentation provided for this software, by default it'll direct to the nijilive Documentation
 
     If you modify the software by adding new features it's highly recommended that you change this link to
@@ -61,7 +56,7 @@ enum INC_INFO_DOCS_URI = "https://docs.github.com/nijigenerate/";
 
     Set to "" to disable the link.
 */
-enum INC_INFO_DISCORD_URI = "https://discord.com/invite/abnxwN6r9v";
+enum INC_INFO_DISCORD_URI = "";
 
 /**
     Whether to show donation links.
