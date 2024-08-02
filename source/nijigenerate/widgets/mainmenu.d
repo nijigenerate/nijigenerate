@@ -101,10 +101,6 @@ void incMainMenu() {
                     ImVec4(0, 0, 0, 0)
                 );
                 
-                import nijigenerate.core.egg : incAdaTickOne;
-                if (igIsItemClicked(ImGuiMouseButton.Left)) {
-                    incAdaTickOne();
-                }
                 igSeparator();
             }
 
