@@ -7,7 +7,6 @@
 module nijigenerate.core;
 import nijigenerate.core.dpi;
 import nijigenerate.core.input;
-import nijigenerate.core.egg;
 import nijigenerate.panels;
 import nijigenerate.windows;
 import nijigenerate.utils.link;
@@ -328,7 +327,6 @@ void incOpenWindow() {
     // Setup nijilive
     inInit(() { return igGetTime(); });
     
-    version(InBranding) incInitAda();
     incCreateContext();
 
     ShallowTexture tex;
@@ -810,12 +808,6 @@ void incEndLoop() {
         igUpdatePlatformWindows();
         igRenderPlatformWindowsDefault();
         SDL_GL_MakeCurrent(currentWindow, currentCtx);
-    }
-
-    
-    version(InBranding) {
-        import nijigenerate.core.egg : incAdaUpdate;
-        incAdaUpdate();
     }
 
     SDL_GL_SwapWindow(window);
