@@ -327,7 +327,6 @@ void incOpenWindow() {
     // Setup nijilive
     inInit(() { return igGetTime(); });
     
-    version(InBranding) incInitAda();
     incCreateContext();
 
     ShallowTexture tex;
