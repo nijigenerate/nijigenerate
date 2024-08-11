@@ -12,6 +12,7 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
+import nijigenerate.core.traits;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
@@ -280,18 +281,18 @@ Drawable incVertexEditGetTarget() {
 }
 */
 
-void incVertexEditStartEditing(Drawable target) {
+void incVertexEditStartEditing(Deformable target) {
     incSetEditMode(EditMode.VertexEdit);
     incSelectNode(target);
     incVertexEditSetTarget(target);
     incFocusCamera(target, vec2(0, 0));
 }
 
-void incVertexEditSetTarget(Drawable target) {
+void incVertexEditSetTarget(Deformable target) {
     editor.setTarget(target);
 }
 
-void incVertexEditCopyMeshDataToTarget(Drawable target, Drawable drawable, ref MeshData data) {
+void incVertexEditCopyMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
     if (editor.getEditorFor(target)) {
         editor.getEditorFor(target).importMesh(data);
     } else {
@@ -301,7 +302,7 @@ void incVertexEditCopyMeshDataToTarget(Drawable target, Drawable drawable, ref M
     }
 }
 
-void incVertexEditMergeMeshDataToTarget(Drawable target, Drawable drawable, ref MeshData data) {
+void incVertexEditMergeMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
     mat4 matrix = drawable.transform.matrix * target.transform.matrix.inverse;
     if (editor.getEditorFor(target)) {
         editor.getEditorFor(target).mergeMesh(data, matrix);
