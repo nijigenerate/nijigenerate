@@ -97,39 +97,26 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
         
         if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
 
-            incText(incTypeIdToIcon("Node"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("Node"), "", false, true)) incAddChildWithHistory(new Node(cast(Node)null), n);
-            
-            incText(incTypeIdToIcon("Mask"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("Mask"), "", false, true)) {
-                MeshData empty;
-                incAddChildWithHistory(new Mask(empty, cast(Node)null), n);
+            string NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
+                if (ClassName is null) {
+                    ClassName = NodeName;
+                }
+                if (NodeLabel is null) {
+                    NodeLabel = NodeName;
+                }
+                return "incText(incTypeIdToIcon(\""~NodeName~"\"));
+                igSameLine(0, 2);
+                if (igMenuItem(__(\""~NodeLabel~"\"), \"\", false, true)) incAddChildWithHistory(new "~ClassName~"(cast(Node)null), n);";
             }
-            
-            incText(incTypeIdToIcon("Composite"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("Composite"), "", false, true)) {
-                incAddChildWithHistory(new Composite(cast(Node)null), n);
-            }
-            
-            incText(incTypeIdToIcon("SimplePhysics"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("Simple Physics"), "", false, true)) incAddChildWithHistory(new SimplePhysics(cast(Node)null), n);
 
-            
-            incText(incTypeIdToIcon("Camera"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("Camera"), "", false, true)) incAddChildWithHistory(new ExCamera(cast(Node)null), n);
-
-            incText(incTypeIdToIcon("MeshGroup"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("MeshGroup"), "", false, true)) incAddChildWithHistory(new MeshGroup(cast(Node)null), n);
-
-            incText(incTypeIdToIcon("DynamicComposite"));
-            igSameLine(0, 2);
-            if (igMenuItem(__("DynamicComposite"), "", false, true)) incAddChildWithHistory(new DynamicComposite(cast(Node)null), n);
+            mixin(NodeCreateMenu("Node"));
+            mixin(NodeCreateMenu("Mask"));
+            mixin(NodeCreateMenu("Composite"));
+            mixin(NodeCreateMenu("SimplePhysics", "Simple Physics"));
+            mixin(NodeCreateMenu("MeshGroup", "Mesh Group"));
+            mixin(NodeCreateMenu("DynamicComposite", "Dynamic Composite"));
+            mixin(NodeCreateMenu("BezierDeformer", "Bezier Deformer"));
+            mixin(NodeCreateMenu("Camera", "Camera", "ExCamera"));
 
             igEndMenu();
         }
@@ -137,7 +124,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
         static if (!isRoot) {
 
             // Edit mesh option for drawables
-            if (Drawable d = cast(Drawable)n) {
+            if (auto d = cast(Deformable)n) {
                 if (!incArmedParameter()) {
                     if (igMenuItem(__(nodeActionToIcon!icon("Edit Mesh")))) {
                         incVertexEditStartEditing(d);
