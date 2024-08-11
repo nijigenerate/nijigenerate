@@ -442,7 +442,7 @@ class ToolInfoImpl(T: PathDeformTool) : ToolInfoBase!(T) {
         igSameLine(0, 4);
 
         igBeginGroup();
-            if (incButtonColored("", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
+            if (incButtonColored("", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
                 foreach (e; editors) {
                     auto deform = cast(PathDeformTool)(e.getTool());
                     if (deform !is null)
@@ -455,6 +455,6 @@ class ToolInfoImpl(T: PathDeformTool) : ToolInfoBase!(T) {
         return false;
     }
     override VertexToolMode mode() { return VertexToolMode.PathDeform; }
-    override string icon() { return "";}
+    override string icon() { return "";}
     override string description() { return _("Path Deform Tool");}
 }
