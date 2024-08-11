@@ -12,7 +12,6 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
-import nijigenerate.core.traits;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
@@ -28,6 +27,7 @@ private {
         new GridAutoMeshProcessor()
     ];
     AutoMeshProcessor activeProcessor = null;
+    bool isSubPartsMeshVisible = false;
 }
 
 void incViewportVertexInspector(Drawable node) {
@@ -45,6 +45,15 @@ void incViewportVertexOptions() {
 
     igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
     igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
+        igBeginGroup();
+            if (incButtonColored("", ImVec2(0, 0), isSubPartsMeshVisible ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                isSubPartsMeshVisible = !isSubPartsMeshVisible;
+            }
+            incTooltip(_("Toggle mesh visibility"));
+        igEndGroup();
+
+        igSameLine(0, 4);
+
         igBeginGroup();
             if (incButtonColored("")) {
                 foreach (d; incSelectedNodes) {
@@ -226,15 +235,16 @@ void incViewportVertexDraw(Camera camera) {
                     part.drawOne();
                     part.setOneTimeTransform(null);
                 }
-            } else if (MeshGroup mgroup = cast(MeshGroup)target) {
-                mat4 transform = mgroup.transform.matrix.inverse;
-                mgroup.setOneTimeTransform(&transform);
+            } else if (target.coverOthers()) {
+                mat4 transform = target.transform.matrix.inverse;
+                target.setOneTimeTransform(&transform);
                 Node[] subParts;
                 void findSubDrawable(Node n) {
-                    if (auto m = cast(MeshGroup)n) {
+                    if (n.coverOthers()) {
                         foreach (child; n.children)
                             findSubDrawable(child);
-                    } else if (auto c = cast(Composite)n) {
+                    }
+                    if (auto c = cast(Composite)n) {
                         if (c.propagateMeshGroup) {
                             subParts ~= c;
                         }
@@ -244,7 +254,7 @@ void incViewportVertexDraw(Camera camera) {
                             findSubDrawable(child);
                     }
                 }
-                findSubDrawable(mgroup);
+                findSubDrawable(target);
                 import std.algorithm.sorting;
                 import std.algorithm.mutation : SwapStrategy;
                 import std.math : cmp;
@@ -255,7 +265,14 @@ void incViewportVertexDraw(Camera camera) {
                 foreach (part; subParts) {
                     part.drawOne();
                 }
-                mgroup.setOneTimeTransform(null);
+                if (isSubPartsMeshVisible) {
+                    foreach (node; subParts) {
+                        if (target != node)
+                            if (auto drawable = cast(Drawable)node)
+                                drawable.drawMeshLines();
+                    }
+                }
+                target.setOneTimeTransform(null);
             }
         }
     }
