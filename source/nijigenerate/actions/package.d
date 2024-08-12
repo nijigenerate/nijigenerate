@@ -11,6 +11,7 @@ public import nijigenerate.actions.binding;
 public import nijigenerate.actions.mesheditor;
 public import nijigenerate.actions.drawable;
 public import nijigenerate.actions.mesh;
+public import nijigenerate.actions.deformable;
 
 /**
     An undo/redo-able action
