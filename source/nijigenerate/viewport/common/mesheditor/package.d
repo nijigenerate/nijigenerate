@@ -65,17 +65,24 @@ public:
     void addTarget(Node target) {
         if (target in editors)
             return;
-        IncMeshEditorOneDrawable subEditor;
-        if (deformOnly) 
-            subEditor = new IncMeshEditorOneDrawableDeform();
-        else {
-            incActionPushStack();
-            subEditor = new IncMeshEditorOneDrawableVertex();
+        IncMeshEditorOne subEditor;
+        if (deformOnly) {
+            if (auto drawable = cast(Drawable)target) { 
+                subEditor = new IncMeshEditorOneDrawableDeform();
+            } else if (auto deformable = cast(Drawable)target) {
+                subEditor = new IncMeshEditorOneDeformableDeform();
+            }
+        } else {
             if (auto drawable = cast(Drawable)target) {
+                incActionPushStack();
+                subEditor = new IncMeshEditorOneDrawableVertex();
                 if (drawable.getMesh().isGrid()) {
                     subEditor.toolMode = VertexToolMode.Grid;
                     toolMode           = VertexToolMode.Grid;
                 }
+            } else if (auto deformable = cast(Deformable)target) {
+                incActionPushStack();
+                subEditor = new IncMeshEditorOneDeformableVertex();
             }
         }
         subEditor.setTarget(target);
@@ -91,9 +98,8 @@ public:
             if (t in editors) {
                 newEditors[t] = editors[t];
             } else {
-                Drawable drawable = cast(Drawable)t;
                 IncMeshEditorOne subEditor = null;
-                if (drawable) {
+                if (auto drawable = cast(Drawable)t) {
                     if (deformOnly)
                         subEditor = new IncMeshEditorOneDrawableDeform();
                     else {
@@ -101,6 +107,13 @@ public:
                         subEditor = new IncMeshEditorOneDrawableVertex();
                     }
                     (cast(IncMeshEditorOneDrawable)subEditor).setTarget(drawable);
+                } else if (auto deformable = cast(Deformable)t) {
+                    if (deformOnly)
+                        subEditor = new IncMeshEditorOneDeformableDeform();
+                    else {
+                        incActionPushStack();
+                        subEditor = new IncMeshEditorOneDeformableVertex();
+                    }
                 } else {
                     subEditor = new IncMeshEditorOneNode(deformOnly);
                     (cast(IncMeshEditorOneNode)subEditor).setTarget(t);
@@ -202,29 +215,31 @@ public:
 
     void displayGroupIds() {
         // Show group Id
-        if (editors.length > 0 && (cast(IncMeshEditorOneDrawable)editors.values[0]).getMesh().maxGroupId > 1) {
-            auto editor = cast(IncMeshEditorOneDrawable)editors.values[0];
-            igSetWindowFontScale(1.30);
-                igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(10, 1));
-                igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(8, 10));
+        if (auto drawableEditor = cast(IncMeshEditorOneDrawable)editors.values[0]) {
+            if (editors.length > 0 && drawableEditor.getMesh().maxGroupId > 1) {
+                auto editor = cast(IncMeshEditorOneDrawable)editors.values[0];
+                igSetWindowFontScale(1.30);
+                    igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(10, 1));
+                    igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(8, 10));
 
-                    if (incButtonColored("All", ImVec2(0, 0), editor.getGroupId() == 0 ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
-                        foreach (e; editors) {
-                            e.setGroupId(0);
-                        }
-                    }
-                    igSameLine();
-                    foreach (i; 1..1+editor.getMesh().maxGroupId) {
-                        if (incButtonColored("%d".format(i).toStringz, ImVec2(0, 0), i == editor.getGroupId() ? colorUndefined: ImVec4(0.6, 0.6, 0.6, 1))) {
+                        if (incButtonColored("All", ImVec2(0, 0), editor.getGroupId() == 0 ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                             foreach (e; editors) {
-                                e.setGroupId(i);
+                                e.setGroupId(0);
                             }
                         }
                         igSameLine();
-                    }
+                        foreach (i; 1..1+editor.getMesh().maxGroupId) {
+                            if (incButtonColored("%d".format(i).toStringz, ImVec2(0, 0), i == editor.getGroupId() ? colorUndefined: ImVec4(0.6, 0.6, 0.6, 1))) {
+                                foreach (e; editors) {
+                                    e.setGroupId(i);
+                                }
+                            }
+                            igSameLine();
+                        }
 
-                igPopStyleVar(2);
-            igSetWindowFontScale(1);
+                    igPopStyleVar(2);
+                igSetWindowFontScale(1);
+            }
         }
     }
 

@@ -126,7 +126,7 @@ void incViewportModelConfirmBar() {
     if (incArmedParameter()) return;
 
     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-        if (Drawable node = cast(Drawable)incSelectedNode()) {
+        if (Deformable node = cast(Deformable)incSelectedNode()) {
             auto io = igGetIO();
             const(char)* text = incHasDragDrop("_PUPPETNTREE") ? (io.KeyCtrl ? __(" Merge Mesh"): __(" Copy Mesh")) : __(" Edit Mesh");
             
