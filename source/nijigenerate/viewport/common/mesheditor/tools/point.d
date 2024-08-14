@@ -104,9 +104,9 @@ class PointTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) impl.maybeSelectOne = ulong(-1);
 
         auto implDrawable = cast(IncMeshEditorOneDrawable)impl;
-        auto mesh = implDrawable.getMesh();
-
         assert(implDrawable !is null);
+        
+        auto mesh = implDrawable.getMesh();
         
         void addOrRemoveVertex(bool selectedOnly) {
             // Check if mouse is over a vertex
