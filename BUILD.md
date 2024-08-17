@@ -6,7 +6,7 @@ you can follow the instructions below to build on your Linux system.
 Also See [build-and-release.yml in nijigenerate](https://github.com/nijigenerate/nijigenerate/blob/main/.github/workflows/build-and-release.yml) 
 and [build-and-release.yml in nijiexpose](https://github.com/nijigenerate/nijiexpose/blob/main/.github/workflows/build-and-release.yml)
 
-## Install dependencies
+## Install Dependencies
 Ubuntu
 ```bash
 sudo apt update
@@ -19,7 +19,7 @@ sudo pacman -Syu
 sudo pacman -S ldc base-devel dub cmake git sdl2 freetype2
 ```
 
-## Build nijilive project
+## Build nijilive Project
 First, we need to clone the four projects under nijigenerate and add them to `dub add-local`.
 ```bash
 git clone https://github.com/nijigenerate/nijigenerate
