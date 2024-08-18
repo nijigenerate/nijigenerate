@@ -70,9 +70,6 @@ jobs:
 
     - name: 'Build nijigenerate'
       run: |
-        # Build metadata (like version information and icons)
-        dub build --config=meta
-
         # Build the project, with its main file included, without unittests
         dub build --compiler=ldc2 --config=linux-nightly
           
@@ -130,9 +127,6 @@ jobs:
         }
         Invoke-VSDevEnvironment
         Remove-Item 'C:/Strawberry' -Recurse
-
-        # Build metadata (like version information and icons)
-        dub build --config=meta
 
         # Build the project, with its main file included, without unittests
         dub build --compiler=ldc2 --config=win32-nightly
@@ -223,9 +217,6 @@ jobs:
       env:
         DFLAGS: "-g -force-dwarf-frame-section=false"
       run: |
-
-        # Build metadata (like version information and icons)
-        dub build --config=meta
 
         # First build ARM64 version...
         echo "Building arm64 binary..."
