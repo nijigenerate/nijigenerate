@@ -50,6 +50,21 @@ class NodeSelect : Tool, Draggable {
 
         impl.mousePos = incInputGetMousePosition();
         if (impl.deformOnly) {
+            // Since `impl.mousePos` is on the mesh plane, we need to apply an inverse matrix
+            // to convert it back to the original coordinate system (screen).
+
+            /* as transform matrix would rotation of the x or y axis cause visual offset.
+             * z       C (mesh plane)
+             * ^      /|
+             *       / |
+             *     A/  |
+             *    /|\  |
+             *   / |  \|
+             * x/__|___|_______> y (Screen)
+             *    B    D
+             * We expected to use D to get C but instead we got A
+             */
+
             vec4 pIn = vec4(-impl.mousePos.x, -impl.mousePos.y, 0, 1);
             mat4 tr = impl.transform.inverse();
             vec4 pOut = tr * pIn;
@@ -135,5 +150,12 @@ class NodeSelect : Tool, Draggable {
 
     override
     void draw(Camera camera, IncMeshEditorOne impl) {
+        if (impl.deformOnly) {
+            float radius = 5;
+            vec3[] drawPoints = incCreateCircleBuffer(impl.mousePos, vec2(radius, radius), 32);
+            inDbgSetBuffer(drawPoints);
+            inDbgPointsSize(4);
+            inDbgDrawLines(vec4(0, 1, 0, 1),impl. transform);
+        }
     }
 }
