@@ -563,11 +563,8 @@ void incMainMenu() {
         ImVec2 avail;
         igGetContentRegionAvail(&avail);
         float tabBarWidth;
-        debug(InExperimental) {
-            tabBarWidth = clamp(avail.x-128*3, 0, int.max);
-        } else {
-            tabBarWidth = clamp(avail.x-128*2, 0, int.max);
-        }
+        tabBarWidth = clamp(avail.x-128*2, 0, int.max);
+
         // We need to pre-calculate the size of the right adjusted section
         // This code is very ugly because imgui doesn't really exactly understand this
         // stuff natively.
@@ -601,15 +598,6 @@ void incMainMenu() {
                     igEndTabItem();
                 }
                 incTooltip(_("Edit Animation"));
-                debug(InExperimental) {
-                    if (igBeginTabItem("%s".format(_("Test Puppet")).toStringz, null)) {
-                        bool alreadySelected = incEditMode == EditMode.ModelTest;
-                        if (!alreadySelected)
-                            incSetEditMode(EditMode.ModelTest);
-                        igEndTabItem();
-                    }
-                    incTooltip(_("Test Puppet"));
-                }
             }
         igEndTabBar();
         igEndMainMenuBar();

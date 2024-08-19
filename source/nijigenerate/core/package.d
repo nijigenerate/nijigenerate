@@ -155,12 +155,6 @@ bool incIsTilingWM() {
     Finalizes everything by freeing imgui resources, etc.
 */
 void incFinalize() {
-    debug (InExperimental) {
-    // This is important to prevent thread leakage
-    import nijigenerate.viewport.test : incViewportTestWithdraw;
-    incViewportTestWithdraw();
-    }
-
     // Save settings
     igSaveIniSettingsToDisk(igGetIO().IniFilename);
 
@@ -743,7 +737,6 @@ void incSetDefaultLayout() {
     igDockBuilderDockWindow("###Tool Settings", dockIDToolSettings);
     igDockBuilderDockWindow("###History", dockIDHistory);
     igDockBuilderDockWindow("###Scene", dockIDHistory);
-    debug(InExperimental) igDockBuilderDockWindow("###Tracking", dockIDHistory);
     igDockBuilderDockWindow("###Timeline", dockIDTimeline);
     igDockBuilderDockWindow("###Animation List", dockIDAnimList);
     igDockBuilderDockWindow("###Logger", dockIDTimeline);
