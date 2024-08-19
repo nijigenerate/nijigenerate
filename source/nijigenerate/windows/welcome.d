@@ -102,17 +102,7 @@ protected:
 
                 //Logo
                 igSetCursorPos(ImVec2(0, 0));
-                version(InBranding) {
-                    igImage(cast(void*)bannerLogo.getTextureId(), ImVec2(bannerLogo.width/5, bannerLogo.height/5));
-                } else {
-                    igSetCursorPosY(origin.y+12);
-                    igSetCursorPosX(origin.x+12);
-                    igSetWindowFontScale(2);
-                        incTextBordered("nijigenerate");
-                    igSetWindowFontScale(1);
-                    igSetCursorPosX(origin.x+12);
-                    incTextBordered(_("Unsupported"));
-                }
+                igImage(cast(void*)bannerLogo.getTextureId(), ImVec2(bannerLogo.width/5, bannerLogo.height/5));
 
                 // Version String
                 ImVec2 vsSize = incMeasureString(INC_VERSION);
@@ -350,11 +340,10 @@ public:
         banner = new Texture(bannerTex);
         banner.setAnisotropy(1.5);
 
-        version(InBranding) {
-            auto bannerLogoTex = ShallowTexture(cast(ubyte[])import("ui/banner-logo.png"));   
-            inTexPremultiply(bannerLogoTex.data); 
-            bannerLogo = new Texture(bannerLogoTex);
-        }
+        auto bannerLogoTex = ShallowTexture(cast(ubyte[])import("ui/banner-logo.png"));   
+        inTexPremultiply(bannerLogoTex.data); 
+        bannerLogo = new Texture(bannerLogoTex);
+
         if (!incSettingsGet!bool("hasDoneQuickSetup", false)) step = 0;
 
         // Load UI scale
