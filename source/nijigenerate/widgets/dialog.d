@@ -29,20 +29,18 @@ enum DialogButtons {
 
 void incInitDialogs() {
     // Only load Ada in official builds
-    version(InBranding) {
-        auto infoTex = ShallowTexture(cast(ubyte[])import("ui/ui-info.png"));
-        inTexPremultiply(infoTex.data);
-        auto warnTex = ShallowTexture(cast(ubyte[])import("ui/ui-warning.png"));
-        inTexPremultiply(warnTex.data);
-        auto errTex = ShallowTexture(cast(ubyte[])import("ui/ui-error.png"));
-        inTexPremultiply(errTex.data);
+    auto infoTex = ShallowTexture(cast(ubyte[])import("ui/ui-info.png"));
+    inTexPremultiply(infoTex.data);
+    auto warnTex = ShallowTexture(cast(ubyte[])import("ui/ui-warning.png"));
+    inTexPremultiply(warnTex.data);
+    auto errTex = ShallowTexture(cast(ubyte[])import("ui/ui-error.png"));
+    inTexPremultiply(errTex.data);
 
-        adaTextures = [
-            new Texture(infoTex),
-            new Texture(warnTex),
-            new Texture(errTex),
-        ];
-    }
+    adaTextures = [
+        new Texture(infoTex),
+        new Texture(warnTex),
+        new Texture(errTex),
+    ];
 }
 
 /**
@@ -74,10 +72,8 @@ void incRenderDialogs() {
             igBeginGroup();
 
                 if (igBeginChild("ErrorMainBoxLogo", ImVec2(errImgScale, errImgScale))) {
-                    version (InBranding) {
-                        import nijigenerate.core : incGetLogo;
-                        igImage(cast(void*)adaTextures[cast(size_t)entry.level].getTextureId(), ImVec2(errImgScale, errImgScale));
-                    }
+                    import nijigenerate.core : incGetLogo;
+                    igImage(cast(void*)adaTextures[cast(size_t)entry.level].getTextureId(), ImVec2(errImgScale, errImgScale));
                 }
                 igEndChild();
 
