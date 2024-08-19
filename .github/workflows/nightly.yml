@@ -340,6 +340,7 @@ jobs:
         set -e
         mkdir -p ${FLATPAK_BUILD_REPO}/{extensions,refs/{mirrors,remotes},state,tmp/cache}
         flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo ${FLATPAK_BUILD_REPO} ${FLATPAK_BUNDLE}.flatpak ${APP_ID} ${FLATPAK_BRANCH}
+        flatpak build-bundle --runtime ${FLATPAK_BUILD_REPO} ${FLATPAK_BUNDLE}.debug.flatpak ${APP_ID/-/_}.Debug ${FLATPAK_BRANCH}
 
     - name: Release to nightly tag
       uses: softprops/action-gh-release@v1
@@ -348,4 +349,5 @@ jobs:
         tag_name: nightly
         files: |
           ${{ env.FLATPAK_BUNDLE }}.flatpak
+          ${{ env.FLATPAK_BUNDLE }}.debug.flatpak
 
