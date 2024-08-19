@@ -92,7 +92,6 @@ void incMainMenu() {
 
             ImVec2 avail;
             igGetContentRegionAvail(&avail);
-            version (InBranding) {
                 igImage(
                     cast(void*)incGetLogoI2D().getTextureId(), 
                     ImVec2(avail.y*2, avail.y*2), 
@@ -102,7 +101,6 @@ void incMainMenu() {
                 );
                 
                 igSeparator();
-            }
 
                 if (igBeginMenu(__("File"), true)) {
                     if(igMenuItem(__("New"), "Ctrl+N", false, true)) {

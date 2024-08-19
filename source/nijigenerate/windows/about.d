@@ -21,11 +21,10 @@ import std.stdio;
 
 class AboutWindow : Window {
 private:
-    version (InBranding) {
-        enum ADA_SIZE = 332;
-        enum ADA_SIZE_PARTIAL = ADA_SIZE/6;
-        vec2 ada_float;
-    }
+    enum ADA_SIZE = 332;
+    enum ADA_SIZE_PARTIAL = ADA_SIZE/6;
+    vec2 ada_float;
+
     MarkdownConfig cfg;
 
 protected:
@@ -43,36 +42,32 @@ protected:
         ImVec2 sPos;
         igGetCursorScreenPos(&sPos);
 
-        version (InBranding) {
-            ImVec2 avail = incAvailableSpace();
-            igSetCursorScreenPos(ImVec2(
-                sPos.x+(avail.x-(ADA_SIZE-ADA_SIZE_PARTIAL)), 
-                sPos.y+(avail.y-(ADA_SIZE+28))+(sin(currentTime())*4)
-            ));
+        ImVec2 avail = incAvailableSpace();
+        igSetCursorScreenPos(ImVec2(
+            sPos.x+(avail.x-(ADA_SIZE-ADA_SIZE_PARTIAL)), 
+            sPos.y+(avail.y-(ADA_SIZE+28))+(sin(currentTime())*4)
+        ));
 
-            igImage(
-                cast(void*)incGetAda().getTextureId(),
-                ImVec2(ADA_SIZE, ADA_SIZE),
-                ImVec2(0, 0),
-                ImVec2(1, 1), 
-                ImVec4(1, 1, 1, 0.4), ImVec4(0, 0, 0, 0)
-            );
-        }
+        igImage(
+            cast(void*)incGetAda().getTextureId(),
+            ImVec2(ADA_SIZE, ADA_SIZE),
+            ImVec2(0, 0),
+            ImVec2(1, 1), 
+            ImVec4(1, 1, 1, 0.4), ImVec4(0, 0, 0, 0)
+        );
 
         // Draw the actual about dialog
         igSetCursorScreenPos(sPos);
         if (igBeginChild("##LogoArea", ImVec2(0, 102))) {
 
-            version (InBranding) {
-                igImage(
-                    cast(void*)incGetLogo().getTextureId(), 
-                    ImVec2(64, 64), 
-                    ImVec2(0, 0), 
-                    ImVec2(1, 1), 
-                    ImVec4(1, 1, 1, 1), 
-                    ImVec4(0, 0, 0, 0)
-                );
-            }
+            igImage(
+                cast(void*)incGetLogo().getTextureId(), 
+                ImVec2(64, 64), 
+                ImVec2(0, 0), 
+                ImVec2(1, 1), 
+                ImVec4(1, 1, 1, 1), 
+                ImVec4(0, 0, 0, 0)
+            );
             
             igSameLine(0, 8);
             igSeparatorEx(ImGuiSeparatorFlags.Vertical);
@@ -136,7 +131,6 @@ public:
             incOpenLink(data.link);
         };
 
-        // Only load Ada in official builds
-        version(InBranding) ada_float = vec2(0);
+        ada_float = vec2(0);
     }
 }
