@@ -4,7 +4,9 @@
     
     Authors: Luna Nielsen
 */
+
 module nijigenerate.windows.settings;
+import nijigenerate.viewport;
 import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.core;
@@ -184,6 +186,22 @@ protected:
                             int saveFileLimit = incGetAutosaveFileLimit();
                             if (igInputInt(__("Maximum Autosaves"), &saveFileLimit, 1, 5, ImGuiInputTextFlags.EnterReturnsTrue)) {
                                 incSetAutosaveFileLimit(saveFileLimit);
+                            }
+                        endSection();
+                        break;
+                    case SettingsPane.Viewport:
+                        beginSection(__("Viewport"));
+                            string selected = incGetViewportZoomMode();
+                            if(igBeginCombo(__("Zoom Mode"), selected.toStringz)) {
+                                if (igSelectable(__("To Screen Center"), incSettingsGet!string("ViewportZoomMode") == "ScreenCenter")) incSetViewportZoomMode("ScreenCenter");
+                                if (igSelectable(__("To Mouse Position"), incSettingsGet!string("ViewportZoomMode") == "MousePosition")) incSetViewportZoomMode("MousePosition");
+
+                                igEndCombo();
+                            }
+
+                            float zoomSpeed = cast(float)incGetViewportZoomSpeed();
+                            if (igDragFloat(__("Zoom Speed"), &zoomSpeed, 0.1, 1, 50, "%f")) {
+                                incSetViewportZoomSpeed(zoomSpeed);
                             }
                         endSection();
                         break;
