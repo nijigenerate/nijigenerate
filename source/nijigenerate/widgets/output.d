@@ -1068,7 +1068,7 @@ public:
                 }
                 igPopStyleVar(3);
                 contentsDrawn[res.uuid] = true;
-            };
+            }
 
             const char* popupName = "###%x".format(res.uuid).toStringz;
             setTransparency(focused == res? 0.8: 0.1, focused == res? 0.8: 0.3);
