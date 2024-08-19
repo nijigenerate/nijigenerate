@@ -68,8 +68,6 @@ class NodeSelect : Tool, Draggable {
         float D_prime = D_0 - dot(n_prime, translation);
 
         // calculated transformed A', B', C', D'
-        debug writefln("T=%s, RS=%s, R=%s, S=%s, RS3.inv=%s, A=%f, B=%f, C=%f, D=%f", translation, RS, R, S, RS3.inverse, n_prime.x, n_prime.y, n_prime.z, D_prime);
-
         // assume mouse position is on the line define by fixed point (x, y, 0) and unit vector (0, 0, 1)
         vec3 point = vec3(mousePos.x, mousePos.y, 0);
         vec3 direction = vec3(0.0, 0.0, 1.0);
@@ -87,7 +85,6 @@ class NodeSelect : Tool, Draggable {
             projectionMousePos.y = float.nan;
         }
         impl.mousePos = projectionMousePos.xy;
-        debug writefln("mousePos=%s->%s", mousePos, projectionMousePos);
         return projectionMousePos;
     }
 
@@ -112,7 +109,6 @@ class NodeSelect : Tool, Draggable {
             vec4 pIn = vec4(calculateMousePosIntersection(impl, -impl.mousePos), 1);
             mat4 tr = impl.transform.inverse();
             vec4 pOut = tr * pIn;
-            debug writefln("NEW: mousePosScreen = %s", pOut);
             impl.mousePos = pOut.xy;
         } else {
             impl.mousePos = -impl.mousePos;
