@@ -240,6 +240,11 @@ protected:
                         incImportPSD(file);
                         break mainLoop;
 
+                    // Allow dragging KRA in to main window
+                    case ".kra":
+                        incImportKRA(file);
+                        break mainLoop;
+
                     default:
                         incDialog(__("Error"), _("%s is not supported").format(fname)); 
                         break;
