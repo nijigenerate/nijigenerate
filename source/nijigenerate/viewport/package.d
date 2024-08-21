@@ -388,7 +388,6 @@ void incViewportTransformHandle() {
 
     // swap if bounds.x > bounds.z
     if (incShouldMirrorViewport) {
-        float w = bounds.x - bounds.z;
         bounds = vec4(
             incGetMirrorX2(bounds.z), bounds.y,
             incGetMirrorX2(bounds.x), bounds.w
