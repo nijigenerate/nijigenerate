@@ -116,7 +116,13 @@ protected:
             }
 
             auto style = igGetStyle();
-            incViewportDraw();
+            if (incShouldMirrorViewport) {
+                camera.scale.x *= -1;
+                incViewportDraw();
+                camera.scale.x *= -1;
+            } else {
+                incViewportDraw();
+            }
 
             int width, height;
             inGetViewport(width, height);
@@ -302,10 +308,19 @@ protected:
 
         igGetContentRegionAvail(&currSize);
         igSameLine();
-        igDummy(ImVec2(currSize.x-currSize.x-(32*7), 0));
+        // if add new buttons, please increase the offset
+        igDummy(ImVec2(currSize.x-currSize.x-(32*8), 0));
         igSameLine();
 
         if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
+            if (incButtonColored("", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                if (incActivePuppet() !is null)
+                    incShouldMirrorViewport = !incShouldMirrorViewport;
+            }
+            incTooltip(_("Mirror View"));
+
+            igSameLine(0, 0);
+
             if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
                 if (incActivePuppet() !is null)
                     incActivePuppet().enableDrivers = !incActivePuppet().enableDrivers;
