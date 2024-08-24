@@ -140,9 +140,7 @@ float incGetMirrorX2(float x) {
 }
 
 void incMirrorIO(ImGuiIO *result) {
-    ImGuiIO* io = igGetIO();
-    import core.stdc.string : memcpy;
-    memcpy(result, io, ImGuiIO.sizeof);
+    *result = *igGetIO();
 
     if (incShouldMirrorViewport)
         result.MousePos.x = incGetMirrorX(result.MousePos.x);
