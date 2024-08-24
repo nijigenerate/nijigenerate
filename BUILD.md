@@ -35,6 +35,19 @@ sudo pacman -Syu
 sudo pacman -S ldc base-devel dub cmake git sdl2 freetype2
 ```
 
+### Fedora
+```bash
+sudo dnf -y install \
+    git \
+    dub \
+    ldc \
+    cmake \
+    gcc-c++ \
+    SDL2-devel \
+    freetype-devel \
+    dbus-devel
+```
+
 ## Build nijilive Project
 First, we need to clone the four projects under nijigenerate and add them to `dub add-local`.
 ```bash
@@ -51,7 +64,7 @@ dub add-local ./nijiexpose 0.0.1
 dub package `i2d-imgui` will use the `Master` branch by default when building SDL2,
 but the upstream branch has been changed to `main`. We need to fix it with the following instructions.
 ```bash
-git clone https://github.com/Inochi2D/i2d-imgui
+git clone --recurse-submodules https://github.com/Inochi2D/i2d-imgui
 dub add-local i2d-imgui 0.8.0
 ```
 
