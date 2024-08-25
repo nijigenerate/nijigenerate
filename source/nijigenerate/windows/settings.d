@@ -11,6 +11,7 @@ import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
+import nijigenerate.io;
 import nijigenerate.io.autosave;
 import std.string;
 import nijigenerate.utils.link;
@@ -23,7 +24,7 @@ enum SettingsPane : string {
     LookAndFeel = "Look and Feel",
     Viewport = "Viewport",
     Accessibility = "Accessbility",
-    Autosaves = "Autosaves"
+    FileHandling = "File Handling"
 }
 
 /**
@@ -90,8 +91,8 @@ protected:
                     settingsPane = SettingsPane.Accessibility;
                 }
 
-                if (igSelectable(__("Autosaves"), settingsPane == SettingsPane.Autosaves)) {
-                    settingsPane = SettingsPane.Autosaves;
+                if (igSelectable(__("File Handling"), settingsPane == SettingsPane.FileHandling)) {
+                    settingsPane = SettingsPane.FileHandling;
                 }
             igPopTextWrapPos();
         }
@@ -171,7 +172,7 @@ protected:
                             incTooltip(_("Use the OpenDyslexic font for Latin text characters."));
                         endSection();
                         break;
-                    case SettingsPane.Autosaves:
+                    case SettingsPane.FileHandling:
                         beginSection(__("Autosaves"));
                             bool autosaveEnabled = incGetAutosaveEnabled();
                             if (igCheckbox(__("Enable Autosaves"), &autosaveEnabled)) {
@@ -188,10 +189,34 @@ protected:
                                 incSetAutosaveFileLimit(saveFileLimit);
                             }
                         endSection();
+
+                        // we mark PSD only until we have a proper implementation for kra
+                        beginSection(__("Preserve Imported File Folder Structure (Currently PSD only)"));
+                            string[string] configShowing = [
+                                "Ask": "Always Ask",
+                                "Preserve": "Preserve",
+                                "NotPreserve": "Not Preserve"
+                            ];
+
+                            string selected = configShowing[incGetKeepLayerFolder()];
+                            if(igBeginCombo(__("Preserve Folder Structure"), selected.toStringz)) {
+                                if (igSelectable(__("Always Ask"), incSettingsGet!string("KeepLayerFolder") == "Ask")) incSetKeepLayerFolder("Ask");
+                                if (igSelectable(__("Preserve"), incSettingsGet!string("KeepLayerFolder") == "Preserve")) incSetKeepLayerFolder("Preserve");
+                                if (igSelectable(__("Not Preserve"), incSettingsGet!string("KeepLayerFolder") == "NotPreserve")) incSetKeepLayerFolder("NotPreserve");
+
+                                igEndCombo();
+                            }
+
+                        endSection();
                         break;
                     case SettingsPane.Viewport:
                         beginSection(__("Viewport"));
-                            string selected = incGetViewportZoomMode();
+                            string[string] configShowing = [
+                                "ScreenCenter": "To Screen Center",
+                                "MousePosition": "To Mouse Position"
+                            ];
+
+                            string selected = configShowing[incGetViewportZoomMode()];
                             if(igBeginCombo(__("Zoom Mode"), selected.toStringz)) {
                                 if (igSelectable(__("To Screen Center"), incSettingsGet!string("ViewportZoomMode") == "ScreenCenter")) incSetViewportZoomMode("ScreenCenter");
                                 if (igSelectable(__("To Mouse Position"), incSettingsGet!string("ViewportZoomMode") == "MousePosition")) incSetViewportZoomMode("MousePosition");

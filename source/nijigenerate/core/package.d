@@ -22,7 +22,6 @@ import std.exception;
 import bindbc.sdl;
 import bindbc.opengl;
 import nijilive;
-import tinyfiledialogs;
 import std.string;
 import std.stdio;
 import std.conv;
@@ -708,6 +707,8 @@ void incBeginLoopNoEv() {
         incModalRender();
         incRenderDialogs();
     }
+
+    incHandleDialogHandlers();
 }
 
 void incSetDefaultLayout() {
