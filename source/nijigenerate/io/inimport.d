@@ -89,8 +89,6 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
     IncImportLayer!T[] groupStack;
     int index = 0;
     foreach(layer; Traits!T.layers(document)) {
-        import std.stdio;
-        writefln("%d: Layer: %s", groupStack.length, (Traits!T.isGroupEnd(layer)? "<":"") ~ (Traits!T.isGroupStart(layer)? ">":"") ~ layer.name);
         index--;
         if (Traits!T.isGroupEnd(layer)) {
             if (groupStack.length == 1) {
@@ -106,7 +104,6 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
 
             // uh, this should not happen?
             throw new Exception("Unexpected closing layer group");
-            continue;
         }
 
         IncImportLayer!T curLayer = new IncImportLayer!T (
