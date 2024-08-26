@@ -16,9 +16,14 @@ import std.format;
 import nijigenerate.io;
 import mir.serde;
 
-private {
-
+struct IncImportSettings {
+    bool keepStructure = true;
+    string layerGroupNodeType = "DynamicComposite";
 }
+
+private {
+}
+
 
 class IncImportLayer(T) {
     string name;
@@ -126,10 +131,6 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
     return outLayers;
 }
 
-struct IncImportSettings(T) {
-    bool keepStructure = true;
-}
-
 /**
     Imports a PSD file with user prompt.
     also see incAskImportKRA()
@@ -153,10 +154,10 @@ class LoadHandler(T) : ImportKeepHandler {
     bool load(AskKeepLayerFolder select) {
         switch (select) {
             case AskKeepLayerFolder.NotPreserve:
-                incImport!T(file, IncImportSettings!T(false));
+                incImport!T(file, IncImportSettings(false));
                 return true;
             case AskKeepLayerFolder.Preserve:
-                incImport!T(file, IncImportSettings!T(true));
+                incImport!T(file, IncImportSettings(true));
                 return true;
             case AskKeepLayerFolder.Cancel:
                 return false;
@@ -170,7 +171,7 @@ class LoadHandler(T) : ImportKeepHandler {
     Imports a PSD file.
     Note: You should invoke incAskImportPSD for UI interaction.
 */
-void incImport(T)(string file, IncImportSettings!T settings = IncImportSettings!T.init) {
+void incImport(T)(string file, IncImportSettings settings = IncImportSettings.init) {
     incNewProject();
     // TODO: Split this up to a seperate file and make it cleaner
     try {
@@ -185,17 +186,9 @@ void incImport(T)(string file, IncImportSettings!T settings = IncImportSettings!
             Node child;
             if (layer.isLayerGroup) {
                 if (settings.keepStructure) {
-                    child = new DynamicComposite(cast(Node)null);
-                    (cast(DynamicComposite)child).blendingMode = layer.blendMode;
+                    child = inInstantiateNode(settings.layerGroupNodeType, cast(Node)null);
+                    if (auto part = cast(Part)child) part.blendingMode = layer.blendMode;
                 }
-                /*
-                if (layer.imageLayerRef.blendModeKey == BlendingMode.PassThrough || layer.imageLayerRef.blendModeKey == BlendingMode.Normal) {
-                    if (settings.keepStructure) child = new Node(cast(Node)null);
-                } else {
-                    child = new Composite(null);
-                    (cast(Composite)child).blendingMode = layer.blendMode;
-                }
-                */
             } else {
                 
                 layer.imageLayerRef.extractLayerImage();
