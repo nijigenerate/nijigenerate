@@ -18,7 +18,6 @@ public import nijigenerate.windows.texviewer;
 public import nijigenerate.windows.paramprop;
 public import nijigenerate.windows.paramaxes;
 public import nijigenerate.windows.paramsplit;
-public import nijigenerate.windows.trkbind;
 public import nijigenerate.windows.psdmerge;
 public import nijigenerate.windows.kramerge;
 public import nijigenerate.windows.welcome;

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
-  <id>nijigenerate.nijigenerate</id>
-  <name>nijigenerate</name>
+  <id>io.github.nijigenerate.nijigenerate</id>
+  <name>nijigenerate (Nightly)</name>
   <summary>Tool to create and edit nijilive puppets.</summary>
-  <developer_name>Luna Nielsen</developer_name>
-  <launchable type="desktop-id">nijigenerate.nijigenerate.desktop</launchable>
+  <developer_name>seagetty</developer_name>
+  <launchable type="desktop-id">io.github.nijigenerate.nijigenerate.desktop</launchable>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>BSD-2-Clause</project_license>
   <description>
@@ -28,7 +28,7 @@
       </description>
     </release>
   </releases>
-  <url type="homepage">https://lunafoxgirlvt.itch.io/nijigenerate</url>
+  <url type="homepage">https://github.com/nijigenerate/nijigenerate/</url>
   <url type="bugtracker">https://github.com/nijigenerate/nijigenerate/issues</url>
   <url type="help">https://docs.github.com/nijigenerate</url>
   <url type="vcs-browser">https://github.com/nijigenerate/nijigenerate</url>
@@ -36,9 +36,9 @@
   <categories>
     <category>Graphics</category>
   </categories>
-  <requires>
+  <recommends>
     <control>pointing</control>
     <control>keyboard</control>
-  </requires>
+  </recommends>
   <content_rating type="oars-1.1"/>
 </component>

@@ -6,7 +6,6 @@
 */
 module nijigenerate.panels.scene;
 import nijigenerate.core;
-import nijigenerate.viewport.test;
 import nijigenerate.panels;
 import nijigenerate.windows;
 import nijigenerate.widgets;

@@ -131,8 +131,9 @@ private:
     // rebuffer Part to update shape correctly. (code copied from mesheditor.d)
     void updatePart(Node node) {
         import nijigenerate.viewport.common.mesh;
-        Part part = cast(Part)node;
-        if (part !is null) {
+        auto part = cast(Part)node;
+        auto dcomposite = cast(DynamicComposite)node;
+        if (part !is null && dcomposite is null) {
             auto mesh = new IncMesh(part.getMesh());
             MeshData data = mesh.export_();
             data.fixWinding();
@@ -207,10 +208,14 @@ private:
                 (cast(ExPart)binding.node).textures[0].dispose();
                 (cast(ExPart)binding.node).textures[0] = binding.layerTexture;
                 (cast(ExPart)binding.node).layerPath = binding.layerPath;
+                if (binding.node.parent)
+                    binding.node.parent.notifyChange(binding.node, NotifyReason.StructureChanged);
             } else {
                 auto part = incCreateExPart(binding.layerTexture, binding.node, binding.layer.name);
                 part.layerPath = binding.layerPath;
                 part.localTransform.translation = localPosition;
+                if (binding.node.parent)
+                    binding.node.parent.notifyChange(binding.node, NotifyReason.StructureChanged);
             }
         }
         

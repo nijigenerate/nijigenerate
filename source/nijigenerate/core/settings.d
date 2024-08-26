@@ -24,6 +24,17 @@ string incSettingsPath() {
 void incSettingsLoad() {
     if (exists(incSettingsPath())) {
         settings = parseJSON(readText(incSettingsPath()));
+    } else {
+        // This code is used to configure default values for new users
+        // New users use MousePosition, old users keep ScreenCenter
+        // also see incGetViewportZoomMode()
+        settings["ViewportZoomMode"] = "MousePosition";
+        settings["ViewportZoomSpeed"] = 5.0;
+
+        // File Handling
+        // Always ask the user whether to preserve the folder structure during import
+        // also see incGetKeepLayerFolder()
+        settings["KeepLayerFolder"] = "Ask";
     }
 }
 
