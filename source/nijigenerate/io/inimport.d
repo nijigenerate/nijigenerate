@@ -190,7 +190,8 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
                     if (auto part = cast(Part)child) {
                         part.blendingMode = layer.blendMode;
                         part.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
-                    } else if (auto comp = cast(Part)child) {
+                    } else if (auto comp = cast(Composite)child) {
+                        comp.blendingMode = layer.blendMode;
                         comp.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
                     }
                 }
