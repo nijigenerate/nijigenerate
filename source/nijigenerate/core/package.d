@@ -22,7 +22,6 @@ import std.exception;
 import bindbc.sdl;
 import bindbc.opengl;
 import nijilive;
-import tinyfiledialogs;
 import std.string;
 import std.stdio;
 import std.conv;
@@ -107,11 +106,10 @@ private {
     ImGuiID viewportDock;
     bool firstFrame = true;
 
-    version (InBranding) {
-        Texture incLogoI2D;
-        Texture incLogo;
-        Texture incAda;
-    }
+    Texture incLogoI2D;
+    Texture incLogo;
+    Texture incAda;
+
     Texture incGrid;
 
     ImFont* mainFont;
@@ -155,12 +153,6 @@ bool incIsTilingWM() {
     Finalizes everything by freeing imgui resources, etc.
 */
 void incFinalize() {
-    debug (InExperimental) {
-    // This is important to prevent thread leakage
-    import nijigenerate.viewport.test : incViewportTestWithdraw;
-    incViewportTestWithdraw();
-    }
-
     // Save settings
     igSaveIniSettingsToDisk(igGetIO().IniFilename);
 
@@ -267,10 +259,8 @@ void incOpenWindow() {
     // Don't make KDE freak out when nijigenerate opens
     if (!incSettingsGet!bool("DisableCompositor")) SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
 
-    version(InBranding) {
-        debug string WIN_TITLE = "nijigenerate "~_("(Debug Mode)");
-        else string WIN_TITLE = "nijigenerate "~INC_VERSION;
-    } else string WIN_TITLE = "nijigenerate "~_("(Unsupported)");
+    debug string WIN_TITLE = "nijigenerate "~_("(Debug Mode)");
+    else string WIN_TITLE = "nijigenerate "~INC_VERSION;
     
     window = tryCreateWindow(WIN_TITLE, flags);
     
@@ -330,29 +320,27 @@ void incOpenWindow() {
     incCreateContext();
 
     ShallowTexture tex;
-    version (InBranding) {
 
-        // Load image resources
-        tex = ShallowTexture(cast(ubyte[])import("logo.png"));
-        inTexPremultiply(tex.data);
-        incLogoI2D = new Texture(tex);
+    // Load image resources
+    tex = ShallowTexture(cast(ubyte[])import("logo.png"));
+    inTexPremultiply(tex.data);
+    incLogoI2D = new Texture(tex);
 
-        // Load image resources
-        tex = ShallowTexture(cast(ubyte[])import("icon.png"));
-        inTexPremultiply(tex.data);
-        incLogo = new Texture(tex);
+    // Load image resources
+    tex = ShallowTexture(cast(ubyte[])import("icon.png"));
+    inTexPremultiply(tex.data);
+    incLogo = new Texture(tex);
 
-        // Set X11 window icon
-        version(linux) {
-            if (!isWayland) {
-                SDL_SetWindowIcon(window, SDL_CreateRGBSurfaceWithFormatFrom(tex.data.ptr, tex.width, tex.height, 32, 4*tex.width,  SDL_PIXELFORMAT_RGBA32));
-            }
+    // Set X11 window icon
+    version(linux) {
+        if (!isWayland) {
+            SDL_SetWindowIcon(window, SDL_CreateRGBSurfaceWithFormatFrom(tex.data.ptr, tex.width, tex.height, 32, 4*tex.width,  SDL_PIXELFORMAT_RGBA32));
         }
-
-        tex = ShallowTexture(cast(ubyte[])import("ui/ui-ada.png"));
-        inTexPremultiply(tex.data);
-        incAda = new Texture(tex);
     }
+
+    tex = ShallowTexture(cast(ubyte[])import("ui/ui-ada.png"));
+    inTexPremultiply(tex.data);
+    incAda = new Texture(tex);
 
     // Grid texture
     tex = ShallowTexture(cast(ubyte[])import("ui/grid.png"));
@@ -719,6 +707,8 @@ void incBeginLoopNoEv() {
         incModalRender();
         incRenderDialogs();
     }
+
+    incHandleDialogHandlers();
 }
 
 void incSetDefaultLayout() {
@@ -743,7 +733,6 @@ void incSetDefaultLayout() {
     igDockBuilderDockWindow("###Tool Settings", dockIDToolSettings);
     igDockBuilderDockWindow("###History", dockIDHistory);
     igDockBuilderDockWindow("###Scene", dockIDHistory);
-    debug(InExperimental) igDockBuilderDockWindow("###Tracking", dockIDHistory);
     igDockBuilderDockWindow("###Timeline", dockIDTimeline);
     igDockBuilderDockWindow("###Animation List", dockIDAnimList);
     igDockBuilderDockWindow("###Logger", dockIDTimeline);
@@ -886,24 +875,22 @@ ImFont* incMainFont() {
     return mainFont;
 }
 
-version (InBranding) {
-    /**
-        Gets the nijilive Logo
-    */
-    Texture incGetLogo() {
-        return incLogo;
-    }
+/**
+    Gets the nijilive Logo
+*/
+Texture incGetLogo() {
+    return incLogo;
+}
 
-    /**
-        Gets the Ada texture
-    */
-    Texture incGetAda() {
-        return incAda;
-    }
+/**
+    Gets the Ada texture
+*/
+Texture incGetAda() {
+    return incAda;
+}
 
-    Texture incGetLogoI2D() {
-        return incLogoI2D;
-    }
+Texture incGetLogoI2D() {
+    return incLogoI2D;
 }
 
 /**

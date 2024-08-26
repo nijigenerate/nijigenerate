@@ -12,6 +12,8 @@ import nijigenerate.widgets.button;
 import bindbc.imgui;
 import nijilive;
 import i18n;
+import std.algorithm.iteration: filter;
+import std.array;
 
 enum DialogLevel : size_t {
     Info = 0,
@@ -29,20 +31,18 @@ enum DialogButtons {
 
 void incInitDialogs() {
     // Only load Ada in official builds
-    version(InBranding) {
-        auto infoTex = ShallowTexture(cast(ubyte[])import("ui/ui-info.png"));
-        inTexPremultiply(infoTex.data);
-        auto warnTex = ShallowTexture(cast(ubyte[])import("ui/ui-warning.png"));
-        inTexPremultiply(warnTex.data);
-        auto errTex = ShallowTexture(cast(ubyte[])import("ui/ui-error.png"));
-        inTexPremultiply(errTex.data);
+    auto infoTex = ShallowTexture(cast(ubyte[])import("ui/ui-info.png"));
+    inTexPremultiply(infoTex.data);
+    auto warnTex = ShallowTexture(cast(ubyte[])import("ui/ui-warning.png"));
+    inTexPremultiply(warnTex.data);
+    auto errTex = ShallowTexture(cast(ubyte[])import("ui/ui-error.png"));
+    inTexPremultiply(errTex.data);
 
-        adaTextures = [
-            new Texture(infoTex),
-            new Texture(warnTex),
-            new Texture(errTex),
-        ];
-    }
+    adaTextures = [
+        new Texture(infoTex),
+        new Texture(warnTex),
+        new Texture(errTex),
+    ];
 }
 
 /**
@@ -74,10 +74,8 @@ void incRenderDialogs() {
             igBeginGroup();
 
                 if (igBeginChild("ErrorMainBoxLogo", ImVec2(errImgScale, errImgScale))) {
-                    version (InBranding) {
-                        import nijigenerate.core : incGetLogo;
-                        igImage(cast(void*)adaTextures[cast(size_t)entry.level].getTextureId(), ImVec2(errImgScale, errImgScale));
-                    }
+                    import nijigenerate.core : incGetLogo;
+                    igImage(cast(void*)adaTextures[cast(size_t)entry.level].getTextureId(), ImVec2(errImgScale, errImgScale));
                 }
                 igEndChild();
 
@@ -193,6 +191,9 @@ void incDialog(const(char)* tag, const(char)* title, string body_, DialogLevel l
 /**
     Gets which button the user selected in the last dialog box with the selected tag.
     Returns NONE if the last dialog was *not* the looked for tag or if there's no dialogs open
+
+    Note: We should using DialogHandler and incRegisterDialogHandler() instead of this function,
+    prevnting unexpected behavior
 */
 DialogButtons incDialogButtonSelected(const(char)* tag) {
     if (entries.length == 0) return DialogButtons.NONE;
@@ -209,9 +210,54 @@ void* incDialogButtonUserData(const(char)* tag) {
     return entries[0].userData;
 }
 
+/**
+   DialogHandler is a class for handling dialog events
+*/
+class DialogHandler {
+    private const(char)* tag;
+
+    this (const(char)* tag) {
+        this.tag = tag;
+    }
+
+    bool hasClicked() {
+        return incDialogButtonSelected(this.tag) != DialogButtons.NONE;
+    }
+
+    bool onClick(DialogButtons button) {
+        // Override this
+        return false;
+    }
+}
+
+/**
+    Register a dialog handler
+*/
+void incRegisterDialogHandler(DialogHandler handler) {
+    dialogHandlers ~= handler;
+}
+
+/**
+    Handle dialog handlers, it should be called by main loop
+    and should be called after incRenderDialogs()
+*/
+void incHandleDialogHandlers() {
+    // check all dialog handlers
+    foreach (handler; dialogHandlers) {
+        if (!handler.hasClicked())
+            continue;
+
+        handler.onClick(incDialogButtonSelected(handler.tag));
+    }
+
+    // Remove all handlers that have been clicked
+    dialogHandlers = dialogHandlers.filter!(handler => !handler.hasClicked()).array;
+}
+
 private {
     Texture[] adaTextures;
 
+    DialogHandler[] dialogHandlers;
     DialogEntry[] entries;
 
     DialogEntry* findDialogEntry(const(char)* tag) {

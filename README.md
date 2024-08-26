@@ -40,6 +40,8 @@ Links in `source/nijigenerate/config.d` should be updated to point to your packa
 &nbsp;
 
 ## Building
+We have a quick start guide [BUILD.md](./BUILD.md) to help users build nijigenerate. For new contributors and users, it is recommended to refer to this guide.
+
 It's occasionally the case that our dependencies are out of sync with dub, so it's somewhat recommended if you're building from source to clone the tip of `main` and `dub add-local . "<version matching nijigenerate dep>"` any of our forked dependencies (i18n-d, psd-d, bindbc-imgui, facetrack-d, inmath, nijilive). This will generally keep you up to date with what we're doing, and it's how the primary contributors work. Ideally we'd have a script to help set this up, but currently we do it manually, PRs welcome :)
 
 Because our project has dependencies on C++ through bindbc-imgui, and because there's no common way to get imgui binaries across platforms, we require a C++ toolchain as well as a few extra dependencies installed. These will be listed in their respective platform sections below.  

@@ -5,9 +5,8 @@ copyright "Copyright © 2024, nijigenerate project"
 license "BSD 2-clause"
 dependency "psd-d" version="~>0.6.1"
 dependency "inmath" version="1.0.6"
-dependency "kra-d" version="~>0.5.5"
+dependency "kra-d" version="~main"
 dependency "tinyfiledialogs" version="~>0.10.1"
-//dependency "facetrack-d" version="~>0.7.8"
 dependency "bindbc-sdl" version="~>1.1.2"
 dependency "dcv:core" version="~>0.3.0"
 dependency "i18n-d" version="~>1.0.2"
@@ -21,51 +20,11 @@ versions "GL_32" "USE_SDL2" "SDL_208" "UseUIScaling"
 stringImportPaths "res/" "./"
 
 
-// Barebones build
-configuration "barebones" {
-	platforms "linux"
-	dependency "dportals" version="~>0.1.0"
-	targetType "executable"
-	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	copyFiles "res/NotoSansCJK-Regular-LICENSE" "res/MaterialIcons-LICENSE" "res/OpenDyslexic-LICENSE" "LICENSE"
-}
-
 // Metadata generation
 configuration "meta" {
 	targetType "none"
 	preGenerateCommands "dub run -y gitver -- --prefix INC --file source/nijigenerate/ver.d --mod nijigenerate.ver --appname \"nijigenerate\" --itchfile version.txt"
 	preGenerateCommands "rc.exe /v build-aux\\windows\\nijigenerate.rc" platform="windows"
-}
-
-// Linux build
-configuration "linux-demo" {
-
-	platforms "linux"
-	dependency "dportals" version="~>0.1.0"
-	targetType "executable"
-	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "InBranding" "InDemo"
-}
-
-// macOS build
-configuration "osx-demo" {
-	platforms "osx"
-	targetType "executable"
-	targetPath "out/nijigenerate.app/Contents/MacOS"
-	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
-	dflags "-force-dwarf-frame-section=false"
-	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
-	versions "InBranding" "InDemo"
-}
-
-// Windows build
-configuration "win32-demo" {
-	platforms "windows"
-	targetType "executable"
-	subConfiguration "i2d-imgui" "static_staticCRT"
-	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
-	sourceFiles "build-aux\\windows\\nijigenerate.res"
-	versions "InBranding" "InDemo"
 }
 
 // Linux build
@@ -75,7 +34,6 @@ configuration "linux-full" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "InBranding"
 }
 
 // macOS build
@@ -86,7 +44,6 @@ configuration "osx-full" {
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
-	versions "InBranding"
 }
 
 // Windows build
@@ -96,7 +53,6 @@ configuration "win32-full" {
 	subConfiguration "i2d-imgui" "static_staticCRT"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
-	versions "InBranding"
 }
 
 // Linux nightly build
@@ -105,7 +61,7 @@ configuration "linux-nightly" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "InBranding" "InNightly"
+	versions "InNightly"
 }
 
 // macOS nightly build
@@ -116,7 +72,7 @@ configuration "osx-nightly" {
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
-	versions "InBranding" "InNightly"
+	versions "InNightly"
 }
 
 // Windows nightly build
@@ -126,5 +82,5 @@ configuration "win32-nightly" {
 	subConfiguration "i2d-imgui" "static_staticCRT"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
-	versions "InBranding" "InNightly"
+	versions "InNightly"
 }
