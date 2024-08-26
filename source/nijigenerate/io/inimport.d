@@ -132,7 +132,7 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
 }
 
 /**
-    Imports a PSD file with user prompt.
+    Imports a image file of type `T` with user prompt.
     also see incAskImportKRA()
 */
 bool incAskImport(T)(string file) {
@@ -168,8 +168,8 @@ class LoadHandler(T) : ImportKeepHandler {
 }
 
 /**
-    Imports a PSD file.
-    Note: You should invoke incAskImportPSD for UI interaction.
+    Imports a image file of type `T`.
+    Note: You should invoke incAskImport!T for UI interaction.
 */
 void incImport(T)(string file, IncImportSettings settings = IncImportSettings.init) {
     incNewProject();
@@ -187,7 +187,12 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
             if (layer.isLayerGroup) {
                 if (settings.keepStructure) {
                     child = inInstantiateNode(settings.layerGroupNodeType, cast(Node)null);
-                    if (auto part = cast(Part)child) part.blendingMode = layer.blendMode;
+                    if (auto part = cast(Part)child) {
+                        part.blendingMode = layer.blendMode;
+                        part.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
+                    } else if (auto comp = cast(Part)child) {
+                        comp.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
+                    }
                 }
             } else {
                 
