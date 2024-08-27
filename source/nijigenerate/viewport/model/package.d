@@ -80,7 +80,14 @@ void incViewportModelMenu() {
     if (auto editor = incViewportModelDeformGetEditor()) {
         editor.popupMenu();
     }
-    igNewLine();
+
+    if (igMenuItem(incViewportModelMenuSortMode == ViewporMenuSortMode.ZSort ? __("Z-Sort") : __("Size-Sort"))) {
+        if (incViewportModelMenuSortMode == ViewporMenuSortMode.ZSort)
+            incViewportModelMenuSortMode = ViewporMenuSortMode.SizeSort;
+        else
+            incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
+    }
+
     igSeparator();
     
     if (incSelectedNode() != incActivePuppet().root) {
