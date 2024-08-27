@@ -95,3 +95,19 @@ ulong[] getInRect(T)(T[] vertices, vec2 min, vec2 max, uint groupId = 0) {
 
     return matching;
 }
+
+
+int findPoint(T)(T[] vertices, vec2 point) {
+    uint bestIdx = 0;
+    float bestDist = float.infinity;
+    foreach(idx, pt; vertices) {
+        float dist = pt.distance(point);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = cast(uint)idx;
+        }
+    }
+
+    if (bestDist > selectRadius/incViewportZoom) return -1;
+    return bestIdx;
+}

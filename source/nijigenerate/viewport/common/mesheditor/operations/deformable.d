@@ -46,9 +46,10 @@ private {
 
 class IncMeshEditorOneDeformable : IncMeshEditorOneImpl!Deformable {
 protected:
-    vec2[] vertices;
     bool changed;
 public:
+    vec2[] vertices;
+
     this(bool deformOnly) {
         super(deformOnly);
     }
