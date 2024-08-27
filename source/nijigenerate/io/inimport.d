@@ -181,20 +181,12 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
         vec2i docCenter = vec2i(doc.width/2, doc.height/2);
         Puppet puppet = new ExPuppet();
 
-        void recurseAdd(Node n, IncImportLayer!T layer) {
+        void recurseAdd(Node parent, IncImportLayer!T layer) {
             
             Node child;
             if (layer.isLayerGroup) {
-                if (settings.keepStructure) {
+                if (settings.keepStructure)
                     child = inInstantiateNode(settings.layerGroupNodeType, cast(Node)null);
-                    if (auto part = cast(Part)child) {
-                        part.blendingMode = layer.blendMode;
-                        part.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
-                    } else if (auto comp = cast(Composite)child) {
-                        comp.blendingMode = layer.blendMode;
-                        comp.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
-                    }
-                }
             } else {
                 
                 layer.imageLayerRef.extractLayerImage();
@@ -216,38 +208,32 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
                     0
                 );
 
-
-                part.setEnabled(Traits!T.isVisible(layer.imageLayerRef));
-                part.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
-                part.blendingMode = layer.blendMode;
-
                 child = part;
             }
 
+            // If `keepStructure` is disabled, `child` will be null, so we check for that
             if (child) {
                 child.name = layer.name;
                 child.zSort = -(cast(float)layer.index);
-                child.reparent(n, 0);
+                child.reparent(parent, 0);
+
+                // Set layer blending attributes
+                child.setEnabled(Traits!T.isVisible(layer.imageLayerRef));
+                if (auto part = cast(Part)child) {
+                    part.blendingMode = layer.blendMode;
+                    part.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
+                } else if (auto comp = cast(Composite)child) {
+                    comp.blendingMode = layer.blendMode;
+                    comp.opacity = (cast(float)layer.imageLayerRef.opacity)/255;
+                }
             }
 
-            // Add children
+            // Traverse the sublayers tree
             foreach(sublayer; layer.children) {
-                if (settings.keepStructure) {
-
-                    // Normal adding
+                if (child)
                     recurseAdd(child, sublayer);
-                } else {
-
-                    if (auto composite = cast(Composite)child) {
-                    
-                        // Composite child iteration
-                        recurseAdd(composite, sublayer);
-                    } else {
-
-                        // Non-composite child iteration
-                        recurseAdd(n, sublayer);
-                    }
-                }
+                else 
+                    recurseAdd(parent, sublayer);
             }
         }
 
