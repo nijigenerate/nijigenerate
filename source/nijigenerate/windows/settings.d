@@ -24,7 +24,8 @@ enum SettingsPane : string {
     LookAndFeel = "Look and Feel",
     Viewport = "Viewport",
     Accessibility = "Accessbility",
-    FileHandling = "File Handling"
+    FileHandling = "File Handling",
+    InputSettings = "Input Settings"
 }
 
 /**
@@ -93,6 +94,10 @@ protected:
 
                 if (igSelectable(__("File Handling"), settingsPane == SettingsPane.FileHandling)) {
                     settingsPane = SettingsPane.FileHandling;
+                }
+
+                if (igSelectable(__("Input Settings"), settingsPane == SettingsPane.InputSettings)) {
+                    settingsPane = SettingsPane.InputSettings;
                 }
             igPopTextWrapPos();
         }
@@ -227,6 +232,19 @@ protected:
                             if (igDragFloat(__("Zoom Speed"), &zoomSpeed, 0.1, 1, 50, "%f")) {
                                 incSetViewportZoomSpeed(zoomSpeed);
                             }
+                        endSection();
+                        break;
+                    case SettingsPane.InputSettings:
+                        import nijigenerate.io.config;
+                        beginSection(__("Input Settings"));
+                            incInputRecording();     
+                            
+                            // incDrawCommandKeySwitch(); Not implemented yet
+                            // incDrawBindingFileButton(); Not implemented yet
+                            incDrawMouseKeyboardSwitch();
+                            incDrawRightLeftModifierSwitch();
+
+                            incDrawAllBindings();
                         endSection();
                         break;
                     default:

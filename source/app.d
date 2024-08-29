@@ -16,6 +16,7 @@ import nijigenerate.core.actionstack;
 import nijigenerate.core.i18n;
 import nijigenerate.io;
 import nijigenerate.io.autosave;
+import nijigenerate.io.config;
 import nijigenerate.atlas.atlas : incInitAtlassing;
 import nijigenerate.ext;
 import nijigenerate.windows.flipconfig;
@@ -71,6 +72,8 @@ int main(string[] args)
         incInitExt();
 
         incInitFlipConfig();
+
+        incInitInputBinding();
 
         // Initialize video exporting
         incInitVideoExport();
