@@ -13,6 +13,7 @@ import nijigenerate.core.input;
 import nijigenerate.utils.link;
 import nijigenerate.config;
 import nijigenerate.io.autosave;
+import nijigenerate.io.config;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
@@ -74,13 +75,22 @@ private {
     }
 }
 
+void incMainMenuInitKeybinds() {
+    incAddShortcut("new_file", "Ctrl+N");
+    incAddShortcut("open_file", "Ctrl+O");
+    incAddShortcut("save_file", "Ctrl+S");
+    incAddShortcut("save_file_as", "Ctrl+Shift+S");
+}
+
 void incMainMenu() {
     auto io = igGetIO();
     
-        if (incShortcut("Ctrl+N")) fileNew();
-        if (incShortcut("Ctrl+O")) fileOpen();
-        if (incShortcut("Ctrl+S")) fileSave();
-        if (incShortcut("Ctrl+Shift+S")) fileSaveAs();
+
+        if (incIsActionActivated("new_file")) fileNew();
+        if (incIsActionActivated("open_file")) fileOpen();
+        if (incIsActionActivated("save_file")) fileSave();
+        if (incIsActionActivated("save_file_as")) fileSaveAs();
+
 
         if (!incSettingsGet("hasDoneQuickSetup", false)) igBeginDisabled();
 

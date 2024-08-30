@@ -7,6 +7,7 @@
 
 module nijigenerate.io.config;
 import nijigenerate.core;
+import nijigenerate.core.input;
 import nijigenerate.io;
 import nijigenerate.widgets.label;
 
@@ -83,6 +84,13 @@ class ActionEntry {
         string entryName;
         string actionDescription;
         AbstractBindingEntry[] bindingEntrys;
+
+        // extactMatch means that the key binding is an exact match
+        // like mutually exclusive actions, but it is only for itself, would not affect other actions
+        bool extactMatch = false;
+
+        // mode for key binding
+        KeyBindingMode keyMode;
     }
 
     /** 
@@ -90,12 +98,17 @@ class ActionEntry {
             entryKey - the key of the entry 
             name - display name
             description - description of the entry
+            extactMatch - make sure the key binding is an exact match, it like mutually exclusive actions (not exactly)
+                because it only affects itself
     */
-    this(string entryKey, string name, string description, AbstractBindingEntry[] bindingEntrys = null) {
+    this(string entryKey, string name, string description, bool extactMatch = false,
+            KeyBindingMode keyMode = KeyBindingMode.Pressed) {
         this.entryKey = entryKey;
         this.entryName = name;
         this.actionDescription = description;
-        this.bindingEntrys = bindingEntrys;
+        this.bindingEntrys = [];
+        this.extactMatch = extactMatch;
+        this.keyMode = keyMode;
     }
 
     string getName() {
@@ -111,12 +124,14 @@ class ActionEntry {
     }
 
     void append(AbstractBindingEntry entry) {
+        if (auto key = cast(KeyBindingEntry) entry)
+            key.setMode(keyMode);
         bindingEntrys ~= entry;
     }
 
     bool isActivated() {
         foreach (entry; bindingEntrys)
-            if (entry.isActive())
+            if (entry.isActive(this.extactMatch))
                 return true;
         return false;
     }
@@ -136,13 +151,105 @@ class AbstractBindingEntry {
     /*
         check key binding is active, override this method
     */
-    bool isActive() {
-        return false;
+    bool isActive(bool extactMatch) {
+        // override this method
+        throw new Exception("Not implemented");
     }
 
     void tagDelete() {
         toDelete = true;
     }
+}
+
+enum KeyBindingMode {
+    Down, Pressed, PressedRepeat
+}
+
+/**
+    KeyScanner is a class that helps to scan all keys,
+    we can implement mutually exclusive actions by using this class
+    it mantains the key state of all keys, and we can check the key state by using this class
+    also see incInputPoll() but it invoke in the viewports
+*/
+static class KeyScanner {
+    static bool[ImGuiKey] keyStatePressed;
+    static bool[ImGuiKey] keyStatePressedRepeat;
+    static bool[ImGuiKey] keyStateDown;
+    static int keyCountPressed;
+    static int keyCountPressedRepeat;
+    static int keyCountDown;
+    static int keyModifierCount;
+    static int keyModifierCountLR;
+
+    static void addKeys(ImGuiKey[] keys) {
+        foreach (key; keys) {
+            if (key in keyStatePressed)
+                continue;
+            keyStatePressed[key] = false;
+            keyStatePressedRepeat[key] = false;
+            keyStateDown[key] = false;
+        }
+    }
+
+    static void scanAllKeys() {
+        // The code is a bit messy. Write tests before refactoring.
+        // TODO: Write unit tests before refactoring or modifying the code
+
+        // clear key count
+        keyCountPressed = 0;
+        keyCountPressedRepeat = 0;
+        keyCountDown = 0;
+        keyModifierCount = 0;
+        keyModifierCountLR = 0;
+
+        foreach (key; keyStatePressed.keys) {
+            // clear key state
+            keyStatePressed[key] = false;
+            keyStatePressedRepeat[key] = false;
+            keyStateDown[key] = false;
+
+            // check key state
+            keyStatePressed[key] = igIsKeyPressed(key, false);
+            keyStatePressedRepeat[key] = igIsKeyPressed(key, true);
+            keyStateDown[key] = igIsKeyDown(key);
+
+            // prevent duplicate count
+            if (incIsModifierKey(key)) {
+                keyModifierCount += keyStateDown[key] ? 1 : 0;
+            } else if (incIsModifierKeyLR(key)) {
+                keyModifierCountLR += keyStateDown[key] ? 1 : 0;
+            } else {
+                keyCountPressed += keyStatePressed[key] ? 1 : 0;
+                keyCountPressedRepeat += keyStatePressedRepeat[key] ? 1 : 0;
+                keyCountDown += keyStateDown[key] ? 1 : 0;
+            }
+        }
+    }
+}
+
+void incScanInput() {
+    KeyScanner.scanAllKeys();
+}
+
+unittest {
+    // KeyBindingEntry.isActive(extactMatch=true) unit tests
+    // for `Ctrl+Shift+S` Keybind There may be errors in these cases
+    // LCtrl+Shift+S = True
+    // LCtrl+RCtrl+Shift+S = True
+    // Ctrl+Shift+S = True
+    // Ctrl+RCtrl+Shift+S = True
+    // Ctrl+S = False
+
+    // KeyBindingEntry.isActive(extactMatch=false) unit tests
+    // keybinding: Ctrl+S
+    // LCtrl+S = True
+    // RCtrl+S = True
+    // LCtrl+RCtrl+Ctrl+S = True
+    // Ctrl+S = True
+    // it non mutually exclusive actions, so it should be true
+    // Ctrl+Shift+S = True
+
+    // TODO: Implement unit tests
 }
 
 class KeyBindingEntry : AbstractBindingEntry {
@@ -151,15 +258,103 @@ class KeyBindingEntry : AbstractBindingEntry {
         bool macosKeyBinding = false;
 
         ImGuiKey[] keys;
+        KeyBindingMode mode;
     }
 
     this(ImGuiKey[] keys) {
+        if (keys.length == 0)
+            throw new Exception("Key binding must have at least one key");
+
         this.keys.length = keys.length;
         this.keys[] = keys[];
+        this.mode = mode;
+
+        KeyScanner.addKeys(keys);
+    }
+
+    void setMode(KeyBindingMode mode) {
+        this.mode = mode;
     }
 
     ImGuiKey[] getKeys() {
         return keys;
+    }
+
+    override
+    bool isActive(bool extactMatch) {
+        // The code is a bit messy. Write tests before refactoring.
+        // TODO: Write unit tests before refactoring or modifying the code
+
+        bool result = true;
+        int downCount = 0;
+        int pressedCount = 0;
+        int pressedRepeatCount = 0;
+        int modifierCount = 0;
+        int modifierCountLR = 0;
+        foreach (key; keys) {
+            switch (mode) {
+                case KeyBindingMode.Down:
+                    result &= KeyScanner.keyStateDown[key];
+                    downCount++;
+                    break;
+                case KeyBindingMode.Pressed:
+                case KeyBindingMode.PressedRepeat:
+                    if (incIsModifierKeyLR(key)) {
+                        result &= KeyScanner.keyStateDown[key];
+                        modifierCountLR++;
+                    } else if (incIsModifierKey(key)) {
+                        result &= KeyScanner.keyStateDown[key];
+                        modifierCount++;
+                        modifierCountLR++;
+                    } else if (mode == KeyBindingMode.Pressed) {
+                        result &= KeyScanner.keyStatePressed[key];
+                        // when pressed, down always true, and pressed repeat always true
+                        pressedCount++;
+                        pressedRepeatCount++;
+                        downCount++;
+                    } else {
+                        result &= KeyScanner.keyStatePressedRepeat[key];
+                        // when pressed repeat, down always true
+                        pressedRepeatCount++;
+                        downCount++;
+                    }
+                    break;
+                default:
+                    throw new Exception("Unknown key binding mode");
+            }
+
+            debug {
+                import std.stdio;
+                writeln("key: ", key, " result: ", result);
+            }
+        }
+
+        // check if the key binding is an exact match
+        if (extactMatch &&
+                (KeyScanner.keyCountDown != downCount ||
+                 KeyScanner.keyCountPressed != pressedCount ||
+                 KeyScanner.keyCountPressedRepeat != pressedRepeatCount ||
+                 KeyScanner.keyModifierCount != modifierCount ||
+                KeyScanner.keyModifierCountLR != modifierCountLR
+            )) {
+            debug {
+                import std.stdio;
+                writeln("downCount: ", downCount,
+                        " pressedCount: ", pressedCount,
+                        " pressedRepeatCount: ", pressedRepeatCount,
+                        " modifierCount: ", modifierCount,
+                        " modifierCountLR: ", modifierCountLR);
+
+                writeln("KeyScanner.keyCountDown: ", KeyScanner.keyCountDown,
+                        " KeyScanner.keyCountPressed: ", KeyScanner.keyCountPressed,
+                        " KeyScanner.keyCountPressedRepeat: ", KeyScanner.keyCountPressedRepeat,
+                        " KeyScanner.keyModifierCount: ", KeyScanner.keyModifierCount,
+                        " KeyScanner.keyModifierCountLR: ", KeyScanner.keyModifierCountLR);
+            }
+            result = false;
+        }
+
+        return result;
     }
 }
 
@@ -293,21 +488,21 @@ void incInitInputBinding() {
     // setup default actions
     incDefaultActions =  [   
         "Gereral": [
-            new ActionEntry("undo", _("Undo"), _("Undo the last action")),
-            new ActionEntry("redo", _("Redo"), _("Redo the last action")),
-            new ActionEntry("copy", _("Copy"), _("Copy the selected text or object")),
-            new ActionEntry("paste", _("Paste"), _("Paste the copied text or object")),
-            new ActionEntry("cut", _("Cut"), _("Cut the selected text or object")),
+            new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, KeyBindingMode.PressedRepeat),
+            new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, KeyBindingMode.PressedRepeat),
+            new ActionEntry("copy", _("Copy"), _("Copy the selected text or object"), true),
+            new ActionEntry("paste", _("Paste"), _("Paste the copied text or object"), true),
+            new ActionEntry("cut", _("Cut"), _("Cut the selected text or object"), true),
         ],
         "ViewPort": [
             new ActionEntry("mirror_view", _("Mirror View"), _("Mirror the Viewport")),
             new ActionEntry("move_view", _("Move View"), _("Move the Viewport")),
         ],
         "File Handling": [
-            new ActionEntry("new_file", _("New File"), _("Create a new file")),
-            new ActionEntry("open_file", _("Open File"), _("Open a file")),
-            new ActionEntry("save_file", _("Save File"), _("Save the current file")),
-            new ActionEntry("save_file_as", _("Save File As"), _("Save the current file as a new file")),
+            new ActionEntry("new_file", _("New File"), _("Create a new file"), true),
+            new ActionEntry("open_file", _("Open File"), _("Open a file"), true),
+            new ActionEntry("save_file", _("Save File"), _("Save the current file"), true),
+            new ActionEntry("save_file_as", _("Save File As"), _("Save the current file as a new file"), true),
         ],
     ];
 
@@ -321,6 +516,24 @@ void incInitInputBinding() {
             incInputBindings[entry.getKey()] = entry;
         }
     }
+
+    // add must modifier keys to the key scanner
+    // This allows early detection of KeyScanner modifier keys for bugs
+    // Because the left and right modifier keys and modifier key conditions may be complex
+    KeyScanner.addKeys([
+        ImGuiKey.LeftCtrl,
+        ImGuiKey.RightCtrl,
+        ImGuiKey.LeftAlt,
+        ImGuiKey.RightAlt,
+        ImGuiKey.LeftShift,
+        ImGuiKey.RightShift,
+        ImGuiKey.LeftSuper,
+        ImGuiKey.RightSuper,
+        ImGuiKey.ModCtrl,
+        ImGuiKey.ModAlt,
+        ImGuiKey.ModShift,
+        ImGuiKey.ModSuper,
+    ]);
 }
 
 /*
@@ -490,4 +703,15 @@ void incInputRecording() {
         if (igIsKeyDown(key))
             BindingRecorder.recordKey(key);
     }                   
+}
+
+void incAddShortcut(string actionKey, string key) {
+    // we assume actionKey is already in the hashmap, do not check it
+    auto entry = incInputBindings[actionKey];
+    entry.append(new KeyBindingEntry(incStringToKeys(key)));
+}
+
+bool incIsActionActivated(string actionKey) {
+    // we assume actionKey is already in the hashmap, do not check it
+    return incInputBindings[actionKey].isActivated();
 }

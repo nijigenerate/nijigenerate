@@ -5,6 +5,7 @@ import nijilive.math;
 import bindbc.imgui;
 import bindbc.sdl;
 import std.algorithm;
+import std.array;
 
 private {
     vec2 mpos;
@@ -184,10 +185,24 @@ ImGuiKey incKeyScancode(string c) {
         case "Right": return ImGuiKey.RightArrow;
         case "Up": return ImGuiKey.UpArrow;
         case "Down": return ImGuiKey.DownArrow;
+        case "Esc": return ImGuiKey.Escape;
+        case "Space": return ImGuiKey.Space;
+        case "Enter": return ImGuiKey.Enter;
+        case "Tab": return ImGuiKey.Tab;
+        case "Backspace": return ImGuiKey.Backspace;
+        case "Delete": return ImGuiKey.Delete;
+        case "Insert": return ImGuiKey.Insert;
+        case "Ctrl": return ImGuiKey.ModCtrl;
+        case "Alt": return ImGuiKey.ModAlt;
+        case "Shift": return ImGuiKey.ModShift;
         default: return ImGuiKey.None;
     }
 }
 
+/**
+    checks if a shortcut is pressed,
+    the function can make sure the shortcut excludes the modifier keys
+*/
 bool incShortcut(string s, bool repeat=false) {
     auto io = igGetIO();
 
@@ -214,4 +229,51 @@ bool incShortcut(string s, bool repeat=false) {
     if (scancode == ImGuiKey.None) return false;
 
     return igIsKeyPressed(scancode, repeat);
+}
+
+/**
+    key pressed may not work if the key is a modifier key
+    so we need to check if the key is a modifier key
+    this function not check right or left modifier key
+    use incIsModifierKeyLR for that
+*/
+bool incIsModifierKey(ImGuiKey key) {
+    switch (key) {
+        case ImGuiKey.ModCtrl:
+        case ImGuiKey.ModAlt:
+        case ImGuiKey.ModShift:
+        case ImGuiKey.ModSuper:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool incIsModifierKeyLR(ImGuiKey key) {
+    switch (key) {
+        case ImGuiKey.LeftCtrl:
+        case ImGuiKey.RightCtrl:
+        case ImGuiKey.LeftAlt:
+        case ImGuiKey.RightAlt:
+        case ImGuiKey.LeftShift:
+        case ImGuiKey.RightShift:
+        case ImGuiKey.LeftSuper:
+        case ImGuiKey.RightSuper:
+            return true;
+        default:
+            return false;
+    }
+}
+
+ImGuiKey[] incStringToKeys(string s) {
+    string[] keys = s.split("+");
+    ImGuiKey[] result;
+    foreach (key; keys) {
+        ImGuiKey scancode = incKeyScancode(key);
+        if (scancode == ImGuiKey.None)
+            throw new Exception("Invalid key: " ~ key);
+        result ~= scancode;
+    }
+
+    return result;
 }

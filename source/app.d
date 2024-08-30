@@ -73,7 +73,9 @@ int main(string[] args)
 
         incInitFlipConfig();
 
+        // Initialize input
         incInitInputBinding();
+        incMainMenuInitKeybinds();
 
         // Initialize video exporting
         incInitVideoExport();
@@ -136,6 +138,7 @@ void incUpdate() {
     incBeginLoop();
         if (incShouldProcess()) {
 
+            incScanInput();
             incHandleShortcuts();
             incMainMenu();
 
