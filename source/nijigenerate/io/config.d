@@ -322,11 +322,6 @@ class KeyBindingEntry : AbstractBindingEntry {
                 default:
                     throw new Exception("Unknown key binding mode");
             }
-
-            debug {
-                import std.stdio;
-                writeln("key: ", key, " result: ", result);
-            }
         }
 
         // check if the key binding is an exact match
@@ -337,20 +332,6 @@ class KeyBindingEntry : AbstractBindingEntry {
                  KeyScanner.keyModifierCount != modifierCount ||
                 KeyScanner.keyModifierCountLR != modifierCountLR
             )) {
-            debug {
-                import std.stdio;
-                writeln("downCount: ", downCount,
-                        " pressedCount: ", pressedCount,
-                        " pressedRepeatCount: ", pressedRepeatCount,
-                        " modifierCount: ", modifierCount,
-                        " modifierCountLR: ", modifierCountLR);
-
-                writeln("KeyScanner.keyCountDown: ", KeyScanner.keyCountDown,
-                        " KeyScanner.keyCountPressed: ", KeyScanner.keyCountPressed,
-                        " KeyScanner.keyCountPressedRepeat: ", KeyScanner.keyCountPressedRepeat,
-                        " KeyScanner.keyModifierCount: ", KeyScanner.keyModifierCount,
-                        " KeyScanner.keyModifierCountLR: ", KeyScanner.keyModifierCountLR);
-            }
             result = false;
         }
 
