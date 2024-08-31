@@ -123,8 +123,8 @@ class ActionEntry {
         bindingEntrys = bindingEntrys.filter!(a => !a.toDelete).array;
     }
 
-    void append(AbstractBindingEntry entry) {
-        if (auto key = cast(KeyBindingEntry) entry)
+    void append(AbstractBindingEntry entry, bool keepEntryKeyMode = false) {
+        if (auto key = cast(KeyBindingEntry) entry && !keepEntryKeyMode)
             key.setMode(keyMode);
         bindingEntrys ~= entry;
     }
@@ -695,10 +695,12 @@ void incInputRecording() {
     }                   
 }
 
-void incAddShortcut(string actionKey, string key) {
+void incAddShortcut(string actionKey, string key, KeyBindingMode mode = KeyBindingMode.Pressed) {
     // we assume actionKey is already in the hashmap, do not check it
     auto entry = incInputBindings[actionKey];
-    entry.append(new KeyBindingEntry(incStringToKeys(key)));
+    auto binding = new KeyBindingEntry(incStringToKeys(key));
+    binding.setMode(mode);
+    entry.append(binding, true);
 }
 
 bool incIsActionActivated(string actionKey) {
