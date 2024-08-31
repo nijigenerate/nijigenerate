@@ -146,6 +146,11 @@ void incMirrorIO(ImGuiIO *result) {
         result.MousePos.x = incGetMirrorX(result.MousePos.x);
 }
 
+void incMirrorViewportAction() {
+    if (incActivePuppet() !is null)
+        incShouldMirrorViewport = !incShouldMirrorViewport;
+}
+
 /**
     Updates the viewport
 */

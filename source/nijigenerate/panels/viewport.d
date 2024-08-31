@@ -313,10 +313,8 @@ protected:
         igSameLine();
 
         if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
-            if (incButtonColored("##MirrorView", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incShouldMirrorViewport = !incShouldMirrorViewport;
-            }
+            if (incButtonColored("##MirrorView", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f)))
+                incMirrorViewportAction();
             incTooltip(_("Mirror View"));
 
             igSameLine(0, 0);

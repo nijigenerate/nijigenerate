@@ -2,7 +2,7 @@
     Copyright © 2020-2024, nijigenerate Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
-    Authors: Lin, Yong Xiang (r888800009)
+    Authors: Lin, Yong Xiang <r888800009@gmail.com>
 */
 
 module nijigenerate.io.config;
@@ -324,12 +324,18 @@ class KeyBindingEntry : AbstractBindingEntry {
             }
         }
 
+        // when different mode should have different count
+        bool checkPressedCount = false;
+        if (mode == KeyBindingMode.Pressed)
+            checkPressedCount = KeyScanner.keyCountPressed == pressedCount;
+        if (mode == KeyBindingMode.PressedRepeat)
+            checkPressedCount = KeyScanner.keyCountPressedRepeat == pressedRepeatCount;
+
         // check if the key binding is an exact match
         if (extactMatch &&
                 (KeyScanner.keyCountDown != downCount ||
-                 KeyScanner.keyCountPressed != pressedCount ||
-                 KeyScanner.keyCountPressedRepeat != pressedRepeatCount ||
-                 KeyScanner.keyModifierCount != modifierCount ||
+                !checkPressedCount ||
+                KeyScanner.keyModifierCount != modifierCount ||
                 KeyScanner.keyModifierCountLR != modifierCountLR
             )) {
             result = false;
@@ -471,9 +477,12 @@ void incInitInputBinding() {
         "Gereral": [
             new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, KeyBindingMode.PressedRepeat),
             new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, KeyBindingMode.PressedRepeat),
-            new ActionEntry("copy", _("Copy"), _("Copy the selected text or object"), true),
-            new ActionEntry("paste", _("Paste"), _("Paste the copied text or object"), true),
-            new ActionEntry("cut", _("Cut"), _("Cut the selected text or object"), true),
+            new ActionEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+
+            // Currently, I cannot find existing actions for these
+            //new ActionEntry("copy", _("Copy"), _("Copy the selected text or object"), true),
+            //new ActionEntry("paste", _("Paste"), _("Paste the copied text or object"), true),
+            //new ActionEntry("cut", _("Cut"), _("Cut the selected text or object"), true),
         ],
         "ViewPort": [
             new ActionEntry("mirror_view", _("Mirror View"), _("Mirror the Viewport")),

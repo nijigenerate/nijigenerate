@@ -12,9 +12,12 @@ import nijigenerate.windows;
 import nijigenerate.utils.link;
 import nijigenerate;
 import nijigenerate.widgets.dialog;
+import nijigenerate.widgets.mainmenu;
 import nijigenerate.widgets.modal;
+import nijigenerate.viewport: incMirrorViewportAction;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
+import nijigenerate.io.config;
 import nijigenerate.widgets.button;
 
 import std.exception;
@@ -900,14 +903,23 @@ Texture incGetGrid() {
     return incGrid;
 }
 
+void incShortcutsInit() {
+    incMainMenuInitKeybinds();
+    incAddShortcut("undo", "Ctrl+Z");
+    incAddShortcut("redo", "Ctrl+Shift+Z");
+    incAddShortcut("select_all", "Ctrl+A");
+    incAddShortcut("mirror_view", "M");
+}
+
 void incHandleShortcuts() {
     auto io = igGetIO();
     
-    if (incShortcut("Ctrl+Shift+Z", true)) {
+    if (incIsActionActivated("redo"))
         incActionRedo();
-    } else if (incShortcut("Ctrl+Z", true)) {
+    if (incIsActionActivated("undo"))
         incActionUndo();
-    }
+    if (incIsActionActivated("mirror_view"))
+        incMirrorViewportAction();
 }
 
 void incSetWindowTitle(string subtitle) {
