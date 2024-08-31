@@ -90,7 +90,7 @@ class ActionEntry {
         bool extactMatch = false;
 
         // mode for key binding
-        KeyBindingMode keyMode;
+        BindingMode keyMode;
     }
 
     /** 
@@ -102,7 +102,7 @@ class ActionEntry {
                 because it only affects itself
     */
     this(string entryKey, string name, string description, bool extactMatch = false,
-            KeyBindingMode keyMode = KeyBindingMode.Pressed) {
+            BindingMode keyMode = BindingMode.Pressed) {
         this.entryKey = entryKey;
         this.entryName = name;
         this.actionDescription = description;
@@ -124,8 +124,11 @@ class ActionEntry {
     }
 
     void append(AbstractBindingEntry entry, bool keepEntryKeyMode = false) {
-        if (auto key = cast(KeyBindingEntry) entry && !keepEntryKeyMode)
-            key.setMode(keyMode);
+        if (!keepEntryKeyMode) {
+            if (auto key = cast(KeyBindingEntry) entry)
+                key.setMode(keyMode);
+        }
+
         bindingEntrys ~= entry;
     }
 
@@ -134,6 +137,14 @@ class ActionEntry {
             if (entry.isActive(this.extactMatch))
                 return true;
         return false;
+    }
+
+    bool isInactive() {
+        bool allInactive = true;
+        foreach (entry; bindingEntrys)
+            if (!entry.isInactive(this.extactMatch))
+                allInactive = false;
+        return allInactive;
     }
 }
 
@@ -156,13 +167,22 @@ class AbstractBindingEntry {
         throw new Exception("Not implemented");
     }
 
+    bool isInactive(bool extactMatch) {
+        // override this method if needed
+        return !isActive(extactMatch);
+    }
+
     void tagDelete() {
         toDelete = true;
     }
 }
 
-enum KeyBindingMode {
-    Down, Pressed, PressedRepeat
+enum BindingMode {
+    Down,
+    // for mouse only
+    Clicked, Dragged,
+    // for keyboard only
+    Pressed, PressedRepeat
 }
 
 /**
@@ -270,7 +290,7 @@ class KeyBindingEntry : AbstractBindingEntry {
         bool macosKeyBinding = false;
 
         ImGuiKey[] keys;
-        KeyBindingMode mode;
+        BindingMode mode;
     }
 
     this(ImGuiKey[] keys) {
@@ -284,7 +304,10 @@ class KeyBindingEntry : AbstractBindingEntry {
         KeyScanner.addKeys(keys);
     }
 
-    void setMode(KeyBindingMode mode) {
+    void setMode(BindingMode mode) {
+        if (mode == BindingMode.Clicked)
+            throw new Exception("Key binding does not support Clicked mode, consider using Pressed or PressedRepeat mode");
+
         this.mode = mode;
     }
 
@@ -305,12 +328,12 @@ class KeyBindingEntry : AbstractBindingEntry {
         int modifierCountLR = 0;
         foreach (key; keys) {
             switch (mode) {
-                case KeyBindingMode.Down:
+                case BindingMode.Down:
                     result &= KeyScanner.keyStateDown[key];
                     downCount++;
                     break;
-                case KeyBindingMode.Pressed:
-                case KeyBindingMode.PressedRepeat:
+                case BindingMode.Pressed:
+                case BindingMode.PressedRepeat:
                     if (incIsModifierKeyLR(key)) {
                         result &= KeyScanner.keyStateDown[key];
                         modifierCountLR++;
@@ -318,7 +341,7 @@ class KeyBindingEntry : AbstractBindingEntry {
                         result &= KeyScanner.keyStateDown[key];
                         modifierCount++;
                         modifierCountLR++;
-                    } else if (mode == KeyBindingMode.Pressed) {
+                    } else if (mode == BindingMode.Pressed) {
                         result &= KeyScanner.keyStatePressed[key];
                         // when pressed, down always true, and pressed repeat always true
                         pressedCount++;
@@ -338,9 +361,9 @@ class KeyBindingEntry : AbstractBindingEntry {
 
         // when different mode should have different count
         bool checkPressedCount = false;
-        if (mode == KeyBindingMode.Pressed)
+        if (mode == BindingMode.Pressed)
             checkPressedCount = KeyScanner.keyCountPressed == pressedCount;
-        if (mode == KeyBindingMode.PressedRepeat)
+        if (mode == BindingMode.PressedRepeat)
             checkPressedCount = KeyScanner.keyCountPressedRepeat == pressedRepeatCount;
 
         // check if the key binding is an exact match
@@ -360,14 +383,46 @@ class KeyBindingEntry : AbstractBindingEntry {
 class MouseBindingEntry : AbstractBindingEntry {
     private {
         ImGuiMouseButton button;
+        BindingMode mode;
+    }
+
+    void setMode(BindingMode mode) {
+        if (mode == BindingMode.Pressed || mode == BindingMode.PressedRepeat)
+            throw new Exception("Mouse binding does not support Pressed or PressedRepeat mode, consider using Clicked mode");
+        this.mode = mode;
     }
 
     this(ImGuiMouseButton button) {
         this.button = button;
+        this.mode = BindingMode.Down;
     }
 
     ImGuiMouseButton getButton() {
         return button;
+    }
+
+    override
+    bool isActive(bool extactMatch) {
+        switch (mode) {
+            case BindingMode.Clicked:
+                return igIsMouseClicked(button);
+            case BindingMode.Down:
+                return igIsMouseDown(button);
+            case BindingMode.Dragged:
+                return igIsMouseDown(button) && incInputIsDragRequested(button);
+            default:
+                throw new Exception("Unknown mouse binding mode");
+        }
+        return false;
+    }
+
+    override
+    bool isInactive(bool extactMatch) {
+        if (mode == BindingMode.Dragged)
+            // keeping original condition from incViewportMovement()
+            return !igIsMouseDown(button);
+
+        return !isActive(extactMatch);
     }
 }
 
@@ -487,8 +542,8 @@ void incInitInputBinding() {
     // setup default actions
     incDefaultActions =  [   
         "Gereral": [
-            new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, KeyBindingMode.PressedRepeat),
-            new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, KeyBindingMode.PressedRepeat),
+            new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, BindingMode.PressedRepeat),
+            new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, BindingMode.PressedRepeat),
             new ActionEntry("select_all", _("Select All"), _("Select all text or objects"), true),
 
             // Currently, I cannot find existing actions for these
@@ -498,7 +553,7 @@ void incInitInputBinding() {
         ],
         "ViewPort": [
             new ActionEntry("mirror_view", _("Mirror View"), _("Mirror the Viewport")),
-            new ActionEntry("move_view", _("Move View"), _("Move the Viewport")),
+            new ActionEntry("move_viewport", _("Move Viewport"), _("Move the Viewport"), false, BindingMode.Down),
         ],
         "File Handling": [
             new ActionEntry("new_file", _("New File"), _("Create a new file"), true),
@@ -707,7 +762,7 @@ void incInputRecording() {
     }                   
 }
 
-void incAddShortcut(string actionKey, string key, KeyBindingMode mode = KeyBindingMode.Pressed) {
+void incAddShortcut(string actionKey, string key, BindingMode mode = BindingMode.Pressed) {
     // we assume actionKey is already in the hashmap, do not check it
     auto entry = incInputBindings[actionKey];
     auto binding = new KeyBindingEntry(incStringToKeys(key));
@@ -715,7 +770,20 @@ void incAddShortcut(string actionKey, string key, KeyBindingMode mode = KeyBindi
     entry.append(binding, true);
 }
 
+void incAddMouse(string actionKey, ImGuiMouseButton button, BindingMode mode = BindingMode.Down) {
+    // we assume actionKey is already in the hashmap, do not check it
+    auto entry = incInputBindings[actionKey];
+    auto binding = new MouseBindingEntry(button);
+    binding.setMode(mode);
+    entry.append(binding, true);
+}
+
 bool incIsActionActivated(string actionKey) {
     // we assume actionKey is already in the hashmap, do not check it
     return incInputBindings[actionKey].isActivated();
+}
+
+bool incIsActionInactive(string actionKey) {
+    // we assume actionKey is already in the hashmap, do not check it
+    return incInputBindings[actionKey].isInactive();
 }

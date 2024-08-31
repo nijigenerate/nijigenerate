@@ -10,6 +10,7 @@ import nijigenerate;
 import nijigenerate.core;
 import nijigenerate.core.input;
 import nijigenerate.actions;
+import nijigenerate.io.config;
 import nijigenerate.viewport;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
@@ -863,9 +864,9 @@ private {
 
     void incViewportMovement(ImGuiIO* io, Camera camera) {
         float uiScale = incGetUIScale();
-        
+
         // HANDLE MOVE VIEWPORT
-        if (!isMovingViewport && io.MouseDown[1] && incInputIsDragRequested()) {
+        if (!isMovingViewport && incIsActionActivated("move_viewport")) {
             isMovingViewport = true;
             sx = io.MousePos.x;
             sy = io.MousePos.y;
@@ -873,7 +874,7 @@ private {
             csy = camera.position.y;
         }
 
-        if (isMovingViewport && !io.MouseDown[1]) {
+        if (isMovingViewport && incIsActionInactive("move_viewport")) {
             isMovingViewport = false;
         }
 

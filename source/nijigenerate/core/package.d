@@ -908,7 +908,10 @@ void incShortcutsInit() {
     incAddShortcut("undo", "Ctrl+Z");
     incAddShortcut("redo", "Ctrl+Shift+Z");
     incAddShortcut("select_all", "Ctrl+A");
+
+    // viewport
     incAddShortcut("mirror_view", "M");
+    incAddMouse("move_viewport", ImGuiMouseButton.Right, BindingMode.Dragged);
 }
 
 void incHandleShortcuts() {
