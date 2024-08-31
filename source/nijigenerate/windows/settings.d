@@ -240,9 +240,18 @@ protected:
                             incInputRecording();     
                             
                             // incDrawCommandKeySwitch(); Not implemented yet
-                            // incDrawBindingFileButton(); Not implemented yet
-                            incDrawMouseKeyboardSwitch();
+                            incDrawBindingFileButton();
+                            if (incButtonColored(__("Undo##KeyBindings")))
+                                incRevertBindingsChanges();
+
+                            igSameLine(0, 2);
+                            if (incButtonColored(__("Save##KeyBindings"))) {
+                                incCommitBindingsChanges();
+                                incSaveBindings(incGetDefaultBindingPath());
+                            }
+
                             incDrawRightLeftModifierSwitch();
+                            incDrawMouseKeyboardSwitch();
 
                             incDrawAllBindings();
                         endSection();

@@ -76,6 +76,7 @@ int main(string[] args)
         // Initialize input
         incInitInputBinding();
         incShortcutsInit();
+        incLoadBindingConfig();
 
         // Initialize video exporting
         incInitVideoExport();

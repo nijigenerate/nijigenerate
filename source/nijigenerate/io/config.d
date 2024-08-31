@@ -12,8 +12,11 @@ import nijigenerate.io;
 import nijigenerate.widgets.label;
 
 import std.string;
+import std.algorithm;
 import std.algorithm.iteration: filter;
 import std.array;
+import std.json;
+import std.file;
 
 import i18n;
 import bindbc.imgui;
@@ -86,7 +89,10 @@ class ActionEntry {
         string entryKey;
         string entryName;
         string actionDescription;
+
+        // we mantain two lists, `uncommittedBindingEntrys` allows user to revert changes
         AbstractBindingEntry[] bindingEntrys;
+        AbstractBindingEntry[] uncommittedBindingEntrys;
 
         // extactMatch means that the key binding is an exact match
         // like mutually exclusive actions, but it is only for itself, would not affect other actions
@@ -124,6 +130,12 @@ class ActionEntry {
 
     void cleanRemoveList() {
         bindingEntrys = bindingEntrys.filter!(a => !a.toDelete).array;
+        uncommittedBindingEntrys = uncommittedBindingEntrys.filter!(a => !a.toDelete).array;
+    }
+
+    void removeAllBinding() {
+        bindingEntrys = [];
+        uncommittedBindingEntrys = [];
     }
 
     void append(AbstractBindingEntry entry, bool keepEntryKeyMode = false) {
@@ -132,9 +144,15 @@ class ActionEntry {
                 key.setMode(keyMode);
         }
 
-        bindingEntrys ~= entry;
+        // we append to uncommitted list first, it allows user to revert changes
+        uncommittedBindingEntrys ~= entry;
     }
 
+    /**
+        isActivated() and isInactive() allow different conditions
+        for example, drag is a special case in viewport movement (refer to git history `/viewport/package.d`)
+            drag isActivated() is check mouse `down and drag` started but drag isInactive() is check `!mouse down`
+    */
     bool isActivated() {
         foreach (entry; bindingEntrys)
             if (entry.isActive(this.extactMatch))
@@ -148,6 +166,62 @@ class ActionEntry {
             if (!entry.isInactive(this.extactMatch))
                 allInactive = false;
         return allInactive;
+    }
+
+    bool hasUncommittedChanges() {
+        return uncommittedBindingEntrys.length > 0;
+    }
+
+    /**
+        if we want bindingEntry work, we need to commit changes
+    */
+    void commitChanges() {
+        bindingEntrys ~= uncommittedBindingEntrys;
+        uncommittedBindingEntrys = [];
+    }
+
+    void revertChanges() {
+        uncommittedBindingEntrys = [];
+    }
+
+    JSONValue toJSON() {
+        JSONValue data = JSONValue();
+        JSONValue[] bindings;
+
+        // we don't serialize ActionEntry content, because is should be hard coded
+        // serialize all binding entries
+        foreach (entry; bindingEntrys)
+            bindings ~= entry.toJSON();
+        data["bindings"] = JSONValue(bindings);
+        return data;
+    }
+    /**
+        fromJSON() is used to load data from disk
+            checkOnly - if true, only check the key, do not load data
+    */
+    JSONValue fromJSON(string key, JSONValue data, bool checkOnly = false) {
+        if (key != entryKey)
+            throw new Exception("Key mismatch");
+
+        if (!checkOnly)
+            removeAllBinding();
+
+        foreach (entry; data["bindings"].array) {
+            auto binding = new AbstractBindingEntry();
+            if (entry["className"].get!string == "KeyBindingEntry")
+                binding = new KeyBindingEntry([ImGuiKey.None]);
+            else if (entry["className"].get!string == "MouseBindingEntry")
+                binding = new MouseBindingEntry(ImGuiMouseButton.Left);
+            else
+                throw new Exception("Unknown binding entry class");
+            binding.fromJSON(entry);
+
+            // we don't load data if checkOnly is true
+            if (!checkOnly)
+                bindingEntrys ~= binding;
+        }
+
+        return data;
     }
 }
 
@@ -177,6 +251,16 @@ class AbstractBindingEntry {
 
     void tagDelete() {
         toDelete = true;
+    }
+
+    JSONValue toJSON() {
+        // override this method
+        throw new Exception("Not implemented");
+    }
+
+    void fromJSON(JSONValue data) {
+        // override this method
+        throw new Exception("Not implemented");
     }
 }
 
@@ -327,6 +411,8 @@ class KeyBindingEntry : AbstractBindingEntry {
     override
     bool isActive(bool extactMatch) {
         // The code is a bit messy. Write tests before refactoring.
+        // To put it simply, extactMatch obtains the result through key count
+        // could not just check pressed key for mutually exclude actions (ctrl+s, ctrl+shift+s)
         // TODO: Write unit tests before refactoring or modifying the code
 
         bool result = true;
@@ -387,6 +473,23 @@ class KeyBindingEntry : AbstractBindingEntry {
 
         return result;
     }
+
+    override
+    JSONValue toJSON() {
+        JSONValue data = JSONValue();
+        data["keys"] = JSONValue(keys);
+        data["mode"] = JSONValue(mode);
+        data["className"] = "KeyBindingEntry";
+        return data;
+    }
+
+    override
+    void fromJSON(JSONValue data) {
+        keys = data["keys"].array.map!(a => a.get!ImGuiKey).array;
+        mode = cast(BindingMode) data["mode"].get!string;
+
+        KeyScanner.addKeys(keys);
+    }
 }
 
 class MouseBindingEntry : AbstractBindingEntry {
@@ -436,6 +539,21 @@ class MouseBindingEntry : AbstractBindingEntry {
             return !igIsMouseDown(button);
 
         return !isActive(extactMatch);
+    }
+
+    override
+    JSONValue toJSON() {
+        JSONValue data = JSONValue();
+        data["button"] = JSONValue(button);
+        data["mode"] = JSONValue(mode);
+        data["className"] = "MouseBindingEntry";
+        return data;
+    }
+
+    override
+    void fromJSON(JSONValue data) {
+        button = data["button"].get!ImGuiMouseButton;
+        mode = cast(BindingMode) data["mode"].get!string;
     }
 }
 
@@ -581,7 +699,7 @@ void incInitInputBinding() {
     ]);
 }
 
-/*
+/**
     our ImGui layout will look like this (UI logic):
     - incDrawAllBindings()
         - incDrawBindingEntries() 
@@ -590,10 +708,21 @@ void incInitInputBinding() {
                 - incDrawMouseBindingInput()
                 - incDrawBindingEntry()
 */
-void incDrawBindingEntry(AbstractBindingEntry entry) {
+/**
+    UI for key binding entry
+        entry - the key binding entry
+        commited - means the key binding is commited/saved to memory config, or not
+*/
+void incDrawBindingEntry(AbstractBindingEntry entry, bool commited) {
     incText("\ue92b"); // delete
     if (igIsItemClicked()) {
         entry.tagDelete();
+    }
+
+    // show hint if not commited
+    if (!commited) {
+        igSameLine(0, 2);
+        incText(_("unsaved"));
     }
 
     // draw the icon and binding discrption
@@ -674,7 +803,9 @@ void incDrawBindingActionEntry(ActionEntry entry) {
             incDrawBindingInput();
 
         foreach (bindingEntry; entry.bindingEntrys)
-            incDrawBindingEntry(bindingEntry);
+            incDrawBindingEntry(bindingEntry, true);
+        foreach (bindingEntry; entry.uncommittedBindingEntrys)
+            incDrawBindingEntry(bindingEntry, false);
         entry.cleanRemoveList();
             
     igEndGroup();
@@ -714,13 +845,21 @@ void incDrawCommandKeySwitch() {
 }
 
 void incDrawBindingFileButton() {
-    throw new Exception("Not implemented yet");
     // TODO: implement file handling
     incText(_("\ue5d5 reset"));
+    if (igIsItemClicked())
+        incConfigureDefaultBindings();
+
     igSameLine(0, 2);
     incText(_("\ue161 Export"));
+    if (igIsItemClicked())
+        incSaveBindingsShowDialog();
+
     igSameLine(0, 2);
     incText(_("\uf090 Import"));
+    if (igIsItemClicked())
+        incLoadBindingsShowDialog();
+
     igSameLine(0, 2);
 }
 
@@ -749,20 +888,105 @@ void incInputRecording() {
     }                   
 }
 
+/** 
+    BindingBuilder allow we to build the default key bindings
+*/
+class BindingBuilder {
+    private {
+        ActionEntry entry;
+    }
+
+    this(string actionKey) {
+        // we assume actionKey is already in the hashmap, do not check it
+        this.entry = incInputBindings[actionKey];
+    }
+
+    AbstractBindingEntry build() {
+        throw new Exception("Not implemented");
+    }
+
+    /** 
+        appendBinding() append the binding to the entry
+        Note: this method should be called after build(), it would commit the changes
+    */
+    void appendBinding() {
+        auto binding = build();
+        entry.append(binding, true);
+        entry.commitChanges();
+    }
+}
+
+class MouseBuilder : BindingBuilder {
+    private {
+        ImGuiMouseButton button;
+        BindingMode mode;
+    }
+
+    this(string actionKey, ImGuiMouseButton button, BindingMode mode = BindingMode.Down) {
+        super(actionKey);
+        this.button = button;
+        this.mode = mode;
+    }
+
+    override
+    AbstractBindingEntry build() {
+        auto entry = new MouseBindingEntry(button);
+        entry.setMode(mode);
+        return entry;
+    }
+}
+
+class KeyBuilder : BindingBuilder {
+    private {
+        ImGuiKey[] keys;
+        BindingMode mode;
+    }
+
+    this(string actionKey, ImGuiKey[] keys, BindingMode mode = BindingMode.Pressed) {
+        super(actionKey);
+        this.keys = keys;
+        this.mode = mode;
+    }
+
+    override
+    AbstractBindingEntry build() {
+        auto entry = new KeyBindingEntry(keys);
+        entry.setMode(mode);
+        return entry;
+    }
+}
+
+BindingBuilder[] incBindingBuilders;
+
+/**
+    incConfigureDefaultBindings(), it should call after all default bindings are added
+*/
+void incConfigureDefaultBindings() {
+    // clean all binding
+    foreach (entry; incInputBindings.values)
+        entry.removeAllBinding();
+
+    // build all default bindings
+    foreach (builder; incBindingBuilders) {
+        builder.build();
+        builder.appendBinding();
+    }
+}
+
+void incLoadBindingConfig() {
+    string path = incGetDefaultBindingPath();
+    if (!exists(path))
+        incConfigureDefaultBindings();
+    else
+        incLoadBindings(path);
+}
+
 void incAddShortcut(string actionKey, string key, BindingMode mode = BindingMode.Pressed) {
-    // we assume actionKey is already in the hashmap, do not check it
-    auto entry = incInputBindings[actionKey];
-    auto binding = new KeyBindingEntry(incStringToKeys(key));
-    binding.setMode(mode);
-    entry.append(binding, true);
+    incBindingBuilders ~= new KeyBuilder(actionKey, incStringToKeys(key), mode);
 }
 
 void incAddMouse(string actionKey, ImGuiMouseButton button, BindingMode mode = BindingMode.Down) {
-    // we assume actionKey is already in the hashmap, do not check it
-    auto entry = incInputBindings[actionKey];
-    auto binding = new MouseBindingEntry(button);
-    binding.setMode(mode);
-    entry.append(binding, true);
+    incBindingBuilders ~= new MouseBuilder(actionKey, button, mode);
 }
 
 bool incIsActionActivated(string actionKey) {
@@ -773,4 +997,99 @@ bool incIsActionActivated(string actionKey) {
 bool incIsActionInactive(string actionKey) {
     // we assume actionKey is already in the hashmap, do not check it
     return incInputBindings[actionKey].isInactive();
+}
+
+/**
+    incCommitBindingsChanges() commit changes to Memory
+*/
+void incCommitBindingsChanges() {
+    if (incInputBindings.length == 0)
+        throw new Exception("init input bindings first");
+
+    foreach (entry; incInputBindings.values)
+        entry.commitChanges();
+}
+
+/**
+    incRevertBindingsChanges() revert changes to Memory, it could not revert committed changes
+*/
+void incRevertBindingsChanges() {
+    if (incInputBindings.length == 0)
+        throw new Exception("init input bindings first");
+
+    foreach (entry; incInputBindings.values)
+        entry.revertChanges();
+}
+
+const string INC_KEY_BINDING_VERSION = "0.0.1";
+
+/**
+    incSaveBindings() save committed changes to disk
+*/
+void incSaveBindings(string path) {
+    JSONValue data = JSONValue();
+
+    // set version
+    data["keybindings_version"] = INC_KEY_BINDING_VERSION;
+
+    // serialize bindings
+    foreach (entry; incInputBindings.values) {
+        data[entry.getKey()] = entry.toJSON();
+    }
+
+    // save to disk, atomic write
+    string tmp_path = path ~ ".tmp";
+    write(tmp_path, data.toString());
+    rename(tmp_path, path);
+}
+
+/**
+    incLoadBindings() load bindings from disk
+*/
+void incLoadBindings(string path) {
+    // load bindings from disk
+    // check version
+    JSONValue data = JSONValue(parseJSON(readText(path)));
+    if (data["keybindings_version"].get!string != INC_KEY_BINDING_VERSION)
+        throw new Exception("Keybindings version mismatch");
+    data.object.remove("keybindings_version");
+
+    // pass one just check data
+    bool checkOnly = true;
+    incLoadToActionEntry(data, checkOnly);
+
+    // pass two load data
+    checkOnly = false;
+    incLoadToActionEntry(data, checkOnly);
+}
+
+void incLoadToActionEntry(JSONValue data, bool checkOnly) {
+    foreach (key, entry; data.object)
+        if (key in incInputBindings)
+            incInputBindings[key].fromJSON(key, entry, checkOnly);
+}
+
+void incLoadBindingsShowDialog() {
+    // filter seems not working for .json, so we do not use it
+    const TFD_Filter[] filters = [];
+
+    string file = incShowOpenDialog(filters, _("Open..."));
+    if (file)
+        incLoadBindings(file);
+}
+
+void incSaveBindingsShowDialog() {
+    const TFD_Filter[] filters = [
+        { ["*.json"], "JSON (*.json)" }
+    ];
+
+    string file = incShowSaveDialog(filters, "keybindings.json", _("Save..."));
+    if (file)
+        incSaveBindings(file);
+}
+
+string incGetDefaultBindingPath() {
+    import std.path : buildPath;
+    import nijigenerate.core.path;
+    return buildPath(incGetAppConfigPath(), "keybindings.json");
 }
