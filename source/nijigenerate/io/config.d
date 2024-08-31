@@ -59,6 +59,9 @@ string[ImGuiKey] incKeyDisplayMap = [
 // incAppendRightLeftModifier for UI logic, user can choose append left/right modifier keys or not
 bool incAppendRightLeftModifier = false;
 
+// incSwitchCommandKey for UI logic, user can choose switch command key or using ctrl key
+bool incSwitchCommandKey = false;
+
 // incAppendMouseMode for UI logic, user can choose mouse bindings or keyboard bindings
 bool incAppendMouseMode = false;
 
@@ -436,9 +439,9 @@ class MouseBindingEntry : AbstractBindingEntry {
     }
 }
 
-void incDrawRecorderButtons(string label, ImGuiKey key) {
+void incDrawRecorderButtons(string label, ImGuiKey key, bool isLast = false) {
     igSameLine(0, 2);
-    incText(label);
+    incText(label ~ (isLast ? "" : "+"));
     if (igIsItemClicked())
         BindingRecorder.removeRecordedKey(key);
 }
@@ -491,31 +494,10 @@ static class BindingRecorder {
 
         // check if we need to append left and right modifier keys
         // or without them
-        if (!incAppendRightLeftModifier) {
-            switch (key) {
-                case ImGuiKey.LeftCtrl:
-                case ImGuiKey.RightCtrl:
-                case ImGuiKey.LeftAlt:
-                case ImGuiKey.RightAlt:
-                case ImGuiKey.LeftShift:
-                case ImGuiKey.RightShift:
-                case ImGuiKey.LeftSuper:
-                case ImGuiKey.RightSuper:
-                    return;
-                default:
-                    break;
-            }
-        } else {
-            switch (key) {
-                case ImGuiKey.ModCtrl:
-                case ImGuiKey.ModAlt:
-                case ImGuiKey.ModShift:
-                case ImGuiKey.ModSuper:
-                    return;
-                default:
-                    break;
-            }                
-        }
+        if (!incAppendRightLeftModifier && incIsModifierKeyLR(key))
+            return;
+        else if (incAppendRightLeftModifier && incIsModifierKey(key))
+            return;
 
         recordedKeys[key] = true;
     }
@@ -526,12 +508,8 @@ static class BindingRecorder {
 
     static void drawRecordedKeys() {
         // Draw recorded keys
-        foreach (key; recordedKeys.keys) {
-            if (key != recordedKeys.keys[$ - 1])
-                incDrawRecorderButtons(incGetKeyString(key) ~ "+", key);
-            else
-                incDrawRecorderButtons(incGetKeyString(key), key);
-        }
+        foreach (key; recordedKeys.keys)
+            incDrawRecorderButtons(incGetKeyString(key), key, key == recordedKeys.keys[$ - 1]);
 
         // Draw help text
         igSameLine(0, 2);
@@ -681,13 +659,14 @@ void incDrawBindingInput() {
 }
 
 void incDrawBindingActionEntry(ActionEntry entry) {
+    // draw ActionEntry, if clicked, select the entry
     bool isSelected = incKeyBindingEntrySelected(entry);
     string itemLabel = entry.getName() ~ "##Keybind-" ~ entry.getKey();
     if (igSelectable(itemLabel.toStringz, isSelected, ImGuiSelectableFlags.None, ImVec2(0, 0))) {
         incSetSelectedBindingEntry(entry);
     }
 
-    // draw child nodes
+    // draw child nodes, it is a group of AbstractBindingEntry
     igBeginGroup();
         igIndent(8);
 
@@ -702,6 +681,7 @@ void incDrawBindingActionEntry(ActionEntry entry) {
 }
 
 void incDrawBindingEntries(ActionEntry[] entries, string category) {
+    // draw category
     incText("\ue8b8"); // settings icon
     igSameLine(0, 2);
     category ~= "##Keybind-category-" ~ category;
@@ -709,7 +689,7 @@ void incDrawBindingEntries(ActionEntry[] entries, string category) {
         
     }
 
-    // draw child nodes
+    // draw child nodes, it is a group of ActionEntry
     igBeginGroup();
         igIndent(8);
         foreach (entry; entries)
@@ -730,7 +710,7 @@ void incDrawMouseKeyboardSwitch() {
 void incDrawCommandKeySwitch() {
     throw new Exception("Not implemented yet");
     // TODO: implement command key handling
-    incText("\ue834 Switch \ueae7 key"); // selected
+    igCheckbox(__("Switch \ueae7 key"), &incSwitchCommandKey);
 }
 
 void incDrawBindingFileButton() {
@@ -745,7 +725,7 @@ void incDrawBindingFileButton() {
 }
 
 void incDrawAllBindings() {
-    // draw child nodes
+    // draw all category groups of ActionEntry
     igBeginGroup();
         igIndent(8);
         foreach (category; incDefaultActions.keys)
@@ -754,17 +734,10 @@ void incDrawAllBindings() {
 }
 
 void incDrawRightLeftModifierSwitch() {
-    if (incAppendRightLeftModifier)
-        incText(_("\ue834 Append left and right modifier keys")); // selected
-    else
-        incText(_("\ue835 Append left and right modifier keys")); // unselected
-    if (igIsItemClicked())
-        incAppendRightLeftModifier = !incAppendRightLeftModifier;
+    igCheckbox(__("Append left and right modifier keys"), &incAppendRightLeftModifier);
 }
 
 void incInputRecording() {
-    import nijigenerate.core.input;
-    import std.stdio;
     import std.traits : EnumMembers;
     foreach (key ; EnumMembers!ImGuiKey) {
         // pass IM_ASSERT(key >= ImGuiKey_LegacyNativeKey_BEGIN && key < ImGuiKey_NamedKey_END)
