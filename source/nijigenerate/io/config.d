@@ -178,11 +178,13 @@ class AbstractBindingEntry {
 }
 
 enum BindingMode {
-    Down,
+    Down = "Down",
     // for mouse only
-    Clicked, Dragged,
+    Clicked = "Clicked",
+    Dragged = "Dragged",
     // for keyboard only
-    Pressed, PressedRepeat
+    Pressed = "Pressed",
+    PressedRepeat = "Pressed Repeat",
 }
 
 /**
@@ -311,6 +313,10 @@ class KeyBindingEntry : AbstractBindingEntry {
         this.mode = mode;
     }
 
+    BindingMode getMode() {
+        return mode;
+    }
+
     ImGuiKey[] getKeys() {
         return keys;
     }
@@ -392,6 +398,10 @@ class MouseBindingEntry : AbstractBindingEntry {
         this.mode = mode;
     }
 
+    BindingMode getMode() {
+        return mode;
+    }
+
     this(ImGuiMouseButton button) {
         this.button = button;
         this.mode = BindingMode.Down;
@@ -436,11 +446,11 @@ void incDrawRecorderButtons(string label, ImGuiKey key) {
 string incMouseToText(ImGuiMouseButton button) {
     switch (button) {
         case ImGuiMouseButton.Left:
-            return _("Left Click");
+            return _("Left");
         case ImGuiMouseButton.Middle:
-            return _("Middle Click");
+            return _("Middle");
         case ImGuiMouseButton.Right:
-            return _("Right Click");
+            return _("Right");
         default:
             throw new Exception("Unknown mouse button");
     }
@@ -608,12 +618,16 @@ void incDrawBindingEntry(AbstractBindingEntry entry) {
         entry.tagDelete();
     }
 
-    // draw the icon
+    // draw the icon and binding discrption
     igSameLine(0, 2);
     if (auto mouse = cast(MouseBindingEntry) entry)
-        incText("\ue323" ~ incMouseToText(mouse.getButton())); // mouse icon
+        incText("\ue323" ~ incMouseToText(mouse.getButton())
+            ~ " (" ~ mouse.getMode() ~ ")"
+        ); // mouse icon
     if (auto key = cast(KeyBindingEntry) entry)
-        incText("\ue312" ~ incKeysToStr(key.getKeys())); // keyboard icon
+        incText("\ue312" ~ incKeysToStr(key.getKeys())
+            ~ " (" ~ key.getMode() ~ ")"
+        ); // keyboard icon
 }
 
 /** 
