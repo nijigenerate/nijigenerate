@@ -232,22 +232,34 @@ void incScanInput() {
 }
 
 unittest {
-    // KeyBindingEntry.isActive(extactMatch=true) unit tests
-    // for `Ctrl+Shift+S` Keybind There may be errors in these cases
-    // LCtrl+Shift+S = True
-    // LCtrl+RCtrl+Shift+S = True
-    // Ctrl+Shift+S = True
-    // Ctrl+RCtrl+Shift+S = True
-    // Ctrl+S = False
+    // init KeyList = [Ctrl, Shift, S, LShift]
 
-    // KeyBindingEntry.isActive(extactMatch=false) unit tests
-    // keybinding: Ctrl+S
-    // LCtrl+S = True
-    // RCtrl+S = True
-    // LCtrl+RCtrl+Ctrl+S = True
-    // Ctrl+S = True
-    // it non mutually exclusive actions, so it should be true
-    // Ctrl+Shift+S = True
+    // init KeyList = [Ctrl, Shift, LShift, RShift, S]
+
+        // KeyBindingEntry.isActive(extactMatch=true) unit tests
+        // for `Ctrl+Shift+S` Keybind There may be errors in these cases
+        // LCtrl+Shift+S = True
+        // LCtrl+RCtrl+Shift+S = True
+        // Ctrl+Shift+S = True
+        // Ctrl+RCtrl+Shift+S = True
+        // Ctrl+S = False
+
+        // for `LCtrl+S` Keybind
+        // LCtrl+S = True
+        // LCtrl+RCtrl+S = ?
+        // RCtrl+S = False
+        // Ctrl+S = False
+        // LCtrl+Ctrl+S = True?
+        // RCtrl+Ctrl+S = False
+
+        // KeyBindingEntry.isActive(extactMatch=false) unit tests
+        // keybinding: Ctrl+S
+        // LCtrl+S = True
+        // RCtrl+S = True
+        // LCtrl+RCtrl+Ctrl+S = True
+        // Ctrl+S = True
+        // it non mutually exclusive actions, so it should be true
+        // Ctrl+Shift+S = True
 
     // TODO: Implement unit tests
 }
