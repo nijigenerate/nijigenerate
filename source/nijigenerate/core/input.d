@@ -195,6 +195,12 @@ ImGuiKey incKeyScancode(string c) {
         case "Ctrl": return ImGuiKey.ModCtrl;
         case "Alt": return ImGuiKey.ModAlt;
         case "Shift": return ImGuiKey.ModShift;
+        case "LShift": return ImGuiKey.LeftShift;
+        case "RShift": return ImGuiKey.RightShift;
+        case "LCtrl": return ImGuiKey.LeftCtrl;
+        case "RCtrl": return ImGuiKey.RightCtrl;
+        case "LAlt": return ImGuiKey.LeftAlt;
+        case "RAlt": return ImGuiKey.RightAlt;
         default: return ImGuiKey.None;
     }
 }

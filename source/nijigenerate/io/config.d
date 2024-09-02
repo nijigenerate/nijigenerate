@@ -59,9 +59,6 @@ string[ImGuiKey] incKeyDisplayMap = [
     ImGuiKey.RightBracket: "]",
 ];
 
-// incAppendRightLeftModifier for UI logic, user can choose append left/right modifier keys or not
-bool incAppendRightLeftModifier = false;
-
 // incSwitchCommandKey for UI logic, user can choose switch command key or using ctrl key
 bool incSwitchCommandKey = false;
 
@@ -128,11 +125,6 @@ class ActionEntry {
         return entryKey;
     }
 
-    void cleanRemoveList() {
-        bindingEntrys = bindingEntrys.filter!(a => !a.toDelete).array;
-        uncommittedBindingEntrys = uncommittedBindingEntrys.filter!(a => !a.toDelete).array;
-    }
-
     void removeAllBinding() {
         bindingEntrys = [];
         uncommittedBindingEntrys = [];
@@ -178,10 +170,17 @@ class ActionEntry {
     void commitChanges() {
         bindingEntrys ~= uncommittedBindingEntrys;
         uncommittedBindingEntrys = [];
+
+        // commit delete
+        bindingEntrys = bindingEntrys.filter!(a => !a.toDelete).array;
     }
 
     void revertChanges() {
         uncommittedBindingEntrys = [];
+
+        // revert delete
+        foreach (entry; bindingEntrys)
+            entry.toDelete = false;
     }
 
     JSONValue toJSON() {
@@ -223,6 +222,17 @@ class ActionEntry {
 
         return data;
     }
+}
+
+unittest {
+    auto entry = new ActionEntry("test", "Test", "Test");
+    assert(entry.getName() == "Test");
+    assert(entry.getKey() == "test");
+
+    // test incKeyBindingEntrySelected
+    assert(!incKeyBindingEntrySelected(entry));
+    incSetSelectedBindingEntry(entry);
+    assert(incKeyBindingEntrySelected(entry));
 }
 
 /** 
@@ -492,6 +502,72 @@ class KeyBindingEntry : AbstractBindingEntry {
     }
 }
 
+
+// Mock mouse button
+IMouse incMouse = null;
+
+interface IMouse {
+    bool isPressed(ImGuiMouseButton button);
+    bool isClicked(ImGuiMouseButton button);
+    bool isDragRequested(ImGuiMouseButton button);
+    bool isDown(ImGuiMouseButton button);
+}
+
+class IncImguiMouse : IMouse {
+    private {
+        ImGuiMouseButton button;
+    }
+
+    bool isPressed(ImGuiMouseButton button) {
+        return igIsMouseDown(button);
+    }
+
+    bool isClicked(ImGuiMouseButton button) {
+        return igIsMouseClicked(button);
+    }
+
+    bool isDragRequested(ImGuiMouseButton button) {
+        return incInputIsDragRequested(button);
+    }
+
+    bool isDown(ImGuiMouseButton button) {
+        return igIsMouseDown(button);
+    }
+}
+
+class UnitTestMouse : IMouse {
+    public {
+        bool pressed;
+        bool clicked;
+        bool dragRequested;
+        bool down;
+        ImGuiMouseButton button;
+    }
+
+    void clean() {
+        pressed = false;
+        clicked = false;
+        dragRequested = false;
+        down = false;
+    }
+
+    bool isPressed(ImGuiMouseButton button) {
+        return pressed && this.button == button;
+    }
+
+    bool isClicked(ImGuiMouseButton button) {
+        return clicked && this.button == button;
+    }
+
+    bool isDragRequested(ImGuiMouseButton button) {
+        return dragRequested && this.button == button;
+    }
+
+    bool isDown(ImGuiMouseButton button) {
+        return down && this.button == button;
+    }
+}
+
 class MouseBindingEntry : AbstractBindingEntry {
     private {
         ImGuiMouseButton button;
@@ -521,11 +597,11 @@ class MouseBindingEntry : AbstractBindingEntry {
     bool isActive(bool extactMatch) {
         switch (mode) {
             case BindingMode.Clicked:
-                return igIsMouseClicked(button);
+                return incMouse.isClicked(button);
             case BindingMode.Down:
-                return igIsMouseDown(button);
+                return incMouse.isDown(button);
             case BindingMode.Dragged:
-                return igIsMouseDown(button) && incInputIsDragRequested(button);
+                return incMouse.isDown(button) && incMouse.isDragRequested(button);
             default:
                 throw new Exception("Unknown mouse binding mode");
         }
@@ -536,7 +612,7 @@ class MouseBindingEntry : AbstractBindingEntry {
     bool isInactive(bool extactMatch) {
         if (mode == BindingMode.Dragged)
             // keeping original condition from incViewportMovement()
-            return !igIsMouseDown(button);
+            return !incMouse.isDown(button);
 
         return !isActive(extactMatch);
     }
@@ -577,6 +653,12 @@ string incMouseToText(ImGuiMouseButton button) {
     }
 }
 
+unittest {
+    assert(incMouseToText(ImGuiMouseButton.Left) == "Left");
+    assert(incMouseToText(ImGuiMouseButton.Middle) == "Middle");
+    assert(incMouseToText(ImGuiMouseButton.Right) == "Right");
+}
+
 string incGetKeyString(ImGuiKey key) {
     if (key in incKeyDisplayMap)
         return incKeyDisplayMap[key];
@@ -591,10 +673,21 @@ string incKeysToStr(ImGuiKey[] keys) {
     return result.strip().replace(" ", "+");
 }
 
+/*
+It can only be tested after imgui is loaded, otherwise segmentation fault
+unittest {
+    assert(incKeysToStr([ImGuiKey.LeftCtrl, ImGuiKey.Z]) == "LCtrl+Z");
+    assert(incKeysToStr([ImGuiKey.LeftCtrl, ImGuiKey.LeftShift, ImGuiKey.S]) == "LCtrl+LShift+S");
+}
+*/
+
 static class BindingRecorder {
     private {
         static bool[ImGuiKey] recordedKeys;
     }    
+
+    // appendRightLeftModifier for UI logic, user can choose append left/right modifier keys or not
+    static bool appendRightLeftModifier = false;
 
     static void clearRecordedKeys() {
         recordedKeys = new bool[ImGuiKey];
@@ -612,9 +705,9 @@ static class BindingRecorder {
 
         // check if we need to append left and right modifier keys
         // or without them
-        if (!incAppendRightLeftModifier && incIsModifierKeyLR(key))
+        if (!appendRightLeftModifier && incIsModifierKeyLR(key))
             return;
-        else if (incAppendRightLeftModifier && incIsModifierKey(key))
+        else if (appendRightLeftModifier && incIsModifierKey(key))
             return;
 
         recordedKeys[key] = true;
@@ -623,19 +716,33 @@ static class BindingRecorder {
     static ImGuiKey[] getRecordedKeys() {
         return recordedKeys.keys;
     }
+}
 
-    static void drawRecordedKeys() {
-        // Draw recorded keys
-        foreach (key; recordedKeys.keys)
-            incDrawRecorderButtons(incGetKeyString(key), key, key == recordedKeys.keys[$ - 1]);
-
-        // Draw help text
-        igSameLine(0, 2);
-        if (BindingRecorder.getRecordedKeys().length == 0)
-            incText(_("(Press a key to bind)"));
-        else
-            incText(_("(Click to remove)"));
+unittest {
+    bool inKeys(ImGuiKey key, ImGuiKey[] keys) {
+        foreach (k; keys)
+            if (k == key)
+                return true;
+        return false;
     }
+
+    // test appendRightLeftModifier
+    BindingRecorder.clearRecordedKeys();
+    BindingRecorder.appendRightLeftModifier = false;
+    BindingRecorder.recordKey(ImGuiKey.LeftCtrl);
+    BindingRecorder.recordKey(ImGuiKey.ModCtrl);
+    BindingRecorder.recordKey(ImGuiKey.S);
+    auto keys = BindingRecorder.getRecordedKeys();
+    assert(inKeys(ImGuiKey.ModCtrl, keys) && inKeys(ImGuiKey.S, keys) && keys.length == 2);
+
+    // test appendRightLeftModifier
+    BindingRecorder.clearRecordedKeys();
+    BindingRecorder.appendRightLeftModifier = true;
+    BindingRecorder.recordKey(ImGuiKey.LeftCtrl);
+    BindingRecorder.recordKey(ImGuiKey.ModCtrl);
+    BindingRecorder.recordKey(ImGuiKey.S);
+    keys = BindingRecorder.getRecordedKeys();
+    assert(inKeys(ImGuiKey.LeftCtrl, keys) && inKeys(ImGuiKey.S, keys) && keys.length == 2);
 }
 
 // hashmap for fast access key/mouse bindings
@@ -644,9 +751,24 @@ ActionEntry[string] incInputBindings;
 // List of default actions
 ActionEntry[][string] incDefaultActions;
 
+void incInitBindingHashMap() {
+    incInputBindings = new ActionEntry[string];
+
+    // build hashmap for fast access
+    foreach (category; incDefaultActions.keys) {
+        foreach (entry; incDefaultActions[category]) {
+            // check if the entry is already in the hashmap, prevent unexpected behavior
+            if (entry.entryKey in incInputBindings)
+                throw new Exception("Duplicate key binding entry: " ~ entry.getKey());
+
+            incInputBindings[entry.getKey()] = entry;
+        }
+    }
+}
+
 void incInitInputBinding() {
     // setup default actions
-    incDefaultActions =  [   
+    incDefaultActions =  [
         "Gereral": [
             new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, BindingMode.PressedRepeat),
             new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, BindingMode.PressedRepeat),
@@ -669,16 +791,7 @@ void incInitInputBinding() {
         ],
     ];
 
-    // build hashmap for fast access
-    foreach (category; incDefaultActions.keys) {
-        foreach (entry; incDefaultActions[category]) {
-            // check if the entry is already in the hashmap, prevent unexpected behavior
-            if (entry.entryKey in incInputBindings)
-                throw new Exception("Duplicate key binding entry: " ~ entry.getKey());
-
-            incInputBindings[entry.getKey()] = entry;
-        }
-    }
+    incInitBindingHashMap();
 
     // add must modifier keys to the key scanner
     // This allows early detection of KeyScanner modifier keys for bugs
@@ -697,6 +810,9 @@ void incInitInputBinding() {
         ImGuiKey.ModShift,
         ImGuiKey.ModSuper,
     ]);
+
+    // init I/O Mock
+    incMouse = new IncImguiMouse();
 }
 
 /**
@@ -714,6 +830,9 @@ void incInitInputBinding() {
         commited - means the key binding is commited/saved to memory config, or not
 */
 void incDrawBindingEntry(AbstractBindingEntry entry, bool commited) {
+    if (entry.toDelete)
+        return;
+
     incText("\ue92b"); // delete
     if (igIsItemClicked()) {
         entry.tagDelete();
@@ -759,7 +878,7 @@ void incDrawKeyBindingInput() {
     if (igIsItemClicked())
        BindingRecorder.clearRecordedKeys();
     igSameLine(0, 2);
-    BindingRecorder.drawRecordedKeys();
+    incDrawRecordedKeys(BindingRecorder.getRecordedKeys());
 }
 
 void incDrawMouseBindingInput() {
@@ -806,7 +925,6 @@ void incDrawBindingActionEntry(ActionEntry entry) {
             incDrawBindingEntry(bindingEntry, true);
         foreach (bindingEntry; entry.uncommittedBindingEntrys)
             incDrawBindingEntry(bindingEntry, false);
-        entry.cleanRemoveList();
             
     igEndGroup();
 }
@@ -873,7 +991,19 @@ void incDrawAllBindings() {
 }
 
 void incDrawRightLeftModifierSwitch() {
-    igCheckbox(__("Append left and right modifier keys"), &incAppendRightLeftModifier);
+    igCheckbox(__("Append left and right modifier keys"), &BindingRecorder.appendRightLeftModifier);
+}
+
+void incDrawRecordedKeys(ImGuiKey[] keys) {
+    foreach (key; keys)
+        incDrawRecorderButtons(incGetKeyString(key), key, key == keys[$ - 1]);
+
+    // Draw help text
+    igSameLine(0, 2);
+    if (BindingRecorder.getRecordedKeys().length == 0)
+        incText(_("(Press a key to bind)"));
+    else
+        incText(_("(Click to remove)"));
 }
 
 void incInputRecording() {
@@ -958,19 +1088,145 @@ class KeyBuilder : BindingBuilder {
 
 BindingBuilder[] incBindingBuilders;
 
+void incRemoveAllBinding() {
+    // clean all binding
+    foreach (entry; incInputBindings.values)
+        entry.removeAllBinding();
+}
+
 /**
     incConfigureDefaultBindings(), it should call after all default bindings are added
 */
 void incConfigureDefaultBindings() {
-    // clean all binding
-    foreach (entry; incInputBindings.values)
-        entry.removeAllBinding();
+    incRemoveAllBinding();
 
     // build all default bindings
     foreach (builder; incBindingBuilders) {
         builder.build();
         builder.appendBinding();
     }
+}
+
+unittest {
+    void testAssertMouse(AbstractBindingEntry entry, ImGuiMouseButton button, BindingMode mode) {
+        if (auto mouse = cast(MouseBindingEntry) entry)
+            assert(mouse.getButton() == button && mouse.getMode() == mode);
+        else
+            assert(false);
+    }
+
+    void testAssertKey(AbstractBindingEntry entry, ImGuiKey[] keys, BindingMode mode) {
+        if (auto key = cast(KeyBindingEntry) entry)
+            assert(key.getKeys() == keys && key.getMode() == mode);
+        else
+            assert(false);
+    }
+
+    void testCheckInitBinding() {
+        // check undo key binding
+        assert(incInputBindings["undo"].bindingEntrys.length == 1);
+        assert(incInputBindings["undo"].uncommittedBindingEntrys.length == 0);
+        testAssertKey(incInputBindings["undo"].bindingEntrys[0], [ImGuiKey.ModCtrl, ImGuiKey.Z], BindingMode.PressedRepeat);
+
+        // check mouse1 mouse binding
+        assert(incInputBindings["mouse1"].bindingEntrys.length == 2);
+        testAssertMouse(incInputBindings["mouse1"].bindingEntrys[0], ImGuiMouseButton.Left, BindingMode.Down);
+        testAssertMouse(incInputBindings["mouse1"].bindingEntrys[1], ImGuiMouseButton.Right, BindingMode.Clicked);
+    }
+
+    void testInitBindings() {
+        // setup default actions
+        incDefaultActions =  [
+            "Gereral": [
+                new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, BindingMode.PressedRepeat),
+                new ActionEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+                new ActionEntry("mouse1", _("Mouse 1"), _("Mouse 1"), true),
+                new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, BindingMode.PressedRepeat),
+                new ActionEntry("ToolModifier", _("Tool Modifier"), _("Tool Modifier"), true, BindingMode.Down),
+            ],
+        ];
+
+        incInitBindingHashMap();
+        incBindingBuilders = [];
+
+        // check init binding
+        assert(incInputBindings.length == 5);
+
+        // test incAddShortcut and incAddMouse it should add into builders
+        incAddShortcut("undo", "Ctrl+Z", BindingMode.PressedRepeat);
+        incAddShortcut("redo", "Ctrl+Shift+Z", BindingMode.PressedRepeat);
+        incAddShortcut("select_all", "Ctrl+A", BindingMode.Pressed);
+        incAddShortcut("ToolModifier", "LCtrl", BindingMode.Down);
+        incAddMouse("mouse1", ImGuiMouseButton.Left, BindingMode.Down);
+        incAddMouse("mouse1", ImGuiMouseButton.Right, BindingMode.Clicked);
+        assert(incBindingBuilders.length == 6);
+
+        incConfigureDefaultBindings();
+    }
+
+    void testSaveLoadBinding() {
+        import std.file : exists;
+
+        testInitBindings();
+
+        // save bindings
+        incSaveBindings("unittest_keybindings.json");
+        assert(exists("unittest_keybindings.json"));
+
+        // clean all binding
+        incRemoveAllBinding();
+        foreach (entry; incInputBindings.values)
+            assert(entry.bindingEntrys.length == 0);
+
+        // load bindings
+        incLoadBindings("unittest_keybindings.json");
+        foreach (entry; incInputBindings.values)
+            assert(entry.bindingEntrys.length > 0, entry.getKey());
+    }
+
+    void testCommit() {
+        // test delete binding
+        testInitBindings();
+        incInputBindings["undo"].bindingEntrys[0].tagDelete();
+        incInputBindings["undo"].commitChanges();
+        assert(incInputBindings["undo"].bindingEntrys.length == 0);
+
+        // test revert changes
+        testInitBindings();
+        incInputBindings["undo"].bindingEntrys[0].tagDelete();
+        incInputBindings["undo"].revertChanges();
+        incInputBindings["undo"].commitChanges();
+        assert(incInputBindings["undo"].bindingEntrys.length == 1);
+    }
+
+    void testIOMouse() {
+        incMouse = new UnitTestMouse();
+
+        auto incMouse = cast(UnitTestMouse) incMouse;
+
+        // test mouse binding
+        testInitBindings();
+        testCheckInitBinding();
+
+        // simulate mouse input
+        incMouse.down = true;
+        incMouse.button = ImGuiMouseButton.Left;
+        assert(incIsActionActivated("mouse1"));
+        incMouse.clean();
+        assert(incIsActionInactive("mouse1"));
+
+        incMouse.clicked = true;
+        incMouse.button = ImGuiMouseButton.Middle;
+        assert(incIsActionInactive("mouse1"));
+    }
+
+    // run test
+    testSaveLoadBinding();
+    testCommit();
+    testIOMouse();
+
+    // just test incInitInputBinding()
+    incInitInputBinding();
 }
 
 void incLoadBindingConfig() {
