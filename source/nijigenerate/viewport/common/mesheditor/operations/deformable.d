@@ -484,12 +484,11 @@ protected:
         Deformable drawable = cast(Deformable)target;
         if (drawable is null)
             return;
-        deformation = drawable.deformation.dup;
         auto param = incArmedParameter();
         auto binding = cast(DeformationParameterBinding)(param? param.getBinding(drawable, "deform"): null);
+        vec2[] deformation;
         if (binding is null) {
             deformation = drawable.deformation.dup;
-            
         } else {
             auto deform = binding.getValue(param.findClosestKeypoint());
             if (drawable.deformation.length == deform.vertexOffsets.length) {
@@ -499,12 +498,13 @@ protected:
                 }
             }
         }
+        foreach (i, d; deformation) {
+            vertices[i] += deformation[i];
+        }
             
     }
 
 public:
-    vec2[] deformation;
-    vec2[] vertices;
 
     this() {
         super(true);
