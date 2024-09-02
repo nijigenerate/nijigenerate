@@ -9,7 +9,6 @@ module nijigenerate.io.config;
 import nijigenerate.core;
 import nijigenerate.core.input;
 import nijigenerate.io;
-import nijigenerate.widgets.label;
 
 import std.string;
 import std.algorithm;
@@ -123,6 +122,14 @@ class ActionEntry {
 
     string getKey() {
         return entryKey;
+    }
+
+    AbstractBindingEntry[] getBindedEntries() {
+        return bindingEntrys;
+    }
+
+    AbstractBindingEntry[] getUncommittedBindedEntries() {
+        return uncommittedBindingEntrys;
     }
 
     void removeAllBinding() {
@@ -633,13 +640,6 @@ class MouseBindingEntry : AbstractBindingEntry {
     }
 }
 
-void incDrawRecorderButtons(string label, ImGuiKey key, bool isLast = false) {
-    igSameLine(0, 2);
-    incText(label ~ (isLast ? "" : "+"));
-    if (igIsItemClicked())
-        BindingRecorder.removeRecordedKey(key);
-}
-
 string incMouseToText(ImGuiMouseButton button) {
     switch (button) {
         case ImGuiMouseButton.Left:
@@ -815,196 +815,6 @@ void incInitInputBinding() {
     incMouse = new IncImguiMouse();
 }
 
-/**
-    our ImGui layout will look like this (UI logic):
-    - incDrawAllBindings()
-        - incDrawBindingEntries() 
-            - incDrawBindingActionEntry()
-                - incDrawKeyBindingInput()
-                - incDrawMouseBindingInput()
-                - incDrawBindingEntry()
-*/
-/**
-    UI for key binding entry
-        entry - the key binding entry
-        commited - means the key binding is commited/saved to memory config, or not
-*/
-void incDrawBindingEntry(AbstractBindingEntry entry, bool commited) {
-    if (entry.toDelete)
-        return;
-
-    incText("\ue92b"); // delete
-    if (igIsItemClicked()) {
-        entry.tagDelete();
-    }
-
-    // show hint if not commited
-    if (!commited) {
-        igSameLine(0, 2);
-        incText(_("unsaved"));
-    }
-
-    // draw the icon and binding discrption
-    igSameLine(0, 2);
-    if (auto mouse = cast(MouseBindingEntry) entry)
-        incText("\ue323" ~ incMouseToText(mouse.getButton())
-            ~ " (" ~ mouse.getMode() ~ ")"
-        ); // mouse icon
-    if (auto key = cast(KeyBindingEntry) entry)
-        incText("\ue312" ~ incKeysToStr(key.getKeys())
-            ~ " (" ~ key.getMode() ~ ")"
-        ); // keyboard icon
-}
-
-/** 
-    UI for key binding input
-*/
-void incDrawKeyBindingInput() {
-    import std.stdio;
-    // add
-    incText("\ue5ca");
-    if (igIsItemClicked()) {
-        ImGuiKey[] keys = BindingRecorder.getRecordedKeys();
-        if (keys.length > 0) {
-            incSelectedBindingEntry.append(new KeyBindingEntry(keys));
-            BindingRecorder.clearRecordedKeys();
-        }
-    }
-
-    igSameLine(0, 2);
-
-    // cancel
-    incText("\ue872");
-    if (igIsItemClicked())
-       BindingRecorder.clearRecordedKeys();
-    igSameLine(0, 2);
-    incDrawRecordedKeys(BindingRecorder.getRecordedKeys());
-}
-
-void incDrawMouseBindingInput() {
-    incText("\ue323"); // mouse icon
-    igSameLine(0, 2);
-    incText(_("\ue836 Left"));
-    if (igIsItemClicked())
-        incSelectedBindingEntry.append(new MouseBindingEntry(ImGuiMouseButton.Left));
-    
-    igSameLine(0, 2);
-    incText(_("\ue836 Middle"));
-    if (igIsItemClicked())
-        incSelectedBindingEntry.append(new MouseBindingEntry(ImGuiMouseButton.Middle));
-
-    igSameLine(0, 2);
-    incText(_("\ue836 Right"));
-    if (igIsItemClicked())
-        incSelectedBindingEntry.append(new MouseBindingEntry(ImGuiMouseButton.Right));
-}
-
-void incDrawBindingInput() {
-    if (incAppendMouseMode)
-        incDrawMouseBindingInput();
-    else
-        incDrawKeyBindingInput();
-}
-
-void incDrawBindingActionEntry(ActionEntry entry) {
-    // draw ActionEntry, if clicked, select the entry
-    bool isSelected = incKeyBindingEntrySelected(entry);
-    string itemLabel = entry.getName() ~ "##Keybind-" ~ entry.getKey();
-    if (igSelectable(itemLabel.toStringz, isSelected, ImGuiSelectableFlags.None, ImVec2(0, 0))) {
-        incSetSelectedBindingEntry(entry);
-    }
-
-    // draw child nodes, it is a group of AbstractBindingEntry
-    igBeginGroup();
-        igIndent(8);
-
-        if (isSelected)
-            incDrawBindingInput();
-
-        foreach (bindingEntry; entry.bindingEntrys)
-            incDrawBindingEntry(bindingEntry, true);
-        foreach (bindingEntry; entry.uncommittedBindingEntrys)
-            incDrawBindingEntry(bindingEntry, false);
-            
-    igEndGroup();
-}
-
-void incDrawBindingEntries(ActionEntry[] entries, string category) {
-    // draw category
-    incText("\ue8b8"); // settings icon
-    igSameLine(0, 2);
-    category ~= "##Keybind-category-" ~ category;
-    if (igSelectable(category.toStringz, false, ImGuiSelectableFlags.None, ImVec2(0, 0))) {
-        
-    }
-
-    // draw child nodes, it is a group of ActionEntry
-    igBeginGroup();
-        igIndent(8);
-        foreach (entry; entries)
-            incDrawBindingActionEntry(entry);
-        
-    igEndGroup();
-}
-
-void incDrawMouseKeyboardSwitch() {
-    if (incAppendMouseMode)
-        incText(_("\ue323 Switch Add Mode")); // mouse icon
-    else
-        incText(_("\ue312 Switch Add Mode")); // keyboard icon
-    if (igIsItemClicked())
-        incAppendMouseMode = !incAppendMouseMode;
-}
-
-void incDrawCommandKeySwitch() {
-    throw new Exception("Not implemented yet");
-    // TODO: implement command key handling
-    igCheckbox(__("Switch \ueae7 key"), &incSwitchCommandKey);
-}
-
-void incDrawBindingFileButton() {
-    // TODO: implement file handling
-    incText(_("\ue5d5 reset"));
-    if (igIsItemClicked())
-        incConfigureDefaultBindings();
-
-    igSameLine(0, 2);
-    incText(_("\ue161 Export"));
-    if (igIsItemClicked())
-        incSaveBindingsShowDialog();
-
-    igSameLine(0, 2);
-    incText(_("\uf090 Import"));
-    if (igIsItemClicked())
-        incLoadBindingsShowDialog();
-
-    igSameLine(0, 2);
-}
-
-void incDrawAllBindings() {
-    // draw all category groups of ActionEntry
-    igBeginGroup();
-        igIndent(8);
-        foreach (category; incDefaultActions.keys)
-            incDrawBindingEntries(incDefaultActions[category], category);
-    igEndGroup();
-}
-
-void incDrawRightLeftModifierSwitch() {
-    igCheckbox(__("Append left and right modifier keys"), &BindingRecorder.appendRightLeftModifier);
-}
-
-void incDrawRecordedKeys(ImGuiKey[] keys) {
-    foreach (key; keys)
-        incDrawRecorderButtons(incGetKeyString(key), key, key == keys[$ - 1]);
-
-    // Draw help text
-    igSameLine(0, 2);
-    if (BindingRecorder.getRecordedKeys().length == 0)
-        incText(_("(Press a key to bind)"));
-    else
-        incText(_("(Click to remove)"));
-}
 
 void incInputRecording() {
     import std.traits : EnumMembers;
@@ -1188,14 +998,14 @@ unittest {
         // test delete binding
         testInitBindings();
         incInputBindings["undo"].bindingEntrys[0].tagDelete();
-        incInputBindings["undo"].commitChanges();
+        incCommitBindingsChanges();
         assert(incInputBindings["undo"].bindingEntrys.length == 0);
 
         // test revert changes
         testInitBindings();
         incInputBindings["undo"].bindingEntrys[0].tagDelete();
-        incInputBindings["undo"].revertChanges();
-        incInputBindings["undo"].commitChanges();
+        incRevertBindingsChanges();
+        incCommitBindingsChanges();
         assert(incInputBindings["undo"].bindingEntrys.length == 1);
     }
 
