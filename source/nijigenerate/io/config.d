@@ -945,6 +945,17 @@ class BindingBuilder {
     }
 }
 
+unittest {
+    auto builder = new BindingBuilder();
+    // set default mode
+    builder.setMouseMode(BindingMode.Down);
+    builder.setKeyMode(BindingMode.Down);
+    auto entry1 = builder.buildMouse(ImGuiMouseButton.Left);
+    testAssertMouse(entry1, ImGuiMouseButton.Left, BindingMode.Down);
+    auto entry2 = builder.buildKeys([ImGuiKey.LeftCtrl]);
+    testAssertKey(entry2, [ImGuiKey.LeftCtrl], BindingMode.Down);
+}
+
 void incRemoveAllBinding() {
     // clean all binding
     foreach (entry; incInputBindings.values)
@@ -971,21 +982,22 @@ int incBindingEntriesCount() {
     return count;
 }
 
+
+void testAssertMouse(AbstractBindingEntry entry, ImGuiMouseButton button, BindingMode mode) {
+    if (auto mouse = cast(MouseBindingEntry) entry)
+        assert(mouse.getButton() == button && mouse.getMode() == mode);
+    else
+        assert(false);
+}
+
+void testAssertKey(AbstractBindingEntry entry, ImGuiKey[] keys, BindingMode mode) {
+    if (auto key = cast(KeyBindingEntry) entry)
+        assert(key.getKeys() == keys && key.getMode() == mode);
+    else
+        assert(false);
+}
+
 unittest {
-    void testAssertMouse(AbstractBindingEntry entry, ImGuiMouseButton button, BindingMode mode) {
-        if (auto mouse = cast(MouseBindingEntry) entry)
-            assert(mouse.getButton() == button && mouse.getMode() == mode);
-        else
-            assert(false);
-    }
-
-    void testAssertKey(AbstractBindingEntry entry, ImGuiKey[] keys, BindingMode mode) {
-        if (auto key = cast(KeyBindingEntry) entry)
-            assert(key.getKeys() == keys && key.getMode() == mode);
-        else
-            assert(false);
-    }
-
     void testCheckInitBinding() {
         // check undo key binding
         assert(incInputBindings["undo"].bindingEntrys.length == 1);
