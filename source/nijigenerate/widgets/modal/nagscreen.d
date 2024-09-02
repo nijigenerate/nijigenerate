@@ -1,4 +1,5 @@
 /*
+    Copyright © 2024, Inochi2D Project
     Copyright © 2024, nijigenerate Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
