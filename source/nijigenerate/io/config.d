@@ -514,7 +514,6 @@ class KeyBindingEntry : AbstractBindingEntry {
 IMouse incMouse = null;
 
 interface IMouse {
-    bool isPressed(ImGuiMouseButton button);
     bool isClicked(ImGuiMouseButton button);
     bool isDragRequested(ImGuiMouseButton button);
     bool isDown(ImGuiMouseButton button);
@@ -523,10 +522,6 @@ interface IMouse {
 class IncImguiMouse : IMouse {
     private {
         ImGuiMouseButton button;
-    }
-
-    bool isPressed(ImGuiMouseButton button) {
-        return igIsMouseDown(button);
     }
 
     bool isClicked(ImGuiMouseButton button) {
@@ -544,34 +539,38 @@ class IncImguiMouse : IMouse {
 
 class UnitTestMouse : IMouse {
     public {
-        bool pressed;
-        bool clicked;
-        bool dragRequested;
-        bool down;
+        bool clickedState;
+        bool dragRequestedState;
+        bool downState;
         ImGuiMouseButton button;
     }
 
     void clean() {
-        pressed = false;
-        clicked = false;
-        dragRequested = false;
-        down = false;
-    }
-
-    bool isPressed(ImGuiMouseButton button) {
-        return pressed && this.button == button;
+        clickedState = false;
+        dragRequestedState = false;
+        downState = false;
     }
 
     bool isClicked(ImGuiMouseButton button) {
-        return clicked && this.button == button;
+        return clickedState && this.button == button;
+    }
+
+    void click(ImGuiMouseButton button) {
+        this.button = button;
+        clickedState = true;
     }
 
     bool isDragRequested(ImGuiMouseButton button) {
-        return dragRequested && this.button == button;
+        return dragRequestedState && this.button == button;
     }
 
     bool isDown(ImGuiMouseButton button) {
-        return down && this.button == button;
+        return downState && this.button == button;
+    }
+
+    void down(ImGuiMouseButton button) {
+        this.button = button;
+        downState = true;
     }
 }
 
@@ -716,24 +715,25 @@ static class BindingRecorder {
     static ImGuiKey[] getRecordedKeys() {
         return recordedKeys.keys;
     }
+
+    static bool hasKeys(ImGuiKey[] keys) {
+        foreach (key; keys)
+            if (key !in recordedKeys || !recordedKeys[key])
+                return false;
+        return true;
+    }
 }
 
 unittest {
-    bool inKeys(ImGuiKey key, ImGuiKey[] keys) {
-        foreach (k; keys)
-            if (k == key)
-                return true;
-        return false;
-    }
-
     // test appendRightLeftModifier
     BindingRecorder.clearRecordedKeys();
     BindingRecorder.appendRightLeftModifier = false;
     BindingRecorder.recordKey(ImGuiKey.LeftCtrl);
     BindingRecorder.recordKey(ImGuiKey.ModCtrl);
     BindingRecorder.recordKey(ImGuiKey.S);
-    auto keys = BindingRecorder.getRecordedKeys();
-    assert(inKeys(ImGuiKey.ModCtrl, keys) && inKeys(ImGuiKey.S, keys) && keys.length == 2);
+    assert(BindingRecorder.getRecordedKeys().length == 2);
+    assert(BindingRecorder.hasKeys([ImGuiKey.ModCtrl, ImGuiKey.S]));
+    assert(!BindingRecorder.hasKeys([ImGuiKey.LeftCtrl]));
 
     // test appendRightLeftModifier
     BindingRecorder.clearRecordedKeys();
@@ -741,8 +741,14 @@ unittest {
     BindingRecorder.recordKey(ImGuiKey.LeftCtrl);
     BindingRecorder.recordKey(ImGuiKey.ModCtrl);
     BindingRecorder.recordKey(ImGuiKey.S);
-    keys = BindingRecorder.getRecordedKeys();
-    assert(inKeys(ImGuiKey.LeftCtrl, keys) && inKeys(ImGuiKey.S, keys) && keys.length == 2);
+    assert(BindingRecorder.getRecordedKeys().length == 2);
+    assert(BindingRecorder.hasKeys([ImGuiKey.LeftCtrl, ImGuiKey.S]));
+
+    // test removeRecordedKey
+    BindingRecorder.clearRecordedKeys();
+    BindingRecorder.recordKey(ImGuiKey.S);
+    BindingRecorder.removeRecordedKey(ImGuiKey.S);
+    assert(BindingRecorder.getRecordedKeys().length == 0);
 }
 
 // hashmap for fast access key/mouse bindings
@@ -944,6 +950,9 @@ unittest {
         testAssertMouse(incInputBindings["mouse1"].bindingEntrys[1], ImGuiMouseButton.Right, BindingMode.Clicked);
     }
 
+    /*
+        you should invoke this method for all tests, make sure unittest independent
+    */
     void testInitBindings() {
         // setup default actions
         incDefaultActions =  [
@@ -1018,15 +1027,14 @@ unittest {
         testInitBindings();
         testCheckInitBinding();
 
-        // simulate mouse input
-        incMouse.down = true;
-        incMouse.button = ImGuiMouseButton.Left;
+        // simulate mouse input, we simulate mouse down right and left
+        incMouse.down(ImGuiMouseButton.Left);
+        incMouse.down(ImGuiMouseButton.Right);
         assert(incIsActionActivated("mouse1"));
         incMouse.clean();
         assert(incIsActionInactive("mouse1"));
 
-        incMouse.clicked = true;
-        incMouse.button = ImGuiMouseButton.Middle;
+        incMouse.click(ImGuiMouseButton.Middle);
         assert(incIsActionInactive("mouse1"));
     }
 
@@ -1035,8 +1043,9 @@ unittest {
     testCommit();
     testIOMouse();
 
-    // just test incInitInputBinding()
+    // just test some main functions logic
     incInitInputBinding();
+    incLoadBindingConfig();
 }
 
 void incLoadBindingConfig() {
