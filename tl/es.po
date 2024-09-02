@@ -1,5 +1,6 @@
 # Spanish translations for nijigenerate package.
-# Copyright (C) 2022 nijigenerate Project
+# Copyright (C) 2022 Inochi2D Project
+# Copyright (C) 2024 nijigenerate Project
 # This file is distributed under the same license as the nijigenerate package.
 # Luna the Foxgirl <cli-luna@protonmail.com>, 2022.
 # Sae Okuri <sae.okuri@gmail.com>, 2022.
