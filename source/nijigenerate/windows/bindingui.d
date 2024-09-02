@@ -16,7 +16,7 @@ import std.string;
     our ImGui layout will look like this (UI logic):
     - incDrawAllBindings()
         - incDrawBindingEntries() 
-            - incDrawBindingActionEntry()
+            - incDrawBindingActionConfigEntry()
                 - incDrawKeyBindingInput()
                 - incDrawMouseBindingInput()
                 - incDrawBindingEntry()
@@ -63,7 +63,7 @@ void incDrawKeyBindingInput() {
     if (igIsItemClicked()) {
         ImGuiKey[] keys = BindingRecorder.getRecordedKeys();
         if (keys.length > 0) {
-            incSelectedBindingEntry.append(new KeyBindingEntry(keys));
+            incSelectedBindingEntry.append(keys);
             BindingRecorder.clearRecordedKeys();
         }
     }
@@ -83,17 +83,17 @@ void incDrawMouseBindingInput() {
     igSameLine(0, 2);
     incText(_("\ue836 Left"));
     if (igIsItemClicked())
-        incSelectedBindingEntry.append(new MouseBindingEntry(ImGuiMouseButton.Left));
+        incSelectedBindingEntry.append(ImGuiMouseButton.Left);
     
     igSameLine(0, 2);
     incText(_("\ue836 Middle"));
     if (igIsItemClicked())
-        incSelectedBindingEntry.append(new MouseBindingEntry(ImGuiMouseButton.Middle));
+        incSelectedBindingEntry.append(ImGuiMouseButton.Middle);
 
     igSameLine(0, 2);
     incText(_("\ue836 Right"));
     if (igIsItemClicked())
-        incSelectedBindingEntry.append(new MouseBindingEntry(ImGuiMouseButton.Right));
+        incSelectedBindingEntry.append(ImGuiMouseButton.Right);
 }
 
 void incDrawBindingInput() {
@@ -103,8 +103,8 @@ void incDrawBindingInput() {
         incDrawKeyBindingInput();
 }
 
-void incDrawBindingActionEntry(ActionEntry entry) {
-    // draw ActionEntry, if clicked, select the entry
+void incDrawBindingActionConfigEntry(ActionConfigEntry entry) {
+    // draw ActionConfigEntry, if clicked, select the entry
     bool isSelected = incKeyBindingEntrySelected(entry);
     string itemLabel = entry.getName() ~ "##Keybind-" ~ entry.getKey();
     if (igSelectable(itemLabel.toStringz, isSelected, ImGuiSelectableFlags.None, ImVec2(0, 0))) {
@@ -126,7 +126,7 @@ void incDrawBindingActionEntry(ActionEntry entry) {
     igEndGroup();
 }
 
-void incDrawBindingEntries(ActionEntry[] entries, string category) {
+void incDrawBindingEntries(ActionConfigEntry[] entries, string category) {
     // draw category
     incText("\ue8b8"); // settings icon
     igSameLine(0, 2);
@@ -135,11 +135,11 @@ void incDrawBindingEntries(ActionEntry[] entries, string category) {
         
     }
 
-    // draw child nodes, it is a group of ActionEntry
+    // draw child nodes, it is a group of ActionConfigEntry
     igBeginGroup();
         igIndent(8);
         foreach (entry; entries)
-            incDrawBindingActionEntry(entry);
+            incDrawBindingActionConfigEntry(entry);
         
     igEndGroup();
 }
@@ -179,7 +179,7 @@ void incDrawBindingFileButton() {
 }
 
 void incDrawAllBindings() {
-    // draw all category groups of ActionEntry
+    // draw all category groups of ActionConfigEntry
     igBeginGroup();
         igIndent(8);
         foreach (category; incDefaultActions.keys)

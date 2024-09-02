@@ -65,13 +65,13 @@ bool incSwitchCommandKey = false;
 bool incAppendMouseMode = false;
 
 // incSelectedBindingEntry for UI logic, user can click the entry to select which action to bind
-ActionEntry incSelectedBindingEntry = null;
+ActionConfigEntry incSelectedBindingEntry = null;
 
-bool incKeyBindingEntrySelected(ActionEntry entry) {
+bool incKeyBindingEntrySelected(ActionConfigEntry entry) {
     return incSelectedBindingEntry == entry;
 }
 
-void incSetSelectedBindingEntry(ActionEntry entry) {
+void incSetSelectedBindingEntry(ActionConfigEntry entry) {
     BindingRecorder.clearRecordedKeys();
     incSelectedBindingEntry = entry;
 }
@@ -93,9 +93,6 @@ class ActionEntry {
         // extactMatch means that the key binding is an exact match
         // like mutually exclusive actions, but it is only for itself, would not affect other actions
         bool extactMatch = false;
-
-        // mode for key binding
-        BindingMode keyMode;
     }
 
     /** 
@@ -106,14 +103,12 @@ class ActionEntry {
             extactMatch - make sure the key binding is an exact match, it like mutually exclusive actions (not exactly)
                 because it only affects itself
     */
-    this(string entryKey, string name, string description, bool extactMatch = false,
-            BindingMode keyMode = BindingMode.Pressed) {
+    this(string entryKey, string name, string description, bool extactMatch = false) {
         this.entryKey = entryKey;
         this.entryName = name;
         this.actionDescription = description;
         this.bindingEntrys = [];
         this.extactMatch = extactMatch;
-        this.keyMode = keyMode;
     }
 
     string getName() {
@@ -137,12 +132,7 @@ class ActionEntry {
         uncommittedBindingEntrys = [];
     }
 
-    void append(AbstractBindingEntry entry, bool keepEntryKeyMode = false) {
-        if (!keepEntryKeyMode) {
-            if (auto key = cast(KeyBindingEntry) entry)
-                key.setMode(keyMode);
-        }
-
+    void append(AbstractBindingEntry entry) {
         // we append to uncommitted list first, it allows user to revert changes
         uncommittedBindingEntrys ~= entry;
     }
@@ -231,8 +221,51 @@ class ActionEntry {
     }
 }
 
+/**
+    ActionConfigEntry just for decoupling the BindingBuilder and ActionEntry,
+    and it allows user to configure the binding with default configuration
+*/
+class ActionConfigEntry : ActionEntry {
+    private {
+        BindingBuilder builder;
+    }
+
+    this(string entryKey, string name, string description, bool extactMatch = false) {
+        builder = new BindingBuilder();
+        super(entryKey, name, description, extactMatch);
+    }
+
+    BindingBuilder getBuilder() {
+        return builder;
+    }
+
+    ActionConfigEntry setMouseMode(BindingMode mode) {
+        this.getBuilder().setMouseMode(mode);
+        return this;
+    }
+
+    ActionConfigEntry setKeyMode(BindingMode mode) {
+        this.getBuilder().setKeyMode(mode);
+        return this;
+    }
+
+    void append(ImGuiMouseButton mouse) {
+        auto binding = this.getBuilder().buildMouse(mouse);
+        super.append(binding);
+    }
+
+    void append(ImGuiKey[] keys) {
+        auto binding = this.getBuilder().buildKeys(keys);
+        super.append(binding);
+    }
+
+    void buildDefault() {
+        super.append(this.getBuilder().buildDefault());
+    }
+}
+
 unittest {
-    auto entry = new ActionEntry("test", "Test", "Test");
+    auto entry = new ActionConfigEntry("test", "Test", "Test");
     assert(entry.getName() == "Test");
     assert(entry.getKey() == "test");
 
@@ -410,11 +443,12 @@ class KeyBindingEntry : AbstractBindingEntry {
         KeyScanner.addKeys(keys);
     }
 
-    void setMode(BindingMode mode) {
+    KeyBindingEntry setMode(BindingMode mode) {
         if (mode == BindingMode.Clicked)
             throw new Exception("Key binding does not support Clicked mode, consider using Pressed or PressedRepeat mode");
 
         this.mode = mode;
+        return this;
     }
 
     BindingMode getMode() {
@@ -537,40 +571,42 @@ class IncImguiMouse : IMouse {
     }
 }
 
+enum ClickState {
+    Clicked,
+    DragRequested,
+    Down,
+    Up,
+}
+
 class UnitTestMouse : IMouse {
     public {
-        bool clickedState;
-        bool dragRequestedState;
-        bool downState;
-        ImGuiMouseButton button;
+        ClickState[ImGuiMouseButton] button;
     }
 
     void clean() {
-        clickedState = false;
-        dragRequestedState = false;
-        downState = false;
+        button[ImGuiMouseButton.Left] = ClickState.Up;
+        button[ImGuiMouseButton.Middle] = ClickState.Up;
+        button[ImGuiMouseButton.Right] = ClickState.Up;
     }
 
     bool isClicked(ImGuiMouseButton button) {
-        return clickedState && this.button == button;
+        return this.button[button] == ClickState.Clicked;
     }
 
     void click(ImGuiMouseButton button) {
-        this.button = button;
-        clickedState = true;
+        this.button[button] = ClickState.Clicked;
     }
 
     bool isDragRequested(ImGuiMouseButton button) {
-        return dragRequestedState && this.button == button;
+        return this.button[button] == ClickState.DragRequested;
     }
 
     bool isDown(ImGuiMouseButton button) {
-        return downState && this.button == button;
+        return this.button[button] == ClickState.Down;
     }
 
     void down(ImGuiMouseButton button) {
-        this.button = button;
-        downState = true;
+        this.button[button] = ClickState.Down;
     }
 }
 
@@ -580,10 +616,11 @@ class MouseBindingEntry : AbstractBindingEntry {
         BindingMode mode;
     }
 
-    void setMode(BindingMode mode) {
+    MouseBindingEntry setMode(BindingMode mode) {
         if (mode == BindingMode.Pressed || mode == BindingMode.PressedRepeat)
             throw new Exception("Mouse binding does not support Pressed or PressedRepeat mode, consider using Clicked mode");
         this.mode = mode;
+        return this;
     }
 
     BindingMode getMode() {
@@ -752,13 +789,13 @@ unittest {
 }
 
 // hashmap for fast access key/mouse bindings
-ActionEntry[string] incInputBindings;
+ActionConfigEntry[string] incInputBindings;
 
 // List of default actions
-ActionEntry[][string] incDefaultActions;
+ActionConfigEntry[][string] incDefaultActions;
 
 void incInitBindingHashMap() {
-    incInputBindings = new ActionEntry[string];
+    incInputBindings = new ActionConfigEntry[string];
 
     // build hashmap for fast access
     foreach (category; incDefaultActions.keys) {
@@ -776,24 +813,28 @@ void incInitInputBinding() {
     // setup default actions
     incDefaultActions =  [
         "Gereral": [
-            new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, BindingMode.PressedRepeat),
-            new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, BindingMode.PressedRepeat),
-            new ActionEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+            new ActionConfigEntry("undo", _("Undo"), _("Undo the last action"), true)
+                .setKeyMode(BindingMode.PressedRepeat),
+            new ActionConfigEntry("redo", _("Redo"), _("Redo the last action"), true)
+                .setKeyMode(BindingMode.PressedRepeat),
+            new ActionConfigEntry("select_all", _("Select All"), _("Select all text or objects"), true),
 
             // Currently, I cannot find existing actions for these
-            //new ActionEntry("copy", _("Copy"), _("Copy the selected text or object"), true),
-            //new ActionEntry("paste", _("Paste"), _("Paste the copied text or object"), true),
-            //new ActionEntry("cut", _("Cut"), _("Cut the selected text or object"), true),
+            //new ActionConfigEntry("copy", _("Copy"), _("Copy the selected text or object"), true),
+            //new ActionConfigEntry("paste", _("Paste"), _("Paste the copied text or object"), true),
+            //new ActionConfigEntry("cut", _("Cut"), _("Cut the selected text or object"), true),
         ],
         "ViewPort": [
-            new ActionEntry("mirror_view", _("Mirror View"), _("Mirror the Viewport")),
-            new ActionEntry("move_viewport", _("Move Viewport"), _("Move the Viewport"), false, BindingMode.Down),
+            new ActionConfigEntry("mirror_view", _("Mirror View"), _("Mirror the Viewport")),
+            new ActionConfigEntry("move_viewport", _("Move Viewport"), _("Move the Viewport"), false)
+                .setKeyMode(BindingMode.Down)
+                .setMouseMode(BindingMode.Down),
         ],
         "File Handling": [
-            new ActionEntry("new_file", _("New File"), _("Create a new file"), true),
-            new ActionEntry("open_file", _("Open File"), _("Open a file"), true),
-            new ActionEntry("save_file", _("Save File"), _("Save the current file"), true),
-            new ActionEntry("save_file_as", _("Save File As"), _("Save the current file as a new file"), true),
+            new ActionConfigEntry("new_file", _("New File"), _("Create a new file"), true),
+            new ActionConfigEntry("open_file", _("Open File"), _("Open a file"), true),
+            new ActionConfigEntry("save_file", _("Save File"), _("Save the current file"), true),
+            new ActionConfigEntry("save_file_as", _("Save File As"), _("Save the current file as a new file"), true),
         ],
     ];
 
@@ -839,70 +880,70 @@ void incInputRecording() {
 */
 class BindingBuilder {
     private {
-        ActionEntry entry;
-    }
+        // Mouse preconfig
+        ImGuiMouseButton mouseButton;
+        BindingMode mouseMode;
 
-    this(string actionKey) {
-        // we assume actionKey is already in the hashmap, do not check it
-        this.entry = incInputBindings[actionKey];
-    }
-
-    AbstractBindingEntry build() {
-        throw new Exception("Not implemented");
-    }
-
-    /** 
-        appendBinding() append the binding to the entry
-        Note: this method should be called after build(), it would commit the changes
-    */
-    void appendBinding() {
-        auto binding = build();
-        entry.append(binding, true);
-        entry.commitChanges();
-    }
-}
-
-class MouseBuilder : BindingBuilder {
-    private {
-        ImGuiMouseButton button;
-        BindingMode mode;
-    }
-
-    this(string actionKey, ImGuiMouseButton button, BindingMode mode = BindingMode.Down) {
-        super(actionKey);
-        this.button = button;
-        this.mode = mode;
-    }
-
-    override
-    AbstractBindingEntry build() {
-        auto entry = new MouseBindingEntry(button);
-        entry.setMode(mode);
-        return entry;
-    }
-}
-
-class KeyBuilder : BindingBuilder {
-    private {
+        // Key preconfig
         ImGuiKey[] keys;
-        BindingMode mode;
+        BindingMode keyMode;
+
+        bool isDefaultMouse = false;
+        bool hasDefault = false;
     }
 
-    this(string actionKey, ImGuiKey[] keys, BindingMode mode = BindingMode.Pressed) {
-        super(actionKey);
+    this() {
+        // set default mode
+        this.keyMode = BindingMode.Pressed;
+        this.mouseMode = BindingMode.Clicked;
+    }
+
+    BindingBuilder setDefault(ImGuiMouseButton button, BindingMode mode) {
+        if (hasDefault)
+            throw new Exception("Default has been configured");
+
+        this.mouseButton = button;
+        this.mouseMode = mode;
+        isDefaultMouse = true;
+        hasDefault = true;
+        return this;
+    }
+
+    BindingBuilder setKeyMode(BindingMode mode) {
+        this.keyMode = mode;
+        return this;
+    }
+
+    BindingBuilder setMouseMode(BindingMode mode) {
+        this.mouseMode = mode;
+        return this;
+    }
+
+    AbstractBindingEntry buildMouse(ImGuiMouseButton button) {
+        return new MouseBindingEntry(button).setMode(mouseMode);
+    }
+
+    AbstractBindingEntry buildKeys(ImGuiKey[] keys) {
+        return new KeyBindingEntry(keys).setMode(keyMode);
+    }
+
+    AbstractBindingEntry buildDefault() {
+        if (!hasDefault)
+            throw new Exception("Default is not configured");
+
+        if (isDefaultMouse)
+            return this.buildMouse(this.mouseButton);
+        return this.buildKeys(this.keys);
+    }
+
+    BindingBuilder setDefault(ImGuiKey[] keys, BindingMode mode) {
         this.keys = keys;
-        this.mode = mode;
-    }
-
-    override
-    AbstractBindingEntry build() {
-        auto entry = new KeyBindingEntry(keys);
-        entry.setMode(mode);
-        return entry;
+        this.keyMode = mode;
+        isDefaultMouse = false;
+        hasDefault = true;
+        return this;
     }
 }
-
-BindingBuilder[] incBindingBuilders;
 
 void incRemoveAllBinding() {
     // clean all binding
@@ -917,10 +958,17 @@ void incConfigureDefaultBindings() {
     incRemoveAllBinding();
 
     // build all default bindings
-    foreach (builder; incBindingBuilders) {
-        builder.build();
-        builder.appendBinding();
+    foreach (entry; incInputBindings.values) {
+        entry.buildDefault();
+        entry.commitChanges();
     }
+}
+
+int incBindingEntriesCount() {
+    int count = 0;
+    foreach (entry; incInputBindings.values)
+        count += entry.getBindedEntries().length;
+    return count;
 }
 
 unittest {
@@ -957,16 +1005,18 @@ unittest {
         // setup default actions
         incDefaultActions =  [
             "Gereral": [
-                new ActionEntry("undo", _("Undo"), _("Undo the last action"), true, BindingMode.PressedRepeat),
-                new ActionEntry("select_all", _("Select All"), _("Select all text or objects"), true),
-                new ActionEntry("mouse1", _("Mouse 1"), _("Mouse 1"), true),
-                new ActionEntry("redo", _("Redo"), _("Redo the last action"), true, BindingMode.PressedRepeat),
-                new ActionEntry("ToolModifier", _("Tool Modifier"), _("Tool Modifier"), true, BindingMode.Down),
+                new ActionConfigEntry("undo", _("Undo"), _("Undo the last action"), true)
+                    .setKeyMode(BindingMode.PressedRepeat),
+                new ActionConfigEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+                new ActionConfigEntry("mouse1", _("Mouse 1"), _("Mouse 1"), true),
+                new ActionConfigEntry("redo", _("Redo"), _("Redo the last action"), true)
+                    .setKeyMode(BindingMode.PressedRepeat),
+                new ActionConfigEntry("ToolModifier", _("Tool Modifier"), _("Tool Modifier"), true)
+                    .setKeyMode(BindingMode.Down),
             ],
         ];
 
         incInitBindingHashMap();
-        incBindingBuilders = [];
 
         // check init binding
         assert(incInputBindings.length == 5);
@@ -977,10 +1027,15 @@ unittest {
         incAddShortcut("select_all", "Ctrl+A", BindingMode.Pressed);
         incAddShortcut("ToolModifier", "LCtrl", BindingMode.Down);
         incAddMouse("mouse1", ImGuiMouseButton.Left, BindingMode.Down);
-        incAddMouse("mouse1", ImGuiMouseButton.Right, BindingMode.Clicked);
-        assert(incBindingBuilders.length == 6);
 
         incConfigureDefaultBindings();
+        assert(incBindingEntriesCount() == 5);
+
+        // Add mouse Down left
+        incInputBindings["mouse1"].setMouseMode(BindingMode.Clicked).append(ImGuiMouseButton.Right);
+        incCommitBindingsChanges();
+        assert(incBindingEntriesCount() == 6);
+
     }
 
     void testSaveLoadBinding() {
@@ -1057,11 +1112,13 @@ void incLoadBindingConfig() {
 }
 
 void incAddShortcut(string actionKey, string key, BindingMode mode = BindingMode.Pressed) {
-    incBindingBuilders ~= new KeyBuilder(actionKey, incStringToKeys(key), mode);
+    // we assume actionKey is already in the hashmap, do not check it
+    incInputBindings[actionKey].getBuilder().setDefault(incStringToKeys(key), mode);
 }
 
 void incAddMouse(string actionKey, ImGuiMouseButton button, BindingMode mode = BindingMode.Down) {
-    incBindingBuilders ~= new MouseBuilder(actionKey, button, mode);
+    // we assume actionKey is already in the hashmap, do not check it
+    incInputBindings[actionKey].getBuilder().setDefault(button, mode);
 }
 
 bool incIsActionActivated(string actionKey) {
