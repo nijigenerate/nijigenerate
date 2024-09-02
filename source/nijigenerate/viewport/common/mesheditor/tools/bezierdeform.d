@@ -282,9 +282,9 @@ class BezierDeformTool : NodeSelect {
         if (action == BezierDeformActionID.RemovePoint || action == BezierDeformActionID.AddPoint) {
             if (action == BezierDeformActionID.RemovePoint) {
                 int idx = findPoint(deformImpl.vertices, impl.mousePos);
-                if(idx != -1) deformImpl.vertices.remove(idx);
+                if(idx != -1) deformImpl.removeVertex(io, true);
             } else if (action == BezierDeformActionID.AddPoint) {
-                deformImpl.vertices ~= impl.mousePos;
+                deformImpl.addVertex(io);
             }
             pathDragTarget = -1;
             lockedPoint    = -1;
