@@ -260,7 +260,11 @@ class ActionConfigEntry : ActionEntry {
     }
 
     void buildDefault() {
-        super.append(this.getBuilder().buildDefault());
+        auto builder = this.getBuilder();
+        // developer might only include the important presets 
+        // without setting a default binding for all
+        if (builder.hasDefaultBinding())
+            super.append(builder.buildDefault());
     }
 }
 
@@ -898,6 +902,10 @@ class BindingBuilder {
         this.mouseMode = BindingMode.Clicked;
     }
 
+    bool hasDefaultBinding() {
+        return hasDefault;
+    }
+
     BindingBuilder setDefault(ImGuiMouseButton button, BindingMode mode) {
         if (hasDefault)
             throw new Exception("Default has been configured");
@@ -1168,11 +1176,25 @@ unittest {
         assert(incInputBindings["select_all"].getBindedEntries().length == 2);
     }
 
+    void testNoDefaultKeys() {
+        // we should allow some actions without default keys, for example, some actions are not used frequently
+        incDefaultActions =  [
+            "Gereral": [
+                new ActionConfigEntry("super_action", "Super Action", "Super Action", true),
+            ],
+        ];
+
+        incInitBindingHashMap();
+        incLoadBindingConfig(unittest_file);
+        assert(incBindingEntriesCount() == 0);
+    }
+
     // run test
     testSaveLoadBinding();
     testCommit();
     testIOMouse();
     testConifgBackwardsCompatible();
+    testNoDefaultKeys();
 
     // just test some main functions logic
     incInitInputBinding();
