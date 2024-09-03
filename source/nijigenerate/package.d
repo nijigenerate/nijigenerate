@@ -129,7 +129,7 @@ void incClearImguiData() {
     Returns the current project path
 */
 string incProjectPath() {
-    return currProjectPath;
+    return currProjectPath.dup;
 }
 
 /**
@@ -251,7 +251,7 @@ void incOpenProject(bool handleError=true)(string mainPath, string backupPath) {
     incNewProject();
 
     // Set the path
-    currProjectPath = mainPath;
+    currProjectPath = mainPath.dup;
     incAddPrevProject(mainPath);
 
     incResetRootNode(puppet);
@@ -278,7 +278,7 @@ void incSaveProject(string path, string autosaveStamp = "") {
             incAddPrevAutosave(finalPath);
         } else {
             finalPath = path.setExtension(".inx");
-            currProjectPath = path;
+            currProjectPath = path.dup;
             incAddPrevProject(finalPath);
         }
 
