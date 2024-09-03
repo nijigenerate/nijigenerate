@@ -998,6 +998,8 @@ void testAssertKey(AbstractBindingEntry entry, ImGuiKey[] keys, BindingMode mode
 }
 
 unittest {
+    const string unittest_file = "unittest_keybindings.json";
+
     void testCheckInitBinding() {
         // check undo key binding
         assert(incInputBindings["undo"].bindingEntrys.length == 1);
@@ -1056,8 +1058,8 @@ unittest {
         testInitBindings();
 
         // save bindings
-        incSaveBindings("unittest_keybindings.json");
-        assert(exists("unittest_keybindings.json"));
+        incSaveBindings(unittest_file);
+        assert(exists(unittest_file));
 
         // clean all binding
         incRemoveAllBinding();
@@ -1065,7 +1067,7 @@ unittest {
             assert(entry.bindingEntrys.length == 0);
 
         // load bindings
-        incLoadBindings("unittest_keybindings.json");
+        incLoadBindings(unittest_file);
         foreach (entry; incInputBindings.values)
             assert(entry.bindingEntrys.length > 0, entry.getKey());
     }
@@ -1105,21 +1107,89 @@ unittest {
         assert(incIsActionInactive("mouse1"));
     }
 
+    /** 
+        the test have three parts
+            1. user using default key bindings and save to disk
+            2. app update, and user add new key bindings, and save to disk
+            3. app update again, some features removed, config should not crash
+    */
+    void testConifgBackwardsCompatible() {
+        // setup default actions
+        incDefaultActions =  [
+            "Gereral": [
+                new ActionConfigEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+            ],
+        ];
+
+        incInitBindingHashMap();
+        incAddShortcut("select_all", "Ctrl+A", BindingMode.Pressed);
+        incLoadBindingConfig(unittest_file);
+        incSaveBindings(unittest_file);
+
+        // setup new default actions
+        incDefaultActions =  [
+            "Gereral": [
+                new ActionConfigEntry("undo", _("Undo"), _("Undo the last action"), true)
+                    .setKeyMode(BindingMode.PressedRepeat),
+                new ActionConfigEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+                new ActionConfigEntry("removed_features", _("Removed Features"), _("Removed Features"), true),
+            ],
+        ];
+
+        incInitBindingHashMap();
+        incAddShortcut("undo", "Ctrl+Z", BindingMode.PressedRepeat);
+        incAddShortcut("select_all", "Ctrl+A", BindingMode.Pressed);
+        incAddShortcut("removed_features", "Ctrl+R", BindingMode.Pressed);
+        incLoadBindingConfig(unittest_file);
+        assert(incBindingEntriesCount() == 3);
+
+        // user try to add new binding and save
+        incInputBindings["select_all"].append(incStringToKeys("Ctrl+Shift+A"));
+        incCommitBindingsChanges();
+        assert(incBindingEntriesCount() == 4);
+        incSaveBindings(unittest_file);
+
+        // load again and remove the removed_features
+        incDefaultActions =  [
+            "Gereral": [
+                new ActionConfigEntry("undo", _("Undo"), _("Undo the last action"), true)
+                    .setKeyMode(BindingMode.PressedRepeat),
+                new ActionConfigEntry("select_all", _("Select All"), _("Select all text or objects"), true),
+            ],
+        ];
+
+        incInitBindingHashMap();
+        incAddShortcut("undo", "Ctrl+Z", BindingMode.PressedRepeat);
+        incAddShortcut("select_all", "Ctrl+A", BindingMode.Pressed);
+        incLoadBindingConfig(unittest_file);
+    
+        // now we have 3 bindings, because removed_features is removed
+        assert(incBindingEntriesCount() == 3);
+        assert(incInputBindings["select_all"].getBindedEntries().length == 2);
+    }
+
     // run test
     testSaveLoadBinding();
     testCommit();
     testIOMouse();
+    testConifgBackwardsCompatible();
 
     // just test some main functions logic
     incInitInputBinding();
-    incLoadBindingConfig();
 }
 
+/*
+    for unit test, we split the function to two parts,
+    incLoadBindingConfig() can be used to load the default key bindings
+    incLoadBindingConfig(path) for specific path
+*/
 void incLoadBindingConfig() {
-    string path = incGetDefaultBindingPath();
-    if (!exists(path))
-        incConfigureDefaultBindings();
-    else
+    incLoadBindingConfig(incGetDefaultBindingPath());
+}
+
+void incLoadBindingConfig(string path) {
+    incConfigureDefaultBindings();
+    if (exists(path))
         incLoadBindings(path);
 }
 
@@ -1188,7 +1258,8 @@ void incSaveBindings(string path) {
 }
 
 /**
-    incLoadBindings() load bindings from disk
+    incLoadBindings() load bindings from disk, and it should invoke by higher level function
+    it do not configure the default key bindings, use incLoadBindingConfig() instead
 */
 void incLoadBindings(string path) {
     // load bindings from disk
