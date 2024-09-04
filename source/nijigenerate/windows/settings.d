@@ -10,6 +10,7 @@ module nijigenerate.windows.settings;
 import nijigenerate.viewport;
 import nijigenerate.windows;
 import nijigenerate.widgets;
+import nijigenerate.io.touchpad;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
 import nijigenerate.io;
@@ -222,6 +223,11 @@ protected:
                                 if (igSelectable(__("To Mouse Position"), incSettingsGet!string("ViewportZoomMode") == "MousePosition")) incSetViewportZoomMode("MousePosition");
 
                                 igEndCombo();
+                            }
+
+                            bool touchpadEnabled = incIsTouchpadEnabled();
+                            if (igCheckbox(__("Enable Touchpad"), &touchpadEnabled)) {
+                                incSettingsSet("TouchpadEnabled", touchpadEnabled);
                             }
 
                             float zoomSpeed = cast(float)incGetViewportZoomSpeed();
