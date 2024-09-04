@@ -9,6 +9,7 @@ import std.json;
 import std.file;
 import std.path : buildPath;
 import nijigenerate.core.path;
+import i18n;
 
 private {
     JSONValue settings = JSONValue(string[string].init);
@@ -18,24 +19,51 @@ string incSettingsPath() {
     return buildPath(incGetAppConfigPath(), "settings.json");
 }
 
+string incSettingsMoveCorruptedFile(string path) {
+    import std.uuid : randomUUID;
+    // move the corrupted settings file to a new location
+    string backupPath = path ~ "." ~ randomUUID().toString();
+    rename(path, backupPath);
+    return backupPath;
+}
+
+void incSettingsErrorDialog(Exception ex, string backupPath) {
+    import nijigenerate.widgets.dialog;
+    string error = _("Oops! Your settings.json file is corrupted. Nijigenerate will load the default settings.\n");
+    error ~= _("The corrupted settings file has been moved to ") ~ backupPath ~ ".\n";
+    error ~= _("If you always see this message, please report this issue to Nijigenerate\n");
+    error ~= _("\nError message: ") ~ ex.msg;
+    incDialog(__("Error"), error);
+}
+
 /**
     Load settings from settings file
 */
 void incSettingsLoad() {
     if (exists(incSettingsPath())) {
-        settings = parseJSON(readText(incSettingsPath()));
-    } else {
-        // This code is used to configure default values for new users
-        // New users use MousePosition, old users keep ScreenCenter
-        // also see incGetViewportZoomMode()
-        settings["ViewportZoomMode"] = "MousePosition";
-        settings["ViewportZoomSpeed"] = 5.0;
+        try {
+            settings = parseJSON(readText(incSettingsPath()));
 
-        // File Handling
-        // Always ask the user whether to preserve the folder structure during import
-        // also see incGetKeepLayerFolder()
-        settings["KeepLayerFolder"] = "Ask";
+            // check settings is not empty
+            if (settings.object.length == 0)
+                throw new JSONException("Settings file is empty");
+            return;
+        } catch (JSONException ex) {
+            string backupPath = incSettingsMoveCorruptedFile(incSettingsPath());
+            incSettingsErrorDialog(ex, backupPath);
+        }
     }
+
+    // This code is used to configure default values for new users
+    // New users use MousePosition, old users keep ScreenCenter
+    // also see incGetViewportZoomMode()
+    settings["ViewportZoomMode"] = "MousePosition";
+    settings["ViewportZoomSpeed"] = 5.0;
+
+    // File Handling
+    // Always ask the user whether to preserve the folder structure during import
+    // also see incGetKeepLayerFolder()
+    settings["KeepLayerFolder"] = "Ask";
 }
 
 /**
