@@ -231,18 +231,15 @@ void incViewportVertexDraw(Camera camera) {
                 mgroup.setOneTimeTransform(&transform);
                 Node[] subParts;
                 void findSubDrawable(Node n) {
-                    if (auto m = cast(MeshGroup)n) {
-                        foreach (child; n.children)
-                            findSubDrawable(child);
-                    } else if (auto c = cast(Composite)n) {
+                    if (auto c = cast(Composite)n) {
                         if (c.propagateMeshGroup) {
                             subParts ~= c;
                         }
                     } else if (auto d = cast(Drawable)n) {
                         subParts ~= d;
-                        foreach (child; n.children)
-                            findSubDrawable(child);
                     }
+                    foreach (child; n.children)
+                        findSubDrawable(child);
                 }
                 findSubDrawable(mgroup);
                 import std.algorithm.sorting;
