@@ -26,6 +26,7 @@ import std.math;
 import nijigenerate.core.math.vertex;
 
 class BezierDeformTool : NodeSelect {
+    uint lastActivePoint;
     uint pathDragTarget;
     uint lockedPoint;
 
@@ -50,6 +51,7 @@ class BezierDeformTool : NodeSelect {
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
         pathDragTarget = -1;
         lockedPoint = -1;
+        lastActivePoint = -1;
         super.setToolMode(toolMode, impl);
     }
 
