@@ -9,6 +9,7 @@
 module nijigenerate.windows.settings;
 import nijigenerate.viewport;
 import nijigenerate.windows;
+import nijigenerate.windows.bindingui;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
@@ -25,7 +26,8 @@ enum SettingsPane : string {
     LookAndFeel = "Look and Feel",
     Viewport = "Viewport",
     Accessibility = "Accessbility",
-    FileHandling = "File Handling"
+    FileHandling = "File Handling",
+    InputSettings = "Input Settings"
 }
 
 /**
@@ -94,6 +96,10 @@ protected:
 
                 if (igSelectable(__("File Handling"), settingsPane == SettingsPane.FileHandling)) {
                     settingsPane = SettingsPane.FileHandling;
+                }
+
+                if (igSelectable(__("Input Settings"), settingsPane == SettingsPane.InputSettings)) {
+                    settingsPane = SettingsPane.InputSettings;
                 }
             igPopTextWrapPos();
         }
@@ -228,6 +234,31 @@ protected:
                             if (igDragFloat(__("Zoom Speed"), &zoomSpeed, 0.1, 1, 50, "%f")) {
                                 incSetViewportZoomSpeed(zoomSpeed);
                             }
+                        endSection();
+                        break;
+                    case SettingsPane.InputSettings:
+                        import nijigenerate.io.config;
+                        beginSection(__("Input Settings"));
+                            incInputRecording();     
+                            
+                            // incDrawCommandKeySwitch(); Not implemented yet
+                            incDrawBindingFileButton();
+                            if (incButtonColored(__("Undo##KeyBindings")))
+                                incRevertBindingsChanges();
+
+                            igSameLine(0, 2);
+                            if (incButtonColored(__("Save##KeyBindings"))) {
+                                incCommitBindingsChanges();
+                                incSaveBindings(incGetDefaultBindingPath());
+                            }
+
+                            // For now, disallow users from configuring separate left/right modifier switches to simplify implement.
+                            // Also see: KeyBindingEntry.isActive()
+                            // incDrawRightLeftModifierSwitch();
+
+                            incDrawMouseKeyboardSwitch();
+
+                            incDrawAllBindings();
                         endSection();
                         break;
                     default:

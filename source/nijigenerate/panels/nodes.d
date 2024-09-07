@@ -10,6 +10,7 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.widgets.dragdrop;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
+import nijigenerate.io.config;
 import nijigenerate.panels;
 import nijigenerate.ext;
 import nijigenerate.utils.transform;
@@ -393,9 +394,8 @@ protected:
 
         if (incEditMode == EditMode.ModelEdit) {
             if (!incArmedParameter && (igIsWindowFocused(ImGuiFocusedFlags.ChildWindows) || igIsWindowHovered(ImGuiHoveredFlags.ChildWindows))) {
-                if (incShortcut("Ctrl+A")) {
+                if (incIsActionActivated("select_all"))
                     incSelectAll();
-                }
             }
         }
 

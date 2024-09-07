@@ -646,7 +646,7 @@ protected:
             } else {
                 if (io.KeyCtrl) incAddSelectNode(n);
                 else incSelectNode(n);
-            }            if (igGetIO().KeyCtrl) {}
+            }
         }
 
         if (isRoot) {
