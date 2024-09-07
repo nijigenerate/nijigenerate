@@ -905,8 +905,8 @@ Texture incGetGrid() {
 
 void incShortcutsInit() {
     incMainMenuInitKeybinds();
-    incAddShortcut("undo", "Ctrl+Z");
-    incAddShortcut("redo", "Ctrl+Shift+Z");
+    incAddShortcut("undo", "Ctrl+Z", BindingMode.PressedRepeat);
+    incAddShortcut("redo", "Ctrl+Shift+Z", BindingMode.PressedRepeat);
     incAddShortcut("select_all", "Ctrl+A");
 
     // viewport
