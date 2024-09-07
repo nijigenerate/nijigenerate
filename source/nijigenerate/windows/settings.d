@@ -251,7 +251,10 @@ protected:
                                 incSaveBindings(incGetDefaultBindingPath());
                             }
 
-                            incDrawRightLeftModifierSwitch();
+                            // For now, disallow users from configuring separate left/right modifier switches to simplify implement.
+                            // Also see: KeyBindingEntry.isActive()
+                            // incDrawRightLeftModifierSwitch();
+
                             incDrawMouseKeyboardSwitch();
 
                             incDrawAllBindings();

@@ -341,6 +341,8 @@ static class KeyScanner {
     static int keyCountPressed;
     static int keyCountPressedRepeat;
     static int keyCountDown;
+
+    // for modifier keys, we don't count them in keyCountPressed, keyCountPressedRepeat, keyCountDown
     static int keyModifierCount;
     static int keyModifierCountLR;
 
@@ -355,13 +357,11 @@ static class KeyScanner {
     }
 
     static void scanAllKeys() {
-        // The code is a bit messy. Write tests before refactoring.
-        // TODO: Write unit tests before refactoring or modifying the code
-
         // clear key count
         keyCountPressed = 0;
         keyCountPressedRepeat = 0;
         keyCountDown = 0;
+
         keyModifierCount = 0;
         keyModifierCountLR = 0;
 
@@ -376,7 +376,6 @@ static class KeyScanner {
             keyStatePressedRepeat[key] = igIsKeyPressed(key, true);
             keyStateDown[key] = igIsKeyDown(key);
 
-            // prevent duplicate count
             if (incIsModifierKey(key)) {
                 keyModifierCount += keyStateDown[key] ? 1 : 0;
             } else if (incIsModifierKeyLR(key)) {
@@ -465,44 +464,66 @@ class KeyBindingEntry : AbstractBindingEntry {
 
     override
     bool isActive(bool extactMatch) {
-        // The code is a bit messy. Write tests before refactoring.
-        // To put it simply, extactMatch obtains the result through key count
-        // could not just check pressed key for mutually exclude actions (ctrl+s, ctrl+shift+s)
-        // TODO: Write unit tests before refactoring or modifying the code
-
+        // extactMatch obtains the result through key count to handle mutually exclude actions (ctrl+s, ctrl+shift+s)
         bool result = true;
         int downCount = 0;
         int pressedCount = 0;
         int pressedRepeatCount = 0;
+
         int modifierCount = 0;
         int modifierCountLR = 0;
         foreach (key; keys) {
+            if (!result)
+                return false;
+
+            // 1. the key is a modifier key
+            if (incIsModifierKeyLR(key)) {
+                result &= KeyScanner.keyStateDown[key];
+                modifierCountLR++;
+                continue;
+            }
+            if (incIsModifierKey(key)) {
+                result &= KeyScanner.keyStateDown[key];
+                modifierCount++;
+
+                // This line is necessary, some KeyBindings no left/right modifiers, but KeyScanner does.
+                // The logic for handling left/right modifier more complex. (simplify implementation)
+                // This problem could also be resolved by disallowing users config left/right modifier keys.
+                // also see incDrawRightLeftModifierSwitch()
+                modifierCountLR++;
+                continue;
+            }
+
+            // 2. the key is a normal key
             switch (mode) {
                 case BindingMode.Down:
                     result &= KeyScanner.keyStateDown[key];
-                    downCount++;
                     break;
                 case BindingMode.Pressed:
+                    result &= KeyScanner.keyStatePressed[key];
+                    break;
                 case BindingMode.PressedRepeat:
-                    if (incIsModifierKeyLR(key)) {
-                        result &= KeyScanner.keyStateDown[key];
-                        modifierCountLR++;
-                    } else if (incIsModifierKey(key)) {
-                        result &= KeyScanner.keyStateDown[key];
-                        modifierCount++;
-                        modifierCountLR++;
-                    } else if (mode == BindingMode.Pressed) {
-                        result &= KeyScanner.keyStatePressed[key];
-                        // when pressed, down always true, and pressed repeat always true
-                        pressedCount++;
-                        pressedRepeatCount++;
-                        downCount++;
-                    } else {
-                        result &= KeyScanner.keyStatePressedRepeat[key];
-                        // when pressed repeat, down always true
-                        pressedRepeatCount++;
-                        downCount++;
-                    }
+                    result &= KeyScanner.keyStatePressedRepeat[key];
+                    break;
+                default:
+                    throw new Exception("Unknown key binding mode");
+            }
+
+            // we only check the key count if it is an exact match
+            if (!extactMatch)
+                continue;
+
+            // count key count, it means what case should be triggered
+            // when pressed, down always true, and pressed repeat always true
+            switch (mode) {
+                case BindingMode.Pressed:
+                    pressedCount++;
+                    goto case;
+                case BindingMode.PressedRepeat:
+                    pressedRepeatCount++;
+                    goto case;
+                case BindingMode.Down:
+                    downCount++;
                     break;
                 default:
                     throw new Exception("Unknown key binding mode");
