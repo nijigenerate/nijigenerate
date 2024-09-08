@@ -35,6 +35,11 @@ void incSettingsLoad() {
         // Always ask the user whether to preserve the folder structure during import
         // also see incGetKeepLayerFolder()
         settings["KeepLayerFolder"] = "Ask";
+
+        // swap command and control keys on macOS
+        version (OSX) {
+            settings["SwapCommandControl"] = true;
+        }
     }
 }
 

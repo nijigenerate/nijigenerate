@@ -58,9 +58,6 @@ string[ImGuiKey] incKeyDisplayMap = [
     ImGuiKey.RightBracket: "]",
 ];
 
-// incSwitchCommandKey for UI logic, user can choose switch command key or using ctrl key
-bool incSwitchCommandKey = false;
-
 // incAppendMouseMode for UI logic, user can choose mouse bindings or keyboard bindings
 bool incAppendMouseMode = false;
 
@@ -328,6 +325,33 @@ enum BindingMode {
     PressedRepeat = "Pressed Repeat",
 }
 
+ImGuiKey incSwitchCommandKey(ImGuiKey key) {
+    if (!incSettingsGet!bool("SwapCommandControl"))
+        return key;
+
+    switch (key) {
+        case ImGuiKey.LeftCtrl:
+            return ImGuiKey.LeftSuper;
+        case ImGuiKey.RightCtrl:
+            return ImGuiKey.RightSuper;
+        case ImGuiKey.ModCtrl:
+            return ImGuiKey.ModSuper;
+        case ImGuiKey.LeftSuper:
+            return ImGuiKey.LeftCtrl;
+        case ImGuiKey.RightSuper:
+            return ImGuiKey.RightCtrl;
+        case ImGuiKey.ModSuper:
+            return ImGuiKey.ModCtrl;
+        default:
+            return key;
+    }
+}
+
+ImGuiKey[] incSwitchCommandKey(ImGuiKey[] keys) {
+    import std.algorithm.iteration: map;
+    return keys.map!(a => incSwitchCommandKey(a)).array;
+}
+
 /**
     KeyScanner is a class that helps to scan all keys,
     we can implement mutually exclusive actions by using this class
@@ -365,7 +389,8 @@ static class KeyScanner {
         keyModifierCount = 0;
         keyModifierCountLR = 0;
 
-        foreach (key; keyStatePressed.keys) {
+        foreach (keyRaw; keyStatePressed.keys) {
+            auto key = incSwitchCommandKey(keyRaw);
             // clear key state
             keyStatePressed[key] = false;
             keyStatePressedRepeat[key] = false;
@@ -428,9 +453,6 @@ unittest {
 
 class KeyBindingEntry : AbstractBindingEntry {
     private {
-        // macosKeyBinding means that the key is a macos key binding
-        bool macosKeyBinding = false;
-
         ImGuiKey[] keys;
         BindingMode mode;
     }
@@ -472,11 +494,12 @@ class KeyBindingEntry : AbstractBindingEntry {
 
         int modifierCount = 0;
         int modifierCountLR = 0;
-        foreach (key; keys) {
+        foreach (keyRaw; keys) {
             if (!result)
                 return false;
 
             // 1. the key is a modifier key
+            auto key = incSwitchCommandKey(keyRaw);
             if (incIsModifierKeyLR(key)) {
                 result &= KeyScanner.keyStateDown[key];
                 modifierCountLR++;
@@ -727,11 +750,18 @@ string incGetKeyString(ImGuiKey key) {
     return incToDString(igGetKeyName(key));
 }
 
+/*
+    incKeysToStr() for logic, incKeysToStrUI() for UI logic
+*/
 string incKeysToStr(ImGuiKey[] keys) {
     string result = "";
     foreach (key; keys)
         result ~= incGetKeyString(key) ~ " ";
     return result.strip().replace(" ", "+");
+}
+
+string incKeysToStrUI(ImGuiKey[] keys) {
+    return incKeysToStr(incSwitchCommandKey(keys));
 }
 
 /*

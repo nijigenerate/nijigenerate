@@ -240,7 +240,7 @@ protected:
                         beginSection(__("Input Settings"));
                             incInputRecording();     
                             
-                            // incDrawCommandKeySwitch(); Not implemented yet
+
                             incDrawBindingFileButton();
                             if (incButtonColored(__("Undo##KeyBindings")))
                                 incRevertBindingsChanges();
@@ -250,6 +250,9 @@ protected:
                                 incCommitBindingsChanges();
                                 incSaveBindings(incGetDefaultBindingPath());
                             }
+
+                            igSameLine(0, 2);
+                            incDrawCommandKeySwitch();
 
                             // For now, disallow users from configuring separate left/right modifier switches to simplify implement.
                             // Also see: KeyBindingEntry.isActive()

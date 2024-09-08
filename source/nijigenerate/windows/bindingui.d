@@ -11,6 +11,7 @@ import bindbc.imgui;
 import nijigenerate.io.config;
 import nijigenerate.widgets.label;
 import std.string;
+import nijigenerate.core.settings;
 
 /**
     our ImGui layout will look like this (UI logic):
@@ -48,7 +49,7 @@ void incDrawBindingEntry(AbstractBindingEntry entry, bool commited) {
             ~ " (" ~ mouse.getMode() ~ ")"
         ); // mouse icon
     if (auto key = cast(KeyBindingEntry) entry)
-        incText("\ue312" ~ incKeysToStr(key.getKeys())
+        incText("\ue312" ~ incKeysToStrUI(key.getKeys())
             ~ " (" ~ key.getMode() ~ ")"
         ); // keyboard icon
 }
@@ -63,6 +64,8 @@ void incDrawKeyBindingInput() {
     if (igIsItemClicked()) {
         ImGuiKey[] keys = BindingRecorder.getRecordedKeys();
         if (keys.length > 0) {
+            // swap command key if needed
+            keys = incSwitchCommandKey(keys);
             incSelectedBindingEntry.append(keys);
             BindingRecorder.clearRecordedKeys();
         }
@@ -154,9 +157,10 @@ void incDrawMouseKeyboardSwitch() {
 }
 
 void incDrawCommandKeySwitch() {
-    throw new Exception("Not implemented yet");
-    // TODO: implement command key handling
-    igCheckbox(__("Switch \ueae7 key"), &incSwitchCommandKey);
+    bool switchCommandKey = incSettingsGet!bool("SwapCommandControl");
+    if (igCheckbox(__("Switch \ueae7 key"), &switchCommandKey)) {
+        incSettingsSet("SwapCommandControl", switchCommandKey);
+    }
 }
 
 void incDrawBindingFileButton() {
@@ -175,7 +179,7 @@ void incDrawBindingFileButton() {
     if (igIsItemClicked())
         incLoadBindingsShowDialog();
 
-    igSameLine(0, 2);
+
 }
 
 void incDrawAllBindings() {
