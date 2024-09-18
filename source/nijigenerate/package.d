@@ -249,6 +249,16 @@ bool incOpenProject(string mainPath, string backupPath) {
         // Also handle NFS or I/O errors
         incDialog(__("Error"), ex.msg);
         return false;
+    } catch (Exception ex) {
+        // for user, we should show a dialog and dump the thrown stack
+        import std.file : write;
+        import nijigenerate.utils.crashdump;
+        string path = genCrashDumpPath("nijigenerate-runtime-error");
+        write(path, genCrashDump(ex));
+
+        // show dialog
+        incDialog(__("Error"), ex.msg ~ "\n\n" ~ _("Please report this file to the developers:\n\n%s").format(path));
+        return false;
     }
 
     // Clear out stuff by creating a new project
