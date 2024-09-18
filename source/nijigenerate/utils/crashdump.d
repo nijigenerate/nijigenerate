@@ -54,12 +54,15 @@ string getCrashDumpDir() {
     else return expandTilde("~");
 }
 
-
+string genCrashDumpPath(string filename) {
+    import std.datetime;
+    return buildPath(getCrashDumpDir(), filename ~ "-" ~ Clock.currTime.toISOString() ~ ".txt");
+}
 
 void crashdump(T...)(Throwable throwable, T state) {
 
     // Write crash dump to disk
-    write(buildPath(getCrashDumpDir(), "nijigenerate-crashdump.txt"), genCrashDump!T(throwable, state));
+    write(genCrashDumpPath("nijigenerate-crashdump"), genCrashDump!T(throwable, state));
 
     // Use appropriate system method to notify user where crash dump is.
     version(OSX) writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in ~/Library/Logs\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
