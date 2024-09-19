@@ -81,11 +81,17 @@ void mkdirCrashDumpDir() {
     }
 }
 
+string writeCrashDump(T...)(string filename, Throwable throwable, T state) {
+    mkdirCrashDumpDir();
+    string path = genCrashDumpPath(filename);
+    write(path, genCrashDump(throwable, state));
+    return path;
+}
+
 void crashdump(T...)(Throwable throwable, T state) {
     // Write crash dump to disk
     try {
-        mkdirCrashDumpDir();
-        write(genCrashDumpPath("nijigenerate-crashdump"), genCrashDump(throwable, state));
+        writeCrashDump("nijigenerate-crashdump", throwable, state);
     } catch (Exception ex) {
         writeln("Failed to write crash dump" ~ ex.msg);
     }
