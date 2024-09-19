@@ -60,9 +60,12 @@ string genCrashDumpPath(string filename) {
 }
 
 void crashdump(T...)(Throwable throwable, T state) {
-
     // Write crash dump to disk
-    write(genCrashDumpPath("nijigenerate-crashdump"), genCrashDump!T(throwable, state));
+    try {
+        write(genCrashDumpPath("nijigenerate-crashdump"), genCrashDump(throwable, state));
+    } catch (Exception ex) {
+        writeln("Failed to write crash dump" ~ ex.msg);
+    }
 
     // Use appropriate system method to notify user where crash dump is.
     version(OSX) writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in ~/Library/Logs\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
