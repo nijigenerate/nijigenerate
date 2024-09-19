@@ -256,9 +256,7 @@ bool incOpenProject(string mainPath, string backupPath) {
         string report;
 
         try {
-            mkdirCrashDumpDir();
-            string path = genCrashDumpPath("nijigenerate-runtime-error");
-            write(path, genCrashDump(ex));
+            string path = writeCrashDump("nijigenerate-runtime-error", ex);
             report = _("Please report this file to the developers:\n\n%s").format(path);
         } catch (Exception dumpEx) {
             report = _("Failed to write crash dump file." ~ dumpEx.msg);
