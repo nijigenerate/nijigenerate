@@ -25,7 +25,7 @@ import std.stdio;
 
 class PointTool : NodeSelect {
     Action action;
-    bool autoConnect = true;
+    bool autoConnect = false;
 
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) {
@@ -483,7 +483,7 @@ class ToolInfoImpl(T: PointTool) : ToolInfoBase!(T) {
         } else {
             auto pointTool = cast(PointTool)(editors.length == 0 ? null: editors.values()[0].getTool());
             igBeginGroup();
-                if (incButtonColored("", ImVec2(0, 0), (pointTool !is null && !pointTool.isAutoConnect())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("", ImVec2(0, 0), (pointTool !is null && !pointTool.isAutoConnect())? ImVec4(0.6, 0.6, 0.6, 1) : colorUndefined)) {
                 foreach (e; editors) {
                     auto pt = cast(PointTool)(e.getTool());
                     if (pt !is null)
