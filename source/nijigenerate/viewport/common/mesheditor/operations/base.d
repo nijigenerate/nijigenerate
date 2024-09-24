@@ -66,6 +66,7 @@ public:
     bool invertSelection = false;
     ulong maybeSelectOne;
     ulong vtxAtMouse;
+
     vec2 selectOrigin;
     IncMesh previewMesh;
 
@@ -149,6 +150,14 @@ public:
         ulong vInd = getVertexFromPoint(mirror(axis, vtx.position));
         if (vInd == vtxIndex) return -1;
         return vInd;
+    }
+
+    MeshVertex* mirrorVertex(uint axis, MeshVertex* vtx) {
+        if (axis == 0) return vtx;
+        ulong vInd = getVertexFromPoint(mirror(axis, vtx.position));
+        MeshVertex* v = getVerticesByIndex([vInd])[0];
+        if (v is null || v == vtx) return null;
+        return getVerticesByIndex([vInd])[0];
     }
 
     bool isOnMirror(vec2 pos, float aoe) {
