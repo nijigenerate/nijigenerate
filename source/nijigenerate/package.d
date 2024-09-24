@@ -253,11 +253,16 @@ bool incOpenProject(string mainPath, string backupPath) {
         // for user, we should show a dialog and dump the thrown stack
         import std.file : write;
         import nijigenerate.utils.crashdump;
-        string path = genCrashDumpPath("nijigenerate-runtime-error");
-        write(path, genCrashDump(ex));
+        string report;
 
-        // show dialog
-        incDialog(__("Error"), ex.msg ~ "\n\n" ~ _("Please report this file to the developers:\n\n%s").format(path));
+        try {
+            string path = writeCrashDump("nijigenerate-runtime-error", ex);
+            report = _("Please report this file to the developers:\n\n%s").format(path);
+        } catch (Exception dumpEx) {
+            report = _("Failed to write crash dump file." ~ dumpEx.msg);
+        }
+
+        incDialog(__("Error"), ex.msg ~ "\n\n" ~ report);
         return false;
     }
 
