@@ -647,9 +647,9 @@ void incBeginLoopNoEv() {
 
     version(linux) dpUpdate();
 
-
-
-    if (files.length > 0) {
+    // HACK: prevents the app freezing when files are drag and drop on the modal dialog.
+    // freeze is caused by `igSetDragDropPayload()`, so we check if the modal is open.
+    if (files.length > 0 && !incModalIsOpen()) {
         if (igBeginDragDropSource(ImGuiDragDropFlags.SourceExtern)) {
             igSetDragDropPayload("__PARTS_DROP", &files, files.sizeof);
             igBeginTooltip();
@@ -660,6 +660,9 @@ void incBeginLoopNoEv() {
             igEndTooltip();
             igEndDragDropSource();
         }
+    } else if (incModalIsOpen()) {
+        // clean up the files array
+        files.length = 0;
     }
 
     // Add docking space
