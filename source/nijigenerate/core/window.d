@@ -213,6 +213,7 @@ void incOpenWindow() {
 
     // Don't make KDE freak out when nijigenerate opens
     if (!incSettingsGet!bool("DisableCompositor")) SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
+    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 
     debug string WIN_TITLE = "nijigenerate "~_("(Debug Mode)");
     else string WIN_TITLE = "nijigenerate "~INC_VERSION;
