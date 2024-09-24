@@ -54,6 +54,7 @@ jobs:
     
     - name: "Get build dependencies"
       run: |
+        sudo apt-get update
         sudo apt install libsdl2-dev libfreetype6-dev gettext
 
     - name: 'Generate i18n'
