@@ -19,6 +19,7 @@ import nijigenerate.widgets.button;
 import nijilive;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
+import nijigenerate.io.save;
 import i18n;
 import std.stdio : writefln;
 
@@ -742,7 +743,7 @@ void incBeginLoop() {
     while(SDL_PollEvent(&event)) {
         switch(event.type) {
             case SDL_QUIT:
-                incExit();
+                incExitSaveAsk();
                 break;
 
             case SDL_DROPFILE:
@@ -752,11 +753,6 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
-                if (
-                    event.type == SDL_WINDOWEVENT && 
-                    event.window.event == SDL_WINDOWEVENT_CLOSE && 
-                    event.window.windowID == SDL_GetWindowID(window)
-                ) incExit();
                 break;
         }
     }
@@ -858,3 +854,4 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
+

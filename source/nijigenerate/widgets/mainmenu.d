@@ -18,10 +18,11 @@ import nijigenerate.core.input;
 import nijigenerate.utils.link;
 import nijigenerate.config;
 import nijigenerate.io.autosave;
+import nijigenerate.io.save;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
-import tinyfiledialogs;
+
 import i18n;
 import nijigenerate.ext;
 import nijigenerate.core.logo;
@@ -142,7 +143,7 @@ void incMainMenu() {
                     ngMenuItemFor!(FileCommand.CloseProject)(ctx);
 
                     // Quit option
-                    if (igMenuItem(__("Quit"), "Alt+F4", false, true)) incExit();
+                    if (igMenuItem(__("Quit"), "Alt+F4", false, true)) incExitSaveAsk();
                     igEndMenu();
                 }
                 
