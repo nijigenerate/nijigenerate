@@ -131,6 +131,7 @@ bool incIsTilingWM() {
 */
 void incOpenWindow() {
     import std.process : environment;
+    import std.string : fromStringz;
 
     switch(environment.get("XDG_SESSION_DESKTOP")) {
         case "i3":
@@ -185,10 +186,15 @@ void incOpenWindow() {
         version(Windows) enforce(imSupport != ImGuiSupport.badLibrary, "Bad cimgui library found!");
     }
 
-    SDL_Init(SDL_INIT_EVERYTHING);
+    int code = SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_AUDIO);
+    enforce(
+        code == 0,
+        "Error initializing SDL2! %s".format(SDL_GetError().fromStringz)
+    );
+
     // Do not disable the OS screensaver; allow it explicitly.
     SDL_EnableScreenSaver();
-    
+
     version(Windows) {
         incSetWin32DPIAwareness();
     }
