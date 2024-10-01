@@ -23,7 +23,18 @@ import i18n;
 import std.stdio : writefln;
 
 version(OSX) {
-    enum const(char)*[] SDL_VERSIONS_MACOS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
+    enum const(char)*[] SDL_VERSIONS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
+} else version(Windows) {
+    enum const(char)*[] SDL_VERSIONS = ["SDL2.dll"];
+} else {
+    enum const(char)*[] SDL_VERSIONS = [
+        "libSDL2-2.0.so",
+        "/usr/local/lib/libSDL2-2.0.so",
+        "libSDL2-2.0.so.0",
+        "/usr/local/lib/libSDL2-2.0.so.0",
+        "libSDL2.so",
+        "/usr/local/lib/libSDL2.so",
+    ];
 }
 
 version(linux) {
@@ -165,16 +176,15 @@ void incOpenWindow() {
     }
 
 
-    // Special case for macOS
-    version(OSX) {
-        foreach(ver; SDL_VERSIONS_MACOS) {
-            auto sdlSupport = loadSDL(ver);
+    // Load SDL2 in the order required for Steam
+    foreach(ver; SDL_VERSIONS) {
+        auto sdlSupport = loadSDL(ver);
 
-            if (sdlSupport != SDLSupport.noLibrary && 
-                sdlSupport != SDLSupport.badLibrary) break;
-        }
+        if (sdlSupport != SDLSupport.noLibrary && 
+            sdlSupport != SDLSupport.badLibrary) break;
     }
-    else auto sdlSupport = loadSDL();
+
+    // Whomp whomp
     enforce(sdlSupport != SDLSupport.noLibrary, "SDL2 library not found!");
     enforce(sdlSupport != SDLSupport.badLibrary, "Bad SDL2 library found!");
     
