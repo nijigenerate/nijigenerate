@@ -43,8 +43,11 @@ private:
     bool mirrorVert = false;
     VertexToolMode toolMode = VertexToolMode.Points;
 
+    bool showMeshgroupNodeChild = true;
+
 public:
     bool deformOnly;
+    bool hasPopupMeshgroupNoDrawables = false;
 
     this(bool deformOnly) {
         this.deformOnly = deformOnly;
@@ -362,5 +365,12 @@ public:
         return true;
     }
 
+    void setShowMeshgroupNodeChild(bool show) {
+        this.showMeshgroupNodeChild = show;
+    }
+
+    bool getShowMeshgroupNodeChild() {
+        return showMeshgroupNodeChild;
+    }
 }
 
