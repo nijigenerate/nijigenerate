@@ -117,7 +117,7 @@ class PointTool : NodeSelect {
                 if (!selectedOnly || impl.isSelected(impl.vtxAtMouse)) {
                     MeshVertex*[] removingVertices;
                     impl.foreachMirror((uint axis) {
-                        ulong index = mesh.getVertexFromPoint(impl.mirror(axis, impl.mousePos));
+                        ulong index = impl.getVertexFromPoint(impl.mirror(axis, impl.mousePos));
                         MeshVertex* vertex = impl.getVerticesByIndex([index])[0];
                         if (vertex !is null)
                             removingVertices ~= vertex;
