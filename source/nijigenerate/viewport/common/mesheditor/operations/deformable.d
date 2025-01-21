@@ -75,6 +75,7 @@ public:
 
     override
     void setTarget(Node target) {
+        Deformable deformable = cast(Deformable)target;
         if (deformable is null)
             return;
         super.setTarget(target);

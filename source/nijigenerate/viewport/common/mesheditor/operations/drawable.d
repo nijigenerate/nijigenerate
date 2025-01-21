@@ -64,6 +64,10 @@ public:
     void setMesh(IncMesh mesh) {
         this.mesh = mesh;
     }
+
+    MeshVertex*[] vertices() {
+        return mesh.vertices;
+    }
 }
 
 /**
