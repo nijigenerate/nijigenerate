@@ -33,7 +33,7 @@ class PointTool : NodeSelect {
                 auto mesh = implDrawable.getMesh();
 
                 isDragging = true;
-                action = new MeshMoveAction(impl.getTarget().name, impl, mesh);
+                action = new VertexMoveAction(impl.getTarget().name, impl);
                 return true;
             }
             return false;
@@ -60,7 +60,7 @@ class PointTool : NodeSelect {
     override bool onDragUpdate(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) { 
             if (isDragging) {
-                if (auto meshAction = cast(MeshMoveAction)action) {
+                if (auto meshAction = cast(VertexMoveAction)action) {
                     foreach(select; impl.selected) {
                         impl.foreachMirror((uint axis) {
                             MeshVertex *v = impl.getVerticesByIndex([impl.mirrorVertex(axis, select)])[0];
@@ -112,7 +112,7 @@ class PointTool : NodeSelect {
             // Check if mouse is over a vertex
             auto vtxAtMouse = impl.getVerticesByIndex([impl.vtxAtMouse])[0];
             if (vtxAtMouse !is null) {
-                auto action = new MeshRemoveAction(impl.getTarget().name, impl, mesh);
+                auto action = new VertexRemoveAction(impl.getTarget().name, impl);
 
                 if (!selectedOnly || impl.isSelected(impl.vtxAtMouse)) {
                     MeshVertex*[] removingVertices;
@@ -136,7 +136,7 @@ class PointTool : NodeSelect {
                 action.updateNewState();
                 incActionPush(action);
             } else {
-                auto action = new MeshAddAction(impl.getTarget().name, impl, mesh);
+                auto action = new VertexAddAction(impl.getTarget().name, impl);
 
                 ulong off = mesh.vertices.length;
                 if (impl.isOnMirror(impl.mousePos, impl.meshEditAOE)) {
@@ -160,7 +160,7 @@ class PointTool : NodeSelect {
 
         // Key actions
         if (incInputIsKeyPressed(ImGuiKey.Delete)) {
-            auto action = new MeshRemoveAction(impl.getTarget().name, impl, mesh);
+            auto action = new VertexRemoveAction(impl.getTarget().name, impl);
 
             impl.foreachMirror((uint axis) {
                 foreach(v; impl.selected) {
@@ -182,7 +182,7 @@ class PointTool : NodeSelect {
             changed = true;
         }
 
-        MeshMoveAction moveAction = null;
+        VertexMoveAction moveAction = null;
         void shiftSelection(vec2 delta) {
             float magnitude = 10.0;
             if (io.KeyAlt) magnitude = 1.0;
@@ -196,7 +196,7 @@ class PointTool : NodeSelect {
                     auto v2 = impl.getVerticesByIndex([vInd2])[0];
                     if (v2 !is null) {
                         if (moveAction is null) {
-                            moveAction = new MeshMoveAction(implDrawable.getTarget().name, impl, mesh);
+                            moveAction = new VertexMoveAction(implDrawable.getTarget().name, impl);
                         }
                         moveAction.moveVertex(v2, v2.position + mDelta);
                     }
