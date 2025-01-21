@@ -285,6 +285,10 @@ public:
     }
 
     override
+    void addMeshVertex(MeshVertex* v2) {
+        mesh.vertices ~= v2;
+    }
+    override
     void removeMeshVertex(MeshVertex* v2) {
         mesh.remove(v2);
     }
@@ -625,6 +629,9 @@ public:
 
     override
     bool updateChanged(bool changed) { return changed; }
+
+    override
+    void addMeshVertex(MeshVertex* v2) {}
 
     override
     void removeMeshVertex(MeshVertex* v2) { }

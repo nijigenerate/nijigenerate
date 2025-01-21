@@ -1,7 +1,9 @@
 module nijigenerate.actions.vertex;
 
 import nijigenerate.core.actionstack;
-import nijigenerate.viewport.common.deformable.operations;
+import nijigenerate.viewport.common.mesheditor.operations.deformable;
+import nijigenerate.viewport.common.mesheditor;
+import nijigenerate.core.math;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport;
 import nijigenerate.actions;
@@ -20,13 +22,17 @@ abstract class VertexAction  : LazyBoundAction {
     string name;
     bool dirty;
     IncMeshEditorOne editor;
+    struct Connection {
+        MeshVertex* v1;
+        MeshVertex* v2;
+    };
+
 
     bool undoable = true;
 
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
+    this(string name, IncMeshEditorOne editor, void delegate() update = null) {
         this.name = name;
         this.editor = editor;
-        this.mesh = mesh;
         this.clear();
 
         if (update !is null) {
@@ -68,14 +74,13 @@ abstract class VertexAction  : LazyBoundAction {
 
 class VertexAddAction  : VertexAction {
     MeshVertex*[] vertices;
-
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
+    this(string name, IncMeshEditorOne editor, void delegate() update = null) {
+        super(name, editor, update);
     }
 
     void addVertex(MeshVertex* vertex) {
         vertices ~= vertex;
-        mesh.vertices ~= vertex;
+        editor.addMeshVertex(vertex);
         dirty = true;
     }
 
@@ -98,7 +103,7 @@ class VertexAddAction  : VertexAction {
     void rollback() {
         if (undoable) {
             foreach (v; vertices) {
-                mesh.remove (v);
+                editor.removeMeshVertex(v);
             }
             undoable = false;
             editor.refreshMesh();
@@ -111,7 +116,7 @@ class VertexAddAction  : VertexAction {
     void redo() {
         if (!undoable) {
             foreach (v; vertices) {
-                mesh.vertices ~= v;
+                editor.addMeshVertex(v);
             }
             undoable = true;
             editor.refreshMesh();
@@ -146,9 +151,8 @@ class VertexAddAction  : VertexAction {
 class VertexRemoveAction  : VertexAction {
     MeshVertex*[] vertices;
     Connection[] connections;
-
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
+    this(string name, IncMeshEditorOne editor, void delegate() update = null) {
+        super(name, editor, update);
     }
 
     void removeVertex(MeshVertex* vertex, bool executeAction = true) {
@@ -157,13 +161,13 @@ class VertexRemoveAction  : VertexAction {
             connections ~= Connection(vertex, con);
         }
         if (executeAction)
-            mesh.remove(vertex);
+            editor.removeMeshVertex(vertex);
         dirty = true;
     }
 
     void removeVertices() {
         foreach (v; vertices) {
-            mesh.remove(v);
+            editor.removeMeshVertex(v);
         }
     }
 
@@ -187,7 +191,7 @@ class VertexRemoveAction  : VertexAction {
     void rollback() {
         if (undoable) {
             foreach (v; vertices) {
-                mesh.vertices ~= v;
+                editor.addMeshVertex(v);
             }
             foreach (c; connections) {
                 c.v1.connect(c.v2);
@@ -204,7 +208,7 @@ class VertexRemoveAction  : VertexAction {
     void redo() {
         if (!undoable) {
             foreach (v; vertices) {
-                mesh.remove(v);
+                editor.removeMeshVertex(v);
             }
             undoable = true;
             editor.refreshMesh();
@@ -244,8 +248,8 @@ class VertexMoveAction  : VertexAction {
     };
     Translation[MeshVertex*] translations;
 
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
+    this(string name, IncMeshEditorOne editor, void delegate() update = null) {
+        super(name, editor, update);
     }
 
     void moveVertex(MeshVertex* vertex, vec2 newPos) {
@@ -327,17 +331,9 @@ class VertexMoveAction  : VertexAction {
 
 
 class VertexReorderAction  : VertexAction {
-    MeshVertex*[][MeshVertex*] connected;
-
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
-    }
-
-    void connect(MeshVertex* vertex, MeshVertex* other) {
-        if (vertex !in connected || connected[vertex].countUntil(other) < 0)
-            connected[vertex] ~= other;
-        vertex.connect(other);
-        dirty = true;
+    MeshVertex*[] vertices;
+    this(string name, IncMeshEditorOne editor, void delegate() update = null) {
+        super(name, editor, update);
     }
 
     override
@@ -347,24 +343,12 @@ class VertexReorderAction  : VertexAction {
     void updateNewState() {
     }
 
-    override
-    void clear() {
-        connected.clear();
-        super.clear();
-    }
-
     /**
         Rollback
     */
     override
     void rollback() {
         if (undoable) {
-            foreach (v, c; connected) {
-                auto vertex = cast(MeshVertex*)v;
-                foreach (other; c) {
-                    vertex.disconnect(other);
-                }
-            }
             undoable = false;
             editor.refreshMesh();
         }
@@ -376,12 +360,6 @@ class VertexReorderAction  : VertexAction {
     override
     void redo() {
         if (!undoable) {
-            foreach (v, c; connected) {
-                auto vertex = cast(MeshVertex*)v;
-                foreach (other; c) {
-                    vertex.connect(other);
-                }
-            }
             undoable = true;
             editor.refreshMesh();
         }
