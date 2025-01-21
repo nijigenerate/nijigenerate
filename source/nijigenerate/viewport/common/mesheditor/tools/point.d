@@ -29,9 +29,6 @@ class PointTool : NodeSelect {
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) {
             if (!impl.isSelecting && !isDragging) {
-                auto implDrawable = cast(IncMeshEditorOneDrawable)impl;
-                auto mesh = implDrawable.getMesh();
-
                 isDragging = true;
                 action = new VertexMoveAction(impl.getTarget().name, impl);
                 return true;
@@ -48,6 +45,11 @@ class PointTool : NodeSelect {
                 if (auto meshAction = cast(MeshAction)(action)) {
                     if (meshAction.dirty) {
                         meshAction.updateNewState();
+                        incActionPush(action);
+                    }
+                }else if (auto vertAction = cast(VertexAction)(action)) {
+                    if (vertAction.dirty) {
+                        vertAction.updateNewState();
                         incActionPush(action);
                     }
                 }
@@ -104,11 +106,10 @@ class PointTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) impl.maybeSelectOne = ulong(-1);
 
         auto implDrawable = cast(IncMeshEditorOneDrawable)impl;
-        assert(implDrawable !is null);
+        auto implDeformable = cast(IncMeshEditorOneDeformable)impl;
+        assert(implDrawable !is null || implDeformable !is null);
         
-        auto mesh = implDrawable.getMesh();
-        
-        void addOrRemoveVertex(bool selectedOnly) {
+        void addOrRemoveVertex(T)(T implD, bool selectedOnly) {
             // Check if mouse is over a vertex
             auto vtxAtMouse = impl.getVerticesByIndex([impl.vtxAtMouse])[0];
             if (vtxAtMouse !is null) {
@@ -138,7 +139,7 @@ class PointTool : NodeSelect {
             } else {
                 auto action = new VertexAddAction(impl.getTarget().name, impl);
 
-                ulong off = mesh.vertices.length;
+                ulong off = implD.vertices.length;
                 if (impl.isOnMirror(impl.mousePos, impl.meshEditAOE)) {
                     impl.placeOnMirror(impl.mousePos, impl.meshEditAOE);
                 } else {
@@ -149,7 +150,7 @@ class PointTool : NodeSelect {
                 }
                 impl.refreshMesh();
                 impl.vertexMapDirty = true;
-                if (io.KeyCtrl) impl.selectOne(mesh.vertices.length - 1);
+                if (io.KeyCtrl) impl.selectOne(implD.vertices.length - 1);
                 else impl.selectOne(off);
                 changed = true;
 
@@ -196,7 +197,7 @@ class PointTool : NodeSelect {
                     auto v2 = impl.getVerticesByIndex([vInd2])[0];
                     if (v2 !is null) {
                         if (moveAction is null) {
-                            moveAction = new VertexMoveAction(implDrawable.getTarget().name, impl);
+                            moveAction = new VertexMoveAction(impl.getTarget().name, impl);
                         }
                         moveAction.moveVertex(v2, v2.position + mDelta);
                     }
@@ -225,7 +226,10 @@ class PointTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) {
             if (io.KeyCtrl && !io.KeyShift) {
                 // Add/remove action
-                addOrRemoveVertex(false);
+                if (implDrawable)
+                    addOrRemoveVertex(implDrawable, false);
+                else
+                    addOrRemoveVertex(implDeformable, false);
             } else {
                 // Select / drag start
                 if (impl.isPointOver(impl.mousePos)) {
@@ -245,7 +249,10 @@ class PointTool : NodeSelect {
 
         // Left double click action
         if (igIsMouseDoubleClicked(ImGuiMouseButton.Left) && !io.KeyShift && !io.KeyCtrl) {
-            addOrRemoveVertex(true);
+            if (implDrawable)
+                addOrRemoveVertex(implDrawable, true);
+            else
+                addOrRemoveVertex(implDeformable, true);
         }
 
         // Dragging
