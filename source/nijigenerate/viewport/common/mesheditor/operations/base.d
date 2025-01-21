@@ -40,6 +40,7 @@ public:
     abstract bool removeVertex(ImGuiIO* io, bool selectedOnly);
     abstract bool addVertex(ImGuiIO* io);
     abstract bool updateChanged(bool changed);
+    abstract void addMeshVertex(MeshVertex* v2);
     abstract void removeMeshVertex(MeshVertex* v2);
     
     abstract bool isPointOver(vec2 mousePos);

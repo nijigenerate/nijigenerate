@@ -222,6 +222,7 @@ public:
     override bool removeVertex(ImGuiIO* io, bool selectedOnly) { return false; }
     override bool addVertex(ImGuiIO* io) { return false; }
     override bool updateChanged(bool changed) { return changed; }
+    override void addMeshVertex(MeshVertex* v2) {}
     override void removeMeshVertex(MeshVertex* v2) {}
 
     override
