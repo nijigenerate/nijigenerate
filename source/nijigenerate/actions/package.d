@@ -13,6 +13,7 @@ public import nijigenerate.actions.mesheditor;
 public import nijigenerate.actions.drawable;
 public import nijigenerate.actions.mesh;
 public import nijigenerate.actions.deformable;
+public import nijigenerate.actions.vertex;
 
 /**
     An undo/redo-able action
