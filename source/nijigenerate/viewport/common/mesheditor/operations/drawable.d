@@ -298,6 +298,11 @@ public:
     }
 
     override
+    void moveMeshVertex(MeshVertex* v, vec2 newPos) {
+        v.position = newPos;
+    }
+
+    override
     bool isPointOver(vec2 mousePos) {
         return mesh.isPointOverVertex(mousePos);
     }
@@ -639,6 +644,9 @@ public:
 
     override
     void removeMeshVertex(MeshVertex* v2) { }
+
+    override
+    void moveMeshVertex(MeshVertex* v, vec2 newPos) { v.position = newPos; }
 
     override
     bool isPointOver(vec2 mousePos) {

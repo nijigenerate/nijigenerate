@@ -65,9 +65,9 @@ void incViewportModelDeformUpdate(ImGuiIO* io, Camera camera, Parameter param) {
 
     if (editor.update(io, camera)) {
         foreach (d; incSelectedNodes()) {
-            if (Drawable drawable = cast(Drawable)d) {
-                auto deform = cast(DeformationParameterBinding)param.getOrAddBinding(drawable, "deform");
-                deform.update(param.findClosestKeypoint(), editor.getEditorFor(drawable).getOffsets());
+            if (auto deformable = cast(Deformable)d) {
+                auto deform = cast(DeformationParameterBinding)param.getOrAddBinding(deformable, "deform");
+                deform.update(param.findClosestKeypoint(), editor.getEditorFor(deformable).getOffsets());
             }
         }
     }

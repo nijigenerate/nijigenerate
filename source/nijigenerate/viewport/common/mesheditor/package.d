@@ -107,7 +107,6 @@ public:
                         incActionPushStack();
                         subEditor = new IncMeshEditorOneDrawableVertex();
                     }
-                    (cast(IncMeshEditorOneDrawable)subEditor).setTarget(drawable);
                 } else if (auto deformable = cast(Deformable)t) {
                     if (deformOnly)
                         subEditor = new IncMeshEditorOneDeformableDeform();
@@ -117,8 +116,8 @@ public:
                     }
                 } else {
                     subEditor = new IncMeshEditorOneNode(deformOnly);
-                    (cast(IncMeshEditorOneNode)subEditor).setTarget(t);
                 }
+                subEditor.setTarget(t);
                 subEditor.mirrorHoriz = mirrorHoriz;
                 subEditor.mirrorVert  = mirrorVert;
                 subEditor.previewTriangulate = previewTriangulate;

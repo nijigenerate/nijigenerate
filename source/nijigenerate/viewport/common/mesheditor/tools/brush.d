@@ -214,7 +214,7 @@ class BrushTool : NodeSelect {
                 if (v is null)
                     continue;
                 if (weight > 0) {
-                    v.position += diffPos * weight;
+                    impl.moveMeshVertex(v, v.position + diffPos * weight);
                     impl.markActionDirty();
                 }
             }

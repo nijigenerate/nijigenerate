@@ -41,6 +41,22 @@ private {
             node.transform.translation = vec3(value[0], value[1], 0);
         }
     }
+
+    void drawPointSubset(MeshVertex*[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
+        vec3[] subPoints;
+
+        if (subset.length == 0) return;
+
+        // Updates all point positions
+        foreach(vtx; subset) {
+            if (vtx !is null)
+                subPoints ~= vec3(vtx.position, 0);
+        }
+        inDbgSetBuffer(subPoints);
+        inDbgPointsSize(size);
+        inDbgDrawPoints(color, trans);
+    }
+
 }
 
 
@@ -55,6 +71,18 @@ public:
     }
 
     Deformable deformable() { return cast(Deformable)getTarget(); }
+
+    override 
+    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
+        MeshVertex*[] result;
+        foreach (idx; indices) {
+            if (idx < vertices.length)
+                result ~= new MeshVertex(vertices[idx]);
+            else if (!removeNull)
+                result ~= null;
+        }
+        return result;
+    }
 }
 
 /**
@@ -270,6 +298,14 @@ public:
     }
 
     override
+    void moveMeshVertex(MeshVertex* v, vec2 newPos) {
+        long idx = vertices.countUntil!((vec2 vert) { return vert == v.position; } );
+        if (idx < 0)
+            return;
+        vertices[idx] = newPos;
+    }
+
+    override
     bool isPointOver(vec2 mousePos) {
         return isPointOverVertex(vertices, mousePos);
     }
@@ -277,17 +313,6 @@ public:
     override
     ulong[] getInRect(vec2 min, vec2 max, uint groupId = 0) { 
         return nijigenerate.core.math.vertex.getInRect(vertices, selectOrigin, mousePos, groupId);
-    }
-    override 
-    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
-        MeshVertex*[] result;
-        foreach (idx; indices) {
-            if (idx < vertices.length)
-                result ~= new MeshVertex(vertices[idx]);
-            else if (!removeNull)
-                result ~= null;
-        }
-        return result;
     }
 
     override
@@ -360,43 +385,39 @@ public:
 
     override
     void draw(Camera camera) {
-        /*
         mat4 trans = mat4.identity;
+        vec3[] points;
+        points.length = vertices.length;
+        foreach (i; 0..vertices.length) {
+            points[i] = vec3(vertices[i], 0);
+        }
+        if (points.length > 0) {
+            inDbgSetBuffer(points);
+            inDbgPointsSize(10);
+            inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+            inDbgPointsSize(6);
+            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+        }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
             MeshVertex*[] one = getVerticesByIndex([vtxAtMouse], true);
-            mesh.drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
-        }
-
-        if (previewMesh) {
-            previewMesh.drawLines(trans, vec4(0.7, 0.7, 0, 1));
-            mesh.drawPoints(trans);
-        } else {
-            mesh.draw(trans);
-        }
-
-        if (groupId != 0) {
-            MeshVertex*[] vertsInGroup = [];
-            foreach (v; mesh.vertices) {
-                if (v.groupId != groupId) vertsInGroup ~= v;
-            }
-            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
+            drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
         }
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
                 auto selectedVertices = getVerticesByIndex(selected, true);
-                mesh.drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
+                drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
                 auto selectedVertices = getVerticesByIndex(selected, true);
-                mesh.drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
+                drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
         if (mirrorSelected.length) {
             auto mirroredVertices = getVerticesByIndex(mirrorSelected, true);
-            mesh.drawPointSubset(mirroredVertices, vec4(1, 0, 1, 1), trans);
+            drawPointSubset(mirroredVertices, vec4(1, 0, 1, 1), trans);
         }
 
         if (isSelecting) {
@@ -409,11 +430,11 @@ public:
             if (newSelected.length) {
                 if (mutateSelection && invertSelection) {
                     auto newSelectedVertices = getVerticesByIndex(newSelected, true);
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
                 }
                 else {
                     auto newSelectedVertices = getVerticesByIndex(newSelected, true);
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
                 }
             }
         }
@@ -438,7 +459,6 @@ public:
             inDbgSetBuffer(axisLines);
             inDbgDrawLines(vec4(0.8, 0, 0.8, 1), trans);
         }
-        */
         if (toolMode in tools)
             tools[toolMode].draw(camera, this);
     }
@@ -473,16 +493,17 @@ public:
  */
 class IncMeshEditorOneDeformableDeform : IncMeshEditorOneDeformable {
 protected:
+    vec2[] deformation;
+
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
     }
     MeshEditorAction!DeformationAction editorAction = null;
     void updateTarget() {
-        auto drawable = cast(Deformable)target;
-        transform = drawable.getDynamicMatrix();
-        vertices.length = drawable.vertices.length;
-        foreach (i, vert; drawable.vertices) {
-            vertices[i] = drawable.vertices[i] + drawable.deformation[i]; // FIXME: should handle origin
+        transform = deformable.getDynamicMatrix();
+        vertices.length = deformable.vertices.length;
+        foreach (i, vert; deformable.vertices) {
+            vertices[i] = deformable.vertices[i] + deformable.deformation[i]; // FIXME: should handle origin
         }
     }
 
@@ -492,7 +513,6 @@ protected:
             return;
         auto param = incArmedParameter();
         auto binding = cast(DeformationParameterBinding)(param? param.getBinding(drawable, "deform"): null);
-        vec2[] deformation;
         if (binding is null) {
             deformation = drawable.deformation.dup;
         } else {
@@ -518,9 +538,10 @@ public:
 
     override
     void setTarget(Node target) {
-        Deformable drawable = cast(Deformable)target;
-        if (drawable is null)
+        Deformable defromable = cast(Deformable)target;
+        if (defromable is null) {
             return;
+        }
         importDeformation();
         super.setTarget(target);
         updateTarget();
@@ -612,6 +633,14 @@ public:
     void removeMeshVertex(MeshVertex* v2) { }
 
     override
+    void moveMeshVertex(MeshVertex* v, vec2 newPos) { 
+        long idx = vertices.countUntil!((vec2 vert) { return vert == v.position; } );
+        if (idx < 0)
+            return;
+        vertices[idx] = newPos;
+    }
+
+    override
     bool isPointOver(vec2 mousePos) {
         return nijigenerate.core.math.vertex.isPointOverVertex(vertices, mousePos);
     }
@@ -631,18 +660,6 @@ public:
         }
 
         return matching;        
-    }
-
-    override 
-    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
-        MeshVertex*[] result;
-        foreach (idx; indices) {
-            if (idx < vertices.length)
-                result ~= new MeshVertex(vertices[idx]);
-            else if (!removeNull)
-                result ~= null;
-        }
-        return result;
     }
 
     override
@@ -715,10 +732,10 @@ public:
 
     override
     void draw(Camera camera) {
-        auto drawable = cast(Deformable)target;
+        auto deformable = cast(Deformable)target;
         updateTarget();
         auto trans = transform;
-        /*
+
         MeshVertex*[] _getVerticesByIndex(ulong[] indices) {
             MeshVertex*[] result;
             foreach (idx; indices) {
@@ -728,7 +745,7 @@ public:
             return result;
         }
 
-        drawable.drawMeshLines();
+//        drawable.drawMeshLines();
         vec3[] points;
         points.length = vertices.length;
         foreach (i; 0..vertices.length) {
@@ -742,33 +759,25 @@ public:
             inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
         }
 
-        if (groupId != 0) {
-            MeshVertex*[] vertsInGroup = [];
-            foreach (v; mesh.vertices) {
-                if (v.groupId != groupId) vertsInGroup ~= v;
-            }
-            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
-        }
-
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
             MeshVertex*[] one = _getVerticesByIndex([vtxAtMouse]);
-            mesh.drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
+            drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
         }
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
                 auto selectedVertices = _getVerticesByIndex(selected);
-                mesh.drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
+                drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
                 auto selectedVertices = _getVerticesByIndex(selected);
-                mesh.drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
+                drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
         if (mirrorSelected.length) {
             auto mirrorSelectedVertices = _getVerticesByIndex(mirrorSelected);
-            mesh.drawPointSubset(mirrorSelectedVertices, vec4(1, 0, 1, 1), trans);
+            drawPointSubset(mirrorSelectedVertices, vec4(1, 0, 1, 1), trans);
         }
 
         if (isSelecting) {
@@ -781,9 +790,9 @@ public:
             if (newSelected.length) {
                 auto newSelectedVertices = _getVerticesByIndex(newSelected);
                 if (mutateSelection && invertSelection)
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
                 else
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
@@ -807,7 +816,6 @@ public:
             inDbgSetBuffer(axisLines);
             inDbgDrawLines(vec4(0.8, 0, 0.8, 1), trans);
         }
-        */
 
         if (toolMode in tools)
             tools[toolMode].draw(camera, this);

@@ -42,6 +42,7 @@ public:
     abstract bool updateChanged(bool changed);
     abstract void addMeshVertex(MeshVertex* v2);
     abstract void removeMeshVertex(MeshVertex* v2);
+    abstract void moveMeshVertex(MeshVertex* v, vec2 newPos);
     
     abstract bool isPointOver(vec2 mousePos);
     abstract ulong[] getInRect(vec2 min, vec2 max, uint groupId);
