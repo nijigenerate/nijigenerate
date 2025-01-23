@@ -224,6 +224,7 @@ public:
     override bool updateChanged(bool changed) { return changed; }
     override void addMeshVertex(MeshVertex* v2) {}
     override void removeMeshVertex(MeshVertex* v2) {}
+    override void moveMeshVertex(MeshVertex* v, vec2 newPos) {}
 
     override
     bool isPointOver(vec2 mousePos) {

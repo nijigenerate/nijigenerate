@@ -258,7 +258,7 @@ class VertexMoveAction  : VertexAction {
         } else {
             translations[vertex] = Translation(vertex.position, newPos);
         }
-        vertex.position = newPos;
+        editor.moveMeshVertex(vertex, newPos);
         dirty = true;
     }
 
