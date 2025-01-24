@@ -40,8 +40,8 @@ void incViewportNodeDeformNotifyParamValueChanged() {
         foreach (node; editor.getTargets()) {
             auto e = editor.getEditorFor(node);
             DeformationParameterBinding deform = null;
-            if (auto drawable = cast(Drawable)node)
-                deform = cast(DeformationParameterBinding)param.getBinding(drawable, "deform");
+            if (auto deformable = cast(Deformable)node)
+                deform = cast(DeformationParameterBinding)param.getBinding(deformable, "deform");
             if (e !is null) {
                 if (deform !is null) {
                     auto binding = deform.getValue(param.findClosestKeypoint());

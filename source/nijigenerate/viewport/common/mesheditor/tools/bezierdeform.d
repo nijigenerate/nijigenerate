@@ -303,15 +303,15 @@ class BezierDeformTool : NodeSelect {
 
         } else if (action == BezierDeformActionID.Rotate) {
             int step = (pathDragTarget > lockedPoint)? 1: -1;
-            vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint];
-            vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint];
+            vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint].position;
+            vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint].position;
             float prevAngle = atan2(prevRelPosition.y, prevRelPosition.x);
             float angle     = atan2(relPosition.y, relPosition.x);
             float relAngle = angle - prevAngle;
-            mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint], 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint], 0));
+            mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
 
             for (int i = lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
-                deformImpl.vertices[i] = (rotate * vec4(deformImpl.vertices[i], 0, 1)).xy;
+                deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
             }
 
         } else if (action == BezierDeformActionID.Shift || action == BezierDeformActionID.StartShiftTransform) {
@@ -320,13 +320,13 @@ class BezierDeformTool : NodeSelect {
 //                float off = findClosestPointOffset(deformImpl.vertices, impl.mousePos);
 //                vec2 pos  = path.eval(off);
                 vec2 pos;
-                deformImpl.vertices[pathDragTarget] = pos;
+                deformImpl.vertices[pathDragTarget].position = pos;
             }
         
         } else if (action == BezierDeformActionID.Transform || action == BezierDeformActionID.StartTransform) {
             if(pathDragTarget != -1){
                 vec2 relTranslation = impl.mousePos - impl.lastMousePos;
-                deformImpl.vertices[pathDragTarget] += relTranslation;
+                deformImpl.vertices[pathDragTarget].position += relTranslation;
             }
         }
 
@@ -390,15 +390,15 @@ class BezierDeformTool : NodeSelect {
 
         } else if (action == BezierDeformActionID.Rotate) {
             int step = (pathDragTarget > lockedPoint)? 1: -1;
-            vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint];
-            vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint];
+            vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint].position;
+            vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint].position;
             float prevAngle = atan2(prevRelPosition.y, prevRelPosition.x);
             float angle     = atan2(relPosition.y, relPosition.x);
             float relAngle = angle - prevAngle;
-            mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint], 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
+            mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
 
             for (int i = lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
-                deformImpl.vertices[i] = (rotate * vec4(deformImpl.vertices[i], 0, 1)).xy;
+                deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
             }
 
         } else if (action == BezierDeformActionID.Shift || action == BezierDeformActionID.StartShiftTransform) {
@@ -406,13 +406,13 @@ class BezierDeformTool : NodeSelect {
 //                float off = path.findClosestPointOffset(impl.mousePos);
 //                vec2 pos  = path.eval(off);
                 vec2 pos;
-                deformImpl.vertices[pathDragTarget] = pos;
+                deformImpl.vertices[pathDragTarget].position = pos;
             }
         
         } else if (action == BezierDeformActionID.Transform || action == BezierDeformActionID.StartTransform) {
             if(pathDragTarget != -1){
                 vec2 relTranslation = impl.mousePos - impl.lastMousePos;
-                deformImpl.vertices[pathDragTarget] += relTranslation;
+                deformImpl.vertices[pathDragTarget].position += relTranslation;
             }
         }
 

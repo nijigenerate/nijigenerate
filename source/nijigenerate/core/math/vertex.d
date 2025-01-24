@@ -101,7 +101,7 @@ int findPoint(T)(T[] vertices, vec2 point) {
     uint bestIdx = 0;
     float bestDist = float.infinity;
     foreach(idx, pt; vertices) {
-        float dist = pt.distance(point);
+        float dist = pt.position.distance(point);
         if (dist < bestDist) {
             bestDist = dist;
             bestIdx = cast(uint)idx;
