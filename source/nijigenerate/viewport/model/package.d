@@ -19,9 +19,12 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
+import nijilive.core.dbg;
 import bindbc.imgui;
 import i18n;
 import std.stdio;
+import std.algorithm;
+import std.array;
 
 private {
     Part[] foundParts;
@@ -293,6 +296,26 @@ void incViewportModelDraw(Camera camera) {
                     if (incShowVertices || incEditMode != EditMode.ModelEdit) {
                         selectedDraw.drawMeshLines();
                     }
+                } else if (auto deformable = cast(Deformable)selectedNode) {
+
+                    /**
+                        Draws the mesh
+                    */
+                    void drawLines(Deformable deformable, mat4 trans = mat4.identity, vec4 color = vec4(0.7, 1, 0.7, 1)) {
+                        writefln("draw: deformable: %d", deformable.vertices.length);
+                        vec3[] lines;
+                        foreach (i, v; deformable.vertices) {
+                            if (i > 0) {
+                                lines ~= vec3(deformable.vertices[i-1] + deformable.deformation[i-1], 0);
+                                lines ~= vec3(v + deformable.deformation[i], 0);
+                            }
+                        }
+                        if (lines.length > 0) {
+                            inDbgSetBuffer(lines);
+                            inDbgDrawLines(color, trans);
+                        }
+                    }
+                    drawLines(deformable, deformable.transform.matrix);        
                 }
                 
                 if (Driver selectedDriver = cast(Driver)selectedNode) {

@@ -260,6 +260,7 @@ bool incOpenProject(string mainPath, string backupPath) {
     incResetRootNode(puppet);
 
     incActiveProject().puppet = puppet;
+    puppet.root.build();
     foreach (func; loadCallbacks)
         func(puppet);
     incFocusCamera(incActivePuppet().root);
