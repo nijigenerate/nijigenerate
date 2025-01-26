@@ -402,6 +402,13 @@ public:
     void draw(Camera camera) {
         mat4 trans = mat4.identity;
         vec3[] points;
+        points ~= vec3(0, 0, 0);
+        inDbgSetBuffer(points);
+        inDbgPointsSize(10);
+        inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+        inDbgPointsSize(6);
+        inDbgDrawPoints(vec4(0.5, 1, 0.5, 1), trans);
+
         points.length = vertices.length;
         foreach (i; 0..vertices.length) {
             points[i] = vec3(vertices[i].position, 0);
@@ -750,6 +757,14 @@ public:
         auto trans = transform;
 
         vec3[] points;
+
+        points ~= vec3(0, 0, 0);
+        inDbgSetBuffer(points);
+        inDbgPointsSize(10);
+        inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+        inDbgPointsSize(6);
+        inDbgDrawPoints(vec4(0.5, 1, 0.5, 1), trans);
+
         points.length = vertices.length;
         foreach (i; 0..vertices.length) {
             points[i] = vec3(vertices[i].position, 0);

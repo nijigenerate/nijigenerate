@@ -301,7 +301,7 @@ void incViewportModelDraw(Camera camera) {
                     /**
                         Draws the mesh
                     */
-                    void drawLines(Deformable deformable, mat4 trans = mat4.identity, vec4 color = vec4(0.7, 1, 0.7, 1)) {
+                    void drawLines(Deformable deformable, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
                         vec3[] lines;
                         foreach (i, v; deformable.vertices) {
                             if (i > 0) {
