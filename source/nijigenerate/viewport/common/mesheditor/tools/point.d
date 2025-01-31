@@ -156,13 +156,15 @@ class PointTool : NodeSelect {
                 if (io.KeyCtrl) impl.selectOne(implD.vertices.length - 1);
                 else impl.selectOne(off);
                 changed = true;
+                /*
+                /// FIXME: Disabled auto connection because Action class is changed and degraded in bezier-deform branch.
 
                 // connect if there is a selected vertex
                 void connectVertex(ref MeshVertex* vertex) {
                     if (vertex is null) return;
 
                     // search last MeshAddAction to connect
-                    auto lastAddAction = incActionFindLast!MeshAddAction(3);
+                    auto lastAddAction = incActionFindLast!VertexAddAction(3);
                     if (lastAddAction is null || lastAddAction.vertices.length == 0) return;
 
                     auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.axisVertices[0][$ - 1].position);
@@ -186,8 +188,9 @@ class PointTool : NodeSelect {
 
                 MeshVertex* vertex;
                 addVertex(vertex);
-                if (autoConnect)
-                    connectVertex(vertex);
+                */
+//                if (autoConnect)
+//                    connectVertex(vertex);
             }
         }
 
