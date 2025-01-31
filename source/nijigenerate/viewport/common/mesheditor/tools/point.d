@@ -26,6 +26,9 @@ import std.stdio;
 class PointTool : NodeSelect {
     Action action;
 
+    // using static for remembering the last setting
+    static bool autoConnect = false;
+
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) {
             if (!impl.isSelecting && !isDragging) {
@@ -154,8 +157,37 @@ class PointTool : NodeSelect {
                 else impl.selectOne(off);
                 changed = true;
 
-                action.updateNewState();
-                incActionPush(action);
+                // connect if there is a selected vertex
+                void connectVertex(ref MeshVertex* vertex) {
+                    if (vertex is null) return;
+
+                    // search last MeshAddAction to connect
+                    auto lastAddAction = incActionFindLast!MeshAddAction(3);
+                    if (lastAddAction is null || lastAddAction.vertices.length == 0) return;
+
+                    auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.axisVertices[0][$ - 1].position);
+                    auto prevVertex = impl.getVerticesByIndex([prevVertexIdx])[0];
+                    if (prevVertex == null) return;
+                    auto action = new MeshConnectAction(impl.getTarget().name, impl, mesh);
+                    impl.foreachMirror((uint axis) {
+                        MeshVertex* mPrev = impl.mirrorVertex(axis, prevVertex);
+                        MeshVertex* mSel  = impl.mirrorVertex(axis, vertex);
+
+                        if (mPrev !is null && mSel !is null) {
+                            action.connect(mPrev, mSel);
+                        }
+                    });
+                    impl.refreshMesh();
+                    action.updateNewState();
+                    incActionPush(action);
+
+                    changed = true;
+                }
+
+                MeshVertex* vertex;
+                addVertex(vertex);
+                if (autoConnect)
+                    connectVertex(vertex);
             }
         }
 
@@ -431,6 +463,13 @@ class PointTool : NodeSelect {
         return changed;
     }
 
+    bool isAutoConnect() {
+        return autoConnect;
+    }
+
+    void setAutoConnect(bool autoConnect) {
+        this.autoConnect = autoConnect;
+    }
 }
 
 class ToolInfoImpl(T: PointTool) : ToolInfoBase!(T) {
@@ -440,4 +479,25 @@ class ToolInfoImpl(T: PointTool) : ToolInfoBase!(T) {
     string icon() { return ""; }
     override
     string description() { return _("Vertex Tool"); }
+
+    override
+    bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) { 
+        if (deformOnly) {
+
+        } else {
+            auto pointTool = cast(PointTool)(editors.length == 0 ? null: editors.values()[0].getTool());
+            igBeginGroup();
+                if (incButtonColored("", ImVec2(0, 0), (pointTool !is null && !pointTool.isAutoConnect())? ImVec4(0.6, 0.6, 0.6, 1) : colorUndefined)) {
+                foreach (e; editors) {
+                    auto pt = cast(PointTool)(e.getTool());
+                    if (pt !is null)
+                        pt.setAutoConnect(!pt.isAutoConnect());
+                }
+                }
+                incTooltip(_("Auto connect vertices"));
+            igEndGroup();
+        }
+
+        return false;
+    }
 }

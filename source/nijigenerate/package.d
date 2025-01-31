@@ -28,6 +28,7 @@ import nijigenerate.core.colorbleed;
 
 import std.path;
 import std.format;
+import std.file : rename;
 import i18n;
 import std.algorithm.searching;
 import nijilive.core.animation.player;
@@ -248,6 +249,21 @@ bool incOpenProject(string mainPath, string backupPath) {
         // Also handle NFS or I/O errors
         incDialog(__("Error"), ex.msg);
         return false;
+    } catch (Exception ex) {
+        // for user, we should show a dialog and dump the thrown stack
+        import std.file : write;
+        import nijigenerate.utils.crashdump;
+        string report;
+
+        try {
+            string path = writeCrashDump("nijigenerate-runtime-error", ex);
+            report = _("Please report this file to the developers:\n\n%s").format(path);
+        } catch (Exception dumpEx) {
+            report = _("Failed to write crash dump file." ~ dumpEx.msg);
+        }
+
+        incDialog(__("Error"), ex.msg ~ "\n\n" ~ report);
+        return false;
     }
 
     // Clear out stuff by creating a new project
@@ -293,8 +309,10 @@ void incSaveProject(string path, string autosaveStamp = "") {
         foreach (func; saveCallbacks)
             func(incActivePuppet());
 
-        // Write the puppet to file
-        inWriteINPPuppet(incActivePuppet(), finalPath);
+        // Write the puppet to file, using swp prevent file corruption
+        string swapPath = finalPath ~ ".swp";
+        inWriteINPPuppet(incActivePuppet(), swapPath);
+        rename(swapPath, finalPath);
 
         if (!isAutosave) incReleaseLockfile();
         incActivePuppet().resetDrivers();

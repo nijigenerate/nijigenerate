@@ -14,18 +14,19 @@ If you are a VTuber wanting to use nijilive we highly recommend checking out [ni
 &nbsp;
 
 ## Downloads
-No official build provided for time being.
+No official stable build provided for time being.
 <!--
 ### Stable Builds
 
 &nbsp;&nbsp;&nbsp;&nbsp;
 [![Buy on itch.io](https://img.shields.io/github/v/release/nijigenerate/nijigenerate?color=%23fa5c5c&label=itch.io&logo=itch.io&style=for-the-badge)](https://lunafoxgirlvt.itch.io/nijigenerate)
-
+-->
 ### Experimental Builds
 
-&nbsp;&nbsp;&nbsp;&nbsp;
+We have a nightly build binary and a weekly build Flatpak available, but we do not guarantee stability. These versions may crash unexpectedly, and you are likely to encounter bugs. Be sure to save and back up your work frequently!
+
 [![Nightly Builds](https://img.shields.io/github/actions/workflow/status/nijigenerate/nijigenerate/nightly.yml?label=Nightly&style=for-the-badge)](https://github.com/nijigenerate/nijigenerate/releases/tag/nightly)  
--->
+
 &nbsp;
 
 ## For package maintainers
