@@ -37,7 +37,7 @@ jobs:
         cp out/* otl/
 
     - name: Make Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: translations
         path: otl/*
@@ -105,7 +105,7 @@ jobs:
         compiler: ldc-latest
         
     - name: Download translations
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: translations
         path: out/i18n/
