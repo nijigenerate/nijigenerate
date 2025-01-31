@@ -73,7 +73,6 @@ abstract class MeshAction  : LazyBoundAction {
     }
 };
 
-
 class MeshConnectAction  : MeshAction {
     MeshVertex*[][MeshVertex*] connected;
 

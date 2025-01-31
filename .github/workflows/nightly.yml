@@ -37,7 +37,7 @@ jobs:
         cp out/* otl/
 
     - name: Make Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: translations
         path: otl/*
@@ -54,6 +54,7 @@ jobs:
     
     - name: "Get build dependencies"
       run: |
+        sudo apt-get update
         sudo apt install libsdl2-dev libfreetype6-dev gettext
 
     - name: 'Generate i18n'
@@ -104,7 +105,7 @@ jobs:
         compiler: ldc-latest
         
     - name: Download translations
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: translations
         path: out/i18n/
