@@ -296,25 +296,24 @@ void incViewportModelDraw(Camera camera) {
                     if (incShowVertices || incEditMode != EditMode.ModelEdit) {
                         selectedDraw.drawMeshLines();
                     }
-                } else if (auto deformable = cast(Deformable)selectedNode) {
+                } else if (auto deformable = cast(BezierDeformer)selectedNode) {
 
                     /**
                         Draws the mesh
                     */
-                    void drawLines(Deformable deformable, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                    void drawLines(BezierCurve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
                         vec3[] lines;
-                        foreach (i, v; deformable.vertices) {
-                            if (i > 0) {
-                                lines ~= vec3(deformable.vertices[i-1] + deformable.deformation[i-1], 0);
-                                lines ~= vec3(v + deformable.deformation[i], 0);
-                            }
+                        foreach (i; 1..100) {
+                            lines ~= vec3(curve.point((i - 1) / 100.0), 0);
+                            lines ~= vec3(curve.point(i / 100.0), 0);
                         }
                         if (lines.length > 0) {
                             inDbgSetBuffer(lines);
                             inDbgDrawLines(color, trans);
                         }
                     }
-                    drawLines(deformable, deformable.transform.matrix);        
+                    drawLines(deformable.originalCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                    drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                 }
                 
                 if (Driver selectedDriver = cast(Driver)selectedNode) {
