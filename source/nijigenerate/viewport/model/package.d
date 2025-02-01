@@ -302,6 +302,8 @@ void incViewportModelDraw(Camera camera) {
                         Draws the mesh
                     */
                     void drawLines(BezierCurve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                        if (curve.controlPoints.length == 0)
+                            return;
                         vec3[] lines;
                         foreach (i; 1..100) {
                             lines ~= vec3(curve.point((i - 1) / 100.0), 0);

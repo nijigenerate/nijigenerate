@@ -11,15 +11,17 @@ Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBin
     if (!binding) {
         return null;
     }
-    Drawable part = cast(Drawable)binding.getTarget().node;
-    if (!part) {
-        return null;
+    if (auto part = cast(Drawable)binding.getTarget().node) {
+        Deformation deform = binding.getValue(index);
+        return deformByDeformationBinding(vertices, part, deform, flipHorz);
+    } else if (auto deformable = cast(Deformable)binding.getTarget().node) {
+        Deformation deform = binding.getValue(index);
+        return deformByDeformationBinding(vertices, deformable, deform, flipHorz);
     }
-    Deformation deform = binding.getValue(index);
-    return deformByDeformationBinding(vertices, part, deform, flipHorz);
+    return null;
 }
 
-Deformation* deformByDeformationBinding(T)(T[] vertices, Drawable part, Deformation deform, bool flipHorz = false) {
+Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, Deformation deform, bool flipHorz = false) {
 
     // Check whether deform has more than 1 triangle.
     // If not, returns default Deformation which has dummpy offsets.
@@ -160,6 +162,53 @@ Deformation* deformByDeformationBinding(T)(T[] vertices, Drawable part, Deformat
         if (flipHorz)
             newPos.x = -newPos.x;
         newDeform.vertexOffsets ~= newPos - position(origVertices[i]);
+    }
+    return newDeform;
+}
+
+Deformation* deformByDeformationBinding(T, S: Deformable)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
+    // Check whether deform has more than 1 triangle.
+    // If not, returns default Deformation which has dummpy offsets.
+    if (deform.vertexOffsets.length < 2 || vertices.length < 2 || deformable.vertices.length < 2) {
+        vec2[] vertexOffsets = [];
+        for (int i = 0; i < vertices.length; i++)
+            vertexOffsets ~= vec2(0, 0);
+        return new Deformation(vertexOffsets);
+    }
+
+    auto origControlPoints     = deformable.vertices.dup;
+    auto deformedControlPoints = deformable.vertices.dup;
+    foreach (i; 0..origControlPoints.length) {
+        deformedControlPoints[i] += deform.vertexOffsets[i];
+    }
+    auto originalCurve = BezierCurve(origControlPoints);
+    auto deformedCurve = BezierCurve(deformedControlPoints);
+
+    vec2[] deformedVertices;
+    deformedVertices.length = vertices.length;
+    Deformation* newDeform = new Deformation([]);
+
+    foreach (i, v; vertices) {
+        auto cVertex = position(v);
+        float t = originalCurve.closestPoint(cVertex);
+        vec2 closestPointOriginal = originalCurve.point(t);
+        vec2 tangentOriginal = originalCurve.derivative(t).normalized;
+        vec2 normalOriginal = vec2(-tangentOriginal.y, tangentOriginal.x);
+        float originalNormalDistance = dot(cVertex - closestPointOriginal, normalOriginal); 
+        float tangentialDistance = dot(cVertex - closestPointOriginal, tangentOriginal);
+
+        // Find the corresponding point on the deformed Bezier curve
+        vec2 closestPointDeformedA = deformedCurve.point(t); // 修正: deformedCurve を使用
+        vec2 tangentDeformed = deformedCurve.derivative(t).normalized; // 修正: deformedCurve を使用
+        vec2 normalDeformed = vec2(-tangentDeformed.y, tangentDeformed.x);
+
+        // Adjust the vertex to maintain the same normal and tangential distances
+        vec2 deformedVertex = closestPointDeformedA + normalDeformed * originalNormalDistance + tangentDeformed * tangentialDistance;
+
+        deformedVertices[i] = deformedVertex;
+        if (flipHorz)
+            deformedVertices[i] *= -1;
+        newDeform.vertexOffsets ~= deformedVertices[i] - position(v);
     }
     return newDeform;
 }
