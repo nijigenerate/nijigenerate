@@ -1,6 +1,7 @@
 module nijigenerate.panels.inspector.meshgroup;
 
 import nijigenerate.panels.inspector.common;
+import nijigenerate;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijilive;
@@ -8,7 +9,7 @@ import i18n;
 
 /// Model View
 
-void incInspectorModelMeshGroup(MeshGroup node) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup)(T node) {
     if (incBeginCategory(__("MeshGroup"))) {
         
 

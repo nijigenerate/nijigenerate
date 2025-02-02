@@ -39,55 +39,10 @@ private {
                         Parameter param = incArmedParameter();
                         vec2u cursor = param.findClosestKeypoint();
                         incCommonNonEditHeader(node);
-                        incInspectorDeformTRS(node, param, cursor);
-
-                        // Node Part Section
-                        if (Part part = cast(Part)node) {
-                            incInspectorDeformPart(part, param, cursor);
-                        }
-
-                        if (Composite composite = cast(Composite)node) {
-                            incInspectorDeformComposite(composite, param, cursor);
-                        }
-
-                        if (SimplePhysics phys = cast(SimplePhysics)node) {
-                            incInspectorDeformSimplePhysics(phys, param, cursor);
-                        }
-
+                        neInspector!(ModelEditSubMode.Deform)(node, param, cursor);
                     } else {
                         incModelModeHeader(node);
-                        incInspectorModelTRS(node);
-
-                        // Node Camera Section
-                        if (ExCamera camera = cast(ExCamera)node) {
-                            incInspectorModelCamera(camera);
-                        }
-
-                        // Node Drawable Section
-                        if (Composite composite = cast(Composite)node) {
-                            incInspectorModelComposite(composite);
-                        }
-
-
-                        // Node Drawable Section
-                        if (Drawable drawable = cast(Drawable)node) {
-                            incInspectorModelDrawable(drawable);
-                        }
-
-                        // Node Part Section
-                        if (Part part = cast(Part)node) {
-                            incInspectorModelPart(part);
-                        }
-
-                        // Node SimplePhysics Section
-                        if (SimplePhysics part = cast(SimplePhysics)node) {
-                            incInspectorModelSimplePhysics(part);
-                        }
-
-                        // Node MeshGroup Section
-                        if (MeshGroup group = cast(MeshGroup)node) {
-                            incInspectorModelMeshGroup(group);
-                        }
+                        neInspector!(ModelEditSubMode.Layout)(node);
                     }
                 
                 break;
@@ -95,7 +50,7 @@ private {
                     incCommonNonEditHeader(node);
                     break;
             }
-        } else incInspectorModelInfo();        
+        } else incInspector!(ModelEditSubMode.Layout)(incActivePuppet());        
     }
 
     void onParameterView(ulong index, Parameter param) {

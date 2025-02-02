@@ -168,7 +168,7 @@ void incInspectorTextureSlot(Part p, TextureUsage usage, string title, ImVec2 el
     igPopID();
 }
 
-void incInspectorModelPart(Part node) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part)(T node) {
     if (incBeginCategory(__("Part"))) {
         if (!node.getMesh().isReady()) { 
             igSpacing();
@@ -512,7 +512,7 @@ ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, flo
 
 /// Armed Parameter View
 
-void incInspectorDeformPart(Part node, Parameter param, vec2u cursor) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part)(T node, Parameter param, vec2u cursor) {
     if (incBeginCategory(__("Part"))) {
         igBeginGroup();
             igIndent(16);

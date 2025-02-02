@@ -15,7 +15,7 @@ import i18n;
 
 /// Model View
 
-void incInspectorModelSimplePhysics(SimplePhysics node) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhysics)(T node) {
     if (incBeginCategory(__("SimplePhysics"))) {
         float adjustSpeed = 1;
 
@@ -149,7 +149,7 @@ void incInspectorModelSimplePhysics(SimplePhysics node) {
 
 /// Armed Parameter View
 
-void incInspectorDeformSimplePhysics(SimplePhysics node, Parameter param, vec2u cursor) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: SimplePhysics)(T node, Parameter param, vec2u cursor) {
     if (incBeginCategory(__("Simple Physics"))) {
         float adjustSpeed = 1;
         igPushID("SimplePhysics");
