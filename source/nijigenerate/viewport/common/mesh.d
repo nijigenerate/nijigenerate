@@ -19,45 +19,8 @@ import nijilive.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.algorithm;
-
-struct MeshVertex {
-    vec2 position;
-    MeshVertex*[] connections;
-    uint groupId = 1;
-}
-
-void connect(MeshVertex* self, MeshVertex* other) {
-    if (isConnectedTo(self, other)) return;
-
-    self.connections ~= other;
-    other.connections ~= self;
-}
- 
-void disconnect(MeshVertex* self, MeshVertex* other) {
-    import std.algorithm.searching : countUntil;
-    import std.algorithm.mutation : remove;
-    
-    auto idx = other.connections.countUntil(self);
-    if (idx != -1) other.connections = remove(other.connections, idx);
-
-    idx = self.connections.countUntil(other);
-    if (idx != -1) self.connections = remove(self.connections, idx);
-}
-
-void disconnectAll(MeshVertex* self) {
-    while(self.connections.length > 0) {
-        self.disconnect(self.connections[0]);
-    }
-}
-
-bool isConnectedTo(MeshVertex* self, MeshVertex* other) {
-    if (other == null) return false;
-
-    foreach(conn; other.connections) {
-        if (conn == self) return true;
-    }
-    return false;
-}
+import nijigenerate.core.math;
+public import nijigenerate.core.math.mesh;
 
 class IncMesh {
 private:
@@ -494,34 +457,19 @@ public:
     }
 
     bool isPointOverVertex(vec2 point) {
-        foreach(vert; vertices) {
-            if (abs(vert.position.distance(point)) < selectRadius/incViewportZoom) return true;
-        }
-        return false;
+        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, point);
     }
 
     void removeVertexAt(vec2 point) {
-        foreach(i; 0..vertices.length) {
-            if (abs(vertices[i].position.distance(point)) < selectRadius/incViewportZoom) {
-                this.remove(vertices[i]);
-                return;
-            }
-        }
+        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i) { this.remove(i); })(vertices, point);
     }
 
     ulong getVertexFromPoint(vec2 point) {
-        foreach(idx, ref vert; vertices) {
-            if (abs(vert.position.distance(point)) < selectRadius/incViewportZoom) return idx;
-        }
-        return -1;
+        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, point);
     }
 
     float[] getVerticesInBrush(vec2 point, Brush brush) {
-        float[] indices;
-        foreach(idx, ref vert; vertices) {
-            indices ~= brush.weightAt(point, vert.position);
-        }
-        return indices;
+        return nijigenerate.core.math.vertex.getVerticesInBrush(vertices, point, brush);
     }
 
     void remove(MeshVertex* vert) {
@@ -544,15 +492,6 @@ public:
             offsets[idx] = vertex.position - data.vertices[idx];
         }
         return offsets;
-    }
-
-    void setBackOffsets(vec2[] offsets) {
-        foreach(idx, vertex; offsets) {
-            vertices[idx].position = offsets[idx] + data.vertices[idx];
-        }
-        regen();
-        regenConnections();
-        changed = true;
     }
 
     void applyOffsets(vec2[] offsets) {
@@ -587,32 +526,11 @@ public:
     }
 
     void getBounds(out vec2 min, out vec2 max) {
-        min = vec2(float.infinity, float.infinity);
-        max = vec2(-float.infinity, -float.infinity);
-
-        foreach(idx, vertex; vertices) {
-            if (min.x > vertex.position.x) min.x = vertex.position.x;
-            if (min.y > vertex.position.y) min.y = vertex.position.y;
-            if (max.x < vertex.position.x) max.x = vertex.position.x;
-            if (max.y < vertex.position.y) max.y = vertex.position.y;
-        }
+        nijigenerate.core.math.getBounds(vertices, min, max);
     }
 
     ulong[] getInRect(vec2 min, vec2 max, uint groupId = 0) {
-        if (min.x > max.x) swap(min.x, max.x);
-        if (min.y > max.y) swap(min.y, max.y);
-
-        ulong[] matching;
-        foreach(idx, vertex; vertices) {
-            if (min.x > vertex.position.x) continue;
-            if (min.y > vertex.position.y) continue;
-            if (max.x < vertex.position.x) continue;
-            if (max.y < vertex.position.y) continue;
-            if (groupId > 0 && groupId != vertex.groupId) continue;
-            matching ~= idx;
-        }
-
-        return matching;
+        return nijigenerate.core.math.getInRect(vertices, min, max, groupId);
     }
 
     IncMesh autoTriangulate() {
