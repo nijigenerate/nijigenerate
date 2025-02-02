@@ -1,13 +1,4 @@
-/*
-    Copyright © 2022, Inochi2D Project
-    Copyright © 2024, nijigenerate Project
-    Distributed under the 2-Clause BSD License, see LICENSE file.
-
-    Authors:
-    - Luna Nielsen
-    - Asahi Lina
-*/
-module nijigenerate.viewport.common.mesheditor.operations.drawable;
+module nijigenerate.viewport.common.mesheditor.operations.deformable;
 
 import i18n;
 import nijigenerate.viewport;
@@ -19,12 +10,14 @@ import nijigenerate.viewport.common.mesheditor.brushes;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
+import nijigenerate.core.math;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.utils: removeByValue;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
@@ -32,54 +25,93 @@ import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
 import std.range: enumerate;
+import std.algorithm: map;
+import std.array;
 
-void incUpdateWeldedPoints(Drawable drawable) {
-    foreach (welded; drawable.welded) {
-        ptrdiff_t[] indices;
-        foreach (i, v; drawable.vertices) {
-            auto vv = drawable.transform.matrix * vec4(v, 0, 1);
-            auto minDistance = welded.target.vertices.enumerate.minElement!((a)=>(welded.target.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
-            if ((welded.target.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
-                indices ~= minDistance[0];
-            else
-                indices ~= -1;
+private {
+    vec2[] getVertices(T)(T node) {
+        if (auto deform = cast(Deformable)node) {
+            return deform.vertices;
         }
-        incActionPush(new DrawableChangeWeldingAction(drawable, welded.target, indices, welded.weight));
+        return [node.transform.translation.xy];
     }
+    void setVertices(T)(T node, vec2[] value) {
+        if (auto deform = cast(Deformable)node) {
+            deform.vertices = value;
+        } else {
+            node.transform.translation = vec3(value[0], value[1], 0);
+        }
+    }
+    vec2[] toVertices(T: MeshVertex*)(T[] array) {
+        return array.map!((MeshVertex* vtx){return vtx.position; }).array;
+    }
+    MeshVertex*[] toMVertices(T: vec2)(T[] array) {
+        return array.map!((vec2 vtx) { return new MeshVertex(vtx); }).array;
+    }
+
+    void resize(T:MeshVertex*)(ref T[] array, ulong size) {
+        if (size <= array.length) {
+            array.length = size;
+        } else {
+            while (size != 0) {
+                array ~= new MeshVertex;
+                size --;
+            }
+        }
+    }
+
+    void drawPointSubset(MeshVertex*[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
+        vec3[] subPoints;
+
+        if (subset.length == 0) return;
+
+        // Updates all point positions
+        foreach(vtx; subset) {
+            if (vtx !is null)
+                subPoints ~= vec3(vtx.position, 0);
+        }
+        inDbgSetBuffer(subPoints);
+        inDbgPointsSize(size);
+        inDbgDrawPoints(color, trans);
+    }
+
 }
 
-class IncMeshEditorOneDrawable : IncMeshEditorOneImpl!Drawable {
+
+class IncMeshEditorOneDeformable : IncMeshEditorOneImpl!Deformable {
 protected:
+    bool changed;
 public:
-    IncMesh mesh;
+    MeshVertex*[] vertices;
 
     this(bool deformOnly) {
         super(deformOnly);
     }
 
-    ref IncMesh getMesh() {
-        return mesh;
-    }
+    Deformable deformable() { return cast(Deformable)getTarget(); }
 
-    void setMesh(IncMesh mesh) {
-        this.mesh = mesh;
-    }
-
-    MeshVertex*[] vertices() {
-        return mesh.vertices;
+    override 
+    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
+        MeshVertex*[] result;
+        foreach (idx; indices) {
+            if (idx < vertices.length)
+                result ~= vertices[idx];
+            else if (!removeNull)
+                result ~= null;
+        }
+        return result;
     }
 }
 
 /**
- * MeshEditor of Drawable for vertex operation.
+ * MeshEditor of Deformable for vertex operation.
  */
-class IncMeshEditorOneDrawableVertex : IncMeshEditorOneDrawable {
+class IncMeshEditorOneDeformableVertex : IncMeshEditorOneDeformable {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
-        mesh.vertices ~= meshVertex;
+        deformable.vertices ~= meshVertex.position;
     }
-    IncMesh previewMesh;
     MeshEditorAction!DeformationAction editorAction = null;
 
 public:
@@ -89,41 +121,35 @@ public:
 
     override
     void setTarget(Node target) {
-        Drawable drawable = cast(Drawable)target;
-        if (drawable is null)
+        Deformable deformable = cast(Deformable)target;
+        if (deformable is null)
             return;
         super.setTarget(target);
+        this.vertices = getTarget().getVertices().toMVertices;
         transform = target ? target.transform.matrix : mat4.identity;
-        mesh = new IncMesh(drawable.getMesh());
-        refreshMesh();
     }
 
     override
     void resetMesh() {
-        mesh.reset();
+        this.vertices = getTarget().getVertices().toMVertices;
+        // TBD
     }
 
     override
     void refreshMesh() {
-        mesh.refresh();
-        if (previewingTriangulation()) {
-            previewMesh = mesh.autoTriangulate();
-        } else {
-            previewMesh = null;
-        }
+        // TBD
         updateMirrorSelected();
     }
 
     override
     void importMesh(ref MeshData data) {
-        mesh.import_(data);
-        mesh.refresh();
+        this.vertices.length = 0;
+        this.vertices ~= data.vertices.map!((vec2 vtx) { return new MeshVertex(vtx); }).array;
     }
 
     override
     void mergeMesh(ref MeshData data, mat4 matrix) {
-        mesh.merge_(data, matrix);
-        mesh.refresh();
+        this.vertices ~= data.vertices.map!((vec2 vtx) { return new MeshVertex(vtx); }).array;
     }
 
     override
@@ -138,18 +164,15 @@ public:
     override
     void applyToTarget() {
         incActionPushGroup();
+        
         // Apply the model
-        auto action = new DrawableChangeAction(target.name, target);
+        auto action = new DeformableChangeAction(target.name, target);
 
         // Export mesh
-        MeshData data = mesh.export_();
-        data.fixWinding();
+        //MeshData data = mesh.export_();
+        //data.fixWinding();
 
-        // Fix UVs
-        // By dividing by width and height we should get the values in UV coordinate space.
-        target.normalizeUV(&data);
-
-        if (data.vertices.length != target.vertices.length)
+        if (vertices.length != target.vertices.length)
             vertexMapDirty = true;
 
         DeformationParameterBinding[] deformers;
@@ -162,11 +185,11 @@ public:
                 foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
                     auto deform = deformBinding.values[x][y];
                     if (deformBinding.isSet(vec2u(x, y))) {
-                        auto newDeform = mesh.deformByDeformationBinding(deformBinding, vec2u(x, y), false);
+                        auto newDeform = deformByDeformationBinding(vertices, deformBinding, vec2u(x, y), false);
                         if (newDeform) 
                             deformBinding.values[x][y] = *newDeform;
                     } else {
-                        deformBinding.values[x][y].vertexOffsets.length = data.vertices.length;
+                        deformBinding.values[x][y].vertexOffsets.length = this.vertices.length;
                     }
                     deformers ~= deformBinding;
                 }
@@ -190,9 +213,9 @@ public:
         }
         incActivePuppet().resetDrivers();
         vertexMapDirty = false;
-
+        
         target.clearCache();
-        target.rebuffer(data);
+        target.rebuffer(vertices.toVertices());
 
         // reInterpolate MUST be called after rebuffer is called.
         foreach (deformBinding; deformers) {
@@ -202,19 +225,11 @@ public:
         action.updateNewState();
         incActionPush(action);
 
-        if (auto drawable = cast(Drawable)target) {
-            incUpdateWeldedPoints(drawable);
-        }
-        
         incActionPopGroup();
     }
 
     override
-    void applyPreview() {
-        mesh = previewMesh;
-        previewMesh = null;
-        previewTriangulate = false;
-    }                      
+    void applyPreview() {}                      
 
     override
     void pushDeformAction() {
@@ -227,17 +242,17 @@ public:
 
     override
     ulong getVertexFromPoint(vec2 mousePos) {
-        return mesh.getVertexFromPoint(mousePos);
+        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, mousePos);
     }
 
     override
     float[] getVerticesInBrush(vec2 mousePos, Brush brush) {
-        return mesh.getVerticesInBrush(mousePos, brush);
+        return nijigenerate.core.math.vertex.getVerticesInBrush(vertices, mousePos, brush);
     }
 
     override
     void removeVertexAt(vec2 vertex) {
-        mesh.removeVertexAt(vertex);
+        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i){ vertices = vertices.removeByValue(i); })(vertices, vertex);
     }
 
     override
@@ -260,7 +275,7 @@ public:
 
     override
     bool addVertex(ImGuiIO* io) {
-        ulong off = mesh.vertices.length;
+        ulong off = vertices.length;
         if (isOnMirror(mousePos, meshEditAOE)) {
             placeOnMirror(mousePos, meshEditAOE);
         } else {
@@ -270,7 +285,7 @@ public:
         }
         refreshMesh();
         vertexMapDirty = true;
-        if (io.KeyCtrl) selectOne(mesh.vertices.length - 1);
+        if (io.KeyCtrl) selectOne(vertices.length - 1);
         else selectOne(off);
         return true;
     }
@@ -278,23 +293,26 @@ public:
     override
     bool updateChanged(bool changed) {
         if (changed)
-            mesh.changed = true;
+            this.changed = true;
 
-        if (mesh.changed) {
+        /*
+        if (this.changed) {
             if (previewingTriangulation())
                 previewMesh = mesh.autoTriangulate();
-            mesh.changed = false;
+            this.changed = false;
         }
+        */
         return changed;
     }
 
     override
     void addMeshVertex(MeshVertex* v2) {
-        mesh.vertices ~= v2;
+        vertices ~= v2;
     }
+
     override
     void removeMeshVertex(MeshVertex* v2) {
-        mesh.remove(v2);
+        vertices = vertices.removeByValue(v2);
     }
 
     override
@@ -304,43 +322,29 @@ public:
 
     override
     bool isPointOver(vec2 mousePos) {
-        return mesh.isPointOverVertex(mousePos);
+        return isPointOverVertex(vertices, mousePos);
     }
 
     override
     ulong[] getInRect(vec2 min, vec2 max, uint groupId = 0) { 
-        return mesh.getInRect(selectOrigin, mousePos, groupId);
-    }
-    override 
-    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
-        MeshVertex*[] result;
-        foreach (idx; indices) {
-            if (idx < mesh.vertices.length)
-                result ~= mesh.vertices[idx];
-            else if (!removeNull)
-                result ~= null;
-        }
-        return result;
+        return nijigenerate.core.math.vertex.getInRect(vertices, selectOrigin, mousePos, groupId);
     }
 
     override
     void createPathTarget() {
-        getPath().createTarget(mesh, mat4.identity); //transform.inverse() * target.transform.matrix);
     }
 
     override
     mat4 updatePathTarget() {
-        return getPath().updateTarget(mesh, selected);
+        return mat4.identity;
     }
 
     override
     void resetPathTarget() {
-        getPath().resetTarget(mesh);
     }
 
     override
     void remapPathTarget(ref CatmullSpline p, mat4 trans) {
-        p.remapTarget(mesh, mat4.identity);
     }
 
     override
@@ -398,40 +402,66 @@ public:
     void draw(Camera camera) {
         mat4 trans = mat4.identity;
 
+        vec3[] points;
+        points ~= vec3(0, 0, 0);
+        inDbgSetBuffer(points);
+        inDbgPointsSize(10);
+        inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+        inDbgPointsSize(6);
+        inDbgDrawPoints(vec4(0.5, 1, 0.5, 1), trans);
+
+        points.length = vertices.length;
+        foreach (i; 0..vertices.length) {
+            points[i] = vec3(vertices[i].position, 0);
+        }
+        if (points.length > 0) {
+            if (auto deformable = cast(PathDeformer)target) {
+                /**
+                    Draws the mesh
+                */
+                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                    if (curve.controlPoints.length == 0)
+                        return;
+                    vec3[] lines;
+                    foreach (i; 1..100) {
+                        lines ~= vec3(curve.point((i - 1) / 100.0), 0);
+                        lines ~= vec3(curve.point(i / 100.0), 0);
+                    }
+                    if (lines.length > 0) {
+                        inDbgSetBuffer(lines);
+                        inDbgDrawLines(color, trans);
+                    }
+                }
+                auto curve = deformable.createCurve(vertices.map!((v)=>v.position).array);
+                drawLines(curve, trans, vec4(0, 1, 1, 1));
+//                drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
+            }
+            inDbgSetBuffer(points);
+            inDbgPointsSize(10);
+            inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+            inDbgPointsSize(6);
+            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+        }
+
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
             MeshVertex*[] one = getVerticesByIndex([vtxAtMouse], true);
-            mesh.drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
-        }
-
-        if (previewMesh) {
-            previewMesh.drawLines(trans, vec4(0.7, 0.7, 0, 1));
-            mesh.drawPoints(trans);
-        } else {
-            mesh.draw(trans);
-        }
-
-        if (groupId != 0) {
-            MeshVertex*[] vertsInGroup = [];
-            foreach (v; mesh.vertices) {
-                if (v.groupId != groupId) vertsInGroup ~= v;
-            }
-            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
+            drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
         }
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
                 auto selectedVertices = getVerticesByIndex(selected, true);
-                mesh.drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
+                drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
                 auto selectedVertices = getVerticesByIndex(selected, true);
-                mesh.drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
+                drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
         if (mirrorSelected.length) {
             auto mirroredVertices = getVerticesByIndex(mirrorSelected, true);
-            mesh.drawPointSubset(mirroredVertices, vec4(1, 0, 1, 1), trans);
+            drawPointSubset(mirroredVertices, vec4(1, 0, 1, 1), trans);
         }
 
         if (isSelecting) {
@@ -444,11 +474,11 @@ public:
             if (newSelected.length) {
                 if (mutateSelection && invertSelection) {
                     auto newSelectedVertices = getVerticesByIndex(newSelected, true);
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
                 }
                 else {
                     auto newSelectedVertices = getVerticesByIndex(newSelected, true);
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
                 }
             }
         }
@@ -473,7 +503,6 @@ public:
             inDbgSetBuffer(axisLines);
             inDbgDrawLines(vec4(0.8, 0, 0.8, 1), trans);
         }
-
         if (toolMode in tools)
             tools[toolMode].draw(camera, this);
     }
@@ -504,33 +533,32 @@ public:
 
 
 /**
- * MeshEditor of Drawable for deformation operation.
+ * MeshEditor of Deformable for deformation operation.
  */
-class IncMeshEditorOneDrawableDeform : IncMeshEditorOneDrawable {
+class IncMeshEditorOneDeformableDeform : IncMeshEditorOneDeformable {
 protected:
+    vec2[] deformation;
+
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
     }
     MeshEditorAction!DeformationAction editorAction = null;
     void updateTarget() {
-        auto drawable = cast(Drawable)target;
-        transform = drawable.getDynamicMatrix();
-        vertices.length = drawable.vertices.length;
-        foreach (i, vert; drawable.vertices) {
-            vertices[i] = drawable.vertices[i] + drawable.deformation[i]; // FIXME: should handle origin
+        transform = deformable.getDynamicMatrix();
+        vertices.resize(deformable.vertices.length);
+        foreach (i, vert; deformable.vertices) {
+            vertices[i].position = deformable.vertices[i] + deformable.deformation[i]; // FIXME: should handle origin
         }
     }
 
     void importDeformation() {
-        Drawable drawable = cast(Drawable)target;
+        Deformable drawable = cast(Deformable)target;
         if (drawable is null)
             return;
-        deformation = drawable.deformation.dup;
         auto param = incArmedParameter();
         auto binding = cast(DeformationParameterBinding)(param? param.getBinding(drawable, "deform"): null);
         if (binding is null) {
             deformation = drawable.deformation.dup;
-            
         } else {
             auto deform = binding.getValue(param.findClosestKeypoint());
             if (drawable.deformation.length == deform.vertexOffsets.length) {
@@ -540,12 +568,13 @@ protected:
                 }
             }
         }
+        foreach (i, d; deformation) {
+            vertices[i].position += deformation[i];
+        }
             
     }
 
 public:
-    vec2[] deformation;
-    vec2[] vertices;
 
     this() {
         super(true);
@@ -553,47 +582,56 @@ public:
 
     override
     void setTarget(Node target) {
-        Drawable drawable = cast(Drawable)target;
-        if (drawable is null)
+        Deformable defromable = cast(Deformable)target;
+        if (defromable is null) {
             return;
+        }
         importDeformation();
         super.setTarget(target);
         updateTarget();
-        mesh = new IncMesh(drawable.getMesh());
         refreshMesh();
     }
 
     override
     void resetMesh() {
-        mesh.reset();
+        vertices = target.vertices.toMVertices;
     }
 
     override
     void refreshMesh() {
-        mesh.refresh();
+//        vertices = target.vertices.toMVertices;
         updateMirrorSelected();
     }
 
     override
     void importMesh(ref MeshData data) {
-        mesh.import_(data);
-        mesh.refresh();
+        vertices = target.vertices.toMVertices;
     }
 
     override
     void mergeMesh(ref MeshData data, mat4 matrix) {
-        mesh.merge_(data, matrix);
-        mesh.refresh();
+        vertices ~= target.vertices.toMVertices;
     }
 
     override
     void applyOffsets(vec2[] offsets) {
-        mesh.applyOffsets(offsets);
+        foreach(idx, vertex; vertices) {
+            vertex.position += offsets[idx];
+        }
     }
 
     override
     vec2[] getOffsets() {
-        return mesh.getOffsets();
+        vec2[] offsets;
+
+        offsets.length = vertices.length;
+        foreach(idx, vertex; vertices) {
+            if (idx < target.vertices.length)
+                offsets[idx] = vertex.position - target.vertices[idx];
+            else
+                offsets[idx] = vertex.position;
+        }
+        return offsets;
     }
 
     override
@@ -613,18 +651,12 @@ public:
 
     override
     ulong getVertexFromPoint(vec2 mousePos) {
-        // return vertices position from mousePos
-        foreach(i, ref vert; vertices) {
-            if (abs(vert.distance(mousePos)) < mesh.selectRadius/incViewportZoom) {
-                return i;
-            }
-        }
-        return -1;
+        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, mousePos);
     }
 
     override
     float[] getVerticesInBrush(vec2 mousePos, Brush brush) {
-        return brush.weightsAt(mousePos, vertices);
+        return nijigenerate.core.math.vertex.getVerticesInBrush(vertices, mousePos, brush);
     }
 
     override
@@ -640,20 +672,19 @@ public:
     bool updateChanged(bool changed) { return changed; }
 
     override
-    void addMeshVertex(MeshVertex* v2) {}
+    void addMeshVertex(MeshVertex* v2) { }
 
     override
     void removeMeshVertex(MeshVertex* v2) { }
 
     override
-    void moveMeshVertex(MeshVertex* v, vec2 newPos) { v.position = newPos; }
+    void moveMeshVertex(MeshVertex* v, vec2 newPos) {
+        v.position = newPos;
+    }
 
     override
     bool isPointOver(vec2 mousePos) {
-        foreach(vert; vertices) {
-            if (abs(vert.distance(mousePos)) < mesh.selectRadius/incViewportZoom) return true;
-        }
-        return false;
+        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, mousePos);
     }
 
     override
@@ -663,46 +694,31 @@ public:
 
         ulong[] matching;
         foreach(idx, vertex; vertices) {
-            if (min.x > vertex.x) continue;
-            if (min.y > vertex.y) continue;
-            if (max.x < vertex.x) continue;
-            if (max.y < vertex.y) continue;
+            if (min.x > vertex.position.x) continue;
+            if (min.y > vertex.position.y) continue;
+            if (max.x < vertex.position.x) continue;
+            if (max.y < vertex.position.y) continue;
             matching ~= idx;
         }
 
         return matching;        
     }
 
-    override 
-    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
-        MeshVertex*[] result;
-        foreach (idx; indices) {
-            if (idx < mesh.vertices.length)
-                result ~= mesh.vertices[idx];
-            else if (!removeNull)
-                result ~= null;
-        }
-        return result;
-    }
-
     override
     void createPathTarget() {
-        getPath().createTarget(mesh, mat4.identity, vertices); //transform.inverse() * target.transform.matrix);
     }
 
     override
     mat4 updatePathTarget() {
-        return getPath().updateTarget(mesh, selected, mat4.identity(), deformation);
+        return mat4.identity;
     }
 
     override
     void resetPathTarget() {
-        getPath().resetTarget(mesh);
     }
 
     override
     void remapPathTarget(ref CatmullSpline p, mat4 trans) {
-        p.remapTarget(mesh, trans, vertices); //mat4.identity);
     }
 
     override
@@ -758,24 +774,22 @@ public:
 
     override
     void draw(Camera camera) {
-        auto drawable = cast(Drawable)target;
+        auto deformable = cast(Deformable)target;
         updateTarget();
         auto trans = transform;
 
-        MeshVertex*[] _getVerticesByIndex(ulong[] indices) {
-            MeshVertex*[] result;
-            foreach (idx; indices) {
-                if (idx < vertices.length)
-                    result ~= new MeshVertex(vertices[idx]);
-            }
-            return result;
-        }
-
-        drawable.drawMeshLines();
         vec3[] points;
+
+        points ~= vec3(0, 0, 0);
+        inDbgSetBuffer(points);
+        inDbgPointsSize(10);
+        inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+        inDbgPointsSize(6);
+        inDbgDrawPoints(vec4(0.5, 1, 0.5, 1), trans);
+
         points.length = vertices.length;
         foreach (i; 0..vertices.length) {
-            points[i] = vec3(vertices[i], 0);
+            points[i] = vec3(vertices[i].position, 0);
         }
         if (points.length > 0) {
             inDbgSetBuffer(points);
@@ -785,33 +799,25 @@ public:
             inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
         }
 
-        if (groupId != 0) {
-            MeshVertex*[] vertsInGroup = [];
-            foreach (v; mesh.vertices) {
-                if (v.groupId != groupId) vertsInGroup ~= v;
-            }
-            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
-        }
-
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
-            MeshVertex*[] one = _getVerticesByIndex([vtxAtMouse]);
-            mesh.drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
+            MeshVertex*[] one = getVerticesByIndex([vtxAtMouse]);
+            drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
         }
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
-                auto selectedVertices = _getVerticesByIndex(selected);
-                mesh.drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
+                auto selectedVertices = getVerticesByIndex(selected);
+                drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
-                auto selectedVertices = _getVerticesByIndex(selected);
-                mesh.drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
+                auto selectedVertices = getVerticesByIndex(selected);
+                drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
         if (mirrorSelected.length) {
-            auto mirrorSelectedVertices = _getVerticesByIndex(mirrorSelected);
-            mesh.drawPointSubset(mirrorSelectedVertices, vec4(1, 0, 1, 1), trans);
+            auto mirrorSelectedVertices = getVerticesByIndex(mirrorSelected);
+            drawPointSubset(mirrorSelectedVertices, vec4(1, 0, 1, 1), trans);
         }
 
         if (isSelecting) {
@@ -822,11 +828,11 @@ public:
             else inDbgDrawLines(vec4(0, 1, 0, 0.8), trans);
 
             if (newSelected.length) {
-                auto newSelectedVertices = _getVerticesByIndex(newSelected);
+                auto newSelectedVertices = getVerticesByIndex(newSelected);
                 if (mutateSelection && invertSelection)
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
                 else
-                    mesh.drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
+                    drawPointSubset(newSelectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
@@ -857,26 +863,6 @@ public:
 
     override
     void adjustPathTransform() {
-        auto drawable = cast(Drawable)target;
-
-        mat4 trans = (target? drawable.getDynamicMatrix(): transform).inverse * transform;
-        importDeformation();
-        ref CatmullSpline doAdjust(ref CatmullSpline p) {
-            p.update();
-
-            remapPathTarget(p, trans);
-            return p;
-        }
-        if (getPath()) {
-            if (getPath().target)
-                getPath().target = doAdjust(getPath().target);
-            auto path = getPath();
-            setPath(doAdjust(path));
-        }
-        lastMousePos = (trans * vec4(lastMousePos, 0, 1)).xy;
-        updateTarget();
-
-        forceResetAction();
     }
 
 }

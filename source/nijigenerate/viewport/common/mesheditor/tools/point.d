@@ -32,11 +32,8 @@ class PointTool : NodeSelect {
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) {
             if (!impl.isSelecting && !isDragging) {
-                auto implDrawable = cast(IncMeshEditorOneDrawable)impl;
-                auto mesh = implDrawable.getMesh();
-
                 isDragging = true;
-                action = new MeshMoveAction(impl.getTarget().name, impl, mesh);
+                action = new VertexMoveAction(impl.getTarget().name, impl);
                 return true;
             }
             return false;
@@ -53,6 +50,11 @@ class PointTool : NodeSelect {
                         meshAction.updateNewState();
                         incActionPush(action);
                     }
+                }else if (auto vertAction = cast(VertexAction)(action)) {
+                    if (vertAction.dirty) {
+                        vertAction.updateNewState();
+                        incActionPush(action);
+                    }
                 }
                 action = null;
             }
@@ -63,7 +65,7 @@ class PointTool : NodeSelect {
     override bool onDragUpdate(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) { 
             if (isDragging) {
-                if (auto meshAction = cast(MeshMoveAction)action) {
+                if (auto meshAction = cast(VertexMoveAction)action) {
                     foreach(select; impl.selected) {
                         impl.foreachMirror((uint axis) {
                             MeshVertex *v = impl.getVerticesByIndex([impl.mirrorVertex(axis, select)])[0];
@@ -107,20 +109,19 @@ class PointTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) impl.maybeSelectOne = ulong(-1);
 
         auto implDrawable = cast(IncMeshEditorOneDrawable)impl;
-        auto mesh = implDrawable.getMesh();
-
-        assert(implDrawable !is null);
+        auto implDeformable = cast(IncMeshEditorOneDeformable)impl;
+        assert(implDrawable !is null || implDeformable !is null);
         
-        void addOrRemoveVertex(bool selectedOnly) {
+        void addOrRemoveVertex(T)(T implD, bool selectedOnly) {
             // Check if mouse is over a vertex
             auto vtxAtMouse = impl.getVerticesByIndex([impl.vtxAtMouse])[0];
             if (vtxAtMouse !is null) {
-                auto action = new MeshRemoveAction(impl.getTarget().name, impl, mesh);
+                auto action = new VertexRemoveAction(impl.getTarget().name, impl);
 
                 if (!selectedOnly || impl.isSelected(impl.vtxAtMouse)) {
                     MeshVertex*[] removingVertices;
                     impl.foreachMirror((uint axis) {
-                        ulong index = mesh.getVertexFromPoint(impl.mirror(axis, impl.mousePos));
+                        ulong index = impl.getVertexFromPoint(impl.mirror(axis, impl.mousePos));
                         MeshVertex* vertex = impl.getVerticesByIndex([index])[0];
                         if (vertex !is null)
                             removingVertices ~= vertex;
@@ -139,34 +140,31 @@ class PointTool : NodeSelect {
                 action.updateNewState();
                 incActionPush(action);
             } else {
-                void addVertex(ref MeshVertex* vertex) {
-                    auto action = new MeshAddAction(impl.getTarget().name, impl, mesh);
+                auto action = new VertexAddAction(impl.getTarget().name, impl);
 
-                    ulong off = mesh.vertices.length;
-                    if (impl.isOnMirror(impl.mousePos, impl.meshEditAOE)) {
-                        impl.placeOnMirror(impl.mousePos, impl.meshEditAOE);
-                    } else {
-                        impl.foreachMirror((uint axis) {
-                            vertex = new MeshVertex(impl.mirror(axis, impl.mousePos));
-                            action.addVertex(vertex, axis);
-                        });
-                    }
-                    impl.refreshMesh();
-                    impl.vertexMapDirty = true;
-                    if (io.KeyCtrl) impl.selectOne(mesh.vertices.length - 1);
-                    else impl.selectOne(off);
-                    changed = true;
-
-                    action.updateNewState();
-                    incActionPush(action);
+                ulong off = implD.vertices.length;
+                if (impl.isOnMirror(impl.mousePos, impl.meshEditAOE)) {
+                    impl.placeOnMirror(impl.mousePos, impl.meshEditAOE);
+                } else {
+                    impl.foreachMirror((uint axis) {
+                        MeshVertex* vertex = new MeshVertex(impl.mirror(axis, impl.mousePos));
+                        action.addVertex(vertex);
+                    });
                 }
+                impl.refreshMesh();
+                impl.vertexMapDirty = true;
+                if (io.KeyCtrl) impl.selectOne(implD.vertices.length - 1);
+                else impl.selectOne(off);
+                changed = true;
+                /*
+                /// FIXME: Disabled auto connection because Action class is changed and degraded in bezier-deform branch.
 
                 // connect if there is a selected vertex
                 void connectVertex(ref MeshVertex* vertex) {
                     if (vertex is null) return;
 
                     // search last MeshAddAction to connect
-                    auto lastAddAction = incActionFindLast!MeshAddAction(3);
+                    auto lastAddAction = incActionFindLast!VertexAddAction(3);
                     if (lastAddAction is null || lastAddAction.vertices.length == 0) return;
 
                     auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.axisVertices[0][$ - 1].position);
@@ -190,14 +188,15 @@ class PointTool : NodeSelect {
 
                 MeshVertex* vertex;
                 addVertex(vertex);
-                if (autoConnect)
-                    connectVertex(vertex);
+                */
+//                if (autoConnect)
+//                    connectVertex(vertex);
             }
         }
 
         // Key actions
         if (incInputIsKeyPressed(ImGuiKey.Delete)) {
-            auto action = new MeshRemoveAction(impl.getTarget().name, impl, mesh);
+            auto action = new VertexRemoveAction(impl.getTarget().name, impl);
 
             impl.foreachMirror((uint axis) {
                 foreach(v; impl.selected) {
@@ -219,7 +218,7 @@ class PointTool : NodeSelect {
             changed = true;
         }
 
-        MeshMoveAction moveAction = null;
+        VertexMoveAction moveAction = null;
         void shiftSelection(vec2 delta) {
             float magnitude = 10.0;
             if (io.KeyAlt) magnitude = 1.0;
@@ -233,7 +232,7 @@ class PointTool : NodeSelect {
                     auto v2 = impl.getVerticesByIndex([vInd2])[0];
                     if (v2 !is null) {
                         if (moveAction is null) {
-                            moveAction = new MeshMoveAction(implDrawable.getTarget().name, impl, mesh);
+                            moveAction = new VertexMoveAction(impl.getTarget().name, impl);
                         }
                         moveAction.moveVertex(v2, v2.position + mDelta);
                     }
@@ -262,7 +261,10 @@ class PointTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) {
             if (io.KeyCtrl && !io.KeyShift) {
                 // Add/remove action
-                addOrRemoveVertex(false);
+                if (implDrawable)
+                    addOrRemoveVertex(implDrawable, false);
+                else
+                    addOrRemoveVertex(implDeformable, false);
             } else {
                 // Select / drag start
                 if (impl.isPointOver(impl.mousePos)) {
@@ -282,7 +284,10 @@ class PointTool : NodeSelect {
 
         // Left double click action
         if (igIsMouseDoubleClicked(ImGuiMouseButton.Left) && !io.KeyShift && !io.KeyCtrl) {
-            addOrRemoveVertex(true);
+            if (implDrawable)
+                addOrRemoveVertex(implDrawable, true);
+            else
+                addOrRemoveVertex(implDeformable, true);
         }
 
         // Dragging

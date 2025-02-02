@@ -19,9 +19,12 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
+import nijilive.core.dbg;
 import bindbc.imgui;
 import i18n;
 import std.stdio;
+import std.algorithm;
+import std.array;
 
 private {
     Part[] foundParts;
@@ -157,7 +160,7 @@ void incViewportModelConfirmBar() {
     if (incArmedParameter()) return;
 
     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-        if (Drawable node = cast(Drawable)incSelectedNode()) {
+        if (Deformable node = cast(Deformable)incSelectedNode()) {
             auto io = igGetIO();
             const(char)* text = incHasDragDrop("_PUPPETNTREE") ? (io.KeyCtrl ? __(" Merge Mesh"): __(" Copy Mesh")) : __(" Edit Mesh");
             
@@ -293,6 +296,26 @@ void incViewportModelDraw(Camera camera) {
                     if (incShowVertices || incEditMode != EditMode.ModelEdit) {
                         selectedDraw.drawMeshLines();
                     }
+                } else if (auto deformable = cast(PathDeformer)selectedNode) {
+
+                    /**
+                        Draws the mesh
+                    */
+                    void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                        if (curve.controlPoints.length == 0)
+                            return;
+                        vec3[] lines;
+                        foreach (i; 1..100) {
+                            lines ~= vec3(curve.point((i - 1) / 100.0), 0);
+                            lines ~= vec3(curve.point(i / 100.0), 0);
+                        }
+                        if (lines.length > 0) {
+                            inDbgSetBuffer(lines);
+                            inDbgDrawLines(color, trans);
+                        }
+                    }
+                    drawLines(deformable.originalCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                    drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                 }
                 
                 if (Driver selectedDriver = cast(Driver)selectedNode) {
