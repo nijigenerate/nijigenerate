@@ -104,6 +104,11 @@ enum EditMode {
     ALL = ModelEdit | VertexEdit | AnimEdit | ModelTest,
 }
 
+enum ModelEditSubMode {
+    Layout,
+    Deform
+}
+
 bool incShowVertices    = true; /// Show vertices of selected parts
 bool incShowBounds      = true; /// Show bounds of selected parts
 bool incShowOrientation = true; /// Show orientation gizmo of selected parts
@@ -632,6 +637,10 @@ void incFocusCamera(Node node, vec2 position) {
 */
 EditMode incEditMode() {
     return editMode_;
+}
+
+ModelEditSubMode ngModelEditSubMode() {
+    return incArmedParameter() ? ModelEditSubMode.Deform : ModelEditSubMode.Layout;
 }
 
 /**
