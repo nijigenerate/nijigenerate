@@ -18,7 +18,7 @@ import i18n;
 /// Model View
 
 
-void incInspectorModelComposite(Composite node) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite)(T node) if (is(T: Composite)) {
     if (incBeginCategory(__("Composite"))) {
         
 
@@ -219,7 +219,7 @@ void incInspectorModelComposite(Composite node) {
 
 /// Armed Parameter View
 
-void incInspectorDeformComposite(Composite node, Parameter param, vec2u cursor) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Composite)(T node, Parameter param, vec2u cursor) {
     if (incBeginCategory(__("Composite"))) {
         igBeginGroup();
             igIndent(16);

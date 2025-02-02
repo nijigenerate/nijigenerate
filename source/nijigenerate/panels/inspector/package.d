@@ -24,6 +24,60 @@ import nijilive;
 import i18n;
 import std.utf;
 import std.string;
+import std.traits;
+import std.array;
+
+private {
+
+void delegate(Node)[] layoutInspectors;
+void delegate(Node, Parameter, vec2u)[] deformInspectors;
+
+void initInspectors() {
+    ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
+    ngRegisterInspector!(ModelEditSubMode.Deform, Part)();
+    ngRegisterInspector!(ModelEditSubMode.Deform, Composite)();
+    ngRegisterInspector!(ModelEditSubMode.Deform, SimplePhysics)();
+
+    ngRegisterInspector!(ModelEditSubMode.Layout, Node)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, ExCamera)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, Composite)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, Drawable)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, Part)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, SimplePhysics)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, MeshGroup)();
+}
+
+}
+
+
+void ngRegisterInspector(ModelEditSubMode mode, T)() {
+    alias Inspector = incInspector!(mode, T);
+    static if (mode == ModelEditSubMode.Layout) {
+        layoutInspectors ~= (Node node) {
+            if (auto target = cast(T)node)
+                Inspector(target);
+        };
+    }
+    static if (mode == ModelEditSubMode.Deform) {
+        deformInspectors ~= (Node node, Parameter param, vec2u cursor) {
+            if (auto target = cast(T)node)
+                Inspector(target, param, cursor);
+        };
+    }
+}
+
+void neInspector(ModelEditSubMode mode, Args...)(Node node, Args args) {
+    static if (mode == ModelEditSubMode.Layout) {
+        foreach (ins; layoutInspectors) {
+            ins(node);
+        }
+    }
+    static if (mode == ModelEditSubMode.Deform) {
+        foreach (ins; deformInspectors) {
+            ins(node, args[0], args[1]);
+        }
+    }
+}
 
 /**
     The inspector panel
@@ -52,55 +106,10 @@ protected:
                             Parameter param = incArmedParameter();
                             vec2u cursor = param.findClosestKeypoint();
                             incCommonNonEditHeader(node);
-                            incInspectorDeformTRS(node, param, cursor);
-
-                            // Node Part Section
-                            if (Part part = cast(Part)node) {
-                                incInspectorDeformPart(part, param, cursor);
-                            }
-
-                            if (Composite composite = cast(Composite)node) {
-                                incInspectorDeformComposite(composite, param, cursor);
-                            }
-
-                            if (SimplePhysics phys = cast(SimplePhysics)node) {
-                                incInspectorDeformSimplePhysics(phys, param, cursor);
-                            }
-
+                            neInspector!(ModelEditSubMode.Deform)(node, param, cursor);
                         } else {
                             incModelModeHeader(node);
-                            incInspectorModelTRS(node);
-
-                            // Node Camera Section
-                            if (ExCamera camera = cast(ExCamera)node) {
-                                incInspectorModelCamera(camera);
-                            }
-
-                            // Node Drawable Section
-                            if (Composite composite = cast(Composite)node) {
-                                incInspectorModelComposite(composite);
-                            }
-
-
-                            // Node Drawable Section
-                            if (Drawable drawable = cast(Drawable)node) {
-                                incInspectorModelDrawable(drawable);
-                            }
-
-                            // Node Part Section
-                            if (Part part = cast(Part)node) {
-                                incInspectorModelPart(part);
-                            }
-
-                            // Node SimplePhysics Section
-                            if (SimplePhysics part = cast(SimplePhysics)node) {
-                                incInspectorModelSimplePhysics(part);
-                            }
-
-                            // Node MeshGroup Section
-                            if (MeshGroup group = cast(MeshGroup)node) {
-                                incInspectorModelMeshGroup(group);
-                            }
+                            neInspector!(ModelEditSubMode.Layout)(node);
                         }
                     
                     break;
@@ -108,7 +117,7 @@ protected:
                         incCommonNonEditHeader(node);
                         break;
                 }
-            } else incInspectorModelInfo();
+            } else incInspector!(ModelEditSubMode.Layout)(incActivePuppet());
         } else if (nodes.length == 0) {
             incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
         } else {
@@ -120,6 +129,7 @@ public:
     this() {
         super("Inspector", _("Inspector"), true);
         activeModes = EditMode.ModelEdit;
+        initInspectors();
     }
 }
 

@@ -1,6 +1,7 @@
 module nijigenerate.panels.inspector.drawable;
 
 import nijigenerate.panels.inspector.common;
+import nijigenerate;
 import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijigenerate.core.actionstack;
@@ -11,7 +12,7 @@ import std.utf;
 import std.string;
 import i18n;
 
-void incInspectorModelDrawable(Drawable node) {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)(T node) if (!is(T: MeshGroup) && !is(T: Part)) {
     // The main type of anything that can be drawn to the screen
     // in nijilive.
     if (incBeginCategory(__("Drawable"))) {

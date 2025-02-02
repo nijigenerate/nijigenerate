@@ -22,9 +22,8 @@ import std.utf;
 import i18n;
 import std.range: enumerate;
 
-void incInspectorModelInfo() {
+void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Puppet)(T puppet) {
     auto rootNode = incActivePuppet().root; 
-    auto puppet = incActivePuppet();
 
     // Top level
     igPushID(rootNode.uuid);

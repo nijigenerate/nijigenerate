@@ -24,7 +24,9 @@ import std.range: enumerate;
 
 /// Model View
 
-void incInspectorModelTRS(Node node) {
+void incInspector(ModelEditSubMode model: ModelEditSubMode.Layout, T: Node)(T node) 
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera))
+{
     if (incBeginCategory(__("Transform"))) {
         float adjustSpeed = 1;
         // if (igIsKeyDown(igGetKeyIndex(ImGuiKeyModFlags_Shift))) {
@@ -297,7 +299,9 @@ void incInspectorModelTRS(Node node) {
 /// Armed parameter view
 
 
-void incInspectorDeformTRS(Node node, Parameter param, vec2u cursor) {
+void incInspector(ModelEditSubMode model: ModelEditSubMode.Deform, T: Node)(T node, Parameter param, vec2u cursor) 
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera))
+{
     if (incBeginCategory(__("Transform"))) {   
         float adjustSpeed = 1;
 
