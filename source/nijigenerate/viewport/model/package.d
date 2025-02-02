@@ -314,7 +314,7 @@ void incViewportModelDraw(Camera camera) {
                             inDbgDrawLines(color, trans);
                         }
                     }
-                    drawLines(deformable.originalCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                    drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
                     drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                 }
                 
