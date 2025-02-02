@@ -116,7 +116,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             mixin(NodeCreateMenu("SimplePhysics", "Simple Physics"));
             mixin(NodeCreateMenu("MeshGroup", "Mesh Group"));
             mixin(NodeCreateMenu("DynamicComposite", "Dynamic Composite"));
-            mixin(NodeCreateMenu("BezierDeformer", "Bezier Deformer"));
+            mixin(NodeCreateMenu("PathDeformer", "Path Deformer"));
             mixin(NodeCreateMenu("Camera", "Camera", "ExCamera"));
 
             igEndMenu();

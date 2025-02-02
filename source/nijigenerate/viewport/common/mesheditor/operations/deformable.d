@@ -401,6 +401,7 @@ public:
     override
     void draw(Camera camera) {
         mat4 trans = mat4.identity;
+
         vec3[] points;
         points ~= vec3(0, 0, 0);
         inDbgSetBuffer(points);
@@ -414,6 +415,27 @@ public:
             points[i] = vec3(vertices[i].position, 0);
         }
         if (points.length > 0) {
+            if (auto deformable = cast(PathDeformer)target) {
+                /**
+                    Draws the mesh
+                */
+                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                    if (curve.controlPoints.length == 0)
+                        return;
+                    vec3[] lines;
+                    foreach (i; 1..100) {
+                        lines ~= vec3(curve.point((i - 1) / 100.0), 0);
+                        lines ~= vec3(curve.point(i / 100.0), 0);
+                    }
+                    if (lines.length > 0) {
+                        inDbgSetBuffer(lines);
+                        inDbgDrawLines(color, trans);
+                    }
+                }
+                auto curve = deformable.createCurve(vertices.map!((v)=>v.position).array);
+                drawLines(curve, trans, vec4(0, 1, 1, 1));
+//                drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
+            }
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);

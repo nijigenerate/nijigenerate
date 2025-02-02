@@ -14,7 +14,7 @@ Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBin
     if (auto part = cast(Drawable)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
         return deformByDeformationBinding(vertices, part, deform, flipHorz);
-    } else if (auto deformable = cast(Deformable)binding.getTarget().node) {
+    } else if (auto deformable = cast(PathDeformer)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
         return deformByDeformationBinding(vertices, deformable, deform, flipHorz);
     }
@@ -166,7 +166,7 @@ Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, De
     return newDeform;
 }
 
-Deformation* deformByDeformationBinding(T, S: Deformable)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
+Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
     // Check whether deform has more than 1 triangle.
     // If not, returns default Deformation which has dummpy offsets.
     if (deform.vertexOffsets.length < 2 || vertices.length < 2 || deformable.vertices.length < 2) {
@@ -181,8 +181,8 @@ Deformation* deformByDeformationBinding(T, S: Deformable)(T[] vertices, S deform
     foreach (i; 0..origControlPoints.length) {
         deformedControlPoints[i] += deform.vertexOffsets[i];
     }
-    auto originalCurve = BezierCurve(origControlPoints);
-    auto deformedCurve = BezierCurve(deformedControlPoints);
+    auto originalCurve = deformable.createCurve(origControlPoints);
+    auto deformedCurve = deformable.createCurve(deformedControlPoints);
 
     vec2[] deformedVertices;
     deformedVertices.length = vertices.length;
