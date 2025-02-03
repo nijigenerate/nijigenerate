@@ -17,6 +17,7 @@ public import nijigenerate.panels.inspector.composite;
 public import nijigenerate.panels.inspector.simplephysics;
 public import nijigenerate.panels.inspector.meshgroup;
 public import nijigenerate.panels.inspector.camera;
+public import nijigenerate.panels.inspector.pathdeform;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate.utils;
@@ -37,6 +38,7 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Part)();
     ngRegisterInspector!(ModelEditSubMode.Deform, Composite)();
     ngRegisterInspector!(ModelEditSubMode.Deform, SimplePhysics)();
+    ngRegisterInspector!(ModelEditSubMode.Deform, PathDeformer)();
 
     ngRegisterInspector!(ModelEditSubMode.Layout, Node)();
     ngRegisterInspector!(ModelEditSubMode.Layout, ExCamera)();
@@ -45,6 +47,7 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Layout, Part)();
     ngRegisterInspector!(ModelEditSubMode.Layout, SimplePhysics)();
     ngRegisterInspector!(ModelEditSubMode.Layout, MeshGroup)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, PathDeformer)();
 }
 
 }

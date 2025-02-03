@@ -25,7 +25,7 @@ import std.range: enumerate;
 /// Model View
 
 void incInspector(ModelEditSubMode model: ModelEditSubMode.Layout, T: Node)(T node) 
-    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera))
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer))
 {
     if (incBeginCategory(__("Transform"))) {
         float adjustSpeed = 1;
@@ -300,7 +300,7 @@ void incInspector(ModelEditSubMode model: ModelEditSubMode.Layout, T: Node)(T no
 
 
 void incInspector(ModelEditSubMode model: ModelEditSubMode.Deform, T: Node)(T node, Parameter param, vec2u cursor) 
-    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera))
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer))
 {
     if (incBeginCategory(__("Transform"))) {   
         float adjustSpeed = 1;
