@@ -14,6 +14,7 @@ import std.range;
 import i18n;
 import std.stdio;
 import std.algorithm;
+import std.typecons;
 
 /**
     Action for change of binding values at once
@@ -72,7 +73,7 @@ abstract class VertexAction  : LazyBoundAction {
     }
 };
 
-class VertexAddAction  : VertexAction {
+class InvalidVertexAddAction  : VertexAction {
     MeshVertex*[] vertices;
     this(string name, IncMeshEditorOne editor, void delegate() update = null) {
         super(name, editor, update);
@@ -148,7 +149,8 @@ class VertexAddAction  : VertexAction {
     }
 };
 
-class VertexRemoveAction  : VertexAction {
+
+class InvalidVertexRemoveAction  : VertexAction {
     MeshVertex*[] vertices;
     Connection[] connections;
     this(string name, IncMeshEditorOne editor, void delegate() update = null) {
@@ -330,6 +332,156 @@ class VertexMoveAction  : VertexAction {
 };
 
 
+class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
+    Tuple!(int, MeshVertex*)[] vertices;
+    Connection[] connections;
+
+    this(string name, IncMeshEditorOne editor, void delegate() update = null) {
+        super(name, editor, update);
+    }
+
+    void insertVertex(int index, MeshVertex* vertex) {
+        if (reverse) {
+            foreach (i, t; vertices) {
+                if (t[1] == vertex) {
+                    editor.insertMeshVertex(t[0], t[1]);
+                    vertices = vertices.remove(i);
+                    dirty = vertices.length > 0;
+                    break;
+                }
+            }
+        } else {
+            vertices ~= tuple(index, vertex);
+            if (index >= 0)
+                editor.insertMeshVertex(index, vertex);
+            else
+                editor.addMeshVertex(vertex);
+            dirty = true;
+        }
+    }
+
+    void addVertex(MeshVertex* vertex) {
+        insertVertex(-1, vertex);
+    }
+
+    void removeVertex(MeshVertex* vertex, bool executeAction = true) {
+        if (!reverse) {
+            foreach (i, t; vertices) {
+                if (t[1] == vertex) {
+                    vertices = vertices.remove(i);
+                    if (executeAction)
+                        editor.removeMeshVertex(vertex);
+                    dirty = vertices.length > 0;
+                    break;
+                }
+            }
+        } else {
+            int index = cast(int)editor.indexOfMesh(vertex);
+            vertices ~= tuple(index, vertex);
+            foreach (con; vertex.connections) {
+                connections ~= Connection(vertex, con);
+            }
+            if (executeAction)
+                editor.removeMeshVertex(vertex);
+            dirty = true;
+        }
+    }
+
+    void removeVertices() {
+        if (reverse) {
+            foreach (t; vertices) {
+                editor.removeMeshVertex(t[1]);
+            }
+        }
+    }
+
+    override
+    void markAsDirty() { dirty = true; }
+
+    override
+    void updateNewState() {
+    }
+
+    override
+    void clear() {
+        vertices.length = 0;
+        super.clear();
+    }
+
+    /**
+        Rollback
+    */
+    void action(bool mode: false)() {
+        if (undoable != reverse) {
+            foreach (t; vertices) {
+                editor.removeMeshVertex(t[1]);
+            }
+            undoable = reverse;
+            editor.refreshMesh();
+        }
+    }
+
+    /**
+        Redo
+    */
+    void action(bool mode: true)() {
+        if (undoable == reverse) {
+            foreach (t; vertices) {
+                if (t[0] >= 0)
+                    editor.insertMeshVertex(t[0], t[1]);
+                else
+                    editor.addMeshVertex(t[1]);
+            }
+            foreach (c; connections) {
+                c.v1.connect(c.v2);
+            }
+            undoable = !reverse;
+            editor.refreshMesh();
+        }
+    }
+
+    override
+    void rollback() {
+        action!(reverse)();
+    }
+
+    override
+    void redo() {
+        action!(!reverse)();
+    }
+
+    string actionName(bool action)() {
+        return action == reverse ? "removed" : "inserted";
+    }
+
+    /**
+        Describe the action
+    */
+    override
+    string describe() {
+        return _("%s: vertex was %s.").format(name, actionName!(true));
+    }
+
+    /**
+        Describe the action
+    */
+    override
+    string describeUndo() {
+        return _("%s: vertex was %s.").format(name, actionName!(false));
+    }
+
+    /**
+        Gets name of this action
+    */
+    override
+    string getName() {
+        return this.stringof;
+    }
+};
+
+alias VertexInsertAction = VertexInsertRemoveAction!(false);
+alias VertexRemoveAction = VertexInsertRemoveAction!(true);
+alias VertexAddAction    = VertexInsertRemoveAction!(false);
 class VertexReorderAction  : VertexAction {
     MeshVertex*[] vertices;
     this(string name, IncMeshEditorOne editor, void delegate() update = null) {

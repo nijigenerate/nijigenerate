@@ -32,6 +32,7 @@ import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
 import std.range: enumerate;
+import std.array;
 
 void incUpdateWeldedPoints(Drawable drawable) {
     foreach (welded; drawable.welded) {
@@ -292,6 +293,17 @@ public:
     void addMeshVertex(MeshVertex* v2) {
         mesh.vertices ~= v2;
     }
+
+    override
+    int indexOfMesh(MeshVertex* v2) {
+        return cast(int)mesh.vertices.countUntil(v2);
+    }
+
+    override
+    void insertMeshVertex(int index, MeshVertex* v2) {
+        mesh.vertices.insertInPlace(index, v2);
+    }
+
     override
     void removeMeshVertex(MeshVertex* v2) {
         mesh.remove(v2);
@@ -641,6 +653,9 @@ public:
 
     override
     void addMeshVertex(MeshVertex* v2) {}
+
+    override
+    void insertMeshVertex(int index, MeshVertex* v2) {}
 
     override
     void removeMeshVertex(MeshVertex* v2) { }

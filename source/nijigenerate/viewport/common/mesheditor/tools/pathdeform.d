@@ -393,7 +393,7 @@ class ToolInfoImpl(T: PathDeformTool) : ToolInfoBase!(T) {
 
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
-        if (deformOnly) {
+        if (deformOnly && editors.keys.all!((k) => cast(Drawable)k !is null || cast(Deformable)k is null )) {
             return super.viewportTools(deformOnly, toolMode, editors);
         }
         return false;
