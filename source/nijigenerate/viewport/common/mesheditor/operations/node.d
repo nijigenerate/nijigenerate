@@ -223,6 +223,7 @@ public:
     override bool addVertex(ImGuiIO* io) { return false; }
     override bool updateChanged(bool changed) { return changed; }
     override void addMeshVertex(MeshVertex* v2) {}
+    override void insertMeshVertex(int index, MeshVertex* v2) {}
     override void removeMeshVertex(MeshVertex* v2) {}
     override void moveMeshVertex(MeshVertex* v, vec2 newPos) {}
 

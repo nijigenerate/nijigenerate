@@ -41,7 +41,9 @@ public:
     abstract bool addVertex(ImGuiIO* io);
     abstract bool updateChanged(bool changed);
     abstract void addMeshVertex(MeshVertex* v2);
+    abstract void insertMeshVertex(int index, MeshVertex* v2);
     abstract void removeMeshVertex(MeshVertex* v2);
+    int  indexOfMesh(MeshVertex* v) { return -1; };
     abstract void moveMeshVertex(MeshVertex* v, vec2 newPos);
     
     abstract bool isPointOver(vec2 mousePos);

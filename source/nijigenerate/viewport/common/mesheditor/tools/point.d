@@ -155,6 +155,8 @@ class PointTool : NodeSelect {
                 impl.vertexMapDirty = true;
                 if (io.KeyCtrl) impl.selectOne(implD.vertices.length - 1);
                 else impl.selectOne(off);
+                action.updateNewState();
+                incActionPush(action);
                 changed = true;
                 /*
                 /// FIXME: Disabled auto connection because Action class is changed and degraded in bezier-deform branch.
