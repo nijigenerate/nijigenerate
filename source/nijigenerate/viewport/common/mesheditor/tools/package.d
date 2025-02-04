@@ -6,6 +6,7 @@ public import nijigenerate.viewport.common.mesheditor.tools.select;
 public import nijigenerate.viewport.common.mesheditor.tools.point;
 public import nijigenerate.viewport.common.mesheditor.tools.connect;
 public import nijigenerate.viewport.common.mesheditor.tools.pathdeform;
+public import nijigenerate.viewport.common.mesheditor.tools.bezierdeform;
 public import nijigenerate.viewport.common.mesheditor.tools.grid;
 public import nijigenerate.viewport.common.mesheditor.tools.brush;
 
@@ -20,6 +21,7 @@ ToolInfo[] incGetToolInfo() {
         infoList ~= new ToolInfoImpl!(PathDeformTool);
         infoList ~= new ToolInfoImpl!(GridTool);
         infoList ~= new ToolInfoImpl!(BrushTool);
+        infoList ~= new ToolInfoImpl!(BezierDeformTool);
     }
     return infoList;
 }

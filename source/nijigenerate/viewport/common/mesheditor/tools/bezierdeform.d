@@ -507,7 +507,8 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
 
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
-        if (deformOnly) {
+        bool isDeformer = editors.keys.all!((k) => cast(PathDeformer)k !is null );
+        if (isDeformer) {
             return super.viewportTools(deformOnly, toolMode, editors);
         }
         return false;
@@ -517,11 +518,11 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
     bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) { 
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
         igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
-        auto deformTool = cast(PathDeformTool)(editors.length == 0 ? null: editors.values()[0].getTool());
+        auto deformTool = cast(T)(editors.length == 0 ? null: editors.values()[0].getTool());
         igBeginGroup();
             if (incButtonColored("", ImVec2(0, 0), (deformTool !is null && deformTool.getIsRotateMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // rotation mode
                 foreach (e; editors) {
-                    auto deform = cast(PathDeformTool)(e.getTool());
+                    auto deform = cast(T)(e.getTool());
                     if (deform !is null)
                         deform.setIsRotateMode(!deform.getIsRotateMode());
                 }
@@ -534,7 +535,7 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         igBeginGroup();
             if (incButtonColored("", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
                 foreach (e; editors) {
-                    auto deform = cast(PathDeformTool)(e.getTool());
+                    auto deform = cast(T)(e.getTool());
                     if (deform !is null)
                         deform.setIsShiftMode(!deform.getIsShiftMode());
                 }
@@ -544,7 +545,7 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         igPopStyleVar(2);
         return false;
     }
-    override VertexToolMode mode() { return VertexToolMode.PathDeform; }
-    override string icon() { return "";}
+    override VertexToolMode mode() { return VertexToolMode.BezierDeform; }
+    override string icon() { return "";}
     override string description() { return _("Path Deform Tool");}
 }
