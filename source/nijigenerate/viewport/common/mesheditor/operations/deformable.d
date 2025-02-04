@@ -311,6 +311,16 @@ public:
     }
 
     override
+    int indexOfMesh(MeshVertex* v2) {
+        return cast(int)vertices.countUntil(v2);
+    }
+
+    override
+    void insertMeshVertex(int index, MeshVertex* v2) { 
+        vertices.insertInPlace(index, v2);
+    }
+
+    override
     void removeMeshVertex(MeshVertex* v2) {
         vertices = vertices.removeByValue(v2);
     }
@@ -673,6 +683,9 @@ public:
 
     override
     void addMeshVertex(MeshVertex* v2) { }
+
+    override
+    void insertMeshVertex(int index, MeshVertex* v2) { }
 
     override
     void removeMeshVertex(MeshVertex* v2) { }
