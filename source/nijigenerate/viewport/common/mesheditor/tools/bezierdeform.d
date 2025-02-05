@@ -463,20 +463,6 @@ class BezierDeformTool : NodeSelect {
     }
 
     override
-    void draw(Camera camera, IncMeshEditorOne impl) {
-        super.draw(camera, impl);
-/*
-        if (path && path.target && impl.deforming) {
-            path.draw(impl.transform, vec4(0, 0.6, 0.6, 1), lockedPoint);
-            path.target.draw(impl.transform, vec4(0, 1, 0, 1), lockedPoint);
-        } else if (path) {
-            if (path.target) path.target.draw(impl.transform, vec4(0, 0.6, 0, 1), lockedPoint);
-            path.draw(impl.transform, vec4(0, 1, 1, 1), lockedPoint);
-        }
-        */
-    }
-
-    override
     MeshEditorAction!DeformationAction editorAction(Node target, DeformationAction action) {
         return new MeshEditorAction!(DeformationAction)(target, action);
     }
