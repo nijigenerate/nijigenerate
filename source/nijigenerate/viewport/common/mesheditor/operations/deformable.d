@@ -60,14 +60,16 @@ private {
         }
     }
 
-    void drawPointSubset(MeshVertex*[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
+    bool toBool(T: MeshVertex*)(T vtx) { return vtx !is null; }
+    bool toBool(T: vec2)(T vtx) { return true; }
+    void drawPointSubset(T)(T[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
         vec3[] subPoints;
 
         if (subset.length == 0) return;
 
         // Updates all point positions
         foreach(vtx; subset) {
-            if (vtx !is null)
+            if (toBool(vtx))
                 subPoints ~= vec3(vtx.position, 0);
         }
         inDbgSetBuffer(subPoints);
@@ -547,6 +549,7 @@ public:
 class IncMeshEditorOneDeformableDeform : IncMeshEditorOneDeformable {
 protected:
     vec2[] deformation;
+    vec2[] inputVertices;
 
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
@@ -554,9 +557,8 @@ protected:
     MeshEditorAction!DeformationAction editorAction = null;
     void updateTarget() {
         transform = deformable.getDynamicMatrix();
-        vertices.resize(deformable.vertices.length);
         foreach (i, vert; deformable.vertices) {
-            vertices[i].position = deformable.vertices[i] + deformable.deformation[i]; // FIXME: should handle origin
+            inputVertices[i] = vert + deformable.deformation[i]; // FIXME: should handle origin
         }
     }
 
@@ -576,11 +578,7 @@ protected:
                     deformation[i] = d - deform.vertexOffsets[i];
                 }
             }
-        }
-        foreach (i, d; deformation) {
-            vertices[i].position += deformation[i];
-        }
-            
+        }            
     }
 
 public:
@@ -597,6 +595,11 @@ public:
         }
         importDeformation();
         super.setTarget(target);
+        inputVertices = deformable.vertices.dup;
+        vertices.resize(inputVertices.length);
+        foreach (i; 0..inputVertices.length) {
+            vertices[i].position = inputVertices[i];
+        }
         updateTarget();
         refreshMesh();
     }
@@ -660,12 +663,12 @@ public:
 
     override
     ulong getVertexFromPoint(vec2 mousePos) {
-        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, mousePos);
+        return nijigenerate.core.math.vertex.getVertexFromPoint(inputVertices, mousePos);
     }
 
     override
     float[] getVerticesInBrush(vec2 mousePos, Brush brush) {
-        return nijigenerate.core.math.vertex.getVerticesInBrush(vertices, mousePos, brush);
+        return nijigenerate.core.math.vertex.getVerticesInBrush(inputVertices, mousePos, brush);
     }
 
     override
@@ -696,7 +699,7 @@ public:
 
     override
     bool isPointOver(vec2 mousePos) {
-        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, mousePos);
+        return nijigenerate.core.math.vertex.isPointOverVertex(inputVertices, mousePos);
     }
 
     override
@@ -799,9 +802,9 @@ public:
         inDbgPointsSize(6);
         inDbgDrawPoints(vec4(0.5, 1, 0.5, 1), trans);
 
-        points.length = vertices.length;
-        foreach (i; 0..vertices.length) {
-            points[i] = vec3(vertices[i].position, 0);
+        points.length = inputVertices.length;
+        foreach (i; 0..inputVertices.length) {
+            points[i] = vec3(inputVertices[i].position, 0);
         }
         if (points.length > 0) {
             if (auto deformer = cast(PathDeformer)target) {
@@ -821,7 +824,7 @@ public:
                         inDbgDrawLines(color, trans);
                     }
                 }
-                auto curve = deformer.createCurve(vertices.map!((v)=>v.position).array);
+                auto curve = deformer.createCurve(inputVertices.map!((v)=>v).array);
                 drawLines(curve, trans, vec4(0, 1, 1, 1));
             }
             inDbgSetBuffer(points);
@@ -832,23 +835,22 @@ public:
         }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
-            MeshVertex*[] one = getVerticesByIndex([vtxAtMouse]);
-            drawPointSubset(one, vec4(1, 1, 1, 0.3), trans, 15);
+            drawPointSubset([inputVertices[vtxAtMouse]], vec4(1, 1, 1, 0.3), trans, 15);
         }
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
-                auto selectedVertices = getVerticesByIndex(selected);
+                auto selectedVertices = selected.map!((i) => inputVertices[i]).array;
                 drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
-                auto selectedVertices = getVerticesByIndex(selected);
+                auto selectedVertices = selected.map!((i) => inputVertices[i]).array;
                 drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
         if (mirrorSelected.length) {
-            auto mirrorSelectedVertices = getVerticesByIndex(mirrorSelected);
+            auto mirrorSelectedVertices = mirrorSelected.map!((i) => inputVertices[i]).array;
             drawPointSubset(mirrorSelectedVertices, vec4(1, 0, 1, 1), trans);
         }
 
@@ -860,7 +862,7 @@ public:
             else inDbgDrawLines(vec4(0, 1, 0, 0.8), trans);
 
             if (newSelected.length) {
-                auto newSelectedVertices = getVerticesByIndex(newSelected);
+                auto newSelectedVertices = newSelected.map!((i) => inputVertices[i]).array;
                 if (mutateSelection && invertSelection)
                     drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
                 else

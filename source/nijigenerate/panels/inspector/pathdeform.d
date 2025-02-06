@@ -79,9 +79,26 @@ void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeforme
         }
         incTooltip(_("Enabled / Disabled physics driver for vertices. If enabled, vertices are moved along with specified physics engine."));
 
+        string curveTypeText = node.curveType == CurveType.Bezier ? "Bezier" : node.curveType == CurveType.Spline? "Spline" : "Invalid";
+        if (igBeginCombo("###PhysType", __(curveTypeText))) {
+
+            if (igSelectable(__("Bezier"), node.curveType == CurveType.Bezier)) {
+                node.curveType = CurveType.Bezier;
+                node.rebuffer(node.vertices);
+            }
+
+            if (igSelectable(__("Spline"), node.curveType == CurveType.Spline)) {
+                node.curveType = CurveType.Spline;
+                node.rebuffer(node.vertices);
+            }
+
+            igEndCombo();
+        }
+
+        igSpacing();
 
         if (physicsEnabled) {
-            incText(_("Type"));
+            incText(_("Physics Type"));
             string typeText = cast(ConnectedPendulumDriver)node.driver? "Pendulum": cast(ConnectedSpringPendulumDriver)node.driver? "SpringPendulum": "None";
             if (igBeginCombo("###PhysType", __(typeText))) {
 
