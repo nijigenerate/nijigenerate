@@ -20,7 +20,9 @@ import nijigenerate.core;
 import nijigenerate.core.input;
 import nijigenerate.utils;
 import nijilive;
+import std.algorithm;
 import std.string;
+import std.array;
 import std.format;
 import std.conv;
 import i18n;
@@ -58,6 +60,7 @@ private {
         ];
         actionIconMap = [
             "Add": "\ue145",
+            "Insert": "\ue15e",
             "Edit Mesh": "\ue3c9",
             "Delete": "\ue872",
             "Show": "\ue8f4",
@@ -96,29 +99,64 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
         
         auto selected = incSelectedNodes();
         
-        if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
-
-            string NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
+        void insertNode(Node[] parents = null, Node[] children = null, string suffixName = null) {
+            if (parents is null) {
+                parents = incSelectedNodes();
+            }
+            if (children !is null && parents.length != children.length) {
+                children = null;
+            }
+            auto NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
                 if (ClassName is null) {
                     ClassName = NodeName;
                 }
                 if (NodeLabel is null) {
                     NodeLabel = NodeName;
                 }
-                return "incText(incTypeIdToIcon(\""~NodeName~"\"));
+
+                incText(incTypeIdToIcon(NodeName));
                 igSameLine(0, 2);
-                if (igMenuItem(__(\""~NodeLabel~"\"), \"\", false, true)) incAddChildWithHistory(new "~ClassName~"(cast(Node)null), n);";
+
+                if (igMenuItem(__(NodeLabel), null, false, true)) {
+                    foreach (i, p; parents) {
+                        Node newChild = inInstantiateNode(ClassName, null);
+                        if (children)
+                            incActionPushGroup();
+                        if (suffixName) {
+                            if (children)
+                                newChild.name = children[i].name ~ suffixName;
+                            else
+                                newChild.name = p.name ~ suffixName;
+                        }
+                        incAddChildWithHistory(newChild, p);
+                        if (children) {
+                            newChild.localTransform.translation = children[i].localTransform.translation;
+                            incActionPush(new NodeMoveAction([children[i]], newChild));
+                            incActionPopGroup();
+                        }
+                    }
+                }
             }
 
-            mixin(NodeCreateMenu("Node"));
-            mixin(NodeCreateMenu("Mask"));
-            mixin(NodeCreateMenu("Composite"));
-            mixin(NodeCreateMenu("SimplePhysics", "Simple Physics"));
-            mixin(NodeCreateMenu("MeshGroup", "Mesh Group"));
-            mixin(NodeCreateMenu("DynamicComposite", "Dynamic Composite"));
-            mixin(NodeCreateMenu("PathDeformer", "Path Deformer"));
-            mixin(NodeCreateMenu("Camera", "Camera", "ExCamera"));
+            NodeCreateMenu("Node");
+            NodeCreateMenu("Mask");
+            NodeCreateMenu("Composite");
+            NodeCreateMenu("SimplePhysics", "Simple Physics");
+            NodeCreateMenu("MeshGroup", "Mesh Group");
+            NodeCreateMenu("DynamicComposite", "Dynamic Composite");
+            NodeCreateMenu("PathDeformer", "Path Deformer");
+            NodeCreateMenu("Camera", "Camera", "ExCamera");
+        }
 
+        if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
+
+            insertNode();
+            igEndMenu();
+        }
+
+        if (igBeginMenu(__(nodeActionToIcon!icon("Insert")), true)) {
+
+            insertNode(incSelectedNodes.map!((v)=>v.parent).array, incSelectedNodes);
             igEndMenu();
         }
 
