@@ -25,6 +25,7 @@ import std.string;
 import std.array;
 import std.format;
 import std.conv;
+import std.utf;
 import i18n;
 
 private {
@@ -51,6 +52,7 @@ private {
 
     string[][string] conversionMap;
     string[string] actionIconMap;
+    string suffixName;
     static this() {
         conversionMap = [
             "Node": ["MeshGroup", "DynamicComposite"],
@@ -99,7 +101,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
         
         auto selected = incSelectedNodes();
         
-        void insertNode(Node[] parents = null, Node[] children = null, string suffixName = null) {
+        void insertNode(Node[] parents = null, Node[] children = null) {
             if (parents is null) {
                 parents = incSelectedNodes();
             }
@@ -118,26 +120,34 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                 igSameLine(0, 2);
 
                 if (igMenuItem(__(NodeLabel), null, false, true)) {
+                    incActionPushGroup();
                     foreach (i, p; parents) {
                         Node newChild = inInstantiateNode(ClassName, null);
-                        if (children)
-                            incActionPushGroup();
-                        if (suffixName) {
+                        string nodeName = null;
+                        if (suffixName && suffixName.length != 0) {
                             if (children)
-                                newChild.name = children[i].name ~ suffixName;
+                                nodeName = children[i].name ~ suffixName;
                             else
-                                newChild.name = p.name ~ suffixName;
+                                nodeName = p.name ~ suffixName;
                         }
-                        incAddChildWithHistory(newChild, p);
+                        incAddChildWithHistory(newChild, p, nodeName);
                         if (children) {
                             newChild.localTransform.translation = children[i].localTransform.translation;
                             incActionPush(new NodeMoveAction([children[i]], newChild));
-                            incActionPopGroup();
                         }
                     }
+                    suffixName = null;
+                    incActionPopGroup();
                 }
             }
 
+            incText(_("Suffix"));
+            igSameLine();
+            if (incInputText("###NAME_SUFFIX", incAvailableSpace().x-24, suffixName)) {
+                try {
+                    suffixName = suffixName.toStringz.fromStringz;
+                } catch (std.utf.UTFException e) {}
+            }
             NodeCreateMenu("Node");
             NodeCreateMenu("Mask");
             NodeCreateMenu("Composite");
