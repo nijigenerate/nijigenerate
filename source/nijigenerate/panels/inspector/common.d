@@ -6,17 +6,61 @@ import nijigenerate.actions;
 import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
 import nijigenerate.utils;
+import nijigenerate;
 import nijilive;
 import std.format;
 import std.utf;
 import std.string;
 import i18n;
+import std.stdio;
 
 package(nijigenerate.panels.inspector) {
     ImVec4 CategoryTextColor = ImVec4(0.36f, 0.45f, 0.35f, 1.00f); // 画像の緑色に基づく
 }
 
 /// Model View.
+
+interface Inspector(T) {
+    void inspect(T target, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init);
+    void check(T[] nodes);
+}
+
+class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
+    override
+    void inspect(Node node, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == subMode && cast(T)node) {
+            run(cast(T)node);
+        }
+    }
+    abstract void run(T node);
+    override
+    void check(Node[] nodes) { }
+}
+
+class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Puppet) : Inspector!Puppet {
+    override
+    void inspect(Puppet puppet, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == subMode && cast(T)puppet) {
+            run(cast(T)puppet);
+        }
+    }
+    abstract void run(T node);
+    override
+    void check(Puppet[] nodes) { }
+}
+
+class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Deform, T: Node) : Inspector!Node {
+    override
+    void inspect(Node node, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == subMode && cast(T)node) {
+            run(cast(T)node, parameter, cursor);
+        }
+    }
+    abstract void run(T node, Parameter parameter, vec2u cursor);
+    override
+    void check(Node[] nodes) { }
+}
+
 
 void incModelModeHeader(Node node) {
     // Top level
@@ -35,6 +79,19 @@ void incModelModeHeader(Node node) {
     igPopID();
 }
 
+void incCommonNonEditHeader(Node node) {
+    // Top level
+    igPushID(node.uuid);
+        string typeString = "%s".format(incTypeIdToIcon(node.typeId()));
+        auto len = incMeasureString(typeString);
+        incText(node.name);
+        igSameLine(0, 0);
+        incDummy(ImVec2(-len.x, len.y));
+        igSameLine(0, 0);
+        incText(typeString);
+    igPopID();
+    igSeparator();
+}
 
 /// Deformation View.
 

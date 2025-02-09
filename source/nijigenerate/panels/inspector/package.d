@@ -30,8 +30,10 @@ import std.array;
 
 private {
 
-void delegate(Node)[] layoutInspectors;
-void delegate(Node, Parameter, vec2u)[] deformInspectors;
+Inspector!Node[] inspectors;
+Inspector!Puppet[] puppetInspectors;
+
+bool[string] isCommonAttr;
 
 void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
@@ -48,38 +50,49 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Layout, SimplePhysics)();
     ngRegisterInspector!(ModelEditSubMode.Layout, MeshGroup)();
     ngRegisterInspector!(ModelEditSubMode.Layout, PathDeformer)();
+
+    ngRegisterInspector!(ModelEditSubMode.Layout, Puppet)();
 }
 
 }
 
 
-void ngRegisterInspector(ModelEditSubMode mode, T)() {
-    alias Inspector = incInspector!(mode, T);
-    static if (mode == ModelEditSubMode.Layout) {
-        layoutInspectors ~= (Node node) {
-            if (auto target = cast(T)node)
-                Inspector(target);
-        };
+void ngRegisterInspector(ModelEditSubMode mode, T: Node)() {
+    inspectors ~= new NodeInspector!(mode, T);
+}
+
+void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
+    puppetInspectors ~= new PuppetInspector!(mode, T);
+}
+
+void ngInspector(T: Node, Args...)(T target, Args args) {
+    auto mode = ngModelEditSubMode;
+    if (mode == ModelEditSubMode.Layout) {
+        incModelModeHeader(target);
+    } else if (mode == ModelEditSubMode.Deform) {
+        incCommonNonEditHeader(target);
     }
-    static if (mode == ModelEditSubMode.Deform) {
-        deformInspectors ~= (Node node, Parameter param, vec2u cursor) {
-            if (auto target = cast(T)node)
-                Inspector(target, param, cursor);
-        };
-    }
-}
-
-void neInspector(ModelEditSubMode mode, Args...)(Node node, Args args) {
-    static if (mode == ModelEditSubMode.Layout) {
-        foreach (ins; layoutInspectors) {
-            ins(node);
+    foreach (ins; inspectors) {
+        static if (args.length == 0) {
+            ins.inspect(target, mode);
+        } else if (args.length == 2) {
+            ins.inspect(target, mode, args[0], args[1]);
         }
     }
-    static if (mode == ModelEditSubMode.Deform) {
-        foreach (ins; deformInspectors) {
-            ins(node, args[0], args[1]);
+}
+
+void ngInspector(T: Puppet, Args...)(T target, Args args) {
+    auto mode = ngModelEditSubMode;
+    foreach (ins; puppetInspectors) {
+        static if (args.length == 0) {
+            ins.inspect(target, mode);
+        } else if (args.length == 2) {
+            ins.inspect(target, mode, args[0], args[1]);
         }
     }
+}
+
+void ngUpdateAttributeCache(Node node) {
 }
 
 /**
@@ -87,11 +100,24 @@ void neInspector(ModelEditSubMode mode, Args...)(Node node, Args args) {
 */
 class InspectorPanel : Panel {
 private:
-
+    Puppet activePuppet = null;
 
 protected:
+    void notifyChange(Node target, NotifyReason reason) {
+        if (reason == NotifyReason.StructureChanged || reason == NotifyReason.AttributeChanged) {
+        }
+    }
+
     override
     void onUpdate() {
+        if (incActivePuppet() != activePuppet) {
+            activePuppet = incActivePuppet();
+            if (activePuppet) {
+                Node rootNode = activePuppet.root;
+                rootNode.addNotifyListener(&notifyChange);
+            }
+        }
+
         if (incEditMode == EditMode.VertexEdit) {
             incLabelOver(_("In vertex edit mode..."), ImVec2(0, 0), true);
             return;
@@ -105,22 +131,18 @@ protected:
                 // Per-edit mode inspector drawers
                 switch(incEditMode()) {
                     case EditMode.ModelEdit:
-                        if (incArmedParameter()) {
-                            Parameter param = incArmedParameter();
-                            vec2u cursor = param.findClosestKeypoint();
-                            incCommonNonEditHeader(node);
-                            neInspector!(ModelEditSubMode.Deform)(node, param, cursor);
-                        } else {
-                            incModelModeHeader(node);
-                            neInspector!(ModelEditSubMode.Layout)(node);
-                        }
-                    
+                        auto subMode = ngModelEditSubMode();
+                        Parameter param = incArmedParameter();
+                        vec2u cursor = param? param.findClosestKeypoint(): vec2u.init;
+                        ngInspector(node, param, cursor);
                     break;
                     default:
                         incCommonNonEditHeader(node);
                         break;
                 }
-            } else incInspector!(ModelEditSubMode.Layout)(incActivePuppet());
+            } else {
+                ngInspector(incActivePuppet());
+            }
         } else if (nodes.length == 0) {
             incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
         } else {
@@ -147,19 +169,6 @@ mixin incPanel!InspectorPanel;
 // COMMON
 //
 
-void incCommonNonEditHeader(Node node) {
-    // Top level
-    igPushID(node.uuid);
-        string typeString = "%s".format(incTypeIdToIcon(node.typeId()));
-        auto len = incMeasureString(typeString);
-        incText(node.name);
-        igSameLine(0, 0);
-        incDummy(ImVec2(-len.x, len.y));
-        igSameLine(0, 0);
-        incText(typeString);
-    igPopID();
-    igSeparator();
-}
 
 //
 //  MODEL MODE
