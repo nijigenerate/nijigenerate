@@ -25,7 +25,8 @@ private {
     IncMeshEditor editor;
     AutoMeshProcessor[] autoMeshProcessors = [
         new ContourAutoMeshProcessor(),
-        new GridAutoMeshProcessor()
+        new GridAutoMeshProcessor(),
+        new SkeletonExtractor()
     ];
     AutoMeshProcessor activeProcessor = null;
     bool isSubPartsMeshVisible = false;
