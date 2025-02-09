@@ -35,22 +35,15 @@ private {
             // Per-edit mode inspector drawers
             switch(incEditMode()) {
                 case EditMode.ModelEdit:
-                    if (incArmedParameter()) {
-                        Parameter param = incArmedParameter();
-                        vec2u cursor = param.findClosestKeypoint();
-                        incCommonNonEditHeader(node);
-                        neInspector!(ModelEditSubMode.Deform)(node, param, cursor);
-                    } else {
-                        incModelModeHeader(node);
-                        neInspector!(ModelEditSubMode.Layout)(node);
-                    }
-                
+                    Parameter param = incArmedParameter();
+                    vec2u cursor = param? param.findClosestKeypoint() : vec2u.init;
+                    ngInspector(node, param, cursor);                
                 break;
                 default:
                     incCommonNonEditHeader(node);
                     break;
             }
-        } else incInspector!(ModelEditSubMode.Layout)(incActivePuppet());        
+        } else ngInspector(incActivePuppet());        
     }
 
     void onParameterView(ulong index, Parameter param) {

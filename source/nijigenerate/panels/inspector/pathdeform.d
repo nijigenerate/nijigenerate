@@ -51,67 +51,47 @@ private {
 }
 /// Model View
 
-void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeformer)(T node) {
-    if (incBeginCategory(__("PathDeformer"))) {
-        float adjustSpeed = 1;
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeformer) : BaseInspector!(mode, T) {
+    override
+    void run(T node) {
+        if (incBeginCategory(__("PathDeformer"))) {
+            float adjustSpeed = 1;
 
-        igSpacing();
+            igSpacing();
 
-        // BLENDING MODE
-        import std.conv : text;
-        import std.string : toStringz;
+            // BLENDING MODE
+            import std.conv : text;
+            import std.string : toStringz;
 
-        igSpacing();
+            igSpacing();
 
-        alias DefaultDriver = ConnectedPendulumDriver;
+            alias DefaultDriver = ConnectedPendulumDriver;
 
-        bool physicsEnabled = node.driver !is null;
-        if (igCheckbox(__("Auto-Physics"), &physicsEnabled)) {
-            if (physicsEnabled) {
-                if (node.driver is null) {
-                    node.driver = new DefaultDriver(node);
-                }
-            } else {
-                if (node.driver !is null) {
-                    node.driver = null;
-                }
-            }
-        }
-        incTooltip(_("Enabled / Disabled physics driver for vertices. If enabled, vertices are moved along with specified physics engine."));
-
-        string curveTypeText = node.curveType == CurveType.Bezier ? "Bezier" : node.curveType == CurveType.Spline? "Spline" : "Invalid";
-        if (igBeginCombo("###PhysType", __(curveTypeText))) {
-
-            if (igSelectable(__("Bezier"), node.curveType == CurveType.Bezier)) {
-                node.curveType = CurveType.Bezier;
-                node.rebuffer(node.vertices);
-            }
-
-            if (igSelectable(__("Spline"), node.curveType == CurveType.Spline)) {
-                node.curveType = CurveType.Spline;
-                node.rebuffer(node.vertices);
-            }
-
-            igEndCombo();
-        }
-
-        igSpacing();
-
-        if (physicsEnabled) {
-            incText(_("Physics Type"));
-            string typeText = cast(ConnectedPendulumDriver)node.driver? "Pendulum": cast(ConnectedSpringPendulumDriver)node.driver? "SpringPendulum": "None";
-            if (igBeginCombo("###PhysType", __(typeText))) {
-
-                if (igSelectable(__("Pendulum"), cast(ConnectedPendulumDriver)node.driver !is null)) {
-                    if ((cast(ConnectedPendulumDriver)node.driver) is null) {
-                        node.driver = new ConnectedPendulumDriver(node);
+            bool physicsEnabled = node.driver !is null;
+            if (igCheckbox(__("Auto-Physics"), &physicsEnabled)) {
+                if (physicsEnabled) {
+                    if (node.driver is null) {
+                        node.driver = new DefaultDriver(node);
+                    }
+                } else {
+                    if (node.driver !is null) {
+                        node.driver = null;
                     }
                 }
+            }
+            incTooltip(_("Enabled / Disabled physics driver for vertices. If enabled, vertices are moved along with specified physics engine."));
 
-                if (igSelectable(__("SpringPendulum"), cast(ConnectedSpringPendulumDriver)node.driver !is null)) {
-                    if ((cast(ConnectedSpringPendulumDriver)node.driver) is null) {
-                        node.driver = new ConnectedSpringPendulumDriver(node);
-                    }
+            string curveTypeText = node.curveType == CurveType.Bezier ? "Bezier" : node.curveType == CurveType.Spline? "Spline" : "Invalid";
+            if (igBeginCombo("###PhysType", __(curveTypeText))) {
+
+                if (igSelectable(__("Bezier"), node.curveType == CurveType.Bezier)) {
+                    node.curveType = CurveType.Bezier;
+                    node.rebuffer(node.vertices);
+                }
+
+                if (igSelectable(__("Spline"), node.curveType == CurveType.Spline)) {
+                    node.curveType = CurveType.Spline;
+                    node.rebuffer(node.vertices);
                 }
 
                 igEndCombo();
@@ -119,49 +99,75 @@ void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeforme
 
             igSpacing();
 
-            igPushID("PhysicsDriver");
-            if (auto driver = cast(ConnectedPendulumDriver)node.driver) {
-                inspectDriver(driver);
-                // Padding
-                igSpacing();
-                igSpacing();
-            } else if (auto springPendulum = cast(ConnectedSpringPendulumDriver)node.driver) {
+            if (physicsEnabled) {
+                incText(_("Physics Type"));
+                string typeText = cast(ConnectedPendulumDriver)node.driver? "Pendulum": cast(ConnectedSpringPendulumDriver)node.driver? "SpringPendulum": "None";
+                if (igBeginCombo("###PhysType", __(typeText))) {
 
+                    if (igSelectable(__("Pendulum"), cast(ConnectedPendulumDriver)node.driver !is null)) {
+                        if ((cast(ConnectedPendulumDriver)node.driver) is null) {
+                            node.driver = new ConnectedPendulumDriver(node);
+                        }
+                    }
+
+                    if (igSelectable(__("SpringPendulum"), cast(ConnectedSpringPendulumDriver)node.driver !is null)) {
+                        if ((cast(ConnectedSpringPendulumDriver)node.driver) is null) {
+                            node.driver = new ConnectedSpringPendulumDriver(node);
+                        }
+                    }
+
+                    igEndCombo();
+                }
+
+                igSpacing();
+
+                igPushID("PhysicsDriver");
+                if (auto driver = cast(ConnectedPendulumDriver)node.driver) {
+                    inspectDriver(driver);
+                    // Padding
+                    igSpacing();
+                    igSpacing();
+                } else if (auto springPendulum = cast(ConnectedSpringPendulumDriver)node.driver) {
+
+                }
+
+                igPopID();
             }
 
-            igPopID();
         }
-
+        incEndCategory();
     }
-    incEndCategory();
 }
 
 /// Armed Parameter View
 
-void incInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: PathDeformer)(T node, Parameter param, vec2u cursor) {
-    if (incBeginCategory(__("Path Deformer"))) {
-        float adjustSpeed = 1;
-        igPushID("PathDeformer");
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: PathDeformer) : BaseInspector!(mode, T) {
+    override
+    void run(T node, Parameter param, vec2u cursor) {
+        if (incBeginCategory(__("Path Deformer"))) {
+            float adjustSpeed = 1;
+            igPushID("PathDeformer");
 
-        bool physicsEnabled = node.driver !is null;
-        if (physicsEnabled) {
-            igSpacing();
+            bool physicsEnabled = node.driver !is null;
+            if (physicsEnabled) {
+                igSpacing();
 
-            igPushID("PhysicsDriver");
-            if (auto driver = cast(ConnectedPendulumDriver)node.driver) {
-                inspectDriver(driver);
-            } else if (auto springPendulum = cast(ConnectedSpringPendulumDriver)node.driver) {
+                igPushID("PhysicsDriver");
+                if (auto driver = cast(ConnectedPendulumDriver)node.driver) {
+                    inspectDriver(driver);
+                } else if (auto springPendulum = cast(ConnectedSpringPendulumDriver)node.driver) {
 
+                }
+
+                igPopID();
             }
+
+            // Padding
+            igSpacing();
+            igSpacing();
 
             igPopID();
         }
-
-        // Padding
-        igSpacing();
-        igSpacing();
-
-        igPopID();
+        incEndCategory();
     }
-    incEndCategory();
 }
