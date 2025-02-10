@@ -11,7 +11,6 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.core.input;
 import nijilive.core.dbg;
-//import nijigenerate.core;
 import nijigenerate.project;
 import nijilive;
 import bindbc.imgui;

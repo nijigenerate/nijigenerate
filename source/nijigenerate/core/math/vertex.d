@@ -3,7 +3,6 @@ module nijigenerate.core.math.vertex;
 import std.algorithm;
 import nijilive.math;
 import nijilive;
-//import nijigenerate.viewport;
 import nijigenerate.core.math.mesh;
 import nijigenerate.viewport.common.mesheditor.brushes.base;
 

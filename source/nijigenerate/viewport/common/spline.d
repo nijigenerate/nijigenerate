@@ -7,7 +7,6 @@
 */
 module nijigenerate.viewport.common.spline;
 import nijigenerate.viewport.common.mesh;
-//import nijigenerate.viewport;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
 import nijigenerate.core;
