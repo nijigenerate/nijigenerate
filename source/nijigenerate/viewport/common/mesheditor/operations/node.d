@@ -10,7 +10,7 @@
 module nijigenerate.viewport.common.mesheditor.operations.node;
 
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.operations;

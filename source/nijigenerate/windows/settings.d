@@ -7,7 +7,7 @@
 */
 
 module nijigenerate.windows.settings;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.core;

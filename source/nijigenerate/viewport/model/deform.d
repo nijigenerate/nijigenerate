@@ -18,7 +18,7 @@ import bindbc.imgui;
 import i18n;
 
 private {
-    struct ModelView {
+    class ModelView {
         void onSelectionChanged(Node[] n) {
             editor = null;
             incViewportNodeDeformNotifyParamValueChanged();
@@ -33,6 +33,7 @@ private {
     ModelView view;
 
     static this() {
+        view = new ModelView;
         ngRegisterProjectCallback((Project project) { 
             project.SelectionChanged.connect(&view.onSelectionChanged);
             project.ArmedParameterChanged.connect(&view.onArmedParameterChanged);

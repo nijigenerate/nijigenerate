@@ -21,7 +21,7 @@ import std.conv;
 private {
     float tlWidth_ = DEF_HEADER_WIDTH;
 
-    struct AnimationListener {
+    class AnimationListener {
         void onAnimationChanged(AnimationPlaybackRef curAnim) {
             incAnimationTimelineUpdate(*curAnim.animation);
         }
@@ -30,6 +30,7 @@ private {
 
     AnimationListener listener;
     static this() {
+        listener = new AnimationListener;
         ngRegisterProjectCallback((Project project) { project.AnimationChanged.connect(&listener.onAnimationChanged); });
     }
 }
