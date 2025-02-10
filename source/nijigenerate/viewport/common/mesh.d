@@ -12,7 +12,6 @@
         https://github.com/jhasse/poly2tri
 */
 module nijigenerate.viewport.common.mesh;
-//import nijigenerate.viewport;
 import nijigenerate.viewport.common.mesheditor.brushes;
 import nijilive;
 import nijilive.core.dbg;

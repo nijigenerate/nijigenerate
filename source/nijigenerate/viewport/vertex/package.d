@@ -7,7 +7,6 @@
 */
 module nijigenerate.viewport.vertex;
 import i18n;
-//import nijigenerate.viewport;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.automesh;

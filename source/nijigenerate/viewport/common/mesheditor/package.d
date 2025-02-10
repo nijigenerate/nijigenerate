@@ -10,7 +10,6 @@ module nijigenerate.viewport.common.mesheditor;
     - Asahi Lina
 */
 import i18n;
-//import nijigenerate.viewport;
 public import nijigenerate.viewport.common.mesheditor.operations;
 import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.viewport.common;
