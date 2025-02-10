@@ -228,7 +228,7 @@ public:
 
     override
     ulong getVertexFromPoint(vec2 mousePos) {
-        return mesh.getVertexFromPoint(mousePos);
+        return mesh.getVertexFromPoint(mousePos, incViewportZoom);
     }
 
     override
@@ -238,7 +238,7 @@ public:
 
     override
     void removeVertexAt(vec2 vertex) {
-        mesh.removeVertexAt(vertex);
+        mesh.removeVertexAt(vertex, incViewportZoom);
     }
 
     override
@@ -316,7 +316,7 @@ public:
 
     override
     bool isPointOver(vec2 mousePos) {
-        return mesh.isPointOverVertex(mousePos);
+        return mesh.isPointOverVertex(mousePos, incViewportZoom);
     }
 
     override

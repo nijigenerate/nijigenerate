@@ -73,7 +73,7 @@ class BezierDeformTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) impl.maybeSelectOne = ulong(-1);
         
         if (igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
-            int idx = findPoint(deformImpl.vertices, impl.mousePos);
+            int idx = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
             if (idx != -1) return BezierDeformActionID.RemovePoint;
             else return BezierDeformActionID.AddPoint;
 
@@ -154,7 +154,7 @@ class BezierDeformTool : NodeSelect {
         }
 
         if (igIsMouseClicked(ImGuiMouseButton.Left)) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos);
+            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
             if (target != -1 && (io.KeyCtrl || _isRotateMode)) {
                 if (target == lockedPoint)
                     return BezierDeformActionID.UnsetRotateCenter;
@@ -283,7 +283,7 @@ class BezierDeformTool : NodeSelect {
 
         if (action == BezierDeformActionID.RemovePoint || action == BezierDeformActionID.AddPoint) {
             if (action == BezierDeformActionID.RemovePoint) {
-                int idx = findPoint(deformImpl.vertices, impl.mousePos);
+                int idx = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
                 if(idx != -1) deformImpl.removeVertex(io, true);
             } else if (action == BezierDeformActionID.AddPoint) {
                 deformImpl.addVertex(io);
@@ -296,7 +296,7 @@ class BezierDeformTool : NodeSelect {
             _isRotateMode = false;
 
         } else if (action == BezierDeformActionID.SetRotateCenter) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos);
+            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
             lockedPoint = target;
             pathDragTarget = -1;
             _isRotateMode = false;
@@ -383,7 +383,7 @@ class BezierDeformTool : NodeSelect {
             _isRotateMode = false;
 
         } else if (action == BezierDeformActionID.SetRotateCenter) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos);
+            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
             lockedPoint = target;
             pathDragTarget = -1;
             _isRotateMode = false;

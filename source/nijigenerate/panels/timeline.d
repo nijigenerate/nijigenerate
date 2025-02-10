@@ -11,7 +11,7 @@ import i18n;
 import nijilive;
 import bindbc.imgui;
 import nijigenerate.widgets;
-import nijigenerate;
+import nijigenerate.project;
 import inmath.noise;
 import nijigenerate.ext.param;
 import nijigenerate.ext;
@@ -20,7 +20,18 @@ import std.conv;
 
 private {
     float tlWidth_ = DEF_HEADER_WIDTH;
+
+    struct AnimationListener {
+        void onAnimationChanged(AnimationPlaybackRef curAnim) {
+            incAnimationTimelineUpdate(*curAnim.animation);
+        }
+    }
     float[] tlTrackHeights_;
+
+    AnimationListener listener;
+    static this() {
+        ngRegisterProjectCallback((Project project) { project.AnimationChanged.connect(&listener.onAnimationChanged); });
+    }
 }
 
 void incAnimationTimelineUpdate(ref Animation anim) {

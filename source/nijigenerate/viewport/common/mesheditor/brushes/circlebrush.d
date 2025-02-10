@@ -1,7 +1,7 @@
 module nijigenerate.viewport.common.mesheditor.brushes.circlebrush;
 
 import nijigenerate.viewport.common.mesheditor.brushes.base;
-import nijigenerate.viewport;
+//import nijigenerate.viewport;
 import nijigenerate.viewport.common;
 import nijigenerate.widgets.drag;
 import nijilive;

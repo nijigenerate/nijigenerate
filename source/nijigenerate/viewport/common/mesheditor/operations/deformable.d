@@ -244,7 +244,7 @@ public:
 
     override
     ulong getVertexFromPoint(vec2 mousePos) {
-        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, mousePos);
+        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, mousePos, incViewportZoom);
     }
 
     override
@@ -254,7 +254,7 @@ public:
 
     override
     void removeVertexAt(vec2 vertex) {
-        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i){ vertices = vertices.removeByValue(i); })(vertices, vertex);
+        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i){ vertices = vertices.removeByValue(i); })(vertices, vertex, incViewportZoom);
     }
 
     override
@@ -334,7 +334,7 @@ public:
 
     override
     bool isPointOver(vec2 mousePos) {
-        return isPointOverVertex(vertices, mousePos);
+        return isPointOverVertex(vertices, mousePos, incViewportZoom);
     }
 
     override
@@ -663,7 +663,7 @@ public:
 
     override
     ulong getVertexFromPoint(vec2 mousePos) {
-        return nijigenerate.core.math.vertex.getVertexFromPoint(inputVertices, mousePos);
+        return nijigenerate.core.math.vertex.getVertexFromPoint(inputVertices, mousePos, incViewportZoom);
     }
 
     override
@@ -699,7 +699,7 @@ public:
 
     override
     bool isPointOver(vec2 mousePos) {
-        return nijigenerate.core.math.vertex.isPointOverVertex(inputVertices, mousePos);
+        return nijigenerate.core.math.vertex.isPointOverVertex(inputVertices, mousePos, incViewportZoom);
     }
 
     override

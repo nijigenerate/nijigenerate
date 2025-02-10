@@ -4,7 +4,7 @@ import nijigenerate.viewport.model.deform;
 import nijigenerate.ext.param;
 import nijigenerate.ext;
 import nijigenerate.widgets;
-import nijigenerate.windows;
+//import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate.actions;
 import nijigenerate.viewport.common.mesheditor;

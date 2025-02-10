@@ -9,7 +9,7 @@
 */
 module nijigenerate.windows.paramaxes;
 import std.algorithm.mutation : remove;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import std.string;

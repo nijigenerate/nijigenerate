@@ -6,7 +6,8 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.kramerge;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
+import nijigenerate.windows.settings;
 import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate;
