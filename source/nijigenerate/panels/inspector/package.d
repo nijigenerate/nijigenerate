@@ -24,16 +24,22 @@ import nijigenerate.utils;
 import nijilive;
 import i18n;
 import std.utf;
+import std.algorithm;
 import std.string;
 import std.traits;
 import std.array;
 
 private {
 
-Inspector!Node[] inspectors;
-Inspector!Puppet[] puppetInspectors;
+Inspector!Node delegate()[] inspectors;
+Inspector!Puppet delegate()[] puppetInspectors;
+InspectorHolder!Node activeNodeInspectors;
+InspectorHolder!Puppet activePuppetInspectors;
 
-bool[string] isCommonAttr;
+static this() {
+    activeNodeInspectors = new InspectorHolder!Node;
+    activePuppetInspectors = new InspectorHolder!Puppet;
+}
 
 void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
@@ -58,38 +64,23 @@ void initInspectors() {
 
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Node)() {
-    inspectors ~= new NodeInspector!(mode, T);
+    inspectors ~= () => new NodeInspector!(mode, T);
 }
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
-    puppetInspectors ~= new PuppetInspector!(mode, T);
+    puppetInspectors ~= () => new PuppetInspector!(mode, T);
 }
 
-void ngInspector(T: Node, Args...)(T target, Args args) {
+void ngInspector(T: Node)(T target, Parameter param = null, vec2u cursor=vec2u.init) {
     auto mode = ngModelEditSubMode;
-    if (mode == ModelEditSubMode.Layout) {
-        incModelModeHeader(target);
-    } else if (mode == ModelEditSubMode.Deform) {
-        incCommonNonEditHeader(target);
-    }
-    foreach (ins; inspectors) {
-        static if (args.length == 0) {
-            ins.inspect(target, mode);
-        } else if (args.length == 2) {
-            ins.inspect(target, mode, args[0], args[1]);
-        }
-    }
+    activeNodeInspectors.setInspectors(inspectors.map!((i) => i()).array);
+    activeNodeInspectors.inspect(target, mode, param, cursor);
 }
 
-void ngInspector(T: Puppet, Args...)(T target, Args args) {
+void ngInspector(T: Puppet)(T target, Parameter param = null, vec2u cursor=vec2u.init) {
     auto mode = ngModelEditSubMode;
-    foreach (ins; puppetInspectors) {
-        static if (args.length == 0) {
-            ins.inspect(target, mode);
-        } else if (args.length == 2) {
-            ins.inspect(target, mode, args[0], args[1]);
-        }
-    }
+    activePuppetInspectors.setInspectors(puppetInspectors.map!((i) => i()).array);
+    activePuppetInspectors.inspect(target, mode, param, cursor);
 }
 
 void ngUpdateAttributeCache(Node node) {

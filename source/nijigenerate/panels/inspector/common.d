@@ -8,11 +8,12 @@ import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijigenerate;
 import nijilive;
-import std.format;
-import std.utf;
-import std.string;
 import i18n;
+import std.format;
+import std.algorithm.searching;
+import std.string;
 import std.stdio;
+import std.utf;
 
 package(nijigenerate.panels.inspector) {
     ImVec4 CategoryTextColor = ImVec4(0.36f, 0.45f, 0.35f, 1.00f); // 画像の緑色に基づく
@@ -22,7 +23,8 @@ package(nijigenerate.panels.inspector) {
 
 interface Inspector(T) {
     void inspect(T target, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init);
-    void check(T[] nodes);
+    void capture(T[] nodes);
+    bool acceptable(T node);
 }
 
 class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
@@ -34,7 +36,11 @@ class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Node) 
     }
     abstract void run(T node);
     override
-    void check(Node[] nodes) { }
+    void capture(Node[] nodes) { }
+    override
+    bool acceptable(Node node) {
+        return cast(T)node !is null;
+    }
 }
 
 class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Puppet) : Inspector!Puppet {
@@ -46,7 +52,11 @@ class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Puppet
     }
     abstract void run(T node);
     override
-    void check(Puppet[] nodes) { }
+    void capture(Puppet[] nodes) { }
+    override
+    bool acceptable(Puppet node) {
+        return cast(T)node !is null;
+    }
 }
 
 class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Deform, T: Node) : Inspector!Node {
@@ -58,9 +68,47 @@ class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Deform, T: Node) 
     }
     abstract void run(T node, Parameter parameter, vec2u cursor);
     override
-    void check(Node[] nodes) { }
+    void capture(Node[] nodes) { }
+    override
+    bool acceptable(Node node) {
+        return cast(T)node !is null;
+    }
 }
 
+class InspectorHolder(T) : Inspector!T {
+protected:
+    Inspector!T[] inspectors;
+
+public:
+    override
+    void inspect(T target, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == ModelEditSubMode.Layout) {
+            static if (is(T: Node)) {
+                incModelModeHeader(target);
+            }
+        } else if (mode == ModelEditSubMode.Deform) {
+            static if (is(T: Node)) {
+                incCommonNonEditHeader(target);
+            }
+        }
+
+        foreach (t; inspectors) {
+            t.inspect(target, mode, parameter, cursor);
+        }
+    }
+
+    void setInspectors(Inspector!T[] inspectors) {
+        this.inspectors = inspectors;
+    }
+
+    override
+    void capture(T[] nodes) { }
+
+    override
+    bool acceptable(T node) {
+        return inspectors.any!((t) => t.acceptable(node));
+    }
+}
 
 void incModelModeHeader(Node node) {
     // Top level

@@ -9,7 +9,7 @@ module nijigenerate.windows.welcome;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.button;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
 import std.string;

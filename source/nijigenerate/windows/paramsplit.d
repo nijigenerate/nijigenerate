@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.paramsplit;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
 import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.label;

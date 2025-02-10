@@ -12,7 +12,7 @@
         https://github.com/jhasse/poly2tri
 */
 module nijigenerate.viewport.common.mesh;
-import nijigenerate.viewport;
+//import nijigenerate.viewport;
 import nijigenerate.viewport.common.mesheditor.brushes;
 import nijilive;
 import nijilive.core.dbg;
@@ -456,16 +456,16 @@ public:
         drawPoints(trans);
     }
 
-    bool isPointOverVertex(vec2 point) {
-        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, point);
+    bool isPointOverVertex(vec2 point, float zoomRate) {
+        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, point, zoomRate);
     }
 
-    void removeVertexAt(vec2 point) {
-        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i) { this.remove(i); })(vertices, point);
+    void removeVertexAt(vec2 point, float zoomRate) {
+        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i) { this.remove(i); })(vertices, point, zoomRate);
     }
 
-    ulong getVertexFromPoint(vec2 point) {
-        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, point);
+    ulong getVertexFromPoint(vec2 point, float zoomRate) {
+        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, point, zoomRate);
     }
 
     float[] getVerticesInBrush(vec2 point, Brush brush) {

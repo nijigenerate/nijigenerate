@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.paramprop;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.actions;

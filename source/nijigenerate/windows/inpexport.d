@@ -12,7 +12,7 @@ import nijigenerate.widgets.label;
 import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.texture;
 import nijigenerate.widgets.button;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
 import nijigenerate.io.inpexport;
 import nijigenerate;

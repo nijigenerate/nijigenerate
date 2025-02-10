@@ -11,7 +11,6 @@ import nijigenerate;
 import nijigenerate.core;
 import nijigenerate.core.input;
 import nijigenerate.actions;
-import nijigenerate.viewport;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
@@ -28,6 +27,30 @@ import std.stdio;
 
 private {
     enum HandleSize = 24;
+
+    struct ModelView {
+        void onEditModeChanging(EditMode mode) {
+            incViewportWithdrawMode(mode);
+        }
+        void onEditModeChanged(EditMode mode) {
+            incViewportPresentMode(mode);
+        }
+
+        void onCameraFocused(float focus, vec2 pos) {
+            incViewportTargetZoom = focus;
+            incViewportTargetPosition = pos;
+        }
+    }
+    ModelView view;
+    static this() {
+        ngRegisterProjectCallback((Project project) { 
+            incViewportPresentMode(editMode_);
+            project.EditModeChanging.connect(&view.onEditModeChanging);
+            project.EditModeChanged.connect(&view.onEditModeChanged);
+            project.CameraFocused.connect(&view.onCameraFocused);
+            incViewportReset();
+        });
+    }
 }
 
 bool incShouldMirrorViewport = false;

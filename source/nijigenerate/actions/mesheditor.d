@@ -12,7 +12,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
-import nijigenerate.viewport;
+//import nijigenerate.viewport;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;

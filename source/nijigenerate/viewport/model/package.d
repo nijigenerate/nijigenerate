@@ -265,9 +265,9 @@ void incViewportModelOptions() {
 //    igPopStyleVar(2);
 }
 
-void incViewportModelNodeSelectionChanged() {
-    incViewportModelDeformNodeSelectionChanged();
-}
+//void incViewportModelNodeSelectionChanged() {
+//    incViewportModelDeformNodeSelectionChanged();
+//}
 
 void incViewportModelUpdate(ImGuiIO* io, Camera camera) {
     if (Parameter param = incArmedParameter()) {

@@ -11,15 +11,33 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.core.input;
 import nijilive.core.dbg;
-import nijigenerate.core;
-import nijigenerate;
+//import nijigenerate.core;
+import nijigenerate.project;
 import nijilive;
 import bindbc.imgui;
 import i18n;
 
 private {
+    struct ModelView {
+        void onSelectionChanged(Node[] n) {
+            editor = null;
+            incViewportNodeDeformNotifyParamValueChanged();
+        }
+
+        void onArmedParameterChanged(Parameter param) {
+            incViewportNodeDeformNotifyParamValueChanged();        
+        }
+    }
     IncMeshEditor editor;
     Drawable selected = null;
+    ModelView view;
+
+    static this() {
+        ngRegisterProjectCallback((Project project) { 
+            project.SelectionChanged.connect(&view.onSelectionChanged);
+            project.ArmedParameterChanged.connect(&view.onArmedParameterChanged);
+        });
+    }
 }
 
 void incViewportNodeDeformNotifyParamValueChanged() {
@@ -55,10 +73,10 @@ void incViewportNodeDeformNotifyParamValueChanged() {
     }
 }
 
-void incViewportModelDeformNodeSelectionChanged() {
-    editor = null;
-    incViewportNodeDeformNotifyParamValueChanged();
-}
+//void incViewportModelDeformNodeSelectionChanged() {
+//    editor = null;
+//    incViewportNodeDeformNotifyParamValueChanged();
+//}
 
 void incViewportModelDeformUpdate(ImGuiIO* io, Camera camera, Parameter param) {
     if (!editor) return;
