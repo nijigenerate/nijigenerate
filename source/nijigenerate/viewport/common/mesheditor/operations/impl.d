@@ -3,7 +3,7 @@ module nijigenerate.viewport.common.mesheditor.operations.impl;
 import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.viewport.common.mesheditor.operations.base;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;

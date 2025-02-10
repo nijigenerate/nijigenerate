@@ -1,7 +1,7 @@
 module nijigenerate.viewport.common.mesheditor.tools.base;
 
 import i18n;
-import nijigenerate.viewport;
+//import nijigenerate.viewport;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.tools.enums;
