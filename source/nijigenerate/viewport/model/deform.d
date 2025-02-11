@@ -6,12 +6,9 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.viewport.model.deform;
-import nijigenerate.viewport.common.mesh;
-import nijigenerate.viewport.common.mesheditor;
+import nijigenerate.viewport.model.mesheditor;
 import nijigenerate.viewport.base;
-import nijigenerate.widgets.tooltip;
 import nijigenerate.core.input;
-import nijilive.core.dbg;
 import nijigenerate.project;
 import nijilive;
 import bindbc.imgui;
@@ -77,7 +74,7 @@ public:
 
             if (!editor) {
                 if (drawables && drawables.length > 0) {
-                    editor = new IncMeshEditor(true);
+                    editor = new DeformMeshEditor();
                     editor.setTargets(drawables);
                 } else
                     return;

@@ -8,6 +8,7 @@ module nijigenerate.actions.mesheditor;
 
 import nijigenerate.core.actionstack;
 import nijigenerate.viewport.common.mesheditor;
+import nijigenerate.viewport.model.mesheditor;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.viewport.model.deform;
