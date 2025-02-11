@@ -24,7 +24,7 @@ private:
 protected:
     override
     void onUpdate() {
-        incViewportToolSettings();
+        incViewport.toolSettings();
     }
 
 public:

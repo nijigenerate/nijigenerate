@@ -76,7 +76,7 @@ class BrushTool : NodeSelect {
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
         super.setToolMode(toolMode, impl);
-        incViewportSetAlwaysUpdate(true);
+        incViewport.alwaysUpdate = true;
     }
 
     override 
