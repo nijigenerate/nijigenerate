@@ -33,13 +33,6 @@ private {
 
 Inspector!Node delegate()[] inspectors;
 Inspector!Puppet delegate()[] puppetInspectors;
-InspectorHolder!Node activeNodeInspectors;
-InspectorHolder!Puppet activePuppetInspectors;
-
-static this() {
-    activeNodeInspectors = new InspectorHolder!Node;
-    activePuppetInspectors = new InspectorHolder!Puppet;
-}
 
 void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
@@ -64,25 +57,40 @@ void initInspectors() {
 
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Node)() {
-    inspectors ~= () => new NodeInspector!(mode, T);
+    inspectors ~= () => new NodeInspector!(mode, T)([], mode);
 }
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
-    puppetInspectors ~= () => new PuppetInspector!(mode, T);
+    puppetInspectors ~= () => new PuppetInspector!(mode, T)([], mode);
 }
 
+
+InspectorHolder!Node ngNodeInspector(Node[] targets) {
+    auto mode = ngModelEditSubMode;
+    auto result = new InspectorHolder!Node(targets, mode);
+    result.setInspectors(inspectors.map!((i) => i()).array);
+    return result;
+}
+
+InspectorHolder!Puppet ngPuppetInspector(Puppet[] targets) {
+    auto mode = ngModelEditSubMode;
+    auto result = new InspectorHolder!Puppet(targets, mode);
+    result.setInspectors(puppetInspectors.map!((i) => i()).array);
+    return result;
+}
+/*
 void ngInspector(T: Node)(T target, Parameter param = null, vec2u cursor=vec2u.init) {
     auto mode = ngModelEditSubMode;
     activeNodeInspectors.setInspectors(inspectors.map!((i) => i()).array);
-    activeNodeInspectors.inspect(target, mode, param, cursor);
+    activeNodeInspectors.inspect(param, cursor);
 }
 
 void ngInspector(T: Puppet)(T target, Parameter param = null, vec2u cursor=vec2u.init) {
     auto mode = ngModelEditSubMode;
     activePuppetInspectors.setInspectors(puppetInspectors.map!((i) => i()).array);
-    activePuppetInspectors.inspect(target, mode, param, cursor);
+    activePuppetInspectors.inspect(param, cursor);
 }
-
+*/
 void ngUpdateAttributeCache(Node node) {
 }
 
@@ -92,21 +100,43 @@ void ngUpdateAttributeCache(Node node) {
 class InspectorPanel : Panel {
 private:
     Puppet activePuppet = null;
+    Project activeProject = null;
+
+    InspectorHolder!Node activeNodeInspectors;
+    InspectorHolder!Puppet activePuppetInspectors;
 
 protected:
-    void notifyChange(Node target, NotifyReason reason) {
+    void onChange(Node target, NotifyReason reason) {
         if (reason == NotifyReason.StructureChanged || reason == NotifyReason.AttributeChanged) {
         }
     }
 
+    void onSelectionChanged(Node[] nodes) {
+        auto mode = ngModelEditSubMode;
+        activeNodeInspectors = new InspectorHolder!Node(nodes, mode);
+        activeNodeInspectors.setInspectors(inspectors.map!((i) => i()).array);
+    }
+
     override
     void onUpdate() {
+        auto subMode = ngModelEditSubMode();
+        if (incActiveProject() != activeProject) {
+            activeProject = incActiveProject();
+            activeProject.SelectionChanged.connect(&onSelectionChanged);
+        }
         if (incActivePuppet() != activePuppet) {
             activePuppet = incActivePuppet();
             if (activePuppet) {
                 Node rootNode = activePuppet.root;
-                rootNode.addNotifyListener(&notifyChange);
+                rootNode.addNotifyListener(&onChange);
+                activePuppetInspectors = new InspectorHolder!Puppet([activePuppet], subMode);
             }
+        }
+        if (activeNodeInspectors) {
+            activeNodeInspectors.subMode = subMode;
+        }
+        if (activePuppetInspectors) {
+            activePuppetInspectors.subMode = subMode;
         }
 
         if (incEditMode == EditMode.VertexEdit) {
@@ -122,17 +152,18 @@ protected:
                 // Per-edit mode inspector drawers
                 switch(incEditMode()) {
                     case EditMode.ModelEdit:
-                        auto subMode = ngModelEditSubMode();
                         Parameter param = incArmedParameter();
                         vec2u cursor = param? param.findClosestKeypoint(): vec2u.init;
-                        ngInspector(node, param, cursor);
+                        if (activeNodeInspectors)
+                            activeNodeInspectors.inspect(param, cursor);
                     break;
                     default:
                         incCommonNonEditHeader(node);
                         break;
                 }
             } else {
-                ngInspector(incActivePuppet());
+                if (activePuppetInspectors)
+                    activePuppetInspectors.inspect();
             }
         } else if (nodes.length == 0) {
             incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);

@@ -27,8 +27,13 @@ import std.range: enumerate;
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : BaseInspector!(mode, T) 
     if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer))
 {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
     override
-    void run(T node) {
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("Transform"))) {
             float adjustSpeed = 1;
             // if (igIsKeyDown(igGetKeyIndex(ImGuiKeyModFlags_Shift))) {
@@ -305,9 +310,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : BaseInspector!(mode, T)
     if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer))
 {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
     override
-    void run(T node, Parameter param, vec2u cursor)  {
-        if (incBeginCategory(__("Transform"))) {   
+    void run(Parameter param, vec2u cursor)  {
+        if (targets.length == 0) return;
+        auto node = targets[0];
+        if (incBeginCategory(__("Transform"))) {
             float adjustSpeed = 1;
 
             ImVec2 avail;

@@ -19,8 +19,14 @@ import i18n;
 
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite) : BaseInspector!(mode, T) if (is(T: Composite)) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
     override
-    void run(T node) {
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("Composite"))) {
             
 
@@ -223,8 +229,15 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
 /// Armed Parameter View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Composite) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
     override
-    void run (T node, Parameter param, vec2u cursor) {
+    void run (Parameter param, vec2u cursor) {
+        if (targets.length == 0) return;
+        auto node = targets[0];
+
         if (incBeginCategory(__("Composite"))) {
             igBeginGroup();
                 igIndent(16);

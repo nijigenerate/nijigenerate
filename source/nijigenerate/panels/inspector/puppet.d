@@ -23,8 +23,13 @@ import i18n;
 import std.range: enumerate;
 
 class PuppetInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Puppet): BaseInspector!(mode, T) {
+    this(T[] targets, ModelEditSubMode mode) {
+        super(targets, mode);
+    }
     override
-    void run(T puppet) {
+    void run() {
+        if (targets.length == 0) return;
+        auto puppet = targets[0];
         auto rootNode = puppet.root; 
 
         // Top level

@@ -52,8 +52,13 @@ private {
 /// Model View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeformer) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
     override
-    void run(T node) {
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("PathDeformer"))) {
             float adjustSpeed = 1;
 
@@ -142,8 +147,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 /// Armed Parameter View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: PathDeformer) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
     override
-    void run(T node, Parameter param, vec2u cursor) {
+    void run(Parameter param, vec2u cursor) {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("Path Deformer"))) {
             float adjustSpeed = 1;
             igPushID("PathDeformer");

@@ -30,20 +30,40 @@ private {
         VertNarrower
     };
 
+    InspectorHolder!Node nodeInspector = null;
+    InspectorHolder!Puppet puppetInspector = null;
+
+    void initInspectors() {
+        if (nodeInspector is null) {
+            nodeInspector = ngNodeInspector([]);
+        }
+        if (puppetInspector is null) {
+            puppetInspector = ngPuppetInspector([]);
+        }
+    }
+
     void onNodeView(Node node) {
+        initInspectors();
+        ModelEditSubMode subMode = ngModelEditSubMode();
         if (node !is null && node != incActivePuppet().root) {
             // Per-edit mode inspector drawers
             switch(incEditMode()) {
                 case EditMode.ModelEdit:
                     Parameter param = incArmedParameter();
                     vec2u cursor = param? param.findClosestKeypoint() : vec2u.init;
-                    ngInspector(node, param, cursor);                
+                    nodeInspector.capture([node]);
+                    nodeInspector.subMode = subMode;
+                    nodeInspector.inspect(param, cursor);
                 break;
                 default:
                     incCommonNonEditHeader(node);
                     break;
             }
-        } else ngInspector(incActivePuppet());        
+        } else {
+            puppetInspector.capture([incActivePuppet]);
+            puppetInspector.subMode = subMode;
+            puppetInspector.inspect();
+        }
     }
 
     void onParameterView(ulong index, Parameter param) {
