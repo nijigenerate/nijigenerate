@@ -9,6 +9,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
+import nijigenerate.core.math.vertex;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
@@ -20,6 +21,8 @@ import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
+import std.range;
+import std.algorithm;
 
 
 class IncMeshEditorOneImpl(T) : IncMeshEditorOne {
@@ -119,4 +122,115 @@ public:
     override
     void setGroupId(uint groupId) { this.groupId = groupId; }
 
+}
+
+vec2[] getVertices(T)(T node) {
+    if (auto deform = cast(Deformable)node) {
+        return deform.vertices;
+    }
+    return [node.transform.translation.xy];
+}
+void setVertices(T)(T node, vec2[] value) {
+    if (auto deform = cast(Deformable)node) {
+        deform.vertices = value;
+    } else {
+        node.transform.translation = vec3(value[0], value[1], 0);
+    }
+}
+vec2[] toVertices(T: MeshVertex*)(T[] array) {
+    return array.map!((MeshVertex* vtx){return vtx.position; }).array;
+}
+MeshVertex*[] toMVertices(T: vec2)(T[] array) {
+    return array.map!((vec2 vtx) { return new MeshVertex(vtx); }).array;
+}
+
+void resize(T:MeshVertex*)(ref T[] array, ulong size) {
+    if (size <= array.length) {
+        array.length = size;
+    } else {
+        while (size != 0) {
+            array ~= new MeshVertex;
+            size --;
+        }
+    }
+}
+
+bool toBool(T: MeshVertex*)(T vtx) { return vtx !is null; }
+bool toBool(T: vec2)(T vtx) { return true; }
+void drawPointSubset(T)(T[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
+    vec3[] subPoints;
+
+    if (subset.length == 0) return;
+
+    // Updates all point positions
+    foreach(vtx; subset) {
+        if (toBool(vtx))
+            subPoints ~= vec3(vtx.position, 0);
+    }
+    inDbgSetBuffer(subPoints);
+    inDbgPointsSize(size);
+    inDbgDrawPoints(color, trans);
+}
+
+
+class IncMeshEditorOneDeformable : IncMeshEditorOneImpl!Deformable {
+protected:
+    bool changed;
+public:
+    MeshVertex*[] vertices;
+
+    this(bool deformOnly) {
+        super(deformOnly);
+    }
+
+    Deformable deformable() { return cast(Deformable)getTarget(); }
+
+    override 
+    MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
+        MeshVertex*[] result;
+        foreach (idx; indices) {
+            if (idx < vertices.length)
+                result ~= vertices[idx];
+            else if (!removeNull)
+                result ~= null;
+        }
+        return result;
+    }
+}
+
+void incUpdateWeldedPoints(Drawable drawable) {
+    foreach (welded; drawable.welded) {
+        ptrdiff_t[] indices;
+        foreach (i, v; drawable.vertices) {
+            auto vv = drawable.transform.matrix * vec4(v, 0, 1);
+            auto minDistance = welded.target.vertices.enumerate.minElement!((a)=>(welded.target.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
+            if ((welded.target.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
+                indices ~= minDistance[0];
+            else
+                indices ~= -1;
+        }
+        incActionPush(new DrawableChangeWeldingAction(drawable, welded.target, indices, welded.weight));
+    }
+}
+
+class IncMeshEditorOneDrawable : IncMeshEditorOneImpl!Drawable {
+protected:
+public:
+    IncMesh mesh;
+
+    this(bool deformOnly) {
+        super(deformOnly);
+    }
+
+    ref IncMesh getMesh() {
+        return mesh;
+    }
+
+    void setMesh(IncMesh mesh) {
+        this.mesh = mesh;
+    }
+
+    MeshVertex*[] vertices() {
+        return mesh.vertices;
+    }
 }

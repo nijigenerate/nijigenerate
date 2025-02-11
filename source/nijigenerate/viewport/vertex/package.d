@@ -10,6 +10,7 @@ import i18n;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
+import nijigenerate.viewport.vertex.mesheditor;
 import nijigenerate.viewport.common.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
@@ -298,7 +299,7 @@ public:
 
     override
     void present() { 
-        editor = new IncMeshEditor(false);
+        editor = new VertexMeshEditor();
     };
 
     void copyMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
@@ -373,9 +374,6 @@ public:
                 meshEditor.getMesh().reset();
         }
     }
-}
-
-void incViewportVertexInspector(Drawable node) {
 }
 
 VertexViewport incVertexViewport() {

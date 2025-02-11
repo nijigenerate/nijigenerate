@@ -1,7 +1,7 @@
 module nijigenerate.actions.vertex;
 
 import nijigenerate.core.actionstack;
-import nijigenerate.viewport.common.mesheditor.operations.deformable;
+//import nijigenerate.viewport.common.mesheditor.operations.deformable;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.core.math;
 import nijigenerate.viewport.vertex;
