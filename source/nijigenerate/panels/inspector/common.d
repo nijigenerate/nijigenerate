@@ -22,92 +22,168 @@ package(nijigenerate.panels.inspector) {
 /// Model View.
 
 interface Inspector(T) {
-    void inspect(T target, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init);
+    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init);
     void capture(T[] nodes);
     bool acceptable(T node);
+    ModelEditSubMode subMode();
+    void subMode(ModelEditSubMode);
 }
 
-class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
+class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
+protected:
+    T[] targets;
+    ModelEditSubMode mode;
+public:
+    this(T[] t, ModelEditSubMode mode) {
+        capture(cast(Node[])t);
+        this.mode = mode;
+    }
     override
-    void inspect(Node node, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
-        if (mode == subMode && cast(T)node) {
-            run(cast(T)node);
+    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == targetMode)
+            run();
+    }
+    abstract void run();
+    override
+    void capture(Node[] nodes) { 
+        targets.length = 0;
+        foreach (n; nodes) {
+            if (auto t = cast(T)n)
+                targets ~= t;
         }
     }
-    abstract void run(T node);
-    override
-    void capture(Node[] nodes) { }
     override
     bool acceptable(Node node) {
         return cast(T)node !is null;
     }
+
+    override
+    ModelEditSubMode subMode() { return mode; }
+
+    override
+    void subMode(ModelEditSubMode value) { mode = value; }
 }
 
-class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Layout, T: Puppet) : Inspector!Puppet {
-    override
-    void inspect(Puppet puppet, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
-        if (mode == subMode && cast(T)puppet) {
-            run(cast(T)puppet);
-        }
+class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Puppet) : Inspector!Puppet {
+protected:
+    T[] targets;
+    ModelEditSubMode mode;
+public:
+    this(T[] t, ModelEditSubMode mode) {
+        capture(cast(Puppet[])t);
+        this.mode = mode;
     }
-    abstract void run(T node);
+    override
+    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == targetMode)
+            run();
+    }
+    abstract void run();
     override
     void capture(Puppet[] nodes) { }
     override
     bool acceptable(Puppet node) {
         return cast(T)node !is null;
     }
+
+    override
+    ModelEditSubMode subMode() { return mode; }
+
+    override
+    void subMode(ModelEditSubMode value) { mode = value; }
 }
 
-class BaseInspector(ModelEditSubMode subMode: ModelEditSubMode.Deform, T: Node) : Inspector!Node {
-    override
-    void inspect(Node node, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
-        if (mode == subMode && cast(T)node) {
-            run(cast(T)node, parameter, cursor);
-        }
+class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Deform, T: Node) : Inspector!Node {
+protected:
+    T[] targets;
+    ModelEditSubMode mode;
+public:
+    this(T[] t, ModelEditSubMode mode) {
+        capture(cast(Node[])t);
+        this.mode = mode;
     }
-    abstract void run(T node, Parameter parameter, vec2u cursor);
     override
-    void capture(Node[] nodes) { }
+    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == targetMode)
+            run(parameter, cursor);
+    }
+    abstract void run(Parameter parameter, vec2u cursor);
+    override
+    void capture(Node[] nodes) {
+        targets.length = 0;
+        foreach (n; nodes) {
+            if (auto t = cast(T)n)
+                targets ~= t;
+        }        
+    }
     override
     bool acceptable(Node node) {
         return cast(T)node !is null;
     }
+
+    override
+    ModelEditSubMode subMode() { return mode; }
+
+    override
+    void subMode(ModelEditSubMode value) { mode = value; }
 }
 
 class InspectorHolder(T) : Inspector!T {
 protected:
     Inspector!T[] inspectors;
+    T[] targets;
+    ModelEditSubMode mode;
 
 public:
+    this(T[] targets, ModelEditSubMode mode) {
+        capture(cast(T[])targets);
+        this.mode = mode;        
+    }
     override
-    void inspect(T target, ModelEditSubMode mode, Parameter parameter = null, vec2u cursor = vec2u.init) {
+    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        auto mode = ngModelEditSubMode();
         if (mode == ModelEditSubMode.Layout) {
             static if (is(T: Node)) {
-                incModelModeHeader(target);
+                incModelModeHeader(targets.length > 0 ? targets[0]: null);
             }
         } else if (mode == ModelEditSubMode.Deform) {
             static if (is(T: Node)) {
-                incCommonNonEditHeader(target);
+                incCommonNonEditHeader(targets.length > 0 ? targets[0]: null);
             }
         }
 
-        foreach (t; inspectors) {
-            t.inspect(target, mode, parameter, cursor);
+        foreach (i; inspectors) {
+            i.subMode = mode;
+            i.inspect(parameter, cursor);
         }
     }
 
     void setInspectors(Inspector!T[] inspectors) {
         this.inspectors = inspectors;
+        foreach (i; inspectors) { 
+            i.capture(targets);
+        }
     }
 
     override
-    void capture(T[] nodes) { }
+    void capture(T[] nodes) {
+        targets.length = 0;
+        foreach (n; nodes) {
+            if (auto t = cast(T)n)
+                targets ~= t;
+        }
+        foreach (i; inspectors) { 
+            i.capture(targets);
+        }
+    }
 
     override
     bool acceptable(T node) {
         return inspectors.any!((t) => t.acceptable(node));
     }
+
+    ModelEditSubMode subMode() { return mode; }
+    void subMode(ModelEditSubMode value) { mode = value; }
 }
 
 void incModelModeHeader(Node node) {

@@ -8,8 +8,13 @@ import nijilive;
 import i18n;
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExCamera) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
     override
-    void run(T node) {
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("Camera"))) {
             
             incText(_("Viewport"));

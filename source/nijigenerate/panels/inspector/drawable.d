@@ -13,10 +13,16 @@ import std.string;
 import i18n;
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable) : BaseInspector!(mode, T) if (!is(T: MeshGroup) && !is(T: Part)) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
     // The main type of anything that can be drawn to the screen
     // in nijilive.
     override
-    void run(T node) {
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("Drawable"))) {
             float adjustSpeed = 1;
             ImVec2 avail = incAvailableSpace();

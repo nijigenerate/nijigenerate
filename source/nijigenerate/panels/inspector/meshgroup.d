@@ -10,8 +10,14 @@ import i18n;
 /// Model View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
     override
-    void run(T node) {
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
         if (incBeginCategory(__("MeshGroup"))) {
             
 
