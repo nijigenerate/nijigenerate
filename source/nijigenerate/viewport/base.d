@@ -58,14 +58,12 @@ class Viewport {
 protected:
     bool alwaysUpdateMode = false;
 public:
-    void draw(Camera camera) { writefln("Viewport.draw"); };
+    void draw(Camera camera) { };
     void drawTools() { };
     void drawOptions() { };
     void drawConfirmBar() {};
 
-    void update(ImGuiIO* io, Camera camera) {
-writefln("Viewport.update"); 
-    }
+    void update(ImGuiIO* io, Camera camera) { }
     void withdraw() { };
     void present() { };
     void menu() { };
