@@ -48,7 +48,6 @@ ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 class ModelViewport : DelegationViewport {
     override
     void draw(Camera camera) { 
-        writefln("ModelViewport.draw");
         Parameter param = incArmedParameter();
         incActivePuppet.update();
         incActivePuppet.draw();
@@ -364,6 +363,7 @@ class ModelViewport : DelegationViewport {
     void armedParameterChanged(Parameter parameter) {
         if (parameter && subView is null) {
             subView = new DeformationViewport;
+            subView.selectionChanged(incSelectedNodes);
         } else if (parameter is null && subView) {
             subView = null;
         }

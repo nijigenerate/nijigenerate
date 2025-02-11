@@ -84,37 +84,35 @@ class DelegationViewport : Viewport {
 protected:
     Viewport _subView;
 
-    static string use(string name)() {
-        return "override void "~name~"() { if (_subView) { writefln(\"%s"~name~"\",this); _subView."~name~"(); } }";
+    static string use(string name) {
+        return "override void "~name~"() { if (_subView) { _subView."~name~"(); } }";
     }
 public:
 
     override
     void draw(Camera camera) { 
-        writefln("%s: draw", this);
         if (_subView) {
             _subView.draw(camera);
         }
     }
 
-    mixin use!("drawTools");
-    mixin use!("drawOptions");
-    mixin use!("drawConfirmBar");
+    mixin(use("drawTools"));
+    mixin(use("drawOptions"));
+    mixin(use("drawConfirmBar"));
 
     override
     void update(ImGuiIO* io, Camera camera) {
-        writefln("%s: update", this);
         if (_subView) {
             _subView.update(io, camera);
         }
     }
 
-    mixin use!("withdraw");
-    mixin use!("present");
-    mixin use!("menu");
-    mixin use!("menuOpening");
-    mixin use!("toolSettings");
-    mixin use!("toolbar");
+    mixin(use("withdraw"));
+    mixin(use("present"));
+    mixin(use("menu"));
+    mixin(use("menuOpening"));
+    mixin(use("toolSettings"));
+    mixin(use("toolbar"));
 
     override
     void selectionChanged(Node[] target) {
@@ -171,12 +169,14 @@ class MainViewport : DelegationViewport {
         auto camera = inGetCamera();
 
         // First update viewport movement
-        if (!localOnly) (cast(Viewport)this).update(&io, camera);        
+        if (!localOnly) incViewportMovement(&io, camera);
+
+        (cast(Viewport)this).update(&io, camera);        
     };
 
 
     void onEditModeChanged(EditMode mode) {
-        writefln("onEditModeChanged: %s", mode);
+//        writefln("onEditModeChanged: %s", mode);
         switch (mode) {
         case EditMode.ModelEdit:
             subView = new ModelViewport;
@@ -188,6 +188,13 @@ class MainViewport : DelegationViewport {
             subView = new AnimationViewport;
         break;
         default:
+        }
+        if (subView) {
+            auto nodes = incSelectedNodes();
+            subView.selectionChanged(nodes);
+
+            auto param = incArmedParameter();
+            subView.armedParameterChanged(param);
         }
     }
 }
