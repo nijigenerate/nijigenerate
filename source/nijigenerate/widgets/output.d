@@ -31,29 +31,21 @@ private {
     };
 
     InspectorHolder!Node nodeInspector = null;
-    InspectorHolder!Puppet puppetInspector = null;
 
     void initInspectors() {
         if (nodeInspector is null) {
             nodeInspector = ngNodeInspector([]);
         }
-        if (puppetInspector is null) {
-            puppetInspector = ngPuppetInspector([]);
-        }
     }
 
-    void onNodeView(Node node, InspectorHolder!Node activeNodeInspector = null, InspectorHolder!Puppet activePuppetInspector = null) {
+    void onNodeView(Node node, InspectorHolder!Node activeNodeInspector = null) {
         initInspectors();
         if (activeNodeInspector is null) {
             activeNodeInspector = nodeInspector;
             nodeInspector.capture([node]);
         }
-        if (activePuppetInspector is null) {
-            activePuppetInspector = puppetInspector;
-            activePuppetInspector.capture([incActivePuppet]);
-        }
         ModelEditSubMode subMode = ngModelEditSubMode();
-        if (node !is null && node != incActivePuppet().root) {
+        if (node !is null) {
             // Per-edit mode inspector drawers
             switch(incEditMode()) {
                 case EditMode.ModelEdit:
@@ -66,9 +58,6 @@ private {
                     incCommonNonEditHeader(node);
                     break;
             }
-        } else {
-            activePuppetInspector.subMode = subMode;
-            activePuppetInspector.inspect();
         }
     }
 
@@ -802,8 +791,9 @@ protected:
             if (igBegin(popupName, null, flags)) {
                 hovered |= popupOpened == res && isWindowHovered();
                 if (res.uuid in contentsDrawn) return;
+                bool invalid = activeInspector is null || activeInspector.getTargets().countUntil(node) < 0;
                 bool selected = incNodeInSelection(node);
-                if (activeInspector is null || !selected) {
+                if (!selected || invalid) {
                     activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
                 }
                 showContents(res);

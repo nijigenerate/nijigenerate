@@ -10,10 +10,12 @@ import nijigenerate;
 import nijilive;
 import i18n;
 import std.format;
+import std.algorithm;
 import std.algorithm.searching;
 import std.string;
 import std.stdio;
 import std.utf;
+import std.array;
 
 package(nijigenerate.panels.inspector) {
     ImVec4 CategoryTextColor = ImVec4(0.36f, 0.45f, 0.35f, 1.00f); // 画像の緑色に基づく
@@ -54,35 +56,6 @@ public:
     }
     override
     bool acceptable(Node node) {
-        return cast(T)node !is null;
-    }
-
-    override
-    ModelEditSubMode subMode() { return mode; }
-
-    override
-    void subMode(ModelEditSubMode value) { mode = value; }
-}
-
-class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Puppet) : Inspector!Puppet {
-protected:
-    T[] targets;
-    ModelEditSubMode mode;
-public:
-    this(T[] t, ModelEditSubMode mode) {
-        capture(cast(Puppet[])t);
-        this.mode = mode;
-    }
-    override
-    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
-        if (mode == targetMode)
-            run();
-    }
-    abstract void run();
-    override
-    void capture(Puppet[] nodes) { }
-    override
-    bool acceptable(Puppet node) {
         return cast(T)node !is null;
     }
 
@@ -142,14 +115,18 @@ public:
     override
     void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
         auto mode = ngModelEditSubMode();
-        if (mode == ModelEditSubMode.Layout) {
-            static if (is(T: Node)) {
-                incModelModeHeader(targets.length > 0 ? targets[0]: null);
+        if (targets.length == 1) {
+            if (mode == ModelEditSubMode.Layout) {
+                static if (is(T: Node)) {
+                    incModelModeHeader(targets.length > 0 ? targets[0]: null);
+                }
+            } else if (mode == ModelEditSubMode.Deform) {
+                static if (is(T: Node)) {
+                    incCommonNonEditHeader(targets.length > 0 ? targets[0]: null);
+                }
             }
-        } else if (mode == ModelEditSubMode.Deform) {
-            static if (is(T: Node)) {
-                incCommonNonEditHeader(targets.length > 0 ? targets[0]: null);
-            }
+        } else if (targets.length > 1) {
+            incMultiEditHeader(cast(Node[])targets);
         }
 
         foreach (i; inspectors) {
@@ -211,6 +188,20 @@ void incCommonNonEditHeader(Node node) {
         string typeString = "%s".format(incTypeIdToIcon(node.typeId()));
         auto len = incMeasureString(typeString);
         incText(node.name);
+        igSameLine(0, 0);
+        incDummy(ImVec2(-len.x, len.y));
+        igSameLine(0, 0);
+        incText(typeString);
+    igPopID();
+    igSeparator();
+}
+
+void incMultiEditHeader(Node[] nodes) {
+    // Top level
+    igPushID(nodes[0].uuid);
+        string typeString = nodes.map!((n) => incTypeIdToIcon(n.typeId())).array.join("");
+        auto len = incMeasureString(typeString);
+        incText(nodes.map!((n) => n.name).array.join(","));
         igSameLine(0, 0);
         incDummy(ImVec2(-len.x, len.y));
         igSameLine(0, 0);

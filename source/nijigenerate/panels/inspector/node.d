@@ -34,6 +34,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
     void run() {
         if (targets.length == 0) return;
         auto node = targets[0];
+        if (node == incActivePuppet().root) return;
         if (incBeginCategory(__("Transform"))) {
             float adjustSpeed = 1;
             // if (igIsKeyDown(igGetKeyIndex(ImGuiKeyModFlags_Shift))) {
@@ -317,6 +318,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : B
     void run(Parameter param, vec2u cursor)  {
         if (targets.length == 0) return;
         auto node = targets[0];
+        if (node == incActivePuppet().root) return;
         if (incBeginCategory(__("Transform"))) {
             float adjustSpeed = 1;
 
