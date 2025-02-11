@@ -31,7 +31,7 @@ import std.array;
 
 private {
 
-Inspector!Node delegate()[] inspectors;
+Inspector!Node delegate()[] nodeInspectors;
 Inspector!Puppet delegate()[] puppetInspectors;
 
 void initInspectors() {
@@ -57,7 +57,7 @@ void initInspectors() {
 
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Node)() {
-    inspectors ~= () => new NodeInspector!(mode, T)([], mode);
+    nodeInspectors ~= () => new NodeInspector!(mode, T)([], mode);
 }
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
@@ -68,7 +68,7 @@ void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
 InspectorHolder!Node ngNodeInspector(Node[] targets) {
     auto mode = ngModelEditSubMode;
     auto result = new InspectorHolder!Node(targets, mode);
-    result.setInspectors(inspectors.map!((i) => i()).array);
+    result.setInspectors(nodeInspectors.map!((i) => i()).array);
     return result;
 }
 
@@ -78,21 +78,7 @@ InspectorHolder!Puppet ngPuppetInspector(Puppet[] targets) {
     result.setInspectors(puppetInspectors.map!((i) => i()).array);
     return result;
 }
-/*
-void ngInspector(T: Node)(T target, Parameter param = null, vec2u cursor=vec2u.init) {
-    auto mode = ngModelEditSubMode;
-    activeNodeInspectors.setInspectors(inspectors.map!((i) => i()).array);
-    activeNodeInspectors.inspect(param, cursor);
-}
 
-void ngInspector(T: Puppet)(T target, Parameter param = null, vec2u cursor=vec2u.init) {
-    auto mode = ngModelEditSubMode;
-    activePuppetInspectors.setInspectors(puppetInspectors.map!((i) => i()).array);
-    activePuppetInspectors.inspect(param, cursor);
-}
-*/
-void ngUpdateAttributeCache(Node node) {
-}
 
 /**
     The inspector panel
@@ -114,7 +100,7 @@ protected:
     void onSelectionChanged(Node[] nodes) {
         auto mode = ngModelEditSubMode;
         activeNodeInspectors = new InspectorHolder!Node(nodes, mode);
-        activeNodeInspectors.setInspectors(inspectors.map!((i) => i()).array);
+        activeNodeInspectors.setInspectors(nodeInspectors.map!((i) => i()).array);
     }
 
     override
@@ -184,14 +170,3 @@ public:
     Generate logger frame
 */
 mixin incPanel!InspectorPanel;
-
-
-
-//
-// COMMON
-//
-
-
-//
-//  MODEL MODE
-//
