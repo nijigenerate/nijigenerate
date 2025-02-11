@@ -184,6 +184,8 @@ public:
 
     ModelEditSubMode subMode() { return mode; }
     void subMode(ModelEditSubMode value) { mode = value; }
+
+    T[] getTargets() { return targets; }
 }
 
 void incModelModeHeader(Node node) {

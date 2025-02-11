@@ -42,8 +42,16 @@ private {
         }
     }
 
-    void onNodeView(Node node) {
+    void onNodeView(Node node, InspectorHolder!Node activeNodeInspector = null, InspectorHolder!Puppet activePuppetInspector = null) {
         initInspectors();
+        if (activeNodeInspector is null) {
+            activeNodeInspector = nodeInspector;
+            nodeInspector.capture([node]);
+        }
+        if (activePuppetInspector is null) {
+            activePuppetInspector = puppetInspector;
+            activePuppetInspector.capture([incActivePuppet]);
+        }
         ModelEditSubMode subMode = ngModelEditSubMode();
         if (node !is null && node != incActivePuppet().root) {
             // Per-edit mode inspector drawers
@@ -51,18 +59,16 @@ private {
                 case EditMode.ModelEdit:
                     Parameter param = incArmedParameter();
                     vec2u cursor = param? param.findClosestKeypoint() : vec2u.init;
-                    nodeInspector.capture([node]);
-                    nodeInspector.subMode = subMode;
-                    nodeInspector.inspect(param, cursor);
-                break;
+                    activeNodeInspector.subMode = subMode;
+                    activeNodeInspector.inspect(param, cursor);
+                    break;
                 default:
                     incCommonNonEditHeader(node);
                     break;
             }
         } else {
-            puppetInspector.capture([incActivePuppet]);
-            puppetInspector.subMode = subMode;
-            puppetInspector.inspect();
+            activePuppetInspector.subMode = subMode;
+            activePuppetInspector.inspect();
         }
     }
 
@@ -263,6 +269,7 @@ protected:
     int IconSize = 20;
     ref CommandIssuer panel() { return self.panel; }
     Resource popupOpened = null;
+    InspectorHolder!Node activeInspector = null;
 
     ref Resource[] nodes() { return self.nodes; }
     ref Resource[][Resource] children() { return self.children; }
@@ -394,7 +401,7 @@ protected:
                 incNodeActionsPopup!("NodeActionsPopup2", false, true)(node);
             igSameLine();
             igText(res.name.toStringz);
-            onNodeView(node);
+            onNodeView(node, activeInspector);
         } else if (res.type == ResourceType.Parameter) {
             Parameter param = to!Parameter(res);
             if (auto exGroup = cast(ExParameterGroup)param) {
@@ -608,13 +615,23 @@ protected:
             auto io = igGetIO();
             if (selected) {
                 if (incSelectedNodes().length > 1) {
-                    if (io.KeyCtrl) incRemoveSelectNode(n);
-                    else incSelectNode(n);
+                    if (io.KeyCtrl) {
+                        incRemoveSelectNode(n);
+                        activeInspector = null;
+                    } else {
+                        incSelectNode(n);
+                        activeInspector = null;
+                    }
                 }
             } else {
-                if (io.KeyCtrl) incAddSelectNode(n);
-                else incSelectNode(n);
-            }            if (igGetIO().KeyCtrl) {}
+                if (io.KeyCtrl) {
+                    incAddSelectNode(n);
+                    activeInspector = null;
+                } else {
+                    incSelectNode(n);
+                    activeInspector = null;
+                }
+            }
         }
 
         if (isRoot) {
@@ -785,6 +802,10 @@ protected:
             if (igBegin(popupName, null, flags)) {
                 hovered |= popupOpened == res && isWindowHovered();
                 if (res.uuid in contentsDrawn) return;
+                bool selected = incNodeInSelection(node);
+                if (activeInspector is null || !selected) {
+                    activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
+                }
                 showContents(res);
                 contentsDrawn[res.uuid] = true;
 
