@@ -41,7 +41,7 @@ class NodeSelect : Tool, Draggable {
         assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
         isDragging = false;
         impl.isSelecting = false;
-        incViewportSetAlwaysUpdate(false);
+        incViewport.alwaysUpdate = false;
     }
 
     vec3 calculateMousePosIntersection(IncMeshEditorOne impl, vec2 mousePos) {

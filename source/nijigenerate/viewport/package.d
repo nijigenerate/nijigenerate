@@ -8,6 +8,7 @@
 module nijigenerate.viewport;
 
 import nijilive;
+import nijilive.core.animation.player;
 import nijigenerate.project;
 public import nijigenerate.viewport.base;
 
@@ -15,25 +16,33 @@ private {
 
     class ModelView {
         void onEditModeChanging(EditMode mode) {
-            incViewportWithdrawMode(mode);
+            incViewport.withdraw();
         }
         void onEditModeChanged(EditMode mode) {
-            incViewportPresentMode(mode);
+            incViewport.onEditModeChanged(mode);
+            incViewport.present();
         }
 
         void onCameraFocused(float focus, vec2 pos) {
             incViewportTargetZoom = focus;
             incViewportTargetPosition = pos;
         }
+
+        void onAnimationChanged(AnimationPlayback* anim) {
+            incViewport.animationChanged(*anim.animation);
+        }
     }
     ModelView view;
     static this() {
         view = new ModelView;
         ngRegisterProjectCallback((Project project) { 
-            incViewportPresentMode(editMode_);
+            incViewport.present();
             project.EditModeChanging.connect(&view.onEditModeChanging);
             project.EditModeChanged.connect(&view.onEditModeChanged);
             project.CameraFocused.connect(&view.onCameraFocused);
+            project.SelectionChanged.connect(&incViewport.selectionChanged);
+            project.ArmedParameterChanged.connect(&incViewport.armedParameterChanged);
+            project.AnimationChanged.connect(&view.onAnimationChanged);
             incViewportReset();
         });
     }
