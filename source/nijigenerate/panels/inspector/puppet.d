@@ -22,14 +22,21 @@ import std.utf;
 import i18n;
 import std.range: enumerate;
 
-class PuppetInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Puppet): BaseInspector!(mode, T) {
-    this(T[] targets, ModelEditSubMode mode) {
+class PuppetInspector : BaseInspector!(ModelEditSubMode.Layout, Node) {
+    this(Node[] targets, ModelEditSubMode mode) {
         super(targets, mode);
     }
+
+    override
+    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        if (mode == ModelEditSubMode.Layout && targets.length > 0 && targets[0] == incActivePuppet().root)
+            run();
+    }
+
     override
     void run() {
         if (targets.length == 0) return;
-        auto puppet = targets[0];
+        auto puppet = incActivePuppet;
         auto rootNode = puppet.root; 
 
         // Top level

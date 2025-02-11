@@ -32,7 +32,6 @@ import std.array;
 private {
 
 Inspector!Node delegate()[] nodeInspectors;
-Inspector!Puppet delegate()[] puppetInspectors;
 
 void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
@@ -61,7 +60,7 @@ void ngRegisterInspector(ModelEditSubMode mode, T: Node)() {
 }
 
 void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
-    puppetInspectors ~= () => new PuppetInspector!(mode, T)([], mode);
+    nodeInspectors ~= () => new PuppetInspector([], mode);
 }
 
 
@@ -69,13 +68,6 @@ InspectorHolder!Node ngNodeInspector(Node[] targets) {
     auto mode = ngModelEditSubMode;
     auto result = new InspectorHolder!Node(targets, mode);
     result.setInspectors(nodeInspectors.map!((i) => i()).array);
-    return result;
-}
-
-InspectorHolder!Puppet ngPuppetInspector(Puppet[] targets) {
-    auto mode = ngModelEditSubMode;
-    auto result = new InspectorHolder!Puppet(targets, mode);
-    result.setInspectors(puppetInspectors.map!((i) => i()).array);
     return result;
 }
 
@@ -89,7 +81,6 @@ private:
     Project activeProject = null;
 
     InspectorHolder!Node activeNodeInspectors;
-    InspectorHolder!Puppet activePuppetInspectors;
 
 protected:
     void onChange(Node target, NotifyReason reason) {
@@ -115,14 +106,10 @@ protected:
             if (activePuppet) {
                 Node rootNode = activePuppet.root;
                 rootNode.addNotifyListener(&onChange);
-                activePuppetInspectors = new InspectorHolder!Puppet([activePuppet], subMode);
             }
         }
         if (activeNodeInspectors) {
             activeNodeInspectors.subMode = subMode;
-        }
-        if (activePuppetInspectors) {
-            activePuppetInspectors.subMode = subMode;
         }
 
         if (incEditMode == EditMode.VertexEdit) {
@@ -133,7 +120,7 @@ protected:
         auto nodes = incSelectedNodes();
         if (nodes.length == 1) {
             Node node = nodes[0];
-            if (node !is null && node != incActivePuppet().root) {
+            if (node !is null) {
 
                 // Per-edit mode inspector drawers
                 switch(incEditMode()) {
@@ -147,9 +134,6 @@ protected:
                         incCommonNonEditHeader(node);
                         break;
                 }
-            } else {
-                if (activePuppetInspectors)
-                    activePuppetInspectors.inspect();
             }
         } else if (nodes.length == 0) {
             incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
