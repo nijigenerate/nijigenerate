@@ -96,7 +96,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID("SimplePhysics");
             
             igPushID(-1);
-                igCheckbox(__("Local Transform Lock"), &node.localOnly);
+                ngCheckbox(__("Local Transform Lock"), &node.localOnly);
                 incTooltip(_("Whether the physics system only listens to the movement of the physics node itself"));
                 igSpacing();
                 igSpacing();
@@ -152,6 +152,25 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPopID();
             }
         incEndCategory();
+    }
+    mixin(ngInspectVar!(float, "gravity"));
+    mixin(ngInspectVar!(float, "length"));
+    mixin(ngInspectVar!(float, "frequency"));
+    mixin(ngInspectVar!(float, "angleDamping"));
+    mixin(ngInspectVar!(float, "lengthDamping"));
+    mixin(ngInspectVar!(float, "outputScaleX", (x)=>x~".outputScale.vector[0]", (x, v)=>x~".outputScale.vector[0]="~v));
+    mixin(ngInspectVar!(float, "outputScaleY", (x)=>x~".outputScale.vector[1]", (x, v)=>x~".outputScale.vector[1]="~v));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        capture_gravity();
+        capture_length();
+        capture_frequency();
+        capture_angleDamping();
+        capture_lengthDamping();
+        capture_outputScaleX();
+        capture_outputScaleY();
     }
 }
 /// Armed Parameter View
@@ -219,5 +238,24 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: SimplePhy
             igPopID();
         }
         incEndCategory();
+    }
+    mixin(ngInspectVar!(float, "gravity"));
+    mixin(ngInspectVar!(float, "length"));
+    mixin(ngInspectVar!(float, "frequency"));
+    mixin(ngInspectVar!(float, "angleDamping"));
+    mixin(ngInspectVar!(float, "lengthDamping"));
+    mixin(ngInspectVar!(float, "outputScaleX", (x)=>x~".outputScale.vector[0]", (x, v)=>x~".outputScale.vector[0]="~v));
+    mixin(ngInspectVar!(float, "outputScaleY", (x)=>x~".outputScale.vector[1]", (x, v)=>x~".outputScale.vector[1]="~v));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        capture_gravity();
+        capture_length();
+        capture_frequency();
+        capture_angleDamping();
+        capture_lengthDamping();
+        capture_outputScaleX();
+        capture_outputScaleY();
     }
 }

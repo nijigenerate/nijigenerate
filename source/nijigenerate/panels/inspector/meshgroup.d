@@ -24,13 +24,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup
             igSpacing();
 
             bool dynamic = node.dynamic;
-            if (igCheckbox(__("Dynamic Deformation (slower)"), &dynamic)) {
+            if (ngCheckbox(__("Dynamic Deformation (slower)"), &dynamic)) {
                 node.switchMode(dynamic);
             }
             incTooltip(_("Whether the MeshGroup should dynamically deform children,\nthis is an expensive operation and should not be overused."));
 
             bool translateChildren = node.getTranslateChildren();
-            if (igCheckbox(__("Translate origins"), &translateChildren)) {
+            if (ngCheckbox(__("Translate origins"), &translateChildren)) {
                 node.setTranslateChildren(translateChildren);
             }
             incTooltip(_("Translate origin of child nodes for non-Drawable object."));

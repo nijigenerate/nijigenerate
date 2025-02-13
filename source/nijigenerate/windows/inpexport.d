@@ -157,7 +157,7 @@ protected:
                                 igEndCombo();
                             }
 
-                            igCheckbox(__("Non-linear Scaling"), &settings.nonLinearScaling);
+                            ngCheckbox(__("Non-linear Scaling"), &settings.nonLinearScaling);
                             incTooltip(_("Whether too large parts should individually be scaled down instead of all parts being scaled down uniformly."));
 
                             int resScaleInt = cast(int)(settings.scale*100);
@@ -175,7 +175,7 @@ protected:
                         
                         incText(_("Optimizations"));
                         igIndent();
-                            igCheckbox(__("Prune unused nodes"), &settings.optimizePruneUnused);
+                            ngCheckbox(__("Prune unused nodes"), &settings.optimizePruneUnused);
                             incTooltip(_("Prune nodes which have been disabled from the export."));
                         igUnindent();
                         break;

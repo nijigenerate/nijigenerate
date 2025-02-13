@@ -210,7 +210,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
             }
 
             bool propagateMeshGroup = node.propagateMeshGroup;
-            if (igCheckbox(__("Propagate MeshGroup"), &propagateMeshGroup)) {
+            if (ngCheckbox(__("Propagate MeshGroup"), &propagateMeshGroup)) {
                 node.propagateMeshGroup = propagateMeshGroup;
                 long offset = node.parent !is null? node.parent.children.countUntil(node): 0;
                 if (node.parent !is null)
