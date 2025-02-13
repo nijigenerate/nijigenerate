@@ -403,3 +403,31 @@ void incInspectorDeformSetValue(Node node, Parameter param, string paramName, ve
             }
         }
 }
+
+string ngInspectVar(type, string name, string function(string) _getter = null, string function(string, string) _setter = null)() {
+    string getter(string x) { return _getter? _getter(x): (x~"."~name); }
+    string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
+    enum result =  
+    type.stringof~ " " ~name~ ";
+    bool "~name~"Shared = false;
+    bool capture_"~name~"() {
+        if (targets.length == 0) {
+            "~name~"Shared = false;
+            return false;
+        }
+        "~name~"Shared = true;
+        "~name~" = "~getter("targets[0]")~";
+        foreach (n; targets) {
+            if ("~name~"!= "~getter("n")~") {"~name~"Shared = false; return false; }
+        }
+        return true;
+    }
+    void apply_"~name~"() {
+        foreach (n; targets) {
+            "~setter("n", name)~";
+        }
+    }
+    ";
+//    pragma(msg, "Result:", result);
+    return result;
+}

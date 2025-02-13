@@ -123,7 +123,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     }
 
                     bool pinToMesh = node.pinToMesh;
-                    if (igCheckbox(__("Pin origin to parent mesh."), &pinToMesh)) {
+                    if (ngCheckbox(__("Pin origin to parent mesh."), &pinToMesh)) {
                         node.pinToMesh = pinToMesh;
                     }
                 igEndGroup();

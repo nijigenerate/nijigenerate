@@ -24,7 +24,8 @@ private {
         igPopID();
 
         igPushID(1);
-            incText(_("restore to original"));
+            incText(_("Restore force"));
+            incTooltip(_("Force to restore for original position. If this force is weaker than the gravity, pendulum cannot restore to original position."));
             incDragFloat("restoreConstant", &driver.restoreConstant, adjustSpeed/100, 0.01, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
             igSpacing();
             igSpacing();
@@ -37,6 +38,7 @@ private {
 
         igPushID(3);
             incText(_("Input scale"));
+            incTooltip(_("Input force is multiplied by this factor. This should be specified when original position moved too much."));
             incDragFloat("inputScale", &driver.inputScale, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
             igSpacing();
             igSpacing();
@@ -44,6 +46,7 @@ private {
 
         igPushID(4);
             incText(_("Propagate scale"));
+            incTooltip(_("Specify the degree to convey movement of previous pendulum to next one."));
             incDragFloat("propagateScale", &driver.propagateScale, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
         igPopID();
     }
@@ -73,7 +76,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
             alias DefaultDriver = ConnectedPendulumDriver;
 
             bool physicsEnabled = node.driver !is null;
-            if (igCheckbox(__("Auto-Physics"), &physicsEnabled)) {
+            if (ngCheckbox(__("Auto-Physics"), &physicsEnabled)) {
                 if (physicsEnabled) {
                     if (node.driver is null) {
                         node.driver = new DefaultDriver(node);
@@ -141,6 +144,11 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
         }
         incEndCategory();
+    }
+
+    override
+    void capture(Node[] targets) {
+        super.capture(targets);
     }
 }
 

@@ -88,7 +88,7 @@ protected:
 
 
         incBeginCategory(__("Options"), IncCategoryFlags.NoCollapse);
-            igCheckbox(__("Additive"), &newAnim.additive);
+            ngCheckbox(__("Additive"), &newAnim.additive);
             igInputFloat(__("Weight"), &newAnim.animationWeight);
             
             if (igDragInt(__("Frames"), &newAnim.length, 1, 1, int.max)) {

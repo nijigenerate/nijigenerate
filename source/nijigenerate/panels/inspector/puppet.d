@@ -144,7 +144,7 @@ class PuppetInspector : BaseInspector!(ModelEditSubMode.Layout, Node) {
 
         if (incBeginCategory(__("Rendering Settings"))) {
             igPushID("Filtering");
-                if (igCheckbox(__("Use Point Filtering"), &incActivePuppet().meta.preservePixels)) {
+                if (ngCheckbox(__("Use Point Filtering"), &incActivePuppet().meta.preservePixels)) {
                     incActivePuppet().populateTextureSlots();
                     incActivePuppet().updateTextureState();
                 }
