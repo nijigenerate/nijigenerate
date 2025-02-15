@@ -155,7 +155,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             NodeCreateMenu("MeshGroup", "Mesh Group");
             NodeCreateMenu("DynamicComposite", "Dynamic Composite");
             NodeCreateMenu("PathDeformer", "Path Deformer");
-            NodeCreateMenu("Camera", "Camera", "ExCamera");
+            NodeCreateMenu("Camera", "Camera", "Camera");
         }
 
         if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
