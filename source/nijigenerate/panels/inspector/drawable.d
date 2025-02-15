@@ -11,6 +11,8 @@ import std.format;
 import std.utf;
 import std.string;
 import i18n;
+import std.algorithm;
+import std.array;
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable) : BaseInspector!(mode, T) if (!is(T: MeshGroup) && !is(T: Part)) {
     this(T[] nodes, ModelEditSubMode subMode) {
@@ -33,14 +35,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
 
                     // Translation X
                     igPushID(42);
-                    if (incDragFloat("offset_x", &node.getMesh().origin.vector[0], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                    if (_shared!(offsetX, "getMesh().origin.vector[0]")(
+                        ()=>incDragFloat("offset_x", &offsetX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                        apply_offsetX();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Drawable[], float)(
                                 "X",
-                                node, 
-                                incGetDragFloatInitialValue("offset_x"),
-                                node.getMesh().origin.vector[0],
-                                &node.getMesh().origin.vector[0]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("offset_x")).array,
+                                targets.map!((n)=>offsetX.value).array,
+                                targets.map!((n)=>&n.getMesh().origin.vector[0]).array
                             )
                         );
                     }
@@ -50,14 +54,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
 
                     // Translation Y
                     igPushID(43);
-                        if (incDragFloat("offset_y", &node.getMesh().origin.vector[1], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                        if (_shared!(offsetY, "getMesh().origin.vector[1]")(
+                            ()=>incDragFloat("offset_y", &offsetY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            apply_offsetY();
                             incActionPush(
-                                new NodeValueChangeAction!(Node, float)(
+                                new NodeValueChangeAction!(Drawable[], float)(
                                     "Y",
-                                    node, 
-                                    incGetDragFloatInitialValue("offset_y"),
-                                    node.getMesh().origin.vector[1],
-                                    &node.getMesh().origin.vector[1]
+                                    targets, 
+                                    targets.map!((n)=>incGetDragFloatInitialValue("offset_y")).array,
+                                    targets.map!((n)=>offsetY.value).array,
+                                    targets.map!((n)=>&n.getMesh().origin.vector[1]).array
                                 )
                             );
                         }
@@ -66,5 +72,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
             igEndGroup();
         }
         incEndCategory();
+    }
+
+    mixin MultiEdit;
+    mixin(attribute!(float, "offsetX", (x)=>x~".getMesh().origin.vector[0]", (x, v)=>x~".getMesh().origin.vector[0]="~v));
+    mixin(attribute!(float, "offsetY", (x)=>x~".getMesh().origin.vector[1]", (x, v)=>x~".getMesh().origin.vector[1]="~v));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        capture_offsetX();
+        capture_offsetY();
     }
 }
