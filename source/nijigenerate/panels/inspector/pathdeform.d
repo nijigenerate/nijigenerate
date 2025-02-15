@@ -12,7 +12,7 @@ import std.utf;
 import std.string;
 import i18n;
 
-private {
+mixin template DriverInspector() {
 
     void inspectDriver(T: ConnectedPendulumDriver)(T driver) {
         float adjustSpeed = 1;
@@ -55,6 +55,7 @@ private {
 /// Model View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeformer) : BaseInspector!(mode, T) {
+    mixin DriverInspector;
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
     }
@@ -155,6 +156,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 /// Armed Parameter View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: PathDeformer) : BaseInspector!(mode, T) {
+    mixin DriverInspector;
+
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
     }

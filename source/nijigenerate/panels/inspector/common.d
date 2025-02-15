@@ -458,7 +458,7 @@ mixin template MultiEdit() {
         string getter(string x) { return _getter? _getter(x): (x~"."~name); }
         string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
         enum result =  
-        "SharedValue!"~type.stringof~ " " ~name~ ";
+        "SharedValue!("~type.stringof~") "~name~";
         bool capture_"~name~"() {
             if (targets.length == 0) {
                 "~name~".isShared = false;
