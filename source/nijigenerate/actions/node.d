@@ -16,7 +16,9 @@ import std.exception;
 import std.array: insertInPlace;
 import std.algorithm.mutation: remove;
 import std.algorithm.searching;
-
+import std.algorithm;
+import std.range:zip;
+import std.array;
 /**
     An action that happens when a node is changed
 */
@@ -769,16 +771,16 @@ void incDeleteChildrenWithHistory(Node[] ns) {
 /**
     Node value changed action
 */
-class NodeValueChangeAction(TNode, T) : Action if (is(TNode : Node)) {
+class NodeValueChangeAction(TNode, TValue) : Action if (is(TNode : Node)) {
 public:
     alias TSelf = typeof(this);
     TNode node;
-    T oldValue;
-    T newValue;
-    T* valuePtr;
+    TValue oldValue;
+    TValue newValue;
+    TValue* valuePtr;
     string name;
 
-    this(string name, TNode node, T oldValue, T newValue, T* valuePtr) {
+    this(string name, TNode node, TValue oldValue, TValue newValue, TValue* valuePtr) {
         this.name = name;
         this.node = node;
         this.oldValue = oldValue;
@@ -815,6 +817,86 @@ public:
     */
     string describeUndo() {
         return _("%s->%s changed from %s").format(node.name, name, oldValue);
+    }
+
+    /**
+        Gets name of this action
+    */
+    string getName() {
+        return name;
+    }
+    
+    /**
+        Merge
+    */
+    bool merge(Action other) {
+        if (this.canMerge(other)) {
+            this.newValue = (cast(TSelf)other).newValue;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+        Gets whether this node can merge with an other
+    */
+    bool canMerge(Action other) {
+        TSelf otherChange = cast(TSelf) other;
+        return (otherChange !is null && otherChange.getName() == this.getName());
+    }
+}
+
+class NodeValueChangeAction(TNode, TValue) : Action if (is(TNode == U[], U)) {
+public:
+    alias TSelf = typeof(this);
+    TNode node;
+    TValue[] oldValue;
+    TValue[] newValue;
+    TValue*[] valuePtr;
+    string name;
+
+    this(string name, TNode node, TValue[] oldValue, TValue[] newValue, TValue*[] valuePtr) {
+        this.name = name;
+        this.node = node;
+        this.oldValue = oldValue;
+        this.newValue = newValue;
+        this.valuePtr = valuePtr;
+        foreach (n; node)
+            n.notifyChange(n, NotifyReason.AttributeChanged);
+    }
+
+    /**
+        Rollback
+    */
+    void rollback() {
+        foreach (i; 0..node.length) {
+            *(valuePtr[i]) = oldValue[i];
+            node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+        }
+    }
+
+    /**
+        Redo
+    */
+    void redo() {
+        foreach (i; 0..node.length) {
+            *(valuePtr[i]) = newValue[i];
+            node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+        }
+    }
+
+    /**
+        Describe the action
+    */
+    string describe() {
+        return zip(node, newValue).map!((p) => _("%s->%s changed to %s").format(p[0].name, name, p[1])).join(",");
+    }
+
+    /**
+        Describe the action
+    */
+    string describeUndo() {
+        return zip(node, oldValue).map!((p) => _("%s->%s changed from %s").format(p[0].name, name, p[1])).join(",");
     }
 
     /**

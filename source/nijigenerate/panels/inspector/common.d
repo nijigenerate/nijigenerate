@@ -26,11 +26,10 @@ package(nijigenerate.panels.inspector) {
 interface Inspector(T) {
     void inspect(Parameter parameter = null, vec2u cursor = vec2u.init);
     void capture(T[] nodes);
-    bool acceptable(T node);
+    bool acceptable(T[] nodes);
     ModelEditSubMode subMode();
     void subMode(ModelEditSubMode);
 }
-
 class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
 protected:
     T[] targets;
@@ -55,8 +54,8 @@ public:
         }
     }
     override
-    bool acceptable(Node node) {
-        return cast(T)node !is null;
+    bool acceptable(Node[] nodes) {
+        return nodes.all!((node) => cast(T)node !is null);
     }
 
     override
@@ -90,8 +89,8 @@ public:
         }        
     }
     override
-    bool acceptable(Node node) {
-        return cast(T)node !is null;
+    bool acceptable(Node[] nodes) {
+        return nodes.all!((node) => cast(T)node !is null);
     }
 
     override
@@ -131,7 +130,8 @@ public:
 
         foreach (i; inspectors) {
             i.subMode = mode;
-            i.inspect(parameter, cursor);
+            if (i.acceptable(targets))
+                i.inspect(parameter, cursor);
         }
     }
 
@@ -155,8 +155,8 @@ public:
     }
 
     override
-    bool acceptable(T node) {
-        return inspectors.any!((t) => t.acceptable(node));
+    bool acceptable(T[] nodes) {
+        return inspectors.all!((t) => t.acceptable(nodes));
     }
 
     ModelEditSubMode subMode() { return mode; }
@@ -404,30 +404,112 @@ void incInspectorDeformSetValue(Node node, Parameter param, string paramName, ve
         }
 }
 
-string ngInspectVar(type, string name, string function(string) _getter = null, string function(string, string) _setter = null)() {
-    string getter(string x) { return _getter? _getter(x): (x~"."~name); }
-    string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
-    enum result =  
-    type.stringof~ " " ~name~ ";
-    bool "~name~"Shared = false;
-    bool capture_"~name~"() {
-        if (targets.length == 0) {
-            "~name~"Shared = false;
-            return false;
-        }
-        "~name~"Shared = true;
-        "~name~" = "~getter("targets[0]")~";
-        foreach (n; targets) {
-            if ("~name~"!= "~getter("n")~") {"~name~"Shared = false; return false; }
-        }
-        return true;
+mixin template MultiEdit() {
+
+    struct SharedValue(T2) {
+        bool isShared;
+        T2 value;
     }
-    void apply_"~name~"() {
-        foreach (n; targets) {
-            "~setter("n", name)~";
+
+    Parameter currParam = null;
+    vec2u currCursor = vec2u.init;
+
+    bool _shared(alias varName, string propName = null)(bool delegate() editFunc) {
+        if (targets.length == 1) return editFunc();
+        bool valueChanged = false;
+
+        igBeginGroup();
+        float width = igCalcItemWidth();
+
+        if (!varName.isShared) {
+            // **varName.isShared が false の場合はエディットボックスを使わず、ComboBox を表示**
+            igSetNextItemWidth(width);
+            if (igBeginCombo(("##combo_" ~ __traits(identifier, varName)).toStringz, "Select Value")) {
+                foreach (t; targets) {
+                    typeof(varName.value) value;
+                    static if (propName) {
+                        value = mixin("t." ~ propName);
+                    } else {
+                        value = mixin("t." ~ __traits(identifier, varName));
+                    }
+
+                    // "オブジェクト名: 値" の形式で表示
+                    string displayValue = "%s: %s".format(t.name, value);
+
+                    if (igSelectable(displayValue.toStringz, false)) {
+                        varName.value = value;
+                        valueChanged = true;
+                        break;
+                    }
+                }
+                igEndCombo();
+            }
+        } else {
+            // **varName.isShared が true の場合は通常のエディットボックスを表示**
+            igSetNextItemWidth(width);
+            valueChanged |= editFunc();
         }
+
+        igEndGroup();
+        return valueChanged;
     }
-    ";
-//    pragma(msg, "Result:", result);
-    return result;
+
+    static string attribute(type, alias name, string function(string) _getter = null, string function(string, string) _setter = null)() {
+        string getter(string x) { return _getter? _getter(x): (x~"."~name); }
+        string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
+        enum result =  
+        "SharedValue!"~type.stringof~ " " ~name~ ";
+        bool capture_"~name~"() {
+            if (targets.length == 0) {
+                "~name~".isShared = false;
+                return false;
+            }
+            "~name~".isShared = true;
+            "~name~".value    = "~getter("targets[0]")~";
+            foreach (n; targets) {
+                if ("~name~".value != "~getter("n")~") {"~name~".isShared = false; return false; }
+            }
+            return true;
+        }
+        void apply_"~name~"() {
+            "~name~".isShared = true;
+            foreach (n; targets) {
+                "~setter("n", name~".value")~";
+            }
+        }
+        ";
+//        pragma(msg, "Result:", result);
+        return result;
+    }
+
+
+    static string deformation(alias name, string deformName = null)() {
+        string getter(string x) { return "incInspectorDeformGetValue("~x~",currParam,\""~(deformName?deformName:name)~"\", currCursor)"; }
+        string setter(string x, string v) { return "incInspectorDeformSetValue("~x~", currParam,\""~(deformName?deformName:name)~"\", currCursor,"~v~")"; }
+        enum result =  
+        "SharedValue!float " ~name~ ";
+        bool capture_"~name~"() {
+            if (currParam is null) return false;
+            if (targets.length == 0) {
+                "~name~".isShared = false;
+                return false;
+            }
+            "~name~".isShared = true;
+            "~name~".value    = "~getter("targets[0]")~";
+            foreach (n; targets) {
+                if ("~name~".value != "~getter("n")~") {"~name~".isShared = false; return false; }
+            }
+            return true;
+        }
+        void apply_"~name~"() {
+            if (currParam is null) return;
+            foreach (n; targets) {
+                "~setter("n", name~".value")~";
+            }
+        }
+        ";
+//        pragma(msg, "Result:", result);
+        return result;
+    }
+
 }
