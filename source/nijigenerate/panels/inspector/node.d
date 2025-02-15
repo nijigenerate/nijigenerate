@@ -14,11 +14,13 @@ import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.common;
 import std.string;
+import std.algorithm;
 import std.algorithm.searching;
 import std.algorithm.mutation;
 import std.typecons: tuple;
 import std.conv;
 import std.utf;
+import std.array;
 import i18n;
 import std.range: enumerate;
 
@@ -56,14 +58,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Translation X
                 igPushID(0);
-                if (incDragFloat("translation_x", &node.localTransform.translation.vector[0], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                if (_shared!(translationX,"localTransform.translation.vector[0]")(
+                        ()=>incDragFloat("translation_x", &translationX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_translationX();
                     incActionPush(
-                        new NodeValueChangeAction!(Node, float)(
+                        new NodeValueChangeAction!(Node[], float)(
                             "X",
-                            node, 
-                            incGetDragFloatInitialValue("translation_x"),
-                            node.localTransform.translation.vector[0],
-                            &node.localTransform.translation.vector[0]
+                            targets, 
+                            targets.map!((n)=>incGetDragFloatInitialValue("translation_x")).array,
+                            targets.map!((n)=>translationX.value).array,
+                            targets.map!((n)=>&n.localTransform.translation.vector[0]).array
                         )
                     );
                 }
@@ -73,14 +77,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Translation Y
                 igPushID(1);
-                    if (incDragFloat("translation_y", &node.localTransform.translation.vector[1], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                    if (_shared!(translationY, "localTransform.translation.vector[1]")(
+                            ()=>incDragFloat("translation_y", &translationY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                        apply_translationY();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 "Y",
-                                node, 
-                                incGetDragFloatInitialValue("translation_y"),
-                                node.localTransform.translation.vector[1],
-                                &node.localTransform.translation.vector[1]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("translation_y")).array,
+                                targets.map!((n)=>translationY.value).array,
+                                targets.map!((n)=>&n.localTransform.translation.vector[1]).array
                             )
                         );
                     }
@@ -90,14 +96,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Translation Z
                 igPushID(2);
-                    if (incDragFloat("translation_z", &node.localTransform.translation.vector[2], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                    if (_shared!(translationZ, "localTransform.translation.vector[2]")(
+                            ()=>incDragFloat("translation_z", &translationZ.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                        apply_translationZ();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 "Z",
-                                node, 
-                                incGetDragFloatInitialValue("translation_z"),
-                                node.localTransform.translation.vector[2],
-                                &node.localTransform.translation.vector[2]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("translation_z")).array,
+                                targets.map!((n)=>translationZ.value).array,
+                                targets.map!((n)=>&n.localTransform.translation.vector[2]).array
                             )
                         );
                     }
@@ -117,14 +125,17 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     igTextColored(CategoryTextColor, __("Lock to Root Node"));
 
                     incSpacer(ImVec2(-12, 1));
-                    bool lockToRoot = node.lockToRoot;
-                    if (incLockButton(&lockToRoot, "root_lk")) {
-                        incLockToRootNode(node);
+                    if (_shared!lockToRoot(()=>incLockButton(&lockToRoot.value, "root_lk"))) {
+                        foreach (t; targets) {
+                            t.lockToRoot = !lockToRoot.value;
+                            incLockToRootNode(t);
+                        }
                     }
 
-                    bool pinToMesh = node.pinToMesh;
-                    if (ngCheckbox(__("Pin origin to parent mesh."), &pinToMesh)) {
-                        node.pinToMesh = pinToMesh;
+                    if (_shared!pinToMesh(()=>ngCheckbox(__("Pin origin to parent mesh."), &pinToMesh.value))) {
+                        foreach (t; targets) {
+                            t.pinToMesh = pinToMesh.value;
+                        }
                     }
                 igEndGroup();
 
@@ -152,17 +163,18 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Rotation X
                 igPushID(3);
-                    rotationDegrees = degrees(node.localTransform.rotation.vector[0]);
-                    if (incDragFloat("rotation_x", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat)) {       
-                        node.localTransform.rotation.vector[0] = radians(rotationDegrees);         
-                        
+                    rotationDegrees = degrees(rotationX.value);
+                    if (_shared!(rotationX, "localTransform.rotation.x")(
+                        ()=>incDragFloat("rotation_x", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
+                        rotationX.value = radians(rotationDegrees);
+                        apply_rotationX();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 _("Rotation X"),
-                                node, 
-                                incGetDragFloatInitialValue("rotation_x"),
-                                node.localTransform.rotation.vector[0],
-                                &node.localTransform.rotation.vector[0]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("rotation_x")).array,
+                                targets.map!((n)=>rotationX.value).array,
+                                targets.map!((n)=>&n.localTransform.rotation.vector[0]).array
                             )
                         );
                     }
@@ -172,17 +184,18 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Rotation Y
                 igPushID(4);
-                    rotationDegrees = degrees(node.localTransform.rotation.vector[1]);
-                    if (incDragFloat("rotation_y", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat)) {
-                        node.localTransform.rotation.vector[1] = radians(rotationDegrees);
-
+                    rotationDegrees = degrees(rotationY.value);
+                    if (_shared!(rotationY, "localTransform.rotation.vector[1]")(
+                        ()=>incDragFloat("rotation_y", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
+                        rotationY.value = radians(rotationDegrees);
+                        apply_rotationY();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 _("Rotation Y"),
-                                node, 
-                                incGetDragFloatInitialValue("rotation_y"),
-                                node.localTransform.rotation.vector[1],
-                                &node.localTransform.rotation.vector[1]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("rotation_y")).array,
+                                targets.map!((n)=>rotationY.value).array,
+                                targets.map!((n)=>&n.localTransform.rotation.vector[1]).array
                             )
                         );
                     }
@@ -192,17 +205,18 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Rotation Z
                 igPushID(5);
-                    rotationDegrees = degrees(node.localTransform.rotation.vector[2]);
-                    if (incDragFloat("rotation_z", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat)) {
-                        node.localTransform.rotation.vector[2] = radians(rotationDegrees);
-
+                    rotationDegrees = degrees(rotationZ.value);
+                    if (_shared!(rotationZ, "localTransform.rotation.vector[2]")(
+                        ()=>incDragFloat("rotation_z", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
+                        rotationZ.value = radians(rotationDegrees);
+                        apply_rotationZ();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 _("Rotation Z"),
-                                node, 
-                                incGetDragFloatInitialValue("rotation_z"),
-                                node.localTransform.rotation.vector[2],
-                                &node.localTransform.rotation.vector[2]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("rotation_z")).array,
+                                targets.map!((n)=>rotationZ.value).array,
+                                targets.map!((n)=>&n.localTransform.rotation.vector[2]).array
                             )
                         );
                     }
@@ -223,14 +237,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 
                 // Scale X
                 igPushID(6);
-                    if (incDragFloat("scale_x", &node.localTransform.scale.vector[0], adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                    if (_shared!(scaleX, "localTransform.scale.vector[0]")(
+                        ()=>incDragFloat("scale_x", &scaleX.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                        apply_scaleX();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 _("Scale X"),
-                                node, 
-                                incGetDragFloatInitialValue("scale_x"),
-                                node.localTransform.scale.vector[0],
-                                &node.localTransform.scale.vector[0]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("scale_x")).array,
+                                targets.map!((n)=>scaleX.value).array,
+                                targets.map!((n)=>&n.localTransform.scale.vector[0]).array
                             )
                         );
                     }
@@ -240,14 +256,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                 // Scale Y
                 igPushID(7);
-                    if (incDragFloat("scale_y", &node.localTransform.scale.vector[1], adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                    if (_shared!(scaleY, "localTransform.scale.vector[1]")(
+                        ()=>incDragFloat("scale_y", &scaleY.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                        apply_scaleY();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
+                            new NodeValueChangeAction!(Node[], float)(
                                 _("Scale Y"),
-                                node, 
-                                incGetDragFloatInitialValue("scale_y"),
-                                node.localTransform.scale.vector[1],
-                                &node.localTransform.scale.vector[1]
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("scale_y")).array,
+                                targets.map!((n)=>scaleY.value).array,
+                                targets.map!((n)=>&n.localTransform.scale.vector[1]).array
                             )
                         );
                     }
@@ -263,14 +281,15 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
             textLength = incMeasureString(_("Snap to Pixel"));
             igTextColored(CategoryTextColor, __("Snap to Pixel"));
             incSpacer(ImVec2(-12, 1));
-            if (incLockButton(&node.localTransform.pixelSnap, "pix_lk")) {
+            if (_shared!(pixelSnap, "localTransform.pixelSnap")(()=>incLockButton(&pixelSnap.value, "pix_lk"))) {
+                apply_pixelSnap();
                 incActionPush(
-                    new NodeValueChangeAction!(Node, bool)(
+                    new NodeValueChangeAction!(Node[], bool)(
                         _("Snap to Pixel"),
-                        node, 
-                        !node.localTransform.pixelSnap,
-                        node.localTransform.pixelSnap,
-                        &node.localTransform.pixelSnap
+                        targets,
+                        targets.map!((n)=>!pixelSnap.value).array,
+                        targets.map!((n)=>pixelSnap.value).array,
+                        targets.map!((n)=>&n.localTransform.pixelSnap).array
                     )
                 );
             }
@@ -284,24 +303,55 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
             // negative values = closer to camera
             // positive values = further away from camera
             igTextColored(CategoryTextColor, __("Sorting"));
-            float zsortV = node.relZSort;
-            float zsortB = zsortV;
-            if (igInputFloat("###ZSort", &zsortV, 0.01, 0.05, "%0.2f")) {
-                node.zSort = zsortV;
+            auto zSortB = targets.map!((n)=>n.relZSort).array;
+            if (igInputFloat("###ZSort", &zSort.value, 0.01, 0.05, "%0.2f")) {
+                node.zSort = zSort.value;
                 node.notifyChange(node, NotifyReason.AttributeChanged);
                 incActionPush(
-                    new NodeValueChangeAction!(Node, float)(
+                    new NodeValueChangeAction!(Node[], float)(
                         _("Sorting"),
-                        node, 
-                        zsortB,
-                        zsortV,
-                        &node.relZSort()
+                        targets,
+                        zSortB,
+                        targets.map!((n)=>zSort.value).array,
+                        targets.map!((n)=>&n.relZSort()).array
                     )
                 );
             }
         }
         incEndCategory();
     }
+
+    mixin MultiEdit;
+    mixin(attribute!(float, "translationX", (x)=>x~".localTransform.translation.vector[0]", (x, v)=>x~".localTransform.translation.vector[0]="~v));
+    mixin(attribute!(float, "translationY", (x)=>x~".localTransform.translation.vector[1]", (x, v)=>x~".localTransform.translation.vector[1]="~v));
+    mixin(attribute!(float, "translationZ", (x)=>x~".localTransform.translation.vector[2]", (x, v)=>x~".localTransform.translation.vector[2]="~v));
+    mixin(attribute!(float, "rotationX", (x)=>x~".localTransform.rotation.vector[0]", (x, v)=>x~".localTransform.rotation.vector[0]="~v));
+    mixin(attribute!(float, "rotationY", (x)=>x~".localTransform.rotation.vector[1]", (x, v)=>x~".localTransform.rotation.vector[1]="~v));
+    mixin(attribute!(float, "rotationZ", (x)=>x~".localTransform.rotation.vector[2]", (x, v)=>x~".localTransform.rotation.vector[2]="~v));
+    mixin(attribute!(float, "scaleX", (x)=>x~".localTransform.scale.vector[0]", (x, v)=>x~".localTransform.scale.vector[0]="~v));
+    mixin(attribute!(float, "scaleY", (x)=>x~".localTransform.scale.vector[1]", (x, v)=>x~".localTransform.scale.vector[1]="~v));
+    mixin(attribute!(bool, "lockToRoot"));
+    mixin(attribute!(bool, "pinToMesh"));
+    mixin(attribute!(bool, "pixelSnap", (x)=>x~".localTransform.pixelSnap", (x, v)=>x~".localTransform.pixelSnap="~v));
+    mixin(attribute!(float, "zSort", (x)=>x~".relZSort", (x, v)=>x~".zSort="~v));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        capture_translationX();
+        capture_translationY();
+        capture_translationZ();
+        capture_rotationX();
+        capture_rotationY();
+        capture_rotationZ();
+        capture_scaleX();
+        capture_scaleY();
+        capture_lockToRoot();
+        capture_pinToMesh();
+        capture_pixelSnap();
+        capture_zSort();
+    }
+
 }
 
 

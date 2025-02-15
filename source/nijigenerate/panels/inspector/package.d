@@ -85,6 +85,8 @@ private:
 protected:
     void onChange(Node target, NotifyReason reason) {
         if (reason == NotifyReason.StructureChanged || reason == NotifyReason.AttributeChanged) {
+            if (activeNodeInspectors)
+                activeNodeInspectors.capture(activeNodeInspectors.getTargets());
         }
     }
 
@@ -92,6 +94,7 @@ protected:
         auto mode = ngModelEditSubMode;
         activeNodeInspectors = new InspectorHolder!Node(nodes, mode);
         activeNodeInspectors.setInspectors(nodeInspectors.map!((i) => i()).array);
+
     }
 
     override
@@ -118,27 +121,21 @@ protected:
         }
 
         auto nodes = incSelectedNodes();
-        if (nodes.length == 1) {
-            Node node = nodes[0];
-            if (node !is null) {
-
-                // Per-edit mode inspector drawers
-                switch(incEditMode()) {
-                    case EditMode.ModelEdit:
-                        Parameter param = incArmedParameter();
-                        vec2u cursor = param? param.findClosestKeypoint(): vec2u.init;
-                        if (activeNodeInspectors)
-                            activeNodeInspectors.inspect(param, cursor);
+        if (nodes.length > 0) {
+            // Per-edit mode inspector drawers
+            switch(incEditMode()) {
+                case EditMode.ModelEdit:
+                    Parameter param = incArmedParameter();
+                    vec2u cursor = param? param.findClosestKeypoint(): vec2u.init;
+                    if (activeNodeInspectors)
+                        activeNodeInspectors.inspect(param, cursor);
+                break;
+                default:
+                    incCommonNonEditHeader(nodes[0]);
                     break;
-                    default:
-                        incCommonNonEditHeader(node);
-                        break;
-                }
             }
-        } else if (nodes.length == 0) {
-            incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
         } else {
-            incLabelOver(_("Can only inspect a single node..."), ImVec2(0, 0), true);
+            incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
         }
     }
 

@@ -66,29 +66,55 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPopID();
 
             incText(_("Type"));
-            if (igBeginCombo("###PhysType", __(node.modelType.text))) {
+            if (_shared!modelType(() {
+                    bool result = false;
+                    if (igBeginCombo("###PhysType", __(modelType.value.text))) {
+                        if (igSelectable(__("Pendulum"), modelType.value == PhysicsModel.Pendulum)) {
+                            modelType.value = PhysicsModel.Pendulum;
+                            result = true;
+                        }
 
-                if (igSelectable(__("Pendulum"), node.modelType == PhysicsModel.Pendulum)) node.modelType = PhysicsModel.Pendulum;
-
-                if (igSelectable(__("SpringPendulum"), node.modelType == PhysicsModel.SpringPendulum)) node.modelType = PhysicsModel.SpringPendulum;
-
-                igEndCombo();
+                        if (igSelectable(__("SpringPendulum"), modelType.value == PhysicsModel.SpringPendulum)) {
+                            modelType.value = PhysicsModel.SpringPendulum;
+                            result = true;
+                        }
+                        igEndCombo();
+                    }
+                    return result;
+            })) {
+                apply_modelType();
             }
 
             igSpacing();
 
             incText(_("Mapping mode"));
-            if (igBeginCombo("###PhysMapMode", __(node.mapMode.text))) {
+            if (_shared!mapMode(() {
+                    bool result = false;
+                    if (igBeginCombo("###PhysMapMode", __(mapMode.value.text))) {
+                        if (igSelectable(__("AngleLength"), mapMode.value == ParamMapMode.AngleLength)) {
+                            mapMode.value = ParamMapMode.AngleLength;
+                            result = true;
+                        }
 
-                if (igSelectable(__("AngleLength"), node.mapMode == ParamMapMode.AngleLength)) node.mapMode = ParamMapMode.AngleLength;
+                        if (igSelectable(__("XY"), mapMode.value == ParamMapMode.XY)) {
+                            mapMode.value = ParamMapMode.XY;
+                            result = true;
+                        }
 
-                if (igSelectable(__("XY"), node.mapMode == ParamMapMode.XY)) node.mapMode = ParamMapMode.XY;
+                        if (igSelectable(__("LengthAngle"), mapMode.value == ParamMapMode.LengthAngle)) {
+                            mapMode.value = ParamMapMode.LengthAngle;
+                            result = true;
+                        }
 
-                if (igSelectable(__("LengthAngle"), node.mapMode == ParamMapMode.LengthAngle)) node.mapMode = ParamMapMode.LengthAngle;
-
-                if (igSelectable(__("YX"), node.mapMode == ParamMapMode.YX)) node.mapMode = ParamMapMode.YX;
-
-                igEndCombo();
+                        if (igSelectable(__("YX"), mapMode.value == ParamMapMode.YX)) {
+                            mapMode.value = ParamMapMode.YX;
+                            result = true;
+                        }
+                        igEndCombo();
+                    }
+                    return result;
+            })) {
+                apply_mapMode();
             }
 
             igSpacing();
@@ -96,7 +122,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID("SimplePhysics");
             
             igPushID(-1);
-                ngCheckbox(__("Local Transform Lock"), &node.localOnly);
+                if (_shared!localOnly(()=>ngCheckbox(__("Local Transform Lock"), &localOnly.value))) {
+                    apply_localOnly();
+                };
                 incTooltip(_("Whether the physics system only listens to the movement of the physics node itself"));
                 igSpacing();
                 igSpacing();
@@ -104,43 +132,57 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
 
             igPushID(0);
                 incText(_("Gravity scale"));
-                incDragFloat("gravity", &node.gravity, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!gravity(()=>incDragFloat("gravity", &gravity.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_gravity();
+                }
                 igSpacing();
                 igSpacing();
             igPopID();
 
             igPushID(1);
                 incText(_("Length"));
-                incDragFloat("length", &node.length, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!length(()=>incDragFloat("length", &length.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_length();
+                }
                 igSpacing();
                 igSpacing();
             igPopID();
 
             igPushID(2);
                 incText(_("Resonant frequency"));
-                incDragFloat("frequency", &node.frequency, adjustSpeed/100, 0.01, 30, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!frequency(()=>incDragFloat("frequency", &frequency.value, adjustSpeed/100, 0.01, 30, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_frequency();
+                }
                 igSpacing();
                 igSpacing();
             igPopID();
 
             igPushID(3);
                 incText(_("Damping"));
-                incDragFloat("damping_angle", &node.angleDamping, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!angleDamping(()=>incDragFloat("damping_angle", &angleDamping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_angleDamping();
+                }
             igPopID();
 
             igPushID(4);
-                incDragFloat("damping_length", &node.lengthDamping, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!lengthDamping(()=>incDragFloat("damping_length", &lengthDamping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_lengthDamping();
+                }
                 igSpacing();
                 igSpacing();
             igPopID();
 
             igPushID(5);
                 incText(_("Output scale"));
-                incDragFloat("output_scale.x", &node.outputScale.vector[0], adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!(outputScaleX, "outputScale.x")(()=>incDragFloat("output_scale.x", &outputScaleX.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_outputScaleX();
+                }
             igPopID();
 
             igPushID(6);
-                incDragFloat("output_scale.y", &node.outputScale.vector[1], adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                if (_shared!(outputScaleY, "outputScale.y")(()=>incDragFloat("output_scale.y", &outputScaleY.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    apply_outputScaleY();
+                }
                 igSpacing();
                 igSpacing();
             igPopID();
@@ -153,17 +195,25 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             }
         incEndCategory();
     }
-    mixin(ngInspectVar!(float, "gravity"));
-    mixin(ngInspectVar!(float, "length"));
-    mixin(ngInspectVar!(float, "frequency"));
-    mixin(ngInspectVar!(float, "angleDamping"));
-    mixin(ngInspectVar!(float, "lengthDamping"));
-    mixin(ngInspectVar!(float, "outputScaleX", (x)=>x~".outputScale.vector[0]", (x, v)=>x~".outputScale.vector[0]="~v));
-    mixin(ngInspectVar!(float, "outputScaleY", (x)=>x~".outputScale.vector[1]", (x, v)=>x~".outputScale.vector[1]="~v));
+
+    mixin MultiEdit;
+    mixin(attribute!(PhysicsModel, "modelType"));
+    mixin(attribute!(ParamMapMode, "mapMode"));
+    mixin(attribute!(bool, "localOnly"));
+    mixin(attribute!(float, "gravity"));
+    mixin(attribute!(float, "length"));
+    mixin(attribute!(float, "frequency"));
+    mixin(attribute!(float, "angleDamping"));
+    mixin(attribute!(float, "lengthDamping"));
+    mixin(attribute!(float, "outputScaleX", (x)=>x~".outputScale.vector[0]", (x, v)=>x~".outputScale.vector[0]="~v));
+    mixin(attribute!(float, "outputScaleY", (x)=>x~".outputScale.vector[1]", (x, v)=>x~".outputScale.vector[1]="~v));
 
     override
     void capture(Node[] nodes) {
         super.capture(nodes);
+        capture_localOnly();
+        capture_modelType();
+        capture_mapMode();
         capture_gravity();
         capture_length();
         capture_frequency();
@@ -176,6 +226,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
 /// Armed Parameter View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: SimplePhysics) : BaseInspector!(mode, T) {
+public:
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
     }
@@ -183,6 +234,12 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: SimplePhy
     void run(Parameter param, vec2u cursor) {
         if (targets.length == 0) return;
         auto node = targets[0];
+
+        if (currParam != param || currCursor != cursor) {
+            currParam = param;
+            currCursor = cursor;
+            capture(cast(Node[])targets);
+        }
 
         if (incBeginCategory(__("Simple Physics"))) {
             float adjustSpeed = 1;
@@ -239,13 +296,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: SimplePhy
         }
         incEndCategory();
     }
-    mixin(ngInspectVar!(float, "gravity"));
-    mixin(ngInspectVar!(float, "length"));
-    mixin(ngInspectVar!(float, "frequency"));
-    mixin(ngInspectVar!(float, "angleDamping"));
-    mixin(ngInspectVar!(float, "lengthDamping"));
-    mixin(ngInspectVar!(float, "outputScaleX", (x)=>x~".outputScale.vector[0]", (x, v)=>x~".outputScale.vector[0]="~v));
-    mixin(ngInspectVar!(float, "outputScaleY", (x)=>x~".outputScale.vector[1]", (x, v)=>x~".outputScale.vector[1]="~v));
+
+    mixin MultiEdit;
+
+    mixin(deformation!"gravity");
+    mixin(deformation!"length");
+    mixin(deformation!"frequency");
+    mixin(deformation!"angleDamping");
+    mixin(deformation!"lengthDamping");
+    mixin(deformation!("outputScaleX","outputScale.x"));
+    mixin(deformation!("outputScaleY","outputScale.y"));
 
     override
     void capture(Node[] nodes) {
