@@ -792,7 +792,7 @@ protected:
                 hovered |= popupOpened == res && isWindowHovered();
                 if (res.uuid in contentsDrawn) return;
                 bool invalid = activeInspector is null || activeInspector.getTargets().countUntil(node) < 0;
-                bool selected = incNodeInSelection(node);
+                bool selected = node !is null && incNodeInSelection(node);
                 if (!selected || invalid) {
                     activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
                 }
