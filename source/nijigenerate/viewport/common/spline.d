@@ -201,7 +201,7 @@ public:
 //                incActionPush(new ParameterBindingAddAction(param, b));
             }
             // Push action
-//            incActionPush(new ParameterBindingValueChangeAction!(float)(b.getName(), b, index.x, index.y));
+//            incActionPush(new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(b.getName(), b, index.x, index.y));
             float result = b.getValue(index);
             b.setValue(index, newValue);
             return result;

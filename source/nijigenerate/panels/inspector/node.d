@@ -366,6 +366,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : B
     void run(Parameter param, vec2u cursor)  {
         if (targets.length == 0) return;
         auto node = targets[0];
+
+        updateDeform(param, cursor);
+
         if (node == incActivePuppet().root) return;
         if (incBeginCategory(__("Transform"))) {
             float adjustSpeed = 1;
@@ -387,21 +390,21 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : B
 
                 // Translation X
                 igPushID(0);
-                    incInspectorDeformFloatDragVal("translation_x", "transform.t.x", 1f, node, param, cursor);
+                    _deform!translationX((s,v)=>ngInspectorDeformFloatDragVal(s, v, 1f));
                 igPopID();
 
                 igSameLine(0, 4);
 
                 // Translation Y
                 igPushID(1);
-                    incInspectorDeformFloatDragVal("translation_y", "transform.t.y", 1f, node, param, cursor);
+                    _deform!translationY((s,v)=>ngInspectorDeformFloatDragVal(s, v, 1f));
                 igPopID();
 
                 igSameLine(0, 4);
 
                 // Translation Z
                 igPushID(2);
-                    incInspectorDeformFloatDragVal("translation_z", "transform.t.z", 1f, node, param, cursor);
+                    _deform!translationZ((s,v)=>ngInspectorDeformFloatDragVal(s, v, 1f));
                 igPopID();
 
 
@@ -424,21 +427,21 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : B
 
                 // Rotation X
                 igPushID(3);
-                    incInspectorDeformFloatDragVal("rotation.x", "transform.r.x", 0.05f, node, param, cursor, true);
+                    _deform!rotationX((s,v)=>ngInspectorDeformFloatDragVal(s, v, 0.05f, true));
                 igPopID();
 
                 igSameLine(0, 4);
 
                 // Rotation Y
                 igPushID(4);
-                    incInspectorDeformFloatDragVal("rotation.y", "transform.r.y", 0.05f, node, param, cursor, true);
+                    _deform!rotationY((s,v)=>ngInspectorDeformFloatDragVal(s, v, 0.05f, true));
                 igPopID();
 
                 igSameLine(0, 4);
 
                 // Rotation Z
                 igPushID(5);
-                    incInspectorDeformFloatDragVal("rotation.z", "transform.r.z", 0.05f, node, param, cursor, true);
+                    _deform!rotationZ((s,v)=>ngInspectorDeformFloatDragVal(s, v, 0.05f, true));
                 igPopID();
 
             igPopItemWidth();
@@ -456,14 +459,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : B
                 
                 // Scale X
                 igPushID(6);
-                    incInspectorDeformFloatDragVal("scale.x", "transform.s.x", 0.1f, node, param, cursor);
+                    _deform!scaleX((s,v)=>ngInspectorDeformFloatDragVal(s, v, 0.1f));
                 igPopID();
 
                 igSameLine(0, 4);
 
                 // Scale Y
                 igPushID(7);
-                    incInspectorDeformFloatDragVal("scale.y", "transform.s.y", 0.1f, node, param, cursor);
+                    _deform!scaleY((s,v)=>ngInspectorDeformFloatDragVal(s, v, 0.1f));
                 igPopID();
 
             igPopItemWidth();
@@ -472,8 +475,33 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : B
             igSpacing();
 
             igTextColored(CategoryTextColor, __("Sorting"));
-            incInspectorDeformInputFloat("zSort", "zSort", 0.01, 0.05, node, param, cursor);
+            _deform!zSort((s,v)=>ngInspectorDeformInputFloat(s, v, 0.01, 0.05));
         }
         incEndCategory();
+    }
+
+    mixin MultiEdit;
+    mixin(deformation!("translationX", "transform.t.x"));
+    mixin(deformation!("translationY", "transform.t.y"));
+    mixin(deformation!("translationZ", "transform.t.z"));
+    mixin(deformation!("rotationX", "transform.r.x"));
+    mixin(deformation!("rotationY", "transform.r.y"));
+    mixin(deformation!("rotationZ", "transform.r.z"));
+    mixin(deformation!("scaleX", "transform.s.x"));
+    mixin(deformation!("scaleY", "transform.s.y"));
+    mixin(deformation!("zSort"));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        translationX.capture();
+        translationY.capture();
+        translationZ.capture();
+        rotationX.capture();
+        rotationY.capture();
+        rotationZ.capture();
+        scaleX.capture();
+        scaleY.capture();
+        zSort.capture();
     }
 }

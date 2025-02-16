@@ -250,43 +250,43 @@ public:
 
                 igPushID(0);
                     incText(_("Gravity scale"));
-                    incInspectorDeformDragFloat("###Gravity", "gravity", adjustSpeed/100, -float.max, float.max, "%.2f", node, param, cursor);
+                    _deform!gravity((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                     igSpacing();
                     igSpacing();
                 igPopID();
 
                 igPushID(1);
                     incText(_("Length"));
-                    incInspectorDeformDragFloat("###Length", "length", adjustSpeed/100, 0, float.max, "%.2f", node, param, cursor);
+                    _deform!length((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                     igSpacing();
                     igSpacing();
                 igPopID();
 
                 igPushID(2);
                     incText(_("Resonant frequency"));
-                    incInspectorDeformDragFloat("###ResFreq", "frequency", adjustSpeed/100, 0.01, 30, "%.2f", node, param, cursor);
+                    _deform!frequency((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                     igSpacing();
                     igSpacing();
                 igPopID();
 
                 igPushID(3);
                     incText(_("Damping"));
-                    incInspectorDeformDragFloat("###AngleDamp", "angleDamping", adjustSpeed/100, 0, 5, "%.2f", node, param, cursor);
+                    _deform!angleDamping((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                 igPopID();
 
                 igPushID(4);
-                    incInspectorDeformDragFloat("###Length", "lengthDamping", adjustSpeed/100, 0, 5, "%.2f", node, param, cursor);
+                    _deform!lengthDamping((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                     igSpacing();
                     igSpacing();
                 igPopID();
 
                 igPushID(5);
                     incText(_("Output scale"));
-                    incInspectorDeformDragFloat("###OutScaleX", "outputScale.x", adjustSpeed/100, 0, float.max, "%.2f", node, param, cursor);
+                    _deform!outputScaleX((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                 igPopID();
 
                 igPushID(6);
-                    incInspectorDeformDragFloat("###OutScaleY", "outputScale.y", adjustSpeed/100, 0, float.max, "%.2f", node, param, cursor);
+                    _deform!outputScaleY((s, v)=>ngInspectorDeformDragFloat(s, v, adjustSpeed/100, -float.max, float.max, "%.2f"));
                     igSpacing();
                     igSpacing();
                 igPopID();

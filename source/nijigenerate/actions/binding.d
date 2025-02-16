@@ -13,7 +13,9 @@ import std.format;
 import std.stdio;
 import std.range;
 import std.conv;
+import std.algorithm;
 import std.algorithm.mutation;
+import std.array;
 import i18n;
 
 private {
@@ -202,10 +204,9 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
 /**
     Action to change binding value (and isSet) of specified keypoint.
 */
-class ParameterBindingValueChangeAction(T)  : LazyBoundAction {
+class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(TBinding: ParameterBindingImpl!(T))) {
     alias TSelf    = typeof(this);
     string name;
-    alias TBinding = ParameterBindingImpl!(T);
     TBinding self;
     int  pointx;
     int  pointy;
@@ -288,6 +289,112 @@ class ParameterBindingValueChangeAction(T)  : LazyBoundAction {
     */
     string describeUndo() {
         return _("%s->%s change cancelled").format(self.getName(), name);
+    }
+
+    /**
+        Gets name of this action
+    */
+    string getName() {
+        return this.stringof;
+    }
+    
+    /**
+        Merge
+    */
+    bool merge(Action other) {
+        if (this.canMerge(other)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+        Gets whether this node can merge with an other
+    */
+    bool canMerge(Action other) {
+        TSelf otherChange = cast(TSelf) other;
+        return (otherChange !is null && this.name == otherChange.name && this.pointx == otherChange.pointx && this.pointy == otherChange.pointy);
+    }
+};
+class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(TBinding == U[], U) && is(U: ParameterBindingImpl!T)) {
+    alias TSelf    = typeof(this);
+    string name;
+    TBinding self;
+    int  pointx;
+    int  pointy;
+    T[]    value;
+    bool[] isSet;
+    bool undoable;
+    bool _dirty;
+
+    this(string name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+        this.name  = name;
+        this.self  = self;
+        this.pointx = pointx;
+        this.pointy = pointy;
+        this.value  = self.map!((s)=>s.values[pointx][pointy]).array;
+        this.isSet  = self.map!((s)=>s.isSet_[pointx][pointy]).array;
+        this.undoable = true;
+        this._dirty = false;
+        if (update !is null) {
+            update();
+            updateNewState();
+        }
+    }
+
+    this(int name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+        this.name  = to!string(name);
+        this(this.name, self, pointx, pointy, update);
+    }
+
+    void markAsDirty() { _dirty = true; }
+    void updateNewState() {}
+    void clear() { _dirty = false; }
+
+    bool dirty() {
+        return _dirty;
+    }
+
+    /**
+        Rollback
+    */
+    void rollback() {
+        if (undoable) {
+            foreach (i; 0..self.length) {
+                swap(self[i].values[pointx][pointy], value[i]);
+                swap(self[i].isSet_[pointx][pointy], isSet[i]);
+                self[i].reInterpolate();
+            }
+            undoable = false;
+        }
+    }
+
+    /**
+        Redo
+    */
+    void redo() {
+        if (!undoable) {
+            foreach (i; 0..self.length) {
+                swap(self[i].values[pointx][pointy], value[i]);
+                swap(self[i].isSet_[pointx][pointy], isSet[i]);
+                self[i].reInterpolate();
+            }
+            undoable = true;
+        }
+    }
+
+    /**
+        Describe the action
+    */
+    string describe() {
+        return self.map!((s)=>_("%s->%s changed").format(s.getName(), name)).join("\n");
+    }
+
+    /**
+        Describe the action
+    */
+    string describeUndo() {
+        return self.map!((s)=>_("%s->%s change cancelled").format(s.getName(), name)).join("\n");
     }
 
     /**

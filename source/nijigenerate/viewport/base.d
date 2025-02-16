@@ -367,7 +367,7 @@ void incViewportTransformHandle() {
         }
         // Push action
         if (paramName !in status.actions)
-            status.actions[paramName] = new ParameterBindingValueChangeAction!(float)(b.getName(), b, index.x, index.y);
+            status.actions[paramName] = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(b.getName(), b, index.x, index.y);
         b.setValue(index, newValue);
     }
 
