@@ -32,38 +32,40 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             import std.conv : text;
             import std.string : toStringz;
 
-            igPushID("TargetParam");
-                if (igBeginPopup("TPARAM")) {
-                    if (node.param) {
-                        if (igMenuItem(__("Unmap"))) {
-                            node.param = null;
+            if (targets.length == 1) {
+                igPushID("TargetParam");
+                    if (igBeginPopup("TPARAM")) {
+                        if (node.param) {
+                            if (igMenuItem(__("Unmap"))) {
+                                node.param = null;
+                                incActivePuppet().rescanNodes();
+                            }
+                        } else {
+                            incDummyLabel(_("Unassigned"), ImVec2(128, 16));
+                        }
+
+                        igEndPopup();
+                    }
+
+                    incText(_("Parameter"));
+                    string paramName = _("(unassigned)");
+                    if (node.param !is null) paramName = node.param.name;
+                    igInputText("###TARGET_PARAM", cast(char*)paramName.toStringz, paramName.length, ImGuiInputTextFlags.ReadOnly);
+                    igOpenPopupOnItemClick("TPARAM", ImGuiPopupFlags.MouseButtonRight);
+
+                    if(igBeginDragDropTarget()) {
+                        const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PARAMETER");
+                        if (payload !is null) {
+                            ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
+                            node.param = payloadParam.param;
                             incActivePuppet().rescanNodes();
                         }
-                    } else {
-                        incDummyLabel(_("Unassigned"), ImVec2(128, 16));
+
+                        igEndDragDropTarget();
                     }
 
-                    igEndPopup();
-                }
-
-                incText(_("Parameter"));
-                string paramName = _("(unassigned)");
-                if (node.param !is null) paramName = node.param.name;
-                igInputText("###TARGET_PARAM", cast(char*)paramName.toStringz, paramName.length, ImGuiInputTextFlags.ReadOnly);
-                igOpenPopupOnItemClick("TPARAM", ImGuiPopupFlags.MouseButtonRight);
-
-                if(igBeginDragDropTarget()) {
-                    const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PARAMETER");
-                    if (payload !is null) {
-                        ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
-                        node.param = payloadParam.param;
-                        incActivePuppet().rescanNodes();
-                    }
-
-                    igEndDragDropTarget();
-                }
-
-            igPopID();
+                igPopID();
+            }
 
             incText(_("Type"));
             if (_shared!modelType(() {
@@ -81,8 +83,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
                         igEndCombo();
                     }
                     return result;
-            })) {
-                apply_modelType();
+                }
+            )) {
+                modelType.apply();
             }
 
             igSpacing();
@@ -114,7 +117,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
                     }
                     return result;
             })) {
-                apply_mapMode();
+                mapMode.apply();
             }
 
             igSpacing();
@@ -123,7 +126,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             
             igPushID(-1);
                 if (_shared!localOnly(()=>ngCheckbox(__("Local Transform Lock"), &localOnly.value))) {
-                    apply_localOnly();
+                    localOnly.apply();
                 };
                 incTooltip(_("Whether the physics system only listens to the movement of the physics node itself"));
                 igSpacing();
@@ -133,7 +136,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(0);
                 incText(_("Gravity scale"));
                 if (_shared!gravity(()=>incDragFloat("gravity", &gravity.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_gravity();
+                    gravity.apply();
                 }
                 igSpacing();
                 igSpacing();
@@ -142,7 +145,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(1);
                 incText(_("Length"));
                 if (_shared!length(()=>incDragFloat("length", &length.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_length();
+                    length.apply();
                 }
                 igSpacing();
                 igSpacing();
@@ -151,7 +154,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(2);
                 incText(_("Resonant frequency"));
                 if (_shared!frequency(()=>incDragFloat("frequency", &frequency.value, adjustSpeed/100, 0.01, 30, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_frequency();
+                    frequency.apply();
                 }
                 igSpacing();
                 igSpacing();
@@ -160,13 +163,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(3);
                 incText(_("Damping"));
                 if (_shared!angleDamping(()=>incDragFloat("damping_angle", &angleDamping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_angleDamping();
+                    angleDamping.apply();
                 }
             igPopID();
 
             igPushID(4);
                 if (_shared!lengthDamping(()=>incDragFloat("damping_length", &lengthDamping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_lengthDamping();
+                    lengthDamping.apply();
                 }
                 igSpacing();
                 igSpacing();
@@ -174,14 +177,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
 
             igPushID(5);
                 incText(_("Output scale"));
-                if (_shared!(outputScaleX, "outputScale.x")(()=>incDragFloat("output_scale.x", &outputScaleX.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_outputScaleX();
+                if (_shared!(outputScaleX)(()=>incDragFloat("output_scale.x", &outputScaleX.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    outputScaleX.apply();
                 }
             igPopID();
 
             igPushID(6);
-                if (_shared!(outputScaleY, "outputScale.y")(()=>incDragFloat("output_scale.y", &outputScaleY.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    apply_outputScaleY();
+                if (_shared!(outputScaleY)(()=>incDragFloat("output_scale.y", &outputScaleY.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                    outputScaleY.apply();
                 }
                 igSpacing();
                 igSpacing();
@@ -211,16 +214,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
     override
     void capture(Node[] nodes) {
         super.capture(nodes);
-        capture_localOnly();
-        capture_modelType();
-        capture_mapMode();
-        capture_gravity();
-        capture_length();
-        capture_frequency();
-        capture_angleDamping();
-        capture_lengthDamping();
-        capture_outputScaleX();
-        capture_outputScaleY();
+        localOnly.capture();
+        modelType.capture();
+        mapMode.capture();
+        gravity.capture();
+        length.capture();
+        frequency.capture();
+        angleDamping.capture();
+        lengthDamping.capture();
+        outputScaleX.capture();
+        outputScaleY.capture();
     }
 }
 /// Armed Parameter View
@@ -310,12 +313,12 @@ public:
     override
     void capture(Node[] nodes) {
         super.capture(nodes);
-        capture_gravity();
-        capture_length();
-        capture_frequency();
-        capture_angleDamping();
-        capture_lengthDamping();
-        capture_outputScaleX();
-        capture_outputScaleY();
+        gravity.capture();
+        length.capture();
+        frequency.capture();
+        angleDamping.capture();
+        lengthDamping.capture();
+        outputScaleX.capture();
+        outputScaleY.capture();
     }
 }

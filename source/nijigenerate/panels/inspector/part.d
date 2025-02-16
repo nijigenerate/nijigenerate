@@ -206,19 +206,19 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
             incText(_("Tint (Multiply)"));
             if (_shared!tint(()=> igColorEdit3("###TINT",cast(float[3]*)tint.value.ptr))) {
-                apply_tint();
+                tint.apply();
             }
 
             incText(_("Tint (Screen)"));
             if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
-                apply_screenTint();
+                screenTint.apply();
             }
 
             incText(_("Emission Strength"));
             float strengthPerc = emissionStrength.value*100;
             if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%"))) {
                 emissionStrength.value = strengthPerc*0.01;
-                apply_emissionStrength();
+                emissionStrength.apply();
             }
 
             // Padding
@@ -300,7 +300,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                     return result;
                 }
             )) {
-                apply_blendingMode();
+                blendingMode.apply();
                 foreach (n; targets)
                     n.notifyChange(n, NotifyReason.AttributeChanged);
             }
@@ -309,7 +309,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
             incText(_("Opacity"));
             if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
-                apply_opacity();
+                opacity.apply();
                 foreach (n; targets)
                     n.notifyChange(n, NotifyReason.AttributeChanged);
             }
@@ -323,7 +323,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             // before it gets discarded.
             incText(_("Threshold"));
             if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%.2f"))) {
-                apply_maskAlphaThreshold();
+                maskAlphaThreshold.apply();
             }
 
             if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
@@ -536,12 +536,12 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
     override
     void capture(Node[] nodes) {
         super.capture(nodes);
-        capture_tint();
-        capture_screenTint();
-        capture_emissionStrength();
-        capture_blendingMode();
-        capture_opacity();
-        capture_maskAlphaThreshold();
+        tint.capture();
+        screenTint.capture();
+        emissionStrength.capture();
+        blendingMode.capture();
+        opacity.capture();
+        maskAlphaThreshold.capture();
     }
 }
 

@@ -12,50 +12,10 @@ import std.utf;
 import std.string;
 import i18n;
 
-mixin template DriverInspector() {
 
-    void inspectDriver(T: ConnectedPendulumDriver)(T driver) {
-        float adjustSpeed = 1;
-        igPushID(0);
-            incText(_("Gravity scale"));
-            incDragFloat("gravity", &driver.gravity, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-            igSpacing();
-            igSpacing();
-        igPopID();
-
-        igPushID(1);
-            incText(_("Restore force"));
-            incTooltip(_("Force to restore for original position. If this force is weaker than the gravity, pendulum cannot restore to original position."));
-            incDragFloat("restoreConstant", &driver.restoreConstant, adjustSpeed/100, 0.01, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-            igSpacing();
-            igSpacing();
-        igPopID();
-
-        igPushID(2);
-            incText(_("Damping"));
-            incDragFloat("damping", &driver.damping, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-        igPopID();
-
-        igPushID(3);
-            incText(_("Input scale"));
-            incTooltip(_("Input force is multiplied by this factor. This should be specified when original position moved too much."));
-            incDragFloat("inputScale", &driver.inputScale, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-            igSpacing();
-            igSpacing();
-        igPopID();
-
-        igPushID(4);
-            incText(_("Propagate scale"));
-            incTooltip(_("Specify the degree to convey movement of previous pendulum to next one."));
-            incDragFloat("propagateScale", &driver.propagateScale, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-        igPopID();
-    }
-
-}
 /// Model View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDeformer) : BaseInspector!(mode, T) {
-    mixin DriverInspector;
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
     }
@@ -132,7 +92,52 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
                 igPushID("PhysicsDriver");
                 if (auto driver = cast(ConnectedPendulumDriver)node.driver) {
-                    inspectDriver(driver);
+
+                    igPushID(0);
+                        incText(_("Gravity scale"));
+                        if(_shared!(gravity)(()=>incDragFloat("gravity", &gravity.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            gravity.apply();
+                            foreach (n; targets)
+                                n.notifyChange(n, NotifyReason.AttributeChanged);
+                        }
+                        igSpacing();
+                        igSpacing();
+                    igPopID();
+
+                    igPushID(1);
+                        incText(_("Restore force"));
+                        incTooltip(_("Force to restore for original position. If this force is weaker than the gravity, pendulum cannot restore to original position."));
+                        if (_shared!restoreConstant(()=>incDragFloat("restoreConstant", &restoreConstant.value, adjustSpeed/100, 0.01, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            restoreConstant.apply();
+                        }
+                        igSpacing();
+                        igSpacing();
+                    igPopID();
+
+                    igPushID(2);
+                        incText(_("Damping"));
+                        if (_shared!damping(()=>incDragFloat("damping", &damping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            damping.apply();
+                        }
+                    igPopID();
+
+                    igPushID(3);
+                        incText(_("Input scale"));
+                        incTooltip(_("Input force is multiplied by this factor. This should be specified when original position moved too much."));
+                        if (_shared!inputScale(()=>incDragFloat("inputScale", &inputScale.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            inputScale.apply();
+                        }
+                        igSpacing();
+                        igSpacing();
+                    igPopID();
+
+                    igPushID(4);
+                        incText(_("Propagate scale"));
+                        incTooltip(_("Specify the degree to convey movement of previous pendulum to next one."));
+                        if (_shared!propagateScale(()=>incDragFloat("propagateScale", &propagateScale.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            propagateScale.apply();
+                        }
+                    igPopID();                    
                     // Padding
                     igSpacing();
                     igSpacing();
@@ -147,16 +152,34 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
         incEndCategory();
     }
 
+    mixin MultiEdit;
+    mixin(attribute!(bool, "physicsEnabled", (x)=>"("~x~".driver is null)", (x, v)=>""));
+    mixin(attribute!(float, "gravity", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).gravity", 
+                                       (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).gravity = "~v));
+    mixin(attribute!(float, "restoreConstant", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).restoreConstant", 
+                                               (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).restoreConstant = "~v));
+    mixin(attribute!(float, "damping", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).damping", 
+                                       (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).damping = "~v));
+    mixin(attribute!(float, "inputScale", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).inputScale", 
+                                          (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).inputScale = "~v));
+    mixin(attribute!(float, "propagateScale", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).propagateScale", 
+                                              (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).propagateScale = "~v));
+
     override
     void capture(Node[] targets) {
         super.capture(targets);
+        physicsEnabled.capture();
+        gravity.capture();
+        restoreConstant.capture();
+        damping.capture();
+        inputScale.capture();
+        propagateScale.capture();
     }
 }
 
 /// Armed Parameter View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: PathDeformer) : BaseInspector!(mode, T) {
-    mixin DriverInspector;
 
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
@@ -175,7 +198,39 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: PathDefor
 
                 igPushID("PhysicsDriver");
                 if (auto driver = cast(ConnectedPendulumDriver)node.driver) {
-                    inspectDriver(driver);
+                    igPushID(0);
+                        incText(_("Gravity scale"));
+                        incDragFloat("gravity", &driver.gravity, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSpacing();
+                        igSpacing();
+                    igPopID();
+
+                    igPushID(1);
+                        incText(_("Restore force"));
+                        incTooltip(_("Force to restore for original position. If this force is weaker than the gravity, pendulum cannot restore to original position."));
+                        incDragFloat("restoreConstant", &driver.restoreConstant, adjustSpeed/100, 0.01, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSpacing();
+                        igSpacing();
+                    igPopID();
+
+                    igPushID(2);
+                        incText(_("Damping"));
+                        incDragFloat("damping", &driver.damping, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                    igPopID();
+
+                    igPushID(3);
+                        incText(_("Input scale"));
+                        incTooltip(_("Input force is multiplied by this factor. This should be specified when original position moved too much."));
+                        incDragFloat("inputScale", &driver.inputScale, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSpacing();
+                        igSpacing();
+                    igPopID();
+
+                    igPushID(4);
+                        incText(_("Propagate scale"));
+                        incTooltip(_("Specify the degree to convey movement of previous pendulum to next one."));
+                        incDragFloat("propagateScale", &driver.propagateScale, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                    igPopID();
                 } else if (auto springPendulum = cast(ConnectedSpringPendulumDriver)node.driver) {
 
                 }
