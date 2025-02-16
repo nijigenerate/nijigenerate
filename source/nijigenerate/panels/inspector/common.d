@@ -125,7 +125,7 @@ public:
                 }
             }
         } else if (targets.length > 1) {
-            incMultiEditHeader(cast(Node[])targets);
+            ngMultiEditHeader(cast(Node[])targets);
         }
 
         foreach (i; inspectors) {
@@ -196,7 +196,7 @@ void incCommonNonEditHeader(Node node) {
     igSeparator();
 }
 
-void incMultiEditHeader(Node[] nodes) {
+void ngMultiEditHeader(Node[] nodes) {
     // Top level
     igPushID(nodes[0].uuid);
         string typeString = nodes.map!((n) => incTypeIdToIcon(n.typeId())).array.join("");
@@ -213,74 +213,38 @@ void incMultiEditHeader(Node[] nodes) {
 /// Deformation View.
 
 void incInspectorDeformFloatDragVal(string name, string paramName, float adjustSpeed, Node node, Parameter param, vec2u cursor, bool rotation=false) {
-    float currFloat = node.getDefaultValue(paramName);
-    if (ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName)) {
-        currFloat = b.getValue(cursor);
-    }
+    float currFloat = incInspectorDeformGetValue(node, param, paramName, cursor);
 
-    // Convert to degrees for display
-    if (rotation) currFloat = degrees(currFloat);
-
-    if (incDragFloat(name, &currFloat, adjustSpeed, -float.max, float.max, rotation ? "%.2f°" : "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
-        
-        // Convert back to radians for data managment
-        if (rotation) currFloat = radians(currFloat);
-
-        // Set binding
-        GroupAction groupAction = null;
-        ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName);
-        if (b is null) {
-            b = cast(ValueParameterBinding)param.createBinding(node, paramName);
-            param.addBinding(b);
-            groupAction = new GroupAction();
-            auto addAction = new ParameterBindingAddAction(param, b);
-            groupAction.addAction(addAction);
-        }
-
-        // Push action
-        auto action = new ParameterBindingValueChangeAction!(float)(b.getName(), b, cursor.x, cursor.y);
-        b.setValue(cursor, currFloat);
-        action.updateNewState();
-        if (groupAction) {
-            groupAction.addAction(action);
-            incActionPush(groupAction);
-        } else {
-            incActionPush(action);
-        }
-
-        if (auto editor = incViewportModelDeformGetEditor()) {
-            if (auto e = editor.getEditorFor(node)) {
-                e.adjustPathTransform();
-            }
-        }
+    if (ngInspectorDeformFloatDragVal(name, &currFloat, adjustSpeed, rotation)) {
+        incInspectorDeformSetValue(node, param, paramName, cursor, currFloat);
     }
 }
 
-void incInspectorDeformInputFloat(string name, string paramName, float step, float stepFast, Node node, Parameter param, vec2u cursor) {
-    float currFloat = node.getDefaultValue(paramName);
-    if (ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName)) {
-        currFloat = b.getValue(cursor);
-    }
-    if (igInputFloat(name.toStringz, &currFloat, step, stepFast, "%.2f")) {
-        GroupAction groupAction = null;
-        ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName);
-        if (b is null) {
-            b = cast(ValueParameterBinding)param.createBinding(node, paramName);
-            param.addBinding(b);
-            groupAction = new GroupAction();
-            auto addAction = new ParameterBindingAddAction(param, b);
-            groupAction.addAction(addAction);
-        }
-        auto action = new ParameterBindingValueChangeAction!(float)(b.getName(), b, cursor.x, cursor.y);
-        b.setValue(cursor, currFloat);
-        action.updateNewState();
-        if (groupAction) {
-            groupAction.addAction(action);
-            incActionPush(groupAction);
+bool ngInspectorDeformFloatDragVal(string name, float* result, float adjustSpeed, bool rotation=false) {
+    // Convert to degrees for display
+    float currFloat;
+    if (rotation) { currFloat = degrees(*result); } else { currFloat = *result; }
+
+    if (incDragFloat(name, &currFloat, adjustSpeed, -float.max, float.max, rotation ? "%.2f°" : "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {        
+        // Convert back to radians for data managment
+        if (rotation) {
+            *result = radians(currFloat);
         } else {
-            incActionPush(action);
+            *result = currFloat;
         }
+        return true;
     }
+    return false;
+}
+void incInspectorDeformInputFloat(string name, string paramName, float step, float stepFast, Node node, Parameter param, vec2u cursor) {
+    float currFloat = incInspectorDeformGetValue(node, param, paramName, cursor);
+    if (ngInspectorDeformInputFloat(name, &currFloat, step, stepFast)) {
+        incInspectorDeformSetValue(node, param, paramName, cursor, currFloat);
+    }
+}
+
+bool ngInspectorDeformInputFloat(string name, float* result, float step, float stepFast) {
+    return igInputFloat(name.toStringz, result, step, stepFast, "%.2f");
 }
 
 void incInspectorDeformColorEdit3(string[3] paramNames, Node node, Parameter param, vec2u cursor) {
@@ -336,37 +300,25 @@ void incInspectorDeformColorEdit3(string[3] paramNames, Node node, Parameter par
 }
 
 void incInspectorDeformSliderFloat(string name, string paramName, float min, float max, Node node, Parameter param, vec2u cursor) {
-    float currFloat = node.getDefaultValue(paramName);
-    if (ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName)) {
-        currFloat = b.getValue(cursor);
+    float currFloat = incInspectorDeformGetValue(node, param, paramName, cursor);
+    if (ngInspectorDeformSliderFloat(name, &currFloat, min, max)) {
+        incInspectorDeformSetValue(node, param, paramName, cursor, currFloat);
     }
-    if (igSliderFloat(name.toStringz, &currFloat, min, max, "%.2f")) {
-        GroupAction groupAction = null;
-        ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName);
-        if (b is null) {
-            b = cast(ValueParameterBinding)param.createBinding(node, paramName);
-            param.addBinding(b);
-            groupAction = new GroupAction();
-            auto addAction = new ParameterBindingAddAction(param, b);
-            groupAction.addAction(addAction);
-        }
-        auto action = new ParameterBindingValueChangeAction!(float)(b.getName(), b, cursor.x, cursor.y);
-        b.setValue(cursor, currFloat);
-        action.updateNewState();
-        if (groupAction) {
-            groupAction.addAction(action);
-            incActionPush(groupAction);
-        } else {
-            incActionPush(action);
-        }
-    }
+}
+
+bool ngInspectorDeformSliderFloat(string name, float* result, float min, float max) {
+    return (igSliderFloat(name.toStringz, result, min, max, "%.2f"));
 }
 
 void incInspectorDeformDragFloat(string name, string paramName, float speed, float min, float max, const(char)* fmt, Node node, Parameter param, vec2u cursor) {
     float value = incInspectorDeformGetValue(node, param, paramName, cursor);
-    if (igDragFloat(name.toStringz, &value, speed, min, max, fmt)) {
+    if (ngInspectorDeformDragFloat(name, &value, speed, min, max, fmt)) {
         incInspectorDeformSetValue(node, param, paramName, cursor, value);
     }
+}
+
+bool ngInspectorDeformDragFloat(string name, float* result, float speed, float min, float max, const(char)* fmt) {
+    return igDragFloat(name.toStringz, result, speed, min, max, fmt);
 }
 
 float incInspectorDeformGetValue(Node node, Parameter param, string paramName, vec2u cursor) {
@@ -378,8 +330,36 @@ float incInspectorDeformGetValue(Node node, Parameter param, string paramName, v
 }
 
 void incInspectorDeformSetValue(Node node, Parameter param, string paramName, vec2u cursor, float value) {
-        GroupAction groupAction = null;
-        ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName);
+    GroupAction groupAction = null;
+    ValueParameterBinding b = cast(ValueParameterBinding)param.getBinding(node, paramName);
+    if (b is null) {
+        b = cast(ValueParameterBinding)param.createBinding(node, paramName);
+        param.addBinding(b);
+        groupAction = new GroupAction();
+        auto addAction = new ParameterBindingAddAction(param, b);
+        groupAction.addAction(addAction);
+    }
+    auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(b.getName(), b, cursor.x, cursor.y);
+    b.setValue(cursor, value);
+    action.updateNewState();
+    if (groupAction) {
+        groupAction.addAction(action);
+        incActionPush(groupAction);
+    } else {
+        incActionPush(action);
+    }
+
+    if (auto editor = incViewportModelDeformGetEditor()) {
+        if (auto e = editor.getEditorFor(node)) {
+            e.adjustPathTransform();
+        }
+    }
+}
+
+void incInspectorDeformSetValue(T)(T[] nodes, Parameter param, string paramName, vec2u cursor, float value) {
+    GroupAction groupAction = null;
+    ValueParameterBinding[] bs = nodes.map!((node) {
+        auto b = cast(ValueParameterBinding)param.getBinding(node, paramName);
         if (b is null) {
             b = cast(ValueParameterBinding)param.createBinding(node, paramName);
             param.addBinding(b);
@@ -387,23 +367,27 @@ void incInspectorDeformSetValue(Node node, Parameter param, string paramName, ve
             auto addAction = new ParameterBindingAddAction(param, b);
             groupAction.addAction(addAction);
         }
-        auto action = new ParameterBindingValueChangeAction!(float)(b.getName(), b, cursor.x, cursor.y);
+        return b;
+    }).array;
+    auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding[])(bs[0].getName(), bs, cursor.x, cursor.y);
+    foreach (b; bs)
         b.setValue(cursor, value);
-        action.updateNewState();
-        if (groupAction) {
-            groupAction.addAction(action);
-            incActionPush(groupAction);
-        } else {
-            incActionPush(action);
-        }
+    action.updateNewState();
+    if (groupAction) {
+        groupAction.addAction(action);
+        incActionPush(groupAction);
+    } else {
+        incActionPush(action);
+    }
 
-        if (auto editor = incViewportModelDeformGetEditor()) {
-            if (auto e = editor.getEditorFor(node)) {
+    if (auto editor = incViewportModelDeformGetEditor()) {
+        foreach (n; nodes) {
+            if (auto e = editor.getEditorFor(n)) {
                 e.adjustPathTransform();
             }
         }
+    }
 }
-
 mixin template MultiEdit() {
 
     mixin template SharedValue(T2) {
@@ -449,6 +433,20 @@ mixin template MultiEdit() {
         return valueChanged;
     }
 
+    void updateDeform(Parameter param, vec2u cursor) {
+        if (currParam != param || currCursor != cursor) {
+            currParam = param;
+            currCursor = cursor;
+            capture(cast(Node[])targets);
+        }
+    }
+
+    void _deform(alias varName)(bool delegate(string, typeof(&varName.value)) editFunc) {
+        if (_shared!varName(() => editFunc("###"~__traits(identifier, varName), &varName.value))) {
+            varName.apply();
+        }
+    }
+
     static string attribute(type, alias name, string function(string) _getter = null, string function(string, string) _setter = null)() {
         string getter(string x) { return _getter? _getter(x): (x~"."~name); }
         string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
@@ -464,6 +462,7 @@ mixin template MultiEdit() {
             }
             void set(T n,"~type.stringof~" v) {
                 "~setter("n", "v")~";
+                this.isShared = true;
             }
             bool capture() {
                 if (targets.length == 0) {
@@ -495,9 +494,9 @@ mixin template MultiEdit() {
     }
 
 
-    static string deformation(alias name, string deformName = null)() {
-        string getter(string x) { return "incInspectorDeformGetValue("~x~",parent.currParam,\""~(deformName?deformName:name)~"\", parent.currCursor)"; }
-        string setter(string x, string v) { return "incInspectorDeformSetValue("~x~", parent.currParam,\""~(deformName?deformName:name)~"\", parent.currCursor,"~v~")"; }
+    static string deformation(alias name, string propName = null)() {
+        string getter(string x) { return "incInspectorDeformGetValue("~x~",parent.currParam,\""~(propName?propName:name)~"\", parent.currCursor)"; }
+        string setter(string x, string v) { return "incInspectorDeformSetValue("~x~", parent.currParam,\""~(propName?propName:name)~"\", parent.currCursor,"~v~")"; }
         enum result = "
         class SharedValue_"~name~" {
             "~typeof(this).stringof~" parent;
@@ -508,11 +507,12 @@ mixin template MultiEdit() {
             float get(T n) {
                 return "~getter("n")~";
             }
-            void set(T n,float v) {
+            void set(T[] n,float v) {
                 "~setter("n", "v")~";
+                this.isShared = true;
             }
             bool capture() {
-                if (currParam is null) return false;
+                if (currParam is null) { return false; }
                 if (targets.length == 0) {
                     this.isShared = false;
                     return false;
@@ -526,9 +526,7 @@ mixin template MultiEdit() {
             }
             void apply() {
                 if (currParam is null) return;
-                foreach (n; parent.targets) {
-                    this.set(n, this.value);
-                }
+                this.set(parent.targets, this.value);
             }
         }
         SharedValue_"~name~" _"~name~" = null;
