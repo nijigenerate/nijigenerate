@@ -406,7 +406,7 @@ void incInspectorDeformSetValue(Node node, Parameter param, string paramName, ve
 
 mixin template MultiEdit() {
 
-    struct SharedValue(T2) {
+    mixin template SharedValue(T2) {
         bool isShared;
         T2 value;
     }
@@ -414,7 +414,7 @@ mixin template MultiEdit() {
     Parameter currParam = null;
     vec2u currCursor = vec2u.init;
 
-    bool _shared(alias varName, string propName = null)(bool delegate() editFunc) {
+    bool _shared(alias varName)(bool delegate() editFunc) {
         if (targets.length == 1) return editFunc();
         bool valueChanged = false;
 
@@ -426,12 +426,7 @@ mixin template MultiEdit() {
             igSetNextItemWidth(width);
             if (igBeginCombo(("##combo_" ~ __traits(identifier, varName)).toStringz, "Select Value")) {
                 foreach (t; targets) {
-                    typeof(varName.value) value;
-                    static if (propName) {
-                        value = mixin("t." ~ propName);
-                    } else {
-                        value = mixin("t." ~ __traits(identifier, varName));
-                    }
+                    typeof(varName.value) value = varName.get(t);
 
                     // "オブジェクト名: 値" の形式で表示
                     string displayValue = "%s: %s".format(t.name, value);
@@ -458,57 +453,91 @@ mixin template MultiEdit() {
         string getter(string x) { return _getter? _getter(x): (x~"."~name); }
         string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
         enum result =  
-        "SharedValue!("~type.stringof~") "~name~";
-        bool capture_"~name~"() {
-            if (targets.length == 0) {
-                "~name~".isShared = false;
-                return false;
+        "class SharedValue_"~name~" {
+            "~typeof(this).stringof~" parent;
+            mixin SharedValue!("~type.stringof~");
+            this("~typeof(this).stringof~" parent) {
+                this.parent = parent;
             }
-            "~name~".isShared = true;
-            "~name~".value    = "~getter("targets[0]")~";
-            foreach (n; targets) {
-                if ("~name~".value != "~getter("n")~") {"~name~".isShared = false; return false; }
+            "~type.stringof~" get(T n) {
+                return "~getter("n")~";
             }
-            return true;
+            void set(T n,"~type.stringof~" v) {
+                "~setter("n", "v")~";
+            }
+            bool capture() {
+                if (targets.length == 0) {
+                    this.isShared = false;
+                    return false;
+                }
+                this.isShared = true;
+                this.value    = this.get(parent.targets[0]);
+                foreach (n; parent.targets[1..$]) {
+                    if (this.value != this.get(n)) {this.isShared = false; return false; }
+                }
+                return true;
+            }
+            void apply() {
+                foreach (n; parent.targets) {
+                    this.set(n,this.value);
+                }
+            }
+
         }
-        void apply_"~name~"() {
-            "~name~".isShared = true;
-            foreach (n; targets) {
-                "~setter("n", name~".value")~";
-            }
+        SharedValue_"~name~" _"~name~";
+        SharedValue_"~name~" "~name~"() {
+            if (_"~name~" is null) _"~name~" = new SharedValue_"~name~"(this);
+            return _"~name~";
         }
         ";
-//        pragma(msg, "Result:", result);
+//        pragma(msg, "attribute:\n", result);
         return result;
     }
 
 
     static string deformation(alias name, string deformName = null)() {
-        string getter(string x) { return "incInspectorDeformGetValue("~x~",currParam,\""~(deformName?deformName:name)~"\", currCursor)"; }
-        string setter(string x, string v) { return "incInspectorDeformSetValue("~x~", currParam,\""~(deformName?deformName:name)~"\", currCursor,"~v~")"; }
-        enum result =  
-        "SharedValue!float " ~name~ ";
-        bool capture_"~name~"() {
-            if (currParam is null) return false;
-            if (targets.length == 0) {
-                "~name~".isShared = false;
-                return false;
+        string getter(string x) { return "incInspectorDeformGetValue("~x~",parent.currParam,\""~(deformName?deformName:name)~"\", parent.currCursor)"; }
+        string setter(string x, string v) { return "incInspectorDeformSetValue("~x~", parent.currParam,\""~(deformName?deformName:name)~"\", parent.currCursor,"~v~")"; }
+        enum result = "
+        class SharedValue_"~name~" {
+            "~typeof(this).stringof~" parent;
+            mixin SharedValue!float;
+            this("~typeof(this).stringof~" parent) {
+                this.parent = parent;
             }
-            "~name~".isShared = true;
-            "~name~".value    = "~getter("targets[0]")~";
-            foreach (n; targets) {
-                if ("~name~".value != "~getter("n")~") {"~name~".isShared = false; return false; }
+            float get(T n) {
+                return "~getter("n")~";
             }
-            return true;
+            void set(T n,float v) {
+                "~setter("n", "v")~";
+            }
+            bool capture() {
+                if (currParam is null) return false;
+                if (targets.length == 0) {
+                    this.isShared = false;
+                    return false;
+                }
+                this.isShared = true;
+                this.value    = this.get(parent.targets[0]);
+                foreach (n; parent.targets[1..$]) {
+                    if (this.value != this.get(n)) {this.isShared = false; return false; }
+                }
+                return true;
+            }
+            void apply() {
+                if (currParam is null) return;
+                foreach (n; parent.targets) {
+                    this.set(n, this.value);
+                }
+            }
         }
-        void apply_"~name~"() {
-            if (currParam is null) return;
-            foreach (n; targets) {
-                "~setter("n", name~".value")~";
-            }
+        SharedValue_"~name~" _"~name~" = null;
+        SharedValue_"~name~" "~name~"() {
+            if (_"~name~" is null) _"~name~" = new SharedValue_"~name~"(this);
+            return _"~name~";
         }
         ";
-//        pragma(msg, "Result:", result);
+//        pragma(msg, "deformation:\n", result);
         return result;
     }
 

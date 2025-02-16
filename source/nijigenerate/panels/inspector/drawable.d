@@ -35,9 +35,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
 
                     // Translation X
                     igPushID(42);
-                    if (_shared!(offsetX, "getMesh().origin.vector[0]")(
+                    if (_shared!(offsetX)(
                         ()=>incDragFloat("offset_x", &offsetX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        apply_offsetX();
+                        offsetX.apply();
                         incActionPush(
                             new NodeValueChangeAction!(Drawable[], float)(
                                 "X",
@@ -54,9 +54,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
 
                     // Translation Y
                     igPushID(43);
-                        if (_shared!(offsetY, "getMesh().origin.vector[1]")(
+                        if (_shared!(offsetY)(
                             ()=>incDragFloat("offset_y", &offsetY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                            apply_offsetY();
+                            offsetY.apply();
                             incActionPush(
                                 new NodeValueChangeAction!(Drawable[], float)(
                                     "Y",
@@ -81,7 +81,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
     override
     void capture(Node[] nodes) {
         super.capture(nodes);
-        capture_offsetX();
-        capture_offsetY();
+        offsetX.capture();
+        offsetY.capture();
     }
 }

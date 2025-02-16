@@ -29,12 +29,12 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup
             igSpacing();
 
             if (_shared!dynamic(()=>ngCheckbox(__("Dynamic Deformation (slower)"), &dynamic.value))) {
-                apply_dynamic();
+                dynamic.apply();
             }
             incTooltip(_("Whether the MeshGroup should dynamically deform children,\nthis is an expensive operation and should not be overused."));
 
-            if (_shared!(translateChildren, "getTranslateChildren")(()=>ngCheckbox(__("Translate origins"), &translateChildren.value))) {
-                apply_translateChildren();
+            if (_shared!translateChildren(()=>ngCheckbox(__("Translate origins"), &translateChildren.value))) {
+                translateChildren.apply();
             }
             incTooltip(_("Translate origin of child nodes for non-Drawable object."));
 
@@ -51,7 +51,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup
     override
     void capture(Node[] nodes) {
         super.capture(nodes);
-        capture_dynamic();
-        capture_translateChildren();
+        dynamic.capture();
+        translateChildren.capture();
     }
 }
