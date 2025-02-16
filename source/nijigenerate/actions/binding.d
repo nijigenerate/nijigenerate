@@ -246,7 +246,9 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
     }
 
     void markAsDirty() { _dirty = true; }
-    void updateNewState() {}
+    void updateNewState() {
+        (cast(Node)self.getTarget().target).notifyChange(cast(Node)(self.getTarget().target), NotifyReason.AttributeChanged);
+    }
     void clear() { _dirty = false; }
 
     bool dirty() {
@@ -262,6 +264,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             swap(self.isSet_[pointx][pointy], isSet);
             self.reInterpolate();
             undoable = false;
+            (cast(Node)self.getTarget().target).notifyChange(cast(Node)(self.getTarget().target), NotifyReason.AttributeChanged);
         }
     }
 
@@ -274,6 +277,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             swap(self.isSet_[pointx][pointy], isSet);
             self.reInterpolate();
             undoable = true;
+            (cast(Node)self.getTarget().target).notifyChange(cast(Node)(self.getTarget().target), NotifyReason.AttributeChanged);
         }
     }
 
@@ -348,7 +352,10 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
     }
 
     void markAsDirty() { _dirty = true; }
-    void updateNewState() {}
+    void updateNewState() {
+        foreach (b; self)
+            (cast(Node)b.getTarget().target).notifyChange((cast(Node)b.getTarget().target), NotifyReason.AttributeChanged);
+    }
     void clear() { _dirty = false; }
 
     bool dirty() {
@@ -366,6 +373,8 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
                 self[i].reInterpolate();
             }
             undoable = false;
+            foreach (b; self)
+                (cast(Node)b.getTarget().target).notifyChange((cast(Node)b.getTarget().target), NotifyReason.AttributeChanged);
         }
     }
 
@@ -380,6 +389,8 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
                 self[i].reInterpolate();
             }
             undoable = true;
+            foreach (b; self)
+                (cast(Node)b.getTarget().target).notifyChange((cast(Node)b.getTarget().target), NotifyReason.AttributeChanged);
         }
     }
 
