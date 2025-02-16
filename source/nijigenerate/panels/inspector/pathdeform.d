@@ -154,16 +154,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
     mixin MultiEdit;
     mixin(attribute!(bool, "physicsEnabled", (x)=>"("~x~".driver is null)", (x, v)=>""));
-    mixin(attribute!(float, "gravity", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).gravity", 
-                                       (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).gravity = "~v));
-    mixin(attribute!(float, "restoreConstant", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).restoreConstant", 
-                                               (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).restoreConstant = "~v));
-    mixin(attribute!(float, "damping", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).damping", 
-                                       (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).damping = "~v));
-    mixin(attribute!(float, "inputScale", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).inputScale", 
-                                          (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).inputScale = "~v));
-    mixin(attribute!(float, "propagateScale", (x)=>"(cast(ConnectedPendulumDriver)"~x~".driver).propagateScale", 
-                                              (x, v)=>"(cast(ConnectedPendulumDriver)"~x~".driver).propagateScale = "~v));
+    mixin(attribute!(float, "gravity", (x)=>_pendulum(x)~".gravity", 
+                                       (x, v)=>_pendulum(x)~".gravity = "~v));
+    mixin(attribute!(float, "restoreConstant", (x)=>_pendulum(x)~".restoreConstant", 
+                                               (x, v)=>_pendulum(x)~".restoreConstant = "~v));
+    mixin(attribute!(float, "damping", (x)=>_pendulum(x)~".damping", 
+                                       (x, v)=>_pendulum(x)~".damping = "~v));
+    mixin(attribute!(float, "inputScale", (x)=>_pendulum(x)~".inputScale", 
+                                          (x, v)=>_pendulum(x)~".inputScale = "~v));
+    mixin(attribute!(float, "propagateScale", (x)=>_pendulum(x)~".propagateScale", 
+                                              (x, v)=>_pendulum(x)~".propagateScale = "~v));
 
     override
     void capture(Node[] targets) {
@@ -174,6 +174,11 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
         damping.capture();
         inputScale.capture();
         propagateScale.capture();
+    }
+
+private:
+    static string _pendulum(string x) {
+        return "() { if (auto d = cast(ConnectedPendulumDriver)("~x~".driver)) { return d; } else {return null;} }()";
     }
 }
 
