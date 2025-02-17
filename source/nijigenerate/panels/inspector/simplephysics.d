@@ -238,11 +238,7 @@ public:
         if (targets.length == 0) return;
         auto node = targets[0];
 
-        if (currParam != param || currCursor != cursor) {
-            currParam = param;
-            currCursor = cursor;
-            capture(cast(Node[])targets);
-        }
+        updateDeform(param, cursor);
 
         if (incBeginCategory(__("Simple Physics"))) {
             float adjustSpeed = 1;
