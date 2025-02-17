@@ -461,11 +461,53 @@ mixin template MultiEdit() {
                 varB.apply();
             }
         } else if (!varR.isShared || !varG.isShared || !varB.isShared) {
-            // select colors
-            if (true) {
-                // varR.apply();
-                // varG.apply();
-                // varG.apply();            
+            // 最大のオブジェクト名の幅を計算
+            float maxTextWidth = 0;
+            foreach (t; targets) {
+                ImVec2 textSize;
+                igCalcTextSize(&textSize, t.name.toStringz);
+                if (textSize.x > maxTextWidth) {
+                    maxTextWidth = textSize.x;
+                }
+            }
+
+            igSetNextItemWidth(igCalcItemWidth());
+            if (igBeginCombo("###COLOR_COMBO", "Select Color")) {
+                foreach (t; targets) {
+                    float[3] rgb = [varR.get(t), varG.get(t), varB.get(t)];
+
+                    // igSelectable を使って行全体を選択可能にする
+                    bool selected = false;
+                    if (igSelectable(("##row_" ~ t.name).toStringz, false, ImGuiSelectableFlags.None, ImVec2(igCalcItemWidth(), 20))) {
+                        selected = true;
+                    }
+
+                    // **オブジェクト名を表示（最大幅を確保）**
+                    igSameLine();
+                    igText(t.name.toStringz);
+                    igSameLine(maxTextWidth + 10); // 余白を確保
+
+                    // **カラーバーを表示**
+                    ImVec4 rgba;
+                    rgba.x = rgb[0];
+                    rgba.y = rgb[1];
+                    rgba.z = rgb[2];
+                    rgba.w = 1;
+
+                    igColorButton(("##color_" ~ t.name).toStringz, rgba, ImGuiColorEditFlags.None, ImVec2(20, 20));
+
+                    // 選択された場合に色を適用
+                    if (selected) {
+                        varR.value = rgb[0];
+                        varR.apply();
+                        varG.value = rgb[1];
+                        varG.apply();
+                        varB.value = rgb[2];
+                        varB.apply();
+                        break;
+                    }
+                }
+                igEndCombo();
             }
         }
     }
