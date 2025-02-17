@@ -38,7 +38,6 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Part)();
     ngRegisterInspector!(ModelEditSubMode.Deform, Composite)();
     ngRegisterInspector!(ModelEditSubMode.Deform, SimplePhysics)();
-    ngRegisterInspector!(ModelEditSubMode.Deform, PathDeformer)();
 
     ngRegisterInspector!(ModelEditSubMode.Layout, Node)();
     ngRegisterInspector!(ModelEditSubMode.Layout, ExCamera)();

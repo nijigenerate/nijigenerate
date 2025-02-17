@@ -447,6 +447,29 @@ mixin template MultiEdit() {
         }
     }
 
+    void __deformRGB(alias varR, alias varG, alias varB)() {
+        if (targets.length < 2 || (varR.isShared && varG.isShared && varB.isShared)) {
+            import std.math : isNaN;
+            float[3] rgbadj = [varR.value, varG.value, varB.value];
+
+            if (igColorEdit3("###COLORADJ", &rgbadj)) {
+                varR.value = rgbadj[0];
+                varR.apply();
+                varG.value = rgbadj[1];
+                varG.apply();
+                varB.value = rgbadj[2];
+                varB.apply();
+            }
+        } else if (!varR.isShared || !varG.isShared || !varB.isShared) {
+            // select colors
+            if (true) {
+                // varR.apply();
+                // varG.apply();
+                // varG.apply();            
+            }
+        }
+    }
+
     static string attribute(type, alias name, string function(string) _getter = null, string function(string, string) _setter = null)() {
         string getter(string x) { return _getter? _getter(x): (x~"."~name); }
         string setter(string x, string v) { return _setter? _setter(x, v): (x~"."~name~"="~v); }
@@ -494,20 +517,20 @@ mixin template MultiEdit() {
     }
 
 
-    static string deformation(alias name, string propName = null)() {
+    static string deformation(type, alias name, string propName = null)() {
         string getter(string x) { return "incInspectorDeformGetValue("~x~",parent.currParam,\""~(propName?propName:name)~"\", parent.currCursor)"; }
         string setter(string x, string v) { return "incInspectorDeformSetValue("~x~", parent.currParam,\""~(propName?propName:name)~"\", parent.currCursor,"~v~")"; }
         enum result = "
         class SharedValue_"~name~" {
             "~typeof(this).stringof~" parent;
-            mixin SharedValue!float;
+            mixin SharedValue!("~type.stringof~");
             this("~typeof(this).stringof~" parent) {
                 this.parent = parent;
             }
-            float get(T n) {
+            "~type.stringof~" get(T n) {
                 return "~getter("n")~";
             }
-            void set(T[] n,float v) {
+            void set(T[] n,"~type.stringof~" v) {
                 "~setter("n", "v")~";
                 this.isShared = true;
             }
@@ -537,6 +560,9 @@ mixin template MultiEdit() {
         ";
 //        pragma(msg, "deformation:\n", result);
         return result;
+    }
+    static string deformation(alias name, string propName = null)() {
+        return deformation!(float, name, propName);
     }
 
 }

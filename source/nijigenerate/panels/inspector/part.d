@@ -570,6 +570,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part) : B
         if (targets.length == 0) return;
         auto node = targets[0];
 
+        updateDeform(param, cursor);
+
         if (incBeginCategory(__("Part"))) {
             igBeginGroup();
                 igIndent(16);
@@ -578,18 +580,19 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part) : B
 
                         igPushID(0);
                             incText(_("Tint (Multiply)"));
-                            incInspectorDeformColorEdit3(["tint.r", "tint.g", "tint.b"], node, param, cursor);
+                            __deformRGB!(tintR, tintG, tintB);
                         igPopID();
 
                         igPushID(1);
                             incText(_("Tint (Screen)"));
-                            incInspectorDeformColorEdit3(["screenTint.r", "screenTint.g", "screenTint.b"], node, param, cursor);
+                            __deformRGB!(screenTintR, screenTintG, screenTintB);
                         igPopID();
 
                         incText(_("Emission Strength"));
-                        float strengthPerc = incInspectorDeformGetValue(node, param, "emissionStrength", cursor)*100;
+                        float strengthPerc = emissionStrength.value * 100;
                         if (igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%")) {
-                            incInspectorDeformSetValue(node, param, "emissionStrength", cursor, strengthPerc*0.01);
+                            emissionStrength.value = strengthPerc * 0.01;
+                            emissionStrength.apply();
                         }
 
                         // Padding
@@ -602,15 +605,41 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part) : B
             igEndGroup();
 
             incText(_("Opacity"));
-            incInspectorDeformSliderFloat("###Opacity", "opacity", 0, 1f, node, param, cursor);
+            _deform!opacity((s,v)=>ngInspectorDeformSliderFloat(s, v, 0, 1f));
             igSpacing();
             igSpacing();
 
             // Threshold slider name for adjusting how transparent a pixel can be
             // before it gets discarded.
             incText(_("Threshold"));
-            incInspectorDeformSliderFloat("###Threshold", "alphaThreshold", 0.0, 1.0, node, param, cursor);
+            _deform!alphaThreshold((s,v)=>ngInspectorDeformSliderFloat(s, v, 0.0, 1.0));
         }
         incEndCategory();
     }
+
+    mixin MultiEdit;
+    mixin(deformation!("emissionStrength"));
+    mixin(deformation!("opacity"));
+    mixin(deformation!("alphaThreshold"));
+    mixin(deformation!("tintR", "tint.r"));
+    mixin(deformation!("tintG", "tint.g"));
+    mixin(deformation!("tintB", "tint.b"));
+    mixin(deformation!("screenTintR", "screenTint.r"));
+    mixin(deformation!("screenTintG", "screenTint.g"));
+    mixin(deformation!("screenTintB", "screenTint.b"));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        emissionStrength.capture();
+        opacity.capture();
+        alphaThreshold.capture();
+        tintR.capture();
+        tintG.capture();
+        tintB.capture();
+        screenTintR.capture();
+        screenTintG.capture();
+        screenTintB.capture();
+    }
+
 }
