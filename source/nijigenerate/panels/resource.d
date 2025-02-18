@@ -20,6 +20,88 @@ import nijigenerate.panels;
 import nijigenerate.utils;
 import nijigenerate.widgets;
 import nijigenerate.widgets.output;
+import fghj;
+import std.stdio;
+
+private {
+static string ResourcePanelPath = "com.github.nijigenerate.nijigenerate.ResourcePanel";
+ResourcePanel singleton;
+static this() {
+    singleton = new ResourcePanel;
+    incAddPanel(singleton);
+}
+}
+
+void incLoadResourcePanel(Puppet puppet) {
+    if (ResourcePanelPath in puppet.extData && puppet.extData[ResourcePanelPath].length > 0) {
+        auto jsonData = parseJson(cast(string)puppet.extData[ResourcePanelPath]);
+
+        if (singleton) {
+            deserialize!ResourcePanelConfig(jsonData);            
+        }
+    }
+}
+
+void incDumpResourcePanelPath(Puppet puppet) {
+    if (singleton) {
+        auto app = appender!(char[]);
+        auto serializer = inCreateSerializer(app);
+        auto config = new ResourcePanelConfig;
+        serializer.serializeValue(config);
+        serializer.flush();
+        puppet.extData[ResourcePanelPath] = cast(ubyte[])app.data;
+    }
+}
+
+void ngInitResourcePanel() {
+//    incRegisterLoadFunc(&incLoadResourcePanel);
+    incRegisterSaveFunc(&incDumpResourcePanelPath);
+}
+
+@TypeId("ResourcePanel")
+class ResourcePanelConfig : ISerializable {
+
+    void serialize(S)(ref S serializer) {
+        if (!singleton || singleton.history.length == 0) return;
+        auto output = cast(IconTreeOutput)singleton.history[0].output;
+        if (output) {
+            auto state = serializer.objectBegin();
+                serializer.putKey("nextInHorizontal");
+                auto arr = serializer.arrayBegin();
+                    foreach(uuid; output.layout.keys()) {
+                        if (output.layout[uuid].nextInHorizontal) {
+                            serializer.elemBegin;
+                            serializer.serializeValue(uuid);
+                        }
+                    }
+                serializer.arrayEnd(arr);
+            serializer.objectEnd(state);
+        }
+    }
+
+    SerdeException deserializeFromFghj(Fghj data) {
+        import std.algorithm.searching: count;
+        if (data.isEmpty) return null;
+
+        if (singleton.history.length == 0) {
+            // TBD
+        }
+        
+        auto view = singleton.history[0];
+        auto output = cast(IconTreeOutput)view.output;
+
+        auto elements = data["nextInHorizontal"].byElement;
+        while(!elements.empty) {
+            uint uuid;
+            elements.front.deserializeValue(uuid);
+            elements.popFront;
+            output.layout.require(uuid);
+            output.layout[uuid].nextInHorizontal = true;
+        }
+
+        return null;
+    }
+}
 
 class View {
     string command;
@@ -35,9 +117,8 @@ public:
 /**
     The Shell frame
 */
-@TypeId("ResourcePanel")
 class ResourcePanel : Panel, CommandIssuer {
-private:
+package:
     View[] history;
     bool forceUpdatePreview = false;
     uint historyIndex = 0;
@@ -77,6 +158,7 @@ protected:
             }
             if (views)
                 views.reset();
+            incLoadResourcePanel(activePuppet);
             forceUpdatePreview = true;
         }
         if (incArmedParameter() != armedParameter) {
@@ -134,49 +216,10 @@ public:
         views.addResources([res]);
     }
 
-    void serialize(S)(ref S serializer) {
-        auto view = cast(IconTreeOutput)history[0];
-        if (view) {
-            auto state = serializer.objectBegin();
-                serializer.putKey("nextInHorizontal");
-                auto arr = serializer.arrayBegin();
-                    foreach(uuid; view.layout.keys()) {
-                        serializer.elemBegin;
-                        serializer.serializeValue(uuid);
-                    }
-                serializer.arrayEnd(arr);
-            serializer.objectEnd(state);
-        }
-    }
-
-    SerdeException deserializeFromFghj(Fghj data) {
-        import std.stdio : writeln;
-        import std.algorithm.searching: count;
-        if (data.isEmpty) return null;
-
-        if (history.length == 0) {
-            // TBD
-        }
-        
-        auto view = history[0];
-        auto output = cast(IconTreeOutput)view.output;
-
-        auto elements = data["nextInHorizontal"].byElement;
-        while(!elements.empty) {
-            uint uuid;
-            elements.front.deserializeValue(uuid);
-            elements.popFront;
-            output.layout.require(uuid);
-            output.layout[uuid].nextInHorizontal = true;
-        }
-
-        return null;
-    }
-
 }
 
 /**
     Generate logger frame
 */
-mixin incPanel!ResourcePanel;
+//mixin incPanel!ResourcePanel;
 
