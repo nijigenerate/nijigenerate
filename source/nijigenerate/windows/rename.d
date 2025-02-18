@@ -7,7 +7,7 @@
 */
 module nijigenerate.windows.rename;
 import nijigenerate.widgets;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
 import nijigenerate;
 import std.string;

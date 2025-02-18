@@ -237,3 +237,13 @@ bool ngBeginTabItem(const(char)* text, bool* open = null, ImGuiTabItemFlags flag
 void ngEndTabItem() {
     igEndTabItem();
 }
+
+bool ngCheckbox(const char* text, bool* value) {
+    bool result = false;
+    igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(2, 2));
+    igPushStyleVar(ImGuiStyleVar.ItemInnerSpacing, ImVec2(2, 2));
+    igPushStyleVar(ImGuiStyleVar.FrameRounding, 2);
+    result = igCheckbox(text, value);
+    igPopStyleVar(3);
+    return result;
+}

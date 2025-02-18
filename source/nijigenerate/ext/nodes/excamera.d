@@ -115,6 +115,10 @@ public:
         return viewport;
     }
 
+    void setViewport(vec2 value) {
+        viewport = value;
+    }
+
 }
 
 void incRegisterExCamera() {

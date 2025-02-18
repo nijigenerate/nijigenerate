@@ -10,7 +10,6 @@ module nijigenerate.viewport.common.mesheditor;
     - Asahi Lina
 */
 import i18n;
-import nijigenerate.viewport;
 public import nijigenerate.viewport.common.mesheditor.operations;
 import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.viewport.common;
@@ -36,7 +35,7 @@ import std.format;
 import std.string;
 
 class IncMeshEditor {
-private:
+protected:
     IncMeshEditorOne[Node] editors;
     bool previewTriangulate = false;
     bool mirrorHoriz = false;
@@ -63,69 +62,9 @@ public:
         return null;
     }
 
-    void addTarget(Node target) {
-        if (target in editors)
-            return;
-        IncMeshEditorOne subEditor;
-        if (deformOnly) {
-            if (auto drawable = cast(Drawable)target) { 
-                subEditor = new IncMeshEditorOneDrawableDeform();
-            } else if (auto deformable = cast(Drawable)target) {
-                subEditor = new IncMeshEditorOneDeformableDeform();
-            }
-        } else {
-            if (auto drawable = cast(Drawable)target) {
-                incActionPushStack();
-                subEditor = new IncMeshEditorOneDrawableVertex();
-                if (drawable.getMesh().isGrid()) {
-                    subEditor.toolMode = VertexToolMode.Grid;
-                    toolMode           = VertexToolMode.Grid;
-                }
-            } else if (auto deformable = cast(Deformable)target) {
-                incActionPushStack();
-                subEditor = new IncMeshEditorOneDeformableVertex();
-            }
-        }
-        subEditor.setTarget(target);
-        subEditor.mirrorHoriz = mirrorHoriz;
-        subEditor.mirrorVert  = mirrorVert;
-        subEditor.previewTriangulate = previewTriangulate;
-        editors[target] = subEditor;
-    }
+    abstract void addTarget(Node target);
 
-    void setTargets(Node[] targets) {
-        IncMeshEditorOne[Node] newEditors;
-        foreach (t; targets) {
-            if (t in editors) {
-                newEditors[t] = editors[t];
-            } else {
-                IncMeshEditorOne subEditor = null;
-                if (auto drawable = cast(Drawable)t) {
-                    if (deformOnly)
-                        subEditor = new IncMeshEditorOneDrawableDeform();
-                    else {
-                        incActionPushStack();
-                        subEditor = new IncMeshEditorOneDrawableVertex();
-                    }
-                } else if (auto deformable = cast(Deformable)t) {
-                    if (deformOnly)
-                        subEditor = new IncMeshEditorOneDeformableDeform();
-                    else {
-                        incActionPushStack();
-                        subEditor = new IncMeshEditorOneDeformableVertex();
-                    }
-                } else {
-                    subEditor = new IncMeshEditorOneNode(deformOnly);
-                }
-                subEditor.setTarget(t);
-                subEditor.mirrorHoriz = mirrorHoriz;
-                subEditor.mirrorVert  = mirrorVert;
-                subEditor.previewTriangulate = previewTriangulate;
-                newEditors[t] = subEditor;
-            }
-        }
-        editors = newEditors;
-    }
+    abstract void setTargets(Node[] targets);
 
     void removeTarget(Node target) {
         if (target in editors)

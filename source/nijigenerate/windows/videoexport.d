@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.videoexport;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
@@ -172,8 +172,8 @@ protected:
                     }
 
                     igSpacing();
-                    igCheckbox(__("Allow Transparency"), &transparency);
-                    igCheckbox(__("Use Post Processing"), &postprocessing);
+                    ngCheckbox(__("Allow Transparency"), &transparency);
+                    ngCheckbox(__("Use Post Processing"), &postprocessing);
                 }
                 incEndCategory();
                 
@@ -200,7 +200,7 @@ protected:
                     }
                     incTooltip(_("Framerate of the video file"));
 
-                    igCheckbox(__("Lock to Animation Framerate"), &player.snapToFramerate);
+                    ngCheckbox(__("Lock to Animation Framerate"), &player.snapToFramerate);
 
                     igText(__("Codec"));
                     igIndent();

@@ -6,19 +6,43 @@ import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
 import i18n;
+import std.array;
+import std.algorithm;
+import std.format;
+import std.string;
 
-void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExCamera)(T node) {
-    if (incBeginCategory(__("Camera"))) {
-        
-        incText(_("Viewport"));
-        igIndent();
-            igSetNextItemWidth(incAvailableSpace().x);
-            igDragFloat2("###VIEWPORT", &node.getViewport().vector);
-        igUnindent();
-
-        // Padding
-        igSpacing();
-        igSpacing();
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExCamera) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
     }
-    incEndCategory();
+    override
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
+        if (incBeginCategory(__("Camera"))) {
+            
+            incText(_("Viewport"));
+            igIndent();
+                igSetNextItemWidth(incAvailableSpace().x);
+                if (_shared!viewportOrigin(()=>igDragFloat2("###VIEWPORT", cast(float[2]*)(viewportOrigin.value.ptr)))) {
+                    viewportOrigin.apply();
+                }
+            igUnindent();
+
+            // Padding
+            igSpacing();
+            igSpacing();
+        }
+        incEndCategory();
+    }
+
+    mixin MultiEdit;
+
+    mixin(attribute!(vec2, "viewportOrigin", (x)=>x~".getViewport()", (x, v)=>x~".setViewport("~v~")"));
+
+    override
+    void capture(Node[] targets) {
+        super.capture(targets);
+        viewportOrigin.capture();
+    }
 }

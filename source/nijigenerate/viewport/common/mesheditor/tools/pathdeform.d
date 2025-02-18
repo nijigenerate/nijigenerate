@@ -5,7 +5,7 @@ import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.operations;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
@@ -100,12 +100,12 @@ class PathDeformTool : NodeSelect {
         }
 
         if (igIsMouseDoubleClicked(ImGuiMouseButton.Left) && !impl.deforming) {
-            int idx = path.findPoint(impl.mousePos);
+            int idx = path.findPoint(impl.mousePos, incViewportZoom);
             if (idx != -1) return PathDeformActionID.RemovePoint;
             else return PathDeformActionID.AddPoint;
 
         } else if (igIsMouseClicked(ImGuiMouseButton.Left)) {
-            auto target = editPath.findPoint(impl.mousePos);
+            auto target = editPath.findPoint(impl.mousePos, incViewportZoom);
             if (target != -1 && (io.KeyCtrl || _isRotateMode)) {
                 if (target == lockedPoint)
                     return PathDeformActionID.UnsetRotateCenter;
@@ -256,10 +256,10 @@ class PathDeformTool : NodeSelect {
 
         if (action == PathDeformActionID.RemovePoint || action == PathDeformActionID.AddPoint) {
             if (action == PathDeformActionID.RemovePoint) {
-                int idx = path.findPoint(impl.mousePos);
+                int idx = path.findPoint(impl.mousePos, incViewportZoom);
                 if(idx != -1) path.removePoint(idx);
             } else if (action == PathDeformActionID.AddPoint) {
-                path.addPoint(impl.mousePos);
+                path.addPoint(impl.mousePos, incViewportZoom);
             }
             pathDragTarget = -1;
             lockedPoint    = -1;
@@ -271,7 +271,7 @@ class PathDeformTool : NodeSelect {
             _isRotateMode = false;
 
         } else if (action == PathDeformActionID.SetRotateCenter) {
-            auto target = editPath.findPoint(impl.mousePos);
+            auto target = editPath.findPoint(impl.mousePos, incViewportZoom);
             lockedPoint = target;
             pathDragTarget = -1;
             _isRotateMode = false;

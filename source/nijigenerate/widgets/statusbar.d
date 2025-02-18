@@ -11,7 +11,6 @@ import bindbc.imgui;
 import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate.utils.link;
-import app : incUpdateNoEv;
 import std.string;
 
 private {

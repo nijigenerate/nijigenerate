@@ -3,7 +3,6 @@ module nijigenerate.core.math.vertex;
 import std.algorithm;
 import nijilive.math;
 import nijilive;
-import nijigenerate.viewport;
 import nijigenerate.core.math.mesh;
 import nijigenerate.viewport.common.mesheditor.brushes.base;
 
@@ -36,25 +35,25 @@ bool groupIdEquals(T: MeshVertex*)(T vertex, uint groupId) { return vertex.group
 
 
 
-bool isPointOverVertex(T)(T[] vertices, vec2 point) {
+bool isPointOverVertex(T)(T[] vertices, vec2 point, float zoomRate) {
     foreach(vert; vertices) {
-        if (abs(pointDistance(vert, point)) < selectRadius/incViewportZoom) return true;
+        if (abs(pointDistance(vert, point)) < selectRadius/zoomRate) return true;
     }
     return false;
 }
 
-void removeVertexAt(T, alias remove)(ref T[] vertices, vec2 point) {
+void removeVertexAt(T, alias remove)(ref T[] vertices, vec2 point, float zoomRate) {
     foreach(i; 0..vertices.length) {
-        if (abs(pointDistance(vertices[i], point)) < selectRadius/incViewportZoom) {
+        if (abs(pointDistance(vertices[i], point)) < selectRadius/zoomRate) {
             remove(vertices[i]);
             return;
         }
     }
 }
 
-ulong getVertexFromPoint(T)(T[] vertices, vec2 point) {
+ulong getVertexFromPoint(T)(T[] vertices, vec2 point, float zoomRate) {
     foreach(idx, ref vert; vertices) {
-        if (abs(pointDistance(vert, point)) < selectRadius/incViewportZoom) return idx;
+        if (abs(pointDistance(vert, point)) < selectRadius/zoomRate) return idx;
     }
     return -1;
 }
@@ -97,7 +96,7 @@ ulong[] getInRect(T)(T[] vertices, vec2 min, vec2 max, uint groupId = 0) {
 }
 
 
-int findPoint(T)(T[] vertices, vec2 point) {
+int findPoint(T)(T[] vertices, vec2 point, float zoomRate) {
     uint bestIdx = 0;
     float bestDist = float.infinity;
     foreach(idx, pt; vertices) {
@@ -108,6 +107,6 @@ int findPoint(T)(T[] vertices, vec2 point) {
         }
     }
 
-    if (bestDist > selectRadius/incViewportZoom) return -1;
+    if (bestDist > selectRadius/zoomRate) return -1;
     return bestIdx;
 }

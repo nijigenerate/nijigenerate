@@ -6,7 +6,7 @@ import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.operations;
 import nijigenerate.viewport.common.mesheditor.brushes;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
@@ -76,7 +76,7 @@ class BrushTool : NodeSelect {
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
         super.setToolMode(toolMode, impl);
-        incViewportSetAlwaysUpdate(true);
+        incViewport.alwaysUpdate = true;
     }
 
     override 

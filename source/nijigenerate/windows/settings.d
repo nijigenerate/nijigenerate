@@ -7,8 +7,8 @@
 */
 
 module nijigenerate.windows.settings;
-import nijigenerate.viewport;
-import nijigenerate.windows;
+import nijigenerate.viewport.base;
+import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
@@ -157,7 +157,7 @@ protected:
                         version(linux) {
                             beginSection(__("Linux Tweaks"));
                                 bool disableCompositor = incSettingsGet!bool("DisableCompositor");
-                                if (igCheckbox(__("Disable Compositor"), &disableCompositor)) {
+                                if (ngCheckbox(__("Disable Compositor"), &disableCompositor)) {
                                     incSettingsSet("DisableCompositor", disableCompositor);
                                 }
                             endSection();
@@ -166,7 +166,7 @@ protected:
                     case SettingsPane.Accessibility:
                         beginSection(__("Accessibility"));
                             bool disableCompositor = incSettingsGet!bool("useOpenDyslexic");
-                            if (igCheckbox(__("Use OpenDyslexic Font"), &disableCompositor)) {
+                            if (ngCheckbox(__("Use OpenDyslexic Font"), &disableCompositor)) {
                                 incSettingsSet("useOpenDyslexic", disableCompositor);
                                 changesRequiresRestart = true;
                             }
@@ -176,7 +176,7 @@ protected:
                     case SettingsPane.FileHandling:
                         beginSection(__("Autosaves"));
                             bool autosaveEnabled = incGetAutosaveEnabled();
-                            if (igCheckbox(__("Enable Autosaves"), &autosaveEnabled)) {
+                            if (ngCheckbox(__("Enable Autosaves"), &autosaveEnabled)) {
                                 incSetAutosaveEnabled(autosaveEnabled);
                             }
 

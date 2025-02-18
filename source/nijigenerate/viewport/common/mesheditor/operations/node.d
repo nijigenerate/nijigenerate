@@ -10,7 +10,7 @@
 module nijigenerate.viewport.common.mesheditor.operations.node;
 
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.operations;
@@ -143,7 +143,7 @@ public:
                 groupAction.addAction(new ParameterBindingAddAction(armedParam, binding));
 
             }
-            auto transAction = new ParameterBindingValueChangeAction!float(binding.getName(), binding, index.x, index.y);
+            auto transAction = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(binding.getName(), binding, index.x, index.y);
             groupAction.addAction(transAction);
         }
 
@@ -187,7 +187,7 @@ public:
         if (editorAction !is null) {
             bool dirty = false;
             foreach (action; editorAction.action.actions) {
-                auto changeAction = cast(ParameterBindingValueChangeAction!float)action;
+                auto changeAction = cast(ParameterBindingValueChangeAction!(float, ValueParameterBinding))action;
                 if (changeAction !is null) {
                     dirty = dirty || changeAction.dirty();
                     if (dirty)
@@ -288,7 +288,7 @@ public:
     void clearAction() {
         if (editorAction) {
             foreach (action; editorAction.action.actions) {
-                auto changeAction = cast(ParameterBindingValueChangeAction!float)action;
+                auto changeAction = cast(ParameterBindingValueChangeAction!(float, ValueParameterBinding))action;
                 if (changeAction)
                     changeAction.clear();
             }
@@ -299,7 +299,7 @@ public:
     override
     void markActionDirty() {
         foreach (action; editorAction.action.actions) {
-            auto changeAction = cast(ParameterBindingValueChangeAction!float)action;
+            auto changeAction = cast(ParameterBindingValueChangeAction!(float, ValueParameterBinding))action;
             if (changeAction)
                 changeAction.markAsDirty();
         }

@@ -9,7 +9,6 @@ module nijigenerate.core;
 import nijigenerate.core.dpi;
 import nijigenerate.core.input;
 import nijigenerate.panels;
-import nijigenerate.windows;
 import nijigenerate.utils.link;
 import nijigenerate;
 import nijigenerate.widgets.dialog;
