@@ -109,6 +109,10 @@ protected:
                 Node rootNode = activePuppet.root;
                 rootNode.addNotifyListener(&onChange);
             }
+            activeNodeInspectors = null;
+        }
+        if (!activeNodeInspectors) {
+            onSelectionChanged(incSelectedNodes());
         }
         if (activeNodeInspectors) {
             activeNodeInspectors.subMode = subMode;
