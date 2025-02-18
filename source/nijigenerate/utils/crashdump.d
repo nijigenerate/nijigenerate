@@ -7,7 +7,6 @@
 */
 module nijigenerate.utils.crashdump;
 import std.file : write;
-//import i18n;
 import std.stdio;
 import std.path;
 import std.process : environment;

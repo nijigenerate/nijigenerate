@@ -10,7 +10,7 @@
 module nijigenerate.windows.autosave;
 
 import nijigenerate;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.label : incText;

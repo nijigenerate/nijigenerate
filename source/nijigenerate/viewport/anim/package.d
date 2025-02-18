@@ -8,29 +8,23 @@
 module nijigenerate.viewport.anim;
 import nijigenerate.core.input;
 import nijigenerate;
+import nijigenerate.viewport.base;
+
 import nijilive;
 import bindbc.imgui;
 
 // No overlay in deform mode
 void incViewportAnimOverlay() { }
 
-void incViewportAnimUpdate(ImGuiIO* io, Camera camera) {
-    
-}
 
-void incViewportAnimDraw(Camera camera) {
-    incActivePuppet.update();
-    incActivePuppet.draw();
-}
+class AnimationViewport : Viewport {
+protected:
+    bool alwaysUpdateMode = false;
+public:
+    override
+    void draw(Camera camera) { 
+        incActivePuppet.update();
+        incActivePuppet.draw();
 
-void incViewportAnimToolbar() {
-
-}
-
-void incViewportAnimPresent() {
-
-}
-
-void incViewportAnimWithdraw() {
-
+    };
 }

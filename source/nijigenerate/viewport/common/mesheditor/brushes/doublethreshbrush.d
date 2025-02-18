@@ -1,7 +1,6 @@
 module nijigenerate.viewport.common.mesheditor.brushes.doublethreshbrush;
 
 import nijigenerate.viewport.common.mesheditor.brushes.base;
-import nijigenerate.viewport;
 import nijigenerate.viewport.common;
 import nijigenerate.widgets.drag;
 import nijilive;

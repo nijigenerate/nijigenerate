@@ -4,7 +4,7 @@ import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.operations;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
@@ -41,7 +41,7 @@ class NodeSelect : Tool, Draggable {
         assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
         isDragging = false;
         impl.isSelecting = false;
-        incViewportSetAlwaysUpdate(false);
+        incViewport.alwaysUpdate = false;
     }
 
     vec3 calculateMousePosIntersection(IncMeshEditorOne impl, vec2 mousePos) {

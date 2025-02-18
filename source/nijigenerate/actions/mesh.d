@@ -4,7 +4,6 @@ import nijigenerate.core.actionstack;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.operations;
 import nijigenerate.viewport.vertex;
-import nijigenerate.viewport;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;

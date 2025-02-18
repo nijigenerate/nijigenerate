@@ -168,332 +168,381 @@ void incInspectorTextureSlot(Part p, TextureUsage usage, string title, ImVec2 el
     igPopID();
 }
 
-void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part)(T node) {
-    if (incBeginCategory(__("Part"))) {
-        if (!node.getMesh().isReady()) { 
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+    override
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
+        if (incBeginCategory(__("Part"))) {
+            if (!node.getMesh().isReady()) { 
+                igSpacing();
+                igTextColored(CategoryTextColor, __("Cannot inspect an unmeshed part"));
+                incEndCategory();
+                return;
+            }
             igSpacing();
-            igTextColored(CategoryTextColor, __("Cannot inspect an unmeshed part"));
-            incEndCategory();
-            return;
-        }
-        igSpacing();
 
-        // BLENDING MODE
-        import std.conv : text;
-        import std.string : toStringz;
+            // BLENDING MODE
+            import std.conv : text;
+            import std.string : toStringz;
 
-        ImVec2 avail = incAvailableSpace();
-        float availForTextureSlots = round((avail.x/3.0)-2.0);
-        ImVec2 elemSize = ImVec2(availForTextureSlots, availForTextureSlots);
+            ImVec2 avail = incAvailableSpace();
+            float availForTextureSlots = round((avail.x/3.0)-2.0);
+            ImVec2 elemSize = ImVec2(availForTextureSlots, availForTextureSlots);
 
-        incInspectorTextureSlot(node, TextureUsage.Albedo, _("Albedo"), elemSize);
-        igSameLine(0, 4);
-        incInspectorTextureSlot(node, TextureUsage.Emissive, _("Emissive"), elemSize);
-        igSameLine(0, 4);
-        incInspectorTextureSlot(node, TextureUsage.Bumpmap, _("Bumpmap"), elemSize);
-        
-        igSpacing();
-        igSpacing();
+            if (targets.length == 1) {
+                incInspectorTextureSlot(node, TextureUsage.Albedo, _("Albedo"), elemSize);
+                igSameLine(0, 4);
+                incInspectorTextureSlot(node, TextureUsage.Emissive, _("Emissive"), elemSize);
+                igSameLine(0, 4);
+                incInspectorTextureSlot(node, TextureUsage.Bumpmap, _("Bumpmap"), elemSize);
+                
+                igSpacing();
+                igSpacing();
+            }
 
-        incText(_("Tint (Multiply)"));
-        igColorEdit3("###TINT", cast(float[3]*)node.tint.ptr);
+            incText(_("Tint (Multiply)"));
+            if (_shared!tint(()=> igColorEdit3("###TINT",cast(float[3]*)tint.value.ptr))) {
+                tint.apply();
+            }
 
-        incText(_("Tint (Screen)"));
-        igColorEdit3("###S_TINT", cast(float[3]*)node.screenTint.ptr);
+            incText(_("Tint (Screen)"));
+            if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
+                screenTint.apply();
+            }
 
-        incText(_("Emission Strength"));
-        float strengthPerc = node.emissionStrength*100;
-        if (igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%")) {
-            node.emissionStrength = strengthPerc*0.01;
-        }
+            incText(_("Emission Strength"));
+            float strengthPerc = emissionStrength.value*100;
+            if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%"))) {
+                emissionStrength.value = strengthPerc*0.01;
+                emissionStrength.apply();
+            }
 
-        // Padding
-        igSpacing();
-        igSpacing();
-        igSpacing();
+            // Padding
+            igSpacing();
+            igSpacing();
+            igSpacing();
 
-        // Header for the Blending options for Parts
-        incText(_("Blending"));
-        if (igBeginCombo("###Blending", __(node.blendingMode.text), ImGuiComboFlags.HeightLarge)) {
-            auto prevBlendingMode = node.blendingMode;
-            // Normal blending mode as used in Photoshop, generally
-            // the default blending mode photoshop starts a layer out as.
-            if (igSelectable(__("Normal"), node.blendingMode == BlendMode.Normal)) node.blendingMode = BlendMode.Normal;
+            // Header for the Blending options for Parts
+            incText(_("Blending"));
+            if (_shared!blendingMode(() {
+                    bool result = false;
+                    auto prevBlendingMode = blendingMode.value;
+                    if (igBeginCombo("###Blending", __(blendingMode.value.text), ImGuiComboFlags.HeightLarge)) {
+                        // Normal blending mode as used in Photoshop, generally
+                        // the default blending mode photoshop starts a layer out as.
+                        if (igSelectable(__("Normal"), blendingMode.value == BlendMode.Normal)) blendingMode.value = BlendMode.Normal;
+                        
+                        // Multiply blending mode, in which this texture's color data
+                        // will be multiplied with the color data already in the framebuffer.
+                        if (igSelectable(__("Multiply"), blendingMode.value == BlendMode.Multiply)) blendingMode.value = BlendMode.Multiply;
+                                        
+                        // Screen blending mode
+                        if (igSelectable(__("Screen"), blendingMode.value == BlendMode.Screen)) blendingMode.value = BlendMode.Screen;
+
+                        // Overlay blending mode
+                        if (igSelectable(__("Overlay"), blendingMode.value == BlendMode.Overlay)) blendingMode.value = BlendMode.Overlay;
+
+                        // Darken blending mode
+                        if (igSelectable(__("Darken"), blendingMode.value == BlendMode.Darken)) blendingMode.value = BlendMode.Darken;
+
+                        // Lighten blending mode
+                        if (igSelectable(__("Lighten"), blendingMode.value == BlendMode.Lighten)) blendingMode.value = BlendMode.Lighten;
+                                
+                        // Color Dodge blending mode
+                        if (igSelectable(__("Color Dodge"), blendingMode.value == BlendMode.ColorDodge)) blendingMode.value = BlendMode.ColorDodge;
+                                
+                        // Linear Dodge blending mode
+                        if (igSelectable(__("Linear Dodge"), blendingMode.value == BlendMode.LinearDodge)) blendingMode.value = BlendMode.LinearDodge;
+                                
+                        // Add (Glow) blending mode
+                        if (igSelectable(__("Add (Glow)"), blendingMode.value == BlendMode.AddGlow)) blendingMode.value = BlendMode.AddGlow;
+                                
+                        // Color Burn blending mode
+                        if (igSelectable(__("Color Burn"), blendingMode.value == BlendMode.ColorBurn)) blendingMode.value = BlendMode.ColorBurn;
+                                
+                        // Hard Light blending mode
+                        if (igSelectable(__("Hard Light"), blendingMode.value == BlendMode.HardLight)) blendingMode.value = BlendMode.HardLight;
+                                
+                        // Soft Light blending mode
+                        if (igSelectable(__("Soft Light"), blendingMode.value == BlendMode.SoftLight)) blendingMode.value = BlendMode.SoftLight;
+                                        
+                        // Subtract blending mode
+                        if (igSelectable(__("Subtract"), blendingMode.value == BlendMode.Subtract)) blendingMode.value = BlendMode.Subtract;
+                                        
+                        // Difference blending mode
+                        if (igSelectable(__("Difference"), blendingMode.value == BlendMode.Difference)) blendingMode.value = BlendMode.Difference;
+                                        
+                        // Exclusion blending mode
+                        if (igSelectable(__("Exclusion"), blendingMode.value == BlendMode.Exclusion)) blendingMode.value = BlendMode.Exclusion;
+                                        
+                        // Inverse blending mode
+                        if (igSelectable(__("Inverse"), blendingMode.value == BlendMode.Inverse)) blendingMode.value = BlendMode.Inverse;
+                        incTooltip(_("Inverts the color by a factor of the overlying color"));
+                                        
+                        // Destination In blending mode
+                        if (igSelectable(__("Destination In"), blendingMode.value == BlendMode.DestinationIn)) blendingMode.value = BlendMode.DestinationIn;
+                                        
+                        // Clip to Lower blending mode
+                        if (igSelectable(__("Clip to Lower"), blendingMode.value == BlendMode.ClipToLower)) blendingMode.value = BlendMode.ClipToLower;
+                        incTooltip(_("Special blending mode that causes (while respecting transparency) the part to be clipped to everything underneath"));
+                                        
+                        // Slice from Lower blending mode
+                        if (igSelectable(__("Slice from Lower"), blendingMode.value == BlendMode.SliceFromLower)) blendingMode.value = BlendMode.SliceFromLower;
+                        incTooltip(_("Special blending mode that causes (while respecting transparency) the part to be slice by everything underneath.\nBasically reverse Clip to Lower."));
+                        igEndCombo();
+                    }
+                    if (blendingMode.value != prevBlendingMode) result = true;
+
+                    return result;
+                }
+            )) {
+                blendingMode.apply();
+                foreach (n; targets)
+                    n.notifyChange(n, NotifyReason.AttributeChanged);
+            }
+ 
+            igSpacing();
+
+            incText(_("Opacity"));
+            if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
+                opacity.apply();
+                foreach (n; targets)
+                    n.notifyChange(n, NotifyReason.AttributeChanged);
+            }
+            igSpacing();
+            igSpacing();
+
+            igTextColored(CategoryTextColor, __("Masks"));
+            igSpacing();
+
+            // Threshold slider name for adjusting how transparent a pixel can be
+            // before it gets discarded.
+            incText(_("Threshold"));
+            if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%.2f"))) {
+                maskAlphaThreshold.apply();
+            }
+
+            if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
+                if (ngCheckbox(__("Resize automatically"), &dcomposite.autoResizedMesh)) {
+                }
+                incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
+            }
             
-            // Multiply blending mode, in which this texture's color data
-            // will be multiplied with the color data already in the framebuffer.
-            if (igSelectable(__("Multiply"), node.blendingMode == BlendMode.Multiply)) node.blendingMode = BlendMode.Multiply;
-                            
-            // Screen blending mode
-            if (igSelectable(__("Screen"), node.blendingMode == BlendMode.Screen)) node.blendingMode = BlendMode.Screen;
+            igSpacing();
 
-            // Overlay blending mode
-            if (igSelectable(__("Overlay"), node.blendingMode == BlendMode.Overlay)) node.blendingMode = BlendMode.Overlay;
+            if (targets.length == 1) {
+                // The sources that the part gets masked by. Depending on the masking mode
+                // either the sources will cut out things that don't overlap, or cut out
+                // things that do.
 
-            // Darken blending mode
-            if (igSelectable(__("Darken"), node.blendingMode == BlendMode.Darken)) node.blendingMode = BlendMode.Darken;
-
-            // Lighten blending mode
-            if (igSelectable(__("Lighten"), node.blendingMode == BlendMode.Lighten)) node.blendingMode = BlendMode.Lighten;
-                    
-            // Color Dodge blending mode
-            if (igSelectable(__("Color Dodge"), node.blendingMode == BlendMode.ColorDodge)) node.blendingMode = BlendMode.ColorDodge;
-                    
-            // Linear Dodge blending mode
-            if (igSelectable(__("Linear Dodge"), node.blendingMode == BlendMode.LinearDodge)) node.blendingMode = BlendMode.LinearDodge;
-                    
-            // Add (Glow) blending mode
-            if (igSelectable(__("Add (Glow)"), node.blendingMode == BlendMode.AddGlow)) node.blendingMode = BlendMode.AddGlow;
-                    
-            // Color Burn blending mode
-            if (igSelectable(__("Color Burn"), node.blendingMode == BlendMode.ColorBurn)) node.blendingMode = BlendMode.ColorBurn;
-                    
-            // Hard Light blending mode
-            if (igSelectable(__("Hard Light"), node.blendingMode == BlendMode.HardLight)) node.blendingMode = BlendMode.HardLight;
-                    
-            // Soft Light blending mode
-            if (igSelectable(__("Soft Light"), node.blendingMode == BlendMode.SoftLight)) node.blendingMode = BlendMode.SoftLight;
-                            
-            // Subtract blending mode
-            if (igSelectable(__("Subtract"), node.blendingMode == BlendMode.Subtract)) node.blendingMode = BlendMode.Subtract;
-                            
-            // Difference blending mode
-            if (igSelectable(__("Difference"), node.blendingMode == BlendMode.Difference)) node.blendingMode = BlendMode.Difference;
-                            
-            // Exclusion blending mode
-            if (igSelectable(__("Exclusion"), node.blendingMode == BlendMode.Exclusion)) node.blendingMode = BlendMode.Exclusion;
-                            
-            // Inverse blending mode
-            if (igSelectable(__("Inverse"), node.blendingMode == BlendMode.Inverse)) node.blendingMode = BlendMode.Inverse;
-            incTooltip(_("Inverts the color by a factor of the overlying color"));
-                            
-            // Destination In blending mode
-            if (igSelectable(__("Destination In"), node.blendingMode == BlendMode.DestinationIn)) node.blendingMode = BlendMode.DestinationIn;
-                            
-            // Clip to Lower blending mode
-            if (igSelectable(__("Clip to Lower"), node.blendingMode == BlendMode.ClipToLower)) node.blendingMode = BlendMode.ClipToLower;
-            incTooltip(_("Special blending mode that causes (while respecting transparency) the part to be clipped to everything underneath"));
-                            
-            // Slice from Lower blending mode
-            if (igSelectable(__("Slice from Lower"), node.blendingMode == BlendMode.SliceFromLower)) node.blendingMode = BlendMode.SliceFromLower;
-            incTooltip(_("Special blending mode that causes (while respecting transparency) the part to be slice by everything underneath.\nBasically reverse Clip to Lower."));
-            
-            if (node.blendingMode != prevBlendingMode) {
-                node.notifyChange(node, NotifyReason.AttributeChanged);
-            }
-            igEndCombo();
-        }
-
-        igSpacing();
-
-        incText(_("Opacity"));
-        if (igSliderFloat("###Opacity", &node.opacity, 0, 1f, "%0.2f")) {
-            node.notifyChange(node, NotifyReason.AttributeChanged);
-        }
-        igSpacing();
-        igSpacing();
-
-        igTextColored(CategoryTextColor, __("Masks"));
-        igSpacing();
-
-        // Threshold slider name for adjusting how transparent a pixel can be
-        // before it gets discarded.
-        incText(_("Threshold"));
-        igSliderFloat("###Threshold", &node.maskAlphaThreshold, 0.0, 1.0, "%.2f");
-
-        if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
-            if (igCheckbox(__("Resize automatically"), &dcomposite.autoResizedMesh)) {
-            }
-            incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
-        }
-        
-        igSpacing();
-
-        // The sources that the part gets masked by. Depending on the masking mode
-        // either the sources will cut out things that don't overlap, or cut out
-        // things that do.
-        incText(_("Mask Sources"));
-        if (igBeginListBox("###MaskSources", ImVec2(0, 128))) {
-            if (node.masks.length == 0) {
-                incText(_("(Drag a Part or Mask Here)"));
-            }
-
-            foreach(i; 0..node.masks.length) {
-                MaskBinding* masker = &node.masks[i];
-                igPushID(cast(int)i);
-                    if (igBeginPopup("###MaskSettings")) {
-                        if (igBeginMenu(__("Mode"))) {
-                            if (igMenuItem(__("Mask"), null, masker.mode == MaskingMode.Mask)) {
-                                masker.mode = MaskingMode.Mask;
-                                node.notifyChange(node, NotifyReason.AttributeChanged);
-                            }
-                            if (igMenuItem(__("Dodge"), null, masker.mode == MaskingMode.DodgeMask)) {
-                                masker.mode = MaskingMode.DodgeMask;
-                                node.notifyChange(node, NotifyReason.AttributeChanged);
-                            }
-                            igEndMenu();
-                        }
-
-                        if (igMenuItem(__("Delete"))) {
-                            incActionPush(new PartRemoveMaskAction(node.masks[i].maskSrc, node, node.masks[i].mode));
-                            node.notifyChange(node, NotifyReason.StructureChanged);
-                            igEndPopup();
-                            igPopID();
-                            igEndListBox();
-                            incEndCategory();
-                            return;
-                        }
-
-                        igEndPopup();
+                incText(_("Mask Sources"));
+                if (igBeginListBox("###MaskSources", ImVec2(0, 128))) {
+                    if (node.masks.length == 0) {
+                        incText(_("(Drag a Part or Mask Here)"));
                     }
 
-                    if (masker.mode == MaskingMode.Mask) igSelectable(_("%s (Mask)").format(masker.maskSrc.name).toStringz);
-                    else igSelectable(_("%s (Dodge)").format(masker.maskSrc.name).toStringz);
+                    foreach(i; 0..node.masks.length) {
+                        MaskBinding* masker = &node.masks[i];
+                        igPushID(cast(int)i);
+                            if (igBeginPopup("###MaskSettings")) {
+                                if (igBeginMenu(__("Mode"))) {
+                                    if (igMenuItem(__("Mask"), null, masker.mode == MaskingMode.Mask)) {
+                                        masker.mode = MaskingMode.Mask;
+                                        node.notifyChange(node, NotifyReason.AttributeChanged);
+                                    }
+                                    if (igMenuItem(__("Dodge"), null, masker.mode == MaskingMode.DodgeMask)) {
+                                        masker.mode = MaskingMode.DodgeMask;
+                                        node.notifyChange(node, NotifyReason.AttributeChanged);
+                                    }
+                                    igEndMenu();
+                                }
 
+                                if (igMenuItem(__("Delete"))) {
+                                    incActionPush(new PartRemoveMaskAction(node.masks[i].maskSrc, node, node.masks[i].mode));
+                                    node.notifyChange(node, NotifyReason.StructureChanged);
+                                    igEndPopup();
+                                    igPopID();
+                                    igEndListBox();
+                                    incEndCategory();
+                                    return;
+                                }
+
+                                igEndPopup();
+                            }
+
+                            if (masker.mode == MaskingMode.Mask) igSelectable(_("%s (Mask)").format(masker.maskSrc.name).toStringz);
+                            else igSelectable(_("%s (Dodge)").format(masker.maskSrc.name).toStringz);
+
+                            
+                            if(igBeginDragDropTarget()) {
+                                const(ImGuiPayload)* payload = igAcceptDragDropPayload("_MASKITEM");
+                                if (payload !is null) {
+                                    if (MaskBinding* binding = cast(MaskBinding*)payload.Data) {
+                                        ptrdiff_t maskIdx = node.getMaskIdx(binding.maskSrcUUID);
+                                        if (maskIdx >= 0) {
+                                            import std.algorithm.mutation : remove;
+
+                                            node.masks = node.masks.remove(maskIdx);
+                                            if (i == 0) node.masks = *binding ~ node.masks;
+                                            else if (i+1 >= node.masks.length) node.masks ~= *binding;
+                                            else node.masks = node.masks[0..i] ~ *binding ~ node.masks[i+1..$];
+                                            node.notifyChange(node, NotifyReason.StructureChanged);
+                                        }
+                                    }
+                                }
+                                
+                                igEndDragDropTarget();
+                            }
+
+                            // TODO: We really should account for left vs. right handedness
+                            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                                igOpenPopup("###MaskSettings");
+                            }
+
+                            if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+                                igSetDragDropPayload("_MASKITEM", cast(void*)masker, MaskBinding.sizeof, ImGuiCond.Always);
+                                incText(masker.maskSrc.name);
+                                igEndDragDropSource();
+                            }
+                        igPopID();
+                    }
+                    igEndListBox();
+                }
+
+                if(igBeginDragDropTarget()) {
+                    const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
+                    if (payload !is null) {
+                        if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
+
+                            // Make sure we don't mask against ourselves as well as don't double mask
+                            if (payloadDrawable != node && !node.isMaskedBy(payloadDrawable)) {
+                                incActionPush(new PartAddMaskAction(payloadDrawable, node, MaskingMode.Mask));
+                            }
+                        }
+                    }
                     
-                    if(igBeginDragDropTarget()) {
-                        const(ImGuiPayload)* payload = igAcceptDragDropPayload("_MASKITEM");
-                        if (payload !is null) {
-                            if (MaskBinding* binding = cast(MaskBinding*)payload.Data) {
-                                ptrdiff_t maskIdx = node.getMaskIdx(binding.maskSrcUUID);
-                                if (maskIdx >= 0) {
-                                    import std.algorithm.mutation : remove;
+                    igEndDragDropTarget();
+                }
 
-                                    node.masks = node.masks.remove(maskIdx);
-                                    if (i == 0) node.masks = *binding ~ node.masks;
-                                    else if (i+1 >= node.masks.length) node.masks ~= *binding;
-                                    else node.masks = node.masks[0..i] ~ *binding ~ node.masks[i+1..$];
+                igSpacing();
+
+                // The sources that the part gets masked by. Depending on the masking mode
+                // either the sources will cut out things that don't overlap, or cut out
+                // things that do.
+                incText(_("Welding"));
+                if (igBeginListBox("###Welding", ImVec2(0, 128))) {
+                    if (node.masks.length == 0) {
+                        incText(_("(Drag a Part Here)"));
+                    }
+
+                    foreach(i; 0..node.welded.length) {
+                        Drawable.WeldingLink* welded = &node.welded[i];
+                        igPushID(cast(int)i);
+                            if (igBeginPopup("###WeldedLink")) {
+
+                                if (igMenuItem(__("Delete"))) {
+                                    incActionPush(new DrawableRemoveWeldingAction(node, node.welded[i].target, node.welded[i].indices, node.welded[i].weight));
+                                    node.notifyChange(node, NotifyReason.StructureChanged);
+                                    igEndPopup();
+                                    igPopID();
+                                    igEndListBox();
+                                    incEndCategory();
+                                    return;
+                                }
+
+                                igEndPopup();
+                            }
+
+                            igSelectable(welded.target.name.toStringz, false, ImGuiSelectableFlags.AllowItemOverlap, ImVec2(0, 17));
+                            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                                igOpenPopup("###WeldedLink");
+                            }
+                            igSameLine(0, 0);
+                            if (igBeginChild("###%s".format(welded.target.name).toStringz, ImVec2(0, 15),false, ImGuiWindowFlags.NoScrollbar|ImGuiWindowFlags.AlwaysAutoResize)) {
+                                incDummy(ImVec2(-64, 1));
+                                igSameLine(0, 0);
+                                auto weight = welded.weight;
+                                igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
+                                igSetNextItemWidth(64);
+                                if (igSliderFloat("###weight", &weight, 0, 1f, "%0.2f")) {
+                                    welded.weight = weight;
+                                    auto index = welded.target.welded.countUntil!"a.target == b"(node);
+                                    if (index != -1) {
+                                        welded.target.welded[index].weight = 1 - weight;
+                                    }
                                     node.notifyChange(node, NotifyReason.StructureChanged);
                                 }
+                                igPopStyleVar();
+                            }
+                            igEndChild();
+                            /*
+                            if(igBeginDragDropTarget()) {
+                                const(ImGuiPayload)* payload = igAcceptDragDropPayload("_WELDINGITEM");
+                                if (payload !is null) {
+                                }
+                                
+                                igEndDragDropTarget();
+                            }
+                            */
+                            // TODO: We really should account for left vs. right handedness
+                            /*
+                            if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+                                igSetDragDropPayload("_WELDINGITEM", cast(void*)welded, Drawable.WeldingLink.sizeof, ImGuiCond.Always);
+                                incText(welded.target.name);
+                                igEndDragDropSource();
+                            }
+                            */
+                        igPopID();
+                    }
+                    igEndListBox();
+                }
+
+                if(igBeginDragDropTarget()) {
+                    const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
+                    if (payload !is null) {
+                        if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
+
+                            // Make sure we don't mask against ourselves as well as don't double mask
+                            if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable) && payloadDrawable.vertices.length != 0) {
+                                incRegisterWeldedPoints(node, payloadDrawable);
                             }
                         }
-                        
-                        igEndDragDropTarget();
                     }
-
-                    // TODO: We really should account for left vs. right handedness
-                    if (igIsItemClicked(ImGuiMouseButton.Right)) {
-                        igOpenPopup("###MaskSettings");
-                    }
-
-                    if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
-                        igSetDragDropPayload("_MASKITEM", cast(void*)masker, MaskBinding.sizeof, ImGuiCond.Always);
-                        incText(masker.maskSrc.name);
-                        igEndDragDropSource();
-                    }
-                igPopID();
-            }
-            igEndListBox();
-        }
-
-        if(igBeginDragDropTarget()) {
-            const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
-            if (payload !is null) {
-                if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
-
-                    // Make sure we don't mask against ourselves as well as don't double mask
-                    if (payloadDrawable != node && !node.isMaskedBy(payloadDrawable)) {
-                        incActionPush(new PartAddMaskAction(payloadDrawable, node, MaskingMode.Mask));
-                    }
+                    
+                    igEndDragDropTarget();
                 }
+                // Padding
+                igSpacing();
+                igSpacing();
             }
             
-            igEndDragDropTarget();
         }
-
-        igSpacing();
-
-        // The sources that the part gets masked by. Depending on the masking mode
-        // either the sources will cut out things that don't overlap, or cut out
-        // things that do.
-        incText(_("Welding"));
-        if (igBeginListBox("###Welding", ImVec2(0, 128))) {
-            if (node.masks.length == 0) {
-                incText(_("(Drag a Part Here)"));
-            }
-
-            foreach(i; 0..node.welded.length) {
-                Drawable.WeldingLink* welded = &node.welded[i];
-                igPushID(cast(int)i);
-                    if (igBeginPopup("###WeldedLink")) {
-
-                        if (igMenuItem(__("Delete"))) {
-                            incActionPush(new DrawableRemoveWeldingAction(node, node.welded[i].target, node.welded[i].indices, node.welded[i].weight));
-                            node.notifyChange(node, NotifyReason.StructureChanged);
-                            igEndPopup();
-                            igPopID();
-                            igEndListBox();
-                            incEndCategory();
-                            return;
-                        }
-
-                        igEndPopup();
-                    }
-
-                    igSelectable(welded.target.name.toStringz, false, ImGuiSelectableFlags.AllowItemOverlap, ImVec2(0, 17));
-                    if (igIsItemClicked(ImGuiMouseButton.Right)) {
-                        igOpenPopup("###WeldedLink");
-                    }
-                    igSameLine(0, 0);
-                    if (igBeginChild("###%s".format(welded.target.name).toStringz, ImVec2(0, 15),false, ImGuiWindowFlags.NoScrollbar|ImGuiWindowFlags.AlwaysAutoResize)) {
-                        incDummy(ImVec2(-64, 1));
-                        igSameLine(0, 0);
-                        auto weight = welded.weight;
-                        igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
-                        igSetNextItemWidth(64);
-                        if (igSliderFloat("###weight", &weight, 0, 1f, "%0.2f")) {
-                            welded.weight = weight;
-                            auto index = welded.target.welded.countUntil!"a.target == b"(node);
-                            if (index != -1) {
-                                welded.target.welded[index].weight = 1 - weight;
-                            }
-                            node.notifyChange(node, NotifyReason.StructureChanged);
-                        }
-                        igPopStyleVar();
-                    }
-                    igEndChild();
-                    /*
-                    if(igBeginDragDropTarget()) {
-                        const(ImGuiPayload)* payload = igAcceptDragDropPayload("_WELDINGITEM");
-                        if (payload !is null) {
-                        }
-                        
-                        igEndDragDropTarget();
-                    }
-                    */
-                    // TODO: We really should account for left vs. right handedness
-                    /*
-                    if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
-                        igSetDragDropPayload("_WELDINGITEM", cast(void*)welded, Drawable.WeldingLink.sizeof, ImGuiCond.Always);
-                        incText(welded.target.name);
-                        igEndDragDropSource();
-                    }
-                    */
-                igPopID();
-            }
-            igEndListBox();
-        }
-
-        if(igBeginDragDropTarget()) {
-            const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
-            if (payload !is null) {
-                if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
-
-                    // Make sure we don't mask against ourselves as well as don't double mask
-                    if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable) && payloadDrawable.vertices.length != 0) {
-                        incRegisterWeldedPoints(node, payloadDrawable);
-                    }
-                }
-            }
-            
-            igEndDragDropTarget();
-        }
-        
-        // Padding
-        igSpacing();
-        igSpacing();
+        incEndCategory();
     }
-    incEndCategory();
+
+    mixin MultiEdit;
+
+    mixin(attribute!(vec3, "tint"));
+    mixin(attribute!(vec3, "screenTint"));
+    mixin(attribute!(float, "emissionStrength"));
+    mixin(attribute!(BlendMode, "blendingMode"));
+    mixin(attribute!(float, "opacity"));
+    mixin(attribute!(float, "maskAlphaThreshold"));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        tint.capture();
+        screenTint.capture();
+        emissionStrength.capture();
+        blendingMode.capture();
+        opacity.capture();
+        maskAlphaThreshold.capture();
+    }
 }
 
 ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
@@ -512,47 +561,85 @@ ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, flo
 
 /// Armed Parameter View
 
-void incInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part)(T node, Parameter param, vec2u cursor) {
-    if (incBeginCategory(__("Part"))) {
-        igBeginGroup();
-            igIndent(16);
-                // Header for texture options    
-                if (incBeginCategory(__("Textures")))  {
-
-                    igPushID(0);
-                        incText(_("Tint (Multiply)"));
-                        incInspectorDeformColorEdit3(["tint.r", "tint.g", "tint.b"], node, param, cursor);
-                    igPopID();
-
-                    igPushID(1);
-                        incText(_("Tint (Screen)"));
-                        incInspectorDeformColorEdit3(["screenTint.r", "screenTint.g", "screenTint.b"], node, param, cursor);
-                    igPopID();
-
-                    incText(_("Emission Strength"));
-                    float strengthPerc = incInspectorDeformGetValue(node, param, "emissionStrength", cursor)*100;
-                    if (igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%")) {
-                        incInspectorDeformSetValue(node, param, "emissionStrength", cursor, strengthPerc*0.01);
-                    }
-
-                    // Padding
-                    igSeparator();
-                    igSpacing();
-                    igSpacing();
-                }
-                incEndCategory();
-            igUnindent();
-        igEndGroup();
-
-        incText(_("Opacity"));
-        incInspectorDeformSliderFloat("###Opacity", "opacity", 0, 1f, node, param, cursor);
-        igSpacing();
-        igSpacing();
-
-        // Threshold slider name for adjusting how transparent a pixel can be
-        // before it gets discarded.
-        incText(_("Threshold"));
-        incInspectorDeformSliderFloat("###Threshold", "alphaThreshold", 0.0, 1.0, node, param, cursor);
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode mode) {
+        super(nodes, mode);
     }
-    incEndCategory();
+    override
+    void run(Parameter param, vec2u cursor) {
+        if (targets.length == 0) return;
+        auto node = targets[0];
+
+        updateDeform(param, cursor);
+
+        if (incBeginCategory(__("Part"))) {
+            igBeginGroup();
+                igIndent(16);
+                    // Header for texture options    
+                    if (incBeginCategory(__("Textures")))  {
+
+                        igPushID(0);
+                            incText(_("Tint (Multiply)"));
+                            __deformRGB!(tintR, tintG, tintB);
+                        igPopID();
+
+                        igPushID(1);
+                            incText(_("Tint (Screen)"));
+                            __deformRGB!(screenTintR, screenTintG, screenTintB);
+                        igPopID();
+
+                        incText(_("Emission Strength"));
+                        float strengthPerc = emissionStrength.value * 100;
+                        if (igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%")) {
+                            emissionStrength.value = strengthPerc * 0.01;
+                            emissionStrength.apply();
+                        }
+
+                        // Padding
+                        igSeparator();
+                        igSpacing();
+                        igSpacing();
+                    }
+                    incEndCategory();
+                igUnindent();
+            igEndGroup();
+
+            incText(_("Opacity"));
+            _deform!opacity((s,v)=>ngInspectorDeformSliderFloat(s, v, 0, 1f));
+            igSpacing();
+            igSpacing();
+
+            // Threshold slider name for adjusting how transparent a pixel can be
+            // before it gets discarded.
+            incText(_("Threshold"));
+            _deform!alphaThreshold((s,v)=>ngInspectorDeformSliderFloat(s, v, 0.0, 1.0));
+        }
+        incEndCategory();
+    }
+
+    mixin MultiEdit;
+    mixin(deformation!("emissionStrength"));
+    mixin(deformation!("opacity"));
+    mixin(deformation!("alphaThreshold"));
+    mixin(deformation!("tintR", "tint.r"));
+    mixin(deformation!("tintG", "tint.g"));
+    mixin(deformation!("tintB", "tint.b"));
+    mixin(deformation!("screenTintR", "screenTint.r"));
+    mixin(deformation!("screenTintG", "screenTint.g"));
+    mixin(deformation!("screenTintB", "screenTint.b"));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        emissionStrength.capture();
+        opacity.capture();
+        alphaThreshold.capture();
+        tintR.capture();
+        tintG.capture();
+        tintB.capture();
+        screenTintR.capture();
+        screenTintG.capture();
+        screenTintB.capture();
+    }
+
 }

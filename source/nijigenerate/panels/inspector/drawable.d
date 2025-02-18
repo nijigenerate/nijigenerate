@@ -11,51 +11,77 @@ import std.format;
 import std.utf;
 import std.string;
 import i18n;
+import std.algorithm;
+import std.array;
 
-void incInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)(T node) if (!is(T: MeshGroup) && !is(T: Part)) {
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable) : BaseInspector!(mode, T) if (!is(T: MeshGroup) && !is(T: Part)) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
     // The main type of anything that can be drawn to the screen
     // in nijilive.
-    if (incBeginCategory(__("Drawable"))) {
-        float adjustSpeed = 1;
-        ImVec2 avail = incAvailableSpace();
+    override
+    void run() {
+        if (targets.length == 0) return;
+        auto node = targets[0];
+        if (incBeginCategory(__("Drawable"))) {
+            float adjustSpeed = 1;
+            ImVec2 avail = incAvailableSpace();
 
-        igBeginGroup();
-            igTextColored(CategoryTextColor, __("Texture Offset"));
-            igPushItemWidth((avail.x-4f)/2f);
+            igBeginGroup();
+                igTextColored(CategoryTextColor, __("Texture Offset"));
+                igPushItemWidth((avail.x-4f)/2f);
 
-                // Translation X
-                igPushID(42);
-                if (incDragFloat("offset_x", &node.getMesh().origin.vector[0], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
-                    incActionPush(
-                        new NodeValueChangeAction!(Node, float)(
-                            "X",
-                            node, 
-                            incGetDragFloatInitialValue("offset_x"),
-                            node.getMesh().origin.vector[0],
-                            &node.getMesh().origin.vector[0]
-                        )
-                    );
-                }
-                igPopID();
-
-                igSameLine(0, 4);
-
-                // Translation Y
-                igPushID(43);
-                    if (incDragFloat("offset_y", &node.getMesh().origin.vector[1], adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
+                    // Translation X
+                    igPushID(42);
+                    if (_shared!(offsetX)(
+                        ()=>incDragFloat("offset_x", &offsetX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                        offsetX.apply();
                         incActionPush(
-                            new NodeValueChangeAction!(Node, float)(
-                                "Y",
-                                node, 
-                                incGetDragFloatInitialValue("offset_y"),
-                                node.getMesh().origin.vector[1],
-                                &node.getMesh().origin.vector[1]
+                            new NodeValueChangeAction!(Drawable[], float)(
+                                "X",
+                                targets, 
+                                targets.map!((n)=>incGetDragFloatInitialValue("offset_x")).array,
+                                targets.map!((n)=>offsetX.value).array,
+                                targets.map!((n)=>&n.getMesh().origin.vector[0]).array
                             )
                         );
                     }
-                igPopID();
-            igPopItemWidth();
-        igEndGroup();
+                    igPopID();
+
+                    igSameLine(0, 4);
+
+                    // Translation Y
+                    igPushID(43);
+                        if (_shared!(offsetY)(
+                            ()=>incDragFloat("offset_y", &offsetY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
+                            offsetY.apply();
+                            incActionPush(
+                                new NodeValueChangeAction!(Drawable[], float)(
+                                    "Y",
+                                    targets, 
+                                    targets.map!((n)=>incGetDragFloatInitialValue("offset_y")).array,
+                                    targets.map!((n)=>offsetY.value).array,
+                                    targets.map!((n)=>&n.getMesh().origin.vector[1]).array
+                                )
+                            );
+                        }
+                    igPopID();
+                igPopItemWidth();
+            igEndGroup();
+        }
+        incEndCategory();
     }
-    incEndCategory();
+
+    mixin MultiEdit;
+    mixin(attribute!(float, "offsetX", (x)=>x~".getMesh().origin.vector[0]", (x, v)=>x~".getMesh().origin.vector[0]="~v));
+    mixin(attribute!(float, "offsetY", (x)=>x~".getMesh().origin.vector[1]", (x, v)=>x~".getMesh().origin.vector[1]="~v));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        offsetX.capture();
+        offsetY.capture();
+    }
 }

@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.texviewer;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
 import std.string;
 import nijigenerate.utils.link;

@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.imgexport;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.core.i18n;
@@ -108,8 +108,8 @@ protected:
                 }
 
                 igSpacing();
-                igCheckbox(__("Allow Transparency"), &transparency);
-                igCheckbox(__("Use Post Processing"), &postprocessing);
+                ngCheckbox(__("Allow Transparency"), &transparency);
+                ngCheckbox(__("Use Post Processing"), &postprocessing);
             }
             incEndCategory();
         }

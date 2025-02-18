@@ -91,6 +91,7 @@ protected:
             }
         }
         if (igBeginChild("##ViewportView", ImVec2(0, -38), false, flags)) {
+            MainViewport viewport = incViewport;
             igGetContentRegionAvail(&currSize);
             currSize = ImVec2(
                 clamp(currSize.x, 128, float.max), 
@@ -101,7 +102,7 @@ protected:
                 inSetViewport(cast(int)(currSize.x*incGetUIScale()), cast(int)(currSize.y*incGetUIScale()));
             }
 
-            incViewportPoll();
+            viewport.poll();
 
             // Ignore events within child windows *unless* drag started within
             // viewport.
@@ -111,18 +112,18 @@ protected:
                 actingInViewport = igIsMouseDown(ImGuiMouseButton.Left) ||
                     igIsMouseDown(ImGuiMouseButton.Middle) ||
                     igIsMouseDown(ImGuiMouseButton.Right);
-                incViewportUpdate();
-            } else if (incViewportAlwaysUpdate()) {
-                incViewportUpdate(true);
+                viewport.update();
+            } else if (incViewport.alwaysUpdate()) {
+                viewport.update(true);
             }
 
             auto style = igGetStyle();
             if (incShouldMirrorViewport) {
                 camera.scale.x *= -1;
-                incViewportDraw();
+                viewport.draw();
                 camera.scale.x *= -1;
             } else {
-                incViewportDraw();
+                viewport.draw();
             }
 
             int width, height;
@@ -163,7 +164,7 @@ protected:
             
             // Popup right click menu
             igPushStyleVar(ImGuiStyleVar.WindowPadding, priorWindowPadding);
-            if (incViewportHasMenu()) {
+            if (viewport.hasMenu()) {
                 static ImVec2 downPos;
                 ImVec2 currPos;
                 if (igIsItemHovered()) {
@@ -176,14 +177,14 @@ protected:
                         float dist = sqrt(((downPos.x-currPos.x)^^2)+((downPos.y-currPos.y)^^2));
                         
                         if (dist < 16) {
-                            incViewportMenuOpening();
+                            viewport.menuOpening();
                             igOpenPopup("ViewportMenu");
                         }
                     }
                 }
 
                 if (igBeginPopup("ViewportMenu")) {
-                    incViewportMenu();
+                    viewport.menu();
                     igEndPopup();
                 }
             }
@@ -192,18 +193,18 @@ protected:
             //igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
                 incBeginViewportToolArea("ToolArea", ImGuiDir.Left);
                     igPushStyleVar_Vec2(ImGuiStyleVar.FramePadding, ImVec2(6, 6));
-                        incViewportDrawTools();
+                        viewport.drawTools();
                     igPopStyleVar();
                 incEndViewportToolArea();
 
                 incBeginViewportToolArea("OptionsArea", ImGuiDir.Right);
                     igPushStyleVar_Vec2(ImGuiStyleVar.FramePadding, ImVec2(6, 6));
-                        incViewportDrawOptions();
+                        viewport.drawOptions();
                     igPopStyleVar();
                 incEndViewportToolArea();
 
                 incBeginViewportToolArea("ConfirmArea", ImGuiDir.Left, ImGuiDir.Down, false);
-                    incViewportDrawConfirmBar();
+                    viewport.drawConfirmBar();
                 incEndViewportToolArea();
                 if (incEditMode == EditMode.ModelEdit)
                     incViewportTransformHandle();

@@ -24,21 +24,20 @@ import nijigenerate.utils;
 import nijilive;
 import i18n;
 import std.utf;
+import std.algorithm;
 import std.string;
 import std.traits;
 import std.array;
 
 private {
 
-void delegate(Node)[] layoutInspectors;
-void delegate(Node, Parameter, vec2u)[] deformInspectors;
+Inspector!Node delegate()[] nodeInspectors;
 
 void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
     ngRegisterInspector!(ModelEditSubMode.Deform, Part)();
     ngRegisterInspector!(ModelEditSubMode.Deform, Composite)();
     ngRegisterInspector!(ModelEditSubMode.Deform, SimplePhysics)();
-    ngRegisterInspector!(ModelEditSubMode.Deform, PathDeformer)();
 
     ngRegisterInspector!(ModelEditSubMode.Layout, Node)();
     ngRegisterInspector!(ModelEditSubMode.Layout, ExCamera)();
@@ -48,83 +47,98 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Layout, SimplePhysics)();
     ngRegisterInspector!(ModelEditSubMode.Layout, MeshGroup)();
     ngRegisterInspector!(ModelEditSubMode.Layout, PathDeformer)();
+
+    ngRegisterInspector!(ModelEditSubMode.Layout, Puppet)();
 }
 
 }
 
 
-void ngRegisterInspector(ModelEditSubMode mode, T)() {
-    alias Inspector = incInspector!(mode, T);
-    static if (mode == ModelEditSubMode.Layout) {
-        layoutInspectors ~= (Node node) {
-            if (auto target = cast(T)node)
-                Inspector(target);
-        };
-    }
-    static if (mode == ModelEditSubMode.Deform) {
-        deformInspectors ~= (Node node, Parameter param, vec2u cursor) {
-            if (auto target = cast(T)node)
-                Inspector(target, param, cursor);
-        };
-    }
+void ngRegisterInspector(ModelEditSubMode mode, T: Node)() {
+    nodeInspectors ~= () => new NodeInspector!(mode, T)([], mode);
 }
 
-void neInspector(ModelEditSubMode mode, Args...)(Node node, Args args) {
-    static if (mode == ModelEditSubMode.Layout) {
-        foreach (ins; layoutInspectors) {
-            ins(node);
-        }
-    }
-    static if (mode == ModelEditSubMode.Deform) {
-        foreach (ins; deformInspectors) {
-            ins(node, args[0], args[1]);
-        }
-    }
+void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
+    nodeInspectors ~= () => new PuppetInspector([], mode);
 }
+
+
+InspectorHolder!Node ngNodeInspector(Node[] targets) {
+    auto mode = ngModelEditSubMode;
+    auto result = new InspectorHolder!Node(targets, mode);
+    result.setInspectors(nodeInspectors.map!((i) => i()).array);
+    return result;
+}
+
 
 /**
     The inspector panel
 */
 class InspectorPanel : Panel {
 private:
+    Puppet activePuppet = null;
+    Project activeProject = null;
 
+    InspectorHolder!Node activeNodeInspectors;
 
 protected:
+    void onChange(Node target, NotifyReason reason) {
+        if (reason == NotifyReason.StructureChanged || reason == NotifyReason.AttributeChanged) {
+            if (activeNodeInspectors)
+                activeNodeInspectors.capture(activeNodeInspectors.getTargets());
+        }
+    }
+
+    void onSelectionChanged(Node[] nodes) {
+        auto mode = ngModelEditSubMode;
+        activeNodeInspectors = new InspectorHolder!Node(nodes, mode);
+        activeNodeInspectors.setInspectors(nodeInspectors.map!((i) => i()).array);
+
+    }
+
     override
     void onUpdate() {
+        auto subMode = ngModelEditSubMode();
+        if (incActiveProject() != activeProject) {
+            activeProject = incActiveProject();
+            activeProject.SelectionChanged.connect(&onSelectionChanged);
+        }
+        if (incActivePuppet() != activePuppet) {
+            activePuppet = incActivePuppet();
+            if (activePuppet) {
+                Node rootNode = activePuppet.root;
+                rootNode.addNotifyListener(&onChange);
+            }
+            activeNodeInspectors = null;
+        }
+        if (!activeNodeInspectors) {
+            onSelectionChanged(incSelectedNodes());
+        }
+        if (activeNodeInspectors) {
+            activeNodeInspectors.subMode = subMode;
+        }
+
         if (incEditMode == EditMode.VertexEdit) {
             incLabelOver(_("In vertex edit mode..."), ImVec2(0, 0), true);
             return;
         }
 
         auto nodes = incSelectedNodes();
-        if (nodes.length == 1) {
-            Node node = nodes[0];
-            if (node !is null && node != incActivePuppet().root) {
-
-                // Per-edit mode inspector drawers
-                switch(incEditMode()) {
-                    case EditMode.ModelEdit:
-                        if (incArmedParameter()) {
-                            Parameter param = incArmedParameter();
-                            vec2u cursor = param.findClosestKeypoint();
-                            incCommonNonEditHeader(node);
-                            neInspector!(ModelEditSubMode.Deform)(node, param, cursor);
-                        } else {
-                            incModelModeHeader(node);
-                            neInspector!(ModelEditSubMode.Layout)(node);
-                        }
-                    
+        if (nodes.length > 0) {
+            // Per-edit mode inspector drawers
+            switch(incEditMode()) {
+                case EditMode.ModelEdit:
+                    Parameter param = incArmedParameter();
+                    vec2u cursor = param? param.findClosestKeypoint(): vec2u.init;
+                    if (activeNodeInspectors)
+                        activeNodeInspectors.inspect(param, cursor);
+                break;
+                default:
+                    incCommonNonEditHeader(nodes[0]);
                     break;
-                    default:
-                        incCommonNonEditHeader(node);
-                        break;
-                }
-            } else incInspector!(ModelEditSubMode.Layout)(incActivePuppet());
-        } else if (nodes.length == 0) {
-            incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
+            }
         } else {
-            incLabelOver(_("Can only inspect a single node..."), ImVec2(0, 0), true);
+            incLabelOver(_("No nodes selected..."), ImVec2(0, 0), true);
         }
     }
 
@@ -140,27 +154,3 @@ public:
     Generate logger frame
 */
 mixin incPanel!InspectorPanel;
-
-
-
-//
-// COMMON
-//
-
-void incCommonNonEditHeader(Node node) {
-    // Top level
-    igPushID(node.uuid);
-        string typeString = "%s".format(incTypeIdToIcon(node.typeId()));
-        auto len = incMeasureString(typeString);
-        incText(node.name);
-        igSameLine(0, 0);
-        incDummy(ImVec2(-len.x, len.y));
-        igSameLine(0, 0);
-        incText(typeString);
-    igPopID();
-    igSeparator();
-}
-
-//
-//  MODEL MODE
-//

@@ -59,7 +59,6 @@ protected:
     }
 
     void notifyChange(Node target, NotifyReason reason) {
-        import std.stdio;
         if (reason == NotifyReason.StructureChanged) {
             forceUpdatePreview = true;
         }

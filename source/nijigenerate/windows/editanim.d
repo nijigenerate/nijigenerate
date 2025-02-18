@@ -7,9 +7,9 @@
 */
 module nijigenerate.windows.editanim;
 import nijigenerate.widgets;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
-import nijigenerate;
+import nijigenerate.project;
 import std.string;
 import nijigenerate.utils.link;
 import nijilive;
@@ -88,7 +88,7 @@ protected:
 
 
         incBeginCategory(__("Options"), IncCategoryFlags.NoCollapse);
-            igCheckbox(__("Additive"), &newAnim.additive);
+            ngCheckbox(__("Additive"), &newAnim.additive);
             igInputFloat(__("Weight"), &newAnim.animationWeight);
             
             if (igDragInt(__("Frames"), &newAnim.length, 1, 1, int.max)) {

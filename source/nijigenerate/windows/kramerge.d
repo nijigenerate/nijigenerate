@@ -6,7 +6,8 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.kramerge;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
+import nijigenerate.windows.settings;
 import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate;
@@ -396,7 +397,7 @@ protected:
                     layerView();
                 igEndListBox();
                 
-                igCheckbox(__("Only show unmapped"), &onlyUnmapped);
+                ngCheckbox(__("Only show unmapped"), &onlyUnmapped);
             }
             igEndChild();
 
@@ -416,15 +417,15 @@ protected:
         igBeginGroup();
 
             // Auto-rename
-            igCheckbox(__("Auto-rename"), &renameMapped);
+            ngCheckbox(__("Auto-rename"), &renameMapped);
             incTooltip(_("Renames all mapped nodes to match the names of the KRA layer that was merged in to them."));
 
             igSameLine(0, 8);
-            igCheckbox(__("Re-translate"), &retranslateMapped);
+            ngCheckbox(__("Re-translate"), &retranslateMapped);
             incTooltip(_("Moves all nodes so that they visually match their position in the canvas."));
 
             // igSameLine(0, 8);
-            // igCheckbox(__("Re-sort"), &resortModel);
+            // ngCheckbox(__("Re-sort"), &resortModel);
             // incTooltip(_("[NOT IMPLEMENTED] Sorts all nodes zSorting position to match the sorting in the KRA."));
 
 
