@@ -30,6 +30,8 @@ interface Inspector(T) {
     ModelEditSubMode subMode();
     void subMode(ModelEditSubMode);
 }
+
+
 class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
 protected:
     T[] targets;
@@ -65,6 +67,7 @@ public:
     void subMode(ModelEditSubMode value) { mode = value; }
 }
 
+
 class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Deform, T: Node) : Inspector!Node {
 protected:
     T[] targets;
@@ -99,6 +102,7 @@ public:
     override
     void subMode(ModelEditSubMode value) { mode = value; }
 }
+
 
 class InspectorHolder(T) : Inspector!T {
 protected:
@@ -212,14 +216,6 @@ void ngMultiEditHeader(Node[] nodes) {
 
 /// Deformation View.
 
-void incInspectorDeformFloatDragVal(string name, string paramName, float adjustSpeed, Node node, Parameter param, vec2u cursor, bool rotation=false) {
-    float currFloat = incInspectorDeformGetValue(node, param, paramName, cursor);
-
-    if (ngInspectorDeformFloatDragVal(name, &currFloat, adjustSpeed, rotation)) {
-        incInspectorDeformSetValue(node, param, paramName, cursor, currFloat);
-    }
-}
-
 bool ngInspectorDeformFloatDragVal(string name, float* result, float adjustSpeed, bool rotation=false) {
     // Convert to degrees for display
     float currFloat;
@@ -236,86 +232,17 @@ bool ngInspectorDeformFloatDragVal(string name, float* result, float adjustSpeed
     }
     return false;
 }
-void incInspectorDeformInputFloat(string name, string paramName, float step, float stepFast, Node node, Parameter param, vec2u cursor) {
-    float currFloat = incInspectorDeformGetValue(node, param, paramName, cursor);
-    if (ngInspectorDeformInputFloat(name, &currFloat, step, stepFast)) {
-        incInspectorDeformSetValue(node, param, paramName, cursor, currFloat);
-    }
-}
+
 
 bool ngInspectorDeformInputFloat(string name, float* result, float step, float stepFast) {
     return igInputFloat(name.toStringz, result, step, stepFast, "%.2f");
 }
 
-void incInspectorDeformColorEdit3(string[3] paramNames, Node node, Parameter param, vec2u cursor) {
-    import std.math : isNaN;
-    float[3] rgb = [float.nan, float.nan, float.nan];
-    float[3] rgbadj = [1, 1, 1];
-    bool[3] rgbchange = [false, false, false];
-    ValueParameterBinding pbr = cast(ValueParameterBinding)param.getBinding(node, paramNames[0]);
-    ValueParameterBinding pbg = cast(ValueParameterBinding)param.getBinding(node, paramNames[1]);
-    ValueParameterBinding pbb = cast(ValueParameterBinding)param.getBinding(node, paramNames[2]);
-
-    if (pbr) {
-        rgb[0] = pbr.getValue(cursor);
-        rgbadj[0] = rgb[0];
-    }
-
-    if (pbg) {
-        rgb[1] = pbg.getValue(cursor);
-        rgbadj[1] = rgb[1];
-    }
-
-    if (pbb) {
-        rgb[2] = pbb.getValue(cursor);
-        rgbadj[2] = rgb[2];
-    }
-
-    if (igColorEdit3("###COLORADJ", &rgbadj)) {
-
-        // RED
-        if (rgbadj[0] != 1) {
-            auto b = cast(ValueParameterBinding)param.getOrAddBinding(node, paramNames[0]);
-            b.setValue(cursor, rgbadj[0]);
-        } else if (pbr) {
-            pbr.setValue(cursor, rgbadj[0]);
-        }
-
-        // GREEN
-        if (rgbadj[1] != 1) {
-            auto b = cast(ValueParameterBinding)param.getOrAddBinding(node, paramNames[1]);
-            b.setValue(cursor, rgbadj[1]);
-        } else if (pbg) {
-            pbg.setValue(cursor, rgbadj[1]);
-        }
-
-        // BLUE
-        if (rgbadj[2] != 1) {
-            auto b = cast(ValueParameterBinding)param.getOrAddBinding(node, paramNames[2]);
-            b.setValue(cursor, rgbadj[2]);
-        } else if (pbb) {
-            pbb.setValue(cursor, rgbadj[2]);
-        }
-    }
-}
-
-void incInspectorDeformSliderFloat(string name, string paramName, float min, float max, Node node, Parameter param, vec2u cursor) {
-    float currFloat = incInspectorDeformGetValue(node, param, paramName, cursor);
-    if (ngInspectorDeformSliderFloat(name, &currFloat, min, max)) {
-        incInspectorDeformSetValue(node, param, paramName, cursor, currFloat);
-    }
-}
 
 bool ngInspectorDeformSliderFloat(string name, float* result, float min, float max) {
     return (igSliderFloat(name.toStringz, result, min, max, "%.2f"));
 }
 
-void incInspectorDeformDragFloat(string name, string paramName, float speed, float min, float max, const(char)* fmt, Node node, Parameter param, vec2u cursor) {
-    float value = incInspectorDeformGetValue(node, param, paramName, cursor);
-    if (ngInspectorDeformDragFloat(name, &value, speed, min, max, fmt)) {
-        incInspectorDeformSetValue(node, param, paramName, cursor, value);
-    }
-}
 
 bool ngInspectorDeformDragFloat(string name, float* result, float speed, float min, float max, const(char)* fmt) {
     return igDragFloat(name.toStringz, result, speed, min, max, fmt);
