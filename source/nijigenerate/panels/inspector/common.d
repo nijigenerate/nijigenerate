@@ -453,12 +453,14 @@ mixin template MultiEdit() {
             float[3] rgbadj = [varR.value, varG.value, varB.value];
 
             if (igColorEdit3("###COLORADJ", &rgbadj)) {
+                incActionPushGroup();
                 varR.value = rgbadj[0];
                 varR.apply();
                 varG.value = rgbadj[1];
                 varG.apply();
                 varB.value = rgbadj[2];
                 varB.apply();
+                incActionPopGroup();
             }
         } else if (!varR.isShared || !varG.isShared || !varB.isShared) {
             // 最大のオブジェクト名の幅を計算
@@ -498,12 +500,14 @@ mixin template MultiEdit() {
 
                     // 選択された場合に色を適用
                     if (selected) {
+                        incActionPushGroup();
                         varR.value = rgb[0];
                         varR.apply();
                         varG.value = rgb[1];
                         varG.apply();
                         varB.value = rgb[2];
                         varB.apply();
+                        incActionPopGroup();
                         break;
                     }
                 }
