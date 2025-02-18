@@ -271,6 +271,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Composite
         if (targets.length == 0) return;
         auto node = targets[0];
 
+        updateDeform(param, cursor);
+
         if (incBeginCategory(__("Composite"))) {
             igBeginGroup();
                 igIndent(16);
@@ -279,12 +281,12 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Composite
 
                         igPushID(0);
                             incText(_("Tint (Multiply)"));
-                            incInspectorDeformColorEdit3(["tint.r", "tint.g", "tint.b"], node, param, cursor);
+                            __deformRGB!(tintR, tintG, tintB);
                         igPopID();
                         
                         igPushID(1);
                             incText(_("Tint (Screen)"));
-                            incInspectorDeformColorEdit3(["screenTint.r", "screenTint.g", "screenTint.b"], node, param, cursor);
+                            __deformRGB!(screenTintR, screenTintG, screenTintB);
                         igPopID();
                         
 
@@ -298,10 +300,31 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Composite
             igEndGroup();
 
             incText(_("Opacity"));
-            incInspectorDeformSliderFloat("###Opacity", "opacity", 0, 1f, node, param, cursor);
+            _deform!opacity((s,v)=>ngInspectorDeformSliderFloat(s, v, 0, 1f));
             igSpacing();
             igSpacing();
         }
         incEndCategory();
+    }
+
+    mixin MultiEdit;
+    mixin(deformation!("opacity"));
+    mixin(deformation!("tintR", "tint.r"));
+    mixin(deformation!("tintG", "tint.g"));
+    mixin(deformation!("tintB", "tint.b"));
+    mixin(deformation!("screenTintR", "screenTint.r"));
+    mixin(deformation!("screenTintG", "screenTint.g"));
+    mixin(deformation!("screenTintB", "screenTint.b"));
+
+    override
+    void capture(Node[] nodes) {
+        super.capture(nodes);
+        opacity.capture();
+        tintR.capture();
+        tintG.capture();
+        tintB.capture();
+        screenTintR.capture();
+        screenTintG.capture();
+        screenTintB.capture();
     }
 }
