@@ -198,7 +198,40 @@ protected:
             execFilter(history[$-1]);
             forceUpdatePreview = false;
         }
+        // temp variables
+        float scrollDelta = 0;
+        auto avail = incAvailableSpace();
+
+        // Get the screen position of our node window
+        // as well as the size for the drag/drop scroll
+        ImVec2 screenPos;
+        igGetCursorScreenPos(&screenPos);
+        ImRect crect = ImRect(
+            screenPos,
+            ImVec2(screenPos.x+avail.x, screenPos.y+avail.y)
+        );
+
+        // Handle figuring out whether the user is trying to scroll the list via drag & drop
+        // We're only peeking in to the contents of the payload.
+        incBeginDragDropFake();
+            auto data = igAcceptDragDropPayload("_PUPPETNTREE", ImGuiDragDropFlags.AcceptPeekOnly | ImGuiDragDropFlags.SourceAllowNullID);
+            if (igIsMouseDragging(ImGuiMouseButton.Left) && data && data.Data) {
+                ImVec2 mousePos;
+                igGetMousePos(&mousePos);
+
+                // If mouse is inside the window
+                if (mousePos.x > crect.Min.x && mousePos.x < crect.Max.x) {
+                    float scrollSpeed = (4*60)*deltaTime();
+
+                    if (mousePos.y < crect.Min.y+32 && mousePos.y >= crect.Min.y) scrollDelta = -scrollSpeed;
+                    if (mousePos.y > crect.Max.y-32 && mousePos.y <= crect.Max.y) scrollDelta = scrollSpeed;
+                }
+            }
+        incEndDragDropFake();
+
         if (igBeginChild("ShellMain", ImVec2(0, -34), false)) {
+            auto window = igGetCurrentWindow();
+            igSetScrollY(window.Scroll.y+scrollDelta);
             history[historyIndex].output.onUpdate();
         }
         igEndChild();
