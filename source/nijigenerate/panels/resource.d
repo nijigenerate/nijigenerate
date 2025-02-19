@@ -67,14 +67,23 @@ class ResourcePanelConfig : ISerializable {
         if (output) {
             auto state = serializer.objectBegin();
                 serializer.putKey("nextInHorizontal");
-                auto arr = serializer.arrayBegin();
+                auto arr1 = serializer.arrayBegin();
                     foreach(uuid; output.layout.keys()) {
                         if (output.layout[uuid].nextInHorizontal) {
                             serializer.elemBegin;
                             serializer.serializeValue(uuid);
                         }
                     }
-                serializer.arrayEnd(arr);
+                serializer.arrayEnd(arr1);
+                serializer.putKey("folded");
+                auto arr2 = serializer.arrayBegin();
+                    foreach(uuid; output.layout.keys()) {
+                        if (output.layout[uuid].folded) {
+                            serializer.elemBegin;
+                            serializer.serializeValue(uuid);
+                        }
+                    }
+                serializer.arrayEnd(arr2);
             serializer.objectEnd(state);
         }
     }
@@ -90,13 +99,26 @@ class ResourcePanelConfig : ISerializable {
         auto view = singleton.history[0];
         auto output = cast(IconTreeOutput)view.output;
 
-        auto elements = data["nextInHorizontal"].byElement;
-        while(!elements.empty) {
-            uint uuid;
-            elements.front.deserializeValue(uuid);
-            elements.popFront;
-            output.layout.require(uuid);
-            output.layout[uuid].nextInHorizontal = true;
+        if (!data["nextInHorizontal"].isEmpty) {
+            auto elements = data["nextInHorizontal"].byElement;
+            while(!elements.empty) {
+                uint uuid;
+                elements.front.deserializeValue(uuid);
+                elements.popFront;
+                output.layout.require(uuid);
+                output.layout[uuid].nextInHorizontal = true;
+            }
+        }
+
+        if (!data["folded"].isEmpty) {
+            auto elements = data["folded"].byElement;
+            while(!elements.empty) {
+                uint uuid;
+                elements.front.deserializeValue(uuid);
+                elements.popFront;
+                output.layout.require(uuid);
+                output.layout[uuid].folded = true;
+            }
         }
 
         return null;
