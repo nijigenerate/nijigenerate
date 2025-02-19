@@ -256,7 +256,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                         igSameLine(0, 2);
                         if (igMenuItem(__(type), "", false, true)) {
                             Node node = inInstantiateNode(type);
-                            node.copyFrom(n, true, true);
+                            node.copyFrom(n, true, false);
                             incActionPush(new NodeReplaceAction(n, node, true));
                             node.notifyChange(node, NotifyReason.StructureChanged);
                         }
