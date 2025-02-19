@@ -215,17 +215,16 @@ public:
         srcNode = src;
         toNode = to;
 
-        if (src.parent !is null)
-            children = src.children.dup;
-        else if (to.parent !is null)
-            children = to.children.dup;
-
         if (cast(DynamicComposite)srcNode !is null && 
             cast(DynamicComposite)toNode is null &&
             cast(Part)toNode !is null) {
             deepCopy = false;
         }
         this.deepCopy = deepCopy;
+        if (deepCopy) {
+            if (srcNode.children.length > 0)
+                children = srcNode.children.dup;
+        }
 
         // Set visual name
         descrName = src.name;
@@ -243,14 +242,18 @@ public:
         auto parent = toNode.parent;
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(toNode);
-        Transform tmpTransform = toNode.transform;
+        Transform tmpTransform = toNode.localTransform;
+        auto childTransforms   = children? children.map!((c)=>c.localTransform).array: null;
         toNode.reparent(null, 0);
-        toNode.localTransform = tmpTransform;
-        srcNode.reparent(parent, pOffset);
+        srcNode.reparent(parent, pOffset, true);
+        srcNode.localTransform = tmpTransform;
+        srcNode.transformChanged();
         updateParameterBindings();
-        if (deepCopy) {
+        if (deepCopy && children) {
             foreach (i, child; children) {
-                child.reparent(srcNode, i);
+                child.reparent(srcNode, i, true);
+                child.localTransform = childTransforms[i];
+                child.transformChanged();
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
         } else
@@ -264,14 +267,18 @@ public:
         auto parent = srcNode.parent;
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(srcNode);
-        Transform tmpTransform = srcNode.transform;
+        Transform tmpTransform = srcNode.localTransform;
+        auto childTransforms   = children? children.map!((c)=>c.localTransform).array: null;
         srcNode.reparent(null, 0);
-        srcNode.localTransform = tmpTransform;
-        toNode.reparent(parent, pOffset);
+        toNode.reparent(parent, pOffset, true);
+        toNode.localTransform = tmpTransform;
+        toNode.transformChanged();
         updateParameterBindings();
-        if (deepCopy) {
+        if (deepCopy && children) {
             foreach (i, child; children) {
-                child.reparent(toNode, i);
+                child.reparent(toNode, i, true);
+                child.localTransform = childTransforms[i];
+                child.transformChanged();
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
         } else
