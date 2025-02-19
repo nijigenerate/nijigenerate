@@ -432,6 +432,7 @@ protected:
         ImGuiTreeNodeFlags flags;
         if (res !in children) 
             flags |= ImGuiTreeNodeFlags.Leaf;
+
         flags |= ImGuiTreeNodeFlags.DefaultOpen;
         flags |= ImGuiTreeNodeFlags.OpenOnArrow;
         return flags;
@@ -584,12 +585,23 @@ protected:
         ImRect bounds;
         bool nextInHorizontal = false;
         bool scrolledOut = false;
+        bool folded = false;
     }
     SubItemLayout[uint] _layout;
     bool prevMouseDown = false;
     bool mouseDown = false;
     bool showRootThumb = false;
     Snapshot snapshot = null;
+
+    override
+    ImGuiTreeNodeFlags setFlag(Resource res) {
+        auto flags = super.setFlag(res);
+        if (res.uuid in layout && layout[res.uuid].folded) {
+            flags &= ~ImGuiTreeNodeFlags.DefaultOpen;
+        }
+        return flags;
+    }
+
 
     void drawNode(Resource res, Node node, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
         bool selected = incNodeInSelection(node);
@@ -910,6 +922,9 @@ public:
                         foreach (i; 0..(subParentUUIDs.length - parentUUIDs.length)) {
                             igEndChild();
                         }
+                        if (res.uuid in layout) {
+                            layout[res.uuid].folded = false;
+                        }
                     }
                     igTreePop();
                 }
@@ -921,6 +936,10 @@ public:
                     } else {
                         layout[res.uuid].scrolledOut = true;
                     }
+                }
+                if (!opened && res in children) {
+                    if (res.uuid in layout && !layout[res.uuid].scrolledOut)
+                        layout[res.uuid].folded = true;
                 }
                 foreach (parentUUID; parentUUIDs) {
                     if (parentUUID != InInvalidUUID) {
