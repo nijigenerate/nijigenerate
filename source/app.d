@@ -11,6 +11,7 @@ import nijigenerate.core;
 import nijigenerate.core.settings;
 import nijigenerate.utils.crashdump;
 import nijigenerate.panels;
+import nijigenerate.panels.resource;
 import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.core.actionstack;
@@ -72,6 +73,8 @@ int main(string[] args)
         incInitExt();
 
         incInitFlipConfig();
+
+        ngInitResourcePanel();
 
         // Initialize video exporting
         incInitVideoExport();
