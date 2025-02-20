@@ -32,8 +32,10 @@ private {
     Node[] clipboardNodes;
 
     void copyToClipboard(Node[] nodes) {
+        clipboardNodes.length = 0;
         foreach (node; nodes) {
-            clipboardNodes ~= node.dup;
+            auto newNode = node.dup;
+            clipboardNodes ~= newNode;
         }
     }
 
