@@ -878,6 +878,7 @@ public:
             bool popupVisited = popupOpened is null;
 
             ImRect traverse(Resource res, ref bool prevHorz, ref uint[] parentUUIDs) {
+                auto avail = incAvailableSpace();
                 if (popupOpened == res) popupVisited = true;
                 ImGuiTreeNodeFlags flags = setFlag(res);
                 bool nextInHorizontal = res.uuid in layout && layout[res.uuid].nextInHorizontal;
@@ -938,8 +939,19 @@ public:
                     }
                 }
                 if (!opened && res in children) {
-                    if (res.uuid in layout && !layout[res.uuid].scrolledOut)
-                        layout[res.uuid].folded = true;
+                    bool outOfArea = result.Min.y == result.Max.y || result.Min.y > avail.y || result.Min.y < 0;
+                    if (!outOfArea) {
+                        layout.require(res.uuid);
+                        if (!layout[res.uuid].folded) {
+                            writefln(" fold  : %s,%s <=>%s", res.name, result, avail);
+                            layout[res.uuid].folded = true;
+                        }
+                    }
+                } else if (opened && res.uuid in layout) {
+                    if (layout[res.uuid].folded) {
+                            writefln(" unfold: %s,%s <=>%s", res.name, result, avail);
+                            layout[res.uuid].folded = false;
+                    }
                 }
                 foreach (parentUUID; parentUUIDs) {
                     if (parentUUID != InInvalidUUID) {
