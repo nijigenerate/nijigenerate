@@ -41,6 +41,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                 if (physicsEnabled) {
                     if (node.driver is null) {
                         node.driver = new DefaultDriver(node);
+                        capture(cast(Node[])targets);
                     }
                 } else {
                     if (node.driver !is null) {
@@ -77,12 +78,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                         if ((cast(ConnectedPendulumDriver)node.driver) is null) {
                             node.driver = new ConnectedPendulumDriver(node);
                         }
+                        capture(cast(Node[])targets);
                     }
 
                     if (igSelectable(__("SpringPendulum"), cast(ConnectedSpringPendulumDriver)node.driver !is null)) {
                         if ((cast(ConnectedSpringPendulumDriver)node.driver) is null) {
                             node.driver = new ConnectedSpringPendulumDriver(node);
                         }
+                        capture(cast(Node[])targets);
                     }
 
                     igEndCombo();
@@ -153,17 +156,17 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
     }
 
     mixin MultiEdit;
-    mixin(attribute!(bool, "physicsEnabled", (x)=>"("~x~".driver is null)", (x, v)=>""));
-    mixin(attribute!(float, "gravity", (x)=>_pendulum(x)~".gravity", 
-                                       (x, v)=>_pendulum(x)~".gravity = "~v));
-    mixin(attribute!(float, "restoreConstant", (x)=>_pendulum(x)~".restoreConstant", 
-                                               (x, v)=>_pendulum(x)~".restoreConstant = "~v));
-    mixin(attribute!(float, "damping", (x)=>_pendulum(x)~".damping", 
-                                       (x, v)=>_pendulum(x)~".damping = "~v));
-    mixin(attribute!(float, "inputScale", (x)=>_pendulum(x)~".inputScale", 
-                                          (x, v)=>_pendulum(x)~".inputScale = "~v));
-    mixin(attribute!(float, "propagateScale", (x)=>_pendulum(x)~".propagateScale", 
-                                              (x, v)=>_pendulum(x)~".propagateScale = "~v));
+    mixin(attribute!(bool, "physicsEnabled",   (x)=>"("~x~".driver is null)", (x, v)=>""));
+    mixin(attribute!(float, "gravity",         (x   )=>get_prop!float(_pendulum(x), "gravity"), 
+                                               (x, v)=>set_prop!float(_pendulum(x), "gravity", "v") ));
+    mixin(attribute!(float, "restoreConstant", (x   )=>get_prop!float(_pendulum(x), "restoreConstant"), 
+                                               (x, v)=>set_prop!float(_pendulum(x), "restoreConstant", "v")));
+    mixin(attribute!(float, "damping",         (x   )=>get_prop!float(_pendulum(x), "damping"), 
+                                               (x, v)=>set_prop!float(_pendulum(x), "damping", "v")));
+    mixin(attribute!(float, "inputScale",      (x   )=>get_prop!float(_pendulum(x), "inputScale"), 
+                                               (x, v)=>set_prop!float(_pendulum(x), "inputScale", "v")));
+    mixin(attribute!(float, "propagateScale",  (x   )=>get_prop!float(_pendulum(x), "propagateScale"), 
+                                               (x, v)=>set_prop!float(_pendulum(x), "propagateScale", "v")));
 
     override
     void capture(Node[] targets) {
@@ -179,5 +182,11 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 private:
     static string _pendulum(string x) {
         return "() { if (auto d = cast(ConnectedPendulumDriver)("~x~".driver)) { return d; } else {return null;} }()";
+    }
+    static string get_prop(type)(string x, string prop) {
+        return "(x) {return x? x."~prop~": "~type.stringof~".init; }("~x~")";
+    }
+    static string set_prop(type)(string x, string prop, string v) {
+        return "if (auto x = "~x~") x."~prop~"="~v;
     }
 }
