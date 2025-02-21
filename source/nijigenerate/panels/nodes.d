@@ -88,6 +88,29 @@ private {
             return name;
         }
     }
+
+
+    void insertNodesAux(Node[] parents, Node[] children, string className, string suffixName) {
+        if (children && parents.length != children.length)
+            children = null;
+        incActionPushGroup();
+        foreach (i, p; parents) {
+            Node newChild = inInstantiateNode(className, null);
+            string nodeName = null;
+            if (suffixName && suffixName.length != 0) {
+                if (children)
+                    nodeName = children[i].name ~ suffixName;
+                else
+                    nodeName = p.name ~ suffixName;
+            }
+            incAddChildWithHistory(newChild, p, nodeName);
+            if (children) {
+                newChild.localTransform.translation = children[i].localTransform.translation;
+                incActionPush(new NodeMoveAction([children[i]], newChild));
+            }
+        }
+        incActionPopGroup();
+    }
 }
 
 void incReloadNode(Node node) {
@@ -98,18 +121,46 @@ void incReloadNode(Node node) {
     node.clearCache();
 }
 
+void ngAddNodes(Node[] parents, string className, string _suffixName = null) {
+    insertNodesAux(parents, null, className, _suffixName);
+}
+
+void ngInsertNodes(Node[] children, string className, string _suffixName = null) {
+    insertNodesAux(children.map!((v)=>v.parent).array, children, className, _suffixName);
+}
+
+string ngGetCommonNodeType(Node[] nodes) {
+    string type = null;
+    foreach (node; nodes) {
+        if (!type) { 
+            type = node.typeId; 
+        } else if (type != node.typeId) {
+            return null;
+        }
+    }
+    return type;
+}
+
+void ngConvertTo(Node[] nodes, string toType) {
+    if (!toType) return;
+    if (nodes.length == 0) return;
+
+    auto group = new GroupAction();
+    foreach (node; nodes) {
+        Node newNode = inInstantiateNode(toType);
+        newNode.copyFrom(node, true, false);
+        group.addAction(new NodeReplaceAction(node, newNode, true));
+        newNode.notifyChange(newNode, NotifyReason.StructureChanged);
+    }
+    incActionPush(group);
+}
+
 void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = false)(Node n) {
     if (title == null || igBeginPopup(title)) {
         
         auto selected = incSelectedNodes();
         
-        void insertNode(Node[] parents = null, Node[] children = null) {
-            if (parents is null) {
-                parents = incSelectedNodes();
-            }
-            if (children !is null && parents.length != children.length) {
-                children = null;
-            }
+        void insertNode(void function(Node[], string, string) callback) {
             auto NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
                 if (ClassName is null) {
                     ClassName = NodeName;
@@ -122,24 +173,8 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                 igSameLine(0, 2);
 
                 if (igMenuItem(__(NodeLabel), null, false, true)) {
-                    incActionPushGroup();
-                    foreach (i, p; parents) {
-                        Node newChild = inInstantiateNode(ClassName, null);
-                        string nodeName = null;
-                        if (suffixName && suffixName.length != 0) {
-                            if (children)
-                                nodeName = children[i].name ~ suffixName;
-                            else
-                                nodeName = p.name ~ suffixName;
-                        }
-                        incAddChildWithHistory(newChild, p, nodeName);
-                        if (children) {
-                            newChild.localTransform.translation = children[i].localTransform.translation;
-                            incActionPush(new NodeMoveAction([children[i]], newChild));
-                        }
-                    }
+                    callback(incSelectedNodes, ClassName, suffixName);
                     suffixName = null;
-                    incActionPopGroup();
                 }
             }
 
@@ -157,18 +192,18 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             NodeCreateMenu("MeshGroup", "Mesh Group");
             NodeCreateMenu("DynamicComposite", "Dynamic Composite");
             NodeCreateMenu("PathDeformer", "Path Deformer");
-            NodeCreateMenu("Camera", "Camera", "Camera");
+            NodeCreateMenu("Camera", "Camera");
         }
 
         if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
 
-            insertNode();
+            insertNode(&ngAddNodes);
             igEndMenu();
         }
 
         if (igBeginMenu(__(nodeActionToIcon!icon("Insert")), true)) {
 
-            insertNode(incSelectedNodes.map!((v)=>v.parent).array, incSelectedNodes);
+            insertNode(&ngInsertNodes);
             igEndMenu();
         }
 
@@ -251,16 +286,14 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                 n.centralize();
             }
 
-            if (n.typeId in conversionMap) {
+            auto fromType = ngGetCommonNodeType(incSelectedNodes);
+            if (fromType in conversionMap) {
                 if (igBeginMenu(__(nodeActionToIcon!icon("Convert To...")), true)) {
-                    foreach (type; conversionMap[n.typeId]) {
-                        incText(incTypeIdToIcon(type));
+                    foreach (toType; conversionMap[fromType]) {
+                        incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
-                        if (igMenuItem(__(type), "", false, true)) {
-                            Node node = inInstantiateNode(type);
-                            node.copyFrom(n, true, false);
-                            incActionPush(new NodeReplaceAction(n, node, true));
-                            node.notifyChange(node, NotifyReason.StructureChanged);
+                        if (igMenuItem(__(toType), "", false, true)) {
+                            ngConvertTo(incSelectedNodes, toType);
                         }
                     }
                     igEndMenu();
