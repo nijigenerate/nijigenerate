@@ -111,19 +111,6 @@ private {
         }
         incActionPopGroup();
     }
-
-    string commonType(Node[] nodes) {
-        string type = null;
-        foreach (node; nodes) {
-            if (!type) { 
-                type = node.typeId; 
-            } else if (type != node.typeId) {
-                return null;
-            }
-        }
-        return type;
-    }
-
 }
 
 void incReloadNode(Node node) {
@@ -140,6 +127,18 @@ void ngAddNodes(Node[] parents, string className, string _suffixName = null) {
 
 void ngInsertNodes(Node[] children, string className, string _suffixName = null) {
     insertNodesAux(children.map!((v)=>v.parent).array, children, className, _suffixName);
+}
+
+string ngGetCommonNodeType(Node[] nodes) {
+    string type = null;
+    foreach (node; nodes) {
+        if (!type) { 
+            type = node.typeId; 
+        } else if (type != node.typeId) {
+            return null;
+        }
+    }
+    return type;
 }
 
 void ngConvertTo(Node[] nodes, string toType) {
@@ -287,7 +286,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                 n.centralize();
             }
 
-            auto fromType = commonType(incSelectedNodes);
+            auto fromType = ngGetCommonNodeType(incSelectedNodes);
             if (fromType in conversionMap) {
                 if (igBeginMenu(__(nodeActionToIcon!icon("Convert To...")), true)) {
                     foreach (toType; conversionMap[fromType]) {
