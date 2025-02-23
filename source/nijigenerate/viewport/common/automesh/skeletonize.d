@@ -18,6 +18,7 @@ import std.stdio;
 import std.math: abs;
 import std.conv;
 import std.array;
+import std.algorithm.iteration: uniq;
 
 alias Point = vec2u; // vec2u は (uint x, uint y) を想定（必要に応じて調整）
 
@@ -103,10 +104,6 @@ private:
     // 2. Zhang-Suen 細線化アルゴリズム（NDslice を用いる）
     void zhangSuenThinning(T)(T imbin)
     {
-        import std.algorithm : sort;
-        import std.algorithm.iteration: uniq;
-        import std.array : array;
-        
         // 画像サイズのローカル変数化
         ulong h = imbin.shape[0];
         ulong w = imbin.shape[1];
