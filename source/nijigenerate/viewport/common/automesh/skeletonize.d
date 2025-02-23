@@ -103,80 +103,137 @@ private:
     // 2. Zhang-Suen 細線化アルゴリズム（NDslice を用いる）
     void zhangSuenThinning(T)(T imbin)
     {
-        bool changed = true;
-        long loop = 0;
-        while (changed) {
-            long marked = 0;
-            long altered = 0;
-            changed = false;
-            // サブイテレーション1用のマーカー（imbin と同じ形状の NDslice）
-            auto markers = imbin.dup; // 値の複製。以降、0 を設定する場所がマーカーとする
+        import std.algorithm : sort;
+        import std.algorithm.iteration: uniq;
+        import std.array : array;
+        
+        // 画像サイズのローカル変数化
+        ulong h = imbin.shape[0];
+        ulong w = imbin.shape[1];
 
-            // サブイテレーション 1
-            for (int i = 1; i < imbin.shape[0] - 1; i++) {
-                for (int j = 1; j < imbin.shape[1] - 1; j++) {
-                    if (!imbin[i, j])
-                        continue;
-                    int bp = countNeighbors(imbin, i, j);
-                    if (bp < 2 || bp > 6)
-                        continue;
-                    int ap = countTransitions(imbin, i, j);
-                    if (ap != 1)
-                        continue;
-                    if (imbin[i - 1, j] && imbin[i, j + 1] && imbin[i + 1, j])
-                        continue;
-                    if (imbin[i, j + 1] && imbin[i + 1, j] && imbin[i, j - 1])
-                        continue;
-                    // マーカーとして 0 を設定（削除候補）
-                    markers[i, j] = 0;
-                    changed = true;
-                    marked ++;
-                }
+        // 初期候補セット: 内部領域（境界を除く）の前景画素全て
+        Point[] candidates;
+        for (int i = 1; i < h - 1; i++) {
+            for (int j = 1; j < w - 1; j++) {
+                if (imbin[i, j])
+                    candidates ~= Point(j, i);  // Point(x, y)
             }
-            // マーカーに従い削除 (サブイテレーション 1)
-            foreach (i; 0..markers.shape[0]) {
-                foreach (j; 0..markers.shape[1]) {
-                    if (markers[i, j] == 0) {
-                        imbin[i, j] = 0;
-                        altered ++;
+        }
+        
+        bool changedOverall = true;
+        
+        // ループ：候補セットが空になるか、変更がなくなるまで
+        while (changedOverall) {
+            changedOverall = false;
+            
+            // --- サブイテレーション 1 ---
+            Point[] toDelete;
+            foreach (pt; candidates) {
+                int i = pt.y;
+                int j = pt.x;
+                if (!imbin[i, j])
+                    continue;
+                int bp = countNeighbors(imbin, i, j);
+                if (bp < 2 || bp > 6)
+                    continue;
+                int ap = countTransitions(imbin, i, j);
+                if (ap != 1)
+                    continue;
+                if (imbin[i - 1, j] && imbin[i, j + 1] && imbin[i + 1, j])
+                    continue;
+                if (imbin[i, j + 1] && imbin[i + 1, j] && imbin[i, j - 1])
+                    continue;
+                // 条件を満たす場合は削除対象に追加
+                toDelete ~= pt;
+            }
+            
+            Point[] newCandidates;
+            if (toDelete.length > 0) {
+                changedOverall = true;
+                // 削除対象の画素を0に設定し、その近傍を新たな候補に追加
+                foreach (pt; toDelete) {
+                    int i = pt.y;
+                    int j = pt.x;
+                    imbin[i, j] = 0;
+                    // 近傍 (8方向) を候補に追加（重複は後で除去）
+                    for (int di = -1; di <= 1; di++) {
+                        for (int dj = -1; dj <= 1; dj++) {
+                            int ni = i + di;
+                            int nj = j + dj;
+                            // 範囲チェック：境界は除外
+                            if (ni < 1 || ni >= h - 1 || nj < 1 || nj >= w - 1)
+                                continue;
+                            newCandidates ~= Point(nj, ni);
+                        }
                     }
                 }
+                // 重複除去：y座標、x座標でソートしてユニークな候補に
+                newCandidates.sort!((a, b) =>
+                    (a.y < b.y) || (a.y == b.y && a.x < b.x)
+                );
+                newCandidates = newCandidates.uniq.array;
             }
-            // サブイテレーション 2 用のマーカー再生成
-            marked = 0;
-            altered = 0;
-            markers = imbin.dup;
-            // サブイテレーション 2
-            for (int i = 1; i < imbin.shape[0] - 1; i++) {
-                for (int j = 1; j < imbin.shape[1] - 1; j++) {
-                    if (!imbin[i, j])
-                        continue;
-                    int bp = countNeighbors(imbin, i, j);
-                    if (bp < 2 || bp > 6)
-                        continue;
-                    int ap = countTransitions(imbin, i, j);
-                    if (ap != 1)
-                        continue;
-                    if (imbin[i - 1, j] && imbin[i, j + 1] && imbin[i, j - 1])
-                        continue;
-                    if (imbin[i - 1, j] && imbin[i + 1, j] && imbin[i, j - 1])
-                        continue;
-                    markers[i, j] = 0;
-                    changed = true;
-                    marked ++;
-                }
+            
+            // --- サブイテレーション 2 ---
+            Point[] toDelete2;
+            foreach (pt; newCandidates) {
+                int i = pt.y;
+                int j = pt.x;
+                if (!imbin[i, j])
+                    continue;
+                int bp = countNeighbors(imbin, i, j);
+                if (bp < 2 || bp > 6)
+                    continue;
+                int ap = countTransitions(imbin, i, j);
+                if (ap != 1)
+                    continue;
+                if (imbin[i - 1, j] && imbin[i, j + 1] && imbin[i, j - 1])
+                    continue;
+                if (imbin[i - 1, j] && imbin[i + 1, j] && imbin[i, j - 1])
+                    continue;
+                toDelete2 ~= pt;
             }
-            // マーカーに従い削除 (サブイテレーション 2)
-            foreach (i; 0..markers.shape[0]) {
-                foreach (j; 0..markers.shape[1]) {
-                    if (markers[i, j] == 0) {
-                        imbin[i, j] = 0;
-                        altered ++;
+            
+            Point[] newCandidates2;
+            if (toDelete2.length > 0) {
+                changedOverall = true;
+                foreach (pt; toDelete2) {
+                    int i = pt.y;
+                    int j = pt.x;
+                    imbin[i, j] = 0;
+                    for (int di = -1; di <= 1; di++) {
+                        for (int dj = -1; dj <= 1; dj++) {
+                            int ni = i + di;
+                            int nj = j + dj;
+                            if (ni < 1 || ni >= h - 1 || nj < 1 || nj >= w - 1)
+                                continue;
+                            newCandidates2 ~= Point(nj, ni);
+                        }
                     }
                 }
+                newCandidates2.sort!((a, b) =>
+                    (a.y < b.y) || (a.y == b.y && a.x < b.x)
+                );
+                newCandidates2 = newCandidates2.uniq.array;
+            }
+            
+            // 次回の候補は、サブイテレーション2で更新された候補集合
+            candidates = newCandidates2;
+            // 候補が空の場合、全画素を再スキャンして前景が残っていれば候補集合に追加
+            if (candidates.length == 0) {
+                for (int i = 1; i < h - 1; i++) {
+                    for (int j = 1; j < w - 1; j++) {
+                        if (imbin[i, j])
+                            candidates ~= Point(j, i);
+                    }
+                }
+                // 変更がなければアルゴリズム終了
+                if (candidates.length == 0)
+                    break;
             }
         }
     }
+
 
     /// 8近傍（上下左右・斜め）の前景画素数を返す
     int countNeighbors(T)(T image, int i, int j)
@@ -394,6 +451,6 @@ private:
 public:
     override
     string icon() {
-        return "\uefb1";
+        return "\uebbb";
     }
 }
