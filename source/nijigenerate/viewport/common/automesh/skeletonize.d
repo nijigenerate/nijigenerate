@@ -28,6 +28,7 @@ alias Point = vec2u; // vec2u は (uint x, uint y) を想定（必要に応じ�
 class SkeletonExtractor : AutoMeshProcessor {
 private:
     float maskThreshold = 15;
+    int targetPointCount = 10;
     Point[] controlPoints; // RDP により得られた制御点群（後で平行移動済み）
 
 public:
@@ -46,6 +47,7 @@ public:
         ubyte[] data = texture.getTextureData();
         int width = texture.width;
         int height = texture.height;
+        vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
 
         // Image 型は dcv.imgproc などのラッパーと仮定
         auto img = new Image(width, height, ImageFormat.IF_RGB_ALPHA);
@@ -69,15 +71,19 @@ public:
         // DFS で連続パス抽出
         auto path = extractPath(imbin, width, height);
 
-        // RDP による曲線単純化
-        controlPoints = rdp(path, 1.0); // 例：epsilon = 1.0
+        // 曲線単純化
+        controlPoints = simplifyByTargetCount(path, targetPointCount);
 
-        // 制御点群の座標調整（Y 座標が最も小さい点を原点に）
-        adjustCoordinates();
-
+        mesh.clear();
         foreach (Point pt; controlPoints) {
             vec2 position = vec2(pt.x, pt.y);
-            mesh.vertices ~= new MeshVertex(position);
+            mesh.vertices ~= new MeshVertex(position - imgCenter);
+        }
+
+        if (auto dcomposite = cast(DynamicComposite)target) {
+            foreach (vertex; mesh.vertices) {
+                vertex.position += dcomposite.textureOffset;
+            }
         }
 
         return mesh.autoTriangulate();
@@ -103,7 +109,6 @@ private:
             long marked = 0;
             long altered = 0;
             changed = false;
-            writefln("loop: %d", loop ++);
             // サブイテレーション1用のマーカー（imbin と同じ形状の NDslice）
             auto markers = imbin.dup; // 値の複製。以降、0 を設定する場所がマーカーとする
 
@@ -137,7 +142,6 @@ private:
                     }
                 }
             }
-            writefln(" sub-iter1: marked=%d, new=%d", marked, altered);
             // サブイテレーション 2 用のマーカー再生成
             marked = 0;
             altered = 0;
@@ -171,7 +175,6 @@ private:
                     }
                 }
             }
-            writefln(" sub-iter2: marked=%d, new=%d", marked, altered);
         }
     }
 
@@ -179,7 +182,6 @@ private:
     int countNeighbors(T)(T image, int i, int j)
     {
         int count = 0;
-//        writefln("  countNeighbors");
         // ループで -1 から +1 のオフセット
         for (int di = -1; di <= 1; di++) {
             for (int dj = -1; dj <= 1; dj++) {
@@ -195,7 +197,6 @@ private:
     /// 8近傍（p2～p9）のうち、背景から前景へ変化する回数を返す
     int countTransitions(T)(T image, int i, int j)
     {
-//        writefln("  countTransitions");
         ubyte[8] neighbors;
         neighbors[0] = image[i - 1, j];      // p2
         neighbors[1] = image[i - 1, j + 1];  // p3
@@ -216,128 +217,178 @@ private:
 
     /////////////////////////////////////////////////////////////
     // 3. スケルトン上の連続パスを DFS で抽出する（visited も NDslice で管理）
+    // 修正: 複数の連結成分それぞれについて、直径（最も長いパス）を求め、
+    //       全体で最も長いパスを返すように変更
     Point[] extractPath(T)(T skeleton, int width, int height)
     {
-        writefln("extractPath");
         if (skeleton.length == 0) return [];
-        Point[] endpoints;
-
-        // visited 用の 1 次元配列を用意し、NDslice として reshape する
-        ubyte[] visitedData = new ubyte[height * width];
+        // 連結成分の管理用 visited 配列（グローバル）
+        ubyte[] globalVisitedData = new ubyte[height * width];
         int err;
-        auto visited = visitedData.sliced.reshape([height, width], err);
+        auto globalVisited = globalVisitedData.sliced.reshape([height, width], err);
+        Point[] longestPathOverall;
 
-        // 端点探索（各ピクセルの 8 近傍の前景画素数が 1 のもの）
-        for (int i = 1; i < height - 1; i++) {
-            for (int j = 1; j < width - 1; j++) {
-                if (!skeleton[i, j])
-                    continue;
-                int nb = countNeighbors(skeleton, i, j);
-                if (nb == 1)
-                    endpoints ~= Point(j, i);
-            }
+        // 座標を 1 次元インデックスに変換するヘルパー関数
+        int encode(Point p) {
+            return p.y * width + p.x;
         }
-        Point start;
-        if (endpoints.length > 0) {
-            start = endpoints[0];
-        } else {
-            bool found = false;
-            for (int i = 0; i < height && !found; i++) {
-                for (int j = 0; j < width && !found; j++) {
-                    if (skeleton[i, j]) {
-                        start = Point(j, i);
-                        found = true;
+
+        // 与えた点から連結成分（このコンポーネント内の全画素）を BFS で収集する
+        Point[] getComponent(Point p) {
+            Point[] comp;
+            Point[] queue;
+            queue ~= p;
+            globalVisited[p.y, p.x] = 1;
+            while(queue.length)
+            {
+                auto cur = queue[0];
+                queue = queue[1 .. $];
+                comp ~= cur;
+                for (int di = -1; di <= 1; di++) {
+                    for (int dj = -1; dj <= 1; dj++) {
+                        if (di == 0 && dj == 0) continue;
+                        int ny = cur.y + di;
+                        int nx = cur.x + dj;
+                        if (ny < 0 || ny >= height || nx < 0 || nx >= width)
+                            continue;
+                        if (skeleton[ny, nx] && !globalVisited[ny, nx]) {
+                            globalVisited[ny, nx] = 1;
+                            queue ~= Point(nx, ny);
+                        }
                     }
                 }
             }
+            return comp;
         }
-        Point[] path;
-        Point current = start;
-        path ~= current;
-        visited[current.y, current.x] = 1;
-        bool done = false;
-        while (!done) {
-            bool foundNeighbor = false;
+
+        // comp 配列内に pt が含まれているかを調べる（線形探索）
+        bool inComponent(Point pt, Point[] comp) {
+            foreach (cpt; comp) {
+                if (cpt.x == pt.x && cpt.y == pt.y)
+                    return true;
+            }
+            return false;
+        }
+
+        // comp 内で pt の 8近傍にある画素を返す
+        Point[] getNeighbors(Point pt, Point[] comp) {
+            Point[] neighbors;
             for (int di = -1; di <= 1; di++) {
                 for (int dj = -1; dj <= 1; dj++) {
-                    if (di == 0 && dj == 0)
-                        continue;
-                    int ny = current.y + di;
-                    int nx = current.x + dj;
-                    if (ny < 0 || ny >= height || nx < 0 || nx >= width)
-                        continue;
-                    if (skeleton[ny, nx] && !visited[ny, nx]) {
-                        current = Point(nx, ny);
-                        path ~= current;
-                        visited[ny, nx] = 1;
-                        foundNeighbor = true;
-                        break;
+                    if (di == 0 && dj == 0) continue;
+                    Point np = Point(pt.x + dj, pt.y + di);
+                    if (inComponent(np, comp))
+                        neighbors ~= np;
+                }
+            }
+            return neighbors;
+        }
+
+        import std.typecons : Tuple, tuple;
+        import std.array : array;
+        // BFS を用いて、コンポーネント内の src からの最遠点とその経路（src～最遠点）を求める
+        Tuple!(Point, Point[]) bfsDiameter(Point src, Point[] comp) {
+            Point[] queue;
+            int[] dist = new int[height * width];
+            foreach (i; 0 .. dist.length)
+                dist[i] = -1;
+            // 各点の直前の点を記録するための連想配列（キーは encode した値）
+            Point[int] pred;
+            queue ~= src;
+            dist[encode(src)] = 0;
+            while(queue.length) {
+                auto cur = queue[0];
+                queue = queue[1 .. $];
+                foreach (n; getNeighbors(cur, comp)) {
+                    if (dist[encode(n)] == -1) {
+                        dist[encode(n)] = dist[encode(cur)] + 1;
+                        pred[encode(n)] = cur;
+                        queue ~= n;
                     }
                 }
-                if (foundNeighbor)
+            }
+            int maxDist = 0;
+            Point farthest = src;
+            foreach (pt; comp) {
+                int d = dist[encode(pt)];
+                if (d > maxDist) {
+                    maxDist = d;
+                    farthest = pt;
+                }
+            }
+            // 最遠点から src までの経路を復元（逆順に得られるので reverse する）
+            Point[] pathReversed;
+            auto cur = farthest;
+            while (true) {
+                pathReversed ~= cur;
+                if (cur.x == src.x && cur.y == src.y)
                     break;
+                cur = pred[encode(cur)];
             }
-            if (!foundNeighbor)
-                done = true;
+            auto path = pathReversed.reverse.array;
+            return tuple(farthest, path);
         }
-        return path;
+
+        // skeleton 全体を走査し、各連結成分ごとに直径を求め、最も長いパスを記録する
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
+                if (skeleton[i, j] && !globalVisited[i, j]) {
+                    // 新たな連結成分を取得
+                    auto comp = getComponent(Point(j, i));
+                    // 端点（近傍が1個）の探索
+                    Point[] endpoints;
+                    foreach (pt; comp) {
+                        auto nbrs = getNeighbors(pt, comp);
+                        if (nbrs.length == 1)
+                            endpoints ~= pt;
+                    }
+                    // 端点が存在すればそのうちの1つ、なければ comp の最初の点を直径計算の起点とする
+                    Point startForDiameter = (endpoints.length > 0) ? endpoints[0] : comp[0];
+                    // 2回の BFS により、コンポーネント内の直径（最長経路）を求める
+                    auto result1 = bfsDiameter(startForDiameter, comp);
+                    auto result2 = bfsDiameter(result1[0], comp);
+                    if (result2[1].length > longestPathOverall.length)
+                        longestPathOverall = result2[1];
+                }
+            }
+        }
+        return longestPathOverall;
     }
 
     /////////////////////////////////////////////////////////////
-    // 4. Ramer-Douglas-Peucker (RDP) アルゴリズムによる曲線単純化
-    Point[] rdp(Point[] points, double epsilon) {
-        if (points.length < 3)
-            return points;
-        double dmax = 0.0;
-        int index = 0;
-        Point start = points[0];
-        Point end = points[$ - 1];
-        double dx = end.x - start.x;
-        double dy = end.y - start.y;
-        double lineLength = sqrt(dx * dx + dy * dy);
-        for (int i = 1; i < points.length - 1; i++) {
-            double dist = 0.0;
-            if (lineLength == 0)
-                dist = sqrt(cast(double)pow(points[i].x - start.x, 2) + pow(points[i].y - start.y, 2));
-            else {
-                double cross = abs(dx * (start.y - points[i].y) - (start.x - points[i].x) * dy);
-                dist = cross / lineLength;
-            }
-            if (dist > dmax) {
-                index = i;
-                dmax = dist;
-            }
-        }
-        if (dmax > epsilon) {
-            auto recResults1 = rdp(points[0 .. index + 1], epsilon);
-            auto recResults2 = rdp(points[index .. points.length], epsilon);
-            // 重複する点を除いて結合
-            return recResults1[0 .. $ - 1] ~ recResults2;
-        } else {
-            return [start, end];
-        }
-    }
+    // 4. Visvalingam–Whyatt 法に基づく、指定したポイント数に単純化するアルゴリズム
+    Point[] simplifyByTargetCount(Point[] pts, int targetCount) {
+        // pts の数が既に目標以下ならそのまま返す
+        if (pts.length <= targetCount)
+            return pts.dup;
 
-    /////////////////////////////////////////////////////////////
-    // 5. 制御点の座標を調整
-    //    一筆書きになっている controlPoints の中から、Y 座標が最も少ないものを原点 (0,0) に平行移動する。
-    void adjustCoordinates() {
-        /*
-        if (controlPoints.length == 0)
-            return;
-        uint minY = controlPoints[0].y;
-        Point origin = controlPoints[0];
-        foreach (pt; controlPoints) {
-            if (pt.y < minY) {
-                minY = pt.y;
-                origin = pt;
+        // 内部点（先頭と末尾は保持）を順次削除して目標数にする
+        auto simplified = pts.dup;
+
+        // ヘルパー：3点 (a, b, c) から三角形の面積を計算
+        auto triangleArea = (Point a, Point b, Point c) {
+            double ax = cast(double)a.x, ay = cast(double)a.y;
+            double bx = cast(double)b.x, by = cast(double)b.y;
+            double cx = cast(double)c.x, cy = cast(double)c.y;
+            double area = abs(ax*(by - cy) + bx*(cy - ay) + cx*(ay - by));
+            return area / 2.0;
+        };
+
+        while (simplified.length > targetCount) {
+            int removeIndex = 1;
+            double minArea = triangleArea(simplified[0], simplified[1], simplified[2]);
+            // 内部点（先頭と末尾は除く）について、三角形の面積が最小となる点を探索
+            for (int i = 2; i < simplified.length - 1; i++) {
+                double area = triangleArea(simplified[i - 1], simplified[i], simplified[i + 1]);
+                if (area < minArea) {
+                    minArea = area;
+                    removeIndex = i;
+                }
             }
+            // 最小の内部点を削除
+            simplified = simplified[0 .. removeIndex] ~ simplified[removeIndex + 1 .. $];
         }
-        for (size_t i = 0; i < controlPoints.length; i++) {
-            controlPoints[i].x -= origin.x;
-            controlPoints[i].y -= origin.y;
-        }
-        */
+        return simplified;
     }
 
 public:
