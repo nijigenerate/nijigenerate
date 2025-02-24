@@ -153,6 +153,8 @@ public:
     }
 
     void displayGroupIds() {
+        if (editors.values.length == 0)
+            return;
         // Show group Id
         if (auto drawableEditor = cast(IncMeshEditorOneDrawable)editors.values[0]) {
             if (editors.length > 0 && drawableEditor.getMesh().maxGroupId > 1) {
