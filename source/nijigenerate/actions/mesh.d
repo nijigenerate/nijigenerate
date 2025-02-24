@@ -70,6 +70,9 @@ abstract class MeshAction  : LazyBoundAction {
     string getName() {
         return this.stringof;
     }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }    
 };
 
 class MeshConnectAction  : MeshAction {
