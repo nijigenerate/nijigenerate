@@ -26,10 +26,10 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
     float LARGE_THRESHOLD = 400;
     float LENGTH_THRESHOLD = 100;
     float RATIO_THRESHOLD = 0.2;
-    float SHARP_EXPANSION_FACTOR = 0.03;
+    float SHARP_EXPANSION_FACTOR = 0.01;
     float NONSHARP_EXPANSION_FACTOR = 0.05;
     float NONSHARP_CONTRACTION_FACTOR = 0.05;
-    float[] SCALES = [0.0, 0.5];
+    float[] SCALES = [0.5, 0.];
     float MIN_DISTANCE = 10;
     float SIZE_AVG = 100;
     float MASK_THRESHOLD = 1;
@@ -37,16 +37,39 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
     string presetName;
 public:
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        auto contoursToVec2s(ContourType)(ref ContourType contours) {
+        auto contoursToVec2s(ContourType)(ContourType contours) {
             vec2[] result;
-            foreach (contour; contours) {
-                if (contour.length < 10)
-                    continue;
-
-                foreach (idx; 1..contour.shape[0]) {
+            bool[ulong] visited;
+            ulong nextIndex = 0;
+            ulong findNearest(C)(ref C contour) {
+                ulong index = ulong.max;
+                float minDist = float.infinity;
+                foreach(i; 0..contours.length) {
+                    if (i in visited) continue;
+                    if (contours[i].length == 0) continue;
+                    float dist = vec2(contour[$-1, 1] - contours[i][0,1], contour[$-1, 0] - contours[i][0,0]).length;
+                    if (dist < minDist) {
+                        index = i;
+                        minDist = dist;
+                    }
+                }
+                return index;
+            }
+            foreach(i, c; contours) {
+                writefln("contour: %d, %s", i, c.shape);
+            }
+            while (nextIndex != ulong.max && visited.length < contours.length) { // Not safe
+                visited[nextIndex] = true;
+                auto contour = contours[nextIndex];
+                writefln("shape: %s", contour.shape);
+                foreach (idx; 0..contour.shape[0]) {
                     result ~= vec2(contour[idx, 1], contour[idx, 0]);
                 }
+                writef(" findNearest: %d(%s)", nextIndex, visited[nextIndex]);
+                nextIndex = findNearest(contour);
+                writefln("->%d(%s)", nextIndex, (nextIndex in visited)? visited[nextIndex]: false);
             }
+
             return result;
         }
 
@@ -111,30 +134,6 @@ public:
                 imbin[y, x] = imbin[y, x] < cast(ubyte)MASK_THRESHOLD? 0: 255;
             }
         }
-        auto compensated = imbin.slice.dilate(radialKernel!ubyte(5)).threshold!ubyte(1, 255).erode(radialKernel!ubyte(5));
-        writefln("compensated:%s <=> imbin: %s(%d)", compensated.shape, imbin.shape, imbin.shape[0] * imbin.shape[1]);
-        foreach (y; 0..imbin.shape[0]) {
-            foreach (x; 0..imbin.shape[1]) {
-                imbin[y, x] = compensated[y, x];
-            }
-        }
-        
-        auto labels = bwlabel(imbin);
-        bool[] labelFound = [false];
-        long maxLabel = 0;
-        foreach (y; 0..labels.shape[0]) {
-            foreach (x; 0..labels.shape[1]) {
-                if (labels[y, x] > maxLabel) {
-                    maxLabel = labels[y, x];
-                    while (labelFound.length <= maxLabel)
-                        labelFound ~= false;
-                } 
-                if (compensated[y, x] == 0) {
-                    labelFound[labels[y, x]] = true;
-                }
-            }
-        }
-        mesh.clear();
 
         // calculate skeleton
         auto dupMono(T)(T imbin) {
@@ -148,12 +147,24 @@ public:
             return resultImage.sliced[0..$, 0..$, 0];
         }
 
+        auto compensated_cont = imbin.slice.dilate(radialKernel!ubyte(5)).threshold!ubyte(1, 255).erode(radialKernel!ubyte(5));
+        auto compensated = dupMono(imbin);
+
+        foreach (y; 0..compensated.shape[0]) {
+            foreach (x; 0..compensated.shape[1]) {
+                compensated[y, x] = compensated_cont[y, x] != 0 ? 255: 0;
+            }
+        }
+        
+        mesh.clear();
+
         auto calculateWidthMap(T)(T imbin, vec2u[] skeleton) {
             auto distTransform = distanceTransform(imbin);
             // widthMap は1次元配列、サイズは画像全画素数（width * height）
             int[] widthMap;
             foreach (s; skeleton) {
-                widthMap ~= distTransform[s.y, s.x] * 2; 
+                if (distTransform[s.y, s.x])
+                    widthMap ~= distTransform[s.y, s.x] *(2/2); // dcv (0.3.0) uses  Chamfer Distance (not euclid distance.) To get approximate distance, divide by 2.
             }
             return widthMap;
         }
@@ -175,8 +186,8 @@ public:
                 auto pPrev = thinnedPoints[(i + n - 1) % n];
                 auto pNext = thinnedPoints[(i + 1) % n];
                 auto normal = calculateNormalVector(pPrev, pNext);
-                expanded ~= vec2(thinnedPoints[i].x - normal.x * expDist,
-                                 thinnedPoints[i].y - normal.y * expDist);
+                expanded ~= vec2(thinnedPoints[i].x + normal.x * expDist,
+                                 thinnedPoints[i].y + normal.y * expDist);
             }
             return expanded.stdUniq.array;
         }
@@ -190,8 +201,8 @@ public:
                 auto pPrev = thinnedPoints[(i + n - 1) % n];
                 auto pNext = thinnedPoints[(i + 1) % n];
                 auto normal = calculateNormalVector(pPrev, pNext);
-                contracted ~= vec2(thinnedPoints[i].x + normal.x * (contDist * factor),
-                                   thinnedPoints[i].y + normal.y * (contDist * factor));
+                contracted ~= vec2(thinnedPoints[i].x - normal.x * (contDist * factor),
+                                   thinnedPoints[i].y - normal.y * (contDist * factor));
             }
             return contracted.stdUniq.array;
         }
@@ -217,51 +228,73 @@ public:
         double length = 0;
         double widthMapLength = 0;
 
-        writefln("labels=%d", labelFound.length);
+        auto labels = bwlabel(imbin);
+        bool[] labelFound = [false];
+        long maxLabel = 0;
+        foreach (y; 0..labels.shape[0]) {
+            foreach (x; 0..labels.shape[1]) {
+                if (labels[y, x] > maxLabel) {
+                    maxLabel = labels[y, x];
+                    while (labelFound.length <= maxLabel)
+                        labelFound ~= false;
+                } 
+                if (imbin[y, x] == 0) {
+                    labelFound[labels[y, x]] = true;
+                }
+            }
+        }
+        mesh.clear();
 
-        // calculate distanceTransform
-        auto skel = dupMono(imbin);
-        skeletonizeImage(skel);
-        auto skelPath = extractPath(skel, texture.width, texture.height); // flipped width and height because dcv.skeletonize2D returns transposed image.
-
-        auto widthMap = calculateWidthMap(imbin, skelPath);
-        int[] validWidth = widthMap.stdFilter!((x)=>x > 0).array;
-        sumWidth += validWidth.sum;
-        length   += validWidth.length;
-        widthMapLength += widthMap.length;
-        double avgWidth = sumWidth / length;
-        double ratio    = sumWidth / widthMapLength;
-
-        writefln("avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", avgWidth, length, avgWidth / length, ratio);
-        bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
-                        ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
-
+        typeof(findContours(imbin)[0])[] contourList;
+        int numFound = 0;
         foreach (label, found; labelFound) {
             if (!found)
                 continue;
+            numFound ++;
             foreach (y; 0..imbin.shape[0]) {
                 foreach (x; 0..imbin.shape[1]) {
-                    imbin[y, x] = (labels[y, x] == label && imbin[y, x] == 0)? 255: 0;
+                    imbin[y, x] = (labels[y, x] == label && imbin[y, x] == 0)? 0: 255;
                 }
             }
+            // calculate distanceTransform
+            auto skel = dupMono(imbin);
+            skeletonizeImage(skel);
+            auto skelPath = extractPath(skel, texture.width, texture.height);
+
+            auto widthMap = calculateWidthMap(imbin, skelPath);
+            widthMapLength += widthMap.length;
+            import std.format;
+            writefln("path=%s", zip(skelPath, widthMap).map!((t)=>"%s=%s".format(t[0], t[1])).array);
+            int[] validWidth = widthMap.stdFilter!((x)=>x > 0).array;
+            sumWidth += validWidth.sum;
+            length   += validWidth.length;
 
             // switch based on sharpness of the target shape.
 
-            auto contours = findContours(imbin);
-            auto contourVec = contoursToVec2s(contours);
+        }
+        auto contours = findContours(compensated);
+        foreach (c; contours) {
+            contourList ~= c;
+        }
+        writefln("contours=%d", contours.length);
 
-            if (contourVec.length == 0)
-                continue;
+        double avgWidth = sumWidth / length;
+        double ratio    = sumWidth / widthMapLength;
+        auto contourVec = contoursToVec2s(contourList);
 
-            // reduce vertices by resampling (with consideration for flip flag)
+        writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio);
+        bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
+                        ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
 
-            vB1 ~= resampling(contourVec, min_distance, mirrorHoriz, axisHoriz, mirrorVert, axisVert);
-            if (mirrorHoriz) {
-                auto flipped = vB1.map!((a) => vec2(imgCenter.x + axisHoriz - (a.x - imgCenter.x - axisHoriz), a.y));
-                foreach (f; flipped) {
-                    auto index = contourVec.map!((a)=>(a - f).lengthSquared).minIndex();
-                    vB1 ~= contourVec[index];
-                }
+
+        // reduce vertices by resampling (with consideration for flip flag)
+
+        vB1 ~= resampling(contourVec, min_distance, mirrorHoriz, axisHoriz, mirrorVert, axisVert);
+        if (mirrorHoriz) {
+            auto flipped = vB1.map!((a) => vec2(imgCenter.x + axisHoriz - (a.x - imgCenter.x - axisHoriz), a.y));
+            foreach (f; flipped) {
+                auto index = contourVec.map!((a)=>(a - f).lengthSquared).minIndex();
+                vB1 ~= contourVec[index];
             }
         }
 
