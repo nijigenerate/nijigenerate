@@ -70,6 +70,9 @@ abstract class VertexAction  : LazyBoundAction {
     string getName() {
         return this.stringof;
     }
+
+    bool merge(Action other) { return true; }
+    bool canMerge(Action other) { return false;}
 };
 
 class VertexMoveAction  : VertexAction {
