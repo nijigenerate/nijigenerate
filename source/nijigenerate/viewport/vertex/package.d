@@ -11,7 +11,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.vertex.mesheditor;
-import nijigenerate.viewport.common.automesh;
+import nijigenerate.viewport.vertex.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
@@ -26,7 +26,8 @@ private {
     AutoMeshProcessor[] autoMeshProcessors = [
         new ContourAutoMeshProcessor(),
         new GridAutoMeshProcessor(),
-        new SkeletonExtractor()
+        new SkeletonExtractor(),
+        new OptimumAutoMeshProcessor()
     ];
     AutoMeshProcessor activeProcessor = null;
     bool isSubPartsMeshVisible = false;
