@@ -1,7 +1,7 @@
-module nijigenerate.viewport.common.automesh.contours;
+module nijigenerate.viewport.vertex.automesh.contours;
 
 import i18n;
-import nijigenerate.viewport.common.automesh.automesh;
+import nijigenerate.viewport.vertex.automesh.automesh;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
