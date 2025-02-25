@@ -6,6 +6,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijigenerate.core.math.skeletonize;
 import nijigenerate.core.math.path;
+import nijigenerate.core.math.triangle;
 import nijilive.core;
 import inmath;
 import dcv.core;
@@ -18,8 +19,10 @@ import std.algorithm.iteration: map, reduce, uniq;
 alias stdUniq = std.algorithm.iteration.uniq;
 import mir.ndslice;
 import mir.math.stat: mean;
+alias mirAny = mir.algorithm.iteration.any;
 import std.stdio;
 import std.array;
+import std.typecons;
 import bindbc.imgui;
 
 class OptimumAutoMeshProcessor : AutoMeshProcessor {
@@ -356,19 +359,108 @@ public:
                     vCentroid = horizontalMirrored(vCentroid);
                 vertices ~= vCentroid;
             }
+            vertices = vertices.stdUniq.array;
         }
 
-        foreach (v; vertices) {
-            mesh.vertices ~= new MeshVertex(v - imgCenter, []);
-        }
+        vec4 bounds = vec4(0, 0, texture.width, texture.height);
+        auto vert_ind = triangulate(vertices, bounds);
+        auto vtx = vert_ind[0];
+        auto tris = vert_ind[1];
 
-        if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) {
-                vertex.position += dcomposite.textureOffset;
+
+        Tuple!(vec2[], vec3u[]) completeUncoveredArea(T)(T compensated, vec2[] vertices, vec3u[] tris, vec2[] contourVec, float min_distance) {
+            import mir.ndslice.topology;
+            int err;
+            auto compensated1D = compensated.reshape([-1], err);
+            fillPoly(compensated1D, texture.width, texture.height, bounds, vtx, tris, 0, cast(ubyte)0);
+            bool nonZero = compensated.mirAny!(x=>x!=0);
+            if (!nonZero) { return tuple(vertices, tris); }
+            
+            // 既存頂点群から十分離れている候補のみ選択
+            vec2[] filteredCandidates;
+            foreach(p; contourVec) {
+                bool skip = false;
+                if(vertices.length > 0) {
+                    foreach(v; vertices) {
+                        if(distance(v, p) < min_distance * 0.5) {
+                            skip = true;
+                            break;
+                        }
+                    }
+                }
+                int x = cast(int)round(p.x);
+                int y = cast(int)round(p.y);
+                if(x >= 0 && x < texture.width && y >= 0 && y < texture.height) {
+                    int idx = y * texture.width + x;
+                    if(compensated1D[idx] == 255 && !skip)
+                        filteredCandidates ~= p;
+                }
             }
+            if(filteredCandidates.length == 0) {
+                return tuple(vertices, tris);
+            }
+            
+            // 候補点の中から窓内の uncovered ピクセル数が最大の点を選択
+            int bestScore = -1;
+            vec2 bestCandidate = filteredCandidates[0];
+            int windowSize = cast(int)min_distance;
+            foreach(p; filteredCandidates) {
+                int x = cast(int)round(p.x);
+                int y = cast(int)round(p.y);
+                int x1 = max(0, x - windowSize);
+                int y1 = max(0, y - windowSize);
+                int x2 = min(texture.width - 1, x + windowSize);
+                int y2 = min(texture.height - 1, y + windowSize);
+                int score = 0;
+                for (int j = y1; j <= y2; j++) {
+                    for (int i = x1; i <= x2; i++) {
+                        int idx = j * texture.width + i;
+                        if (compensated1D[idx] == 255)
+                            score++;
+                    }
+                }
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCandidate = p;
+                }
+            }
+            if(bestScore < 0) {
+                return tuple(vertices, tris);
+            }
+            // bestCandidate を追加候補点として finalVertices に追加
+            vec2[] newFinalVertices = vertices ~ [ bestCandidate ];
+            // 新たな三角形分割
+            auto newVertsInd = triangulate(newFinalVertices, vec4(0, 0, texture.width, texture.height));
+            auto newTriangles = newVertsInd[1];
+            vec3u[] validTriangles;
+            if(newTriangles !is null) {
+                foreach(tri; newTriangles) {
+                    fillPoly(compensated1D, texture.width, texture.height, bounds, vtx, tris, 0, cast(ubyte)0);
+                    int remainingArea = compensated1D.map!(x=>x!=0?255:0).sum;
+
+                    if(remainingArea)
+                        validTriangles ~= tri;
+                }
+            }
+            return tuple(newFinalVertices, validTriangles);
         }
-        
-        return mesh.autoTriangulate();
+
+        auto updated = completeUncoveredArea(compensated, vertices, tris, contourVec, min_distance);
+        vertices = updated[0];
+        tris = updated[1];
+
+        IncMesh newMesh = new IncMesh(mesh);
+        newMesh.changed = true;
+        newMesh.vertices.length = 0;
+        newMesh.importVertsAndTris(vtx.map!((x){
+            auto v = x-imgCenter;
+            if (auto dcomposite = cast(DynamicComposite)target) {
+                v += dcomposite.textureOffset;
+            }
+            return v;
+        }).array, tris);
+        newMesh.refresh();
+        return newMesh;
     };
 
     override void configure() {
