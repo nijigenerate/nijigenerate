@@ -33,6 +33,7 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
     float MIN_DISTANCE = 10;
     float SIZE_AVG = 100;
     float MASK_THRESHOLD = 1;
+    float DIV_PER_PART = 12;
 
     string presetName;
 public:
@@ -83,9 +84,33 @@ public:
             return contour.map!((c) { return (c - moment)*scale + moment; })().array;
         }
         
+        auto horizontalMirrored(vec2[] sampled) {
+            float side = 0;
+            vec2[] mirrored;
+            foreach (idx; 0..sampled.length) {
+                vec2 c    = sampled[idx];
+                bool[ulong] used;
+                if (side == 0) {
+                    side = sign(c.x - axisHoriz);
+                    mirrored ~= sampled[idx];
+                } else if (sign(c.x - axisHoriz) != side) {
+                    auto flipped = vec2(axisHoriz * 2 - c.x, c.y);
+                    auto index = sampled.map!((a)=>(a - flipped).lengthSquared).minIndex();
+                    if (index !in used) {
+                        mirrored ~= vec2(axisHoriz * 2 - sampled[index].x, sampled[index].y);
+                        used[index] = true;
+                    }
+                } else {
+                    mirrored ~= sampled[idx];
+                }
+            }
+            return mirrored.stdUniq.array;
+        }
+
         auto resampling(vec2[] contour, double rate, bool mirrorHoriz, float axisHoriz, bool mirrorVert, float axisVert) {
             vec2[] sampled;
             ulong base = 0;
+            /*
             if (mirrorHoriz) {
                 float minDistance = -1;
                 foreach (i, vertex; contour) {
@@ -95,23 +120,19 @@ public:
                     }
                 }
             }
+            */
             sampled ~= contour[base];
-            float side = 0;
             foreach (idx; 1..contour.length) {
                 vec2 prev = sampled[$-1];
                 vec2 c    = contour[(idx + base)%$];
                 if ((c-prev).lengthSquared > rate*rate) {
-                    if (mirrorHoriz) {
-                        if (side == 0) {
-                            side = sign(c.x - axisHoriz);
-                        } else if (sign(c.x - axisHoriz) != side) {
-                            continue;
-                        }
-                    }
                     sampled ~= c;
                 }
             }
-            return sampled;
+            if (mirrorHoriz) {
+                return horizontalMirrored(sampled);
+            } else
+                return sampled;
         }
 
         Part part = cast(Part)target;
@@ -124,6 +145,12 @@ public:
         ubyte[] data = texture.getTextureData();
         auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
         copy(data, img.data);
+        if (mirrorHoriz) {
+            axisHoriz += texture.width / 2;
+        }
+        if (mirrorVert) {
+            axisVert += texture.height / 2;
+        }
         
         float step = 1;
 
@@ -220,7 +247,7 @@ public:
 
         vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
         float size_avg = (texture.width + texture.height) / 2.0;
-        float min_distance = max(int(max(texture.width, texture.height)/10), 10);
+        float min_distance = max(max(texture.width, texture.height)/DIV_PER_PART, MIN_DISTANCE);
 
         vec2[] vertices;
         vec2[] vB1;
@@ -263,8 +290,8 @@ public:
 
             auto widthMap = calculateWidthMap(imbin, skelPath);
             widthMapLength += widthMap.length;
-            import std.format;
-            writefln("path=%s", zip(skelPath, widthMap).map!((t)=>"%s=%s".format(t[0], t[1])).array);
+//            import std.format;
+//            writefln("path=%s", zip(skelPath, widthMap).map!((t)=>"%s=%s".format(t[0], t[1])).array);
             int[] validWidth = widthMap.stdFilter!((x)=>x > 0).array;
             sumWidth += validWidth.sum;
             length   += validWidth.length;
@@ -290,13 +317,6 @@ public:
         // reduce vertices by resampling (with consideration for flip flag)
 
         vB1 ~= resampling(contourVec, min_distance, mirrorHoriz, axisHoriz, mirrorVert, axisVert);
-        if (mirrorHoriz) {
-            auto flipped = vB1.map!((a) => vec2(imgCenter.x + axisHoriz - (a.x - imgCenter.x - axisHoriz), a.y));
-            foreach (f; flipped) {
-                auto index = contourVec.map!((a)=>(a - f).lengthSquared).minIndex();
-                vB1 ~= contourVec[index];
-            }
-        }
 
         // Type A: sharp shapes
         if (sharpFlag) {
@@ -319,6 +339,21 @@ public:
             vertices ~= vB3;
             foreach(scale; SCALES) {
                 auto vCentroid = sampleCentroidContractedContour(vB1, scale, min_distance);
+                auto sampledAtRate(vec2[] contours, float rate) {
+                    vec2[] sampled;
+                    float samplingFlag = 0;
+                    foreach (v; contours) {
+                        if (samplingFlag<= 0) {
+                            sampled ~= v;
+                            samplingFlag += 1.0;
+                        }
+                        samplingFlag -= rate;
+                    }
+                    return sampled;
+                }
+                vCentroid = sampledAtRate(vCentroid, scale);
+                if (mirrorHoriz)
+                    vCentroid = horizontalMirrored(vCentroid);
                 vertices ~= vCentroid;
             }
         }
