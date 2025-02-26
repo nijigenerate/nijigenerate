@@ -311,17 +311,26 @@ protected:
         igGetContentRegionAvail(&currSize);
         igSameLine();
         // if add new buttons, please increase the offset
-        igDummy(ImVec2(currSize.x-currSize.x-(32*8), 0));
+        igDummy(ImVec2(currSize.x-currSize.x-(32*10), 0));
         igSameLine();
 
         if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
-            if (incButtonColored("##MirrorView", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+
+            if (incButtonColored("\ue8d4", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
                 if (incActivePuppet() !is null)
                     incShouldMirrorViewport = !incShouldMirrorViewport;
             }
             incTooltip(_("Mirror View"));
 
             igSameLine(0, 0);
+
+            auto onion = OnionSlice.singleton;
+            if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
+                onion.toggle();
+            }
+            incTooltip(_("Onion slice"));
+
+            igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
                 if (incActivePuppet() !is null)
@@ -347,14 +356,6 @@ protected:
 
             igSameLine(0, 0);
 
-            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet() !is null)
-                    incPushWindow(new FlipPairWindow());
-            }
-            incTooltip(_("Configure Flip Pairings"));
-            
-            igSameLine();
-
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
                 if (incActivePuppet()) {
                     foreach(ref parameter; incActivePuppet().parameters) {
@@ -364,13 +365,22 @@ protected:
             }
             incTooltip(_("Reset parameters"));
             
+            igSameLine();
+
+            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
+                if (incActivePuppet() !is null)
+                    incPushWindow(new FlipPairWindow());
+            }
+            incTooltip(_("Configure Flip Pairings"));
+            
             igSameLine(0, 0);
 
-            auto onion = OnionSlice.singleton;
-            if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
-                onion.toggle();
+            if (incButtonColored("", ImVec2(32, 0))) {
+                if (incActivePuppet() !is null)
+                    incModalAdd(new AutoMeshBatchWindow());
             }
-            incTooltip(_("Onion slice"));
+            incTooltip(_("Automesh Batching"));
+
         }
         igEndChild();
 
