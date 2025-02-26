@@ -24,10 +24,10 @@ import bindbc.opengl;
 
 private {
     AutoMeshProcessor[] autoMeshProcessors = [
+        new OptimumAutoMeshProcessor(),
         new ContourAutoMeshProcessor(),
         new GridAutoMeshProcessor(),
-        new SkeletonExtractor(),
-        new OptimumAutoMeshProcessor()
+        new SkeletonExtractor()
     ];
     AutoMeshProcessor activeProcessor = null;
     bool isSubPartsMeshVisible = false;
