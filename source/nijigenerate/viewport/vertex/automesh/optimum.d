@@ -59,19 +59,21 @@ public:
                 }
                 return index;
             }
-            foreach(i, c; contours) {
-                writefln("contour: %d, %s", i, c.shape);
+            debug(automesh_opt) {
+                foreach(i, c; contours) {
+                    writefln("contour: %d, %s", i, c.shape);
+                }
             }
             while (nextIndex != ulong.max && visited.length < contours.length) { // Not safe
                 visited[nextIndex] = true;
                 auto contour = contours[nextIndex];
-                writefln("shape: %s", contour.shape);
+                debug(automesh_opt) writefln("shape: %s", contour.shape);
                 foreach (idx; 0..contour.shape[0]) {
                     result ~= vec2(contour[idx, 1], contour[idx, 0]);
                 }
-                writef(" findNearest: %d(%s)", nextIndex, visited[nextIndex]);
+                debug(automesh_opt) writef(" findNearest: %d(%s)", nextIndex, visited[nextIndex]);
                 nextIndex = findNearest(contour);
-                writefln("->%d(%s)", nextIndex, (nextIndex in visited)? visited[nextIndex]: false);
+                debug(automesh_opt) writefln("->%d(%s)", nextIndex, (nextIndex in visited)? visited[nextIndex]: false);
             }
 
             return result;
@@ -306,7 +308,7 @@ public:
         foreach (c; contours) {
             contourList ~= c;
         }
-        writefln("contours=%d", contours.length);
+        debug(automesh_opt) { writefln("contours=%d", contours.length); }
 
         double avgWidth = sumWidth / length;
         double ratio    = sumWidth / widthMapLength;
@@ -314,7 +316,7 @@ public:
 
         if (contourVec.length == 0) return mesh;
 
-        writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio);
+        debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio); }
         bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
                         ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
 
@@ -461,7 +463,7 @@ public:
 
         for (int i = 0; i < 5; i ++) {
             bool updated = completeUncoveredArea(compensated, vertices, tris, contourVec, min_distance, vertices, tris);
-            writefln("complete uncovered:%s", updated);
+            debug(automesh_opt) { writefln("complete uncovered:%s", updated); }
             if (!updated) break;
         }
 
