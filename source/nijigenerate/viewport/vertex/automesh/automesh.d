@@ -1,4 +1,4 @@
-module nijigenerate.viewport.common.automesh.automesh;
+module nijigenerate.viewport.vertex.automesh.automesh;
 
 import nijigenerate.viewport.common.mesh;
 import nijilive.core;
