@@ -20,7 +20,7 @@ alias stdUniq = std.algorithm.iteration.uniq;
 import mir.ndslice;
 import mir.math.stat: mean;
 alias mirAny = mir.algorithm.iteration.any;
-import std.stdio;
+debug(automesh_opt) import std.stdio;
 import std.array;
 import std.typecons;
 import bindbc.imgui;
@@ -188,8 +188,6 @@ public:
             }
         }
         
-        mesh.clear();
-
         auto calculateWidthMap(T)(T imbin, vec2u[] skeleton) {
             auto distTransform = distanceTransform(imbin);
             // widthMap は1次元配列、サイズは画像全画素数（width * height）
@@ -275,7 +273,7 @@ public:
                 }
             }
         }
-        mesh.clear();
+        debug(automesh_opt) writefln("bwlabels=%d", labelFound.stdFilter!(x=>x).array.length);
 
         typeof(findContours(imbin)[0])[] contourList;
         int numFound = 0;
@@ -295,8 +293,8 @@ public:
 
             auto widthMap = calculateWidthMap(imbin, skelPath);
             widthMapLength += widthMap.length;
-//            import std.format;
-//            writefln("path=%s", zip(skelPath, widthMap).map!((t)=>"%s=%s".format(t[0], t[1])).array);
+            debug(automesh_opt) writefln("  label %d: widthMapLength=%0.2f", label, widthMapLength);
+            debug(automesh_opt_full) writefln("path=%s", zip(skelPath, widthMap).map!((t)=>"%s=%s".format(t[0], t[1])).array);
             int[] validWidth = widthMap.stdFilter!((x)=>x > 0).array;
             sumWidth += validWidth.sum;
             length   += validWidth.length;
@@ -304,19 +302,22 @@ public:
             // switch based on sharpness of the target shape.
 
         }
+        double avgWidth = sumWidth / length;
+        double ratio    = sumWidth / widthMapLength;
+        debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio); }
+
         auto contours = findContours(compensated);
         foreach (c; contours) {
             contourList ~= c;
         }
         debug(automesh_opt) { writefln("contours=%d", contours.length); }
-
-        double avgWidth = sumWidth / length;
-        double ratio    = sumWidth / widthMapLength;
         auto contourVec = contoursToVec2s(contourList);
+        debug(automesh_opt) { writefln("contourVec=%d", contourVec.length); }
 
-        if (contourVec.length == 0) return mesh;
+        if (contourVec.length < 3) return mesh;
 
-        debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio); }
+        mesh.clear();
+
         bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
                         ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
 
@@ -637,6 +638,6 @@ public:
 
     override
     string icon() {
-        return "A";
+        return "";
     }
 };
