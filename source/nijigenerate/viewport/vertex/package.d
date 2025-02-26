@@ -11,7 +11,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.vertex.mesheditor;
-import nijigenerate.viewport.common.automesh;
+import nijigenerate.viewport.vertex.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
@@ -24,6 +24,7 @@ import bindbc.opengl;
 
 private {
     AutoMeshProcessor[] autoMeshProcessors = [
+        new OptimumAutoMeshProcessor(),
         new ContourAutoMeshProcessor(),
         new GridAutoMeshProcessor(),
         new SkeletonExtractor()
