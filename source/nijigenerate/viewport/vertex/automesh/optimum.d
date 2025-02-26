@@ -312,6 +312,8 @@ public:
         double ratio    = sumWidth / widthMapLength;
         auto contourVec = contoursToVec2s(contourList);
 
+        if (contourVec.length == 0) return mesh;
+
         writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio);
         bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
                         ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
@@ -364,17 +366,21 @@ public:
 
         vec4 bounds = vec4(0, 0, texture.width, texture.height);
         auto vert_ind = triangulate(vertices, bounds);
-        auto vtx = vert_ind[0];
+        vertices = vert_ind[0];
         auto tris = vert_ind[1];
 
 
-        Tuple!(vec2[], vec3u[]) completeUncoveredArea(T)(T compensated, vec2[] vertices, vec3u[] tris, vec2[] contourVec, float min_distance) {
+        bool completeUncoveredArea(T)(T compensated, vec2[] vertices, vec3u[] tris, vec2[] contourVec, float min_distance, out vec2[] outVertices, out vec3u[] outTris) {
             import mir.ndslice.topology;
             int err;
             auto compensated1D = compensated.reshape([-1], err);
-            fillPoly(compensated1D, texture.width, texture.height, bounds, vtx, tris, 0, cast(ubyte)0);
-            bool nonZero = compensated.mirAny!(x=>x!=0);
-            if (!nonZero) { return tuple(vertices, tris); }
+            fillPoly(compensated1D, texture.width, texture.height, bounds, vertices, tris, 0, cast(ubyte)0);
+            int initialRemainingArea = compensated1D.map!(x=>x!=0?255:0).sum;
+            if (initialRemainingArea == 0) { 
+                outVertices = vertices;
+                outTris = tris;
+                return false;
+            }
             
             // 既存頂点群から十分離れている候補のみ選択
             vec2[] filteredCandidates;
@@ -397,7 +403,9 @@ public:
                 }
             }
             if(filteredCandidates.length == 0) {
-                return tuple(vertices, tris);
+                outVertices = vertices;
+                outTris = tris;
+                return false;
             }
             
             // 候補点の中から窓内の uncovered ピクセル数が最大の点を選択
@@ -425,34 +433,42 @@ public:
                 }
             }
             if(bestScore < 0) {
-                return tuple(vertices, tris);
+                outVertices = vertices;
+                outTris = tris;
+                return false;
             }
             // bestCandidate を追加候補点として finalVertices に追加
             vec2[] newFinalVertices = vertices ~ [ bestCandidate ];
             // 新たな三角形分割
             auto newVertsInd = triangulate(newFinalVertices, vec4(0, 0, texture.width, texture.height));
             auto newTriangles = newVertsInd[1];
-            vec3u[] validTriangles;
+            auto newVertices = newVertsInd[0];
             if(newTriangles !is null) {
-                foreach(tri; newTriangles) {
-                    fillPoly(compensated1D, texture.width, texture.height, bounds, vtx, tris, 0, cast(ubyte)0);
-                    int remainingArea = compensated1D.map!(x=>x!=0?255:0).sum;
-
-                    if(remainingArea)
-                        validTriangles ~= tri;
+                foreach(i, tri; newTriangles) {
+                    fillPoly(compensated1D, texture.width, texture.height, bounds, newVertices, newTriangles, i, cast(ubyte)0);                        
+                }
+                int remainingArea = compensated1D.map!(x=>x!=0?255:0).sum;
+                if(remainingArea < initialRemainingArea) {
+                    outVertices = newVertices;
+                    outTris = newTriangles;
+                    return true;
                 }
             }
-            return tuple(newFinalVertices, validTriangles);
+            outVertices = vertices;
+            outTris = tris;
+            return false;
         }
 
-        auto updated = completeUncoveredArea(compensated, vertices, tris, contourVec, min_distance);
-        vertices = updated[0];
-        tris = updated[1];
+        for (int i = 0; i < 5; i ++) {
+            bool updated = completeUncoveredArea(compensated, vertices, tris, contourVec, min_distance, vertices, tris);
+            writefln("complete uncovered:%s", updated);
+            if (!updated) break;
+        }
 
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
-        newMesh.importVertsAndTris(vtx.map!((x){
+        newMesh.importVertsAndTris(vertices.map!((x){
             auto v = x-imgCenter;
             if (auto dcomposite = cast(DynamicComposite)target) {
                 v += dcomposite.textureOffset;

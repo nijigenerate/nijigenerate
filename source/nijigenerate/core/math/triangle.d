@@ -518,12 +518,18 @@ auto triangulate(T)(T[] vertices, vec4 bounds) {
         }
     }
     tris = tris.filter!((t)=>t.x >= dropVertices && t.y >= dropVertices && t.z >= dropVertices).array;
+    vtx = vtx[dropVertices..$];
     foreach (ref t; tris) {
         t.x -= dropVertices;
         t.y -= dropVertices;
         t.z -= dropVertices;
+        if (t.x >= vtx.length || t.y >= vtx.length || t.z >= vtx.length) {
+            import std.stdio;
+            writefln("Triangulate: Error: %s exceeds %d", t, dropVertices);
+            throw new Error("Triangulate");
+        }
     }
-    return tuple(vtx[dropVertices..$], tris);
+    return tuple(vtx, tris);
 }
 
 vec4 getBounds(T)(ref T vertices) {
@@ -555,7 +561,11 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
             vec2 pt = vec2(left + x, top + y);
             if (isPointInTriangle(pt, tvertices)) {
                 pt-= bounds.xy;
-                texture[cast(int)(pt.y * width + pt.x)] = value;
+                if (cast(int)(pt.y * width + pt.x) >= texture.length) {
+                    texture[cast(int)(pt.y * width + pt.x)] = value;
+                } else {
+                    texture[cast(int)(pt.y * width + pt.x)] = value;
+                }
             }
         }
     }
@@ -573,12 +583,17 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
     int bheight = cast(int)(ceil(tbounds.w) - floor(tbounds.y) + 1);
     int top  = cast(int)floor(tbounds.y);
     int left = cast(int)floor(tbounds.x);
-    foreach (y; 0..bheight) {
-        foreach (x; 0..bwidth) {
+    foreach (y; max(0, bounds.y)..min(bheight, height)) {
+        foreach (x; max(0, bounds.x)..min(bwidth, width)) {
             vec2 pt = vec2(left + x, top + y);
             if (isPointInTriangle(pt, tvertices)) {
                 pt-= bounds.xy;
-                texture[cast(int)(pt.y * width + pt.x)] = value;
+                if (cast(int)(pt.y * width + pt.x) >= texture.length) {
+//                    import std.stdio;
+//                    writefln("Error: index out of bounds at %0.1f, %0.1f where bounds=%s, tbounds=%s", pt.x, pt.y, bounds, tbounds);
+                } else {
+                    texture[cast(int)(pt.y * width + pt.x)] = value;
+                }
             }
         }
     }
