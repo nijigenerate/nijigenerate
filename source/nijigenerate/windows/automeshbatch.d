@@ -2,6 +2,7 @@ module nijigenerate.windows.automeshbatch;
 
 import nijigenerate.windows.base;
 import nijigenerate.viewport.common.mesh;
+import nijigenerate.viewport.vertex;
 import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate.ext;
@@ -10,7 +11,10 @@ import nijigenerate;
 import nijilive;
 import i18n;
 import std.string;
+import std.array;
 import std.algorithm.iteration;
+import nijilive.core.dbg;
+import core.thread.osthread;
 
 class AutoMeshBatchWindow : Modal {
 private:
@@ -20,8 +24,14 @@ private:
 
     enum PreviewSize = 128f;
     Node[] nodes;
+    IncMesh[uint] meshes;
     bool[uint] selected;
     Node active;
+
+    enum Status { Waiting, Running, Succeeded, Failed };
+    Status[uint] status;
+    AutoMeshProcessor activeProcessor;
+    Thread processingThread;
 
     void apply() {
     }
@@ -39,6 +49,7 @@ private:
         else if (widthScale < heightScale) bounds.y = (previewSize-bounds.w)/2;
 
         ImVec2 tl;
+        ImVec2 screenPos;
         igGetCursorPos(&tl);
 
         igItemSize(ImVec2(previewSize, previewSize));
@@ -47,10 +58,27 @@ private:
             ImVec2(tl.x+centerPos.x-previewSize/2+bounds.x, tl.y+centerPos.y-previewSize/2+bounds.y)
         );
 
+        igGetCursorScreenPos(&screenPos);
         igImage(
             cast(void*)part.textures[0].getTextureId(), 
             ImVec2(bounds.z, bounds.w), uv0, uv1, tintColor
         );
+
+        if (mesh) {
+            ImDrawList* drawList = igGetWindowDrawList();
+            ImS32 lineColor = igGetColorU32(ImVec4(0.7, 0.7, 0.7, 1));
+            vec2 cPos    = vec2(part.textures[0].width / 2, part.textures[0].height / 2);
+            vec2 scrPos  = vec2(screenPos.x, screenPos.y);
+            foreach (v; mesh.vertices) {
+                foreach (c; v.connections) {
+                    vec2 p1Pos = v.position;
+                    vec2 p2Pos = c.position;
+                    p1Pos = scrPos + (p1Pos + cPos ) * fscale;
+                    p2Pos = scrPos + (p2Pos + cPos ) * fscale;
+                    ImDrawList_AddLine(drawList, ImVec2(p1Pos.x, p1Pos.y), ImVec2(p2Pos.x, p2Pos.y), lineColor, 1.0f);
+                }
+            }
+        }
         return bounds;
 
     }
@@ -68,14 +96,29 @@ private:
             }
             igSameLine(0, 0);
             if ((cast(ApplicableClass)node) !is null) {
-                if (ngCheckbox("###check%x".format(node.uuid).toStringz, &(selected[node.uuid]))) {
-                    import std.stdio;
-                    writefln("toggled %s, %s", node.name, selected[node.uuid]);
-                }
+                ngCheckbox("###check%x".format(node.uuid).toStringz, &(selected[node.uuid]));
                 igSameLine(0, 0);
             } else {
                 igSameLine(30, 0);
             }
+            if (node.uuid in status) {
+                switch (status[node.uuid]) {
+                case Status.Waiting:
+                    igTextColored(ImVec4(0.8, 0.4, 0, 1), "\uef4a");
+                    break;
+                case Status.Running:
+                    igTextColored(ImVec4(0, 0.4, 0.8, 1), "\ue1c4");
+                    break;
+                case Status.Succeeded:
+                    igTextColored(ImVec4(0, 0.9, 0, 1), "\ue92f");
+                    break;
+                case Status.Failed:
+                    igTextColored(ImVec4(0.9, 0, 0, 1), "\ue000");
+                    break;
+                default:
+                }
+            }
+            igSameLine(0, 0);
             igText((incTypeIdToIcon(node.typeId)~node.name).toStringz);
 
             // Incredibly cursed preview image
@@ -95,10 +138,26 @@ private:
 
 protected:
 
+    void runBatch() {
+
+        auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
+        auto meshList = targets.map!(t=>meshes[t.uuid]).array;
+        status.clear();
+        foreach (t; targets) status[t.uuid] = Status.Waiting;
+        void callback(Drawable drawable, IncMesh mesh) {
+            if (mesh is null) {
+                status[drawable.uuid] = Status.Running;
+            } else {
+                status[drawable.uuid] = Status.Succeeded;
+                meshes[drawable.uuid] = mesh;
+            }
+        }
+        activeProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+    }
+
     override
     void onBeginUpdate() {
         flags |= ImGuiWindowFlags.NoSavedSettings;
-//        incIsSettingsOpen = true;
         
         ImVec2 wpos = ImVec2(
             igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
@@ -120,14 +179,13 @@ protected:
     void onUpdate() {
         ImVec2 space = incAvailableSpace();
         float gapspace = 8;
-        float childWidth = (space.x/2);
+        float childWidth = (space.x/3) - gapspace;
         float childHeight = floor(space.y-28-6);
-        float previewSize = min(space.x/2 - gapspace, childHeight);
+        float previewSize = min(space.x/3 - gapspace, childHeight);
         float filterWidgetHeight = 26;
         float optionsListHeight = 26;
 
         igBeginGroup();
-            // Selection
             if (igBeginChild("###Nodes", ImVec2(childWidth, childHeight))) {
                 incInputText("##", childWidth, nodeFilter);
 
@@ -139,16 +197,53 @@ protected:
 
             igSameLine(0, gapspace);
 
+            igBeginGroup();
+            igBeginChild("###Processors", ImVec2(childWidth, 40));
+            foreach (processor; ngAutoMeshProcessors) {
+                if (incButtonColored(processor.icon().toStringz, ImVec2(0, 0), (processor == ngActiveAutoMeshProcessor)? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                    ngActiveAutoMeshProcessor = processor;
+                }
+                igSameLine(0, 2);
+            }
+            igEndChild();
+
+            if (igBeginChild("##Configs", ImVec2(childWidth, childHeight - 80))) {
+                ngActiveAutoMeshProcessor.configure();
+            }
+            igEndChild();
+
+            if (processingThread !is null) {
+                if (!processingThread.isRunning()) {
+                    processingThread.join();
+                    processingThread = null;
+                }
+            }
+
+            igBeginChild("###Actions", ImVec2(childWidth, 40));
+            if (incButtonColored(processingThread? __("Cancel") : __("Auto mesh"))) {
+                if (!processingThread) {
+                    activeProcessor = ngActiveAutoMeshProcessor;
+                    processingThread = new Thread(&runBatch);
+                    processingThread.start();
+                }
+            }
+            igEndChild();
+            igEndGroup();
+
+            igSameLine(0, gapspace);
+            igBeginGroup();
+            incDummy(ImVec2(childWidth, (childHeight - previewSize) / 2));
             // Preview
             if (igBeginChild("###Preview", ImVec2(previewSize, previewSize), true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)) {
                 vec4 bounds;
                 if (active !is null) {
                     if (auto part = cast(Part)active)
-                        bounds = previewImage(part, ImVec2(previewSize / 2, previewSize / 2), previewSize - gapspace * 2);
+                        bounds = previewImage(part, ImVec2(previewSize / 2, previewSize / 2), previewSize - gapspace * 2, ImVec2(0,0), ImVec2(1,1), ImVec4(1,1,1,1), meshes[part.uuid]);
                 }
 
             }
             igEndChild();
+            igEndGroup();
 
         igEndGroup();
 
@@ -193,7 +288,10 @@ public:
         nodes = puppet.findNodesType!Node(puppet.root);
         nodes.each!((n) {
             selected.require(n.uuid);
-            selected[n.uuid] = (cast(ApplicableClass)n) !is null;
+            auto part = (cast(ApplicableClass)n);
+            selected[n.uuid] = part !is null;
+            if (selected[n.uuid])
+                meshes[n.uuid] = new IncMesh(part.getMesh());
         });
         // Removing unused pairs (happens when target nodes are removed.)
 
