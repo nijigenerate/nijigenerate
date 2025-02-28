@@ -10,6 +10,26 @@ import nijigenerate.viewport.common.mesheditor.operations.impl;
 import nijilive.math;
 import nijilive;
 
+private {
+    struct Applier(T: Drawable) {
+        static auto changeAction(T target) { return new DrawableChangeAction(target.name, target); }
+        static void postApply(T target) {
+            incUpdateWeldedPoints(target);
+        }
+        static void rebuffer(V, M)(T target, V vertices, M data = null) {
+            target.rebuffer(*data);
+        }
+    }
+
+    struct Applier(T: Deformable) if (!is(T: Drawable)) {
+        static auto changeAction(T target)  { return new DeformableChangeAction(target.name, target); }
+        static void postApply(T target) { }
+        static void rebuffer(V, M)(T target, V vertices, M* data = null) {
+            target.rebuffer(vertices.toVertices);
+        }
+    }
+}
+
 struct MeshVertex {
     vec2 position;
     MeshVertex*[] connections;
@@ -49,23 +69,6 @@ bool isConnectedTo(MeshVertex* self, MeshVertex* other) {
     return false;
 }
 
-struct Applier(T: Drawable) {
-    static auto changeAction(T target) { return new DrawableChangeAction(target.name, target); }
-    static void postApply(T target) {
-        incUpdateWeldedPoints(target);
-    }
-    static void rebuffer(V, M)(T target, V vertices, M data = null) {
-        target.rebuffer(*data);
-    }
-}
-
-struct Applier(T: Deformable) if (!is(T: Drawable)) {
-    static auto changeAction(T target)  { return new DeformableChangeAction(target.name, target); }
-    static void postApply(T target) { }
-    static void rebuffer(V, M)(T target, V vertices, M* data = null) {
-        target.rebuffer(vertices.toVertices);
-    }
-}
 
 void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
     incActionPushGroup();
