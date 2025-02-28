@@ -3,6 +3,7 @@ module nijigenerate.windows.automeshbatch;
 import nijigenerate.windows.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.vertex;
+import nijigenerate.core.math.mesh;
 import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate.ext;
@@ -12,6 +13,7 @@ import nijilive;
 import i18n;
 import std.string;
 import std.array;
+import std.range;
 import std.algorithm.iteration;
 import nijilive.core.dbg;
 import core.thread.osthread;
@@ -34,6 +36,12 @@ private:
     Thread processingThread;
 
     void apply() {
+        foreach (node; nodes) {
+            auto part = cast(ApplicableClass)node;
+            if (part is null) continue;
+            auto mesh = meshes[node.uuid];
+            applyMeshToTarget(part, mesh.vertices, &mesh);
+        }
     }
 
     vec4 previewImage(Part part, ImVec2 centerPos, float previewSize, ImVec2 uv0 = ImVec2(0, 0), ImVec2 uv1 = ImVec2(1, 1), ImVec4 tintColor=ImVec4(1, 1, 1, 1), IncMesh mesh = null) {
@@ -268,13 +276,6 @@ protected:
             }
         igEndGroup();
     }
-
-//    override
-//    void onClose() {
-//        import core.memory : GC;
-//        GC.collect();
-//        GC.minimize();
-//    }
 
     void close() {
         incModalCloseTop();
