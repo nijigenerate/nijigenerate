@@ -11,6 +11,7 @@ import nijigenerate.panels;
 import nijigenerate.ext.param;
 import nijigenerate.widgets;
 import nijigenerate.windows;
+import nijigenerate.core.math.triangle;
 import nijigenerate.core;
 import nijigenerate.actions;
 import nijigenerate.ext;
@@ -481,7 +482,7 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
             auto mesh = new IncMesh(drawable.getMesh());
             if (deformBinding.getIsSet()[cParamPoint.x][cParamPoint.y]) {
                 auto deform = deformBinding.getValue(cParamPoint);
-                auto newDeform = mesh.deformByDeformationBinding(drawable, deform, true);
+                auto newDeform = deformByDeformationBinding(mesh.vertices, drawable, deform, true);
                 if (newDeform)
                     deformBinding.setValue(cParamPoint, *newDeform);
             }
@@ -612,7 +613,7 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
                     Drawable srcDrawable = cast(Drawable)srcDeformBinding.getTarget().node;
                     auto mesh = new IncMesh(drawable.getMesh());
                     Deformation deform = srcDeformBinding.getValue(cClipboardPoint);
-                    auto newDeform = mesh.deformByDeformationBinding(srcDrawable, deform, false);
+                    auto newDeform = deformByDeformationBinding(mesh.vertices, srcDrawable, deform, false);
                     if (newDeform)
                         deformBinding.setValue(cParamPoint, *newDeform);
 

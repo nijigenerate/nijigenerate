@@ -87,69 +87,7 @@ public:
 
     override
     void applyToTarget() {
-        incActionPushGroup();
-        
-        // Apply the model
-        auto action = new DeformableChangeAction(target.name, target);
-
-        // Export mesh
-        //MeshData data = mesh.export_();
-        //data.fixWinding();
-
-        if (vertices.length != target.vertices.length)
-            vertexMapDirty = true;
-
-        DeformationParameterBinding[] deformers;
-
-        void alterDeform(ParameterBinding binding) {
-            auto deformBinding = cast(DeformationParameterBinding)binding;
-            if (!deformBinding)
-                return;
-            foreach (uint x; 0..cast(uint)deformBinding.values.length) {
-                foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
-                    auto deform = deformBinding.values[x][y];
-                    if (deformBinding.isSet(vec2u(x, y))) {
-                        auto newDeform = deformByDeformationBinding(vertices, deformBinding, vec2u(x, y), false);
-                        if (newDeform) 
-                            deformBinding.values[x][y] = *newDeform;
-                    } else {
-                        deformBinding.values[x][y].vertexOffsets.length = this.vertices.length;
-                    }
-                    deformers ~= deformBinding;
-                }
-            }
-        }
-
-        foreach (param; incActivePuppet().parameters) {
-            if (auto group = cast(ExParameterGroup)param) {
-                foreach(x, ref xparam; group.children) {
-                    ParameterBinding binding = xparam.getBinding(target, "deform");
-                    if (binding)
-                        action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", xparam, null));
-                    alterDeform(binding);
-                }
-            } else {
-                ParameterBinding binding = param.getBinding(target, "deform");
-                if (binding)
-                    action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", param, null));
-                alterDeform(binding);
-            }
-        }
-        incActivePuppet().resetDrivers();
-        vertexMapDirty = false;
-        
-        target.clearCache();
-        target.rebuffer(vertices.toVertices());
-
-        // reInterpolate MUST be called after rebuffer is called.
-        foreach (deformBinding; deformers) {
-            deformBinding.reInterpolate();
-        }
-
-        action.updateNewState();
-        incActionPush(action);
-
-        incActionPopGroup();
+        applyMeshToTarget(target, vertices, cast(IncMesh*)null);
     }
 
     override

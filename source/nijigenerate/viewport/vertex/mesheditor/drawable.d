@@ -11,6 +11,7 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
+import nijigenerate.core.math.mesh;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
@@ -92,76 +93,7 @@ public:
 
     override
     void applyToTarget() {
-        incActionPushGroup();
-        // Apply the model
-        auto action = new DrawableChangeAction(target.name, target);
-
-        // Export mesh
-        MeshData data = mesh.export_();
-        data.fixWinding();
-
-        // Fix UVs
-        // By dividing by width and height we should get the values in UV coordinate space.
-        target.normalizeUV(&data);
-
-        if (data.vertices.length != target.vertices.length)
-            vertexMapDirty = true;
-
-        DeformationParameterBinding[] deformers;
-
-        void alterDeform(ParameterBinding binding) {
-            auto deformBinding = cast(DeformationParameterBinding)binding;
-            if (!deformBinding)
-                return;
-            foreach (uint x; 0..cast(uint)deformBinding.values.length) {
-                foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
-                    auto deform = deformBinding.values[x][y];
-                    if (deformBinding.isSet(vec2u(x, y))) {
-                        auto newDeform = mesh.deformByDeformationBinding(deformBinding, vec2u(x, y), false);
-                        if (newDeform) 
-                            deformBinding.values[x][y] = *newDeform;
-                    } else {
-                        deformBinding.values[x][y].vertexOffsets.length = data.vertices.length;
-                    }
-                    deformers ~= deformBinding;
-                }
-            }
-        }
-
-        foreach (param; incActivePuppet().parameters) {
-            if (auto group = cast(ExParameterGroup)param) {
-                foreach(x, ref xparam; group.children) {
-                    ParameterBinding binding = xparam.getBinding(target, "deform");
-                    if (binding)
-                        action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", xparam, null));
-                    alterDeform(binding);
-                }
-            } else {
-                ParameterBinding binding = param.getBinding(target, "deform");
-                if (binding)
-                    action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", param, null));
-                alterDeform(binding);
-            }
-        }
-        incActivePuppet().resetDrivers();
-        vertexMapDirty = false;
-
-        target.clearCache();
-        target.rebuffer(data);
-
-        // reInterpolate MUST be called after rebuffer is called.
-        foreach (deformBinding; deformers) {
-            deformBinding.reInterpolate();
-        }
-
-        action.updateNewState();
-        incActionPush(action);
-
-        if (auto drawable = cast(Drawable)target) {
-            incUpdateWeldedPoints(drawable);
-        }
-        
-        incActionPopGroup();
+        applyMeshToTarget(target, mesh.vertices, &mesh);
     }
 
     override
