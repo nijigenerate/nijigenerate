@@ -4,6 +4,7 @@ import nijigenerate.viewport.model.deform;
 import nijigenerate.ext.param;
 import nijigenerate.ext;
 import nijigenerate.widgets;
+import nijigenerate.core.math.triangle;
 import nijigenerate.core;
 import nijigenerate.actions;
 import nijigenerate.viewport.common.mesheditor;
@@ -117,7 +118,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
             auto mesh = new IncMesh(drawable.getMesh());
             Deformation deform = extrapolation? extrapolateValueAt!Deformation(srcDeformBinding, index, axis):
                                                 interpolateValueAt!Deformation(srcDeformBinding, index, axis);
-            auto newDeform = mesh.deformByDeformationBinding(srcDrawable, deform, extrapolation || axis < 1);
+            auto newDeform = deformByDeformationBinding(mesh.vertices, srcDrawable, deform, extrapolation || axis < 1);
             if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
             if (newDeform)
                 deformBinding.setValue(index, *newDeform);
@@ -144,7 +145,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
             auto mesh = new IncMesh(drawable.getMesh());
             Deformation deform = extrapolation? extrapolateValueAt!Deformation(deformBinding, index, axis):
                                                 interpolateValueAt!Deformation(deformBinding, index, axis);
-            auto newDeform = mesh.deformByDeformationBinding(drawable, deform, extrapolation || axis < 1);
+            auto newDeform = deformByDeformationBinding(mesh.vertices, drawable, deform, extrapolation || axis < 1);
             if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
             if (newDeform)
                 deformBinding.setValue(index, *newDeform);
