@@ -15,8 +15,11 @@ import std.string;
 import std.array;
 import std.range;
 import std.algorithm.iteration;
+import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
+import core.sync.mutex;
+import core.sync.condition;
 
 class AutoMeshBatchWindow : Modal {
 private:
@@ -32,8 +35,11 @@ private:
 
     enum Status { Waiting, Running, Succeeded, Failed };
     Status[uint] status;
-    AutoMeshProcessor activeProcessor;
+
     Thread processingThread;
+
+    shared Mutex mtx;
+    shared Condition cond;
 
     void apply() {
         foreach (node; nodes) {
@@ -147,7 +153,6 @@ private:
 protected:
 
     void runBatch() {
-
         auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
         auto meshList = targets.map!(t=>meshes[t.uuid]).array;
         status.clear();
@@ -155,12 +160,14 @@ protected:
         void callback(Drawable drawable, IncMesh mesh) {
             if (mesh is null) {
                 status[drawable.uuid] = Status.Running;
+                writefln("Start %s", drawable.name);
             } else {
                 status[drawable.uuid] = Status.Succeeded;
                 meshes[drawable.uuid] = mesh;
+                writefln("End %s", drawable.name);
             }
         }
-        activeProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+        ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
     }
 
     override
@@ -224,13 +231,17 @@ protected:
                 if (!processingThread.isRunning()) {
                     processingThread.join();
                     processingThread = null;
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                    foreach (part; parts) part.textures[0].unlock();
                 }
             }
 
             igBeginChild("###Actions", ImVec2(childWidth, 40));
             if (incButtonColored(processingThread? __("Cancel") : __("Auto mesh"))) {
                 if (!processingThread) {
-                    activeProcessor = ngActiveAutoMeshProcessor;
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                    foreach (part; parts) part.textures[0].lock();
+//                    runBatch();
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
                 }

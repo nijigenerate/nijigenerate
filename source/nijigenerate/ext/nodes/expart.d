@@ -35,7 +35,6 @@ protected:
         return null;
     }
 
-
 public:
     /**
         Layer path to match against, should be in the following format:  
