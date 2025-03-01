@@ -306,9 +306,7 @@ public:
         double ratio    = sumWidth / widthMapLength;
         debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio); }
 
-        writefln("findContours start");
         auto contours = findContours(compensated);
-        writefln("findContours done");
         foreach (c; contours) {
             contourList ~= c;
         }
