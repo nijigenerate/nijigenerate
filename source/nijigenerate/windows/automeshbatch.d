@@ -233,8 +233,8 @@ protected:
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
                     GC.enable();
+                    GC.collect();
                 }
-                synchronized(gcMutex) { GC.collect(); }
             }
 
             igBeginChild("###Actions", ImVec2(childWidth, 40));
@@ -242,7 +242,6 @@ protected:
                 if (!processingThread) {
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].lock();
-//                    runBatch();
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
                     GC.disable();
