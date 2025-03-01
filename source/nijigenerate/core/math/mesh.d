@@ -1,7 +1,34 @@
 module nijigenerate.core.math.mesh;
 
+import nijigenerate;
+import nijigenerate.ext;
+import nijigenerate.actions;
+import nijigenerate.core.actionstack;
+import nijigenerate.core.math.vertex;
+import nijigenerate.core.math.triangle;
+import nijigenerate.viewport.common.mesheditor.operations.impl;
 import nijilive.math;
 import nijilive;
+
+private {
+    struct Applier(T: Drawable) {
+        static auto changeAction(T target) { return new DrawableChangeAction(target.name, target); }
+        static void postApply(T target) {
+            incUpdateWeldedPoints(target);
+        }
+        static void rebuffer(V, M)(T target, V vertices, M data = null) {
+            target.rebuffer(*data);
+        }
+    }
+
+    struct Applier(T: Deformable) if (!is(T: Drawable)) {
+        static auto changeAction(T target)  { return new DeformableChangeAction(target.name, target); }
+        static void postApply(T target) { }
+        static void rebuffer(V, M)(T target, V vertices, M* data = null) {
+            target.rebuffer(vertices.toVertices);
+        }
+    }
+}
 
 struct MeshVertex {
     vec2 position;
@@ -40,4 +67,74 @@ bool isConnectedTo(MeshVertex* self, MeshVertex* other) {
         if (conn == self) return true;
     }
     return false;
+}
+
+
+void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
+    incActionPushGroup();
+    // Apply the model
+    auto action = Applier!T.changeAction(target);
+    MeshData data;
+
+    if (mesh) {
+        // Export mesh
+        data = (*mesh).export_();
+        data.fixWinding();
+
+        // Fix UVs
+        // By dividing by width and height we should get the values in UV coordinate space.
+        target.normalizeUV(&data);
+    }
+
+    DeformationParameterBinding[] deformers;
+
+    void alterDeform(ParameterBinding binding) {
+        auto deformBinding = cast(DeformationParameterBinding)binding;
+        if (!deformBinding)
+            return;
+        foreach (uint x; 0..cast(uint)deformBinding.values.length) {
+            foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
+                auto deform = deformBinding.values[x][y];
+                if (deformBinding.isSet(vec2u(x, y))) {
+                    auto newDeform = deformByDeformationBinding(vertices, deformBinding, vec2u(x, y), false);
+                    if (newDeform) 
+                        deformBinding.values[x][y] = *newDeform;
+                } else {
+                    deformBinding.values[x][y].vertexOffsets.length = vertices.length;
+                }
+                deformers ~= deformBinding;
+            }
+        }
+    }
+
+    foreach (param; incActivePuppet().parameters) {
+        if (auto group = cast(ExParameterGroup)param) {
+            foreach(x, ref xparam; group.children) {
+                ParameterBinding binding = xparam.getBinding(target, "deform");
+                if (binding)
+                    action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", xparam, null));
+                alterDeform(binding);
+            }
+        } else {
+            ParameterBinding binding = param.getBinding(target, "deform");
+            if (binding)
+                action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", param, null));
+            alterDeform(binding);
+        }
+    }
+    incActivePuppet().resetDrivers();
+
+    target.clearCache();
+    Applier!T.rebuffer(target, vertices, &data);
+
+    // reInterpolate MUST be called after rebuffer is called.
+    foreach (deformBinding; deformers) {
+        deformBinding.reInterpolate();
+    }
+
+    action.updateNewState();
+    incActionPush(action);
+
+    Applier!T.postApply(target);
+    incActionPopGroup();
 }
