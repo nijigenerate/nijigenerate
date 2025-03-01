@@ -544,6 +544,7 @@ vec4 getBounds(T)(ref T vertices) {
 }
 
 void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[] vertices , U[] indices, ulong index, V value) if (isNumeric!U) {
+    if (vertices.length < 3) return;
     vec2[3] tvertices = [
         vertices[indices[3*index]].position,
         vertices[indices[3*index+1]].position,
@@ -571,6 +572,7 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
 }
 
 void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[] vertices , U[] indices, ulong index, V value) if (is(U: vec3u)) {
+    if (vertices.length < 3) return;
     vec2[3] tvertices = [
         vertices[indices[index].x].position,
         vertices[indices[index].y].position,
