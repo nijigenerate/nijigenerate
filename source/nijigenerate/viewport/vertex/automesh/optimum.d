@@ -468,6 +468,8 @@ public:
             if (!updated) break;
         }
 
+        if (vertices.length < 3) return mesh;
+
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;

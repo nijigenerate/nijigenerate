@@ -11,7 +11,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.vertex.mesheditor;
-import nijigenerate.viewport.vertex.automesh;
+public import nijigenerate.viewport.vertex.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
@@ -197,29 +197,24 @@ public:
 
             igBeginGroup();
                 if (incButtonColored("")) {
-                    if (!activeProcessor)
-                        activeProcessor = autoMeshProcessors[0];
                     foreach (drawable; editor.getTargets()) {
                         auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
                         if (e !is null)
-                            e.setMesh(activeProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0));
+                            e.setMesh(ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0));
                     }
                     editor.refreshMesh();
                 }
                 if (incBeginDropdownMenu("AUTOMESH_SETTINGS")) {
-                    if (!activeProcessor)
-                        activeProcessor = autoMeshProcessors[0];
-                    
                     igBeginGroup();
                     foreach (processor; autoMeshProcessors) {
-                        if (incButtonColored(processor.icon().toStringz, ImVec2(0, 0), (processor == activeProcessor)? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
-                            activeProcessor = processor;
+                        if (incButtonColored(processor.icon().toStringz, ImVec2(0, 0), (processor == ngActiveAutoMeshProcessor)? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                            ngActiveAutoMeshProcessor = processor;
                         }
                         igSameLine(0, 2);
                     }
                     igEndGroup();
 
-                    activeProcessor.configure();
+                    ngActiveAutoMeshProcessor.configure();
 
                     // Button which bakes some auto generated content
                     // In this case, a mesh is baked from the triangulation.
@@ -227,7 +222,7 @@ public:
                         foreach (drawable; editor.getTargets()) {
                             auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
                             if (e !is null)
-                                e.setMesh(activeProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0));
+                                e.setMesh(ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0));
                         }
                         editor.refreshMesh();
                     }
@@ -444,4 +439,19 @@ void incMeshEditClear() {
 void incMeshEditReset() {
     if (auto view = incVertexViewport)
         view.reset();
+}
+
+AutoMeshProcessor ngActiveAutoMeshProcessor() {
+    if (!activeProcessor)
+        activeProcessor = autoMeshProcessors[0];
+
+    return activeProcessor;
+}
+
+void ngActiveAutoMeshProcessor(AutoMeshProcessor processor) {
+    activeProcessor = processor;
+}
+
+AutoMeshProcessor[] ngAutoMeshProcessors() {
+    return autoMeshProcessors;
 }
