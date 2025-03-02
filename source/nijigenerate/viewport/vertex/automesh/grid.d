@@ -18,21 +18,21 @@ import std.array;
 import bindbc.imgui;
 
 class GridAutoMeshProcessor : AutoMeshProcessor {
-    float[] scaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
-    float[] scaleY = [-0.1, 0.0, 0.5, 1.0, 1.1];
+    float[] ScaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
+    float[] ScaleY = [-0.1, 0.0, 0.5, 1.0, 1.1];
     float maskThreshold = 15;
     float xSegments = 2, ySegments = 2;
     float margin = 0.1;
 public:
     override
-    IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+    IncMesh autoMesh(const Drawable target, const IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) const {
         Part part = cast(Part)target;
         if (!part)
-            return mesh;
+            return new IncMesh(mesh);
 
         Texture texture = part.textures[0];
         if (!texture)
-            return mesh;
+            return new IncMesh(mesh);
         ubyte[] data = texture.getTextureData();
         auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
         copy(data, img.data);
@@ -45,7 +45,8 @@ public:
             }
         }
         vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
-        mesh.clear();
+        IncMesh newMesh = new IncMesh(mesh);
+        newMesh.clear();
 
         float minX = texture.width();
         float minY = texture.height();
@@ -64,27 +65,28 @@ public:
 
         auto dcomposite = cast(DynamicComposite)target;
         MeshData meshData;
-        
-        mesh.axes = [[], []];
+        auto scaleY = ScaleY.dup;
+        auto scaleX = ScaleX.dup;
+        newMesh.axes = [[], []];
         scaleY.sort!((a, b)=> a<b);
         foreach (y; scaleY) {
-            mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
+            newMesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
             if (dcomposite !is null) {
-                mesh.axes[0][$ - 1] += dcomposite.textureOffset.y;
+                newMesh.axes[0][$ - 1] += dcomposite.textureOffset.y;
             }
         }
         scaleX.sort!((a, b)=> a<b);
         foreach (x; scaleX) {
-            mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
+            newMesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
             if (dcomposite !is null) {
-                mesh.axes[1][$ - 1] += dcomposite.textureOffset.x;
+                newMesh.axes[1][$ - 1] += dcomposite.textureOffset.x;
             }
         }
-        meshData.gridAxes = mesh.axes[];
+        meshData.gridAxes = newMesh.axes[];
         meshData.regenerateGrid();
-        mesh.copyFromMeshData(meshData);
+        newMesh.copyFromMeshData(meshData);
 
-        return mesh;
+        return newMesh;
     }
 
     override
@@ -145,21 +147,21 @@ public:
         }
 
         void divideAxes() {
-            scaleY.length = 0;
-            scaleX.length = 0;
+            ScaleY.length = 0;
+            ScaleX.length = 0;
             if (margin != 0) {
-                scaleY ~= -margin;
-                scaleX ~= -margin;
+                ScaleY ~= -margin;
+                ScaleX ~= -margin;
             }
             foreach (y; 0..(ySegments+1)) {
-                scaleY ~= y / ySegments;
+                ScaleY ~= y / ySegments;
             }
             foreach (x; 0..(xSegments+1)) {                
-                scaleX ~= x / xSegments;
+                ScaleX ~= x / xSegments;
             }
             if (margin != 0) {
-                scaleY ~= 1 + margin;
-                scaleX ~= 1 + margin;
+                ScaleY ~= 1 + margin;
+                ScaleX ~= 1 + margin;
             }
         }
 
@@ -221,11 +223,11 @@ public:
             incEndCategory();
 
             if (incBeginCategory(__("X Scale"))) {
-                editScale(scaleX);
+                editScale(ScaleX);
             }
             incEndCategory();
             if (incBeginCategory(__("Y Scale"))) {
-                editScale(scaleY);
+                editScale(ScaleY);
             }
             incEndCategory();
         igPopID();

@@ -26,9 +26,10 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
     float[] SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1];
     string presetName;
 public:
-    override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        if (MAX_DISTANCE < 0)
-            MAX_DISTANCE = SAMPLING_STEP * 2;
+    override IncMesh autoMesh(const Drawable target, const IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) const {
+        float maxDistance = MAX_DISTANCE;
+        if (maxDistance < 0)
+            maxDistance = SAMPLING_STEP * 2;
         auto contoursToVec2s(ContourType)(ref ContourType contours) {
             vec2[] result;
             foreach (contour; contours) {
@@ -85,11 +86,11 @@ public:
 
         Part part = cast(Part)target;
         if (!part)
-            return mesh;
+            return new IncMesh(mesh);
 
         Texture texture = part.textures[0];
         if (!texture)
-            return mesh;
+            return new IncMesh(mesh);
         ubyte[] data = texture.getTextureData();
         auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
         copy(data, img.data);
@@ -118,7 +119,7 @@ public:
                 }
             }
         }
-        mesh.clear();
+        IncMesh newMesh = new IncMesh(mesh);
 
         vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
         foreach (label, found; labelFound) {
@@ -136,9 +137,8 @@ public:
             if (contourVec.length == 0)
                 continue;
 
-            float[] scales;
             // scaling for larger parts
-            scales = SCALES;
+            auto scales = SCALES;
 
             auto moment = calcMoment(contourVec);
             auto minSize = MIN_DISTANCE;
@@ -159,24 +159,24 @@ public:
                 }
 
                 foreach (vec2 c; contour3) {
-                    if (mesh.vertices.length > 0) {
-                        auto minDistance = mesh.vertices.map!((v) { return ((c-imgCenter) - v.position).length; } ).reduce!(min);
+                    if (newMesh.vertices.length > 0) {
+                        auto minDistance = newMesh.vertices.map!((v) { return ((c-imgCenter) - v.position).length; } ).reduce!(min);
                         if (minDistance > minSize)
-                            mesh.vertices ~= new MeshVertex(c - imgCenter, []);
+                            newMesh.vertices ~= new MeshVertex(c - imgCenter, []);
                     } else 
-                        mesh.vertices ~= new MeshVertex(c - imgCenter, []);
+                        newMesh.vertices ~= new MeshVertex(c - imgCenter, []);
                 }
             }
 
         }
 
         if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) {
+            foreach (vertex; newMesh.vertices) {
                 vertex.position += dcomposite.textureOffset;
             }
         }
         
-        return mesh.autoTriangulate();
+        return newMesh.autoTriangulate();
     };
 
     override void configure() {

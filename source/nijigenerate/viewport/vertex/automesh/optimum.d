@@ -40,7 +40,7 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
 
     string presetName;
 public:
-    override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+    override IncMesh autoMesh(const Drawable target, const IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) const {
         auto contoursToVec2s(ContourType)(ContourType contours) {
             vec2[] result;
             bool[ulong] visited;
@@ -142,11 +142,11 @@ public:
 
         Part part = cast(Part)target;
         if (!part)
-            return mesh;
+            return new IncMesh(mesh);
 
         Texture texture = part.textures[0];
         if (!texture)
-            return mesh;
+            return new IncMesh(mesh);
         ubyte[] data = texture.getTextureData();
         auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
         copy(data, img.data);
@@ -305,7 +305,6 @@ public:
         double avgWidth = sumWidth / length;
         double ratio    = sumWidth / widthMapLength;
         debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", numFound, avgWidth, length, avgWidth / length, ratio); }
-
         auto contours = findContours(compensated);
         foreach (c; contours) {
             contourList ~= c;
@@ -314,9 +313,9 @@ public:
         auto contourVec = contoursToVec2s(contourList);
         debug(automesh_opt) { writefln("contourVec=%d", contourVec.length); }
 
-        if (contourVec.length < 3) return mesh;
+        if (contourVec.length < 3) return new IncMesh(mesh);
 
-        mesh.clear();
+        IncMesh newMesh = new IncMesh(mesh);
 
         bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
                         ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
@@ -338,7 +337,7 @@ public:
             // B-4 adds vertices scaled around centroid.
             float[] scales;
             // scaling for larger parts
-            scales = SCALES;
+            scales = SCALES.dup;
 
             vertices ~= vB1;
             auto vB2 = sampleExpandedFromThinned(vB1, size_avg * NONSHARP_EXPANSION_FACTOR);
@@ -468,9 +467,8 @@ public:
             if (!updated) break;
         }
 
-        if (vertices.length < 3) return mesh;
+        if (vertices.length < 3) return new IncMesh(mesh);
 
-        IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
         newMesh.importVertsAndTris(vertices.map!((x){

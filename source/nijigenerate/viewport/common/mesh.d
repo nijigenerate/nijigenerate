@@ -26,7 +26,7 @@ private:
     MeshData* data;
     vec2 eOrigin;
 
-    void mImport(bool reset = true)(ref MeshData data, mat4 matrix=mat4.identity) {
+    void mImport(bool reset = true)(ref const MeshData data, mat4 matrix=mat4.identity) {
         // Reset vertex length
         if (reset) {
             vertices.length = 0;
@@ -275,15 +275,15 @@ public:
         import_(mesh);
     }
 
-    this(IncMesh src) {
+    this(const IncMesh src) {
         import_(*src.data);
         selectRadius = src.selectRadius;
         maxGroupId = src.maxGroupId;
     }
 
     final
-    void import_(ref MeshData mesh) {
-        data = &mesh;
+    void import_(ref const MeshData mesh) {
+        data = &cast(MeshData)mesh;
         mImport(mesh);
     }
 
@@ -574,7 +574,7 @@ public:
         return newMesh;
     }
 
-    void copyFromMeshData(MeshData data) {
+    void copyFromMeshData(const MeshData data) {
         mImport(data);
     }
 }

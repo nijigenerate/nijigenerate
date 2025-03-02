@@ -35,17 +35,17 @@ private:
     Point[] controlPoints; // RDP により得られた制御点群（後で平行移動済み）
 
 public:
-    override IncMesh autoMesh(Drawable target, IncMesh mesh,
+    override IncMesh autoMesh(const Drawable target, const IncMesh mesh,
                               bool mirrorHoriz = false, float axisHoriz = 0,
-                              bool mirrorVert = false, float axisVert = 0)
+                              bool mirrorVert = false, float axisVert = 0) const
     {
         Part part = cast(Part)target;
         if (!part)
-            return mesh;
+            return new IncMesh(mesh);
 
         Texture texture = part.textures[0];
         if (!texture)
-            return mesh;
+            return new IncMesh(mesh);
 
         ubyte[] data = texture.getTextureData();
         int width = texture.width;
@@ -75,37 +75,34 @@ public:
         auto path = extractPath(imbin, width, height);
 
         // 曲線単純化
-        controlPoints = simplifyByTargetCount(path, targetPointCount);
+        vec2u[] controlPoints = simplifyByTargetCount(path, targetPointCount);
 
-        mesh.clear();
+        IncMesh newMesh = new IncMesh(mesh);
+
+        newMesh.clear();
         foreach (Point pt; controlPoints) {
             vec2 position = vec2(pt.x, pt.y);
-            mesh.vertices ~= new MeshVertex(position - imgCenter);
+            newMesh.vertices ~= new MeshVertex(position - imgCenter);
         }
 
         if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) {
+            foreach (vertex; newMesh.vertices) {
                 vertex.position += dcomposite.textureOffset;
             }
         }
 
-        return mesh.autoTriangulate();
+        return newMesh.autoTriangulate();
     }
 
     override void configure() {
         // 必要に応じて実装
     }
 
-    /// 抽出された制御点の取得
-    Point[] getControlPoints() {
-        return controlPoints;
-    }
-
 private:
 
     /////////////////////////////////////////////////////////////
     // 4. Visvalingam–Whyatt 法に基づく、指定したポイント数に単純化するアルゴリズム
-    Point[] simplifyByTargetCount(Point[] pts, int targetCount) {
+    vec2u[] simplifyByTargetCount(Point[] pts, int targetCount) const {
         // pts の数が既に目標以下ならそのまま返す
         if (pts.length <= targetCount)
             return pts.dup;

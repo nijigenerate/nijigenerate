@@ -23,17 +23,20 @@ import std.string;
 import bindbc.opengl;
 
 private {
-    AutoMeshProcessor[] autoMeshProcessors = [
+
+}
+
+class VertexViewport : Viewport {
+private:
+    static AutoMeshProcessor[] _autoMeshProcessors = [
         new OptimumAutoMeshProcessor(),
         new ContourAutoMeshProcessor(),
         new GridAutoMeshProcessor(),
         new SkeletonExtractor()
     ];
-    AutoMeshProcessor activeProcessor = null;
-    bool isSubPartsMeshVisible = false;
-}
+    static AutoMeshProcessor _activeProcessor = null;
+    static bool isSubPartsMeshVisible = false;    
 
-class VertexViewport : Viewport {
 protected:
     IncMeshEditor editor;
 public:
@@ -371,6 +374,21 @@ public:
                 meshEditor.getMesh().reset();
         }
     }
+
+    static AutoMeshProcessor activeAutoMeshProcessor() {
+        if (!_activeProcessor)
+            _activeProcessor = autoMeshProcessors[0];
+
+        return _activeProcessor;
+    }
+
+    static void activeAutoMeshProcessor(AutoMeshProcessor processor) {
+        _activeProcessor = processor;
+    }
+
+    static AutoMeshProcessor[] autoMeshProcessors() {
+        return _autoMeshProcessors;
+    }
 }
 
 VertexViewport incVertexViewport() {
@@ -442,16 +460,13 @@ void incMeshEditReset() {
 }
 
 AutoMeshProcessor ngActiveAutoMeshProcessor() {
-    if (!activeProcessor)
-        activeProcessor = autoMeshProcessors[0];
-
-    return activeProcessor;
+    return VertexViewport.activeAutoMeshProcessor;
 }
 
 void ngActiveAutoMeshProcessor(AutoMeshProcessor processor) {
-    activeProcessor = processor;
+    VertexViewport.activeAutoMeshProcessor = processor;
 }
 
 AutoMeshProcessor[] ngAutoMeshProcessors() {
-    return autoMeshProcessors;
+    return VertexViewport.autoMeshProcessors;
 }

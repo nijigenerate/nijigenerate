@@ -15,11 +15,27 @@ import std.string;
 import std.array;
 import std.range;
 import std.algorithm.iteration;
+import std.concurrency;
 import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
-import core.memory;
-import core.sync.mutex;
+import core.time;
+
+private {
+    alias ApplicableClass = Part;
+    class StartProcess {
+        const ApplicableClass target;
+    public:
+        this(const ApplicableClass t) { target = t; }
+    }
+    class EndProcess {
+        const ApplicableClass target;
+        const IncMesh mesh;
+    public:
+        this(const ApplicableClass t, const IncMesh m) { target = t; mesh = m; }
+    }
+
+}
 
 class AutoMeshBatchWindow : Modal {
 private:
@@ -36,8 +52,8 @@ private:
     enum Status { Waiting, Running, Succeeded, Failed };
     Status[uint] status;
 
-    Thread processingThread;
-    shared Mutex gcMutex = null;
+    Tid processingThread;
+    bool running = false;
 
     void apply() {
         foreach (node; nodes) {
@@ -150,23 +166,14 @@ private:
 
 protected:
 
-    void runBatch() {
-        GC.disable();
-        auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
-        auto meshList = targets.map!(t=>meshes[t.uuid]).array;
-        status.clear();
-        foreach (t; targets) status[t.uuid] = Status.Waiting;
-        void callback(Drawable drawable, IncMesh mesh) {
-            if (mesh is null) {
-                status[drawable.uuid] = Status.Running;
-            } else {
-                status[drawable.uuid] = Status.Succeeded;
-                meshes[drawable.uuid] = mesh;
-            }
-            synchronized(gcMutex) { GC.collect(); }
+    static void runBatch(const AutoMeshProcessor processor, const ApplicableClass[] targets, const IncMesh[] meshes) {
+        foreach (i, t; targets) {
+            auto start = new StartProcess(t);
+            send(ownerTid(), cast(immutable)start);
+            auto mesh = processor.autoMesh(t, meshes[i], false, 0, false, 0);
+            auto end = new EndProcess(t, mesh);
+            send(ownerTid(), cast(immutable)end);
         }
-        ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
-        GC.enable();
     }
 
     override
@@ -226,25 +233,40 @@ protected:
             }
             igEndChild();
 
-            if (processingThread !is null) {
-                if (!processingThread.isRunning()) {
-                    processingThread.join();
-                    processingThread = null;
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
-                    foreach (part; parts) part.textures[0].unlock();
-                    GC.enable();
-                    GC.collect();
-                }
+            if (running) {
+                receiveTimeout(0.msecs,
+                    (immutable StartProcess e) {
+                        status[e.target.uuid] = Status.Waiting;
+                        status[e.target.uuid] = Status.Running;
+                        writefln("Start %s", e.target.name);
+                    },
+                    (immutable EndProcess e) {
+                        status[e.target.uuid] = Status.Succeeded;
+                        meshes[e.target.uuid] = cast(IncMesh)e.mesh;
+                        writefln("End %s", e.target.name);
+                    },
+                    (LinkTerminated e) {
+                        auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                        foreach (part; parts) part.textures[0].unlock();
+                        running = false;
+                    });
             }
 
             igBeginChild("###Actions", ImVec2(childWidth, 40));
-            if (incButtonColored(processingThread? __("Cancel") : __("Auto mesh"))) {
-                if (!processingThread) {
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+            if (incButtonColored(running? __("Cancel") : __("Auto mesh"))) {
+                if (!running) {
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n).array;
+                    auto meshes = parts.map!((n)=>meshes[n.uuid]).array;
                     foreach (part; parts) part.textures[0].lock();
-                    processingThread = new Thread(&runBatch);
-                    processingThread.start();
-                    GC.disable();
+                    status.clear();
+                    foreach (t; parts) {
+                        status[t.uuid] = Status.Waiting;
+                    }
+                    auto im_parts = cast(immutable)parts;
+                    auto im_meshes = cast(immutable)meshes;
+                    auto im_processor = cast(immutable)ngActiveAutoMeshProcessor;
+                    processingThread = spawnLinked(&runBatch, im_processor, im_parts, im_meshes);
+                    running = true;
                 }
             }
             igEndChild();
