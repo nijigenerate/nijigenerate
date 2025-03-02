@@ -82,8 +82,11 @@ class DelegationViewport : Viewport {
 protected:
     Viewport _subView;
 
-    static string use(string name) {
-        return "override void "~name~"() { if (_subView) { _subView."~name~"(); } }";
+    static string use(T)(string name) {
+        return "override "~T.stringof~" "~name~"() { if (_subView) { return _subView."~name~"(); } return "~T.stringof~".init; }";
+    }
+    static string use(T:void = void)(string name) {
+        return "override "~T.stringof~" "~name~"() { if (_subView) { _subView."~name~"(); } }";
     }
 public:
 
@@ -111,6 +114,7 @@ public:
     mixin(use("menuOpening"));
     mixin(use("toolSettings"));
     mixin(use("toolbar"));
+    mixin(use!bool("hasMenu"));
 
     override
     void selectionChanged(Node[] target) {
