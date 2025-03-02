@@ -698,8 +698,10 @@ void incSetEditMode(EditMode editMode, bool unselect = true) {
 
     if (activeProject) activeProject.EditModeChanged.emit(editMode_);
 //    incViewportPresentMode(editMode_);
-    incAnimationPlayer.stopAll(true);
-    incAnimationPlayer.destroyAll();
+    if (incAnimationPlayer) {
+        incAnimationPlayer.stopAll(true);
+        incAnimationPlayer.destroyAll();
+    }
     incAnimationCurrent = null;
 }
 
