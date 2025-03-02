@@ -20,6 +20,8 @@ import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
 import core.time;
+import core.memory;
+import core.sync.mutex;
 
 private {
     alias ApplicableClass = Part;
@@ -54,6 +56,8 @@ private:
 
     Tid processingThread;
     bool running = false;
+
+    shared Mutex gcMutex;
 
     void apply() {
         foreach (node; nodes) {
@@ -168,11 +172,14 @@ protected:
 
     static void runBatch(const AutoMeshProcessor processor, const ApplicableClass[] targets, const IncMesh[] meshes) {
         foreach (i, t; targets) {
+            GC.disable();
             auto start = new StartProcess(t);
             send(ownerTid(), cast(immutable)start);
             auto mesh = processor.autoMesh(t, meshes[i], false, 0, false, 0);
             auto end = new EndProcess(t, mesh);
             send(ownerTid(), cast(immutable)end);
+            GC.enable();
+            GC.collect();
         }
     }
 
@@ -249,6 +256,7 @@ protected:
                         auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                         foreach (part; parts) part.textures[0].unlock();
                         running = false;
+                        GC.enable();
                     });
             }
 
@@ -267,6 +275,7 @@ protected:
                     auto im_processor = cast(immutable)ngActiveAutoMeshProcessor;
                     processingThread = spawnLinked(&runBatch, im_processor, im_parts, im_meshes);
                     running = true;
+                    GC.disable();
                 }
             }
             igEndChild();
@@ -312,7 +321,7 @@ protected:
     }
 
     void close() {
-        if (processingThread !is null) {
+        if (running) {
             // TBD: kill thread
             GC.enable();
         }
