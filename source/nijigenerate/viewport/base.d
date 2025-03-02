@@ -57,6 +57,13 @@ bool incShouldMirrorViewport = false;
 class Viewport {
 protected:
     bool alwaysUpdateMode = false;
+    static void onNewProject(Project project) {
+        if (incViewport)
+            incViewport.onEditModeChanged(EditMode.ModelEdit);
+    }
+    static this() {
+        ngRegisterProjectCallback(&onNewProject);
+    }
 public:
     void draw(Camera camera) { };
     void drawTools() { };
