@@ -36,32 +36,42 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
             alias DefaultDriver = ConnectedPendulumDriver;
 
-            bool physicsEnabled = node.driver !is null;
-            if (ngCheckbox(__("Auto-Physics"), &physicsEnabled)) {
-                if (physicsEnabled) {
-                    if (node.driver is null) {
-                        node.driver = new DefaultDriver(node);
-                        capture(cast(Node[])targets);
+            if (ngCheckbox(__("Auto-Physics"), &physicsEnabled.value)) {
+                if (physicsEnabled.value) {
+                    foreach (n; targets) {
+                        if (n.driver is null) {
+                            n.driver = new DefaultDriver(node);
+                        }
                     }
+                    capture(cast(Node[])targets);
                 } else {
-                    if (node.driver !is null) {
-                        node.driver = null;
+                    foreach (n; targets) {
+                        if (n.driver !is null) {
+                            n.driver = null;
+                        }
                     }
+                    capture(cast(Node[])targets);
                 }
             }
             incTooltip(_("Enabled / Disabled physics driver for vertices. If enabled, vertices are moved along with specified physics engine."));
 
-            string curveTypeText = node.curveType == CurveType.Bezier ? "Bezier" : node.curveType == CurveType.Spline? "Spline" : "Invalid";
+            string curveTypeText = curveType.value == CurveType.Bezier ? "Bezier" : curveType.value == CurveType.Spline? "Spline" : "Invalid";
             if (igBeginCombo("###PhysType", __(curveTypeText))) {
 
-                if (igSelectable(__("Bezier"), node.curveType == CurveType.Bezier)) {
-                    node.curveType = CurveType.Bezier;
-                    node.rebuffer(node.vertices);
+                if (igSelectable(__("Bezier"), curveType.value == CurveType.Bezier)) {
+                    foreach (n; targets) {
+                        n.curveType = CurveType.Bezier;
+                        n.rebuffer(n.vertices);
+                        n.notifyChange(n, NotifyReason.AttributeChanged);
+                    }
                 }
 
-                if (igSelectable(__("Spline"), node.curveType == CurveType.Spline)) {
-                    node.curveType = CurveType.Spline;
-                    node.rebuffer(node.vertices);
+                if (igSelectable(__("Spline"), curveType.value == CurveType.Spline)) {
+                    foreach (n; targets) {
+                        n.curveType = CurveType.Spline;
+                        n.rebuffer(n.vertices);
+                        n.notifyChange(n, NotifyReason.AttributeChanged);
+                    }
                 }
 
                 igEndCombo();
@@ -69,7 +79,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
             igSpacing();
 
-            if (physicsEnabled) {
+            if (physicsEnabled.value) {
                 incText(_("Physics Type"));
                 string typeText = cast(ConnectedPendulumDriver)node.driver? "Pendulum": cast(ConnectedSpringPendulumDriver)node.driver? "SpringPendulum": "None";
                 if (igBeginCombo("###PhysType", __(typeText))) {
@@ -156,7 +166,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
     }
 
     mixin MultiEdit;
-    mixin(attribute!(bool, "physicsEnabled",   (x)=>"("~x~".driver is null)", (x, v)=>""));
+    mixin(attribute!(bool, "physicsEnabled",   (x)=>"("~x~".driver !is null)", (x, v)=>""));
+    mixin(attribute!(CurveType, "curveType",   (x)=>x~".curveType", (x, v)=>x~".curveType = "~v));
     mixin(attribute!(float, "gravity",         (x   )=>get_prop!float(_pendulum(x), "gravity"), 
                                                (x, v)=>set_prop!float(_pendulum(x), "gravity", "v") ));
     mixin(attribute!(float, "restoreConstant", (x   )=>get_prop!float(_pendulum(x), "restoreConstant"), 
@@ -172,6 +183,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
     void capture(Node[] targets) {
         super.capture(targets);
         physicsEnabled.capture();
+        curveType.capture();
         gravity.capture();
         restoreConstant.capture();
         damping.capture();
