@@ -75,6 +75,8 @@ public:
         
         // Reparent
         foreach(ref sn; nodes) {
+
+            auto tmpTransform = sn.transform;
             
             // Store ref to prev parent
             if (sn.parent) {
@@ -86,7 +88,8 @@ public:
 
             // Set relative position
             if (new_) {
-                sn.reparent(new_, pOffset);
+                sn.reparent(new_, pOffset, true);
+                sn.localTransform.translation = (new_.transform.matrix.inverse * vec4(tmpTransform.translation, 1)).xyz;
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
             } else sn.parent = null;
@@ -107,14 +110,14 @@ public:
         foreach(ref sn; nodes) {
             if (sn.uuid in prevParents && prevParents[sn.uuid]) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(prevParents[sn.uuid]);
-                sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid]);
+                sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid], true);
                 if (sn.uuid in zSort) {
                     sn.zSort = zSort[sn.uuid] - prevParents[sn.uuid].zSort();
                 }
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
-                if (newParent) newParent.notifyChange(sn, NotifyReason.StructureChanged);
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
+                if (newParent) newParent.notifyChange(sn, NotifyReason.StructureChanged);
             } else sn.parent = null;
         }
         incActivePuppet().rescanNodes();
@@ -127,11 +130,11 @@ public:
         foreach(sn; nodes) {
             if (newParent) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
-                sn.reparent(newParent, parentOffset);
+                sn.reparent(newParent, parentOffset, true);
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
-                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
+                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
             } else sn.parent = null;
         }
         incActivePuppet().rescanNodes();
