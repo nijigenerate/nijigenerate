@@ -326,19 +326,19 @@ public:
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
-                auto selectedVertices = selected.map!((i) => inputVertices[i]).array;
+                auto selectedVertices = selected.map!((i) => i < inputVertices.length ? inputVertices[i]: vec2.init).array;
                 if (selectedVertices.length > 0)
                     drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
-                auto selectedVertices = selected.map!((i) => inputVertices[i]).array;
+                auto selectedVertices = selected.map!((i) => i < inputVertices.length ? inputVertices[i]: vec2.init).array;
                 if (selectedVertices.length > 0)
                     drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
         if (mirrorSelected.length) {
-            auto mirrorSelectedVertices = mirrorSelected.map!((i) => inputVertices[i]).array;
+            auto mirrorSelectedVertices = mirrorSelected.map!((i) => i < inputVertices.length ? inputVertices[i]: vec2.init).array;
             drawPointSubset(mirrorSelectedVertices, vec4(1, 0, 1, 1), trans);
         }
 
@@ -350,7 +350,7 @@ public:
             else inDbgDrawLines(vec4(0, 1, 0, 0.8), trans);
 
             if (newSelected.length) {
-                auto newSelectedVertices = newSelected.map!((i) => inputVertices[i]).array;
+                auto newSelectedVertices = newSelected.map!((i) => i < inputVertices.length ? inputVertices[i]: vec2.init).array;
                 if (mutateSelection && invertSelection)
                     drawPointSubset(newSelectedVertices, vec4(1, 0, 1, 1), trans);
                 else
