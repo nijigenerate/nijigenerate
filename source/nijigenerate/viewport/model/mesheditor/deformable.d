@@ -320,17 +320,20 @@ public:
         }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
-            drawPointSubset([inputVertices[vtxAtMouse]], vec4(1, 1, 1, 0.3), trans, 15);
+            if (vtxAtMouse < inputVertices.length && vtxAtMouse >= 0)
+                drawPointSubset([inputVertices[vtxAtMouse]], vec4(1, 1, 1, 0.3), trans, 15);
         }
 
         if (selected.length) {
             if (isSelecting && !mutateSelection) {
                 auto selectedVertices = selected.map!((i) => inputVertices[i]).array;
-                drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
+                if (selectedVertices.length > 0)
+                    drawPointSubset(selectedVertices, vec4(0.6, 0, 0, 1), trans);
             }
             else {
                 auto selectedVertices = selected.map!((i) => inputVertices[i]).array;
-                drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
+                if (selectedVertices.length > 0)
+                    drawPointSubset(selectedVertices, vec4(1, 0, 0, 1), trans);
             }
         }
 
