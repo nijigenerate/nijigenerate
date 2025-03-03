@@ -146,13 +146,16 @@ void ngConvertTo(Node[] nodes, string toType) {
     if (nodes.length == 0) return;
 
     auto group = new GroupAction();
+    Node[] newNodes = [];
     foreach (node; nodes) {
         Node newNode = inInstantiateNode(toType);
         newNode.copyFrom(node, true, false);
         group.addAction(new NodeReplaceAction(node, newNode, true));
+        newNodes ~= newNode;
         newNode.notifyChange(newNode, NotifyReason.StructureChanged);
     }
     incActionPush(group);
+    incSelectNodes(newNodes);
 }
 
 void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = false)(Node n) {
