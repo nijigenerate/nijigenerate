@@ -261,6 +261,11 @@ public:
             }
         } else
             srcNode.notifyChange(srcNode, NotifyReason.StructureChanged);
+    
+        if (incNodeInSelection(toNode)) {
+            incRemoveSelectNode(toNode);
+            incAddSelectNode(srcNode);
+        }
     }
 
     /**
@@ -286,6 +291,11 @@ public:
             }
         } else
             toNode.notifyChange(toNode, NotifyReason.StructureChanged);
+
+        if (incNodeInSelection(srcNode)) {
+            incRemoveSelectNode(srcNode);
+            incAddSelectNode(toNode);
+        }
     }
 
     /**

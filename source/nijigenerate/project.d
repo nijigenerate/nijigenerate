@@ -566,6 +566,11 @@ void incSelectNode(Node n = null) {
 //    incViewportModelNodeSelectionChanged();
 }
 
+void incSelectNodes(Node[] nodes) {
+    selectedNodes = nodes;
+    activeProject.SelectionChanged.emit(selectedNodes);
+}
+
 /**
     Adds node to selection
 */
