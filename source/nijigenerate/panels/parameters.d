@@ -476,16 +476,10 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
         auto action = new ParameterChangeBindingsValueAction("Flip Deform", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
             auto deformBinding = cast(DeformationParameterBinding)binding;  
-            if (deformBinding is null)
-                continue;
-            Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
-            auto mesh = new IncMesh(drawable.getMesh());
-            if (deformBinding.getIsSet()[cParamPoint.x][cParamPoint.y]) {
-                auto deform = deformBinding.getValue(cParamPoint);
-                auto newDeform = deformByDeformationBinding(mesh.vertices, drawable, deform, true);
-                if (newDeform)
-                    deformBinding.setValue(cParamPoint, *newDeform);
-            }
+            if (deformBinding is null) continue;
+            auto newDeform = deformByDeformationBinding(deformBinding, deformBinding, vec2u(cParamPoint.x, cParamPoint.y), true);
+            if (newDeform)
+                deformBinding.setValue(cParamPoint, *newDeform);
         }
         action.updateNewState();
         incActionPush(action);
@@ -606,14 +600,8 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
             ParameterBinding srcBinding = cClipboardBindings.values[0];
             if (is(typeof(binding) == typeof(srcBinding))) {
                 auto action = new ParameterChangeBindingsValueAction("paste", param, bindings, cParamPoint.x, cParamPoint.y);
-                if (auto deformParam = cast(DeformationParameterBinding)(binding)) {
-                    auto deformBinding = cast(DeformationParameterBinding)binding;
-                    auto srcDeformBinding = cast(DeformationParameterBinding)srcBinding;
-                    Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
-                    Drawable srcDrawable = cast(Drawable)srcDeformBinding.getTarget().node;
-                    auto mesh = new IncMesh(drawable.getMesh());
-                    Deformation deform = srcDeformBinding.getValue(cClipboardPoint);
-                    auto newDeform = deformByDeformationBinding(mesh.vertices, srcDrawable, deform, false);
+                if (auto deformBinding = cast(DeformationParameterBinding)(binding)) {
+                    auto newDeform = deformByDeformationBinding(deformBinding, cast(DeformationParameterBinding)srcBinding, cParamPoint, false);
                     if (newDeform)
                         deformBinding.setValue(cParamPoint, *newDeform);
 
