@@ -69,7 +69,6 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     *   extrapolation = specifying source index is selected in mirroered position or not.
     */
 void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, vec2u index, uint axis, bool extrapolation = true, ulong[]* selected = null) {
-
     T extrapolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, uint axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
 
@@ -109,17 +108,26 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
 
     auto deformBinding = cast(DeformationParameterBinding)binding;
     if (srcBinding !is null) {
-        if (deformBinding !is null) {
+        auto srcDeformBinding = cast(DeformationParameterBinding)srcBinding;
+        if (deformBinding !is null && srcDeformBinding !is null) {
+            PathDeformer deformable = cast(PathDeformer)deformBinding.getTarget().node;
+            PathDeformer srcDeformable = cast(PathDeformer)deformBinding.getTarget().node;
             Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
-            // Return if target node doesn't support deformations 
-            if(drawable is null) return;
-            auto srcDeformBinding = cast(DeformationParameterBinding)srcBinding;
             Drawable srcDrawable = cast(Drawable)srcDeformBinding.getTarget().node;
-            auto mesh = new IncMesh(drawable.getMesh());
-            Deformation deform = extrapolation? extrapolateValueAt!Deformation(srcDeformBinding, index, axis):
-                                                interpolateValueAt!Deformation(srcDeformBinding, index, axis);
-            auto newDeform = deformByDeformationBinding(mesh.vertices, srcDrawable, deform, extrapolation || axis < 1);
-            if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
+            Deformation* newDeform = null;
+            if (drawable !is null && srcDrawable !is null) {
+                auto mesh = new IncMesh(drawable.getMesh());
+                Deformation deform = extrapolation? extrapolateValueAt!Deformation(srcDeformBinding, index, axis):
+                                                    interpolateValueAt!Deformation(srcDeformBinding, index, axis);
+                newDeform = deformByDeformationBinding(mesh.vertices, srcDrawable, deform, extrapolation || axis < 1);
+                if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
+
+            } else if (deformable !is null && srcDeformable !is null) {
+                Deformation deform = extrapolation? extrapolateValueAt!Deformation(srcDeformBinding, index, axis):
+                                                    interpolateValueAt!Deformation(srcDeformBinding, index, axis);
+                newDeform = deformByDeformationBinding(deformable.vertices, srcDeformable, deform, extrapolation || axis < 1);
+                if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
+            }
             if (newDeform)
                 deformBinding.setValue(index, *newDeform);
 
@@ -140,12 +148,19 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
     } else {
         if (deformBinding !is null) {
             Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
+            PathDeformer deformable = cast(PathDeformer)deformBinding.getTarget().node;
             // Return if target node doesn't support deformations 
-            if(drawable is null) return;
-            auto mesh = new IncMesh(drawable.getMesh());
-            Deformation deform = extrapolation? extrapolateValueAt!Deformation(deformBinding, index, axis):
-                                                interpolateValueAt!Deformation(deformBinding, index, axis);
-            auto newDeform = deformByDeformationBinding(mesh.vertices, drawable, deform, extrapolation || axis < 1);
+            Deformation* newDeform = null;
+            if (drawable !is null) {
+                auto mesh = new IncMesh(drawable.getMesh());
+                Deformation deform = extrapolation? extrapolateValueAt!Deformation(deformBinding, index, axis):
+                                                    interpolateValueAt!Deformation(deformBinding, index, axis);
+                newDeform = deformByDeformationBinding(mesh.vertices, drawable, deform, extrapolation || axis < 1);
+            } else if (deformable !is null) {
+                Deformation deform = extrapolation? extrapolateValueAt!Deformation(deformBinding, index, axis):
+                                                    interpolateValueAt!Deformation(deformBinding, index, axis);
+                newDeform = deformByDeformationBinding(deformable.vertices, deformable, deform, extrapolation || axis < 1);
+            }
             if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
             if (newDeform)
                 deformBinding.setValue(index, *newDeform);

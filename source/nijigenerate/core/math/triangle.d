@@ -10,8 +10,24 @@ import std.algorithm;
 import std.array;
 import std.traits;
 
+Deformation* deformByDeformationBinding(DeformationParameterBinding binding, DeformationParameterBinding srcBinding, vec2u index, bool flipHorz = false) {
+    if (!binding || !srcBinding) return null;
+    if (auto drawable = cast(Drawable)binding.getTarget().node) {
+        if (auto srcDrawable = cast(Drawable)srcBinding.getTarget().node) {
+            auto mesh = new IncMesh(drawable.getMesh());
+            Deformation deform = srcBinding.getValue(index);
+            return deformByDeformationBinding(mesh.vertices, srcDrawable, deform, flipHorz);
+        }
+    } else if (auto deformable = cast(PathDeformer)binding.getTarget().node) {
+        if (auto srcDeformable = cast(PathDeformer)srcBinding.getTarget().node) {
+            Deformation deform = srcBinding.getValue(index);
+            return deformByDeformationBinding(deformable.vertices, srcDeformable, deform, flipHorz);
+        }
+    }
+    return null;
+}
+
 Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBinding binding, vec2u index, bool flipHorz = false) {
-    import std.stdio;
     if (!binding) {
         return null;
     }
@@ -194,6 +210,8 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
 
     foreach (i, v; vertices) {
         auto cVertex = position(v);
+        if (flipHorz)
+            cVertex.x *= -1;
         float t = originalCurve.closestPoint(cVertex);
         vec2 closestPointOriginal = originalCurve.point(t);
         vec2 tangentOriginal = originalCurve.derivative(t).normalized;
@@ -211,7 +229,7 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
 
         deformedVertices[i] = deformedVertex;
         if (flipHorz)
-            deformedVertices[i] *= -1;
+            deformedVertices[i].x *= -1;
         newDeform.vertexOffsets ~= deformedVertices[i] - position(v);
     }
     return newDeform;
