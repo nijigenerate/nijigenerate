@@ -11,6 +11,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.vertex.mesheditor;
+import nijigenerate.actions;
 public import nijigenerate.viewport.vertex.automesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
@@ -126,9 +127,14 @@ public:
             igBeginGroup();
                 if (incButtonColored("")) {
                     foreach (d; incSelectedNodes) {
-                        auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d);
-                        if (meshEditor)
+                        if (auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d))
                             meshEditor.getMesh().flipHorz();
+                        else if (auto meshEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(d)) {
+                            auto moveAction = new VertexMoveAction("flip vertices horizontally", meshEditor);
+                            foreach (i, v; meshEditor.vertices)
+                                moveAction.moveVertex(v, vec2(-v.position.x, v.position.y));
+                            incActionPush(moveAction);
+                        }
                     }
                 }
                 incTooltip(_("Flip Horizontally"));
@@ -137,9 +143,14 @@ public:
 
                 if (incButtonColored("")) {
                     foreach (d; incSelectedNodes) {
-                        auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d);
-                        if (meshEditor)
+                        if (auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d))
                             meshEditor.getMesh().flipVert();
+                        else if (auto meshEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(d)) {
+                            auto moveAction = new VertexMoveAction("flip vertices vertically", meshEditor);
+                            foreach (i, v; meshEditor.vertices)
+                                moveAction.moveVertex(v, vec2(v.position.x, -v.position.y));
+                            incActionPush(moveAction);
+                        }
                     }
                 }
                 incTooltip(_("Flip Vertically"));
@@ -299,25 +310,35 @@ public:
         editor = new VertexMeshEditor();
     };
 
-    void copyMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
-        if (editor.getEditorFor(target)) {
-            editor.getEditorFor(target).importMesh(data);
-        } else {
+    void copyMeshDataToTarget(Deformable target, Deformable source) {
+        if (!editor.getEditorFor(target)) {
             editor.addTarget(target);
             assert(editor.getEditorFor(target));
-            editor.getEditorFor(target).importMesh(data);
+        }
+        if (auto drawable = cast(Drawable)source) {
+            editor.getEditorFor(target).importMesh(drawable.getMesh());
+        } else {
+            MeshData mesh;
+            mesh.vertices = source.vertices;
+            mesh.uvs = source.vertices;
+            editor.getEditorFor(target).importMesh(mesh);
         }
     }
 
 
-    void mergeMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
-        mat4 matrix = drawable.transform.matrix * target.transform.matrix.inverse;
-        if (editor.getEditorFor(target)) {
-            editor.getEditorFor(target).mergeMesh(data, matrix);
-        } else {
+    void mergeMeshDataToTarget(Deformable target, Deformable source) {
+        mat4 matrix = source.transform.matrix * target.transform.matrix.inverse;
+        if (!editor.getEditorFor(target)) {
             editor.addTarget(target);
             assert(editor.getEditorFor(target));
-            editor.getEditorFor(target).mergeMesh(data, matrix);
+        }
+        if (auto drawable = cast(Drawable)source) {
+            editor.getEditorFor(target).mergeMesh(drawable.getMesh(), matrix);
+        } else {
+            MeshData mesh;
+            mesh.vertices = source.vertices;
+            mesh.uvs = source.vertices;
+            editor.getEditorFor(target).mergeMesh(mesh, matrix);
         }
     }
 
@@ -395,14 +416,14 @@ void incVertexEditSetTarget(Deformable target) {
         view.editor.setTarget(target);
 }
 
-void incVertexEditCopyMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
+void incVertexEditCopyMeshDataToTarget(Deformable target, Deformable source) {
     if (auto view = incVertexViewport)
-        return view.copyMeshDataToTarget(target, drawable, data);
+        view.copyMeshDataToTarget(target, source);
 }
 
-void incVertexEditMergeMeshDataToTarget(Deformable target, Drawable drawable, ref MeshData data) {
+void incVertexEditMergeMeshDataToTarget(Deformable target, Deformable source) {
     if (auto view = incVertexViewport)
-        return view.mergeMeshDataToTarget(target, drawable, data);
+        view.mergeMeshDataToTarget(target, source);
 }
 
 bool incMeshEditGetIsApplySafe() {
