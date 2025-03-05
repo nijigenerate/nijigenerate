@@ -23,6 +23,8 @@ import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
 import std.math;
+import std.algorithm;
+import std.array;
 import nijigenerate.core.math.vertex;
 
 class BezierDeformTool : NodeSelect {
@@ -295,6 +297,7 @@ class BezierDeformTool : NodeSelect {
 
     bool updateVertexEdit(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
+        if (deformImpl is null) return false;
         ulong pathDragTarget = impl.selected.length == 1 ? impl.selected[0] : ulong(-1);
 
         incStatusTooltip(_("Create/Destroy"), _("Left Mouse (x2)"));
@@ -317,10 +320,38 @@ class BezierDeformTool : NodeSelect {
                 removeAction.updateNewState();
                 incActionPush(removeAction);
             } else if (action == BezierDeformActionID.AddPoint) {
-                auto addAction = new VertexAddAction(impl.getTarget().name, impl);
-                MeshVertex* vertex = new MeshVertex(impl.mousePos);
-                addAction.addVertex(vertex);
-                incActionPush(addAction);
+
+                auto insertAction = new VertexInsertAction(impl.getTarget().name, impl);
+                if (auto path = cast(PathDeformer)impl.getTarget()) {
+                    auto curve = path.createCurve(deformImpl.vertices.map!(v=>v.position).array);
+                    auto relVertices = deformImpl.vertices.map!(v=>curve.closestPoint(v.position)).array;
+                    float relNew = curve.closestPoint(impl.mousePos);
+                    vec2 newPos = curve.point(relNew);
+                    bool inserted = false;
+                    if (isOverlapped(newPos, impl.mousePos, incViewportZoom)) {
+                        foreach (i, rv; relVertices) {
+                            if (relNew <= rv) {
+                                MeshVertex* vertex = new MeshVertex(newPos);
+                                insertAction.insertVertex(cast(int)i, vertex);
+                                inserted = true;
+                                break;
+                            }
+                        }
+                    } else if (deformImpl.vertices.length > 1 && relNew < 0.5) {
+                        MeshVertex* vertex = new MeshVertex(impl.mousePos);
+                        insertAction.insertVertex(0, vertex);
+                        inserted = true;
+                    }
+                    if (!inserted) {
+                        MeshVertex* vertex = new MeshVertex(impl.mousePos);
+                        insertAction.addVertex(vertex);
+                    }
+                } else {
+                    MeshVertex* vertex = new MeshVertex(impl.mousePos);
+                    insertAction.addVertex(vertex);
+                }
+
+                incActionPush(insertAction);
             }
             impl.deselectAll();
             lockedPoint    = -1;
