@@ -30,9 +30,7 @@ import nijigenerate.core.math.vertex;
 class BezierDeformTool : NodeSelect {
     Action action;
 
-    uint lastActivePoint;
-//    uint pathDragTarget;
-    uint lockedPoint;
+    ulong lockedPoint = ulong(-1);
 
     enum BezierDeformActionID {
         SwitchMode = cast(int)(SelectActionID.End),
@@ -55,9 +53,9 @@ class BezierDeformTool : NodeSelect {
 
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
-//        pathDragTarget = -1;
-        lockedPoint = -1;
-        lastActivePoint = -1;
+        lockedPoint = ulong(-1);
+        _isRotateMode = false;
+        _isShiftMode = false;
         super.setToolMode(toolMode, impl);
     }
 
@@ -197,8 +195,9 @@ class BezierDeformTool : NodeSelect {
                 if (io.KeyCtrl || _isRotateMode) {
                     if (target == lockedPoint)
                         return BezierDeformActionID.UnsetRotateCenter;
-                    else if (target != -1)
+                    else if (target != -1) {
                         return BezierDeformActionID.SetRotateCenter;
+                    }
                 } else if (!impl.isSelected(impl.vtxAtMouse)) {
                     return SelectActionID.SelectOne;
                 } else { return SelectActionID.MaybeSelectOne; }
@@ -218,7 +217,7 @@ class BezierDeformTool : NodeSelect {
 
         if (isDragging && impl.selected.length > 0) {
             if (impl.selected.length == 1 && impl.selected[0] != lockedPoint) {
-                if (lockedPoint != -1) {
+                if (lockedPoint != ulong(-1)) {
                     action = BezierDeformActionID.Rotate;
                 } else if (io.KeyShift || _isShiftMode) {
                     if (isDragging != preDragging)
@@ -354,7 +353,7 @@ class BezierDeformTool : NodeSelect {
                 incActionPush(insertAction);
             }
             impl.deselectAll();
-            lockedPoint    = -1;
+            lockedPoint    = ulong(-1);
         } else if (action == BezierDeformActionID.TranslatePoint || action == BezierDeformActionID.StartTransform) {
             foreach (i; impl.selected) {
                 vec2 relTranslation = impl.mousePos - impl.lastMousePos;
@@ -411,7 +410,7 @@ class BezierDeformTool : NodeSelect {
         }
 
         if (action == BezierDeformActionID.UnsetRotateCenter) {
-            lockedPoint = -1;
+            lockedPoint = ulong(-1);
             impl.deselectAll();
             _isRotateMode = false;
 
@@ -430,7 +429,7 @@ class BezierDeformTool : NodeSelect {
             float relAngle = angle - prevAngle;
             mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
 
-            for (int i = lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
+            for (int i = cast(int)lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
                 deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
             }
 
@@ -497,7 +496,7 @@ class BezierDeformTool : NodeSelect {
     void draw(Camera camera, IncMeshEditorOne impl) {
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
         super.draw(camera, impl);
-        if (lockedPoint != uint(-1)) {
+        if (lockedPoint != ulong(-1)) {
             vec3[] drawPoints = [vec3(deformImpl.vertices[lockedPoint].position, 0)];
             inDbgSetBuffer(drawPoints);
             inDbgPointsSize(4);
@@ -562,7 +561,7 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         igSameLine(0, 4);
 
         igBeginGroup();
-            if (incButtonColored("", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
+            if (incButtonColored("\ue8e4", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
                 foreach (e; editors) {
                     auto deform = cast(T)(e.getTool());
                     if (deform !is null)
@@ -575,6 +574,6 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         return false;
     }
     override VertexToolMode mode() { return VertexToolMode.BezierDeform; }
-    override string icon() { return "";}
+    override string icon() { return "";}
     override string description() { return _("Path Deform Tool");}
 }

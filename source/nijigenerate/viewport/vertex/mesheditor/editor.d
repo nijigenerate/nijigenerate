@@ -49,6 +49,10 @@ public:
         } else if (auto deformable = cast(Deformable)target) {
             incActionPushStack();
             subEditor = new IncMeshEditorOneDeformableVertex();
+            if (cast(PathDeformer)deformable) {
+                subEditor.toolMode = VertexToolMode.BezierDeform;
+                toolMode = VertexToolMode.BezierDeform;
+            }
         }
 
         subEditor.setTarget(target);
