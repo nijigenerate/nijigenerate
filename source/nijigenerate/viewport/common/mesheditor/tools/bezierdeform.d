@@ -23,12 +23,14 @@ import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
 import std.math;
+import std.algorithm;
+import std.array;
 import nijigenerate.core.math.vertex;
 
 class BezierDeformTool : NodeSelect {
-    uint lastActivePoint;
-    uint pathDragTarget;
-    uint lockedPoint;
+    Action action;
+
+    ulong lockedPoint = ulong(-1);
 
     enum BezierDeformActionID {
         SwitchMode = cast(int)(SelectActionID.End),
@@ -41,17 +43,19 @@ class BezierDeformTool : NodeSelect {
         Rotate,
         SetRotateCenter,
         UnsetRotateCenter,
-        Shift
+        Shift,
+        End
     }
 
     bool _isShiftMode = false;
     bool _isRotateMode = false;
+    bool preDragging = false;
 
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
-        pathDragTarget = -1;
-        lockedPoint = -1;
-        lastActivePoint = -1;
+        lockedPoint = ulong(-1);
+        _isRotateMode = false;
+        _isShiftMode = false;
         super.setToolMode(toolMode, impl);
     }
 
@@ -60,13 +64,68 @@ class BezierDeformTool : NodeSelect {
     bool getIsRotateMode() { return _isRotateMode; }
     void setIsRotateMode(bool value) { _isRotateMode = value; }
 
+    override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
+        if (!impl.deformOnly) {
+            if (!impl.isSelecting && !isDragging) {
+                isDragging = true;
+                action = new VertexMoveAction(impl.getTarget().name, impl);
+                return true;
+            }
+            return false;
+        } else {
+            return super.onDragStart(mousePos, impl);
+        }
+    }
+
+    override bool onDragEnd(vec2 mousePos, IncMeshEditorOne impl) {
+        if (!impl.deformOnly) {
+            if (action !is null) {
+                if (auto meshAction = cast(MeshAction)(action)) {
+                    if (meshAction.dirty) {
+                        meshAction.updateNewState();
+                        incActionPush(action);
+                    }
+                }else if (auto vertAction = cast(VertexAction)(action)) {
+                    if (vertAction.dirty) {
+                        vertAction.updateNewState();
+                        incActionPush(action);
+                    }
+                }
+                action = null;
+            }
+        }
+        preDragging = false;
+        return super.onDragEnd(mousePos, impl);
+    }
+
+    override bool onDragUpdate(vec2 mousePos, IncMeshEditorOne impl) {
+        if (!impl.deformOnly) { 
+            if (isDragging) {
+                if (auto meshAction = cast(VertexMoveAction)action) {
+                    foreach(select; impl.selected) {
+                        impl.foreachMirror((uint axis) {
+                            MeshVertex *v = impl.getVerticesByIndex([impl.mirrorVertex(axis, select)])[0];
+                            if (v is null) return;
+                            meshAction.moveVertex(v, v.position + impl.mirror(axis, mousePos - impl.lastMousePos));
+                        });
+                    }
+                }
+
+                if (impl.selected.length > 0)
+                    impl.maybeSelectOne = ulong(-1);
+                impl.refreshMesh();
+                return true;
+            }
+            return false;
+        } else {
+            return super.onDragUpdate(mousePos, impl);
+        }
+    }
+
     int peekVertexEdit(ImGuiIO* io, IncMeshEditorOne impl) {
-        super.peek(io, impl);
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
 
         if (incInputIsMouseReleased(ImGuiMouseButton.Left)) {
-            if (impl.isSelecting)
-                impl.adjustPathTransform();
             onDragEnd(impl.mousePos, impl);
         }
 
@@ -81,55 +140,32 @@ class BezierDeformTool : NodeSelect {
 
         int action = SelectActionID.None;
 
-        bool preDragging = isDragging;
-        if (incDragStartedInViewport(ImGuiMouseButton.Left) && igIsMouseDown(ImGuiMouseButton.Left) && incInputIsDragRequested(ImGuiMouseButton.Left)) {
-            if (pathDragTarget != -1)  {
-                isDragging = true;
+        // Left click selection
+        if (igIsMouseClicked(ImGuiMouseButton.Left)) {
+            if (impl.isPointOver(impl.mousePos)) {
+                if (io.KeyShift) return SelectActionID.ToggleSelect;
+                else if (!impl.isSelected(impl.vtxAtMouse))  return SelectActionID.SelectOne;
+                else return SelectActionID.MaybeSelectOne;
+            } else {
+                return SelectActionID.SelectArea;
             }
         }
-
-        if (isDragging && pathDragTarget != -1) {
-            if (pathDragTarget != lockedPoint) {
-                if (lockedPoint != -1) {
-                    action = BezierDeformActionID.Rotate;
-                } else if (io.KeyShift || _isShiftMode) {
-                    if (isDragging != preDragging)
-                        action = BezierDeformActionID.StartShiftTransform;
-                    else
-                        action = BezierDeformActionID.Shift;
-                } else {
-                    if (isDragging != preDragging)
-                        action = BezierDeformActionID.StartTransform;
-                    else
-                        action = BezierDeformActionID.Transform;
-                }
-            }
+        if (!isDragging && !impl.isSelecting &&
+            incInputIsMouseReleased(ImGuiMouseButton.Left) && impl.maybeSelectOne != ulong(-1)) {
+            return SelectActionID.SelectMaybeSelectOne;
         }
 
         if (action != SelectActionID.None)
             return action;
 
-        if (pathDragTarget == -1 && io.KeyAlt) {
-            // Left click selection
-            if (igIsMouseClicked(ImGuiMouseButton.Left)) {
-                if (impl.isPointOver(impl.mousePos)) {
-                    if (io.KeyShift) return SelectActionID.ToggleSelect;
-                    else if (!impl.isSelected(impl.vtxAtMouse))  return SelectActionID.SelectOne;
-                    else return SelectActionID.MaybeSelectOne;
-                } else {
-                    return SelectActionID.SelectArea;
-                }
-            }
-            if (!isDragging && !impl.isSelecting &&
-                incInputIsMouseReleased(ImGuiMouseButton.Left) && impl.maybeSelectOne != ulong(-1)) {
-                return SelectActionID.SelectMaybeSelectOne;
-            }
+        if (isDragging) {
+            return BezierDeformActionID.TranslatePoint;
+        }
 
-            // Dragging
-            if (incDragStartedInViewport(ImGuiMouseButton.Left) && igIsMouseDown(ImGuiMouseButton.Left) && incInputIsDragRequested(ImGuiMouseButton.Left)) {
-                if (!impl.isSelecting) {
-                    return SelectActionID.StartDrag;
-                }
+        // Dragging
+        if (incDragStartedInViewport(ImGuiMouseButton.Left) && igIsMouseDown(ImGuiMouseButton.Left) && incInputIsDragRequested(ImGuiMouseButton.Left)) {
+            if (!impl.isSelecting) {
+                return SelectActionID.StartDrag;
             }
         }
 
@@ -138,12 +174,9 @@ class BezierDeformTool : NodeSelect {
     }
     
     int peekDeformEdit(ImGuiIO* io, IncMeshEditorOne impl) {
-        super.peek(io, impl);
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
 
         if (incInputIsMouseReleased(ImGuiMouseButton.Left)) {
-            if (impl.isSelecting)
-                impl.adjustPathTransform();
             onDragEnd(impl.mousePos, impl);
         }
 
@@ -153,30 +186,38 @@ class BezierDeformTool : NodeSelect {
             impl.getCleanDeformAction();
         }
 
-        if (igIsMouseClicked(ImGuiMouseButton.Left)) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
-            if (target != -1 && (io.KeyCtrl || _isRotateMode)) {
-                if (target == lockedPoint)
-                    return BezierDeformActionID.UnsetRotateCenter;
-                else if (target != -1)
-                    return BezierDeformActionID.SetRotateCenter;
-            } else {
-                pathDragTarget = target;
-            }
-        }
-
         int action = SelectActionID.None;
 
-        bool preDragging = isDragging;
-        if (incDragStartedInViewport(ImGuiMouseButton.Left) && igIsMouseDown(ImGuiMouseButton.Left) && incInputIsDragRequested(ImGuiMouseButton.Left)) {
-            if (pathDragTarget != -1)  {
-                isDragging = true;
+        if (igIsMouseClicked(ImGuiMouseButton.Left)) {
+            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
+
+            if (target != -1) {
+                if (io.KeyCtrl || _isRotateMode) {
+                    if (target == lockedPoint)
+                        return BezierDeformActionID.UnsetRotateCenter;
+                    else if (target != -1) {
+                        return BezierDeformActionID.SetRotateCenter;
+                    }
+                } else if (!impl.isSelected(impl.vtxAtMouse)) {
+                    return SelectActionID.SelectOne;
+                } else { return SelectActionID.MaybeSelectOne; }
+            } else {
+                return SelectActionID.SelectArea;
             }
+
         }
 
-        if (isDragging && pathDragTarget != -1) {
-            if (pathDragTarget != lockedPoint) {
-                if (lockedPoint != -1) {
+        if (!isDragging && !impl.isSelecting &&
+            incInputIsMouseReleased(ImGuiMouseButton.Left) && impl.maybeSelectOne != ulong(-1)) {
+            return SelectActionID.SelectMaybeSelectOne;
+        }
+
+        if (action != SelectActionID.None)
+            return action;
+
+        if (isDragging && impl.selected.length > 0) {
+            if (impl.selected.length == 1 && impl.selected[0] != lockedPoint) {
+                if (lockedPoint != ulong(-1)) {
                     action = BezierDeformActionID.Rotate;
                 } else if (io.KeyShift || _isShiftMode) {
                     if (isDragging != preDragging)
@@ -187,39 +228,23 @@ class BezierDeformTool : NodeSelect {
                     if (isDragging != preDragging)
                         action = BezierDeformActionID.StartTransform;
                     else
-                        action = BezierDeformActionID.Transform;
+                        action = BezierDeformActionID.TranslatePoint;
                 }
             }
+            preDragging = true;
         }
 
         if (action != SelectActionID.None)
             return action;
 
-        if (pathDragTarget == -1 && io.KeyAlt) {
-            // Left click selection
-            if (igIsMouseClicked(ImGuiMouseButton.Left)) {
-                if (impl.isPointOver(impl.mousePos)) {
-                    if (io.KeyShift) return SelectActionID.ToggleSelect;
-                    else if (!impl.isSelected(impl.vtxAtMouse))  return SelectActionID.SelectOne;
-                    else return SelectActionID.MaybeSelectOne;
-                } else {
-                    return SelectActionID.SelectArea;
-                }
-            }
-            if (!isDragging && !impl.isSelecting &&
-                incInputIsMouseReleased(ImGuiMouseButton.Left) && impl.maybeSelectOne != ulong(-1)) {
-                return SelectActionID.SelectMaybeSelectOne;
-            }
-
-            // Dragging
-            if (incDragStartedInViewport(ImGuiMouseButton.Left) && igIsMouseDown(ImGuiMouseButton.Left) && incInputIsDragRequested(ImGuiMouseButton.Left)) {
-                if (!impl.isSelecting) {
-                    return SelectActionID.StartDrag;
-                }
+        // Dragging
+        if (incDragStartedInViewport(ImGuiMouseButton.Left) && igIsMouseDown(ImGuiMouseButton.Left) && incInputIsDragRequested(ImGuiMouseButton.Left)) {
+            if (!impl.isSelecting) {
+                action = SelectActionID.StartDrag;
             }
         }
 
-        return SelectActionID.None;
+        return action;
 
     }
 
@@ -271,6 +296,8 @@ class BezierDeformTool : NodeSelect {
 
     bool updateVertexEdit(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
+        if (deformImpl is null) return false;
+        ulong pathDragTarget = impl.selected.length == 1 ? impl.selected[0] : ulong(-1);
 
         incStatusTooltip(_("Create/Destroy"), _("Left Mouse (x2)"));
         incStatusTooltip(_("Switch Mode"), _("TAB"));
@@ -284,49 +311,53 @@ class BezierDeformTool : NodeSelect {
         if (action == BezierDeformActionID.RemovePoint || action == BezierDeformActionID.AddPoint) {
             if (action == BezierDeformActionID.RemovePoint) {
                 int idx = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
-                if(idx != -1) deformImpl.removeVertex(io, true);
+
+                auto removeAction = new VertexRemoveAction(impl.getTarget().name, impl);
+                if (idx != -1) {
+                    removeAction.removeVertex(impl.getVerticesByIndex([idx])[0]);
+                }
+                removeAction.updateNewState();
+                incActionPush(removeAction);
             } else if (action == BezierDeformActionID.AddPoint) {
-                deformImpl.addVertex(io);
+
+                auto insertAction = new VertexInsertAction(impl.getTarget().name, impl);
+                if (auto path = cast(PathDeformer)impl.getTarget()) {
+                    auto curve = path.createCurve(deformImpl.vertices.map!(v=>v.position).array);
+                    auto relVertices = deformImpl.vertices.map!(v=>curve.closestPoint(v.position)).array;
+                    float relNew = curve.closestPoint(impl.mousePos);
+                    vec2 newPos = curve.point(relNew);
+                    bool inserted = false;
+                    if (isOverlapped(newPos, impl.mousePos, incViewportZoom)) {
+                        foreach (i, rv; relVertices) {
+                            if (relNew <= rv) {
+                                MeshVertex* vertex = new MeshVertex(newPos);
+                                insertAction.insertVertex(cast(int)i, vertex);
+                                inserted = true;
+                                break;
+                            }
+                        }
+                    } else if (deformImpl.vertices.length > 1 && relNew < 0.5) {
+                        MeshVertex* vertex = new MeshVertex(impl.mousePos);
+                        insertAction.insertVertex(0, vertex);
+                        inserted = true;
+                    }
+                    if (!inserted) {
+                        MeshVertex* vertex = new MeshVertex(impl.mousePos);
+                        insertAction.addVertex(vertex);
+                    }
+                } else {
+                    MeshVertex* vertex = new MeshVertex(impl.mousePos);
+                    insertAction.addVertex(vertex);
+                }
+
+                incActionPush(insertAction);
             }
-            pathDragTarget = -1;
-            lockedPoint    = -1;
-        } else if (action == BezierDeformActionID.UnsetRotateCenter) {
-            lockedPoint = -1;
-            pathDragTarget = -1;
-            _isRotateMode = false;
-
-        } else if (action == BezierDeformActionID.SetRotateCenter) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
-            lockedPoint = target;
-            pathDragTarget = -1;
-            _isRotateMode = false;
-
-        } else if (action == BezierDeformActionID.Rotate) {
-            int step = (pathDragTarget > lockedPoint)? 1: -1;
-            vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint].position;
-            vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint].position;
-            float prevAngle = atan2(prevRelPosition.y, prevRelPosition.x);
-            float angle     = atan2(relPosition.y, relPosition.x);
-            float relAngle = angle - prevAngle;
-            mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
-
-            for (int i = lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
-                deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
-            }
-
-        } else if (action == BezierDeformActionID.Shift || action == BezierDeformActionID.StartShiftTransform) {
-  
-            if(pathDragTarget != -1){
-//                float off = findClosestPointOffset(deformImpl.vertices, impl.mousePos);
-//                vec2 pos  = path.eval(off);
-                vec2 pos;
-                deformImpl.vertices[pathDragTarget].position = pos;
-            }
-        
-        } else if (action == BezierDeformActionID.Transform || action == BezierDeformActionID.StartTransform) {
-            if(pathDragTarget != -1){
+            impl.deselectAll();
+            lockedPoint    = ulong(-1);
+        } else if (action == BezierDeformActionID.TranslatePoint || action == BezierDeformActionID.StartTransform) {
+            foreach (i; impl.selected) {
                 vec2 relTranslation = impl.mousePos - impl.lastMousePos;
-                deformImpl.vertices[pathDragTarget].position += relTranslation;
+                deformImpl.vertices[i].position += relTranslation;
             }
         }
 
@@ -363,6 +394,7 @@ class BezierDeformTool : NodeSelect {
 
     bool updateDeformEdit(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
+        ulong pathDragTarget = impl.selected.length == 1 ? impl.selected[0] : ulong(-1);
 
         incStatusTooltip(_("Deform"), _("Left Mouse"));
         incStatusTooltip(_("Switch Mode"), _("TAB"));
@@ -378,14 +410,14 @@ class BezierDeformTool : NodeSelect {
         }
 
         if (action == BezierDeformActionID.UnsetRotateCenter) {
-            lockedPoint = -1;
-            pathDragTarget = -1;
+            lockedPoint = ulong(-1);
+            impl.deselectAll();
             _isRotateMode = false;
 
         } else if (action == BezierDeformActionID.SetRotateCenter) {
             auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
             lockedPoint = target;
-            pathDragTarget = -1;
+            impl.deselectAll();
             _isRotateMode = false;
 
         } else if (action == BezierDeformActionID.Rotate) {
@@ -397,26 +429,25 @@ class BezierDeformTool : NodeSelect {
             float relAngle = angle - prevAngle;
             mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
 
-            for (int i = lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
+            for (int i = cast(int)lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
                 deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
             }
 
         } else if (action == BezierDeformActionID.Shift || action == BezierDeformActionID.StartShiftTransform) {
-            if(pathDragTarget != -1){
-//                float off = path.findClosestPointOffset(impl.mousePos);
-//                vec2 pos  = path.eval(off);
-                vec2 pos;
-                deformImpl.vertices[pathDragTarget].position = pos;
+            if(impl.selected.length == 1){
+                if (auto path = cast(PathDeformer)impl.getTarget()) {
+                    vec2 pos = path.deformedCurve.point(path.deformedCurve.closestPoint(impl.mousePos));
+                    deformImpl.vertices[impl.selected[0]].position = pos;
+                }
             }
         
-        } else if (action == BezierDeformActionID.Transform || action == BezierDeformActionID.StartTransform) {
-            if(pathDragTarget != -1){
+        } else if (action == BezierDeformActionID.TranslatePoint || action == BezierDeformActionID.StartTransform) {
+            if(impl.selected.length == 1){
                 vec2 relTranslation = impl.mousePos - impl.lastMousePos;
-                deformImpl.vertices[pathDragTarget].position += relTranslation;
+                deformImpl.vertices[impl.selected[0]].position += relTranslation;
             }
         }
 
-        mat4 trans = impl.updatePathTarget();
         if (impl.hasAction())
             impl.markActionDirty();
         changed = true;
@@ -448,7 +479,6 @@ class BezierDeformTool : NodeSelect {
             onDragStart(impl.mousePos, impl);
         }
 
-        if (changed) impl.refreshMesh();
         return changed;
     }
 
@@ -461,6 +491,18 @@ class BezierDeformTool : NodeSelect {
             updateVertexEdit(io, impl, action, changed);
         return changed;
     }
+
+    override
+    void draw(Camera camera, IncMeshEditorOne impl) {
+        auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
+        super.draw(camera, impl);
+        if (lockedPoint != ulong(-1)) {
+            vec3[] drawPoints = [vec3(deformImpl.vertices[lockedPoint].position, 0)];
+            inDbgSetBuffer(drawPoints);
+            inDbgPointsSize(4);
+            inDbgDrawPoints(vec4(0, 1, 0, 1), impl.transform);
+        }
+    }    
 
     override
     MeshEditorAction!DeformationAction editorAction(Node target, DeformationAction action) {
@@ -519,7 +561,7 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         igSameLine(0, 4);
 
         igBeginGroup();
-            if (incButtonColored("", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
+            if (incButtonColored("\ue8e4", ImVec2(0, 0), (deformTool !is null && deformTool.getIsShiftMode()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // move shift
                 foreach (e; editors) {
                     auto deform = cast(T)(e.getTool());
                     if (deform !is null)
@@ -532,6 +574,6 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         return false;
     }
     override VertexToolMode mode() { return VertexToolMode.BezierDeform; }
-    override string icon() { return "";}
+    override string icon() { return "";}
     override string description() { return _("Path Deform Tool");}
 }

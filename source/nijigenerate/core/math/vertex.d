@@ -34,6 +34,9 @@ bool groupIdEquals(T: MeshVertex)(T vertex, uint groupId) { return vertex.groupI
 bool groupIdEquals(T: MeshVertex*)(T vertex, uint groupId) { return vertex.groupId == groupId;  }
 
 
+bool isOverlapped(T)(T vert1, vec2 vert2, float zoomRate) {
+    return (abs(pointDistance(vert1, vert2)) < selectRadius/zoomRate);
+}
 
 bool isPointOverVertex(T)(T[] vertices, vec2 point, float zoomRate) {
     foreach(vert; vertices) {
