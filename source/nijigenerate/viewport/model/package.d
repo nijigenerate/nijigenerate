@@ -226,16 +226,16 @@ class ModelViewport : DelegationViewport {
                     
                     const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                     if (payload !is null) {
-                        if (Drawable payloadDrawable = cast(Drawable)*cast(Node*)payload.Data) {
+                        if (auto payloadDeformable = cast(Deformable)*cast(Node*)payload.Data) {
                             incSetEditMode(EditMode.VertexEdit);
                             incSelectNode(node);
                             incVertexEditSetTarget(node);
                             incFocusCamera(node, vec2(0, 0));
                             if (io.KeyCtrl) {
-                                incVertexEditMergeMeshDataToTarget(node, payloadDrawable, payloadDrawable.getMesh());
+                                incVertexEditMergeMeshDataToTarget(node, payloadDeformable);
 
                             } else {
-                                incVertexEditCopyMeshDataToTarget(node, payloadDrawable, payloadDrawable.getMesh());
+                                incVertexEditCopyMeshDataToTarget(node, payloadDeformable);
                             }
                         }
                     }
