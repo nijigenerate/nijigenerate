@@ -88,47 +88,47 @@ class ModelViewport : DelegationViewport {
                         }
                         drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
                         drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
-                        /*
-                        void drawLines2(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
-                            if (closestPoints.length == 0)
-                                return;
-                            vec3[] lines;
-                            foreach (t2, deformed; closestPoints) {
-                                if (auto deformable2 = cast(Deformable)t2) {
-                                    mat4 conv = trans.inverse * deformable2.transform.matrix;
-                                    foreach (i, v; deformable2.vertices) {
-                                        lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
-                                        lines ~= vec3(deformed[i], 0);
+                        debug(path_deform) {
+                            void drawLines2(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
+                                if (closestPoints.length == 0)
+                                    return;
+                                vec3[] lines;
+                                foreach (t2, deformed; closestPoints) {
+                                    if (auto deformable2 = cast(Deformable)t2) {
+                                        mat4 conv = trans.inverse * deformable2.transform.matrix;
+                                        foreach (i, v; deformable2.vertices) {
+                                            lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
+                                            lines ~= vec3(deformed[i], 0);
+                                        }
                                     }
                                 }
-                            }
-                            if (lines.length > 0) {
-                                inDbgSetBuffer(lines);
-                                inDbgDrawLines(color, trans);
-                            }
-                        }
-                        drawLines2(deformable.closestPointsOriginal, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
-                        void drawLines3(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
-                            if (closestPoints.length == 0)
-                                return;
-                            vec3[] lines;
-                            foreach (t, deformed; closestPoints) {
-                                if (auto deformable2 = cast(Deformable)t) {
-                                    mat4 conv = trans.inverse * deformable2.transform.matrix;
-                                    import std.range;
-                                    foreach (i, v; zip(deformable2.vertices, deformable2.deformation).map!((t)=>t[0] + t[1]).array) {
-                                        lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
-                                        lines ~= vec3(deformed[i], 0);
-                                    }
+                                if (lines.length > 0) {
+                                    inDbgSetBuffer(lines);
+                                    inDbgDrawLines(color, trans);
                                 }
                             }
-                            if (lines.length > 0) {
-                                inDbgSetBuffer(lines);
-                                inDbgDrawLines(color, trans);
+                            drawLines2(deformable.closestPointsOriginal, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                            void drawLines3(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
+                                if (closestPoints.length == 0)
+                                    return;
+                                vec3[] lines;
+                                foreach (t, deformed; closestPoints) {
+                                    if (auto deformable2 = cast(Deformable)t) {
+                                        mat4 conv = trans.inverse * deformable2.transform.matrix;
+                                        import std.range;
+                                        foreach (i, v; zip(deformable2.vertices, deformable2.deformation).map!((t)=>t[0] + t[1]).array) {
+                                            lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
+                                            lines ~= vec3(deformed[i], 0);
+                                        }
+                                    }
+                                }
+                                if (lines.length > 0) {
+                                    inDbgSetBuffer(lines);
+                                    inDbgDrawLines(color, trans);
+                                }
                             }
+                            drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                         }
-                        drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
-                        */
                     }
                     
                     if (Driver selectedDriver = cast(Driver)selectedNode) {
