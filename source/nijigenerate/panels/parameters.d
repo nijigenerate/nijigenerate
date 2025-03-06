@@ -485,6 +485,24 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
     }
+    if (igMenuItem(__("Symmetrize Deform"), "", false, true)) {
+
+        auto action = new ParameterChangeBindingsValueAction("Symmetrize Deform", param, bindings, cParamPoint.x, cParamPoint.y);
+        foreach(binding; bindings) {
+            auto deformBinding = cast(DeformationParameterBinding)binding;  
+            if (deformBinding is null) continue;
+            auto newDeform = deformByDeformationBinding(deformBinding, deformBinding, vec2u(cParamPoint.x, cParamPoint.y), true);
+            if (newDeform && newDeform.vertexOffsets.length == deformBinding.values[cParamPoint.x][cParamPoint.y].vertexOffsets.length) {
+                foreach(i; 0..(*newDeform).vertexOffsets.length) {
+                    (*newDeform).vertexOffsets[i] = (deformBinding.values[cParamPoint.x][cParamPoint.y].vertexOffsets[i] + (*newDeform).vertexOffsets[i]) / 2;
+                }
+                deformBinding.setValue(cParamPoint, *newDeform);
+            }
+        }
+        action.updateNewState();
+        incActionPush(action);
+        incViewportNodeDeformNotifyParamValueChanged();
+    }
 
     if (param.isVec2) {
         if (igBeginMenu(__("Set from mirror"), true)) {
