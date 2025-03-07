@@ -132,8 +132,8 @@ class BezierDeformTool : NodeSelect {
         if (igIsMouseClicked(ImGuiMouseButton.Left)) impl.maybeSelectOne = ulong(-1);
         
         if (igIsMouseDoubleClicked(ImGuiMouseButton.Left)) {
-            int idx = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
-            if (idx != -1) return BezierDeformActionID.RemovePoint;
+            ulong idx = cast(ulong)findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
+            if (idx != ulong(-1)) return BezierDeformActionID.RemovePoint;
             else return BezierDeformActionID.AddPoint;
 
         }
@@ -189,13 +189,13 @@ class BezierDeformTool : NodeSelect {
         int action = SelectActionID.None;
 
         if (igIsMouseClicked(ImGuiMouseButton.Left)) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
+            auto target = cast(ulong)findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
 
-            if (target != -1) {
+            if (target != ulong(-1)) {
                 if (io.KeyCtrl || _isRotateMode) {
                     if (target == lockedPoint)
                         return BezierDeformActionID.UnsetRotateCenter;
-                    else if (target != -1) {
+                    else if (target != ulong(-1)) {
                         return BezierDeformActionID.SetRotateCenter;
                     }
                 } else if (!impl.isSelected(impl.vtxAtMouse)) {
@@ -310,10 +310,10 @@ class BezierDeformTool : NodeSelect {
 
         if (action == BezierDeformActionID.RemovePoint || action == BezierDeformActionID.AddPoint) {
             if (action == BezierDeformActionID.RemovePoint) {
-                int idx = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
+                ulong idx = cast(ulong)findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
 
                 auto removeAction = new VertexRemoveAction(impl.getTarget().name, impl);
-                if (idx != -1) {
+                if (idx != ulong(-1)) {
                     removeAction.removeVertex(impl.getVerticesByIndex([idx])[0]);
                 }
                 removeAction.updateNewState();
@@ -415,7 +415,7 @@ class BezierDeformTool : NodeSelect {
             _isRotateMode = false;
 
         } else if (action == BezierDeformActionID.SetRotateCenter) {
-            auto target = findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
+            auto target = cast(ulong)findPoint(deformImpl.vertices, impl.mousePos, incViewportZoom);
             lockedPoint = target;
             impl.deselectAll();
             _isRotateMode = false;
