@@ -9,6 +9,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
+import nijigenerate.core.math.vertex;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
@@ -25,7 +26,7 @@ import std.stdio;
 import std.math;
 import std.algorithm;
 import std.array;
-import nijigenerate.core.math.vertex;
+import std.typecons;
 
 class BezierDeformTool : NodeSelect {
     Action action;
@@ -63,6 +64,9 @@ class BezierDeformTool : NodeSelect {
     void setIsShiftMode(bool value) { _isShiftMode = value; }
     bool getIsRotateMode() { return _isRotateMode; }
     void setIsRotateMode(bool value) { _isRotateMode = value; }
+
+    Nullable!Curve origCurve;
+    vec2u origCurvePoint;
 
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
         if (!impl.deformOnly) {
@@ -297,7 +301,6 @@ class BezierDeformTool : NodeSelect {
     bool updateVertexEdit(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
         if (deformImpl is null) return false;
-        ulong pathDragTarget = impl.selected.length == 1 ? impl.selected[0] : ulong(-1);
 
         incStatusTooltip(_("Create/Destroy"), _("Left Mouse (x2)"));
         incStatusTooltip(_("Switch Mode"), _("TAB"));
@@ -436,7 +439,11 @@ class BezierDeformTool : NodeSelect {
         } else if (action == BezierDeformActionID.Shift || action == BezierDeformActionID.StartShiftTransform) {
             if(impl.selected.length == 1){
                 if (auto path = cast(PathDeformer)impl.getTarget()) {
-                    vec2 pos = path.deformedCurve.point(path.deformedCurve.closestPoint(impl.mousePos));
+                    if (origCurve.isNull || origCurvePoint != incArmedParameter().findClosestKeypoint()) {
+                        origCurvePoint = incArmedParameter().findClosestKeypoint();
+                        origCurve = path.createCurve(deformImpl.vertices.map!(i=>i.position).array);
+                    }
+                    vec2 pos = origCurve.get.point(origCurve.get.closestPoint(impl.mousePos));
                     deformImpl.vertices[impl.selected[0]].position = pos;
                 }
             }
