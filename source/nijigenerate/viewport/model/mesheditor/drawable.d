@@ -28,7 +28,7 @@ import std.array;
 /**
  * MeshEditor of Drawable for deformation operation.
  */
-class IncMeshEditorOneDrawableDeform : IncMeshEditorOneDrawable {
+class IncMeshEditorOneFor(T: Drawable, EditMode mode: EditMode.ModelEdit) : IncMeshEditorOneDrawable {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
