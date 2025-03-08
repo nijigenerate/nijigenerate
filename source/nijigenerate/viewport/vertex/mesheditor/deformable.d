@@ -30,7 +30,7 @@ import std.array;
 /**
  * MeshEditor of Deformable for vertex operation.
  */
-class IncMeshEditorOneDeformableVertex : IncMeshEditorOneDeformable {
+class IncMeshEditorOneFor(T: Deformable, EditMode mode: EditMode.VertexEdit) : IncMeshEditorOneDeformable {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
