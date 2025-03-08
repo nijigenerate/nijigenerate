@@ -15,10 +15,9 @@ import bindbc.imgui;
 import i18n;
 
 class DeformationViewport : Viewport {
-protected:
-    Drawable selected = null;
 public:
     IncMeshEditor editor;
+    Parameter parameter = null;
 
     override
     void draw(Camera camera) { 
@@ -44,13 +43,11 @@ public:
     void update(ImGuiIO* io, Camera camera) {
         if (!editor) return;
 
-        Parameter param = incArmedParameter();
-
         if (editor.update(io, camera)) {
             foreach (d; incSelectedNodes()) {
                 if (auto deformable = cast(Deformable)d) {
-                    auto deform = cast(DeformationParameterBinding)param.getOrAddBinding(deformable, "deform");
-                    deform.update(param.findClosestKeypoint(), editor.getEditorFor(deformable).getOffsets());
+                    auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(deformable, "deform");
+                    deform.update(parameter.findClosestKeypoint(), editor.getEditorFor(deformable).getOffsets());
                 }
             }
         }
@@ -63,13 +60,14 @@ public:
     }
  
     override
-    void armedParameterChanged(Parameter parameter) { 
+    void armedParameterChanged(Parameter parameter) {
+        this.parameter = parameter;
         paramValueChanged();
     }
 
 
     void paramValueChanged() {
-        if (Parameter param = incArmedParameter()) {
+        if (parameter) {
             auto drawables = incSelectedNodes();
 
             if (!editor) {
@@ -87,10 +85,10 @@ public:
                 auto e = editor.getEditorFor(node);
                 DeformationParameterBinding deform = null;
                 if (auto deformable = cast(Deformable)node)
-                    deform = cast(DeformationParameterBinding)param.getBinding(deformable, "deform");
+                    deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
                 if (e !is null) {
                     if (deform !is null) {
-                        auto binding = deform.getValue(param.findClosestKeypoint());
+                        auto binding = deform.getValue(parameter.findClosestKeypoint());
                         e.applyOffsets(binding.vertexOffsets);
                     }
                     e.adjustPathTransform();

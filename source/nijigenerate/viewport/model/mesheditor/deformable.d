@@ -31,7 +31,7 @@ import std.array;
 /**
  * MeshEditor of Deformable for deformation operation.
  */
-class IncMeshEditorOneDeformableDeform : IncMeshEditorOneDeformable {
+class IncMeshEditorOneFor(T: Deformable, EditMode mode: EditMode.ModelEdit): IncMeshEditorOneDeformable if (!is(T: Drawable)) {
 protected:
     vec2[] deformation;
     vec2[] inputVertices;
