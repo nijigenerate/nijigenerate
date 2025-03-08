@@ -425,15 +425,17 @@ class BezierDeformTool : NodeSelect {
 
         } else if (action == BezierDeformActionID.Rotate) {
             int step = (pathDragTarget > lockedPoint)? 1: -1;
-            vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint].position;
-            vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint].position;
-            float prevAngle = atan2(prevRelPosition.y, prevRelPosition.x);
-            float angle     = atan2(relPosition.y, relPosition.x);
-            float relAngle = angle - prevAngle;
-            mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
+            if (lockedPoint != ulong(-1)) { // Guard that lockedPoint is valid. There is some condition which accidentally set action to Rotate even if lockedPoint is ulong(-1).
+                vec2 prevRelPosition = impl.lastMousePos - deformImpl.vertices[lockedPoint].position;
+                vec2 relPosition     = impl.mousePos - deformImpl.vertices[lockedPoint].position;
+                float prevAngle = atan2(prevRelPosition.y, prevRelPosition.x);
+                float angle     = atan2(relPosition.y, relPosition.x);
+                float relAngle = angle - prevAngle;
+                mat4 rotate = mat4.identity.translate(vec3(-deformImpl.vertices[lockedPoint].position, 0)).rotateZ(relAngle).translate(vec3(deformImpl.vertices[lockedPoint].position, 0));
 
-            for (int i = cast(int)lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
-                deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
+                for (int i = cast(int)lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
+                    deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
+                }
             }
 
         } else if (action == BezierDeformActionID.Shift || action == BezierDeformActionID.StartShiftTransform) {
