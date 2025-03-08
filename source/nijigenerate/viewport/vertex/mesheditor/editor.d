@@ -41,14 +41,14 @@ public:
 
         if (auto drawable = cast(Drawable)target) {
             incActionPushStack();
-            subEditor = new IncMeshEditorOneDrawableVertex();
+            subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
             if (drawable.getMesh().isGrid()) {
                 subEditor.toolMode = VertexToolMode.Grid;
                 toolMode           = VertexToolMode.Grid;
             }
         } else if (auto deformable = cast(Deformable)target) {
             incActionPushStack();
-            subEditor = new IncMeshEditorOneDeformableVertex();
+            subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.VertexEdit)();
             if (cast(PathDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.BezierDeform;
                 toolMode = VertexToolMode.BezierDeform;
@@ -72,13 +72,13 @@ public:
                 IncMeshEditorOne subEditor = null;
                 if (auto drawable = cast(Drawable)t) {
                     incActionPushStack();
-                    subEditor = new IncMeshEditorOneDrawableVertex();
+                    subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
                 } else if (auto deformable = cast(Deformable)t) {
                     incActionPushStack();
-                    subEditor = new IncMeshEditorOneDeformableVertex();
+                    subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.VertexEdit)();
                 } else {
                     incActionPushStack();
-                    subEditor = new IncMeshEditorOneNode(deformOnly);
+                    subEditor = new IncMeshEditorOneFor!Node(deformOnly);
                 }
                 subEditor.setTarget(t);
                 subEditor.mirrorHoriz = mirrorHoriz;

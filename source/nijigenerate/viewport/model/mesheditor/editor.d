@@ -40,9 +40,9 @@ public:
         IncMeshEditorOne subEditor;
 
         if (auto drawable = cast(Drawable)target) { 
-            subEditor = new IncMeshEditorOneDrawableDeform();
+            subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit)();
         } else if (auto deformable = cast(Deformable)target) {
-            subEditor = new IncMeshEditorOneDeformableDeform();
+            subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.ModelEdit)();
             if (cast(PathDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.BezierDeform;
                 toolMode = VertexToolMode.BezierDeform;
@@ -65,15 +65,15 @@ public:
             } else {
                 IncMeshEditorOne subEditor = null;
                 if (auto drawable = cast(Drawable)t) {
-                    subEditor = new IncMeshEditorOneDrawableDeform();
+                    subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit)();
                 } else if (auto deformable = cast(Deformable)t) {
-                    subEditor = new IncMeshEditorOneDeformableDeform();
+                    subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.ModelEdit)();
                     if (cast(PathDeformer)deformable) {
                         subEditor.toolMode = VertexToolMode.BezierDeform;
                         toolMode = VertexToolMode.BezierDeform;
                     }
                 } else {
-                    subEditor = new IncMeshEditorOneNode(deformOnly);
+                    subEditor = new IncMeshEditorOneFor!(Node)(deformOnly);
                 }
                 subEditor.setTarget(t);
                 subEditor.mirrorHoriz = mirrorHoriz;

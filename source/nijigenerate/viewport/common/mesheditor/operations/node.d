@@ -31,7 +31,7 @@ import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
 
-class IncMeshEditorOneNode : IncMeshEditorOneImpl!Node {
+class IncMeshEditorOneFor(T: Node, EditMode mode = EditMode.ModelEdit) : IncMeshEditorOneImpl!Node if (!is(T: Deformable)) {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {

@@ -350,8 +350,8 @@ public:
     float oldOrigX, oldOrigY, oldOrigRotZ;
     float newOrigX, newOrigY, newOrigRotZ;
     
-    IncMeshEditorOneDrawableDeform selfDeform() {
-        return cast(IncMeshEditorOneDrawableDeform)self();
+    IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit) selfDeform() {
+        return cast(IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit))self();
     }
 
     auto path() {
