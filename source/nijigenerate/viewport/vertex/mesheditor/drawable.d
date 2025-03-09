@@ -29,7 +29,7 @@ import std.array;
 /**
  * MeshEditor of Drawable for vertex operation.
  */
-class IncMeshEditorOneDrawableVertex : IncMeshEditorOneDrawable {
+class IncMeshEditorOneFor(T: Drawable, EditMode mode: EditMode.VertexEdit) : IncMeshEditorOneDrawable {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
@@ -305,7 +305,7 @@ public:
             previewMesh.drawLines(trans, vec4(0.7, 0.7, 0, 1));
             mesh.drawPoints(trans);
         } else {
-            mesh.draw(trans);
+            mesh.draw(trans, vertexColor, edgeColor);
         }
 
         if (groupId != 0) {

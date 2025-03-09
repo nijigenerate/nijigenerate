@@ -30,7 +30,7 @@ import std.array;
 /**
  * MeshEditor of Deformable for vertex operation.
  */
-class IncMeshEditorOneFor(T: Deformable, EditMode mode: EditMode.VertexEdit) : IncMeshEditorOneDeformable {
+class IncMeshEditorOneFor(T: Deformable, EditMode mode: EditMode.VertexEdit) : IncMeshEditorOneDeformable if (!is(T: Drawable)) {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
@@ -305,13 +305,13 @@ public:
                     }
                 }
                 auto curve = deformable.createCurve(vertices.map!((v)=>v.position).array);
-                drawLines(curve, trans, vec4(0, 1, 1, 1));
+                drawLines(curve, trans, edgeColor);
             }
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(vertexColor, trans);
         }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
