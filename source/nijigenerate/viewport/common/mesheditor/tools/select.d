@@ -38,7 +38,7 @@ class NodeSelect : Tool, Draggable {
 
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
-        assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
+//        assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
         isDragging = false;
         impl.isSelecting = false;
         incViewport.alwaysUpdate = false;

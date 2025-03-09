@@ -330,7 +330,7 @@ public:
             }
 
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(vertexColor, trans);
         }
 
         if (groupId != 0) {
