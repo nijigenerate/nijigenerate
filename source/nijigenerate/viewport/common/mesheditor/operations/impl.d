@@ -159,7 +159,6 @@ bool toBool(T: MeshVertex*)(T vtx) { return vtx !is null; }
 bool toBool(T: vec2)(T vtx) { return true; }
 void drawPointSubset(T)(T[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
     vec3[] subPoints;
-
     if (subset.length == 0) return;
 
     // Updates all point positions
