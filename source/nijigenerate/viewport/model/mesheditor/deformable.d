@@ -310,13 +310,13 @@ public:
                     }
                 }
                 auto curve = deformer.createCurve(inputVertices.map!((v)=>v).array);
-                drawLines(curve, trans, vec4(0, 1, 1, 1));
+                drawLines(curve, trans, edgeColor);
             }
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(vertexColor, trans);
         }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {

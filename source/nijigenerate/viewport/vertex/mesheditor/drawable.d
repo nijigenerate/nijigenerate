@@ -31,7 +31,7 @@ import std.typecons;
 /**
  * MeshEditor of Drawable for vertex operation.
  */
-class IncMeshEditorOneDrawableVertex : IncMeshEditorOneDrawable {
+class IncMeshEditorOneFor(T: Drawable, EditMode mode: EditMode.VertexEdit) : IncMeshEditorOneDrawable {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
@@ -317,7 +317,7 @@ public:
                     }
                 }
             }
-            mesh.draw(trans, indices.length > 0? indices: null);
+            mesh.draw(trans, vertexColor, edgeColor, indices.length > 0? indices: null);
         }
 
         if (groupId != 0) {

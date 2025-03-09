@@ -303,7 +303,6 @@ class BezierDeformTool : NodeSelect {
         if (deformImpl is null) return false;
 
         incStatusTooltip(_("Create/Destroy"), _("Left Mouse (x2)"));
-        incStatusTooltip(_("Switch Mode"), _("TAB"));
         incStatusTooltip(_("Toggle locked point"), _("Ctrl"));
         incStatusTooltip(_("Move point along with the path"), _("Shift"));
         
