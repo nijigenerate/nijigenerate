@@ -244,6 +244,7 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
         puppet.populateTextureSlots();
         puppet.root.transformChanged();
         puppet.root.centralize();
+        puppet.root.build();
         incActiveProject().puppet = puppet;
         incFocusCamera(incActivePuppet().root);
 
