@@ -550,7 +550,8 @@ ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, flo
     foreach (i, v; node.vertices) {
         auto vv = (node.transform.matrix * vec4(v, 0, 1)).xy;
         auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>((counterDrawable.transform.matrix * vec4(a.value, 0, 1))).xy.distance(vv))();
-        if ((counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).xy.distance(vv) < 4) {
+        auto dist = (counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).xy.distance(vv);
+        if (dist < 4) {
             indices ~= minDistance[0];
         } else {
             indices ~= -1;
