@@ -97,6 +97,12 @@ public:
 
     override
     void setToolMode(VertexToolMode toolMode) {
+        writefln("setToolMode:%s->%s", this.toolMode, toolMode);
+        if (this.toolMode == toolMode) return;
+
+        if (this.toolMode in tools) {
+            tools[this.toolMode].finalizeToolMode(this);
+        }
         if (toolMode in tools) {
             this.toolMode = toolMode;
             tools[toolMode].setToolMode(toolMode, this);
