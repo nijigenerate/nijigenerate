@@ -18,6 +18,8 @@ import nijilive.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.algorithm;
+import std.typecons;
+import std.range;
 import nijigenerate.core.math;
 public import nijigenerate.core.math.mesh;
 
@@ -425,11 +427,20 @@ public:
         }
     }
 
-    void drawPoints(mat4 trans = mat4.identity) {
+    void drawPoints(mat4 trans = mat4.identity, Tuple!(ptrdiff_t[], vec4)[] markers = null) {
         if (points.length > 0) {
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+            if (markers) {
+                foreach (marker; markers) {
+                    auto pts = marker[0].map!(i=>points[i]).array;
+                    inDbgSetBuffer(pts);
+                    inDbgPointsSize(10);
+                    inDbgDrawPoints(marker[1], trans);
+                }
+            }
+            inDbgSetBuffer(points);
             inDbgPointsSize(6);
             inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
         }
@@ -456,9 +467,9 @@ public:
         inDbgDrawPoints(color, trans);
     }
 
-    void draw(mat4 trans = mat4.identity) {
+    void draw(mat4 trans = mat4.identity, Tuple!(ptrdiff_t[], vec4)[] markers = null) {
         drawLines(trans);
-        drawPoints(trans);
+        drawPoints(trans, markers);
     }
 
     bool isPointOverVertex(vec2 point, float zoomRate) {
