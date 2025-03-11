@@ -1,6 +1,7 @@
 module nijigenerate.viewport.vertex.mesheditor.drawable;
 
 import i18n;
+import nijigenerate.panels.inspector.part;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
@@ -96,6 +97,9 @@ public:
     override
     void applyToTarget() {
         applyMeshToTarget(target, mesh.vertices, &mesh);
+        foreach (welded; target.welded) {
+            incRegisterWeldedPoints(target, welded.target);
+        }
     }
 
     override
