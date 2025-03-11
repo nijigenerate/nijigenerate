@@ -548,12 +548,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
     ptrdiff_t[] indices;
     foreach (i, v; node.vertices) {
-        auto vv = node.transform.matrix * vec4(v, 0, 1);
-        auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>(counterDrawable.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
-        if ((counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
+        auto vv = (node.transform.matrix * vec4(v, 0, 1)).xy;
+        auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>((counterDrawable.transform.matrix * vec4(a.value, 0, 1))).xy.distance(vv))();
+        if ((counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).xy.distance(vv) < 4) {
             indices ~= minDistance[0];
-        else
+        } else {
             indices ~= -1;
+        }
     }
     incActionPush(new DrawableAddWeldingAction(node, counterDrawable, indices, weight));
     return indices;
