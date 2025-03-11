@@ -199,4 +199,7 @@ class NodeSelect : Tool, Draggable {
             inDbgDrawLines(vec4(0, 1, 0, 1),impl. transform);
         }
     }
+
+    override
+    void finalizeToolMode(IncMeshEditorOne impl) { }
 }
