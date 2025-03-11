@@ -329,6 +329,7 @@ public:
                 }
             }
 
+            inDbgSetBuffer(points);
             inDbgPointsSize(6);
             inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
         }
