@@ -315,9 +315,11 @@ public:
             if (auto drawable = cast(Drawable)getTarget()) {
                 if (drawable.welded) {
                     foreach (welded; drawable.welded) {
-                        auto t = tuple(welded.indices.enumerate.filter!(i=>i[1]!=cast(ptrdiff_t)-1).map!((p)=>cast(ptrdiff_t)p[0]).array, vec4(0, 0.7, 0.7, 1));
-                        if (t[0].length > 0)
-                            indices ~= t;
+                        if (welded.indices.length == mesh.vertices.length) {
+                            auto t = tuple(welded.indices.enumerate.filter!(i=>i[1]!=cast(ptrdiff_t)-1).map!((p)=>cast(ptrdiff_t)p[0]).array, vec4(0, 0.7, 0.7, 1));
+                            if (t[0].length > 0)
+                                indices ~= t;
+                        }
                     }
                 }
             }
