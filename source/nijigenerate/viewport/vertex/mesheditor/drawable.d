@@ -331,7 +331,7 @@ public:
             foreach (v; mesh.vertices) {
                 if (v.groupId != groupId) vertsInGroup ~= v;
             }
-            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
+            mesh.drawPointSubset(vertsInGroup, vec4(0.5, 0.5, 0.5, 1), trans);
         }
 
         if (selected.length) {
