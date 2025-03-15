@@ -1,20 +1,4 @@
 module nijigenerate.core.cv.contours;
-/****************************************************
- * D言語による OpenCV cv::findContours に等価な実装
- *
- * 前提:
- *   - vec2u 型は inmath モジュールにあるとする
- *   - binaryImage は mir.rc.array を用いた 3 次元配列で、
- *     アクセスは binaryImage[y, x, 0] で行う（2次元イメージの場合はチャネルが1つ）
- *
- * 主な機能:
- *  - Suzuki‐Abe法（右手法）による輪郭追跡
- *  - Douglas‐Peucker法による輪郭近似（TC89_L1／TC89_KCOS相当）
- *  - レイキャスティング法による内外判定で階層構造（RETR_TREE／RETR_CCOMP）を構築
- *  - RETR_EXTERNAL, RETR_LIST にも対応
- *
- * ※ OpenCV の内部最適化には及ばないものの、アルゴリズム的には等価な実装です。
- ****************************************************/
 
 import std.stdio;
 import std.array;
@@ -23,8 +7,19 @@ import std.range;
 import std.conv;
 import std.typecons;
 import std.math;
+import std.algorithm;
 import mir.rc.array;    // mir.rc.array を利用
 import inmath;         // vec2u は inmath モジュールに存在する
+
+/****************************************************
+ * D言語による OpenCV cv::findContours に等価な実装（改善版）
+ *
+ * 主な改善点:
+ * 1. メモリアロケーションの削減: 動的配列のリザーブや再利用
+ * 2. ループ内演算の最適化: 8方向の探索で方向マッピングテーブルを使用
+ * 3. 内部領域塗りつぶしの高速化: スキャンライン法による塗りつぶしに変更
+ * 4. 階層構築処理の効率化: 各輪郭のバウンディングボックスを事前計算して内包判定の負荷を削減
+ ****************************************************/
 
 /// 輪郭抽出のモード
 enum RetrievalMode {
@@ -50,6 +45,11 @@ struct ContourHierarchy {
     int parent; // 親輪郭
 };
 
+/// 簡易なバウンディングボックス構造体
+struct BoundingBox {
+    int minX, minY, maxX, maxY;
+};
+
 /// 画像内の座標が有効か判定
 bool inBounds(int x, int y, int width, int height) {
     return (x >= 0 && x < width && y >= 0 && y < height);
@@ -68,41 +68,46 @@ static immutable int[2][8] DIRECTIONS = [
     [1, 1]
 ];
 
+/// 8方向の (dx,dy) から対応するインデックスを即時に得るためのマッピングテーブル
+/// インデックス: [dy+1][dx+1] （中心は無効: -1）
+enum int[3][3] DIR_MAP = [
+    [ 3, 4, 5 ],  // dy = -1, dx = -1,0,1
+    [ 2, -1, 6 ], // dy =  0, dx = -1,0,1 (中心は無効)
+    [ 1, 0, 7 ]   // dy =  1, dx = -1,0,1
+];
+
 /// Suzuki‐Abe法（右手法）による輪郭追跡
-/// image : mir.rc.array により作成された3次元配列（アクセスは image[y, x] ）
-/// labels: 各画素のラベル (0:未処理, -1:内部画素, 正値:輪郭ID)
-/// label : 現在の輪郭番号
-/// startX, startY : 輪郭開始画素
-/// width, height : 画像サイズ
+/// 改善点: 
+/// - contour 配列に対してあらかじめリザーブを行い、動的再確保を削減
+/// - 方向判定に DIR_MAP を使用してループ回数を削減
 vec2u[] suzukiAbeContour(T)(in T image, ref int[][] labels, int label, int startX, int startY, int width, int height) {
     vec2u b = vec2u(startX, startY);
     vec2u c = b;
+    // 初期 p は開始点の上方向
     vec2u p = vec2u(startX, startY - 1);
     vec2u[] contour;
+    // 初期リザーブ（概ねの見積もり）
+    contour.reserve(256);
     contour ~= b;
     labels[startY][startX] = label;
-
-    // 開始点の「最初の隣」を決定するためのフラグ
     bool firstIteration = true;
 
     while (true) {
+        // ループ内で p と c の相対位置(dx,dy)を即時テーブル参照
         int dx = cast(int)p.x - cast(int)c.x;
         int dy = cast(int)p.y - cast(int)c.y;
         int startDir = 0;
-        bool foundDir = false;
-        for (size_t i = 0; i < 8; i++) {
-            if (DIRECTIONS[i][0] == dx && DIRECTIONS[i][1] == dy) {
-                startDir = (i + 1) % 8;
-                foundDir = true;
-                break;
-            }
-        }
-        if (!foundDir)
+        // テーブルから取得。中心(0,0)の場合は -1となるので、その場合は 0 を採用
+        int tableVal = (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) ? DIR_MAP[dy + 1][dx + 1] : -1;
+        if(tableVal != -1)
+            startDir = (tableVal + 1) % 8;
+        else
             startDir = 0;
 
         bool found = false;
         vec2u next;
         int nextDir = startDir;
+        // 8方向の探索
         for (size_t i = 0; i < 8; i++) {
             int idx = (startDir + i) % 8;
             int nx = c.x + DIRECTIONS[idx][0];
@@ -110,10 +115,7 @@ vec2u[] suzukiAbeContour(T)(in T image, ref int[][] labels, int label, int start
             
             if (!inBounds(nx, ny, width, height))
                 continue;
-
-            // 修正箇所：
-            // 内部領域に入っている画素 (labels[ny][nx] == -1) は再訪問対象外とする。
-            // また、同一輪郭に属する画素の場合は、未処理 (0) または既に現在の輪郭 (label) が付与されている場合のみ有効とする。
+            // 内部領域(-1)は再訪問対象外、また既処理画素は現在の輪郭番号も有効
             if (image[ny, nx] != 0 && (labels[ny][nx] == 0 || labels[ny][nx] == label || (nx == b.x && ny == b.y && !firstIteration))) {
                 next = vec2u(nx, ny);
                 nextDir = idx;
@@ -121,55 +123,77 @@ vec2u[] suzukiAbeContour(T)(in T image, ref int[][] labels, int label, int start
                 break;
             }
         }
-
         if (!found)
             break;
 
-        // 直前画素更新
-        p = vec2u(c.x + DIRECTIONS[(nextDir + 7) % 8][0],
-                  c.y + DIRECTIONS[(nextDir + 7) % 8][1]);
-
+        // p を更新：次の候補位置は (nextDir + 7) mod 8 の方向にずらす
+        {
+            int pdx = DIRECTIONS[(nextDir + 7) % 8][0];
+            int pdy = DIRECTIONS[(nextDir + 7) % 8][1];
+            p = vec2u(c.x + pdx, c.y + pdy);
+        }
         c = next;
 
-        // 輪郭のラベル付け（開始点の再訪は除く）
+        // 再訪の場合はラベル更新を除外
         if (!(c.x == b.x && c.y == b.y))
             labels[c.y][c.x] = label;
 
         contour ~= c;
 
-        // 開始点を再訪したら即終了（最初の1ステップ目を除く）
         if (!firstIteration && c.x == b.x && c.y == b.y)
             break;
 
-        firstIteration = false;  // 最初のループ終了後にフラグを無効化
+        firstIteration = false;
     }
 
     return contour;
 }
 
-
-/// 内部領域を埋める処理（輪郭内部の画素にラベル -1 を設定）
-/// 簡易な方法として輪郭のバウンディングボックス内の各点について、
-/// 輪郭内部かどうかを pointInPolygon で判定してラベルを設定する。
+/// スキャンライン法による輪郭内部塗りつぶし
+/// 改善点: バウンディングボックス内各画素に対し pointInPolygon を呼ぶのではなく、
+/// 各走査線で輪郭との交点を求め、その間を一括で塗りつぶす。
 void fillContourInterior(ref int[][] labels, vec2u[] contour, int width, int height) {
+    // バウンディングボックス計算
     int minX = contour[0].x, maxX = contour[0].x;
     int minY = contour[0].y, maxY = contour[0].y;
     foreach (pt; contour) {
-        minX = min(minX, pt.x); maxX = max(maxX, pt.x);
-        minY = min(minY, pt.y); maxY = max(maxY, pt.y);
+        minX = min(minX, pt.x);
+        maxX = max(maxX, pt.x);
+        minY = min(minY, pt.y);
+        maxY = max(maxY, pt.y);
     }
-
+    // 範囲外は考慮せず、バウンディングボックス内で走査
     for (int y = minY; y <= maxY; y++) {
-        for (int x = minX; x <= maxX; x++) {
-            // 未処理の画素であり、輪郭内部であれば -1 を設定
-            if (labels[y][x] == 0 && pointInPolygon(vec2u(x, y), contour)) {
-                labels[y][x] = -1;
+        double[] inters;
+        // 輪郭の各エッジについて、走査線 y との交点を求める
+        for (size_t i = 0; i < contour.length; i++) {
+            vec2u a = contour[i];
+            vec2u b = contour[(i + 1) % contour.length];
+            // エッジが走査線を跨いでいるか判定
+            if ((a.y <= y && b.y > y) || (a.y > y && b.y <= y)) {
+                // 交点の x 座標（線形補間）
+                double atX = a.x + (cast(double)(y - a.y) / (b.y - a.y)) * (b.x - a.x);
+                inters ~= atX;
+            }
+        }
+        // 交点が2個以上の場合、ソートしてペアで塗りつぶす
+        if (inters.length >= 2) {
+            inters.sort();
+            // ペアごとに塗りつぶす
+            for (size_t i = 0; i < inters.length - 1; i += 2) {
+                int start = cast(int)ceil(inters[i]);
+                int end   = cast(int)floor(inters[i + 1]);
+                // バウンディングボックス内かつ未処理の画素を塗りつぶす
+                for (int x = start; x <= end; x++) {
+                    if (inBounds(x, y, width, height) && labels[y][x] == 0)
+                        labels[y][x] = -1;
+                }
             }
         }
     }
 }
 
-/// レイキャスティング法による点 p の多角形 polygon 内外判定
+/// 標準的なレイキャスティング法による点 p の多角形 polygon 内外判定（補助的に利用）
 bool pointInPolygon(vec2u p, vec2u[] polygon) {
     size_t n = polygon.length;
     int cnt = 0;
@@ -186,7 +210,7 @@ bool pointInPolygon(vec2u p, vec2u[] polygon) {
 }
 
 /// 複数輪郭間の内包関係を調べ、階層構造を構築する
-/// 各輪郭の代表点（最初の点）を用い、内包している場合は面積が小さい方を親とする
+/// 改善点: 各輪郭のバウンディングボックスを事前に計算し、内包判定の前処理として利用する
 void buildHierarchy(vec2u[][] contours, out ContourHierarchy[] hier) {
     size_t n = contours.length;
     hier.length = n;
@@ -197,23 +221,35 @@ void buildHierarchy(vec2u[][] contours, out ContourHierarchy[] hier) {
         h.parent = -1;
     }
     
+    // 各輪郭のバウンディングボックスを計算
+    BoundingBox[] boxes;
+    boxes.length = n;
+    foreach (i, contour; contours) {
+        int minX = contour[0].x, maxX = contour[0].x;
+        int minY = contour[0].y, maxY = contour[0].y;
+        foreach (pt; contour) {
+            minX = min(minX, pt.x);
+            maxX = max(maxX, pt.x);
+            minY = min(minY, pt.y);
+            maxY = max(maxY, pt.y);
+        }
+        boxes[i] = BoundingBox(minX, minY, maxX, maxY);
+    }
+    
     for (size_t i = 0; i < n; i++) {
         vec2u rep = contours[i][0];
         int parentIndex = -1;
+        // まず自輪郭のバウンディングボックス
+        auto bb = boxes[i];
         for (size_t j = 0; j < n; j++) {
             if (i == j) continue;
-            // 外接矩形のチェック
-            int minX = contours[j][0].x, maxX = contours[j][0].x;
-            int minY = contours[j][0].y, maxY = contours[j][0].y;
-            foreach (pt; contours[j]) {
-                if (pt.x < minX) minX = pt.x;
-                if (pt.x > maxX) maxX = pt.x;
-                if (pt.y < minY) minY = pt.y;
-                if (pt.y > maxY) maxY = pt.y;
-            }
-            if (rep.x < minX || rep.x > maxX || rep.y < minY || rep.y > maxY)
+            // rep が j のバウンディングボックス内にあるか確認
+            auto bbj = boxes[j];
+            if (rep.x < bbj.minX || rep.x > bbj.maxX || rep.y < bbj.minY || rep.y > bbj.maxY)
                 continue;
+            // rep が実際に多角形内部にあるか判定
             if (pointInPolygon(rep, contours[j])) {
+                // 輪郭の点数で親候補を絞る（面積感触として利用）
                 if (parentIndex == -1 || contours[j].length < contours[parentIndex].length)
                     parentIndex = cast(int)j;
             }
@@ -288,6 +324,8 @@ vec2u[] approximateContour(vec2u[] contour, ApproximationMethod method) {
         if (contour.length < 3)
             return contour.dup;
         vec2u[] result;
+        // 事前にリザーブ
+        result.reserve(contour.length);
         result ~= contour[0];
         for (size_t i = 1; i < contour.length - 1; i++) {
             vec2u prev = contour[i - 1];
@@ -310,11 +348,10 @@ vec2u[] approximateContour(vec2u[] contour, ApproximationMethod method) {
 void findContours(T)(in T binaryImage, out vec2u[][] contours, out ContourHierarchy[] hierarchyOut,
                      RetrievalMode mode = RetrievalMode.LIST,
                      ApproximationMethod method = ApproximationMethod.SIMPLE) {
-    // binaryImage は mir.rc.array なので extent を利用してサイズ取得
     int height = cast(int)binaryImage.shape[0];
     int width  = cast(int)binaryImage.shape[1];
     
-    // labels: 2次元 int 配列（初期値 0）
+    // labels を事前に必要なサイズで確保
     int[][] labels;
     labels.length = height;
     foreach (ref row; labels)
@@ -324,14 +361,14 @@ void findContours(T)(in T binaryImage, out vec2u[][] contours, out ContourHierar
     contours = [];
     ContourHierarchy[] hierarchyList;
     
-    // 画像左上から走査：外側輪郭の場合、左側 (x-1) が背景かどうかで判定
+    // 画像左上から走査（外側輪郭判定）
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             if (binaryImage[y, x] != 0 && labels[y][x] == 0) {
                 int left = (x - 1 >= 0) ? binaryImage[y, x - 1] : 0;
                 if (left == 0) {
                     auto contour = suzukiAbeContour(binaryImage, labels, label, x, y, width, height);
-                    // 輪郭追跡後、内部領域を -1 で埋める処理を追加
+                    // 内部領域をスキャンライン法で埋める
                     fillContourInterior(labels, contour, width, height);
                     contour = approximateContour(contour, method);
                     contours ~= contour;
@@ -388,11 +425,10 @@ unittest {
     // RETR_TREE モードで階層構造、TC89_L1 で Douglas-Peucker 近似を適用
     findContours(binaryImage, contours, hierarchy, RetrievalMode.TREE, ApproximationMethod.TC89_L1);
     
-    // 簡単なアサーション（輪郭が1つ以上検出され、階層情報の数が輪郭数と一致する）
+    // 簡単なアサーション
     assert(contours.length > 0, "輪郭が検出されていません");
     assert(hierarchy.length == contours.length, "階層情報の数が輪郭数と一致していません");
     
-    // 各階層情報の parent フィールドが -1 または有効な値であること
     foreach (h; hierarchy) {
         assert(h.parent >= -1 && h.parent < cast(int)hierarchy.length, "不正な親インデックスがあります");
     }
