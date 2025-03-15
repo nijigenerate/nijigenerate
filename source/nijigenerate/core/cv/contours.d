@@ -69,70 +69,103 @@ static immutable int[2][8] DIRECTIONS = [
 ];
 
 /// Suzuki‐Abe法（右手法）による輪郭追跡
-/// image : mir.rc.array により作成された3次元配列（アクセスは image[y, x, 0] ）
+/// image : mir.rc.array により作成された3次元配列（アクセスは image[y, x] ）
 /// labels: 各画素のラベル (0:未処理, -1:内部画素, 正値:輪郭ID)
 /// label : 現在の輪郭番号
 /// startX, startY : 輪郭開始画素
 /// width, height : 画像サイズ
 vec2u[] suzukiAbeContour(T)(in T image, ref int[][] labels, int label, int startX, int startY, int width, int height) {
-    // 輪郭開始画素 b
     vec2u b = vec2u(startX, startY);
-    // 現在の輪郭画素 c
     vec2u c = b;
-    // 初期の直前画素 p は b の「左側」 (画像座標では (startX, startY-1))
     vec2u p = vec2u(startX, startY - 1);
     vec2u[] contour;
     contour ~= b;
     labels[startY][startX] = label;
-    
-    // 「右手法」に基づく探索ループ
+
+    // 開始点の「最初の隣」を決定するためのフラグ
+    bool firstIteration = true;
+
     while (true) {
-        // 現在画素 c と直前画素 p の相対方向から開始方向を決定
         int dx = cast(int)p.x - cast(int)c.x;
         int dy = cast(int)p.y - cast(int)c.y;
         int startDir = 0;
         bool foundDir = false;
         for (size_t i = 0; i < 8; i++) {
             if (DIRECTIONS[i][0] == dx && DIRECTIONS[i][1] == dy) {
-                startDir = (i + 1) % 8; // p の次の方向から探索開始
+                startDir = (i + 1) % 8;
                 foundDir = true;
                 break;
             }
         }
         if (!foundDir)
             startDir = 0;
-        
+
         bool found = false;
         vec2u next;
         int nextDir = startDir;
-        // 時計回りに8方向探索
         for (size_t i = 0; i < 8; i++) {
             int idx = (startDir + i) % 8;
             int nx = c.x + DIRECTIONS[idx][0];
             int ny = c.y + DIRECTIONS[idx][1];
-            if (inBounds(nx, ny, width, height) && image[ny, nx, 0] == 1) {
-                next = vec2u(nx, ny);
-                nextDir = idx;
-                found = true;
-                break;
+            
+            if (!inBounds(nx, ny, width, height))
+                continue;
+
+            if (image[ny, nx] != 0) {
+                if (firstIteration || labels[ny][nx] == 0 || (nx == b.x && ny == b.y)) {
+                    next = vec2u(nx, ny);
+                    nextDir = idx;
+                    found = true;
+                    break;
+                }
             }
         }
-        if (!found) break; // 対象画素が見つからなければ終了
-        
-        // 次の p は c から (nextDir+7)%8 の方向
+
+        if (!found)
+            break;
+
+        // 直前画素更新
         p = vec2u(c.x + DIRECTIONS[(nextDir + 7) % 8][0],
                   c.y + DIRECTIONS[(nextDir + 7) % 8][1]);
+
         c = next;
-        if (labels[c.y][c.x] == 0)
+
+        // 輪郭のラベル付け（開始点の再訪は除く）
+        if (!(c.x == b.x && c.y == b.y))
             labels[c.y][c.x] = label;
+
         contour ~= c;
-        
-        // 輪郭開始点と初期の p に戻った場合、ループ終了
-        if (c.x == b.x && c.y == b.y &&
-            p.x == b.x + DIRECTIONS[7][0] && p.y == b.y + DIRECTIONS[7][1])
+
+        // 開始点を再訪したら即終了（最初の1ステップ目を除く）
+        if (!firstIteration && c.x == b.x && c.y == b.y)
             break;
+
+        firstIteration = false;  // 最初のループ終了後にフラグを無効化
     }
+
     return contour;
+}
+
+
+/// 内部領域を埋める処理（輪郭内部の画素にラベル -1 を設定）
+/// 簡易な方法として輪郭のバウンディングボックス内の各点について、
+/// 輪郭内部かどうかを pointInPolygon で判定してラベルを設定する。
+void fillContourInterior(ref int[][] labels, vec2u[] contour, int width, int height) {
+    int minX = contour[0].x, maxX = contour[0].x;
+    int minY = contour[0].y, maxY = contour[0].y;
+    foreach (pt; contour) {
+        minX = min(minX, pt.x); maxX = max(maxX, pt.x);
+        minY = min(minY, pt.y); maxY = max(maxY, pt.y);
+    }
+
+    for (int y = minY; y <= maxY; y++) {
+        for (int x = minX; x <= maxX; x++) {
+            // 未処理の画素であり、輪郭内部であれば -1 を設定
+            if (labels[y][x] == 0 && pointInPolygon(vec2u(x, y), contour)) {
+                labels[y][x] = -1;
+            }
+        }
+    }
 }
 
 /// レイキャスティング法による点 p の多角形 polygon 内外判定
@@ -271,14 +304,14 @@ vec2u[] approximateContour(vec2u[] contour, ApproximationMethod method) {
 }
 
 /// findContours のメイン処理
-/// binaryImage: mir.rc.array により作成された 3 次元配列 (アクセスは binaryImage[y, x, 0] )
+/// binaryImage: mir.rc.array により作成された 3 次元配列 (アクセスは binaryImage[y, x] )
 /// labels: 内部処理用ラベル（初期値 0:未処理）
 void findContours(T)(in T binaryImage, out vec2u[][] contours, out ContourHierarchy[] hierarchyOut,
                      RetrievalMode mode = RetrievalMode.LIST,
                      ApproximationMethod method = ApproximationMethod.SIMPLE) {
     // binaryImage は mir.rc.array なので extent を利用してサイズ取得
-    int height = cast(int)binaryImage.extent[0];
-    int width  = cast(int)binaryImage.extent[1];
+    int height = cast(int)binaryImage.shape[0];
+    int width  = cast(int)binaryImage.shape[1];
     
     // labels: 2次元 int 配列（初期値 0）
     int[][] labels;
@@ -293,10 +326,12 @@ void findContours(T)(in T binaryImage, out vec2u[][] contours, out ContourHierar
     // 画像左上から走査：外側輪郭の場合、左側 (x-1) が背景かどうかで判定
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            if (binaryImage[y, x, 0] == 1 && labels[y][x] == 0) {
-                int left = (x - 1 >= 0) ? binaryImage[y, x - 1, 0] : 0;
+            if (binaryImage[y, x] != 0 && labels[y][x] == 0) {
+                int left = (x - 1 >= 0) ? binaryImage[y, x - 1] : 0;
                 if (left == 0) {
                     auto contour = suzukiAbeContour(binaryImage, labels, label, x, y, width, height);
+                    // 輪郭追跡後、内部領域を -1 で埋める処理を追加
+                    fillContourInterior(labels, contour, width, height);
                     contour = approximateContour(contour, method);
                     contours ~= contour;
                     label++;
@@ -336,7 +371,7 @@ unittest {
     /*************************************
      * サンプル: mir.rc.array を用いた二値画像生成
      * 画像サイズ: 5 x 8, チャンネル数: 1
-     * アクセスは binaryImage[y, x, 0] で行う
+     * アクセスは binaryImage[y, x] で行う
      *************************************/
     auto binaryImage = rcarray!int([
         [[0],[0],[0],[0],[0],[0],[0],[0]],
