@@ -111,13 +111,14 @@ vec2u[] suzukiAbeContour(T)(in T image, ref int[][] labels, int label, int start
             if (!inBounds(nx, ny, width, height))
                 continue;
 
-            if (image[ny, nx] != 0) {
-                if (firstIteration || labels[ny][nx] == 0 || (nx == b.x && ny == b.y)) {
-                    next = vec2u(nx, ny);
-                    nextDir = idx;
-                    found = true;
-                    break;
-                }
+            // 修正箇所：
+            // 内部領域に入っている画素 (labels[ny][nx] == -1) は再訪問対象外とする。
+            // また、同一輪郭に属する画素の場合は、未処理 (0) または既に現在の輪郭 (label) が付与されている場合のみ有効とする。
+            if (image[ny, nx] != 0 && (labels[ny][nx] == 0 || labels[ny][nx] == label || (nx == b.x && ny == b.y && !firstIteration))) {
+                next = vec2u(nx, ny);
+                nextDir = idx;
+                found = true;
+                break;
             }
         }
 
