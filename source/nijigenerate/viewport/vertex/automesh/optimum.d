@@ -17,6 +17,7 @@ alias stdFilter = std.algorithm.iteration.filter;
 import std.algorithm.iteration: map, reduce, uniq;
 alias stdUniq = std.algorithm.iteration.uniq;
 import mir.ndslice;
+import mir.ndslice : reshape; // for ND-slice reshape
 import mir.math.stat: mean;
 alias mirAny = mir.algorithm.iteration.any;
 debug(automesh_opt) import std.stdio;
@@ -41,6 +42,8 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
     string presetName;
 public:
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+
+        // Convert contours to a vec2 array
         auto contoursToVec2s(ContourType)(ContourType contours) {
             vec2[] result;
             bool[ulong] visited;
@@ -51,7 +54,8 @@ public:
                 foreach(i; 0 .. contours.length) {
                     if (i in visited) continue;
                     if (contours[i].length == 0) continue;
-                    float dist = vec2(contour[contour.length - 1].y - contours[i][0].y, contour[contour.length - 1].x - contours[i][0].x).length;
+                    float dist = vec2(contour[contour.length - 1].y - contours[i][0].y,
+                                      contour[contour.length - 1].x - contours[i][0].x).length;
                     if (dist < minDist) {
                         index = i;
                         minDist = dist;
@@ -137,6 +141,59 @@ public:
             return sampled;
         }
 
+        // --- Additional helper functions ---
+        vec2 calculateNormalVector(vec2 p1, vec2 p2) {
+            // Calculate normalized perpendicular vector from p1 to p2
+            float vx = p2.y - p1.y;
+            float vy = p1.x - p2.x;
+            float norm = sqrt(vx * vx + vy * vy);
+            return (norm == 0) ? vec2(0, 0) : vec2(vx / norm, vy / norm);
+        }
+
+        vec2[] sampleExpandedFromThinned(vec2[] thinnedPoints, float expDist) {
+            // Expand points along normal direction
+            auto n = thinnedPoints.length;
+            if(n < 3)
+                return thinnedPoints;
+            vec2[] expanded;
+            for (size_t i = 0; i < n; i++) {
+                auto pPrev = thinnedPoints[(i + n - 1) % n];
+                auto pNext = thinnedPoints[(i + 1) % n];
+                auto normal = calculateNormalVector(pPrev, pNext);
+                expanded ~= vec2(thinnedPoints[i].x + normal.x * expDist,
+                                  thinnedPoints[i].y + normal.y * expDist);
+            }
+            return expanded.stdUniq.array;
+        }
+
+        vec2[] sampleContractedFromThinned(vec2[] thinnedPoints, float contDist, float factor = 1) {
+            // Contract points along normal direction
+            auto n = thinnedPoints.length;
+            if(n < 3)
+                return thinnedPoints;
+            vec2[] contracted;
+            for (size_t i = 0; i < n; i++) {
+                auto pPrev = thinnedPoints[(i + n - 1) % n];
+                auto pNext = thinnedPoints[(i + 1) % n];
+                auto normal = calculateNormalVector(pPrev, pNext);
+                contracted ~= vec2(thinnedPoints[i].x - normal.x * (contDist * factor),
+                                    thinnedPoints[i].y - normal.y * (contDist * factor));
+            }
+            return contracted.stdUniq.array;
+        }
+
+        vec2[] sampleCentroidContractedContour(vec2[] contour, float scale, float minDistance) {
+            // Scale contour around its centroid
+            vec2 centroid = contour.sum / contour.length;
+            vec2[] pts;
+            foreach(p; contour) {
+                pts ~= vec2(centroid.x + scale * (p.x - centroid.x),
+                            centroid.y + scale * (p.y - centroid.y));
+            }
+            return pts.stdUniq.array;
+        }
+        // --- End of helper functions ---
+
         Part part = cast(Part)target;
         if (!part)
             return mesh;
@@ -155,7 +212,7 @@ public:
         }
         
         float step = 1;
-        auto gray = img.sliced[0 .. $, 0 .. $, 3]; // Use transparent channel for boundary search
+        auto gray = img.sliced[0 .. $, 0 .. $, 3]; // Use the alpha channel for boundary search
         auto imbin = gray;
         foreach(y; 0 .. imbin.shape[0]) {
             foreach(x; 0 .. imbin.shape[1]) {
@@ -163,9 +220,8 @@ public:
             }
         }
 
-        // calculate skeleton
+        // Duplicate monochrome image from imbin
         auto dupMono(T)(T imbin) {
-            // Duplicate monochrome image from imbin
             ubyte[] d = new ubyte[imbin.shape[0] * imbin.shape[1]];
             foreach(y; 0 .. imbin.shape[0]) {
                 foreach(x; 0 .. imbin.shape[1]) {
@@ -176,78 +232,64 @@ public:
             return res.sliced[0 .. $, 0 .. $, 0];
         }
 
-        auto compensated = dupMono(imbin);
-
-        foreach (y; 0..compensated.shape[0]) {
-            foreach (x; 0..compensated.shape[1]) {
-                compensated[y, x] = compensated[y, x] != 0 ? 255 : 0;
+        // --- Modified calculateWidthMap function ---
+        // Instead of filling a region mask with a polygon, extract the sub-image from imbin within the bounding box
+        // defined by regionContour, so that the actual shape in imbin is used for processing.
+        auto calculateWidthMap(T)(T imbin, vec2u[] regionContour) {
+            // Step 1: Calculate the bounding box from regionContour
+            int xmin = regionContour[0].x;
+            int xmax = regionContour[0].x;
+            int ymin = regionContour[0].y;
+            int ymax = regionContour[0].y;
+            foreach(p; regionContour) {
+                if(p.x < xmin) xmin = p.x;
+                if(p.x > xmax) xmax = p.x;
+                if(p.y < ymin) ymin = p.y;
+                if(p.y > ymax) ymax = p.y;
             }
-        }
-        
-        auto calculateWidthMap(T)(T imbin, vec2u[] skeleton) {
-            Slice!(float*, 2) dt;
-            Slice!(int*, 3) nearest;
-            nijigenerate.core.cv.distancetransform.distanceTransform(imbin.idup, dt, nearest);
-            // widthMap is a 1D array, size equals total pixels (width * height)
-            float[] widthMap;
-            // Cast dt to mutable since its opIndex cannot be called on a const object.
-            foreach (s; skeleton) {
-                if (dt[s.y, s.x] > 0) {
-                    widthMap ~= 2 * dt[s.y, s.x];
-                    debug(automesh_opt_full) writefln(" distance: %.2f", dt[s.y, s.x]);
+            int regionWidth = xmax - xmin + 1;
+            int regionHeight = ymax - ymin + 1;
+
+            // Step 2: Extract the sub-image from imbin corresponding to the bounding box
+            auto regionImbin = imbin[ymin .. (ymax + 1), xmin .. (xmax + 1)];
+
+            // Copy the sub-image into a contiguous mutable array
+            ubyte[] regionData = new ubyte[regionWidth * regionHeight];
+            foreach(y; 0 .. regionHeight) {
+                foreach(x; 0 .. regionWidth) {
+                    regionData[y * regionWidth + x] = regionImbin[y, x];
                 }
             }
+
+            // Make a copy of regionData for distance transform to preserve the original data
+            ubyte[] originalRegionData = regionData.dup;
+
+            // Step 3: Perform skeletonization on the sub-image using regionData
+            auto regionImg = new Image(regionWidth, regionHeight, ImageFormat.IF_MONO, BitDepth.BD_8, regionData);
+            auto skel = regionImg.sliced[0 .. regionHeight, 0 .. regionWidth, 0];
+            skeletonizeImage(skel);
+            auto skelPath = extractPath(skel, regionWidth, regionHeight);
+
+            // Step 4: Convert originalRegionData to a 2D ND-slice and perform distance transform
+            int shapeErr = 0;
+            auto regionSlice = originalRegionData.sliced.reshape([cast(ptrdiff_t)regionHeight, cast(ptrdiff_t)regionWidth], shapeErr);
+            Slice!(float*, 2) dt;
+            Slice!(int*, 3) nearest;
+            nijigenerate.core.cv.distancetransform.distanceTransform(regionSlice, dt, nearest);
+
+            float[] widthMap;
+            foreach(s; skelPath) {
+                if (dt[s.y, s.x] > 0) {
+                    widthMap ~= 2 * dt[s.y, s.x];
+                    debug(automesh_opt) writef("w, h = %d x %d, ", regionWidth, regionHeight);
+                    debug(automesh_opt) writefln(" distance: %.2f", dt[s.y, s.x]);
+                }
+            }
+            // To convert skeleton coordinates back to original image coordinates, use:
+            // auto skelPathOriginal = skelPath.map!(p => vec2u(p.x + xmin, p.y + ymin)).array;
             return widthMap;
         }
-
-
-        vec2 calculateNormalVector(vec2 p1, vec2 p2) {
-            float vx = p2.y - p1.y;
-            float vy = p1.x - p2.x;
-            float norm = sqrt(vx * vx + vy * vy);
-            return (norm == 0) ? vec2(0, 0) : vec2(vx / norm, vy / norm);
-        }
-
-        vec2[] sampleExpandedFromThinned(vec2[] thinnedPoints, float expDist) {
-            auto n = thinnedPoints.length;
-            if (n < 3)
-                return thinnedPoints;
-            vec2[] expanded;
-            for (size_t i = 0; i < n; i++) {
-                auto pPrev = thinnedPoints[(i + n - 1) % n];
-                auto pNext = thinnedPoints[(i + 1) % n];
-                auto normal = calculateNormalVector(pPrev, pNext);
-                expanded ~= vec2(thinnedPoints[i].x + normal.x * expDist,
-                                  thinnedPoints[i].y + normal.y * expDist);
-            }
-            return expanded.stdUniq.array;
-        }
-
-        vec2[] sampleContractedFromThinned(vec2[] thinnedPoints, float contDist, float factor = 1) {
-            auto n = thinnedPoints.length;
-            if (n < 3)
-                return thinnedPoints;
-            vec2[] contracted;
-            for (size_t i = 0; i < n; i++) {
-                auto pPrev = thinnedPoints[(i + n - 1) % n];
-                auto pNext = thinnedPoints[(i + 1) % n];
-                auto normal = calculateNormalVector(pPrev, pNext);
-                contracted ~= vec2(thinnedPoints[i].x - normal.x * (contDist * factor),
-                                    thinnedPoints[i].y - normal.y * (contDist * factor));
-            }
-            return contracted.stdUniq.array;
-        }
-
-        vec2[] sampleCentroidContractedContour(vec2[] contour, float scale, float minDistance) {
-            vec2 centroid = contour.sum;
-            centroid /= contour.length;
-            vec2[] pts;
-            foreach(p; contour) {
-                pts ~= vec2(centroid.x + scale * (p.x - centroid.x),
-                            centroid.y + scale * (p.y - centroid.y));
-            }
-            return pts.stdUniq.array;
-        }
+        // --- End of calculateWidthMap function ---
 
         vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
         float size_avg = (texture.width + texture.height) / 2.0;
@@ -259,7 +301,7 @@ public:
         double length = 0;
         double widthMapLength = 0;
 
-        // Replace bwlabel block with findContours for region extraction
+        // Region extraction: using findContours instead of bwlabel block
         vec2u[][] regionContours;
         ContourHierarchy[] regionHierarchy;
         findContours(imbin.idup, regionContours, regionHierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
@@ -271,17 +313,12 @@ public:
         foreach (region; regionContours) {
             regionCount++;
             contourList ~= region;
-            // Process each region: (Ideally, extract region mask; here we reuse imbin as fallback)
-            auto regionMask = imbin;
-            auto skel = dupMono(regionMask);
-            debug(automesh_opt) writefln("skeletonize");
-            skeletonizeImage(skel);
-            auto skelPath = extractPath(skel, texture.width, texture.height);
-            debug(automesh_opt) writefln("calculateWidthMap");
-            auto widthMap = calculateWidthMap(regionMask, skelPath);
+            // Apply calculateWidthMap for each region
+            debug(automesh_opt) writefln("calculateWidthMap for region %d", regionCount);
+            auto widthMap = calculateWidthMap(imbin, region);
             widthMapLength += widthMap.length;
             debug(automesh_opt) writefln("  region %d: widthMapLength=%0.2f", regionCount, widthMapLength);
-            debug(automesh_opt_full) writefln("path=%s", zip(skelPath, widthMap).map!((t) => "%s=%s".format(t[0], t[1])).array);
+            debug(automesh_opt_full) writefln("widthMap=%s", widthMap);
             float[] validWidth = widthMap.stdFilter!((x) => x > 0).array;
             sumWidth += validWidth.sum;
             length   += validWidth.length;
@@ -301,7 +338,7 @@ public:
         bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
                          ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
 
-        // reduce vertices by resampling (with consideration for flip flag)
+        // Reduce vertices by resampling (with consideration for flip flag)
         vB1 ~= resampling(contourVec, min_distance, mirrorHoriz, axisHoriz, mirrorVert, axisVert);
 
         // Type A: sharp shapes
@@ -310,12 +347,11 @@ public:
             vertices ~= vA;
         } else {
             // Type B: unsharp shapes
-            // B-1 adds original resampled shapes.
-            // B-2 adds vertices expanded in normal direction
-            // B-3 adds vertices shrinked in normal direction
-            // B-4 adds vertices scaled around centroid.
-            float[] scales;
-            scales = SCALES;
+            // B-1: add original resampled points
+            // B-2: add vertices expanded in normal direction
+            // B-3: add vertices contracted in normal direction
+            // B-4: add vertices scaled around the centroid
+            float[] scales = SCALES.dup;
 
             vertices ~= vB1;
             auto vB2 = sampleExpandedFromThinned(vB1, size_avg * NONSHARP_EXPANSION_FACTOR);
@@ -349,6 +385,14 @@ public:
         vertices = vert_ind[0];
         auto tris = vert_ind[1];
 
+        // Create "compensated" image from imbin for completeUncoveredArea
+        auto compensated = dupMono(imbin);
+        foreach(y; 0 .. compensated.shape[0]) {
+            foreach(x; 0 .. compensated.shape[1]) {
+                compensated[y, x] = compensated[y, x] != 0 ? 255 : 0;
+            }
+        }
+
         bool completeUncoveredArea(T)(T compensated, vec2[] vertices, vec3u[] tris, vec2[] contourVec, float min_distance, out vec2[] outVertices, out vec3u[] outTris) {
             import mir.ndslice.topology;
             int err;
@@ -361,7 +405,7 @@ public:
                 return false;
             }
             
-            // Select candidate points sufficiently far from existing vertices
+            // Select candidate points that are sufficiently far from existing vertices
             vec2[] filteredCandidates;
             foreach(p; contourVec) {
                 bool skip = false;
@@ -387,7 +431,7 @@ public:
                 return false;
             }
             
-            // From candidate points, select the one with maximum uncovered pixel count in its window
+            // From the candidate points, select the one with the maximum number of uncovered pixels in its window
             int bestScore = -1;
             vec2 bestCandidate = filteredCandidates[0];
             int windowSize = cast(int)min_distance;
