@@ -151,7 +151,7 @@ private:
 protected:
 
     void runBatch() {
-        GC.disable();
+//        GC.disable();
         auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
         auto meshList = targets.map!(t=>meshes[t.uuid]).array;
         status.clear();
@@ -163,10 +163,10 @@ protected:
                 status[drawable.uuid] = Status.Succeeded;
                 meshes[drawable.uuid] = mesh;
             }
-            synchronized(gcMutex) { GC.collect(); }
+//            synchronized(gcMutex) { GC.collect(); }
         }
         ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
-        GC.enable();
+//        GC.enable();
     }
 
     override
@@ -232,8 +232,8 @@ protected:
                     processingThread = null;
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
-                    GC.enable();
-                    GC.collect();
+//                    GC.enable();
+//                    GC.collect();
                 }
             }
 
@@ -244,7 +244,7 @@ protected:
                     foreach (part; parts) part.textures[0].lock();
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
-                    GC.disable();
+//                    GC.disable();
                 }
             }
             igEndChild();
