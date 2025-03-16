@@ -18,7 +18,6 @@ import std.algorithm.iteration;
 import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
-import core.memory;
 import core.sync.mutex;
 
 class AutoMeshBatchWindow : Modal {
@@ -38,6 +37,7 @@ private:
 
     Thread processingThread;
     shared Mutex gcMutex = null;
+    shared bool canceled = false;
 
     void apply() {
         foreach (node; nodes) {
@@ -151,22 +151,26 @@ private:
 protected:
 
     void runBatch() {
-//        GC.disable();
         auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
         auto meshList = targets.map!(t=>meshes[t.uuid]).array;
         status.clear();
         foreach (t; targets) status[t.uuid] = Status.Waiting;
-        void callback(Drawable drawable, IncMesh mesh) {
+        bool callback(Drawable drawable, IncMesh mesh) {
             if (mesh is null) {
                 status[drawable.uuid] = Status.Running;
             } else {
                 status[drawable.uuid] = Status.Succeeded;
                 meshes[drawable.uuid] = mesh;
             }
-//            synchronized(gcMutex) { GC.collect(); }
+            bool result = false;
+            synchronized(gcMutex) { result = canceled; }
+            return !result;
         }
         ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
-//        GC.enable();
+        auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+        foreach (part; parts) part.textures[0].unlock();
+        import core.memory;
+        GC.collect();
     }
 
     override
@@ -232,19 +236,19 @@ protected:
                     processingThread = null;
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
-//                    GC.enable();
-//                    GC.collect();
+                    canceled = false;
                 }
             }
 
             igBeginChild("###Actions", ImVec2(childWidth, 40));
-            if (incButtonColored(processingThread? __("Cancel") : __("Auto mesh"))) {
+            if (incButtonColored(processingThread? __("Cancel") : __("Run batch"))) {
                 if (!processingThread) {
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].lock();
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
-//                    GC.disable();
+                } else {
+                    synchronized(gcMutex) { canceled = true; }
                 }
             }
             igEndChild();
@@ -273,6 +277,7 @@ protected:
             igSameLine(0, 0);
             // 
             if (incButtonColored(__("Cancel"), ImVec2(96, 24))) {
+                canceled = true;
                 this.close();
                 
                 igEndGroup();
@@ -281,6 +286,7 @@ protected:
             igSameLine(0, 0);
             if (incButtonColored(__("Save"), ImVec2(96, 24))) {
                 apply();
+                canceled = true;
                 this.close();
                 
                 igEndGroup();
@@ -292,7 +298,6 @@ protected:
     void close() {
         if (processingThread !is null) {
             // TBD: kill thread
-            GC.enable();
         }
         incModalCloseTop();
     }
