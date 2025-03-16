@@ -8,13 +8,11 @@ import nijilive.core;
 import nijigenerate.core.math.skeletonize;
 import nijigenerate.core.math.path;
 import inmath;
-import dcv.core;
-import dcv.imgproc;
-import dcv.measure;
 import mir.ndslice;
 import mir.ndslice.slice;    // NDslice 用の slice 操作
 import mir.ndslice.topology; // reshape() などのため
 import mir.math.stat: mean;
+import nijigenerate.core.cv;
 import std.algorithm;
 import std.stdio;
 import std.math: abs;
