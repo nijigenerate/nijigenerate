@@ -207,21 +207,24 @@ public:
             igSameLine(0, 4);
 
             igBeginGroup();
+                void runAutoMesh(Node drawable, IncMeshEditorOneDrawable e) {
+                    if (e !is null) {
+                        import core.thread.fiber;
+                        void worker() {
+                            auto newMesh = ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0);
+                            e.setMesh(newMesh);
+                        }
+                        import core.memory: pageSize;
+                        auto fib = new Fiber(&worker, pageSize * Fiber.defaultStackPages * 4);
+                        while (fib.state != Fiber.State.TERM) {
+                            fib.call();
+                        }
+                    }
+                }
                 if (incButtonColored("")) {
                     foreach (drawable; editor.getTargets()) {
                         auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
-                        if (e !is null) {
-                            import core.thread.fiber;
-                            void worker() {
-                                auto newMesh = ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0);
-                                e.setMesh(newMesh);
-                            }
-                            import core.memory: pageSize;
-                            auto fib = new Fiber(&worker, pageSize * Fiber.defaultStackPages * 4);
-                            while (fib.state != Fiber.State.TERM) {
-                                fib.call();
-                            }
-                        }
+                        runAutoMesh(drawable, e);
                     }
                     editor.refreshMesh();
                 }
@@ -242,8 +245,7 @@ public:
                     if (incButtonColored(__("Bake"),ImVec2(incAvailableSpace().x, 0))) {
                         foreach (drawable; editor.getTargets()) {
                             auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
-                            if (e !is null)
-                                e.setMesh(ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0));
+                            runAutoMesh(drawable, e);
                         }
                         editor.refreshMesh();
                     }
