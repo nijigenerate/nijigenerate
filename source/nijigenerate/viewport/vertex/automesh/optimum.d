@@ -267,7 +267,6 @@ public:
         debug(automesh_opt) writefln("Region contours=%d, Region hierarchy=%d", regionContours.length, regionHierarchy.length);
 
         typeof(regionContours) contourList;
-        writefln("contourList=%s", contourList);
         int regionCount = 0;
         foreach (region; regionContours) {
             regionCount++;
