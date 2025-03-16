@@ -235,7 +235,7 @@ public:
         // --- Modified calculateWidthMap function ---
         // Instead of filling a region mask with a polygon, extract the sub-image from imbin within the bounding box
         // defined by regionContour, so that the actual shape in imbin is used for processing.
-        auto calculateWidthMap(T)(T imbin, vec2u[] regionContour) {
+        auto calculateWidthMap(T)(T imbin, vec2i[] regionContour) {
             // Step 1: Calculate the bounding box from regionContour
             int xmin = regionContour[0].x;
             int xmax = regionContour[0].x;
@@ -286,7 +286,7 @@ public:
                 }
             }
             // To convert skeleton coordinates back to original image coordinates, use:
-            // auto skelPathOriginal = skelPath.map!(p => vec2u(p.x + xmin, p.y + ymin)).array;
+            // auto skelPathOriginal = skelPath.map!(p => vec2i(p.x + xmin, p.y + ymin)).array;
             return widthMap;
         }
         // --- End of calculateWidthMap function ---
@@ -302,7 +302,7 @@ public:
         double widthMapLength = 0;
 
         // Region extraction: using findContours instead of bwlabel block
-        vec2u[][] regionContours;
+        vec2i[][] regionContours;
         ContourHierarchy[] regionHierarchy;
         findContours(imbin.idup, regionContours, regionHierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
         debug(automesh_opt_full) writefln("regionContours=%s", regionContours);
