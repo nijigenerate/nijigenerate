@@ -27,11 +27,11 @@ public:
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         if (MAX_DISTANCE < 0)
             MAX_DISTANCE = SAMPLING_STEP * 2;
-        // Helper: Convert each contour (an array of vec2u) to a vec2[] with swapped components.
+        // Helper: Convert each contour (an array of vec2i) to a vec2[] with swapped components.
         auto contoursToVec2s(ContourType)(ref ContourType contours) {
             vec2[] result;
             foreach (p; contours) {
-                // Here p is a vec2u (Vector!(uint,2)); create a vec2 with swapped components.
+                // Here p is a vec2i (Vector!(uint,2)); create a vec2 with swapped components.
                 result ~= vec2(p.x, p.y);
             }
             return result;
@@ -93,7 +93,7 @@ public:
         mesh.clear();
         vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
         // Use nijigenerate.core.cv.contours's findContours with EXTERNAL, SIMPLE.
-        vec2u[][] foundContours;
+        vec2i[][] foundContours;
         ContourHierarchy[] hierarchy;
         findContours(imbin, foundContours, hierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
         foreach (contour; foundContours) {
