@@ -171,7 +171,7 @@ protected:
         void work() {
             ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
         }
-        auto fib = new Fiber(&work, core.memory.pageSize * 32);
+        auto fib = new Fiber(&work, core.memory.pageSize * Fiber.defaultStackPages * 4);
         while (fib.state != Fiber.State.TERM) {
             fib.call();
             bool result = false;

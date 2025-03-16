@@ -217,7 +217,7 @@ public:
                                 e.setMesh(newMesh);
                             }
                             import core.memory: pageSize;
-                            auto fib = new Fiber(&worker, pageSize * 32);
+                            auto fib = new Fiber(&worker, pageSize * Fiber.defaultStackPages * 4);
                             while (fib.state != Fiber.State.TERM) {
                                 fib.call();
                             }
