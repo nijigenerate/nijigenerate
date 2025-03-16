@@ -5,7 +5,7 @@ import inmath;
 import std.algorithm;
 import std.array;
 import std.algorithm.iteration: uniq;
-
+import core.thread.fiber;
 
 
 /////////////////////////////////////////////////////////////
@@ -171,5 +171,6 @@ void skeletonizeImage(T)(T imbin) {
             if (candidates.length == 0)
                 break;
         }
+        Fiber.yield();
     }
 }

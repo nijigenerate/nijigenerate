@@ -10,6 +10,7 @@ import std.math;
 import std.algorithm;
 import mir.rc.array;    // mir.rc.array を利用
 import inmath;         // vec2i は inmath モジュールに存在する
+import core.thread.fiber;
 
 /****************************************************
  * D言語による OpenCV cv::findContours に等価な実装（改善版）
@@ -377,6 +378,7 @@ void findContours(T)(in T binaryImage, out vec2i[][] contours, out ContourHierar
                     labels[y][x] = -1;
                 }
             }
+            Fiber.yield;
         }
     }
     
