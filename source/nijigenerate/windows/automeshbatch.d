@@ -19,6 +19,8 @@ import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
 import core.sync.mutex;
+import core.thread.fiber;
+import core.memory;
 
 class AutoMeshBatchWindow : Modal {
 private:
@@ -155,7 +157,9 @@ protected:
         auto meshList = targets.map!(t=>meshes[t.uuid]).array;
         status.clear();
         foreach (t; targets) status[t.uuid] = Status.Waiting;
+        Drawable currentTarget = null;
         bool callback(Drawable drawable, IncMesh mesh) {
+            currentTarget = drawable;
             if (mesh is null) {
                 status[drawable.uuid] = Status.Running;
             } else {
@@ -166,7 +170,21 @@ protected:
             synchronized(gcMutex) { result = canceled; }
             return !result;
         }
-        ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+        void work() {
+            ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+        }
+        auto fib = new Fiber(&work, core.memory.pageSize * Fiber.defaultStackPages * 4);
+        while (fib.state != Fiber.State.TERM) {
+            fib.call();
+            bool result = false;
+            synchronized(gcMutex) { result = canceled; }
+            if (result) {
+                if (currentTarget) {
+                    status[currentTarget.uuid] = Status.Failed;
+                }
+                break;
+            }
+        }
         auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
         foreach (part; parts) part.textures[0].unlock();
         import core.memory;
@@ -237,6 +255,8 @@ protected:
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
                     canceled = false;
+                    import core.memory;
+                    GC.collect();
                 }
             }
 
