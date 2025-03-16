@@ -157,7 +157,9 @@ protected:
         auto meshList = targets.map!(t=>meshes[t.uuid]).array;
         status.clear();
         foreach (t; targets) status[t.uuid] = Status.Waiting;
+        Drawable currentTarget = null;
         bool callback(Drawable drawable, IncMesh mesh) {
+            currentTarget = drawable;
             if (mesh is null) {
                 status[drawable.uuid] = Status.Running;
             } else {
@@ -177,6 +179,9 @@ protected:
             bool result = false;
             synchronized(gcMutex) { result = canceled; }
             if (result) {
+                if (currentTarget) {
+                    status[currentTarget.uuid] = Status.Failed;
+                }
                 break;
             }
         }
