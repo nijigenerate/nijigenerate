@@ -130,7 +130,7 @@ void distanceTransform(T)(in T binaryImage, out Slice!(float*, 2, mir_slice_kind
     // Final pass: compute square roots.
     float[] outArr = new float[](total);
     for (int i = 0; i < total; i++) {
-        outArr[i] = sqrt(dtarr[i]);
+        outArr[i] = dtarr[i] != floatINF? sqrt(dtarr[i]): 0;
     }
 
     // Convert dynamic arrays to RCArray.
