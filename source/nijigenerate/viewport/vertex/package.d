@@ -210,8 +210,18 @@ public:
                 if (incButtonColored("")) {
                     foreach (drawable; editor.getTargets()) {
                         auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
-                        if (e !is null)
-                            e.setMesh(ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0));
+                        if (e !is null) {
+                            import core.thread.fiber;
+                            void worker() {
+                                auto newMesh = ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0);
+                                e.setMesh(newMesh);
+                            }
+                            import core.memory: pageSize;
+                            auto fib = new Fiber(&worker, pageSize * 32);
+                            while (fib.state != Fiber.State.TERM) {
+                                fib.call();
+                            }
+                        }
                     }
                     editor.refreshMesh();
                 }

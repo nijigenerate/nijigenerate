@@ -19,6 +19,8 @@ import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
 import core.sync.mutex;
+import core.thread.fiber;
+import core.memory;
 
 class AutoMeshBatchWindow : Modal {
 private:
@@ -166,7 +168,18 @@ protected:
             synchronized(gcMutex) { result = canceled; }
             return !result;
         }
-        ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+        void work() {
+            ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+        }
+        auto fib = new Fiber(&work, core.memory.pageSize * 32);
+        while (fib.state != Fiber.State.TERM) {
+            fib.call();
+            bool result = false;
+            synchronized(gcMutex) { result = canceled; }
+            if (result) {
+                break;
+            }
+        }
         auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
         foreach (part; parts) part.textures[0].unlock();
         import core.memory;
@@ -237,6 +250,8 @@ protected:
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
                     canceled = false;
+                    import core.memory;
+                    GC.collect();
                 }
             }
 
