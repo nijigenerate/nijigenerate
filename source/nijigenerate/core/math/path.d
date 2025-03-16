@@ -3,6 +3,7 @@ module nijigenerate.core.math.path;
 import inmath;
 import mir.ndslice;
 import std.algorithm;
+import core.thread.fiber;
 
 /////////////////////////////////////////////////////////////
 // 3. スケルトン上の連続パスを DFS で抽出する（visited も NDslice で管理）
@@ -139,6 +140,7 @@ vec2u[] extractPath(T)(T skeleton, int width, int height)
                 if (result2[1].length > longestPathOverall.length)
                     longestPathOverall = result2[1];
             }
+            Fiber.yield();
         }
     }
     return longestPathOverall;
