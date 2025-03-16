@@ -192,8 +192,10 @@ public:
             float[] widthMap;
             // Cast dt to mutable since its opIndex cannot be called on a const object.
             foreach (s; skeleton) {
-                if (dt[s.y, s.x] > 0)
-                    widthMap ~= dt[s.y, s.x];
+                if (dt[s.y, s.x] > 0) {
+                    widthMap ~= 2 * dt[s.y, s.x];
+                    debug(automesh_opt_full) writefln(" distance: %.2f", dt[s.y, s.x]);
+                }
             }
             return widthMap;
         }
@@ -261,7 +263,7 @@ public:
         vec2u[][] regionContours;
         ContourHierarchy[] regionHierarchy;
         findContours(imbin.idup, regionContours, regionHierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
-        debug(automesh_opt) writefln("regionContours=%s", regionContours);
+        debug(automesh_opt_full) writefln("regionContours=%s", regionContours);
         debug(automesh_opt) writefln("Region contours=%d, Region hierarchy=%d", regionContours.length, regionHierarchy.length);
 
         typeof(regionContours) contourList;
