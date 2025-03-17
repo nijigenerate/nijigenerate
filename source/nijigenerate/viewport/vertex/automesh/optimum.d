@@ -25,6 +25,7 @@ import std.array;
 import std.typecons;
 import bindbc.imgui;
 import nijigenerate.core.cv.image;
+import core.exception;
 
 class OptimumAutoMeshProcessor : AutoMeshProcessor {
     float LARGE_THRESHOLD = 400;
@@ -279,10 +280,15 @@ public:
 
             float[] widthMap;
             foreach(s; skelPath) {
-                if (dt[s.y, s.x] > 0) {
-                    widthMap ~= 2 * dt[s.y, s.x];
-                    debug(automesh_opt) writef("w, h = %d x %d, ", regionWidth, regionHeight);
-                    debug(automesh_opt) writefln(" distance: %.2f", dt[s.y, s.x]);
+                try {
+                    if (dt[s.y, s.x] > 0) {
+                        widthMap ~= 2 * dt[s.y, s.x];
+                        debug(automesh_opt) writef("w, h = %d x %d, ", regionWidth, regionHeight);
+                        debug(automesh_opt) writefln(" distance: %.2f", dt[s.y, s.x]);
+                    }
+                } catch (AssertError e) {
+                    import std.stdio;
+                    writefln("Assert error at s=%s", s);
                 }
             }
             // To convert skeleton coordinates back to original image coordinates, use:
