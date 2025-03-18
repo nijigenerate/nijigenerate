@@ -44,7 +44,7 @@ private:
     void apply() {
         foreach (node; nodes) {
             auto part = cast(ApplicableClass)node;
-            if (part is null) continue;
+            if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
             auto mesh = meshes[node.uuid];
             applyMeshToTarget(part, mesh.vertices, &mesh);
         }
@@ -109,7 +109,7 @@ private:
                 active = node;
             }
             igSameLine(0, 0);
-            if ((cast(ApplicableClass)node) !is null) {
+            if (isApplicable(node)) {
                 ngCheckbox("###check%x".format(node.uuid).toStringz, &(selected[node.uuid]));
                 igSameLine(0, 0);
             } else {
@@ -150,6 +150,22 @@ private:
 
     }
 
+    bool shouldBeSelected(Node node) {
+        if (auto part = cast(ApplicableClass)node) {
+            if (auto dcomposite = cast(DynamicComposite)part) {
+                if (dcomposite.autoResizedMesh)
+                    return false;
+            }
+
+            return true;
+        } else
+            return false;
+    }
+
+    bool isApplicable(Node node) {
+        return cast(ApplicableClass)node !is null;
+    }
+
 protected:
 
     void runBatch() {
@@ -185,7 +201,7 @@ protected:
                 break;
             }
         }
-        auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+        auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
         foreach (part; parts) part.textures[0].unlock();
         import core.memory;
         GC.collect();
@@ -252,7 +268,7 @@ protected:
                 if (!processingThread.isRunning()) {
                     processingThread.join();
                     processingThread = null;
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
                     canceled = false;
                     import core.memory;
@@ -263,7 +279,7 @@ protected:
             igBeginChild("###Actions", ImVec2(childWidth, 40));
             if (incButtonColored(processingThread? __("Cancel") : __("Run batch"))) {
                 if (!processingThread) {
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].lock();
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
@@ -331,8 +347,8 @@ public:
         nodes.each!((n) {
             selected.require(n.uuid);
             auto part = (cast(ApplicableClass)n);
-            selected[n.uuid] = part !is null;
-            if (selected[n.uuid])
+            selected[n.uuid] = shouldBeSelected(n);
+            if (isApplicable(n))
                 meshes[n.uuid] = new IncMesh(part.getMesh());
         });
         // Removing unused pairs (happens when target nodes are removed.)
