@@ -16,6 +16,8 @@ private:
     float opacity_;
     vec3 color_;
     vec2u lastKeypoint;
+    Puppet activePuppet;
+
     this() {
         numHistory = 2;
         history.length = numHistory;
@@ -30,8 +32,12 @@ private:
 
 public:
     static OnionSlice singleton() {
+        if (instance && instance.activePuppet != incActivePuppet()) {
+            instance = null;
+        }
         if (instance is null) {
             instance = new OnionSlice();
+            instance.activePuppet = incActivePuppet();
         }
         return instance;
     }
