@@ -15,6 +15,7 @@ import std.string;
 import std.array;
 import std.range;
 import std.algorithm.iteration;
+import std.algorithm.searching;
 import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
@@ -40,8 +41,24 @@ private:
     Thread processingThread;
     shared Mutex gcMutex = null;
     shared bool canceled = false;
+    bool selectAll = false;
+    enum ToggleAction { NoAction, None, All }
+    ToggleAction toggleAction = ToggleAction.NoAction;
 
     void apply() {
+        /*
+        if (nodes.length == 0) return;
+        Node[] orderedNodes;
+        void traverse(Node n) {
+            foreach (child; n.children) {
+                traverse(child);
+            }
+            if (nodes.canFind(n))
+                orderedNodes ~= n;
+        }
+        traverse(incActivePuppet().root);
+        foreach (node; orderedNodes) {
+        */
         foreach (node; nodes) {
             auto part = cast(ApplicableClass)node;
             if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
@@ -100,6 +117,7 @@ private:
     void treeView() {
 
         import std.algorithm.searching : canFind;
+        selectAll = true;
         foreach(i, ref Node node; nodes) {
             if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
 
@@ -110,6 +128,16 @@ private:
             }
             igSameLine(0, 0);
             if (isApplicable(node)) {
+                switch (toggleAction) {
+                case ToggleAction.None:
+                    selected[node.uuid] = false;
+                    break;
+                case ToggleAction.All:
+                    selected[node.uuid] = true;
+                    break;
+                default:
+                }
+                if (!selected[node.uuid]) selectAll = false;
                 ngCheckbox("###check%x".format(node.uuid).toStringz, &(selected[node.uuid]));
                 igSameLine(0, 0);
             } else {
@@ -147,6 +175,7 @@ private:
             }
             igPopID();
         }
+        toggleAction = ToggleAction.NoAction;
 
     }
 
@@ -239,6 +268,14 @@ protected:
 
         igBeginGroup();
             if (igBeginChild("###Nodes", ImVec2(childWidth, childHeight))) {
+                if (ngCheckbox("##toggleCheck", &selectAll)) {
+                    if (selectAll) {
+                        toggleAction = ToggleAction.All;
+                    } else {
+                        toggleAction = ToggleAction.None;
+                    }
+                }
+                igSameLine(0, 0);
                 incInputText("##", childWidth, nodeFilter);
 
                 igBeginListBox("###NodeList", ImVec2(childWidth, childHeight-filterWidgetHeight));
