@@ -46,6 +46,8 @@ enum ViewporMenuSortMode {
 ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 
 class ModelViewport : DelegationViewport {
+public:
+
     override
     void draw(Camera camera) { 
         Parameter param = incArmedParameter();
@@ -140,9 +142,7 @@ class ModelViewport : DelegationViewport {
     };
     
     override
-    void drawOptions() { 
-//    igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
-//    igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
+    void drawOptions() {
         if (!incArmedParameter()) {
             if(incBeginDropdownMenu("GIZMOS", "")) {
 
@@ -199,7 +199,6 @@ class ModelViewport : DelegationViewport {
         } else {
             super.drawOptions();
         }
-//    igPopStyleVar(2);
     };
  
     override
@@ -241,8 +240,6 @@ class ModelViewport : DelegationViewport {
                     }
                     igEndDragDropTarget();
                 } else {
-
-
                     // Switches nijigenerate over to Mesh Edit mode
                     // and selects the mesh that you had selected previously
                     // in Model Edit mode.
@@ -367,5 +364,7 @@ class ModelViewport : DelegationViewport {
         } else if (parameter is null && subView) {
             subView = null;
         }
+        if (subView)
+            subView.armedParameterChanged(parameter);
     }
 }

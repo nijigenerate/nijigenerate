@@ -127,7 +127,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(-1);
                 if (_shared!localOnly(()=>ngCheckbox(__("Local Transform Lock"), &localOnly.value))) {
                     localOnly.apply();
-                };
+                }
                 incTooltip(_("Whether the physics system only listens to the movement of the physics node itself"));
                 igSpacing();
                 igSpacing();

@@ -26,6 +26,7 @@ class Tool {
     abstract bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed);
     abstract void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl);
     abstract void draw(Camera camera, IncMeshEditorOne impl);
+    abstract void finalizeToolMode(IncMeshEditorOne impl);
 
     MeshEditorAction!DeformationAction editorAction(Node target, DeformationAction action) {
         return new MeshEditorAction!(DeformationAction)(target, action);

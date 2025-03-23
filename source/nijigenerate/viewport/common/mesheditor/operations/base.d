@@ -76,6 +76,15 @@ public:
     bool deforming = false;
     float meshEditAOE = 4;
 
+    bool previewTriangulate = false;
+    bool mirrorHoriz = false;
+    bool mirrorVert = false;
+    vec2 mirrorOrigin = vec2(0, 0);
+    mat4 transform = mat4.identity;
+
+    vec4 vertexColor = vec4(1, 1, 1, 1);
+    vec4 edgeColor   = vec4(0.5, 0.5, 0.5, 1);
+
     bool isSelected(ulong vertIndex) {
         import std.algorithm.searching : canFind;
         return selected.canFind(vertIndex);
@@ -216,11 +225,6 @@ public:
         }
         selected = tmpSelected;
     }
-    bool previewTriangulate = false;
-    bool mirrorHoriz = false;
-    bool mirrorVert = false;
-    vec2 mirrorOrigin = vec2(0, 0);
-    mat4 transform = mat4.identity;
 
     this(bool deformOnly) {
         this.deformOnly = deformOnly;

@@ -30,7 +30,7 @@ import std.typecons;
 /**
  * MeshEditor of Drawable for deformation operation.
  */
-class IncMeshEditorOneDrawableDeform : IncMeshEditorOneDrawable {
+class IncMeshEditorOneFor(T: Drawable, EditMode mode: EditMode.ModelEdit) : IncMeshEditorOneDrawable {
 protected:
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
@@ -331,7 +331,7 @@ public:
 
             inDbgSetBuffer(points);
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(vertexColor, trans);
         }
 
         if (groupId != 0) {
