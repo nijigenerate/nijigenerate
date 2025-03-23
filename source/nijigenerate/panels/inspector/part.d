@@ -327,7 +327,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             }
 
             if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
-                if (ngCheckbox(__("Resize automatically"), &dcomposite.autoResizedMesh)) {
+                if (ngCheckbox(__("Resize automatically"), &autoResizedMesh.value)) {
+                    autoResizedMesh.apply();
+                    foreach (n; targets)
+                        n.notifyChange(n, NotifyReason.AttributeChanged);
                 }
                 incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
             }
@@ -532,6 +535,19 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
     mixin(attribute!(BlendMode, "blendingMode"));
     mixin(attribute!(float, "opacity"));
     mixin(attribute!(float, "maskAlphaThreshold"));
+    mixin(attribute!(bool, "autoResizedMesh", 
+        (x) { return "(x) {
+            if (auto dcomp = cast(DynamicComposite)x) { 
+                return dcomp.autoResizedMesh; 
+            } else { 
+                return false; 
+            } 
+        }("~x~")"; },
+        (x, v) { return "(x, v) {
+            if (auto dcomp = cast(DynamicComposite)x) {
+                dcomp.autoResizedMesh = v;
+            }
+        }("~x~","~v~")"; }));
 
     override
     void capture(Node[] nodes) {
@@ -542,18 +558,21 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
         blendingMode.capture();
         opacity.capture();
         maskAlphaThreshold.capture();
+        autoResizedMesh.capture();
     }
 }
 
 ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
     ptrdiff_t[] indices;
     foreach (i, v; node.vertices) {
-        auto vv = node.transform.matrix * vec4(v, 0, 1);
-        auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>(counterDrawable.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
-        if ((counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
+        auto vv = (node.transform.matrix * vec4(v, 0, 1)).xy;
+        auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>((counterDrawable.transform.matrix * vec4(a.value, 0, 1))).xy.distance(vv))();
+        auto dist = (counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).xy.distance(vv);
+        if (dist < 4) {
             indices ~= minDistance[0];
-        else
+        } else {
             indices ~= -1;
+        }
     }
     incActionPush(new DrawableAddWeldingAction(node, counterDrawable, indices, weight));
     return indices;

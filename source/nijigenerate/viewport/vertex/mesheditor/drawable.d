@@ -1,6 +1,7 @@
 module nijigenerate.viewport.vertex.mesheditor.drawable;
 
 import i18n;
+import nijigenerate.panels.inspector.part;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
@@ -22,9 +23,11 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
+import std.algorithm;
 import std.stdio;
 import std.range: enumerate;
 import std.array;
+import std.typecons;
 
 /**
  * MeshEditor of Drawable for vertex operation.
@@ -94,6 +97,9 @@ public:
     override
     void applyToTarget() {
         applyMeshToTarget(target, mesh.vertices, &mesh);
+        foreach (welded; target.welded) {
+            incRegisterWeldedPoints(target, welded.target);
+        }
     }
 
     override
@@ -305,7 +311,19 @@ public:
             previewMesh.drawLines(trans, vec4(0.7, 0.7, 0, 1));
             mesh.drawPoints(trans);
         } else {
-            mesh.draw(trans, vertexColor, edgeColor);
+            Tuple!(ptrdiff_t[], vec4)[] indices;
+            if (auto drawable = cast(Drawable)getTarget()) {
+                if (drawable.welded) {
+                    foreach (welded; drawable.welded) {
+                        if (welded.indices.length == mesh.vertices.length) {
+                            auto t = tuple(welded.indices.enumerate.filter!(i=>i[1]!=cast(ptrdiff_t)-1).map!((p)=>cast(ptrdiff_t)p[0]).array, vec4(0, 0.7, 0.7, 1));
+                            if (t[0].length > 0)
+                                indices ~= t;
+                        }
+                    }
+                }
+            }
+            mesh.draw(trans, vertexColor, edgeColor, indices.length > 0? indices: null);
         }
 
         if (groupId != 0) {
@@ -313,7 +331,7 @@ public:
             foreach (v; mesh.vertices) {
                 if (v.groupId != groupId) vertsInGroup ~= v;
             }
-            mesh.drawPointSubset(vertsInGroup, vec4(0.6, 0.6, 0.6, 1), trans);
+            mesh.drawPointSubset(vertsInGroup, vec4(0.5, 0.5, 0.5, 1), trans);
         }
 
         if (selected.length) {

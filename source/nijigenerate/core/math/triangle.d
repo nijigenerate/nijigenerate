@@ -9,6 +9,7 @@ import std.typecons;
 import std.algorithm;
 import std.array;
 import std.traits;
+import core.exception;
 
 Deformation* deformByDeformationBinding(DeformationParameterBinding binding, DeformationParameterBinding srcBinding, vec2u index, bool flipHorz = false) {
     if (!binding || !srcBinding) return null;
@@ -590,12 +591,17 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
 }
 
 void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[] vertices , U[] indices, ulong index, V value) if (is(U: vec3u)) {
-    if (vertices.length < 3) return;
-    vec2[3] tvertices = [
-        vertices[indices[index].x].position,
-        vertices[indices[index].y].position,
-        vertices[indices[index].z].position
-    ];
+    if (vertices.length < 3 || indices.length < index) return;
+    vec2[3] tvertices;
+    try {
+        tvertices = [
+            vertices[indices[index].x].position,
+            vertices[indices[index].y].position,
+            vertices[indices[index].z].position
+        ];
+    } catch (ArrayIndexError e) {
+        return;
+    }
 
     vec4 tbounds = getBounds(tvertices);
     int bwidth  = cast(int)(ceil(tbounds.z) - floor(tbounds.x) + 1);

@@ -147,7 +147,7 @@ void ngConvertTo(Node[] nodes, string toType) {
 
     auto group = new GroupAction();
     Node[] newNodes = [];
-    foreach (node; nodes) {
+    foreach (node; nodes.dup) {
         Node newNode = inInstantiateNode(toType);
         newNode.copyFrom(node, true, false);
         group.addAction(new NodeReplaceAction(node, newNode, true));

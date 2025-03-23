@@ -21,9 +21,11 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
+import std.algorithm;
 import std.stdio;
 import std.range: enumerate;
 import std.array;
+import std.typecons;
 
 /**
  * MeshEditor of Drawable for deformation operation.
@@ -306,6 +308,28 @@ public:
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+
+            Tuple!(ptrdiff_t[], vec4)[] markers;
+            if (drawable) {
+                if (drawable.welded) {
+                    foreach (welded; drawable.welded) {
+                        auto t = tuple(welded.indices.enumerate.filter!(i=>i[1]!=cast(ptrdiff_t)-1).map!((p)=>cast(ptrdiff_t)p[0]).array, vec4(0, 0.7, 0.7, 1));
+                        if (t[0].length > 0)
+                            markers ~= t;
+                    }
+                }
+            }
+
+            if (markers) {
+                foreach (marker; markers) {
+                    auto pts = marker[0].map!(i=>points[i]).array;
+                    inDbgSetBuffer(pts);
+                    inDbgPointsSize(10);
+                    inDbgDrawPoints(marker[1], trans);
+                }
+            }
+
+            inDbgSetBuffer(points);
             inDbgPointsSize(6);
             inDbgDrawPoints(vertexColor, trans);
         }

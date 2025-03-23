@@ -91,7 +91,7 @@ ulong[] getInRect(T)(T[] vertices, vec2 min, vec2 max, uint groupId = 0) {
         if (min.y > position(vertex).y) continue;
         if (max.x < position(vertex).x) continue;
         if (max.y < position(vertex).y) continue;
-        if (groupId > 0 && groupIdEquals(vertex, groupId)) continue;
+        if (groupId > 0 && !groupIdEquals(vertex, groupId)) continue;
         matching ~= idx;
     }
 
