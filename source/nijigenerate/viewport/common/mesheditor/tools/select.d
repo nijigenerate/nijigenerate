@@ -38,7 +38,7 @@ class NodeSelect : Tool, Draggable {
 
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
-        assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
+//        assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
         isDragging = false;
         impl.isSelecting = false;
         incViewport.alwaysUpdate = false;
@@ -199,4 +199,7 @@ class NodeSelect : Tool, Draggable {
             inDbgDrawLines(vec4(0, 1, 0, 1),impl. transform);
         }
     }
+
+    override
+    void finalizeToolMode(IncMeshEditorOne impl) { }
 }

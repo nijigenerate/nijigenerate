@@ -449,7 +449,7 @@ public:
         }
     }
 
-    void drawPoints(mat4 trans = mat4.identity, Tuple!(ptrdiff_t[], vec4)[] markers = null) {
+    void drawPoints(mat4 trans = mat4.identity, vec4 color = vec4(1, 1, 1, 1), Tuple!(ptrdiff_t[], vec4)[] markers = null) {
         if (points.length > 0) {
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
@@ -464,7 +464,7 @@ public:
             }
             inDbgSetBuffer(points);
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(color, trans);
         }
     }
 
@@ -489,9 +489,9 @@ public:
         inDbgDrawPoints(color, trans);
     }
 
-    void draw(mat4 trans = mat4.identity, Tuple!(ptrdiff_t[], vec4)[] markers = null) {
-        drawLines(trans);
-        drawPoints(trans, markers);
+    void draw(mat4 trans = mat4.identity, vec4 vertexColor=vec4(1, 1, 1, 1), vec4 edgeColor=vec4(0.7, 0.7, 0.7, 1), Tuple!(ptrdiff_t[], vec4)[] markers = null) {
+        drawLines(trans, edgeColor);
+        drawPoints(trans, vertexColor, markers);
     }
 
     bool isPointOverVertex(vec2 point, float zoomRate) {

@@ -24,14 +24,14 @@ import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
-import std.range: enumerate;
+import std.range: enumerate, zip;
 import std.algorithm: map;
 import std.array;
 
 /**
  * MeshEditor of Deformable for deformation operation.
  */
-class IncMeshEditorOneDeformableDeform : IncMeshEditorOneDeformable {
+class IncMeshEditorOneFor(T: Deformable, EditMode mode: EditMode.ModelEdit): IncMeshEditorOneDeformable if (!is(T: Drawable)) {
 protected:
     vec2[] deformation;
     vec2[] inputVertices;
@@ -112,8 +112,8 @@ public:
 
     override
     void applyOffsets(vec2[] offsets) {
-        foreach(idx, vertex; vertices) {
-            vertex.position += offsets[idx];
+        foreach(v,o; zip(vertices, offsets)) {
+            v.position += o;
         }
     }
 
@@ -310,13 +310,13 @@ public:
                     }
                 }
                 auto curve = deformer.createCurve(inputVertices.map!((v)=>v).array);
-                drawLines(curve, trans, vec4(0, 1, 1, 1));
+                drawLines(curve, trans, edgeColor);
             }
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(vertexColor, trans);
         }
 
         if (vtxAtMouse != ulong(-1) && !isSelecting) {
