@@ -37,21 +37,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
             alias DefaultDriver = ConnectedPendulumDriver;
 
             if (ngCheckbox(__("Auto-Physics"), &physicsEnabled.value)) {
-                if (physicsEnabled.value) {
-                    foreach (n; targets) {
-                        if (n.driver is null) {
-                            n.driver = new DefaultDriver(node);
-                        }
-                    }
-                    capture(cast(Node[])targets);
-                } else {
-                    foreach (n; targets) {
-                        if (n.driver !is null) {
-                            n.driver = null;
-                        }
-                    }
-                    capture(cast(Node[])targets);
-                }
+                physicsEnabled.apply();
+                capture(cast(Node[])targets);
             }
             incTooltip(_("Enabled / Disabled physics driver for vertices. If enabled, vertices are moved along with specified physics engine."));
 
@@ -166,7 +153,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
     }
 
     mixin MultiEdit;
-    mixin(attribute!(bool, "physicsEnabled",   (x)=>"("~x~".driver !is null)", (x, v)=>""));
+    mixin(attribute!(bool, "physicsEnabled",   (x   )=>x~".physicsEnabled", (x, v)=>x~".physicsEnabled = "~v));
     mixin(attribute!(CurveType, "curveType",   (x)=>x~".curveType", (x, v)=>x~".curveType = "~v));
     mixin(attribute!(float, "gravity",         (x   )=>get_prop!float(_pendulum(x), "gravity"), 
                                                (x, v)=>set_prop!float(_pendulum(x), "gravity", "v") ));

@@ -24,7 +24,7 @@ import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.stdio;
-import std.range: enumerate;
+import std.range: enumerate, zip;
 import std.algorithm: map;
 import std.array;
 
@@ -112,8 +112,8 @@ public:
 
     override
     void applyOffsets(vec2[] offsets) {
-        foreach(idx, vertex; vertices) {
-            vertex.position += offsets[idx];
+        foreach(v,o; zip(vertices, offsets)) {
+            v.position += o;
         }
     }
 
