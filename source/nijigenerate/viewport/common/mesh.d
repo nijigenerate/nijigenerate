@@ -18,6 +18,8 @@ import nijilive.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.algorithm;
+import std.typecons;
+import std.range;
 import nijigenerate.core.math;
 public import nijigenerate.core.math.mesh;
 
@@ -55,7 +57,6 @@ private:
         }
         
         void printConnections(MeshVertex* v) {
-            import std.stdio;
             ushort[] conns;
             vec2[] coords;
             foreach(conn; v.connections) {
@@ -86,7 +87,6 @@ private:
                 }
             }
         }
-
         refresh();
     }
 
@@ -200,7 +200,6 @@ private:
             }
         }
 
-        import std.stdio;
         if (axes.length >= 2) {
             newData.gridAxes = axes[];
         }
@@ -230,17 +229,18 @@ private:
         // setup
         lines.length = 0;
         wlines.length = 0;
-        MeshVertex*[] visited;
+        bool[MeshVertex*] visited;
+        MeshVertex*[] stack;
         
         // our crazy recursive func
         void recurseLines(MeshVertex* cur) {
-            visited ~= cur;
+            visited[cur] = true;
 
             // First add the lines
             foreach(conn; cur.connections) {
 
                 // Skip already scanned connections
-                if (!visited.canFind(conn)) {
+                if (conn !in visited) {
                     lines ~= [vec3(cur.position, 0), vec3(conn.position, 0)];
                 }
             }
@@ -248,17 +248,41 @@ private:
             foreach(conn; cur.connections) {
 
                 // Skip already scanned connections
-                if (!visited.canFind(conn)) {
+                if (conn !in visited) {
                     recurseLines(conn);
                 }
             }
         }
 
-        foreach(ref vert; vertices) {
-            if (!visited.canFind(vert)) {
-                recurseLines(vert);
+        foreach_reverse(ref vert; vertices) {
+            if (vert !in visited) {
+                stack ~= vert;
             }
         }
+
+        while (true) {
+            if (stack.length == 0) break;
+            auto cur = stack[$-1];
+            stack.popBack(); 
+            visited[cur] = true;
+
+            // First add the lines
+            foreach(conn; cur.connections) {
+
+                // Skip already scanned connections
+                if (conn !in visited) {
+                    lines ~= [vec3(cur.position, 0), vec3(conn.position, 0)];
+                }
+            }
+            // Then scan the next unvisited point
+            foreach_reverse(conn; cur.connections) {
+                // Skip already scanned connections
+                if (conn !in visited) {
+                    stack ~= conn;
+                }
+            }
+        }
+
     }
 
 public:
@@ -425,11 +449,20 @@ public:
         }
     }
 
-    void drawPoints(mat4 trans = mat4.identity, vec4 color = vec4(1, 1, 1, 1)) {
+    void drawPoints(mat4 trans = mat4.identity, vec4 color = vec4(1, 1, 1, 1), Tuple!(ptrdiff_t[], vec4)[] markers = null) {
         if (points.length > 0) {
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+            if (markers) {
+                foreach (marker; markers) {
+                    auto pts = marker[0].map!(i=>points[i]).array;
+                    inDbgSetBuffer(pts);
+                    inDbgPointsSize(10);
+                    inDbgDrawPoints(marker[1], trans);
+                }
+            }
+            inDbgSetBuffer(points);
             inDbgPointsSize(6);
             inDbgDrawPoints(color, trans);
         }
@@ -456,9 +489,9 @@ public:
         inDbgDrawPoints(color, trans);
     }
 
-    void draw(mat4 trans = mat4.identity, vec4 vertexColor=vec4(1, 1, 1, 1), vec4 edgeColor=vec4(0.7, 0.7, 0.7, 1)) {
+    void draw(mat4 trans = mat4.identity, vec4 vertexColor=vec4(1, 1, 1, 1), vec4 edgeColor=vec4(0.7, 0.7, 0.7, 1), Tuple!(ptrdiff_t[], vec4)[] markers = null) {
         drawLines(trans, edgeColor);
-        drawPoints(trans, vertexColor);
+        drawPoints(trans, vertexColor, markers);
     }
 
     bool isPointOverVertex(vec2 point, float zoomRate) {
@@ -553,7 +586,7 @@ public:
     }
 
     IncMesh autoTriangulate() {
-        import std.stdio;
+        debug(delaunay) import std.stdio;
         debug(delaunay) writeln("==== autoTriangulate ====");
         if (vertices.length < 3) return new IncMesh(*data);
 

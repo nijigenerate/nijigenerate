@@ -432,6 +432,7 @@ void incImportINP(string file) {
         incSetStatus(_("Import failed..."));
         return;
     }
+    puppet.root.build();
     incActiveProject().puppet = puppet;
     incAnimationPlayer = new AnimationPlayer(puppet);
     incAnimationCurrent = null;
