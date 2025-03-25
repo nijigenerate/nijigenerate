@@ -89,6 +89,9 @@ public:
             // Set relative position
             if (new_) {
                 sn.reparent(new_, pOffset, true);
+                if (sn.uuid in zSort) {
+                    sn.zSort = zSort[sn.uuid] - new_.zSort();
+                }
                 sn.localTransform.translation = (new_.transform.matrix.inverse * vec4(tmpTransform.translation, 1)).xyz;
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
@@ -131,6 +134,9 @@ public:
             if (newParent) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
                 sn.reparent(newParent, parentOffset, true);
+                if (sn.uuid in zSort) {
+                    sn.zSort = zSort[sn.uuid] - newParent.zSort();
+                }
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
