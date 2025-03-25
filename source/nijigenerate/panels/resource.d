@@ -221,7 +221,7 @@ protected:
 
                 // If mouse is inside the window
                 if (mousePos.x > crect.Min.x && mousePos.x < crect.Max.x) {
-                    float scrollSpeed = (4*60)*deltaTime();
+                    float scrollSpeed = (4*256)*deltaTime();
 
                     if (mousePos.y < crect.Min.y+32 && mousePos.y >= crect.Min.y) scrollDelta = -scrollSpeed;
                     if (mousePos.y > crect.Max.y-32 && mousePos.y <= crect.Max.y) scrollDelta = scrollSpeed;
