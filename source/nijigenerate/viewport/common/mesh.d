@@ -78,12 +78,15 @@ private:
         axes = [];
         if (reset) {
             if (data.isGrid()) {
-                foreach (axis; data.gridAxes) {
-                    float[] newAxis;
-                    foreach (axValue; axis) {
-                        newAxis ~= axValue;
+                data.clearGridIfDirty();
+                if (data.isGrid()) {
+                    foreach (axis; data.gridAxes) {
+                        float[] newAxis;
+                        foreach (axValue; axis) {
+                            newAxis ~= axValue;
+                        }
+                        axes ~= newAxis;
                     }
-                    axes ~= newAxis;
                 }
             }
         }
@@ -203,7 +206,7 @@ private:
         if (axes.length >= 2) {
             newData.gridAxes = axes[];
         }
-        newData.clearGridIsDirty();
+        newData.clearGridIfDirty();
 
         // Save the data as the new data and refresh
         data = newData;
