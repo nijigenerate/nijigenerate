@@ -46,19 +46,6 @@ private:
     ToggleAction toggleAction = ToggleAction.NoAction;
 
     void apply() {
-        /*
-        if (nodes.length == 0) return;
-        Node[] orderedNodes;
-        void traverse(Node n) {
-            foreach (child; n.children) {
-                traverse(child);
-            }
-            if (nodes.canFind(n))
-                orderedNodes ~= n;
-        }
-        traverse(incActivePuppet().root);
-        foreach (node; orderedNodes) {
-        */
         foreach (node; nodes) {
             auto part = cast(ApplicableClass)node;
             if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
