@@ -111,7 +111,8 @@ string incShowOpenFolderDialog(string title = "Open...") {
             op.directory = true;
             auto promise = dpFileChooserOpenFile(getWindowHandle(), title, op);
             promise.await();
-            return promise.uriFromPromise().decode.dup;
+            auto result = promise.uriFromPromise().decode.dup;
+            return cast(string)result;
         } catch (Throwable _) {
 
             // FALLBACK: If xdg-desktop-portal is not available then try tinyfiledialogs.
@@ -131,7 +132,8 @@ string incShowOpenDialog(const(TFD_Filter)[] filters, string title = "Open...") 
             op.filters = tfdToFileFilter(filters);
             auto promise = dpFileChooserOpenFile(getWindowHandle(), title, op);
             promise.await();
-            return promise.uriFromPromise().decode.dup;
+            auto result = promise.uriFromPromise().decode.dup;
+            return cast(string)result;
         } catch (Throwable ex) {
 
             // FALLBACK: If xdg-desktop-portal is not available then try tinyfiledialogs.
@@ -151,7 +153,9 @@ string incShowSaveDialog(const(TFD_Filter)[] filters, string fname, string title
             op.filters = tfdToFileFilter(filters);
             auto promise = dpFileChooserSaveFile(getWindowHandle(), title, op);
             promise.await();
-            return promise.uriFromPromise().decode.dup;
+//            auto result = promise.uriFromPromise().decode.dup;
+            auto result = promise.uriFromPromise().dup;
+            return cast(string)result;
         } catch (Throwable ex) {
 
             // FALLBACK: If xdg-desktop-portal is not available then try tinyfiledialogs.
