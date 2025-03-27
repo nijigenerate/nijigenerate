@@ -120,8 +120,14 @@ public:
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
-                if (newParent) newParent.notifyChange(sn, NotifyReason.StructureChanged);
-            } else sn.parent = null;
+                if (newParent) {
+                    newParent.notifyChange(sn, NotifyReason.StructureChanged);
+                }
+            } else {
+                sn.reparent(null, 0);
+                if (newParent)
+                    newParent.notifyChange(sn, NotifyReason.StructureChanged);
+            }
         }
         incActivePuppet().rescanNodes();
     }
@@ -141,7 +147,10 @@ public:
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
                 if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
-            } else sn.parent = null;
+            } else {
+                sn.reparent(null, 0);
+                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
+            }
         }
         incActivePuppet().rescanNodes();
     }
