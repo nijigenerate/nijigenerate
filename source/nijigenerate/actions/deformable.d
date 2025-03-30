@@ -78,7 +78,7 @@ public:
     */
     override
     string describe() {
-        return _("Changed deformable vertices of %s").format(self.name);
+        return _("Changed vertices of %s").format(self.name);
     }
 
     /**
@@ -86,7 +86,7 @@ public:
     */
     override
     string describeUndo() {
-        return _("Deformable %s was changed").format(self.name);
+        return _("Vertices of %s was changed").format(self.name);
     }
 
     /**

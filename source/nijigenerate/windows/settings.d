@@ -199,7 +199,7 @@ protected:
                             ];
 
                             string selected = configShowing[incGetKeepLayerFolder()];
-                            if(igBeginCombo(__("Preserve Folder Structure"), selected.toStringz)) {
+                            if(igBeginCombo(__("Preserve Folder Structure"), __(selected))) {
                                 if (igSelectable(__("Always Ask"), incSettingsGet!string("KeepLayerFolder") == "Ask")) incSetKeepLayerFolder("Ask");
                                 if (igSelectable(__("Preserve"), incSettingsGet!string("KeepLayerFolder") == "Preserve")) incSetKeepLayerFolder("Preserve");
                                 if (igSelectable(__("Not Preserve"), incSettingsGet!string("KeepLayerFolder") == "NotPreserve")) incSetKeepLayerFolder("NotPreserve");
@@ -217,7 +217,7 @@ protected:
                             ];
 
                             string selected = configShowing[incGetViewportZoomMode()];
-                            if(igBeginCombo(__("Zoom Mode"), selected.toStringz)) {
+                            if(igBeginCombo(__("Zoom Mode"), __(selected))) {
                                 if (igSelectable(__("To Screen Center"), incSettingsGet!string("ViewportZoomMode") == "ScreenCenter")) incSetViewportZoomMode("ScreenCenter");
                                 if (igSelectable(__("To Mouse Position"), incSettingsGet!string("ViewportZoomMode") == "MousePosition")) incSetViewportZoomMode("MousePosition");
 
