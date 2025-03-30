@@ -39,7 +39,7 @@ jobs:
         cp out/* otl/
 
     - name: Make Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: translations
         path: otl/*
@@ -108,7 +108,7 @@ jobs:
         compiler: ldc-latest
         
     - name: Download translations
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: translations
         path: out/i18n/
@@ -167,7 +167,7 @@ jobs:
         cd ../../../
 
     - name: Make Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: release-win32
         path: |
@@ -182,7 +182,7 @@ jobs:
 #    needs: windows-build
 #    steps:
 #    - name: Download from artifacts
-#      uses: actions/download-artifact@v3
+#      uses: actions/download-artifact@v4
 #      with:
 #        name: release-win32
 
@@ -301,7 +301,7 @@ jobs:
         ./build-aux/osx/gendmg.sh
 
     - name: Make Artifact of build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: release-osx
         path: |
@@ -316,7 +316,7 @@ jobs:
 #    needs: macOS-build
 #    steps:
 #    - name: Download from artifacts
-#      uses: actions/download-artifact@v3
+#      uses: actions/download-artifact@v4
 #      with:
 #        name: release-osx
 #
