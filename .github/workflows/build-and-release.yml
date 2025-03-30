@@ -92,7 +92,7 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       with:
           files: |
-            'out/nijigenerate-linux-x86_64.zip'  
+            out/nijigenerate-linux-x86_64.zip  
           generate_release_notes: true
 
   windows-build:
