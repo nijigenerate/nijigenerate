@@ -77,16 +77,13 @@ private:
 
         axes = [];
         if (reset) {
-            if (data.isGrid()) {
-                data.clearGridIfDirty();
-                if (data.isGrid()) {
-                    foreach (axis; data.gridAxes) {
-                        float[] newAxis;
-                        foreach (axValue; axis) {
-                            newAxis ~= axValue;
-                        }
-                        axes ~= newAxis;
+            if (data.updateGrid()) {
+                foreach (axis; data.gridAxes) {
+                    float[] newAxis;
+                    foreach (axValue; axis) {
+                        newAxis ~= axValue;
                     }
+                    axes ~= newAxis;
                 }
             }
         }
