@@ -16,6 +16,7 @@ public import nijigenerate.viewport.vertex.mesheditor.deformable;
 public import nijigenerate.viewport.vertex.mesheditor.drawable;
 //public import nijigenerate.viewport.vertex.mesheditor.node;
 import nijigenerate.core.actionstack;
+import nijigenerate.viewport.common.mesh;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
@@ -42,7 +43,8 @@ public:
         if (auto drawable = cast(Drawable)target) {
             incActionPushStack();
             subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
-            if (drawable.getMesh().updateGrid()) {
+            float[][] axes;
+            if (drawable.getMesh().vertices.isGrid(axes)) {
                 subEditor.toolMode = VertexToolMode.Grid;
                 toolMode           = VertexToolMode.Grid;
             }

@@ -96,7 +96,21 @@ public:
 
     override
     void applyToTarget() {
+        float[][] axes;
+        if (mesh.vertices.isGrid(axes)) {
+            import std.algorithm.iteration;
+            import std.array;
+            import std.range;
+            import std.algorithm;
+            auto indexedVerts = enumerate(mesh.vertices).array.sort!((a, b)=>a[1].position.y < b[1].position.y || (a[1].position.y == b[1].position.y && a[1].position.x < b[1].position.x))();
+            auto indexMap = enumerate(indexedVerts.map!(x=>x[0])).assocArray;
+            mesh.vertices = indexedVerts.map!(x=>x[1]).array;
+        }
+
         applyMeshToTarget(target, mesh.vertices, &mesh);
+        if (axes.length > 0) {
+            target.getMesh.gridAxes = axes;
+        }
         foreach (welded; target.welded) {
             incRegisterWeldedPoints(target, welded.target);
         }
