@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-03-30 16:52+0900\n"
-"PO-Revision-Date: 2025-03-30 17:41+0900\n"
+"PO-Revision-Date: 2025-03-30 18:14+0900\n"
 "Last-Translator: Nejikugi <63852665+scrwnl@users.noreply.github.com>\n"
 "Language-Team: Language ja\n"
 "Language: ja\n"
@@ -3087,7 +3087,7 @@ msgstr ""
 #. Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
 #: source/nijigenerate/core/i18n.d:18
 msgid "LANG_NAME"
-msgstr "言語名"
+msgstr "日本語"
 
 #. incViewportPresentMode(editMode_);
 #: source/nijigenerate/project.d:244
