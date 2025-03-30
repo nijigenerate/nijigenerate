@@ -13,6 +13,8 @@
 */
 module nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.brushes;
+import nijigenerate.project;
+import nijigenerate.core.math.mesh;
 import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
@@ -22,6 +24,35 @@ import std.typecons;
 import std.range;
 import nijigenerate.core.math;
 public import nijigenerate.core.math.mesh;
+
+
+import std.algorithm.iteration;
+import std.algorithm;
+import std.array;
+import std.range;
+
+bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
+    int[float] yPoints;
+    int[float] xPoints;
+    foreach (v; vertices) {
+        yPoints[v.position.y] ++;
+        xPoints[v.position.x] ++;
+    }
+    foreach (k; yPoints.keys()) {
+        if (yPoints[k] != xPoints.keys().length) {
+            return false;
+        }
+    }
+    foreach (k; xPoints.keys()) {
+        if (xPoints[k] != yPoints.keys().length) {
+            return false;
+        }
+    }
+    gridAxes.length = 2;
+    gridAxes[0] = yPoints.keys().sort.array;
+    gridAxes[1] = xPoints.keys().sort.array;
+    return true;
+}
 
 class IncMesh {
 private:
@@ -76,9 +107,10 @@ private:
         }
 
         axes = [];
+        float[][] gridAxes;
         if (reset) {
-            if (data.updateGrid()) {
-                foreach (axis; data.gridAxes) {
+            if (data.vertices.isGrid(gridAxes)) {
+                foreach (axis; gridAxes) {
                     float[] newAxis;
                     foreach (axValue; axis) {
                         newAxis ~= axValue;
