@@ -42,12 +42,9 @@ public:
         if (auto drawable = cast(Drawable)target) {
             incActionPushStack();
             subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
-            if (drawable.getMesh().isGrid()) {
-                drawable.getMesh().clearGridIfDirty();
-                if (drawable.getMesh().isGrid()) {
-                    subEditor.toolMode = VertexToolMode.Grid;
-                    toolMode           = VertexToolMode.Grid;
-                }
+            if (drawable.getMesh().updateGrid()) {
+                subEditor.toolMode = VertexToolMode.Grid;
+                toolMode           = VertexToolMode.Grid;
             }
         } else if (auto deformable = cast(Deformable)target) {
             incActionPushStack();
