@@ -169,13 +169,13 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                     ClassName = NodeName;
                 }
                 if (NodeLabel is null) {
-                    NodeLabel = NodeName;
+                    NodeLabel = _(NodeName);
                 }
 
                 incText(incTypeIdToIcon(NodeName));
                 igSameLine(0, 2);
 
-                if (igMenuItem(__(NodeLabel), null, false, true)) {
+                if (igMenuItem(NodeLabel.toStringz, null, false, true)) {
                     callback(incSelectedNodes, ClassName, suffixName);
                     suffixName = null;
                 }
@@ -188,14 +188,14 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                     suffixName = suffixName.toStringz.fromStringz;
                 } catch (std.utf.UTFException e) {}
             }
-            NodeCreateMenu("Node");
-            NodeCreateMenu("Mask");
-            NodeCreateMenu("Composite");
-            NodeCreateMenu("SimplePhysics", "Simple Physics");
-            NodeCreateMenu("MeshGroup", "Mesh Group");
-            NodeCreateMenu("DynamicComposite", "Dynamic Composite");
-            NodeCreateMenu("PathDeformer", "Path Deformer");
-            NodeCreateMenu("Camera", "Camera");
+            NodeCreateMenu("Node", _("Node"));
+            NodeCreateMenu("Mask", _("Mask"));
+            NodeCreateMenu("Composite", _("Composite"));
+            NodeCreateMenu("SimplePhysics", _("Simple Physics"));
+            NodeCreateMenu("MeshGroup", _("Mesh Group"));
+            NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
+            NodeCreateMenu("PathDeformer", _("Path Deformer"));
+            NodeCreateMenu("Camera", _("Camera"));
         }
 
         if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
