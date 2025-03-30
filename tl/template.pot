@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-03-30 17:06+0900\n"
+"POT-Creation-Date: 2025-03-30 20:39+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -349,6 +349,7 @@ msgstr ""
 #: source/nijigenerate/windows/videoexport.d:162
 #: source/nijigenerate/windows/imgexport.d:98
 #: source/nijigenerate/panels/inspector/camera.d:22
+#: source/nijigenerate/panels/nodes.d:198
 msgid "Camera"
 msgstr ""
 
@@ -1334,6 +1335,7 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:356
 #: source/nijigenerate/panels/inspector/composite.d:155
+#: source/nijigenerate/panels/nodes.d:192
 msgid "Mask"
 msgstr ""
 
@@ -1548,6 +1550,7 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector/composite.d:30
 #: source/nijigenerate/panels/inspector/composite.d:276
+#: source/nijigenerate/panels/nodes.d:193
 msgid "Composite"
 msgstr ""
 
@@ -1625,6 +1628,7 @@ msgid "Output scale"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:243
+#: source/nijigenerate/panels/nodes.d:194
 msgid "Simple Physics"
 msgstr ""
 
@@ -1786,6 +1790,22 @@ msgstr ""
 
 #: source/nijigenerate/panels/nodes.d:184
 msgid "Suffix"
+msgstr ""
+
+#: source/nijigenerate/panels/nodes.d:191
+msgid "Node"
+msgstr ""
+
+#: source/nijigenerate/panels/nodes.d:195
+msgid "Mesh Group"
+msgstr ""
+
+#: source/nijigenerate/panels/nodes.d:196
+msgid "Dynamic Composite"
+msgstr ""
+
+#: source/nijigenerate/panels/nodes.d:197
+msgid "Path Deformer"
 msgstr ""
 
 #. %s is the name of the node in the More Info menu
@@ -2792,7 +2812,7 @@ msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:398
 msgid "Deform"
 msgstr ""
 
@@ -2803,7 +2823,7 @@ msgstr ""
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:398
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
 msgid "Left Mouse"
@@ -2812,14 +2832,14 @@ msgstr ""
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
 #: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:228
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:402
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:399
 msgid "Switch Mode"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
 #: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:228
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:402
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:399
 msgid "TAB"
 msgstr ""
 
@@ -2835,25 +2855,25 @@ msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:403
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:400
 msgid "Toggle locked point"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:403
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:400
 msgid "Ctrl"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:404
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
 msgid "Move point along with the path"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:404
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
 msgid "Shift"
 msgstr ""
 
@@ -2866,17 +2886,17 @@ msgid "Transform path"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:439
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:572
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:569
 msgid "Set rotation center"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:452
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:585
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:582
 msgid "Move points along the path"
 msgstr ""
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:459
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:592
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:589
 msgid "Path Deform Tool"
 msgstr ""
 
