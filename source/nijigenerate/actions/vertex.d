@@ -283,7 +283,7 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
     }
 
     string actionName(bool action)() {
-        return action == reverse ? "removed" : "inserted";
+        return action == reverse ? _("removed") : _("inserted");
     }
 
     /**
