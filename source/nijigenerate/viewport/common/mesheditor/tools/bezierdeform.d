@@ -305,7 +305,7 @@ class BezierDeformTool : NodeSelect {
         incStatusTooltip(_("Create/Destroy"), _("Left Mouse (x2)"));
         incStatusTooltip(_("Toggle locked point"), _("Ctrl"));
         incStatusTooltip(_("Move point along with the path"), _("Shift"));
-        
+
         if (action == BezierDeformActionID.SwitchMode) {
             impl.getCleanDeformAction();
         }
@@ -357,10 +357,7 @@ class BezierDeformTool : NodeSelect {
             impl.deselectAll();
             lockedPoint    = ulong(-1);
         } else if (action == BezierDeformActionID.TranslatePoint || action == BezierDeformActionID.StartTransform) {
-            foreach (i; impl.selected) {
-                vec2 relTranslation = impl.mousePos - impl.lastMousePos;
-                deformImpl.vertices[i].position += relTranslation;
-            }
+            onDragUpdate(impl.mousePos, impl);
         }
 
         // Left click selection
