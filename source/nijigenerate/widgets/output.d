@@ -806,6 +806,8 @@ protected:
                 bool invalid = activeInspector is null || activeInspector.getTargets().countUntil(node) < 0;
                 bool selected = node !is null && incNodeInSelection(node);
                 if (!selected || invalid) {
+                    if (!selected)
+                        incSelectNode(node);
                     activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
                 }
                 showContents(res);
