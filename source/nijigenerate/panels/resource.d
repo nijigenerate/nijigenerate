@@ -229,12 +229,14 @@ protected:
             }
         incEndDragDropFake();
 
-        if (igBeginChild("ShellMain", ImVec2(0, -34), false)) {
+        int buttonBarHeight = 0; // -34;
+        if (igBeginChild("ShellMain", ImVec2(0, buttonBarHeight), false)) {
             auto window = igGetCurrentWindow();
             igSetScrollY(window.Scroll.y+scrollDelta);
             history[historyIndex].output.onUpdate();
         }
         igEndChild();
+        /*
         auto spacing = igGetStyle().ItemSpacing;
         igGetStyle().ItemSpacing = ImVec2(0, 0);
         incButtonColored("\ue145");
@@ -245,6 +247,7 @@ protected:
         igSameLine();
         incButtonColored("\ue14f");
         igGetStyle().ItemSpacing = spacing;
+        */
         views.onUpdate();
     }
 
