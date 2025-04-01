@@ -477,7 +477,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                     if (index != -1) {
                                         welded.target.welded[index].weight = 1 - weight;
                                     }
-                                    node.notifyChange(node, NotifyReason.StructureChanged);
+                                    node.notifyChange(node, NotifyReason.AttributeChanged);
                                 }
                                 igPopStyleVar();
                             }
