@@ -58,6 +58,14 @@ jobs:
         sudo apt-get update
         sudo apt install libsdl2-dev libfreetype6-dev gettext
 
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    
+    - name: CMake version
+      run: cmake --version
+      
     - name: 'Generate i18n'
       run: |
         sudo chmod +x ./gentl.sh
@@ -109,6 +117,14 @@ jobs:
       with:
         name: translations
         path: out/i18n/
+        
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    
+    - name: CMake version
+      run: cmake --version
       
     - name: "Clone dependencies & set versions"
       run: |
