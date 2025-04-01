@@ -125,6 +125,14 @@ jobs:
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
 
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    
+    - name: CMake version
+      run: cmake --version
+
     - name: 'Build nijigenerate'
       run: |
         function Invoke-VSDevEnvironment {
