@@ -287,8 +287,10 @@ public:
                         debug(automesh_opt) writefln(" distance: %.2f", dt[s.y, s.x]);
                     }
                 } catch (AssertError e) {
-                    import std.stdio;
-                    writefln("Assert error at s=%s", s);
+                    debug(automesh_opt) {
+                        import std.stdio;
+                        writefln("Assert error at s=%s", s);
+                    }
                 }
             }
             // To convert skeleton coordinates back to original image coordinates, use:
