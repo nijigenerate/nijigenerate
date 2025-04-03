@@ -280,16 +280,11 @@ public:
 
             float[] widthMap;
             foreach(s; skelPath) {
-                try {
-                    if (dt[s.y, s.x] > 0) {
-                        widthMap ~= 2 * dt[s.y, s.x];
-                        debug(automesh_opt) writef("w, h = %d x %d, ", regionWidth, regionHeight);
-                        debug(automesh_opt) writefln(" distance: %.2f", dt[s.y, s.x]);
-                    }
-                } catch (AssertError e) {
-                    debug(automesh_opt) {
-                        writefln("Assert error at s=%s", s);
-                    }
+                if (s.y > dt.shape[0] || s.x > dt.shape[1]) continue;
+                if (dt[s.y, s.x] > 0) {
+                    widthMap ~= 2 * dt[s.y, s.x];
+                    debug(automesh_opt) writef("w, h = %d x %d, ", regionWidth, regionHeight);
+                    debug(automesh_opt) writefln(" distance: %.2f", dt[s.y, s.x]);
                 }
             }
             // To convert skeleton coordinates back to original image coordinates, use:
