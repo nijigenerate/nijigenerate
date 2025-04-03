@@ -543,8 +543,8 @@ auto triangulate(T)(T[] vertices, vec4 bounds) {
         t.y -= dropVertices;
         t.z -= dropVertices;
         if (t.x >= vtx.length || t.y >= vtx.length || t.z >= vtx.length) {
-            import std.stdio;
-            writefln("Triangulate: Error: %s exceeds %d", t, dropVertices);
+//            import std.stdio;
+//            writefln("Triangulate: Error: %s exceeds %d", t, dropVertices);
         }
     }
     return tuple(vtx, tris);

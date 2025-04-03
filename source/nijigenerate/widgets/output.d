@@ -1,6 +1,6 @@
 module nijigenerate.widgets.output;
 
-import std.stdio;
+//import std.stdio;
 import std.array;
 import std.string;
 import std.math;
@@ -945,13 +945,13 @@ public:
                     if (!outOfArea) {
                         layout.require(res.uuid);
                         if (!layout[res.uuid].folded) {
-                            writefln(" fold  : %s,%s <=>%s", res.name, result, avail);
+//                            writefln(" fold  : %s,%s <=>%s", res.name, result, avail);
                             layout[res.uuid].folded = true;
                         }
                     }
                 } else if (opened && res.uuid in layout) {
                     if (layout[res.uuid].folded) {
-                            writefln(" unfold: %s,%s <=>%s", res.name, result, avail);
+//                            writefln(" unfold: %s,%s <=>%s", res.name, result, avail);
                             layout[res.uuid].folded = false;
                     }
                 }

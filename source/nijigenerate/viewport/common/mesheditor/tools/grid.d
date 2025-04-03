@@ -18,7 +18,7 @@ import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
-import std.stdio;
+//import std.stdio;
 import std.array;
 import std.algorithm.searching: countUntil;
 import std.algorithm.mutation;

@@ -21,7 +21,7 @@ import nijigenerate.utils;
 import nijigenerate.widgets;
 import nijigenerate.widgets.output;
 import fghj;
-import std.stdio;
+//import std.stdio;
 
 private {
 static string ResourcePanelPath = "com.github.nijigenerate.nijigenerate.ResourcePanel";

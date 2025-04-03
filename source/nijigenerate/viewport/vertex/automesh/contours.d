@@ -11,7 +11,7 @@ import mir.ndslice;
 import mir.math.stat: mean;
 import std.algorithm;
 import std.algorithm.iteration: map, reduce;
-import std.stdio;
+//import std.stdio;
 import std.array;
 import bindbc.imgui;
 

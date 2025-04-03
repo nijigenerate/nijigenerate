@@ -26,7 +26,7 @@ import std.string;
 import nijilive;
 import i18n;
 import std.uni : toLower;
-import std.stdio;
+//import std.stdio;
 import nijigenerate.utils;
 import std.algorithm.searching : countUntil;
 import std.algorithm.sorting : sort;

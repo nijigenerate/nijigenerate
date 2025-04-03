@@ -10,7 +10,7 @@
 module nijigenerate.widgets.controller;
 import nijigenerate.widgets;
 import nijilive;
-import std.stdio;
+//import std.stdio;
 
 struct EditableAxisPoint {
     int origIndex;

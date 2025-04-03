@@ -5,7 +5,7 @@ import nijilive.core.texture;
 import nijilive.utils.snapshot;
 import nijilive;
 import nijigenerate;
-import std.stdio;
+//import std.stdio;
 
 class OnionSlice {
 private:

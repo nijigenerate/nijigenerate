@@ -24,7 +24,7 @@ import std.string;
 import std.algorithm.searching : canFind, countUntil;
 import std.algorithm.mutation : remove;
 import std.array : appender, Appender;
-import std.stdio;
+//import std.stdio;
 /**
     Binding between layer and node
 */
@@ -245,7 +245,6 @@ private:
 
     void pairView() {
 
-        import std.stdio;
         ImGuiStyle* style = igGetStyle();
         int deleted = -1;
 
@@ -286,7 +285,7 @@ private:
                             break;
                         }
                     }
-                    debug writefln("parts[0]: flippable set=%s, node=%s", targetPair, node);
+//                    debug writefln("parts[0]: flippable set=%s, node=%s", targetPair, node);
                     if (targetPair !is null && targetPair != &pair) {
                         if ((*targetPair).parts[0].uuid == node.uuid) {
                             (*targetPair).parts[0] = null;
@@ -297,7 +296,7 @@ private:
                     pair.parts[0] = node;
                     map[node.uuid] = i;
                     pair.update();
-                    debug writefln("set parts[0]: name=%s", pair.name);
+//                    debug writefln("set parts[0]: name=%s", pair.name);
 
                     igEndDragDropTarget();
                     igPopID();
@@ -321,7 +320,7 @@ private:
                             break;
                         }
                     }
-                    debug writefln("pair: flippable set=%s, node=%s", targetPair, node);
+//                    debug writefln("pair: flippable set=%s, node=%s", targetPair, node);
                     if (targetPair !is null && targetPair != &pair) {
                         if ((*targetPair).parts[0].uuid == node.uuid) {
                             (*targetPair).parts[0] = null;
@@ -332,7 +331,7 @@ private:
                     pair.parts[1] = node;
                     map[node.uuid] = i;
                     pair.update();
-                    debug writefln("set parts[1]: name=%s", pair.name);
+//                    debug writefln("set parts[1]: name=%s", pair.name);
 
                     igEndDragDropTarget();
                     igPopID();

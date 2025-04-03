@@ -20,7 +20,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.range;
 import std.algorithm;
 
@@ -97,7 +97,6 @@ public:
 
     override
     void setToolMode(VertexToolMode toolMode) {
-        writefln("setToolMode:%s->%s", this.toolMode, toolMode);
         if (this.toolMode == toolMode) return;
 
         if (this.toolMode in tools) {

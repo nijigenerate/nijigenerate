@@ -8,7 +8,6 @@ import std.algorithm: remove, map, sort, canFind;
 import std.array;
 import std.typecons;
 import nijigenerate.core.selector.tokenizer;
-import std.stdio;
 
 class Grammar {
 public:
@@ -444,12 +443,12 @@ public:
             AST targetAST = new AST(g? g.name: null);
             ulong numValue = parser.stackOps[targetId].numValue;
             if (values.length < numValue) {
-                writefln("|**| Something wrong happened. tried to took %d, stack has only %d", numValue, values.length);
+//                writefln("|**| Something wrong happened. tried to took %d, stack has only %d", numValue, values.length);
             } else {
                 AST[] subASTs = values[$-numValue..$];
                 values = values[0..$-numValue];
                 if (subASTs.length > 1) {
-                    writefln("Insert multiple children", values);
+//                    writefln("Insert multiple children", values);
                     foreach (i, ast; subASTs) {
                         if (ast.name)
                             targetAST.children[ast.name] = ast;
@@ -459,21 +458,21 @@ public:
                 } else if (subASTs.length == 1) {
                     if (g.name) {
                         if (subASTs[0].name) {
-                            writefln("Nest child: %s", subASTs[0]);
+//                            writefln("Nest child: %s", subASTs[0]);
                             targetAST.children[subASTs[0].name] = subASTs[0];
                         } else {
-                            writefln("Replaced with child: %s", subASTs[0]);
+//                            writefln("Replaced with child: %s", subASTs[0]);
                             targetAST = subASTs[0];
                             targetAST.name = g.name;
                         }
                     } else {
-                        writefln("Anonymous replacement: %s", subASTs[0]);
+//                        writefln("Anonymous replacement: %s", subASTs[0]);
                         targetAST = subASTs[0];
                     }
                 } else {
-                    writefln("########### %s", subASTs.length);                    
+//                    writefln("########### %s", subASTs.length);                    
                 }
-                writefln("|**| Took %d items", numValue);
+//                writefln("|**| Took %d items", numValue);
             }
             return targetAST;
         }
@@ -536,9 +535,9 @@ public:
         }
 
         void dumpStack() {
-            writefln("Stack:");
+//            writefln("Stack:");
             foreach (s; lrStack) {
-                writefln("  %s", toId(s.id));
+//                writefln("  %s", toId(s.id));
             }
         }
         // /DEBUG------------------------------------------------------
@@ -554,16 +553,16 @@ public:
             }
             auto nextg = grammarFromId(nextState);
             if (auto g = grammarFromId(state.id)) {
-                writefln("*******%s: %s --> %s", mode, grammarFromId(state.id), nextg);
+//                writefln("*******%s: %s --> %s", mode, grammarFromId(state.id), nextg);
             } else if (state.id >= 0) {
                 astStack.pushItem(new AST(null, Token(cast(Token.Type)state.id, state.literal)));
-                writefln("*******%s: %s --> %s", mode, cast(Token.Type)state.id, nextg);
+//                writefln("*******%s: %s --> %s", mode, cast(Token.Type)state.id, nextg);
             }
             AST ast = astStack.popFrame(nextState);
             if (ast) {
                 astStack.pushItem(ast);
             }
-            writefln("|||| %s", astStack.values);
+//            writefln("|||| %s", astStack.values);
         }
 
         void iterate2() {
@@ -648,7 +647,7 @@ public:
         }
 //        writeln("Last");
 //        dumpStack();
-        writefln("Final\n%s", astStack.values);
+//        writefln("Final\n%s", astStack.values);
         return result;
     }
 

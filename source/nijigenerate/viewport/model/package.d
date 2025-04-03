@@ -23,7 +23,7 @@ import nijilive;
 import nijilive.core.dbg;
 import bindbc.imgui;
 import i18n;
-import std.stdio;
+//import std.stdio;
 import std.algorithm;
 import std.array;
 

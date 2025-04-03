@@ -10,7 +10,6 @@ import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
 import std.format;
-import std.stdio;
 import std.range;
 import std.conv;
 import std.algorithm;

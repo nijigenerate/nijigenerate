@@ -288,7 +288,6 @@ public:
                     }
                 } catch (AssertError e) {
                     debug(automesh_opt) {
-                        import std.stdio;
                         writefln("Assert error at s=%s", s);
                     }
                 }

@@ -98,8 +98,6 @@ public:
         try{
         return super.deserializeFromFghj(data);
         }catch(Exception ex) {
-            import std.stdio;
-            writefln("%s", name);
             throw ex;
         }
     }
@@ -136,7 +134,6 @@ public:
     override
     void finalize(Puppet _puppet) {
         auto puppet = cast(ExPuppet)_puppet;
-        import std.stdio;
         if (puppet !is null && parent is null && parentUUID != InInvalidUUID) {
             setParent(puppet.findGroup(parentUUID));
         }

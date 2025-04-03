@@ -14,7 +14,7 @@ import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType
 import nijigenerate.core.selector.resource: to;
 import nijigenerate;
 import nijigenerate.ext;
-import std.stdio;
+//import std.stdio;
 
 private {
     ExParameterGroup dummyRoot = null;
@@ -422,7 +422,7 @@ class Selector {
                                 uint uuid = parse!uint(value);
                                 andProcessors ~= new UUIDFilter(uuid);
                             } catch (std.conv.ConvException e) {        
-                                writefln("parse error %s", selector["name"].token.literal);
+//                                writefln("parse error %s", selector["name"].token.literal);
                             }
                         } else {
                             // Should not reached here.
