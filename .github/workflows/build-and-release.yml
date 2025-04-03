@@ -152,7 +152,9 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --build=release --config=win32-full
+        # Disabled release build because app crashed on Windows.
+        # dub build --compiler=ldc2 --build=release --config=win32-full
+        dub build --compiler=ldc2 --config=win32-full
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
