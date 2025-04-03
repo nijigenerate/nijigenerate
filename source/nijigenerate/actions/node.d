@@ -610,7 +610,6 @@ public:
             link.indices = newIndices;
             counterLink.weight = newCounterWeight;
             counterLink.indices = newCounterIndices;
-            import std.stdio;
         }
     }
 

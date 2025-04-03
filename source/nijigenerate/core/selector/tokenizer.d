@@ -326,7 +326,7 @@ public:
     }
 
     Token scan() {
-        import std.stdio;
+//        import std.stdio;
         if (index < tokens.length) {
 //            writefln("Scan: %s", tokens[index].literal);
             return tokens[index++];

@@ -1,6 +1,5 @@
 module nijigenerate.core.cv.contours;
 
-import std.stdio;
 import std.array;
 import std.algorithm;
 import std.range;
@@ -359,7 +358,7 @@ void findContours(T)(in T binaryImage, out vec2i[][] contours, out ContourHierar
         row.length = width;
     
     int label = 1;
-    contours = [];
+    vec2i[][] localContours = [];
     ContourHierarchy[] hierarchyList;
     
     // 画像左上から走査（外側輪郭判定）
@@ -372,7 +371,7 @@ void findContours(T)(in T binaryImage, out vec2i[][] contours, out ContourHierar
                     // 内部領域をスキャンライン法で埋める
                     fillContourInterior(labels, contour, width, height);
                     contour = approximateContour(contour, method);
-                    contours ~= contour;
+                    localContours ~= contour;
                     label++;
                 } else {
                     labels[y][x] = -1;
@@ -381,6 +380,7 @@ void findContours(T)(in T binaryImage, out vec2i[][] contours, out ContourHierar
             Fiber.yield;
         }
     }
+    contours = localContours;
     
     // 階層構築（TREE／CCOMP モードの場合）
     if (mode == RetrievalMode.TREE || mode == RetrievalMode.CCOMP) {

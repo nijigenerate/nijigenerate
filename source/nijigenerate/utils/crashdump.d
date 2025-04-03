@@ -7,7 +7,7 @@
 */
 module nijigenerate.utils.crashdump;
 import std.file : write;
-import std.stdio;
+//import std.stdio;
 import std.path;
 import std.process : environment;
 import std.traits;
@@ -92,7 +92,10 @@ void crashdump(T...)(Throwable throwable, T state) {
     try {
         writeCrashDump("nijigenerate-crashdump", throwable, state);
     } catch (Exception ex) {
+        version (Windows) {
+        } else{
         writeln("Failed to write crash dump" ~ ex.msg);
+        }
     }
 
     // Use appropriate system method to notify user where crash dump is.

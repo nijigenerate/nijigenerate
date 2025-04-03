@@ -14,7 +14,7 @@ import mir.ndslice.topology; // reshape() などのため
 import mir.math.stat: mean;
 import nijigenerate.core.cv;
 import std.algorithm;
-import std.stdio;
+//import std.stdio;
 import std.math: abs;
 import std.conv;
 import std.array;

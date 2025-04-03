@@ -18,7 +18,7 @@ import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
-import std.stdio;
+//import std.stdio;
 
 class ConnectTool : NodeSelect {
 

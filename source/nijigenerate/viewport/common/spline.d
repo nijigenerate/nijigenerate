@@ -17,7 +17,7 @@ import bindbc.opengl;
 import std.algorithm.mutation;
 import std.array;
 import std.math : isFinite, PI, atan2;
-import std.stdio;
+//import std.stdio;
 import std.algorithm.searching;
 
 private {

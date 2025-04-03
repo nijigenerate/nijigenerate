@@ -17,7 +17,7 @@ import i18n;
 import bindbc.imgui;
 import std.algorithm.sorting;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 
 private {
     enum HandleSize = 24;

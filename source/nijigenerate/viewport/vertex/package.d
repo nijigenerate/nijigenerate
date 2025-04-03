@@ -19,7 +19,7 @@ import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
 import bindbc.imgui;
-import std.stdio;
+//import std.stdio;
 import std.string;
 import bindbc.opengl;
 

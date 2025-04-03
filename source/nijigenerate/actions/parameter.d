@@ -52,7 +52,6 @@ public:
         incActivePuppet().root.notifyChange(incActivePuppet().root, NotifyReason.StructureChanged);
     }
 
-    import std.stdio;
     /**
         Rollback
     */

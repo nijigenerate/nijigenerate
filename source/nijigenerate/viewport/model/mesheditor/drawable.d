@@ -22,7 +22,7 @@ import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
 import std.algorithm;
-import std.stdio;
+//import std.stdio;
 import std.range: enumerate;
 import std.array;
 import std.typecons;

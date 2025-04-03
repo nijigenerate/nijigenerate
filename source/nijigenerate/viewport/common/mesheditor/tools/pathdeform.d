@@ -21,7 +21,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.math;
 
 class PathDeformTool : NodeSelect {
