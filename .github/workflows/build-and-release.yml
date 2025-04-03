@@ -85,8 +85,7 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        #dub build --compiler=ldc2 --build=release --config=linux-full
-        dub build --compiler=ldc2 --config=linux-full
+        dub build --compiler=ldc2 --build=release --config=linux-full
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -154,8 +153,7 @@ jobs:
 
         # Build the project, with its main file included, without unittests
         # Disabled release build because app crashed on Windows.
-        # dub build --compiler=ldc2 --build=release --config=win32-full
-        dub build --compiler=ldc2 --config=win32-full
+        dub build --compiler=ldc2 --build=release --config=win32-full
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -248,14 +246,12 @@ jobs:
         
         # First build ARM64 version...
         echo "Building arm64 binary..."
-        #dub build --build=release --config=osx-full --arch=arm64-apple-macos
-        dub build --config=osx-full --arch=arm64-apple-macos
+        dub build --build=release --config=osx-full --arch=arm64-apple-macos
         mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
 
         # Then the X86_64 version...
         echo "Building x86_64 binary..."
-        #dub build --build=release --config=osx-full --arch=x86_64-apple-macos
-        dub build --config=osx-full --arch=x86_64-apple-macos
+        dub build --build=release --config=osx-full --arch=x86_64-apple-macos
         mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64"
 
         # Glue them together with lipo
