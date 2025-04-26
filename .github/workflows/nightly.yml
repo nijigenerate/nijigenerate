@@ -72,10 +72,12 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/inochi2d/i2d-imgui.git -b a27fcbbb37b0e423e043aac64ca71a8fd45527ec --single-branch --recurse-submodules i2d-imgui
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
+        cd i2d-imgui
+        git checkout a27fcbbb37b0e423e043aac64ca71a8fd45527ec
 
     - name: 'Build nijigenerate'
       run: |
@@ -120,10 +122,12 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/inochi2d/i2d-imgui.git -b a27fcbbb37b0e423e043aac64ca71a8fd45527ec --single-branch --recurse-submodules i2d-imgui
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
+        cd i2d-imgui
+        git checkout a27fcbbb37b0e423e043aac64ca71a8fd45527ec
 
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v2
@@ -231,10 +235,12 @@ jobs:
       
     - name: "Clone dependencies & set versions"
       run: |
-        git clone https://github.com/inochi2d/i2d-imgui.git -b a27fcbbb37b0e423e043aac64ca71a8fd45527ec --single-branch --recurse-submodules i2d-imgui
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
         git clone https://github.com/nijigenerate/nijilive.git
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
+        cd i2d-imgui
+        git checkout a27fcbbb37b0e423e043aac64ca71a8fd45527ec
 
     - name: 'Build nijigenerate'
       env:
