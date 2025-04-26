@@ -77,6 +77,9 @@ jobs:
         git clone https://github.com/nijigenerate/nijilive.git
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
+        cd i2d-imgui
+        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
+        git submodule update --recursive
 
     - name: 'Build nijigenerate'
       run: |
@@ -132,6 +135,9 @@ jobs:
         git clone https://github.com/nijigenerate/nijilive.git
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
+        cd i2d-imgui
+        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
+        git submodule update --recursive
 
     - name: 'Build nijigenerate'
       run: |
@@ -235,6 +241,9 @@ jobs:
         git clone https://github.com/nijigenerate/nijilive.git
         dub add-local i2d-imgui/ "0.8.0"
         dub add-local nijilive/ "0.0.1"
+        cd i2d-imgui
+        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
+        git submodule update --recursive
 
     - name: 'Build nijigenerate'
       env:
