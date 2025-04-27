@@ -32,6 +32,10 @@ import std.array;
 import std.range;
 
 bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
+    if (vertices.length < 4) {
+        gridAxes.length = 0;
+        return false;
+    }
     int[float] yPoints;
     int[float] xPoints;
     foreach (v; vertices) {

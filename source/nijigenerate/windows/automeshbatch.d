@@ -186,7 +186,7 @@ protected:
 
     void runBatch() {
         auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
-        auto meshList = targets.map!(t=>meshes[t.uuid]).array;
+        auto meshList = targets.map!(t=>new IncMesh(meshes[t.uuid])).array;
         status.clear();
         foreach (t; targets) status[t.uuid] = Status.Waiting;
         Drawable currentTarget = null;
@@ -195,8 +195,12 @@ protected:
             if (mesh is null) {
                 status[drawable.uuid] = Status.Running;
             } else {
-                status[drawable.uuid] = Status.Succeeded;
-                meshes[drawable.uuid] = mesh;
+                if (mesh.vertices.length >= 3) {
+                    status[drawable.uuid] = Status.Succeeded;
+                    meshes[drawable.uuid] = mesh;
+                } else {
+                    status[drawable.uuid] = Status.Failed;
+                }
             }
             bool result = false;
             synchronized(gcMutex) { result = canceled; }
