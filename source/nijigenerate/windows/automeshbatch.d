@@ -41,6 +41,7 @@ private:
     Thread processingThread;
     shared Mutex gcMutex = null;
     shared bool canceled = false;
+    AutoMeshProcessor activeProcessor = null;
     bool selectAll = false;
     enum ToggleAction { NoAction, None, All }
     ToggleAction toggleAction = ToggleAction.NoAction;
@@ -207,7 +208,7 @@ protected:
             return !result;
         }
         void work() {
-            ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+            activeProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
         }
         auto fib = new Fiber(&work, core.memory.pageSize * Fiber.defaultStackPages * 4);
         while (fib.state != Fiber.State.TERM) {
@@ -309,6 +310,7 @@ protected:
                 if (!processingThread) {
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].lock();
+                    activeProcessor = ngActiveAutoMeshProcessor;
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
                 } else {
