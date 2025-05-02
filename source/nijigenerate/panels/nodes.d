@@ -106,6 +106,7 @@ private {
             incAddChildWithHistory(newChild, p, nodeName);
             if (children) {
                 newChild.localTransform.translation = children[i].localTransform.translation;
+                newChild.transformChanged();
                 incActionPush(new NodeMoveAction([children[i]], newChild));
             }
         }
