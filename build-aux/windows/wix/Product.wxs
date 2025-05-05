@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-	<Product Id="5b6f6a6d-1759-4a73-9b49-54997bf758c9" Name="nijigenerate" Language="1033" Version="0.8.4" Manufacturer="nijigenerate Project" UpgradeCode="545ff6a4-c555-46c2-9d67-f77896b5de9b">
+	<Product Id="5b6f6a6d-1759-4a73-9b49-54997bf758c9" Name="nijigenerate" Language="1033" Version="0.9.0" Manufacturer="nijigenerate Project" UpgradeCode="545ff6a4-c555-46c2-9d67-f77896b5de9b">
 		<Package Description="nijigenerate Installer" InstallerVersion="200" Compressed="yes" Platform="x64" InstallScope="perMachine" />
 
 		<MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
