@@ -111,7 +111,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
         auto srcDeformBinding = cast(DeformationParameterBinding)srcBinding;
         if (deformBinding !is null && srcDeformBinding !is null) {
             PathDeformer deformable = cast(PathDeformer)deformBinding.getTarget().node;
-            PathDeformer srcDeformable = cast(PathDeformer)deformBinding.getTarget().node;
+            PathDeformer srcDeformable = cast(PathDeformer)srcDeformBinding.getTarget().node;
             Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
             Drawable srcDrawable = cast(Drawable)srcDeformBinding.getTarget().node;
             Deformation* newDeform = null;

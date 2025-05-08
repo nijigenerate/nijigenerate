@@ -201,18 +201,18 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
     auto deformedControlPoints = deformable.vertices.dup;
     foreach (i; 0..origControlPoints.length) {
         deformedControlPoints[i] += deform.vertexOffsets[i];
+        if (flipHorz) {
+            origControlPoints[i].x *= -1;
+            deformedControlPoints[i].x *= -1;
+        }
     }
     auto originalCurve = deformable.createCurve(origControlPoints);
     auto deformedCurve = deformable.createCurve(deformedControlPoints);
 
-    vec2[] deformedVertices;
-    deformedVertices.length = vertices.length;
     Deformation* newDeform = new Deformation([]);
 
     foreach (i, v; vertices) {
         auto cVertex = position(v);
-        if (flipHorz)
-            cVertex.x *= -1;
         float t = originalCurve.closestPoint(cVertex);
         vec2 closestPointOriginal = originalCurve.point(t);
         vec2 tangentOriginal = originalCurve.derivative(t).normalized;
@@ -228,10 +228,7 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
         // Adjust the vertex to maintain the same normal and tangential distances
         vec2 deformedVertex = closestPointDeformedA + normalDeformed * originalNormalDistance + tangentDeformed * tangentialDistance;
 
-        deformedVertices[i] = deformedVertex;
-        if (flipHorz)
-            deformedVertices[i].x *= -1;
-        newDeform.vertexOffsets ~= deformedVertices[i] - position(v);
+        newDeform.vertexOffsets ~= deformedVertex - cVertex;
     }
     return newDeform;
 }
