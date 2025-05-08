@@ -58,7 +58,7 @@ private {
     static this() {
         conversionMap = [
             "Node": ["MeshGroup", "DynamicComposite"],
-            "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite", "PathDeformer"],
+            "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite"],
             "MeshGroup": ["DynamicComposite", "Node"],
             "Composite": ["DynamicComposite", "Node"]
         ];
