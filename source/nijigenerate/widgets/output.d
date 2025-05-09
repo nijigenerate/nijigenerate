@@ -19,6 +19,7 @@ import nijigenerate.panels.inspector;
 import nijigenerate.panels.parameters;
 import nijigenerate.panels.nodes;
 import nijigenerate.ext;
+import nijigenerate.core.input;
 
 private {
     string parameterGrabStr;
@@ -586,6 +587,7 @@ protected:
         bool nextInHorizontal = false;
         bool scrolledOut = false;
         bool folded = false;
+        bool buttonPressed = false;
     }
     SubItemLayout[uint] _layout;
     bool prevMouseDown = false;
@@ -602,6 +604,24 @@ protected:
         return flags;
     }
 
+    bool isNodeClicked(R)(R res, ImGuiMouseButton button = ImGuiMouseButton.Left) {
+        if (igIsItemHovered() && igIsMouseDown(button)) {
+            layout.require(res.uuid);
+            layout[res.uuid].buttonPressed = true;
+            return false;
+        }
+        if (res.uuid in layout && layout[res.uuid].buttonPressed && igIsItemHovered() && incInputIsMouseReleased(button)) {
+            layout.require(res.uuid);
+            layout[res.uuid].buttonPressed = false;
+            return true;
+        }
+        if (res.uuid in layout && layout[res.uuid].buttonPressed && !igIsItemHovered() && incInputIsMouseReleased(button)) {
+            layout.require(res.uuid);
+            layout[res.uuid].buttonPressed = false;
+            return false;
+        }
+        return false;
+    }
 
     void drawNode(Resource res, Node node, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
         bool selected = incNodeInSelection(node);
@@ -656,7 +676,7 @@ protected:
                     snapshot = Snapshot.get(incActivePuppet());
                 incTextureSlotUntitled("ICON", snapshot.capture(), ImVec2(IconSize * 3, IconSize * 3), 1, ImGuiWindowFlags.NoInputs, selected);
                 igGetStyle().FramePadding.y = paddingY;
-                if (igIsItemClicked()) {
+                if (isNodeClicked(node)) {
                     onSelect(node);
                 }
                 igGetItemRectMax(&widgetMaxPos);
@@ -687,7 +707,7 @@ protected:
             igGetStyle().FramePadding.y = 1;
             incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs, selected);
             igGetStyle().FramePadding.y = paddingY;
-            if (igIsItemClicked()) {
+            if (isNodeClicked(res)) {
                 onSelect(node);
             }
             igGetItemRectMax(&widgetMaxPos);
@@ -728,7 +748,7 @@ protected:
             igPushID(cast(void*)param);
             if (igSelectable(res.name.toStringz, incArmedParameter() == param, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
             }
-            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+            if (isNodeClicked(res, ImGuiMouseButton.Right)) {
                 menuOpened = true;
             }
             setParamDragSource(param);
@@ -792,7 +812,7 @@ protected:
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
         const char* popupName  = "##IconTreeViewNodeView";
         const char* popupName2 = "##IconTreeViewNodeMenu";
-        menuOpened = menuOpened || (isHovered && igIsItemClicked(ImGuiMouseButton.Right));
+        menuOpened = menuOpened || (isHovered && isNodeClicked(res, ImGuiMouseButton.Right));
 
         if (popupOpened == res) {
             auto flags = ImGuiWindowFlags.NoCollapse | 
