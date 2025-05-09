@@ -159,55 +159,63 @@ void ngConvertTo(Node[] nodes, string toType) {
     incSelectNodes(newNodes);
 }
 
+void ngAddOrInsertNodeMenu(bool add)() {
+    void insertNode(void function(Node[], string, string) callback) {
+        auto NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
+            if (ClassName is null) {
+                ClassName = NodeName;
+            }
+            if (NodeLabel is null) {
+                NodeLabel = _(NodeName);
+            }
+
+            incText(incTypeIdToIcon(NodeName));
+            igSameLine(0, 2);
+
+            if (igMenuItem(NodeLabel.toStringz, null, false, true)) {
+                callback(incSelectedNodes, ClassName, suffixName);
+                suffixName = null;
+            }
+        }
+
+        incText(_("Suffix"));
+        igSameLine();
+        if (incInputText("###NAME_SUFFIX", incAvailableSpace().x-24, suffixName)) {
+            try {
+                suffixName = suffixName.toStringz.fromStringz;
+            } catch (std.utf.UTFException e) {}
+        }
+        NodeCreateMenu("Node", _("Node"));
+        NodeCreateMenu("Mask", _("Mask"));
+        NodeCreateMenu("Composite", _("Composite"));
+        NodeCreateMenu("SimplePhysics", _("Simple Physics"));
+        NodeCreateMenu("MeshGroup", _("Mesh Group"));
+        NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
+        NodeCreateMenu("PathDeformer", _("Path Deformer"));
+        NodeCreateMenu("Camera", _("Camera"));
+    }
+
+    static if (add) {
+        insertNode(&ngAddNodes);
+    } else {
+        insertNode(&ngInsertNodes);
+    }
+}
+alias ngAddNodeMenu = ngAddOrInsertNodeMenu!true;
+alias ngInsertNodeMenu = ngAddOrInsertNodeMenu!false;
+
 void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = false)(Node n) {
     if (title == null || igBeginPopup(title)) {
         
         auto selected = incSelectedNodes();
         
-        void insertNode(void function(Node[], string, string) callback) {
-            auto NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
-                if (ClassName is null) {
-                    ClassName = NodeName;
-                }
-                if (NodeLabel is null) {
-                    NodeLabel = _(NodeName);
-                }
-
-                incText(incTypeIdToIcon(NodeName));
-                igSameLine(0, 2);
-
-                if (igMenuItem(NodeLabel.toStringz, null, false, true)) {
-                    callback(incSelectedNodes, ClassName, suffixName);
-                    suffixName = null;
-                }
-            }
-
-            incText(_("Suffix"));
-            igSameLine();
-            if (incInputText("###NAME_SUFFIX", incAvailableSpace().x-24, suffixName)) {
-                try {
-                    suffixName = suffixName.toStringz.fromStringz;
-                } catch (std.utf.UTFException e) {}
-            }
-            NodeCreateMenu("Node", _("Node"));
-            NodeCreateMenu("Mask", _("Mask"));
-            NodeCreateMenu("Composite", _("Composite"));
-            NodeCreateMenu("SimplePhysics", _("Simple Physics"));
-            NodeCreateMenu("MeshGroup", _("Mesh Group"));
-            NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
-            NodeCreateMenu("PathDeformer", _("Path Deformer"));
-            NodeCreateMenu("Camera", _("Camera"));
-        }
-
         if (igBeginMenu(__(nodeActionToIcon!icon("Add")), true)) {
-
-            insertNode(&ngAddNodes);
+            ngAddNodeMenu();
             igEndMenu();
         }
 
         if (igBeginMenu(__(nodeActionToIcon!icon("Insert")), true)) {
-
-            insertNode(&ngInsertNodes);
+            ngInsertNodeMenu();
             igEndMenu();
         }
 

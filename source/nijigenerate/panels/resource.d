@@ -17,6 +17,8 @@ import nijigenerate.core;
 import nijigenerate.core.selector;
 import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType;
 import nijigenerate.panels;
+import nijigenerate.panels.nodes;
+import nijigenerate.panels.parameters;
 import nijigenerate.utils;
 import nijigenerate.widgets;
 import nijigenerate.widgets.output;
@@ -229,25 +231,33 @@ protected:
             }
         incEndDragDropFake();
 
-        int buttonBarHeight = 0; // -34;
+        int buttonBarHeight = -34;
         if (igBeginChild("ShellMain", ImVec2(0, buttonBarHeight), false)) {
             auto window = igGetCurrentWindow();
             igSetScrollY(window.Scroll.y+scrollDelta);
             history[historyIndex].output.onUpdate();
         }
         igEndChild();
-        /*
         auto spacing = igGetStyle().ItemSpacing;
         igGetStyle().ItemSpacing = ImVec2(0, 0);
-        incButtonColored("\ue145");
-        igSameLine();
-        incButtonColored("\ue872");
-        igSameLine();
-        incButtonColored("\ue14d");
-        igSameLine();
-        incButtonColored("\ue14f");
+        if (igBeginPopup("###AddResource")) {
+            igText(__("New Node"));
+            ngAddNodeMenu();
+            igSeparator();
+            igText(__("New Parameter"));
+            incParameterMenuContents(incActivePuppet().parameters);
+            igEndPopup();
+        }
+        if (incButtonColored("\ue145", ImVec2(32, 32))) { //New
+            igOpenPopup("###AddResource");
+        }
+//        igSameLine();
+//        incButtonColored("\ue872"); //Delete
+//        igSameLine();
+//        incButtonColored("\ue14d"); //Copy
+//        igSameLine();
+//        incButtonColored("\ue14f"); //Paste
         igGetStyle().ItemSpacing = spacing;
-        */
         views.onUpdate();
     }
 
