@@ -9,1394 +9,898 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-03-30 20:39+0900\n"
-"PO-Revision-Date: 2025-03-30 20:41+0900\n"
+"POT-Creation-Date: 2025-05-11 08:40+0900\n"
+"PO-Revision-Date: 2025-05-11 08:59+0900\n"
 "Last-Translator: Nejikugi <63852665+scrwnl@users.noreply.github.com>\n"
 "Language-Team: Language ja\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.0.1\n"
+"X-Generator: Poedit 3.6\n"
 
-#: source/app.d:99
-msgid "Warning!"
-msgstr "警告！"
+#: source/nijigenerate/viewport/base.d:497
+msgid "Editing armed parameter..."
+msgstr "デフォーマを編集中"
 
-#: source/app.d:100
-msgid ""
-"You're running a nightly build of nijigenerate!\n"
-"nijigenerate may crash unexpectedly and you will likely encounter bugs.\n"
-"Make sure to save and back up your work often!"
-msgstr ""
-"nijigenerateの開発版(夜間ビルド)を実行しています。\n"
-"このバージョンは不意にクラッシュしたりバグを踏んでしまう場合があります。\n"
-"バックアップをと保存をこまめにするようにしてください！"
+#: source/nijigenerate/viewport/base.d:497
+msgid "Editing base transform..."
+msgstr "パーツのベース位置・姿勢を編集中"
 
-#: source/nijigenerate/actions/parameter.d:118
-#, c-format
-msgid "Added parameter %s"
-msgstr "パラメータ(%s)が追加されました"
+#: source/nijigenerate/viewport/common/mesheditor/package.d:270
+msgid "Reset selected"
+msgstr "選択した頂点をリセット"
 
-#: source/nijigenerate/actions/parameter.d:120
-#, c-format
-msgid "Removed parameter %s"
-msgstr "パラメータ(%s)が削除されました"
+#: source/nijigenerate/viewport/common/mesheditor/package.d:273
+msgid "Flip selected from mirror"
+msgstr "選択した頂点を反転コピー"
 
-#: source/nijigenerate/actions/parameter.d:128
-#, c-format
-msgid "Parameter %s was removed"
-msgstr "パラメータ(%s)が再度削除されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:398
+msgid "Deform"
+msgstr "変形"
 
-#: source/nijigenerate/actions/parameter.d:130
-#, c-format
-msgid "Parameter %s was added"
-msgstr "パラメータ(%s)が再度追加されました。"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:398
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:102
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:355
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
+msgid "Left Mouse"
+msgstr "左クリック"
 
-#: source/nijigenerate/actions/parameter.d:204
-#: source/nijigenerate/actions/parameter.d:283
-#: source/nijigenerate/actions/binding.d:167
-#: source/nijigenerate/actions/binding.d:288
-#: source/nijigenerate/actions/binding.d:401
-#, c-format
-msgid "%s->%s changed"
-msgstr "%s: %sが変更されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:162
+msgid "Snap to X/Y axis"
+msgstr "X/Y軸にスナップ"
 
-#: source/nijigenerate/actions/parameter.d:206
-#: source/nijigenerate/actions/node.d:847
-#: source/nijigenerate/actions/node.d:927
-#, c-format
-msgid "%s->%s changed to %s"
-msgstr "%s: %sが%sに変更されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:162
+msgid "SHIFT"
+msgstr "シフトキー"
 
-#: source/nijigenerate/actions/parameter.d:214
-#: source/nijigenerate/actions/parameter.d:291
-#: source/nijigenerate/actions/binding.d:174
-#: source/nijigenerate/actions/binding.d:295
-#: source/nijigenerate/actions/binding.d:408
-#, c-format
-msgid "%s->%s change cancelled"
-msgstr "%s: %sの変更が元に戻されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:163
+msgid "Select vertices"
+msgstr "頂点を選択"
 
-#: source/nijigenerate/actions/parameter.d:216
-#: source/nijigenerate/actions/node.d:854
-#: source/nijigenerate/actions/node.d:934
-#, c-format
-msgid "%s->%s changed from %s"
-msgstr "%s: %sが%sから元に戻されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:163
+msgid "ALT"
+msgstr "ALT/メタキー"
 
-#. Enforce reparenting rules
-#: source/nijigenerate/actions/node.d:74
-#, c-format
-msgid "%s can not be reparented in to %s due to a circular dependency."
-msgstr "循環参照になってしまうため%sを%sの子ノードにすることは出来ません。"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:260
+msgid "Drag mode"
+msgstr "ドラッグモード"
 
-#: source/nijigenerate/actions/node.d:106
-msgid "nodes"
-msgstr "ノード"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:270
+msgid "Flow mode"
+msgstr "フローモード"
 
-#: source/nijigenerate/actions/node.d:162
-#: source/nijigenerate/actions/node.d:171
-#, c-format
-msgid "Created %s"
-msgstr "%s を作成しました。"
+#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:297
+msgid "Brush Tool"
+msgstr "ブラシツール"
 
-#: source/nijigenerate/actions/node.d:163
-#, c-format
-msgid "Deleted %s"
-msgstr "%sを削除しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:399
+#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:226
+msgid "Switch Mode"
+msgstr "モード変更"
 
-#: source/nijigenerate/actions/node.d:164
-#, c-format
-msgid "Moved %s to %s"
-msgstr "%sを%sに移動しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:399
+#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:226
+msgid "TAB"
+msgstr "TABキー"
 
-#: source/nijigenerate/actions/node.d:172
-#, c-format
-msgid "Moved %s from %s"
-msgstr "%sが%sから元の位置に移動しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:219
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:305
+msgid "Create/Destroy"
+msgstr "作成/削除"
 
-#: source/nijigenerate/actions/node.d:173
-#, c-format
-msgid "Moved %s from origin"
-msgstr "%sを原点から移動しました。"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:219
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:305
+msgid "Left Mouse (x2)"
+msgstr "左ダブルクリック"
 
-#: source/nijigenerate/actions/node.d:320
-#, c-format
-msgid "Change type of %s to %s"
-msgstr "%sの型を%sに変更しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:400
+msgid "Toggle locked point"
+msgstr "指定した制御点の固定/固定解除をします。"
 
-#: source/nijigenerate/actions/node.d:327
-#, c-format
-msgid "Revert type of %s to %s"
-msgstr "%sの型を%sに戻しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:400
+msgid "Ctrl"
+msgstr "Ctrl"
 
-#: source/nijigenerate/actions/node.d:411
-#: source/nijigenerate/actions/node.d:420
-#, c-format
-msgid "%s is added to mask of %s"
-msgstr "%sが%sのマスクに追加されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
+msgid "Move point along with the path"
+msgstr "パスに従って制御点を動かします。"
 
-#: source/nijigenerate/actions/node.d:412
-#: source/nijigenerate/actions/node.d:419
-#, c-format
-msgid "%s is deleted from mask of %s"
-msgstr "%sが%sのマスクから削除されました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
+msgid "Shift"
+msgstr "Shift"
 
-#: source/nijigenerate/actions/node.d:514
-#: source/nijigenerate/actions/node.d:523
-#, c-format
-msgid "%s is added to welded targets of %s"
-msgstr "%sと%sを接合しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:415
+msgid "Define paths"
+msgstr "パスを定義"
 
-#: source/nijigenerate/actions/node.d:515
-#: source/nijigenerate/actions/node.d:522
-#, c-format
-msgid "%s is deleted from welded targets of %s"
-msgstr "%sと%sの接合を解除しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:426
+msgid "Transform path"
+msgstr "パスを変形"
 
-#: source/nijigenerate/actions/node.d:621
-#, c-format
-msgid "links of %s and %s are changed."
-msgstr "%sと%sの接合の設定を変更しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:439
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:569
+msgid "Set rotation center"
+msgstr "回転の中心点に設定"
 
-#: source/nijigenerate/actions/node.d:628
-#, c-format
-msgid "links of %s and %s are restored."
-msgstr "%sと%sの設定を元に戻しました"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:452
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:582
+msgid "Move points along the path"
+msgstr "パスに従って制御点を動かします"
 
-#: source/nijigenerate/actions/node.d:668
-#: source/nijigenerate/actions/node.d:675
-msgid "Enabled"
-msgstr "有効"
+#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:459
+#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:589
+msgid "Path Deform Tool"
+msgstr "パス変形ツール"
 
-#: source/nijigenerate/actions/node.d:668
-#: source/nijigenerate/actions/node.d:675
-msgid "Disabled"
-msgstr "無効"
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:102
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:355
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
+msgid "Select"
+msgstr "選択"
 
-#: source/nijigenerate/actions/node.d:675
-#, c-format
-msgid "%s was %s"
-msgstr "%sが%sから元に戻されました"
-
-#: source/nijigenerate/actions/node.d:722
-msgid "Unnamed "
-msgstr "無題"
-
-#: source/nijigenerate/actions/node.d:1000
-#: source/nijigenerate/actions/node.d:1008
-#, c-format
-msgid "%s locked to root node"
-msgstr "%sがルートノードに固定されました。"
-
-#: source/nijigenerate/actions/node.d:1001
-#: source/nijigenerate/actions/node.d:1009
-#, c-format
-msgid "%s unlocked from root node"
-msgstr "%sがルートノードから固定解除されました"
-
-#: source/nijigenerate/actions/binding.d:86
-#, c-format
-msgid "Added binding %s"
-msgstr "%sの割り当てが追加されました。"
-
-#: source/nijigenerate/actions/binding.d:88
-#, c-format
-msgid "Removed binding %s"
-msgstr "%sの割り当てが削除されました"
-
-#: source/nijigenerate/actions/binding.d:96
-#, c-format
-msgid "Binding %s was removed"
-msgstr "割り当て%sが削除されました"
-
-#: source/nijigenerate/actions/binding.d:98
-#, c-format
-msgid "Binding %s was added"
-msgstr "割り当て%sが再度追加されました"
-
-#: source/nijigenerate/actions/mesh.d:57
-#: source/nijigenerate/actions/vertex.d:57
-#, c-format
-msgid "Mesh %s change is restored."
-msgstr "%sのメッシュへの変更を元に戻しました。"
-
-#: source/nijigenerate/actions/mesh.d:64
-#: source/nijigenerate/actions/vertex.d:64
-#, c-format
-msgid "Mesh %s was edited."
-msgstr "%sのメッシュが変更されました。"
-
-#: source/nijigenerate/actions/mesh.d:144
-#: source/nijigenerate/actions/mesh.d:152
-#: source/nijigenerate/actions/mesh.d:231
-#: source/nijigenerate/actions/mesh.d:239
-#: source/nijigenerate/actions/vertex.d:146
-#: source/nijigenerate/actions/vertex.d:154
-#: source/nijigenerate/actions/vertex.d:357
-#: source/nijigenerate/actions/vertex.d:365
-#, c-format
-msgid "%s: vertex was translated."
-msgstr "%sの頂点が移動されました。"
-
-#: source/nijigenerate/actions/mesheditor.d:159
-#, c-format
-msgid "%s->Edited deformation of %s."
-msgstr "%s: %sのデフォーマが変更されました。"
-
-#: source/nijigenerate/actions/mesheditor.d:166
-#, c-format
-msgid "%s->deformation of %s was edited."
-msgstr "%s: %sのデフォーマの変更が元に戻されました。"
-
-#: source/nijigenerate/actions/drawable.d:89
-#, c-format
-msgid "Changed drawable mesh of %s"
-msgstr "ドローアブル%sのメッシュが変更されました"
-
-#: source/nijigenerate/actions/drawable.d:97
-#, c-format
-msgid "Drawable %s was changed"
-msgstr "ドローアブル%sの変更が元に戻されました"
-
-#: source/nijigenerate/actions/deformable.d:81
-#, c-format
-msgid "Changed vertices of %s"
-msgstr "%sの頂点が変更されました"
-
-#: source/nijigenerate/actions/deformable.d:89
-#, c-format
-msgid "Vertices of %s was changed"
-msgstr "%sの頂点を元に戻しました"
-
-#: source/nijigenerate/actions/vertex.d:286
-msgid "removed"
-msgstr "削除されました"
-
-#: source/nijigenerate/actions/vertex.d:286
-msgid "inserted"
-msgstr "追加されました"
-
-#: source/nijigenerate/actions/vertex.d:294
-#: source/nijigenerate/actions/vertex.d:302
-#, c-format
-msgid "%s: vertex was %s."
-msgstr "%s: 頂点が%s"
-
-#: source/nijigenerate/windows/paramprop.d:44
-msgid "Parameter Name"
-msgstr "パラメータ名"
-
-#: source/nijigenerate/windows/paramprop.d:49
-msgid "Parameter Constraints"
-msgstr "パラメータ範囲"
-
-#. Settings are autosaved, but in case the user
-#. feels more safe with a save button then we have
-#. it here.
-#. Actually saves the edited state for the axies points
-#: source/nijigenerate/windows/paramprop.d:103
+#. Done button
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:103
 #: source/nijigenerate/windows/editanim.d:125
-#: source/nijigenerate/windows/imgexport.d:123
-#: source/nijigenerate/windows/paramaxes.d:177
-#: source/nijigenerate/windows/automeshbatch.d:347
-#: source/nijigenerate/windows/flipconfig.d:503
-#: source/nijigenerate/widgets/mainmenu.d:142
-msgid "Save"
-msgstr "保存"
+msgid "Create"
+msgstr "作成"
 
-#. Write error
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:103
+msgid "Ctrl+Left Mouse"
+msgstr "Ctrl+左クリック"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:486
+msgid "Vertex Tool"
+msgstr "頂点ツール"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:502
+msgid "Auto connect vertices"
+msgstr "頂点を自動接続"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
+msgid "Connect/Disconnect"
+msgstr "接続/接続解除"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
+msgid "Connect Multiple"
+msgstr "続けて接続"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
+msgid "Shift+Left Mouse"
+msgstr "Shift+左クリック"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:115
+msgid "Edge Tool"
+msgstr "エッジツール"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:385
+msgid "Mesh deformation"
+msgstr "メッシュ変形"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:397
+msgid "Path deformation"
+msgstr "パス変形"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
+msgid "Drag to define 2x2 mesh"
+msgstr "ドラッグして2x2のメッシュを作成します。"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
+msgid "Add/remove key points to axes"
+msgstr "座標軸に沿ってキーポイントを追加/削除します。"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
+msgid "Change key point position in the axis"
+msgstr "座標軸に沿ってキーポイントの位置を移動します。"
+
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:377
+msgid "Grid Vertex Tool"
+msgstr "グリッドツール"
+
+#: source/nijigenerate/viewport/model/package.d:152
+msgid "Hide Vertices"
+msgstr "頂点を非表示"
+
+#: source/nijigenerate/viewport/model/package.d:152
+msgid "Show Vertices"
+msgstr "頂点を表示"
+
+#: source/nijigenerate/viewport/model/package.d:158
+msgid "Hide Bounds"
+msgstr "境界を非表示"
+
+#: source/nijigenerate/viewport/model/package.d:158
+msgid "Show Bounds"
+msgstr "境界を表示"
+
+#: source/nijigenerate/viewport/model/package.d:164
+msgid "Hide Orientation Gizmo"
+msgstr "ギズモを非表示"
+
+#: source/nijigenerate/viewport/model/package.d:164
+msgid "Show Orientation Gizmo"
+msgstr "ギズモを表示"
+
+#. Set clear color
+#: source/nijigenerate/viewport/model/package.d:179
+msgid "COLOR"
+msgstr "色"
+
+#: source/nijigenerate/viewport/model/package.d:190
+#: source/nijigenerate/panels/parameters.d:435
+msgid "Reset"
+msgstr "リセット"
+
+#: source/nijigenerate/viewport/model/package.d:194
+msgid "Background Color"
+msgstr "背景色"
+
+#: source/nijigenerate/viewport/model/package.d:198
+msgid "Gizmos"
+msgstr "頂点/境界/ギズモ"
+
+#: source/nijigenerate/viewport/model/package.d:213
+msgid " Merge Mesh"
+msgstr " メッシュをマージ"
+
+#: source/nijigenerate/viewport/model/package.d:213
+msgid " Copy Mesh"
+msgstr " メッシュをコピー"
+
+#: source/nijigenerate/viewport/model/package.d:213
+msgid " Edit Mesh"
+msgstr " メッシュの編集"
+
+#: source/nijigenerate/viewport/model/package.d:222
+msgid "Merge Mesh Data"
+msgstr "メッシュデータをマージ"
+
+#: source/nijigenerate/viewport/model/package.d:224
+msgid "Copy Mesh Data"
+msgstr "メッシュデータをコピー"
+
+#. Switches nijigenerate over to Mesh Edit mode
+#. and selects the mesh that you had selected previously
+#. in Model Edit mode.
+#: source/nijigenerate/viewport/model/package.d:246
+msgid "Edit Mesh"
+msgstr "メッシュの編集"
+
+#: source/nijigenerate/viewport/model/package.d:256
+msgid "Z-Sort"
+msgstr "ソート"
+
+#: source/nijigenerate/viewport/model/package.d:256
+msgid "Size-Sort"
+msgstr "サイズでソート"
+
+#: source/nijigenerate/viewport/model/package.d:266
+msgid "Focus Selected"
+msgstr "選択..."
+
+#: source/nijigenerate/viewport/model/package.d:314
+msgid "No parts found"
+msgstr "選択できるパーツがありません"
+
+#: source/nijigenerate/viewport/vertex/package.d:122
+msgid "Toggle mesh visibility"
+msgstr "メッシュの表示/非表示を切り替えます"
+
+#: source/nijigenerate/viewport/vertex/package.d:140
+msgid "Flip Horizontally"
+msgstr "水平方向に反転"
+
+#: source/nijigenerate/viewport/vertex/package.d:156
+msgid "Flip Vertically"
+msgstr "垂直方向に反転"
+
+#: source/nijigenerate/viewport/vertex/package.d:166
+msgid "Mirror Horizontally"
+msgstr "水平方向にミラーリング"
+
+#: source/nijigenerate/viewport/vertex/package.d:174
+msgid "Mirror Vertically"
+msgstr "垂直方向にミラーリング"
+
+#: source/nijigenerate/viewport/vertex/package.d:185
+msgid "Triangulate vertices"
+msgstr "頂点を接続して三角形を作成"
+
+#. Button which bakes some auto generated content
+#. In this case, a mesh is baked from the triangulation.
+#: source/nijigenerate/viewport/vertex/package.d:192
+#: source/nijigenerate/viewport/vertex/package.d:245
+msgid "Bake"
+msgstr "適用"
+
+#: source/nijigenerate/viewport/vertex/package.d:199
+msgid "Bakes the triangulation, applying it to the mesh."
+msgstr "頂点を接続して三角形のメッシュを作成します。"
+
+#: source/nijigenerate/viewport/vertex/package.d:203
+msgid "Triangulation Options"
+msgstr "三角形作成のオプション"
+
+#: source/nijigenerate/viewport/vertex/package.d:252
+msgid "Bakes the auto mesh."
+msgstr "自動メッシュを実行します"
+
+#: source/nijigenerate/viewport/vertex/package.d:256
+msgid "Auto Meshing Options"
+msgstr "自動メッシュのオプション"
+
+#: source/nijigenerate/viewport/vertex/package.d:270
+msgid " Apply"
+msgstr " 適用"
+
+#: source/nijigenerate/viewport/vertex/package.d:276
+msgid "Are you sure?"
+msgstr "本当によろしいですか？"
+
+#: source/nijigenerate/viewport/vertex/package.d:277
+msgid ""
+"The layout of the mesh has changed, all deformations to this mesh will be "
+"deleted if you continue."
+msgstr ""
+"メッシュのレイアウトが変更されたので、このメッシュに対するデフォーマの設定が"
+"全て解除されてしまいます。"
+
+#: source/nijigenerate/viewport/vertex/package.d:289
+#: source/nijigenerate/windows/paramsplit.d:172
+msgid "Apply"
+msgstr "適用"
+
+#: source/nijigenerate/viewport/vertex/package.d:293
+msgid " Cancel"
+msgstr " キャンセル"
+
+#. Cancels the edited state for the axies points
+#.
+#: source/nijigenerate/viewport/vertex/package.d:306
+#: source/nijigenerate/windows/paramaxes.d:170
+#: source/nijigenerate/windows/videoexport.d:265
+#: source/nijigenerate/windows/flipconfig.d:495
+#: source/nijigenerate/windows/automeshbatch.d:309
+#: source/nijigenerate/windows/automeshbatch.d:345
+#: source/nijigenerate/widgets/dialog.d:116
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:143
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:145
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:512
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:514
+msgid "Presets"
+msgstr "プリセット"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:146
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:515
+msgid "Normal parts"
+msgstr "通常パーツ"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:154
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:521
+msgid "Detailed mesh"
+msgstr "細かいメッシュ"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:162
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:527
+msgid "Large parts"
+msgstr "大きいパーツ"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:170
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:533
+msgid "Small parts"
+msgstr "小さいパーツ"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:178
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:539
+msgid "Thin and minimum parts"
+msgstr "薄いまたは極小パーツ"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:186
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:545
+msgid "Preserve edges"
+msgstr "エッジを保持する"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:198
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:556
+msgid "Details"
+msgstr "詳細"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:200
+msgid "Sampling rate"
+msgstr "サンプリングレート"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:214
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:560
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:167
+msgid "Mask threshold"
+msgstr "マスクのしきい値"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:226
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:573
+msgid "Distance between vertices"
+msgstr "頂点間の距離"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:228
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:575
+msgid "Minimum"
+msgstr "最小"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:240
+msgid "Maximum"
+msgstr "最大"
+
+#: source/nijigenerate/viewport/vertex/automesh/contours.d:301
+#: source/nijigenerate/viewport/vertex/automesh/optimum.d:637
+msgid ""
+"Specifying scaling factor to apply for contours. If multiple scales are "
+"specified, vertices are populated per scale factors."
+msgstr ""
+"輪郭線に対して適用する倍率を指定します。複数の倍率が指定されている場合、各倍"
+"率を適用した座標に頂点がそれぞれ生成されます。"
+
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:166
+msgid "Auto Segmentation"
+msgstr "自動分割"
+
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:180
+msgid "X Segments"
+msgstr "X軸方向に分割"
+
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:193
+msgid "Y Segments"
+msgstr "Y軸方向に分割"
+
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:206
+msgid "Margin"
+msgstr "周囲の余白"
+
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:221
+msgid "X Scale"
+msgstr "Xスケール"
+
+#: source/nijigenerate/viewport/vertex/automesh/grid.d:225
+msgid "Y Scale"
+msgstr "Yスケール"
+
+#: source/nijigenerate/core/package.d:265
+msgid "(Debug Mode)"
+msgstr "(デバッグ版)"
+
+#: source/nijigenerate/core/dpi.d:54 source/nijigenerate/core/dpi.d:58
+msgid "100% (Locked)"
+msgstr "100%(固定)"
+
+#: source/nijigenerate/core/settings.d:33
+msgid ""
+"Oops! Your settings.json file is corrupted. Nijigenerate will load the "
+"default settings.\n"
+msgstr ""
+"設定ファイル(settings.json)が壊れているようです。デフォルトの設定を読み込んで"
+"利用します。\n"
+
+#: source/nijigenerate/core/settings.d:34
+msgid "The corrupted settings file has been moved to "
+msgstr "壊れた設定ファイルは次の場所に移動します。"
+
+#: source/nijigenerate/core/settings.d:35
+msgid ""
+"If you always see this message, please report this issue to Nijigenerate\n"
+msgstr ""
+"もし、なんどもこのメッセージが表示される場合は、問題レポートを送ってくださ"
+"い。\n"
+
+#: source/nijigenerate/core/settings.d:36
+msgid ""
+"\n"
+"Error message: "
+msgstr ""
+"\n"
+"エラーメッセージ："
+
 #. Also handle NFS or I/O errors
-#: source/nijigenerate/windows/paramprop.d:106
-#: source/nijigenerate/windows/videoexport.d:149
-#: source/nijigenerate/windows/videoexport.d:285
-#: source/nijigenerate/windows/videoexport.d:295
-#: source/nijigenerate/windows/videoexport.d:303
-#: source/nijigenerate/windows/imgexport.d:145
-#: source/nijigenerate/windows/paramaxes.d:188
-#: source/nijigenerate/windows/inpexport.d:219
-#: source/nijigenerate/windows/inpexport.d:246
-#: source/nijigenerate/windows/inpexport.d:376
+#. Write error
+#: source/nijigenerate/core/settings.d:37
+#: source/nijigenerate/panels/nodes.d:426
+#: source/nijigenerate/panels/nodes.d:453
 #: source/nijigenerate/panels/inspector/part.d:52
 #: source/nijigenerate/panels/inspector/part.d:71
 #: source/nijigenerate/panels/inspector/part.d:72
 #: source/nijigenerate/panels/inspector/part.d:83
-#: source/nijigenerate/panels/nodes.d:417
-#: source/nijigenerate/panels/nodes.d:444
 #: source/nijigenerate/panels/viewport.d:257
 #: source/nijigenerate/io/package.d:199 source/nijigenerate/io/package.d:200
-#: source/nijigenerate/io/inimport.d:259
-#: source/nijigenerate/widgets/mainmenu.d:222
-#: source/nijigenerate/widgets/mainmenu.d:457
-#: source/nijigenerate/widgets/output.d:293
-#: source/nijigenerate/widgets/output.d:327
-#: source/nijigenerate/core/settings.d:37 source/nijigenerate/project.d:292
+#: source/nijigenerate/io/inimport.d:259 source/nijigenerate/project.d:292
 #: source/nijigenerate/project.d:307 source/nijigenerate/project.d:366
 #: source/nijigenerate/project.d:431
+#: source/nijigenerate/windows/imgexport.d:145
+#: source/nijigenerate/windows/paramaxes.d:188
+#: source/nijigenerate/windows/videoexport.d:149
+#: source/nijigenerate/windows/videoexport.d:285
+#: source/nijigenerate/windows/videoexport.d:295
+#: source/nijigenerate/windows/videoexport.d:303
+#: source/nijigenerate/windows/paramprop.d:106
+#: source/nijigenerate/windows/inpexport.d:219
+#: source/nijigenerate/windows/inpexport.d:246
+#: source/nijigenerate/windows/inpexport.d:376
+#: source/nijigenerate/widgets/mainmenu.d:222
+#: source/nijigenerate/widgets/mainmenu.d:457
+#: source/nijigenerate/widgets/output.d:294
+#: source/nijigenerate/widgets/output.d:328
 msgid "Error"
 msgstr "エラー"
 
-#: source/nijigenerate/windows/paramprop.d:106
-msgid "Name is already taken"
-msgstr "その名前は既に使用されています。"
+#. The name of the language this translation is a translation to
+#. in the native script of the language (for the region)
+#. Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
+#: source/nijigenerate/core/i18n.d:18
+msgid "LANG_NAME"
+msgstr "日本語"
+
+#: source/nijigenerate/panels/parameters.d:409
+#: source/nijigenerate/widgets/output.d:399
+msgid "New Parameter Group"
+msgstr "新規パラメータグループ"
+
+#: source/nijigenerate/panels/parameters.d:417
+msgid "Unset"
+msgstr "キーを削除"
+
+#: source/nijigenerate/panels/parameters.d:426
+msgid "Set to current"
+msgstr "キーを追加"
+
+#: source/nijigenerate/panels/parameters.d:444
+msgid "Invert"
+msgstr "反転"
+
+#: source/nijigenerate/panels/parameters.d:453
+#: source/nijigenerate/panels/parameters.d:882
+msgid "Mirror"
+msgstr "鏡像反転"
+
+#: source/nijigenerate/panels/parameters.d:454
+#: source/nijigenerate/panels/parameters.d:509
+#: source/nijigenerate/panels/parameters.d:883
+msgid "Horizontally"
+msgstr "水平方向"
+
+#: source/nijigenerate/panels/parameters.d:463
+#: source/nijigenerate/panels/parameters.d:527
+#: source/nijigenerate/panels/parameters.d:887
+msgid "Vertically"
+msgstr "垂直方向"
+
+#: source/nijigenerate/panels/parameters.d:474
+msgid "Flip Deform"
+msgstr "デフォーマの左右反転"
+
+#: source/nijigenerate/panels/parameters.d:488
+msgid "Symmetrize Deform"
+msgstr "デフォーマの左右対称化"
+
+#: source/nijigenerate/panels/parameters.d:508
+#: source/nijigenerate/panels/parameters.d:566
+msgid "Set from mirror"
+msgstr "反対方向から反転コピー"
+
+#: source/nijigenerate/panels/parameters.d:545
+msgid "Diagonally"
+msgstr "対角方向"
+
+#: source/nijigenerate/panels/parameters.d:586
+#: source/nijigenerate/panels/parameters.d:918
+#: source/nijigenerate/widgets/mainmenu.d:322
+msgid "Copy"
+msgstr "コピー"
+
+#: source/nijigenerate/panels/parameters.d:594
+#: source/nijigenerate/panels/parameters.d:921
+#: source/nijigenerate/widgets/mainmenu.d:323
+msgid "Paste"
+msgstr "貼り付け"
 
-#. Title for the parameter properties window.
-#: source/nijigenerate/windows/paramprop.d:139
-msgid "Parameter Properties"
-msgstr "パラメータ設定"
-
-#: source/nijigenerate/windows/videoexport.d:158
-#: source/nijigenerate/windows/imgexport.d:94
-msgid "Export Settings"
-msgstr "エクスポート設定"
-
-#: source/nijigenerate/windows/videoexport.d:162
-#: source/nijigenerate/windows/imgexport.d:98
-#: source/nijigenerate/panels/inspector/camera.d:22
-#: source/nijigenerate/panels/nodes.d:198
-msgid "Camera"
-msgstr "カメラ"
-
-#: source/nijigenerate/windows/videoexport.d:175
-#: source/nijigenerate/windows/imgexport.d:111
-msgid "Allow Transparency"
-msgstr "透過色を許可"
-
-#: source/nijigenerate/windows/videoexport.d:176
-#: source/nijigenerate/windows/imgexport.d:112
-msgid "Use Post Processing"
-msgstr "ポストプロセスを使用"
-
-#: source/nijigenerate/windows/videoexport.d:180
-msgid "Output"
-msgstr "出力"
-
-#: source/nijigenerate/windows/videoexport.d:181
-msgid "Animation"
-msgstr "アニメーション"
-
-#: source/nijigenerate/windows/videoexport.d:193
-#: source/nijigenerate/windows/inpexport.d:331
-msgid "Loops"
-msgstr "ループ"
-
-#: source/nijigenerate/windows/videoexport.d:194
-msgid "How many times the animation should loop"
-msgstr "アニメーションのループ回数"
-
-#: source/nijigenerate/windows/videoexport.d:196
-#: source/nijigenerate/windows/editanim.d:101
-msgid "Framerate"
-msgstr "フレームレート"
-
-#: source/nijigenerate/windows/videoexport.d:199
-msgid "[AUTO]"
-msgstr "[自動]"
-
-#: source/nijigenerate/windows/videoexport.d:201
-msgid "Framerate of the video file"
-msgstr "動画ファイルのフレームレート"
-
-#: source/nijigenerate/windows/videoexport.d:203
-msgid "Lock to Animation Framerate"
-msgstr "アニメーションのフレームレートに固定"
-
-#: source/nijigenerate/windows/videoexport.d:205
-msgid "Codec"
-msgstr "コーデック"
-
-#: source/nijigenerate/windows/videoexport.d:230
-#: source/nijigenerate/windows/inpexport.d:366
-#: source/nijigenerate/widgets/mainmenu.d:244
-msgid "Export"
-msgstr "エクスポート"
-
-#. Cancels the edited state for the axies points
-#.
-#: source/nijigenerate/windows/videoexport.d:265
-#: source/nijigenerate/windows/paramaxes.d:170
-#: source/nijigenerate/windows/automeshbatch.d:304
-#: source/nijigenerate/windows/automeshbatch.d:339
-#: source/nijigenerate/windows/flipconfig.d:496
-#: source/nijigenerate/widgets/dialog.d:116
-#: source/nijigenerate/viewport/vertex/package.d:306
-msgid "Cancel"
-msgstr "キャンセル"
-
-#: source/nijigenerate/windows/videoexport.d:271
-#: source/nijigenerate/widgets/modal/nagscreen.d:118
-msgid "Close"
-msgstr "閉じる"
-
-#: source/nijigenerate/windows/videoexport.d:282
-msgid "Export Video..."
-msgstr "動画への書き出し..."
-
-#: source/nijigenerate/windows/videoexport.d:285
-msgid "FFMPEG was not found, please install FFMPEG to export video."
-msgstr ""
-"FFMPEGが見つかりませんでした。動画をエクスポートするためにはFFMPEGをインス"
-"トールしてください。"
-
-#: source/nijigenerate/windows/videoexport.d:295
-#: source/nijigenerate/windows/imgexport.d:145
-msgid "No cameras to export from in Scene, please add a Camera."
-msgstr ""
-"エクスポートするためのカメラが定義されていません。カメラを追加してください。"
-
-#: source/nijigenerate/windows/videoexport.d:303
-msgid "No animations are defined for this model, please add an animation."
-msgstr "このモデルにはアニメーションが定義されていません。"
-
-#: source/nijigenerate/windows/autosave.d:46
-msgid "nijigenerate closed unexpectedly while editing this file."
-msgstr "このファイルを編集中にnijigenerateが異常終了しました"
-
-#: source/nijigenerate/windows/autosave.d:47
-msgid "Restore data from a backup?"
-msgstr "バックアップから復旧しますか？"
-
-#: source/nijigenerate/windows/autosave.d:56
-msgid "Discard"
-msgstr "破棄"
-
-#: source/nijigenerate/windows/autosave.d:62
-msgid "Restore"
-msgstr "復旧"
-
-#: source/nijigenerate/windows/autosave.d:73
-msgid "Restore Autosave"
-msgstr "自動セーブから復旧"
-
-#: source/nijigenerate/windows/kramerge.d:244
-#: source/nijigenerate/windows/psdmerge.d:245
-#, c-format
-msgid "%s  %s"
-msgstr "%s  %s"
-
-#: source/nijigenerate/windows/kramerge.d:282
-#: source/nijigenerate/windows/psdmerge.d:283
-#: source/nijigenerate/panels/inspector/simplephysics.d:39
-msgid "Unmap"
-msgstr "割り当てを解除"
-
-#: source/nijigenerate/windows/kramerge.d:287
-#: source/nijigenerate/windows/psdmerge.d:288
-msgid "Ignore"
-msgstr "無視"
-
-#: source/nijigenerate/windows/kramerge.d:287
-#: source/nijigenerate/windows/psdmerge.d:288
-msgid "Use"
-msgstr "使用"
-
-#: source/nijigenerate/windows/kramerge.d:400
-#: source/nijigenerate/windows/psdmerge.d:401
-msgid "Only show unmapped"
-msgstr "未割り当てのみ表示"
-
-#. Auto-rename
-#: source/nijigenerate/windows/kramerge.d:420
-#: source/nijigenerate/windows/psdmerge.d:421
-msgid "Auto-rename"
-msgstr "自動的にリネームする"
-
-#: source/nijigenerate/windows/kramerge.d:421
-msgid ""
-"Renames all mapped nodes to match the names of the KRA layer that was merged "
-"in to them."
-msgstr "割り当てられたノードをすべてKRAのレイヤー名に変更します。"
-
-#: source/nijigenerate/windows/kramerge.d:424
-#: source/nijigenerate/windows/psdmerge.d:425
-msgid "Re-translate"
-msgstr "ノード位置の再更新"
-
-#: source/nijigenerate/windows/kramerge.d:425
-#: source/nijigenerate/windows/psdmerge.d:426
-msgid ""
-"Moves all nodes so that they visually match their position in the canvas."
-msgstr "PSD上のレイヤーの位置に合わせて、全ノードの位置を更新します。"
-
-#: source/nijigenerate/windows/kramerge.d:438
-#: source/nijigenerate/windows/psdmerge.d:439
-#: source/nijigenerate/widgets/mainmenu.d:183
-msgid "Merge"
-msgstr "マージ"
-
-#: source/nijigenerate/windows/kramerge.d:472
-msgid "KRA Merging"
-msgstr "KRAファイルのマージ"
-
-#: source/nijigenerate/windows/editanim.d:37
-#: source/nijigenerate/windows/editanim.d:47
-msgid "Invalid Name"
-msgstr "無効な名称です"
-
-#: source/nijigenerate/windows/editanim.d:38
-msgid "Name can not be empty!"
-msgstr "名前は空欄には出来ません!"
-
-#: source/nijigenerate/windows/editanim.d:48
-#, c-format
-msgid "%s is already taken! Please chose another animation name."
-msgstr "%sは既に使われています。他のアニメーション名を指定してください。"
-
-#: source/nijigenerate/windows/editanim.d:90
-msgid "Options"
-msgstr "オプション"
-
-#: source/nijigenerate/windows/editanim.d:91
-#: source/nijigenerate/panels/timeline.d:106
-msgid "Additive"
-msgstr "加算"
-
-#: source/nijigenerate/windows/editanim.d:92
-msgid "Weight"
-msgstr "重み"
-
-#: source/nijigenerate/windows/editanim.d:94
-msgid "Frames"
-msgstr "フレーム"
-
-#: source/nijigenerate/windows/editanim.d:97
-msgid "Lead In"
-msgstr "リードイン"
-
-#: source/nijigenerate/windows/editanim.d:98
-msgid "Lead Out"
-msgstr "リードアウト"
-
-#: source/nijigenerate/windows/editanim.d:113
-msgid "Custom Framerate"
-msgstr "カスタムレート"
-
-#: source/nijigenerate/windows/editanim.d:120
-#, c-format
-msgid "%ss %sms"
-msgstr "%ss %sms"
-
-#. Done button
-#: source/nijigenerate/windows/editanim.d:125
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:103
-msgid "Create"
-msgstr "作成"
-
-#: source/nijigenerate/windows/editanim.d:140
-msgid "120 FPS"
-msgstr "120 FPS"
-
-#: source/nijigenerate/windows/editanim.d:141
-msgid "60 FPS"
-msgstr "60 FPS"
-
-#: source/nijigenerate/windows/editanim.d:142
-msgid "30 FPS"
-msgstr "30 FPS"
-
-#: source/nijigenerate/windows/editanim.d:143
-msgid "25 FPS"
-msgstr "25 FPS"
-
-#: source/nijigenerate/windows/editanim.d:144
-msgid "Custom Framrate"
-msgstr "カスタムレート"
-
-#: source/nijigenerate/windows/editanim.d:158
-msgid "New Animation..."
-msgstr "新規アニメーション..."
-
-#: source/nijigenerate/windows/editanim.d:171
-#, c-format
-msgid "Edit %s..."
-msgstr "%sを編集..."
-
-#: source/nijigenerate/windows/imgexport.d:138
-msgid "Export Image..."
-msgstr "画像をエクスポート..."
-
-#. Textbox
-#: source/nijigenerate/windows/rename.d:43
-#: source/nijigenerate/windows/rename.d:58
-#: source/nijigenerate/panels/parameters.d:1186
-msgid "Rename"
-msgstr "名前を変更"
-
-#: source/nijigenerate/windows/rename.d:65
-#, c-format
-msgid "Rename %s..."
-msgstr "%sの名前を変更..."
-
-#: source/nijigenerate/windows/psdmerge.d:422
-msgid ""
-"Renames all mapped nodes to match the names of the PSD layer that was merged "
-"in to them."
-msgstr "割り当てられたノードをすべてPSDのレイヤー名に変更します。"
-
-#: source/nijigenerate/windows/psdmerge.d:474
-msgid "PSD Merging"
-msgstr "PSDファイルのマージ"
-
-#: source/nijigenerate/windows/paramsplit.d:49
-msgid " (Split)"
-msgstr " (分割)"
-
-#: source/nijigenerate/windows/paramsplit.d:172
-#: source/nijigenerate/viewport/vertex/package.d:289
-msgid "Apply"
-msgstr "適用"
-
-#: source/nijigenerate/windows/paramsplit.d:183
-msgid "Split Parameter"
-msgstr "パラメータを分割"
-
-#: source/nijigenerate/windows/texviewer.d:48
-msgid "Texture Viewer"
-msgstr "テクスチャビューワー"
-
-#. Points where the user can set parameter values
-#: source/nijigenerate/windows/paramaxes.d:157
-msgid "Breakpoints"
-msgstr "キーポイント"
-
-#: source/nijigenerate/windows/paramaxes.d:188
-msgid "One or more axes points are overlapping, this is not allowed."
-msgstr "重なっているキーポイントがあるので、いずれかの座標を変更してください。"
-
-#. Title for the parameter axis points window
-#. This window allows adjusting axies in the
-#. Parameter it's attached to.
-#. Keypoints show up on every intersecting axis line.
-#: source/nijigenerate/windows/paramaxes.d:247
-msgid "Parameter Axes Points"
-msgstr "キー設定"
-
-#: source/nijigenerate/windows/inpexport.d:108
-msgid "Atlassing"
-msgstr "テクスチャアトラスの作成"
-
-#: source/nijigenerate/windows/inpexport.d:112
-msgid "Decoration"
-msgstr "装飾"
-
-#: source/nijigenerate/windows/inpexport.d:142
-msgid "Atlas Settings"
-msgstr "アトラス設定"
-
-#: source/nijigenerate/windows/inpexport.d:144
-msgid "Resolution"
-msgstr "解像度"
-
-#: source/nijigenerate/windows/inpexport.d:160
-msgid "Non-linear Scaling"
-msgstr "非線形スケーリング"
-
-#: source/nijigenerate/windows/inpexport.d:161
-msgid ""
-"Whether too large parts should individually be scaled down instead of all "
-"parts being scaled down uniformly."
-msgstr ""
-"全パーツの縮小率を一律にするか、大きなパーツに対して個々に縮小率を変更させる"
-"かを指定します。"
-
-#: source/nijigenerate/windows/inpexport.d:164
-msgid "Texture Scale"
-msgstr "テクスチャ倍率"
-
-#: source/nijigenerate/windows/inpexport.d:170
-msgid "Padding"
-msgstr "余白"
-
-#: source/nijigenerate/windows/inpexport.d:176
-msgid "Optimizations"
-msgstr "最適化"
-
-#: source/nijigenerate/windows/inpexport.d:178
-msgid "Prune unused nodes"
-msgstr "未使用のノードを削除"
-
-#: source/nijigenerate/windows/inpexport.d:179
-msgid "Prune nodes which have been disabled from the export."
-msgstr "無効にされているノードをエクスポート時に削除します。"
-
-#: source/nijigenerate/windows/inpexport.d:195
-msgid "Watermark"
-msgstr "透かし"
-
-#. Allow saving texture to file
-#: source/nijigenerate/windows/inpexport.d:202
-msgid "Load"
-msgstr "読み込み"
-
-#: source/nijigenerate/windows/inpexport.d:209
-#: source/nijigenerate/windows/welcome.d:238
-#: source/nijigenerate/panels/inspector/part.d:115
-#: source/nijigenerate/io/psd.d:39 source/nijigenerate/io/kra.d:35
-#: source/nijigenerate/widgets/mainmenu.d:167
-#: source/nijigenerate/widgets/mainmenu.d:189
-#: source/nijigenerate/widgets/mainmenu.d:202
-#: source/nijigenerate/widgets/mainmenu.d:217
-#: source/nijigenerate/widgets/mainmenu.d:450
-msgid "Import..."
-msgstr "インポート..."
-
-#: source/nijigenerate/windows/inpexport.d:224
-#: source/nijigenerate/panels/inspector/part.d:122
 #: source/nijigenerate/panels/parameters.d:640
+#: source/nijigenerate/panels/inspector/part.d:122
+#: source/nijigenerate/windows/inpexport.d:224
 msgid "Remove"
 msgstr "削除"
 
-#: source/nijigenerate/windows/inpexport.d:258
-msgid "Preview"
-msgstr "プレビュー"
+#: source/nijigenerate/panels/parameters.d:654
+msgid "Interpolation Mode"
+msgstr "補間モード"
 
-#. Header for the Blending options for Parts
-#: source/nijigenerate/windows/inpexport.d:263
-#: source/nijigenerate/panels/inspector/part.d:230
-#: source/nijigenerate/panels/inspector/composite.d:51
-msgid "Blending"
-msgstr "合成"
-
-#. Normal blending mode as used in Photoshop, generally
-#. the default blending mode photoshop starts a layer out as.
-#: source/nijigenerate/windows/inpexport.d:271
-#: source/nijigenerate/panels/inspector/part.d:237
-#: source/nijigenerate/panels/inspector/composite.d:58
-msgid "Normal"
-msgstr "通常"
-
-#. Multiply blending mode, in which this texture's color data
-#. will be multiplied with the color data already in the framebuffer.
-#: source/nijigenerate/windows/inpexport.d:275
-#: source/nijigenerate/panels/inspector/part.d:241
-#: source/nijigenerate/panels/inspector/composite.d:62
-msgid "Multiply"
-msgstr "乗算"
-
-#. Screen blending mode
-#: source/nijigenerate/windows/inpexport.d:278
-#: source/nijigenerate/panels/inspector/part.d:244
-#: source/nijigenerate/panels/inspector/composite.d:65
-msgid "Screen"
-msgstr "スクリーン"
-
-#. Overlay blending mode
-#: source/nijigenerate/windows/inpexport.d:281
-#: source/nijigenerate/panels/inspector/part.d:247
-#: source/nijigenerate/panels/inspector/composite.d:68
-msgid "Overlay"
-msgstr "オーバーレイ"
-
-#. Darken blending mode
-#: source/nijigenerate/windows/inpexport.d:284
-#: source/nijigenerate/panels/inspector/part.d:250
-#: source/nijigenerate/panels/inspector/composite.d:71
-msgid "Darken"
-msgstr "比較（暗）"
-
-#. Lighten blending mode
-#: source/nijigenerate/windows/inpexport.d:287
-#: source/nijigenerate/panels/inspector/part.d:253
-#: source/nijigenerate/panels/inspector/composite.d:74
-msgid "Lighten"
-msgstr "比較（明）"
-
-#. Color Dodge blending mode
-#: source/nijigenerate/windows/inpexport.d:290
-#: source/nijigenerate/panels/inspector/part.d:256
-#: source/nijigenerate/panels/inspector/composite.d:77
-msgid "Color Dodge"
-msgstr "覆い焼き"
-
-#. Linear Dodge blending mode
-#: source/nijigenerate/windows/inpexport.d:293
-#: source/nijigenerate/panels/inspector/part.d:259
-#: source/nijigenerate/panels/inspector/composite.d:80
-msgid "Linear Dodge"
-msgstr "加算"
-
-#. Add (Glow) blending mode
-#: source/nijigenerate/windows/inpexport.d:296
-#: source/nijigenerate/panels/inspector/part.d:262
-#: source/nijigenerate/panels/inspector/composite.d:83
-msgid "Add (Glow)"
-msgstr "光彩"
-
-#. Color Burn blending mode
-#: source/nijigenerate/windows/inpexport.d:299
-#: source/nijigenerate/panels/inspector/part.d:265
-#: source/nijigenerate/panels/inspector/composite.d:86
-msgid "Color Burn"
-msgstr "焼き込み"
-
-#. Hard Light blending mode
-#: source/nijigenerate/windows/inpexport.d:302
-#: source/nijigenerate/panels/inspector/part.d:268
-#: source/nijigenerate/panels/inspector/composite.d:89
-msgid "Hard Light"
-msgstr "ハードライト"
-
-#. Soft Light blending mode
-#: source/nijigenerate/windows/inpexport.d:305
-#: source/nijigenerate/panels/inspector/part.d:271
-#: source/nijigenerate/panels/inspector/composite.d:92
-msgid "Soft Light"
-msgstr "ソフトライト"
-
-#. Subtract blending mode
-#: source/nijigenerate/windows/inpexport.d:308
-#: source/nijigenerate/panels/inspector/part.d:274
-#: source/nijigenerate/panels/inspector/composite.d:95
-msgid "Subtract"
-msgstr "減算"
-
-#. Difference blending mode
-#: source/nijigenerate/windows/inpexport.d:311
-#: source/nijigenerate/panels/inspector/part.d:277
-#: source/nijigenerate/panels/inspector/composite.d:98
-msgid "Difference"
-msgstr "差分"
-
-#. Exclusion blending mode
-#: source/nijigenerate/windows/inpexport.d:314
-#: source/nijigenerate/panels/inspector/part.d:280
-#: source/nijigenerate/panels/inspector/composite.d:101
-msgid "Exclusion"
-msgstr "除外"
-
-#. Inverse blending mode
-#: source/nijigenerate/windows/inpexport.d:317
-#: source/nijigenerate/panels/inspector/part.d:283
-#: source/nijigenerate/panels/inspector/composite.d:104
-msgid "Inverse"
-msgstr "反転"
-
-#: source/nijigenerate/windows/inpexport.d:318
-#: source/nijigenerate/panels/inspector/part.d:284
-#: source/nijigenerate/panels/inspector/composite.d:105
-msgid "Inverts the color by a factor of the overlying color"
-msgstr "レイヤーの上にある色に従って色を反転します。"
-
-#. Destination In blending mode
-#: source/nijigenerate/windows/inpexport.d:321
-#: source/nijigenerate/panels/inspector/part.d:287
-#: source/nijigenerate/panels/inspector/composite.d:108
-msgid "Destination In"
-msgstr "Destination-In (Porter Duff)"
-
-#. Clip to Lower blending mode
-#: source/nijigenerate/windows/inpexport.d:324
-#: source/nijigenerate/panels/inspector/part.d:290
-msgid "Clip to Lower"
-msgstr "クリッピング"
-
-#: source/nijigenerate/windows/inpexport.d:325
-#: source/nijigenerate/panels/inspector/part.d:291
-msgid ""
-"Special blending mode that causes (while respecting transparency) the part "
-"to be clipped to everything underneath"
-msgstr ""
-"透明度を考慮しながら、自分より下にある全てのパーツの形状に合わせてパーツの形"
-"状がクリッピングされる、特殊な合成モードです。"
-
-#: source/nijigenerate/windows/inpexport.d:336
-#: source/nijigenerate/panels/inspector/part.d:310
-#: source/nijigenerate/panels/inspector/part.d:626
-#: source/nijigenerate/panels/inspector/composite.d:120
-#: source/nijigenerate/panels/inspector/composite.d:302
-msgid "Opacity"
-msgstr "不透明度"
-
-#: source/nijigenerate/windows/inpexport.d:344
-#: source/nijigenerate/windows/settings.d:234
-msgid "No settings for this category."
-msgstr "このカテゴリには設定項目がありません。"
-
-#: source/nijigenerate/windows/inpexport.d:358
-msgid ""
-"A texture was too large to fit the texture atlas, the textures have been "
-"scaled down."
-msgstr ""
-"テクスチャが大きすぎてテクスチャアトラスに収まらないため、テクスチャをスケー"
-"ルダウンしました。"
-
-#: source/nijigenerate/windows/inpexport.d:371
-#: source/nijigenerate/io/imageexport.d:13
-#, c-format
-msgid "%s was exported..."
-msgstr "%sをエクスポートしました。"
-
-#: source/nijigenerate/windows/inpexport.d:377
-msgid "Export failed..."
-msgstr "エクスポートに失敗しました。"
-
-#: source/nijigenerate/windows/inpexport.d:386
-msgid "Export Options"
-msgstr "エクスポートオプション"
-
-#: source/nijigenerate/windows/about.d:125
-#: source/nijigenerate/widgets/mainmenu.d:556
-msgid "About"
-msgstr "nijigenerateについて"
-
-#: source/nijigenerate/windows/settings.d:83
-#: source/nijigenerate/windows/settings.d:114
-msgid "Look and Feel"
-msgstr "見た目や操作感"
-
-#: source/nijigenerate/windows/settings.d:87
-#: source/nijigenerate/windows/settings.d:213
-#: source/nijigenerate/panels/inspector/camera.d:24
-#: source/nijigenerate/panels/viewport.d:395
-msgid "Viewport"
-msgstr "表示領域"
-
-#: source/nijigenerate/windows/settings.d:91
-msgid "Accessbility"
-msgstr "アクセシビリティ"
-
-#: source/nijigenerate/windows/settings.d:95
-msgid "File Handling"
-msgstr "ファイルの取り扱い"
-
-#: source/nijigenerate/windows/settings.d:115
-#: source/nijigenerate/windows/welcome.d:167
-msgid "Color Theme"
-msgstr "カラーテーマ"
-
-#: source/nijigenerate/windows/settings.d:115
-#: source/nijigenerate/windows/settings.d:116
-#: source/nijigenerate/windows/welcome.d:167
-#: source/nijigenerate/windows/welcome.d:168
-msgid "Dark"
-msgstr "ダーク"
-
-#: source/nijigenerate/windows/settings.d:115
-#: source/nijigenerate/windows/settings.d:117
-#: source/nijigenerate/windows/welcome.d:167
-#: source/nijigenerate/windows/welcome.d:169
-msgid "Light"
-msgstr "ライト"
-
-#: source/nijigenerate/windows/settings.d:123
-#: source/nijigenerate/windows/welcome.d:153
-msgid "Language"
-msgstr "言語設定"
-
-#: source/nijigenerate/windows/settings.d:142
-#: source/nijigenerate/windows/welcome.d:179
-msgid "UI Scale"
-msgstr "UI表示倍率"
-
-#: source/nijigenerate/windows/settings.d:150
-#: source/nijigenerate/panels/actionhistory.d:27
-msgid "Undo History"
-msgstr "編集履歴"
-
-#: source/nijigenerate/windows/settings.d:152
-msgid "Max Undo History"
-msgstr "編集履歴の最大値"
-
-#: source/nijigenerate/windows/settings.d:158
-msgid "Linux Tweaks"
-msgstr "Linux固有設定"
-
-#: source/nijigenerate/windows/settings.d:160
-msgid "Disable Compositor"
-msgstr "コンポジターを無効化"
-
-#: source/nijigenerate/windows/settings.d:167
-msgid "Accessibility"
-msgstr "アクセシビリティ"
-
-#: source/nijigenerate/windows/settings.d:169
-msgid "Use OpenDyslexic Font"
-msgstr "OpenDyslexicフォントを使用する"
-
-#: source/nijigenerate/windows/settings.d:173
-msgid "Use the OpenDyslexic font for Latin text characters."
-msgstr "ラテン文字に対してOpenDyslexicフォントを使用します。"
-
-#: source/nijigenerate/windows/settings.d:177
-#: source/nijigenerate/widgets/mainmenu.d:119
-msgid "Autosaves"
-msgstr "自動セーブ"
-
-#: source/nijigenerate/windows/settings.d:179
-msgid "Enable Autosaves"
-msgstr "自動セーブを有効化する"
-
-#: source/nijigenerate/windows/settings.d:184
-msgid "Save Interval (Minutes)"
-msgstr "保存の間隔(分)"
-
-#: source/nijigenerate/windows/settings.d:189
-msgid "Maximum Autosaves"
-msgstr "自動セーブする最大数"
-
-#: source/nijigenerate/windows/settings.d:194
-msgid "Preserve Imported File Folder Structure"
-msgstr "インポートされたファイルの構造を維持"
-
-#: source/nijigenerate/windows/settings.d:202
-msgid "Preserve Folder Structure"
-msgstr "フォルダ階層を維持"
-
-#: source/nijigenerate/windows/settings.d:203
-msgid "Always Ask"
-msgstr "常に尋ねる"
-
-#: source/nijigenerate/windows/settings.d:204
-msgid "Preserve"
-msgstr "維持する"
-
-#: source/nijigenerate/windows/settings.d:205
-msgid "Not Preserve"
-msgstr "維持しない"
-
-#: source/nijigenerate/windows/settings.d:220
-msgid "Zoom Mode"
-msgstr "ズームモード"
-
-#: source/nijigenerate/windows/settings.d:221
-msgid "To Screen Center"
-msgstr "画面の中心にズーム"
-
-#: source/nijigenerate/windows/settings.d:222
-msgid "To Mouse Position"
-msgstr "マウスの位置にズーム"
-
-#: source/nijigenerate/windows/settings.d:228
-msgid "Zoom Speed"
-msgstr "ズームスピード"
-
-#: source/nijigenerate/windows/settings.d:247
-#: source/nijigenerate/windows/welcome.d:191
-msgid "nijigenerate needs to be restarted for some changes to take effect."
-msgstr "変更を有効にするにはnijigenerateの再起動が必要となる場合があります。"
-
-#: source/nijigenerate/windows/settings.d:255
-msgid "Done"
-msgstr "完了"
-
-#: source/nijigenerate/windows/settings.d:270
-#: source/nijigenerate/widgets/mainmenu.d:326
-msgid "Settings"
-msgstr "設定"
-
-#: source/nijigenerate/windows/automeshbatch.d:304
-msgid "Run batch"
-msgstr "一括で実行"
-
-#. Removing unused pairs (happens when target nodes are removed.)
-#: source/nijigenerate/windows/automeshbatch.d:380
-#: source/nijigenerate/panels/viewport.d:382
-msgid "Automesh Batching"
-msgstr "自動メッシュの一括処理"
-
-#: source/nijigenerate/windows/welcome.d:142
-msgid "Quick Setup"
-msgstr "クイックセットアップ"
-
-#: source/nijigenerate/windows/welcome.d:204
-msgid "Next"
-msgstr "次へ"
-
-#: source/nijigenerate/windows/welcome.d:216
-msgid "Create Project"
-msgstr "プロジェクトを作成"
-
-#: source/nijigenerate/windows/welcome.d:219
-msgid "New..."
-msgstr "新規作成..."
-
-#: source/nijigenerate/windows/welcome.d:224
-#: source/nijigenerate/windows/welcome.d:229
-#: source/nijigenerate/widgets/mainmenu.d:43
-msgid "Open..."
-msgstr "開く..."
-
-#: source/nijigenerate/windows/welcome.d:243
-msgid "Import PSD..."
-msgstr "PSDファイルをインポート..."
-
-#: source/nijigenerate/windows/welcome.d:249
-msgid "Import KRA..."
-msgstr "KRAファイルをインポート..."
-
-#: source/nijigenerate/windows/welcome.d:261
-msgid "Recent Projects"
-msgstr "最近開いたプロジェクト..."
-
-#: source/nijigenerate/windows/welcome.d:286
-msgid "On the Web"
-msgstr "Webサイトへのリンク"
-
-#: source/nijigenerate/windows/welcome.d:291
-msgid "Website"
-msgstr "公式サイト"
-
-#: source/nijigenerate/windows/welcome.d:297
-msgid "Documentation"
-msgstr "ドキュメント"
-
-#: source/nijigenerate/windows/welcome.d:333
-msgid "nijigenerate Start"
-msgstr "nijigenerateを開始"
-
-#: source/nijigenerate/windows/flipconfig.d:310
-msgid "<< Not assigned >>"
-msgstr "<<  割り当てなし  >>"
-
-#: source/nijigenerate/windows/flipconfig.d:372
-msgid "< Add new row >"
-msgstr "<　新しい行を追加 　>"
-
-#: source/nijigenerate/windows/flipconfig.d:451
-msgid "Pair"
-msgstr "ペア"
-
-#: source/nijigenerate/windows/flipconfig.d:459
-msgid "Part 1"
-msgstr "パーツ1"
-
-#: source/nijigenerate/windows/flipconfig.d:460
-msgid "Part 2"
-msgstr "パーツ2"
-
-#: source/nijigenerate/windows/flipconfig.d:536
-msgid "Flip Pairing"
-msgstr "左右反転ペアの編集"
-
-#: source/nijigenerate/panels/timeline.d:86
-msgid "Interpolation"
-msgstr "補間"
-
-#: source/nijigenerate/panels/timeline.d:87
 #: source/nijigenerate/panels/parameters.d:655
+#: source/nijigenerate/panels/timeline.d:87
 msgid "Nearest"
 msgstr "最近傍"
 
-#: source/nijigenerate/panels/timeline.d:90
-msgid "Stepped"
-msgstr "階段状"
-
-#: source/nijigenerate/panels/timeline.d:93
 #: source/nijigenerate/panels/parameters.d:661
+#: source/nijigenerate/panels/timeline.d:93
 msgid "Linear"
 msgstr "線形補完"
 
-#: source/nijigenerate/panels/timeline.d:96
 #: source/nijigenerate/panels/parameters.d:667
+#: source/nijigenerate/panels/timeline.d:96
 msgid "Cubic"
 msgstr "キュービック"
 
-#: source/nijigenerate/panels/timeline.d:102
-msgid "Merge Mode"
-msgstr "マージモード"
+#: source/nijigenerate/panels/parameters.d:677
+msgid "Copy to"
+msgstr "コピー先："
 
-#: source/nijigenerate/panels/timeline.d:109
-msgid "Multiplicative"
-msgstr "乗算"
+#: source/nijigenerate/panels/parameters.d:687
+msgid "Swap with"
+msgstr "入れ替え"
 
-#: source/nijigenerate/panels/timeline.d:114
-msgid "Forced"
-msgstr "強制上書き"
+#: source/nijigenerate/panels/parameters.d:701
+msgid "Bindings"
+msgstr "割り当て"
 
-#: source/nijigenerate/panels/timeline.d:120
+#: source/nijigenerate/panels/parameters.d:709
+msgid "Show all nodes"
+msgstr "全ノード表示に切り替えます"
+
+#: source/nijigenerate/panels/parameters.d:709
+msgid "Show only selected nodes"
+msgstr "選択されているノードのみ表示に切り替えます"
+
+#: source/nijigenerate/panels/parameters.d:845
+msgid "Edit Properties"
+msgstr "プロパティを編集..."
+
+#: source/nijigenerate/panels/parameters.d:849
+msgid "Edit Axes Points"
+msgstr "キー設定"
+
+#: source/nijigenerate/panels/parameters.d:853
+msgid "Split"
+msgstr "分割"
+
+#: source/nijigenerate/panels/parameters.d:857
+msgid "To 2D"
+msgstr "2Dパラメータに変更"
+
+#: source/nijigenerate/panels/parameters.d:862
+msgid "Flip X"
+msgstr "キーの左右入れ替え"
+
+#: source/nijigenerate/panels/parameters.d:868
+msgid "Flip Y"
+msgstr "キーの上下入れ替え"
+
+#: source/nijigenerate/panels/parameters.d:875
+msgid "Flip"
+msgstr "キーの対称入れ替え"
+
+#: source/nijigenerate/panels/parameters.d:893
+msgid "Mirrored Autofill"
+msgstr "反転コピーしてキーを設定"
+
+#: source/nijigenerate/panels/parameters.d:925
+msgid "Paste and Horizontal Flip"
+msgstr "左右反転して貼り付け"
+
+#: source/nijigenerate/panels/parameters.d:930
+msgid "Duplicate"
+msgstr "複製"
+
+#: source/nijigenerate/panels/parameters.d:939
+#: source/nijigenerate/panels/parameters.d:1219
+#: source/nijigenerate/panels/animlist.d:38
 #: source/nijigenerate/panels/inspector/part.d:367
 #: source/nijigenerate/panels/inspector/part.d:450
 #: source/nijigenerate/panels/inspector/composite.d:161
-#: source/nijigenerate/panels/animlist.d:38
-#: source/nijigenerate/panels/parameters.d:939
-#: source/nijigenerate/panels/parameters.d:1219
+#: source/nijigenerate/panels/timeline.d:120
 msgid "Delete"
 msgstr "削除"
 
-#: source/nijigenerate/panels/timeline.d:224
-msgid "Lock playback to animation framerate"
-msgstr "アニメーションのフレームレートに合わせて再生を固定します"
+#: source/nijigenerate/panels/parameters.d:979
+msgid "X"
+msgstr "X"
 
-#: source/nijigenerate/panels/timeline.d:294
-msgid "Not in Animation Edit mode..."
-msgstr "アニメーション編集モードではありません。"
+#: source/nijigenerate/panels/parameters.d:983
+msgid "Y"
+msgstr "Y"
 
-#: source/nijigenerate/panels/timeline.d:301
-msgid "Timeline"
-msgstr "タイムライン"
+#: source/nijigenerate/panels/parameters.d:997
+msgid "Link X to..."
+msgstr "Xパラメータを連結..."
 
-#: source/nijigenerate/panels/inspector/part.d:52
-msgid "Size of given texture does not match the Albedo texture."
-msgstr "テクスチャのサイズがアルベドテクスチャと一致しません。"
+#: source/nijigenerate/panels/parameters.d:1002
+msgid "Link Y to .."
+msgstr "Yパラメータを連結..."
 
-#: source/nijigenerate/panels/inspector/part.d:71
-#: source/nijigenerate/panels/inspector/part.d:83
-#: source/nijigenerate/panels/viewport.d:257
-#: source/nijigenerate/io/package.d:199
-#, c-format
-msgid "%s is not supported"
-msgstr "%sはサポートされていません。"
+#: source/nijigenerate/panels/parameters.d:1007
+msgid "Link parameter to..."
+msgstr "パラメータを連結..."
 
-#. Allow saving texture to file
-#: source/nijigenerate/panels/inspector/part.d:94
-msgid "Save to File"
-msgstr "ファイルに保存"
+#. Sets the default value of the param
+#: source/nijigenerate/panels/parameters.d:1017
+msgid "Set Starting Position"
+msgstr "初期値に設定"
 
-#. Allow saving texture to file
-#: source/nijigenerate/panels/inspector/part.d:108
-msgid "Load from File"
-msgstr "ファイルから読み込み"
+#. Arms the parameter for recording values.
+#: source/nijigenerate/panels/parameters.d:1047
+msgid "Arm Parameter"
+msgstr "パラメータ編集"
 
-#. Option which causes the Albedo color to be the emission color.
-#. The item will glow the same color as it, itself is.
-#: source/nijigenerate/panels/inspector/part.d:131
-msgid "Make Emissive"
-msgstr "発光させる"
+#: source/nijigenerate/panels/parameters.d:1063
+msgid "Add Keyframe"
+msgstr "キーフレームを追加"
 
-#: source/nijigenerate/panels/inspector/part.d:179
-#: source/nijigenerate/panels/inspector/part.d:594
-msgid "Part"
-msgstr "パーツ"
+#. Textbox
+#: source/nijigenerate/panels/parameters.d:1186
+#: source/nijigenerate/windows/rename.d:43
+#: source/nijigenerate/windows/rename.d:58
+msgid "Rename"
+msgstr "名前を変更"
 
-#: source/nijigenerate/panels/inspector/part.d:182
-msgid "Cannot inspect an unmeshed part"
-msgstr "メッシュされていないパーツは検査できません"
+#: source/nijigenerate/panels/parameters.d:1190
+msgid "Colors"
+msgstr "色を選択"
 
-#: source/nijigenerate/panels/inspector/part.d:197
-msgid "Albedo"
-msgstr "色情報(Albedo)"
+#. CUSTOM COLOR PICKER
+#. Allows user to select a custom color for parameter group.
+#: source/nijigenerate/panels/parameters.d:1215
+msgid "Custom Color"
+msgstr "カスタム色"
 
-#: source/nijigenerate/panels/inspector/part.d:199
-msgid "Emissive"
-msgstr "発光(Emissive)"
+#: source/nijigenerate/panels/parameters.d:1233
+msgid "Add 1D Parameter (0..1)"
+msgstr "1次元パラメータ (0..1)を追加"
 
-#: source/nijigenerate/panels/inspector/part.d:201
-msgid "Bumpmap"
-msgstr "バンプマップ"
+#: source/nijigenerate/panels/parameters.d:1241
+msgid "Add 1D Parameter (-1..1)"
+msgstr "1次元パラメータ(-1..1)を追加"
 
-#: source/nijigenerate/panels/inspector/part.d:207
-#: source/nijigenerate/panels/inspector/part.d:601
-#: source/nijigenerate/panels/inspector/composite.d:40
-#: source/nijigenerate/panels/inspector/composite.d:283
-msgid "Tint (Multiply)"
-msgstr "乗算を適用する色"
+#: source/nijigenerate/panels/parameters.d:1252
+msgid "Add 2D Parameter (0..1)"
+msgstr "2次元パラメータ(0..1)を追加"
 
-#: source/nijigenerate/panels/inspector/part.d:212
-#: source/nijigenerate/panels/inspector/part.d:606
-#: source/nijigenerate/panels/inspector/composite.d:45
-#: source/nijigenerate/panels/inspector/composite.d:288
-msgid "Tint (Screen)"
-msgstr "スクリーンを適用する色"
+#: source/nijigenerate/panels/parameters.d:1260
+msgid "Add 2D Parameter (-1..+1)"
+msgstr "2次元パラメータ(-1..1)を追加"
 
-#: source/nijigenerate/panels/inspector/part.d:217
-#: source/nijigenerate/panels/inspector/part.d:610
-msgid "Emission Strength"
-msgstr "発光の強さ"
+#: source/nijigenerate/panels/parameters.d:1272
+msgid "Add Mouth Shape"
+msgstr "口の形パラメータを追加"
 
-#. Slice from Lower blending mode
-#: source/nijigenerate/panels/inspector/part.d:294
-msgid "Slice from Lower"
-msgstr "切り取り"
+#: source/nijigenerate/panels/parameters.d:1301
+#: source/nijigenerate/panels/nodes.d:485
+#: source/nijigenerate/panels/inspector/package.d:122
+msgid "In vertex edit mode..."
+msgstr "メッシュ編集中..."
 
-#: source/nijigenerate/panels/inspector/part.d:295
-msgid ""
-"Special blending mode that causes (while respecting transparency) the part "
-"to be slice by everything underneath.\n"
-"Basically reverse Clip to Lower."
-msgstr ""
-"透明度を考慮しながら、自分より下にある全てのパーツの形状に合わせてパーツの形"
-"状が切り取られる、特殊な合成モードです。\n"
-"基本的にクリッピングを反転した結果になります。"
+#: source/nijigenerate/panels/parameters.d:1317
+msgid "Filter, search for specific parameters"
+msgstr "パラメータ名での絞り込み"
 
-#: source/nijigenerate/panels/inspector/part.d:319
-#: source/nijigenerate/panels/inspector/composite.d:129
-msgid "Masks"
-msgstr "マスク"
+#: source/nijigenerate/panels/parameters.d:1422
+msgid "Add Parameter"
+msgstr "パラメータを追加"
 
-#. Threshold slider name for adjusting how transparent a pixel can be
-#. before it gets discarded.
-#: source/nijigenerate/panels/inspector/part.d:324
-#: source/nijigenerate/panels/inspector/part.d:633
-#: source/nijigenerate/panels/inspector/composite.d:134
-msgid "Threshold"
-msgstr "しきい値"
+#: source/nijigenerate/panels/parameters.d:1427
+msgid "Parameters"
+msgstr "パラメータ"
 
-#: source/nijigenerate/panels/inspector/part.d:330
-msgid "Resize automatically"
-msgstr "自動的にリサイズする"
+#: source/nijigenerate/panels/nodes.d:181
+msgid "Suffix"
+msgstr "名前の語尾"
 
-#: source/nijigenerate/panels/inspector/part.d:335
-msgid ""
-"Resize size automatically when child nodes are added or removed. Affect "
-"performance severly, not recommended."
-msgstr ""
-"子ノードを追加・削除したときに自動的にリサイズします。性能に影響するため、最"
-"終的にはこのモードにしないことをおすすめします。"
+#: source/nijigenerate/panels/nodes.d:188
+msgid "Node"
+msgstr "ノード"
 
-#. The sources that the part gets masked by. Depending on the masking mode
-#. either the sources will cut out things that don't overlap, or cut out
-#. things that do.
-#: source/nijigenerate/panels/inspector/part.d:345
-#: source/nijigenerate/panels/inspector/composite.d:144
-msgid "Mask Sources"
-msgstr "マスク元パーツ"
-
-#: source/nijigenerate/panels/inspector/part.d:348
-#: source/nijigenerate/panels/inspector/composite.d:147
-msgid "(Drag a Part or Mask Here)"
-msgstr "パーツ/マスクをここにドラッグ"
-
-#: source/nijigenerate/panels/inspector/part.d:355
-#: source/nijigenerate/panels/inspector/composite.d:154
-msgid "Mode"
-msgstr "モード"
-
+#: source/nijigenerate/panels/nodes.d:189
 #: source/nijigenerate/panels/inspector/part.d:356
 #: source/nijigenerate/panels/inspector/composite.d:155
-#: source/nijigenerate/panels/nodes.d:192
 msgid "Mask"
 msgstr "マスク"
 
-#: source/nijigenerate/panels/inspector/part.d:360
-#: source/nijigenerate/panels/inspector/composite.d:156
-msgid "Dodge"
-msgstr "覆い焼き"
+#: source/nijigenerate/panels/nodes.d:190
+#: source/nijigenerate/panels/inspector/composite.d:30
+#: source/nijigenerate/panels/inspector/composite.d:276
+msgid "Composite"
+msgstr "コンポジット"
 
-#: source/nijigenerate/panels/inspector/part.d:380
-#: source/nijigenerate/panels/inspector/composite.d:174
+#: source/nijigenerate/panels/nodes.d:191
+#: source/nijigenerate/panels/inspector/simplephysics.d:243
+msgid "Simple Physics"
+msgstr "簡易物理演算"
+
+#: source/nijigenerate/panels/nodes.d:192
+msgid "Mesh Group"
+msgstr "メッシュグループ"
+
+#: source/nijigenerate/panels/nodes.d:193
+msgid "Dynamic Composite"
+msgstr "動的コンポジット"
+
+#: source/nijigenerate/panels/nodes.d:194
+msgid "Path Deformer"
+msgstr "パスデフォーマ"
+
+#: source/nijigenerate/panels/nodes.d:195
+#: source/nijigenerate/panels/inspector/camera.d:22
+#: source/nijigenerate/windows/imgexport.d:98
+#: source/nijigenerate/windows/videoexport.d:162
+msgid "Camera"
+msgstr "カメラ"
+
+#. %s is the name of the node in the More Info menu
+#. %u is the UUID of the node in the More Info menu
+#: source/nijigenerate/panels/nodes.d:279
 #, c-format
-msgid "%s (Mask)"
-msgstr "%s (マスク)"
+msgid "%s ID: %u"
+msgstr "%sのIDは%u"
 
-#: source/nijigenerate/panels/inspector/part.d:381
-#: source/nijigenerate/panels/inspector/composite.d:175
+#: source/nijigenerate/panels/nodes.d:282
 #, c-format
-msgid "%s (Dodge)"
-msgstr "%s (覆い焼き)"
+msgid "%s Layer: %s"
+msgstr "%s レイヤー: %s"
 
-#. The sources that the part gets masked by. Depending on the masking mode
-#. either the sources will cut out things that don't overlap, or cut out
-#. things that do.
-#: source/nijigenerate/panels/inspector/part.d:439
-msgid "Welding"
-msgstr "接合"
+#. %u is the UUID of the node in the More Info menu
+#: source/nijigenerate/panels/nodes.d:287
+#, c-format
+msgid "ID: %u"
+msgstr "IDは%u"
 
-#: source/nijigenerate/panels/inspector/part.d:442
-msgid "(Drag a Part Here)"
-msgstr "パーツをここにドラッグ"
+#: source/nijigenerate/panels/nodes.d:290
+#, c-format
+msgid "Layer: %s"
+msgstr "レイヤー: %s"
 
-#. Header for texture options
-#: source/nijigenerate/panels/inspector/part.d:598
-#: source/nijigenerate/panels/inspector/composite.d:280
-msgid "Textures"
-msgstr "テクスチャ"
+#. Selectable
+#: source/nijigenerate/panels/nodes.d:380
+#: source/nijigenerate/panels/inspector/puppet.d:46
+msgid "Puppet"
+msgstr "パペット"
 
-#: source/nijigenerate/panels/inspector/package.d:122
-#: source/nijigenerate/panels/nodes.d:476
-#: source/nijigenerate/panels/parameters.d:1301
-msgid "In vertex edit mode..."
-msgstr "メッシュ編集中..."
+#: source/nijigenerate/panels/nodes.d:586
+msgid "Nodes"
+msgstr "ノード"
+
+#: source/nijigenerate/panels/animlist.d:35
+msgid "Edit..."
+msgstr "編集..."
+
+#: source/nijigenerate/panels/animlist.d:74
+msgid "Animation List"
+msgstr "アニメーションリスト"
+
+#: source/nijigenerate/panels/resource.d:244
+msgid "New Node"
+msgstr "新規ノード"
+
+#: source/nijigenerate/panels/resource.d:248
+msgid "New Parameter"
+msgstr "新規パラメータ"
+
+#: source/nijigenerate/panels/resource.d:269
+msgid "Resources"
+msgstr "リソース"
 
 #: source/nijigenerate/panels/inspector/package.d:141
 msgid "No nodes selected..."
@@ -1405,299 +909,6 @@ msgstr "ノードが選択されていません。"
 #: source/nijigenerate/panels/inspector/package.d:147
 msgid "Inspector"
 msgstr "インスペクター"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:26
-msgid "PathDeformer"
-msgstr "パス変形"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:39
-msgid "Auto-Physics"
-msgstr "自動物理"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:43
-msgid ""
-"Enabled / Disabled physics driver for vertices. If enabled, vertices are "
-"moved along with specified physics engine."
-msgstr ""
-"物理設定を有効化/無効化します。有効にした場合、頂点が物理エンジンによって変形"
-"します"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:48
-msgid "Bezier"
-msgstr "ベジェ"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:56
-msgid "Spline"
-msgstr "スプライン"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:70
-msgid "Physics Type"
-msgstr "物理エンジンの種類"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:74
-#: source/nijigenerate/panels/inspector/simplephysics.d:74
-msgid "Pendulum"
-msgstr "振り子"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:81
-#: source/nijigenerate/panels/inspector/simplephysics.d:79
-msgid "SpringPendulum"
-msgstr "バネ振り子"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:97
-#: source/nijigenerate/panels/inspector/simplephysics.d:137
-#: source/nijigenerate/panels/inspector/simplephysics.d:248
-msgid "Gravity scale"
-msgstr "重力スケール"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:108
-msgid "Restore force"
-msgstr "復旧力"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:109
-msgid ""
-"Force to restore for original position. If this force is weaker than the "
-"gravity, pendulum cannot restore to original position."
-msgstr ""
-"初期座標に戻る力を設定します。力が重力よりも弱い場合、振り子は元の座標には戻"
-"りません。"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:118
-#: source/nijigenerate/panels/inspector/simplephysics.d:164
-#: source/nijigenerate/panels/inspector/simplephysics.d:269
-msgid "Damping"
-msgstr "減衰"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:125
-msgid "Input scale"
-msgstr "入力スケール"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:126
-msgid ""
-"Input force is multiplied by this factor. This should be specified when "
-"original position moved too much."
-msgstr ""
-"座標移動によって加えられた外力にこの係数を掛け算します。座標の動きが大きい場"
-"合に、物理の影響を調整するために使います。"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:135
-msgid "Propagate scale"
-msgstr "伝播率"
-
-#: source/nijigenerate/panels/inspector/pathdeform.d:136
-msgid "Specify the degree to convey movement of previous pendulum to next one."
-msgstr "前の振り子が次の振り子に影響を与える割合を設定します。"
-
-#: source/nijigenerate/panels/inspector/node.d:40
-#: source/nijigenerate/panels/inspector/node.d:373
-msgid "Transform"
-msgstr "変形"
-
-#.
-#. Translation
-#.
-#. Translation portion of the transformation matrix.
-#: source/nijigenerate/panels/inspector/node.d:56
-#: source/nijigenerate/panels/inspector/node.d:388
-msgid "Translation"
-msgstr "移動"
-
-#. Button which locks all transformation to be based off the root node
-#. of the puppet, this more or less makes the item stay in place
-#. even if the parent moves.
-#: source/nijigenerate/panels/inspector/node.d:124
-#: source/nijigenerate/panels/inspector/node.d:125
-msgid "Lock to Root Node"
-msgstr "ルートノードに固定"
-
-#: source/nijigenerate/panels/inspector/node.d:135
-msgid "Pin origin to parent mesh."
-msgstr "親パーツにピン止めする"
-
-#. Button which locks all transformation to be based off the root node
-#. of the puppet, this more or less makes the item stay in place
-#. even if the parent moves.
-#: source/nijigenerate/panels/inspector/node.d:143
-msgid ""
-"Makes so that the translation of this node is based off the root node, "
-"making it stay in place even if its parent moves."
-msgstr ""
-"このノードの位置の移動がルートノードに基づいて行われるようになります。親ノー"
-"ドが移動しても、このノードは元の位置に留まります。"
-
-#. Rotation portion of the transformation matrix.
-#: source/nijigenerate/panels/inspector/node.d:158
-#: source/nijigenerate/panels/inspector/node.d:425
-msgid "Rotation"
-msgstr "回転"
-
-#: source/nijigenerate/panels/inspector/node.d:171
-msgid "Rotation X"
-msgstr "X軸回転"
-
-#: source/nijigenerate/panels/inspector/node.d:192
-msgid "Rotation Y"
-msgstr "Y軸回転"
-
-#: source/nijigenerate/panels/inspector/node.d:213
-msgid "Rotation Z"
-msgstr "Z軸回転"
-
-#. Scaling portion of the transformation matrix.
-#: source/nijigenerate/panels/inspector/node.d:233
-#: source/nijigenerate/panels/inspector/node.d:457
-msgid "Scale"
-msgstr "スケール"
-
-#: source/nijigenerate/panels/inspector/node.d:243
-msgid "Scale X"
-msgstr "X軸スケール"
-
-#: source/nijigenerate/panels/inspector/node.d:262
-msgid "Scale Y"
-msgstr "Y軸スケール"
-
-#. An option in which positions will be snapped to whole integer values.
-#. In other words texture will always be on a pixel.
-#: source/nijigenerate/panels/inspector/node.d:279
-#: source/nijigenerate/panels/inspector/node.d:280
-#: source/nijigenerate/panels/inspector/node.d:286
-msgid "Snap to Pixel"
-msgstr "ピクセルにスナップ"
-
-#. The sorting order ID, which nijilive uses to sort
-#. Parts to draw in the user specified order.
-#. negative values = closer to camera
-#. positive values = further away from camera
-#: source/nijigenerate/panels/inspector/node.d:303
-#: source/nijigenerate/panels/inspector/node.d:309
-#: source/nijigenerate/panels/inspector/node.d:477
-msgid "Sorting"
-msgstr "ソート"
-
-#: source/nijigenerate/panels/inspector/composite.d:30
-#: source/nijigenerate/panels/inspector/composite.d:276
-#: source/nijigenerate/panels/nodes.d:193
-msgid "Composite"
-msgstr "コンポジット"
-
-#: source/nijigenerate/panels/inspector/composite.d:228
-msgid "Propagate MeshGroup"
-msgstr "メッシュグループを伝播"
-
-#: source/nijigenerate/panels/inspector/composite.d:234
-msgid "Allow ascendant MeshGroup to deform children of Composite"
-msgstr "親のメッシュグループの変形を子ノードに伝えます。"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:26
-msgid "SimplePhysics"
-msgstr "簡易物理演算"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:44
-msgid "Unassigned"
-msgstr "割当てなし"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:50
-msgid "Parameter"
-msgstr "パラメータ"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:51
-msgid "(unassigned)"
-msgstr "(割当てなし)"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:70
-msgid "Type"
-msgstr "種別"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:93
-msgid "Mapping mode"
-msgstr "割当モード"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:97
-msgid "AngleLength"
-msgstr "角度"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:102
-msgid "XY"
-msgstr "X/Y座標"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:107
-msgid "LengthAngle"
-msgstr "アングル長"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:112
-msgid "YX"
-msgstr "Y/X座標"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:128
-msgid "Local Transform Lock"
-msgstr "ローカルトランスフォームに固定"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:131
-msgid ""
-"Whether the physics system only listens to the movement of the physics node "
-"itself"
-msgstr ""
-"物理演算を親ノードに対する簡易物理ノードの移動のみに反応するか、ワールド座標"
-"に対する変化に反応するかを指定します。"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:146
-#: source/nijigenerate/panels/inspector/simplephysics.d:255
-msgid "Length"
-msgstr "長さ"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:155
-#: source/nijigenerate/panels/inspector/simplephysics.d:262
-msgid "Resonant frequency"
-msgstr "共振周波数"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:179
-#: source/nijigenerate/panels/inspector/simplephysics.d:280
-msgid "Output scale"
-msgstr "出力スケール"
-
-#: source/nijigenerate/panels/inspector/simplephysics.d:243
-#: source/nijigenerate/panels/nodes.d:194
-msgid "Simple Physics"
-msgstr "簡易物理演算"
-
-#: source/nijigenerate/panels/inspector/meshgroup.d:26
-msgid "MeshGroup"
-msgstr "メッシュグループ"
-
-#: source/nijigenerate/panels/inspector/meshgroup.d:31
-msgid "Dynamic Deformation (slower)"
-msgstr "動的変形モード(遅い)"
-
-#: source/nijigenerate/panels/inspector/meshgroup.d:34
-msgid ""
-"Whether the MeshGroup should dynamically deform children,\n"
-"this is an expensive operation and should not be overused."
-msgstr ""
-"メッシュグループが子ノードを動的に変形するか、事前に変形するかを決めます。動"
-"的変形は負荷が高いため多用はお勧めしません。"
-
-#: source/nijigenerate/panels/inspector/meshgroup.d:36
-msgid "Translate origins"
-msgstr "子ノードの原点を移動する"
-
-#: source/nijigenerate/panels/inspector/meshgroup.d:39
-msgid "Translate origin of child nodes for non-Drawable object."
-msgstr "ドローアブルではない子ノードに対しても原点を動かす変形を加えます。"
-
-#: source/nijigenerate/panels/inspector/drawable.d:28
-msgid "Drawable"
-msgstr "ドローアブル"
-
-#: source/nijigenerate/panels/inspector/drawable.d:33
-msgid "Texture Offset"
-msgstr "テクスチャオフセット"
-
-#. Selectable
-#: source/nijigenerate/panels/inspector/puppet.d:46
-#: source/nijigenerate/panels/nodes.d:371
-msgid "Puppet"
-msgstr "パペット"
 
 #: source/nijigenerate/panels/inspector/puppet.d:59
 #: source/nijigenerate/panels/inspector/puppet.d:64
@@ -1813,268 +1024,699 @@ msgstr ""
 "モデルが低解像度の場合に、nijiliveモデルがポイントフィルタを利用することによ"
 "り、ぼやけて表示されるのを防ぎます。"
 
-#: source/nijigenerate/panels/animlist.d:35
-msgid "Edit..."
-msgstr "編集..."
+#: source/nijigenerate/panels/inspector/part.d:52
+msgid "Size of given texture does not match the Albedo texture."
+msgstr "テクスチャのサイズがアルベドテクスチャと一致しません。"
 
-#: source/nijigenerate/panels/animlist.d:74
-msgid "Animation List"
-msgstr "アニメーションリスト"
-
-#: source/nijigenerate/panels/nodes.d:184
-msgid "Suffix"
-msgstr "名前の語尾"
-
-#: source/nijigenerate/panels/nodes.d:191
-msgid "Node"
-msgstr "ノード"
-
-#: source/nijigenerate/panels/nodes.d:195
-msgid "Mesh Group"
-msgstr "メッシュグループ"
-
-#: source/nijigenerate/panels/nodes.d:196
-msgid "Dynamic Composite"
-msgstr "動的コンポジット"
-
-#: source/nijigenerate/panels/nodes.d:197
-msgid "Path Deformer"
-msgstr "パスデフォーマ"
-
-#. %s is the name of the node in the More Info menu
-#. %u is the UUID of the node in the More Info menu
-#: source/nijigenerate/panels/nodes.d:270
+#: source/nijigenerate/panels/inspector/part.d:71
+#: source/nijigenerate/panels/inspector/part.d:83
+#: source/nijigenerate/panels/viewport.d:257
+#: source/nijigenerate/io/package.d:199
 #, c-format
-msgid "%s ID: %u"
-msgstr "%sのIDは%u"
+msgid "%s is not supported"
+msgstr "%sはサポートされていません。"
 
-#: source/nijigenerate/panels/nodes.d:273
-#, c-format
-msgid "%s Layer: %s"
-msgstr "%s レイヤー: %s"
+#. Allow saving texture to file
+#: source/nijigenerate/panels/inspector/part.d:94
+msgid "Save to File"
+msgstr "ファイルに保存"
 
-#. %u is the UUID of the node in the More Info menu
-#: source/nijigenerate/panels/nodes.d:278
-#, c-format
-msgid "ID: %u"
-msgstr "IDは%u"
+#. Allow saving texture to file
+#: source/nijigenerate/panels/inspector/part.d:108
+msgid "Load from File"
+msgstr "ファイルから読み込み"
 
-#: source/nijigenerate/panels/nodes.d:281
-#, c-format
-msgid "Layer: %s"
-msgstr "レイヤー: %s"
+#: source/nijigenerate/panels/inspector/part.d:115
+#: source/nijigenerate/io/psd.d:39 source/nijigenerate/io/kra.d:35
+#: source/nijigenerate/windows/welcome.d:238
+#: source/nijigenerate/windows/inpexport.d:209
+#: source/nijigenerate/widgets/mainmenu.d:167
+#: source/nijigenerate/widgets/mainmenu.d:189
+#: source/nijigenerate/widgets/mainmenu.d:202
+#: source/nijigenerate/widgets/mainmenu.d:217
+#: source/nijigenerate/widgets/mainmenu.d:450
+msgid "Import..."
+msgstr "インポート..."
 
-#: source/nijigenerate/panels/nodes.d:577
-msgid "Nodes"
-msgstr "ノード"
+#. Option which causes the Albedo color to be the emission color.
+#. The item will glow the same color as it, itself is.
+#: source/nijigenerate/panels/inspector/part.d:131
+msgid "Make Emissive"
+msgstr "発光させる"
 
-#: source/nijigenerate/panels/parameters.d:409
-#: source/nijigenerate/widgets/output.d:398
-msgid "New Parameter Group"
-msgstr "新規パラメータグループ"
+#: source/nijigenerate/panels/inspector/part.d:179
+#: source/nijigenerate/panels/inspector/part.d:594
+msgid "Part"
+msgstr "パーツ"
 
-#: source/nijigenerate/panels/parameters.d:417
-msgid "Unset"
-msgstr "キーを削除"
+#: source/nijigenerate/panels/inspector/part.d:182
+msgid "Cannot inspect an unmeshed part"
+msgstr "メッシュされていないパーツは検査できません"
 
-#: source/nijigenerate/panels/parameters.d:426
-msgid "Set to current"
-msgstr "キーを追加"
+#: source/nijigenerate/panels/inspector/part.d:197
+msgid "Albedo"
+msgstr "色情報(Albedo)"
 
-#: source/nijigenerate/panels/parameters.d:435
-#: source/nijigenerate/viewport/model/package.d:190
-msgid "Reset"
-msgstr "リセット"
+#: source/nijigenerate/panels/inspector/part.d:199
+msgid "Emissive"
+msgstr "発光(Emissive)"
 
-#: source/nijigenerate/panels/parameters.d:444
-msgid "Invert"
+#: source/nijigenerate/panels/inspector/part.d:201
+msgid "Bumpmap"
+msgstr "バンプマップ"
+
+#: source/nijigenerate/panels/inspector/part.d:207
+#: source/nijigenerate/panels/inspector/part.d:601
+#: source/nijigenerate/panels/inspector/composite.d:40
+#: source/nijigenerate/panels/inspector/composite.d:283
+msgid "Tint (Multiply)"
+msgstr "乗算を適用する色"
+
+#: source/nijigenerate/panels/inspector/part.d:212
+#: source/nijigenerate/panels/inspector/part.d:606
+#: source/nijigenerate/panels/inspector/composite.d:45
+#: source/nijigenerate/panels/inspector/composite.d:288
+msgid "Tint (Screen)"
+msgstr "スクリーンを適用する色"
+
+#: source/nijigenerate/panels/inspector/part.d:217
+#: source/nijigenerate/panels/inspector/part.d:610
+msgid "Emission Strength"
+msgstr "発光の強さ"
+
+#. Header for the Blending options for Parts
+#: source/nijigenerate/panels/inspector/part.d:230
+#: source/nijigenerate/panels/inspector/composite.d:51
+#: source/nijigenerate/windows/inpexport.d:263
+msgid "Blending"
+msgstr "合成"
+
+#. Normal blending mode as used in Photoshop, generally
+#. the default blending mode photoshop starts a layer out as.
+#: source/nijigenerate/panels/inspector/part.d:237
+#: source/nijigenerate/panels/inspector/composite.d:58
+#: source/nijigenerate/windows/inpexport.d:271
+msgid "Normal"
+msgstr "通常"
+
+#. Multiply blending mode, in which this texture's color data
+#. will be multiplied with the color data already in the framebuffer.
+#: source/nijigenerate/panels/inspector/part.d:241
+#: source/nijigenerate/panels/inspector/composite.d:62
+#: source/nijigenerate/windows/inpexport.d:275
+msgid "Multiply"
+msgstr "乗算"
+
+#. Screen blending mode
+#: source/nijigenerate/panels/inspector/part.d:244
+#: source/nijigenerate/panels/inspector/composite.d:65
+#: source/nijigenerate/windows/inpexport.d:278
+msgid "Screen"
+msgstr "スクリーン"
+
+#. Overlay blending mode
+#: source/nijigenerate/panels/inspector/part.d:247
+#: source/nijigenerate/panels/inspector/composite.d:68
+#: source/nijigenerate/windows/inpexport.d:281
+msgid "Overlay"
+msgstr "オーバーレイ"
+
+#. Darken blending mode
+#: source/nijigenerate/panels/inspector/part.d:250
+#: source/nijigenerate/panels/inspector/composite.d:71
+#: source/nijigenerate/windows/inpexport.d:284
+msgid "Darken"
+msgstr "比較（暗）"
+
+#. Lighten blending mode
+#: source/nijigenerate/panels/inspector/part.d:253
+#: source/nijigenerate/panels/inspector/composite.d:74
+#: source/nijigenerate/windows/inpexport.d:287
+msgid "Lighten"
+msgstr "比較（明）"
+
+#. Color Dodge blending mode
+#: source/nijigenerate/panels/inspector/part.d:256
+#: source/nijigenerate/panels/inspector/composite.d:77
+#: source/nijigenerate/windows/inpexport.d:290
+msgid "Color Dodge"
+msgstr "覆い焼き"
+
+#. Linear Dodge blending mode
+#: source/nijigenerate/panels/inspector/part.d:259
+#: source/nijigenerate/panels/inspector/composite.d:80
+#: source/nijigenerate/windows/inpexport.d:293
+msgid "Linear Dodge"
+msgstr "加算"
+
+#. Add (Glow) blending mode
+#: source/nijigenerate/panels/inspector/part.d:262
+#: source/nijigenerate/panels/inspector/composite.d:83
+#: source/nijigenerate/windows/inpexport.d:296
+msgid "Add (Glow)"
+msgstr "光彩"
+
+#. Color Burn blending mode
+#: source/nijigenerate/panels/inspector/part.d:265
+#: source/nijigenerate/panels/inspector/composite.d:86
+#: source/nijigenerate/windows/inpexport.d:299
+msgid "Color Burn"
+msgstr "焼き込み"
+
+#. Hard Light blending mode
+#: source/nijigenerate/panels/inspector/part.d:268
+#: source/nijigenerate/panels/inspector/composite.d:89
+#: source/nijigenerate/windows/inpexport.d:302
+msgid "Hard Light"
+msgstr "ハードライト"
+
+#. Soft Light blending mode
+#: source/nijigenerate/panels/inspector/part.d:271
+#: source/nijigenerate/panels/inspector/composite.d:92
+#: source/nijigenerate/windows/inpexport.d:305
+msgid "Soft Light"
+msgstr "ソフトライト"
+
+#. Subtract blending mode
+#: source/nijigenerate/panels/inspector/part.d:274
+#: source/nijigenerate/panels/inspector/composite.d:95
+#: source/nijigenerate/windows/inpexport.d:308
+msgid "Subtract"
+msgstr "減算"
+
+#. Difference blending mode
+#: source/nijigenerate/panels/inspector/part.d:277
+#: source/nijigenerate/panels/inspector/composite.d:98
+#: source/nijigenerate/windows/inpexport.d:311
+msgid "Difference"
+msgstr "差分"
+
+#. Exclusion blending mode
+#: source/nijigenerate/panels/inspector/part.d:280
+#: source/nijigenerate/panels/inspector/composite.d:101
+#: source/nijigenerate/windows/inpexport.d:314
+msgid "Exclusion"
+msgstr "除外"
+
+#. Inverse blending mode
+#: source/nijigenerate/panels/inspector/part.d:283
+#: source/nijigenerate/panels/inspector/composite.d:104
+#: source/nijigenerate/windows/inpexport.d:317
+msgid "Inverse"
 msgstr "反転"
 
-#: source/nijigenerate/panels/parameters.d:453
-#: source/nijigenerate/panels/parameters.d:882
-msgid "Mirror"
-msgstr "鏡像反転"
+#: source/nijigenerate/panels/inspector/part.d:284
+#: source/nijigenerate/panels/inspector/composite.d:105
+#: source/nijigenerate/windows/inpexport.d:318
+msgid "Inverts the color by a factor of the overlying color"
+msgstr "レイヤーの上にある色に従って色を反転します。"
 
-#: source/nijigenerate/panels/parameters.d:454
-#: source/nijigenerate/panels/parameters.d:509
-#: source/nijigenerate/panels/parameters.d:883
-msgid "Horizontally"
-msgstr "水平方向"
+#. Destination In blending mode
+#: source/nijigenerate/panels/inspector/part.d:287
+#: source/nijigenerate/panels/inspector/composite.d:108
+#: source/nijigenerate/windows/inpexport.d:321
+msgid "Destination In"
+msgstr "Destination-In (Porter Duff)"
 
-#: source/nijigenerate/panels/parameters.d:463
-#: source/nijigenerate/panels/parameters.d:527
-#: source/nijigenerate/panels/parameters.d:887
-msgid "Vertically"
-msgstr "垂直方向"
+#. Clip to Lower blending mode
+#: source/nijigenerate/panels/inspector/part.d:290
+#: source/nijigenerate/windows/inpexport.d:324
+msgid "Clip to Lower"
+msgstr "クリッピング"
 
-#: source/nijigenerate/panels/parameters.d:474
-msgid "Flip Deform"
-msgstr "デフォーマの左右反転"
+#: source/nijigenerate/panels/inspector/part.d:291
+#: source/nijigenerate/windows/inpexport.d:325
+msgid ""
+"Special blending mode that causes (while respecting transparency) the part "
+"to be clipped to everything underneath"
+msgstr ""
+"透明度を考慮しながら、自分より下にある全てのパーツの形状に合わせてパーツの形"
+"状がクリッピングされる、特殊な合成モードです。"
 
-#: source/nijigenerate/panels/parameters.d:488
-msgid "Symmetrize Deform"
-msgstr "デフォーマの左右対称化"
+#. Slice from Lower blending mode
+#: source/nijigenerate/panels/inspector/part.d:294
+msgid "Slice from Lower"
+msgstr "切り取り"
 
-#: source/nijigenerate/panels/parameters.d:508
-#: source/nijigenerate/panels/parameters.d:566
-msgid "Set from mirror"
-msgstr "反対方向から反転コピー"
+#: source/nijigenerate/panels/inspector/part.d:295
+msgid ""
+"Special blending mode that causes (while respecting transparency) the part "
+"to be slice by everything underneath.\n"
+"Basically reverse Clip to Lower."
+msgstr ""
+"透明度を考慮しながら、自分より下にある全てのパーツの形状に合わせてパーツの形"
+"状が切り取られる、特殊な合成モードです。\n"
+"基本的にクリッピングを反転した結果になります。"
 
-#: source/nijigenerate/panels/parameters.d:545
-msgid "Diagonally"
-msgstr "対角方向"
+#: source/nijigenerate/panels/inspector/part.d:310
+#: source/nijigenerate/panels/inspector/part.d:626
+#: source/nijigenerate/panels/inspector/composite.d:120
+#: source/nijigenerate/panels/inspector/composite.d:302
+#: source/nijigenerate/windows/inpexport.d:336
+msgid "Opacity"
+msgstr "不透明度"
 
-#: source/nijigenerate/panels/parameters.d:586
-#: source/nijigenerate/panels/parameters.d:918
-#: source/nijigenerate/widgets/mainmenu.d:322
-msgid "Copy"
-msgstr "コピー"
+#: source/nijigenerate/panels/inspector/part.d:319
+#: source/nijigenerate/panels/inspector/composite.d:129
+msgid "Masks"
+msgstr "マスク"
 
-#: source/nijigenerate/panels/parameters.d:594
-#: source/nijigenerate/panels/parameters.d:921
-#: source/nijigenerate/widgets/mainmenu.d:323
-msgid "Paste"
-msgstr "貼り付け"
+#. Threshold slider name for adjusting how transparent a pixel can be
+#. before it gets discarded.
+#: source/nijigenerate/panels/inspector/part.d:324
+#: source/nijigenerate/panels/inspector/part.d:633
+#: source/nijigenerate/panels/inspector/composite.d:134
+msgid "Threshold"
+msgstr "しきい値"
 
-#: source/nijigenerate/panels/parameters.d:654
-msgid "Interpolation Mode"
-msgstr "補間モード"
+#: source/nijigenerate/panels/inspector/part.d:330
+msgid "Resize automatically"
+msgstr "自動的にリサイズする"
 
-#: source/nijigenerate/panels/parameters.d:677
-msgid "Copy to"
-msgstr "コピー先："
+#: source/nijigenerate/panels/inspector/part.d:335
+msgid ""
+"Resize size automatically when child nodes are added or removed. Affect "
+"performance severly, not recommended."
+msgstr ""
+"子ノードを追加・削除したときに自動的にリサイズします。性能に影響するため、最"
+"終的にはこのモードにしないことをおすすめします。"
 
-#: source/nijigenerate/panels/parameters.d:687
-msgid "Swap with"
-msgstr "入れ替え"
+#. The sources that the part gets masked by. Depending on the masking mode
+#. either the sources will cut out things that don't overlap, or cut out
+#. things that do.
+#: source/nijigenerate/panels/inspector/part.d:345
+#: source/nijigenerate/panels/inspector/composite.d:144
+msgid "Mask Sources"
+msgstr "マスク元パーツ"
 
-#: source/nijigenerate/panels/parameters.d:701
-msgid "Bindings"
-msgstr "割り当て"
+#: source/nijigenerate/panels/inspector/part.d:348
+#: source/nijigenerate/panels/inspector/composite.d:147
+msgid "(Drag a Part or Mask Here)"
+msgstr "パーツ/マスクをここにドラッグ"
 
-#: source/nijigenerate/panels/parameters.d:709
-msgid "Show all nodes"
-msgstr "全ノード表示に切り替えます"
+#: source/nijigenerate/panels/inspector/part.d:355
+#: source/nijigenerate/panels/inspector/composite.d:154
+msgid "Mode"
+msgstr "モード"
 
-#: source/nijigenerate/panels/parameters.d:709
-msgid "Show only selected nodes"
-msgstr "選択されているノードのみ表示に切り替えます"
+#: source/nijigenerate/panels/inspector/part.d:360
+#: source/nijigenerate/panels/inspector/composite.d:156
+msgid "Dodge"
+msgstr "覆い焼き"
 
-#: source/nijigenerate/panels/parameters.d:845
-msgid "Edit Properties"
-msgstr "プロパティを編集..."
+#: source/nijigenerate/panels/inspector/part.d:380
+#: source/nijigenerate/panels/inspector/composite.d:174
+#, c-format
+msgid "%s (Mask)"
+msgstr "%s (マスク)"
 
-#: source/nijigenerate/panels/parameters.d:849
-msgid "Edit Axes Points"
-msgstr "キー設定"
+#: source/nijigenerate/panels/inspector/part.d:381
+#: source/nijigenerate/panels/inspector/composite.d:175
+#, c-format
+msgid "%s (Dodge)"
+msgstr "%s (覆い焼き)"
 
-#: source/nijigenerate/panels/parameters.d:853
-msgid "Split"
-msgstr "分割"
+#. The sources that the part gets masked by. Depending on the masking mode
+#. either the sources will cut out things that don't overlap, or cut out
+#. things that do.
+#: source/nijigenerate/panels/inspector/part.d:439
+msgid "Welding"
+msgstr "接合"
 
-#: source/nijigenerate/panels/parameters.d:857
-msgid "To 2D"
-msgstr "2Dパラメータに変更"
+#: source/nijigenerate/panels/inspector/part.d:442
+msgid "(Drag a Part Here)"
+msgstr "パーツをここにドラッグ"
 
-#: source/nijigenerate/panels/parameters.d:862
-msgid "Flip X"
-msgstr "キーの左右入れ替え"
+#. Header for texture options
+#: source/nijigenerate/panels/inspector/part.d:598
+#: source/nijigenerate/panels/inspector/composite.d:280
+msgid "Textures"
+msgstr "テクスチャ"
 
-#: source/nijigenerate/panels/parameters.d:868
-msgid "Flip Y"
-msgstr "キーの上下入れ替え"
+#: source/nijigenerate/panels/inspector/pathdeform.d:26
+msgid "PathDeformer"
+msgstr "パス変形"
 
-#: source/nijigenerate/panels/parameters.d:875
-msgid "Flip"
-msgstr "キーの対称入れ替え"
+#: source/nijigenerate/panels/inspector/pathdeform.d:39
+msgid "Auto-Physics"
+msgstr "自動物理"
 
-#: source/nijigenerate/panels/parameters.d:893
-msgid "Mirrored Autofill"
-msgstr "反転コピーしてキーを設定"
+#: source/nijigenerate/panels/inspector/pathdeform.d:43
+msgid ""
+"Enabled / Disabled physics driver for vertices. If enabled, vertices are "
+"moved along with specified physics engine."
+msgstr ""
+"物理設定を有効化/無効化します。有効にした場合、頂点が物理エンジンによって変形"
+"します"
 
-#: source/nijigenerate/panels/parameters.d:925
-msgid "Paste and Horizontal Flip"
-msgstr "左右反転して貼り付け"
+#: source/nijigenerate/panels/inspector/pathdeform.d:48
+msgid "Bezier"
+msgstr "ベジェ"
 
-#: source/nijigenerate/panels/parameters.d:930
-msgid "Duplicate"
-msgstr "複製"
+#: source/nijigenerate/panels/inspector/pathdeform.d:56
+msgid "Spline"
+msgstr "スプライン"
 
-#: source/nijigenerate/panels/parameters.d:979
-msgid "X"
-msgstr "X"
+#: source/nijigenerate/panels/inspector/pathdeform.d:70
+msgid "Physics Type"
+msgstr "物理エンジンの種類"
 
-#: source/nijigenerate/panels/parameters.d:983
-msgid "Y"
-msgstr "Y"
+#: source/nijigenerate/panels/inspector/pathdeform.d:74
+#: source/nijigenerate/panels/inspector/simplephysics.d:74
+msgid "Pendulum"
+msgstr "振り子"
 
-#: source/nijigenerate/panels/parameters.d:997
-msgid "Link X to..."
-msgstr "Xパラメータを連結..."
+#: source/nijigenerate/panels/inspector/pathdeform.d:81
+#: source/nijigenerate/panels/inspector/simplephysics.d:79
+msgid "SpringPendulum"
+msgstr "バネ振り子"
 
-#: source/nijigenerate/panels/parameters.d:1002
-msgid "Link Y to .."
-msgstr "Yパラメータを連結..."
+#: source/nijigenerate/panels/inspector/pathdeform.d:97
+#: source/nijigenerate/panels/inspector/simplephysics.d:137
+#: source/nijigenerate/panels/inspector/simplephysics.d:248
+msgid "Gravity scale"
+msgstr "重力スケール"
 
-#: source/nijigenerate/panels/parameters.d:1007
-msgid "Link parameter to..."
-msgstr "パラメータを連結..."
+#: source/nijigenerate/panels/inspector/pathdeform.d:108
+msgid "Restore force"
+msgstr "復旧力"
 
-#. Sets the default value of the param
-#: source/nijigenerate/panels/parameters.d:1017
-msgid "Set Starting Position"
-msgstr "初期値に設定"
+#: source/nijigenerate/panels/inspector/pathdeform.d:109
+msgid ""
+"Force to restore for original position. If this force is weaker than the "
+"gravity, pendulum cannot restore to original position."
+msgstr ""
+"初期座標に戻る力を設定します。力が重力よりも弱い場合、振り子は元の座標には戻"
+"りません。"
 
-#. Arms the parameter for recording values.
-#: source/nijigenerate/panels/parameters.d:1047
-msgid "Arm Parameter"
-msgstr "パラメータ編集"
+#: source/nijigenerate/panels/inspector/pathdeform.d:118
+#: source/nijigenerate/panels/inspector/simplephysics.d:164
+#: source/nijigenerate/panels/inspector/simplephysics.d:269
+msgid "Damping"
+msgstr "減衰"
 
-#: source/nijigenerate/panels/parameters.d:1063
-msgid "Add Keyframe"
-msgstr "キーフレームを追加"
+#: source/nijigenerate/panels/inspector/pathdeform.d:125
+msgid "Input scale"
+msgstr "入力スケール"
 
-#: source/nijigenerate/panels/parameters.d:1190
-msgid "Colors"
-msgstr "色を選択"
+#: source/nijigenerate/panels/inspector/pathdeform.d:126
+msgid ""
+"Input force is multiplied by this factor. This should be specified when "
+"original position moved too much."
+msgstr ""
+"座標移動によって加えられた外力にこの係数を掛け算します。座標の動きが大きい場"
+"合に、物理の影響を調整するために使います。"
 
-#. CUSTOM COLOR PICKER
-#. Allows user to select a custom color for parameter group.
-#: source/nijigenerate/panels/parameters.d:1215
-msgid "Custom Color"
-msgstr "カスタム色"
+#: source/nijigenerate/panels/inspector/pathdeform.d:135
+msgid "Propagate scale"
+msgstr "伝播率"
 
-#: source/nijigenerate/panels/parameters.d:1233
-msgid "Add 1D Parameter (0..1)"
-msgstr "1次元パラメータ (0..1)を追加"
+#: source/nijigenerate/panels/inspector/pathdeform.d:136
+msgid "Specify the degree to convey movement of previous pendulum to next one."
+msgstr "前の振り子が次の振り子に影響を与える割合を設定します。"
 
-#: source/nijigenerate/panels/parameters.d:1241
-msgid "Add 1D Parameter (-1..1)"
-msgstr "1次元パラメータ(-1..1)を追加"
+#: source/nijigenerate/panels/inspector/composite.d:228
+msgid "Propagate MeshGroup"
+msgstr "メッシュグループを伝播"
 
-#: source/nijigenerate/panels/parameters.d:1252
-msgid "Add 2D Parameter (0..1)"
-msgstr "2次元パラメータ(0..1)を追加"
+#: source/nijigenerate/panels/inspector/composite.d:234
+msgid "Allow ascendant MeshGroup to deform children of Composite"
+msgstr "親のメッシュグループの変形を子ノードに伝えます。"
 
-#: source/nijigenerate/panels/parameters.d:1260
-msgid "Add 2D Parameter (-1..+1)"
-msgstr "2次元パラメータ(-1..1)を追加"
+#: source/nijigenerate/panels/inspector/meshgroup.d:26
+msgid "MeshGroup"
+msgstr "メッシュグループ"
 
-#: source/nijigenerate/panels/parameters.d:1272
-msgid "Add Mouth Shape"
-msgstr "口の形パラメータを追加"
+#: source/nijigenerate/panels/inspector/meshgroup.d:31
+msgid "Dynamic Deformation (slower)"
+msgstr "動的変形モード(遅い)"
 
-#: source/nijigenerate/panels/parameters.d:1317
-msgid "Filter, search for specific parameters"
-msgstr "パラメータ名での絞り込み"
+#: source/nijigenerate/panels/inspector/meshgroup.d:34
+msgid ""
+"Whether the MeshGroup should dynamically deform children,\n"
+"this is an expensive operation and should not be overused."
+msgstr ""
+"メッシュグループが子ノードを動的に変形するか、事前に変形するかを決めます。動"
+"的変形は負荷が高いため多用はお勧めしません。"
 
-#: source/nijigenerate/panels/parameters.d:1422
-msgid "Add Parameter"
-msgstr "パラメータを追加"
+#: source/nijigenerate/panels/inspector/meshgroup.d:36
+msgid "Translate origins"
+msgstr "子ノードの原点を移動する"
 
-#: source/nijigenerate/panels/parameters.d:1427
-msgid "Parameters"
+#: source/nijigenerate/panels/inspector/meshgroup.d:39
+msgid "Translate origin of child nodes for non-Drawable object."
+msgstr "ドローアブルではない子ノードに対しても原点を動かす変形を加えます。"
+
+#: source/nijigenerate/panels/inspector/drawable.d:28
+msgid "Drawable"
+msgstr "ドローアブル"
+
+#: source/nijigenerate/panels/inspector/drawable.d:33
+msgid "Texture Offset"
+msgstr "テクスチャオフセット"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:26
+msgid "SimplePhysics"
+msgstr "簡易物理演算"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:39
+#: source/nijigenerate/windows/psdmerge.d:283
+#: source/nijigenerate/windows/kramerge.d:282
+msgid "Unmap"
+msgstr "割り当てを解除"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:44
+msgid "Unassigned"
+msgstr "割当てなし"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:50
+msgid "Parameter"
 msgstr "パラメータ"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:51
+msgid "(unassigned)"
+msgstr "(割当てなし)"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:70
+msgid "Type"
+msgstr "種別"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:93
+msgid "Mapping mode"
+msgstr "割当モード"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:97
+msgid "AngleLength"
+msgstr "角度"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:102
+msgid "XY"
+msgstr "X/Y座標"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:107
+msgid "LengthAngle"
+msgstr "アングル長"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:112
+msgid "YX"
+msgstr "Y/X座標"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:128
+msgid "Local Transform Lock"
+msgstr "ローカルトランスフォームに固定"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:131
+msgid ""
+"Whether the physics system only listens to the movement of the physics node "
+"itself"
+msgstr ""
+"物理演算を親ノードに対する簡易物理ノードの移動のみに反応するか、ワールド座標"
+"に対する変化に反応するかを指定します。"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:146
+#: source/nijigenerate/panels/inspector/simplephysics.d:255
+msgid "Length"
+msgstr "長さ"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:155
+#: source/nijigenerate/panels/inspector/simplephysics.d:262
+msgid "Resonant frequency"
+msgstr "共振周波数"
+
+#: source/nijigenerate/panels/inspector/simplephysics.d:179
+#: source/nijigenerate/panels/inspector/simplephysics.d:280
+msgid "Output scale"
+msgstr "出力スケール"
+
+#: source/nijigenerate/panels/inspector/camera.d:24
+#: source/nijigenerate/panels/viewport.d:395
+#: source/nijigenerate/windows/settings.d:87
+#: source/nijigenerate/windows/settings.d:213
+msgid "Viewport"
+msgstr "表示領域"
+
+#: source/nijigenerate/panels/inspector/node.d:40
+#: source/nijigenerate/panels/inspector/node.d:373
+msgid "Transform"
+msgstr "変形"
+
+#.
+#. Translation
+#.
+#. Translation portion of the transformation matrix.
+#: source/nijigenerate/panels/inspector/node.d:56
+#: source/nijigenerate/panels/inspector/node.d:388
+msgid "Translation"
+msgstr "移動"
+
+#. Button which locks all transformation to be based off the root node
+#. of the puppet, this more or less makes the item stay in place
+#. even if the parent moves.
+#: source/nijigenerate/panels/inspector/node.d:124
+#: source/nijigenerate/panels/inspector/node.d:125
+msgid "Lock to Root Node"
+msgstr "ルートノードに固定"
+
+#: source/nijigenerate/panels/inspector/node.d:135
+msgid "Pin origin to parent mesh."
+msgstr "親パーツにピン止めする"
+
+#. Button which locks all transformation to be based off the root node
+#. of the puppet, this more or less makes the item stay in place
+#. even if the parent moves.
+#: source/nijigenerate/panels/inspector/node.d:143
+msgid ""
+"Makes so that the translation of this node is based off the root node, "
+"making it stay in place even if its parent moves."
+msgstr ""
+"このノードの位置の移動がルートノードに基づいて行われるようになります。親ノー"
+"ドが移動しても、このノードは元の位置に留まります。"
+
+#. Rotation portion of the transformation matrix.
+#: source/nijigenerate/panels/inspector/node.d:158
+#: source/nijigenerate/panels/inspector/node.d:425
+msgid "Rotation"
+msgstr "回転"
+
+#: source/nijigenerate/panels/inspector/node.d:171
+msgid "Rotation X"
+msgstr "X軸回転"
+
+#: source/nijigenerate/panels/inspector/node.d:192
+msgid "Rotation Y"
+msgstr "Y軸回転"
+
+#: source/nijigenerate/panels/inspector/node.d:213
+msgid "Rotation Z"
+msgstr "Z軸回転"
+
+#. Scaling portion of the transformation matrix.
+#: source/nijigenerate/panels/inspector/node.d:233
+#: source/nijigenerate/panels/inspector/node.d:457
+msgid "Scale"
+msgstr "スケール"
+
+#: source/nijigenerate/panels/inspector/node.d:243
+msgid "Scale X"
+msgstr "X軸スケール"
+
+#: source/nijigenerate/panels/inspector/node.d:262
+msgid "Scale Y"
+msgstr "Y軸スケール"
+
+#. An option in which positions will be snapped to whole integer values.
+#. In other words texture will always be on a pixel.
+#: source/nijigenerate/panels/inspector/node.d:279
+#: source/nijigenerate/panels/inspector/node.d:280
+#: source/nijigenerate/panels/inspector/node.d:286
+msgid "Snap to Pixel"
+msgstr "ピクセルにスナップ"
+
+#. The sorting order ID, which nijilive uses to sort
+#. Parts to draw in the user specified order.
+#. negative values = closer to camera
+#. positive values = further away from camera
+#: source/nijigenerate/panels/inspector/node.d:303
+#: source/nijigenerate/panels/inspector/node.d:309
+#: source/nijigenerate/panels/inspector/node.d:477
+msgid "Sorting"
+msgstr "ソート"
+
+#: source/nijigenerate/panels/logger.d:26
+msgid "Logger"
+msgstr "ログ"
+
+#: source/nijigenerate/panels/shell/shell.d:104
+msgid "Shell"
+msgstr "シェル"
+
+#: source/nijigenerate/panels/armedparam.d:36
+msgid "Armed Parameters"
+msgstr "編集中のパラメータ"
+
+#: source/nijigenerate/panels/scene.d:29
+msgid "Ambient Light"
+msgstr "環境光"
+
+#: source/nijigenerate/panels/scene.d:38
+msgid "Scene"
+msgstr "シーン"
+
+#: source/nijigenerate/panels/actionhistory.d:27
+#: source/nijigenerate/windows/settings.d:150
+msgid "Undo History"
+msgstr "編集履歴"
+
+#: source/nijigenerate/panels/actionhistory.d:57
+msgid "Clear History"
+msgstr "履歴のクリア"
+
+#. Ugly hack to please imgui
+#: source/nijigenerate/panels/actionhistory.d:63
+#, c-format
+msgid "%d of %d"
+msgstr "%d/%d"
+
+#: source/nijigenerate/panels/actionhistory.d:72
+msgid "History"
+msgstr "履歴"
+
+#: source/nijigenerate/panels/timeline.d:86
+msgid "Interpolation"
+msgstr "補間"
+
+#: source/nijigenerate/panels/timeline.d:90
+msgid "Stepped"
+msgstr "階段状"
+
+#: source/nijigenerate/panels/timeline.d:102
+msgid "Merge Mode"
+msgstr "マージモード"
+
+#: source/nijigenerate/panels/timeline.d:106
+#: source/nijigenerate/windows/editanim.d:91
+msgid "Additive"
+msgstr "加算"
+
+#: source/nijigenerate/panels/timeline.d:109
+msgid "Multiplicative"
+msgstr "乗算"
+
+#: source/nijigenerate/panels/timeline.d:114
+msgid "Forced"
+msgstr "強制上書き"
+
+#: source/nijigenerate/panels/timeline.d:224
+msgid "Lock playback to animation framerate"
+msgstr "アニメーションのフレームレートに合わせて再生を固定します"
+
+#: source/nijigenerate/panels/timeline.d:294
+msgid "Not in Animation Edit mode..."
+msgstr "アニメーション編集モードではありません。"
+
+#: source/nijigenerate/panels/timeline.d:301
+msgid "Timeline"
+msgstr "タイムライン"
 
 #: source/nijigenerate/panels/viewport.d:323
 msgid "Mirror View"
@@ -2104,51 +1746,15 @@ msgstr "パラメータのリセット"
 msgid "Configure Flip Pairings"
 msgstr "左右反転ペアの設定"
 
-#: source/nijigenerate/panels/actionhistory.d:57
-msgid "Clear History"
-msgstr "履歴のクリア"
-
-#. Ugly hack to please imgui
-#: source/nijigenerate/panels/actionhistory.d:63
-#, c-format
-msgid "%d of %d"
-msgstr "%d/%d"
-
-#: source/nijigenerate/panels/actionhistory.d:72
-msgid "History"
-msgstr "履歴"
-
-#: source/nijigenerate/panels/scene.d:29
-msgid "Ambient Light"
-msgstr "環境光"
-
-#: source/nijigenerate/panels/scene.d:38
-msgid "Scene"
-msgstr "シーン"
-
-#: source/nijigenerate/panels/shell/shell.d:104
-msgid "Shell"
-msgstr "シェル"
-
-#: source/nijigenerate/panels/armedparam.d:36
-msgid "Armed Parameters"
-msgstr "編集中のパラメータ"
-
-#: source/nijigenerate/panels/resource.d:253
-msgid "Resources"
-msgstr "リソース"
+#. Removing unused pairs (happens when target nodes are removed.)
+#: source/nijigenerate/panels/viewport.d:382
+#: source/nijigenerate/windows/automeshbatch.d:386
+msgid "Automesh Batching"
+msgstr "自動メッシュの一括処理"
 
 #: source/nijigenerate/panels/toolsettings.d:32
 msgid "Tool Settings"
 msgstr "ツール設定"
-
-#: source/nijigenerate/panels/logger.d:26
-msgid "Logger"
-msgstr "ログ"
-
-#: source/nijigenerate/io/videoexport.d:66
-msgid "Automatic"
-msgstr "自動"
 
 #: source/nijigenerate/io/package.d:245
 msgid "Import File"
@@ -2180,6 +1786,16 @@ msgstr ""
 "%sのインポート中にエラーが発生しました：\n"
 "%s"
 
+#: source/nijigenerate/io/videoexport.d:66
+msgid "Automatic"
+msgstr "自動"
+
+#: source/nijigenerate/io/imageexport.d:13
+#: source/nijigenerate/windows/inpexport.d:371
+#, c-format
+msgid "%s was exported..."
+msgstr "%sをエクスポートしました。"
+
 #: source/nijigenerate/io/imageexport.d:15
 #, c-format
 msgid "%s failed to export with error (%s)..."
@@ -2190,8 +1806,65 @@ msgstr "%sのエクスポートに失敗しました。(エラー: %s)..."
 msgid "A texture is too big for the atlas."
 msgstr "アトラスに対してテクスチャが大きすぎます。"
 
-#. Use appropriate system method to notify user where crash dump is.
-#: source/nijigenerate/utils/crashdump.d:99
+#. incViewportPresentMode(editMode_);
+#: source/nijigenerate/project.d:244
+msgid "New Project"
+msgstr "新規プロジェクト"
+
+#: source/nijigenerate/project.d:302
+#, c-format
+msgid ""
+"Please report this file to the developers:\n"
+"\n"
+"%s"
+msgstr ""
+"次のファイルを開発者に報告してください\n"
+"\n"
+"%s"
+
+#: source/nijigenerate/project.d:304
+msgid "Failed to write crash dump file."
+msgstr "クラッシュダンプファイルの作成に失敗しました"
+
+#: source/nijigenerate/project.d:329
+#, c-format
+msgid "%s opened successfully."
+msgstr "%sを読み込みました。"
+
+#: source/nijigenerate/project.d:362
+#, c-format
+msgid "%s saved successfully."
+msgstr "%sを保存しました。"
+
+#: source/nijigenerate/project.d:365
+#, c-format
+msgid "Failed to save %s"
+msgstr "%sの保存に失敗しました。"
+
+#: source/nijigenerate/project.d:401
+#, c-format
+msgid ""
+"The following errors occured during file loading\n"
+"%s"
+msgstr "%sの読み込み中に、次のエラーが発生しました。"
+
+#: source/nijigenerate/project.d:411
+msgid "Folder import completed with errors..."
+msgstr "フォルダのインポートに失敗しました。"
+
+#: source/nijigenerate/project.d:412
+msgid "Folder import completed..."
+msgstr "フォルダのインポートが完了しました。"
+
+#: source/nijigenerate/project.d:460
+msgid "Mipmap generation completed."
+msgstr "ミップマップの生成が完了しました。"
+
+#: source/nijigenerate/project.d:475
+msgid "Texture bleeding completed."
+msgstr "テクスチャのブリーディングが完了しました。"
+
+#: source/nijigenerate/utils/crashdump.d:105
 msgid ""
 "\n"
 "\n"
@@ -2209,15 +1882,15 @@ msgstr ""
 "ください。\n"
 "https://github.com/nijigenerate/nijigenerate/issues"
 
-#: source/nijigenerate/utils/crashdump.d:100
+#: source/nijigenerate/utils/crashdump.d:109
 msgid ""
 "\n"
 "\n"
 "\n"
 "===   nijigenerate has crashed   ===\n"
 "Please send us the nijigenerate-crashdump.txt file in your log directory, "
-"XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/nijigenerate."
-"nijigenerate.\n"
+"XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/"
+"nijigenerate.nijigenerate.\n"
 "Attach the file as a git issue @ https://github.com/nijigenerate/"
 "nijigenerate/issues"
 msgstr ""
@@ -2230,7 +1903,7 @@ msgstr ""
 "す。\n"
 "https://github.com/nijigenerate/nijigenerate/issues"
 
-#: source/nijigenerate/utils/crashdump.d:102
+#: source/nijigenerate/utils/crashdump.d:112
 msgid ""
 "The application has unexpectedly crashed\n"
 "Please send the developers the nijigenerate-crashdump.txt which has been put "
@@ -2242,21 +1915,867 @@ msgstr ""
 "開発者窓口にお送りください。\n"
 "https://github.com/nijigenerate/nijigenerate/issues"
 
-#: source/nijigenerate/utils/crashdump.d:103
+#: source/nijigenerate/utils/crashdump.d:113
 msgid "nijigenerate Crashdump"
 msgstr "クラッシュログ"
 
-#: source/nijigenerate/widgets/dialog.d:124
-msgid "OK"
-msgstr "OK"
+#: source/nijigenerate/actions/mesheditor.d:159
+#, c-format
+msgid "%s->Edited deformation of %s."
+msgstr "%s: %sのデフォーマが変更されました。"
 
-#: source/nijigenerate/widgets/dialog.d:132
-msgid "Yes"
-msgstr "はい"
+#: source/nijigenerate/actions/mesheditor.d:166
+#, c-format
+msgid "%s->deformation of %s was edited."
+msgstr "%s: %sのデフォーマの変更が元に戻されました。"
 
-#: source/nijigenerate/widgets/dialog.d:140
-msgid "No"
-msgstr "いいえ"
+#: source/nijigenerate/actions/binding.d:85
+#, c-format
+msgid "Added binding %s"
+msgstr "%sの割り当てが追加されました。"
+
+#: source/nijigenerate/actions/binding.d:87
+#, c-format
+msgid "Removed binding %s"
+msgstr "%sの割り当てが削除されました"
+
+#: source/nijigenerate/actions/binding.d:95
+#, c-format
+msgid "Binding %s was removed"
+msgstr "割り当て%sが削除されました"
+
+#: source/nijigenerate/actions/binding.d:97
+#, c-format
+msgid "Binding %s was added"
+msgstr "割り当て%sが再度追加されました"
+
+#: source/nijigenerate/actions/binding.d:166
+#: source/nijigenerate/actions/binding.d:287
+#: source/nijigenerate/actions/binding.d:400
+#: source/nijigenerate/actions/parameter.d:203
+#: source/nijigenerate/actions/parameter.d:282
+#, c-format
+msgid "%s->%s changed"
+msgstr "%s: %sが変更されました"
+
+#: source/nijigenerate/actions/binding.d:173
+#: source/nijigenerate/actions/binding.d:294
+#: source/nijigenerate/actions/binding.d:407
+#: source/nijigenerate/actions/parameter.d:213
+#: source/nijigenerate/actions/parameter.d:290
+#, c-format
+msgid "%s->%s change cancelled"
+msgstr "%s: %sの変更が元に戻されました"
+
+#: source/nijigenerate/actions/vertex.d:57
+#: source/nijigenerate/actions/mesh.d:57
+#, c-format
+msgid "Mesh %s change is restored."
+msgstr "%sのメッシュへの変更を元に戻しました。"
+
+#: source/nijigenerate/actions/vertex.d:64
+#: source/nijigenerate/actions/mesh.d:64
+#, c-format
+msgid "Mesh %s was edited."
+msgstr "%sのメッシュが変更されました。"
+
+#: source/nijigenerate/actions/vertex.d:146
+#: source/nijigenerate/actions/vertex.d:154
+#: source/nijigenerate/actions/vertex.d:357
+#: source/nijigenerate/actions/vertex.d:365
+#: source/nijigenerate/actions/mesh.d:144
+#: source/nijigenerate/actions/mesh.d:152
+#: source/nijigenerate/actions/mesh.d:231
+#: source/nijigenerate/actions/mesh.d:239
+#, c-format
+msgid "%s: vertex was translated."
+msgstr "%sの頂点が移動されました。"
+
+#: source/nijigenerate/actions/vertex.d:286
+msgid "removed"
+msgstr "削除されました"
+
+#: source/nijigenerate/actions/vertex.d:286
+msgid "inserted"
+msgstr "追加されました"
+
+#: source/nijigenerate/actions/vertex.d:294
+#: source/nijigenerate/actions/vertex.d:302
+#, c-format
+msgid "%s: vertex was %s."
+msgstr "%s: 頂点が%s"
+
+#: source/nijigenerate/actions/parameter.d:117
+#, c-format
+msgid "Added parameter %s"
+msgstr "パラメータ(%s)が追加されました"
+
+#: source/nijigenerate/actions/parameter.d:119
+#, c-format
+msgid "Removed parameter %s"
+msgstr "パラメータ(%s)が削除されました"
+
+#: source/nijigenerate/actions/parameter.d:127
+#, c-format
+msgid "Parameter %s was removed"
+msgstr "パラメータ(%s)が再度削除されました"
+
+#: source/nijigenerate/actions/parameter.d:129
+#, c-format
+msgid "Parameter %s was added"
+msgstr "パラメータ(%s)が再度追加されました。"
+
+#: source/nijigenerate/actions/parameter.d:205
+#: source/nijigenerate/actions/node.d:846
+#: source/nijigenerate/actions/node.d:926
+#, c-format
+msgid "%s->%s changed to %s"
+msgstr "%s: %sが%sに変更されました"
+
+#: source/nijigenerate/actions/parameter.d:215
+#: source/nijigenerate/actions/node.d:853
+#: source/nijigenerate/actions/node.d:933
+#, c-format
+msgid "%s->%s changed from %s"
+msgstr "%s: %sが%sから元に戻されました"
+
+#: source/nijigenerate/actions/drawable.d:89
+#, c-format
+msgid "Changed drawable mesh of %s"
+msgstr "ドローアブル%sのメッシュが変更されました"
+
+#: source/nijigenerate/actions/drawable.d:97
+#, c-format
+msgid "Drawable %s was changed"
+msgstr "ドローアブル%sの変更が元に戻されました"
+
+#: source/nijigenerate/actions/deformable.d:81
+#, c-format
+msgid "Changed vertices of %s"
+msgstr "%sの頂点が変更されました"
+
+#: source/nijigenerate/actions/deformable.d:89
+#, c-format
+msgid "Vertices of %s was changed"
+msgstr "%sの頂点を元に戻しました"
+
+#. Enforce reparenting rules
+#: source/nijigenerate/actions/node.d:74
+#, c-format
+msgid "%s can not be reparented in to %s due to a circular dependency."
+msgstr "循環参照になってしまうため%sを%sの子ノードにすることは出来ません。"
+
+#: source/nijigenerate/actions/node.d:106
+msgid "nodes"
+msgstr "ノード"
+
+#: source/nijigenerate/actions/node.d:162
+#: source/nijigenerate/actions/node.d:171
+#, c-format
+msgid "Created %s"
+msgstr "%s を作成しました。"
+
+#: source/nijigenerate/actions/node.d:163
+#, c-format
+msgid "Deleted %s"
+msgstr "%sを削除しました"
+
+#: source/nijigenerate/actions/node.d:164
+#, c-format
+msgid "Moved %s to %s"
+msgstr "%sを%sに移動しました"
+
+#: source/nijigenerate/actions/node.d:172
+#, c-format
+msgid "Moved %s from %s"
+msgstr "%sが%sから元の位置に移動しました"
+
+#: source/nijigenerate/actions/node.d:173
+#, c-format
+msgid "Moved %s from origin"
+msgstr "%sを原点から移動しました。"
+
+#: source/nijigenerate/actions/node.d:320
+#, c-format
+msgid "Change type of %s to %s"
+msgstr "%sの型を%sに変更しました"
+
+#: source/nijigenerate/actions/node.d:327
+#, c-format
+msgid "Revert type of %s to %s"
+msgstr "%sの型を%sに戻しました"
+
+#: source/nijigenerate/actions/node.d:411
+#: source/nijigenerate/actions/node.d:420
+#, c-format
+msgid "%s is added to mask of %s"
+msgstr "%sが%sのマスクに追加されました"
+
+#: source/nijigenerate/actions/node.d:412
+#: source/nijigenerate/actions/node.d:419
+#, c-format
+msgid "%s is deleted from mask of %s"
+msgstr "%sが%sのマスクから削除されました"
+
+#: source/nijigenerate/actions/node.d:514
+#: source/nijigenerate/actions/node.d:523
+#, c-format
+msgid "%s is added to welded targets of %s"
+msgstr "%sと%sを接合しました"
+
+#: source/nijigenerate/actions/node.d:515
+#: source/nijigenerate/actions/node.d:522
+#, c-format
+msgid "%s is deleted from welded targets of %s"
+msgstr "%sと%sの接合を解除しました"
+
+#: source/nijigenerate/actions/node.d:620
+#, c-format
+msgid "links of %s and %s are changed."
+msgstr "%sと%sの接合の設定を変更しました"
+
+#: source/nijigenerate/actions/node.d:627
+#, c-format
+msgid "links of %s and %s are restored."
+msgstr "%sと%sの設定を元に戻しました"
+
+#: source/nijigenerate/actions/node.d:667
+#: source/nijigenerate/actions/node.d:674
+msgid "Enabled"
+msgstr "有効"
+
+#: source/nijigenerate/actions/node.d:667
+#: source/nijigenerate/actions/node.d:674
+msgid "Disabled"
+msgstr "無効"
+
+#: source/nijigenerate/actions/node.d:674
+#, c-format
+msgid "%s was %s"
+msgstr "%sが%sから元に戻されました"
+
+#: source/nijigenerate/actions/node.d:721
+msgid "Unnamed "
+msgstr "無題"
+
+#: source/nijigenerate/actions/node.d:999
+#: source/nijigenerate/actions/node.d:1007
+#, c-format
+msgid "%s locked to root node"
+msgstr "%sがルートノードに固定されました。"
+
+#: source/nijigenerate/actions/node.d:1000
+#: source/nijigenerate/actions/node.d:1008
+#, c-format
+msgid "%s unlocked from root node"
+msgstr "%sがルートノードから固定解除されました"
+
+#: source/nijigenerate/windows/imgexport.d:94
+#: source/nijigenerate/windows/videoexport.d:158
+msgid "Export Settings"
+msgstr "エクスポート設定"
+
+#: source/nijigenerate/windows/imgexport.d:111
+#: source/nijigenerate/windows/videoexport.d:175
+msgid "Allow Transparency"
+msgstr "透過色を許可"
+
+#: source/nijigenerate/windows/imgexport.d:112
+#: source/nijigenerate/windows/videoexport.d:176
+msgid "Use Post Processing"
+msgstr "ポストプロセスを使用"
+
+#. Actually saves the edited state for the axies points
+#. Settings are autosaved, but in case the user
+#. feels more safe with a save button then we have
+#. it here.
+#: source/nijigenerate/windows/imgexport.d:123
+#: source/nijigenerate/windows/paramaxes.d:177
+#: source/nijigenerate/windows/paramprop.d:103
+#: source/nijigenerate/windows/flipconfig.d:502
+#: source/nijigenerate/windows/automeshbatch.d:353
+#: source/nijigenerate/windows/editanim.d:125
+#: source/nijigenerate/widgets/mainmenu.d:142
+msgid "Save"
+msgstr "保存"
+
+#: source/nijigenerate/windows/imgexport.d:138
+msgid "Export Image..."
+msgstr "画像をエクスポート..."
+
+#: source/nijigenerate/windows/imgexport.d:145
+#: source/nijigenerate/windows/videoexport.d:295
+msgid "No cameras to export from in Scene, please add a Camera."
+msgstr ""
+"エクスポートするためのカメラが定義されていません。カメラを追加してください。"
+
+#. Points where the user can set parameter values
+#: source/nijigenerate/windows/paramaxes.d:157
+msgid "Breakpoints"
+msgstr "キーポイント"
+
+#: source/nijigenerate/windows/paramaxes.d:188
+msgid "One or more axes points are overlapping, this is not allowed."
+msgstr "重なっているキーポイントがあるので、いずれかの座標を変更してください。"
+
+#. Title for the parameter axis points window
+#. This window allows adjusting axies in the
+#. Parameter it's attached to.
+#. Keypoints show up on every intersecting axis line.
+#: source/nijigenerate/windows/paramaxes.d:247
+msgid "Parameter Axes Points"
+msgstr "キー設定"
+
+#: source/nijigenerate/windows/texviewer.d:48
+msgid "Texture Viewer"
+msgstr "テクスチャビューワー"
+
+#: source/nijigenerate/windows/rename.d:65
+#, c-format
+msgid "Rename %s..."
+msgstr "%sの名前を変更..."
+
+#: source/nijigenerate/windows/videoexport.d:180
+msgid "Output"
+msgstr "出力"
+
+#: source/nijigenerate/windows/videoexport.d:181
+msgid "Animation"
+msgstr "アニメーション"
+
+#: source/nijigenerate/windows/videoexport.d:193
+#: source/nijigenerate/windows/inpexport.d:331
+msgid "Loops"
+msgstr "ループ"
+
+#: source/nijigenerate/windows/videoexport.d:194
+msgid "How many times the animation should loop"
+msgstr "アニメーションのループ回数"
+
+#: source/nijigenerate/windows/videoexport.d:196
+#: source/nijigenerate/windows/editanim.d:101
+msgid "Framerate"
+msgstr "フレームレート"
+
+#: source/nijigenerate/windows/videoexport.d:199
+msgid "[AUTO]"
+msgstr "[自動]"
+
+#: source/nijigenerate/windows/videoexport.d:201
+msgid "Framerate of the video file"
+msgstr "動画ファイルのフレームレート"
+
+#: source/nijigenerate/windows/videoexport.d:203
+msgid "Lock to Animation Framerate"
+msgstr "アニメーションのフレームレートに固定"
+
+#: source/nijigenerate/windows/videoexport.d:205
+msgid "Codec"
+msgstr "コーデック"
+
+#: source/nijigenerate/windows/videoexport.d:230
+#: source/nijigenerate/windows/inpexport.d:366
+#: source/nijigenerate/widgets/mainmenu.d:244
+msgid "Export"
+msgstr "エクスポート"
+
+#: source/nijigenerate/windows/videoexport.d:271
+#: source/nijigenerate/widgets/modal/nagscreen.d:118
+msgid "Close"
+msgstr "閉じる"
+
+#: source/nijigenerate/windows/videoexport.d:282
+msgid "Export Video..."
+msgstr "動画への書き出し..."
+
+#: source/nijigenerate/windows/videoexport.d:285
+msgid "FFMPEG was not found, please install FFMPEG to export video."
+msgstr ""
+"FFMPEGが見つかりませんでした。動画をエクスポートするためにはFFMPEGをインス"
+"トールしてください。"
+
+#: source/nijigenerate/windows/videoexport.d:303
+msgid "No animations are defined for this model, please add an animation."
+msgstr "このモデルにはアニメーションが定義されていません。"
+
+#: source/nijigenerate/windows/paramprop.d:44
+msgid "Parameter Name"
+msgstr "パラメータ名"
+
+#: source/nijigenerate/windows/paramprop.d:49
+msgid "Parameter Constraints"
+msgstr "パラメータ範囲"
+
+#: source/nijigenerate/windows/paramprop.d:106
+msgid "Name is already taken"
+msgstr "その名前は既に使用されています。"
+
+#. Title for the parameter properties window.
+#: source/nijigenerate/windows/paramprop.d:139
+msgid "Parameter Properties"
+msgstr "パラメータ設定"
+
+#: source/nijigenerate/windows/paramsplit.d:49
+msgid " (Split)"
+msgstr " (分割)"
+
+#: source/nijigenerate/windows/paramsplit.d:183
+msgid "Split Parameter"
+msgstr "パラメータを分割"
+
+#: source/nijigenerate/windows/flipconfig.d:309
+msgid "<< Not assigned >>"
+msgstr "<<  割り当てなし  >>"
+
+#: source/nijigenerate/windows/flipconfig.d:371
+msgid "< Add new row >"
+msgstr "<　新しい行を追加 　>"
+
+#: source/nijigenerate/windows/flipconfig.d:450
+msgid "Pair"
+msgstr "ペア"
+
+#: source/nijigenerate/windows/flipconfig.d:458
+msgid "Part 1"
+msgstr "パーツ1"
+
+#: source/nijigenerate/windows/flipconfig.d:459
+msgid "Part 2"
+msgstr "パーツ2"
+
+#: source/nijigenerate/windows/flipconfig.d:535
+msgid "Flip Pairing"
+msgstr "左右反転ペアの編集"
+
+#: source/nijigenerate/windows/automeshbatch.d:309
+msgid "Run batch"
+msgstr "一括で実行"
+
+#: source/nijigenerate/windows/welcome.d:142
+msgid "Quick Setup"
+msgstr "クイックセットアップ"
+
+#: source/nijigenerate/windows/welcome.d:153
+#: source/nijigenerate/windows/settings.d:123
+msgid "Language"
+msgstr "言語設定"
+
+#: source/nijigenerate/windows/welcome.d:167
+#: source/nijigenerate/windows/settings.d:115
+msgid "Color Theme"
+msgstr "カラーテーマ"
+
+#: source/nijigenerate/windows/welcome.d:167
+#: source/nijigenerate/windows/welcome.d:168
+#: source/nijigenerate/windows/settings.d:115
+#: source/nijigenerate/windows/settings.d:116
+msgid "Dark"
+msgstr "ダーク"
+
+#: source/nijigenerate/windows/welcome.d:167
+#: source/nijigenerate/windows/welcome.d:169
+#: source/nijigenerate/windows/settings.d:115
+#: source/nijigenerate/windows/settings.d:117
+msgid "Light"
+msgstr "ライト"
+
+#: source/nijigenerate/windows/welcome.d:179
+#: source/nijigenerate/windows/settings.d:142
+msgid "UI Scale"
+msgstr "UI表示倍率"
+
+#: source/nijigenerate/windows/welcome.d:191
+#: source/nijigenerate/windows/settings.d:247
+msgid "nijigenerate needs to be restarted for some changes to take effect."
+msgstr "変更を有効にするにはnijigenerateの再起動が必要となる場合があります。"
+
+#: source/nijigenerate/windows/welcome.d:204
+msgid "Next"
+msgstr "次へ"
+
+#: source/nijigenerate/windows/welcome.d:216
+msgid "Create Project"
+msgstr "プロジェクトを作成"
+
+#: source/nijigenerate/windows/welcome.d:219
+msgid "New..."
+msgstr "新規作成..."
+
+#: source/nijigenerate/windows/welcome.d:224
+#: source/nijigenerate/windows/welcome.d:229
+#: source/nijigenerate/widgets/mainmenu.d:43
+msgid "Open..."
+msgstr "開く..."
+
+#: source/nijigenerate/windows/welcome.d:243
+msgid "Import PSD..."
+msgstr "PSDファイルをインポート..."
+
+#: source/nijigenerate/windows/welcome.d:249
+msgid "Import KRA..."
+msgstr "KRAファイルをインポート..."
+
+#: source/nijigenerate/windows/welcome.d:261
+msgid "Recent Projects"
+msgstr "最近開いたプロジェクト..."
+
+#: source/nijigenerate/windows/welcome.d:286
+msgid "On the Web"
+msgstr "Webサイトへのリンク"
+
+#: source/nijigenerate/windows/welcome.d:291
+msgid "Website"
+msgstr "公式サイト"
+
+#: source/nijigenerate/windows/welcome.d:297
+msgid "Documentation"
+msgstr "ドキュメント"
+
+#: source/nijigenerate/windows/welcome.d:333
+msgid "nijigenerate Start"
+msgstr "nijigenerateを開始"
+
+#: source/nijigenerate/windows/autosave.d:46
+msgid "nijigenerate closed unexpectedly while editing this file."
+msgstr "このファイルを編集中にnijigenerateが異常終了しました"
+
+#: source/nijigenerate/windows/autosave.d:47
+msgid "Restore data from a backup?"
+msgstr "バックアップから復旧しますか？"
+
+#: source/nijigenerate/windows/autosave.d:56
+msgid "Discard"
+msgstr "破棄"
+
+#: source/nijigenerate/windows/autosave.d:62
+msgid "Restore"
+msgstr "復旧"
+
+#: source/nijigenerate/windows/autosave.d:73
+msgid "Restore Autosave"
+msgstr "自動セーブから復旧"
+
+#: source/nijigenerate/windows/about.d:125
+#: source/nijigenerate/widgets/mainmenu.d:556
+msgid "About"
+msgstr "nijigenerateについて"
+
+#: source/nijigenerate/windows/editanim.d:37
+#: source/nijigenerate/windows/editanim.d:47
+msgid "Invalid Name"
+msgstr "無効な名称です"
+
+#: source/nijigenerate/windows/editanim.d:38
+msgid "Name can not be empty!"
+msgstr "名前は空欄には出来ません!"
+
+#: source/nijigenerate/windows/editanim.d:48
+#, c-format
+msgid "%s is already taken! Please chose another animation name."
+msgstr "%sは既に使われています。他のアニメーション名を指定してください。"
+
+#: source/nijigenerate/windows/editanim.d:90
+msgid "Options"
+msgstr "オプション"
+
+#: source/nijigenerate/windows/editanim.d:92
+msgid "Weight"
+msgstr "重み"
+
+#: source/nijigenerate/windows/editanim.d:94
+msgid "Frames"
+msgstr "フレーム"
+
+#: source/nijigenerate/windows/editanim.d:97
+msgid "Lead In"
+msgstr "リードイン"
+
+#: source/nijigenerate/windows/editanim.d:98
+msgid "Lead Out"
+msgstr "リードアウト"
+
+#: source/nijigenerate/windows/editanim.d:113
+msgid "Custom Framerate"
+msgstr "カスタムレート"
+
+#: source/nijigenerate/windows/editanim.d:120
+#, c-format
+msgid "%ss %sms"
+msgstr "%ss %sms"
+
+#: source/nijigenerate/windows/editanim.d:140
+msgid "120 FPS"
+msgstr "120 FPS"
+
+#: source/nijigenerate/windows/editanim.d:141
+msgid "60 FPS"
+msgstr "60 FPS"
+
+#: source/nijigenerate/windows/editanim.d:142
+msgid "30 FPS"
+msgstr "30 FPS"
+
+#: source/nijigenerate/windows/editanim.d:143
+msgid "25 FPS"
+msgstr "25 FPS"
+
+#: source/nijigenerate/windows/editanim.d:144
+msgid "Custom Framrate"
+msgstr "カスタムレート"
+
+#: source/nijigenerate/windows/editanim.d:158
+msgid "New Animation..."
+msgstr "新規アニメーション..."
+
+#: source/nijigenerate/windows/editanim.d:171
+#, c-format
+msgid "Edit %s..."
+msgstr "%sを編集..."
+
+#: source/nijigenerate/windows/settings.d:83
+#: source/nijigenerate/windows/settings.d:114
+msgid "Look and Feel"
+msgstr "見た目や操作感"
+
+#: source/nijigenerate/windows/settings.d:91
+msgid "Accessbility"
+msgstr "アクセシビリティ"
+
+#: source/nijigenerate/windows/settings.d:95
+msgid "File Handling"
+msgstr "ファイルの取り扱い"
+
+#: source/nijigenerate/windows/settings.d:152
+msgid "Max Undo History"
+msgstr "編集履歴の最大値"
+
+#: source/nijigenerate/windows/settings.d:158
+msgid "Linux Tweaks"
+msgstr "Linux固有設定"
+
+#: source/nijigenerate/windows/settings.d:160
+msgid "Disable Compositor"
+msgstr "コンポジターを無効化"
+
+#: source/nijigenerate/windows/settings.d:167
+msgid "Accessibility"
+msgstr "アクセシビリティ"
+
+#: source/nijigenerate/windows/settings.d:169
+msgid "Use OpenDyslexic Font"
+msgstr "OpenDyslexicフォントを使用する"
+
+#: source/nijigenerate/windows/settings.d:173
+msgid "Use the OpenDyslexic font for Latin text characters."
+msgstr "ラテン文字に対してOpenDyslexicフォントを使用します。"
+
+#: source/nijigenerate/windows/settings.d:177
+#: source/nijigenerate/widgets/mainmenu.d:119
+msgid "Autosaves"
+msgstr "自動セーブ"
+
+#: source/nijigenerate/windows/settings.d:179
+msgid "Enable Autosaves"
+msgstr "自動セーブを有効化する"
+
+#: source/nijigenerate/windows/settings.d:184
+msgid "Save Interval (Minutes)"
+msgstr "保存の間隔(分)"
+
+#: source/nijigenerate/windows/settings.d:189
+msgid "Maximum Autosaves"
+msgstr "自動セーブする最大数"
+
+#: source/nijigenerate/windows/settings.d:194
+msgid "Preserve Imported File Folder Structure"
+msgstr "インポートされたファイルの構造を維持"
+
+#: source/nijigenerate/windows/settings.d:202
+msgid "Preserve Folder Structure"
+msgstr "フォルダ階層を維持"
+
+#: source/nijigenerate/windows/settings.d:203
+msgid "Always Ask"
+msgstr "常に尋ねる"
+
+#: source/nijigenerate/windows/settings.d:204
+msgid "Preserve"
+msgstr "維持する"
+
+#: source/nijigenerate/windows/settings.d:205
+msgid "Not Preserve"
+msgstr "維持しない"
+
+#: source/nijigenerate/windows/settings.d:220
+msgid "Zoom Mode"
+msgstr "ズームモード"
+
+#: source/nijigenerate/windows/settings.d:221
+msgid "To Screen Center"
+msgstr "画面の中心にズーム"
+
+#: source/nijigenerate/windows/settings.d:222
+msgid "To Mouse Position"
+msgstr "マウスの位置にズーム"
+
+#: source/nijigenerate/windows/settings.d:228
+msgid "Zoom Speed"
+msgstr "ズームスピード"
+
+#: source/nijigenerate/windows/settings.d:234
+#: source/nijigenerate/windows/inpexport.d:344
+msgid "No settings for this category."
+msgstr "このカテゴリには設定項目がありません。"
+
+#: source/nijigenerate/windows/settings.d:255
+msgid "Done"
+msgstr "完了"
+
+#: source/nijigenerate/windows/settings.d:270
+#: source/nijigenerate/widgets/mainmenu.d:326
+msgid "Settings"
+msgstr "設定"
+
+#: source/nijigenerate/windows/psdmerge.d:245
+#: source/nijigenerate/windows/kramerge.d:244
+#, c-format
+msgid "%s  %s"
+msgstr "%s  %s"
+
+#: source/nijigenerate/windows/psdmerge.d:288
+#: source/nijigenerate/windows/kramerge.d:287
+msgid "Ignore"
+msgstr "無視"
+
+#: source/nijigenerate/windows/psdmerge.d:288
+#: source/nijigenerate/windows/kramerge.d:287
+msgid "Use"
+msgstr "使用"
+
+#: source/nijigenerate/windows/psdmerge.d:401
+#: source/nijigenerate/windows/kramerge.d:400
+msgid "Only show unmapped"
+msgstr "未割り当てのみ表示"
+
+#. Auto-rename
+#: source/nijigenerate/windows/psdmerge.d:421
+#: source/nijigenerate/windows/kramerge.d:420
+msgid "Auto-rename"
+msgstr "自動的にリネームする"
+
+#: source/nijigenerate/windows/psdmerge.d:422
+msgid ""
+"Renames all mapped nodes to match the names of the PSD layer that was merged "
+"in to them."
+msgstr "割り当てられたノードをすべてPSDのレイヤー名に変更します。"
+
+#: source/nijigenerate/windows/psdmerge.d:425
+#: source/nijigenerate/windows/kramerge.d:424
+msgid "Re-translate"
+msgstr "ノード位置の再更新"
+
+#: source/nijigenerate/windows/psdmerge.d:426
+#: source/nijigenerate/windows/kramerge.d:425
+msgid ""
+"Moves all nodes so that they visually match their position in the canvas."
+msgstr "PSD上のレイヤーの位置に合わせて、全ノードの位置を更新します。"
+
+#: source/nijigenerate/windows/psdmerge.d:439
+#: source/nijigenerate/windows/kramerge.d:438
+#: source/nijigenerate/widgets/mainmenu.d:183
+msgid "Merge"
+msgstr "マージ"
+
+#: source/nijigenerate/windows/psdmerge.d:474
+msgid "PSD Merging"
+msgstr "PSDファイルのマージ"
+
+#: source/nijigenerate/windows/inpexport.d:108
+msgid "Atlassing"
+msgstr "テクスチャアトラスの作成"
+
+#: source/nijigenerate/windows/inpexport.d:112
+msgid "Decoration"
+msgstr "装飾"
+
+#: source/nijigenerate/windows/inpexport.d:142
+msgid "Atlas Settings"
+msgstr "アトラス設定"
+
+#: source/nijigenerate/windows/inpexport.d:144
+msgid "Resolution"
+msgstr "解像度"
+
+#: source/nijigenerate/windows/inpexport.d:160
+msgid "Non-linear Scaling"
+msgstr "非線形スケーリング"
+
+#: source/nijigenerate/windows/inpexport.d:161
+msgid ""
+"Whether too large parts should individually be scaled down instead of all "
+"parts being scaled down uniformly."
+msgstr ""
+"全パーツの縮小率を一律にするか、大きなパーツに対して個々に縮小率を変更させる"
+"かを指定します。"
+
+#: source/nijigenerate/windows/inpexport.d:164
+msgid "Texture Scale"
+msgstr "テクスチャ倍率"
+
+#: source/nijigenerate/windows/inpexport.d:170
+msgid "Padding"
+msgstr "余白"
+
+#: source/nijigenerate/windows/inpexport.d:176
+msgid "Optimizations"
+msgstr "最適化"
+
+#: source/nijigenerate/windows/inpexport.d:178
+msgid "Prune unused nodes"
+msgstr "未使用のノードを削除"
+
+#: source/nijigenerate/windows/inpexport.d:179
+msgid "Prune nodes which have been disabled from the export."
+msgstr "無効にされているノードをエクスポート時に削除します。"
+
+#: source/nijigenerate/windows/inpexport.d:195
+msgid "Watermark"
+msgstr "透かし"
+
+#. Allow saving texture to file
+#: source/nijigenerate/windows/inpexport.d:202
+msgid "Load"
+msgstr "読み込み"
+
+#: source/nijigenerate/windows/inpexport.d:258
+msgid "Preview"
+msgstr "プレビュー"
+
+#: source/nijigenerate/windows/inpexport.d:358
+msgid ""
+"A texture was too large to fit the texture atlas, the textures have been "
+"scaled down."
+msgstr ""
+"テクスチャが大きすぎてテクスチャアトラスに収まらないため、テクスチャをスケー"
+"ルダウンしました。"
+
+#: source/nijigenerate/windows/inpexport.d:377
+msgid "Export failed..."
+msgstr "エクスポートに失敗しました。"
+
+#: source/nijigenerate/windows/inpexport.d:386
+msgid "Export Options"
+msgstr "エクスポートオプション"
+
+#: source/nijigenerate/windows/kramerge.d:421
+msgid ""
+"Renames all mapped nodes to match the names of the KRA layer that was merged "
+"in to them."
+msgstr "割り当てられたノードをすべてKRAのレイヤー名に変更します。"
+
+#: source/nijigenerate/windows/kramerge.d:472
+msgid "KRA Merging"
+msgstr "KRAファイルのマージ"
 
 #: source/nijigenerate/widgets/mainmenu.d:61
 msgid "Save..."
@@ -2614,547 +3133,35 @@ msgstr "パペット編集"
 msgid "Edit Animation"
 msgstr "アニメーション編集"
 
-#: source/nijigenerate/widgets/output.d:827
+#: source/nijigenerate/widgets/dialog.d:124
+msgid "OK"
+msgstr "OK"
+
+#: source/nijigenerate/widgets/dialog.d:132
+msgid "Yes"
+msgstr "はい"
+
+#: source/nijigenerate/widgets/dialog.d:140
+msgid "No"
+msgstr "いいえ"
+
+#: source/nijigenerate/widgets/output.d:849
 msgid ""
 msgstr ""
 
-#: source/nijigenerate/viewport/base.d:497
-msgid "Editing armed parameter..."
-msgstr "デフォーマを編集中"
+#: source/app.d:99
+msgid "Warning!"
+msgstr "警告！"
 
-#: source/nijigenerate/viewport/base.d:497
-msgid "Editing base transform..."
-msgstr "パーツのベース位置・姿勢を編集中"
-
-#: source/nijigenerate/viewport/vertex/package.d:122
-msgid "Toggle mesh visibility"
-msgstr "メッシュの表示/非表示を切り替えます"
-
-#: source/nijigenerate/viewport/vertex/package.d:140
-msgid "Flip Horizontally"
-msgstr "水平方向に反転"
-
-#: source/nijigenerate/viewport/vertex/package.d:156
-msgid "Flip Vertically"
-msgstr "垂直方向に反転"
-
-#: source/nijigenerate/viewport/vertex/package.d:166
-msgid "Mirror Horizontally"
-msgstr "水平方向にミラーリング"
-
-#: source/nijigenerate/viewport/vertex/package.d:174
-msgid "Mirror Vertically"
-msgstr "垂直方向にミラーリング"
-
-#: source/nijigenerate/viewport/vertex/package.d:185
-msgid "Triangulate vertices"
-msgstr "頂点を接続して三角形を作成"
-
-#. Button which bakes some auto generated content
-#. In this case, a mesh is baked from the triangulation.
-#: source/nijigenerate/viewport/vertex/package.d:192
-#: source/nijigenerate/viewport/vertex/package.d:245
-msgid "Bake"
-msgstr "適用"
-
-#: source/nijigenerate/viewport/vertex/package.d:199
-msgid "Bakes the triangulation, applying it to the mesh."
-msgstr "頂点を接続して三角形のメッシュを作成します。"
-
-#: source/nijigenerate/viewport/vertex/package.d:203
-msgid "Triangulation Options"
-msgstr "三角形作成のオプション"
-
-#: source/nijigenerate/viewport/vertex/package.d:252
-msgid "Bakes the auto mesh."
-msgstr "自動メッシュを実行します"
-
-#: source/nijigenerate/viewport/vertex/package.d:256
-msgid "Auto Meshing Options"
-msgstr "自動メッシュのオプション"
-
-#: source/nijigenerate/viewport/vertex/package.d:270
-msgid " Apply"
-msgstr " 適用"
-
-#: source/nijigenerate/viewport/vertex/package.d:276
-msgid "Are you sure?"
-msgstr "本当によろしいですか？"
-
-#: source/nijigenerate/viewport/vertex/package.d:277
+#: source/app.d:100
 msgid ""
-"The layout of the mesh has changed, all deformations to this mesh will be "
-"deleted if you continue."
+"You're running a nightly build of nijigenerate!\n"
+"nijigenerate may crash unexpectedly and you will likely encounter bugs.\n"
+"Make sure to save and back up your work often!"
 msgstr ""
-"メッシュのレイアウトが変更されたので、このメッシュに対するデフォーマの設定が"
-"全て解除されてしまいます。"
-
-#: source/nijigenerate/viewport/vertex/package.d:293
-msgid " Cancel"
-msgstr " キャンセル"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:516
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:518
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:143
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:145
-msgid "Presets"
-msgstr "プリセット"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:519
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:146
-msgid "Normal parts"
-msgstr "通常パーツ"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:525
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:154
-msgid "Detailed mesh"
-msgstr "細かいメッシュ"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:531
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:162
-msgid "Large parts"
-msgstr "大きいパーツ"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:537
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:170
-msgid "Small parts"
-msgstr "小さいパーツ"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:543
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:178
-msgid "Thin and minimum parts"
-msgstr "薄いまたは極小パーツ"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:549
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:186
-msgid "Preserve edges"
-msgstr "エッジを保持する"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:560
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:198
-msgid "Details"
-msgstr "詳細"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:564
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:214
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:167
-msgid "Mask threshold"
-msgstr "マスクのしきい値"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:577
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:226
-msgid "Distance between vertices"
-msgstr "頂点間の距離"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:579
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:228
-msgid "Minimum"
-msgstr "最小"
-
-#: source/nijigenerate/viewport/vertex/automesh/optimum.d:641
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:301
-msgid ""
-"Specifying scaling factor to apply for contours. If multiple scales are "
-"specified, vertices are populated per scale factors."
-msgstr ""
-"輪郭線に対して適用する倍率を指定します。複数の倍率が指定されている場合、各倍"
-"率を適用した座標に頂点がそれぞれ生成されます。"
-
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:200
-msgid "Sampling rate"
-msgstr "サンプリングレート"
-
-#: source/nijigenerate/viewport/vertex/automesh/contours.d:240
-msgid "Maximum"
-msgstr "最大"
-
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:166
-msgid "Auto Segmentation"
-msgstr "自動分割"
-
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:180
-msgid "X Segments"
-msgstr "X軸方向に分割"
-
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:193
-msgid "Y Segments"
-msgstr "Y軸方向に分割"
-
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:206
-msgid "Margin"
-msgstr "周囲の余白"
-
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:221
-msgid "X Scale"
-msgstr "Xスケール"
-
-#: source/nijigenerate/viewport/vertex/automesh/grid.d:225
-msgid "Y Scale"
-msgstr "Yスケール"
-
-#: source/nijigenerate/viewport/model/package.d:152
-msgid "Hide Vertices"
-msgstr "頂点を非表示"
-
-#: source/nijigenerate/viewport/model/package.d:152
-msgid "Show Vertices"
-msgstr "頂点を表示"
-
-#: source/nijigenerate/viewport/model/package.d:158
-msgid "Hide Bounds"
-msgstr "境界を非表示"
-
-#: source/nijigenerate/viewport/model/package.d:158
-msgid "Show Bounds"
-msgstr "境界を表示"
-
-#: source/nijigenerate/viewport/model/package.d:164
-msgid "Hide Orientation Gizmo"
-msgstr "ギズモを非表示"
-
-#: source/nijigenerate/viewport/model/package.d:164
-msgid "Show Orientation Gizmo"
-msgstr "ギズモを表示"
-
-#. Set clear color
-#: source/nijigenerate/viewport/model/package.d:179
-msgid "COLOR"
-msgstr "色"
-
-#: source/nijigenerate/viewport/model/package.d:194
-msgid "Background Color"
-msgstr "背景色"
-
-#: source/nijigenerate/viewport/model/package.d:198
-msgid "Gizmos"
-msgstr "頂点/境界/ギズモ"
-
-#: source/nijigenerate/viewport/model/package.d:213
-msgid " Merge Mesh"
-msgstr " メッシュをマージ"
-
-#: source/nijigenerate/viewport/model/package.d:213
-msgid " Copy Mesh"
-msgstr " メッシュをコピー"
-
-#: source/nijigenerate/viewport/model/package.d:213
-msgid " Edit Mesh"
-msgstr " メッシュの編集"
-
-#: source/nijigenerate/viewport/model/package.d:222
-msgid "Merge Mesh Data"
-msgstr "メッシュデータをマージ"
-
-#: source/nijigenerate/viewport/model/package.d:224
-msgid "Copy Mesh Data"
-msgstr "メッシュデータをコピー"
-
-#. Switches nijigenerate over to Mesh Edit mode
-#. and selects the mesh that you had selected previously
-#. in Model Edit mode.
-#: source/nijigenerate/viewport/model/package.d:246
-msgid "Edit Mesh"
-msgstr "メッシュの編集"
-
-#: source/nijigenerate/viewport/model/package.d:256
-msgid "Z-Sort"
-msgstr "ソート"
-
-#: source/nijigenerate/viewport/model/package.d:256
-msgid "Size-Sort"
-msgstr "サイズでソート"
-
-#: source/nijigenerate/viewport/model/package.d:266
-msgid "Focus Selected"
-msgstr "選択..."
-
-#: source/nijigenerate/viewport/model/package.d:314
-msgid "No parts found"
-msgstr "選択できるパーツがありません"
-
-#: source/nijigenerate/viewport/common/mesheditor/package.d:270
-msgid "Reset selected"
-msgstr "選択した頂点をリセット"
-
-#: source/nijigenerate/viewport/common/mesheditor/package.d:273
-msgid "Flip selected from mirror"
-msgstr "選択した頂点を反転コピー"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:398
-msgid "Deform"
-msgstr "変形"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:216
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:102
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:355
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:161
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:398
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
-msgid "Left Mouse"
-msgstr "左クリック"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
-#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:228
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:399
-msgid "Switch Mode"
-msgstr "モード変更"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:217
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:220
-#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:228
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:399
-msgid "TAB"
-msgstr "TABキー"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:219
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:305
-msgid "Create/Destroy"
-msgstr "作成/削除"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:219
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:305
-msgid "Left Mouse (x2)"
-msgstr "左ダブルクリック"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:400
-msgid "Toggle locked point"
-msgstr "指定した制御点の固定/固定解除をします。"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:400
-msgid "Ctrl"
-msgstr "Ctrl"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
-msgid "Move point along with the path"
-msgstr "パスに従って制御点を動かします。"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:401
-msgid "Shift"
-msgstr "Shift"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:415
-msgid "Define paths"
-msgstr "パスを定義"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:426
-msgid "Transform path"
-msgstr "パスを変形"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:439
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:569
-msgid "Set rotation center"
-msgstr "回転の中心点に設定"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:452
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:582
-msgid "Move points along the path"
-msgstr "パスに従って制御点を動かします"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:459
-#: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:589
-msgid "Path Deform Tool"
-msgstr "パス変形ツール"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:389
-msgid "Mesh deformation"
-msgstr "メッシュ変形"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:401
-msgid "Path deformation"
-msgstr "パス変形"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:102
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:355
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:34
-msgid "Select"
-msgstr "選択"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:103
-msgid "Ctrl+Left Mouse"
-msgstr "Ctrl+左クリック"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:486
-msgid "Vertex Tool"
-msgstr "頂点ツール"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/point.d:502
-msgid "Auto connect vertices"
-msgstr "頂点を自動接続"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:162
-msgid "Snap to X/Y axis"
-msgstr "X/Y軸にスナップ"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:162
-msgid "SHIFT"
-msgstr "シフトキー"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:163
-msgid "Select vertices"
-msgstr "頂点を選択"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:163
-msgid "ALT"
-msgstr "ALT/メタキー"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:260
-msgid "Drag mode"
-msgstr "ドラッグモード"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:270
-msgid "Flow mode"
-msgstr "フローモード"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:297
-msgid "Brush Tool"
-msgstr "ブラシツール"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:240
-msgid "Drag to define 2x2 mesh"
-msgstr "ドラッグして2x2のメッシュを作成します。"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:241
-msgid "Add/remove key points to axes"
-msgstr "座標軸に沿ってキーポイントを追加/削除します。"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:242
-msgid "Change key point position in the axis"
-msgstr "座標軸に沿ってキーポイントの位置を移動します。"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:377
-msgid "Grid Vertex Tool"
-msgstr "グリッドツール"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:36
-msgid "Connect/Disconnect"
-msgstr "接続/接続解除"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
-msgid "Connect Multiple"
-msgstr "続けて接続"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
-msgid "Shift+Left Mouse"
-msgstr "Shift+左クリック"
-
-#: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:115
-msgid "Edge Tool"
-msgstr "エッジツール"
-
-#: source/nijigenerate/core/package.d:262
-msgid "(Debug Mode)"
-msgstr "(デバッグ版)"
-
-#: source/nijigenerate/core/dpi.d:54 source/nijigenerate/core/dpi.d:58
-msgid "100% (Locked)"
-msgstr "100%(固定)"
-
-#: source/nijigenerate/core/settings.d:33
-msgid ""
-"Oops! Your settings.json file is corrupted. Nijigenerate will load the "
-"default settings.\n"
-msgstr ""
-"設定ファイル(settings.json)が壊れているようです。デフォルトの設定を読み込んで"
-"利用します。\n"
-
-#: source/nijigenerate/core/settings.d:34
-msgid "The corrupted settings file has been moved to "
-msgstr "壊れた設定ファイルは次の場所に移動します。"
-
-#: source/nijigenerate/core/settings.d:35
-msgid ""
-"If you always see this message, please report this issue to Nijigenerate\n"
-msgstr ""
-"もし、なんどもこのメッセージが表示される場合は、問題レポートを送ってくださ"
-"い。\n"
-
-#: source/nijigenerate/core/settings.d:36
-msgid ""
-"\n"
-"Error message: "
-msgstr ""
-"\n"
-"エラーメッセージ："
-
-#. The name of the language this translation is a translation to
-#. in the native script of the language (for the region)
-#. Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
-#: source/nijigenerate/core/i18n.d:18
-msgid "LANG_NAME"
-msgstr "日本語"
-
-#. incViewportPresentMode(editMode_);
-#: source/nijigenerate/project.d:244
-msgid "New Project"
-msgstr "新規プロジェクト"
-
-#: source/nijigenerate/project.d:302
-#, c-format
-msgid ""
-"Please report this file to the developers:\n"
-"\n"
-"%s"
-msgstr ""
-"次のファイルを開発者に報告してください\n"
-"\n"
-"%s"
-
-#: source/nijigenerate/project.d:304
-msgid "Failed to write crash dump file."
-msgstr "クラッシュダンプファイルの作成に失敗しました"
-
-#: source/nijigenerate/project.d:329
-#, c-format
-msgid "%s opened successfully."
-msgstr "%sを読み込みました。"
-
-#: source/nijigenerate/project.d:362
-#, c-format
-msgid "%s saved successfully."
-msgstr "%sを保存しました。"
-
-#: source/nijigenerate/project.d:365
-#, c-format
-msgid "Failed to save %s"
-msgstr "%sの保存に失敗しました。"
-
-#: source/nijigenerate/project.d:401
-#, c-format
-msgid ""
-"The following errors occured during file loading\n"
-"%s"
-msgstr "%sの読み込み中に、次のエラーが発生しました。"
-
-#: source/nijigenerate/project.d:411
-msgid "Folder import completed with errors..."
-msgstr "フォルダのインポートに失敗しました。"
-
-#: source/nijigenerate/project.d:412
-msgid "Folder import completed..."
-msgstr "フォルダのインポートが完了しました。"
-
-#: source/nijigenerate/project.d:460
-msgid "Mipmap generation completed."
-msgstr "ミップマップの生成が完了しました。"
-
-#: source/nijigenerate/project.d:475
-msgid "Texture bleeding completed."
-msgstr "テクスチャのブリーディングが完了しました。"
+"nijigenerateの開発版(夜間ビルド)を実行しています。\n"
+"このバージョンは不意にクラッシュしたりバグを踏んでしまう場合があります。\n"
+"バックアップをと保存をこまめにするようにしてください！"
 
 #, c-format
 #~ msgid "%s: vertex was removed."
