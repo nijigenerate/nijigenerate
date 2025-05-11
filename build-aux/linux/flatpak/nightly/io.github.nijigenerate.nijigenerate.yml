@@ -36,12 +36,11 @@ modules:
       - git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules;
         git clone https://github.com/nijigenerate/nijilive.git;
         dub add-local i2d-imgui/ "0.8.0";
-        dub add-local nijilive/ "0.0.1"
-        cd i2d-imgui
-        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
-        git submodule update --recursive
-        cd ..
-
+        dub add-local nijilive/ "0.0.1";
+        cd i2d-imgui;
+        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0;
+        git submodule update --recursive;
+        cd ..;
         dub build --config=meta;
         dub build --config=linux-nightly --debug=InExperimental
       - install -Dm 755 ./out/nijigenerate /app/bin/nijigenerate
