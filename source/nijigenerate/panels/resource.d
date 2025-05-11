@@ -241,14 +241,17 @@ protected:
         auto spacing = igGetStyle().ItemSpacing;
         igGetStyle().ItemSpacing = ImVec2(0, 0);
         if (igBeginPopup("###AddResource")) {
-            igText(__("New Node"));
-            ngAddNodeMenu();
+            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("New Node"));
             igSeparator();
-            igText(__("New Parameter"));
+            igDummy(ImVec2(0, 6));
+            ngAddNodeMenu();
+            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("New Parameter"));
+            igSeparator();
+            igDummy(ImVec2(0, 6));
             incParameterMenuContents(incActivePuppet().parameters);
             igEndPopup();
         }
-        if (incButtonColored("\ue145", ImVec2(32, 32))) { //New
+        if (incButtonColored("\ue145", ImVec2(30, 30))) { //New
             igOpenPopup("###AddResource");
         }
 //        igSameLine();
