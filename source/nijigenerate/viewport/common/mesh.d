@@ -13,6 +13,8 @@
 */
 module nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.brushes;
+import nijigenerate.project;
+import nijigenerate.core.math.mesh;
 import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
@@ -22,6 +24,39 @@ import std.typecons;
 import std.range;
 import nijigenerate.core.math;
 public import nijigenerate.core.math.mesh;
+
+
+import std.algorithm.iteration;
+import std.algorithm;
+import std.array;
+import std.range;
+
+bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
+    if (vertices.length < 4) {
+        gridAxes.length = 0;
+        return false;
+    }
+    int[float] yPoints;
+    int[float] xPoints;
+    foreach (v; vertices) {
+        yPoints[v.position.y] ++;
+        xPoints[v.position.x] ++;
+    }
+    foreach (k; yPoints.keys()) {
+        if (yPoints[k] != xPoints.keys().length) {
+            return false;
+        }
+    }
+    foreach (k; xPoints.keys()) {
+        if (xPoints[k] != yPoints.keys().length) {
+            return false;
+        }
+    }
+    gridAxes.length = 2;
+    gridAxes[0] = yPoints.keys().sort.array;
+    gridAxes[1] = xPoints.keys().sort.array;
+    return true;
+}
 
 class IncMesh {
 private:
@@ -57,7 +92,6 @@ private:
         }
         
         void printConnections(MeshVertex* v) {
-            import std.stdio;
             ushort[] conns;
             vec2[] coords;
             foreach(conn; v.connections) {
@@ -77,9 +111,10 @@ private:
         }
 
         axes = [];
+        float[][] gridAxes;
         if (reset) {
-            if (data.isGrid()) {
-                foreach (axis; data.gridAxes) {
+            if (data.vertices.isGrid(gridAxes)) {
+                foreach (axis; gridAxes) {
                     float[] newAxis;
                     foreach (axValue; axis) {
                         newAxis ~= axValue;
@@ -88,7 +123,6 @@ private:
                 }
             }
         }
-
         refresh();
     }
 
@@ -202,11 +236,10 @@ private:
             }
         }
 
-        import std.stdio;
         if (axes.length >= 2) {
             newData.gridAxes = axes[];
         }
-        newData.clearGridIsDirty();
+        newData.clearGridIfDirty();
 
         // Save the data as the new data and refresh
         data = newData;
@@ -232,17 +265,18 @@ private:
         // setup
         lines.length = 0;
         wlines.length = 0;
-        MeshVertex*[] visited;
+        bool[MeshVertex*] visited;
+        MeshVertex*[] stack;
         
         // our crazy recursive func
         void recurseLines(MeshVertex* cur) {
-            visited ~= cur;
+            visited[cur] = true;
 
             // First add the lines
             foreach(conn; cur.connections) {
 
                 // Skip already scanned connections
-                if (!visited.canFind(conn)) {
+                if (conn !in visited) {
                     lines ~= [vec3(cur.position, 0), vec3(conn.position, 0)];
                 }
             }
@@ -250,17 +284,41 @@ private:
             foreach(conn; cur.connections) {
 
                 // Skip already scanned connections
-                if (!visited.canFind(conn)) {
+                if (conn !in visited) {
                     recurseLines(conn);
                 }
             }
         }
 
-        foreach(ref vert; vertices) {
-            if (!visited.canFind(vert)) {
-                recurseLines(vert);
+        foreach_reverse(ref vert; vertices) {
+            if (vert !in visited) {
+                stack ~= vert;
             }
         }
+
+        while (true) {
+            if (stack.length == 0) break;
+            auto cur = stack[$-1];
+            stack.popBack(); 
+            visited[cur] = true;
+
+            // First add the lines
+            foreach(conn; cur.connections) {
+
+                // Skip already scanned connections
+                if (conn !in visited) {
+                    lines ~= [vec3(cur.position, 0), vec3(conn.position, 0)];
+                }
+            }
+            // Then scan the next unvisited point
+            foreach_reverse(conn; cur.connections) {
+                // Skip already scanned connections
+                if (conn !in visited) {
+                    stack ~= conn;
+                }
+            }
+        }
+
     }
 
 public:
@@ -564,7 +622,7 @@ public:
     }
 
     IncMesh autoTriangulate() {
-        import std.stdio;
+        debug(delaunay) import std.stdio;
         debug(delaunay) writeln("==== autoTriangulate ====");
         if (vertices.length < 3) return new IncMesh(*data);
 

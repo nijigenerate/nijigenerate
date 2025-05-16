@@ -17,11 +17,13 @@ import nijigenerate.core;
 import nijigenerate.core.selector;
 import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType;
 import nijigenerate.panels;
+import nijigenerate.panels.nodes;
+import nijigenerate.panels.parameters;
 import nijigenerate.utils;
 import nijigenerate.widgets;
 import nijigenerate.widgets.output;
 import fghj;
-import std.stdio;
+//import std.stdio;
 
 private {
 static string ResourcePanelPath = "com.github.nijigenerate.nijigenerate.ResourcePanel";
@@ -221,7 +223,7 @@ protected:
 
                 // If mouse is inside the window
                 if (mousePos.x > crect.Min.x && mousePos.x < crect.Max.x) {
-                    float scrollSpeed = (4*60)*deltaTime();
+                    float scrollSpeed = (4*256)*deltaTime();
 
                     if (mousePos.y < crect.Min.y+32 && mousePos.y >= crect.Min.y) scrollDelta = -scrollSpeed;
                     if (mousePos.y > crect.Max.y-32 && mousePos.y <= crect.Max.y) scrollDelta = scrollSpeed;
@@ -229,7 +231,8 @@ protected:
             }
         incEndDragDropFake();
 
-        if (igBeginChild("ShellMain", ImVec2(0, -34), false)) {
+        int buttonBarHeight = -34;
+        if (igBeginChild("ShellMain", ImVec2(0, buttonBarHeight), false)) {
             auto window = igGetCurrentWindow();
             igSetScrollY(window.Scroll.y+scrollDelta);
             history[historyIndex].output.onUpdate();
@@ -237,13 +240,26 @@ protected:
         igEndChild();
         auto spacing = igGetStyle().ItemSpacing;
         igGetStyle().ItemSpacing = ImVec2(0, 0);
-        incButtonColored("\ue145");
-        igSameLine();
-        incButtonColored("\ue872");
-        igSameLine();
-        incButtonColored("\ue14d");
-        igSameLine();
-        incButtonColored("\ue14f");
+        if (igBeginPopup("###AddResource")) {
+            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("New Node"));
+            igSeparator();
+            igDummy(ImVec2(0, 6));
+            ngAddNodeMenu();
+            igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("New Parameter"));
+            igSeparator();
+            igDummy(ImVec2(0, 6));
+            incParameterMenuContents(incActivePuppet().parameters);
+            igEndPopup();
+        }
+        if (incButtonColored("\ue145", ImVec2(30, 30))) { //New
+            igOpenPopup("###AddResource");
+        }
+//        igSameLine();
+//        incButtonColored("\ue872"); //Delete
+//        igSameLine();
+//        incButtonColored("\ue14d"); //Copy
+//        igSameLine();
+//        incButtonColored("\ue14f"); //Paste
         igGetStyle().ItemSpacing = spacing;
         views.onUpdate();
     }

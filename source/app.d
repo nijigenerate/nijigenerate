@@ -5,7 +5,7 @@
     
     Authors: Luna Nielsen
 */
-import std.stdio;
+//import std.stdio;
 import std.string;
 import nijigenerate.core;
 import nijigenerate.core.settings;

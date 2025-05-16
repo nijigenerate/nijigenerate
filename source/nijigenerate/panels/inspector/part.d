@@ -327,7 +327,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             }
 
             if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
-                if (ngCheckbox(__("Resize automatically"), &dcomposite.autoResizedMesh)) {
+                if (ngCheckbox(__("Resize automatically"), &autoResizedMesh.value)) {
+                    autoResizedMesh.apply();
+                    foreach (n; targets)
+                        n.notifyChange(n, NotifyReason.AttributeChanged);
                 }
                 incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
             }
@@ -474,7 +477,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                     if (index != -1) {
                                         welded.target.welded[index].weight = 1 - weight;
                                     }
-                                    node.notifyChange(node, NotifyReason.StructureChanged);
+                                    node.notifyChange(node, NotifyReason.AttributeChanged);
                                 }
                                 igPopStyleVar();
                             }
@@ -532,6 +535,19 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
     mixin(attribute!(BlendMode, "blendingMode"));
     mixin(attribute!(float, "opacity"));
     mixin(attribute!(float, "maskAlphaThreshold"));
+    mixin(attribute!(bool, "autoResizedMesh", 
+        (x) { return "(x) {
+            if (auto dcomp = cast(DynamicComposite)x) { 
+                return dcomp.autoResizedMesh; 
+            } else { 
+                return false; 
+            } 
+        }("~x~")"; },
+        (x, v) { return "(x, v) {
+            if (auto dcomp = cast(DynamicComposite)x) {
+                dcomp.autoResizedMesh = v;
+            }
+        }("~x~","~v~")"; }));
 
     override
     void capture(Node[] nodes) {
@@ -542,6 +558,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
         blendingMode.capture();
         opacity.capture();
         maskAlphaThreshold.capture();
+        autoResizedMesh.capture();
     }
 }
 

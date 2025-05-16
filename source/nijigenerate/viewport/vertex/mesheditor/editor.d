@@ -16,6 +16,7 @@ public import nijigenerate.viewport.vertex.mesheditor.deformable;
 public import nijigenerate.viewport.vertex.mesheditor.drawable;
 //public import nijigenerate.viewport.vertex.mesheditor.node;
 import nijigenerate.core.actionstack;
+import nijigenerate.viewport.common.mesh;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
@@ -23,7 +24,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.format;
 import std.string;
 
@@ -42,7 +43,8 @@ public:
         if (auto drawable = cast(Drawable)target) {
             incActionPushStack();
             subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
-            if (drawable.getMesh().isGrid()) {
+            float[][] axes;
+            if (drawable.getMesh().vertices.isGrid(axes)) {
                 subEditor.toolMode = VertexToolMode.Grid;
                 toolMode           = VertexToolMode.Grid;
             }

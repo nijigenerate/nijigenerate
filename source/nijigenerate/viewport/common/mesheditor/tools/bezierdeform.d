@@ -22,7 +22,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.math;
 import std.algorithm;
 import std.array;
@@ -305,7 +305,7 @@ class BezierDeformTool : NodeSelect {
         incStatusTooltip(_("Create/Destroy"), _("Left Mouse (x2)"));
         incStatusTooltip(_("Toggle locked point"), _("Ctrl"));
         incStatusTooltip(_("Move point along with the path"), _("Shift"));
-        
+
         if (action == BezierDeformActionID.SwitchMode) {
             impl.getCleanDeformAction();
         }
@@ -357,10 +357,7 @@ class BezierDeformTool : NodeSelect {
             impl.deselectAll();
             lockedPoint    = ulong(-1);
         } else if (action == BezierDeformActionID.TranslatePoint || action == BezierDeformActionID.StartTransform) {
-            foreach (i; impl.selected) {
-                vec2 relTranslation = impl.mousePos - impl.lastMousePos;
-                deformImpl.vertices[i].position += relTranslation;
-            }
+            onDragUpdate(impl.mousePos, impl);
         }
 
         // Left click selection
@@ -434,6 +431,9 @@ class BezierDeformTool : NodeSelect {
 
                 for (int i = cast(int)lockedPoint + step; 0 <= i && i < deformImpl.vertices.length; i += step) {
                     deformImpl.vertices[i].position = (rotate * vec4(deformImpl.vertices[i].position, 0, 1)).xy;
+                    if (impl.hasAction())
+                        impl.markActionDirty();
+                    changed = true;
                 }
             }
 
@@ -446,6 +446,9 @@ class BezierDeformTool : NodeSelect {
                     }
                     vec2 pos = origCurve.get.point(origCurve.get.closestPoint(impl.mousePos));
                     deformImpl.vertices[impl.selected[0]].position = pos;
+                    if (impl.hasAction())
+                        impl.markActionDirty();
+                    changed = true;
                 }
             }
         
@@ -453,12 +456,12 @@ class BezierDeformTool : NodeSelect {
             if(impl.selected.length == 1){
                 vec2 relTranslation = impl.mousePos - impl.lastMousePos;
                 deformImpl.vertices[impl.selected[0]].position += relTranslation;
+                if (impl.hasAction())
+                    impl.markActionDirty();
+                changed = true;
             }
         }
 
-        if (impl.hasAction())
-            impl.markActionDirty();
-        changed = true;
 
         // Left click selection
         if (action == SelectActionID.ToggleSelect) {

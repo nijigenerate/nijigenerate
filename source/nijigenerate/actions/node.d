@@ -89,6 +89,9 @@ public:
             // Set relative position
             if (new_) {
                 sn.reparent(new_, pOffset, true);
+                if (sn.uuid in zSort) {
+                    sn.zSort = zSort[sn.uuid] - new_.zSort();
+                }
                 sn.localTransform.translation = (new_.transform.matrix.inverse * vec4(tmpTransform.translation, 1)).xyz;
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
@@ -117,8 +120,14 @@ public:
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
-                if (newParent) newParent.notifyChange(sn, NotifyReason.StructureChanged);
-            } else sn.parent = null;
+                if (newParent) {
+                    newParent.notifyChange(sn, NotifyReason.StructureChanged);
+                }
+            } else {
+                sn.reparent(null, 0);
+                if (newParent)
+                    newParent.notifyChange(sn, NotifyReason.StructureChanged);
+            }
         }
         incActivePuppet().rescanNodes();
     }
@@ -131,11 +140,17 @@ public:
             if (newParent) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
                 sn.reparent(newParent, parentOffset, true);
+                if (sn.uuid in zSort) {
+                    sn.zSort = zSort[sn.uuid] - newParent.zSort();
+                }
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
                 if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
-            } else sn.parent = null;
+            } else {
+                sn.reparent(null, 0);
+                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
+            }
         }
         incActivePuppet().rescanNodes();
     }
@@ -595,7 +610,6 @@ public:
             link.indices = newIndices;
             counterLink.weight = newCounterWeight;
             counterLink.indices = newCounterIndices;
-            import std.stdio;
         }
     }
 

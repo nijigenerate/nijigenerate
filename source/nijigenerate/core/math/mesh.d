@@ -132,6 +132,8 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
         deformBinding.reInterpolate();
     }
 
+    target.notifyChange(target, NotifyReason.StructureChanged);
+
     action.updateNewState();
     incActionPush(action);
 

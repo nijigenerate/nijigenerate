@@ -9,6 +9,7 @@ import std.typecons;
 import std.algorithm;
 import std.array;
 import std.traits;
+import core.exception;
 
 Deformation* deformByDeformationBinding(DeformationParameterBinding binding, DeformationParameterBinding srcBinding, vec2u index, bool flipHorz = false) {
     if (!binding || !srcBinding) return null;
@@ -200,18 +201,18 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
     auto deformedControlPoints = deformable.vertices.dup;
     foreach (i; 0..origControlPoints.length) {
         deformedControlPoints[i] += deform.vertexOffsets[i];
+        if (flipHorz) {
+            origControlPoints[i].x *= -1;
+            deformedControlPoints[i].x *= -1;
+        }
     }
     auto originalCurve = deformable.createCurve(origControlPoints);
     auto deformedCurve = deformable.createCurve(deformedControlPoints);
 
-    vec2[] deformedVertices;
-    deformedVertices.length = vertices.length;
     Deformation* newDeform = new Deformation([]);
 
     foreach (i, v; vertices) {
         auto cVertex = position(v);
-        if (flipHorz)
-            cVertex.x *= -1;
         float t = originalCurve.closestPoint(cVertex);
         vec2 closestPointOriginal = originalCurve.point(t);
         vec2 tangentOriginal = originalCurve.derivative(t).normalized;
@@ -227,10 +228,7 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
         // Adjust the vertex to maintain the same normal and tangential distances
         vec2 deformedVertex = closestPointDeformedA + normalDeformed * originalNormalDistance + tangentDeformed * tangentialDistance;
 
-        deformedVertices[i] = deformedVertex;
-        if (flipHorz)
-            deformedVertices[i].x *= -1;
-        newDeform.vertexOffsets ~= deformedVertices[i] - position(v);
+        newDeform.vertexOffsets ~= deformedVertex - cVertex;
     }
     return newDeform;
 }
@@ -542,8 +540,8 @@ auto triangulate(T)(T[] vertices, vec4 bounds) {
         t.y -= dropVertices;
         t.z -= dropVertices;
         if (t.x >= vtx.length || t.y >= vtx.length || t.z >= vtx.length) {
-            import std.stdio;
-            writefln("Triangulate: Error: %s exceeds %d", t, dropVertices);
+//            import std.stdio;
+//            writefln("Triangulate: Error: %s exceeds %d", t, dropVertices);
         }
     }
     return tuple(vtx, tris);
@@ -590,8 +588,13 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
 }
 
 void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[] vertices , U[] indices, ulong index, V value) if (is(U: vec3u)) {
-    if (vertices.length < 3) return;
-    vec2[3] tvertices = [
+    if (vertices.length < 3 || indices.length < index) return;
+    vec2[3] tvertices;
+    if (index >= indices.length || 
+        indices[index].x >= vertices.length || 
+        indices[index].y >= vertices.length || 
+        indices[index].z >= vertices.length) return;
+    tvertices = [
         vertices[indices[index].x].position,
         vertices[indices[index].y].position,
         vertices[indices[index].z].position

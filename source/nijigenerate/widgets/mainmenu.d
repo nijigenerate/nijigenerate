@@ -22,7 +22,7 @@ import i18n;
 import nijigenerate.ext;
 
 import std.string;
-import std.stdio;
+//import std.stdio;
 import std.path;
 
 private {

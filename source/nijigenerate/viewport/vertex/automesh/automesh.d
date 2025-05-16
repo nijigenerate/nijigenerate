@@ -10,12 +10,18 @@ public:
     abstract IncMesh autoMesh(Drawable targets, IncMesh meshData, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0);
     abstract void configure();
     abstract string icon();
-    IncMesh[] autoMesh(Drawable[] targets, IncMesh[] meshData, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0, void delegate(Drawable, IncMesh) callback = null) {
-        return zip(targets, meshData).map!((p) {
-            if (callback) { callback(p[0], null); }
-            IncMesh result = autoMesh(p[0], p[1], mirrorHoriz, axisHoriz, mirrorVert, axisVert );
-            if (callback) { callback(p[0], result); }
-            return result;
-        }).array;
+    IncMesh[] autoMesh(Drawable[] targets, IncMesh[] meshData, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0, bool delegate(Drawable, IncMesh) callback = null) {
+        IncMesh[] result;
+        foreach (ref p; zip(targets, meshData)) {
+            if (callback) { 
+                if (!callback(p[0], null)) return result;
+            }
+            IncMesh r = autoMesh(p[0], p[1], mirrorHoriz, axisHoriz, mirrorVert, axisVert );
+            result ~= r;
+            if (callback) { 
+                if (!callback(p[0], r)) return result;
+            }
+        }
+        return result;
     }
 };

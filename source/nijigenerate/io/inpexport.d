@@ -144,7 +144,7 @@ Part[] incINPExportGetBestSort(Puppet puppet) {
     // TODO: Implement a better sorting strategy that optimizes rendering perf.
     Part[] parts = puppet.getAllParts().dup;
     parts.sort!(
-        (a, b) => a.textures[0].width+a.textures[0].height > b.textures[0].width+b.textures[0].height, 
+        (a, b) => (a.textures[0] && b.textures[0])? a.textures[0].width+a.textures[0].height > b.textures[0].width+b.textures[0].height: (a.textures[0] !is null), 
         SwapStrategy.stable
     )();
 

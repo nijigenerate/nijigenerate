@@ -23,7 +23,10 @@ import bindbc.sdl;
 import bindbc.opengl;
 import nijilive;
 import std.string;
+version (windows) {
+} else {
 import std.stdio;
+}
 import std.conv;
 import std.range : repeat;
 

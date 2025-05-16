@@ -10,7 +10,7 @@ import nijigenerate.widgets;
 import nijigenerate.core;
 import nijilive;
 import bindbc.sdl;
-import std.stdio;
+//import std.stdio;
 import std.string;
 import core.memory : GC;
 

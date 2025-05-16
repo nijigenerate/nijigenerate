@@ -15,11 +15,13 @@ import std.string;
 import std.array;
 import std.range;
 import std.algorithm.iteration;
-import std.stdio;
+import std.algorithm.searching;
+//import std.stdio;
 import nijilive.core.dbg;
 import core.thread.osthread;
-import core.memory;
 import core.sync.mutex;
+import core.thread.fiber;
+import core.memory;
 
 class AutoMeshBatchWindow : Modal {
 private:
@@ -38,11 +40,16 @@ private:
 
     Thread processingThread;
     shared Mutex gcMutex = null;
+    shared bool canceled = false;
+    AutoMeshProcessor activeProcessor = null;
+    bool selectAll = false;
+    enum ToggleAction { NoAction, None, All }
+    ToggleAction toggleAction = ToggleAction.NoAction;
 
     void apply() {
         foreach (node; nodes) {
             auto part = cast(ApplicableClass)node;
-            if (part is null) continue;
+            if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
             auto mesh = meshes[node.uuid];
             applyMeshToTarget(part, mesh.vertices, &mesh);
         }
@@ -98,6 +105,7 @@ private:
     void treeView() {
 
         import std.algorithm.searching : canFind;
+        selectAll = true;
         foreach(i, ref Node node; nodes) {
             if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
 
@@ -107,7 +115,17 @@ private:
                 active = node;
             }
             igSameLine(0, 0);
-            if ((cast(ApplicableClass)node) !is null) {
+            if (isApplicable(node)) {
+                switch (toggleAction) {
+                case ToggleAction.None:
+                    selected[node.uuid] = false;
+                    break;
+                case ToggleAction.All:
+                    selected[node.uuid] = true;
+                    break;
+                default:
+                }
+                if (!selected[node.uuid]) selectAll = false;
                 ngCheckbox("###check%x".format(node.uuid).toStringz, &(selected[node.uuid]));
                 igSameLine(0, 0);
             } else {
@@ -145,28 +163,69 @@ private:
             }
             igPopID();
         }
+        toggleAction = ToggleAction.NoAction;
 
+    }
+
+    bool shouldBeSelected(Node node) {
+        if (auto part = cast(ApplicableClass)node) {
+            if (auto dcomposite = cast(DynamicComposite)part) {
+                if (dcomposite.autoResizedMesh)
+                    return false;
+            }
+
+            return true;
+        } else
+            return false;
+    }
+
+    bool isApplicable(Node node) {
+        return cast(ApplicableClass)node !is null;
     }
 
 protected:
 
     void runBatch() {
-        GC.disable();
         auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
-        auto meshList = targets.map!(t=>meshes[t.uuid]).array;
+        auto meshList = targets.map!(t=>new IncMesh(meshes[t.uuid])).array;
         status.clear();
         foreach (t; targets) status[t.uuid] = Status.Waiting;
-        void callback(Drawable drawable, IncMesh mesh) {
+        Drawable currentTarget = null;
+        bool callback(Drawable drawable, IncMesh mesh) {
+            currentTarget = drawable;
             if (mesh is null) {
                 status[drawable.uuid] = Status.Running;
             } else {
-                status[drawable.uuid] = Status.Succeeded;
-                meshes[drawable.uuid] = mesh;
+                if (mesh.vertices.length >= 3) {
+                    status[drawable.uuid] = Status.Succeeded;
+                    meshes[drawable.uuid] = mesh;
+                } else {
+                    status[drawable.uuid] = Status.Failed;
+                }
             }
-            synchronized(gcMutex) { GC.collect(); }
+            bool result = false;
+            synchronized(gcMutex) { result = canceled; }
+            return !result;
         }
-        ngActiveAutoMeshProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
-        GC.enable();
+        void work() {
+            activeProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+        }
+        auto fib = new Fiber(&work, core.memory.pageSize * Fiber.defaultStackPages * 4);
+        while (fib.state != Fiber.State.TERM) {
+            fib.call();
+            bool result = false;
+            synchronized(gcMutex) { result = canceled; }
+            if (result) {
+                if (currentTarget) {
+                    status[currentTarget.uuid] = Status.Failed;
+                }
+                break;
+            }
+        }
+        auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
+        foreach (part; parts) part.textures[0].unlock();
+        import core.memory;
+        GC.collect();
     }
 
     override
@@ -201,6 +260,14 @@ protected:
 
         igBeginGroup();
             if (igBeginChild("###Nodes", ImVec2(childWidth, childHeight))) {
+                if (ngCheckbox("##toggleCheck", &selectAll)) {
+                    if (selectAll) {
+                        toggleAction = ToggleAction.All;
+                    } else {
+                        toggleAction = ToggleAction.None;
+                    }
+                }
+                igSameLine(0, 0);
                 incInputText("##", childWidth, nodeFilter);
 
                 igBeginListBox("###NodeList", ImVec2(childWidth, childHeight-filterWidgetHeight));
@@ -230,21 +297,24 @@ protected:
                 if (!processingThread.isRunning()) {
                     processingThread.join();
                     processingThread = null;
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].unlock();
-                    GC.enable();
+                    canceled = false;
+                    import core.memory;
                     GC.collect();
                 }
             }
 
             igBeginChild("###Actions", ImVec2(childWidth, 40));
-            if (incButtonColored(processingThread? __("Cancel") : __("Auto mesh"))) {
+            if (incButtonColored(processingThread? __("Cancel") : __("Run batch"))) {
                 if (!processingThread) {
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && cast(ApplicableClass)n).map!(n=>cast(ApplicableClass)n);
+                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].lock();
+                    activeProcessor = ngActiveAutoMeshProcessor;
                     processingThread = new Thread(&runBatch);
                     processingThread.start();
-                    GC.disable();
+                } else {
+                    synchronized(gcMutex) { canceled = true; }
                 }
             }
             igEndChild();
@@ -273,6 +343,7 @@ protected:
             igSameLine(0, 0);
             // 
             if (incButtonColored(__("Cancel"), ImVec2(96, 24))) {
+                canceled = true;
                 this.close();
                 
                 igEndGroup();
@@ -281,6 +352,7 @@ protected:
             igSameLine(0, 0);
             if (incButtonColored(__("Save"), ImVec2(96, 24))) {
                 apply();
+                canceled = true;
                 this.close();
                 
                 igEndGroup();
@@ -292,7 +364,6 @@ protected:
     void close() {
         if (processingThread !is null) {
             // TBD: kill thread
-            GC.enable();
         }
         incModalCloseTop();
     }
@@ -306,8 +377,8 @@ public:
         nodes.each!((n) {
             selected.require(n.uuid);
             auto part = (cast(ApplicableClass)n);
-            selected[n.uuid] = part !is null;
-            if (selected[n.uuid])
+            selected[n.uuid] = shouldBeSelected(n);
+            if (isApplicable(n))
                 meshes[n.uuid] = new IncMesh(part.getMesh());
         });
         // Removing unused pairs (happens when target nodes are removed.)

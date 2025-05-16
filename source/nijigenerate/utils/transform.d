@@ -14,7 +14,7 @@ import nijigenerate;
 import std.string;
 import nijilive;
 import i18n;
-import std.stdio;
+//import std.stdio;
 import nijigenerate.utils;
 import std.algorithm.searching: countUntil;
 
@@ -40,7 +40,7 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     if (forceCreate) {
         result = cast(ParameterBinding)param.createBinding(pairNode, name);
         // Skip if trying to add a deform binding to a node that can't get deformed
-        if(name == "deform" && cast(Drawable)pairNode is null) return null;
+        if(name == "deform" && cast(Deformable)pairNode is null) return null;
         param.addBinding(result);
         auto action = new ParameterBindingAddAction(param, result);
         incActionPush(action);
@@ -111,7 +111,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
         auto srcDeformBinding = cast(DeformationParameterBinding)srcBinding;
         if (deformBinding !is null && srcDeformBinding !is null) {
             PathDeformer deformable = cast(PathDeformer)deformBinding.getTarget().node;
-            PathDeformer srcDeformable = cast(PathDeformer)deformBinding.getTarget().node;
+            PathDeformer srcDeformable = cast(PathDeformer)srcDeformBinding.getTarget().node;
             Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
             Drawable srcDrawable = cast(Drawable)srcDeformBinding.getTarget().node;
             Deformation* newDeform = null;

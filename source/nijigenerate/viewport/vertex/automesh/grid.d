@@ -6,14 +6,12 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
 import inmath;
-import dcv.core;
-import dcv.imgproc;
-import dcv.measure;
+import nijigenerate.core.cv;
 import mir.ndslice;
 import mir.math.stat: mean;
 import std.algorithm;
 import std.algorithm.iteration: map, reduce;
-import std.stdio;
+//import std.stdio;
 import std.array;
 import bindbc.imgui;
 

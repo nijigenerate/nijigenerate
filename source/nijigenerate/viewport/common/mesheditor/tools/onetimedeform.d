@@ -21,7 +21,7 @@ import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
-import std.stdio;
+//import std.stdio;
 import std.algorithm;
 import std.array;
 
@@ -45,7 +45,6 @@ private {
                 filter.releaseTarget(child);
             }
             if ((cast(Node)filter).children.length == 0) {
-                writefln(" dispose filter");
                 (cast(Node)filter).reparent(null, 0);
                 filter = null;
             }
@@ -165,7 +164,6 @@ public:
         acquired = initialize!T();
         if ((cast(T)filter).children.countUntil(impl.getTarget()) < 0) {
             filter.captureTarget(impl.getTarget());
-            writefln("%x: %s", (cast(T)filter).uuid, (cast(T)filter).children.map!(t=>t.name).join(", "));
         }
         mode = SubToolMode.Vertex;
     }
@@ -267,8 +265,6 @@ public:
 
         switch (mode) {
         case SubToolMode.Select:
-            if (action != 0)
-                writefln(" Select: %s", action);
             return super.update(io, impl, action, changed);
         case SubToolMode.Vertex:
             if (acquired) {

@@ -2,13 +2,14 @@
 # They are provided by a third-party and are governed by
 # separate terms of service, privacy policy, and support
 # documentation.
-name: Nightly
+name: Build & Candidate
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
-
+  push:
+    # Push all normally versioned tags
+    # Include only release candidates!
+    tags:
+      - '*-rc*'
 
 permissions:
   contents: write
@@ -43,7 +44,7 @@ jobs:
         path: otl/*
         retention-days: 1
 
-  linux-zip:
+  linux-build:
     runs-on: ubuntu-22.04
 
     steps:
@@ -51,6 +52,11 @@ jobs:
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
         compiler: ldc-latest
+    
+    - name: "Get build dependencies"
+      run: |
+        sudo apt-get update
+        sudo apt install libsdl2-dev libfreetype6-dev gettext
 
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v2
@@ -60,11 +66,6 @@ jobs:
     - name: CMake version
       run: cmake --version
       
-    - name: "Get build dependencies"
-      run: |
-        sudo apt-get update
-        sudo apt install libsdl2-dev libfreetype6-dev gettext
-
     - name: 'Generate i18n'
       run: |
         sudo chmod +x ./gentl.sh
@@ -86,8 +87,8 @@ jobs:
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --config=linux-nightly
-          
+        dub build --compiler=ldc2 --build=release --config=linux-full
+
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
       with:
@@ -96,16 +97,15 @@ jobs:
         directory: 'out/'
         path: '*'
 
-    - name: Release to nightly tag
+    - name: 'Release'
       uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: 'Nightly Build'
-        tag_name: nightly
-        files: |
-          out/nijigenerate-linux-x86_64.zip
-        generate_release_notes: true
+          files: |
+            out/nijigenerate-linux-x86_64.zip
+          generate_release_notes: true
 
-  windows:
+  windows-build:
     runs-on: windows-latest
     needs: build-resources
 
@@ -120,6 +120,14 @@ jobs:
       with:
         name: translations
         path: out/i18n/
+        
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    
+    - name: CMake version
+      run: cmake --version
       
     - name: "Clone dependencies & set versions"
       run: |
@@ -130,14 +138,6 @@ jobs:
         cd i2d-imgui
         git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
         git submodule update --recursive
-
-    - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v2
-      with:
-        cmake-version: '3.31'
-    
-    - name: CMake version
-      run: cmake --version
 
     - name: 'Build nijigenerate'
       run: |
@@ -152,13 +152,13 @@ jobs:
             }
         }
         Invoke-VSDevEnvironment
-        Remove-Item 'C:/Strawberry' -Recurse
-
+        
         # Build metadata (like version information and icons)
         dub build --config=meta
 
         # Build the project, with its main file included, without unittests
-        dub build --compiler=ldc2 --config=win32-nightly
+        # Disabled release build because app crashed on Windows.
+        dub build --compiler=ldc2 --build=release --config=win32-full
 
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
@@ -167,7 +167,7 @@ jobs:
         filename: 'nijigenerate-win32-x86_64.zip'
         directory: 'out/'
         path: '*'
-
+    
     - name: 'Add msbuild to PATH'
       uses: microsoft/setup-msbuild@v1.1
     
@@ -186,15 +186,15 @@ jobs:
         mv "bin/Release/nijigenerate.msi" "../../../out/nijigenerate-win32-x86_64.msi"
         cd ../../../
 
-    - name: 'Release to nightly tag'
+    - name: 'Release'
       uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        tag_name: nightly
-        files: |
-          out/nijigenerate-win32-x86_64.msi
-          out/nijigenerate-win32-x86_64.zip
+          files: |
+            out/nijigenerate-win32-x86_64.msi
+            out/nijigenerate-win32-x86_64.zip
 
-  macOS-dmg:
+  macOS-build:
     runs-on: macos-14
 
     steps:
@@ -247,20 +247,19 @@ jobs:
 
     - name: 'Build nijigenerate'
       env:
-        DFLAGS: "-g -force-dwarf-frame-section=false"
+        DFLAGS: "-force-dwarf-frame-section=false"
       run: |
-
         # Build metadata (like version information and icons)
         dub build --config=meta
-
+        
         # First build ARM64 version...
         echo "Building arm64 binary..."
-        dub build --config=osx-nightly --arch=arm64-apple-macos
+        dub build --build=release --config=osx-full --arch=arm64-apple-macos
         mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
 
         # Then the X86_64 version...
         echo "Building x86_64 binary..."
-        dub build --config=osx-nightly --arch=x86_64-apple-macos
+        dub build --build=release --config=osx-full --arch=x86_64-apple-macos
         mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64"
 
         # Glue them together with lipo
@@ -276,13 +275,22 @@ jobs:
         rm "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
         ./build-aux/osx/osxbundle.sh
 
+    - name: Archive Zip
+      uses: thedoctor0/zip-release@main
+      with:
+        type: 'zip'
+        filename: 'nijigenerate-macOS.zip'
+        directory: 'out/'
+        path: '*'
+
     - name: 'Build DMG'
       run: |
         ./build-aux/osx/gendmg.sh
 
-    - name: Release to nightly tag
+    - name: 'Release'
       uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: 'Nightly Build'
-        tag_name: nightly
-        files: 'out/Install_nijigenerate.dmg'
+          files: |
+            out/nijigenerate-macOS.zip
+            out/Install_nijigenerate.dmg
