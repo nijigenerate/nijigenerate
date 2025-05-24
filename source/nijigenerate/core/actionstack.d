@@ -14,6 +14,7 @@ private {
     Action[][] actions;
     size_t currentLevel = 0;
     GroupAction[] currentGroup = null;
+    int[] groupCount;
     size_t[] actionPointer;
     size_t[] actionIndex;
     size_t maxUndoHistory;
@@ -32,6 +33,7 @@ void incActionInit() {
     actionPointer.length = currentLevel + 1;
     actionIndex.length = currentLevel + 1;
     currentGroup.length = currentLevel + 1;
+    groupCount.length = currentLevel + 1;
 }
 
 /**
@@ -205,6 +207,7 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         actionPointer.length = currentLevel + 1;
         actionIndex.length = currentLevel + 1;
         currentGroup.length = currentLevel + 1;
+        groupCount.length = currentLevel + 1;
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
@@ -226,10 +229,12 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
 void incActionPushGroup() {
     if (!currentGroup[currentLevel])
         currentGroup[currentLevel] = new GroupAction();
+    groupCount[currentLevel] += 1;
 }
 
 void incActionPopGroup() {
-    if (currentGroup[currentLevel]) {
+    groupCount[currentLevel] -= 1;
+    if (groupCount[currentLevel] == 0 && currentGroup[currentLevel]) {
         auto group = currentGroup[currentLevel];
         currentGroup[currentLevel] = null;
         if (group !is null && !group.empty())
@@ -243,6 +248,7 @@ void incActionPushStack() {
     actionPointer.length = currentLevel + 1;
     actionIndex.length = currentLevel + 1;
     currentGroup.length = currentLevel + 1;
+    groupCount.length = currentLevel + 1;
 }
 
 void incActionPopStack() {
@@ -252,5 +258,6 @@ void incActionPopStack() {
         actionPointer.length = currentLevel + 1;
         actionIndex.length = currentLevel + 1;
         currentGroup.length = currentLevel + 1;
+        groupCount.length = currentLevel + 1;
     }
 }

@@ -99,14 +99,21 @@ public:
     void setToolMode(VertexToolMode toolMode) {
         if (this.toolMode == toolMode) return;
 
-        if (this.toolMode in tools) {
-            tools[this.toolMode].finalizeToolMode(this);
-        }
         if (toolMode in tools) {
             this.toolMode = toolMode;
             tools[toolMode].setToolMode(toolMode, this);
         }
     }
+
+    override
+    void finalizeToolMode() {
+        if (toolMode in tools) {
+            import std.stdio;
+            writefln("finalize %s, %s", toolMode, target.name);
+            tools[toolMode].finalizeToolMode(this);
+        }
+    }
+
 
     override
     ulong selectOne(ulong vertIndex) {

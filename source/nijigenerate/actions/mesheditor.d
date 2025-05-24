@@ -14,6 +14,7 @@ import nijigenerate.viewport.common.spline;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
 import nijigenerate.actions;
+import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate;
 import nijilive;
 import std.format;
@@ -46,11 +47,17 @@ class DeformationAction  : LazyBoundAction {
             update();
             this.updateNewState();
         }
+        import std.stdio;
+        writefln("DeformationAction: %s, target=%s", cast(void*)this, this.target);
     }
 
     auto self() {
         IncMeshEditor editor = incViewportModelDeformGetEditor();
-        return editor? editor.getEditorFor(target): null;
+        IncMeshEditorOne targetEditor = editor? editor.getEditorFor(target): null;
+        if (targetEditor is null) {
+            targetEditor = ngGetArmedParameterEditorFor(target);
+        }
+        return targetEditor;
     }
 
     void addVertex(MeshVertex* vertex) {
@@ -98,9 +105,12 @@ class DeformationAction  : LazyBoundAction {
         Rollback
     */
     void rollback() {
+        import std.stdio;
+        writefln("undo %s, %s", cast(void*)this, target ? target.name: "<null>");
         if (undoable) {
             if (vertices) {
                 if (deform !is null) {
+                    writefln(" execute undo");
                     vec2[] tmpVertices = vertices;
                     bool   tmpIsSet    = isSet;
                     vertices = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;

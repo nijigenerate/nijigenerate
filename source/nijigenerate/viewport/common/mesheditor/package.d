@@ -126,13 +126,6 @@ public:
         }
     }
 
-    void setToolMode(VertexToolMode toolMode) {
-        this.toolMode = toolMode;
-        foreach (drawing, editor; editors) {
-            editor.setToolMode(toolMode);
-        }
-    }
-
     VertexToolMode getToolMode() {
         return toolMode;
     }

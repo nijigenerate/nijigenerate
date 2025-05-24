@@ -235,6 +235,7 @@ public:
     }
 
     abstract void setToolMode(VertexToolMode toolMode);
+    abstract void finalizeToolMode();
 
     bool previewingTriangulation() {
          return previewTriangulate && toolMode == VertexToolMode.Points;

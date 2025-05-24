@@ -165,13 +165,17 @@ public:
         if ((cast(T)filter).children.countUntil(impl.getTarget()) < 0) {
             filter.captureTarget(impl.getTarget());
         }
+        impl.getDeformAction();
+        incActionPushStack();
         mode = SubToolMode.Vertex;
     }
 
     override
     void finalizeToolMode(IncMeshEditorOne impl) {
         if (acquired) {
+            incActionPopStack();
             forceFinalize();
+            impl.pushDeformAction();
         }
     }
 
@@ -245,13 +249,39 @@ public:
             case SubToolMode.Vertex:
                 if (acquired) {
                     mode = SubToolMode.Deform;
+                    fVertImpl.vertexColor = vec4(0, 0.5, 0.5, 1);
+                    fVertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
+                    fDefImpl.vertexColor = vec4(0, 1, 0, 1);
+                    fDefImpl.edgeColor   = vec4(0, 1, 0, 1);
+                    import std.stdio;
+                    incActionPushGroup();
+                    fVertImpl.pushDeformAction();
                     fVertImpl.applyToTarget();
                     fDefImpl.setTarget(cast(T)filter);
+                    fDefImpl.getCleanDeformAction();
+                    /*
+                    if (auto deformable = cast(Deformable)filter) {
+                        auto parameter = incArmedParameter();
+                        auto deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
+                        if (deform !is null)
+                            deform.update(parameter.findClosestKeypoint(), fDefImpl.getOffsets());
+                    }
+                    */
+                    fDefImpl.markActionDirty();
+                    fDefImpl.pushDeformAction();
+                    incActionPopGroup();
+                    fDefImpl.getCleanDeformAction();
                     paramValueChanged();
                 }
                 break;
             case SubToolMode.Deform:
                 if (acquired) {
+                    fVertImpl.vertexColor = vec4(0, 1, 1, 1);
+                    fVertImpl.edgeColor   = vec4(0, 1, 1, 1);
+                    fDefImpl.vertexColor = vec4(0, 0.5, 0, 1);
+                    fDefImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
+                    fDefImpl.pushDeformAction();
+                    fVertImpl.getCleanDeformAction();
                     paramValueChanged();
                     mode = SubToolMode.Vertex;
                 }
@@ -278,6 +308,9 @@ public:
                 auto parameter = incArmedParameter();
                 auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(cast(T)filter, "deform");
                 deform.update(parameter.findClosestKeypoint(), fDefImpl.getOffsets());
+                if (result) {
+                    impl.markActionDirty();
+                }
                 return result;
             }
             break;
@@ -292,85 +325,21 @@ public:
             super.draw(camera, impl);
 
         if (acquired) {
-            fVertImpl.draw(camera);
-            fVertImpl.getTool().draw(camera, fVertImpl);
-            fDefImpl.draw(camera);
-            fDefImpl.getTool().draw(camera, fDefImpl);
+            if (mode == SubToolMode.Vertex) {
+                fDefImpl.draw(camera);
+                fDefImpl.getTool().draw(camera, fDefImpl);
+                fVertImpl.draw(camera);
+                fVertImpl.getTool().draw(camera, fVertImpl);
+            } else {
+                fVertImpl.draw(camera);
+                fVertImpl.getTool().draw(camera, fVertImpl);
+                fDefImpl.draw(camera);
+                fDefImpl.getTool().draw(camera, fDefImpl);
+            }
         }
 
     }
 
-    override
-    MeshEditorAction!DeformationAction editorAction(Node target, DeformationAction action) {
-        switch (mode) {
-        case SubToolMode.Select:
-            return super.editorAction(target, action);
-        case SubToolMode.Vertex:
-            if (acquired)
-                return fVertImpl.getTool().editorAction(target, action);
-            break;
-        case SubToolMode.Deform:
-            if (acquired)
-                return fDefImpl.getTool().editorAction(target, action);
-            break;
-        default:
-        }
-        return new MeshEditorAction!(DeformationAction)(target, action);
-    }
-
-    override
-    MeshEditorAction!GroupAction editorAction(Node target, GroupAction action) {
-        switch (mode) {
-        case SubToolMode.Select:
-            return super.editorAction(target, action);
-        case SubToolMode.Vertex:
-            if (acquired)
-                return fVertImpl.getTool().editorAction(target, action);
-            break;
-        case SubToolMode.Deform:
-            if (acquired)
-                return fDefImpl.getTool().editorAction(target, action);
-            break;
-        default:
-        }
-        return new MeshEditorAction!(GroupAction)(target, action);
-    }
-
-    override
-    MeshEditorAction!DeformationAction editorAction(Drawable target, DeformationAction action) {
-        switch (mode) {
-        case SubToolMode.Select:
-            return super.editorAction(target, action);
-        case SubToolMode.Vertex:
-            if (acquired)
-                return fVertImpl.getTool().editorAction(target, action);
-            break;
-        case SubToolMode.Deform:
-            if (acquired)
-                return fDefImpl.getTool().editorAction(target, action);
-            break;
-        default:
-        }
-        return new MeshEditorAction!(DeformationAction)(target, action);
-    }
-
-    override
-    MeshEditorAction!GroupAction editorAction(Drawable target, GroupAction action) {
-        switch (mode) {
-        case SubToolMode.Select:
-            return super.editorAction(target, action);
-        case SubToolMode.Vertex:
-            if (acquired)
-                return fVertImpl.getTool().editorAction(target, action);
-            break;
-        case SubToolMode.Deform:
-            if (acquired)
-                return fDefImpl.getTool().editorAction(target, action);
-            break;
-        default:
-        }
-        return new MeshEditorAction!(GroupAction)(target, action);
-    }
 }
 
 class ToolInfoImpl(T: OneTimeDeform!MeshGroup) : ToolInfoBase!(T) {
@@ -395,4 +364,13 @@ class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
     override VertexToolMode mode() { return VertexToolMode.AltBezierDeform; };
     override string icon() { return "";}
     override string description() { return _("Path deformation");}
+}
+
+IncMeshEditorOne ngGetArmedParameterEditorFor(Node node) {
+    if (auto f = cast(NodeFilter)node) {
+        if (f == filter) {
+            return fDefImpl;
+        }
+    }
+    return null;
 }
