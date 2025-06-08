@@ -243,6 +243,9 @@ public:
 
     abstract Node getTarget();
     abstract void setTarget(Node target);
+    abstract Node[] getFilterTargets();
+    abstract void addFilterTarget(Node parent);
+    abstract void removeFilterTarget(Node parent);
     abstract void resetMesh();
     abstract void refreshMesh();
     abstract void importMesh(ref MeshData data);

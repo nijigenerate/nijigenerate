@@ -3,6 +3,7 @@ module nijigenerate.actions.mesh;
 import nijigenerate.core.actionstack;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.operations;
+import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.viewport.vertex;
 import nijigenerate.actions;
 import nijigenerate;
@@ -21,6 +22,8 @@ abstract class MeshAction  : LazyBoundAction {
     bool dirty;
     IncMeshEditorOne editor;
     IncMesh mesh;
+    SubToolMode[] oldSubToolMode;
+    SubToolMode[] newSubToolMode;
 
     struct Connection {
         MeshVertex* v1;
@@ -29,11 +32,20 @@ abstract class MeshAction  : LazyBoundAction {
 
     bool undoable = true;
 
+    alias self = editor;
+
     this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
         this.name = name;
         this.editor = editor;
         this.mesh = mesh;
         this.clear();
+
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
+            import std.stdio;
+            writefln("MeshAction: capture oldSubToolMode=%s", oldSubToolMode);
+        }
 
         if (update !is null) {
             update();
@@ -44,6 +56,12 @@ abstract class MeshAction  : LazyBoundAction {
     void markAsDirty() { dirty = true; }
 
     void updateNewState() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
+            import std.stdio;
+            writefln("MeshAction: capture newSubToolMode=%s", newSubToolMode);
+        }
     }
 
     void clear() {
@@ -71,8 +89,32 @@ abstract class MeshAction  : LazyBoundAction {
         return this.stringof;
     }
 
+    override
+    void rollback() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            foreach (i, t; filterTargets) {
+                (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
+            }
+            import std.stdio;
+            writefln("MeshAction: undo.mode=%s", oldSubToolMode);
+        }
+    }
+
+    override
+    void redo() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            foreach (i, t; filterTargets) {
+                (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
+            }
+            import std.stdio;
+            writefln("MeshAction: redo.mode=%s", newSubToolMode);
+        }
+    }
+
     bool merge(Action other) { return false; }
-    bool canMerge(Action other) { return false; }    
+    bool canMerge(Action other) { return false; }
 };
 
 class MeshConnectAction  : MeshAction {
@@ -94,6 +136,7 @@ class MeshConnectAction  : MeshAction {
 
     override
     void updateNewState() {
+        super.updateNewState();
     }
 
     override
@@ -108,6 +151,7 @@ class MeshConnectAction  : MeshAction {
     override
     void rollback() {
         if (undoable) {
+            super.rollback();
             foreach (v, c; connected) {
                 auto vertex = cast(MeshVertex*)v;
                 foreach (other; c) {
@@ -125,6 +169,7 @@ class MeshConnectAction  : MeshAction {
     override
     void redo() {
         if (!undoable) {
+            super.redo();
             foreach (v, c; connected) {
                 auto vertex = cast(MeshVertex*)v;
                 foreach (other; c) {
@@ -181,6 +226,7 @@ class MeshDisconnectAction  : MeshAction {
 
     override
     void updateNewState() {
+        super.updateNewState();
     }
 
     override

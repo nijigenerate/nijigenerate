@@ -3,6 +3,7 @@ module nijigenerate.actions.vertex;
 import nijigenerate.core.actionstack;
 //import nijigenerate.viewport.common.mesheditor.operations.deformable;
 import nijigenerate.viewport.common.mesheditor;
+import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.core.math;
 import nijigenerate.viewport.vertex;
 import nijigenerate.actions;
@@ -26,14 +27,24 @@ abstract class VertexAction  : LazyBoundAction {
         MeshVertex* v1;
         MeshVertex* v2;
     };
-
+    SubToolMode[] oldSubToolMode;
+    SubToolMode[] newSubToolMode;
 
     bool undoable = true;
+
+    alias self = editor;
 
     this(string name, IncMeshEditorOne editor, void delegate() update = null) {
         this.name = name;
         this.editor = editor;
         this.clear();
+
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
+            import std.stdio;
+            writefln("VertexAction: capture oldSubToolMode=%s", oldSubToolMode);
+        }
 
         if (update !is null) {
             update();
@@ -44,6 +55,36 @@ abstract class VertexAction  : LazyBoundAction {
     void markAsDirty() { dirty = true; }
 
     void updateNewState() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
+            import std.stdio;
+            writefln("VertexAction: capture newSubToolMode=%s", newSubToolMode);
+        }
+    }
+
+    override
+    void rollback() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            foreach (i, t; filterTargets) {
+                (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
+            }
+            import std.stdio;
+            writefln("VertexAction: undo.mode=%s", oldSubToolMode);
+        }        
+    }
+
+    override
+    void redo() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            foreach (i, t; filterTargets) {
+                (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
+            }
+            import std.stdio;
+            writefln("VertexAction: redo.mode=%s", newSubToolMode);
+        }
     }
 
     void clear() {
@@ -100,7 +141,9 @@ class VertexMoveAction  : VertexAction {
     void markAsDirty() { dirty = true; }
 
     override
-    void updateNewState() {}
+    void updateNewState() {
+        super.updateNewState();
+    }
 
     override
     void clear() {
@@ -114,6 +157,7 @@ class VertexMoveAction  : VertexAction {
     override
     void rollback() {
         if (undoable) {
+            super.rollback();
             foreach (v, t; translations) {
                 auto vertex = cast(MeshVertex*)v;
                 vertex.position = t.original;
@@ -129,6 +173,7 @@ class VertexMoveAction  : VertexAction {
     override
     void redo() {
         if (!undoable) {
+            super.redo();
             foreach (v, t; translations) {
                 auto vertex = cast(MeshVertex*)v;
                 vertex.position = t.translated;
@@ -232,6 +277,7 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
 
     override
     void updateNewState() {
+        super.updateNewState();
     }
 
     override
@@ -274,11 +320,13 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
 
     override
     void rollback() {
+        super.rollback();
         action!(reverse)();
     }
 
     override
     void redo() {
+        super.redo();
         action!(!reverse)();
     }
 
@@ -325,6 +373,7 @@ class VertexReorderAction  : VertexAction {
 
     override
     void updateNewState() {
+        super.updateNewState();
     }
 
     /**
@@ -333,6 +382,7 @@ class VertexReorderAction  : VertexAction {
     override
     void rollback() {
         if (undoable) {
+            super.rollback();
             undoable = false;
             editor.refreshMesh();
         }
@@ -344,6 +394,7 @@ class VertexReorderAction  : VertexAction {
     override
     void redo() {
         if (!undoable) {
+            super.redo();
             undoable = true;
             editor.refreshMesh();
         }
