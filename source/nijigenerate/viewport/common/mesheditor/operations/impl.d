@@ -31,6 +31,7 @@ protected:
     uint groupId;
 
     Tool[VertexToolMode] tools;
+    Node[] filterTargets;
 
 public:
     this(bool deformOnly) {
@@ -133,6 +134,25 @@ public:
     uint getGroupId() { return groupId; }
     override
     void setGroupId(uint groupId) { this.groupId = groupId; }
+
+    override
+    Node[] getFilterTargets() {
+        return filterTargets;
+    }
+
+    override
+    void addFilterTarget(Node parent) {
+        if (!filterTargets.canFind(parent))
+            filterTargets ~= parent;
+    }
+
+    override
+    void removeFilterTarget(Node parent) {
+        long idx = filterTargets.countUntil(parent);
+        if (idx >= 0) {
+            filterTargets = filterTargets.remove(idx);
+        }
+    }
 
 }
 
@@ -245,3 +265,17 @@ public:
         return mesh.vertices;
     }
 }
+
+
+IncMeshEditorOne ngGetEditorFor(Node target) {
+    import nijigenerate.viewport.model.deform;
+    import nijigenerate.viewport.common.mesheditor;
+
+    IncMeshEditor editor = incViewportModelDeformGetEditor();
+    IncMeshEditorOne targetEditor = editor? editor.getEditorFor(target): null;
+    if (targetEditor is null) {
+        targetEditor = ngGetArmedParameterEditorFor(target);
+    }
+    return targetEditor;
+}
+
