@@ -95,7 +95,7 @@ class ResourcePanelConfig : ISerializable {
         if (data.isEmpty) return null;
 
         if (singleton.history.length == 0) {
-            // TBD
+            return null;
         }
         
         auto view = singleton.history[0];
