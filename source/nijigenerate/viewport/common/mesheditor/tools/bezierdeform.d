@@ -351,7 +351,7 @@ class BezierDeformTool : NodeSelect {
                     MeshVertex* vertex = new MeshVertex(impl.mousePos);
                     insertAction.addVertex(vertex);
                 }
-
+                insertAction.updateNewState();
                 incActionPush(insertAction);
             }
             impl.deselectAll();

@@ -84,6 +84,7 @@ class ToolInfoBase(T) : ToolInfo {
     /// Originally implemented directly in IncMeshEditorOneImpl, but move here
     /// in order to decouple tools and oprations.
     void setupToolMode(IncMeshEditorOne e, VertexToolMode mode) {
+        e.finalizeToolMode();
         e.setToolMode(mode);
         e.setPath(null);
         e.refreshMesh();
