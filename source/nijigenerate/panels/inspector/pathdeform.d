@@ -36,6 +36,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
             alias DefaultDriver = ConnectedPendulumDriver;
 
+            if (ngCheckbox(__("Dynamic mode(slow)"), &dynamic.value)) {
+                dynamic.apply();
+                capture(cast(Node[])targets);
+            }
             if (ngCheckbox(__("Auto-Physics"), &physicsEnabled.value)) {
                 physicsEnabled.apply();
                 capture(cast(Node[])targets);
@@ -153,6 +157,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
     }
 
     mixin MultiEdit;
+    mixin(attribute!(bool, "dynamic",   (x)=>x~".dynamic", (x, v)=>x~".switchDynamic("~v~")"));
     mixin(attribute!(bool, "physicsEnabled",   (x   )=>x~".physicsEnabled", (x, v)=>x~".physicsEnabled = "~v));
     mixin(attribute!(CurveType, "curveType",   (x)=>x~".curveType", (x, v)=>x~".curveType = "~v));
     mixin(attribute!(float, "gravity",         (x   )=>get_prop!float(_pendulum(x), "gravity"), 
