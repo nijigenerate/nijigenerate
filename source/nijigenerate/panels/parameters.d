@@ -141,13 +141,18 @@ private {
         incActionPopGroup();
     }
 
-    void pasteParameter(Parameter param, uint axis) {
-        if (cClipboardParameter is null)
+    void pasteParameter(bool pushAction = true)(Parameter param, Parameter srcParam = null, uint axis) {
+        if (srcParam is null)
+            srcParam = cClipboardParameter;
+        if (srcParam is null)
             return;
-        incActionPushGroup();
-        auto action = new ParameterChangeBindingsAction("Paste", param, null);
+        ParameterChangeBindingsAction action = null;
+        static if (pushAction) {
+            incActionPushGroup();
+            action = new ParameterChangeBindingsAction("Paste", param, null);
+        }
 
-        foreach(ParameterBinding srcBinding; cClipboardParameter.bindings) {
+        foreach(ParameterBinding srcBinding; srcParam.bindings) {
             if (auto target = cast(Node)srcBinding.getTarget().target) {
                 FlipPair pair = null;
                 if (axis != 2)
@@ -168,10 +173,13 @@ private {
                 //FIXME: must be implemented.                
             }
         }
-        action.updateNewState();
-        incActionPush(action);
-        incActionPopGroup();
-        cClipboardParameter = null;
+        static if (pushAction) {
+            action.updateNewState();
+            incActionPush(action);
+            incActionPopGroup();
+        }
+        if (srcParam == cClipboardParameter)
+            cClipboardParameter = null;
     }
 
     void fixScales(Parameter param) {
@@ -919,15 +927,26 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                     cClipboardParameter = param.dup;
                 }
                 if (igMenuItem(__("Paste"), "", false, true)) {
-                    pasteParameter(param, 2);
+                    pasteParameter(param, null, 2);
                     incViewportNodeDeformNotifyParamValueChanged();
                 }
                 if (igMenuItem(__("Paste and Horizontal Flip"), "", false, true)) {
-                    pasteParameter(param, 0);
+                    pasteParameter(param, null, 0);
                     incViewportNodeDeformNotifyParamValueChanged();
                 }
 
                 if (igMenuItem(__("Duplicate"), "", false, true)) {
+                    Parameter newParam = param.dup;
+                    incActivePuppet().parameters ~= newParam;
+                    newParam.bindings.length = 0;
+                    pasteParameter!false(newParam, param, 0);
+                    if (auto exParam = cast(ExParameter)newParam) {
+                        exParam.setParent((cast(ExParameter)param).getParent());
+                    }
+                    incActionPush(new ParameterAddAction(newParam, &paramArr));
+                }
+
+                if (igMenuItem(__("Duplicate and Horizontal Flip"), "", false, true)) {
                     Parameter newParam = param.dup;
                     incActivePuppet().parameters ~= newParam;
                     if (auto exParam = cast(ExParameter)newParam) {
