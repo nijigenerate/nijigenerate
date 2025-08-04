@@ -2,6 +2,7 @@ module nijigenerate.commands.base;
 
 import nijilive;
 import nijigenerate.core;
+import nijigenerate.ext;
 
 class Context {
     Puppet puppet;
