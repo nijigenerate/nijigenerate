@@ -8,7 +8,6 @@ import nijigenerate.core.math.triangle;
 import nijigenerate.core;
 import nijigenerate.actions;
 import nijigenerate.ext;
-import nijigenerate.ext.param;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.windows.flipconfig;

@@ -4,74 +4,69 @@ import nijigenerate.commands.base;
 import nijigenerate.commands.parameter.base;
 import nijilive;
 import nijigenerate.ext;
+import nijigenerate.ext.param;
 import nijigenerate.widgets;
 import nijigenerate.windows;
 import nijigenerate.core;
 import nijigenerate.project;
 import i18n;
+import std.array : insertInPlace;
 
 
-void incMoveParameter(Parameter from, ExParameterGroup to = null, int index = 0) {
-    (cast(ExParameter)from).setParent(to);
+//==================================================================================
+// Command Palette Definition for Parameter Group
+//==================================================================================
+
+
+class MoveParameterCommand : ExCommand!(ExParameterGroup, int) {
+    this(ExParameterGroup group, int index) { super("Move Parameter", group, index);}
+    override
+    void run(Context ctx) {
+        if (!ctx.hasParameters || ctx.parameters.length == 0) return;
+
+        incMoveParameter(ctx.parameters[0], arg0, arg1);
+    }
 }
 
-ExParameterGroup incCreateParamGroup(int index = 0) {
-    import std.array : insertInPlace;
+class CreateParamGroupCommand : ExCommand!(int) {
+    this(int index = 0) { super("Create Parameter Group", index); }
+    override
+    void run(Context ctx) {
 
-    if (index < 0) index = 0;
-    else if (index > incActivePuppet().parameters.length) index = cast(int)incActivePuppet().parameters.length-1;
+        if (!ctx.hasPuppet) return;
 
-    auto group = new ExParameterGroup(_("New Parameter Group"));
-    (cast(ExPuppet)incActivePuppet()).addGroup(group);
-    return group;
+//        if (index < 0) index = 0;
+//        else if (index > ctx.puppet.parameters.length) 
+//            index = cast(int)ctx.puppet.parameters.length-1;
+
+        auto group = new ExParameterGroup(_("New Parameter Group"));
+        (cast(ExPuppet)ctx.puppet).addGroup(group);
+    }
 }
 
-
-
-bool incParameterGropuMenuContents(ExParameterGroup group) {
-    bool result = false;
-    if (igMenuItem(__("Rename"))) {
-        incPushWindow(new RenameWindow(group.name_));
+class ChangeGroupColorCommand : ExCommand!(vec3) {
+    this(vec3 color) { super("Change Parameter Group Color", color); }
+    override
+    void run(Context ctx) {
+        if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
+            return;
+        auto group = cast(ExParameterGroup)ctx.parameters[0];
+        group.color = arg0;
     }
+}
 
-    if (igBeginMenu(__("Colors"))) {
-        auto flags = ImGuiColorEditFlags.NoLabel | ImGuiColorEditFlags.NoTooltip;
-        ImVec2 swatchSize = ImVec2(24, 24);
+class DeleteParamGroupCommand : ExCommand!() {
+    this() { super("Delete Parameter Group"); }
+    override
+    void run(Context ctx) {
+        if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
+            return;
+        auto group = cast(ExParameterGroup)ctx.parameters[0];
 
-        // COLOR SWATCHES
-        if (igColorButton("NONE", ImVec4(0, 0, 0, 0), flags | ImGuiColorEditFlags.AlphaPreview, swatchSize)) group.color = vec3(float.nan, float.nan, float.nan);
-        igSameLine(0, 4);
-        if (igColorButton("RED", ImVec4(1, 0, 0, 1), flags, swatchSize)) group.color = vec3(0.25, 0.15, 0.15);
-        igSameLine(0, 4);
-        if (igColorButton("GREEN", ImVec4(0, 1, 0, 1), flags, swatchSize)) group.color = vec3(0.15, 0.25, 0.15);
-        igSameLine(0, 4);
-        if (igColorButton("BLUE", ImVec4(0, 0, 1, 1), flags, swatchSize)) group.color = vec3(0.15, 0.15, 0.25);
-        igSameLine(0, 4);
-        if (igColorButton("PURPLE", ImVec4(1, 0, 1, 1), flags, swatchSize)) group.color = vec3(0.25, 0.15, 0.25);
-        igSameLine(0, 4);
-        if (igColorButton("CYAN", ImVec4(0, 1, 1, 1), flags, swatchSize)) group.color = vec3(0.15, 0.25, 0.25);
-        igSameLine(0, 4);
-        if (igColorButton("YELLOW", ImVec4(1, 1, 0, 1), flags, swatchSize)) group.color = vec3(0.25, 0.25, 0.15);
-        igSameLine(0, 4);
-        if (igColorButton("WHITE", ImVec4(1, 1, 1, 1), flags, swatchSize)) group.color = vec3(0.25, 0.25, 0.25);
-        
-        igSpacing();
-
-        // CUSTOM COLOR PICKER
-        // Allows user to select a custom color for parameter group.
-        igColorPicker3(__("Custom Color"), &group.color.vector, ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.DisplayHSV);
-        igEndMenu();
-    }
-
-    if (igMenuItem(__("Delete"))) {
         foreach(child; group.children) {
             auto exChild = cast(ExParameter)child;
             exChild.setParent(null);
         }
         (cast(ExPuppet)incActivePuppet()).removeGroup(group);
-        
-        // End early.
-        result = true;
     }
-    return result;
 }

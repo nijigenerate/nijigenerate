@@ -11,49 +11,55 @@ import nijigenerate.project;
 import nijigenerate.actions;
 import i18n;
 
-
-
-void incParameterMenuContents(Parameter[] parameters) {
-    if (igMenuItem(__("Add 1D Parameter (0..1)"), "", false, true)) {
+class Add1DParameterCommand(int min, int max) : ExCommand!() {
+    this() { super("Add 1D Parameter (%d..%d)".format(min, max)); }
+    override
+    void run(Context ctx) {
+        if (!ctx.hasPuppet)
+            return;
+        
         Parameter param = new ExParameter(
             "Param #%d\0".format(parameters.length),
             false
         );
+        param.min.x = min;
+        param.max.x = max;
+        if (min + max == 0)
+            param.insertAxisPoint(0, 0.5);
         incActivePuppet().parameters ~= param;
         incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
     }
-    if (igMenuItem(__("Add 1D Parameter (-1..1)"), "", false, true)) {
-        Parameter param = new ExParameter(
-            "Param #%d\0".format(parameters.length),
-            false
-        );
-        param.min.x = -1;
-        param.max.x = 1;
-        param.insertAxisPoint(0, 0.5);
-        incActivePuppet().parameters ~= param;
-        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-    }
-    if (igMenuItem(__("Add 2D Parameter (0..1)"), "", false, true)) {
-        Parameter param = new ExParameter(
-            "Param #%d\0".format(parameters.length),
-            true
-        );
-        incActivePuppet().parameters ~= param;
-        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
-    }
-    if (igMenuItem(__("Add 2D Parameter (-1..+1)"), "", false, true)) {
+}
+
+class Add2DParameterCommand(int min, int max) : ExCommand!() {
+    this() { super("Add 2D Parameter (%d..%d)".format(min, max)); }
+    override
+    void run(Context ctx) {
+        if (!ctx.hasPuppet)
+            return;
+        
         Parameter param = new ExParameter(
             "Param #%d\0".format(parameters.length),
             true
         );
-        param.min = vec2(-1, -1);
-        param.max = vec2(1, 1);
-        param.insertAxisPoint(0, 0.5);
-        param.insertAxisPoint(1, 0.5);
+        param.min = vec2(min, min);
+        param.max = vec2(max, max);
+        if (min + max == 0) {
+            param.insertAxisPoint(0, 0.5);
+            param.insertAxisPoint(1, 0.5);
+        }
         incActivePuppet().parameters ~= param;
         incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
     }
-    if (igMenuItem(__("Add Mouth Shape"), "", false, true)) {
+}
+
+class AddMouthParameterCommand(int min, int max) : ExCommand!() {
+    this() { super("Add Mouth Parameter (%d..%d)".format(min, max)); }
+    override
+    void run(Context ctx) {
+        if (!ctx.hasPuppet)
+            return;
+        
         Parameter param = new ExParameter(
             "Mouth #%d\0".format(parameters.length),
             true
@@ -70,4 +76,3 @@ void incParameterMenuContents(Parameter[] parameters) {
         incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
     }
 }
-
