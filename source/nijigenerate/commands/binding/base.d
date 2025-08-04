@@ -149,13 +149,6 @@ void swapSelectionWithNode(Parameter param, Node target) {
 }
 
 
-ptrdiff_t findParamIndex(ref Parameter[] paramArr, Parameter param) {
-    import std.algorithm.searching : countUntil;
-    ptrdiff_t idx = paramArr.countUntil(param);
-    return idx;
-}
-ParamDragDropData* dragDropData;
-
 struct ParamDragDropData {
     Parameter param;
 }

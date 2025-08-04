@@ -230,12 +230,6 @@ void popColorScheme() {
     igPopStyleColor(2);
 }
 */
-
-ptrdiff_t findParamIndex(ref Parameter[] paramArr, Parameter param) {
-    import std.algorithm.searching : countUntil;
-    ptrdiff_t idx = paramArr.countUntil(param);
-    return idx;
-}
 ParamDragDropData* dragDropData;
 
 /*
