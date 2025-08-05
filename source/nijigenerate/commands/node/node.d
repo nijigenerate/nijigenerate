@@ -166,42 +166,53 @@ class CentralizeNodeCommand : ExCommand!() {
 }
 
 enum NodeCommand {
-    Add,
-    Insert,
-    Delete,
+    AddNode,
+    InsertNode,
+    DeleteNode,
     ConvertTo,
-    Copy,
-    Paste,
-    Reload,
+    CopyNode,
+    PasteNode,
+    ReloadNode,
     VertexMode,
     ToggleVisibility,
-    Centralize
+    CentralizeNode
 }
 
+
+// コマンド登録用 mixin 定義（文字列引数方式）
+template register(alias id, string args = "") {
+    import std.string : format;
+    // Extract the enum member name (e.g., "Add" from NodeCommand.Add)
+    enum name = __traits(identifier, id);
+    enum ctor = name ~ "Command";
+    static if (args.length == 0)
+        enum register = format("commands[NodeCommand.%s] = new %s();", name, ctor);
+    else
+        enum register = format("commands[NodeCommand.%s] = new %s(%s);", name, ctor, args);
+}
 
 private {
     Command[NodeCommand] commands;
 
     static this() {
+        import std.traits : EnumMembers;
 
-        commands[NodeCommand.Add] = new AddNodeCommand("", "");
-        commands[NodeCommand.Insert] = new InsertNodeCommand("", "");
-        commands[NodeCommand.Delete] = new DeleteNodeCommand();
-        commands[NodeCommand.ConvertTo] = new ConvertToCommand("");
-        commands[NodeCommand.Copy] = new CopyNodeCommand();
-        commands[NodeCommand.Paste] = new PasteNodeCommand();
-        commands[NodeCommand.Reload] = new ReloadNodeCommand();
-        commands[NodeCommand.VertexMode] = new VertexModeCommand();
-        commands[NodeCommand.ToggleVisibility] = new ToggleVisibilityCommand();
-        commands[NodeCommand.Centralize] = new CentralizeNodeCommand();
+        static foreach (name; EnumMembers!NodeCommand) {
+            static if (name != NodeCommand.AddNode &&
+                       name != NodeCommand.InsertNode &&
+                       name != NodeCommand.ConvertTo &&
+                       __traits(compiles, mixin(register!(name))))
+            {
+                mixin(register!(name));
+            }
+        }
     }
-//NodeCreateMenu("Node", _("Node"));
-//NodeCreateMenu("Mask", _("Mask"));
-//NodeCreateMenu("Composite", _("Composite"));
-//NodeCreateMenu("SimplePhysics", _("Simple Physics"));
-//NodeCreateMenu("MeshGroup", _("Mesh Group"));
-//NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
-//NodeCreateMenu("PathDeformer", _("Path Deformer"));
-//NodeCreateMenu("Camera", _("Camera"));
-
+    //NodeCreateMenu("Node", _("Node"));
+    //NodeCreateMenu("Mask", _("Mask"));
+    //NodeCreateMenu("Composite", _("Composite"));
+    //NodeCreateMenu("SimplePhysics", _("Simple Physics"));
+    //NodeCreateMenu("MeshGroup", _("Mesh Group"));
+    //NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
+    //NodeCreateMenu("PathDeformer", _("Path Deformer"));
+    //NodeCreateMenu("Camera", _("Camera"));
 }

@@ -325,3 +325,54 @@ class SetStartingKeyFrameCommand : ExCommand!() {
     }
 }
 
+enum ParameditCommand {
+    ConvertTo2DParam,
+    FlipX,
+    FlipY,
+    Flip1D,
+    MirrorHorizontally,
+    MirrorVertically,
+    MirroredAutoFillDir1,
+    MirroredAutoFillDir2,
+    MirroredAutoFillDir3,
+    MirroredAutoFillDir4,
+    CopyParameter,
+    PasteParameter,
+    PasteParameterWithFlip,
+    DuplicateParameter,
+    DuplicateParameterWithFlip,
+    DeleteParameter,
+    LinkTo,
+    ToggleParameterArm,
+    SetStartingKeyFrame
+}
+
+
+// コマンド登録用 mixin 定義（文字列引数方式）
+template register(alias id, string args = "") {
+    import std.string : format;
+    enum name = __traits(identifier, id);
+    enum parentName = __traits(identifier, __traits(parent, id));
+    enum ctor = name ~ "Command";
+    static if (args.length == 0)
+        enum register = format("commands[%s.%s] = new %s();", parentName, name, ctor);
+    else
+        enum register = format("commands[%s.%s] = new %s(%s);", parentName, name, ctor, args);
+}
+
+private {
+    Command[ParameditCommand] commands;
+
+    static this() {
+        import std.traits : EnumMembers;
+        // 自動登録：コンパイル可能なコマンドのみ mixin
+        static foreach (name; EnumMembers!ParameditCommand) {
+            static if (__traits(compiles, mixin(register!(name)))) {
+                mixin(register!(name));
+            }
+        }
+        // 引数付きコマンドはマニアル登録
+        mixin(register!(ParameditCommand.LinkTo, "null, 0, 0"));
+        mixin(register!(ParameditCommand.ToggleParameterArm, "0"));
+    }
+}
