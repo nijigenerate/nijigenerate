@@ -19,7 +19,7 @@ class Add1DParameterCommand(int min, int max) : ExCommand!() {
             return;
         
         Parameter param = new ExParameter(
-            "Param #%d\0".format(parameters.length),
+            "Param #%d\0".format(ctx.parameters.length),
             false
         );
         param.min.x = min;
@@ -39,7 +39,7 @@ class Add2DParameterCommand(int min, int max) : ExCommand!() {
             return;
         
         Parameter param = new ExParameter(
-            "Param #%d\0".format(parameters.length),
+            "Param #%d\0".format(ctx.parameters.length),
             true
         );
         param.min = vec2(min, min);
@@ -61,7 +61,7 @@ class AddMouthParameterCommand(int min, int max) : ExCommand!() {
             return;
         
         Parameter param = new ExParameter(
-            "Mouth #%d\0".format(parameters.length),
+            "Mouth #%d\0".format(ctx.parameters.length),
             true
         );
         param.min = vec2(-1, 0);
@@ -74,5 +74,55 @@ class AddMouthParameterCommand(int min, int max) : ExCommand!() {
         param.insertAxisPoint(1, 0.6);
         incActivePuppet().parameters ~= param;
         incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+    }
+}
+
+class RemoveParameterCommand : ExCommand!() {
+    this() { super("Remove Parameter"); }
+    override
+    void run(Context ctx) {
+        if (!ctx.hasParameters) return;
+        foreach (param; ctx.parameters)
+            removeParameter(param);
+    }
+}
+
+enum ParamCommand {
+    Add1DParameter,
+    Add2DParameter,
+    AddMouthParameter,
+    RemoveParameter
+}
+
+
+// コマンド登録用 mixin 定義（文字列引数方式）
+template register(alias id, string args = "") {
+    import std.string : format;
+    enum name = __traits(identifier, id);
+    enum parentName = __traits(identifier, __traits(parent, id));
+    enum ctor = name ~ "Command";
+    static if (args.length == 0)
+        enum register = format("commands[%s.%s] = new %s();",
+                               parentName, name, ctor);
+    else
+        enum register = format("commands[%s.%s] = new %s(%s);",
+                               parentName, name, ctor, args);
+}
+
+private {
+    Command[ParamCommand] commands;
+
+    static this() {
+        import std.traits : EnumMembers;
+        // 自動登録：コンパイル可能なコマンドのみ mixin
+        static foreach (name; EnumMembers!ParamCommand) {
+            static if (__traits(compiles, mixin(register!(name)))) {
+                mixin(register!(name));
+            }
+        }
+        // テンプレート引数付きコマンドは直接インスタンス化で登録
+        commands[ParamCommand.Add1DParameter] = new Add1DParameterCommand!(-1, 1);
+        commands[ParamCommand.Add2DParameter] = new Add2DParameterCommand!(-1, 1);
+        commands[ParamCommand.AddMouthParameter] = new AddMouthParameterCommand!(-1, 1);
     }
 }

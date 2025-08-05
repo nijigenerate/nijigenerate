@@ -70,3 +70,39 @@ class DeleteParamGroupCommand : ExCommand!() {
         (cast(ExPuppet)incActivePuppet()).removeGroup(group);
     }
 }
+
+enum GroupCommand {
+    MoveParameter,
+    CreateParamGroup,
+    ChangeGroupColor,
+    DeleteParamGroup
+}
+
+// コマンド登録用 mixin 定義（文字列引数方式）
+template register(alias id, string args = "") {
+    import std.string : format;
+    // Extract the enum member name from the alias `id`
+    enum name = __traits(identifier, id);
+    enum ctor = name ~ "Command";
+    static if (args.length == 0)
+        enum register = format("commands[GroupCommand.%s] = new %s();", name, ctor);
+    else
+        enum register = format("commands[GroupCommand.%s] = new %s(%s);", name, ctor, args);
+}
+
+private {
+    Command[GroupCommand] commands;
+
+    static this() {
+        import std.traits : EnumMembers;
+
+        static foreach (name; EnumMembers!GroupCommand) {
+            static if (__traits(compiles, mixin(register!(name))))
+                mixin(register!(name));
+        }
+
+        mixin(register!(GroupCommand.MoveParameter, "null, 0"));
+        mixin(register!(GroupCommand.CreateParamGroup, "0"));
+        mixin(register!(GroupCommand.ChangeGroupColor, "vec3(0,0,0)"));
+    }
+}

@@ -125,37 +125,6 @@ void pasteParameter(bool pushAction = true)(Parameter param, Parameter srcParam 
         cClipboardParameter = null;
 }
 
-/*
-void fixScales(Parameter param) {
-    auto action = new ParameterChangeBindingsAction("Fix Scale", param, null);
-    foreach(ParameterBinding binding; param.bindings) {
-        if (auto node = cast(Node)binding.getTarget().target) {
-            switch(binding.getTarget.name) {
-                case "transform.s.x":
-                case "transform.s.y":
-                if (ValueParameterBinding b = cast(ValueParameterBinding)binding) {
-                    uint xCount = param.axisPointCount(0);
-                    uint yCount = param.axisPointCount(1);
-                    foreach(x; 0..xCount) {
-                        foreach(y; 0..yCount) {
-                            vec2u index = vec2u(x, y);
-                            if (b.isSet(index)) {
-                                b.values[x][y] += 1;
-                            }
-                        }
-                    }
-                    b.reInterpolate();
-                }
-                break;
-                default: break;
-            }
-        }
-    }
-    action.updateNewState();
-    incActionPush(action);
-}
-*/
-
 
 void convertTo2D(Parameter param) {
     auto action = new GroupAction();
@@ -193,46 +162,6 @@ void convertTo2D(Parameter param) {
     incActionPush(action);
 }
 
-/*
-void pushColorScheme(vec3 color) {
-    float h, s, v;
-    igColorConvertRGBtoHSV(color.r, color.g, color.b, &h, &s, &v);
-
-    float maxS = lerp(1, 0.60, v);
-
-    vec3 c = color;
-    igColorConvertHSVtoRGB(
-        h, 
-        clamp(lerp(s, s-0.20, v), 0, maxS), 
-        clamp(v-0.15, 0.15, 0.90), 
-        &c.vector[0], &c.vector[1], &c.vector[2]
-    );
-    igPushStyleColor(ImGuiCol.FrameBg, ImVec4(c.r, c.g, c.b, 1));
-
-
-    maxS = lerp(1, 0.60, v);
-    igColorConvertHSVtoRGB(
-        h, 
-        lerp(
-            clamp(s-0.25, 0, maxS),
-            clamp(s+0.25, 0, maxS),
-            s
-        ),
-        v <= 0.55 ?
-            clamp(v+0.25, 0.45, 0.95) :
-            clamp(v-(0.25*(1+v)), 0.30, 1),
-        &c.vector[0], &c.vector[1], &c.vector[2]
-    );
-    igPushStyleColor(ImGuiCol.TextDisabled, ImVec4(c.r, c.g, c.b, 1));
-}
-
-void popColorScheme() {
-    igPopStyleColor(2);
-}
-*/
-ParamDragDropData* dragDropData;
-
-/*
 bool removeParameter(Parameter param) {
     ExParameterGroup parent = null;
     ptrdiff_t idx = -1;
@@ -265,27 +194,7 @@ bool removeParameter(Parameter param) {
 
     return true;
 }
-*/
 
-/*
-void setTransparency(float alpha, float text) {
-    ImGuiCol[] colIDs = [ImGuiCol.WindowBg, ImGuiCol.Text, ImGuiCol.FrameBg, ImGuiCol.Button, ImGuiCol.Border, ImGuiCol.PopupBg];
-    foreach (id; colIDs) {
-        ImVec4 style;
-        style = *igGetStyleColorVec4(id);
-        style.w = id == ImGuiCol.Text? text: alpha;
-        igPushStyleColor(id, style);
-    }
-}
-
-void resetTransparency() {
-    igPopStyleColor(6);
-}
-*/
-
-struct ParamDragDropData {
-    Parameter param;
-}
 
 
 void incMoveParameter(Parameter from, ExParameterGroup to = null, int index = 0) {
