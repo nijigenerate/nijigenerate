@@ -45,7 +45,7 @@ class CreateParamGroupCommand : ExCommand!(int) {
 }
 
 class ChangeGroupColorCommand : ExCommand!(vec3) {
-    this(vec3 color) { super("Change Parameter Group Color", color); }
+    this(vec3 color = vec3(0,0,0)) { super("Change Parameter Group Color", color); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
@@ -78,72 +78,18 @@ enum GroupCommand {
     DeleteParamGroup
 }
 
-// 単一引数を文字列に変換するユーティリティ
-template ArgToString(alias a) {
-    static if (is(typeof(a) == bool))
-        enum ArgToString = a.stringof;
-    else static if (is(typeof(a) == InterpolateMode))
-        enum ArgToString = "InterpolateMode." ~ a.stringof;
-    else
-        enum ArgToString = a.stringof;
-}
-
-// 複数引数をカンマ区切りに連結する
-template ArgList(Args...) {
-    static if (Args.length == 0)
-        enum ArgList = "";
-    else static if (Args.length == 1)
-        enum ArgList = ArgToString!(Args[0]);
-    else
-        enum ArgList = ArgToString!(Args[0]) ~ ", " ~ ArgList!(Args[1 .. $]);
-}
-
-// コマンド登録用 mixin 定義（可変長引数対応）
-template register(alias id, Args...) {
-    import std.string : format;
-    enum name = __traits(identifier, id);
-    enum parentName = __traits(identifier, __traits(parent, id));
-    enum ctor = name ~ "Command";
-    static if (Args.length == 0) {
-        enum register = format("commands[%s.%s] = new %s();", parentName, name, ctor);
-    } else {
-        enum argList = ArgList!Args;
-        enum register = format("commands[%s.%s] = new %s(%s);", parentName, name, ctor, argList);
-    }
-}
-
-// 引数なしで new できるかをチェック
-template canDefaultConstruct(alias T) {
-    enum canDefaultConstruct = __traits(compiles, new T());
-}
-
-// GroupCommand から FooCommand 型を生成
-template GetCommandType(alias enumValue) {
-    mixin("alias GetCommandType = " ~ enumValue.stringof ~ "Command;");
-}
-
+Command[GroupCommand] commands;
 private {
-    Command[GroupCommand] commands;
 
     static this() {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!GroupCommand) {
-            static if (canDefaultConstruct!(GetCommandType!name)) {
-                mixin(register!(name));
-            }
+            static if (__traits(compiles, mixin(registerCommand!(name))))
+                mixin(registerCommand!(name));
         }
 
-        // 引数付きコンストラクタを持つコマンドは明示的に登録
-        mixin(register!(GroupCommand.MoveParameter, null, 0));
-        mixin(register!(GroupCommand.CreateParamGroup, 0));
-        auto color = vec3(0, 0, 0);
-        mixin(register!(GroupCommand.ChangeGroupColor, color));
-
-        import std.stdio;
-        writefln("\ngroup");
-        foreach (k, v; commands) {
-            writefln("%s: %s", k, v);
-        }
+        mixin(registerCommand!(GroupCommand.MoveParameter, null, 0));
+        mixin(registerCommand!(GroupCommand.CreateParamGroup, 0));
     }
 }

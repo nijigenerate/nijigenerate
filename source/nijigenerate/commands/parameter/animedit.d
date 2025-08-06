@@ -28,40 +28,27 @@ enum AnimeditCommand {
     AddKeyFrame
 }
 
-// 単一引数を文字列に変換するユーティリティ
-template ArgToString(alias a) {
-    static if (is(typeof(a) == bool))
-        enum ArgToString = a.stringof;
-    else static if (is(typeof(a) == InterpolateMode))
-        enum ArgToString = "InterpolateMode." ~ a.stringof;
+import std.meta : staticMap;
+import std.array : join;
+import std.string : format;
+
+template ArgsToString(Args...) {
+    static if (is(Args == bool))
+        enum ArgsToString = "";
     else
-        enum ArgToString = a.stringof;
+        enum ArgsToString = staticMap!(a => a.stringof, Args).join(", ");
 }
 
-// 複数引数をカンマ区切りに連結する
-template ArgList(Args...) {
-    static if (Args.length == 0)
-        enum ArgList = "";
-    else static if (Args.length == 1)
-        enum ArgList = ArgToString!(Args[0]);
-    else
-        enum ArgList = ArgToString!(Args[0]) ~ ", " ~ ArgList!(Args[1 .. $]);
-}
-
-// コマンド登録用 mixin 定義（可変長引数対応）
-template register(alias id, Args...) {
-    import std.string : format;
+template registerCommand(EnumType, CommandArray, alias id, Args...) {
     enum ctor = id.stringof ~ "Command";
-    static if (Args.length == 0) {
-        enum register = format(`commands[AnimeditCommand.%s] = new %s();`, id.stringof, ctor);
-    } else {
-        enum argList = ArgList!Args;
-        enum register = format(`commands[AnimeditCommand.%s] = new %s(%s);`, id.stringof, ctor, argList);
-    }
+    static if (is(Args == bool))
+        enum registerCommand = format(`%s[%s.%s] = new %s();`, CommandArray, EnumType.stringof, id.stringof, ctor);
+    else
+        enum registerCommand = format(`%s[%s.%s] = new %s(%s);`, CommandArray, EnumType.stringof, id.stringof, ctor, ArgsToString!Args);
 }
 
+Command[AnimeditCommand] commands;
 private {
-    Command[AnimeditCommand] commands;
 
     // 引数なしで new できるかをチェック
     template canDefaultConstruct(T) {
@@ -77,18 +64,8 @@ private {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!AnimeditCommand) {
-            static if (canDefaultConstruct!(GetCommandType!name)) {
-                mixin(register!(name));
-            }
-        }
-
-        // 引数ありのコンストラクタを持つコマンドは手動登録
-        // 例: mixin(register!(AnimeditCommand.SomeCommand, true));
-
-        import std.stdio;
-        writefln("\nanimedit");
-        foreach (k, v; commands) {
-            writefln("%s: %s", k, v);
+            static if (__traits(compiles, mixin(registerCommand!(commands, name))))
+                mixin(registerCommand!(commands, name));
         }
     }
 }

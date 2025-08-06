@@ -179,59 +179,19 @@ enum NodeCommand {
 }
 
 
-// コマンド登録用 mixin 定義（文字列引数方式）
-template register(alias id, string args = "") {
-    import std.string : format;
-    // Extract the enum member name (e.g., "Add" from NodeCommand.Add)
-    enum name = __traits(identifier, id);
-    enum ctor = name ~ "Command";
-    static if (args == "")
-        enum register = format("commands[NodeCommand.%s] = new %s();", name, ctor);
-    else
-        enum register = format("commands[NodeCommand.%s] = new %s(%s);", name, ctor, args);
-}
-
-// 引数なしで new できるかをチェック
-template canDefaultConstruct(T) {
-    enum canDefaultConstruct = __traits(compiles, new T());
-}
-
-// NodeCommand から FooCommand 型を生成
-template GetCommandType(alias enumValue) {
-    mixin("alias GetCommandType = " ~ __traits(identifier, enumValue) ~ "Command;");
-}
-
+Command[NodeCommand] commands;
 private {
-    Command[NodeCommand] commands;
 
     static this() {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!NodeCommand) {
-            static if (canDefaultConstruct!(GetCommandType!name))
-            {
-                mixin(register!(name));
-            }
+            static if (__traits(compiles, mixin(registerCommand!(name))))
+                mixin(registerCommand!(name));
         }
 
-        // 引数ありのコンストラクタを持つコマンドは手動登録
-        mixin(register!(NodeCommand.AddNode, `"null"` ~ ", " ~ `"null"`));
-        mixin(register!(NodeCommand.InsertNode, `"null"` ~ ", " ~ `"null"`));
-        mixin(register!(NodeCommand.ConvertTo, `"null"`));
-
-        import std.stdio;
-        writefln("\nnode");
-        foreach (k, v; commands) {
-            writefln("%s: %s", k, v);
-        }
+        mixin(registerCommand!(NodeCommand.AddNode, null, null));
+        mixin(registerCommand!(NodeCommand.InsertNode, null, null));
+        mixin(registerCommand!(NodeCommand.ConvertTo, null));
     }
-
-    //NodeCreateMenu("Node", _("Node"));
-    //NodeCreateMenu("Mask", _("Mask"));
-    //NodeCreateMenu("Composite", _("Composite"));
-    //NodeCreateMenu("SimplePhysics", _("Simple Physics"));
-    //NodeCreateMenu("MeshGroup", _("Mesh Group"));
-    //NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
-    //NodeCreateMenu("PathDeformer", _("Path Deformer"));
-    //NodeCreateMenu("Camera", _("Camera"));
 }

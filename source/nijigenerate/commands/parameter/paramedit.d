@@ -348,70 +348,20 @@ enum ParameditCommand {
 }
 
 
-// 単一引数を文字列に変換するユーティリティ
-template ArgToString(alias a) {
-    static if (is(typeof(a) == bool))
-        enum ArgToString = a.stringof;
-    else static if (is(typeof(a) == InterpolateMode))
-        enum ArgToString = "InterpolateMode." ~ a.stringof;
-    else
-        enum ArgToString = a.stringof;
-}
+import nijigenerate.commands.base : registerCommand;
 
-// 複数引数をカンマ区切りに連結する
-template ArgList(Args...) {
-    static if (Args.length == 0)
-        enum ArgList = "";
-    else static if (Args.length == 1)
-        enum ArgList = ArgToString!(Args[0]);
-    else
-        enum ArgList = ArgToString!(Args[0]) ~ ", " ~ ArgList!(Args[1 .. $]);
-}
-
-// コマンド登録用 mixin 定義（可変長引数対応）
-template register(alias id, Args...) {
-    import std.string : format;
-    enum name = __traits(identifier, id);
-    enum parentName = __traits(identifier, __traits(parent, id));
-    enum ctor = name ~ "Command";
-    static if (Args.length == 0) {
-        enum register = format("commands[%s.%s] = new %s();", parentName, name, ctor);
-    } else {
-        enum argList = ArgList!Args;
-        enum register = format("commands[%s.%s] = new %s(%s);", parentName, name, ctor, argList);
-    }
-}
-
-// 引数なしで new できるかをチェック
-template canDefaultConstruct(T) {
-    enum canDefaultConstruct = __traits(compiles, new T());
-}
-
-// ParameditCommand から FooCommand 型を生成
-template GetCommandType(alias enumValue) {
-    mixin("alias GetCommandType = " ~ enumValue.stringof ~ "Command;");
-}
-
+Command[ParameditCommand] commands;
 private {
-    Command[ParameditCommand] commands;
 
     static this() {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!ParameditCommand) {
-            static if (canDefaultConstruct!(GetCommandType!name)) {
-                mixin(register!(name));
-            }
+            static if (__traits(compiles, mixin(registerCommand!(name))))
+                mixin(registerCommand!(name));
         }
 
-        // 引数ありのコンストラクタを持つコマンドは手動登録
-        mixin(register!(ParameditCommand.LinkTo, cast(Parameter)null, 0, 0));
-        mixin(register!(ParameditCommand.ToggleParameterArm, 0));
-
-        import std.stdio;
-        writefln("\nparamedit");
-        foreach (k, v; commands) {
-            writefln("%s: %s", k, v);
-        }
+        mixin(registerCommand!(ParameditCommand.LinkTo, cast(Parameter)null, 0, 0));
+        mixin(registerCommand!(ParameditCommand.ToggleParameterArm, 0));
     }
 }
