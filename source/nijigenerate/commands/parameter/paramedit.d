@@ -348,16 +348,48 @@ enum ParameditCommand {
 }
 
 
-// コマンド登録用 mixin 定義（文字列引数方式）
-template register(alias id, string args = "") {
+// 単一引数を文字列に変換するユーティリティ
+template ArgToString(alias a) {
+    static if (is(typeof(a) == bool))
+        enum ArgToString = a.stringof;
+    else static if (is(typeof(a) == InterpolateMode))
+        enum ArgToString = "InterpolateMode." ~ a.stringof;
+    else
+        enum ArgToString = a.stringof;
+}
+
+// 複数引数をカンマ区切りに連結する
+template ArgList(Args...) {
+    static if (Args.length == 0)
+        enum ArgList = "";
+    else static if (Args.length == 1)
+        enum ArgList = ArgToString!(Args[0]);
+    else
+        enum ArgList = ArgToString!(Args[0]) ~ ", " ~ ArgList!(Args[1 .. $]);
+}
+
+// コマンド登録用 mixin 定義（可変長引数対応）
+template register(alias id, Args...) {
     import std.string : format;
     enum name = __traits(identifier, id);
     enum parentName = __traits(identifier, __traits(parent, id));
     enum ctor = name ~ "Command";
-    static if (args.length == 0)
+    static if (Args.length == 0) {
         enum register = format("commands[%s.%s] = new %s();", parentName, name, ctor);
-    else
-        enum register = format("commands[%s.%s] = new %s(%s);", parentName, name, ctor, args);
+    } else {
+        enum argList = ArgList!Args;
+        enum register = format("commands[%s.%s] = new %s(%s);", parentName, name, ctor, argList);
+    }
+}
+
+// 引数なしで new できるかをチェック
+template canDefaultConstruct(T) {
+    enum canDefaultConstruct = __traits(compiles, new T());
+}
+
+// ParameditCommand から FooCommand 型を生成
+template GetCommandType(alias enumValue) {
+    mixin("alias GetCommandType = " ~ enumValue.stringof ~ "Command;");
 }
 
 private {
@@ -365,14 +397,21 @@ private {
 
     static this() {
         import std.traits : EnumMembers;
-        // 自動登録：コンパイル可能なコマンドのみ mixin
+
         static foreach (name; EnumMembers!ParameditCommand) {
-            static if (__traits(compiles, mixin(register!(name)))) {
+            static if (canDefaultConstruct!(GetCommandType!name)) {
                 mixin(register!(name));
             }
         }
-        // 引数付きコマンドはマニアル登録
-        mixin(register!(ParameditCommand.LinkTo, "null, 0, 0"));
-        mixin(register!(ParameditCommand.ToggleParameterArm, "0"));
+
+        // 引数ありのコンストラクタを持つコマンドは手動登録
+        mixin(register!(ParameditCommand.LinkTo, cast(Parameter)null, 0, 0));
+        mixin(register!(ParameditCommand.ToggleParameterArm, 0));
+
+        import std.stdio;
+        writefln("\nparamedit");
+        foreach (k, v; commands) {
+            writefln("%s: %s", k, v);
+        }
     }
 }

@@ -517,12 +517,22 @@ template ArgList(Args...) {
 template register(alias id, Args...) {
     import std.string : format;
     enum ctor = id.stringof ~ "Command";
-    static if (Args.length == 0) {
+    static if (is(Args == bool)) {
         enum register = format("commands[BindingCommand.%s] = new %s();", id.stringof, ctor);
     } else {
         enum argList = ArgList!Args;
         enum register = format("commands[BindingCommand.%s] = new %s(%s);", id.stringof, ctor, argList);
     }
+}
+
+// 引数なしで new できるかをチェック
+template canDefaultConstruct(T) {
+    enum canDefaultConstruct = __traits(compiles, new T());
+}
+
+// BindingCommand から FooCommand 型を生成
+template GetCommandType(alias enumValue) {
+    mixin("alias GetCommandType = " ~ enumValue.stringof ~ "Command;");
 }
 
 private {
@@ -532,7 +542,7 @@ private {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!BindingCommand) {
-            static if (__traits(compiles, mixin(register!(name))))
+            static if (canDefaultConstruct!(GetCommandType!name))
                 mixin(register!(name));
         }
 
@@ -541,5 +551,12 @@ private {
         mixin(register!(BindingCommand.SetFromDiagonallMirror, false));
         mixin(register!(BindingCommand.SetFrom1DMirror, false));
         mixin(register!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
+
+
+        import std.stdio;
+        writeln("\nbinding");
+        foreach (k, v; commands) {
+            writefln("%s: %s", k, v);
+        }
     }
 }

@@ -185,10 +185,20 @@ template register(alias id, string args = "") {
     // Extract the enum member name (e.g., "Add" from NodeCommand.Add)
     enum name = __traits(identifier, id);
     enum ctor = name ~ "Command";
-    static if (args.length == 0)
+    static if (args == "")
         enum register = format("commands[NodeCommand.%s] = new %s();", name, ctor);
     else
         enum register = format("commands[NodeCommand.%s] = new %s(%s);", name, ctor, args);
+}
+
+// 引数なしで new できるかをチェック
+template canDefaultConstruct(T) {
+    enum canDefaultConstruct = __traits(compiles, new T());
+}
+
+// NodeCommand から FooCommand 型を生成
+template GetCommandType(alias enumValue) {
+    mixin("alias GetCommandType = " ~ __traits(identifier, enumValue) ~ "Command;");
 }
 
 private {
@@ -198,15 +208,24 @@ private {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!NodeCommand) {
-            static if (name != NodeCommand.AddNode &&
-                       name != NodeCommand.InsertNode &&
-                       name != NodeCommand.ConvertTo &&
-                       __traits(compiles, mixin(register!(name))))
+            static if (canDefaultConstruct!(GetCommandType!name))
             {
                 mixin(register!(name));
             }
         }
+
+        // 引数ありのコンストラクタを持つコマンドは手動登録
+        mixin(register!(NodeCommand.AddNode, `"null"` ~ ", " ~ `"null"`));
+        mixin(register!(NodeCommand.InsertNode, `"null"` ~ ", " ~ `"null"`));
+        mixin(register!(NodeCommand.ConvertTo, `"null"`));
+
+        import std.stdio;
+        writefln("\nnode");
+        foreach (k, v; commands) {
+            writefln("%s: %s", k, v);
+        }
     }
+
     //NodeCreateMenu("Node", _("Node"));
     //NodeCreateMenu("Mask", _("Mask"));
     //NodeCreateMenu("Composite", _("Composite"));
