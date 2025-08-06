@@ -11,8 +11,8 @@ import nijigenerate.project;
 import nijigenerate.actions;
 import i18n;
 
-class Add1DParameterCommand(int min, int max) : ExCommand!() {
-    this() { super("Add 1D Parameter (%d..%d)".format(min, max)); }
+class Add1DParameterCommand : ExCommand!(int, int) {
+    this(int min, int max) { super("Add 1D Parameter (%d..%d)".format(min, max), min, max); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
@@ -22,17 +22,17 @@ class Add1DParameterCommand(int min, int max) : ExCommand!() {
             "Param #%d\0".format(ctx.parameters.length),
             false
         );
-        param.min.x = min;
-        param.max.x = max;
-        if (min + max == 0)
+        param.min.x = arg0;
+        param.max.x = arg1;
+        if (arg0 + arg1 == 0)
             param.insertAxisPoint(0, 0.5);
         incActivePuppet().parameters ~= param;
         incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
     }
 }
 
-class Add2DParameterCommand(int min, int max) : ExCommand!() {
-    this() { super("Add 2D Parameter (%d..%d)".format(min, max)); }
+class Add2DParameterCommand : ExCommand!(int, int) {
+    this(int min, int max) { super("Add 2D Parameter (%d..%d)".format(min, max), min, max); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
@@ -42,9 +42,9 @@ class Add2DParameterCommand(int min, int max) : ExCommand!() {
             "Param #%d\0".format(ctx.parameters.length),
             true
         );
-        param.min = vec2(min, min);
-        param.max = vec2(max, max);
-        if (min + max == 0) {
+        param.min = vec2(arg0, arg0);
+        param.max = vec2(arg1, arg1);
+        if (arg0 + arg1 == 0) {
             param.insertAxisPoint(0, 0.5);
             param.insertAxisPoint(1, 0.5);
         }
@@ -53,8 +53,8 @@ class Add2DParameterCommand(int min, int max) : ExCommand!() {
     }
 }
 
-class AddMouthParameterCommand(int min, int max) : ExCommand!() {
-    this() { super("Add Mouth Parameter (%d..%d)".format(min, max)); }
+class AddMouthParameterCommand : ExCommand!() {
+    this() { super("Add Mouth Parameter (%d..%d)".format()); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
@@ -95,71 +95,18 @@ enum ParamCommand {
 }
 
 
-// 単一引数を文字列に変換するユーティリティ
-template ArgToString(alias a) {
-    static if (is(typeof(a) == bool))
-        enum ArgToString = a.stringof;
-    else static if (is(typeof(a) == InterpolateMode))
-        enum ArgToString = "InterpolateMode." ~ a.stringof;
-    else
-        enum ArgToString = a.stringof;
-}
-
-// 複数引数をカンマ区切りに連結する
-template ArgList(Args...) {
-    static if (Args.length == 0)
-        enum ArgList = "";
-    else static if (Args.length == 1)
-        enum ArgList = ArgToString!(Args[0]);
-    else
-        enum ArgList = ArgToString!(Args[0]) ~ ", " ~ ArgList!(Args[1 .. $]);
-}
-
-// コマンド登録用 mixin 定義（可変長引数対応）
-template register(alias id, Args...) {
-    import std.string : format;
-    enum name = __traits(identifier, id);
-    enum parentName = __traits(identifier, __traits(parent, id));
-    enum ctor = name ~ "Command";
-    static if (Args.length == 0) {
-        enum register = format("commands[%s.%s] = new %s();", parentName, name, ctor);
-    } else {
-        enum argList = ArgList!Args;
-        enum register = format("commands[%s.%s] = new %s(%s);", parentName, name, ctor, argList);
-    }
-}
-
-// 引数なしで new できるかをチェック
-template canDefaultConstruct(alias T) {
-    enum canDefaultConstruct = __traits(compiles, new T());
-}
-
-// ParamCommand から FooCommand 型を生成
-template GetCommandType(alias enumValue) {
-    mixin("alias GetCommandType = " ~ enumValue.stringof ~ "Command;");
-}
-
+Command[ParamCommand] commands;
 private {
-    Command[ParamCommand] commands;
 
     static this() {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!ParamCommand) {
-            static if (canDefaultConstruct!(GetCommandType!name)) {
-                mixin(register!(name));
-            }
+            static if (__traits(compiles, mixin(registerCommand!(name))))
+                mixin(registerCommand!(name));
         }
 
-        // テンプレート引数付きコマンドは直接インスタンス化で登録
-        commands[ParamCommand.Add1DParameter] = new Add1DParameterCommand!(-1, 1);
-        commands[ParamCommand.Add2DParameter] = new Add2DParameterCommand!(-1, 1);
-        commands[ParamCommand.AddMouthParameter] = new AddMouthParameterCommand!(-1, 1);
-
-        import std.stdio;
-        writefln("\nparam");
-        foreach (k, v; commands) {
-            writefln("%s: %s", k, v);
-        }
+        mixin(registerCommand!(ParamCommand.Add1DParameter, -1, 1));
+        mixin(registerCommand!(ParamCommand.Add2DParameter, -1, 1));
     }
 }

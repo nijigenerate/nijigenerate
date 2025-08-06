@@ -493,37 +493,7 @@ enum BindingCommand {
 }
 
 
-// 単一引数を文字列に変換するユーティリティ
-template ArgToString(alias a) {
-    static if (is(typeof(a) == bool))
-        enum ArgToString = a.stringof;  // "false" or "true"
-    else static if (is(typeof(a) == InterpolateMode))
-        enum ArgToString = "InterpolateMode." ~ a.stringof;  // "InterpolateMode.Linear" など
-    else
-        enum ArgToString = a.stringof;
-}
-
-// 複数引数をカンマ区切りに連結する
-template ArgList(Args...) {
-    static if (Args.length == 0)
-        enum ArgList = "";
-    else static if (Args.length == 1)
-        enum ArgList = ArgToString!(Args[0]);
-    else
-        enum ArgList = ArgToString!(Args[0]) ~ ", " ~ ArgList!(Args[1 .. $]);
-}
-
-// コマンド登録用 mixin 定義（可変長引数対応）
-template register(alias id, Args...) {
-    import std.string : format;
-    enum ctor = id.stringof ~ "Command";
-    static if (is(Args == bool)) {
-        enum register = format("commands[BindingCommand.%s] = new %s();", id.stringof, ctor);
-    } else {
-        enum argList = ArgList!Args;
-        enum register = format("commands[BindingCommand.%s] = new %s(%s);", id.stringof, ctor, argList);
-    }
-}
+import nijigenerate.commands.base : registerCommand;
 
 // 引数なしで new できるかをチェック
 template canDefaultConstruct(T) {
@@ -535,28 +505,20 @@ template GetCommandType(alias enumValue) {
     mixin("alias GetCommandType = " ~ enumValue.stringof ~ "Command;");
 }
 
+Command[BindingCommand] commands;
 private {
-    Command[BindingCommand] commands;
-
     static this() {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!BindingCommand) {
-            static if (canDefaultConstruct!(GetCommandType!name))
-                mixin(register!(name));
+            static if (__traits(compiles, mixin(registerCommand!(name))))
+                mixin(registerCommand!(name));
         }
 
-        mixin(register!(BindingCommand.SetFromHorizontalMirror, false));
-        mixin(register!(BindingCommand.SetFromVerticalMirror, false));
-        mixin(register!(BindingCommand.SetFromDiagonallMirror, false));
-        mixin(register!(BindingCommand.SetFrom1DMirror, false));
-        mixin(register!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
-
-
-        import std.stdio;
-        writeln("\nbinding");
-        foreach (k, v; commands) {
-            writefln("%s: %s", k, v);
-        }
+        mixin(registerCommand!(BindingCommand.SetFromHorizontalMirror, false));
+        mixin(registerCommand!(BindingCommand.SetFromVerticalMirror, false));
+        mixin(registerCommand!(BindingCommand.SetFromDiagonallMirror, false));
+        mixin(registerCommand!(BindingCommand.SetFrom1DMirror, false));
+        mixin(registerCommand!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
     }
 }
