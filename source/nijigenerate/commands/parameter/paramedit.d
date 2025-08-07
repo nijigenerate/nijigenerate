@@ -274,21 +274,21 @@ void addBinding(Parameter param, Parameter p, int fromAxis, int toAxis) {
     incActionPush(action);
 }
 
-class LinkToCommand : ExCommand!(Parameter, int, int) {
-    this(Parameter p, int fromAxis, int toAxis) { super("Delete Parameter", p, fromAxis, toAxis); }
+class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to copy"), TW!(int, "fromAxis", "axis in source parameter"), TW!(int, "toAxis", "axis in dest parameter")) {
+    this(Parameter toParam, int fromAxis, int toAxis) { super("Delete Parameter", toParam, fromAxis, toAxis); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
             if (ctx.parameters.length != 0) {
                 auto param = ctx.parameters[0];
-                addBinding(param, arg0, arg1, arg2);
+                addBinding(param, toParam, fromAxis, toAxis);
             }
         }
     }
 }
 
 
-class ToggleParameterArmCommand : ExCommand!(int) {
+class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the index of the armed parameter in the parent group.")) {
     this(int index) { super("Toggle Armed Parameter", index); }
     override
     void run(Context ctx) {
@@ -301,7 +301,7 @@ class ToggleParameterArmCommand : ExCommand!(int) {
                 } else {
                     param.value = param.getClosestKeypointValue();
                     paramPointChanged(param);
-                    incArmParameter(arg0, param);
+                    incArmParameter(index, param);
                 }
             }
         }

@@ -214,7 +214,7 @@ class SymmetrizeDeformCommand : ExCommand!() {
     }
 }
 
-class SetFromHorizontalMirrorCommand : ExCommand!(bool) {
+class SetFromHorizontalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
     this(bool targetBindingsNull) { super("Set From Horizontal Mirror", targetBindingsNull); }
     override
     void run(Context ctx) {
@@ -230,8 +230,8 @@ class SetFromHorizontalMirrorCommand : ExCommand!(bool) {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, arg0);
-                if (arg0)
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
                 else if(targetBinding !is null)
                     incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
@@ -244,7 +244,7 @@ class SetFromHorizontalMirrorCommand : ExCommand!(bool) {
     }
 }
 
-class SetFromVerticalMirrorCommand : ExCommand!(bool) {
+class SetFromVerticalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
     this(bool targetBindingsNull) { super("Set From Vertical Mirror", targetBindingsNull); }
     override
     void run(Context ctx) {
@@ -260,8 +260,8 @@ class SetFromVerticalMirrorCommand : ExCommand!(bool) {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, arg0);
-                if (arg0)
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
                 else if(targetBinding !is null)
                     incBindingAutoFlip(targetBinding, binding, cParamPoint, 1);
@@ -275,7 +275,7 @@ class SetFromVerticalMirrorCommand : ExCommand!(bool) {
 }
 
 
-class SetFromDiagonallMirrorCommand : ExCommand!(bool) {
+class SetFromDiagonallMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
     this(bool targetBindingsNull) { super("Set From Diagonal Mirror", targetBindingsNull); }
     override
     void run(Context ctx) {
@@ -291,8 +291,8 @@ class SetFromDiagonallMirrorCommand : ExCommand!(bool) {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, arg0);
-                if (arg0)
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
                 else if(targetBinding !is null)
                     incBindingAutoFlip(targetBinding, binding, cParamPoint, -1);
@@ -306,7 +306,7 @@ class SetFromDiagonallMirrorCommand : ExCommand!(bool) {
 }
 
 
-class SetFrom1DMirrorCommand : ExCommand!(bool) {
+class SetFrom1DMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
     this(bool targetBindingsNull) { super("Set From 1D Mirror", targetBindingsNull); }
     override
     void run(Context ctx) {
@@ -322,8 +322,8 @@ class SetFrom1DMirrorCommand : ExCommand!(bool) {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, arg0);
-                if (arg0)
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, targetBindingsNull);
+                if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
                 else if(targetBinding !is null)
                     incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
@@ -435,7 +435,7 @@ class RemoveBindingCommand : ExCommand!() {
     }
 }
 
-class SetInterpolationCommand : ExCommand!(InterpolateMode) {
+class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify the new interpolation mode.")) {
     this(InterpolateMode mode) { super("Set Bindings to " ~ mode.stringof, mode); }
     override
     void run(Context ctx) {
@@ -444,7 +444,7 @@ class SetInterpolationCommand : ExCommand!(InterpolateMode) {
         
         auto param = ctx.parameters[0];
         foreach(binding; cSelectedBindings.values) {
-            binding.interpolateMode = arg0;
+            binding.interpolateMode = mode;
         }
         incViewportNodeDeformNotifyParamValueChanged();
     }

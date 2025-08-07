@@ -15,7 +15,9 @@ import nijilive;
 // Command Palette Definition for Node
 //==================================================================================
 
-class AddNodeCommand : ExCommand!(string, string) {
+class AddNodeCommand : ExCommand!(
+        TW!(string, "className", "class name of new node."), 
+        TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
         super("Add Node " ~ className, className, _suffix);
     }
@@ -23,11 +25,13 @@ class AddNodeCommand : ExCommand!(string, string) {
     override
     void run(Context ctx) {
         if (ctx.hasNodes)
-            ngAddNodes(ctx.nodes, arg0, arg1);
+            ngAddNodes(ctx.nodes, className, _suffix);
     }
 }
 
-class InsertNodeCommand : ExCommand!(string, string) {
+class InsertNodeCommand : ExCommand!(
+        TW!(string, "className", "class name of new node."), 
+        TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
         super("Insert Node " ~ className, className, _suffix);
     }
@@ -35,11 +39,11 @@ class InsertNodeCommand : ExCommand!(string, string) {
     override
     void run(Context ctx) {
         if (ctx.hasNodes)
-            ngInsertNodes(ctx.nodes, arg0, arg1);
+            ngInsertNodes(ctx.nodes, className, _suffix);
     }
 }
 
-class ConvertToCommand : ExCommand!(string) {
+class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for node")) {
     this(string className) {
         super("Convert Node to "~className, className);
     }
@@ -47,7 +51,7 @@ class ConvertToCommand : ExCommand!(string) {
     override
     void run(Context ctx) {
         if (ctx.hasNodes)
-            ngConvertTo(ctx.nodes, arg0);
+            ngConvertTo(ctx.nodes, className);
     }
 }
 

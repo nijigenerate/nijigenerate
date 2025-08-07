@@ -11,7 +11,7 @@ import nijigenerate.project;
 import nijigenerate.actions;
 import i18n;
 
-class Add1DParameterCommand : ExCommand!(int, int) {
+class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
     this(int min, int max) { super("Add 1D Parameter (%d..%d)".format(min, max), min, max); }
     override
     void run(Context ctx) {
@@ -22,16 +22,16 @@ class Add1DParameterCommand : ExCommand!(int, int) {
             "Param #%d\0".format(ctx.parameters.length),
             false
         );
-        param.min.x = arg0;
-        param.max.x = arg1;
-        if (arg0 + arg1 == 0)
+        param.min.x = min;
+        param.max.x = max;
+        if (min + max == 0)
             param.insertAxisPoint(0, 0.5);
         incActivePuppet().parameters ~= param;
         incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
     }
 }
 
-class Add2DParameterCommand : ExCommand!(int, int) {
+class Add2DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
     this(int min, int max) { super("Add 2D Parameter (%d..%d)".format(min, max), min, max); }
     override
     void run(Context ctx) {
@@ -42,9 +42,9 @@ class Add2DParameterCommand : ExCommand!(int, int) {
             "Param #%d\0".format(ctx.parameters.length),
             true
         );
-        param.min = vec2(arg0, arg0);
-        param.max = vec2(arg1, arg1);
-        if (arg0 + arg1 == 0) {
+        param.min = vec2(min, min);
+        param.max = vec2(max, max);
+        if (min + max == 0) {
             param.insertAxisPoint(0, 0.5);
             param.insertAxisPoint(1, 0.5);
         }
@@ -54,7 +54,7 @@ class Add2DParameterCommand : ExCommand!(int, int) {
 }
 
 class AddMouthParameterCommand : ExCommand!() {
-    this() { super("Add Mouth Parameter (%d..%d)".format()); }
+    this() { super("Add Mouth Parameter"); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
