@@ -18,17 +18,17 @@ import std.array : insertInPlace;
 //==================================================================================
 
 
-class MoveParameterCommand : ExCommand!(ExParameterGroup, int) {
+class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(int, "index", "")) {
     this(ExParameterGroup group, int index) { super("Move Parameter", group, index);}
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0) return;
 
-        incMoveParameter(ctx.parameters[0], arg0, arg1);
+        incMoveParameter(ctx.parameters[0], group, index);
     }
 }
 
-class CreateParamGroupCommand : ExCommand!(int) {
+class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
     this(int index = 0) { super("Create Parameter Group", index); }
     override
     void run(Context ctx) {
@@ -44,14 +44,14 @@ class CreateParamGroupCommand : ExCommand!(int) {
     }
 }
 
-class ChangeGroupColorCommand : ExCommand!(vec3) {
+class ChangeGroupColorCommand : ExCommand!(TW!(vec3, "color", "color value for target Parameter Group.")) {
     this(vec3 color = vec3(0,0,0)) { super("Change Parameter Group Color", color); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
             return;
         auto group = cast(ExParameterGroup)ctx.parameters[0];
-        group.color = arg0;
+        group.color = color;
     }
 }
 
