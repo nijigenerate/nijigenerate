@@ -64,7 +64,7 @@ private {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!AnimeditCommand) {
-            static if (__traits(compiles, mixin(registerCommand!(commands, name))))
+            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
                 mixin(registerCommand!(commands, name));
         }
     }

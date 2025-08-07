@@ -357,7 +357,7 @@ private {
         import std.traits : EnumMembers;
 
         static foreach (name; EnumMembers!ParameditCommand) {
-            static if (__traits(compiles, mixin(registerCommand!(name))))
+            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
                 mixin(registerCommand!(name));
         }
 
