@@ -1,10 +1,11 @@
 module nijigenerate.commands;
-import nijigenerate.commands.binding.binding;
-import nijigenerate.commands.node.node;
-import nijigenerate.commands.parameter.animedit;
-import nijigenerate.commands.parameter.group;
-import nijigenerate.commands.parameter.param;
-import nijigenerate.commands.parameter.paramedit;
+public import nijigenerate.commands.base;
+public import nijigenerate.commands.binding.binding;
+public import nijigenerate.commands.node.node;
+public import nijigenerate.commands.parameter.animedit;
+public import nijigenerate.commands.parameter.group;
+public import nijigenerate.commands.parameter.param;
+public import nijigenerate.commands.parameter.paramedit;
 import std.meta : AliasSeq;
 
 alias bindingCommands = nijigenerate.commands.binding.binding.commands;

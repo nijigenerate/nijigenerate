@@ -56,11 +56,11 @@ import nijigenerate.ext;
 struct TW(alias T, string fieldName, string fieldDesc) {}
 
 class Context {
-    Puppet puppet;
-    Node[] nodes;
-    Parameter[] parameters;
-    ParameterBinding[] bindings;
-    vec2u keyPoint;
+    Puppet _puppet;
+    Node[] _nodes;
+    Parameter[] _parameters;
+    ParameterBinding[] _bindings;
+    vec2u _keyPoint;
     enum ContextMask {
         None = 0,
         HasPuppet = 1,
@@ -69,7 +69,7 @@ class Context {
         HasBindings = 8,
         HasKeyPoint = 16,
     }
-    ContextMask masks;
+    ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
     bool hasNodes()     { return (masks & ContextMask.HasNodes)     != 0; }
     bool hasParameters(){ return (masks & ContextMask.HasParameters) != 0; }
@@ -80,6 +80,21 @@ class Context {
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
     void hasBindings(bool value)  { masks = value ? (masks | ContextMask.HasBindings)  : (masks & ~ContextMask.HasBindings); }
     void hasKeyPoint(bool value)  { masks = value ? (masks | ContextMask.HasKeyPoint)  : (masks & ~ContextMask.HasKeyPoint); }
+
+    Puppet puppet() { return _puppet; }
+    void puppet(Puppet value) { _puppet = value; hasPuppet = true; }
+
+    Node[] nodes() { return _nodes; }
+    void nodes(Node[] value) { _nodes = value; hasNodes = true; }
+
+    Parameter[] parameters() { return _parameters; }
+    void parameters(Parameter[] value) { _parameters = value; hasParameters = true; }
+
+    ParameterBinding[] bindings() { return _bindings; }
+    void bindings(ParameterBinding[] value) { _bindings = value; hasBindings = true; }
+
+    vec2u keyPoint() { return _keyPoint; }
+    void keyPoint(vec2u value) { _keyPoint = value; hasKeyPoint = true; }
 }
 
 interface Command {

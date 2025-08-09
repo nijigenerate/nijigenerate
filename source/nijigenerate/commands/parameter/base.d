@@ -23,16 +23,17 @@ import nijigenerate.utils;
 import std.algorithm.searching : countUntil;
 import std.algorithm.sorting : sort;
 import std.algorithm.mutation : remove;
+import nijigenerate.commands.binding.base;
 
 nijilive.core.Resource[] cAllBoundNodes;
-ParameterBinding[BindTarget] cSelectedBindings;
+//ParameterBinding[BindTarget] cSelectedBindings;
 //    ParameterBinding[BindTargetBase!(Parameter, int)] cSelectedParameterParameterBindings;
-nijilive.core.Resource[] cCompatibleNodes;
-vec2u cParamPoint;
-vec2u cClipboardPoint;
-ParameterBinding[BindTarget] cClipboardBindings;
-Parameter cClipboardParameter = null;
-bool selectedOnly = false;
+//nijilive.core.Resource[] cCompatibleNodes;
+//vec2u cParamPoint;
+//vec2u cClipboardPoint;
+//ParameterBinding[BindTarget] cClipboardBindings;
+//Parameter cClipboardParameter = null;
+//bool selectedOnly = false;
 
 
 void mirrorAll(Parameter param, uint axis) {

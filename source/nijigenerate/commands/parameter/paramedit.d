@@ -157,7 +157,7 @@ class CopyParameterCommand : ExCommand!() {
         if (ctx.hasParameters()) {
             if (ctx.parameters.length != 0) {
                 auto param = ctx.parameters[0];
-                nijigenerate.commands.parameter.base.cClipboardParameter = param.dup;
+                cClipboardParameter = param.dup;
             }
         }
     }
