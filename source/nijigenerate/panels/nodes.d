@@ -27,41 +27,13 @@ import std.format;
 import std.conv;
 import std.utf;
 import i18n;
+import nijigenerate.commands;
+import nijigenerate.commands.node.base;
 
 private {
-    Node[] clipboardNodes;
-
-    void copyToClipboard(Node[] nodes) {
-        clipboardNodes.length = 0;
-        foreach (node; nodes) {
-            auto newNode = node.dup;
-            clipboardNodes ~= newNode;
-        }
-    }
-
-    void pasteFromClipboard(Node parent) {
-        if (parent !is null) {
-            incActionPush(new NodeMoveAction(clipboardNodes, parent, 0));
-            foreach (node; clipboardNodes) {
-                incReloadNode(node);
-            }
-            clipboardNodes.length = 0;
-        }
-    }
-
-
-
-
-    string[][string] conversionMap;
     string[string] actionIconMap;
     string suffixName;
     static this() {
-        conversionMap = [
-            "Node": ["MeshGroup", "DynamicComposite"],
-            "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite"],
-            "MeshGroup": ["DynamicComposite", "Node"],
-            "Composite": ["DynamicComposite", "Node"]
-        ];
         actionIconMap = [
             "Add": "\ue145",
             "Insert": "\ue15e",
@@ -88,75 +60,6 @@ private {
             return name;
         }
     }
-
-
-    void insertNodesAux(Node[] parents, Node[] children, string className, string suffixName) {
-        if (children && parents.length != children.length)
-            children = null;
-        incActionPushGroup();
-        foreach (i, p; parents) {
-            Node newChild = inInstantiateNode(className, null);
-            string nodeName = null;
-            if (suffixName && suffixName.length != 0) {
-                if (children)
-                    nodeName = children[i].name ~ suffixName;
-                else
-                    nodeName = p.name ~ suffixName;
-            }
-            incAddChildWithHistory(newChild, p, nodeName);
-            if (children) {
-                newChild.localTransform.translation = children[i].localTransform.translation;
-                newChild.transformChanged();
-                incActionPush(new NodeMoveAction([children[i]], newChild));
-            }
-        }
-        incActionPopGroup();
-    }
-}
-
-void incReloadNode(Node node) {
-    foreach (child; node.children) {
-        incReloadNode(child);
-        child.notifyChange(child);
-    }
-    node.clearCache();
-}
-
-void ngAddNodes(Node[] parents, string className, string _suffixName = null) {
-    insertNodesAux(parents, null, className, _suffixName);
-}
-
-void ngInsertNodes(Node[] children, string className, string _suffixName = null) {
-    insertNodesAux(children.map!((v)=>v.parent).array, children, className, _suffixName);
-}
-
-string ngGetCommonNodeType(Node[] nodes) {
-    string type = null;
-    foreach (node; nodes) {
-        if (!type) { 
-            type = node.typeId; 
-        } else if (type != node.typeId) {
-            return null;
-        }
-    }
-    return type;
-}
-
-void ngConvertTo(Node[] nodes, string toType) {
-    if (!toType) return;
-    if (nodes.length == 0) return;
-
-    auto group = new GroupAction();
-    Node[] newNodes = [];
-    foreach (node; nodes.dup) {
-        Node newNode = inInstantiateNode(toType);
-        newNode.copyFrom(node, true, false);
-        group.addAction(new NodeReplaceAction(node, newNode, true));
-        newNodes ~= newNode;
-        newNode.notifyChange(newNode, NotifyReason.StructureChanged);
-    }
-    incActionPush(group);
-    incSelectNodes(newNodes);
 }
 
 void ngAddOrInsertNodeMenu(bool add)() {
@@ -206,6 +109,9 @@ alias ngInsertNodeMenu = ngAddOrInsertNodeMenu!false;
 
 void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = false)(Node n) {
     if (title == null || igBeginPopup(title)) {
+        Context ctx = new Context();
+        ctx.puppet = incActivePuppet();
+        ctx.nodes = [n];
         
         auto selected = incSelectedNodes();
         
@@ -223,50 +129,28 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
 
             // Edit mesh option for drawables
             if (auto d = cast(Deformable)n) {
-                if (!incArmedParameter()) {
-                    if (igMenuItem(__(nodeActionToIcon!icon("Edit Mesh")))) {
-                        incVertexEditStartEditing(d);
-                    }
-                }
+                nodeCommands[NodeCommand.VertexMode].run(ctx);
             }
             
             if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __(nodeActionToIcon!icon("Hide")) :  /* Option to show the node (and subnodes) */ __(nodeActionToIcon!icon("Show")))) {
-                n.setEnabled(!n.getEnabled());
+                nodeCommands[NodeCommand.ToggleVisibility].run(ctx);
             }
 
             if (igMenuItem(__(nodeActionToIcon!icon("Delete")), "", false, !isRoot)) {
-
-                if (selected.length > 1) {
-                    incDeleteChildrenWithHistory(selected);
-                    incSelectNode(null);
-                } else {
-
-                    // Make sure we don't keep selecting a node we've removed
-                    if (incNodeInSelection(n)) {
-                        incSelectNode(null);
-                    }
-
-                    incDeleteChildWithHistory(n);
-                }
-                
-                // Make sure we don't keep selecting a node we've removed
-                incSelectNode(null);
+                nodeCommands[NodeCommand.DeleteNode].run(ctx);
             }
 
             if (igMenuItem(__(nodeActionToIcon!icon("Copy")), "", false, true)) {
-                if (selected.length > 0)
-                    copyToClipboard(selected);
-                else
-                    copyToClipboard([n]);
+                nodeCommands[NodeCommand.CopyNode].run(ctx);
             }
         }
             
         if (igMenuItem(__(nodeActionToIcon!icon("Paste")), "", false, clipboardNodes.length > 0)) {
-            pasteFromClipboard(n);
+            nodeCommands[NodeCommand.PasteNode].run(ctx);
         }
 
         if (igMenuItem(__(nodeActionToIcon!icon("Reload")), "", false, true)) {
-            incReloadNode(n);
+            nodeCommands[NodeCommand.ReloadNode].run(ctx);
         }
 
         static if (!isRoot) {
@@ -295,7 +179,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             }
 
             if (igMenuItem(__(nodeActionToIcon!icon("Recalculate origin")), "", false, true)) {
-                n.centralize();
+                nodeCommands[NodeCommand.CentralizeNode].run(ctx);
             }
 
             auto fromType = ngGetCommonNodeType(incSelectedNodes);
@@ -305,7 +189,9 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                         incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
                         if (igMenuItem(__(toType), "", false, true)) {
-                            ngConvertTo(incSelectedNodes, toType);
+                            auto cmd = cast(ConvertToCommand)nodeCommands[NodeCommand.ConvertTo];
+                            cmd.className = toType;
+                            cmd.run(ctx);
                         }
                     }
                     igEndMenu();
@@ -331,6 +217,9 @@ protected:
 
 
     void treeAddNode(bool isRoot = false)(ref Node n) {
+        Context ctx = new Context();
+        ctx.puppet = incActivePuppet();
+        ctx.nodes = [n];
         igTableNextRow();
 
         auto io = igGetIO();
@@ -369,7 +258,7 @@ protected:
                             if (n.getEnabled()) incText(incTypeIdToIcon(n.typeId));
                             else incTextDisabled(incTypeIdToIcon(n.typeId));
                             if (igIsItemClicked()) {
-                                n.setEnabled(!n.getEnabled());
+                                nodeCommands[NodeCommand.ToggleVisibility].run(ctx);
                             }
                         } else {
                             incText("");
@@ -418,14 +307,15 @@ protected:
                 const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                 if (payload !is null) {
                     Node payloadNode = *cast(Node*)payload.Data;
-                    
-                    try {
-                        if (selectedNodes.length > 1) incMoveChildrenWithHistory(selectedNodes, n, 0);
-                        else incMoveChildWithHistory(payloadNode, n, 0);
-                    } catch (Exception ex) {
-                        incDialog(__("Error"), ex.msg);
-                    }
 
+                    Context pCtx = new Context();
+                    pCtx.puppet = incActivePuppet();
+                    pCtx.nodes = [payloadNode];
+                    auto cmd = cast(MoveNodeCommand)nodeCommands[NodeCommand.MoveNode];
+                    cmd.newParent = n;
+                    cmd.index = 0;
+                    cmd.run(pCtx);
+                    
                     if (open) igTreePop();
                     igEndDragDropTarget();
                     return;
@@ -446,13 +336,14 @@ protected:
                         if (payload !is null) {
                             Node payloadNode = *cast(Node*)payload.Data;
                             
-                            try {
-                                if (selectedNodes.length > 1) incMoveChildrenWithHistory(selectedNodes, n, i);
-                                else incMoveChildWithHistory(payloadNode, n, i);
-                            } catch (Exception ex) {
-                                incDialog(__("Error"), ex.msg);
-                            }
-                            
+                            Context pCtx = new Context();
+                            pCtx.puppet = incActivePuppet();
+                            pCtx.nodes = [payloadNode];
+                            auto cmd = cast(MoveNodeCommand)nodeCommands[NodeCommand.MoveNode];
+                            cmd.newParent = n;
+                            cmd.index = i;
+                            cmd.run(pCtx);
+                                                        
                             igEndDragDropTarget();
                             igPopID();
                             igTreePop();

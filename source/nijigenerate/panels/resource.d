@@ -22,6 +22,7 @@ import nijigenerate.panels.parameters;
 import nijigenerate.utils;
 import nijigenerate.widgets;
 import nijigenerate.widgets.output;
+import nijigenerate.commands.node.base;
 import fghj;
 //import std.stdio;
 

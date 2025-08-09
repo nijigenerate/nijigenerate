@@ -9,6 +9,8 @@ import nijigenerate.core;
 import nijigenerate.actions;
 import nijigenerate.viewport.vertex;
 import nijilive;
+import nijigenerate.widgets;
+import i18n;
 
 
 //==================================================================================
@@ -40,6 +42,28 @@ class InsertNodeCommand : ExCommand!(
     void run(Context ctx) {
         if (ctx.hasNodes)
             ngInsertNodes(ctx.nodes, className, _suffix);
+    }
+}
+
+class MoveNodeCommand : ExCommand!(
+        TW!(Node, "newParent", "new parent node"), 
+        TW!(ulong, "index", "index in new parent node")) {
+    this(Node newParent, ulong index) {
+        super("Move Node ", newParent, index);
+    }
+
+    override
+    void run(Context ctx) {
+        if (!ctx.hasNodes || ctx.nodes.length == 0) return;
+        auto selectedNodes = incSelectedNodes();
+        auto child = ctx.nodes[0];
+        try {
+            if (incNodeInSelection(child)) incMoveChildrenWithHistory(selectedNodes, newParent, 0);
+            else incMoveChildWithHistory(child, newParent, 0);
+        } catch (Exception ex) {
+            incDialog(__("Error"), ex.msg);
+        }
+
     }
 }
 
@@ -173,6 +197,7 @@ enum NodeCommand {
     AddNode,
     InsertNode,
     DeleteNode,
+    MoveNode,
     ConvertTo,
     CopyNode,
     PasteNode,
@@ -197,5 +222,6 @@ private {
         mixin(registerCommand!(NodeCommand.AddNode, null, null));
         mixin(registerCommand!(NodeCommand.InsertNode, null, null));
         mixin(registerCommand!(NodeCommand.ConvertTo, null));
+        mixin(registerCommand!(NodeCommand.MoveNode, null, 0));
     }
 }
