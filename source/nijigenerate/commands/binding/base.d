@@ -32,7 +32,7 @@ import std.algorithm.mutation : remove;
 
 ParameterBinding[][nijilive.core.Resource] cParamBindingEntries;
 ParameterBinding[][nijilive.core.Resource] cParamBindingEntriesAll;
-nijilive.core.Resource[] cAllBoundNodes;
+//nijilive.core.Resource[] cAllBoundNodes;
 ParameterBinding[BindTarget] cSelectedBindings;
 //    ParameterBinding[BindTargetBase!(Parameter, int)] cSelectedParameterParameterBindings;
 nijilive.core.Resource[] cCompatibleNodes;
