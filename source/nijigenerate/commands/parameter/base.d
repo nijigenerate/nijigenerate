@@ -26,15 +26,6 @@ import std.algorithm.mutation : remove;
 import nijigenerate.commands.binding.base;
 
 nijilive.core.Resource[] cAllBoundNodes;
-//ParameterBinding[BindTarget] cSelectedBindings;
-//    ParameterBinding[BindTargetBase!(Parameter, int)] cSelectedParameterParameterBindings;
-//nijilive.core.Resource[] cCompatibleNodes;
-//vec2u cParamPoint;
-//vec2u cClipboardPoint;
-//ParameterBinding[BindTarget] cClipboardBindings;
-//Parameter cClipboardParameter = null;
-//bool selectedOnly = false;
-
 
 void mirrorAll(Parameter param, uint axis) {
     auto action = new ParameterChangeBindingsAction("Mirror All", param, null);

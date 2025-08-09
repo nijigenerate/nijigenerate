@@ -701,12 +701,7 @@ bool incParameterGropuMenuContents(ExParameterGroup group) {
     }
 
     if (igMenuItem(__("Delete"))) {
-        foreach(child; group.children) {
-            auto exChild = cast(ExParameter)child;
-            exChild.setParent(null);
-        }
-        (cast(ExPuppet)incActivePuppet()).removeGroup(group);
-        
+        groupCommands[GroupCommand.DeleteParamGroup].run(ctx);
         // End early.
         result = true;
     }
