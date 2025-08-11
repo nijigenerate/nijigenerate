@@ -129,7 +129,9 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
 
             // Edit mesh option for drawables
             if (auto d = cast(Deformable)n) {
-                cmd!(NodeCommand.VertexMode)(ctx);
+                if (igMenuItem(__(nodeActionToIcon!icon("Edit Mesh")), "", false, true)) {
+                    cmd!(NodeCommand.VertexMode)(ctx);
+                }
             }
             
             if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __(nodeActionToIcon!icon("Hide")) :  /* Option to show the node (and subnodes) */ __(nodeActionToIcon!icon("Show")))) {
