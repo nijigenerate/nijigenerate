@@ -16,6 +16,7 @@ import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.widgets.mainmenu;
 import nijigenerate.core.actionstack;
+import nijigenerate.core.shortcut;
 import nijigenerate.core.i18n;
 import nijigenerate.io;
 import nijigenerate.io.autosave;

@@ -75,7 +75,7 @@ void incRenderDialogs() {
             igBeginGroup();
 
                 if (igBeginChild("ErrorMainBoxLogo", ImVec2(errImgScale, errImgScale))) {
-                    import nijigenerate.core : incGetLogo;
+                    import nijigenerate.core.logo : incGetLogo;
                     igImage(cast(void*)adaTextures[cast(size_t)entry.level].getTextureId(), ImVec2(errImgScale, errImgScale));
                 }
                 igEndChild();

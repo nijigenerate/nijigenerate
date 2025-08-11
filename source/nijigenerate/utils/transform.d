@@ -5,7 +5,7 @@ import nijigenerate.ext.param;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate.core.math.triangle;
-import nijigenerate.core;
+import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.mesh;

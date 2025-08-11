@@ -1,5 +1,5 @@
 module nijigenerate.core.input;
-import nijigenerate.core;
+import nijigenerate.core.dpi;
 import nijilive.core;
 import nijilive.math;
 import bindbc.imgui;

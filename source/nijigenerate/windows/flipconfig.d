@@ -8,7 +8,7 @@
 module nijigenerate.windows.flipconfig;
 import nijigenerate.windows.base;
 import nijigenerate.windows.settings;
-import nijigenerate.core;
+//import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijigenerate.ext;

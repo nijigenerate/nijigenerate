@@ -3,7 +3,10 @@ module nijigenerate.project;
 import nijilive;
 import nijilive.core.dbg;
 import nijilive.core.nodes.common;
-import nijigenerate.core;
+//import nijigenerate.core;
+import nijigenerate.core.settings;
+import nijigenerate.core.tasks;
+import nijigenerate.core.window;
 import nijigenerate.core.actionstack;
 import nijigenerate.windows.base;
 import nijigenerate.windows.autosave;
@@ -24,6 +27,7 @@ import i18n;
 import std.algorithm.searching;
 import std.signals;
 import nijilive.core.animation.player;
+import bindbc.imgui;
 
 
 /**

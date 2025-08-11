@@ -24,6 +24,7 @@ import nijilive.core.dbg;
 import tinyfiledialogs;
 import i18n;
 import nijigenerate.ext;
+import nijigenerate.core.logo;
 
 import std.string;
 //import std.stdio;
@@ -33,11 +34,9 @@ void incMainMenu() {
     auto io = igGetIO();
         Context ctx = new Context();
         ctx.puppet = incActivePuppet();
+        if (incSelectedNodes().length > 0)
+            ctx.nodes = incSelectedNodes();
     
-        if (incShortcut("Ctrl+N")) cmd!(FileCommand.NewFile)(ctx);
-        if (incShortcut("Ctrl+O")) cmd!(FileCommand.ShowOpenFileDialog)(ctx);
-        if (incShortcut("Ctrl+S")) cmd!(FileCommand.ShowSaveFileDialog)(ctx);
-        if (incShortcut("Ctrl+Shift+S")) cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
 
         if (!incSettingsGet("hasDoneQuickSetup", false)) igBeginDisabled();
 
@@ -184,13 +183,13 @@ void incMainMenu() {
                 }
                 
                 if (igBeginMenu(__("Edit"), true)) {
-                    if(igMenuItem(__("Undo"), "Ctrl+Z", false, incActionCanUndo())) incActionUndo();
-                    if(igMenuItem(__("Redo"), "Ctrl+Shift+Z", false, incActionCanRedo())) incActionRedo();
+                    if(igMenuItem(__("Undo"), "Ctrl+Z", false, incActionCanUndo())) cmd!(EditCommand.Undo)(ctx);
+                    if(igMenuItem(__("Redo"), "Ctrl+Shift+Z", false, incActionCanRedo())) cmd!(EditCommand.Redo)(ctx);
                     
                     igSeparator();
                     if(igMenuItem(__("Cut"), "Ctrl+X", false, false)) {}
-                    if(igMenuItem(__("Copy"), "Ctrl+C", false, false)) {}
-                    if(igMenuItem(__("Paste"), "Ctrl+V", false, false)) {}
+                    if(igMenuItem(__("Copy"), "Ctrl+C", false, false)) cmd!(NodeCommand.CopyNode)(ctx);
+                    if(igMenuItem(__("Paste"), "Ctrl+V", false, false)) cmd!(NodeCommand.PasteNode)(ctx);
 
                     igSeparator();
                     if(igMenuItem(__("Settings"), "", false, true)) {

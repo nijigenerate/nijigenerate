@@ -7,26 +7,28 @@ public import nijigenerate.commands.parameter.group;
 public import nijigenerate.commands.parameter.param;
 public import nijigenerate.commands.parameter.paramedit;
 public import nijigenerate.commands.puppet.file;
+public import nijigenerate.commands.puppet.edit;
+
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
 import std.exception : enforce;
 import std.conv;
 
-alias bindingCommands = nijigenerate.commands.binding.binding.commands;
-alias nodeCommands = nijigenerate.commands.node.node.commands;
 alias animEditCommands = nijigenerate.commands.parameter.animedit.commands;
 alias groupCommands = nijigenerate.commands.parameter.group.commands;
 alias paramCommands = nijigenerate.commands.parameter.param.commands;
 alias paramEditCommands = nijigenerate.commands.parameter.paramedit.commands;
 
 alias AllCommandMaps = AliasSeq!(
-    bindingCommands, 
-    nodeCommands, 
+    nijigenerate.commands.binding.binding.commands,
+    nijigenerate.commands.node.node.commands,
     animEditCommands, 
     groupCommands, 
     paramCommands, 
     paramEditCommands,
-    nijigenerate.commands.puppet.file.commands);
+    nijigenerate.commands.puppet.file.commands,
+    nijigenerate.commands.puppet.edit.commands
+    );
 
 /*
 alias AllCommands = AliasSeq!(

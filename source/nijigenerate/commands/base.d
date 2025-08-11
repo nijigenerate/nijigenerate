@@ -51,7 +51,7 @@ template registerCommand(alias id, Args...) {
 }
 
 import nijilive;
-import nijigenerate.core;
+//import nijigenerate.core;
 import nijigenerate.ext;
 
 struct TW(alias T, string fieldName, string fieldDesc) {}
