@@ -6,26 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.core;
-import nijigenerate.core.dpi;
 import nijigenerate.core.input;
-import nijigenerate.panels;
-import nijigenerate.utils.link;
-import nijigenerate;
-import nijigenerate.widgets.dialog;
-import nijigenerate.widgets.modal;
-import nijigenerate.io.autosave;
-import nijigenerate.widgets.button;
-
-import std.exception;
-
-import nijilive;
-import std.string;
-version (windows) {
-} else {
-import std.stdio;
-}
-import std.conv;
-import std.range : repeat;
 
 public import nijigenerate.core.window;
 public import nijigenerate.core.settings;
@@ -36,8 +17,6 @@ public import nijigenerate.core.font;
 public import nijigenerate.core.dpi; 
 public import nijigenerate.core.selector;
 public import nijigenerate.core.logo;
-import nijigenerate.core.logo;
-import i18n;
 
 
 

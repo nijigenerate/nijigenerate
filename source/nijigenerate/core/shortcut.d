@@ -17,9 +17,9 @@ void incHandleShortcuts() {
     if (incShortcut("Ctrl+S")) cmd!(FileCommand.ShowSaveFileDialog)(ctx);
     if (incShortcut("Ctrl+Shift+S")) cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
 
-    if (incShortcut("Ctrl+Shift+Z", true)) {
-        cmd!(EditCommand.Redo)(ctx);
-    } else if (incShortcut("Ctrl+Z", true)) {
-        cmd!(EditCommand.Undo)(ctx);
-    }
+    if (incShortcut("Ctrl+Shift+Z", true)) cmd!(EditCommand.Redo)(ctx);
+    else if (incShortcut("Ctrl+Z", true)) cmd!(EditCommand.Undo)(ctx);
+
+    if (incShortcut("Ctrl+C", true)) cmd!(NodeCommand.CopyNode)(ctx);
+    else if (incShortcut("Ctrl+V", true)) cmd!(NodeCommand.PasteNode)(ctx);
 }
