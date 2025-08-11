@@ -129,28 +129,28 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
 
             // Edit mesh option for drawables
             if (auto d = cast(Deformable)n) {
-                nodeCommands[NodeCommand.VertexMode].run(ctx);
+                cmd!(NodeCommand.VertexMode)(ctx);
             }
             
             if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __(nodeActionToIcon!icon("Hide")) :  /* Option to show the node (and subnodes) */ __(nodeActionToIcon!icon("Show")))) {
-                nodeCommands[NodeCommand.ToggleVisibility].run(ctx);
+                cmd!(NodeCommand.ToggleVisibility)(ctx);
             }
 
             if (igMenuItem(__(nodeActionToIcon!icon("Delete")), "", false, !isRoot)) {
-                nodeCommands[NodeCommand.DeleteNode].run(ctx);
+                cmd!(NodeCommand.DeleteNode)(ctx);
             }
 
             if (igMenuItem(__(nodeActionToIcon!icon("Copy")), "", false, true)) {
-                nodeCommands[NodeCommand.CopyNode].run(ctx);
+                cmd!(NodeCommand.CopyNode)(ctx);
             }
         }
             
         if (igMenuItem(__(nodeActionToIcon!icon("Paste")), "", false, clipboardNodes.length > 0)) {
-            nodeCommands[NodeCommand.PasteNode].run(ctx);
+            cmd!(NodeCommand.PasteNode)(ctx);
         }
 
         if (igMenuItem(__(nodeActionToIcon!icon("Reload")), "", false, true)) {
-            nodeCommands[NodeCommand.ReloadNode].run(ctx);
+            cmd!(NodeCommand.ReloadNode)(ctx);
         }
 
         static if (!isRoot) {
@@ -179,7 +179,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             }
 
             if (igMenuItem(__(nodeActionToIcon!icon("Recalculate origin")), "", false, true)) {
-                nodeCommands[NodeCommand.CentralizeNode].run(ctx);
+                cmd!(NodeCommand.CentralizeNode)(ctx);
             }
 
             auto fromType = ngGetCommonNodeType(incSelectedNodes);
@@ -189,9 +189,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                         incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
                         if (igMenuItem(__(toType), "", false, true)) {
-                            auto cmd = cast(ConvertToCommand)nodeCommands[NodeCommand.ConvertTo];
-                            cmd.className = toType;
-                            cmd.run(ctx);
+                            cmd!(NodeCommand.ConvertTo)(ctx, toType);
                         }
                     }
                     igEndMenu();
@@ -258,7 +256,7 @@ protected:
                             if (n.getEnabled()) incText(incTypeIdToIcon(n.typeId));
                             else incTextDisabled(incTypeIdToIcon(n.typeId));
                             if (igIsItemClicked()) {
-                                nodeCommands[NodeCommand.ToggleVisibility].run(ctx);
+                                cmd!(NodeCommand.ToggleVisibility)(ctx);
                             }
                         } else {
                             incText("");
@@ -311,10 +309,7 @@ protected:
                     Context pCtx = new Context();
                     pCtx.puppet = incActivePuppet();
                     pCtx.nodes = [payloadNode];
-                    auto cmd = cast(MoveNodeCommand)nodeCommands[NodeCommand.MoveNode];
-                    cmd.newParent = n;
-                    cmd.index = 0;
-                    cmd.run(pCtx);
+                    cmd!(NodeCommand.MoveNode)(pCtx, n, 0);
                     
                     if (open) igTreePop();
                     igEndDragDropTarget();
@@ -339,10 +334,7 @@ protected:
                             Context pCtx = new Context();
                             pCtx.puppet = incActivePuppet();
                             pCtx.nodes = [payloadNode];
-                            auto cmd = cast(MoveNodeCommand)nodeCommands[NodeCommand.MoveNode];
-                            cmd.newParent = n;
-                            cmd.index = i;
-                            cmd.run(pCtx);
+                            cmd!(NodeCommand.MoveNode)(pCtx, n, i);
                                                         
                             igEndDragDropTarget();
                             igPopID();

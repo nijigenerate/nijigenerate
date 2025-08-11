@@ -102,66 +102,58 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
     ctx.keyPoint = cParamPoint;
 
     if (igMenuItem(__("Unset"), "", false, true)) {
-        bindingCommands[BindingCommand.UnsetKeyFrame].run(ctx);
+        cmd!(BindingCommand.UnsetKeyFrame)(ctx);
     }
     if (igMenuItem(__("Set to current"), "", false, true)) {
-        bindingCommands[BindingCommand.SetKeyFrame].run(ctx);
+        cmd!(BindingCommand.SetKeyFrame)(ctx);
     }
     if (igMenuItem(__("Reset"), "", false, true)) {
-        bindingCommands[BindingCommand.ResetKeyFrame].run(ctx);
+        cmd!(BindingCommand.ResetKeyFrame)(ctx);
     }
     if (igMenuItem(__("Invert"), "", false, true)) {
-        bindingCommands[BindingCommand.InvertKeyFrame].run(ctx);
+        cmd!(BindingCommand.InvertKeyFrame)(ctx);
     }
     if (igBeginMenu(__("Mirror"), true)) {
         if (igMenuItem(__("Horizontally"), "", false, true)) {
-            bindingCommands[BindingCommand.MirrorKeyFrameHorizontally].run(ctx);
+            cmd!(BindingCommand.MirrorKeyFrameHorizontally)(ctx);
         }
         if (igMenuItem(__("Vertically"), "", false, true)) {
-            bindingCommands[BindingCommand.MirrorKeyFrameVertically].run(ctx);
+            cmd!(BindingCommand.MirrorKeyFrameVertically)(ctx);
         }
         igEndMenu();
     }
     if (igMenuItem(__("Flip Deform"), "", false, true)) {
-        bindingCommands[BindingCommand.FlipDeform].run(ctx);
+        cmd!(BindingCommand.FlipDeform)(ctx);
     }
     if (igMenuItem(__("Symmetrize Deform"), "", false, true)) {
-        bindingCommands[BindingCommand.SymmetrizeDeform].run(ctx);
+        cmd!(BindingCommand.SymmetrizeDeform)(ctx);
     }
 
     if (param.isVec2) {
         if (igBeginMenu(__("Set from mirror"), true)) {
             if (igMenuItem(__("Horizontally"), "", false, true)) {
-                auto cmds = cast(SetFromHorizontalMirrorCommand)bindingCommands[BindingCommand.SetFromHorizontalMirror];
-                cmds.targetBindingsNull = targetBindings is null;
-                cmds.run(ctx);
+                cmd!(BindingCommand.SetFromHorizontalMirror)(ctx, targetBindings is null);
             }
             if (igMenuItem(__("Vertically"), "", false, true)) {
-                auto cmds = cast(SetFromVerticalMirrorCommand)bindingCommands[BindingCommand.SetFromVerticalMirror];
-                cmds.targetBindingsNull = targetBindings is null;
-                cmds.run(ctx);
+                cmd!(BindingCommand.SetFromVerticalMirror)(ctx, targetBindings is null);
             }
             if (igMenuItem(__("Diagonally"), "", false, true)) {
-                auto cmds = cast(SetFromDiagonalMirrorCommand)bindingCommands[BindingCommand.SetFromDiagonalMirror];
-                cmds.targetBindingsNull = targetBindings is null;
-                cmds.run(ctx);
+                cmd!(BindingCommand.SetFromDiagonalMirror)(ctx, targetBindings is null);
             }
             igEndMenu();
         }
     } else {
         if (igMenuItem(__("Set from mirror"), "", false, true)) {
-            auto cmds = cast(SetFrom1DMirrorCommand)bindingCommands[BindingCommand.SetFrom1DMirror];
-            cmds.targetBindingsNull = targetBindings is null;
-            cmds.run(ctx);
+            cmd!(BindingCommand.SetFrom1DMirror)(ctx, targetBindings is null);
         }
     }
 
     if (igMenuItem(__("Copy"), "", false, true)) {
-        bindingCommands[BindingCommand.CopyBinding].run(ctx);
+        cmd!(BindingCommand.CopyBinding)(ctx);
     }
 
     if (igMenuItem(__("Paste"), "", false,  true)) {
-        bindingCommands[BindingCommand.PasteBinding].run(ctx);
+        cmd!(BindingCommand.PasteBinding)(ctx);
     }
 
 }
@@ -174,26 +166,20 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
     ctx.keyPoint = cParamPoint;
 
     if (igMenuItem(__("Remove"), "", false, true)) {
-        bindingCommands[BindingCommand.RemoveBinding].run(ctx);
+        cmd!(BindingCommand.RemoveBinding)(ctx);
     }
 
     incKeypointActions(param, null, cSelectedBindings.values);
 
     if (igBeginMenu(__("Interpolation Mode"), true)) {
         if (igMenuItem(__("Nearest"), "", false, true)) {
-            auto cmds = cast(SetInterpolationCommand)bindingCommands[BindingCommand.SetInterpolation];
-            cmds.mode = InterpolateMode.Nearest;
-            cmds.run(ctx);
+            cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Nearest);
         }
         if (igMenuItem(__("Linear"), "", false, true)) {
-            auto cmds = cast(SetInterpolationCommand)bindingCommands[BindingCommand.SetInterpolation];
-            cmds.mode = InterpolateMode.Linear;
-            cmds.run(ctx);
+            cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Linear);
         }
         if (igMenuItem(__("Cubic"), "", false, true)) {
-            auto cmds = cast(SetInterpolationCommand)bindingCommands[BindingCommand.SetInterpolation];
-            cmds.mode = InterpolateMode.Cubic;
-            cmds.run(ctx);
+            cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Cubic);
         }
         igEndMenu();
     }
@@ -386,43 +372,43 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 }
 
                 if (!param.isVec2 && igMenuItem(__("To 2D"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.ConvertTo2DParam].run(ctx);
+                    cmd!(ParameditCommand.ConvertTo2DParam)(ctx);
                 }
 
                 if (param.isVec2) {
                     if (igMenuItem(__("Flip X"), "", false, true)) {
-                        paramEditCommands[ParameditCommand.FlipX].run(ctx);
+                        cmd!(ParameditCommand.FlipX)(ctx);
                     }
                     if (igMenuItem(__("Flip Y"), "", false, true)) {
-                        paramEditCommands[ParameditCommand.FlipY].run(ctx);
+                        cmd!(ParameditCommand.FlipY)(ctx);
                     }
                 } else {
                     if (igMenuItem(__("Flip"), "", false, true)) {
-                        paramEditCommands[ParameditCommand.Flip1D].run(ctx);
+                        cmd!(ParameditCommand.Flip1D)(ctx);
                     }
                 }
                 if (igBeginMenu(__("Mirror"), true)) {
                     if (igMenuItem(__("Horizontally"), "", false, true)) {
-                        paramEditCommands[ParameditCommand.MirrorHorizontally].run(ctx);
+                        cmd!(ParameditCommand.MirrorHorizontally)(ctx);
                     }
                     if (igMenuItem(__("Vertically"), "", false, true)) {
-                        paramEditCommands[ParameditCommand.MirrorVertically].run(ctx);
+                        cmd!(ParameditCommand.MirrorVertically)(ctx);
                     }
                     igEndMenu();
                 }
                 if (igBeginMenu(__("Mirrored Autofill"), true)) {
                     if (igMenuItem("", "", false, true)) {
-                        paramEditCommands[ParameditCommand.MirroredAutoFillDir1].run(ctx);
+                        cmd!(ParameditCommand.MirroredAutoFillDir1)(ctx);
                     }
                     if (igMenuItem("", "", false, true)) {
-                        paramEditCommands[ParameditCommand.MirroredAutoFillDir2].run(ctx);
+                        cmd!(ParameditCommand.MirroredAutoFillDir2)(ctx);
                     }
                     if (param.isVec2) {
                         if (igMenuItem("", "", false, true)) {
-                            paramEditCommands[ParameditCommand.MirroredAutoFillDir3].run(ctx);
+                            cmd!(ParameditCommand.MirroredAutoFillDir3)(ctx);
                         }
                         if (igMenuItem("", "", false, true)) {
-                            paramEditCommands[ParameditCommand.MirroredAutoFillDir4].run(ctx);
+                            cmd!(ParameditCommand.MirroredAutoFillDir4)(ctx);
                         }
                     }
                     igEndMenu();
@@ -435,22 +421,22 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                     paramEditCommands[ParameditCommand.CopyParameter].run(ctx);
                 }
                 if (igMenuItem(__("Paste"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.PasteParameter].run(ctx);
+                    cmd!(ParameditCommand.PasteParameter)(ctx);
                 }
                 if (igMenuItem(__("Paste and Horizontal Flip"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.PasteParameterWithFlip].run(ctx);
+                    cmd!(ParameditCommand.PasteParameterWithFlip)(ctx);
                 }
 
                 if (igMenuItem(__("Duplicate"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.DuplicateParameter].run(ctx);
+                    cmd!(ParameditCommand.DuplicateParameter)(ctx);
                 }
 
                 if (igMenuItem(__("Duplicate and Horizontal Flip"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.DuplicateParameterWithFlip].run(ctx);
+                    cmd!(ParameditCommand.DuplicateParameterWithFlip)(ctx);
                 }
 
                 if (igMenuItem(__("Delete"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.DeleteParameter].run(ctx);
+                    cmd!(ParameditCommand.DeleteParameter)(ctx);
                 }
 
                 igNewLine();
@@ -462,27 +448,15 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                         if (p.isVec2) {
                             if (igBeginMenu(p.name.toStringz, true)) {
                                 if (igMenuItem(__("X"))) {
-                                    auto cmds = cast(LinkToCommand)paramEditCommands[ParameditCommand.LinkTo];
-                                    cmds.toParam = p;
-                                    cmds.fromAxis = fromAxis;
-                                    cmds.toAxis = 0;
-                                    cmds.run(ctx);
+                                    cmd!(ParameditCommand.LinkTo)(ctx, p, fromAxis, 0);
                                 }
                                 if (igMenuItem(__("Y"))) {
-                                    auto cmds = cast(LinkToCommand)paramEditCommands[ParameditCommand.LinkTo];
-                                    cmds.toParam = p;
-                                    cmds.fromAxis = fromAxis;
-                                    cmds.toAxis = 1;
-                                    cmds.run(ctx);
+                                    cmd!(ParameditCommand.LinkTo)(ctx, p, fromAxis, 1);
                                 }
                                 igEndMenu();
                             } 
                         } else if (igMenuItem(p.name.toStringz, null, false, true)) {
-                            auto cmds = cast(LinkToCommand)paramEditCommands[ParameditCommand.LinkTo];
-                            cmds.toParam = p;
-                            cmds.fromAxis = fromAxis;
-                            cmds.toAxis = 0;
-                            cmds.run(ctx);
+                            cmd!(ParameditCommand.LinkTo)(ctx, p, fromAxis, 0);
                         }
                     }
                 }
@@ -509,7 +483,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
 
                 // Sets the default value of the param
                 if (igMenuItem(__("Set Starting Position"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.SetStartingKeyFrame].run(ctx);
+                    cmd!(ParameditCommand.SetStartingKeyFrame)(ctx);
                 }
                 igEndPopup();
             }
@@ -525,7 +499,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             
             bool isArmed = incArmedParameter() == param;
             if (incButtonColored(isArmed ? "" : "", ImVec2(24, 24), isArmed ? ImVec4(1f, 0f, 0f, 1f) : colorUndefined)) {
-                paramEditCommands[ParameditCommand.ToggleParameterArm].run(ctx);
+                cmd!(ParameditCommand.ToggleParameterArm)(ctx);
             }
 
             // Arms the parameter for recording values.
@@ -538,7 +512,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             }
             igBeginDisabled(incAnimationGet() is null);
                 if (incButtonColored("", ImVec2(24, 24))) {
-                    animEditCommands[AnimeditCommand.AddKeyFrame].run(ctx);
+                    cmd!(AnimeditCommand.AddKeyFrame)(ctx);
                 }
                 incTooltip(_("Add Keyframe"));
             igEndDisabled();
@@ -701,7 +675,7 @@ bool incParameterGropuMenuContents(ExParameterGroup group) {
     }
 
     if (igMenuItem(__("Delete"))) {
-        groupCommands[GroupCommand.DeleteParamGroup].run(ctx);
+        cmd!(GroupCommand.DeleteParamGroup)(ctx);
         // End early.
         result = true;
     }
@@ -714,31 +688,19 @@ void incParameterMenuContents(Parameter[] parameters) {
     ctx.parameters = parameters;
 
     if (igMenuItem(__("Add 1D Parameter (0..1)"), "", false, true)) {
-        auto cmd = cast(Add1DParameterCommand)paramCommands[ParamCommand.Add1DParameter];
-        cmd.min = 0;
-        cmd.max = 1;
-        cmd.run(ctx);
+        cmd!(ParamCommand.Add1DParameter)(ctx, 0, 1);
     }
     if (igMenuItem(__("Add 1D Parameter (-1..1)"), "", false, true)) {
-        auto cmd = cast(Add1DParameterCommand)paramCommands[ParamCommand.Add1DParameter];
-        cmd.min = -1;
-        cmd.max = 1;
-        cmd.run(ctx);
+        cmd!(ParamCommand.Add1DParameter)(ctx, -1, 1);
     }
     if (igMenuItem(__("Add 2D Parameter (0..1)"), "", false, true)) {
-        auto cmd = cast(Add2DParameterCommand)paramCommands[ParamCommand.Add2DParameter];
-        cmd.min = 0;
-        cmd.max = 1;
-        cmd.run(ctx);
+        cmd!(ParamCommand.Add2DParameter)(ctx, 0, 1);
     }
     if (igMenuItem(__("Add 2D Parameter (-1..+1)"), "", false, true)) {
-        auto cmd = cast(Add2DParameterCommand)paramCommands[ParamCommand.Add2DParameter];
-        cmd.min = -1;
-        cmd.max = 1;
-        cmd.run(ctx);
+        cmd!(ParamCommand.Add2DParameter)(ctx, -1, 1);
     }
     if (igMenuItem(__("Add Mouth Shape"), "", false, true)) {
-        paramCommands[ParamCommand.AddMouthParameter].run(ctx);
+        cmd!(ParamCommand.AddMouthParameter)(ctx);
     }
 }
 

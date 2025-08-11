@@ -1,10 +1,11 @@
 module nijigenerate.commands.base;
 
-import std.traits : isInstanceOf, TemplateArgsOf;
+import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple;
 import std.meta : staticMap, AliasSeq;
 import std.array : join;
 import std.format : format;
 import std.conv : to;
+import std.exception : enforce;
 
 string toCodeString(T)(T arg) {
     import std.traits : isSomeString, isIntegral, isFloatingPoint;
