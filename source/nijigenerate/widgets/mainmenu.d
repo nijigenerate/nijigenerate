@@ -6,6 +6,10 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.widgets.mainmenu;
+
+import nijigenerate.commands.puppet.base;
+import nijigenerate.commands;
+
 import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.panels;
@@ -25,63 +29,15 @@ import std.string;
 //import std.stdio;
 import std.path;
 
-private {
-    bool dbgShowStyleEditor;
-    bool dbgShowDebugger;
-    bool dbgShowMetrics;
-    bool dbgShowStackTool;
-
-    void fileNew() {
-        incNewProject();
-    }
-
-    void fileOpen() {
-        const TFD_Filter[] filters = [
-            { ["*.inx"], "nijigenerate Project (*.inx)" }
-        ];
-
-        string file = incShowOpenDialog(filters, _("Open..."));
-        if (file) incOpenProject(file);
-    }
-
-    void fileSave() {
-        incPopWelcomeWindow();
-
-        // If a projeect path is set then the user has opened or saved
-        // an existing file, we should just override that
-        if (incProjectPath.length > 0) {
-            // TODO: do backups on every save?
-
-            incSaveProject(incProjectPath);
-        } else {
-            const TFD_Filter[] filters = [
-                { ["*.inx"], "nijigenerate Project (*.inx)" }
-            ];
-
-            string file = incShowSaveDialog(filters, "", _("Save..."));
-            if (file) incSaveProject(file);
-        }
-    }
-
-    void fileSaveAs() {
-        incPopWelcomeWindow();
-        const TFD_Filter[] filters = [
-            { ["*.inx"], "nijigenerate Project (*.inx)" }
-        ];
-
-        string fname = incProjectPath().length > 0 ? incProjectPath : "";
-        string file = incShowSaveDialog(filters, fname, _("Save As..."));
-        if (file) incSaveProject(file);
-    }
-}
-
 void incMainMenu() {
     auto io = igGetIO();
+        Context ctx = new Context();
+        ctx.puppet = incActivePuppet();
     
-        if (incShortcut("Ctrl+N")) fileNew();
-        if (incShortcut("Ctrl+O")) fileOpen();
-        if (incShortcut("Ctrl+S")) fileSave();
-        if (incShortcut("Ctrl+Shift+S")) fileSaveAs();
+        if (incShortcut("Ctrl+N")) cmd!(FileCommand.NewFile)(ctx);
+        if (incShortcut("Ctrl+O")) cmd!(FileCommand.ShowOpenFileDialog)(ctx);
+        if (incShortcut("Ctrl+S")) cmd!(FileCommand.ShowSaveFileDialog)(ctx);
+        if (incShortcut("Ctrl+Shift+S")) cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
 
         if (!incSettingsGet("hasDoneQuickSetup", false)) igBeginDisabled();
 
@@ -105,11 +61,11 @@ void incMainMenu() {
 
                 if (igBeginMenu(__("File"), true)) {
                     if(igMenuItem(__("New"), "Ctrl+N", false, true)) {
-                        fileNew();
+                        cmd!(FileCommand.NewFile)(ctx);
                     }
 
                     if (igMenuItem(__("Open"), "Ctrl+O", false, true)) {
-                        fileOpen();
+                        cmd!(FileCommand.ShowOpenFileDialog)(ctx);
                     }
 
                     string[] prevProjects = incGetPrevProjects();
@@ -140,101 +96,52 @@ void incMainMenu() {
                     }
                     
                     if(igMenuItem(__("Save"), "Ctrl+S", false, true)) {
-                        fileSave();
+                        cmd!(FileCommand.ShowSaveFileDialog)(ctx);
                     }
                     
                     if(igMenuItem(__("Save As..."), "Ctrl+Shift+S", false, true)) {
-                        fileSaveAs();
+                        cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
                     }
 
                     if (igBeginMenu(__("Import"), true)) {
                         if(igMenuItem(__("Photoshop Document"), "", false, true)) {
-                            incPopWelcomeWindow();
-                            incImportShowPSDDialog();
+                            cmd!(FileCommand.ShowImportPSDDialog)(ctx);
                         }
                         incTooltip(_("Import a standard Photoshop PSD file."));
                         if(igMenuItem(__("Krita Document"), "", false, true)) {
-                            incPopWelcomeWindow();
-                            incImportShowKRADialog();
+                            cmd!(FileCommand.ShowImportKRADialog)(ctx);
                         }
                         incTooltip(_("Import a standard Krita KRA file."));
 
                         if (igMenuItem(__("nijilive Puppet"), "", false, true)) {
-                            const TFD_Filter[] filters = [
-                                { ["*.inp"], "nijilive Puppet (*.inp)" }
-                            ];
-
-                            string file = incShowOpenDialog(filters, _("Import..."));
-                            if (file) {
-                                incImportINP(file);
-                            }
+                            cmd!(FileCommand.ShowImportINPDialog)(ctx);
                         }
                         incTooltip(_("Import existing puppet file, editing options limited"));
 
                         if (igMenuItem(__("Image Folder"))) {
-                            string folder = incShowOpenFolderDialog(_("Select a Folder..."));
-                            if (folder) {
-                                incImportFolder(folder);
-                            }
+                            cmd!(FileCommand.ShowImportImageFolderDialog)(ctx);
                         }
                         incTooltip(_("Supports PNGs, TGAs and JPEGs."));
                         igEndMenu();
                     }
                     if (igBeginMenu(__("Merge"), true)) {
                         if(igMenuItem(__("Photoshop Document"), "", false, true)) {
-                            const TFD_Filter[] filters = [
-                                { ["*.psd"], "Photoshop Document (*.psd)" }
-                            ];
-
-                            string file = incShowOpenDialog(filters, _("Import..."));
-                            if (file) {
-                                incPopWelcomeWindow();
-                                incPushWindow(new PSDMergeWindow(file));
-                            }
+                            cmd!(FileCommand.ShowMergePSDDialog)(ctx);
                         }
                         incTooltip(_("Merge layers from Photoshop document"));
 
                         if(igMenuItem(__("Krita Document"), "", false, true)) {
-                            const TFD_Filter[] filters = [
-                                { ["*.kra"], "Krita Document (*.kra)" }
-                            ];
-
-                            string file = incShowOpenDialog(filters, _("Import..."));
-                            if (file) {
-                                incPopWelcomeWindow();
-                                incPushWindow(new KRAMergeWindow(file));
-                            }
+                            cmd!(FileCommand.ShowMergeKRADialog)(ctx);
                         }
                         incTooltip(_("Merge layers from Krita document"));
 
                         if(igMenuItem(__("Image Files"), "", false, true)) {
-                            const TFD_Filter[] filters = [
-                                { ["*.png"], "Portable Network Graphics (*.png)" },
-                                { ["*.jpeg", "*.jpg"], "JPEG Image (*.jpeg)" },
-                                { ["*.tga"], "TARGA Graphics (*.tga)" }
-                            ];
-
-                            string path = incShowImportDialog(filters, _("Import..."), true);
-                            if (path) {
-                                try {
-                                    incCreatePartsFromFiles(path.split("|"));
-                                } catch (Exception ex) {
-                                    incDialog(__("Error"), ex.msg);
-                                }
-                            }
+                            cmd!(FileCommand.ShowMergeImageFileDialog)(ctx);
                         }
                         incTooltip(_("Merges (adds) selected image files to project"));
 
                         if (igMenuItem(__("nijigenerate Project"), "", false, true)) {
-                            incPopWelcomeWindow();
-                            // const TFD_Filter[] filters = [
-                            //     { ["*.inp"], "nijilive Puppet (*.inp)" }
-                            // ];
-
-                            // c_str filename = tinyfd_openFileDialog(__("Import..."), "", filters, false);
-                            // if (filename !is null) {
-                            //     string file = cast(string)filename.fromStringz;
-                            // }
+                            cmd!(FileCommand.ShowMergeINPDialog)(ctx);
                         }
                         incTooltip(_("Merge another nijigenerate project in to this one"));
                         
@@ -243,69 +150,32 @@ void incMainMenu() {
 
                     if (igBeginMenu(__("Export"), true)) {
                         if(igMenuItem(__("nijilive Puppet"), "", false, true)) {
-                            const TFD_Filter[] filters = [
-                                { ["*.inp"], "nijilive Puppet (*.inp)" }
-                            ];
-
-                            string file = incShowSaveDialog(filters, "", _("Export..."));
-                            if (file) incExportINP(file);
+                            cmd!(FileCommand.ShowExportToINPDialog)(ctx);
                         }
                         if (igBeginMenu(__("Image"), true)) {
                             if(igMenuItem(__("PNG (*.png)"), "", false, true)) {
-                                const TFD_Filter[] filters = [
-                                    { ["*.png"], "Portable Network Graphics (*.png)" }
-                                ];
-
-                                string file = incShowSaveDialog(filters, "", _("Export..."));
-                                if (file) incPushWindow(new ImageExportWindow(file.setExtension("png")));
+                                cmd!(FileCommand.ShowExportToPNGDialog)(ctx);
                             }
 
                             if(igMenuItem(__("JPEG (*.jpeg)"), "", false, true)) {
-                                const TFD_Filter[] filters = [
-                                    { ["*.jpeg", "*.jpg"], "JPEG Image (*.jpeg)" }
-                                ];
-
-                                string file = incShowSaveDialog(filters, "", _("Export..."));
-                                if (file) incPushWindow(new ImageExportWindow(file.setExtension("jpeg")));
+                                cmd!(FileCommand.ShowExportToJpegDialog)(ctx);
                             }
 
                             if(igMenuItem(__("TARGA (*.tga)"), "", false, true)) {
-                                const TFD_Filter[] filters = [
-                                    { ["*.tga"], "TARGA Graphics (*.tga)" }
-                                ];
-
-                                string file = incShowSaveDialog(filters, "", _("Export..."));
-                                if (file) incPushWindow(new ImageExportWindow(file.setExtension("tga")));
+                                cmd!(FileCommand.ShowExportToTGADialog)(ctx);
                             }
 
                             igEndMenu();
                         }
                         if(igMenuItem(__("Video"), "", false, incVideoCanExport())) {
-                            const TFD_Filter[] filters = [
-                                { ["*.mp4"], "H.264 Video (*.mp4)" },
-                                { ["*.avi"], "AVI Video (*.avi)" },
-                                { ["*.webm"], "WebM Video (*.webm)" },
-                                { ["*.png"], "PNG Sequence (*.png)" }
-                            ];
-
-                            string file = incShowSaveDialog(filters, "", _("Export..."));
-                            if (file) {
-
-                                // Fallback to .mp4
-                                if (!extension(file)) file = file.setExtension("mp4");
-                                incPushWindow(new VideoExportWindow(file));
-                            }
+                            cmd!(FileCommand.ShowExportToVideoDialog)(ctx);
                         }
                         igEndMenu();
                     }
 
                     // Close Project option
                     if (igMenuItem(__("Close Project"))) {
-
-                        // TODO: Check if changes were done to project and warn before
-                        // creating new project
-                        incNewProject();
-                        incPushWindow(new WelcomeWindow());
+                        cmd!(FileCommand.CloseProject)(ctx);
                     }
 
                     // Quit option

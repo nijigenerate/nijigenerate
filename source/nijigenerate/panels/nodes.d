@@ -129,8 +129,10 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
 
             // Edit mesh option for drawables
             if (auto d = cast(Deformable)n) {
-                if (igMenuItem(__(nodeActionToIcon!icon("Edit Mesh")), "", false, true)) {
-                    cmd!(NodeCommand.VertexMode)(ctx);
+                if (!incArmedParameter()) {
+                    if (igMenuItem(__(nodeActionToIcon!icon("Edit Mesh")), "", false, true)) {
+                        cmd!(NodeCommand.VertexMode)(ctx);
+                    }
                 }
             }
             

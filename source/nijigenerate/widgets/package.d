@@ -12,7 +12,7 @@ public import nijigenerate.widgets.inputtext;
 public import nijigenerate.widgets.progress;
 public import nijigenerate.widgets.controller;
 public import nijigenerate.widgets.toolbar;
-public import nijigenerate.widgets.mainmenu;
+//public import nijigenerate.widgets.mainmenu;
 public import nijigenerate.widgets.tooltip;
 public import nijigenerate.widgets.statusbar;
 public import nijigenerate.widgets.dummy;

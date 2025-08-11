@@ -6,7 +6,7 @@ import nijigenerate.commands.parameter.base;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.panels;
 import nijigenerate.ext.param;
-import nijigenerate.widgets;
+//import nijigenerate.widgets;
 import nijigenerate.windows;
 import nijigenerate.core.math.triangle;
 import nijigenerate.core;

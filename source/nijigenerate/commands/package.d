@@ -6,6 +6,7 @@ public import nijigenerate.commands.parameter.animedit;
 public import nijigenerate.commands.parameter.group;
 public import nijigenerate.commands.parameter.param;
 public import nijigenerate.commands.parameter.paramedit;
+public import nijigenerate.commands.puppet.file;
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
 import std.exception : enforce;
@@ -24,7 +25,8 @@ alias AllCommandMaps = AliasSeq!(
     animEditCommands, 
     groupCommands, 
     paramCommands, 
-    paramEditCommands);
+    paramEditCommands,
+    nijigenerate.commands.puppet.file.commands);
 
 /*
 alias AllCommands = AliasSeq!(

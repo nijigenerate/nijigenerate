@@ -14,6 +14,7 @@ import nijigenerate.panels;
 import nijigenerate.panels.resource;
 import nijigenerate.windows;
 import nijigenerate.widgets;
+import nijigenerate.widgets.mainmenu;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.i18n;
 import nijigenerate.io;
