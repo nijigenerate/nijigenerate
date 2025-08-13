@@ -488,3 +488,10 @@ void ngActiveAutoMeshProcessor(AutoMeshProcessor processor) {
 AutoMeshProcessor[] ngAutoMeshProcessors() {
     return autoMeshProcessors;
 }
+
+// Expose active IncMeshEditor for commands framework (vertex edit mode)
+IncMeshEditor incVertexViewportGetEditor() {
+    if (auto view = incVertexViewport)
+        return view.editor;
+    return null;
+}

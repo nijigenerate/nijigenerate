@@ -1,6 +1,6 @@
 module nijigenerate.commands.base;
 
-import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple;
+import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple, fullyQualifiedName;
 import std.meta : staticMap, AliasSeq;
 import std.array : join;
 import std.format : format;
@@ -122,7 +122,7 @@ abstract class ExCommand(T...) : Command {
         } else {
             alias AParam = U[0];
             static if (isInstanceOf!(TW, AParam)) {
-                enum string thisDecl = TemplateArgsOf!AParam[0].stringof ~ " " ~ TemplateArgsOf!AParam[1] ~ ";\n";
+                enum string thisDecl = fullyQualifiedName!(TemplateArgsOf!AParam[0]) ~ " " ~ TemplateArgsOf!AParam[1] ~ ";\n";
             } else {
                 enum string thisDecl = AParam.stringof ~ " arg" ~ idx.to!string ~ ";\n";
             }
