@@ -19,6 +19,8 @@ import nijigenerate.widgets.button;
 import nijilive;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
+import i18n;
+import std.stdio : writefln;
 
 version(OSX) {
     enum const(char)*[] SDL_VERSIONS_MACOS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];

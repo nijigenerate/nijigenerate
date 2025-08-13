@@ -10,6 +10,7 @@ public import nijigenerate.commands.puppet.file;
 public import nijigenerate.commands.puppet.edit;
 public import nijigenerate.commands.puppet.view;
 public import nijigenerate.commands.puppet.tool;
+public import nijigenerate.commands.viewport.control;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
@@ -27,6 +28,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.edit.commands,
     nijigenerate.commands.puppet.view.commands,
     nijigenerate.commands.puppet.tool.commands,
+    nijigenerate.commands.viewport.control.commands,
     );
 
 /*
