@@ -3,6 +3,7 @@ module nijigenerate.commands.puppet.edit;
 import nijigenerate.commands.base;
 import nijilive;
 import nijigenerate.core.actionstack;
+import nijigenerate.windows;
 
 class UndoCommand : ExCommand!() {
     this() { super("Undo"); }
@@ -20,10 +21,19 @@ class RedoCommand : ExCommand!() {
     }
 }
 
+class ShowSettingsWindowCommand : ExCommand!() {
+    this() { super("Show settings window"); }
+    override
+    void run(Context ctx) {
+        if (!incIsSettingsOpen) incPushWindow(new SettingsWindow);
+    }
+}
+
 
 enum EditCommand {
     Undo,
-    Redo
+    Redo,
+    ShowSettingsWindow,
 }
 
 

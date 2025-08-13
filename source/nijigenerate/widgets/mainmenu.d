@@ -187,14 +187,12 @@ void incMainMenu() {
                     if(igMenuItem(__("Redo"), "Ctrl+Shift+Z", false, incActionCanRedo())) cmd!(EditCommand.Redo)(ctx);
                     
                     igSeparator();
-                    if(igMenuItem(__("Cut"), "Ctrl+X", false, false)) {}
+                    if(igMenuItem(__("Cut"), "Ctrl+X", false, false)) cmd!(NodeCommand.CutNode)(ctx);
                     if(igMenuItem(__("Copy"), "Ctrl+C", false, false)) cmd!(NodeCommand.CopyNode)(ctx);
                     if(igMenuItem(__("Paste"), "Ctrl+V", false, false)) cmd!(NodeCommand.PasteNode)(ctx);
 
                     igSeparator();
-                    if(igMenuItem(__("Settings"), "", false, true)) {
-                        if (!incIsSettingsOpen) incPushWindow(new SettingsWindow);
-                    }
+                    if(igMenuItem(__("Settings"), "", false, true)) cmd!(EditCommand.ShowSettingsWindow)(ctx);
                     
                     debug {
                         igSpacing();
@@ -212,9 +210,7 @@ void incMainMenu() {
                 }
 
                 if (igBeginMenu(__("View"), true)) {
-                    if (igMenuItem(__("Reset Layout"), null, false, true)) {
-                        incSetDefaultLayout();
-                    }
+                    if (igMenuItem(__("Reset Layout"), null, false, true)) cmd!(ViewCommand.SetDefaultLayout)(ctx);
                     igSeparator();
 
                     // Spacing
@@ -262,73 +258,22 @@ void incMainMenu() {
                     igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Extras"));
 
                     igSeparator();
-                    if (igMenuItem(__("Save Screenshot"), "", false, true)) {
-                        const TFD_Filter[] filters = [
-                            { ["*.png"], "PNG Image (*.png)" }
-                        ];
-                        
-                        string filename = incShowSaveDialog(filters, "", _("Save Screenshot..."));
-                        if (filename) {
-                            string file = filename.setExtension("png");
-
-                            // Dump viewport to RGBA byte array
-                            int width, height;
-                            inGetViewport(width, height);
-                            Texture outTexture = new Texture(null, width, height);
-
-                            // Texture data
-                            inSetClearColor(0, 0, 0, 0);
-                            inBeginScene();
-                                incActivePuppet().update();
-                                incActivePuppet().draw();
-                            inEndScene();
-                            ubyte[] textureData = new ubyte[inViewportDataLength()];
-                            inDumpViewport(textureData);
-                            inTexUnPremuliply(textureData);
-                            incResetClearColor();
-                            
-                            // Write to texture
-                            outTexture.setData(textureData);
-
-                            outTexture.save(file);
-                        }
-                    }
+                    if (igMenuItem(__("Save Screenshot"), "", false, true)) cmd!(ViewCommand.ShowSaveScreenshotDialog)(ctx);
                     incTooltip(_("Saves screenshot as PNG of the editor framebuffer."));
 
-                    if (igMenuItem(__("Show Stats for Nerds"), "", incShowStatsForNerds, true)) {
-                        incShowStatsForNerds = !incShowStatsForNerds;
-                        incSettingsSet("NerdStats", incShowStatsForNerds);
-                    }
+                    if (igMenuItem(__("Show Stats for Nerds"), "", incShowStatsForNerds, true)) cmd!(ViewCommand.ShowStatusForNerds)(ctx);
 
 
                     igEndMenu();
                 }
 
                 if (igBeginMenu(__("Tools"), true)) {
-                    import nijigenerate.utils.repair : incAttemptRepairPuppet, incRegenerateNodeIDs;
 
                     igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Puppet Data"));
                     igSeparator();
 
                     // Opens the directory where configuration resides in the user's file browser.
-                    if (igMenuItem(__("Import Inochi Session Data"), null, false, true)) {
-                        const TFD_Filter[] filters = [
-                            { ["*.inp"], "nijilive Puppet (*.inp)" }
-                        ];
-
-                        if (string path = incShowImportDialog(filters, _("Import..."))) {
-                            Puppet p = inLoadPuppet!ExPuppet(path);
-
-                            if ("com.inochi2d.inochi-session.bindings" in p.extData) {
-                                incActivePuppet().extData["com.inochi2d.inochi-session.bindings"] = p.extData["com.inochi2d.inochi-session.bindings"].dup;
-                                incSetStatus(_("Successfully overwrote Inochi Session tracking data..."));
-                            } else {
-                                incDialog(__("Error"), _("There was no Inochi Session data to import!"));
-                            }
-
-                            destroy!false(p);
-                        }
-                    }
+                    if (igMenuItem(__("Import Inochi Session Data"), null, false, true)) cmd!(ToolCommand.ImportSessionData)(ctx);
                     incTooltip(_("Imports tracking data from an exported nijilive model which has been set up in Inochi Session."));
                     
 
@@ -337,32 +282,16 @@ void incMainMenu() {
 
                     // Premultiply textures, causing every pixel value in every texture to
                     // be multiplied by their Alpha (transparency) component
-                    if (igMenuItem(__("Premultiply textures"), "", false)) {
-                        import nijigenerate.utils.repair : incPremultTextures;
-                        incPremultTextures(incActivePuppet());
-                    }
+                    if (igMenuItem(__("Premultiply textures"), "", false)) cmd!(ToolCommand.PremultTexture)(ctx);
                     incTooltip(_("Premultiplies textures by their alpha component.\n\nOnly use this if your textures look garbled after importing files from an older version of nijigenerate."));
                     
-                    if (igMenuItem(__("Bleed textures..."), "", false)) {
-                        incRebleedTextures();
-                    }
+                    if (igMenuItem(__("Bleed textures..."), "", false)) cmd!(ToolCommand.RebleedTexture)(ctx);
                     incTooltip(_("Causes color to bleed out in to fully transparent pixels, this solves outlines on straight alpha compositing.\n\nOnly use this if your game engine can't use premultiplied alpha."));
 
-                    if (igMenuItem(__("Generate Mipmaps..."), "", false)) {
-                        incRegenerateMipmaps();
-                    }
+                    if (igMenuItem(__("Generate Mipmaps..."), "", false)) cmd!(ToolCommand.RegenerateMipmaps)(ctx);
                     incTooltip(_("Regenerates the puppet's mipmaps."));
 
-                    if (igMenuItem(__("Generate fake layer name info..."), "", false)) {
-                        import nijigenerate.ext;
-                        auto parts = incActivePuppet().getAllParts();
-                        foreach(ref part; parts) {
-                            auto expart = cast(ExPart)part;
-                            if (expart) {
-                                expart.layerPath = "/"~part.name;
-                            }
-                        }
-                    }
+                    if (igMenuItem(__("Generate fake layer name info..."), "", false)) cmd!(ToolCommand.GenerateFakeLayerName)(ctx);
                     incTooltip(_("Generates fake layer info based on node names"));
 
                     // Spacing
@@ -373,25 +302,18 @@ void incMainMenu() {
                     igSeparator();
 
                     // FULL REPAIR
-                    if (igMenuItem(__("Attempt full repair..."), "", false)) {
-                        incAttemptRepairPuppet(incActivePuppet());
-                    }
+                    if (igMenuItem(__("Attempt full repair..."), "", false)) cmd!(ToolCommand.AttemptRepairPuppet)(ctx);
                     incTooltip(_("Attempts all the recovery and repair methods below on the currently loaded model"));
 
                     // REGEN NODE IDs
-                    if (igMenuItem(__("Regenerate Node IDs"), "", false)) {
-                        import nijigenerate.utils.repair : incAttemptRepairPuppet;
-                        incRegenerateNodeIDs(incActivePuppet().root);
-                    }
+                    if (igMenuItem(__("Regenerate Node IDs"), "", false)) cmd!(ToolCommand.RegenerateNodeIDs)(ctx);
                     incTooltip(_("Regenerates all the unique IDs for the model"));
 
                     // Spacing
                     igSpacing();
                     igSpacing();
                     igSeparator();
-                    if (igMenuItem(__("Verify INP File..."), "", false)) {
-                        incAttemptRepairPuppet(incActivePuppet());
-                    }
+                    if (igMenuItem(__("Verify INP File..."), "", false)) cmd!(ToolCommand.AttemptRepairPuppet)(ctx);
                     incTooltip(_("Attempts to verify and repair INP files"));
 
                     igEndMenu();
@@ -452,17 +374,13 @@ void incMainMenu() {
         igBeginTabBar("###ModeTab");
             if(incEditMode != EditMode.VertexEdit) {
                 if (igBeginTabItem("%s".format(_("Edit Puppet")).toStringz, null)) {
-                    bool alreadySelected = incEditMode == EditMode.ModelEdit;
-                    if (!alreadySelected)
-                        incSetEditMode(EditMode.ModelEdit);
+                    cmd!(ToolCommand.ModelEditMode)(ctx);
                     igEndTabItem();
                 }
                 incTooltip(_("Edit Puppet"));
 
                 if (igBeginTabItem("%s".format(_("Edit Animation")).toStringz, null)) {
-                    bool alreadySelected = incEditMode == EditMode.AnimEdit;
-                    if (!alreadySelected)
-                        incSetEditMode(EditMode.AnimEdit);
+                    cmd!(ToolCommand.AnimEditMode)(ctx);
                     igEndTabItem();
                 }
                 incTooltip(_("Edit Animation"));

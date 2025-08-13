@@ -418,7 +418,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 igSeparator();
 
                 if (igMenuItem(__("Copy"), "", false, true)) {
-                    paramEditCommands[ParameditCommand.CopyParameter].run(ctx);
+                    cmd!(ParameditCommand.CopyParameter)(ctx);
                 }
                 if (igMenuItem(__("Paste"), "", false, true)) {
                     cmd!(ParameditCommand.PasteParameter)(ctx);

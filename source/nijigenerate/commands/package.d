@@ -8,26 +8,25 @@ public import nijigenerate.commands.parameter.param;
 public import nijigenerate.commands.parameter.paramedit;
 public import nijigenerate.commands.puppet.file;
 public import nijigenerate.commands.puppet.edit;
+public import nijigenerate.commands.puppet.view;
+public import nijigenerate.commands.puppet.tool;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
 import std.exception : enforce;
 import std.conv;
 
-alias animEditCommands = nijigenerate.commands.parameter.animedit.commands;
-alias groupCommands = nijigenerate.commands.parameter.group.commands;
-alias paramCommands = nijigenerate.commands.parameter.param.commands;
-alias paramEditCommands = nijigenerate.commands.parameter.paramedit.commands;
-
 alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.binding.binding.commands,
     nijigenerate.commands.node.node.commands,
-    animEditCommands, 
-    groupCommands, 
-    paramCommands, 
-    paramEditCommands,
+    nijigenerate.commands.parameter.animedit.commands,
+    nijigenerate.commands.parameter.group.commands,
+    nijigenerate.commands.parameter.param.commands,
+    nijigenerate.commands.parameter.paramedit.commands,
     nijigenerate.commands.puppet.file.commands,
-    nijigenerate.commands.puppet.edit.commands
+    nijigenerate.commands.puppet.edit.commands,
+    nijigenerate.commands.puppet.view.commands,
+    nijigenerate.commands.puppet.tool.commands,
     );
 
 /*

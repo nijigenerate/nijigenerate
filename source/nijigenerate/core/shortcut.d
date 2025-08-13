@@ -13,13 +13,14 @@ void incHandleShortcuts() {
         ctx.nodes = incSelectedNodes();
 
     if (incShortcut("Ctrl+N")) cmd!(FileCommand.NewFile)(ctx);
-    if (incShortcut("Ctrl+O")) cmd!(FileCommand.ShowOpenFileDialog)(ctx);
-    if (incShortcut("Ctrl+S")) cmd!(FileCommand.ShowSaveFileDialog)(ctx);
-    if (incShortcut("Ctrl+Shift+S")) cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
+    else if (incShortcut("Ctrl+O")) cmd!(FileCommand.ShowOpenFileDialog)(ctx);
+    else if (incShortcut("Ctrl+S")) cmd!(FileCommand.ShowSaveFileDialog)(ctx);
+    else if (incShortcut("Ctrl+Shift+S")) cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
 
-    if (incShortcut("Ctrl+Shift+Z", true)) cmd!(EditCommand.Redo)(ctx);
+    else if (incShortcut("Ctrl+Shift+Z", true)) cmd!(EditCommand.Redo)(ctx);
     else if (incShortcut("Ctrl+Z", true)) cmd!(EditCommand.Undo)(ctx);
 
-    if (incShortcut("Ctrl+C", true)) cmd!(NodeCommand.CopyNode)(ctx);
+    else if (incShortcut("Ctrl+X", true)) cmd!(NodeCommand.CutNode)(ctx);
+    else if (incShortcut("Ctrl+C", true)) cmd!(NodeCommand.CopyNode)(ctx);
     else if (incShortcut("Ctrl+V", true)) cmd!(NodeCommand.PasteNode)(ctx);
 }

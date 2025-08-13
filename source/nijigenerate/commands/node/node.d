@@ -106,6 +106,24 @@ class DeleteNodeCommand : ExCommand!() {
     }
 }
 
+class CutNodeCommand : ExCommand!() {
+    this() { super("Cut Node"); }
+
+    override 
+    void run(Context ctx) {
+        if (!ctx.hasNodes || ctx.nodes.length == 0)
+            return;
+        /*
+        auto n = ctx.nodes[0];
+        auto selected = incSelectedNodes();
+        if (selected.length > 0)
+            copyToClipboard(selected);
+        else
+            copyToClipboard([n]);
+        */
+    }
+}
+
 class CopyNodeCommand : ExCommand!() {
     this() { super("Copy Node"); }
 
@@ -199,6 +217,7 @@ enum NodeCommand {
     DeleteNode,
     MoveNode,
     ConvertTo,
+    CutNode,
     CopyNode,
     PasteNode,
     ReloadNode,
