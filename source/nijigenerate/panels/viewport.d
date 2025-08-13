@@ -288,7 +288,7 @@ protected:
                 if (incViewportTargetZoom != 1) {
                     igSameLine(0, 8);
                     if (incButtonColored("", ImVec2(0, 0))) {
-                        Context ctx;
+                        auto ctx = new Context;
                         if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                         cmd!(ViewportCommand.ResetViewportZoom)(ctx);
                     }
@@ -302,7 +302,7 @@ protected:
                 if (incViewportTargetPosition != vec2(0)) {
                     igSameLine(0, 8);
                     if (incButtonColored("##2", ImVec2(0, 0))) {
-                        Context ctx;
+                        auto ctx = new Context;
                         if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                         cmd!(ViewportCommand.ResetViewportPosition)(ctx);
                     }
@@ -322,7 +322,7 @@ protected:
         if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
 
             if (incButtonColored("\ue8d4", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.ToggleMirrorView)(ctx);
             }
@@ -332,7 +332,7 @@ protected:
 
             auto onion = OnionSlice.singleton;
             if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
-                Context ctx;
+                auto ctx = new Context;
                 cmd!(ViewportCommand.ToggleOnionSlice)(ctx);
             }
             incTooltip(_("Onion slice"));
@@ -340,7 +340,7 @@ protected:
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.TogglePhysics)(ctx);
             }
@@ -349,7 +349,7 @@ protected:
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0), incShouldPostProcess ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.TogglePostProcess)(ctx);
             }
@@ -358,7 +358,7 @@ protected:
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.ResetPhysics)(ctx);
             }
@@ -367,7 +367,7 @@ protected:
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.ResetParameters)(ctx);
             }
@@ -376,7 +376,7 @@ protected:
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.OpenFlipPairWindow)(ctx);
             }
@@ -385,7 +385,7 @@ protected:
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0))) {
-                Context ctx;
+                auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.OpenAutomeshBatching)(ctx);
             }

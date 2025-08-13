@@ -30,21 +30,12 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.tool.commands,
     nijigenerate.commands.viewport.control.commands,
     );
-
 /*
-alias AllCommands = AliasSeq!(
-    bindingCommands,
-    nodeCommands,
-    animEditCommands,
-    groupCommands,
-    paramCommands,
-    paramEditCommands
-);
 private {
     static this() {
         import std.stdio;
         import std.conv;
-        foreach (cmds; AllCommands) {
+        foreach (cmds; AllCommandMaps) {
             // cmds は連想配列(enumType => valueType)
             foreach (k, v; cmds) {
                 writeln("[", typeof(k).stringof, "] ", k.to!string, " => ", v);
