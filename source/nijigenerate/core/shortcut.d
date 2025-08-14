@@ -1,26 +1,103 @@
 module nijigenerate.core.shortcut;
 
-import nijigenerate.commands;
-import nijigenerate.core.input;
-import nijigenerate.project;
+import nijigenerate.commands; // Command, Context and command maps/enums
+import nijigenerate.core.input; // incShortcut
+import nijigenerate.project; // active/selection state
 import bindbc.imgui;
 
-void incHandleShortcuts() {
-    auto io = igGetIO();
+// Optional imports to enrich Context at execution time
+import nijigenerate.panels.parameters : incParamPoint; // key point
+import nijigenerate.commands.binding.base : cSelectedBindings; // selected bindings map
+
+// Action entry representing a shortcut binding to a Command
+struct ActionEntry {
+    string name;        // Human readable name
+    string shortcut;    // e.g. "Ctrl+Shift+P"
+    Command command;    // Bound command instance
+    bool repeat;        // Whether to allow key repeat
+}
+
+// Registry keyed by shortcut string (as used by incShortcut)
+private ActionEntry[string] gShortcutEntries;
+
+// Register or overwrite a shortcut (public API)
+void ngRegisterShortcut(string name, string shortcut, Command command, bool repeat = false)
+{
+    gShortcutEntries[shortcut] = ActionEntry(name, shortcut, command, repeat);
+}
+
+// Build a Context and populate as much as possible from current app state
+private Context buildExecutionContext()
+{
     Context ctx = new Context();
+
+    // Puppet
     ctx.puppet = incActivePuppet();
-    if (incSelectedNodes().length > 0)
-        ctx.nodes = incSelectedNodes();
 
-    if (incShortcut("Ctrl+N")) cmd!(FileCommand.NewFile)(ctx);
-    else if (incShortcut("Ctrl+O")) cmd!(FileCommand.ShowOpenFileDialog)(ctx);
-    else if (incShortcut("Ctrl+S")) cmd!(FileCommand.ShowSaveFileDialog)(ctx);
-    else if (incShortcut("Ctrl+Shift+S")) cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
+    // Selected nodes (only set when exists to keep masks consistent)
+    auto selNodes = incSelectedNodes();
+    if (selNodes.length > 0)
+        ctx.nodes = selNodes;
 
-    else if (incShortcut("Ctrl+Shift+Z", true)) cmd!(EditCommand.Redo)(ctx);
-    else if (incShortcut("Ctrl+Z", true)) cmd!(EditCommand.Undo)(ctx);
+    // Armed parameter, if any
+    auto armed = incArmedParameter();
+    if (armed !is null)
+        ctx.parameters = [armed];
 
-    else if (incShortcut("Ctrl+X", true)) cmd!(NodeCommand.CutNode)(ctx);
-    else if (incShortcut("Ctrl+C", true)) cmd!(NodeCommand.CopyNode)(ctx);
-    else if (incShortcut("Ctrl+V", true)) cmd!(NodeCommand.PasteNode)(ctx);
+    // Selected bindings if any (from binding panel context)
+    import std.array : array;
+    auto bindings = cSelectedBindings.byValue().array;
+    if (bindings.length > 0)
+        ctx.bindings = bindings;
+
+    // Current key point for parameter editing
+    ctx.keyPoint = incParamPoint();
+
+    return ctx;
+}
+
+// Initialize default shortcuts mapped to existing Command instances
+private void registerDefaultShortcuts()
+{
+    // File
+    ngRegisterShortcut("New File", "Ctrl+N",
+        nijigenerate.commands.puppet.file.commands[FileCommand.NewFile]);
+    ngRegisterShortcut("Open...", "Ctrl+O",
+        nijigenerate.commands.puppet.file.commands[FileCommand.ShowOpenFileDialog]);
+    ngRegisterShortcut("Save", "Ctrl+S",
+        nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileDialog]);
+    ngRegisterShortcut("Save As...", "Ctrl+Shift+S",
+        nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileAsDialog]);
+
+    // Edit
+    ngRegisterShortcut("Redo", "Ctrl+Shift+Z",
+        nijigenerate.commands.puppet.edit.commands[EditCommand.Redo], true);
+    ngRegisterShortcut("Undo", "Ctrl+Z",
+        nijigenerate.commands.puppet.edit.commands[EditCommand.Undo], true);
+
+    // Node
+    ngRegisterShortcut("Cut Node", "Ctrl+X",
+        nijigenerate.commands.node.node.commands[NodeCommand.CutNode], true);
+    ngRegisterShortcut("Copy Node", "Ctrl+C",
+        nijigenerate.commands.node.node.commands[NodeCommand.CopyNode], true);
+    ngRegisterShortcut("Paste Node", "Ctrl+V",
+        nijigenerate.commands.node.node.commands[NodeCommand.PasteNode], true);
+}
+
+static this()
+{
+    registerDefaultShortcuts();
+}
+
+// Handle shortcut inputs each frame: find first matching and execute
+void incHandleShortcuts()
+{
+    auto io = igGetIO();
+    foreach (k, entry; gShortcutEntries) {
+        if (incShortcut(entry.shortcut, entry.repeat)) {
+            auto ctx = buildExecutionContext();
+            entry.command.run(ctx);
+            break; // handle one per frame, closest match wins
+        }
+    }
 }
