@@ -69,27 +69,27 @@ private Context buildExecutionContext()
 private void registerDefaultShortcuts()
 {
     // File
-    ngRegisterShortcut("Ctrl+N",
+    ngRegisterShortcut(_K!"Super-N",
         nijigenerate.commands.puppet.file.commands[FileCommand.NewFile]);
-    ngRegisterShortcut("Ctrl+O",
+    ngRegisterShortcut(_K!"Super-O",
         nijigenerate.commands.puppet.file.commands[FileCommand.ShowOpenFileDialog]);
-    ngRegisterShortcut("Ctrl+S",
+    ngRegisterShortcut(_K!"Super-S",
         nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileDialog]);
-    ngRegisterShortcut("Ctrl+Shift+S",
+    ngRegisterShortcut(_K!"Super-Shift-S",
         nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileAsDialog]);
 
     // Edit
-    ngRegisterShortcut("Ctrl+Shift+Z",
+    ngRegisterShortcut(_K!"Super-Shift-Z",
         nijigenerate.commands.puppet.edit.commands[EditCommand.Redo], true);
-    ngRegisterShortcut("Ctrl+Z",
+    ngRegisterShortcut(_K!"Super-Z",
         nijigenerate.commands.puppet.edit.commands[EditCommand.Undo], true);
 
     // Node
-    ngRegisterShortcut("Ctrl+X",
+    ngRegisterShortcut(_K!"Super-X",
         nijigenerate.commands.node.node.commands[NodeCommand.CutNode], true);
-    ngRegisterShortcut("Ctrl+C",
+    ngRegisterShortcut(_K!"Super-C",
         nijigenerate.commands.node.node.commands[NodeCommand.CopyNode], true);
-    ngRegisterShortcut("Ctrl+V",
+    ngRegisterShortcut(_K!"Super-V",
         nijigenerate.commands.node.node.commands[NodeCommand.PasteNode], true);
 }
 
