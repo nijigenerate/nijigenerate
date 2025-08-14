@@ -12,7 +12,7 @@ import std.array;
 import std.path: extension, setExtension;
 
 class NewFileCommand : ExCommand!() {
-    this() { super("New File."); }
+    this() { super("New", "Create new project."); }
 
     override
     void run(Context ctx) {
@@ -21,7 +21,7 @@ class NewFileCommand : ExCommand!() {
 }
 
 class ShowOpenFileDialogCommand : ExCommand!() {
-    this() { super("Show \"Open\" dialog."); }
+    this() { super("Open", "Show \"Open\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -30,7 +30,7 @@ class ShowOpenFileDialogCommand : ExCommand!() {
 }
 
 class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) {
-    this(string file) { super("Open puppet from specified file.", file); }
+    this(string file) { super("Open", "Open puppet from specified file.", file); }
 
     override
     void run(Context ctx) {
@@ -39,7 +39,7 @@ class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
 }
 
 class ShowSaveFileDialogCommand : ExCommand!() {
-    this() { super("Show \"Save\" dialog."); }
+    this() { super("Save", "Show \"Save\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -48,7 +48,7 @@ class ShowSaveFileDialogCommand : ExCommand!() {
 }
 
 class SaveFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) {
-    this(string file) { super("Save puppet to specified file.", file); }
+    this(string file) { super("Save", "Save puppet to specified file.", file); }
 
     override
     void run(Context ctx) {
@@ -57,7 +57,7 @@ class SaveFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
 }
 
 class ShowSaveFileAsDialogCommand : ExCommand!() {
-    this() { super("Show \"Save as\" dialog."); }
+    this() { super("Save As...", "Show \"Save as\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -66,7 +66,7 @@ class ShowSaveFileAsDialogCommand : ExCommand!() {
 }
 
 class ShowImportPSDDialogCommand : ExCommand!() {
-    this() { super("Show \"Import Photoshop Document\" dialog."); }
+    this() { super("Photoshop Document", "Show \"Import Photoshop Document\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -76,7 +76,7 @@ class ShowImportPSDDialogCommand : ExCommand!() {
 }
 
 class ShowImportKRADialogCommand : ExCommand!() {
-    this() { super("Show \"Import Krita Document\" dialog."); }
+    this() { super("Krita Document", "Show \"Import Krita Document\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -86,7 +86,7 @@ class ShowImportKRADialogCommand : ExCommand!() {
 }
 
 class ShowImportINPDialogCommand : ExCommand!() {
-    this() { super("Show \"Import nijilive puppet file\" dialog."); }
+    this() { super("nijilive Puppet", "Show \"Import nijilive puppet file\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -102,7 +102,7 @@ class ShowImportINPDialogCommand : ExCommand!() {
 }
 
 class ShowImportImageFolderDialogCommand : ExCommand!() {
-    this() { super("Show \"Import Image Folder\" dialog."); }
+    this() { super("Image Folder", "Show \"Import Image Folder\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -114,7 +114,7 @@ class ShowImportImageFolderDialogCommand : ExCommand!() {
 }
 
 class ShowMergePSDDialogCommand : ExCommand!() {
-    this() { super("Show \"Merge Photoshop Document\" dialog."); }
+    this() { super("Photoshop Document", "Show \"Merge Photoshop Document\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -131,7 +131,7 @@ class ShowMergePSDDialogCommand : ExCommand!() {
 }
 
 class ShowMergeKRADialogCommand : ExCommand!() {
-    this() { super("Show \"Merge Krita Document\" dialog."); }
+    this() { super("Krita Document", "Show \"Merge Krita Document\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -148,7 +148,7 @@ class ShowMergeKRADialogCommand : ExCommand!() {
 }
 
 class ShowMergeImageFileDialogCommand : ExCommand!() {
-    this() { super("Show \"Merge image files\" dialog."); }
+    this() { super("Image Files", "Show \"Merge image files\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -170,7 +170,7 @@ class ShowMergeImageFileDialogCommand : ExCommand!() {
 }
 
 class ShowMergeINPDialogCommand : ExCommand!() {
-    this() { super("Show \"Merge nijilive puppet file\" dialog."); }
+    this() { super("nijigenerate Project", "Show \"Merge nijilive puppet file\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -187,7 +187,7 @@ class ShowMergeINPDialogCommand : ExCommand!() {
 }
 
 class ShowExportToINPDialogCommand : ExCommand!() {
-    this() { super("Show \"Export to nijilive puppet\" dialog."); }
+    this() { super("nijilive Puppet", "Show \"Export to nijilive puppet\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -201,7 +201,7 @@ class ShowExportToINPDialogCommand : ExCommand!() {
 }
 
 class ShowExportToPNGDialogCommand : ExCommand!() {
-    this() { super("Show \"Export to png image\" dialog."); }
+    this() { super("PNG (*.png)", "Show \"Export to png image\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -215,7 +215,7 @@ class ShowExportToPNGDialogCommand : ExCommand!() {
 }
 
 class ShowExportToJpegDialogCommand : ExCommand!() {
-    this() { super("Show \"Export to jpeg image\" dialog."); }
+    this() { super("JPEG (*.jpeg)", "Show \"Export to jpeg image\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -229,7 +229,7 @@ class ShowExportToJpegDialogCommand : ExCommand!() {
 }
 
 class ShowExportToTGADialogCommand : ExCommand!() {
-    this() { super("Show \"Export to TGA image\" dialog."); }
+    this() { super("TARGA (*.tga)", "Show \"Export to TGA image\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -243,7 +243,7 @@ class ShowExportToTGADialogCommand : ExCommand!() {
 }
 
 class ShowExportToVideoDialogCommand : ExCommand!() {
-    this() { super("Show \"Export to video\" dialog."); }
+    this() { super("Video", "Show \"Export to video\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -265,7 +265,7 @@ class ShowExportToVideoDialogCommand : ExCommand!() {
 }
 
 class CloseProjectCommand : ExCommand!() {
-    this() { super("Close active puppet project."); }
+    this() { super("Close Project", "Close active puppet project."); }
     
     override 
     void run(Context ctx) {

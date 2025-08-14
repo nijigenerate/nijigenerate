@@ -12,7 +12,7 @@ import nijigenerate.core.settings;
 
 
 class SetDefaultLayoutCommand : ExCommand!() {
-    this() { super("Set default layout of panels."); }
+    this() { super("Reset Layout", "Set default layout of panels."); }
 
     override
     void run(Context ctx) {
@@ -21,7 +21,7 @@ class SetDefaultLayoutCommand : ExCommand!() {
 }
 
 class ShowSaveScreenshotDialogCommand : ExCommand!() {
-    this() { super("Shows \"Save screenshot\" dialog."); }
+    this() { super("Save Screenshot", "Shows \"Save screenshot\" dialog."); }
 
     override
     void run(Context ctx) {
@@ -41,7 +41,7 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
 }
 
 class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to save screenshot.")) {
-    this(string filename) { super("Save screenshot.", filename); }
+    this(string filename) { super("Save Screenshot", "Save screenshot.", filename); }
 
     override
     void run(Context ctx) {
@@ -73,7 +73,7 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
 }
 
 class ShowStatusForNerdsCommand : ExCommand!() {
-    this() { super("Show status for nerds."); }
+    this() { super("Show Stats for Nerds", "Show status for nerds."); }
     override
     void run(Context ctx) {
         incShowStatsForNerds = !incShowStatsForNerds;

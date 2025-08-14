@@ -59,13 +59,9 @@ void incMainMenu() {
                 igSeparator();
 
                 if (igBeginMenu(__("File"), true)) {
-                    if(igMenuItem(__("New"), "Ctrl+N", false, true)) {
-                        cmd!(FileCommand.NewFile)(ctx);
-                    }
+                    ngMenuItemFor!(FileCommand.NewFile)(ctx);
 
-                    if (igMenuItem(__("Open"), "Ctrl+O", false, true)) {
-                        cmd!(FileCommand.ShowOpenFileDialog)(ctx);
-                    }
+                    ngMenuItemFor!(FileCommand.ShowOpenFileDialog)(ctx);
 
                     string[] prevProjects = incGetPrevProjects();
                     AutosaveRecord[] prevAutosaves = incGetPrevAutosaves();
@@ -94,88 +90,56 @@ void incMainMenu() {
                         igEndMenu();
                     }
                     
-                    if(igMenuItem(__("Save"), "Ctrl+S", false, true)) {
-                        cmd!(FileCommand.ShowSaveFileDialog)(ctx);
-                    }
+                    ngMenuItemFor!(FileCommand.ShowSaveFileDialog)(ctx);
                     
-                    if(igMenuItem(__("Save As..."), "Ctrl+Shift+S", false, true)) {
-                        cmd!(FileCommand.ShowSaveFileAsDialog)(ctx);
-                    }
+                    ngMenuItemFor!(FileCommand.ShowSaveFileAsDialog)(ctx);
 
                     if (igBeginMenu(__("Import"), true)) {
-                        if(igMenuItem(__("Photoshop Document"), "", false, true)) {
-                            cmd!(FileCommand.ShowImportPSDDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowImportPSDDialog)(ctx);
                         incTooltip(_("Import a standard Photoshop PSD file."));
-                        if(igMenuItem(__("Krita Document"), "", false, true)) {
-                            cmd!(FileCommand.ShowImportKRADialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowImportKRADialog)(ctx);
                         incTooltip(_("Import a standard Krita KRA file."));
 
-                        if (igMenuItem(__("nijilive Puppet"), "", false, true)) {
-                            cmd!(FileCommand.ShowImportINPDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowImportINPDialog)(ctx);
                         incTooltip(_("Import existing puppet file, editing options limited"));
 
-                        if (igMenuItem(__("Image Folder"))) {
-                            cmd!(FileCommand.ShowImportImageFolderDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowImportImageFolderDialog)(ctx);
                         incTooltip(_("Supports PNGs, TGAs and JPEGs."));
                         igEndMenu();
                     }
                     if (igBeginMenu(__("Merge"), true)) {
-                        if(igMenuItem(__("Photoshop Document"), "", false, true)) {
-                            cmd!(FileCommand.ShowMergePSDDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowMergePSDDialog)(ctx);
                         incTooltip(_("Merge layers from Photoshop document"));
 
-                        if(igMenuItem(__("Krita Document"), "", false, true)) {
-                            cmd!(FileCommand.ShowMergeKRADialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowMergeKRADialog)(ctx);
                         incTooltip(_("Merge layers from Krita document"));
 
-                        if(igMenuItem(__("Image Files"), "", false, true)) {
-                            cmd!(FileCommand.ShowMergeImageFileDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowMergeImageFileDialog)(ctx);
                         incTooltip(_("Merges (adds) selected image files to project"));
 
-                        if (igMenuItem(__("nijigenerate Project"), "", false, true)) {
-                            cmd!(FileCommand.ShowMergeINPDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowMergeINPDialog)(ctx);
                         incTooltip(_("Merge another nijigenerate project in to this one"));
                         
                         igEndMenu();
                     }
 
                     if (igBeginMenu(__("Export"), true)) {
-                        if(igMenuItem(__("nijilive Puppet"), "", false, true)) {
-                            cmd!(FileCommand.ShowExportToINPDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowExportToINPDialog)(ctx);
                         if (igBeginMenu(__("Image"), true)) {
-                            if(igMenuItem(__("PNG (*.png)"), "", false, true)) {
-                                cmd!(FileCommand.ShowExportToPNGDialog)(ctx);
-                            }
+                            ngMenuItemFor!(FileCommand.ShowExportToPNGDialog)(ctx);
 
-                            if(igMenuItem(__("JPEG (*.jpeg)"), "", false, true)) {
-                                cmd!(FileCommand.ShowExportToJpegDialog)(ctx);
-                            }
+                            ngMenuItemFor!(FileCommand.ShowExportToJpegDialog)(ctx);
 
-                            if(igMenuItem(__("TARGA (*.tga)"), "", false, true)) {
-                                cmd!(FileCommand.ShowExportToTGADialog)(ctx);
-                            }
+                            ngMenuItemFor!(FileCommand.ShowExportToTGADialog)(ctx);
 
                             igEndMenu();
                         }
-                        if(igMenuItem(__("Video"), "", false, incVideoCanExport())) {
-                            cmd!(FileCommand.ShowExportToVideoDialog)(ctx);
-                        }
+                        ngMenuItemFor!(FileCommand.ShowExportToVideoDialog)(ctx, false, incVideoCanExport());
                         igEndMenu();
                     }
 
                     // Close Project option
-                    if (igMenuItem(__("Close Project"))) {
-                        cmd!(FileCommand.CloseProject)(ctx);
-                    }
+                    ngMenuItemFor!(FileCommand.CloseProject)(ctx);
 
                     // Quit option
                     if (igMenuItem(__("Quit"), "Alt+F4", false, true)) incExit();
@@ -183,16 +147,16 @@ void incMainMenu() {
                 }
                 
                 if (igBeginMenu(__("Edit"), true)) {
-                    if(igMenuItem(__("Undo"), "Ctrl+Z", false, incActionCanUndo())) cmd!(EditCommand.Undo)(ctx);
-                    if(igMenuItem(__("Redo"), "Ctrl+Shift+Z", false, incActionCanRedo())) cmd!(EditCommand.Redo)(ctx);
+                    ngMenuItemFor!(EditCommand.Undo)(ctx, false, incActionCanUndo());
+                    ngMenuItemFor!(EditCommand.Redo)(ctx, false, incActionCanRedo());
                     
                     igSeparator();
-                    if(igMenuItem(__("Cut"), "Ctrl+X", false, false)) cmd!(NodeCommand.CutNode)(ctx);
-                    if(igMenuItem(__("Copy"), "Ctrl+C", false, false)) cmd!(NodeCommand.CopyNode)(ctx);
-                    if(igMenuItem(__("Paste"), "Ctrl+V", false, false)) cmd!(NodeCommand.PasteNode)(ctx);
+                    ngMenuItemFor!(NodeCommand.CutNode)(ctx, false, false);
+                    ngMenuItemFor!(NodeCommand.CopyNode)(ctx, false, false);
+                    ngMenuItemFor!(NodeCommand.PasteNode)(ctx, false, false);
 
                     igSeparator();
-                    if(igMenuItem(__("Settings"), "", false, true)) cmd!(EditCommand.ShowSettingsWindow)(ctx);
+                    ngMenuItemFor!(EditCommand.ShowSettingsWindow)(ctx);
                     
                     debug {
                         igSpacing();
@@ -210,7 +174,7 @@ void incMainMenu() {
                 }
 
                 if (igBeginMenu(__("View"), true)) {
-                    if (igMenuItem(__("Reset Layout"), null, false, true)) cmd!(ViewCommand.SetDefaultLayout)(ctx);
+                    ngMenuItemFor!(ViewCommand.SetDefaultLayout)(ctx);
                     igSeparator();
 
                     // Spacing
@@ -258,10 +222,9 @@ void incMainMenu() {
                     igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Extras"));
 
                     igSeparator();
-                    if (igMenuItem(__("Save Screenshot"), "", false, true)) cmd!(ViewCommand.ShowSaveScreenshotDialog)(ctx);
+                    ngMenuItemFor!(ViewCommand.ShowSaveScreenshotDialog)(ctx);
                     incTooltip(_("Saves screenshot as PNG of the editor framebuffer."));
-
-                    if (igMenuItem(__("Show Stats for Nerds"), "", incShowStatsForNerds, true)) cmd!(ViewCommand.ShowStatusForNerds)(ctx);
+                    ngMenuItemFor!(ViewCommand.ShowStatusForNerds)(ctx, incShowStatsForNerds, true);
 
 
                     igEndMenu();
@@ -273,7 +236,7 @@ void incMainMenu() {
                     igSeparator();
 
                     // Opens the directory where configuration resides in the user's file browser.
-                    if (igMenuItem(__("Import Inochi Session Data"), null, false, true)) cmd!(ToolCommand.ImportSessionData)(ctx);
+                    ngMenuItemFor!(ToolCommand.ImportSessionData)(ctx);
                     incTooltip(_("Imports tracking data from an exported nijilive model which has been set up in Inochi Session."));
                     
 
@@ -282,16 +245,16 @@ void incMainMenu() {
 
                     // Premultiply textures, causing every pixel value in every texture to
                     // be multiplied by their Alpha (transparency) component
-                    if (igMenuItem(__("Premultiply textures"), "", false)) cmd!(ToolCommand.PremultTexture)(ctx);
+                    ngMenuItemFor!(ToolCommand.PremultTexture)(ctx);
                     incTooltip(_("Premultiplies textures by their alpha component.\n\nOnly use this if your textures look garbled after importing files from an older version of nijigenerate."));
                     
-                    if (igMenuItem(__("Bleed textures..."), "", false)) cmd!(ToolCommand.RebleedTexture)(ctx);
+                    ngMenuItemFor!(ToolCommand.RebleedTexture)(ctx);
                     incTooltip(_("Causes color to bleed out in to fully transparent pixels, this solves outlines on straight alpha compositing.\n\nOnly use this if your game engine can't use premultiplied alpha."));
 
-                    if (igMenuItem(__("Generate Mipmaps..."), "", false)) cmd!(ToolCommand.RegenerateMipmaps)(ctx);
+                    ngMenuItemFor!(ToolCommand.RegenerateMipmaps)(ctx);
                     incTooltip(_("Regenerates the puppet's mipmaps."));
 
-                    if (igMenuItem(__("Generate fake layer name info..."), "", false)) cmd!(ToolCommand.GenerateFakeLayerName)(ctx);
+                    ngMenuItemFor!(ToolCommand.GenerateFakeLayerName)(ctx);
                     incTooltip(_("Generates fake layer info based on node names"));
 
                     // Spacing
@@ -302,18 +265,18 @@ void incMainMenu() {
                     igSeparator();
 
                     // FULL REPAIR
-                    if (igMenuItem(__("Attempt full repair..."), "", false)) cmd!(ToolCommand.AttemptRepairPuppet)(ctx);
+                    ngMenuItemFor!(ToolCommand.AttemptRepairPuppet)(ctx);
                     incTooltip(_("Attempts all the recovery and repair methods below on the currently loaded model"));
 
                     // REGEN NODE IDs
-                    if (igMenuItem(__("Regenerate Node IDs"), "", false)) cmd!(ToolCommand.RegenerateNodeIDs)(ctx);
+                    ngMenuItemFor!(ToolCommand.RegenerateNodeIDs)(ctx);
                     incTooltip(_("Regenerates all the unique IDs for the model"));
 
                     // Spacing
                     igSpacing();
                     igSpacing();
                     igSeparator();
-                    if (igMenuItem(__("Verify INP File..."), "", false)) cmd!(ToolCommand.AttemptRepairPuppet)(ctx);
+                    ngMenuItemFor!(ToolCommand.AttemptRepairPuppet)(ctx);
                     incTooltip(_("Attempts to verify and repair INP files"));
 
                     igEndMenu();

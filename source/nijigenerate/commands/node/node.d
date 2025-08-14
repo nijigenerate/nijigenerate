@@ -107,7 +107,7 @@ class DeleteNodeCommand : ExCommand!() {
 }
 
 class CutNodeCommand : ExCommand!() {
-    this() { super("Cut Node"); }
+    this() { super("Cut", "Cut Node"); }
 
     override 
     void run(Context ctx) {
@@ -125,7 +125,7 @@ class CutNodeCommand : ExCommand!() {
 }
 
 class CopyNodeCommand : ExCommand!() {
-    this() { super("Copy Node"); }
+    this() { super("Copy", "Copy Node"); }
 
     override 
     void run(Context ctx) {
@@ -142,7 +142,7 @@ class CopyNodeCommand : ExCommand!() {
 }
 
 class PasteNodeCommand : ExCommand!() {
-    this() { super("Paste Node"); }
+    this() { super("Paste", "Paste Node"); }
     override
     void run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)

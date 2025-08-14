@@ -11,7 +11,6 @@ import nijigenerate.commands.binding.base : cSelectedBindings; // selected bindi
 
 // Action entry representing a shortcut binding to a Command
 struct ActionEntry {
-    string name;        // Human readable name
     string shortcut;    // e.g. "Ctrl+Shift+P"
     Command command;    // Bound command instance
     bool repeat;        // Whether to allow key repeat
@@ -21,9 +20,19 @@ struct ActionEntry {
 private ActionEntry[string] gShortcutEntries;
 
 // Register or overwrite a shortcut (public API)
-void ngRegisterShortcut(string name, string shortcut, Command command, bool repeat = false)
+void ngRegisterShortcut(string shortcut, Command command, bool repeat = false)
 {
-    gShortcutEntries[shortcut] = ActionEntry(name, shortcut, command, repeat);
+    gShortcutEntries[shortcut] = ActionEntry(shortcut, command, repeat);
+}
+
+// Find shortcut string for a given command instance (empty if none)
+string ngShortcutFor(Command cmd)
+{
+    import std.algorithm : any;
+    foreach (k, entry; gShortcutEntries) {
+        if (entry.command is cmd) return entry.shortcut;
+    }
+    return "";
 }
 
 // Build a Context and populate as much as possible from current app state
@@ -60,27 +69,27 @@ private Context buildExecutionContext()
 private void registerDefaultShortcuts()
 {
     // File
-    ngRegisterShortcut("New File", "Ctrl+N",
+    ngRegisterShortcut("Ctrl+N",
         nijigenerate.commands.puppet.file.commands[FileCommand.NewFile]);
-    ngRegisterShortcut("Open...", "Ctrl+O",
+    ngRegisterShortcut("Ctrl+O",
         nijigenerate.commands.puppet.file.commands[FileCommand.ShowOpenFileDialog]);
-    ngRegisterShortcut("Save", "Ctrl+S",
+    ngRegisterShortcut("Ctrl+S",
         nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileDialog]);
-    ngRegisterShortcut("Save As...", "Ctrl+Shift+S",
+    ngRegisterShortcut("Ctrl+Shift+S",
         nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileAsDialog]);
 
     // Edit
-    ngRegisterShortcut("Redo", "Ctrl+Shift+Z",
+    ngRegisterShortcut("Ctrl+Shift+Z",
         nijigenerate.commands.puppet.edit.commands[EditCommand.Redo], true);
-    ngRegisterShortcut("Undo", "Ctrl+Z",
+    ngRegisterShortcut("Ctrl+Z",
         nijigenerate.commands.puppet.edit.commands[EditCommand.Undo], true);
 
     // Node
-    ngRegisterShortcut("Cut Node", "Ctrl+X",
+    ngRegisterShortcut("Ctrl+X",
         nijigenerate.commands.node.node.commands[NodeCommand.CutNode], true);
-    ngRegisterShortcut("Copy Node", "Ctrl+C",
+    ngRegisterShortcut("Ctrl+C",
         nijigenerate.commands.node.node.commands[NodeCommand.CopyNode], true);
-    ngRegisterShortcut("Paste Node", "Ctrl+V",
+    ngRegisterShortcut("Ctrl+V",
         nijigenerate.commands.node.node.commands[NodeCommand.PasteNode], true);
 }
 

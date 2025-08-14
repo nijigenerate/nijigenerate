@@ -6,7 +6,7 @@ import nijigenerate.core.actionstack;
 import nijigenerate.windows;
 
 class UndoCommand : ExCommand!() {
-    this() { super("Undo"); }
+    this() { super("Undo", "Undo last action"); }
     override
     void run(Context ctx) {
         incActionUndo();
@@ -14,7 +14,7 @@ class UndoCommand : ExCommand!() {
 }
 
 class RedoCommand : ExCommand!() {
-    this() { super("Redo"); }
+    this() { super("Redo", "Redo previously undone action"); }
     override
     void run(Context ctx) {
         incActionRedo();
@@ -22,7 +22,7 @@ class RedoCommand : ExCommand!() {
 }
 
 class ShowSettingsWindowCommand : ExCommand!() {
-    this() { super("Show settings window"); }
+    this() { super("Settings", "Show settings window"); }
     override
     void run(Context ctx) {
         if (!incIsSettingsOpen) incPushWindow(new SettingsWindow);
