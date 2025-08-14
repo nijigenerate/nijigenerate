@@ -6,6 +6,8 @@ static import nijigenerate.viewport.common.mesheditor.tools.enums;
 alias VertexToolMode = nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode;
 // incVertexViewportGetEditor may not exist on older commits; import if available
 static import nijigenerate.viewport.vertex;
+// Access ToolInfo list to pre-register at startup
+import nijigenerate.viewport.common.mesheditor.tools : incGetToolInfo;
 
 class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode")) {
     this(VertexToolMode mode) { super("Select mesh editor tool mode", mode); }
@@ -16,17 +18,33 @@ class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode"
         }
         if (editor is null) return;
         // Only set current mode indicator; UI flow performs actual setup
-        editor.setToolModeOnly(mode);
+        editor.setToolMode(mode);
     }
 }
 
-enum MeshEditorCommand {
-    SelectToolMode,
+//
+// Dynamic, per-mode command registry
+// - We keep commands keyed by VertexToolMode (enum), but
+//   the concrete set of modes to register is only known at runtime
+//   from ToolInfo. We therefore register lazily on first use.
+//
+Command[VertexToolMode] selectToolModeCommands;
+
+/// Ensure a SelectToolModeCommand is registered for the given mode
+Command ensureSelectToolModeCommand(VertexToolMode mode)
+{
+    auto p = mode in selectToolModeCommands;
+    if (p) return *p;
+    auto c = cast(Command) new SelectToolModeCommand(mode);
+    selectToolModeCommands[mode] = c;
+    return c;
 }
 
-Command[MeshEditorCommand] commands;
-private {
-    static this() {
-        mixin(registerCommand!(MeshEditorCommand.SelectToolMode, VertexToolMode.Points));
+private:
+// Pre-register all tool-mode commands at program startup
+static this()
+{
+    foreach (info; incGetToolInfo()) {
+        ensureSelectToolModeCommand(info.mode());
     }
 }

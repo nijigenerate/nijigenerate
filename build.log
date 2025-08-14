@@ -1,0 +1,186 @@
+    Starting Performing "debug" build using ldc2 for aarch64, arm_hardfloat.
+  Up-to-date bindbc-loader 1.0.3: target for configuration [noBC] is up to date.
+  Up-to-date bindbc-sdl 1.1.3: target for configuration [dynamic] is up to date.
+  Up-to-date i18n-d 1.0.2: target for configuration [library] is up to date.
+  Up-to-date i2d-opengl 1.0.0: target for configuration [dynamic] is up to date.
+  Up-to-date i2d-imgui 0.8.0: target for configuration [dynamic_dynamicCRT] is up to date.
+  Up-to-date inmath 1.0.6: target for configuration [library] is up to date.
+  Up-to-date dxml 0.4.4: target for configuration [library] is up to date.
+  Up-to-date kra-d 0.6.6: target for configuration [library] is up to date.
+  Up-to-date mir-core 1.7.1: target for configuration [library] is up to date.
+  Up-to-date mir-algorithm 3.22.3: target for configuration [default] is up to date.
+  Up-to-date fghj 1.0.2: target for configuration [library] is up to date.
+  Up-to-date imagefmt 2.1.2: target for configuration [library] is up to date.
+  Up-to-date nijilive 0.0.1: target for configuration [full] is up to date.
+  Up-to-date psd-d 0.6.3: target for configuration [library] is up to date.
+  Up-to-date tinyfiledialogs 0.10.1: target for configuration [default] is up to date.
+    Building nijigenerate 0.9.1+commit.43.g1f3f32a: building configuration [osx-full]
+../../../.dub/packages/mir-core/1.7.1/mir-core/source/mir/exception.d(48,103): Deprecation: `auto` and `ref` storage classes should be adjacent
+auto ref enforce(string fmt, string file = __FILE__, int line = __LINE__, Expr)(scope auto return ref Expr arg) @trusted
+                                                                                                      ^
+../../../.dub/packages/mir-core/1.7.1/mir-core/source/mir/qualifier.d(79,40): Deprecation: `auto` and `ref` storage classes should be adjacent
+auto ref lightScope(T)(auto return ref T v)
+                                       ^
+'-sse4.2' is not a recognized feature for this target (ignoring feature)
+source/nijigenerate/ext/param.d(35,19): Deprecation: alias `fghj.fghj.FghjException` is deprecated - use mir.serde: SerdeException instead
+    FghjException deserializeFromFghj(Fghj data) {
+                  ^
+source/nijigenerate/ext/param.d(95,19): Deprecation: alias `fghj.fghj.FghjException` is deprecated - use mir.serde: SerdeException instead
+    FghjException deserializeFromFghj(Fghj data) {
+                  ^
+source/nijigenerate/commands/base.d-mixin-132(132,68): Deprecation: package nijigenerate.viewport is not accessible here, perhaps add 'static import nijigenerate.viewport;'
+nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode mode;
+                                                                   ^
+source/nijigenerate/commands/base.d-mixin-132(132,68): Deprecation: package nijigenerate.viewport.common is not accessible here, perhaps add 'static import nijigenerate.viewport.common;'
+nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode mode;
+                                                                   ^
+source/nijigenerate/commands/base.d-mixin-132(132,68): Deprecation: package nijigenerate.viewport.common.mesheditor is not accessible here, perhaps add 'static import nijigenerate.viewport.common.mesheditor;'
+nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode mode;
+                                                                   ^
+source/nijigenerate/commands/base.d-mixin-132(132,68): Deprecation: package nijigenerate.viewport.common.mesheditor.tools is not accessible here, perhaps add 'static import nijigenerate.viewport.common.mesheditor.tools;'
+nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode mode;
+                                                                   ^
+source/nijigenerate/commands/base.d-mixin-132(132,68): Deprecation: module nijigenerate.viewport.common.mesheditor.tools.enums is not accessible here, perhaps add 'static import nijigenerate.viewport.common.mesheditor.tools.enums;'
+nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode mode;
+                                                                   ^
+../nijilive/source/nijilive/core/param/binding.d(292,22): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.objectBegin` is deprecated - Use structBegin instead
+        auto state = serializer.objectBegin();
+                     ^
+../nijilive/source/nijilive/core/param/binding.d(972,31):        instantiated from here: `ParameterBindingImpl!float`
+class ValueParameterBinding : ParameterBindingImpl!(float) {
+                              ^
+source/nijigenerate/actions/parameter.d(340,20):        instantiated from here: `ParameterBindingAllValueChangeAction!float`
+        return new ParameterBindingAllValueChangeAction!(float)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/core/param/binding.d(303,9): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.objectEnd` is deprecated - Use structEnd instead
+        serializer.objectEnd(state);
+        ^
+../nijilive/source/nijilive/core/param/binding.d(972,31):        instantiated from here: `ParameterBindingImpl!float`
+class ValueParameterBinding : ParameterBindingImpl!(float) {
+                              ^
+source/nijigenerate/actions/parameter.d(340,20):        instantiated from here: `ParameterBindingAllValueChangeAction!float`
+        return new ParameterBindingAllValueChangeAction!(float)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/core/param/binding.d(292,22): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.objectBegin` is deprecated - Use structBegin instead
+        auto state = serializer.objectBegin();
+                     ^
+../nijilive/source/nijilive/core/param/binding.d(1009,37):        instantiated from here: `ParameterBindingImpl!(Deformation)`
+class DeformationParameterBinding : ParameterBindingImpl!(Deformation) {
+                                    ^
+source/nijigenerate/actions/parameter.d(342,20):        instantiated from here: `ParameterBindingAllValueChangeAction!(Deformation)`
+        return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/core/nodes/defstack.d(174,22): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.arrayBegin` is deprecated - Use listBegin instead
+        auto state = serializer.arrayBegin();
+                     ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1516,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), Deformation)`
+        serializer.serializeValue(elem);
+                                 ^
+../nijilive/source/nijilive/core/param/binding.d(298,38):        3 recursive instantiations from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), Deformation[])`
+            serializer.serializeValue(values);
+                                     ^
+../nijilive/source/nijilive/core/param/binding.d(1009,37):        instantiated from here: `ParameterBindingImpl!(Deformation)`
+class DeformationParameterBinding : ParameterBindingImpl!(Deformation) {
+                                    ^
+source/nijigenerate/actions/parameter.d(342,20):        instantiated from here: `ParameterBindingAllValueChangeAction!(Deformation)`
+        return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/math/serialization.d(10,18): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.arrayBegin` is deprecated - Use listBegin instead
+    auto state = serializer.arrayBegin();
+                 ^
+../nijilive/source/nijilive/core/nodes/defstack.d(177,33):        instantiated from here: `serialize!(Vector!(float, 2), JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+                offset.serialize(serializer);
+                                ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1516,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), Deformation)`
+        serializer.serializeValue(elem);
+                                 ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1516,34):        ... (2 instantiations, -v to show) ...
+../nijilive/source/nijilive/core/param/binding.d(1009,37):        instantiated from here: `ParameterBindingImpl!(Deformation)`
+class DeformationParameterBinding : ParameterBindingImpl!(Deformation) {
+                                    ^
+source/nijigenerate/actions/parameter.d(342,20):        instantiated from here: `ParameterBindingAllValueChangeAction!(Deformation)`
+        return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/math/serialization.d(15,5): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.arrayEnd` is deprecated - Use listEnd instead
+    serializer.arrayEnd(state);
+    ^
+../nijilive/source/nijilive/core/nodes/defstack.d(177,33):        instantiated from here: `serialize!(Vector!(float, 2), JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+                offset.serialize(serializer);
+                                ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1516,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), Deformation)`
+        serializer.serializeValue(elem);
+                                 ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1516,34):        ... (2 instantiations, -v to show) ...
+../nijilive/source/nijilive/core/param/binding.d(1009,37):        instantiated from here: `ParameterBindingImpl!(Deformation)`
+class DeformationParameterBinding : ParameterBindingImpl!(Deformation) {
+                                    ^
+source/nijigenerate/actions/parameter.d(342,20):        instantiated from here: `ParameterBindingAllValueChangeAction!(Deformation)`
+        return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/core/nodes/defstack.d(179,9): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.arrayEnd` is deprecated - Use listEnd instead
+        serializer.arrayEnd(state);
+        ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1516,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), Deformation)`
+        serializer.serializeValue(elem);
+                                 ^
+../nijilive/source/nijilive/core/param/binding.d(298,38):        3 recursive instantiations from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), Deformation[])`
+            serializer.serializeValue(values);
+                                     ^
+../nijilive/source/nijilive/core/param/binding.d(1009,37):        instantiated from here: `ParameterBindingImpl!(Deformation)`
+class DeformationParameterBinding : ParameterBindingImpl!(Deformation) {
+                                    ^
+source/nijigenerate/actions/parameter.d(342,20):        instantiated from here: `ParameterBindingAllValueChangeAction!(Deformation)`
+        return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+                   ^
+../nijilive/source/nijilive/core/param/binding.d(303,9): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.objectEnd` is deprecated - Use structEnd instead
+        serializer.objectEnd(state);
+        ^
+../nijilive/source/nijilive/core/param/binding.d(1009,37):        instantiated from here: `ParameterBindingImpl!(Deformation)`
+class DeformationParameterBinding : ParameterBindingImpl!(Deformation) {
+                                    ^
+source/nijigenerate/actions/parameter.d(342,20):        instantiated from here: `ParameterBindingAllValueChangeAction!(Deformation)`
+        return new ParameterBindingAllValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding);
+                   ^
+source/nijigenerate/panels/resource.d(71,26): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.objectBegin` is deprecated - Use structBegin instead
+            auto state = serializer.objectBegin();
+                         ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+source/nijigenerate/panels/resource.d(53,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), ResourcePanelConfig)`
+        serializer.serializeValue(config);
+                                 ^
+source/nijigenerate/panels/resource.d(73,29): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.arrayBegin` is deprecated - Use listBegin instead
+                auto arr1 = serializer.arrayBegin();
+                            ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+source/nijigenerate/panels/resource.d(53,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), ResourcePanelConfig)`
+        serializer.serializeValue(config);
+                                 ^
+source/nijigenerate/panels/resource.d(80,17): Deprecation: alias `fghj.serialization.JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe).JsonSerializer.arrayEnd` is deprecated - Use listEnd instead
+                serializer.arrayEnd(arr1);
+                ^
+../../../.dub/packages/fghj/1.0.2/fghj/source/fghj/serialization.d(1776,24):        instantiated from here: `serialize!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe))`
+        value.serialize(serializer);
+                       ^
+source/nijigenerate/panels/resource.d(53,34):        instantiated from here: `serializeValue!(JsonSerializer!("", void delegate(const(char)[]) pure nothrow @safe), ResourcePanelConfig)`
+        serializer.serializeValue(config);
+                                 ^
+7 deprecation warnings omitted, use `-verrors=0` to show all
+     Linking nijigenerate
+    Finished To force a rebuild of up-to-date targets, run again with --force
+             Copying files for i2d-imgui...

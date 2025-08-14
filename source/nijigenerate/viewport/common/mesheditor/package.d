@@ -131,7 +131,7 @@ public:
     }
 
     // Only update current mode indicator (no side effects)
-    void setToolModeOnly(VertexToolMode mode) {
+    void setToolMode(VertexToolMode mode) {
         this.toolMode = mode;
     }
 
@@ -143,14 +143,9 @@ public:
                 foreach (i; info) {
                     if (i.viewportTools(deformOnly, getToolMode(), editors)) {
                         import nijigenerate.commands.base : Context;
-                        import nijigenerate.commands.mesheditor.tool : MeshEditorCommand, SelectToolModeCommand, commands;
+                        import nijigenerate.commands.mesheditor.tool : ensureSelectToolModeCommand;
                         auto ctx = new Context();
-                        auto p = MeshEditorCommand.SelectToolMode in commands;
-                        if (p) {
-                            auto c = cast(SelectToolModeCommand) *p;
-                            c.mode = i.mode();
-                            c.run(ctx);
-                        }
+                        ensureSelectToolModeCommand(i.mode()).run(ctx);
                     }
                 }
 
