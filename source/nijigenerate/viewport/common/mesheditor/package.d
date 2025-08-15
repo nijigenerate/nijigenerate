@@ -132,7 +132,13 @@ public:
 
     // Only update current mode indicator (no side effects)
     void setToolMode(VertexToolMode mode) {
-        this.toolMode = mode;
+        auto info = ngGetToolInfoOf(mode);
+        if (info) {
+            foreach (e; editors) {
+                info.setupToolMode(e, mode);
+            }
+           this.toolMode = mode;
+        }
     }
 
     void viewportTools() {

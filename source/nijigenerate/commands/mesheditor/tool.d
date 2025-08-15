@@ -10,7 +10,10 @@ static import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.common.mesheditor.tools : incGetToolInfo;
 
 class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode")) {
-    this(VertexToolMode mode) { super("Select mesh editor tool mode", mode); }
+    this(VertexToolMode mode) { 
+        super("Select mesh editor tool mode", mode); 
+        _init();
+    }
     override void run(Context ctx) {
         auto editor = incViewportModelDeformGetEditor();
         static if (__traits(compiles, { nijigenerate.viewport.vertex.incVertexViewportGetEditor(); })) {
@@ -21,15 +24,15 @@ class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode"
         editor.setToolMode(mode);
     }
 
-    override string label() {
+    void _init() {
         // Enrich label with tool description for better UI listing
         foreach (info; incGetToolInfo()) {
             if (info.mode() == mode) {
-                return "Select Tool: " ~ info.description();
+                _label = "Select Tool: " ~ info.description();
             }
         }
-        import std.conv : to;
-        return "Select Tool: " ~ mode.to!string;
+        import std.conv;
+        _label = "Select Tool: " ~ mode.to!string;
     }
 }
 
@@ -51,10 +54,8 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
     return c;
 }
 
-private:
 // Template-based init for VertexToolMode
-void ngInitCommands(T)() if (is(T == nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode))
-{
+void ngInitCommands(T)() if (is(T == nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode)) {
     foreach (info; incGetToolInfo()) {
         ensureSelectToolModeCommand(info.mode());
     }

@@ -131,8 +131,8 @@ abstract class ExCommand(T...) : Command {
         }
     }
     mixin(generateMembers!T);
-    private string _label;
-    private string _desc;
+    string _label;
+    string _desc;
     static if (T.length == 0) {
         // Backward-compatible: single-arg constructor sets description only
         this(string desc) { this._desc = desc; this._label = ""; }

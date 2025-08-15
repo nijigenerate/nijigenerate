@@ -35,34 +35,29 @@ alias AllCommandMaps = AliasSeq!(
 
 // Explicit initialization to avoid module constructor cycles
 // Discover and initialize commands for each enum key present in AllCommandMaps.
-void ngInitAllCommands()
-{
+void ngInitAllCommands() {
     static foreach (AA; AllCommandMaps) {
         static if (__traits(compiles, { ngInitCommands!(KeyTypeOfAA!(AA))(); })) {
             ngInitCommands!(KeyTypeOfAA!(AA))();
         }
     }
-}
-/*
-private {
-    static this() {
-        import std.stdio;
-        import std.conv;
-        foreach (cmds; AllCommandMaps) {
-            // cmds は連想配列(enumType => valueType)
-            foreach (k, v; cmds) {
-                writeln("[", typeof(k).stringof, "] ", k.to!string, " => ", v);
-            }
+    /*
+    import std.stdio;
+    import std.conv;
+    foreach (cmds; AllCommandMaps) {
+        // cmds は連想配列(enumType => valueType)
+        foreach (k, v; cmds) {
+            writeln("[", typeof(k).stringof, "] ", k.to!string, " => ", v);
         }
     }
+    */
+
 }
-*/
 
 // === cmd!(ID)(ctx, ...) infrastructure ===
 
 // Deduce AA key type from a commands map (V[K])
-private template KeyTypeOfAA(alias AA)
-{
+private template KeyTypeOfAA(alias AA) {
     static if (is(typeof(AA) : V[K], V, K))
         alias KeyTypeOfAA = K;
     else
@@ -70,8 +65,7 @@ private template KeyTypeOfAA(alias AA)
 }
 
 // Pick the commands map whose key type matches K
-private template MapByKeyType(K, Maps...)
-{
+private template MapByKeyType(K, Maps...) {
     static if (Maps.length == 0)
         static assert(0, "No commands map found for key type: " ~ K.stringof);
     else static if (is(KeyTypeOfAA!(Maps[0]) == K))
@@ -81,8 +75,7 @@ private template MapByKeyType(K, Maps...)
 }
 
 // Extract the template argument list (the declared parameter types) from a concrete ExCommand subclass
-private template BaseExArgsOf(alias C)
-{
+private template BaseExArgsOf(alias C) {
     alias _Bases = BaseClassesTuple!C;
 
     // Find the first base that matches ExCommand!T and return its TemplateArgsOf!B
@@ -116,8 +109,7 @@ private template _CommandByIdImpl(alias id, Cmds...) {
 }
 
 // Apply passed args to the instance fields declared by ExCommand!T before run(ctx)
-private void _applyArgs(alias C, A...)(C inst, auto ref A args)
-{
+private void _applyArgs(alias C, A...)(C inst, auto ref A args) {
     alias Declared = BaseExArgsOf!C; // may include TW!(T, name, desc)
 
     static if (A.length == 0) {
