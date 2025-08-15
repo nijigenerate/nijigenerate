@@ -7,7 +7,6 @@ import nijigenerate.project;               // active/selection state
 import bindbc.imgui;
 import inmath : vec2u;
 import nijilive; // ParameterBinding
-import std.json;                  // persist shortcuts
 import std.conv : to;
 import nijigenerate.core.settings; // settings store
 
@@ -147,25 +146,24 @@ private string _commandIdFor(Command cmd)
 // Save current shortcuts to settings as an object map: { "Type.Value": "Shortcut" }
 void ngSaveShortcutsToSettings()
 {
-    JSONValue[string] obj; // JSON object
+    string[string] obj; // string map
     foreach (k, entry; gShortcutEntries) {
         auto id = _commandIdFor(entry.command);
-        if (id.length) obj[id] = JSONValue(entry.shortcut);
+        if (id.length) obj[id] = entry.shortcut;
     }
-    incSettingsSet("Shortcuts", JSONValue(obj));
+    incSettingsSet("Shortcuts", obj);
 }
 
 // Load shortcuts from settings and register them, overriding existing bindings
 void ngLoadShortcutsFromSettings()
 {
     if (!incSettingsCanGet("Shortcuts")) return;
-    auto j = incSettingsGet!JSONValue("Shortcuts");
-    if (j.type != JSON_TYPE.OBJECT) return;
+    auto m = incSettingsGet!(string[string])("Shortcuts");
+    if (m.length == 0) return;
 
     auto all = _buildCommandIdMap();
-    foreach (key, val; j.object) {
+    foreach (key, sc; m) {
         if (auto p = key in all) {
-            auto sc = val.type == JSON_TYPE.STRING ? val.str : null;
             if (sc.length) {
                 auto cmd = *p;
                 ngClearShortcutFor(cmd);
