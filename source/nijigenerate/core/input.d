@@ -202,14 +202,14 @@ private string _kImpl(string spec)()
             string mapped;
             // Map canonical token to OS-specific label
             if (tok == "Super") {
-                version (OSX) mapped = "\u2318"; // ⌘
+                version (OSX) mapped = "\ueae7"; // ⌘
                 else mapped = "Super";
             } else if (tok == "Alt") {
-                version (OSX) mapped = "\u2325"; // ⌥
+                version (OSX) mapped = "\ueae8"; // ⌥
                 else mapped = "Alt";
             } else if (tok == "Ctrl") {
-                // Keep text label for now (could map to ⌃ on macOS later)
-                mapped = "Ctrl";
+                version (OSX) mapped = "\ueae6"; // ^
+                else mapped = "Ctrl";
             } else if (tok == "Shift") {
                 // Keep text label for now (could map to ⇧ on macOS later)
                 mapped = "Shift";
