@@ -26,6 +26,7 @@ import nijigenerate.core.settings;
 version (linux) {
     import dportals.filechooser;
     import dportals.promise;
+    import nijigenerate.core.window;
 }
 
 private {
