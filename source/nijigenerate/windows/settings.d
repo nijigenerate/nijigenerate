@@ -296,47 +296,48 @@ protected:
     void renderCommandTable(alias CmdsAA)(const(char)* title)
     {
         // Collapsible category for each command group
-        incBeginCategory(title);
-        enum ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchSame;
-        if (igBeginTable(title, 3, flags, ImVec2(0, 0), 0.0)) {
-            igTableSetupColumn(__("Action"), ImGuiTableColumnFlags.None, 0.6, 0);
-            igTableSetupColumn(__("Shortcut"), ImGuiTableColumnFlags.None, 0.2, 1);
-            igTableSetupColumn(__("Edit"), ImGuiTableColumnFlags.None, 0.2, 2);
-            igTableHeadersRow();
+        if (incBeginCategory(title)) {
+            enum ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchSame;
+            if (igBeginTable(title, 3, flags, ImVec2(0, 0), 0.0)) {
+                igTableSetupColumn(__("Action"), ImGuiTableColumnFlags.None, 0.6, 0);
+                igTableSetupColumn(__("Shortcut"), ImGuiTableColumnFlags.None, 0.2, 1);
+                igTableSetupColumn(__("Edit"), ImGuiTableColumnFlags.None, 0.2, 2);
+                igTableHeadersRow();
 
-            foreach (k, cmd; CmdsAA) {
-                igTableNextRow(ImGuiTableRowFlags.None, 0.0);
-                igTableSetColumnIndex(0);
-                auto lbl = cmd.label();
-                incText(lbl);
+                foreach (k, cmd; CmdsAA) {
+                    igTableNextRow(ImGuiTableRowFlags.None, 0.0);
+                    igTableSetColumnIndex(0);
+                    auto lbl = cmd.label();
+                    incText(lbl);
 
-                igTableSetColumnIndex(1);
-                import nijigenerate.core.shortcut : ngShortcutFor;
-                auto sc = ngShortcutFor(cmd);
-                if (capturingShortcut && (capturingCommand is cmd)) {
-                    // Live preview while capturing
-                    incTextColored(ImVec4(0.9, 0.7, 0.2, 1), capturingPreview.length ? capturingPreview : _("Press keys..."));
-                } else {
-                    incText(sc.length ? sc : _("<none>"));
-                }
+                    igTableSetColumnIndex(1);
+                    import nijigenerate.core.shortcut : ngShortcutFor;
+                    auto sc = ngShortcutFor(cmd);
+                    if (capturingShortcut && (capturingCommand is cmd)) {
+                        // Live preview while capturing
+                        incTextColored(ImVec4(0.9, 0.7, 0.2, 1), capturingPreview.length ? capturingPreview : _("Press keys..."));
+                    } else {
+                        incText(sc.length ? sc : _("<none>"));
+                    }
 
-                igTableSetColumnIndex(2);
-                auto setLbl = __("Set");
-                igPushID(cast(int)k);
-                if (incButtonColored(setLbl, ImVec2(0, 0))) {
-                    capturingShortcut = true;
-                    capturingCommand = cmd;
-                    capturingPreview = "";
-                    capturingRepeat = false;
+                    igTableSetColumnIndex(2);
+                    auto setLbl = __("Set");
+                    igPushID(cast(int)k);
+                    if (incButtonColored(setLbl, ImVec2(0, 0))) {
+                        capturingShortcut = true;
+                        capturingCommand = cmd;
+                        capturingPreview = "";
+                        capturingRepeat = false;
+                    }
+                    igSameLine(0, 4);
+                    auto clrLbl = __("Clear");
+                    if (incButtonColored(clrLbl, ImVec2(0, 0))) {
+                        ngClearShortcutFor(cmd);
+                    }
+                    igPopID();
                 }
-                igSameLine(0, 4);
-                auto clrLbl = __("Clear");
-                if (incButtonColored(clrLbl, ImVec2(0, 0))) {
-                    ngClearShortcutFor(cmd);
-                }
-                igPopID();
+                igEndTable();
             }
-            igEndTable();
         }
         incEndCategory();
     }
