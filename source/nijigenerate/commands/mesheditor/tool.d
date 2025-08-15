@@ -12,7 +12,8 @@ import nijigenerate.viewport.common.mesheditor.tools : incGetToolInfo, ngGetTool
 class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode")) {
     ToolInfo info;
     this(VertexToolMode mode) { 
-        super("Select mesh editor tool mode", mode); 
+        import i18n;
+        super(_("Select mesh editor tool mode"), mode); 
         _init();
     }
     override void run(Context ctx) {

@@ -15,7 +15,7 @@ import nijigenerate.widgets.dialog;
 import nijigenerate.utils.repair;
 
 class ShowImportSessionDataDialogCommand : ExCommand!() {
-    this() { super("Import Inochi Session Data", "Shows \"Import Session Data\" dialog."); }
+    this() { super(_("Import Inochi Session Data"), _("Shows \"Import Session Data\" dialog.")); }
 
     override
     void run(Context ctx) {
@@ -34,7 +34,7 @@ class ShowImportSessionDataDialogCommand : ExCommand!() {
 }
 
 class ImportSessionDataCommand : ExCommand!(TW!(string, "path", "file path of INP file.")) {
-    this(string path) { super("Import Inochi Session Data", "Import INP Session Data.", path); }
+    this(string path) { super(_("Import Inochi Session Data"), _("Import INP Session Data."), path); }
 
     override
     void run(Context ctx) {
@@ -55,7 +55,7 @@ class ImportSessionDataCommand : ExCommand!(TW!(string, "path", "file path of IN
 }
 
 class PremultTextureCommand : ExCommand!() {
-    this() { super("Premultiply textures", "Premultiply texture."); }
+    this() { super(_("Premultiply textures"), _("Premultiply texture.")); }
 
     override
     void run(Context ctx) {
@@ -66,7 +66,7 @@ class PremultTextureCommand : ExCommand!() {
 }
 
 class RebleedTextureCommand : ExCommand!() {
-    this() { super("Bleed textures...", "Bleed texture."); }
+    this() { super(_("Bleed textures..."), _("Bleed texture.")); }
 
     override
     void run(Context ctx) {
@@ -75,7 +75,7 @@ class RebleedTextureCommand : ExCommand!() {
 }
 
 class RegenerateMipmapsCommand : ExCommand!() {
-    this() { super("Generate Mipmaps...", "Generate mipmaps."); }
+    this() { super(_("Generate Mipmaps..."), _("Generate mipmaps.")); }
 
     override
     void run(Context ctx) {
@@ -84,7 +84,7 @@ class RegenerateMipmapsCommand : ExCommand!() {
 }
 
 class GenerateFakeLayerNameCommand : ExCommand!() {
-    this() { super("Generate fake layer name info...", "Generate fake layer name."); }
+    this() { super(_("Generate fake layer name info..."), _("Generate fake layer name.")); }
 
     override
     void run(Context ctx) {
@@ -100,7 +100,7 @@ class GenerateFakeLayerNameCommand : ExCommand!() {
 }
 
 class AttemptRepairPuppetCommand : ExCommand!() {
-    this() { super("Attempt full repair...", "Attempt full repair..."); }
+    this() { super(_("Attempt full repair..."), _("Attempt full repair...")); }
 
     override
     void run(Context ctx) {
@@ -110,7 +110,7 @@ class AttemptRepairPuppetCommand : ExCommand!() {
 }
 
 class RegenerateNodeIDsCommand : ExCommand!() {
-    this() { super("Regenerate Node IDs", "Regenerate Node IDs"); }
+    this() { super(_("Regenerate Node IDs"), _("Regenerate Node IDs")); }
 
     override
     void run(Context ctx) {
@@ -120,7 +120,7 @@ class RegenerateNodeIDsCommand : ExCommand!() {
 }
 
 class ModelEditModeCommand : ExCommand!() {
-    this() { super("Edit Puppet", "Switch to model-edit mode"); }
+    this() { super(_("Edit Puppet"), _("Switch to model-edit mode")); }
 
     override
     void run(Context ctx) {
@@ -132,7 +132,7 @@ class ModelEditModeCommand : ExCommand!() {
 
 
 class AnimEditModeCommand : ExCommand!() {
-    this() { super("Edit Animation", "Switch to anim-edit mode"); }
+    this() { super(_("Edit Animation"), _("Switch to anim-edit mode")); }
 
     override
     void run(Context ctx) {

@@ -12,7 +12,7 @@ import nijigenerate.actions;
 import i18n;
 
 class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
-    this(int min, int max) { super("Add 1D Parameter (%d..%d)".format(min, max), min, max); }
+    this(int min, int max) { super(_("Add 1D Parameter (%d..%d)").format(min, max), min, max); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
@@ -32,7 +32,7 @@ class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the P
 }
 
 class Add2DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
-    this(int min, int max) { super("Add 2D Parameter (%d..%d)".format(min, max), min, max); }
+    this(int min, int max) { super(_("Add 2D Parameter (%d..%d)").format(min, max), min, max); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
@@ -54,7 +54,7 @@ class Add2DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the P
 }
 
 class AddMouthParameterCommand : ExCommand!() {
-    this() { super("Add Mouth Parameter"); }
+    this() { super(_("Add Mouth Parameter")); }
     override
     void run(Context ctx) {
         if (!ctx.hasPuppet)
@@ -78,7 +78,7 @@ class AddMouthParameterCommand : ExCommand!() {
 }
 
 class RemoveParameterCommand : ExCommand!() {
-    this() { super("Remove Parameter"); }
+    this() { super(_("Remove Parameter")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters) return;

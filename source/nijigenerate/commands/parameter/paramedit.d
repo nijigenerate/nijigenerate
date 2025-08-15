@@ -9,6 +9,7 @@ import nijigenerate.actions;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.ext;
 import nijigenerate.project;
+import i18n;
 
 
 //                    incPushWindowList(new ParamPropWindow(param));
@@ -16,7 +17,7 @@ import nijigenerate.project;
 //                    incPushWindowList(new ParamSplitWindow(idx, param));
 
 class ConvertTo2DParamCommand : ExCommand!() {
-    this() { super("Convert to 2D"); }
+    this() { super(_("Convert to 2D")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -28,7 +29,7 @@ class ConvertTo2DParamCommand : ExCommand!() {
 }
 
 class FlipXCommand : ExCommand!() {
-    this() { super("Flip X"); }
+    this() { super(_("Flip X")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -43,7 +44,7 @@ class FlipXCommand : ExCommand!() {
 }
 
 class FlipYCommand : ExCommand!() {
-    this() { super("Flip X"); }
+    this() { super(_("Flip X")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -58,7 +59,7 @@ class FlipYCommand : ExCommand!() {
 }
 
 class Flip1DCommand : ExCommand!() {
-    this() { super("Flip"); }
+    this() { super(_("Flip")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -73,7 +74,7 @@ class Flip1DCommand : ExCommand!() {
 }
 
 class MirrorHorizontallyCommand : ExCommand!() {
-    this() { super("Mirror Horizontally"); }
+    this() { super(_("Mirror Horizontally")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -86,7 +87,7 @@ class MirrorHorizontallyCommand : ExCommand!() {
 }
 
 class MirrorVerticallyCommand : ExCommand!() {
-    this() { super("Mirror Vertically"); }
+    this() { super(_("Mirror Vertically")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -99,7 +100,7 @@ class MirrorVerticallyCommand : ExCommand!() {
 }
 
 class MirroredAutoFillDir1Command : ExCommand!() {
-    this() { super("Mirrored Autofill "); }
+    this() { super(_("Mirrored Autofill ")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -112,7 +113,7 @@ class MirroredAutoFillDir1Command : ExCommand!() {
 }
 
 class MirroredAutoFillDir2Command : ExCommand!() {
-    this() { super("Mirrored Autofill "); }
+    this() { super(_("Mirrored Autofill ")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -125,7 +126,7 @@ class MirroredAutoFillDir2Command : ExCommand!() {
 }
 
 class MirroredAutoFillDir3Command : ExCommand!() {
-    this() { super("Mirrored Autofill "); }
+    this() { super(_("Mirrored Autofill ")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -138,7 +139,7 @@ class MirroredAutoFillDir3Command : ExCommand!() {
 }
 
 class MirroredAutoFillDir4Command : ExCommand!() {
-    this() { super("Mirrored Autofill "); }
+    this() { super(_("Mirrored Autofill ")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -151,7 +152,7 @@ class MirroredAutoFillDir4Command : ExCommand!() {
 }
 
 class CopyParameterCommand : ExCommand!() {
-    this() { super("Copy Parameter"); }
+    this() { super(_("Copy Parameter")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -164,7 +165,7 @@ class CopyParameterCommand : ExCommand!() {
 }
 
 class PasteParameterCommand : ExCommand!() {
-    this() { super("Paste Parameter"); }
+    this() { super(_("Paste Parameter")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -182,7 +183,7 @@ class PasteParameterCommand : ExCommand!() {
 }
 
 class PasteParameterWithFlipCommand : ExCommand!() {
-    this() { super("Paste Parameter with Flip"); }
+    this() { super(_("Paste Parameter with Flip")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -200,7 +201,7 @@ class PasteParameterWithFlipCommand : ExCommand!() {
 }
 
 class DuplicateParameterCommand : ExCommand!() {
-    this() { super("Duplicate Parameter"); }
+    this() { super(_("Duplicate Parameter")); }
     override
     void run(Context ctx) {
         if (ctx.hasPuppet && ctx.hasParameters) {
@@ -221,7 +222,7 @@ class DuplicateParameterCommand : ExCommand!() {
 }
 
 class DuplicateParameterWithFlipCommand : ExCommand!() {
-    this() { super("Duplicate Parameter with Flip"); }
+    this() { super(_("Duplicate Parameter with Flip")); }
     override
     void run(Context ctx) {
         if (ctx.hasPuppet && ctx.hasParameters) {
@@ -240,7 +241,7 @@ class DuplicateParameterWithFlipCommand : ExCommand!() {
 }
 
 class DeleteParameterCommand : ExCommand!() {
-    this() { super("Delete Parameter"); }
+    this() { super(_("Delete Parameter")); }
     override
     void run(Context ctx) {
         if (ctx.hasPuppet && ctx.hasParameters) {
@@ -283,7 +284,7 @@ void addBinding(Parameter param, Parameter p, int fromAxis, int toAxis) {
 }
 
 class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to copy"), TW!(int, "fromAxis", "axis in source parameter"), TW!(int, "toAxis", "axis in dest parameter")) {
-    this(Parameter toParam, int fromAxis, int toAxis) { super("Delete Parameter", toParam, fromAxis, toAxis); }
+    this(Parameter toParam, int fromAxis, int toAxis) { super(_("Delete Parameter"), toParam, fromAxis, toAxis); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -297,7 +298,7 @@ class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to 
 
 
 class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the index of the armed parameter in the parent group.")) {
-    this(int index) { super("Toggle Armed Parameter", index); }
+    this(int index) { super(_("Toggle Armed Parameter"), index); }
     override
     void run(Context ctx) {
         if (ctx.hasPuppet && ctx.hasParameters) {
@@ -317,7 +318,7 @@ class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the inde
 }
 
 class SetStartingKeyFrameCommand : ExCommand!() {
-    this() { super("Set Starting KeyFrame"); }
+    this() { super(_("Set Starting KeyFrame")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {

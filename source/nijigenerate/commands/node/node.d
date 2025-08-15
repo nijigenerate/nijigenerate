@@ -21,6 +21,7 @@ class AddNodeCommand : ExCommand!(
         TW!(string, "className", "class name of new node."), 
         TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
+        // Dynamic label; keep as-is for now (static part is translatable elsewhere)
         super("Add Node " ~ className, className, _suffix);
     }
 
@@ -49,7 +50,7 @@ class MoveNodeCommand : ExCommand!(
         TW!(Node, "newParent", "new parent node"), 
         TW!(ulong, "index", "index in new parent node")) {
     this(Node newParent, ulong index) {
-        super("Move Node ", newParent, index);
+        super(_("Move Node "), newParent, index);
     }
 
     override
@@ -80,7 +81,7 @@ class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for
 }
 
 class DeleteNodeCommand : ExCommand!() {
-    this() { super("Delete Node"); }
+    this() { super(_("Delete Node")); }
     override
     void run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
@@ -107,7 +108,7 @@ class DeleteNodeCommand : ExCommand!() {
 }
 
 class CutNodeCommand : ExCommand!() {
-    this() { super("Cut", "Cut Node"); }
+    this() { super(_("Cut"), _("Cut Node")); }
 
     override 
     void run(Context ctx) {
@@ -130,7 +131,7 @@ class CutNodeCommand : ExCommand!() {
 }
 
 class CopyNodeCommand : ExCommand!() {
-    this() { super("Copy", "Copy Node"); }
+    this() { super(_("Copy"), _("Copy Node")); }
 
     override 
     void run(Context ctx) {
@@ -151,7 +152,7 @@ class CopyNodeCommand : ExCommand!() {
 }
 
 class PasteNodeCommand : ExCommand!() {
-    this() { super("Paste", "Paste Node"); }
+    this() { super(_("Paste"), _("Paste Node")); }
     override
     void run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
@@ -169,9 +170,7 @@ class PasteNodeCommand : ExCommand!() {
 }
 
 class ReloadNodeCommand : ExCommand!() {
-    this() {
-        super("Reload Node");
-    }
+    this() { super(_("Reload Node")); }
 
     override
     void run(Context ctx) {
@@ -181,9 +180,7 @@ class ReloadNodeCommand : ExCommand!() {
 }
 
 class VertexModeCommand : ExCommand!() {
-    this() {
-        super("Edit Vertex");
-    }
+    this() { super(_("Edit Vertex")); }
 
     override
     void run(Context ctx) {
@@ -199,9 +196,7 @@ class VertexModeCommand : ExCommand!() {
 }
 
 class ToggleVisibilityCommand : ExCommand!() {
-    this() {
-        super("Toggle Visibility");
-    }
+    this() { super(_("Toggle Visibility")); }
 
     override
     void run(Context ctx) {
@@ -213,7 +208,7 @@ class ToggleVisibilityCommand : ExCommand!() {
 }
 
 class CentralizeNodeCommand : ExCommand!() {
-    this() { super("Centralize Node"); }
+    this() { super(_("Centralize Node")); }
     override
     void run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)

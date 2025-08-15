@@ -9,11 +9,12 @@ import nijigenerate.windows;          // incPushWindow
 import nijigenerate.widgets.modal;     // incModalAdd
 import nijigenerate.ext;
 import nijilive;
+import i18n;
 
 // Commands for viewport UI actions (buttons/menus)
 
 class ToggleMirrorViewCommand : ExCommand!() {
-    this() { super("Toggle mirror view."); }
+    this() { super(_("Toggle mirror view.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet) return;
         incShouldMirrorViewport = !incShouldMirrorViewport;
@@ -21,7 +22,7 @@ class ToggleMirrorViewCommand : ExCommand!() {
 }
 
 class ToggleOnionSliceCommand : ExCommand!() {
-    this() { super("Toggle onion slice overlay."); }
+    this() { super(_("Toggle onion slice overlay.")); }
     override void run(Context ctx) {
         auto onion = OnionSlice.singleton;
         onion.toggle();
@@ -29,7 +30,7 @@ class ToggleOnionSliceCommand : ExCommand!() {
 }
 
 class TogglePhysicsCommand : ExCommand!() {
-    this() { super("Toggle physics drivers."); }
+    this() { super(_("Toggle physics drivers.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet || ctx.puppet is null) return;
         ctx.puppet.enableDrivers = !ctx.puppet.enableDrivers;
@@ -37,7 +38,7 @@ class TogglePhysicsCommand : ExCommand!() {
 }
 
 class TogglePostProcessCommand : ExCommand!() {
-    this() { super("Toggle post processing."); }
+    this() { super(_("Toggle post processing.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet) return;
         incShouldPostProcess = !incShouldPostProcess;
@@ -45,7 +46,7 @@ class TogglePostProcessCommand : ExCommand!() {
 }
 
 class ResetPhysicsCommand : ExCommand!() {
-    this() { super("Reset physics."); }
+    this() { super(_("Reset physics.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet || ctx.puppet is null) return;
         ctx.puppet.resetDrivers();
@@ -53,7 +54,7 @@ class ResetPhysicsCommand : ExCommand!() {
 }
 
 class ResetParametersCommand : ExCommand!() {
-    this() { super("Reset parameters to defaults."); }
+    this() { super(_("Reset parameters to defaults.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet || ctx.puppet is null) return;
         foreach (ref parameter; ctx.puppet.parameters) {
@@ -63,7 +64,7 @@ class ResetParametersCommand : ExCommand!() {
 }
 
 class OpenFlipPairWindowCommand : ExCommand!() {
-    this() { super("Open Flip Pair configuration window."); }
+    this() { super(_("Open Flip Pair configuration window.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet) return;
         incPushWindow(new FlipPairWindow());
@@ -71,7 +72,7 @@ class OpenFlipPairWindowCommand : ExCommand!() {
 }
 
 class OpenAutomeshBatchingCommand : ExCommand!() {
-    this() { super("Open Automesh Batching modal."); }
+    this() { super(_("Open Automesh Batching modal.")); }
     override void run(Context ctx) {
         if (!ctx.hasPuppet) return;
         incModalAdd(new AutoMeshBatchWindow());
@@ -79,14 +80,14 @@ class OpenAutomeshBatchingCommand : ExCommand!() {
 }
 
 class ResetViewportZoomCommand : ExCommand!() {
-    this() { super("Reset viewport zoom to 1.0."); }
+    this() { super(_("Reset viewport zoom to 1.0.")); }
     override void run(Context ctx) {
         incViewportTargetZoom = 1;
     }
 }
 
 class ResetViewportPositionCommand : ExCommand!() {
-    this() { super("Reset viewport position to origin."); }
+    this() { super(_("Reset viewport position to origin.")); }
     override void run(Context ctx) {
         incViewportTargetPosition = vec2(0, 0);
     }

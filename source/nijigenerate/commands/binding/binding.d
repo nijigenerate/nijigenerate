@@ -36,7 +36,7 @@ import nijigenerate.commands.binding.base;
 //==================================================================================
 
 class UnsetKeyFrameCommand : ExCommand!() {
-    this() { super("Unset Key Frame"); }
+    this() { super(_("Unset Key Frame")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -56,7 +56,7 @@ class UnsetKeyFrameCommand : ExCommand!() {
 }
 
 class SetKeyFrameCommand : ExCommand!() {
-    this() { super("Set Key Frame"); }
+    this() { super(_("Set Key Frame")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -77,7 +77,7 @@ class SetKeyFrameCommand : ExCommand!() {
 }
 
 class ResetKeyFrameCommand : ExCommand!() {
-    this() { super("Reset Key Frame"); }
+    this() { super(_("Reset Key Frame")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -98,7 +98,7 @@ class ResetKeyFrameCommand : ExCommand!() {
 }
 
 class InvertKeyFrameCommand : ExCommand!() {
-    this() { super("Invert Key Frame"); }
+    this() { super(_("Invert Key Frame")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -119,7 +119,7 @@ class InvertKeyFrameCommand : ExCommand!() {
 }
 
 class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
-    this() { super("Mirror Key Frame Horizontally"); }
+    this() { super(_("Mirror Key Frame Horizontally")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -140,7 +140,7 @@ class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
 }
 
 class MirrorKeyFrameVerticallyCommand : ExCommand!() {
-    this() { super("Mirror Key Frame Vertically"); }
+    this() { super(_("Mirror Key Frame Vertically")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -161,7 +161,7 @@ class MirrorKeyFrameVerticallyCommand : ExCommand!() {
 }
 
 class FlipDeformCommand : ExCommand!() {
-    this() { super("Flip Deform"); }
+    this() { super(_("Flip Deform")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -186,7 +186,7 @@ class FlipDeformCommand : ExCommand!() {
 }
 
 class SymmetrizeDeformCommand : ExCommand!() {
-    this() { super("Symmetrize Deform"); }
+    this() { super(_("Symmetrize Deform")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -215,7 +215,7 @@ class SymmetrizeDeformCommand : ExCommand!() {
 }
 
 class SetFromHorizontalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super("Set From Horizontal Mirror", targetBindingsNull); }
+    this(bool targetBindingsNull) { super(_("Set From Horizontal Mirror"), targetBindingsNull); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -245,7 +245,7 @@ class SetFromHorizontalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull"
 }
 
 class SetFromVerticalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super("Set From Vertical Mirror", targetBindingsNull); }
+    this(bool targetBindingsNull) { super(_("Set From Vertical Mirror"), targetBindingsNull); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -276,7 +276,7 @@ class SetFromVerticalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", 
 
 
 class SetFromDiagonalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super("Set From Diagonal Mirror", targetBindingsNull); }
+    this(bool targetBindingsNull) { super(_("Set From Diagonal Mirror"), targetBindingsNull); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -307,7 +307,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", 
 
 
 class SetFrom1DMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super("Set From 1D Mirror", targetBindingsNull); }
+    this(bool targetBindingsNull) { super(_("Set From 1D Mirror"), targetBindingsNull); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -337,7 +337,7 @@ class SetFrom1DMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "speci
 }
 
 class CopyBindingCommand : ExCommand!() {
-    this() { super("Copy Bindings"); }
+    this() { super(_("Copy Bindings")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -357,7 +357,7 @@ class CopyBindingCommand : ExCommand!() {
 }
 
 class PasteBindingCommand : ExCommand!() {
-    this() { super("Paste Bindings"); }
+    this() { super(_("Paste Bindings")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
@@ -415,7 +415,7 @@ class PasteBindingCommand : ExCommand!() {
 //==================================================================================
 
 class RemoveBindingCommand : ExCommand!() {
-    this() { super("Remove Bindings"); }
+    this() { super(_("Remove Bindings")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings)
