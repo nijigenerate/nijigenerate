@@ -76,7 +76,7 @@ void mirroredAutofill(Parameter param, uint axis, float min, float max) {
     incActionPopGroup();
 }
 
-void pasteParameter(bool pushAction = true)(Parameter param, Parameter srcParam = null, uint axis) {
+void pasteParameter(bool pushAction = true)(Parameter param, Parameter srcParam = null, uint axis = 2) {
     if (srcParam is null)
         srcParam = cClipboardParameter;
     if (srcParam is null)

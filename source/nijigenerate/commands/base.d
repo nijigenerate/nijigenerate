@@ -284,7 +284,8 @@ private void _applyArgsFor(alias C, A...)(C inst, auto ref A args)
 
 // Draw a single ImGui menu item using command's label and registered shortcut (if any),
 // then invoke the command when selected. Returns the concrete command instance or null.
-Command ngMenuItemFor(alias id, A...)(ref Context ctx, bool selected = false, bool enabled = true, auto ref A args)
+// No-arg variant keeps backward-compatible selected/enabled defaults
+Command ngMenuItemFor(alias id)(ref Context ctx, bool selected = false, bool enabled = true)
 {
     auto base = _resolveCommandInstance!id();
     if (base is null) return null;
@@ -295,7 +296,24 @@ Command ngMenuItemFor(alias id, A...)(ref Context ctx, bool selected = false, bo
     auto lbl = base.label();
     if (igMenuItem(__(lbl), pShortcut, selected, enabled)) {
         import nijigenerate.commands : cmd;
-        // apply args and run via standard cmd! helper
+        cmd!id(ctx);
+    }
+    return base;
+}
+
+// With-args variant requires explicit selected/enabled (no defaults)
+Command ngMenuItemFor(alias id, A...)(ref Context ctx, bool selected, bool enabled, auto ref A args)
+    if (A.length > 0)
+{
+    auto base = _resolveCommandInstance!id();
+    if (base is null) return null;
+
+    import nijigenerate.core.shortcut : ngShortcutFor;
+    auto shortcut = ngShortcutFor(base);
+    const(char)* pShortcut = shortcut.length ? shortcut.toStringz : null;
+    auto lbl = base.label();
+    if (igMenuItem(__(lbl), pShortcut, selected, enabled)) {
+        import nijigenerate.commands : cmd;
         cmd!id(ctx, args);
     }
     return base;
