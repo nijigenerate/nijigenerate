@@ -17,6 +17,7 @@ import nijigenerate.widgets;
 import nijigenerate.widgets.mainmenu;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.shortcut;               // package re-exports base
+import nijigenerate.core.shortcut.base : ngLoadShortcutsFromSettings; // load persisted shortcuts
 import nijigenerate.core.shortcut.defaults : ngRegisterDefaultShortcuts;
 import nijigenerate.commands : ngInitAllCommands; // explicit commands init to avoid ctor cycles
 import nijigenerate.core.i18n;
@@ -92,8 +93,9 @@ int main(string[] args)
         // Initialize command registries explicitly (avoid module ctor cycles)
         ngInitAllCommands();
 
-        // Register default shortcuts (decoupled from core.shortcut to avoid cycles)
+        // Register default shortcuts, then load user overrides from settings
         ngRegisterDefaultShortcuts();
+        ngLoadShortcutsFromSettings();
 
         // Open or create project
         if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);

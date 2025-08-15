@@ -280,6 +280,9 @@ protected:
 
     override
     void onClose() {
+        // Persist current shortcut registry to settings before saving
+        import nijigenerate.core.shortcut.base : ngSaveShortcutsToSettings;
+        ngSaveShortcutsToSettings();
         incSettingsSave();
         incIsSettingsOpen = false;
     }
