@@ -295,7 +295,8 @@ protected:
     // Render a simple 2-column table for a commands AA (enum => Command)
     void renderCommandTable(alias CmdsAA)(const(char)* title)
     {
-        beginSection(title);
+        // Collapsible category for each command group
+        incBeginCategory(title);
         enum ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchSame;
         if (igBeginTable(title, 3, flags, ImVec2(0, 0), 0.0)) {
             igTableSetupColumn(__("Action"), ImGuiTableColumnFlags.None, 0.6, 0);
@@ -337,7 +338,7 @@ protected:
             }
             igEndTable();
         }
-        endSection();
+        incEndCategory();
     }
 
     void captureShortcutUI()
@@ -408,20 +409,23 @@ protected:
         // Inline capture UI (if active)
         captureShortcutUI();
 
-        // Group by command categories
-        renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
-        renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
-        renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
-        renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
-        renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
-        renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
-        renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
-        renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
-        renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
-        renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
-        renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
+        // Group by command categories in a scrollable child so header stays visible
+        if (igBeginChild("ShortcutsTables", ImVec2(0, 0), true)) {
+            renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
+            renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
+            renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
+            renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
+            renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
+            renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
+            renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
+            renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
+            renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
+            renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
+            renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
 
-        // Mesh editor tool modes (dynamically generated per mode)
-        renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
+            // Mesh editor tool modes (dynamically generated per mode)
+            renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
+        }
+        igEndChild();
     }
 }
