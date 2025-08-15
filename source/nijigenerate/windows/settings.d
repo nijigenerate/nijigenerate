@@ -312,7 +312,20 @@ protected:
 
                     igTableSetColumnIndex(1);
                     import nijigenerate.core.shortcut : ngShortcutFor;
+                    import nijigenerate.core.input : ngModifierLabelCtrl, ngModifierLabelSuper;
                     auto sc = ngShortcutFor(cmd);
+                    // On macOS, if swap is enabled, show swapped labels for stored shortcuts
+                    version (OSX) {
+                        if (incSettingsGet!bool("MacSwapCmdCtrl", false) && sc.length) {
+                            import std.string : replace;
+                            enum placeholder = "__CTRL_TMP__";
+                            auto lblCtrl = ngModifierLabelCtrl();
+                            auto lblSuper = ngModifierLabelSuper();
+                            sc = sc.replace(lblCtrl, placeholder)
+                                   .replace(lblSuper, lblCtrl)
+                                   .replace(placeholder, lblSuper);
+                        }
+                    }
                     if (capturingShortcut && (capturingCommand is cmd)) {
                         // Live preview while capturing
                         incTextColored(ImVec4(0.9, 0.7, 0.2, 1), capturingPreview.length ? capturingPreview : _("Press keys..."));
@@ -401,10 +414,20 @@ protected:
         igSeparator();
     }
 
-    void drawShotcutsPane()
-    {
+    void drawShotcutsPane() {
         beginSection(__("Shotcuts"));
             incText(_("Assign shortcuts to commands. Click Set and press keys. Use Clear to remove a binding."));
+
+            // macOS-specific option: swap Command and Control in shortcuts
+            version (OSX) {
+                bool swapCmdCtrl = incSettingsGet!bool("MacSwapCmdCtrl", false);
+                if (ngCheckbox(__("Swap Command and Control"), &swapCmdCtrl)) {
+                    // Persist and take effect immediately for detection/preview
+                    incSettingsSet("MacSwapCmdCtrl", swapCmdCtrl);
+                }
+                incTooltip(_("When enabled, Command () and Control () are treated as swapped for shortcuts."));
+                incDummy(ImVec2(0, 4));
+            }
         endSection();
 
         // Inline capture UI (if active)

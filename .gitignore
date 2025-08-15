@@ -47,3 +47,4 @@ build.err
 
 # Exclude agent guidance doc from commits
 AGENTS.md
+AGENT.md

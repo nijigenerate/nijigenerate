@@ -1,5 +1,6 @@
 module nijigenerate.core.input;
 import nijigenerate.core.dpi;
+import nijigenerate.core.settings; // settings for macOS Ctrl/Super swap
 import nijilive.core;
 import nijilive.math;
 import bindbc.imgui;
@@ -241,6 +242,15 @@ private enum string ngTokShift = _kImpl!"Shift"();
 // Example: ngFormatShortcut(true,false,true,false,"K") => "Ctrl+Shift+K" (Windows/Linux) or "^+⇧+K" (macOS mapping)
 string ngFormatShortcut(bool ctrl, bool alt, bool shift, bool superKey, string key)
 {
+    // On macOS, optionally swap displayed labels for Ctrl/Super
+    version (OSX)
+    {
+        if (incSettingsGet!bool("MacSwapCmdCtrl", false))
+        {
+            auto tmp = ctrl; ctrl = superKey; superKey = tmp;
+        }
+    }
+
     string res;
     if (ctrl)  res ~= (res.length ? "+" : "") ~ ngTokCtrl;
     if (alt)   res ~= (res.length ? "+" : "") ~ ngTokAlt;
@@ -278,6 +288,15 @@ bool incShortcut(string s, bool repeat=false) {
         }
     }
 
+    // On macOS, optionally swap Ctrl and Super matching
+    version (OSX)
+    {
+        if (incSettingsGet!bool("MacSwapCmdCtrl", false))
+        {
+            auto tmp = needCtrl; needCtrl = needSuper; needSuper = tmp;
+        }
+    }
+
     // Enforce exact modifier match
     if (!(io.KeyCtrl == needCtrl && io.KeyAlt == needAlt && io.KeyShift == needShift && io.KeySuper == needSuper))
         return false;
@@ -287,3 +306,7 @@ bool incShortcut(string s, bool repeat=false) {
     if (scancode == ImGuiKey.None) return false;
     return igIsKeyPressed(scancode, repeat);
 }
+
+// Public helpers to expose current OS-specific modifier labels for UI
+string ngModifierLabelCtrl() { return ngTokCtrl; }
+string ngModifierLabelSuper() { return ngTokSuper; }
