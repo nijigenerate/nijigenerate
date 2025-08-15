@@ -157,16 +157,13 @@ enum ToolCommand {
 
 
 Command[ToolCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!ToolCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(ToolCommand.ImportSessionData, ""));
+void ngInitCommands(T)() if (is(T == ToolCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!ToolCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(ToolCommand.ImportSessionData, ""));
 }

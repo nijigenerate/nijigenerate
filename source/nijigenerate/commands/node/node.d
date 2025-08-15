@@ -228,19 +228,16 @@ enum NodeCommand {
 
 
 Command[NodeCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!NodeCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(NodeCommand.AddNode, null, null));
-        mixin(registerCommand!(NodeCommand.InsertNode, null, null));
-        mixin(registerCommand!(NodeCommand.ConvertTo, null));
-        mixin(registerCommand!(NodeCommand.MoveNode, null, 0));
+void ngInitCommands(T)() if (is(T == NodeCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!NodeCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(NodeCommand.AddNode, null, null));
+    mixin(registerCommand!(NodeCommand.InsertNode, null, null));
+    mixin(registerCommand!(NodeCommand.ConvertTo, null));
+    mixin(registerCommand!(NodeCommand.MoveNode, null, 0));
 }

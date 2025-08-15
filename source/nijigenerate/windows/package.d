@@ -9,7 +9,8 @@ module nijigenerate.windows;
 
 public import nijigenerate.windows.base;
 public import nijigenerate.windows.about;
-public import nijigenerate.windows.settings;
+// Do not publicly re-export settings to avoid module init cycles.
+// Import settings explicitly where needed.
 public import nijigenerate.windows.texviewer;
 public import nijigenerate.windows.paramprop;
 public import nijigenerate.windows.paramaxes;

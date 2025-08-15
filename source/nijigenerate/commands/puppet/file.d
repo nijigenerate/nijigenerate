@@ -301,16 +301,12 @@ enum FileCommand {
 
 
 Command[FileCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!FileCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-//        mixin(registerCommand!(NodeCommand.MoveNode, null, 0));
+void ngInitCommands(T)() if (is(T == FileCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!FileCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
 }

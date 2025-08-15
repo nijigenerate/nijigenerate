@@ -496,19 +496,21 @@ enum BindingCommand {
 import nijigenerate.commands.base : registerCommand;
 
 Command[BindingCommand] commands;
-private {
-    static this() {
-        import std.traits : EnumMembers;
 
-        static foreach (name; EnumMembers!BindingCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); } ))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(BindingCommand.SetFromHorizontalMirror, false));
-        mixin(registerCommand!(BindingCommand.SetFromVerticalMirror, false));
-        mixin(registerCommand!(BindingCommand.SetFromDiagonalMirror, false));
-        mixin(registerCommand!(BindingCommand.SetFrom1DMirror, false));
-        mixin(registerCommand!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
+void ngInitCommands(T)() if (is(T == BindingCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!BindingCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); } ))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(BindingCommand.SetFromHorizontalMirror, false));
+    mixin(registerCommand!(BindingCommand.SetFromVerticalMirror, false));
+    mixin(registerCommand!(BindingCommand.SetFromDiagonalMirror, false));
+    mixin(registerCommand!(BindingCommand.SetFrom1DMirror, false));
+    mixin(registerCommand!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
+
+    // Also ensure providers are registered once this module initializes
+    import nijigenerate.commands.binding.base : ngInitBindingProviders;
+    ngInitBindingProviders();
 }

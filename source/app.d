@@ -16,7 +16,9 @@ import nijigenerate.windows;
 import nijigenerate.widgets;
 import nijigenerate.widgets.mainmenu;
 import nijigenerate.core.actionstack;
-import nijigenerate.core.shortcut;
+import nijigenerate.core.shortcut;               // package re-exports base
+import nijigenerate.core.shortcut.defaults : ngRegisterDefaultShortcuts;
+import nijigenerate.commands : ngInitAllCommands; // explicit commands init to avoid ctor cycles
 import nijigenerate.core.i18n;
 import nijigenerate.io;
 import nijigenerate.io.autosave;
@@ -86,6 +88,12 @@ int main(string[] args)
 
         // Initialize default post processing shader
         inPostProcessingAddBasicLighting();
+
+        // Initialize command registries explicitly (avoid module ctor cycles)
+        ngInitAllCommands();
+
+        // Register default shortcuts (decoupled from core.shortcut to avoid cycles)
+        ngRegisterDefaultShortcuts();
 
         // Open or create project
         if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);

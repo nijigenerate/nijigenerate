@@ -7,7 +7,6 @@
 */
 module nijigenerate.windows.flipconfig;
 import nijigenerate.windows.base;
-import nijigenerate.windows.settings;
 //import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate;
@@ -376,7 +375,6 @@ protected:
     override
     void onBeginUpdate() {
         flags |= ImGuiWindowFlags.NoSavedSettings;
-        incIsSettingsOpen = true;
         
         ImVec2 wpos = ImVec2(
             igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
@@ -536,4 +534,3 @@ public:
         flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     }
 }
-

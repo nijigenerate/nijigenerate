@@ -41,8 +41,8 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
 }
 
 private:
-// Pre-register all tool-mode commands at program startup
-static this()
+// Explicit init to pre-register tool-mode commands
+void ngInitMesheditorToolCommands()
 {
     foreach (info; incGetToolInfo()) {
         ensureSelectToolModeCommand(info.mode());

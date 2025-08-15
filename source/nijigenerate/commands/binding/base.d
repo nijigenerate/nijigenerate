@@ -28,6 +28,8 @@ import nijigenerate.utils;
 import std.algorithm.searching : countUntil;
 import std.algorithm.sorting : sort;
 import std.algorithm.mutation : remove;
+import std.array : array;
+import nijigenerate.core.shortcut : ngSetParamPointProvider, ngSetSelectedBindingsProvider;
 
 
 ParameterBinding[][nijilive.core.Resource] cParamBindingEntries;
@@ -41,6 +43,13 @@ vec2u cClipboardPoint;
 ParameterBinding[BindTarget] cClipboardBindings;
 Parameter cClipboardParameter = null;
 bool selectedOnly = false;
+
+// Register providers for shortcut context without introducing back imports in core.shortcut
+void ngInitBindingProviders()
+{
+    ngSetParamPointProvider(() => cParamPoint);
+    ngSetSelectedBindingsProvider(() => cSelectedBindings.byValue().array);
+}
 
 void refreshBindingList(Parameter param, bool selectedOnly = false) {
     // Filter selection to remove anything that went away

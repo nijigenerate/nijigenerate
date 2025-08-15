@@ -96,17 +96,14 @@ enum ParamCommand {
 
 
 Command[ParamCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!ParamCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(ParamCommand.Add1DParameter, -1, 1));
-        mixin(registerCommand!(ParamCommand.Add2DParameter, -1, 1));
+void ngInitCommands(T)() if (is(T == ParamCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!ParamCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(ParamCommand.Add1DParameter, -1, 1));
+    mixin(registerCommand!(ParamCommand.Add2DParameter, -1, 1));
 }

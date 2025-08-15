@@ -3,7 +3,8 @@ module nijigenerate.commands.puppet.edit;
 import nijigenerate.commands.base;
 import nijilive;
 import nijigenerate.core.actionstack;
-import nijigenerate.windows;
+import nijigenerate.windows;           // incPushWindow
+import nijigenerate.windows.settings;  // SettingsWindow class
 
 class UndoCommand : ExCommand!() {
     this() { super("Undo", "Undo last action"); }
@@ -38,16 +39,12 @@ enum EditCommand {
 
 
 Command[EditCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!EditCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-//        mixin(registerCommand!(NodeCommand.MoveNode, null, 0));
+void ngInitCommands(T)() if (is(T == EditCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!EditCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
 }

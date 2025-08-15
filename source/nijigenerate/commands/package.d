@@ -30,6 +30,17 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.tool.commands,
     nijigenerate.commands.viewport.control.commands,
     );
+
+// Explicit initialization to avoid module constructor cycles
+// Discover and initialize commands for each enum key present in AllCommandMaps.
+void ngInitAllCommands()
+{
+    static foreach (AA; AllCommandMaps) {
+        static if (__traits(compiles, { ngInitCommands!(KeyTypeOfAA!(AA))(); })) {
+            ngInitCommands!(KeyTypeOfAA!(AA))();
+        }
+    }
+}
 /*
 private {
     static this() {

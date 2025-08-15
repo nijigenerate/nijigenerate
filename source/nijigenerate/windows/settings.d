@@ -15,12 +15,14 @@ import nijigenerate.core.window;
 import nijigenerate.core.dpi;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.i18n;
+import nijigenerate.core.shortcut; // shortcut customization
 import nijigenerate.io;
 import nijigenerate.io.autosave;
 import std.string;
 import nijigenerate.utils.link;
 import i18n;
 import inmath;
+import nijigenerate.commands; // list command maps per category
 
 bool incIsSettingsOpen;
 
@@ -28,7 +30,8 @@ enum SettingsPane : string {
     LookAndFeel = "Look and Feel",
     Viewport = "Viewport",
     Accessibility = "Accessbility",
-    FileHandling = "File Handling"
+    FileHandling = "File Handling",
+    Shotcuts = "Shotcuts",
 }
 
 /**
@@ -44,6 +47,12 @@ private:
     float targetUIScale;
 
     SettingsPane settingsPane = SettingsPane.LookAndFeel;
+
+    // Shortcut capture state
+    bool capturingShortcut = false;
+    Command capturingCommand;
+    bool capturingRepeat = false;
+    string capturingPreview;
 
     void beginSection(const(char)* title) {
         incBeginCategory(title, IncCategoryFlags.NoCollapse);
@@ -97,6 +106,10 @@ protected:
 
                 if (igSelectable(__("File Handling"), settingsPane == SettingsPane.FileHandling)) {
                     settingsPane = SettingsPane.FileHandling;
+                }
+
+                if (igSelectable(__("Shotcuts"), settingsPane == SettingsPane.Shotcuts)) {
+                    settingsPane = SettingsPane.Shotcuts;
                 }
             igPopTextWrapPos();
         }
@@ -165,6 +178,9 @@ protected:
                                 }
                             endSection();
                         }
+                        break;
+                    case SettingsPane.Shotcuts:
+                        drawShotcutsPane();
                         break;
                     case SettingsPane.Accessibility:
                         beginSection(__("Accessibility"));
@@ -273,5 +289,136 @@ public:
         super(_("Settings"));
         targetUIScale = incGetUIScale();
         tmpUIScale = cast(int)(incGetUIScale()*100);
+    }
+
+protected:
+    // Render a simple 2-column table for a commands AA (enum => Command)
+    void renderCommandTable(alias CmdsAA)(const(char)* title)
+    {
+        beginSection(title);
+        enum ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchSame;
+        if (igBeginTable(title, 3, flags, ImVec2(0, 0), 0.0)) {
+            igTableSetupColumn(__("Action"), ImGuiTableColumnFlags.None, 0.6, 0);
+            igTableSetupColumn(__("Shortcut"), ImGuiTableColumnFlags.None, 0.2, 1);
+            igTableSetupColumn(__("Edit"), ImGuiTableColumnFlags.None, 0.2, 2);
+            igTableHeadersRow();
+
+            foreach (k, cmd; CmdsAA) {
+                igTableNextRow(ImGuiTableRowFlags.None, 0.0);
+                igTableSetColumnIndex(0);
+                auto lbl = cmd.label();
+                incText(lbl);
+
+                igTableSetColumnIndex(1);
+                import nijigenerate.core.shortcut : ngShortcutFor;
+                auto sc = ngShortcutFor(cmd);
+                if (capturingShortcut && (capturingCommand is cmd)) {
+                    // Live preview while capturing
+                    incTextColored(ImVec4(0.9, 0.7, 0.2, 1), capturingPreview.length ? capturingPreview : _("Press keys..."));
+                } else {
+                    incText(sc.length ? sc : _("<none>"));
+                }
+
+                igTableSetColumnIndex(2);
+                auto setLbl = __("Set");
+                igPushID(cast(int)k);
+                if (incButtonColored(setLbl, ImVec2(0, 0))) {
+                    capturingShortcut = true;
+                    capturingCommand = cmd;
+                    capturingPreview = "";
+                    capturingRepeat = false;
+                }
+                igSameLine(0, 4);
+                auto clrLbl = __("Clear");
+                if (incButtonColored(clrLbl, ImVec2(0, 0))) {
+                    ngClearShortcutFor(cmd);
+                }
+                igPopID();
+            }
+            igEndTable();
+        }
+        endSection();
+    }
+
+    void captureShortcutUI()
+    {
+        if (!capturingShortcut) return;
+
+        // Capture input state and form a shortcut string from pressed key + modifiers
+        auto io = igGetIO();
+
+        // UI: small inline capture toolbar
+        igSeparator();
+        incTextColored(ImVec4(0.9, 0.7, 0.2, 1), _("Capturing shortcut..."));
+        igSameLine(0, 8);
+        if (ngCheckbox(__("Repeat"), &capturingRepeat)) {
+            // no-op, state toggled
+        }
+        igSameLine(0, 8);
+        if (incButtonColored(__("Cancel"), ImVec2(0, 0))) {
+            capturingShortcut = false;
+            capturingCommand = null;
+            capturingPreview = "";
+        }
+
+        // Recognized keys to bind
+        static immutable string[] keys = [
+            "A","B","C","D","E","F","G","H","I","J","K","L","M",
+            "N","O","P","Q","R","S","T","U","V","W","X","Y","Z",
+            "0","1","2","3","4","5","6","7","8","9",
+            "F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12",
+            "Left","Right","Up","Down"
+        ];
+
+        import nijigenerate.core.input : incKeyScancode, ngFormatShortcut;
+
+        string pressedKey;
+        foreach (k; keys) {
+            auto sc = incKeyScancode(k);
+            if (sc != ImGuiKey.None && igIsKeyPressed(sc, false)) {
+                pressedKey = k;
+                break;
+            }
+        }
+
+        // Update preview text even when no confirm yet
+        string preview = ngFormatShortcut(io.KeyCtrl, io.KeyAlt, io.KeyShift, io.KeySuper, pressedKey);
+        capturingPreview = preview;
+
+        // Confirm on Enter or on key press with any modifier
+        if (pressedKey.length) {
+            if (capturingCommand !is null) {
+                // Commit shortcut
+                ngClearShortcutFor(capturingCommand);
+                ngRegisterShortcut(preview, capturingCommand, capturingRepeat);
+            }
+            capturingShortcut = false;
+            capturingCommand = null;
+            capturingPreview = "";
+        }
+        igSeparator();
+    }
+
+    void drawShotcutsPane()
+    {
+        beginSection(__("Shotcuts"));
+            incText(_("Assign shortcuts to commands. Click Set and press keys. Use Clear to remove a binding."));
+        endSection();
+
+        // Inline capture UI (if active)
+        captureShortcutUI();
+
+        // Group by command categories
+        renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
+        renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
+        renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
+        renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
+        renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
+        renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
+        renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
+        renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
+        renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
+        renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
+        renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
     }
 }

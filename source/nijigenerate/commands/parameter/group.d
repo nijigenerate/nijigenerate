@@ -79,17 +79,14 @@ enum GroupCommand {
 }
 
 Command[GroupCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!GroupCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(GroupCommand.MoveParameter, null, 0));
-        mixin(registerCommand!(GroupCommand.CreateParamGroup, 0));
+void ngInitCommands(T)() if (is(T == GroupCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!GroupCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(GroupCommand.MoveParameter, null, 0));
+    mixin(registerCommand!(GroupCommand.CreateParamGroup, 0));
 }

@@ -2,7 +2,7 @@ module nijigenerate.commands.viewport.control;
 
 import nijigenerate.commands.base;
 import nijigenerate.viewport.model.onionslice;
-import nijigenerate.viewport; // for incViewportTargetZoom/Position and related globals
+import nijigenerate.viewport.base; // import only base to avoid package static ctor cycles
 import nijigenerate.windows.flipconfig;
 import nijigenerate.windows.automeshbatch;
 import nijigenerate.windows;          // incPushWindow
@@ -106,12 +106,12 @@ enum ViewportCommand {
 }
 
 Command[ViewportCommand] commands;
-private {
-    static this() {
-        import std.traits : EnumMembers;
-        static foreach (name; EnumMembers!ViewportCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
+
+void ngInitCommands(T)() if (is(T == ViewportCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!ViewportCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
 }

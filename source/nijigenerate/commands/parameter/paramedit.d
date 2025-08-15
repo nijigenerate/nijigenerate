@@ -351,17 +351,14 @@ enum ParameditCommand {
 import nijigenerate.commands.base : registerCommand;
 
 Command[ParameditCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!ParameditCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(ParameditCommand.LinkTo, cast(Parameter)null, 0, 0));
-        mixin(registerCommand!(ParameditCommand.ToggleParameterArm, 0));
+void ngInitCommands(T)() if (is(T == ParameditCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!ParameditCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(ParameditCommand.LinkTo, cast(Parameter)null, 0, 0));
+    mixin(registerCommand!(ParameditCommand.ToggleParameterArm, 0));
 }

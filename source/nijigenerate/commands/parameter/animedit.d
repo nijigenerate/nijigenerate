@@ -33,13 +33,12 @@ import std.array : join;
 import std.string : format;
 
 Command[AnimeditCommand] commands;
-private {
-    static this() {
-        import std.traits : EnumMembers;
 
-        static foreach (name; EnumMembers!AnimeditCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
+void ngInitCommands(T)() if (is(T == AnimeditCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!AnimeditCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
 }

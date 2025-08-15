@@ -90,16 +90,13 @@ enum ViewCommand {
 
 
 Command[ViewCommand] commands;
-private {
 
-    static this() {
-        import std.traits : EnumMembers;
-
-        static foreach (name; EnumMembers!ViewCommand) {
-            static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-                mixin(registerCommand!(name));
-        }
-
-        mixin(registerCommand!(ViewCommand.SaveScreenshot, ""));
+void ngInitCommands(T)() if (is(T == ViewCommand))
+{
+    import std.traits : EnumMembers;
+    static foreach (name; EnumMembers!ViewCommand) {
+        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
+            mixin(registerCommand!(name));
     }
+    mixin(registerCommand!(ViewCommand.SaveScreenshot, ""));
 }

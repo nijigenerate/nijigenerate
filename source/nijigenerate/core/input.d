@@ -237,6 +237,20 @@ private enum string ngTokAlt   = _kImpl!"Alt"();
 private enum string ngTokCtrl  = _kImpl!"Ctrl"();
 private enum string ngTokShift = _kImpl!"Shift"();
 
+// Public helper to format a shortcut string for the current OS labels
+// Example: ngFormatShortcut(true,false,true,false,"K") => "Ctrl+Shift+K" (Windows/Linux) or "^+⇧+K" (macOS mapping)
+string ngFormatShortcut(bool ctrl, bool alt, bool shift, bool superKey, string key)
+{
+    string res;
+    if (ctrl)  res ~= (res.length ? "+" : "") ~ ngTokCtrl;
+    if (alt)   res ~= (res.length ? "+" : "") ~ ngTokAlt;
+    if (shift) res ~= (res.length ? "+" : "") ~ ngTokShift;
+    if (superKey) res ~= (res.length ? "+" : "") ~ ngTokSuper;
+    if (key.length)
+        res ~= (res.length ? "+" : "") ~ key;
+    return res;
+}
+
 // Parse a shortcut string produced by _K and test against current IO state
 bool incShortcut(string s, bool repeat=false) {
     auto io = igGetIO();
