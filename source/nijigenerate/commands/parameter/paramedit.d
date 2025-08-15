@@ -305,7 +305,7 @@ class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the inde
             if (ctx.parameters.length != 0) {
                 auto param = ctx.parameters[0];
  
-                if (ctx.puppet == param) {
+                if (incArmedParameter() == param) {
                     incDisarmParameter();
                 } else {
                     param.value = param.getClosestKeypointValue();
