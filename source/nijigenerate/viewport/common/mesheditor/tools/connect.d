@@ -110,6 +110,7 @@ class ToolInfoImpl(T: ConnectTool) : ToolInfoBase!(T) {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) { return !deformOnly; }
     override VertexToolMode mode() { return VertexToolMode.Connect; };
     override string icon() { return "";}
     override string description() { return _("Edge Tool");}

@@ -78,6 +78,10 @@ interface ToolInfo {
 
     /// newTool returns new instance of tool.
     Tool newTool();
+
+    /// Whether this tool can be used in the current context.
+    /// Defaults to true; specific ToolInfoImpl may restrict by mode or target types.
+    bool canUse(bool deformOnly, Node[] targets);
 }
 
 
@@ -111,4 +115,6 @@ class ToolInfoBase(T) : ToolInfo {
     abstract string description();
     override
     Tool newTool() { return new T; }
+
+    override bool canUse(bool deformOnly, Node[] targets) { return true; }
 }
