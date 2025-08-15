@@ -420,5 +420,8 @@ protected:
         renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
         renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
         renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
+
+        // Mesh editor tool modes (dynamically generated per mode)
+        renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
     }
 }

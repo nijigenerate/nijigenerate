@@ -20,6 +20,17 @@ class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode"
         // Only set current mode indicator; UI flow performs actual setup
         editor.setToolMode(mode);
     }
+
+    override string label() {
+        // Enrich label with tool description for better UI listing
+        foreach (info; incGetToolInfo()) {
+            if (info.mode() == mode) {
+                return "Select Tool: " ~ info.description();
+            }
+        }
+        import std.conv : to;
+        return "Select Tool: " ~ mode.to!string;
+    }
 }
 
 //
@@ -41,8 +52,8 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
 }
 
 private:
-// Explicit init to pre-register tool-mode commands
-void ngInitMesheditorToolCommands()
+// Template-based init for VertexToolMode
+void ngInitCommands(T)() if (is(T == VertexToolMode))
 {
     foreach (info; incGetToolInfo()) {
         ensureSelectToolModeCommand(info.mode());

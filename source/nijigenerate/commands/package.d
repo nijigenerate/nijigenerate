@@ -11,6 +11,7 @@ public import nijigenerate.commands.puppet.edit;
 public import nijigenerate.commands.puppet.view;
 public import nijigenerate.commands.puppet.tool;
 public import nijigenerate.commands.viewport.control;
+public import nijigenerate.commands.mesheditor.tool;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
@@ -29,6 +30,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.view.commands,
     nijigenerate.commands.puppet.tool.commands,
     nijigenerate.commands.viewport.control.commands,
+    nijigenerate.commands.mesheditor.tool.selectToolModeCommands,
     );
 
 // Explicit initialization to avoid module constructor cycles
