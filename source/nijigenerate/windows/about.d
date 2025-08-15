@@ -13,6 +13,7 @@ import nijigenerate.widgets.markdown;
 import nijigenerate.widgets.button;
 import nijigenerate.windows;
 import nijigenerate.core;
+import nijigenerate.core.logo;
 import nijigenerate;
 import std.string;
 import nijigenerate.utils.link;

@@ -130,6 +130,11 @@ public:
         return toolMode;
     }
 
+    // Only update current mode indicator (no side effects)
+    void setToolMode(VertexToolMode mode) {
+        this.toolMode = mode;
+    }
+
     void viewportTools() {
         igSetWindowFontScale(1.30);
             igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(1, 1));
@@ -137,7 +142,10 @@ public:
                 auto info = incGetToolInfo();
                 foreach (i; info) {
                     if (i.viewportTools(deformOnly, getToolMode(), editors)) {
-                        toolMode = i.mode();
+                        import nijigenerate.commands.base : Context;
+                        import nijigenerate.commands.mesheditor.tool : ensureSelectToolModeCommand;
+                        auto ctx = new Context();
+                        ensureSelectToolModeCommand(i.mode()).run(ctx);
                     }
                 }
 
@@ -311,4 +319,3 @@ public:
     }
 
 }
-

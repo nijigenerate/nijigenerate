@@ -7,7 +7,7 @@
 */
 module nijigenerate.widgets.button;
 import nijigenerate.widgets;
-import nijigenerate.core;
+//import nijigenerate.core;
 import nijilive;
 import std.math : isFinite;
 import std.string;

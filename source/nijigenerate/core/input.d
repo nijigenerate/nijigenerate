@@ -1,10 +1,11 @@
 module nijigenerate.core.input;
-import nijigenerate.core;
+import nijigenerate.core.dpi;
 import nijilive.core;
 import nijilive.math;
 import bindbc.imgui;
 import bindbc.sdl;
 import std.algorithm;
+import std.string : startsWith, split;
 
 private {
     vec2 mpos;
@@ -188,30 +189,87 @@ ImGuiKey incKeyScancode(string c) {
     }
 }
 
+// ===== Compile-time helper to format shortcuts per OS =====
+private string _kImpl(string spec)()
+{
+    // spec uses '-' as separator, e.g., "Super-X", "Ctrl-Shift-Z"
+    string res;
+    bool first = true;
+    size_t i = 0, start = 0;
+    while (i <= spec.length) {
+        if (i == spec.length || spec[i] == '-') {
+            auto tok = spec[start .. i];
+            string mapped;
+            // Map canonical token to OS-specific label
+            if (tok == "Super") {
+                version (OSX) mapped = "\ueae7"; // ⌘
+                else mapped = "Super";
+            } else if (tok == "Alt") {
+                version (OSX) mapped = "\ueae8"; // ⌥
+                else mapped = "Alt";
+            } else if (tok == "Ctrl") {
+                version (OSX) mapped = "\ueae6"; // ^
+                else mapped = "Ctrl";
+            } else if (tok == "Shift") {
+                // Keep text label for now (could map to ⇧ on macOS later)
+                mapped = "Shift";
+            } else {
+                mapped = tok; // key token like "N", "F5", etc.
+            }
+            if (!first) res ~= "+";
+            res ~= mapped;
+            first = false;
+            start = i + 1;
+        }
+        ++i;
+    }
+    return res;
+}
+
+template _K(string spec)
+{
+    enum _K = _kImpl!spec();
+}
+
+// OS-specific modifier tokens used for parsing
+private enum string ngTokSuper = _kImpl!"Super"();
+private enum string ngTokAlt   = _kImpl!"Alt"();
+private enum string ngTokCtrl  = _kImpl!"Ctrl"();
+private enum string ngTokShift = _kImpl!"Shift"();
+
+// Parse a shortcut string produced by _K and test against current IO state
 bool incShortcut(string s, bool repeat=false) {
     auto io = igGetIO();
 
-    if(io.KeyCtrl && io.KeyAlt) return false;
+    // Split into tokens on '+'; last token is the key, others are modifiers
+    string[] parts;
+    size_t start = 0;
+    for (size_t i = 0; i <= s.length; ++i) {
+        if (i == s.length || s[i] == '+') {
+            parts ~= s[start .. i];
+            start = i + 1;
+        }
+    }
+    if (parts.length == 0) return false;
 
-    if (startsWith(s, "Ctrl+Shift+")) {
-        if (!(io.KeyCtrl && !io.KeyAlt && io.KeyShift)) return false;
-        s = s[11..$];
-    }
-    if (startsWith(s, "Ctrl+")) {
-        if (!(io.KeyCtrl && !io.KeyAlt && !io.KeyShift)) return false;
-        s = s[5..$];
-    }
-    if (startsWith(s, "Alt+")) {
-        if (!(!io.KeyCtrl && io.KeyAlt && !io.KeyShift)) return false;
-        s = s[4..$];
-    }
-    if (startsWith(s, "Shift+")) {
-        if (!(!io.KeyCtrl && !io.KeyAlt && io.KeyShift)) return false;
-        s = s[6..$];
+    bool needCtrl = false, needAlt = false, needShift = false, needSuper = false;
+    foreach (i, tok; parts[0 .. $-1]) {
+        if (tok == ngTokCtrl) needCtrl = true;
+        else if (tok == ngTokAlt) needAlt = true;
+        else if (tok == ngTokShift) needShift = true;
+        else if (tok == ngTokSuper) needSuper = true;
+        else {
+            // Unknown token in modifiers; reject
+            return false;
+        }
     }
 
-    ImGuiKey scancode = incKeyScancode(s);
+    // Enforce exact modifier match
+    if (!(io.KeyCtrl == needCtrl && io.KeyAlt == needAlt && io.KeyShift == needShift && io.KeySuper == needSuper))
+        return false;
+
+    auto keyTok = parts[$-1];
+    ImGuiKey scancode = incKeyScancode(keyTok);
     if (scancode == ImGuiKey.None) return false;
-
     return igIsKeyPressed(scancode, repeat);
 }
