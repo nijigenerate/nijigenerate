@@ -29,3 +29,12 @@ ToolInfo[] incGetToolInfo() {
     }
     return infoList;
 }
+
+ToolInfo ngGetToolInfoOf(VertexToolMode mode) {
+    foreach (info; infoList) {
+        if (info.mode == mode) {
+            return info;
+        }
+    }
+    return null;
+}

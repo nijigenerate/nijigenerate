@@ -372,6 +372,7 @@ class ToolInfoImpl(T: GridTool) : ToolInfoBase!(T) {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) { return !deformOnly; }
     override VertexToolMode mode() { return VertexToolMode.Grid; };
     override string icon() { return "";}
     override string description() { return _("Grid Vertex Tool");}

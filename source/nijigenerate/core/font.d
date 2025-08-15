@@ -6,7 +6,8 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.core.font;
-import nijigenerate.core;
+import nijigenerate.core.path;
+import nijigenerate.core.settings;
 import bindbc.imgui;
 import core.stdc.stdlib : malloc;
 import core.stdc.string : memcpy;

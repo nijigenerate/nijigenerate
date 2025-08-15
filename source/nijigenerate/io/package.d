@@ -21,11 +21,12 @@ import std.uri;
 import i18n;
 
 import bindbc.sdl;
-import nijigenerate.core;
+import nijigenerate.core.settings;
 
 version (linux) {
     import dportals.filechooser;
     import dportals.promise;
+    import nijigenerate.core.window;
 }
 
 private {

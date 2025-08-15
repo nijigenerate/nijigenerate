@@ -21,6 +21,7 @@ import nijilive.core.dbg;
 import bindbc.imgui;
 import std.string;
 import i18n;
+import nijigenerate.commands;
 
 /**
     A viewport
@@ -287,7 +288,9 @@ protected:
                 if (incViewportTargetZoom != 1) {
                     igSameLine(0, 8);
                     if (incButtonColored("", ImVec2(0, 0))) {
-                        incViewportTargetZoom = 1;
+                        auto ctx = new Context;
+                        if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                        cmd!(ViewportCommand.ResetViewportZoom)(ctx);
                     }
                 }
 
@@ -299,7 +302,9 @@ protected:
                 if (incViewportTargetPosition != vec2(0)) {
                     igSameLine(0, 8);
                     if (incButtonColored("##2", ImVec2(0, 0))) {
-                        incViewportTargetPosition = vec2(0, 0);
+                        auto ctx = new Context;
+                        if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                        cmd!(ViewportCommand.ResetViewportPosition)(ctx);
                     }
                 }
 
@@ -317,8 +322,9 @@ protected:
         if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
 
             if (incButtonColored("\ue8d4", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incShouldMirrorViewport = !incShouldMirrorViewport;
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.ToggleMirrorView)(ctx);
             }
             incTooltip(_("Mirror View"));
 
@@ -326,58 +332,62 @@ protected:
 
             auto onion = OnionSlice.singleton;
             if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
-                onion.toggle();
+                auto ctx = new Context;
+                cmd!(ViewportCommand.ToggleOnionSlice)(ctx);
             }
             incTooltip(_("Onion slice"));
 
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incActivePuppet().enableDrivers = !incActivePuppet().enableDrivers;
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.TogglePhysics)(ctx);
             }
             incTooltip(_("Enable physics"));
 
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0), incShouldPostProcess ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incShouldPostProcess = !incShouldPostProcess;
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.TogglePostProcess)(ctx);
             }
             incTooltip(_("Enable post processing"));
 
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet() !is null)
-                    incActivePuppet().resetDrivers();
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.ResetPhysics)(ctx);
             }
             incTooltip(_("Reset physics"));
 
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet()) {
-                    foreach(ref parameter; incActivePuppet().parameters) {
-                        parameter.value = parameter.defaults;
-                    }
-                }
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.ResetParameters)(ctx);
             }
             incTooltip(_("Reset parameters"));
             
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet() !is null)
-                    incPushWindow(new FlipPairWindow());
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.OpenFlipPairWindow)(ctx);
             }
             incTooltip(_("Configure Flip Pairings"));
             
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0))) {
-                if (incActivePuppet() !is null)
-                    incModalAdd(new AutoMeshBatchWindow());
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.OpenAutomeshBatching)(ctx);
             }
             incTooltip(_("Automesh Batching"));
 

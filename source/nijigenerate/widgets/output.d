@@ -20,6 +20,7 @@ import nijigenerate.panels.parameters;
 import nijigenerate.panels.nodes;
 import nijigenerate.ext;
 import nijigenerate.core.input;
+import nijigenerate.commands.parameter.base;
 
 private {
     string parameterGrabStr;

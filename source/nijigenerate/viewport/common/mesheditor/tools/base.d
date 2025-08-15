@@ -55,6 +55,12 @@ interface Draggable {
 /// ToolInfo holds meta information and UI handling code for tools.
 /// Objects of this class are instantiated only once in the program, and stored into infoList array.
 interface ToolInfo {
+    /// setupToolMode is called when tool are selected and being active.
+    /// This function setup all required setup for IncMeshEditorOne level.
+    /// Originally implemented directly in IncMeshEditorOneImpl, but move here
+    /// in order to decouple tools and oprations.
+    void setupToolMode(IncMeshEditorOne e, VertexToolMode mode);
+
     /// viewportTools is called from MeshEditor, and displays tool icons
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors);
 
@@ -72,6 +78,10 @@ interface ToolInfo {
 
     /// newTool returns new instance of tool.
     Tool newTool();
+
+    /// Whether this tool can be used in the current context.
+    /// Defaults to true; specific ToolInfoImpl may restrict by mode or target types.
+    bool canUse(bool deformOnly, Node[] targets);
 }
 
 
@@ -79,10 +89,7 @@ interface ToolInfo {
 /// Every instance of ToolInfo must inherit this class, and should be declared as ToolInfoImpl(class) template.
 class ToolInfoBase(T) : ToolInfo {
 
-    /// setupToolMode is called when tool are selected and being active.
-    /// This function setup all required setup for IncMeshEditorOne level.
-    /// Originally implemented directly in IncMeshEditorOneImpl, but move here
-    /// in order to decouple tools and oprations.
+    override
     void setupToolMode(IncMeshEditorOne e, VertexToolMode mode) {
         e.finalizeToolMode();
         e.setToolMode(mode);
@@ -95,9 +102,6 @@ class ToolInfoBase(T) : ToolInfo {
         bool result = false;
         if (incButtonColored(icon.toStringz, ImVec2(0, 0), toolMode == mode ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
             result = true;
-            foreach (e; editors) {
-                setupToolMode(e, mode);
-            }
         }
         incTooltip(description);
         return result;
@@ -111,4 +115,6 @@ class ToolInfoBase(T) : ToolInfo {
     abstract string description();
     override
     Tool newTool() { return new T; }
+
+    override bool canUse(bool deformOnly, Node[] targets) { return true; }
 }

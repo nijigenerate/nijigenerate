@@ -2,8 +2,11 @@ module nijigenerate.viewport.base;
 
 import nijilive;
 import nijigenerate;
-import nijigenerate.core;
+//import nijigenerate.core;
 import nijigenerate.core.input;
+import nijigenerate.core.actionstack;
+import nijigenerate.core.settings;
+import nijigenerate.core.dpi;
 import nijigenerate.actions;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
@@ -23,6 +26,8 @@ private {
     enum HandleSize = 24;
     MainViewport viewport;
 }
+
+bool incShouldPostProcess = false;
 
 //
 //          VIEWPORT CAMERA HANDLING

@@ -41,3 +41,10 @@ build-aux/windows/wix/packages
 build-aux/windows/wix/.vs
 build-aux/windows/wix/bin
 *.msi
+\n# Local build logs (exclude from VCS)
+build.log
+build.err
+
+# Exclude agent guidance doc from commits
+AGENTS.md
+AGENT.md

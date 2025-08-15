@@ -552,6 +552,10 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         }
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        import std.algorithm.searching : all;
+        return targets.all!(k => cast(PathDeformer)k !is null);
+    }
     
     override
     bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) { 

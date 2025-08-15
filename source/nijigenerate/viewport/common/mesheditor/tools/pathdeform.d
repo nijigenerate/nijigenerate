@@ -398,6 +398,10 @@ class ToolInfoImpl(T: PathDeformTool) : ToolInfoBase!(T) {
         }
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        import std.algorithm.searching : all;
+        return deformOnly && targets.all!(k => cast(Drawable)k !is null || cast(Deformable)k is null);
+    }
     
     override
     bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) { 

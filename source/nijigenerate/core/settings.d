@@ -80,14 +80,14 @@ void incSettingsSave() {
 /**
     Sets a setting
 */
-void incSettingsSet(T)(string name, T value) if (!is(T == string[]))  {
+void incSettingsSet(T)(string name, T value) if (!(is(T == string[]) || is(T == string[string])))  {
     settings[name] = value;
 }
 
 /**
     Gets a value from the settings store
 */
-T incSettingsGet(T)(string name) if (!is(T == string[])) {
+T incSettingsGet(T)(string name) if (!(is(T == string[]) || is(T == string[string]))) {
     if (name in settings) {
         return settings[name].get!T;
     }
@@ -109,12 +109,37 @@ T incSettingsGet(T)(string name) if (is(T == string[])) {
 }
 
 /**
+    Gets a value from the settings store for string-to-string maps
+*/
+T incSettingsGet(T)(string name) if (is(T == string[string])) {
+    if (name in settings) {
+        string[string] res;
+        foreach (k, v; settings[name].object) {
+            res[k] = v.get!string;
+        }
+        return cast(T)res;
+    }
+    return T.init;
+}
+
+/**
     Sets a setting
 */
 void incSettingsSet(T)(string name, T value) if (is(T == string[]))  {
     JSONValue[] data;
     foreach(i; 0..value.length) {
         data ~= JSONValue(value[i]);
+    }
+    settings[name] = JSONValue(data);
+}
+
+/**
+    Sets a setting for string-to-string maps
+*/
+void incSettingsSet(T)(string name, T value) if (is(T == string[string]))  {
+    JSONValue[string] data;
+    foreach (k, v; value) {
+        data[k] = JSONValue(v);
     }
     settings[name] = JSONValue(data);
 }

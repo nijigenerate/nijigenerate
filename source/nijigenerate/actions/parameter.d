@@ -22,13 +22,16 @@ class ParameterAddRemoveAction(bool added = true) : Action {
 public:
     Parameter self;
     Driver[] drivers;
-    Parameter[]* parentList;
+//    Parameter[]* parentList;
     ExParameterGroup originalParent;
     long indexInGroup;
 
     this(Parameter self, Parameter[]* parentList) {
+        this(self);
+    }
+    this(Parameter self) {
         this.self = self;
-        this.parentList = parentList;
+//        this.parentList = parentList;
 
         auto exParam = cast(ExParameter)self;
         originalParent = (exParam !is null)? exParam.getParent(): null;

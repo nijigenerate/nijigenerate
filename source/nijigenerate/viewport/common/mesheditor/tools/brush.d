@@ -244,6 +244,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) { return deformOnly; }
     override
     bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
