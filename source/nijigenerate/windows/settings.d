@@ -289,6 +289,9 @@ public:
         super(_("Settings"));
         targetUIScale = incGetUIScale();
         tmpUIScale = cast(int)(incGetUIScale()*100);
+        // Load persisted shortcuts when opening settings
+        import nijigenerate.core.shortcut : ngLoadShortcutsFromSettings;
+        ngLoadShortcutsFromSettings();
     }
 
 protected:
@@ -346,6 +349,8 @@ protected:
                     auto clrLbl = __("Clear");
                     if (incButtonColored(clrLbl, ImVec2(0, 0))) {
                         ngClearShortcutFor(cmd);
+                        import nijigenerate.core.shortcut : ngSaveShortcutsToSettings;
+                        ngSaveShortcutsToSettings();
                     }
                     igPopID();
                 }
@@ -406,6 +411,8 @@ protected:
                 // Commit shortcut
                 ngClearShortcutFor(capturingCommand);
                 ngRegisterShortcut(preview, capturingCommand, capturingRepeat);
+                import nijigenerate.core.shortcut : ngSaveShortcutsToSettings;
+                ngSaveShortcutsToSettings();
             }
             capturingShortcut = false;
             capturingCommand = null;
