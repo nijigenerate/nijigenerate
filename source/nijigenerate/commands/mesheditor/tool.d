@@ -7,9 +7,10 @@ alias VertexToolMode = nijigenerate.viewport.common.mesheditor.tools.enums.Verte
 // incVertexViewportGetEditor may not exist on older commits; import if available
 static import nijigenerate.viewport.vertex;
 // Access ToolInfo list to pre-register at startup
-import nijigenerate.viewport.common.mesheditor.tools : incGetToolInfo, ngGetToolInfoOf;
+import nijigenerate.viewport.common.mesheditor.tools : incGetToolInfo, ngGetToolInfoOf, ToolInfo;
 
 class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode")) {
+    ToolInfo info;
     this(VertexToolMode mode) { 
         super("Select mesh editor tool mode", mode); 
         _init();
@@ -30,7 +31,6 @@ class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode"
             if (editor is null) editor = nijigenerate.viewport.vertex.incVertexViewportGetEditor();
         }
         if (editor is null) return false;
-        auto info = ngGetToolInfoOf(mode);
         if (info is null) return false;
         return info.canUse(editor.deformOnly, editor.getTargets());
     }
@@ -44,6 +44,7 @@ class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode"
         }
         import std.conv;
         _label = "Select Tool: " ~ mode.to!string;
+        info = ngGetToolInfoOf(mode);
     }
 }
 
