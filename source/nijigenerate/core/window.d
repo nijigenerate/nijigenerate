@@ -272,13 +272,12 @@ void incOpenWindow() {
     
     incCreateContext();
 
-    ShallowTexture tex;
-
     incInitLogo();
 
     // Set X11 window icon
     version(linux) {
         if (!isWayland) {
+            auto tex = ShallowTexture(cast(ubyte[])import("icon.png"));
             SDL_SetWindowIcon(window, SDL_CreateRGBSurfaceWithFormatFrom(tex.data.ptr, tex.width, tex.height, 32, 4*tex.width,  SDL_PIXELFORMAT_RGBA32));
         }
     }
