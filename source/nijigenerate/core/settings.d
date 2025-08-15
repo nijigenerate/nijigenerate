@@ -80,14 +80,14 @@ void incSettingsSave() {
 /**
     Sets a setting
 */
-void incSettingsSet(T)(string name, T value) if (!is(T == string[]))  {
+void incSettingsSet(T)(string name, T value) if (!(is(T == string[]) || is(T == string[string])))  {
     settings[name] = value;
 }
 
 /**
     Gets a value from the settings store
 */
-T incSettingsGet(T)(string name) if (!is(T == string[])) {
+T incSettingsGet(T)(string name) if (!(is(T == string[]) || is(T == string[string]))) {
     if (name in settings) {
         return settings[name].get!T;
     }
