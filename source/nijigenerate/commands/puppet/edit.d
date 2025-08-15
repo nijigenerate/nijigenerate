@@ -12,6 +12,7 @@ class UndoCommand : ExCommand!() {
     void run(Context ctx) {
         incActionUndo();
     }
+    override bool runnable(Context ctx) { return incActionCanUndo(); }
 }
 
 class RedoCommand : ExCommand!() {
@@ -20,6 +21,7 @@ class RedoCommand : ExCommand!() {
     void run(Context ctx) {
         incActionRedo();
     }
+    override bool runnable(Context ctx) { return incActionCanRedo(); }
 }
 
 class ShowSettingsWindowCommand : ExCommand!() {

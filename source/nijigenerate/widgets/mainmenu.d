@@ -151,9 +151,10 @@ void incMainMenu() {
                     ngMenuItemFor!(EditCommand.Redo)(ctx, false, incActionCanRedo());
                     
                     igSeparator();
-                    ngMenuItemFor!(NodeCommand.CutNode)(ctx, false, false);
-                    ngMenuItemFor!(NodeCommand.CopyNode)(ctx, false, false);
-                    ngMenuItemFor!(NodeCommand.PasteNode)(ctx, false, false);
+                    // Enable via Command.runnable; no hard-coded enabled flags
+                    ngMenuItemFor!(NodeCommand.CutNode)(ctx);
+                    ngMenuItemFor!(NodeCommand.CopyNode)(ctx);
+                    ngMenuItemFor!(NodeCommand.PasteNode)(ctx);
 
                     igSeparator();
                     ngMenuItemFor!(EditCommand.ShowSettingsWindow)(ctx);

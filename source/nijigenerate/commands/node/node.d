@@ -122,6 +122,11 @@ class CutNodeCommand : ExCommand!() {
             copyToClipboard([n]);
         */
     }
+
+    override bool runnable(Context ctx) {
+        // Cut not yet implemented; keep disabled via runnable
+        return false;
+    }
 }
 
 class CopyNodeCommand : ExCommand!() {
@@ -139,6 +144,10 @@ class CopyNodeCommand : ExCommand!() {
         else
             copyToClipboard([n]);
     }
+
+    override bool runnable(Context ctx) {
+        return ctx.hasNodes && ctx.nodes.length > 0;
+    }
 }
 
 class PasteNodeCommand : ExCommand!() {
@@ -152,6 +161,10 @@ class PasteNodeCommand : ExCommand!() {
         if (clipboardNodes.length > 0) {
             pasteFromClipboard(n);
         }
+    }
+
+    override bool runnable(Context ctx) {
+        return ctx.hasNodes && ctx.nodes.length > 0 && clipboardNodes.length > 0;
     }
 }
 

@@ -102,6 +102,8 @@ interface Command {
     void run(Context context);
     string label();        // short display name for menus, i18n-applied at call site
     string description();  // longer human description
+    /// Whether this command can run in the given context
+    bool runnable(Context context);
 }
 
 abstract class ExCommand(T...) : Command {
@@ -173,6 +175,7 @@ abstract class ExCommand(T...) : Command {
     override void run(Context context) {}
     override string label() { return _label.length ? _label : _desc; }
     override string description() { return _desc; }
+    override bool runnable(Context context) { return true; }
     struct ArgMeta {
         string typeName;
         string fieldName;
@@ -294,7 +297,9 @@ Command ngMenuItemFor(alias id)(ref Context ctx, bool selected = false, bool ena
     auto shortcut = ngShortcutFor(base);
     const(char)* pShortcut = shortcut.length ? shortcut.toStringz : null;
     auto lbl = base.label();
-    if (igMenuItem(__(lbl), pShortcut, selected, enabled)) {
+    bool canRun = base.runnable(ctx);
+    bool enabledFinal = enabled && canRun;
+    if (igMenuItem(__(lbl), pShortcut, selected, enabledFinal)) {
         import nijigenerate.commands : cmd;
         cmd!id(ctx);
     }
@@ -312,7 +317,9 @@ Command ngMenuItemFor(alias id, A...)(ref Context ctx, bool selected, bool enabl
     auto shortcut = ngShortcutFor(base);
     const(char)* pShortcut = shortcut.length ? shortcut.toStringz : null;
     auto lbl = base.label();
-    if (igMenuItem(__(lbl), pShortcut, selected, enabled)) {
+    bool canRun = base.runnable(ctx);
+    bool enabledFinal = enabled && canRun;
+    if (igMenuItem(__(lbl), pShortcut, selected, enabledFinal)) {
         import nijigenerate.commands : cmd;
         cmd!id(ctx, args);
     }

@@ -107,9 +107,9 @@ void incHandleShortcuts()
     foreach (k, entry; gShortcutEntries) {
         if (incShortcut(entry.shortcut, entry.repeat)) {
             auto ctx = buildExecutionContext();
-            entry.command.run(ctx);
+            if (entry.command.runnable(ctx))
+                entry.command.run(ctx);
             break; // handle one per frame, closest match wins
         }
     }
 }
-

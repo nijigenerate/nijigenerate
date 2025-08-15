@@ -175,6 +175,10 @@ class PasteParameterCommand : ExCommand!() {
             }
         }
     }
+    override bool runnable(Context ctx) {
+        import nijigenerate.commands.binding.base : cClipboardParameter;
+        return ctx.hasParameters && ctx.parameters.length > 0 && cClipboardParameter !is null;
+    }
 }
 
 class PasteParameterWithFlipCommand : ExCommand!() {
@@ -188,6 +192,10 @@ class PasteParameterWithFlipCommand : ExCommand!() {
                 incViewportNodeDeformNotifyParamValueChanged();
             }
         }
+    }
+    override bool runnable(Context ctx) {
+        import nijigenerate.commands.binding.base : cClipboardParameter;
+        return ctx.hasParameters && ctx.parameters.length > 0 && cClipboardParameter !is null;
     }
 }
 
