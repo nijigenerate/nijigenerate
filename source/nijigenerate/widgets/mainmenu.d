@@ -236,7 +236,7 @@ void incMainMenu() {
                     igSeparator();
 
                     // Opens the directory where configuration resides in the user's file browser.
-                    ngMenuItemFor!(ToolCommand.ImportSessionData)(ctx);
+                    ngMenuItemFor!(ToolCommand.ShowImportSessionDataDialog)(ctx);
                     incTooltip(_("Imports tracking data from an exported nijilive model which has been set up in Inochi Session."));
                     
 
