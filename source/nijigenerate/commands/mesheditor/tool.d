@@ -53,7 +53,7 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
 
 private:
 // Template-based init for VertexToolMode
-void ngInitCommands(T)() if (is(T == VertexToolMode))
+void ngInitCommands(T)() if (is(T == nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode))
 {
     foreach (info; incGetToolInfo()) {
         ensureSelectToolModeCommand(info.mode());
