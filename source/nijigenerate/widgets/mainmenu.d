@@ -192,7 +192,11 @@ void incMainMenu() {
                         // Use dynamic command instance
                         auto cmdInst = ensureTogglePanelCommand(panel);
                         auto lbl = cmdInst.label();
-                        if (igMenuItem(lbl.toStringz, null, panel.visible, enabled)) {
+                        // Show shortcut hint if any
+                        import nijigenerate.core.shortcut : ngShortcutFor;
+                        auto sc = ngShortcutFor(cmdInst);
+                        const(char)* pShortcut = sc.length ? sc.toStringz : null;
+                        if (igMenuItem(lbl.toStringz, pShortcut, panel.visible, enabled)) {
                             cmdInst.run(ctx);
                         }
                         if (!enabled) {
