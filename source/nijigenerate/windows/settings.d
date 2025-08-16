@@ -468,7 +468,7 @@ protected:
             // Panels (dynamically generated per panel)
             renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Panels"));
 
-            // Convert Node To (dynamic from conversionMap)
+            // Convert Node To (dynamic per destination type; availability depends on selection)
             renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
         }
         igEndChild();

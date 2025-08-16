@@ -23,33 +23,25 @@ struct NodeTypeKey {
 Command[NodeTypeKey] addNodeCommands;
 Command[NodeTypeKey] insertNodeCommands;
 
-// Convert-To dynamic commands per (fromType -> toType)
-struct ConvertKey {
-    string fromType;
+// Convert-To dynamic commands per destination type; source type is derived from context
+struct ConvertToKey {
     string toType;
-    string toString() const { return fromType ~ "->" ~ toType; }
-    size_t toHash() const @safe nothrow @nogc {
-        import core.internal.hash : hashOf;
-        return hashOf(fromType) ^ (hashOf(toType) * 2654435761u);
-    }
-    bool opEquals(const ConvertKey rhs) const @safe nothrow @nogc {
-        return fromType == rhs.fromType && toType == rhs.toType;
-    }
+    string toString() const { return toType; }
+    size_t toHash() const @safe nothrow @nogc { import core.internal.hash : hashOf; return hashOf(toType); }
+    bool opEquals(const ConvertToKey rhs) const @safe nothrow @nogc { return toType == rhs.toType; }
 }
 
 class ConvertNodeToCommand : ExCommand!(
-    TW!(string, "fromType", "source node type"),
     TW!(string, "toType", "destination node type")
 ) {
-    this(string fromType, string toType) {
-        super("Convert To " ~ toType, fromType, toType);
+    this(string toType) {
+        super("Convert To " ~ toType, toType);
     }
     override bool runnable(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0) return false;
         auto from = ngGetCommonNodeType(ctx.nodes);
-        if (!from || from != fromType) return false;
-        // Ensure mapping exists
-        if (auto p = fromType in conversionMap) {
+        if (!from) return false;
+        if (auto p = from in conversionMap) {
             foreach (v; *p) if (v == toType) return true;
         }
         return false;
@@ -60,7 +52,7 @@ class ConvertNodeToCommand : ExCommand!(
     }
 }
 
-Command[ConvertKey] convertNodeCommands;
+Command[ConvertToKey] convertNodeCommands;
 
 private bool tryInstantiateNode(string className)
 {
@@ -123,24 +115,27 @@ void ngInitCommands(T)() if (is(T == NodeTypeKey))
     }
 }
 
-// Register all ConvertTo commands for each mapping pair
-void ngInitCommands(T)() if (is(T == ConvertKey))
+// Register all ConvertTo commands for each destination type
+void ngInitCommands(T)() if (is(T == ConvertToKey))
 {
+    string[string] added;
     foreach (from, arr; conversionMap) {
         foreach (to; arr) {
-            ConvertKey key = ConvertKey(from, to);
+            if (to in added) continue;
+            added[to] = to;
+            ConvertToKey key = ConvertToKey(to);
             if (auto p = key in convertNodeCommands) continue;
-            auto cmd = cast(Command) new ConvertNodeToCommand(from, to);
+            auto cmd = cast(Command) new ConvertNodeToCommand(to);
             convertNodeCommands[key] = cmd;
         }
     }
 }
 
-Command ensureConvertNodeCommand(string fromType, string toType)
+Command ensureConvertToCommand(string toType)
 {
-    ConvertKey key = ConvertKey(fromType, toType);
+    ConvertToKey key = ConvertToKey(toType);
     if (auto p = key in convertNodeCommands) return *p;
-    auto cmd = cast(Command) new ConvertNodeToCommand(fromType, toType);
+    auto cmd = cast(Command) new ConvertNodeToCommand(toType);
     convertNodeCommands[key] = cmd;
     return cmd;
 }

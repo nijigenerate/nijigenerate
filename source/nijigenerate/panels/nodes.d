@@ -204,7 +204,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                         incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
                         if (igMenuItem(__(toType), "", false, true)) {
-                            auto cmd = ensureConvertNodeCommand(fromType, toType);
+                            auto cmd = ensureConvertToCommand(toType);
                             cmd.run(ctx);
                         }
                     }
