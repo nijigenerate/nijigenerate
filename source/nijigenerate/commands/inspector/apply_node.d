@@ -127,6 +127,8 @@ enum InspectorNodeApplyCommand {
     ScaleY,
     PixelSnap,
     ZSort,
+    LockToRoot,
+    PinToMesh,
     OffsetX,
     OffsetY,
     // Camera
@@ -197,6 +199,7 @@ mixin(DefApply!("ScaleX",       NINode, "scaleX"));
 mixin(DefApply!("ScaleY",       NINode, "scaleY"));
 mixin(DefApply!("PixelSnap",    NINode, "pixelSnap"));
 mixin(DefApply!("ZSort",        NINode, "zSort"));
+mixin(DefApply!("PinToMesh",    NINode, "pinToMesh"));
 mixin(DefApply!("OffsetX",      NIDraw, "offsetX"));
 mixin(DefApply!("OffsetY",      NIDraw, "offsetY"));
 
@@ -250,5 +253,22 @@ void ngInitCommands(T)() if (is(T == InspectorNodeApplyCommand))
     static foreach (name; EnumMembers!InspectorNodeApplyCommand) {
         static if (__traits(compiles, { mixin(registerCommand!(name)); }))
             mixin(registerCommand!(name));
+    }
+}
+
+// Specialized behavior: LockToRoot needs inverted set + helper call
+class LockToRootCommand : ExCommand!() {
+    this() { super("Apply lockToRoot"); }
+    override void run(Context ctx) {
+        auto ni = cast(NINode) ctx.inspector;
+        if (ni is null) return;
+        if (!ctx.hasNodes) return;
+        foreach (n; ctx.nodes) {
+            if (auto t = cast(Node) n) {
+                t.lockToRoot = !mixin("ni.lockToRoot.value");
+                incLockToRootNode(t);
+            }
+        }
+        ni.capture(cast(Node[])ctx.nodes);
     }
 }
