@@ -189,8 +189,12 @@ void incMainMenu() {
                         // Skip panels that'll always be visible
                         if (panel.alwaysVisible) continue;
                         bool enabled = panel.isActive();
-                        // Command-driven toggle; label is the panel name via command.label()
-                        ngMenuItemFor!(PanelMenuCommand.TogglePanelVisibility)(ctx, panel.visible, enabled, panel);
+                        // Use dynamic command instance
+                        auto cmdInst = ensureTogglePanelCommand(panel);
+                        auto lbl = cmdInst.label();
+                        if (igMenuItem(lbl.toStringz, null, panel.visible, enabled)) {
+                            cmdInst.run(ctx);
+                        }
                         if (!enabled) {
                             incTooltip(_("Panel is not visible in current edit mode."));
                         }

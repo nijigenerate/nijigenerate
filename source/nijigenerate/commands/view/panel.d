@@ -24,20 +24,6 @@ class TogglePanelVisibilityCommand : ExCommand!(TW!(Panel, "panel", "target pane
     }
 }
 
-<<<<<<< HEAD
-enum PanelMenuCommand {
-    TogglePanelVisibility,
-}
-
-Command[PanelMenuCommand] commands;
-
-void ngInitCommands(T)() if (is(T == PanelMenuCommand))
-{
-    import std.traits : EnumMembers;
-    static foreach (name; EnumMembers!PanelMenuCommand) {
-        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-            mixin(registerCommand!(name));
-=======
 // Unique key type for panel commands (avoids generic types like string)
 struct PanelKey {
     string name;
@@ -70,6 +56,5 @@ void ngInitCommands(T)() if (is(T == PanelKey))
 {
     foreach (p; incPanels) {
         ensureTogglePanelCommand(p);
->>>>>>> ed133c9 (feat(shortcuts): move shortcut editor to Settings and add dynamic Panel toggle commands\n\n- Add commands.view.panel with PanelKey + dynamic AA and ngInitCommands to register all panels.\n- Integrate panel toggles into Settings shortcut editor and View menu using commands.\n- Remove separate shortcut window; keep editing under Settings as required.)
     }
 }
