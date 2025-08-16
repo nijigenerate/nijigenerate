@@ -43,21 +43,18 @@ private bool tryInstantiateNode(string className)
 
 private string[] discoverNodeTypes()
 {
-    // Collect candidate types from conversionMap (keys + values)
-    string[string] set;
-    foreach (k, arr; conversionMap) {
-        set[k] = k;
-        foreach (v; arr) set[v] = v;
-    }
-    string[] types = set.values;
-    // Filter by actual availability
-    string[] ok;
-    foreach (t; types) {
-        if (tryInstantiateNode(t)) ok ~= t;
-    }
-    import std.algorithm.sorting : sort;
-    ok.sort;
-    return ok;
+    // Manually list node types as defined in nodes panel menu (ngAddOrInsertNodeMenu)
+    // Keep this in sync with UI
+    return [
+        "Node",
+        "Mask",
+        "Composite",
+        "SimplePhysics",
+        "MeshGroup",
+        "DynamicComposite",
+        "PathDeformer",
+        "Camera",
+    ];
 }
 
 Command ensureAddNodeCommand(string className, string suffix = null)
@@ -86,4 +83,3 @@ void ngInitCommands(T)() if (is(T == NodeTypeKey))
         ensureInsertNodeCommand(t);
     }
 }
-
