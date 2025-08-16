@@ -36,6 +36,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.view.panel.togglePanelCommands,
     nijigenerate.commands.node.dynamic.addNodeCommands,
     nijigenerate.commands.node.dynamic.insertNodeCommands,
+    nijigenerate.commands.node.dynamic.convertNodeCommands,
     );
 
 // Explicit initialization to avoid module constructor cycles

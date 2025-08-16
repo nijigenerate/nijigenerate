@@ -204,7 +204,8 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                         incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
                         if (igMenuItem(__(toType), "", false, true)) {
-                            cmd!(NodeCommand.ConvertTo)(ctx, toType);
+                            auto cmd = ensureConvertNodeCommand(fromType, toType);
+                            cmd.run(ctx);
                         }
                     }
                     igEndMenu();
@@ -491,4 +492,3 @@ public:
     Generate nodes frame
 */
 mixin incPanel!NodesPanel;
-

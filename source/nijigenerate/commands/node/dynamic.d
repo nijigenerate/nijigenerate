@@ -2,7 +2,7 @@ module nijigenerate.commands.node.dynamic;
 
 import nijigenerate.commands.base;
 import nijigenerate.commands.node.node : AddNodeCommand, InsertNodeCommand;
-import nijigenerate.commands.node.base : conversionMap; // known types
+import nijigenerate.commands.node.base : conversionMap, ngGetCommonNodeType, ngConvertTo; // known types + helpers
 import nijilive; // inInstantiateNode
 import i18n;
 
@@ -22,6 +22,45 @@ struct NodeTypeKey {
 
 Command[NodeTypeKey] addNodeCommands;
 Command[NodeTypeKey] insertNodeCommands;
+
+// Convert-To dynamic commands per (fromType -> toType)
+struct ConvertKey {
+    string fromType;
+    string toType;
+    string toString() const { return fromType ~ "->" ~ toType; }
+    size_t toHash() const @safe nothrow @nogc {
+        import core.internal.hash : hashOf;
+        return hashOf(fromType) ^ (hashOf(toType) * 2654435761u);
+    }
+    bool opEquals(const ConvertKey rhs) const @safe nothrow @nogc {
+        return fromType == rhs.fromType && toType == rhs.toType;
+    }
+}
+
+class ConvertNodeToCommand : ExCommand!(
+    TW!(string, "fromType", "source node type"),
+    TW!(string, "toType", "destination node type")
+) {
+    this(string fromType, string toType) {
+        super("Convert To " ~ toType, fromType, toType);
+    }
+    override bool runnable(Context ctx) {
+        if (!ctx.hasNodes || ctx.nodes.length == 0) return false;
+        auto from = ngGetCommonNodeType(ctx.nodes);
+        if (!from || from != fromType) return false;
+        // Ensure mapping exists
+        if (auto p = fromType in conversionMap) {
+            foreach (v; *p) if (v == toType) return true;
+        }
+        return false;
+    }
+    override void run(Context ctx) {
+        if (!runnable(ctx)) return;
+        ngConvertTo(ctx.nodes, toType);
+    }
+}
+
+Command[ConvertKey] convertNodeCommands;
 
 private bool tryInstantiateNode(string className)
 {
@@ -82,4 +121,26 @@ void ngInitCommands(T)() if (is(T == NodeTypeKey))
         ensureAddNodeCommand(t);
         ensureInsertNodeCommand(t);
     }
+}
+
+// Register all ConvertTo commands for each mapping pair
+void ngInitCommands(T)() if (is(T == ConvertKey))
+{
+    foreach (from, arr; conversionMap) {
+        foreach (to; arr) {
+            ConvertKey key = ConvertKey(from, to);
+            if (auto p = key in convertNodeCommands) continue;
+            auto cmd = cast(Command) new ConvertNodeToCommand(from, to);
+            convertNodeCommands[key] = cmd;
+        }
+    }
+}
+
+Command ensureConvertNodeCommand(string fromType, string toType)
+{
+    ConvertKey key = ConvertKey(fromType, toType);
+    if (auto p = key in convertNodeCommands) return *p;
+    auto cmd = cast(Command) new ConvertNodeToCommand(fromType, toType);
+    convertNodeCommands[key] = cmd;
+    return cmd;
 }
