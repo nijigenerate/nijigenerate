@@ -200,6 +200,8 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             auto fromType = ngGetCommonNodeType(incSelectedNodes);
             if (fromType in conversionMap) {
                 if (igBeginMenu(__(nodeActionToIcon!icon("Convert To...")), true)) {
+                    // Ensure bulk conversion uses the full current selection
+                    if (selected.length > 0) ctx.nodes = selected;
                     foreach (toType; conversionMap[fromType]) {
                         incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
