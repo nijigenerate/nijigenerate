@@ -186,6 +186,8 @@ void incOpenWindow() {
     }
 
     SDL_Init(SDL_INIT_EVERYTHING);
+    // Do not disable the OS screensaver; allow it explicitly.
+    SDL_EnableScreenSaver();
     
     version(Windows) {
         incSetWin32DPIAwareness();

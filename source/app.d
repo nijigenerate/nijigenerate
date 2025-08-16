@@ -29,6 +29,7 @@ import nijigenerate.windows.flipconfig;
 import nijilive;
 import nijigenerate;
 import i18n;
+import bindbc.sdl : SDL_SetHint; // allow screensaver
 
 version(D_X32) {
     pragma(msg, "nijigenerate does not support compilation on 32 bit platforms");
@@ -72,6 +73,8 @@ int main(string[] args)
         // Initialize Window and nijilive
         incInitPanels();
         incActionInit();
+        // Do not disable the OS screensaver; allow it explicitly.
+        SDL_SetHint("SDL_VIDEO_ALLOW_SCREENSAVER", "1");
         incOpenWindow();
 
         // Initialize node overrides

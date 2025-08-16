@@ -125,8 +125,9 @@ class ModelEditModeCommand : ExCommand!() {
     override
     void run(Context ctx) {
         bool alreadySelected = incEditMode == EditMode.ModelEdit;
-        if (!alreadySelected)
+        if (!alreadySelected) {
             incSetEditMode(EditMode.ModelEdit);
+        }
     }
 }
 
@@ -137,8 +138,9 @@ class AnimEditModeCommand : ExCommand!() {
     override
     void run(Context ctx) {
         bool alreadySelected = incEditMode == EditMode.AnimEdit;
-        if (!alreadySelected)
+        if (!alreadySelected) {
             incSetEditMode(EditMode.AnimEdit);
+        }
     }
 }
 
