@@ -4,6 +4,7 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
+import nijigenerate.panels.inspector.current : ngSetCurrentInspector; // singleton setter
 import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijigenerate;
@@ -43,6 +44,8 @@ public:
     }
     override
     void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        // publish current inspector for shortcut context
+        ngSetCurrentInspector(this);
         if (mode == targetMode)
             run();
     }
@@ -79,6 +82,8 @@ public:
     }
     override
     void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        // publish current inspector for shortcut context
+        ngSetCurrentInspector(this);
         if (mode == targetMode)
             run(parameter, cursor);
     }
@@ -539,3 +544,6 @@ mixin template MultiEdit() {
     }
 
 }
+
+// Provide current inspector instance to the shortcut system
+// No shared static init here; singleton is set at inspect() time.

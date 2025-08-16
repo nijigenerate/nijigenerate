@@ -2,6 +2,7 @@ module nijigenerate.core.shortcut.base;
 
 // Keep this module free of command/UI imports. It provides infrastructure only.
 import nijigenerate.commands.base : Command, Context; // base types
+import nijigenerate.panels.inspector.current : ngGetCurrentInspector; // singleton getter
 import nijigenerate.core.input;            // incShortcut
 import nijigenerate.project;               // active/selection state
 import bindbc.imgui;
@@ -98,6 +99,11 @@ private Context buildExecutionContext()
     // Current key point for parameter editing (via provider)
     if (gParamPointProvider !is null)
         ctx.keyPoint = gParamPointProvider();
+
+    // Current inspector instance (singleton)
+    auto insp = ngGetCurrentInspector();
+    if (insp !is null)
+        ctx.inspector = insp;
 
     return ctx;
 }
