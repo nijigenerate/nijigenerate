@@ -32,7 +32,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.tool.commands,
     nijigenerate.commands.viewport.control.commands,
     nijigenerate.commands.mesheditor.tool.selectToolModeCommands,
-    nijigenerate.commands.view.panel.commands,
+    nijigenerate.commands.view.panel.togglePanelCommands,
     );
 
 // Explicit initialization to avoid module constructor cycles

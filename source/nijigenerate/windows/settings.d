@@ -341,7 +341,9 @@ protected:
 
                     igTableSetColumnIndex(2);
                     auto setLbl = __("Set");
-                    igPushID(cast(int)k);
+                    import std.conv : to;
+                    auto _idStr = to!string(k);
+                    igPushID(_idStr.toStringz);
                     if (incButtonColored(setLbl, ImVec2(0, 0))) {
                         capturingShortcut = true;
                         capturingCommand = cmd;
@@ -459,6 +461,9 @@ protected:
 
             // Mesh editor tool modes (dynamically generated per mode)
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
+
+            // Panels (dynamically generated per panel)
+            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Panels"));
         }
         igEndChild();
     }
