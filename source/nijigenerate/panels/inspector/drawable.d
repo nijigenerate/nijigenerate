@@ -6,6 +6,8 @@ import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand; // enum ids
 import nijilive;
 import std.format;
 import std.utf;
@@ -37,16 +39,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
                     igPushID(42);
                     if (_shared!(offsetX)(
                         ()=>incDragFloat("offset_x", &offsetX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        offsetX.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Drawable[], float)(
-                                "X",
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("offset_x")).array,
-                                targets.map!((n)=>offsetX.value).array,
-                                targets.map!((n)=>&n.getMesh().origin.vector[0]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.OffsetX)(ctx);
                     }
                     igPopID();
 
@@ -56,16 +50,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
                     igPushID(43);
                         if (_shared!(offsetY)(
                             ()=>incDragFloat("offset_y", &offsetY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                            offsetY.apply();
-                            incActionPush(
-                                new NodeValueChangeAction!(Drawable[], float)(
-                                    "Y",
-                                    targets, 
-                                    targets.map!((n)=>incGetDragFloatInitialValue("offset_y")).array,
-                                    targets.map!((n)=>offsetY.value).array,
-                                    targets.map!((n)=>&n.getMesh().origin.vector[1]).array
-                                )
-                            );
+                            auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                            cmd!(InspectorNodeApplyCommand.OffsetY)(ctx);
                         }
                     igPopID();
                 igPopItemWidth();

@@ -11,6 +11,8 @@ import nijigenerate.windows;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate;
+import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand; // enum ids
 import nijilive;
 import nijilive.core.nodes.common;
 import std.string;
@@ -60,16 +62,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(0);
                 if (_shared!(translationX)(
                         ()=>incDragFloat("translation_x", &translationX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    translationX.apply();
-                    incActionPush(
-                        new NodeValueChangeAction!(Node[], float)(
-                            "X",
-                            targets, 
-                            targets.map!((n)=>incGetDragFloatInitialValue("translation_x")).array,
-                            targets.map!((n)=>translationX.value).array,
-                            targets.map!((n)=>&n.localTransform.translation.vector[0]).array
-                        )
-                    );
+                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    cmd!(InspectorNodeApplyCommand.TranslationX)(ctx);
                 }
                 igPopID();
 
@@ -79,16 +73,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(1);
                     if (_shared!(translationY)(
                             ()=>incDragFloat("translation_y", &translationY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        translationY.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                "Y",
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("translation_y")).array,
-                                targets.map!((n)=>translationY.value).array,
-                                targets.map!((n)=>&n.localTransform.translation.vector[1]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.TranslationY)(ctx);
                     }
                 igPopID();
 
@@ -98,16 +84,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(2);
                     if (_shared!(translationZ)(
                             ()=>incDragFloat("translation_z", &translationZ.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        translationZ.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                "Z",
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("translation_z")).array,
-                                targets.map!((n)=>translationZ.value).array,
-                                targets.map!((n)=>&n.localTransform.translation.vector[2]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.TranslationZ)(ctx);
                     }
                 igPopID();
 
@@ -165,16 +143,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     if (_shared!(rotationX)(
                         ()=>incDragFloat("rotation_x", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
                         rotationX.value = radians(rotationDegrees);
-                        rotationX.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                _("Rotation X"),
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("rotation_x")).array,
-                                targets.map!((n)=>rotationX.value).array,
-                                targets.map!((n)=>&n.localTransform.rotation.vector[0]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.RotationX)(ctx);
                     }
                 igPopID();
                 
@@ -186,16 +156,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     if (_shared!(rotationY)(
                         ()=>incDragFloat("rotation_y", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
                         rotationY.value = radians(rotationDegrees);
-                        rotationY.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                _("Rotation Y"),
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("rotation_y")).array,
-                                targets.map!((n)=>rotationY.value).array,
-                                targets.map!((n)=>&n.localTransform.rotation.vector[1]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.RotationY)(ctx);
                     }
                 igPopID();
 
@@ -207,16 +169,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     if (_shared!(rotationZ)(
                         ()=>incDragFloat("rotation_z", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
                         rotationZ.value = radians(rotationDegrees);
-                        rotationZ.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                _("Rotation Z"),
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("rotation_z")).array,
-                                targets.map!((n)=>rotationZ.value).array,
-                                targets.map!((n)=>&n.localTransform.rotation.vector[2]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.RotationZ)(ctx);
                     }
                 igPopID();
 
@@ -237,16 +191,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(6);
                     if (_shared!(scaleX)(
                         ()=>incDragFloat("scale_x", &scaleX.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        scaleX.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                _("Scale X"),
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("scale_x")).array,
-                                targets.map!((n)=>scaleX.value).array,
-                                targets.map!((n)=>&n.localTransform.scale.vector[0]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.ScaleX)(ctx);
                     }
                 igPopID();
 
@@ -256,16 +202,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(7);
                     if (_shared!(scaleY)(
                         ()=>incDragFloat("scale_y", &scaleY.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        scaleY.apply();
-                        incActionPush(
-                            new NodeValueChangeAction!(Node[], float)(
-                                _("Scale Y"),
-                                targets, 
-                                targets.map!((n)=>incGetDragFloatInitialValue("scale_y")).array,
-                                targets.map!((n)=>scaleY.value).array,
-                                targets.map!((n)=>&n.localTransform.scale.vector[1]).array
-                            )
-                        );
+                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.ScaleY)(ctx);
                     }
                 igPopID();
 
@@ -280,16 +218,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
             igTextColored(CategoryTextColor, __("Snap to Pixel"));
             incSpacer(ImVec2(-12, 1));
             if (_shared!(pixelSnap)(()=>incLockButton(&pixelSnap.value, "pix_lk"))) {
-                pixelSnap.apply();
-                incActionPush(
-                    new NodeValueChangeAction!(Node[], bool)(
-                        _("Snap to Pixel"),
-                        targets,
-                        targets.map!((n)=>!pixelSnap.value).array,
-                        targets.map!((n)=>pixelSnap.value).array,
-                        targets.map!((n)=>&n.localTransform.pixelSnap).array
-                    )
-                );
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PixelSnap)(ctx);
             }
             
             // Padding
@@ -303,17 +233,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
             igTextColored(CategoryTextColor, __("Sorting"));
             auto zSortB = targets.map!((n)=>n.relZSort).array;
             if (_shared!zSort(()=>igInputFloat("###ZSort", &zSort.value, 0.01, 0.05, "%0.2f"))) {
-                zSort.apply();
-                incActionPush(
-                    new NodeValueChangeAction!(Node[], float)(
-                        _("Sorting"),
-                        targets,
-                        zSortB,
-                        targets.map!((n)=>zSort.value).array,
-                        targets.map!((n)=>&n.relZSort()).array
-                    )
-                );
-                node.notifyChange(node, NotifyReason.AttributeChanged);
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.ZSort)(ctx);
             }
         }
         incEndCategory();

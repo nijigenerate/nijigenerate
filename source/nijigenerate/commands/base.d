@@ -62,6 +62,7 @@ class Context {
     Parameter[] _parameters;
     ParameterBinding[] _bindings;
     vec2u _keyPoint;
+    Object _inspector;
     enum ContextMask {
         None = 0,
         HasPuppet = 1,
@@ -96,6 +97,10 @@ class Context {
 
     vec2u keyPoint() { return _keyPoint; }
     void keyPoint(vec2u value) { _keyPoint = value; hasKeyPoint = true; }
+
+    // Inspector instance (panel) for inspector commands
+    Object inspector() { return _inspector; }
+    void inspector(Object value) { _inspector = value; }
 }
 
 interface Command {

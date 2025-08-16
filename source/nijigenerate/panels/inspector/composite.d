@@ -7,6 +7,8 @@ import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijilive;
 import std.format;
 import std.utf;
@@ -39,12 +41,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
 
             incText(_("Tint (Multiply)"));
             if (_shared!tint(()=>igColorEdit3("###TINT", cast(float[3]*)tint.value.ptr))) {
-                tint.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.CompositeTint)(ctx);
             }
 
             incText(_("Tint (Screen)"));
             if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
-                screenTint.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.CompositeScreenTint)(ctx);
             }
 
             // Header for the Blending options for Parts
@@ -112,16 +116,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
                     return prevBlendingMode != blendingMode.value;
                 }
             )) {
-                blendingMode.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.CompositeBlendingMode)(ctx);
             }
 
             igSpacing();
 
             incText(_("Opacity"));
             if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
-                opacity.apply();
-                foreach (n; targets)
-                    n.notifyChange(n, NotifyReason.AttributeChanged);
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.CompositeOpacity)(ctx);
             }
             igSpacing();
             igSpacing();
@@ -133,7 +137,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
             // before it gets discarded.
             incText(_("Threshold"));
             if (_shared!threshold(()=>igSliderFloat("###Threshold", &threshold.value, 0.0, 1.0, "%.2f"))) {
-                threshold.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.CompositeThreshold)(ctx);
             }
             
             igSpacing();

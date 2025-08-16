@@ -7,6 +7,8 @@ import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijilive;
 import std.format;
 import std.utf;
@@ -206,19 +208,22 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
             incText(_("Tint (Multiply)"));
             if (_shared!tint(()=> igColorEdit3("###TINT",cast(float[3]*)tint.value.ptr))) {
-                tint.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PartTint)(ctx);
             }
 
             incText(_("Tint (Screen)"));
             if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
-                screenTint.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PartScreenTint)(ctx);
             }
 
             incText(_("Emission Strength"));
             float strengthPerc = emissionStrength.value*100;
             if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%"))) {
                 emissionStrength.value = strengthPerc*0.01;
-                emissionStrength.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PartEmissionStrength)(ctx);
             }
 
             // Padding
@@ -300,18 +305,16 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                     return result;
                 }
             )) {
-                blendingMode.apply();
-                foreach (n; targets)
-                    n.notifyChange(n, NotifyReason.AttributeChanged);
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PartBlendingMode)(ctx);
             }
  
             igSpacing();
 
             incText(_("Opacity"));
             if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
-                opacity.apply();
-                foreach (n; targets)
-                    n.notifyChange(n, NotifyReason.AttributeChanged);
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PartOpacity)(ctx);
             }
             igSpacing();
             igSpacing();
@@ -323,14 +326,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             // before it gets discarded.
             incText(_("Threshold"));
             if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%.2f"))) {
-                maskAlphaThreshold.apply();
+                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.PartMaskAlphaThreshold)(ctx);
             }
 
             if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
                 if (ngCheckbox(__("Resize automatically"), &autoResizedMesh.value)) {
-                    autoResizedMesh.apply();
-                    foreach (n; targets)
-                        n.notifyChange(n, NotifyReason.AttributeChanged);
+                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    cmd!(InspectorNodeApplyCommand.PartAutoResizedMesh)(ctx);
                 }
                 incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
             }

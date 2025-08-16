@@ -4,6 +4,8 @@ import nijigenerate.panels.inspector.common;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
+import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijilive;
 import i18n;
 import std.array;
@@ -25,7 +27,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExCamera)
             igIndent();
                 igSetNextItemWidth(incAvailableSpace().x);
                 if (_shared!viewportOrigin(()=>igDragFloat2("###VIEWPORT", cast(float[2]*)(viewportOrigin.value.ptr)))) {
-                    viewportOrigin.apply();
+                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    cmd!(InspectorNodeApplyCommand.ViewportOrigin)(ctx);
                 }
             igUnindent();
 
