@@ -2,6 +2,7 @@ module nijigenerate.commands;
 public import nijigenerate.commands.base;
 public import nijigenerate.commands.binding.binding;
 public import nijigenerate.commands.node.node;
+public import nijigenerate.commands.node.dynamic;
 public import nijigenerate.commands.parameter.animedit;
 public import nijigenerate.commands.parameter.group;
 public import nijigenerate.commands.parameter.param;
@@ -33,6 +34,8 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.viewport.control.commands,
     nijigenerate.commands.mesheditor.tool.selectToolModeCommands,
     nijigenerate.commands.view.panel.togglePanelCommands,
+    nijigenerate.commands.node.dynamic.addNodeCommands,
+    nijigenerate.commands.node.dynamic.insertNodeCommands,
     );
 
 // Explicit initialization to avoid module constructor cycles
