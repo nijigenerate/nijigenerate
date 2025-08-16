@@ -84,8 +84,24 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
                     override string describe() { return "Changed "~PropName; }
                     override string describeUndo() { return "Undo change "~PropName; }
                     override string getName() { return this.stringof; }
-                    override bool merge(Action other) { return false; }
-                    override bool canMerge(Action other) { return false; }
+                    override bool canMerge(Action other) {
+                        auto o = cast(_AttrAction!(NodeT2, ValT2)) other;
+                        if (o is null) return false;
+                        // Same inspector instance and same target nodes (by uuid and order)
+                        if (o.ni !is this.ni) return false;
+                        if (o.nodes.length != this.nodes.length) return false;
+                        foreach (i; 0 .. nodes.length) {
+                            if (nodes[i].uuid != o.nodes[i].uuid) return false;
+                        }
+                        return true;
+                    }
+                    override bool merge(Action other) {
+                        auto o = cast(_AttrAction!(NodeT2, ValT2)) other;
+                        if (o is null) return false;
+                        // Keep original oldVals, update newVals to the newer action's values
+                        this.newVals = o.newVals.dup;
+                        return true;
+                    }
                 }
                 incActionPush(new _AttrAction!(NodeT, ValT)(ni, nodes, oldVals, newVals));
             }
