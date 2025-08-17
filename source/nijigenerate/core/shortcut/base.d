@@ -9,9 +9,9 @@ import inmath : vec2u;
 import nijilive; // ParameterBinding
 import std.conv : to;
 import nijigenerate.core.settings; // settings store
-import nijigenerate.panels.inspector.common;
-import nijigenerate.panels.inspector.base;
-import nijigenerate.panels;
+import nijigenerate.panels; // incPanels
+import nijigenerate.panels.inspector : InspectorPanel; // panel type used by UI
+import nijigenerate.panels.inspector.common : TypedInspector; // inspector base
 
 // Action entry representing a shortcut binding to a Command
 struct ActionEntry {
@@ -102,20 +102,24 @@ private Context buildExecutionContext()
     if (gParamPointProvider !is null)
         ctx.keyPoint = gParamPointProvider();
 
-    // Current inspector instances (singleton)
-    static InspectorPanel panel = null;
-    if (panel) ctx.inspectors = panel.activeNodeInspectors.getAll();
-    foreach (p; incPanels) {
-        panel = cast(InspectorPanel)p;
-        if (panel) break;
+    // Current inspector instances from the InspectorPanel in incPanels
+    TypedInspector!Node[] inspectors;
+    static InspectorPanel ip = null;
+    if (ip is null) {
+        foreach (p; incPanels) {
+            ip = cast(InspectorPanel)p;
+            if (ip !is null)
+                break;
+        }
     }
-//    import std.stdio;
-//    writefln("panel=%s", panel);
-    auto ins = panel? panel.activeNodeInspectors: null;
-    if (ins)
-        ctx.inspectors = ins.getAll;
-
-//    writefln("inspector=%s", ctx.inspectors);
+    if (ip !is null) {
+        if (ip && ip.activeNodeInspectors) {
+            auto ins = ip.activeNodeInspectors.getAll();
+            foreach (i; ins) inspectors ~= i;
+        }
+        if (inspectors.length > 0)
+            ctx.inspectors = inspectors;
+    }
     return ctx;
 }
 

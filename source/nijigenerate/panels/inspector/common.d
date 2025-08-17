@@ -30,11 +30,8 @@ interface Inspector {
 }
 
 abstract class TypedInspector(T) : Inspector {
-//    void inspect(Parameter parameter = null, vec2u cursor = vec2u.init);
     void capture(T[] nodes);
     bool acceptable(T[] nodes);
-//    ModelEditSubMode subMode();
-//    void subMode(ModelEditSubMode);
 }
 
 

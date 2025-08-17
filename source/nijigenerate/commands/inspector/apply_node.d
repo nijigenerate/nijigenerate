@@ -23,8 +23,6 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
     override void run(Context ctx) {
         I ni = null;
         // Prefer inspectors provided via ctx
-        import std.stdio : writefln;
-        writefln("ctx.inspectors=%s", ctx.inspectors);
         if (ctx.hasInspectors) {
             foreach (i; ctx.inspectors) {
                 ni = cast(I)i;
@@ -33,7 +31,6 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
         }
         // No fallback to global resolver: require ctx.inspectors
         // debug print for inspector resolution (keep for debugging)
-        writefln("ni=%s(%x)", ni, &ni);
         if (ni is null) return;
         import std.traits : TemplateArgsOf;
         // infer node type parameter from inspector I
