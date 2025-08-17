@@ -41,23 +41,23 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
         alias ValT  = typeof(mixin("ni."~PropName~".value"));
 
         NodeT[] nodes;
+        // Decide by subMode: Deform => no extra action, Layout => attribute action
+        bool isDeform = false;
+        static if (__traits(compiles, { ni.subMode(); })) {
+            isDeform = (ni.subMode() == ModelEditSubMode.Deform);
+        }
         ValT[] oldVals;
         ValT[] newVals;
-        if (ctx.hasNodes) {
+        if (!isDeform && ctx.hasNodes) {
             foreach (n; ctx.nodes) {
-                if (auto t = cast(NodeT) n) {
-                    nodes ~= t;
-                }
+                if (auto t = cast(NodeT) n) nodes ~= t;
             }
-            // capture old values before apply
-            foreach (n; nodes) {
-                oldVals ~= mixin("ni."~PropName~".get(n)");
-            }
+            foreach (n; nodes) oldVals ~= mixin("ni."~PropName~".get(n)");
         }
 
         mixin("ni." ~ PropName ~ ".apply();");
 
-        if (ctx.hasNodes) {
+        if (!isDeform && ctx.hasNodes) {
             // capture new values after apply
             foreach (n; nodes) {
                 newVals ~= mixin("ni."~PropName~".get(n)");
