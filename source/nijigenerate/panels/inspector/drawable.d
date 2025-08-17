@@ -39,7 +39,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
                     igPushID(42);
                     if (_shared!(offsetX)(
                         ()=>incDragFloat("offset_x", &offsetX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.OffsetX)(ctx);
                     }
                     igPopID();
@@ -50,7 +50,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Drawable)
                     igPushID(43);
                         if (_shared!(offsetY)(
                             ()=>incDragFloat("offset_y", &offsetY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                            auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                            auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                             cmd!(InspectorNodeApplyCommand.OffsetY)(ctx);
                         }
                     igPopID();

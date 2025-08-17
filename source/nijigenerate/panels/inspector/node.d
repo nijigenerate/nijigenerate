@@ -62,7 +62,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(0);
                 if (_shared!(translationX)(
                         ()=>incDragFloat("translation_x", &translationX.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.TranslationX)(ctx);
                 }
                 igPopID();
@@ -73,7 +73,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(1);
                     if (_shared!(translationY)(
                             ()=>incDragFloat("translation_y", &translationY.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.TranslationY)(ctx);
                     }
                 igPopID();
@@ -84,7 +84,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(2);
                     if (_shared!(translationZ)(
                             ()=>incDragFloat("translation_z", &translationZ.value, adjustSpeed, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.TranslationZ)(ctx);
                     }
                 igPopID();
@@ -104,14 +104,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
                     incSpacer(ImVec2(-12, 1));
                     if (_shared!lockToRoot(()=>incLockButton(&lockToRoot.value, "root_lk"))) {
-                        foreach (t; targets) {
-                            t.lockToRoot = !lockToRoot.value;
-                            incLockToRootNode(t);
-                        }
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.LockToRoot)(ctx);
                     }
 
                     if (_shared!pinToMesh(()=>ngCheckbox(__("Pin origin to parent mesh."), &pinToMesh.value))) {
-                        pinToMesh.apply();
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                        cmd!(InspectorNodeApplyCommand.PinToMesh)(ctx);
                     }
                 igEndGroup();
 
@@ -143,7 +142,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     if (_shared!(rotationX)(
                         ()=>incDragFloat("rotation_x", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
                         rotationX.value = radians(rotationDegrees);
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.RotationX)(ctx);
                     }
                 igPopID();
@@ -156,7 +155,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     if (_shared!(rotationY)(
                         ()=>incDragFloat("rotation_y", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
                         rotationY.value = radians(rotationDegrees);
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.RotationY)(ctx);
                     }
                 igPopID();
@@ -169,7 +168,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     if (_shared!(rotationZ)(
                         ()=>incDragFloat("rotation_z", &rotationDegrees, adjustSpeed/100, -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat))) {
                         rotationZ.value = radians(rotationDegrees);
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.RotationZ)(ctx);
                     }
                 igPopID();
@@ -191,7 +190,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(6);
                     if (_shared!(scaleX)(
                         ()=>incDragFloat("scale_x", &scaleX.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.ScaleX)(ctx);
                     }
                 igPopID();
@@ -202,7 +201,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                 igPushID(7);
                     if (_shared!(scaleY)(
                         ()=>incDragFloat("scale_y", &scaleY.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                        auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                        auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.ScaleY)(ctx);
                     }
                 igPopID();
@@ -218,7 +217,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
             igTextColored(CategoryTextColor, __("Snap to Pixel"));
             incSpacer(ImVec2(-12, 1));
             if (_shared!(pixelSnap)(()=>incLockButton(&pixelSnap.value, "pix_lk"))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PixelSnap)(ctx);
             }
             
@@ -233,7 +232,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
             igTextColored(CategoryTextColor, __("Sorting"));
             auto zSortB = targets.map!((n)=>n.relZSort).array;
             if (_shared!zSort(()=>igInputFloat("###ZSort", &zSort.value, 0.01, 0.05, "%0.2f"))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.ZSort)(ctx);
             }
         }

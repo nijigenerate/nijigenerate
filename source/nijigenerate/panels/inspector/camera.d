@@ -27,7 +27,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExCamera)
             igIndent();
                 igSetNextItemWidth(incAvailableSpace().x);
                 if (_shared!viewportOrigin(()=>igDragFloat2("###VIEWPORT", cast(float[2]*)(viewportOrigin.value.ptr)))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.ViewportOrigin)(ctx);
                 }
             igUnindent();

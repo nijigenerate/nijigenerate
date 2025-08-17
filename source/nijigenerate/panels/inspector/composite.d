@@ -41,13 +41,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
 
             incText(_("Tint (Multiply)"));
             if (_shared!tint(()=>igColorEdit3("###TINT", cast(float[3]*)tint.value.ptr))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.CompositeTint)(ctx);
             }
 
             incText(_("Tint (Screen)"));
             if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.CompositeScreenTint)(ctx);
             }
 
@@ -116,7 +116,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
                     return prevBlendingMode != blendingMode.value;
                 }
             )) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.CompositeBlendingMode)(ctx);
             }
 
@@ -124,7 +124,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
 
             incText(_("Opacity"));
             if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.CompositeOpacity)(ctx);
             }
             igSpacing();
@@ -137,7 +137,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
             // before it gets discarded.
             incText(_("Threshold"));
             if (_shared!threshold(()=>igSliderFloat("###Threshold", &threshold.value, 0.0, 1.0, "%.2f"))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.CompositeThreshold)(ctx);
             }
             

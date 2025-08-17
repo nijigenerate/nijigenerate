@@ -87,7 +87,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
                     return result;
                 }
             )) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.SimplePhysicsModelType)(ctx);
             }
 
@@ -120,7 +120,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
                     }
                     return result;
             })) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.SimplePhysicsMapMode)(ctx);
             }
 
@@ -130,7 +130,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             
             igPushID(-1);
                 if (_shared!localOnly(()=>ngCheckbox(__("Local Transform Lock"), &localOnly.value))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsLocalOnly)(ctx);
                 }
                 incTooltip(_("Whether the physics system only listens to the movement of the physics node itself"));
@@ -141,7 +141,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(0);
                 incText(_("Gravity scale"));
                 if (_shared!gravity(()=>incDragFloat("gravity", &gravity.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsGravity)(ctx);
                 }
                 igSpacing();
@@ -151,7 +151,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(1);
                 incText(_("Length"));
                 if (_shared!length(()=>incDragFloat("length", &length.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsLength)(ctx);
                 }
                 igSpacing();
@@ -161,7 +161,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(2);
                 incText(_("Resonant frequency"));
                 if (_shared!frequency(()=>incDragFloat("frequency", &frequency.value, adjustSpeed/100, 0.01, 30, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsFrequency)(ctx);
                 }
                 igSpacing();
@@ -171,14 +171,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(3);
                 incText(_("Damping"));
                 if (_shared!angleDamping(()=>incDragFloat("damping_angle", &angleDamping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsAngleDamping)(ctx);
                 }
             igPopID();
 
             igPushID(4);
                 if (_shared!lengthDamping(()=>incDragFloat("damping_length", &lengthDamping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsLengthDamping)(ctx);
                 }
                 igSpacing();
@@ -188,14 +188,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
             igPushID(5);
                 incText(_("Output scale"));
                 if (_shared!(outputScaleX)(()=>incDragFloat("output_scale.x", &outputScaleX.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsOutputScaleX)(ctx);
                 }
             igPopID();
 
             igPushID(6);
                 if (_shared!(outputScaleY)(()=>incDragFloat("output_scale.y", &outputScaleY.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.SimplePhysicsOutputScaleY)(ctx);
                 }
                 igSpacing();

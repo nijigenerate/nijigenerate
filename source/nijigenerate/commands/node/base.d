@@ -45,14 +45,17 @@ import i18n;
         }
     }
 
-    string[][string] conversionMap;
-    static this() {
-        conversionMap = [
-            "Node": ["MeshGroup", "DynamicComposite"],
-            "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite"],
-            "MeshGroup": ["DynamicComposite", "Node"],
-            "Composite": ["DynamicComposite", "Node"]
-        ];
+    string[][string] _conversionMap;
+    string[][string] conversionMap() {
+        if (_conversionMap.length == 0) {
+            _conversionMap = [
+                "Node": ["MeshGroup", "DynamicComposite"],
+                "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite"],
+                "MeshGroup": ["DynamicComposite", "Node"],
+                "Composite": ["DynamicComposite", "Node"]
+            ];
+        }
+        return _conversionMap;
     }
 
     void insertNodesAux(Node[] parents, Node[] children, string className, string suffixName) {

@@ -208,13 +208,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
             incText(_("Tint (Multiply)"));
             if (_shared!tint(()=> igColorEdit3("###TINT",cast(float[3]*)tint.value.ptr))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartTint)(ctx);
             }
 
             incText(_("Tint (Screen)"));
             if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartScreenTint)(ctx);
             }
 
@@ -222,7 +222,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             float strengthPerc = emissionStrength.value*100;
             if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%"))) {
                 emissionStrength.value = strengthPerc*0.01;
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartEmissionStrength)(ctx);
             }
 
@@ -305,7 +305,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                     return result;
                 }
             )) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartBlendingMode)(ctx);
             }
  
@@ -313,7 +313,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
             incText(_("Opacity"));
             if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartOpacity)(ctx);
             }
             igSpacing();
@@ -326,13 +326,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             // before it gets discarded.
             incText(_("Threshold"));
             if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%.2f"))) {
-                auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartMaskAlphaThreshold)(ctx);
             }
 
             if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
                 if (ngCheckbox(__("Resize automatically"), &autoResizedMesh.value)) {
-                    auto ctx = new Context(); ctx.inspector = this; ctx.nodes(cast(Node[])targets);
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.PartAutoResizedMesh)(ctx);
                 }
                 incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));

@@ -2,7 +2,6 @@ module nijigenerate.core.shortcut.base;
 
 // Keep this module free of command/UI imports. It provides infrastructure only.
 import nijigenerate.commands.base : Command, Context; // base types
-import nijigenerate.panels.inspector.current : ngGetCurrentInspector; // singleton getter
 import nijigenerate.core.input;            // incShortcut
 import nijigenerate.project;               // active/selection state
 import bindbc.imgui;
@@ -10,6 +9,9 @@ import inmath : vec2u;
 import nijilive; // ParameterBinding
 import std.conv : to;
 import nijigenerate.core.settings; // settings store
+import nijigenerate.panels.inspector.common;
+import nijigenerate.panels.inspector.base;
+import nijigenerate.panels;
 
 // Action entry representing a shortcut binding to a Command
 struct ActionEntry {
@@ -100,11 +102,20 @@ private Context buildExecutionContext()
     if (gParamPointProvider !is null)
         ctx.keyPoint = gParamPointProvider();
 
-    // Current inspector instance (singleton)
-    auto insp = ngGetCurrentInspector();
-    if (insp !is null)
-        ctx.inspector = insp;
+    // Current inspector instances (singleton)
+    static InspectorPanel panel = null;
+    if (panel) ctx.inspectors = panel.activeNodeInspectors.getAll();
+    foreach (p; incPanels) {
+        panel = cast(InspectorPanel)p;
+        if (panel) break;
+    }
+//    import std.stdio;
+//    writefln("panel=%s", panel);
+    auto ins = panel? panel.activeNodeInspectors: null;
+    if (ins)
+        ctx.inspectors = ins.getAll;
 
+//    writefln("inspector=%s", ctx.inspectors);
     return ctx;
 }
 
