@@ -2,6 +2,7 @@ module nijigenerate.commands;
 public import nijigenerate.commands.base;
 public import nijigenerate.commands.binding.binding;
 public import nijigenerate.commands.node.node;
+public import nijigenerate.commands.node.dynamic;
 public import nijigenerate.commands.parameter.animedit;
 public import nijigenerate.commands.parameter.group;
 public import nijigenerate.commands.parameter.param;
@@ -12,6 +13,8 @@ public import nijigenerate.commands.puppet.view;
 public import nijigenerate.commands.puppet.tool;
 public import nijigenerate.commands.viewport.control;
 public import nijigenerate.commands.mesheditor.tool;
+public import nijigenerate.commands.view.panel;
+public import nijigenerate.commands.inspector.apply_node;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
@@ -31,6 +34,11 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.tool.commands,
     nijigenerate.commands.viewport.control.commands,
     nijigenerate.commands.mesheditor.tool.selectToolModeCommands,
+    nijigenerate.commands.view.panel.togglePanelCommands,
+    nijigenerate.commands.node.dynamic.addNodeCommands,
+    nijigenerate.commands.node.dynamic.insertNodeCommands,
+    nijigenerate.commands.node.dynamic.convertNodeCommands,
+    nijigenerate.commands.inspector.apply_node.commands,
     );
 
 // Explicit initialization to avoid module constructor cycles

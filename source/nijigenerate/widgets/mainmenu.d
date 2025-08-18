@@ -186,20 +186,20 @@ void incMainMenu() {
                     igSeparator();
 
                     foreach(panel; incPanels) {
-
                         // Skip panels that'll always be visible
                         if (panel.alwaysVisible) continue;
-
-                        if (!panel.isActive()) igBeginDisabled();
-
-                        // Show menu item for panel
-                        if(igMenuItem(panel.displayNameC, null, panel.visible, true)) {
-                            panel.visible = !panel.visible;
-                            incSettingsSet(panel.name~".visible", panel.visible);
+                        bool enabled = panel.isActive();
+                        // Use dynamic command instance
+                        auto cmdInst = ensureTogglePanelCommand(panel);
+                        auto lbl = cmdInst.label();
+                        // Show shortcut hint if any
+                        import nijigenerate.core.shortcut : ngShortcutFor;
+                        auto sc = ngShortcutFor(cmdInst);
+                        const(char)* pShortcut = sc.length ? sc.toStringz : null;
+                        if (igMenuItem(lbl.toStringz, pShortcut, panel.visible, enabled)) {
+                            cmdInst.run(ctx);
                         }
-
-                        if (!panel.isActive()) {
-                            igEndDisabled();
+                        if (!enabled) {
                             incTooltip(_("Panel is not visible in current edit mode."));
                         }
                     }

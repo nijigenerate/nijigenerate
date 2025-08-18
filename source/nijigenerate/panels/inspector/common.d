@@ -23,16 +23,19 @@ package(nijigenerate.panels.inspector) {
 
 /// Model View.
 
-interface Inspector(T) {
+interface Inspector {
     void inspect(Parameter parameter = null, vec2u cursor = vec2u.init);
-    void capture(T[] nodes);
-    bool acceptable(T[] nodes);
     ModelEditSubMode subMode();
     void subMode(ModelEditSubMode);
 }
 
+abstract class TypedInspector(T) : Inspector {
+    void capture(T[] nodes);
+    bool acceptable(T[] nodes);
+}
 
-class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Node) : Inspector!Node {
+
+class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Layout, T: Node) : TypedInspector!Node {
 protected:
     T[] targets;
     ModelEditSubMode mode;
@@ -68,7 +71,7 @@ public:
 }
 
 
-class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Deform, T: Node) : Inspector!Node {
+class BaseInspector(ModelEditSubMode targetMode: ModelEditSubMode.Deform, T: Node) : TypedInspector!Node {
 protected:
     T[] targets;
     ModelEditSubMode mode;
@@ -104,9 +107,9 @@ public:
 }
 
 
-class InspectorHolder(T) : Inspector!T {
+class InspectorHolder(T) : TypedInspector!T {
 protected:
-    Inspector!T[] inspectors;
+    TypedInspector!T[] inspectors;
     T[] targets;
     ModelEditSubMode mode;
 
@@ -139,7 +142,7 @@ public:
         }
     }
 
-    void setInspectors(Inspector!T[] inspectors) {
+    void setInspectors(TypedInspector!T[] inspectors) {
         this.inspectors = inspectors;
         foreach (i; inspectors) { 
             i.capture(targets);
@@ -167,6 +170,19 @@ public:
     void subMode(ModelEditSubMode value) { mode = value; }
 
     T[] getTargets() { return targets; }
+
+    // Fetch a specific inspector by its concrete type
+    I getInspector(I)() {
+        foreach (i; inspectors) {
+            if (auto m = cast(I) i)
+                return m;
+        }
+        return null;
+    }
+
+
+    // Expose all inspectors (for Context propagation)
+    TypedInspector!T[] getAll() { return inspectors; }
 }
 
 void incModelModeHeader(Node node) {
@@ -539,3 +555,6 @@ mixin template MultiEdit() {
     }
 
 }
+
+// Provide current inspector instance to the shortcut system
+// No shared static init here; singleton is set at inspect() time.

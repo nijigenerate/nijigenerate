@@ -6,6 +6,7 @@ import std.array : join;
 import std.format : format;
 import std.conv : to;
 import std.exception : enforce;
+import nijigenerate.panels.inspector.common;
 
 string toCodeString(T)(T arg) {
     import std.traits : isSomeString, isIntegral, isFloatingPoint;
@@ -62,6 +63,7 @@ class Context {
     Parameter[] _parameters;
     ParameterBinding[] _bindings;
     vec2u _keyPoint;
+    TypedInspector!Node[] _inspectors; // preferred: list of active inspectors
     enum ContextMask {
         None = 0,
         HasPuppet = 1,
@@ -69,6 +71,7 @@ class Context {
         HasParameters = 4,
         HasBindings = 8,
         HasKeyPoint = 16,
+        HasInspectors = 32,
     }
     ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
@@ -76,11 +79,13 @@ class Context {
     bool hasParameters(){ return (masks & ContextMask.HasParameters) != 0; }
     bool hasBindings()  { return (masks & ContextMask.HasBindings)  != 0; }
     bool hasKeyPoint()  { return (masks & ContextMask.HasKeyPoint)  != 0; }
+    bool hasInspectors() { return (masks & ContextMask.HasInspectors) != 0; }
     void hasPuppet(bool value)    { masks = value ? (masks | ContextMask.HasPuppet)    : (masks & ~ContextMask.HasPuppet); }
     void hasNodes(bool value)     { masks = value ? (masks | ContextMask.HasNodes)     : (masks & ~ContextMask.HasNodes); }
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
     void hasBindings(bool value)  { masks = value ? (masks | ContextMask.HasBindings)  : (masks & ~ContextMask.HasBindings); }
     void hasKeyPoint(bool value)  { masks = value ? (masks | ContextMask.HasKeyPoint)  : (masks & ~ContextMask.HasKeyPoint); }
+    void hasInspectors(bool value) { masks = value ? (masks | ContextMask.HasInspectors)  : (masks & ~ContextMask.HasInspectors); }
 
     Puppet puppet() { return _puppet; }
     void puppet(Puppet value) { _puppet = value; hasPuppet = true; }
@@ -96,6 +101,10 @@ class Context {
 
     vec2u keyPoint() { return _keyPoint; }
     void keyPoint(vec2u value) { _keyPoint = value; hasKeyPoint = true; }
+
+    // Preferred: list of inspector instances
+    TypedInspector!Node[] inspectors() { return _inspectors; }
+    void inspectors(TypedInspector!Node[] value) { _inspectors = value; hasInspectors = true; }
 }
 
 interface Command {

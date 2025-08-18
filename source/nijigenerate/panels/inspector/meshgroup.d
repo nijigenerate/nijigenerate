@@ -4,6 +4,8 @@ import nijigenerate.panels.inspector.common;
 import nijigenerate;
 import nijigenerate.ext;
 import nijigenerate.widgets;
+import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijilive;
 import i18n;
 import std.format;
@@ -29,12 +31,14 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup
             igSpacing();
 
             if (_shared!dynamic(()=>ngCheckbox(__("Dynamic Deformation (slower)"), &dynamic.value))) {
-                dynamic.apply();
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.MeshGroupDynamic)(ctx, dynamic.value);
             }
             incTooltip(_("Whether the MeshGroup should dynamically deform children,\nthis is an expensive operation and should not be overused."));
 
             if (_shared!translateChildren(()=>ngCheckbox(__("Translate origins"), &translateChildren.value))) {
-                translateChildren.apply();
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(InspectorNodeApplyCommand.MeshGroupTranslateChildren)(ctx, translateChildren.value);
             }
             incTooltip(_("Translate origin of child nodes for non-Drawable object."));
 

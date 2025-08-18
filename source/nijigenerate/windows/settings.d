@@ -341,7 +341,9 @@ protected:
 
                     igTableSetColumnIndex(2);
                     auto setLbl = __("Set");
-                    igPushID(cast(int)k);
+                    import std.conv : to;
+                    auto _idStr = to!string(k);
+                    igPushID(_idStr.toStringz);
                     if (incButtonColored(setLbl, ImVec2(0, 0))) {
                         capturingShortcut = true;
                         capturingCommand = cmd;
@@ -451,6 +453,10 @@ protected:
             renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
             renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
             renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
+            renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Inspector"));
+            // Node add/insert (dynamic by node type)
+            renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
+            renderCommandTable!(nijigenerate.commands.node.dynamic.insertNodeCommands)(__("Insert Node"));
             renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
             renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
             renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
@@ -459,6 +465,12 @@ protected:
 
             // Mesh editor tool modes (dynamically generated per mode)
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
+
+            // Panels (dynamically generated per panel)
+            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Panels"));
+
+            // Convert Node To (dynamic per destination type; availability depends on selection)
+            renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
         }
         igEndChild();
     }

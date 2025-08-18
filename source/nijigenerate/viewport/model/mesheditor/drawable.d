@@ -252,15 +252,11 @@ public:
 
     override
     void markActionDirty() {
-        import std.stdio;
-        writefln("mark action dirty: %s, %s, %s", cast(void*)this, cast(void*)editorAction, target.name);
         if (editorAction)
             editorAction.action.markAsDirty();
     }
 
     Action getDeformActionImpl(bool reset = false)() {
-        import std.stdio;
-        writefln("get action: %s, %s, %s", cast(void*)this, cast(void*)editorAction, target.name);
         if (reset)
             pushDeformAction();
         if (editorAction is null || !editorAction.action.isApplyable()) {
@@ -286,8 +282,6 @@ public:
 
     override
     void forceResetAction() {
-        import std.stdio;
-        writefln("force reset action: %s, %s", cast(void*)this, target.name);
 //        editorAction = null;
     }
 

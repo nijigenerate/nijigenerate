@@ -28,6 +28,7 @@ import std.conv;
 import std.utf;
 import i18n;
 import nijigenerate.commands;
+import nijigenerate.commands.node.dynamic : ensureAddNodeCommand, ensureInsertNodeCommand;
 import nijigenerate.commands.node.base;
 
 private {
@@ -63,7 +64,7 @@ private {
 }
 
 void ngAddOrInsertNodeMenu(bool add)() {
-    void insertNode(void function(Node[], string, string) callback) {
+    void insertNode(void function(Node[], string, string) callback_unused) {
         auto NodeCreateMenu(string NodeName, string NodeLabel = null, string ClassName = null) {
             if (ClassName is null) {
                 ClassName = NodeName;
@@ -76,7 +77,17 @@ void ngAddOrInsertNodeMenu(bool add)() {
             igSameLine(0, 2);
 
             if (igMenuItem(NodeLabel.toStringz, null, false, true)) {
-                callback(incSelectedNodes, ClassName, suffixName);
+                Context ctx = new Context();
+                ctx.puppet = incActivePuppet();
+                auto nodes = incSelectedNodes();
+                if (nodes.length > 0) ctx.nodes = nodes;
+                static if (add) {
+                    auto cmd = ensureAddNodeCommand(ClassName, suffixName);
+                    cmd.run(ctx);
+                } else {
+                    auto cmd = ensureInsertNodeCommand(ClassName, suffixName);
+                    cmd.run(ctx);
+                }
                 suffixName = null;
             }
         }
@@ -99,9 +110,9 @@ void ngAddOrInsertNodeMenu(bool add)() {
     }
 
     static if (add) {
-        insertNode(&ngAddNodes);
+        insertNode(null);
     } else {
-        insertNode(&ngInsertNodes);
+        insertNode(null);
     }
 }
 alias ngAddNodeMenu = ngAddOrInsertNodeMenu!true;
@@ -189,11 +200,14 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             auto fromType = ngGetCommonNodeType(incSelectedNodes);
             if (fromType in conversionMap) {
                 if (igBeginMenu(__(nodeActionToIcon!icon("Convert To...")), true)) {
+                    // Ensure bulk conversion uses the full current selection
+                    if (selected.length > 0) ctx.nodes = selected;
                     foreach (toType; conversionMap[fromType]) {
                         incText(incTypeIdToIcon(toType));
                         igSameLine(0, 2);
                         if (igMenuItem(__(toType), "", false, true)) {
-                            cmd!(NodeCommand.ConvertTo)(ctx, toType);
+                            auto cmd = ensureConvertToCommand(toType);
+                            cmd.run(ctx);
                         }
                     }
                     igEndMenu();
@@ -480,5 +494,3 @@ public:
     Generate nodes frame
 */
 mixin incPanel!NodesPanel;
-
-
