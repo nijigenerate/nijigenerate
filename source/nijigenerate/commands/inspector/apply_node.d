@@ -51,6 +51,9 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
             foreach (n; nodes) oldVals ~= mixin("ni."~PropName~".get(n)");
         }
 
+        mixin("ni."~PropName~".value = this.value;");
+        mixin("ni."~PropName~".apply();");
+
         // Set value and apply
         if (!isDeform && ctx.hasNodes) {
             bool changed = false;
@@ -112,6 +115,98 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
     }
 }
 
+class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
+    this() {
+        super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
+    }
+
+    override void run(Context ctx) {
+        I ni = null;
+        if (ctx.hasInspectors) {
+            foreach (i; ctx.inspectors) {
+                ni = cast(I)i;
+                if (ni !is null) break;
+            }
+        }
+        if (ni is null) return;
+
+        import std.traits : TemplateArgsOf;
+        alias NodeT = TemplateArgsOf!I[1];
+        alias ValT = typeof(mixin("(cast(I)(null))."~PropName~".value"));
+        static assert(is(ValT == bool), "Toggle command only works for boolean properties");
+
+        NodeT[] nodes;
+        bool isDeform = (ni.subMode() == ModelEditSubMode.Deform);
+        
+        ValT[] oldVals;
+        if (!isDeform && ctx.hasNodes) {
+            foreach (n; ctx.nodes) {
+                if (auto t = cast(NodeT) n) nodes ~= t;
+            }
+            foreach (n; nodes) oldVals ~= mixin("ni."~PropName~".get(n)");
+        }
+
+        mixin("ni." ~ PropName ~ ".value = !ni." ~ PropName ~ ".value;");
+        mixin("ni." ~ PropName ~ ".apply();");
+
+        // Set value and apply
+        if (!isDeform && ctx.hasNodes && nodes.length > 0) {
+            static class _ToggleAttrAction(NodeT2, ValT2) : Action {
+                I ni;
+                NodeT2[] nodes;
+                ValT2[] oldVals;
+
+                this(I ni, NodeT2[] nodes, ValT2[] oldVals) {
+                    this.ni = ni;
+                    this.nodes = nodes;
+                    this.oldVals = oldVals;
+                }
+
+                override void rollback() {
+                    foreach (i, n; nodes) {
+                        mixin("ni."~PropName~".set(n, oldVals[i]);");
+                        n.notifyChange(n, NotifyReason.AttributeChanged);
+                    }
+                }
+
+                override void redo() {
+                    // If all values are the same, toggle. Otherwise, set all to true. 
+                    bool allSame = true;
+                    if (oldVals.length > 1) {
+                        foreach (i; 1 .. oldVals.length) {
+                            if (oldVals[i] != oldVals[0]) {
+                                allSame = false;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    ValT2 newVal = true;
+                    if (allSame) {
+                        newVal = !oldVals[0];
+                    }
+
+                    foreach (i, n; nodes) {
+                        mixin("ni."~PropName~".set(n, newVal);" );
+                        n.notifyChange(n, NotifyReason.AttributeChanged);
+                    }
+                }
+
+                override string describe() { return "Toggled " ~ PropName; }
+                override string describeUndo() { return "Undo toggle " ~ PropName; }
+                override string getName() { return this.stringof; }
+                
+                override bool canMerge(Action other) { return false; } // Toggle actions shouldn't merge
+                override bool merge(Action other) { return false; }
+            }
+            incActionPush(new _ToggleAttrAction!(NodeT, ValT)(ni, nodes, oldVals));
+        }
+
+        if (ctx.hasNodes)
+            ni.capture(cast(Node[])ctx.nodes);
+    }
+}
+
 // Property-level commands enum (per-property IDs)
 enum InspectorNodeApplyCommand {
     TranslationX,
@@ -123,9 +218,13 @@ enum InspectorNodeApplyCommand {
     ScaleX,
     ScaleY,
     PixelSnap,
+    TogglePixelSnap,
     ZSort,
+    ToggleZSort,
     LockToRoot,
+    ToggleLockToRoot,
     PinToMesh,
+    TogglePinToMesh,
     OffsetX,
     OffsetY,
     // Camera
@@ -144,12 +243,17 @@ enum InspectorNodeApplyCommand {
     PartOpacity,
     PartMaskAlphaThreshold,
     PartAutoResizedMesh,
+    TogglePartAutoResizedMesh,
     // MeshGroup
     MeshGroupDynamic,
+    ToggleMeshGroupDynamic,
     MeshGroupTranslateChildren,
+    ToggleMeshGroupTranslateChildren,
     // PathDeformer
     PathDeformDynamic,
+    TogglePathDeformDynamic,
     PathDeformPhysicsEnabled,
+    TogglePathDeformPhysicsEnabled,
     PathDeformGravity,
     PathDeformRestoreConstant,
     PathDeformDamping,
@@ -159,6 +263,7 @@ enum InspectorNodeApplyCommand {
     SimplePhysicsModelType,
     SimplePhysicsMapMode,
     SimplePhysicsLocalOnly,
+    ToggleSimplePhysicsLocalOnly,
     SimplePhysicsGravity,
     SimplePhysicsLength,
     SimplePhysicsFrequency,
@@ -181,10 +286,17 @@ alias NIPath = nijigenerate.panels.inspector.pathdeform.NodeInspector!(ModelEdit
 alias NISPhys = nijigenerate.panels.inspector.simplephysics.NodeInspector!(ModelEditSubMode.Layout, SimplePhysics);
 
 template DefApply(string Id, alias I, string Prop) {
-    enum DefApply =
-        "class "~Id~"Command : ApplyInspectorPropCommand!("~I.stringof~", \""~Prop~"\") {\n"~
-        "    this() { super(ApplyInspectorPropCommand!("~I.stringof~", \""~Prop~"\").ValT.init); }\n"~
-        "}";
+    enum string s_base = "class " ~ Id ~ "Command : ApplyInspectorPropCommand!(" ~ I.stringof ~ ", \"" ~ Prop ~ "\") {" ~
+                   "    this() { super(ApplyInspectorPropCommand!(" ~ I.stringof ~ ", \"" ~ Prop ~ "\").ValT.init); }" ~
+                   "}";
+
+    alias ValT = typeof(mixin("(cast(" ~ I.stringof ~ ")(null))."~Prop~".value"));
+    static if (is(ValT == bool)) {
+        enum string s_toggle = "class Toggle" ~ Id ~ "Command : ToggleInspectorPropCommand!(" ~ I.stringof ~ ", \"" ~ Prop ~ "\") {}";
+        enum DefApply = s_base ~ s_toggle;
+    } else {
+        enum DefApply = s_base;
+    }
 }
         
 
@@ -247,8 +359,7 @@ mixin(DefApply!("SimplePhysicsLengthDamping", NISPhys, "lengthDamping"));
 mixin(DefApply!("SimplePhysicsOutputScaleX",  NISPhys, "outputScaleX"));
 mixin(DefApply!("SimplePhysicsOutputScaleY",  NISPhys, "outputScaleY"));
 
-void ngInitCommands(T)() if (is(T == InspectorNodeApplyCommand))
-{
+void ngInitCommands(T)() if (is(T == InspectorNodeApplyCommand)) {
     import std.traits : EnumMembers;
     static foreach (name; EnumMembers!InspectorNodeApplyCommand) {
         static if (__traits(compiles, { mixin(registerCommand!(name)); }))
