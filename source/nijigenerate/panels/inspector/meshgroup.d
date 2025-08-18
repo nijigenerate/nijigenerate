@@ -32,13 +32,13 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: MeshGroup
 
             if (_shared!dynamic(()=>ngCheckbox(__("Dynamic Deformation (slower)"), &dynamic.value))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.MeshGroupDynamic)(ctx);
+                cmd!(InspectorNodeApplyCommand.MeshGroupDynamic)(ctx, dynamic.value);
             }
             incTooltip(_("Whether the MeshGroup should dynamically deform children,\nthis is an expensive operation and should not be overused."));
 
             if (_shared!translateChildren(()=>ngCheckbox(__("Translate origins"), &translateChildren.value))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.MeshGroupTranslateChildren)(ctx);
+                cmd!(InspectorNodeApplyCommand.MeshGroupTranslateChildren)(ctx, translateChildren.value);
             }
             incTooltip(_("Translate origin of child nodes for non-Drawable object."));
 

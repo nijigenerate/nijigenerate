@@ -16,35 +16,34 @@ import nijigenerate.panels.inspector.pathdeform;
 import nijigenerate.panels.inspector.simplephysics;
 // Inspector resolution must be via ctx.inspectors (no global resolver)
 import nijilive; // Node, Drawable
+import nijigenerate.commands.base : toCodeString;
 
 // Generic apply command using NodeInspector; compile-time PropName
-class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
-    this() { super("Apply " ~ PropName); }
+class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixin("(cast(I)(null))."~PropName~".value")), "value", "Value to apply")) {
+    // The constructor for ExCommand will be used.
+    // It takes (string label, string desc, args...)
+    // The `DefApply` template will generate a constructor that calls this.
+    alias ValT  = typeof(mixin("(cast(I)(null))."~PropName~".value"));
+    this(ValT value) {
+        super("Apply " ~ PropName, value);
+    }
+
     override void run(Context ctx) {
         I ni = null;
-        // Prefer inspectors provided via ctx
         if (ctx.hasInspectors) {
             foreach (i; ctx.inspectors) {
                 ni = cast(I)i;
                 if (ni !is null) break;
             }
         }
-        // No fallback to global resolver: require ctx.inspectors
-        // debug print for inspector resolution (keep for debugging)
         if (ni is null) return;
         import std.traits : TemplateArgsOf;
-        // infer node type parameter from inspector I
         alias NodeT = TemplateArgsOf!I[1];
-        alias ValT  = typeof(mixin("ni."~PropName~".value"));
 
         NodeT[] nodes;
-        // Decide by subMode: Deform => no extra action, Layout => attribute action
-        bool isDeform = false;
-        static if (__traits(compiles, { ni.subMode(); })) {
-            isDeform = (ni.subMode() == ModelEditSubMode.Deform);
-        }
+        bool isDeform = (ni.subMode() == ModelEditSubMode.Deform);
+        
         ValT[] oldVals;
-        ValT[] newVals;
         if (!isDeform && ctx.hasNodes) {
             foreach (n; ctx.nodes) {
                 if (auto t = cast(NodeT) n) nodes ~= t;
@@ -52,32 +51,24 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
             foreach (n; nodes) oldVals ~= mixin("ni."~PropName~".get(n)");
         }
 
-        mixin("ni." ~ PropName ~ ".apply();");
-
+        // Set value and apply
         if (!isDeform && ctx.hasNodes) {
-            // capture new values after apply
-            foreach (n; nodes) {
-                newVals ~= mixin("ni."~PropName~".get(n)");
+            bool changed = false;
+            if (oldVals.length > 0 && oldVals[0] != this.value) {
+                changed = true;
             }
 
-            // push undo/redo action if anything changed
-            bool changed = false;
-            if (oldVals.length == newVals.length) {
-                foreach (i; 0 .. oldVals.length) {
-                    if (oldVals[i] != newVals[i]) { changed = true; break; }
-                }
-            }
             if (changed) {
                 static class _AttrAction(NodeT2, ValT2) : Action {
                     I ni;
                     NodeT2[] nodes;
                     ValT2[] oldVals;
-                    ValT2[] newVals;
-                    this(I ni, NodeT2[] nodes, ValT2[] oldVals, ValT2[] newVals) {
+                    ValT2 newVal;
+                    this(I ni, NodeT2[] nodes, ValT2[] oldVals, ValT2 newVal) {
                         this.ni = ni;
                         this.nodes = nodes;
                         this.oldVals = oldVals;
-                        this.newVals = newVals;
+                        this.newVal = newVal;
                     }
                     override void rollback() {
                         foreach (i, n; nodes) {
@@ -87,17 +78,17 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
                     }
                     override void redo() {
                         foreach (i, n; nodes) {
-                            mixin("ni."~PropName~".set(n, newVals[i]);");
+                            mixin("ni."~PropName~".set(n, newVal);");
                             n.notifyChange(n, NotifyReason.AttributeChanged);
                         }
                     }
-                    override string describe() { return "Changed "~PropName; }
-                    override string describeUndo() { return "Undo change "~PropName; }
+                    override string describe() { return "Changed " ~PropName; }
+                    override string describeUndo() { return "Undo change " ~PropName; }
                     override string getName() { return this.stringof; }
+                    
                     override bool canMerge(Action other) {
                         auto o = cast(_AttrAction!(NodeT2, ValT2)) other;
                         if (o is null) return false;
-                        // Same inspector instance and same target nodes (by uuid and order)
                         if (o.ni !is this.ni) return false;
                         if (o.nodes.length != this.nodes.length) return false;
                         foreach (i; 0 .. nodes.length) {
@@ -108,20 +99,16 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!() {
                     override bool merge(Action other) {
                         auto o = cast(_AttrAction!(NodeT2, ValT2)) other;
                         if (o is null) return false;
-                        // Keep original oldVals, update newVals to the newer action's values
-                        this.newVals = o.newVals.dup;
+                        this.newVal = o.newVal;
                         return true;
                     }
                 }
-                incActionPush(new _AttrAction!(NodeT, ValT)(ni, nodes, oldVals, newVals));
+                incActionPush(new _AttrAction!(NodeT, ValT)(ni, nodes, oldVals, this.value));
             }
         }
 
-        // Keep inspector values in sync across selections when nodes are provided
-        static if (__traits(compiles, { ctx.nodes; })) {
-            if (ctx.hasNodes)
-                ni.capture(cast(Node[])ctx.nodes);
-        }
+        if (ctx.hasNodes)
+            ni.capture(cast(Node[])ctx.nodes);
     }
 }
 
@@ -196,8 +183,10 @@ alias NISPhys = nijigenerate.panels.inspector.simplephysics.NodeInspector!(Model
 template DefApply(string Id, alias I, string Prop) {
     enum DefApply =
         "class "~Id~"Command : ApplyInspectorPropCommand!("~I.stringof~", \""~Prop~"\") {\n"~
-        "}\n";
+        "    this() { super(ApplyInspectorPropCommand!("~I.stringof~", \""~Prop~"\").ValT.init); }\n"~
+        "}";
 }
+        
 
 mixin(DefApply!("TranslationX", NINode, "translationX"));
 mixin(DefApply!("TranslationY", NINode, "translationY"));

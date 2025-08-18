@@ -40,11 +40,11 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
 
             if (ngCheckbox(__("Dynamic mode(slow)"), &dynamic.value)) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PathDeformDynamic)(ctx);
+                cmd!(InspectorNodeApplyCommand.PathDeformDynamic)(ctx, dynamic.value);
             }
             if (ngCheckbox(__("Auto-Physics"), &physicsEnabled.value)) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PathDeformPhysicsEnabled)(ctx);
+                cmd!(InspectorNodeApplyCommand.PathDeformPhysicsEnabled)(ctx, physicsEnabled.value);
             }
             incTooltip(_("Enabled / Disabled physics driver for vertices. If enabled, vertices are moved along with specified physics engine."));
 
@@ -103,7 +103,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                         incText(_("Gravity scale"));
                         if(_shared!(gravity)(()=>incDragFloat("gravity", &gravity.value, adjustSpeed/100, -float.max, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
                             auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                            cmd!(InspectorNodeApplyCommand.PathDeformGravity)(ctx);
+                            cmd!(InspectorNodeApplyCommand.PathDeformGravity)(ctx, gravity.value);
                         }
                         igSpacing();
                         igSpacing();
@@ -114,7 +114,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                         incTooltip(_("Force to restore for original position. If this force is weaker than the gravity, pendulum cannot restore to original position."));
                         if (_shared!restoreConstant(()=>incDragFloat("restoreConstant", &restoreConstant.value, adjustSpeed/100, 0.01, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
                             auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                            cmd!(InspectorNodeApplyCommand.PathDeformRestoreConstant)(ctx);
+                            cmd!(InspectorNodeApplyCommand.PathDeformRestoreConstant)(ctx, restoreConstant.value);
                         }
                         igSpacing();
                         igSpacing();
@@ -124,7 +124,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                         incText(_("Damping"));
                         if (_shared!damping(()=>incDragFloat("damping", &damping.value, adjustSpeed/100, 0, 5, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
                             auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                            cmd!(InspectorNodeApplyCommand.PathDeformDamping)(ctx);
+                            cmd!(InspectorNodeApplyCommand.PathDeformDamping)(ctx, damping.value);
                         }
                     igPopID();
 
@@ -133,7 +133,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                         incTooltip(_("Input force is multiplied by this factor. This should be specified when original position moved too much."));
                         if (_shared!inputScale(()=>incDragFloat("inputScale", &inputScale.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
                             auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                            cmd!(InspectorNodeApplyCommand.PathDeformInputScale)(ctx);
+                            cmd!(InspectorNodeApplyCommand.PathDeformInputScale)(ctx, inputScale.value);
                         }
                         igSpacing();
                         igSpacing();
@@ -144,7 +144,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: PathDefor
                         incTooltip(_("Specify the degree to convey movement of previous pendulum to next one."));
                         if (_shared!propagateScale(()=>incDragFloat("propagateScale", &propagateScale.value, adjustSpeed/100, 0, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat))) {
                             auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                            cmd!(InspectorNodeApplyCommand.PathDeformPropagateScale)(ctx);
+                            cmd!(InspectorNodeApplyCommand.PathDeformPropagateScale)(ctx, propagateScale.value);
                         }
                     igPopID();                    
                     // Padding

@@ -209,21 +209,21 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             incText(_("Tint (Multiply)"));
             if (_shared!tint(()=> igColorEdit3("###TINT",cast(float[3]*)tint.value.ptr))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PartTint)(ctx);
+                cmd!(InspectorNodeApplyCommand.PartTint)(ctx, tint.value);
             }
 
             incText(_("Tint (Screen)"));
             if (_shared!screenTint(()=>igColorEdit3("###S_TINT", cast(float[3]*)screenTint.value.ptr))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PartScreenTint)(ctx);
+                cmd!(InspectorNodeApplyCommand.PartScreenTint)(ctx, screenTint.value);
             }
 
             incText(_("Emission Strength"));
             float strengthPerc = emissionStrength.value*100;
-            if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%"))) {
+            if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%%.0f%%"))) {
                 emissionStrength.value = strengthPerc*0.01;
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PartEmissionStrength)(ctx);
+                cmd!(InspectorNodeApplyCommand.PartEmissionStrength)(ctx, emissionStrength.value);
             }
 
             // Padding
@@ -304,9 +304,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
                     return result;
                 }
-            )) {
+            ))
+            {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PartBlendingMode)(ctx);
+                cmd!(InspectorNodeApplyCommand.PartBlendingMode)(ctx, blendingMode.value);
             }
  
             igSpacing();
@@ -314,7 +315,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             incText(_("Opacity"));
             if (_shared!opacity(()=>igSliderFloat("###Opacity", &opacity.value, 0, 1f, "%0.2f"))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PartOpacity)(ctx);
+                cmd!(InspectorNodeApplyCommand.PartOpacity)(ctx, opacity.value);
             }
             igSpacing();
             igSpacing();
@@ -325,15 +326,15 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             // Threshold slider name for adjusting how transparent a pixel can be
             // before it gets discarded.
             incText(_("Threshold"));
-            if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%.2f"))) {
+            if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%%.2f"))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(InspectorNodeApplyCommand.PartMaskAlphaThreshold)(ctx);
+                cmd!(InspectorNodeApplyCommand.PartMaskAlphaThreshold)(ctx, maskAlphaThreshold.value);
             }
 
             if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
                 if (ngCheckbox(__("Resize automatically"), &autoResizedMesh.value)) {
                     auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                    cmd!(InspectorNodeApplyCommand.PartAutoResizedMesh)(ctx);
+                    cmd!(InspectorNodeApplyCommand.PartAutoResizedMesh)(ctx, autoResizedMesh.value);
                 }
                 incTooltip(_("Resize size automatically when child nodes are added or removed. Affect performance severly, not recommended."));
             }
@@ -474,9 +475,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                 auto weight = welded.weight;
                                 igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
                                 igSetNextItemWidth(64);
-                                if (igSliderFloat("###weight", &weight, 0, 1f, "%0.2f")) {
+                                if (igSliderFloat("###weight", &weight, 0, 1f, "%%0.2f")) {
                                     welded.weight = weight;
-                                    auto index = welded.target.welded.countUntil!"a.target == b"(node);
+                                    auto index = welded.target.welded.countUntil!("a.target == b")(node);
                                     if (index != -1) {
                                         welded.target.welded[index].weight = 1 - weight;
                                     }
