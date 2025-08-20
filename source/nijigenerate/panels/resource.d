@@ -68,26 +68,26 @@ class ResourcePanelConfig : ISerializable {
         if (!singleton || singleton.history.length == 0) return;
         auto output = cast(IconTreeOutput)singleton.history[0].output;
         if (output) {
-            auto state = serializer.objectBegin();
+            auto state = serializer.structBegin();
                 serializer.putKey("nextInHorizontal");
-                auto arr1 = serializer.arrayBegin();
+                auto arr1 = serializer.listBegin();
                     foreach(uuid; output.layout.keys()) {
                         if (output.layout[uuid].nextInHorizontal) {
                             serializer.elemBegin;
                             serializer.serializeValue(uuid);
                         }
                     }
-                serializer.arrayEnd(arr1);
+                serializer.listEnd(arr1);
                 serializer.putKey("folded");
-                auto arr2 = serializer.arrayBegin();
+                auto arr2 = serializer.listBegin();
                     foreach(uuid; output.layout.keys()) {
                         if (output.layout[uuid].folded) {
                             serializer.elemBegin;
                             serializer.serializeValue(uuid);
                         }
                     }
-                serializer.arrayEnd(arr2);
-            serializer.objectEnd(state);
+                serializer.listEnd(arr2);
+            serializer.structEnd(state);
         }
     }
 
