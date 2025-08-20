@@ -7,6 +7,7 @@ import std.format : format;
 import std.conv : to;
 import std.exception : enforce;
 import nijigenerate.panels.inspector.common;
+static import nijigenerate.viewport.common.mesheditor.tools.enums;
 
 string toCodeString(T)(T arg) {
     import std.traits : isSomeString, isIntegral, isFloatingPoint;
