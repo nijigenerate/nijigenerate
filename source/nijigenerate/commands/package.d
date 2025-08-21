@@ -12,6 +12,7 @@ public import nijigenerate.commands.puppet.edit;
 public import nijigenerate.commands.puppet.view;
 public import nijigenerate.commands.puppet.tool;
 public import nijigenerate.commands.viewport.control;
+public import nijigenerate.commands.viewport.palette;
 public import nijigenerate.commands.mesheditor.tool;
 public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
@@ -33,6 +34,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.puppet.view.commands,
     nijigenerate.commands.puppet.tool.commands,
     nijigenerate.commands.viewport.control.commands,
+    nijigenerate.commands.viewport.palette.commands,
     nijigenerate.commands.mesheditor.tool.selectToolModeCommands,
     nijigenerate.commands.view.panel.togglePanelCommands,
     nijigenerate.commands.node.dynamic.addNodeCommands,

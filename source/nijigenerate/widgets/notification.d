@@ -47,14 +47,17 @@ public:
 
             igSetNextWindowPos(ImVec2(viewportSize.x * 0.5f - 150, 0), ImGuiCond.Always, ImVec2(0.5f, 0.0f));
 
-            ImVec2 textSize;
-            igCalcTextSize(&textSize, messagez);
-
-            igSetNextWindowSize(ImVec2(textSize.x + 100, 50), ImGuiCond.Always);
-
             ImGuiWindowFlags flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
                                     ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings |
                                     ImGuiWindowFlags.NoScrollbar;
+            // For callback-driven content, allow auto-resize to fit widgets (e.g., dropdowns)
+            if (callback) {
+                flags |= ImGuiWindowFlags.AlwaysAutoResize;
+            } else {
+                ImVec2 textSize;
+                igCalcTextSize(&textSize, messagez);
+                igSetNextWindowSize(ImVec2(textSize.x + 100, 50), ImGuiCond.Always);
+            }
 
             ImVec4 lightGreen = ImVec4(0.67f, 0.75f, 0.63f, 1.00f); // 画像の明るい緑色に基づく
             igPushStyleColor(ImGuiCol.WindowBg, lightGreen);
@@ -62,13 +65,15 @@ public:
             if (igBegin("##NotificationPopup", null, flags))
             {
                 if (callback) {
+                    // For callback-driven content (e.g., dropdown lists), rely on ESC/outside-click to close.
+                    // Avoid placing a close button on the same row to prevent layout issues.
                     callback(io);
                 } else if (messagez) {
                     igText(messagez);
-                }
-                igSameLine();
-                if (incButtonColored("\ue5cd", ImVec2(20, 20))){
-                    visible = false;
+                    igSameLine();
+                    if (incButtonColored("\ue5cd", ImVec2(20, 20))){
+                        visible = false;
+                    }
                 }
             }
 
@@ -80,5 +85,14 @@ public:
             }
         }
 
+    }
+
+    // Close and clear the popup immediately
+    void close() {
+        visible = false;
+        infinite = false;
+        statusTime = 0;
+        messagez = null;
+        callback = null;
     }
 }

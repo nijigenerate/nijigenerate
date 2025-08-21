@@ -8,6 +8,7 @@ import nijigenerate.commands.puppet.file;
 import nijigenerate.commands.puppet.edit;
 import nijigenerate.commands.node.node;
 import nijigenerate.commands.viewport.control;
+import nijigenerate.commands.viewport.palette;
 import nijigenerate.core.input : _K;
 
 void ngRegisterDefaultShortcuts()
@@ -28,5 +29,7 @@ void ngRegisterDefaultShortcuts()
     ngRegisterShortcut(_K!"Ctrl-V", nijigenerate.commands.node.node.commands[NodeCommand.PasteNode], true);
 
     // Viewport control (add when appropriate)
-}
 
+    // Palette
+    ngRegisterShortcut(_K!"Ctrl-Shift-P", nijigenerate.commands.viewport.palette.commands[PaletteCommand.ListCommand]);
+}
