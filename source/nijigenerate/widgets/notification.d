@@ -7,9 +7,12 @@ import std.string;
 class NotificationPopup {
 private:
     float statusTime;
-    string message;
+    bool infinite = false;
+    bool visible = false;
     char* messagez;
+    void delegate(ImGuiIO* io) callback = null;
 
+protected:
     static NotificationPopup instance_ = null;
 public:
     this() { }
@@ -21,15 +24,24 @@ public:
         return instance_;
     }
 
-    string status() { return message; }
+    string status() { return cast(string)(messagez.fromStringz); }
     void popup(string text, float duration) {
-        message = text;
-        messagez = cast(char*)message.toStringz;
+        messagez = cast(char*)text.toStringz;
         statusTime = duration;
+        visible = true;
+        infinite = statusTime < 0;
+    }
+
+    void popup(void delegate(ImGuiIO*) _callback, float duration) {
+        callback = _callback;
+        messagez = null;
+        statusTime = duration;
+        visible = true;
+        infinite = statusTime < 0;
     }
 
     void onUpdate() {
-        if (message) {
+        if (visible) {
             auto io = igGetIO();
             auto viewportSize = ImVec2(io.DisplaySize.x, io.DisplaySize.y);
 
@@ -49,18 +61,22 @@ public:
 
             if (igBegin("##NotificationPopup", null, flags))
             {
-                igText(messagez);
+                if (callback) {
+                    callback(io);
+                } else if (messagez) {
+                    igText(messagez);
+                }
                 igSameLine();
                 if (incButtonColored("\ue5cd", ImVec2(20, 20))){
-                    message = null;
+                    visible = false;
                 }
             }
 
             igEnd();
             igPopStyleColor();
             statusTime -= igGetIO().DeltaTime;
-            if (statusTime < 0) {
-                message = null;
+            if (!infinite && statusTime < 0) {
+                visible = false;
             }
         }
 
