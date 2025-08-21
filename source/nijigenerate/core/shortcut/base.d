@@ -20,26 +20,36 @@ struct ActionEntry {
     bool repeat;        // Whether to allow key repeat
 }
 
-// Registry keyed by shortcut string (as used by incShortcut)
-private ActionEntry[string] gShortcutEntries;
+// Registry keyed by Command for O(1) lookup and clear
+private ActionEntry[Command] gShortcutEntries;
 
 // Register or overwrite a shortcut (public API)
 void ngRegisterShortcut(string shortcut, Command command, bool repeat = false)
 {
-    gShortcutEntries[shortcut] = ActionEntry(shortcut, command, repeat);
+    if (command is null || shortcut.length == 0) return;
+
+    // Ensure shortcut uniqueness: remove any prior entry with the same shortcut
+    import std.array : array;
+    auto keys = gShortcutEntries.byKey.array;
+    foreach (cmdExisting; keys) {
+        auto e = gShortcutEntries[cmdExisting];
+        if (e.shortcut == shortcut) {
+            gShortcutEntries.remove(cmdExisting);
+            break;
+        }
+    }
+
+    // Clear any old shortcut for this command
+    ngClearShortcutFor(command);
+
+    gShortcutEntries[command] = ActionEntry(shortcut, command, repeat);
 }
 
 // Remove any existing shortcut(s) bound to the given command instance
 void ngClearShortcutFor(Command command)
 {
-    import std.array : array;
-    auto keys = gShortcutEntries.byKey.array;
-    foreach (k; keys) {
-        auto e = gShortcutEntries[k];
-        if (e.command is command) {
-            gShortcutEntries.remove(k);
-        }
-    }
+    if (command is null) return;
+    gShortcutEntries.remove(command);
 }
 
 // List all registered action entries (for debugging/UI)
@@ -52,10 +62,8 @@ ActionEntry[] ngListShortcuts()
 // Find shortcut string for a given command instance (empty if none)
 string ngShortcutFor(Command cmd)
 {
-    import std.algorithm : any;
-    foreach (k, entry; gShortcutEntries) {
-        if (entry.command is cmd) return entry.shortcut;
-    }
+    if (auto p = cmd in gShortcutEntries)
+        return (*p).shortcut;
     return "";
 }
 
@@ -127,7 +135,7 @@ private Context buildExecutionContext()
 void incHandleShortcuts()
 {
     auto io = igGetIO();
-    foreach (k, entry; gShortcutEntries) {
+    foreach (cmd, entry; gShortcutEntries) {
         if (incShortcut(entry.shortcut, entry.repeat)) {
             auto ctx = buildExecutionContext();
             if (entry.command.runnable(ctx))
@@ -135,6 +143,12 @@ void incHandleShortcuts()
             break; // handle one per frame, closest match wins
         }
     }
+}
+
+// Public wrapper for building an execution context for commands outside this module
+Context ngBuildExecutionContext()
+{
+    return buildExecutionContext();
 }
 
 // ===== Persistence (save/load) =====
@@ -168,9 +182,10 @@ private string _commandIdFor(Command cmd)
 void ngSaveShortcutsToSettings()
 {
     string[string] obj; // string map
-    foreach (k, entry; gShortcutEntries) {
+    foreach (cmd, entry; gShortcutEntries) {
         auto id = _commandIdFor(entry.command);
-        if (id.length) obj[id] = entry.shortcut;
+        if (id.length)
+            obj[id] = entry.shortcut;
     }
     incSettingsSet("Shortcuts", obj);
 }

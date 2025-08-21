@@ -452,6 +452,7 @@ protected:
             renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
             renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
             renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
+            renderCommandTable!(nijigenerate.commands.viewport.palette.commands)(__("Palette"));
             renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
             renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Inspector"));
             // Node add/insert (dynamic by node type)
