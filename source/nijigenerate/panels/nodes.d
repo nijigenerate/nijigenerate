@@ -8,6 +8,7 @@
 module nijigenerate.panels.nodes;
 import nijigenerate.viewport.vertex;
 import nijigenerate.widgets.dragdrop;
+import nijigenerate.widgets.tooltip;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
 import nijigenerate.panels;
@@ -130,11 +131,13 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
             ngAddNodeMenu();
             igEndMenu();
         }
+        if (icon) incTooltip(_(nodeActionToIcon!false("Add")));
 
         if (igBeginMenu(__(nodeActionToIcon!icon("Insert")), true)) {
             ngInsertNodeMenu();
             igEndMenu();
         }
+        if (icon) incTooltip(_(nodeActionToIcon!false("Insert")));
 
         static if (!isRoot) {
 
@@ -146,27 +149,33 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                     }
                 }
             }
+            if (icon) incTooltip(_(nodeActionToIcon!false("Edit Mesh")));
             
-            if (igMenuItem(n.getEnabled() ? /* Option to hide the node (and subnodes) */ __(nodeActionToIcon!icon("Hide")) :  /* Option to show the node (and subnodes) */ __(nodeActionToIcon!icon("Show")))) {
+            if (igMenuItem(n.getEnabled() ? __(nodeActionToIcon!icon("Hide")) : __(nodeActionToIcon!icon("Show")))) {
                 cmd!(NodeCommand.ToggleVisibility)(ctx);
             }
+            if (icon) incTooltip(n.getEnabled()? _(nodeActionToIcon!false("Hide")) : _(nodeActionToIcon!false("Show")));
 
             if (igMenuItem(__(nodeActionToIcon!icon("Delete")), "", false, !isRoot)) {
                 cmd!(NodeCommand.DeleteNode)(ctx);
             }
+            if (icon) incTooltip(_(nodeActionToIcon!false("Delete")));
 
             if (igMenuItem(__(nodeActionToIcon!icon("Copy")), "", false, true)) {
                 cmd!(NodeCommand.CopyNode)(ctx);
             }
+            if (icon) incTooltip(_(nodeActionToIcon!false("Copy")));
         }
             
         if (igMenuItem(__(nodeActionToIcon!icon("Paste")), "", false, clipboardNodes.length > 0)) {
             cmd!(NodeCommand.PasteNode)(ctx);
         }
+        if (icon) incTooltip(_(nodeActionToIcon!false("Paste")));
 
         if (igMenuItem(__(nodeActionToIcon!icon("Reload")), "", false, true)) {
             cmd!(NodeCommand.ReloadNode)(ctx);
         }
+        if (icon) incTooltip(_(nodeActionToIcon!false("Reload")));
 
         static if (!isRoot) {
             if (igBeginMenu(__(nodeActionToIcon!icon("More Info")), true)) {
@@ -192,10 +201,12 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
 
                 igEndMenu();
             }
+            if (icon) incTooltip(_(nodeActionToIcon!false("More Info")));
 
             if (igMenuItem(__(nodeActionToIcon!icon("Recalculate origin")), "", false, true)) {
                 cmd!(NodeCommand.CentralizeNode)(ctx);
             }
+            if (icon) incTooltip(_(nodeActionToIcon!false("Recalculate origin")));
 
             auto fromType = ngGetCommonNodeType(incSelectedNodes);
             if (fromType in conversionMap) {
@@ -212,6 +223,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                     }
                     igEndMenu();
                 }
+                if (icon) incTooltip(_(nodeActionToIcon!false("Convert To ...")));
             }
         }
         if (title != null)
