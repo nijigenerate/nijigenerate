@@ -94,10 +94,15 @@ private Context buildExecutionContext()
     if (selNodes.length > 0)
         ctx.nodes = selNodes;
 
-    // Armed parameter, if any
+    // Armed parameter(s)
     auto armed = incArmedParameter();
     if (armed !is null)
-        ctx.parameters = [armed];
+        ctx.armedParameters = [armed];
+
+    // Selected parameters (if any)
+    auto selParams = incSelectedParams();
+    if (selParams.length > 0)
+        ctx.parameters = selParams;
 
     // Selected bindings if any (from binding panel context), via provider
     if (gSelectedBindingsProvider !is null) {
