@@ -22,6 +22,17 @@ struct ActionEntry {
 
 // Registry keyed by Command for O(1) lookup and clear
 private ActionEntry[Command] gShortcutEntries;
+private __gshared bool gShortcutCaptureActive = false; // suppress dispatch during capture
+
+void ngSetShortcutCapture(bool capturing)
+{
+    gShortcutCaptureActive = capturing;
+}
+
+bool ngIsShortcutCapture()
+{
+    return gShortcutCaptureActive;
+}
 
 // Register or overwrite a shortcut (public API)
 void ngRegisterShortcut(string shortcut, Command command, bool repeat = false)
@@ -139,6 +150,7 @@ private Context buildExecutionContext()
 // Handle shortcut inputs each frame: find first matching and execute
 void incHandleShortcuts()
 {
+    if (gShortcutCaptureActive) return;
     auto io = igGetIO();
     foreach (cmd, entry; gShortcutEntries) {
         if (incShortcut(entry.shortcut, entry.repeat)) {

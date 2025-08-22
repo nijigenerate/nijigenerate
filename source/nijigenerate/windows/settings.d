@@ -349,6 +349,8 @@ protected:
                         capturingCommand = cmd;
                         capturingPreview = "";
                         capturingRepeat = false;
+                        import nijigenerate.core.shortcut.base : ngSetShortcutCapture;
+                        ngSetShortcutCapture(true);
                     }
                     igSameLine(0, 4);
                     auto clrLbl = __("Clear");
@@ -384,6 +386,8 @@ protected:
             capturingShortcut = false;
             capturingCommand = null;
             capturingPreview = "";
+            import nijigenerate.core.shortcut.base : ngSetShortcutCapture;
+            ngSetShortcutCapture(false);
         }
 
         // Recognized keys to bind
@@ -422,6 +426,8 @@ protected:
             capturingShortcut = false;
             capturingCommand = null;
             capturingPreview = "";
+            import nijigenerate.core.shortcut.base : ngSetShortcutCapture;
+            ngSetShortcutCapture(false);
         }
         igSeparator();
     }
