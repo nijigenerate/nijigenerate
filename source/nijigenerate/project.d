@@ -68,6 +68,7 @@ class Project {
 
     NodeEvent SelectionChanged;
     ParamEvent ArmedParameterChanged;
+    ParamEvent ParameterSelectionChanged;
 
     EditModeEvent EditModeChanging;
     EditModeEvent EditModeChanged;
@@ -139,6 +140,7 @@ private {
     Node[] selectedNodes;
     Drawable[] drawables;
     Parameter armedParam;
+    Parameter[] selectedParams;
     size_t armedParamIdx;
 //    string activeProject.path;
 
@@ -524,6 +526,13 @@ ref Node[] incSelectedNodes() {
 }
 
 /**
+    Gets the currently selected parameters
+*/
+ref Parameter[] incSelectedParams() {
+    return selectedParams;
+}
+
+/**
     Gets a list of the current drawables
 */
 ref Drawable[] incDrawables() {
@@ -535,6 +544,13 @@ ref Drawable[] incDrawables() {
 */
 ref Node incSelectedNode() {
     return selectedNodes.length == 0 ? incActivePuppet.root : selectedNodes[0];
+}
+
+/**
+    Gets the primary selected parameter (or null if none)
+*/
+Parameter incSelectedParam() {
+    return selectedParams.length == 0 ? null : selectedParams[0];
 }
 
 /**
@@ -575,6 +591,23 @@ void incSelectNodes(Node[] nodes) {
 }
 
 /**
+    Selects a parameter
+*/
+void incSelectParam(Parameter p = null) {
+    selectedParams.length = 0;
+    if (p !is null) selectedParams = [p];
+    activeProject.ParameterSelectionChanged.emit(incSelectedParam());
+}
+
+/**
+    Selects multiple parameters
+*/
+void incSelectParams(Parameter[] params) {
+    selectedParams = params;
+    activeProject.ParameterSelectionChanged.emit(incSelectedParam());
+}
+
+/**
     Adds node to selection
 */
 void incAddSelectNode(Node n) {
@@ -583,6 +616,16 @@ void incAddSelectNode(Node n) {
     selectedNodes ~= n;
     activeProject.SelectionChanged.emit(selectedNodes);
 //    incViewportModelNodeSelectionChanged();
+}
+
+/**
+    Adds parameter to selection
+*/
+void incAddSelectParam(Parameter p) {
+    if (selectedParams.canFind(p))
+        return;
+    selectedParams ~= p;
+    activeProject.ParameterSelectionChanged.emit(incSelectedParam());
 }
 
 /**
@@ -595,6 +638,20 @@ void incRemoveSelectNode(Node n) {
             selectedNodes = selectedNodes.remove(i);
             activeProject.SelectionChanged.emit(selectedNodes);
 //            incViewportModelNodeSelectionChanged();
+        }
+    }
+}
+
+/**
+    Remove parameter from selection
+*/
+void incRemoveSelectParam(Parameter p) {
+    foreach(i, pp; selectedParams) {
+        if (pp !is null && p !is null && pp.uuid == p.uuid) {
+            import std.algorithm.mutation : remove;
+            selectedParams = selectedParams.remove(i);
+            activeProject.ParameterSelectionChanged.emit(incSelectedParam());
+            break;
         }
     }
 }
@@ -627,6 +684,17 @@ bool incNodeInSelection(Node n) {
         if (n.uuid == nn.uuid) return true;
     }
 
+    return false;
+}
+
+/**
+    Gets whether the parameter is in the selection
+*/
+bool incParamInSelection(Parameter p) {
+    foreach(i, pp; selectedParams) {
+        if (pp is null) continue;
+        if (p.uuid == pp.uuid) return true;
+    }
     return false;
 }
 
