@@ -62,6 +62,7 @@ class Context {
     Puppet _puppet;
     Node[] _nodes;
     Parameter[] _parameters;
+    Parameter[] _armedParameters;
     ParameterBinding[] _bindings;
     vec2u _keyPoint;
     TypedInspector!Node[] _inspectors; // preferred: list of active inspectors
@@ -73,17 +74,20 @@ class Context {
         HasBindings = 8,
         HasKeyPoint = 16,
         HasInspectors = 32,
+        HasArmedParameters = 64,
     }
     ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
     bool hasNodes()     { return (masks & ContextMask.HasNodes)     != 0; }
     bool hasParameters(){ return (masks & ContextMask.HasParameters) != 0; }
+    bool hasArmedParameters() { return (masks & ContextMask.HasArmedParameters) != 0; }
     bool hasBindings()  { return (masks & ContextMask.HasBindings)  != 0; }
     bool hasKeyPoint()  { return (masks & ContextMask.HasKeyPoint)  != 0; }
     bool hasInspectors() { return (masks & ContextMask.HasInspectors) != 0; }
     void hasPuppet(bool value)    { masks = value ? (masks | ContextMask.HasPuppet)    : (masks & ~ContextMask.HasPuppet); }
     void hasNodes(bool value)     { masks = value ? (masks | ContextMask.HasNodes)     : (masks & ~ContextMask.HasNodes); }
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
+    void hasArmedParameters(bool value) { masks = value ? (masks | ContextMask.HasArmedParameters) : (masks & ~ContextMask.HasArmedParameters); }
     void hasBindings(bool value)  { masks = value ? (masks | ContextMask.HasBindings)  : (masks & ~ContextMask.HasBindings); }
     void hasKeyPoint(bool value)  { masks = value ? (masks | ContextMask.HasKeyPoint)  : (masks & ~ContextMask.HasKeyPoint); }
     void hasInspectors(bool value) { masks = value ? (masks | ContextMask.HasInspectors)  : (masks & ~ContextMask.HasInspectors); }
@@ -96,6 +100,9 @@ class Context {
 
     Parameter[] parameters() { return _parameters; }
     void parameters(Parameter[] value) { _parameters = value; hasParameters = true; }
+
+    Parameter[] armedParameters() { return _armedParameters; }
+    void armedParameters(Parameter[] value) { _armedParameters = value; hasArmedParameters = true; }
 
     ParameterBinding[] bindings() { return _bindings; }
     void bindings(ParameterBinding[] value) { _bindings = value; hasBindings = true; }

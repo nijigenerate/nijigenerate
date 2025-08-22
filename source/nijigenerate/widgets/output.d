@@ -466,6 +466,7 @@ protected:
         case ResourceType.Parameter:
             auto param = to!Parameter(res);
             isActive = incArmedParameter() == param;
+            selected = incParamInSelection(param);
             break;
         case ResourceType.Binding:
             auto binding = to!ParameterBinding(res);
@@ -480,6 +481,19 @@ protected:
             if (isNode) {
                 node = to!Node(res);
                 incSelectNode(node);
+            } else if (res.type == ResourceType.Parameter) {
+                auto param = to!Parameter(res);
+                auto io = igGetIO();
+                bool already = incParamInSelection(param);
+                if (already) {
+                    if (incSelectedParams().length > 1) {
+                        if (io.KeyCtrl) incRemoveSelectParam(param);
+                        else incSelectParam(param);
+                    }
+                } else {
+                    if (io.KeyCtrl) incAddSelectParam(param);
+                    else incSelectParam(param);
+                }
             }
         }
         if (isNode) {
@@ -737,17 +751,40 @@ protected:
         bool isActive = false;
         auto param = to!Parameter(res);
         isActive = incArmedParameter() == param;
+        bool isSelected = incParamInSelection(param);
         bool menuOpened = false;
         if (auto exGroup = cast(ExParameterGroup)param) {
             igGetItemRectMin(&widgetMinPos);
-            if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, false, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+            if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, incParamInSelection(exGroup), ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+                auto io = igGetIO();
+                bool already = incParamInSelection(exGroup);
+                if (already) {
+                    if (incSelectedParams().length > 1) {
+                        if (io.KeyCtrl) incRemoveSelectParam(exGroup);
+                        else incSelectParam(exGroup);
+                    }
+                } else {
+                    if (io.KeyCtrl) incAddSelectParam(exGroup);
+                    else incSelectParam(exGroup);
+                }
             }
             setParamDragTarget(exGroup);
             igGetItemRectMax(&widgetMaxPos);
         } else {
             igGetItemRectMin(&widgetMinPos);
             igPushID(cast(void*)param);
-            if (igSelectable(res.name.toStringz, incArmedParameter() == param, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
+            if (igSelectable(res.name.toStringz, isSelected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
+                auto io = igGetIO();
+                bool already = incParamInSelection(param);
+                if (already) {
+                    if (incSelectedParams().length > 1) {
+                        if (io.KeyCtrl) incRemoveSelectParam(param);
+                        else incSelectParam(param);
+                    }
+                } else {
+                    if (io.KeyCtrl) incAddSelectParam(param);
+                    else incSelectParam(param);
+                }
             }
             if (isNodeClicked(res, ImGuiMouseButton.Right)) {
                 menuOpened = true;

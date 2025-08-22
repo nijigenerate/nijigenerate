@@ -39,10 +39,10 @@ class UnsetKeyFrameCommand : ExCommand!() {
     this() { super(_("Unset Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         auto action = new ParameterChangeBindingsValueAction("unset", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -59,10 +59,10 @@ class SetKeyFrameCommand : ExCommand!() {
     this() { super(_("Set Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
@@ -80,10 +80,10 @@ class ResetKeyFrameCommand : ExCommand!() {
     this() { super(_("Reset Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
@@ -101,10 +101,10 @@ class InvertKeyFrameCommand : ExCommand!() {
     this() { super(_("Invert Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
@@ -122,10 +122,10 @@ class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Horizontally")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
@@ -143,10 +143,10 @@ class MirrorKeyFrameVerticallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Vertically")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
@@ -164,10 +164,10 @@ class FlipDeformCommand : ExCommand!() {
     this() { super(_("Flip Deform")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
@@ -189,10 +189,10 @@ class SymmetrizeDeformCommand : ExCommand!() {
     this() { super(_("Symmetrize Deform")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
@@ -218,10 +218,10 @@ class SetFromHorizontalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull"
     this(bool targetBindingsNull) { super(_("Set From Horizontal Mirror"), targetBindingsNull); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
             return;
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         

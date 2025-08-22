@@ -210,12 +210,10 @@ class DuplicateParameterCommand : ExCommand!() {
 
                 Parameter newParam = param.dup;
                 ctx.puppet.parameters ~= newParam;
-                newParam.bindings.length = 0;
-                pasteParameter!false(newParam, param, 0);
                 if (auto exParam = cast(ExParameter)newParam) {
                     exParam.setParent((cast(ExParameter)param).getParent());
                 }
-                incActionPush(new ParameterAddAction(newParam, cast(Parameter[]*)[])); //parentList is not used. so passed [].
+                incActionPush(new ParameterAddAction(newParam));
             }
         }
     }
@@ -231,10 +229,12 @@ class DuplicateParameterWithFlipCommand : ExCommand!() {
 
                 Parameter newParam = param.dup;
                 ctx.puppet.parameters ~= newParam;
+                newParam.bindings.length = 0;
+                pasteParameter!false(newParam, param, 0);
                 if (auto exParam = cast(ExParameter)newParam) {
                     exParam.setParent((cast(ExParameter)param).getParent());
                 }
-                incActionPush(new ParameterAddAction(newParam));
+                incActionPush(new ParameterAddAction(newParam, cast(Parameter[]*)[])); //parentList is not used. so passed [].
             }
         }
     }

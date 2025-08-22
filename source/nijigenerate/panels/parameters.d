@@ -99,6 +99,8 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
     ctx.bindings = (targetBindings !is null)? targetBindings: srcBindings;
     ctx.puppet = incActivePuppet();
     ctx.parameters = [param];
+    if (incArmedParameter() !is null)
+        ctx.armedParameters = [incArmedParameter()];
     ctx.keyPoint = cParamPoint;
 
     if (igMenuItem(__("Unset"), "", false, true)) {
@@ -163,6 +165,8 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
     ctx.bindings = cSelectedBindings.values;
     ctx.puppet = incActivePuppet();
     ctx.parameters = [param];
+    if (incArmedParameter() !is null)
+        ctx.armedParameters = [incArmedParameter()];
     ctx.keyPoint = cParamPoint;
 
     if (igMenuItem(__("Remove"), "", false, true)) {
