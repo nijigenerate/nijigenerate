@@ -296,8 +296,6 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
             }
             undoable = reverse;
             editor.refreshMesh();
-            // Mark topology changed so remap can be applied in the next update/switch
-            editor.vertexMapDirty = true;
         }
     }
 
@@ -317,8 +315,6 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
             }
             undoable = !reverse;
             editor.refreshMesh();
-            // Mark topology changed so remap can be applied in the next update/switch
-            editor.vertexMapDirty = true;
         }
     }
 
