@@ -505,3 +505,9 @@ IncMeshEditorOne ngGetArmedParameterEditorFor(Node node) {
     }
     return null;
 }
+
+// Expose current active NodeFilter for OneTimeDeform to allow actions to
+// resolve stale filter targets to the current instance during Undo/Redo.
+NodeFilter ngCurrentNodeFilter() {
+    return cast(NodeFilter)filter;
+}

@@ -66,9 +66,20 @@ class DeformationAction  : LazyBoundAction {
     void addVertex(MeshVertex* vertex) {
     }
 
+    // Resolve target filter to the current OneTimeDeform filter if needed
+    void resolveCurrentFilter() {
+        if (auto nf = cast(NodeFilter)target) {
+            auto cur = ngCurrentNodeFilter();
+            if (cur !is null) {
+                target = cast(Node)cur;
+            }
+        }
+    }
+
     void markAsDirty() { dirty = true; }
 
     void updateNewState() {
+        resolveCurrentFilter();
         if (param) {
             auto newDeform      = cast(DeformationParameterBinding)param.getBinding(this.target, "deform");
             if (deform is null && newDeform !is null)
@@ -78,6 +89,7 @@ class DeformationAction  : LazyBoundAction {
     }
 
     void clear() {
+        resolveCurrentFilter();
         if (self is null) {
             target       = null;
             param        = null;
@@ -110,6 +122,7 @@ class DeformationAction  : LazyBoundAction {
     void rollback() {
         import std.stdio;
         writefln("undo %s, %s", cast(void*)this, target ? target.name: "<null>");
+        resolveCurrentFilter();
         if (undoable) {
             if (vertices) {
                 if (deform !is null) {
@@ -150,6 +163,7 @@ class DeformationAction  : LazyBoundAction {
         Redo
     */
     void redo() {
+        resolveCurrentFilter();
         if (!undoable) {
             if (vertices) {
                 if (deform !is null) {
