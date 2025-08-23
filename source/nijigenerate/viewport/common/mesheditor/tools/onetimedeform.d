@@ -252,8 +252,12 @@ public:
                 vertActionId = fVertImpl.getTool().peek(io, fVertImpl);
             break;
         case SubToolMode.Deform:
-            if (acquired)
+            if (acquired) {
+                version(assert) {
+                    assert(fDefImpl !is null, "Deform editor missing on peek");
+                }
                 defActionId = fDefImpl.getTool().peek(io, fDefImpl);
+            }
             break;
         default:
         }

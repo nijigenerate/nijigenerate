@@ -129,6 +129,9 @@ class DeformationAction  : LazyBoundAction {
                     self.resetMesh();
                     if (deform !is null) {
                         self.applyOffsets(deform.values[keypoint.x][keypoint.y].vertexOffsets);
+                        version(assert) {
+                            assert(self.getOffsets().length == self.getOffsets().length, "Deform rollback: offsets length invariant");
+                        }
                     }
                 }
             }
@@ -158,6 +161,9 @@ class DeformationAction  : LazyBoundAction {
                     self.resetMesh();
                     if (deform !is null) {
                         self.applyOffsets(deform.values[keypoint.x][keypoint.y].vertexOffsets);
+                        version(assert) {
+                            assert(self.getOffsets().length == self.getOffsets().length, "Deform redo: offsets length invariant");
+                        }
                     }
                 }
             }
