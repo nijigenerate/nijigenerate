@@ -412,6 +412,13 @@ public:
         case SubToolMode.Vertex:
             if (acquired) {
                 bool result = fVertImpl.getTool().update(io, fVertImpl, vertActionId, changed);
+                // 頂点数やマップ更新が起きたら、変形を現在の形状へ正確に移す
+                if (fVertImpl.vertexMapDirty) {
+                    fVertImpl.applyToTarget();
+                    auto parameter = incArmedParameter();
+                    if (parameter) parameter.update();
+                    fVertImpl.vertexMapDirty = false;
+                }
                 return result;
             }
             break;
