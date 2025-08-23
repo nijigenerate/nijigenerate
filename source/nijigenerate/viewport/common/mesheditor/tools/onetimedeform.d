@@ -324,8 +324,6 @@ public:
                     fVertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
                     fDefImpl.vertexColor = vec4(0, 1, 0, 1);
                     fDefImpl.edgeColor   = vec4(0, 1, 0, 1);
-                    import std.stdio;
-                    incActionPushGroup();
                     fVertImpl.pushDeformAction();
                     fVertImpl.applyToTarget();
                     if (auto deformable = cast(Deformable)filter) {
@@ -333,12 +331,8 @@ public:
                         parameter.update();
                     }
                     fDefImpl.setTarget(cast(T)filter);
+                    // Reset deform editor baseline; do not push here
                     fDefImpl.getCleanDeformAction();
-                    fDefImpl.markActionDirty();
-                    fDefImpl.pushDeformAction();
-
-                    // Do not persist on internal submode toggle
-                    incActionPopGroup();
                     fDefImpl.getCleanDeformAction();
                     paramValueChanged();
                 }
@@ -380,11 +374,13 @@ public:
         case SubToolMode.Deform:
             if (acquired) {
                 bool result = fDefImpl.getTool().update(io, fDefImpl, defActionId, changed);
+                // Continuously reflect current offsets into filter's binding for later persistence
                 auto parameter = incArmedParameter();
                 auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(cast(T)filter, "deform");
                 deform.update(parameter.findClosestKeypoint(), fDefImpl.getOffsets());
                 if (result) {
-                    impl.markActionDirty();
+                    // Mark deform editor action as dirty, not the outer impl
+                    fDefImpl.markActionDirty();
                 }
                 return result;
             }
