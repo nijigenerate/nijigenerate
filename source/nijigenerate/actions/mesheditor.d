@@ -128,10 +128,17 @@ class DeformationAction  : LazyBoundAction {
                 if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        self.applyOffsets(deform.values[keypoint.x][keypoint.y].vertexOffsets);
-                        version(assert) {
-                            assert(self.getOffsets().length == self.getOffsets().length, "Deform rollback: offsets length invariant");
+                        vec2[] offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
+                        size_t targetLen = self.getOffsets().length;
+                        if (offs.length != targetLen) {
+                            vec2[] resized;
+                            resized.length = targetLen;
+                            size_t n = offs.length < targetLen ? offs.length : targetLen;
+                            foreach (i; 0..n) resized[i] = offs[i];
+                            foreach (i; n..targetLen) resized[i] = vec2(0);
+                            offs = resized;
                         }
+                        self.applyOffsets(offs);
                     }
                 }
             }
@@ -160,10 +167,17 @@ class DeformationAction  : LazyBoundAction {
                 if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        self.applyOffsets(deform.values[keypoint.x][keypoint.y].vertexOffsets);
-                        version(assert) {
-                            assert(self.getOffsets().length == self.getOffsets().length, "Deform redo: offsets length invariant");
+                        vec2[] offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
+                        size_t targetLen = self.getOffsets().length;
+                        if (offs.length != targetLen) {
+                            vec2[] resized;
+                            resized.length = targetLen;
+                            size_t n = offs.length < targetLen ? offs.length : targetLen;
+                            foreach (i; 0..n) resized[i] = offs[i];
+                            foreach (i; n..targetLen) resized[i] = vec2(0);
+                            offs = resized;
                         }
+                        self.applyOffsets(offs);
                     }
                 }
             }
