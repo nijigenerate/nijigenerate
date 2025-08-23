@@ -37,9 +37,14 @@ private {
     IncMeshEditorOne fDefImpl = null;
     int vertActionId = 0;
     int defActionId  = 0;
+    // Map active NodeFilter -> its deform editor to resolve editors during Undo/Redo reliably
+    IncMeshEditorOne[NodeFilter] gFilterEditors;
 
     void forceFinalize(Node target) {
         if (filter) {
+            // Remove mapping first to avoid stale lookups
+            if (cast(NodeFilter)filter in gFilterEditors)
+                gFilterEditors.remove(cast(NodeFilter)filter);
             foreach (child; (cast(Node)filter).children) {
                 filter.applyDeformToChildren([incArmedParameter()], false);
                 filter.releaseTarget(child);
@@ -75,6 +80,8 @@ private {
             fDefImpl.addFilterTarget(target);
             defActionId = NodeSelect.SelectActionID.None;
             setup!(T);
+            // Register mapping for this filter
+            gFilterEditors[cast(NodeFilter)filter] = fDefImpl;
             return true;
         }
         return false;
@@ -514,9 +521,8 @@ class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
 
 IncMeshEditorOne ngGetArmedParameterEditorFor(Node node) {
     if (auto f = cast(NodeFilter)node) {
-        if (f == filter) {
-            return fDefImpl;
-        }
+        if (f in gFilterEditors)
+            return gFilterEditors[f];
     }
     return null;
 }
