@@ -547,3 +547,51 @@ public:
         }
    }
 }
+
+/**
+    Action to toggle and restore OneTimeDeform sub-tool modes across targets.
+
+    This keeps UI mode changes in the undo/redo history so that
+    users see mode flip/restoration alongside data edits.
+*/
+class SubToolModeChangeAction : Action {
+public:
+    Node[] targets;
+    SubToolMode[] oldModes;
+    SubToolMode[] newModes;
+
+    this(Node[] targets, SubToolMode[] oldModes, SubToolMode[] newModes) {
+        this.targets = targets.dup;
+        this.oldModes = oldModes.dup;
+        this.newModes = newModes.dup;
+    }
+
+    // Action interface
+    void rollback() {
+        foreach (i, t; targets) {
+            auto ed = ngGetEditorFor(t);
+            if (ed is null) continue;
+            auto tool = cast(OneTimeDeformBase)ed.getTool();
+            if (tool is null) continue;
+            if (i < oldModes.length)
+                tool.mode = oldModes[i];
+        }
+    }
+
+    void redo() {
+        foreach (i, t; targets) {
+            auto ed = ngGetEditorFor(t);
+            if (ed is null) continue;
+            auto tool = cast(OneTimeDeformBase)ed.getTool();
+            if (tool is null) continue;
+            if (i < newModes.length)
+                tool.mode = newModes[i];
+        }
+    }
+
+    string describe() { return _("Switched deform sub-tool mode"); }
+    string describeUndo() { return _("Reverted deform sub-tool mode"); }
+    string getName() { return this.stringof; }
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}

@@ -184,7 +184,48 @@ public:
     void finalizeToolMode(IncMeshEditorOne impl) {
         if (acquired) {
             incActionPopStack();
-            forceFinalize(impl.getTarget());
+
+            // Persist filter deformation into children as an undoable parameter action,
+            // then release filter targets and clean up.
+            auto param = incArmedParameter();
+            if (filter && param) {
+                auto kp = param.findClosestKeypoint();
+                ParameterBinding[] bindings;
+                foreach (child; (cast(Node)filter).children) {
+                    if (auto deformable = cast(Deformable)child) {
+                        auto b = param.getOrAddBinding(deformable, "deform");
+                        if (b !is null)
+                            bindings ~= b;
+                    }
+                }
+
+                // Create action capturing old values first
+                if (bindings.length > 0) {
+                    import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
+                    auto persistAction = new ParameterChangeBindingsValueAction(_("apply deform"), param, bindings, kp.x, kp.y);
+
+                    // Apply changes to children, then capture new values
+                    filter.applyDeformToChildren([param], false);
+                    persistAction.updateNewState();
+                    incActionPush(persistAction);
+                } else {
+                    // No bindings to persist; still apply to ensure state consistency
+                    filter.applyDeformToChildren([param], false);
+                }
+
+                foreach (child; (cast(Node)filter).children) {
+                    filter.releaseTarget(child);
+                }
+                if (fVertImpl)
+                    fVertImpl.removeFilterTarget(impl.getTarget());
+                if (fDefImpl)
+                    fDefImpl.removeFilterTarget(impl.getTarget());
+                if ((cast(Node)filter).children.length == 0) {
+                    (cast(Node)filter).reparent(null, 0);
+                    filter = null;
+                }
+                incViewportNodeDeformNotifyParamValueChanged();
+            }
             impl.pushDeformAction();
         }
     }
@@ -251,7 +292,27 @@ public:
         }
 
         if (action == OneTimeDeformActionID.SwitchMode) {
-           
+            // Group persistence + mode change into one undo step
+            incActionPushGroup();
+            // Capture per-target old/new modes to keep UI mode flips in history.
+            Node[] targets = fDefImpl ? fDefImpl.getFilterTargets() : (fVertImpl ? fVertImpl.getFilterTargets() : null);
+            SubToolMode[] oldModes;
+            SubToolMode[] newModes;
+            if (targets && targets.length > 0) {
+                foreach (t; targets) {
+                    auto ed = ngGetEditorFor(t);
+                    auto tool = ed ? cast(OneTimeDeformBase)ed.getTool() : null;
+                    auto m = tool ? tool.mode : mode;
+                    oldModes ~= m;
+                    // Toggle rule: Vertex <-> Deform, others remain.
+                    final switch (m) {
+                        case SubToolMode.Vertex: newModes ~= SubToolMode.Deform; break;
+                        case SubToolMode.Deform: newModes ~= SubToolMode.Vertex; break;
+                        case SubToolMode.Select: newModes ~= SubToolMode.Select; break;
+                    }
+                }
+            }
+
             switch (mode) {
             case SubToolMode.Select:
                 mode = SubToolMode.Vertex;
@@ -275,6 +336,8 @@ public:
                     fDefImpl.getCleanDeformAction();
                     fDefImpl.markActionDirty();
                     fDefImpl.pushDeformAction();
+
+                    // Do not persist on internal submode toggle
                     incActionPopGroup();
                     fDefImpl.getCleanDeformAction();
                     paramValueChanged();
@@ -294,6 +357,12 @@ public:
                 break;
             default:
             }
+            // Push mode change action after switching internal state, so redo/undo reflect UI mode.
+            import nijigenerate.actions.mesheditor : SubToolModeChangeAction;
+            if (targets && targets.length > 0 && oldModes.length == targets.length && newModes.length == targets.length) {
+                incActionPush(new SubToolModeChangeAction(targets, oldModes, newModes));
+            }
+            incActionPopGroup();
             return true;
         }
 
