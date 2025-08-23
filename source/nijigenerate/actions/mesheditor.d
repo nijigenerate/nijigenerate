@@ -125,10 +125,10 @@ class DeformationAction  : LazyBoundAction {
                         param.removeBinding(deform);
                     }
                 }
-                if (self !is null && self.getTarget() == this.target && incArmedParameter() == this.param) {
+                if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        self.applyOffsets(deform.getValue(param.findClosestKeypoint()).vertexOffsets);            
+                        self.applyOffsets(deform.values[keypoint.x][keypoint.y].vertexOffsets);
                     }
                 }
             }
@@ -154,10 +154,10 @@ class DeformationAction  : LazyBoundAction {
                         param.addBinding(deform);
                     }
                 }
-                if (self !is null && self.getTarget() == this.target && incArmedParameter() == this.param) {
+                if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        self.applyOffsets(deform.getValue(param.findClosestKeypoint()).vertexOffsets);
+                        self.applyOffsets(deform.values[keypoint.x][keypoint.y].vertexOffsets);
                     }
                 }
             }

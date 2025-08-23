@@ -94,6 +94,7 @@ private {
 class OneTimeDeformBase :  NodeSelect {
     SubToolMode mode;
     SubToolMode prevMode = SubToolMode.Vertex;
+    SubToolMode appliedMode = SubToolMode.Vertex; // last applied UI/impl state
     bool acquired = false;
 
     enum OneTimeDeformActionID {
@@ -285,10 +286,53 @@ public:
             if (auto deformable = cast(Deformable)fDefImpl.getTarget()) {
                 deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
                 if (deform !is null) {
-                    auto binding = deform.getValue(parameter.findClosestKeypoint());
-                    fDefImpl.applyOffsets(binding.vertexOffsets);
+                    auto kp = parameter.findClosestKeypoint();
+                    auto binding = deform.getValue(kp);
+                    // Normalize offsets length to current vertex count to avoid index mismatch
+                    vec2[] offs = binding.vertexOffsets.dup;
+                    size_t targetLen = fDefImpl.getOffsets().length; // based on current editor vertices
+                    if (offs.length != targetLen) {
+                        vec2[] resized;
+                        resized.length = targetLen;
+                        size_t n = offs.length < targetLen ? offs.length : targetLen;
+                        foreach (i; 0..n) resized[i] = offs[i];
+                        foreach (i; n..targetLen) resized[i] = vec2(0);
+                        deform.update(kp, resized);
+                        offs = resized;
+                    }
+                    fDefImpl.applyOffsets(offs);
                 }
             }
+        }
+
+        // Apply side-effects if mode changed externally (e.g., via Undo/Redo of mode action)
+        if (appliedMode != mode) {
+            final switch (mode) {
+                case SubToolMode.Deform:
+                    if (acquired) {
+                        fVertImpl.vertexColor = vec4(0, 0.5, 0.5, 1);
+                        fVertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
+                        fDefImpl.vertexColor = vec4(0, 1, 0, 1);
+                        fDefImpl.edgeColor   = vec4(0, 1, 0, 1);
+                        fDefImpl.setTarget(cast(T)filter);
+                        fDefImpl.getCleanDeformAction();
+                        paramValueChanged();
+                    }
+                    break;
+                case SubToolMode.Vertex:
+                    if (acquired) {
+                        fVertImpl.vertexColor = vec4(0, 1, 1, 1);
+                        fVertImpl.edgeColor   = vec4(0, 1, 1, 1);
+                        fDefImpl.vertexColor = vec4(0, 0.5, 0, 1);
+                        fDefImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
+                        fVertImpl.getCleanDeformAction();
+                        paramValueChanged();
+                    }
+                    break;
+                case SubToolMode.Select:
+                    break;
+            }
+            appliedMode = mode;
         }
 
         if (action == OneTimeDeformActionID.SwitchMode) {
