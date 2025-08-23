@@ -103,9 +103,6 @@ class OneTimeDeformBase :  NodeSelect {
     SubToolMode prevMode = SubToolMode.Vertex;
     SubToolMode appliedMode = SubToolMode.Vertex; // last applied UI/impl state
     bool acquired = false;
-    // 1-frame delayed binding update for Deform mode
-    vec2[] _pendingOffsets;
-    bool   _hasPending = false;
 
     enum OneTimeDeformActionID {
         SwitchMode = cast(int)(SelectActionID.End),
@@ -200,13 +197,6 @@ public:
             // then release filter targets and clean up.
             auto param = incArmedParameter();
             if (filter && param) {
-                // Flush any pending offsets before persisting
-                if (_hasPending) {
-                    auto deform = cast(DeformationParameterBinding)param.getOrAddBinding(cast(T)filter, "deform");
-                    if (deform !is null)
-                        deform.update(param.findClosestKeypoint(), _pendingOffsets);
-                    _hasPending = false;
-                }
                 auto kp = param.findClosestKeypoint();
                 ParameterBinding[] bindings;
                 foreach (child; (cast(Node)filter).children) {
@@ -401,16 +391,6 @@ public:
                     fVertImpl.edgeColor   = vec4(0, 1, 1, 1);
                     fDefImpl.vertexColor = vec4(0, 0.5, 0, 1);
                     fDefImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
-                    // Flush pending offsets before switching out
-                    if (_hasPending) {
-                        auto parameter = incArmedParameter();
-                        if (parameter) {
-                            auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(cast(T)filter, "deform");
-                            if (deform !is null)
-                                deform.update(parameter.findClosestKeypoint(), _pendingOffsets);
-                        }
-                        _hasPending = false;
-                    }
                     fDefImpl.pushDeformAction();
                     fVertImpl.getCleanDeformAction();
                     mode = SubToolMode.Vertex;
@@ -449,18 +429,13 @@ public:
             if (acquired) {
                 bool result = fDefImpl.getTool().update(io, fDefImpl, defActionId, changed);
                 // 1-frame delayed write to binding: apply last frame's offsets now
-                if (_hasPending) {
+                if (result) {
                     auto parameter = incArmedParameter();
                     if (parameter) {
                         auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(cast(T)filter, "deform");
                         if (deform !is null)
-                            deform.update(parameter.findClosestKeypoint(), _pendingOffsets);
+                            deform.update(parameter.findClosestKeypoint(), fDefImpl.getOffsets());
                     }
-                    _hasPending = false;
-                }
-                if (result) {
-                    _pendingOffsets = fDefImpl.getOffsets().dup;
-                    _hasPending = true;
                     fDefImpl.markActionDirty();
                 }
                 return result;
