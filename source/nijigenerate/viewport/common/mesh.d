@@ -562,8 +562,10 @@ public:
         vec2[] offsets;
 
         offsets.length = vertices.length;
-        foreach(idx, vertex; vertices) {
-            offsets[idx] = vertex.position - data.vertices[idx];
+        if (data.vertices !is null && data.vertices.length >= vertices.length) {
+            foreach(idx, vertex; vertices) {
+                offsets[idx] = vertex.position - data.vertices[idx];
+            }
         }
         return offsets;
     }
