@@ -37,9 +37,14 @@ private {
     IncMeshEditorOne fDefImpl = null;
     int vertActionId = 0;
     int defActionId  = 0;
+    // Map active NodeFilter -> its deform editor to resolve editors during Undo/Redo reliably
+    IncMeshEditorOne[NodeFilter] gFilterEditors;
 
     void forceFinalize(Node target) {
         if (filter) {
+            // Remove mapping first to avoid stale lookups
+            if (cast(NodeFilter)filter in gFilterEditors)
+                gFilterEditors.remove(cast(NodeFilter)filter);
             foreach (child; (cast(Node)filter).children) {
                 filter.applyDeformToChildren([incArmedParameter()], false);
                 filter.releaseTarget(child);
@@ -75,6 +80,8 @@ private {
             fDefImpl.addFilterTarget(target);
             defActionId = NodeSelect.SelectActionID.None;
             setup!(T);
+            // Register mapping for this filter
+            gFilterEditors[cast(NodeFilter)filter] = fDefImpl;
             return true;
         }
         return false;
@@ -94,6 +101,7 @@ private {
 class OneTimeDeformBase :  NodeSelect {
     SubToolMode mode;
     SubToolMode prevMode = SubToolMode.Vertex;
+    SubToolMode appliedMode = SubToolMode.Vertex; // last applied UI/impl state
     bool acquired = false;
 
     enum OneTimeDeformActionID {
@@ -184,7 +192,48 @@ public:
     void finalizeToolMode(IncMeshEditorOne impl) {
         if (acquired) {
             incActionPopStack();
-            forceFinalize(impl.getTarget());
+
+            // Persist filter deformation into children as an undoable parameter action,
+            // then release filter targets and clean up.
+            auto param = incArmedParameter();
+            if (filter && param) {
+                auto kp = param.findClosestKeypoint();
+                ParameterBinding[] bindings;
+                foreach (child; (cast(Node)filter).children) {
+                    if (auto deformable = cast(Deformable)child) {
+                        auto b = param.getOrAddBinding(deformable, "deform");
+                        if (b !is null)
+                            bindings ~= b;
+                    }
+                }
+
+                // Create action capturing old values first
+                if (bindings.length > 0) {
+                    import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
+                    auto persistAction = new ParameterChangeBindingsValueAction(_("apply deform"), param, bindings, kp.x, kp.y);
+
+                    // Apply changes to children, then capture new values
+                    filter.applyDeformToChildren([param], false);
+                    persistAction.updateNewState();
+                    incActionPush(persistAction);
+                } else {
+                    // No bindings to persist; still apply to ensure state consistency
+                    filter.applyDeformToChildren([param], false);
+                }
+
+                foreach (child; (cast(Node)filter).children) {
+                    filter.releaseTarget(child);
+                }
+                if (fVertImpl)
+                    fVertImpl.removeFilterTarget(impl.getTarget());
+                if (fDefImpl)
+                    fDefImpl.removeFilterTarget(impl.getTarget());
+                if ((cast(Node)filter).children.length == 0) {
+                    (cast(Node)filter).reparent(null, 0);
+                    filter = null;
+                }
+                incViewportNodeDeformNotifyParamValueChanged();
+            }
             impl.pushDeformAction();
         }
     }
@@ -203,8 +252,12 @@ public:
                 vertActionId = fVertImpl.getTool().peek(io, fVertImpl);
             break;
         case SubToolMode.Deform:
-            if (acquired)
+            if (acquired) {
+                version(assert) {
+                    assert(fDefImpl !is null, "Deform editor missing on peek");
+                }
                 defActionId = fDefImpl.getTool().peek(io, fDefImpl);
+            }
             break;
         default:
         }
@@ -238,20 +291,84 @@ public:
 
     override bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         incStatusTooltip(_("Switch Mode"), _("TAB"));
-        void paramValueChanged() {
-            DeformationParameterBinding deform = null;
+        // Deform表示をバインディングから読み取って反映（読み取り専用。書き込みはしない）
+        void seedViewFromBinding() {
             auto parameter = incArmedParameter();
+            if (!parameter) return;
             if (auto deformable = cast(Deformable)fDefImpl.getTarget()) {
-                deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
-                if (deform !is null) {
-                    auto binding = deform.getValue(parameter.findClosestKeypoint());
-                    fDefImpl.applyOffsets(binding.vertexOffsets);
+                auto deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
+                if (deform is null) return;
+                auto kp = parameter.findClosestKeypoint();
+                auto binding = deform.getValue(kp);
+                vec2[] offs = binding.vertexOffsets.dup;
+                size_t targetLen = fDefImpl.getOffsets().length;
+                if (offs.length != targetLen) {
+                    vec2[] resized;
+                    resized.length = targetLen;
+                    size_t n = offs.length < targetLen ? offs.length : targetLen;
+                    foreach (i; 0..n) resized[i] = offs[i];
+                    foreach (i; n..targetLen) resized[i] = vec2(0);
+                    offs = resized;
                 }
+                fDefImpl.applyOffsets(offs);
             }
         }
 
+        // Apply side-effects if mode changed externally (e.g., via Undo/Redo of mode action)
+        if (appliedMode != mode) {
+            final switch (mode) {
+                case SubToolMode.Deform:
+                    if (acquired) {
+                        fVertImpl.vertexColor = vec4(0, 0.5, 0.5, 1);
+                        fVertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
+                        fDefImpl.vertexColor = vec4(0, 1, 0, 1);
+                        fDefImpl.edgeColor   = vec4(0, 1, 0, 1);
+                        // Reset tool interaction state on external mode change
+                        fDefImpl.setToolMode(fDefImpl.getToolMode());
+                        fDefImpl.setTarget(cast(T)filter);
+                        fDefImpl.getCleanDeformAction();
+                        seedViewFromBinding();
+                    }
+                    break;
+                case SubToolMode.Vertex:
+                    if (acquired) {
+                        fVertImpl.vertexColor = vec4(0, 1, 1, 1);
+                        fVertImpl.edgeColor   = vec4(0, 1, 1, 1);
+                        fDefImpl.vertexColor = vec4(0, 0.5, 0, 1);
+                        fDefImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
+                        // Reset tool interaction state on external mode change
+                        fVertImpl.setToolMode(fVertImpl.getToolMode());
+                        fVertImpl.getCleanDeformAction();
+                    }
+                    break;
+                case SubToolMode.Select:
+                    break;
+            }
+            appliedMode = mode;
+        }
+
         if (action == OneTimeDeformActionID.SwitchMode) {
-           
+            // Group persistence + mode change into one undo step
+            incActionPushGroup();
+            // Capture per-target old/new modes to keep UI mode flips in history.
+            Node[] targets = fDefImpl ? fDefImpl.getFilterTargets() : (fVertImpl ? fVertImpl.getFilterTargets() : null);
+            SubToolMode[] oldModes;
+            SubToolMode[] newModes;
+            if (targets && targets.length > 0) {
+                foreach (t; targets) {
+                    auto ed = ngGetEditorFor(t);
+                    auto tool = ed ? cast(OneTimeDeformBase)ed.getTool() : null;
+                    auto m = tool ? tool.mode : mode;
+                    oldModes ~= m;
+                    // Toggle rule: Vertex <-> Deform, others remain.
+                    final switch (m) {
+                        case SubToolMode.Vertex: newModes ~= SubToolMode.Deform; break;
+                        case SubToolMode.Deform: newModes ~= SubToolMode.Vertex; break;
+                        case SubToolMode.Select: newModes ~= SubToolMode.Select; break;
+                    }
+                }
+            }
+
             switch (mode) {
             case SubToolMode.Select:
                 mode = SubToolMode.Vertex;
@@ -263,8 +380,6 @@ public:
                     fVertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
                     fDefImpl.vertexColor = vec4(0, 1, 0, 1);
                     fDefImpl.edgeColor   = vec4(0, 1, 0, 1);
-                    import std.stdio;
-                    incActionPushGroup();
                     fVertImpl.pushDeformAction();
                     fVertImpl.applyToTarget();
                     if (auto deformable = cast(Deformable)filter) {
@@ -272,12 +387,10 @@ public:
                         parameter.update();
                     }
                     fDefImpl.setTarget(cast(T)filter);
+                    // Reset deform editor baseline; do not push here
                     fDefImpl.getCleanDeformAction();
-                    fDefImpl.markActionDirty();
-                    fDefImpl.pushDeformAction();
-                    incActionPopGroup();
-                    fDefImpl.getCleanDeformAction();
-                    paramValueChanged();
+                    // 画面表示を現在のバインディングからシード
+                    seedViewFromBinding();
                 }
                 break;
             case SubToolMode.Deform:
@@ -288,12 +401,17 @@ public:
                     fDefImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
                     fDefImpl.pushDeformAction();
                     fVertImpl.getCleanDeformAction();
-                    paramValueChanged();
                     mode = SubToolMode.Vertex;
                 }
                 break;
             default:
             }
+            // Push mode change action after switching internal state, so redo/undo reflect UI mode.
+            import nijigenerate.actions.mesheditor : SubToolModeChangeAction;
+            if (targets && targets.length > 0 && oldModes.length == targets.length && newModes.length == targets.length) {
+                incActionPush(new SubToolModeChangeAction(targets, oldModes, newModes));
+            }
+            incActionPopGroup();
             return true;
         }
 
@@ -305,17 +423,28 @@ public:
         case SubToolMode.Vertex:
             if (acquired) {
                 bool result = fVertImpl.getTool().update(io, fVertImpl, vertActionId, changed);
+                // 頂点数やマップ更新が起きたら、変形を現在の形状へ正確に移す
+                if (fVertImpl.vertexMapDirty) {
+                    fVertImpl.applyToTarget();
+                    auto parameter = incArmedParameter();
+                    if (parameter) parameter.update();
+                    fVertImpl.vertexMapDirty = false;
+                }
                 return result;
             }
             break;
         case SubToolMode.Deform:
             if (acquired) {
                 bool result = fDefImpl.getTool().update(io, fDefImpl, defActionId, changed);
-                auto parameter = incArmedParameter();
-                auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(cast(T)filter, "deform");
-                deform.update(parameter.findClosestKeypoint(), fDefImpl.getOffsets());
+                // 1-frame delayed write to binding: apply last frame's offsets now
                 if (result) {
-                    impl.markActionDirty();
+                    auto parameter = incArmedParameter();
+                    if (parameter) {
+                        auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(cast(T)filter, "deform");
+                        if (deform !is null)
+                            deform.update(parameter.findClosestKeypoint(), fDefImpl.getOffsets());
+                    }
+                    fDefImpl.markActionDirty();
                 }
                 return result;
             }
@@ -375,9 +504,25 @@ class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
 
 IncMeshEditorOne ngGetArmedParameterEditorFor(Node node) {
     if (auto f = cast(NodeFilter)node) {
-        if (f == filter) {
-            return fDefImpl;
+        if (f in gFilterEditors)
+            return gFilterEditors[f];
+    }
+    // Map original deformable target to the current deform editor when filtered
+    if (filter !is null) {
+        foreach (child; (cast(Node)filter).children) {
+            if (child is node) {
+                if (cast(NodeFilter)filter in gFilterEditors)
+                    return gFilterEditors[cast(NodeFilter)filter];
+                else
+                    return fDefImpl;
+            }
         }
     }
     return null;
+}
+
+// Expose current active NodeFilter for OneTimeDeform to allow actions to
+// resolve stale filter targets to the current instance during Undo/Redo.
+NodeFilter ngCurrentNodeFilter() {
+    return cast(NodeFilter)filter;
 }

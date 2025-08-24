@@ -24,7 +24,12 @@ private {
     struct Applier(T: Deformable) if (!is(T: Drawable)) {
         static auto changeAction(T target)  { return new DeformableChangeAction(target.name, target); }
         static void postApply(T target) { }
-        static void rebuffer(V, M)(T target, V vertices, M* data = null) {
+        // Overload for vec2[] directly
+        static void rebuffer(M)(T target, vec2[] vertices, M* data = null) {
+            target.rebuffer(vertices);
+        }
+        // Overload for MeshVertex*[]
+        static void rebuffer(M)(T target, MeshVertex*[] vertices, M* data = null) {
             target.rebuffer(vertices.toVertices);
         }
     }
@@ -139,4 +144,60 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
 
     Applier!T.postApply(target);
     incActionPopGroup();
+}
+
+// Same as applyMeshToTarget but does not record an Action to the history.
+// Used to synchronize mesh topology during Undo/Redo without clearing Redo.
+void applyMeshToTargetNoRecord(T, V, M)(T target, V vertices, M* mesh) {
+    // Export mesh if provided
+    MeshData data;
+    if (mesh) {
+        data = (*mesh).export_();
+        data.fixWinding();
+        target.normalizeUV(&data);
+    }
+
+    DeformationParameterBinding[] deformers;
+
+    void alterDeform(ParameterBinding binding) {
+        auto deformBinding = cast(DeformationParameterBinding)binding;
+        if (!deformBinding)
+            return;
+        foreach (uint x; 0..cast(uint)deformBinding.values.length) {
+            foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
+                auto deform = deformBinding.values[x][y];
+                if (deformBinding.isSet(vec2u(x, y))) {
+                    auto newDeform = deformByDeformationBinding(vertices, deformBinding, vec2u(x, y), false);
+                    if (newDeform)
+                        deformBinding.values[x][y] = *newDeform;
+                } else {
+                    deformBinding.values[x][y].vertexOffsets.length = vertices.length;
+                }
+                deformers ~= deformBinding;
+            }
+        }
+    }
+
+    foreach (param; incActivePuppet().parameters) {
+        if (auto group = cast(ExParameterGroup)param) {
+            foreach(x, ref xparam; group.children) {
+                ParameterBinding binding = xparam.getBinding(target, "deform");
+                alterDeform(binding);
+            }
+        } else {
+            ParameterBinding binding = param.getBinding(target, "deform");
+            alterDeform(binding);
+        }
+    }
+    incActivePuppet().resetDrivers();
+
+    target.clearCache();
+    Applier!T.rebuffer(target, vertices, &data);
+
+    foreach (deformBinding; deformers) {
+        deformBinding.reInterpolate();
+    }
+
+    target.notifyChange(target, NotifyReason.StructureChanged);
+    Applier!T.postApply(target);
 }

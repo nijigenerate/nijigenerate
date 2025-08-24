@@ -66,9 +66,20 @@ class DeformationAction  : LazyBoundAction {
     void addVertex(MeshVertex* vertex) {
     }
 
+    // Resolve target filter to the current OneTimeDeform filter if needed
+    void resolveCurrentFilter() {
+        if (auto nf = cast(NodeFilter)target) {
+            auto cur = ngCurrentNodeFilter();
+            if (cur !is null) {
+                target = cast(Node)cur;
+            }
+        }
+    }
+
     void markAsDirty() { dirty = true; }
 
     void updateNewState() {
+        resolveCurrentFilter();
         if (param) {
             auto newDeform      = cast(DeformationParameterBinding)param.getBinding(this.target, "deform");
             if (deform is null && newDeform !is null)
@@ -78,6 +89,7 @@ class DeformationAction  : LazyBoundAction {
     }
 
     void clear() {
+        resolveCurrentFilter();
         if (self is null) {
             target       = null;
             param        = null;
@@ -110,6 +122,7 @@ class DeformationAction  : LazyBoundAction {
     void rollback() {
         import std.stdio;
         writefln("undo %s, %s", cast(void*)this, target ? target.name: "<null>");
+        resolveCurrentFilter();
         if (undoable) {
             if (vertices) {
                 if (deform !is null) {
@@ -125,10 +138,20 @@ class DeformationAction  : LazyBoundAction {
                         param.removeBinding(deform);
                     }
                 }
-                if (self !is null && self.getTarget() == this.target && incArmedParameter() == this.param) {
+                if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        self.applyOffsets(deform.getValue(param.findClosestKeypoint()).vertexOffsets);            
+                        vec2[] offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
+                        size_t targetLen = self.getOffsets().length;
+                        if (offs.length != targetLen) {
+                            vec2[] resized;
+                            resized.length = targetLen;
+                            size_t n = offs.length < targetLen ? offs.length : targetLen;
+                            foreach (i; 0..n) resized[i] = offs[i];
+                            foreach (i; n..targetLen) resized[i] = vec2(0);
+                            offs = resized;
+                        }
+                        self.applyOffsets(offs);
                     }
                 }
             }
@@ -140,6 +163,7 @@ class DeformationAction  : LazyBoundAction {
         Redo
     */
     void redo() {
+        resolveCurrentFilter();
         if (!undoable) {
             if (vertices) {
                 if (deform !is null) {
@@ -154,10 +178,20 @@ class DeformationAction  : LazyBoundAction {
                         param.addBinding(deform);
                     }
                 }
-                if (self !is null && self.getTarget() == this.target && incArmedParameter() == this.param) {
+                if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        self.applyOffsets(deform.getValue(param.findClosestKeypoint()).vertexOffsets);
+                        vec2[] offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
+                        size_t targetLen = self.getOffsets().length;
+                        if (offs.length != targetLen) {
+                            vec2[] resized;
+                            resized.length = targetLen;
+                            size_t n = offs.length < targetLen ? offs.length : targetLen;
+                            foreach (i; 0..n) resized[i] = offs[i];
+                            foreach (i; n..targetLen) resized[i] = vec2(0);
+                            offs = resized;
+                        }
+                        self.applyOffsets(offs);
                     }
                 }
             }
@@ -546,4 +580,52 @@ public:
             }
         }
    }
+}
+
+/**
+    Action to toggle and restore OneTimeDeform sub-tool modes across targets.
+
+    This keeps UI mode changes in the undo/redo history so that
+    users see mode flip/restoration alongside data edits.
+*/
+class SubToolModeChangeAction : Action {
+public:
+    Node[] targets;
+    SubToolMode[] oldModes;
+    SubToolMode[] newModes;
+
+    this(Node[] targets, SubToolMode[] oldModes, SubToolMode[] newModes) {
+        this.targets = targets.dup;
+        this.oldModes = oldModes.dup;
+        this.newModes = newModes.dup;
+    }
+
+    // Action interface
+    void rollback() {
+        foreach (i, t; targets) {
+            auto ed = ngGetEditorFor(t);
+            if (ed is null) continue;
+            auto tool = cast(OneTimeDeformBase)ed.getTool();
+            if (tool is null) continue;
+            if (i < oldModes.length)
+                tool.mode = oldModes[i];
+        }
+    }
+
+    void redo() {
+        foreach (i, t; targets) {
+            auto ed = ngGetEditorFor(t);
+            if (ed is null) continue;
+            auto tool = cast(OneTimeDeformBase)ed.getTool();
+            if (tool is null) continue;
+            if (i < newModes.length)
+                tool.mode = newModes[i];
+        }
+    }
+
+    string describe() { return _("Switched deform sub-tool mode"); }
+    string describeUndo() { return _("Reverted deform sub-tool mode"); }
+    string getName() { return this.stringof; }
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
 }

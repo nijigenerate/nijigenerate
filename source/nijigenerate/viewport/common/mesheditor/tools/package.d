@@ -24,8 +24,8 @@ ToolInfo[] incGetToolInfo() {
         infoList ~= new ToolInfoImpl!(GridTool);
         infoList ~= new ToolInfoImpl!(BrushTool);
         infoList ~= new ToolInfoImpl!(BezierDeformTool);
-        //infoList ~= new ToolInfoImpl!(OneTimeDeform!MeshGroup); // Disabled tool temporary
-        //infoList ~= new ToolInfoImpl!(OneTimeDeform!PathDeformer); // Disabled tool temporary
+//        infoList ~= new ToolInfoImpl!(OneTimeDeform!MeshGroup); // Disabled tool temporary
+//        infoList ~= new ToolInfoImpl!(OneTimeDeform!PathDeformer); // Disabled tool temporary
     }
     return infoList;
 }
