@@ -170,6 +170,8 @@ public:
     override
     void addMeshVertex(MeshVertex* v2) {
         vertices ~= v2;
+        // Topology changed; notify OneTimeDeform to remap
+        vertexMapDirty = true;
     }
 
     override
@@ -180,11 +182,15 @@ public:
     override
     void insertMeshVertex(int index, MeshVertex* v2) { 
         vertices.insertInPlace(index, v2);
+        // Topology changed; notify OneTimeDeform to remap
+        vertexMapDirty = true;
     }
 
     override
     void removeMeshVertex(MeshVertex* v2) {
         vertices = vertices.removeByValue(v2);
+        // Topology changed; notify OneTimeDeform to remap
+        vertexMapDirty = true;
     }
 
     override

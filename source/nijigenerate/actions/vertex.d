@@ -6,6 +6,7 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.core.math;
 import nijigenerate.viewport.vertex;
+import nijigenerate.viewport.common.mesh : IncMesh;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
@@ -294,6 +295,17 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
             foreach (t; vertices) {
                 editor.removeMeshVertex(t[1]);
             }
+            // Apply mesh topology to target silently to keep redo intact
+            import nijigenerate.viewport.common.mesheditor.operations.impl : IncMeshEditorOneDeformable;
+            import nijigenerate.core.math.mesh : applyMeshToTargetNoRecord;
+            if (auto ed = cast(IncMeshEditorOneDeformable)editor) {
+                if (auto tgt = cast(Deformable)ed.getTarget()) {
+                    auto verts = ed.vertices.map!(v => v.position).array;
+                    applyMeshToTargetNoRecord(tgt, verts, cast(IncMesh*)null);
+                    // We've synchronized explicitly; prevent follow-up recorded apply
+                    editor.vertexMapDirty = false;
+                }
+            }
             undoable = reverse;
             editor.refreshMesh();
         }
@@ -312,6 +324,17 @@ class VertexInsertRemoveAction(bool reverse = false)  : VertexAction {
             }
             foreach (c; connections) {
                 c.v1.connect(c.v2);
+            }
+            // Apply mesh topology to target silently to keep redo intact
+            import nijigenerate.viewport.common.mesheditor.operations.impl : IncMeshEditorOneDeformable;
+            import nijigenerate.core.math.mesh : applyMeshToTargetNoRecord;
+            if (auto ed = cast(IncMeshEditorOneDeformable)editor) {
+                if (auto tgt = cast(Deformable)ed.getTarget()) {
+                    auto verts = ed.vertices.map!(v => v.position).array;
+                    applyMeshToTargetNoRecord(tgt, verts, cast(IncMesh*)null);
+                    // We've synchronized explicitly; prevent follow-up recorded apply
+                    editor.vertexMapDirty = false;
+                }
             }
             undoable = !reverse;
             editor.refreshMesh();

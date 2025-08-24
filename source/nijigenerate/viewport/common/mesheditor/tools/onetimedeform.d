@@ -323,6 +323,8 @@ public:
                         fVertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
                         fDefImpl.vertexColor = vec4(0, 1, 0, 1);
                         fDefImpl.edgeColor   = vec4(0, 1, 0, 1);
+                        // Reset tool interaction state on external mode change
+                        fDefImpl.setToolMode(fDefImpl.getToolMode());
                         fDefImpl.setTarget(cast(T)filter);
                         fDefImpl.getCleanDeformAction();
                         seedViewFromBinding();
@@ -334,6 +336,8 @@ public:
                         fVertImpl.edgeColor   = vec4(0, 1, 1, 1);
                         fDefImpl.vertexColor = vec4(0, 0.5, 0, 1);
                         fDefImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
+                        // Reset tool interaction state on external mode change
+                        fVertImpl.setToolMode(fVertImpl.getToolMode());
                         fVertImpl.getCleanDeformAction();
                     }
                     break;
