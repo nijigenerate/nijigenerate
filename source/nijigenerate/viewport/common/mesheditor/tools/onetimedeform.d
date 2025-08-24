@@ -503,6 +503,17 @@ IncMeshEditorOne ngGetArmedParameterEditorFor(Node node) {
         if (f in gFilterEditors)
             return gFilterEditors[f];
     }
+    // Map original deformable target to the current deform editor when filtered
+    if (filter !is null) {
+        foreach (child; (cast(Node)filter).children) {
+            if (child is node) {
+                if (cast(NodeFilter)filter in gFilterEditors)
+                    return gFilterEditors[cast(NodeFilter)filter];
+                else
+                    return fDefImpl;
+            }
+        }
+    }
     return null;
 }
 
