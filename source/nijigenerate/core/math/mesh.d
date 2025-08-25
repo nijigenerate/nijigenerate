@@ -75,10 +75,13 @@ bool isConnectedTo(MeshVertex* self, MeshVertex* other) {
 }
 
 
-void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
-    incActionPushGroup();
-    // Apply the model
-    auto action = Applier!T.changeAction(target);
+private void applyMeshToTargetImpl(bool noRecord, T, V, M)(T target, V vertices, M* mesh) {
+    static if (!noRecord) {
+        incActionPushGroup();
+        // Apply the model
+        auto action = Applier!T.changeAction(target);
+    }
+
     MeshData data;
 
     if (mesh) {
@@ -116,14 +119,18 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
         if (auto group = cast(ExParameterGroup)param) {
             foreach(x, ref xparam; group.children) {
                 ParameterBinding binding = xparam.getBinding(target, "deform");
-                if (binding)
-                    action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", xparam, null));
+                static if (!noRecord) {
+                    if (binding)
+                        action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", xparam, null));
+                }
                 alterDeform(binding);
             }
         } else {
             ParameterBinding binding = param.getBinding(target, "deform");
-            if (binding)
-                action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", param, null));
+            static if (!noRecord) {
+                if (binding)
+                    action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", param, null));
+            }
             alterDeform(binding);
         }
     }
@@ -139,65 +146,24 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
 
     target.notifyChange(target, NotifyReason.StructureChanged);
 
-    action.updateNewState();
-    incActionPush(action);
+    static if (!noRecord) {
+        action.updateNewState();
+        incActionPush(action);
+    }
 
     Applier!T.postApply(target);
-    incActionPopGroup();
+    
+    static if (!noRecord) {
+        incActionPopGroup();
+    }
+}
+
+void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
+    applyMeshToTargetImpl!(false)(target, vertices, mesh);
 }
 
 // Same as applyMeshToTarget but does not record an Action to the history.
 // Used to synchronize mesh topology during Undo/Redo without clearing Redo.
 void applyMeshToTargetNoRecord(T, V, M)(T target, V vertices, M* mesh) {
-    // Export mesh if provided
-    MeshData data;
-    if (mesh) {
-        data = (*mesh).export_();
-        data.fixWinding();
-        target.normalizeUV(&data);
-    }
-
-    DeformationParameterBinding[] deformers;
-
-    void alterDeform(ParameterBinding binding) {
-        auto deformBinding = cast(DeformationParameterBinding)binding;
-        if (!deformBinding)
-            return;
-        foreach (uint x; 0..cast(uint)deformBinding.values.length) {
-            foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
-                auto deform = deformBinding.values[x][y];
-                if (deformBinding.isSet(vec2u(x, y))) {
-                    auto newDeform = deformByDeformationBinding(vertices, deformBinding, vec2u(x, y), false);
-                    if (newDeform)
-                        deformBinding.values[x][y] = *newDeform;
-                } else {
-                    deformBinding.values[x][y].vertexOffsets.length = vertices.length;
-                }
-                deformers ~= deformBinding;
-            }
-        }
-    }
-
-    foreach (param; incActivePuppet().parameters) {
-        if (auto group = cast(ExParameterGroup)param) {
-            foreach(x, ref xparam; group.children) {
-                ParameterBinding binding = xparam.getBinding(target, "deform");
-                alterDeform(binding);
-            }
-        } else {
-            ParameterBinding binding = param.getBinding(target, "deform");
-            alterDeform(binding);
-        }
-    }
-    incActivePuppet().resetDrivers();
-
-    target.clearCache();
-    Applier!T.rebuffer(target, vertices, &data);
-
-    foreach (deformBinding; deformers) {
-        deformBinding.reInterpolate();
-    }
-
-    target.notifyChange(target, NotifyReason.StructureChanged);
-    Applier!T.postApply(target);
+    applyMeshToTargetImpl!(true)(target, vertices, mesh);
 }
