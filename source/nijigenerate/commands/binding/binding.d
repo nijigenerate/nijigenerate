@@ -232,21 +232,17 @@ class SetFromHorizontalMirrorCommand : ExCommand!() {
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.armedParameters[0];
         auto cParamPoint = ctx.keyPoint;
-        import std.stdio;
-        writefln("Set from Horz mirror: %s, %s", targetBindingsNull, ctx.hasActiveBindings);
         
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror (Horizontally)", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
                 else if(targetBinding !is null)
                     incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
-                else
-                    writefln("Failed to find targetBinding for %s(%s), pair=%s", binding.getTarget().name, target.name, pair);
             }
         }
         action.updateNewState();
@@ -273,7 +269,7 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
                 else if(targetBinding !is null)
@@ -305,7 +301,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
                 else if(targetBinding !is null)
@@ -337,7 +333,7 @@ class SetFrom1DMirrorCommand : ExCommand!() {
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
                 else if(targetBinding !is null)
