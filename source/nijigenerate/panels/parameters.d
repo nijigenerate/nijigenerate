@@ -96,7 +96,10 @@ struct ParamDragDropData {
 
 void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, ParameterBinding[] targetBindings) {
     Context ctx = new Context();
-    ctx.bindings = (targetBindings !is null)? targetBindings: srcBindings;
+    if (srcBindings !is null)
+        ctx.bindings = srcBindings;
+    if (targetBindings !is null)
+        ctx.activeBindings = targetBindings;
     ctx.puppet = incActivePuppet();
     ctx.parameters = [param];
     if (incArmedParameter() !is null)
@@ -134,19 +137,19 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
     if (param.isVec2) {
         if (igBeginMenu(__("Set from mirror"), true)) {
             if (igMenuItem(__("Horizontally"), "", false, true)) {
-                cmd!(BindingCommand.SetFromHorizontalMirror)(ctx, targetBindings is null);
+                cmd!(BindingCommand.SetFromHorizontalMirror)(ctx);
             }
             if (igMenuItem(__("Vertically"), "", false, true)) {
-                cmd!(BindingCommand.SetFromVerticalMirror)(ctx, targetBindings is null);
+                cmd!(BindingCommand.SetFromVerticalMirror)(ctx);
             }
             if (igMenuItem(__("Diagonally"), "", false, true)) {
-                cmd!(BindingCommand.SetFromDiagonalMirror)(ctx, targetBindings is null);
+                cmd!(BindingCommand.SetFromDiagonalMirror)(ctx);
             }
             igEndMenu();
         }
     } else {
         if (igMenuItem(__("Set from mirror"), "", false, true)) {
-            cmd!(BindingCommand.SetFrom1DMirror)(ctx, targetBindings is null);
+            cmd!(BindingCommand.SetFrom1DMirror)(ctx);
         }
     }
 
@@ -162,7 +165,7 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
 
 void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelectedBindings) {
     Context ctx = new Context();
-    ctx.bindings = cSelectedBindings.values;
+    ctx.activeBindings = cSelectedBindings.values;
     ctx.puppet = incActivePuppet();
     ctx.parameters = [param];
     if (incArmedParameter() !is null)
