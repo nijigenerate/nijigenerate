@@ -232,7 +232,7 @@ class SetFromHorizontalMirrorCommand : ExCommand!() {
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.armedParameters[0];
         auto cParamPoint = ctx.keyPoint;
-        
+
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror (Horizontally)", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
