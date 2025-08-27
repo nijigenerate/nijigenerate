@@ -116,13 +116,11 @@ private Context buildExecutionContext()
         ctx.parameters = selParams;
 
     // Selected bindings if any (from binding panel context), via provider
-    /*
     if (gSelectedBindingsProvider !is null) {
         auto bindings = gSelectedBindingsProvider();
         if (bindings.length > 0)
-            ctx.bindings = bindings;
+            ctx.activeBindings = bindings;
     }
-    */
     if (incArmedParameter() !is null)
         ctx.bindings = incArmedParameter().bindings;
 
