@@ -39,11 +39,12 @@ class UnsetKeyFrameCommand : ExCommand!() {
     this() { super(_("Unset Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         auto action = new ParameterChangeBindingsValueAction("unset", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -59,11 +60,12 @@ class SetKeyFrameCommand : ExCommand!() {
     this() { super(_("Set Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
         auto action = new ParameterChangeBindingsValueAction("setCurrent", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -80,11 +82,12 @@ class ResetKeyFrameCommand : ExCommand!() {
     this() { super(_("Reset Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         auto action = new ParameterChangeBindingsValueAction("reset", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -101,11 +104,12 @@ class InvertKeyFrameCommand : ExCommand!() {
     this() { super(_("Invert Key Frame")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         auto action = new ParameterChangeBindingsValueAction("invert", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -122,11 +126,12 @@ class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Horizontally")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         auto action = new ParameterChangeBindingsValueAction("mirror Horizontally", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -143,11 +148,12 @@ class MirrorKeyFrameVerticallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Vertically")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         auto action = new ParameterChangeBindingsValueAction("mirror Vertically", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -164,11 +170,12 @@ class FlipDeformCommand : ExCommand!() {
     this() { super(_("Flip Deform")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         auto action = new ParameterChangeBindingsValueAction("Flip Deform", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -189,11 +196,12 @@ class SymmetrizeDeformCommand : ExCommand!() {
     this() { super(_("Symmetrize Deform")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         auto action = new ParameterChangeBindingsValueAction("Symmetrize Deform", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -214,23 +222,23 @@ class SymmetrizeDeformCommand : ExCommand!() {
     }
 }
 
-class SetFromHorizontalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super(_("Set From Horizontal Mirror"), targetBindingsNull); }
+class SetFromHorizontalMirrorCommand : ExCommand!() {
+    this() { super(_("Set From Horizontal Mirror")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
-        
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.armedParameters[0];
-        auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
-        
+
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror (Horizontally)", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
                 else if(targetBinding !is null)
@@ -244,15 +252,16 @@ class SetFromHorizontalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull"
     }
 }
 
-class SetFromVerticalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super(_("Set From Vertical Mirror"), targetBindingsNull); }
+class SetFromVerticalMirrorCommand : ExCommand!() {
+    this() { super(_("Set From Vertical Mirror")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.parameters[0];
-        auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
         
         incActionPushGroup();
@@ -260,7 +269,7 @@ class SetFromVerticalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", 
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
                 else if(targetBinding !is null)
@@ -275,15 +284,16 @@ class SetFromVerticalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", 
 }
 
 
-class SetFromDiagonalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super(_("Set From Diagonal Mirror"), targetBindingsNull); }
+class SetFromDiagonalMirrorCommand : ExCommand!() {
+    this() { super(_("Set From Diagonal Mirror")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.parameters[0];
-        auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
         incActionPushGroup();
@@ -291,7 +301,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", 
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
                 else if(targetBinding !is null)
@@ -306,15 +316,16 @@ class SetFromDiagonalMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", 
 }
 
 
-class SetFrom1DMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "specify whether targetBindings is null or not.")) {
-    this(bool targetBindingsNull) { super(_("Set From 1D Mirror"), targetBindingsNull); }
+class SetFrom1DMirrorCommand : ExCommand!() {
+    this() { super(_("Set From 1D Mirror")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.parameters[0];
-        auto bindings = ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
         incActionPushGroup();
@@ -322,7 +333,7 @@ class SetFrom1DMirrorCommand : ExCommand!(TW!(bool, "targetBindingsNull", "speci
         foreach(binding; bindings) {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
-                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, targetBindingsNull);
+                auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget.name, true);
                 if (targetBindingsNull)
                     incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
                 else if(targetBinding !is null)
@@ -340,11 +351,12 @@ class CopyBindingCommand : ExCommand!() {
     this() { super(_("Copy Bindings")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.parameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
         cClipboardPoint = cParamPoint;
@@ -360,11 +372,12 @@ class PasteBindingCommand : ExCommand!() {
     this() { super(_("Paste Bindings")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings || !ctx.hasKeyPoint)
+        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return;
         
         auto param = ctx.parameters[0];
-        auto bindings = ctx.bindings;
+        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
         // Find the bindings we should apply
@@ -418,7 +431,7 @@ class RemoveBindingCommand : ExCommand!() {
     this() { super(_("Remove Bindings")); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings)
+        if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
             return;
         
         auto param = ctx.parameters[0];
@@ -439,7 +452,7 @@ class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify
     this(InterpolateMode mode) { super("Set Bindings to " ~ mode.stringof, mode); }
     override
     void run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasBindings)
+        if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
             return;
         
         auto param = ctx.parameters[0];
@@ -504,10 +517,6 @@ void ngInitCommands(T)() if (is(T == BindingCommand))
         static if (__traits(compiles, { mixin(registerCommand!(name)); } ))
             mixin(registerCommand!(name));
     }
-    mixin(registerCommand!(BindingCommand.SetFromHorizontalMirror, false));
-    mixin(registerCommand!(BindingCommand.SetFromVerticalMirror, false));
-    mixin(registerCommand!(BindingCommand.SetFromDiagonalMirror, false));
-    mixin(registerCommand!(BindingCommand.SetFrom1DMirror, false));
     mixin(registerCommand!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
 
     // Also ensure providers are registered once this module initializes

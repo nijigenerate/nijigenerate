@@ -64,6 +64,7 @@ class Context {
     Parameter[] _parameters;
     Parameter[] _armedParameters;
     ParameterBinding[] _bindings;
+    ParameterBinding[] _activeBindings;
     vec2u _keyPoint;
     TypedInspector!Node[] _inspectors; // preferred: list of active inspectors
     enum ContextMask {
@@ -75,6 +76,7 @@ class Context {
         HasKeyPoint = 16,
         HasInspectors = 32,
         HasArmedParameters = 64,
+        HasActiveBindings = 128,
     }
     ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
@@ -84,6 +86,7 @@ class Context {
     bool hasBindings()  { return (masks & ContextMask.HasBindings)  != 0; }
     bool hasKeyPoint()  { return (masks & ContextMask.HasKeyPoint)  != 0; }
     bool hasInspectors() { return (masks & ContextMask.HasInspectors) != 0; }
+    bool hasActiveBindings() { return (masks & ContextMask.HasActiveBindings) != 0; }
     void hasPuppet(bool value)    { masks = value ? (masks | ContextMask.HasPuppet)    : (masks & ~ContextMask.HasPuppet); }
     void hasNodes(bool value)     { masks = value ? (masks | ContextMask.HasNodes)     : (masks & ~ContextMask.HasNodes); }
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
@@ -91,6 +94,7 @@ class Context {
     void hasBindings(bool value)  { masks = value ? (masks | ContextMask.HasBindings)  : (masks & ~ContextMask.HasBindings); }
     void hasKeyPoint(bool value)  { masks = value ? (masks | ContextMask.HasKeyPoint)  : (masks & ~ContextMask.HasKeyPoint); }
     void hasInspectors(bool value) { masks = value ? (masks | ContextMask.HasInspectors)  : (masks & ~ContextMask.HasInspectors); }
+    void hasActiveBindings(bool value) { masks = value ? (masks | ContextMask.HasActiveBindings) : (masks & ~ContextMask.HasActiveBindings); }
 
     Puppet puppet() { return _puppet; }
     void puppet(Puppet value) { _puppet = value; hasPuppet = true; }
@@ -113,6 +117,9 @@ class Context {
     // Preferred: list of inspector instances
     TypedInspector!Node[] inspectors() { return _inspectors; }
     void inspectors(TypedInspector!Node[] value) { _inspectors = value; hasInspectors = true; }
+
+    ParameterBinding[] activeBindings() { return _activeBindings; }
+    void activeBindings(ParameterBinding[] value) { _activeBindings = value; hasActiveBindings = true; }
 }
 
 interface Command {
