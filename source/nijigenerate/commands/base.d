@@ -128,6 +128,8 @@ interface Command {
     string description();  // longer human description
     /// Whether this command can run in the given context
     bool runnable(Context context);
+    /// Whether this command is eligible to be bound and edited as a shortcut
+    bool shortcutRunnable();
 }
 
 abstract class ExCommand(T...) : Command {
@@ -200,6 +202,7 @@ abstract class ExCommand(T...) : Command {
     override string label() { return _label.length ? _label : _desc; }
     override string description() { return _desc; }
     override bool runnable(Context context) { return true; }
+    override bool shortcutRunnable() { return true; }
     struct ArgMeta {
         string typeName;
         string fieldName;

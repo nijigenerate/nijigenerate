@@ -36,6 +36,9 @@ class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
     void run(Context ctx) {
         if (file) incOpenProject(file);
     }
+
+    // Do not expose direct-execution variant to shortcut editor (use dialog command)
+    override bool shortcutRunnable() { return false; }
 }
 
 class ShowSaveFileDialogCommand : ExCommand!() {
@@ -54,6 +57,9 @@ class SaveFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
     void run(Context ctx) {
         if (file) incSaveProject(file);
     }
+
+    // Do not expose direct-execution variant to shortcut editor (use dialog command)
+    override bool shortcutRunnable() { return false; }
 }
 
 class ShowSaveFileAsDialogCommand : ExCommand!() {
