@@ -23,7 +23,18 @@ import i18n;
 import std.stdio : writefln;
 
 version(OSX) {
-    enum const(char)*[] SDL_VERSIONS_MACOS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
+    enum const(char)*[] SDL_VERSIONS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
+} else version(Windows) {
+    enum const(char)*[] SDL_VERSIONS = ["SDL2.dll"];
+} else {
+    enum const(char)*[] SDL_VERSIONS = [
+        "libSDL2-2.0.so.0",
+        "libSDL2-2.0.so",
+        "libSDL2.so",
+        "/usr/local/lib/libSDL2-2.0.so.0",
+        "/usr/local/lib/libSDL2-2.0.so",
+        "/usr/local/lib/libSDL2.so",
+    ];
 }
 
 version(linux) {
@@ -131,6 +142,7 @@ bool incIsTilingWM() {
 */
 void incOpenWindow() {
     import std.process : environment;
+    import std.string : fromStringz;
 
     switch(environment.get("XDG_SESSION_DESKTOP")) {
         case "i3":
@@ -164,16 +176,15 @@ void incOpenWindow() {
     }
 
 
-    // Special case for macOS
-    version(OSX) {
-        foreach(ver; SDL_VERSIONS_MACOS) {
-            auto sdlSupport = loadSDL(ver);
+    // Load SDL2 in the order required for Steam
+    foreach(ver; SDL_VERSIONS) {
+        auto sdlSupport = loadSDL(ver);
 
-            if (sdlSupport != SDLSupport.noLibrary && 
-                sdlSupport != SDLSupport.badLibrary) break;
-        }
+        if (sdlSupport != SDLSupport.noLibrary && 
+            sdlSupport != SDLSupport.badLibrary) break;
     }
-    else auto sdlSupport = loadSDL();
+
+    // Whomp whomp
     enforce(sdlSupport != SDLSupport.noLibrary, "SDL2 library not found!");
     enforce(sdlSupport != SDLSupport.badLibrary, "Bad SDL2 library found!");
     
@@ -185,10 +196,15 @@ void incOpenWindow() {
         version(Windows) enforce(imSupport != ImGuiSupport.badLibrary, "Bad cimgui library found!");
     }
 
-    SDL_Init(SDL_INIT_EVERYTHING);
+    int code = SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_AUDIO);
+    enforce(
+        code == 0,
+        "Error initializing SDL2! %s".format(SDL_GetError().fromStringz)
+    );
+
     // Do not disable the OS screensaver; allow it explicitly.
     SDL_EnableScreenSaver();
-    
+
     version(Windows) {
         incSetWin32DPIAwareness();
     }
@@ -213,6 +229,7 @@ void incOpenWindow() {
 
     // Don't make KDE freak out when nijigenerate opens
     if (!incSettingsGet!bool("DisableCompositor")) SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
+    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 
     debug string WIN_TITLE = "nijigenerate "~_("(Debug Mode)");
     else string WIN_TITLE = "nijigenerate "~INC_VERSION;
@@ -646,9 +663,9 @@ void incBeginLoopNoEv() {
 
     version(linux) dpUpdate();
 
-
-
-    if (files.length > 0) {
+    // HACK: prevents the app freezing when files are drag and drop on the modal dialog.
+    // freeze is caused by `igSetDragDropPayload()`, so we check if the modal is open.
+    if (files.length > 0 && !incModalIsOpen()) {
         if (igBeginDragDropSource(ImGuiDragDropFlags.SourceExtern)) {
             igSetDragDropPayload("__PARTS_DROP", &files, files.sizeof);
             igBeginTooltip();
@@ -659,6 +676,9 @@ void incBeginLoopNoEv() {
             igEndTooltip();
             igEndDragDropSource();
         }
+    } else if (incModalIsOpen()) {
+        // clean up the files array
+        files.length = 0;
     }
 
     // Add docking space
