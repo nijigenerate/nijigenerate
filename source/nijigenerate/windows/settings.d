@@ -311,6 +311,9 @@ protected:
                 igTableHeadersRow();
 
                 foreach (k, cmd; CmdsAA) {
+                    // Hide commands that are not intended to be bound as shortcuts
+                    if (!cmd.shortcutRunnable())
+                        continue;
                     igTableNextRow(ImGuiTableRowFlags.None, 0.0);
                     igTableSetColumnIndex(0);
                     auto lbl = cmd.label();

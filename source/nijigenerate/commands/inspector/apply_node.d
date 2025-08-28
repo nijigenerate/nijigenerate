@@ -113,6 +113,9 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
         if (ctx.hasNodes)
             ni.capture(cast(Node[])ctx.nodes);
     }
+
+    // Apply-style inspector commands require specifying values and are not suited for shortcuts
+    override bool shortcutRunnable() { return false; }
 }
 
 class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
