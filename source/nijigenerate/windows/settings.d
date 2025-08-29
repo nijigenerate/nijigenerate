@@ -456,40 +456,39 @@ protected:
 
         // Group by command categories in a scrollable child so header stays visible
         if (igBeginChild("ShortcutsTables", ImVec2(0, 0), true)) {
-            // ===== メニュー関係 =====
+            // ===== Main menu =====
+            // File → Edit → View → View/Panels → Tools
             renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
             renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
-            // Panels はメニューの "Views" 相当として、Edit の直後に配置
-            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Views"));
             renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
+            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("View/Panels"));
             renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
 
-            // ===== ビューポート関係 =====
+            // ===== Viewport =====
             renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
             renderCommandTable!(nijigenerate.commands.viewport.palette.commands)(__("Palette"));
             // Mesh editor tool modes (dynamically generated per mode)
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
 
-            // ===== ノード関係 =====
+            // ===== Node Popup =====
             if (incBeginCategory(__("Nodes"))) {
                 renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Nodes"));
-                // サブカテゴリ: 追加 / 挿入 / 変換
+                // Add / Insert / Convert Nodes...
                 renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
                 renderCommandTable!(nijigenerate.commands.node.dynamic.insertNodeCommands)(__("Insert Node"));
                 renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
-                // Inspector 操作もノード関連として扱う
-                renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Inspector"));
                 incEndCategory();
             }
+            // Inspector Panel
+            renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Panel/Inspector"));
 
-            // ===== パラメータ関係 =====
+            // ===== Parameters =====
             renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
             renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
-            renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
-            renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
-
-            // ===== バインディング関係 =====
             renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
+            renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
+            renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
+
         }
         igEndChild();
     }
