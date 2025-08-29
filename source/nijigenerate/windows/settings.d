@@ -456,31 +456,40 @@ protected:
 
         // Group by command categories in a scrollable child so header stays visible
         if (igBeginChild("ShortcutsTables", ImVec2(0, 0), true)) {
+            // ===== メニュー関係 =====
             renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
             renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
+            // Panels はメニューの "Views" 相当として、Edit の直後に配置
+            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Views"));
             renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
             renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
+
+            // ===== ビューポート関係 =====
             renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
             renderCommandTable!(nijigenerate.commands.viewport.palette.commands)(__("Palette"));
-            renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
-            renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Inspector"));
-            // Node add/insert (dynamic by node type)
-            renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
-            renderCommandTable!(nijigenerate.commands.node.dynamic.insertNodeCommands)(__("Insert Node"));
-            renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
+            // Mesh editor tool modes (dynamically generated per mode)
+            renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
+
+            // ===== ノード関係 =====
+            if (incBeginCategory(__("Nodes"))) {
+                renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Nodes"));
+                // サブカテゴリ: 追加 / 挿入 / 変換
+                renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
+                renderCommandTable!(nijigenerate.commands.node.dynamic.insertNodeCommands)(__("Insert Node"));
+                renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
+                // Inspector 操作もノード関連として扱う
+                renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Inspector"));
+                incEndCategory();
+            }
+
+            // ===== パラメータ関係 =====
             renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
             renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
             renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
             renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
 
-            // Mesh editor tool modes (dynamically generated per mode)
-            renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
-
-            // Panels (dynamically generated per panel)
-            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Panels"));
-
-            // Convert Node To (dynamic per destination type; availability depends on selection)
-            renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
+            // ===== バインディング関係 =====
+            renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
         }
         igEndChild();
     }
