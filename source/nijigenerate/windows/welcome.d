@@ -19,6 +19,7 @@ import i18n;
 import nijilive;
 import nijigenerate.ver;
 import nijigenerate.io;
+import nijigenerate.io.save;
 import nijigenerate;
 import nijigenerate.config;
 import nijigenerate.widgets.dialog;
@@ -217,21 +218,13 @@ protected:
                         incDummy(ImVec2(0, 2));
                         igIndent();
                             if (incTextLinkWithIcon("", _("New..."))) {
-                                incNewProject();
+                                incNewProjectAsk();
                                 this.close();
                             }
 
                             if (incTextLinkWithIcon("", _("Open..."))) {
-                                const TFD_Filter[] filters = [
-                                    { ["*.inx"], "nijigenerate Project (*.inx)" }
-                                ];
-
-                                string file = incShowOpenDialog(filters, _("Open..."));
-                                if (file) {
-                                    // FileException should handle in incOpenProject, so we don't write try/catch here
-                                    if (incOpenProject(file))
-                                        this.close();
-                                }
+                                if (incFileOpen())
+                                    this.close();
                             }
 
 

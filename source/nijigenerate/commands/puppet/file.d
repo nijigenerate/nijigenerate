@@ -4,6 +4,7 @@ import nijigenerate.commands.base;
 import nijigenerate.commands.puppet.base;
 
 import nijilive;
+import nijigenerate.io.save;
 import nijigenerate.project;
 import nijigenerate.windows;
 import nijigenerate.widgets;
@@ -16,7 +17,7 @@ class NewFileCommand : ExCommand!() {
 
     override
     void run(Context ctx) {
-        fileNew();
+        incNewProjectAsk();
     }
 }
 
@@ -25,7 +26,7 @@ class ShowOpenFileDialogCommand : ExCommand!() {
 
     override
     void run(Context ctx) {
-        fileOpen();
+        incFileOpen();
     }
 }
 
@@ -46,7 +47,7 @@ class ShowSaveFileDialogCommand : ExCommand!() {
 
     override
     void run(Context ctx) {
-        fileSave();
+        incFileSave();
     }
 }
 
@@ -67,7 +68,7 @@ class ShowSaveFileAsDialogCommand : ExCommand!() {
 
     override
     void run(Context ctx) {
-        fileSaveAs();
+        incFileSaveAs();
     }
 }
 
@@ -275,10 +276,7 @@ class CloseProjectCommand : ExCommand!() {
     
     override 
     void run(Context ctx) {
-        // TODO: Check if changes were done to project and warn before
-        // creating new project
-        incNewProject();
-        incPushWindow(new WelcomeWindow());        
+        incCloseProjectAsk();
     }
 }
 
