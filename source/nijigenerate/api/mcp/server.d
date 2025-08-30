@@ -375,9 +375,58 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
                 SchemaBuilder.object()  // no-arg schema for now; args handled inside main-thread action
                     .addProperty("context", SchemaBuilder.object()),
                 (JSONValue payload) {
+                    // Debug: print incoming JSON for this tool call
+                    writefln("[MCP] call %s: %s", toolName, payload.toString());
                     auto payloadCopy = payload;
                     _enqueueAction({
+                        // 1) Start from default context
                         auto ctx = ngBuildExecutionContext();
+                        // 2) Override only provided keys from context, if any
+                        if ("context" in payloadCopy && payloadCopy["context"].type == JSONType.object) {
+                            auto cobj = payloadCopy["context"];
+                            auto puppet = incActivePuppet();
+                            if (puppet !is null) {
+                                if ("parameters" in cobj && cobj["parameters"].type == JSONType.array) {
+                                    Parameter[] params;
+                                    foreach (u; cobj["parameters"].array) {
+                                        if (u.type == JSONType.integer) {
+                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
+                                            if (p !is null) params ~= p;
+                                        }
+                                    }
+                                    if (params.length) ctx.parameters = params;
+                                }
+                                if ("armedParameters" in cobj && cobj["armedParameters"].type == JSONType.array) {
+                                    Parameter[] aparams;
+                                    foreach (u; cobj["armedParameters"].array) {
+                                        if (u.type == JSONType.integer) {
+                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
+                                            if (p !is null) aparams ~= p;
+                                        }
+                                    }
+                                    if (aparams.length) ctx.armedParameters = aparams;
+                                }
+                                if ("nodes" in cobj && cobj["nodes"].type == JSONType.array) {
+                                    Node[] nodes;
+                                    foreach (u; cobj["nodes"].array) {
+                                        if (u.type == JSONType.integer) {
+                                            auto n = puppet.find!(Node)(cast(uint)u.integer);
+                                            if (n !is null) nodes ~= n;
+                                        }
+                                    }
+                                    if (nodes.length) ctx.nodes = nodes;
+                                }
+                            }
+                            if ("keyPoint" in cobj && cobj["keyPoint"].type == JSONType.array && cobj["keyPoint"].array.length >= 2) {
+                                auto a = cobj["keyPoint"].array;
+                                if ((a[0].type == JSONType.integer || a[0].type == JSONType.float_)
+                                 && (a[1].type == JSONType.integer || a[1].type == JSONType.float_)) {
+                                    ctx.keyPoint = vec2u(cast(uint)(a[0].type == JSONType.integer ? a[0].integer : cast(long)a[0].floating),
+                                                         cast(uint)(a[1].type == JSONType.integer ? a[1].integer : cast(long)a[1].floating));
+                                }
+                            }
+                        }
+                        // 3) Run the captured command instance with the prepared context
                         if (cmdInst !is null && cmdInst.runnable(ctx)) cmdInst.run(ctx);
                     });
                     return JSONValue(["status": JSONValue("queued"), "id": JSONValue(toolName)]);
