@@ -310,10 +310,18 @@ protected:
                 igTableSetupColumn(__("Edit"), ImGuiTableColumnFlags.None, 0.2, 2);
                 igTableHeadersRow();
 
-                foreach (k, cmd; CmdsAA) {
-                    // Hide commands that are not intended to be bound as shortcuts
-                    if (!cmd.shortcutRunnable())
-                        continue;
+                // Helper: deduce AA key type
+                template KeyTypeOfAA(alias AA) {
+                    static if (is(typeof(AA) : V[K], V, K))
+                        alias KeyTypeOfAA = K;
+                    else
+                        static assert(0, AA.stringof ~ " is not an associative array");
+                }
+                alias KeyT = KeyTypeOfAA!(CmdsAA);
+
+                // Row renderer
+                void renderRow(TKey)(TKey k, Command cmd) {
+                    if (!cmd.shortcutRunnable()) return;
                     igTableNextRow(ImGuiTableRowFlags.None, 0.0);
                     igTableSetColumnIndex(0);
                     auto lbl = cmd.label();
@@ -323,7 +331,6 @@ protected:
                     import nijigenerate.core.shortcut : ngShortcutFor;
                     import nijigenerate.core.input : ngModifierLabelCtrl, ngModifierLabelSuper;
                     auto sc = ngShortcutFor(cmd);
-                    // On macOS, if swap is enabled, show swapped labels for stored shortcuts
                     version (OSX) {
                         if (incSettingsGet!bool("MacSwapCmdCtrl", false) && sc.length) {
                             import std.string : replace;
@@ -363,6 +370,18 @@ protected:
                         ngSaveShortcutsToSettings();
                     }
                     igPopID();
+                }
+
+                // Enum-ordered iteration when the AA key is an enum
+                static if (is(KeyT == enum)) {
+                    import std.traits : EnumMembers;
+                    static foreach (ek; EnumMembers!KeyT) {
+                        if (auto p = ek in CmdsAA) renderRow(ek, *p);
+                    }
+                } else {
+                    foreach (k, cmd; CmdsAA) {
+                        renderRow(k, cmd);
+                    }
                 }
                 igEndTable();
             }
