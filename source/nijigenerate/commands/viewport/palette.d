@@ -200,7 +200,8 @@ class ListCommandCommand : ExCommand!()
 
             // Results list with scrolling when exceeding viewport height
             float lineH = igGetTextLineHeightWithSpacing();
-            float estimated = filtered.length * lineH;
+            import std.algorithm : max;
+            float estimated = max(filtered.length, 4) * lineH; // always more then 4 prevent 1 element underflow
             float maxListH = io.DisplaySize.y * 0.8f;
             float listH = estimated < maxListH ? estimated : maxListH;
             if (listH < lineH * 3 && filtered.length > 0) listH = lineH * filtered.length; // minimal fit
