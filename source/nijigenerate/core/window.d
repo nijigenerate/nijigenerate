@@ -732,7 +732,7 @@ void incSetDefaultLayout() {
     dockIDTimeline = igDockBuilderSplitNode(dockMainID, ImGuiDir.Down, 0.15f, null, &dockMainID);
     dockIDParams = igDockBuilderSplitNode(dockMainID, ImGuiDir.Left, 0.15f, null, &dockMainID);
     // Split Parameters area to place Armed Parameters above Parameters
-    dockIDArmedParams = igDockBuilderSplitNode(dockIDParams, ImGuiDir.Up, 0.35f, null, &dockIDParams);
+    dockIDArmedParams = igDockBuilderSplitNode(dockIDParams, ImGuiDir.Up, 0.3f, null, &dockIDParams);
 
     igDockBuilderDockWindow("###Nodes", dockIDNodes);
     igDockBuilderDockWindow("###Inspector", dockIDInspector);
