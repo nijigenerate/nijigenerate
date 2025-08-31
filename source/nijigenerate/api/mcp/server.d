@@ -81,308 +81,6 @@ private void _enqueueAction(void delegate() action)
     synchronized (gQueueMutex) gQueue ~= EnqueuedCommand(action);
 }
 
-// Background MCP server thread
-private void mcpServerThread(string host, ushort port)
-{
-    auto transport = createHttpTransport(host, port);
-    auto server = new MCPServer(transport, "Nijigenerate MCP", "0.0.1");
-
-    // Wait briefly until commands are initialized so enumeration yields results
-    import core.time : msecs;
-    import core.thread : Thread;
-    foreach (_; 0 .. 40) { // up to ~2s
-        size_t total = 0;
-        static foreach (AA; AllCommandMaps) { total += AA.length; }
-        if (_ == 0) writefln("[MCP] server thread sees %s commands initially", total);
-        if (total > 0) break;
-        Thread.sleep(50.msecs);
-    }
-
-    // Register one MCP tool per nijigenerate Command
-    static foreach (AA; AllCommandMaps) {
-        foreach (k, v; AA) {
-            auto toolName = typeof(k).stringof ~ "." ~ to!string(k);
-            auto toolDesc = v.description();
-            // Extend description with common input guidance
-            toolDesc ~= "\n\nInput: optional 'context'. Omit or set null to use active app state.\n"
-                       ~ "Context keys: parameters(uint[]), armedParameters(uint[]), nodes(uint[]), keyPoint([x,y]).\n"
-                       ~ "UUIDs are numeric. See prompts 'tools/guide' and 'selectors/guide'.";
-
-            // Schema: optional context + command-specific parameters (top-level)
-            auto ctxSchema = SchemaBuilder.object()
-                .setDescription("Optional context. Omit or null to use active app state (like shortcuts).")
-                .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Parameter UUIDs (uint[])"))
-                .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Armed Parameter UUIDs (uint[])"))
-                .addProperty("nodes", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Node UUIDs (uint[])"))
-                .addProperty("keyPoint", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("vec2u [x,y] (uint,uint)"));
-
-            // Build input schema and top-level parameters from ExCommand template parameters
-            auto inputSchema = SchemaBuilder.object()
-                .setDescription("Input for nijigenerate Command tool. Context is optional; other parameters map to command-specific arguments.")
-                .addProperty("context", ctxSchema);
-            string[] paramLog;
-            // Helper to find ExCommand!T base and extract parameter list
-            template BaseExArgsOf(alias C_) {
-                alias _Bases = BaseClassesTuple!C_;
-                private template _FindExArgs(Bases...) {
-                    static if (Bases.length == 0) alias _FindExArgs = void;
-                    else static if (isInstanceOf!(ExCommand, Bases[0])) alias _FindExArgs = TemplateArgsOf!(Bases[0]);
-                    else alias _FindExArgs = _FindExArgs!(Bases[1 .. $]);
-                }
-                alias Picked = _FindExArgs!(_Bases);
-                static if (is(Picked == void)) alias BaseExArgsOf = void; else alias BaseExArgsOf = Picked;
-            }
-            alias K = typeof(k);
-            static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                if (k == m) {{
-                    enum _mName  = __traits(identifier, m);
-                    enum _typeName = _mName ~ "Command";
-                    static if (__traits(compiles, mixin(_typeName))) {
-                        alias C = mixin(_typeName);
-                        static if (!is(BaseExArgsOf!C == void)) {
-                            alias Declared = BaseExArgsOf!C;
-                            static foreach (i, Param; Declared) {{
-                                static if (isInstanceOf!(TW, Param)) {
-                                    enum fname = TemplateArgsOf!Param[1];
-                                    alias TParam = TemplateArgsOf!Param[0];
-                                    enum fdesc = TemplateArgsOf!Param[2];
-                                } else {
-                                    enum fname = "arg" ~ i.stringof;
-                                    alias TParam = Param;
-                                    enum fdesc = "";
-                                }
-                                static if (is(TParam == bool)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.boolean().setDescription(fdesc));
-                                    paramLog ~= fname ~ ":bool";
-                                } else static if (isIntegral!TParam || is(TParam == enum)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription(fdesc));
-                                    paramLog ~= fname ~ ":int";
-                                } else static if (isFloatingPoint!TParam) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.number().setDescription(fdesc));
-                                    paramLog ~= fname ~ ":number";
-                                } else static if (isSomeString!TParam) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription(fdesc));
-                                    paramLog ~= fname ~ ":string";
-                                } else static if (is(TParam == vec2u)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"vec2u [x,y]"));
-                                    paramLog ~= fname ~ ":vec2u";
-                                } else static if (is(TParam == vec3)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"vec3 [x,y,z]"));
-                                    paramLog ~= fname ~ ":vec3";
-                            } else static if (is(TParam : Resource)) {
-                                inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Resource"));
-                                paramLog ~= fname ~ ":ResourceUUID";
-                            } else static if (is(TParam : Node)) {
-                                inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Node"));
-                                paramLog ~= fname ~ ":NodeUUID";
-                            } else static if (is(TParam : Parameter)) {
-                                inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Parameter"));
-                                paramLog ~= fname ~ ":ParameterUUID";
-                            } else static if (__traits(hasMember, TParam, "uuid")) {
-                                // Generic UUID-carrying type
-                                inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~("UUID of " ~ TParam.stringof)));
-                                paramLog ~= fname ~ ":UUID(" ~ TParam.stringof ~ ")";
-                            } else {
-                                inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription((fdesc.length?fdesc~"; ":"")~"Unsupported type; pass as string"));
-                                paramLog ~= fname ~ ":string(unknown)";
-                            }
-                            }}
-                        }
-                    }
-                }}
-            }}
-
-            // Debug: log each tool registration
-            writefln("[MCP] addTool: %s params=%s", toolName, paramLog);
-            server.addTool(
-                toolName,
-                toolDesc.length ? toolDesc : ("Run command " ~ toolName),
-                inputSchema,
-                (JSONValue payload) {
-                    // Capture inputs by value to avoid lifetime issues across threads
-                    auto payloadCopy = payload; // JSONValue is a value type
-                    auto baseCmd = v; // Command instance
-                    _enqueueAction({
-                        // Build context on main thread
-                        Context ctx;
-                        if ("context" in payloadCopy && payloadCopy["context"].type == JSONType.object) {
-                            auto cobj = payloadCopy["context"];
-                            ctx = new Context();
-                            auto puppet = incActivePuppet();
-                            if (puppet !is null) {
-                                // parameters
-                                if ("parameters" in cobj && cobj["parameters"].type == JSONType.array) {
-                                    Parameter[] params;
-                                    foreach (u; cobj["parameters"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
-                                            if (p !is null) params ~= p;
-                                        }
-                                    }
-                                    if (params.length) ctx.parameters = params;
-                                }
-                                // armedParameters
-                                if ("armedParameters" in cobj && cobj["armedParameters"].type == JSONType.array) {
-                                    Parameter[] aparams;
-                                    foreach (u; cobj["armedParameters"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
-                                            if (p !is null) aparams ~= p;
-                                        }
-                                    }
-                                    if (aparams.length) ctx.armedParameters = aparams;
-                                }
-                                // nodes
-                                if ("nodes" in cobj && cobj["nodes"].type == JSONType.array) {
-                                    Node[] nodes;
-                                    foreach (u; cobj["nodes"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto n = puppet.find!(Node)(cast(uint)u.integer);
-                                            if (n !is null) nodes ~= n;
-                                        }
-                                    }
-                                    if (nodes.length) ctx.nodes = nodes;
-                                }
-                            }
-                            // keyPoint
-                            if ("keyPoint" in cobj && cobj["keyPoint"].type == JSONType.array && cobj["keyPoint"].array.length >= 2) {
-                                auto a = cobj["keyPoint"].array;
-                                if ((a[0].type == JSONType.integer || a[0].type == JSONType.float_)
-                                 && (a[1].type == JSONType.integer || a[1].type == JSONType.float_)) {
-                                    ctx.keyPoint = vec2u(cast(uint)(a[0].type == JSONType.integer ? a[0].integer : cast(long)a[0].floating),
-                                                         cast(uint)(a[1].type == JSONType.integer ? a[1].integer : cast(long)a[1].floating));
-                                }
-                            }
-                        } else {
-                            ctx = ngBuildExecutionContext();
-                        }
-
-                        // Apply ExCommand arguments if provided (top-level)
-                        alias K = typeof(k);
-                        // Resolve concrete command type for this id value
-                        static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                            if (k == m) {{
-                                enum _mName  = __traits(identifier, m);
-                                enum _typeName = _mName ~ "Command";
-                                static if (!__traits(compiles, mixin(_typeName))) {
-                                    if (baseCmd.runnable(ctx)) baseCmd.run(ctx);
-                                } else {
-                                alias C = mixin(_typeName);
-                                auto inst = cast(C) baseCmd;
-                                if (inst is null) {
-                                    // fallback: just run without args
-                                    if (baseCmd.runnable(ctx)) baseCmd.run(ctx);
-                                } else {
-                                    // Apply ExCommand arguments if provided
-                                    static if (!is(BaseExArgsOf!C == void)) {
-                                        alias Declared = BaseExArgsOf!C;
-                                        static foreach (i, Param; Declared) {{
-                                            static if (isInstanceOf!(TW, Param)) {
-                                                enum fname = TemplateArgsOf!Param[1];
-                                                alias TParam = TemplateArgsOf!Param[0];
-                                            } else {
-                                                enum fname = "arg" ~ i.stringof;
-                                                alias TParam = Param;
-                                            }
-                                            if (fname in payloadCopy) {
-                                                auto val = payloadCopy[fname];
-                                                static if (is(TParam == bool)) {
-                                                    if (val.type == JSONType.true_ || val.type == JSONType.false_) mixin("inst."~fname~" = (val.type==JSONType.true_);");
-                                                } else static if (is(TParam == enum)) {
-                                                    static if (__traits(compiles, cast(string) TParam.init)) {
-                                                        if (val.type == JSONType.string) {
-                                                            static foreach (mem; EnumMembers!TParam) {{
-                                                                static if (__traits(compiles, cast(string)mem)) {
-                                                                    enum string memStr = cast(string)mem;
-                                                                    if (val.str == memStr) { mixin("inst."~fname~" = mem;"); }
-                                                                }
-                                                            }}
-                                                        }
-                                                    } else {
-                                                        if (val.type == JSONType.integer) {
-                                                            mixin("inst."~fname~" = cast(TParam) cast(int) val.integer;");
-                                                        }
-                                                    }
-                                                } else static if (isIntegral!TParam) {
-                                                    if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) val.integer;");
-                                                } else static if (isFloatingPoint!TParam) {
-                                                    if (val.type == JSONType.float_) mixin("inst."~fname~" = cast(TParam) val.floating;");
-                                                    else if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) val.integer;");
-                                                } else static if (isSomeString!TParam) {
-                                                    if (val.type == JSONType.string) mixin("inst."~fname~" = val.str;");
-                                                } else static if (is(TParam == vec2u)) {
-                                                    if (val.type == JSONType.array && val.array.length >= 2) {
-                                                        auto a = val.array;
-                                                        uint x = cast(uint)(a[0].type==JSONType.integer ? a[0].integer : cast(long)a[0].floating);
-                                                        uint y = cast(uint)(a[1].type==JSONType.integer ? a[1].integer : cast(long)a[1].floating);
-                                                        mixin("inst."~fname~" = vec2u(x,y);");
-                                                    }
-                                                } else static if (is(TParam == vec3)) {
-                                                    if (val.type == JSONType.array && val.array.length >= 3) {
-                                                        auto a = val.array;
-                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                            float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
-                                                        mixin("inst."~fname~" = vec3(x,y,z);");
-                                                    }
-                                                } else static if (is(TParam : Node)) {
-                                                    if (val.type == JSONType.integer) {
-                                                        auto n = incActivePuppet();
-                                                        if (n !is null) {
-                                                            auto nodeVal = n.find!(TParam)(cast(uint)val.integer);
-                                                            if (nodeVal !is null) mixin("inst."~fname~" = nodeVal;");
-                                                        }
-                                                    }
-                                                } else static if (is(TParam : Parameter)) {
-                                                    if (val.type == JSONType.integer) {
-                                                        auto n = incActivePuppet();
-                                                        if (n !is null) {
-                                                            auto pVal = n.find!(TParam)(cast(uint)val.integer);
-                                                            if (pVal !is null) mixin("inst."~fname~" = pVal;");
-                                                        }
-                                                    }
-                                                    } else static if (is(TParam : Resource)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            auto n = incActivePuppet();
-                                                            if (n !is null) {
-                                                                auto nVal = n.find!(Node)(cast(uint)val.integer);
-                                                                if (nVal !is null) mixin("inst."~fname~" = cast(TParam) nVal;");
-                                                                else {
-                                                                    auto pVal = n.find!(Parameter)(cast(uint)val.integer);
-                                                                    if (pVal !is null) mixin("inst."~fname~" = cast(TParam) pVal;");
-                                                                }
-                                                            }
-                                                        }
-                                                    } else static if (__traits(hasMember, TParam, "uuid")) {
-                                                        // Generic UUID-carrying type (best-effort via Puppet.find!TParam)
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto n = incActivePuppet()) {
-                                                                static if (__traits(compiles, n.find!(TParam)(cast(uint)0))) {
-                                                                    auto anyVal = n.find!(TParam)(cast(uint)val.integer);
-                                                                    if (anyVal !is null) mixin("inst."~fname~" = anyVal;");
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                            }
-                                        }}
-                                    }
-                                    if (baseCmd.runnable(ctx)) baseCmd.run(ctx);
-                                }}
-                            }}
-                        }}
-                    });
-
-                    auto id = typeof(k).stringof ~ "." ~ to!string(k);
-                    return JSONValue(["status": JSONValue("queued"), "id": JSONValue(id)]);
-                }
-            );
-        }
-    }
-
-    server.start(); // blocks until closed
-}
-
 // Public: initialize and start MCP server in background
 void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
 {
@@ -417,7 +115,7 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
                 .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Parameter UUIDs (uint[])"))
                 .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Armed Parameter UUIDs (uint[])"))
                 .addProperty("nodes", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Node UUIDs (uint[])"))
-                .addProperty("keyPoint", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("vec2u [x,y]"));
+                .addProperty("keyPoint", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Index (order) of the target key point. uint[x,y]."));
 
             // Helper to extract ExCommand template parameters
             template BaseExArgsOf(alias C_) {
@@ -474,6 +172,18 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
                                 } else static if (is(TParam == vec3)) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"vec3 [x,y,z]"));
                                     paramLog ~= fname ~ ":vec3";
+                                } else static if (is(TParam == float[])) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[]"));
+                                    paramLog ~= fname ~ ":float[]";
+                                } else static if (is(TParam == float[2])) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[2] [x,y]"));
+                                    paramLog ~= fname ~ ":float[2]";
+                                } else static if (is(TParam == float[3])) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[3] [x,y,z]"));
+                                    paramLog ~= fname ~ ":float[3]";
+                                } else static if (is(TParam == uint[2])) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"uint[2] [x,y]"));
+                                    paramLog ~= fname ~ ":uint[2]";
                                 } else static if (is(TParam : Resource)) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Resource"));
                                     paramLog ~= fname ~ ":ResourceUUID";
@@ -611,6 +321,39 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
                                                             float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
                                                             float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
                                                             mixin("inst."~fname~" = vec3(x,y,z);");
+                                                        }
+                                                    } else static if (is(TParam == float[])) {
+                                                        if (val.type == JSONType.array) {
+                                                            float[] outv;
+                                                            foreach (e; val.array) {
+                                                                if (e.type == JSONType.float_)
+                                                                    outv ~= cast(float)e.floating;
+                                                                else if (e.type == JSONType.integer)
+                                                                    outv ~= cast(float)cast(double)e.integer;
+                                                            }
+                                                            mixin("inst."~fname~" = outv;");
+                                                        }
+                                                    } else static if (is(TParam == float[2])) {
+                                                        if (val.type == JSONType.array && val.array.length >= 2) {
+                                                            auto a = val.array;
+                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
+                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
+                                                            mixin("inst."~fname~" = [x,y];");
+                                                        }
+                                                    } else static if (is(TParam == float[3])) {
+                                                        if (val.type == JSONType.array && val.array.length >= 3) {
+                                                            auto a = val.array;
+                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
+                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
+                                                            float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
+                                                            mixin("inst."~fname~" = [x,y,z];");
+                                                        }
+                                                    } else static if (is(TParam == uint[2])) {
+                                                        if (val.type == JSONType.array && val.array.length >= 2) {
+                                                            auto a = val.array;
+                                                            uint x = cast(uint)(a[0].type==JSONType.integer ? a[0].integer : cast(long)a[0].floating);
+                                                            uint y = cast(uint)(a[1].type==JSONType.integer ? a[1].integer : cast(long)a[1].floating);
+                                                            mixin("inst."~fname~" = [x,y];");
                                                         }
                                                     } else static if (is(TParam : Node)) {
                                                         if (val.type == JSONType.integer) {
