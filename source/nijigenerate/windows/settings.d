@@ -19,6 +19,7 @@ import nijigenerate.core.shortcut; // shortcut customization
 import nijigenerate.io;
 import nijigenerate.io.autosave;
 import std.string;
+import std.conv : to;
 import nijigenerate.utils.link;
 import i18n;
 import inmath;
@@ -31,7 +32,7 @@ enum SettingsPane : string {
     Viewport = "Viewport",
     Accessibility = "Accessbility",
     FileHandling = "File Handling",
-    Shotcuts = "Shotcuts",
+    Shortcuts = "Shortcuts",
 }
 
 /**
@@ -53,6 +54,10 @@ private:
     Command capturingCommand;
     bool capturingRepeat = false;
     string capturingPreview;
+    
+    // Filter state for shortcuts
+    char[256] shortcutFilterBuffer = '\0';
+    string shortcutFilter = "";
 
     void beginSection(const(char)* title) {
         incBeginCategory(title, IncCategoryFlags.NoCollapse);
@@ -108,8 +113,8 @@ protected:
                     settingsPane = SettingsPane.FileHandling;
                 }
 
-                if (igSelectable(__("Shotcuts"), settingsPane == SettingsPane.Shotcuts)) {
-                    settingsPane = SettingsPane.Shotcuts;
+                if (igSelectable(__("Shortcuts"), settingsPane == SettingsPane.Shortcuts)) {
+                    settingsPane = SettingsPane.Shortcuts;
                 }
             igPopTextWrapPos();
         }
@@ -179,8 +184,8 @@ protected:
                             endSection();
                         }
                         break;
-                    case SettingsPane.Shotcuts:
-                        drawShotcutsPane();
+                    case SettingsPane.Shortcuts:
+                        drawShortcutsPane();
                         break;
                     case SettingsPane.Accessibility:
                         beginSection(__("Accessibility"));
@@ -317,9 +322,44 @@ public:
     }
 
 protected:
+    // Helper function to check if any commands in an AA match the current filter
+    bool hasMatchingCommands(alias CmdsAA)() {
+        foreach (k, cmd; CmdsAA) {
+            if (!cmd.shortcutRunnable()) continue;
+            if (shortcutFilter.length == 0) return true;
+            auto lbl = cmd.label();
+            if (to!string(lbl).toLower().indexOf(shortcutFilter.toLower()) != -1) return true;
+        }
+        return false;
+    }
+
     // Render a simple 2-column table for a commands AA (enum => Command)
     void renderCommandTable(alias CmdsAA)(const(char)* title)
     {
+        // Helper: deduce AA key type
+        template KeyTypeOfAA(alias AA) {
+            static if (is(typeof(AA) : V[K], V, K))
+                alias KeyTypeOfAA = K;
+            else
+                static assert(0, AA.stringof ~ " is not an associative array");
+        }
+        alias KeyT = KeyTypeOfAA!(CmdsAA);
+
+        // Build filtered list of commands
+        KeyT[] filteredKeys;
+        foreach (k, cmd; CmdsAA) {
+            if (!cmd.shortcutRunnable()) continue;
+            if (shortcutFilter.length == 0) {
+                filteredKeys ~= k;
+                continue;
+            }
+            auto __lbl = cmd.label();
+            if (to!string(__lbl).toLower().indexOf(shortcutFilter.toLower()) != -1) {
+                filteredKeys ~= k;
+            }
+        }
+        if (filteredKeys.length == 0) return;
+
         // Collapsible category for each command group
         if (incBeginCategory(title)) {
             enum ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchSame;
@@ -329,21 +369,11 @@ protected:
                 igTableSetupColumn(__("Edit"), ImGuiTableColumnFlags.None, 0.2, 2);
                 igTableHeadersRow();
 
-                // Helper: deduce AA key type
-                template KeyTypeOfAA(alias AA) {
-                    static if (is(typeof(AA) : V[K], V, K))
-                        alias KeyTypeOfAA = K;
-                    else
-                        static assert(0, AA.stringof ~ " is not an associative array");
-                }
-                alias KeyT = KeyTypeOfAA!(CmdsAA);
-
                 // Row renderer
                 void renderRow(TKey)(TKey k, Command cmd) {
-                    if (!cmd.shortcutRunnable()) return;
+                    auto lbl = cmd.label();
                     igTableNextRow(ImGuiTableRowFlags.None, 0.0);
                     igTableSetColumnIndex(0);
-                    auto lbl = cmd.label();
                     incText(lbl);
 
                     igTableSetColumnIndex(1);
@@ -370,7 +400,6 @@ protected:
 
                     igTableSetColumnIndex(2);
                     auto setLbl = __("Set");
-                    import std.conv : to;
                     auto _idStr = to!string(k);
                     igPushID(_idStr.toStringz);
                     if (incButtonColored(setLbl, ImVec2(0, 0))) {
@@ -391,16 +420,9 @@ protected:
                     igPopID();
                 }
 
-                // Enum-ordered iteration when the AA key is an enum
-                static if (is(KeyT == enum)) {
-                    import std.traits : EnumMembers;
-                    static foreach (ek; EnumMembers!KeyT) {
-                        if (auto p = ek in CmdsAA) renderRow(ek, *p);
-                    }
-                } else {
-                    foreach (k, cmd; CmdsAA) {
-                        renderRow(k, cmd);
-                    }
+                // Render filtered commands
+                foreach (k; filteredKeys) {
+                    if (auto p = k in CmdsAA) renderRow(k, *p);
                 }
                 igEndTable();
             }
@@ -473,8 +495,8 @@ protected:
         igSeparator();
     }
 
-    void drawShotcutsPane() {
-        beginSection(__("Shotcuts"));
+    void drawShortcutsPane() {
+        beginSection(__("Shortcuts"));
             incText(_("Assign shortcuts to commands. Click Set and press keys. Use Clear to remove a binding."));
 
             // macOS-specific option: swap Command and Control in shortcuts
@@ -494,6 +516,13 @@ protected:
 
         // Group by command categories in a scrollable child so header stays visible
         if (igBeginChild("ShortcutsTables", ImVec2(0, 0), true)) {
+            // Filter input
+            incText(_("Filter actions by name:"));
+            if (igInputText("##ShortcutFilter", shortcutFilterBuffer.ptr, shortcutFilterBuffer.length, ImGuiInputTextFlags.None, null, null)) {
+                import std.string : fromStringz;
+                shortcutFilter = fromStringz(shortcutFilterBuffer.ptr).idup;
+            }
+
             // ===== Main menu =====
             // File → Edit → View → View/Panels → Tools
             renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
@@ -509,7 +538,12 @@ protected:
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
 
             // ===== Node Popup =====
-            if (incBeginCategory(__("Nodes"))) {
+            bool hasNodeCommands = hasMatchingCommands!(nijigenerate.commands.node.node.commands)() ||
+                                   hasMatchingCommands!(nijigenerate.commands.node.dynamic.addNodeCommands)() ||
+                                   hasMatchingCommands!(nijigenerate.commands.node.dynamic.insertNodeCommands)() ||
+                                   hasMatchingCommands!(nijigenerate.commands.node.dynamic.convertNodeCommands)();
+            
+            if (hasNodeCommands && incBeginCategory(__("Nodes"))) {
                 renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Nodes"));
                 // Add / Insert / Convert Nodes...
                 renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
