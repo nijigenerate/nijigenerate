@@ -313,4 +313,8 @@ void ngInitCommands(T)() if (is(T == FileCommand))
         static if (__traits(compiles, { mixin(registerCommand!(name)); }))
             mixin(registerCommand!(name));
     }
+    // Explicitly register ExCommand variants that require constructor args
+    // Provide benign defaults; actual values are supplied at call-time (e.g., MCP, dialogs)
+    mixin(registerCommand!(FileCommand.OpenFile, ""));
+    mixin(registerCommand!(FileCommand.SaveFile, ""));
 }

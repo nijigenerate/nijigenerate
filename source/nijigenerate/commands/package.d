@@ -7,6 +7,7 @@ public import nijigenerate.commands.parameter.animedit;
 public import nijigenerate.commands.parameter.group;
 public import nijigenerate.commands.parameter.param;
 public import nijigenerate.commands.parameter.paramedit;
+public import nijigenerate.commands.parameter.prop;
 public import nijigenerate.commands.puppet.file;
 public import nijigenerate.commands.puppet.edit;
 public import nijigenerate.commands.puppet.view;
@@ -29,6 +30,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.parameter.group.commands,
     nijigenerate.commands.parameter.param.commands,
     nijigenerate.commands.parameter.paramedit.commands,
+    nijigenerate.commands.parameter.prop.commands,
     nijigenerate.commands.puppet.file.commands,
     nijigenerate.commands.puppet.edit.commands,
     nijigenerate.commands.puppet.view.commands,
@@ -47,9 +49,12 @@ alias AllCommandMaps = AliasSeq!(
 // Discover and initialize commands for each enum key present in AllCommandMaps.
 void ngInitAllCommands() {
     static foreach (AA; AllCommandMaps) {
+        import std.stdio;
+        writef("niInitCoomands: %s", KeyTypeOfAA!(AA).stringof);
         static if (__traits(compiles, { ngInitCommands!(KeyTypeOfAA!(AA))(); })) {
+            writefln("Calls");
             ngInitCommands!(KeyTypeOfAA!(AA))();
-        }
+        } else writefln("NOt called");
     }
     /*
     import std.stdio;
