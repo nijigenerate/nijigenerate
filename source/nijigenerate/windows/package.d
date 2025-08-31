@@ -12,8 +12,7 @@ public import nijigenerate.windows.about;
 // Do not publicly re-export settings to avoid module init cycles.
 // Import settings explicitly where needed.
 public import nijigenerate.windows.texviewer;
-public import nijigenerate.windows.paramprop;
-public import nijigenerate.windows.paramaxes;
+public import nijigenerate.windows.parameditor;
 public import nijigenerate.windows.paramsplit;
 public import nijigenerate.windows.psdmerge;
 public import nijigenerate.windows.kramerge;
