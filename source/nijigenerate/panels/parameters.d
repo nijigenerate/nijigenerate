@@ -848,7 +848,7 @@ protected:
 
 public:
     this() {
-        super("Parameters", _("Parameters"), false);
+        super("Parameters", _("Parameters"), true);
     }
 }
 
