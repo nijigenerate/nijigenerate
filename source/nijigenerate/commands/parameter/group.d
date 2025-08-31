@@ -44,14 +44,14 @@ class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
     }
 }
 
-class ChangeGroupColorCommand : ExCommand!(TW!(vec3, "color", "color value for target Parameter Group.")) {
-    this(vec3 color = vec3(0,0,0)) { super("Change Parameter Group Color", color); }
+class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value for target Parameter Group.")) {
+    this(float[3] color = [0f, 0f, 0f]) { super("Change Parameter Group Color", color); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
             return;
         auto group = cast(ExParameterGroup)ctx.parameters[0];
-        group.color = color;
+        group.color = vec3(color[0], color[1], color[2]);
     }
 }
 
@@ -89,4 +89,5 @@ void ngInitCommands(T)() if (is(T == GroupCommand))
     }
     mixin(registerCommand!(GroupCommand.MoveParameter, null, 0));
     mixin(registerCommand!(GroupCommand.CreateParamGroup, 0));
+    mixin(registerCommand!(GroupCommand.ChangeGroupColor, [0f, 0f, 0f]));
 }
