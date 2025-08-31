@@ -694,6 +694,8 @@ void incBeginLoopNoEv() {
     // Add docking space
     viewportDock = igDockSpaceOverViewport(null, ImGuiDockNodeFlags.NoDockingInCentralNode, null);
     if (!incSettingsCanGet("firstrun_complete")) {
+        // Ensure Armed Parameters panel is visible on first run
+        incSettingsSet("Armed Parameters.visible", true);
         incSetDefaultLayout();
         incSettingsSet("firstrun_complete", true);
     }
@@ -718,7 +720,8 @@ void incSetDefaultLayout() {
     igDockBuilderRemoveNodeChildNodes(viewportDock);
     ImGuiID 
         dockMainID, dockIDNodes, dockIDInspector, dockIDHistory, dockIDParams,
-        dockIDToolSettings, dockIDLoggerAndTextureSlots, dockIDTimeline, dockIDAnimList;
+        dockIDToolSettings, dockIDLoggerAndTextureSlots, dockIDTimeline, dockIDAnimList,
+        dockIDArmedParams;
 
     dockMainID = viewportDock;
     dockIDAnimList = igDockBuilderSplitNode(dockMainID, ImGuiDir.Left, 0.10f, null, &dockMainID);
@@ -728,6 +731,8 @@ void incSetDefaultLayout() {
     dockIDHistory = igDockBuilderSplitNode(dockIDToolSettings, ImGuiDir.Down, 0.50f, null, &dockIDToolSettings);
     dockIDTimeline = igDockBuilderSplitNode(dockMainID, ImGuiDir.Down, 0.15f, null, &dockMainID);
     dockIDParams = igDockBuilderSplitNode(dockMainID, ImGuiDir.Left, 0.15f, null, &dockMainID);
+    // Split Parameters area to place Armed Parameters above Parameters
+    dockIDArmedParams = igDockBuilderSplitNode(dockIDParams, ImGuiDir.Up, 0.35f, null, &dockIDParams);
 
     igDockBuilderDockWindow("###Nodes", dockIDNodes);
     igDockBuilderDockWindow("###Inspector", dockIDInspector);
@@ -737,6 +742,7 @@ void incSetDefaultLayout() {
     igDockBuilderDockWindow("###Timeline", dockIDTimeline);
     igDockBuilderDockWindow("###Animation List", dockIDAnimList);
     igDockBuilderDockWindow("###Logger", dockIDTimeline);
+    igDockBuilderDockWindow("###Armed Parameters", dockIDArmedParams);
     igDockBuilderDockWindow("###Parameters", dockIDParams);
     igDockBuilderDockWindow("###Texture Slots", dockIDLoggerAndTextureSlots);
 
@@ -863,4 +869,3 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
-
