@@ -10,6 +10,7 @@ import i18n;
 import std.string : toStringz, toLower;
 import std.algorithm.searching : canFind, countUntil;
 import std.algorithm.comparison : min;
+import std.ascii : isUpper, isLower, isAlphaNum;
 
 // Command Palette for viewport: searchable list of commands
 
@@ -62,6 +63,35 @@ private Command[] collectAllCommands()
     return arr;
 }
 
+// Derive an English-like search token from the command's type name.
+// Example: nijigenerate.commands.puppet.file.OpenFileCommand -> "open file"
+private string deriveEnglishToken(Command c)
+{
+    // Use dynamic class info via Object to get concrete subclass name
+    auto tn = typeid(cast(Object)c).toString();
+    size_t lastDot = 0; bool hasDot = false;
+    foreach (i, ch; tn) {
+        if (ch == '.') { lastDot = i; hasDot = true; }
+    }
+    string cls = hasDot ? tn[lastDot + 1 .. $] : tn;
+    // Strip common suffix
+    enum suffix = "Command";
+    if (cls.length > suffix.length && cls[$ - suffix.length .. $] == suffix)
+        cls = cls[0 .. $ - suffix.length];
+
+    // Decamelize: "OpenFile" -> "Open File"
+    char[] buf;
+    foreach (i, char ch; cls) {
+        if (i > 0 && isUpper(ch) && isLower(cls[i - 1]))
+            buf ~= ' ';
+        else if (i > 0 && isAlphaNum(ch) && !isAlphaNum(cls[i - 1]))
+            buf ~= ' ';
+        buf ~= ch;
+    }
+    auto s = cast(string)buf.idup;
+    return s.toLower;
+}
+
 /// Show a searchable list and execute on Enter.
 class ListCommandCommand : ExCommand!()
 {
@@ -95,7 +125,8 @@ class ListCommandCommand : ExCommand!()
                 if (c is null) continue;
                 if (c is self) continue; // exclude self
                 auto lbl = c.label();
-                if (q.length == 0 || canFind(lbl.toLower, q)) {
+                auto eng = deriveEnglishToken(c);
+                if (q.length == 0 || canFind(lbl.toLower, q) || canFind(eng, q)) {
                     filtered ~= c;
                 }
             }
