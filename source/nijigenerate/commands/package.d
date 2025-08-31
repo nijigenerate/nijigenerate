@@ -49,12 +49,9 @@ alias AllCommandMaps = AliasSeq!(
 // Discover and initialize commands for each enum key present in AllCommandMaps.
 void ngInitAllCommands() {
     static foreach (AA; AllCommandMaps) {
-        import std.stdio;
-        writef("niInitCoomands: %s", KeyTypeOfAA!(AA).stringof);
         static if (__traits(compiles, { ngInitCommands!(KeyTypeOfAA!(AA))(); })) {
-            writefln("Calls");
             ngInitCommands!(KeyTypeOfAA!(AA))();
-        } else writefln("NOt called");
+        }
     }
     /*
     import std.stdio;
