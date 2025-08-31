@@ -322,6 +322,17 @@ public:
     }
 
 protected:
+    // Helper function to check if any commands in an AA match the current filter
+    bool hasMatchingCommands(alias CmdsAA)() {
+        foreach (k, cmd; CmdsAA) {
+            if (!cmd.shortcutRunnable()) continue;
+            if (shortcutFilter.length == 0) return true;
+            auto lbl = cmd.label();
+            if (to!string(lbl).toLower().indexOf(shortcutFilter.toLower()) != -1) return true;
+        }
+        return false;
+    }
+
     // Render a simple 2-column table for a commands AA (enum => Command)
     void renderCommandTable(alias CmdsAA)(const(char)* title)
     {
@@ -527,7 +538,12 @@ protected:
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
 
             // ===== Node Popup =====
-            if (incBeginCategory(__("Nodes"))) {
+            bool hasNodeCommands = hasMatchingCommands!(nijigenerate.commands.node.node.commands)() ||
+                                   hasMatchingCommands!(nijigenerate.commands.node.dynamic.addNodeCommands)() ||
+                                   hasMatchingCommands!(nijigenerate.commands.node.dynamic.insertNodeCommands)() ||
+                                   hasMatchingCommands!(nijigenerate.commands.node.dynamic.convertNodeCommands)();
+            
+            if (hasNodeCommands && incBeginCategory(__("Nodes"))) {
                 renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Nodes"));
                 // Add / Insert / Convert Nodes...
                 renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
