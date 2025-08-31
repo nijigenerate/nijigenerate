@@ -15,6 +15,9 @@ import i18n;
 import nijilive;
 import std.math;
 import std.algorithm : sort;
+import std.array : array;
+import nijigenerate.commands; // for cmd!
+import nijigenerate.commands.parameter.prop : ParamPropCommand;
 
 // Reuse types used by axes editor
 import nijigenerate.widgets.controller : EditableAxisPoint, incControllerAxisDemo;
@@ -65,28 +68,32 @@ private:
     }
 
     void createPoint(ulong axis) {
-        // Ensure current points are in ascending order by actual value
-        sort!((a, b) => a.value < b.value)(points[axis]);
-
-        // Find the largest gap between consecutive points
-        size_t insertLeft = 0;
-        float maxGap = -float.infinity;
-        foreach (i; 0 .. points[axis].length - 1) {
-            float gap = points[axis][i + 1].value - points[axis][i].value;
-            if (gap > maxGap) {
-                maxGap = gap;
-                insertLeft = i;
+        // Preserve original order; append midpoint of the largest gap in display order
+        import std.range : iota;
+        size_t n = points[axis].length;
+        size_t[] order = iota(n).array;
+        sort!((a, b) => points[axis][a].value < points[axis][b].value)(order);
+        float newValue;
+        if (n >= 2) {
+            size_t bestK = 0;
+            float bestGap = -float.infinity;
+            foreach (k; 0 .. n - 1) {
+                if (k + 1 >= n) break;
+                float lv = points[axis][order[k]].value;
+                float rv = points[axis][order[k + 1]].value;
+                float gap = rv - lv;
+                if (gap > bestGap) { bestGap = gap; bestK = k; }
             }
+            float lv2 = points[axis][order[bestK]].value;
+            float rv2 = points[axis][order[bestK + 1]].value;
+            newValue = (lv2 + rv2) * 0.5f;
+        } else if (n == 1) {
+            newValue = (axis == 0 ? (min.x + max.x) : (min.y + max.y)) * 0.5f;
+        } else {
+            newValue = 0;
         }
-
-        // Midpoint of the largest gap
-        float newValue = (points[axis][insertLeft].value + points[axis][insertLeft + 1].value) * 0.5f;
         float newNorm = mapAxisLocal(cast(uint)axis, newValue);
-
-        // Append and re-sort to keep ascending order
         points[axis] ~= EditableAxisPoint(-1, false, newValue, newNorm);
-        sort!((a, b) => a.value < b.value)(points[axis]);
-
         this.findEndPoint();
     }
 
@@ -96,13 +103,17 @@ private:
         igPushID(cast(int)axis);
         if (igBeginChild("###AXIS_ADJ", ImVec2(0, avail.y))) {
             if (points[axis].length > 2) {
-                int ix;
-                foreach(i, ref pt; points[axis]) {
-                    ix++;
+                import std.range : iota;
+                size_t[] order = iota(points[axis].length).array;
+                sort!((a, b) => points[axis][a].value < points[axis][b].value)(order);
+                foreach(pos, idx; order) {
+                    auto ref pt = points[axis][idx];
                     if (pt.fixed) continue;
                     vec2 range;
                     if (pt.origIndex != -1) {
-                        range = vec2(points[axis][i - 1].value, points[axis][i + 1].value);
+                        float leftV = (pos > 0) ? points[axis][order[pos-1]].value : (axis==0? min.x : min.y);
+                        float rightV = (pos+1 < order.length) ? points[axis][order[pos+1]].value : (axis==0? max.x : max.y);
+                        range = vec2(leftV, rightV);
                     } else if (axis == 0) {
                         range = vec2(min.x, max.x);
                     } else {
@@ -110,21 +121,21 @@ private:
                     }
                     range = range + vec2(0.01, -0.01);
                     igSetNextItemWidth(80);
-                    igPushID(cast(int)i);
+                    igPushID(cast(int)idx);
                     if (incDragFloat("adj_offset", &pt.value, 0.01, range.x, range.y, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
                         pt.normValue = mapAxisLocal(cast(uint)axis, pt.value);
                     }
                     igSameLine(0, 0);
-                    if (i == endPoint.vector[axis]) {
+                    if (idx == endPoint.vector[axis]) {
                         incDummy(ImVec2(-52, 32));
                         igSameLine(0, 0);
-                        if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
+                        if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)idx;
                         igSameLine(0, 0);
                         if (incButtonColored("", ImVec2(24, 24))) createPoint(axis);
                     } else {
                         incDummy(ImVec2(-28, 32));
                         igSameLine(0, 0);
-                        if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
+                        if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)idx;
                     }
                     igPopID();
                 }
@@ -270,35 +281,29 @@ protected:
                     }
                 }
                 if (success) {
-                    // Apply properties
+                    // Apply via commands
                     if (!isValidName()) {
                         incDialog(__("Error"), _("Name is already taken"));
                     } else {
-                        param.name = paramName;
-                        param.makeIndexable();
-                        auto prevMin = param.min; auto prevMax = param.max;
-                        param.min = min; param.max = max;
-                        if (prevMin.x != param.min.x) incActionPush(new ParameterValueChangeAction!float("min X", param, incGetDragFloatInitialValue("adj_x_min"), param.min.vector[0], &param.min.vector[0]));
-                        if (param.isVec2 && prevMin.y != param.min.y) incActionPush(new ParameterValueChangeAction!float("min Y", param, incGetDragFloatInitialValue("adj_y_min"), param.min.vector[1], &param.min.vector[1]));
-                        if (prevMax.x != param.max.x) incActionPush(new ParameterValueChangeAction!float("max X", param, incGetDragFloatInitialValue("adj_x_max"), param.max.vector[0], &param.max.vector[0]));
-                        if (param.isVec2 && prevMax.y != param.max.y) incActionPush(new ParameterValueChangeAction!float("max Y", param, incGetDragFloatInitialValue("adj_y_max"), param.max.vector[1], &param.max.vector[1]));
+                        Context ctx = new Context();
+                        ctx.puppet = incActivePuppet();
+                        ctx.parameters = [param];
 
-                        // Apply axes
-                        foreach (axis, axisPoints; points) {
-                            int skew = 0;
-                            foreach (i, ref point; axisPoints) {
-                                if (point.origIndex != -1) {
-                                    while (point.origIndex != -1 && (i + skew) < point.origIndex) {
-                                        param.deleteAxisPoint(cast(uint)axis, cast(uint)i);
-                                        skew++;
-                                    }
-                                    if (!point.fixed)
-                                        param.axisPoints[axis][i] = point.normValue;
-                                } else {
-                                    param.insertAxisPoint(cast(uint)axis, point.normValue);
-                                }
-                            }
+                        // Name only if changed
+                        if (param.name != paramName) {
+                            cmd!(ParamPropCommand.SetParameterName)(ctx, paramName);
                         }
+
+                        // Collect normalized breakpoints and apply props+axes
+                        float[] axisX; foreach (pt; points[0]) axisX ~= pt.normValue; axisX.sort();
+                        float[] axisY; if (param.isVec2) { foreach (pt; points[1]) axisY ~= pt.normValue; axisY.sort(); }
+
+                        float[2] minArr = [min.x, min.y];
+                        float[2] maxArr = [max.x, max.y];
+                        if (param.isVec2)
+                            cmd!(ParamPropCommand.ApplyParameterPropsAxes)(ctx, minArr, maxArr, axisX, axisY);
+                        else
+                            cmd!(ParamPropCommand.ApplyParameterPropsAxes)(ctx, minArr, maxArr, axisX, new float[](0));
                         this.close();
                     }
                 }
