@@ -23,7 +23,7 @@ enum ParamEditorTab { Properties, Axes }
 class ParamEditorWindow : Window {
 private:
     Parameter param;
-    ParamEditorTab defaultTab;
+    ParamEditorTab defaultTab; // kept for ctor compatibility; no tabs in UI
 
     // Properties state
     string paramName;
@@ -135,48 +135,11 @@ protected:
         igPushID(cast(void*)param);
         // Main editor content (leave space for bottom buttons)
         if (igBeginChild("###ParamEditorContent", ImVec2(0, -36))) {
-            // Properties
-            if (incBeginCategory(__("Properties"), IncCategoryFlags.NoCollapse)) {
-                if (igBeginChild("###MainSettings", ImVec2(0, 0))) {
-                        incText(_("Parameter Name"));
-                        igIndent();
-                        incInputText("Name", paramName);
-                        igUnindent();
-
-                        incText(_("Parameter Constraints"));
-                        igIndent();
-                        igSetNextItemWidth(256);
-                        if (param.isVec2) incText("X");
-                        if (param.isVec2) igIndent();
-                        igSetNextItemWidth(64);
-                        igPushID(0);
-                        incDragFloat("adj_x_min", &min.vector[0], 1, -float.max, max.x-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                        igPopID();
-                        igSameLine(0, 4);
-                        igSetNextItemWidth(64);
-                        igPushID(1);
-                        incDragFloat("adj_x_max", &max.vector[0], 1, min.x+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                        igPopID();
-                        if (param.isVec2) igUnindent();
-                        if (param.isVec2) {
-                            incText("Y");
-                            igIndent();
-                            igSetNextItemWidth(64);
-                            igPushID(2);
-                            incDragFloat("adj_y_min", &min.vector[1], 1, -float.max, max.y-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                            igPopID();
-                            igSameLine(0, 4);
-                            igSetNextItemWidth(64);
-                            igPushID(3);
-                            incDragFloat("adj_y_max", &max.vector[1], 1, min.y+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                            igPopID();
-                            igUnindent();
-                        }
-                        igUnindent();
-                }
-                igEndChild();
-            }
-            incEndCategory();
+            // Properties (inline)
+            incText(_("Parameter Name"));
+            igIndent();
+                incInputText("Name", paramName);
+            igUnindent();
 
             // If constraints changed, re-sync point values to new range (keep normalized positions)
             static vec2 prevMinCache; static vec2 prevMaxCache; static bool initDone;
@@ -187,8 +150,7 @@ protected:
                 prevMinCache = min; prevMaxCache = max;
             }
 
-            // Axes editing section
-            if (incBeginCategory(__("Axes"), IncCategoryFlags.NoCollapse)) {
+            // Axes editing section (no categories)
                 ImVec2 avail = incAvailableSpace();
                 float reqSpace = param.isVec2 ? 128 : 32;
                 if (igBeginChild("###ControllerView", ImVec2(192, avail.y))) {
@@ -201,19 +163,54 @@ protected:
                 if (igBeginChild("###ControllerSettings", ImVec2(0, 0))) {
                     avail = incAvailableSpace();
                     if (param.isVec2) {
-                        if (incBeginCategory("X", IncCategoryFlags.NoCollapse)) axisPointList(0, ImVec2(avail.x, (avail.y/2)-42));
-                        incEndCategory();
-                        if (incBeginCategory("Y", IncCategoryFlags.NoCollapse)) axisPointList(1, ImVec2(avail.x, (avail.y/2)-42));
-                        incEndCategory();
+                        // X axis min/max + list
+                        incText("X");
+                        igIndent();
+                            igSetNextItemWidth(64);
+                            igPushID(0);
+                                incDragFloat("adj_x_min", &min.vector[0], 1, -float.max, max.x-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                            igPopID();
+                            igSameLine(0, 4);
+                            igSetNextItemWidth(64);
+                            igPushID(1);
+                                incDragFloat("adj_x_max", &max.vector[0], 1, min.x+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                            igPopID();
+                        igUnindent();
+                        axisPointList(0, ImVec2(avail.x, (avail.y/2)-42));
+                        // Y axis list
+                        incText("Y");
+                        igIndent();
+                            igSetNextItemWidth(64);
+                            igPushID(2);
+                                incDragFloat("adj_y_min", &min.vector[1], 1, -float.max, max.y-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                            igPopID();
+                            igSameLine(0, 4);
+                            igSetNextItemWidth(64);
+                            igPushID(3);
+                                incDragFloat("adj_y_max", &max.vector[1], 1, min.y+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                            igPopID();
+                        igUnindent();
+                        axisPointList(1, ImVec2(avail.x, (avail.y/2)-42));
                     } else {
-                        if (incBeginCategory(__("Breakpoints"), IncCategoryFlags.NoCollapse)) axisPointList(0, ImVec2(avail.x, avail.y-38));
-                        incEndCategory();
+                        // 1D: min/max + list
+                        incText(_("Breakpoints"));
+                        igIndent();
+                            igSetNextItemWidth(64);
+                            igPushID(0);
+                                incDragFloat("adj_x_min", &min.vector[0], 1, -float.max, max.x-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                            igPopID();
+                            igSameLine(0, 4);
+                            igSetNextItemWidth(64);
+                            igPushID(1);
+                                incDragFloat("adj_x_max", &max.vector[0], 1, min.x+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                            igPopID();
+                        igUnindent();
+                        axisPointList(0, ImVec2(avail.x, avail.y-38));
                     }
                 }
                 igEndChild();
                 igEndGroup();
-            }
-            incEndCategory();
+            
         }
         igEndChild();
 
@@ -229,7 +226,7 @@ protected:
                 // Validate axes (no overlap)
                 bool success = true;
                 iloop: foreach(axis; 0..points.length) {
-                    foreach(x; 0..points[0].length) foreach(xi; 0..points[0].length) {
+                    foreach(x; 0..points[axis].length) foreach(xi; 0..points[axis].length) {
                         if (x == xi) continue;
                         if (points[axis][x].normValue == points[axis][xi].normValue) {
                             incDialog(__("Error"), _("One or more axes points are overlapping, this is not allowed."));
@@ -239,7 +236,7 @@ protected:
                 }
                 if (success) {
                     // Apply properties
-                    if (!isValidName) {
+                    if (!isValidName()) {
                         incDialog(__("Error"), _("Name is already taken"));
                     } else {
                         param.name = paramName;
@@ -247,9 +244,9 @@ protected:
                         auto prevMin = param.min; auto prevMax = param.max;
                         param.min = min; param.max = max;
                         if (prevMin.x != param.min.x) incActionPush(new ParameterValueChangeAction!float("min X", param, incGetDragFloatInitialValue("adj_x_min"), param.min.vector[0], &param.min.vector[0]));
-                        if (prevMin.y != param.min.y) incActionPush(new ParameterValueChangeAction!float("min Y", param, incGetDragFloatInitialValue("adj_y_min"), param.min.vector[1], &param.min.vector[1]));
+                        if (param.isVec2 && prevMin.y != param.min.y) incActionPush(new ParameterValueChangeAction!float("min Y", param, incGetDragFloatInitialValue("adj_y_min"), param.min.vector[1], &param.min.vector[1]));
                         if (prevMax.x != param.max.x) incActionPush(new ParameterValueChangeAction!float("max X", param, incGetDragFloatInitialValue("adj_x_max"), param.max.vector[0], &param.max.vector[0]));
-                        if (prevMax.y != param.max.y) incActionPush(new ParameterValueChangeAction!float("max Y", param, incGetDragFloatInitialValue("adj_y_max"), param.max.vector[1], &param.max.vector[1]));
+                        if (param.isVec2 && prevMax.y != param.max.y) incActionPush(new ParameterValueChangeAction!float("max Y", param, incGetDragFloatInitialValue("adj_y_max"), param.max.vector[1], &param.max.vector[1]));
 
                         // Apply axes
                         foreach (axis, axisPoints; points) {
