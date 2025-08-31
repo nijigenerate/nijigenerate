@@ -133,12 +133,11 @@ protected:
 
     override void onUpdate() {
         igPushID(cast(void*)param);
-        // Upper area for tabs (leave space for bottom buttons)
-        if (igBeginChild("###ParamEditorTabs", ImVec2(0, -36))) {
-            if (igBeginTabBar("###ParamEditorTabBar", ImGuiTabBarFlags.None)) {
-                void renderProps() {
-                    if (igBeginTabItem(__("Properties"))) {
-                    if (igBeginChild("###MainSettings", ImVec2(0, -28))) {
+        // Main editor content (leave space for bottom buttons)
+        if (igBeginChild("###ParamEditorContent", ImVec2(0, -36))) {
+            // Properties
+            if (incBeginCategory(__("Properties"), IncCategoryFlags.NoCollapse)) {
+                if (igBeginChild("###MainSettings", ImVec2(0, 0))) {
                         incText(_("Parameter Name"));
                         igIndent();
                         incInputText("Name", paramName);
@@ -174,44 +173,47 @@ protected:
                             igUnindent();
                         }
                         igUnindent();
-                    }
-                    igEndChild();
-                        igEndTabItem();
-                    }
                 }
-                void renderAxes() {
-                    if (igBeginTabItem(__("Axes"))) {
-                    ImVec2 avail = incAvailableSpace();
-                    float reqSpace = param.isVec2 ? 128 : 32;
-                    if (igBeginChild("###ControllerView", ImVec2(192, avail.y))) {
-                        incDummy(ImVec2(0, (avail.y/2)-(reqSpace/2)));
-                        incControllerAxisDemo("###CONTROLLER", param, points, ImVec2(192, reqSpace));
-                    }
-                    igEndChild();
-                    igSameLine(0,0);
-                    igBeginGroup();
-                    if (igBeginChild("###ControllerSettings", ImVec2(0, -(28)))) {
-                        avail = incAvailableSpace();
-                        if (param.isVec2) {
-                            if (incBeginCategory("X", IncCategoryFlags.NoCollapse)) axisPointList(0, ImVec2(avail.x, (avail.y/2)-42));
-                            incEndCategory();
-                            if (incBeginCategory("Y", IncCategoryFlags.NoCollapse)) axisPointList(1, ImVec2(avail.x, (avail.y/2)-42));
-                            incEndCategory();
-                        } else {
-                            if (incBeginCategory(__("Breakpoints"), IncCategoryFlags.NoCollapse)) axisPointList(0, ImVec2(avail.x, avail.y-38));
-                            incEndCategory();
-                        }
-                    }
-                    igEndChild();
-                    igEndGroup();
-                        igEndTabItem();
-                    }
-                }
-                // Reverse tab order: Axes first, then Properties
-                renderProps();
-                renderAxes();
-                igEndTabBar();
+                igEndChild();
             }
+            incEndCategory();
+
+            // If constraints changed, re-sync point values to new range (keep normalized positions)
+            static vec2 prevMinCache; static vec2 prevMaxCache; static bool initDone;
+            if (!initDone) { prevMinCache = min; prevMaxCache = max; initDone = true; }
+            if (prevMinCache != min || prevMaxCache != max) {
+                foreach(ax; 0..points.length) foreach(ref pt; points[ax]) pt.value = unmapAxisLocal(cast(uint)ax, pt.normValue);
+                findEndPoint();
+                prevMinCache = min; prevMaxCache = max;
+            }
+
+            // Axes editing section
+            if (incBeginCategory(__("Axes"), IncCategoryFlags.NoCollapse)) {
+                ImVec2 avail = incAvailableSpace();
+                float reqSpace = param.isVec2 ? 128 : 32;
+                if (igBeginChild("###ControllerView", ImVec2(192, avail.y))) {
+                    incDummy(ImVec2(0, (avail.y/2)-(reqSpace/2)));
+                    incControllerAxisDemo("###CONTROLLER", param, points, ImVec2(192, reqSpace));
+                }
+                igEndChild();
+                igSameLine(0,0);
+                igBeginGroup();
+                if (igBeginChild("###ControllerSettings", ImVec2(0, 0))) {
+                    avail = incAvailableSpace();
+                    if (param.isVec2) {
+                        if (incBeginCategory("X", IncCategoryFlags.NoCollapse)) axisPointList(0, ImVec2(avail.x, (avail.y/2)-42));
+                        incEndCategory();
+                        if (incBeginCategory("Y", IncCategoryFlags.NoCollapse)) axisPointList(1, ImVec2(avail.x, (avail.y/2)-42));
+                        incEndCategory();
+                    } else {
+                        if (incBeginCategory(__("Breakpoints"), IncCategoryFlags.NoCollapse)) axisPointList(0, ImVec2(avail.x, avail.y-38));
+                        incEndCategory();
+                    }
+                }
+                igEndChild();
+                igEndGroup();
+            }
+            incEndCategory();
         }
         igEndChild();
 
