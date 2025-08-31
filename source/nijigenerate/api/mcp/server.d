@@ -421,8 +421,8 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
                 if (selectorParam.length) sel.build(selectorParam);
                 auto results = sel.run();
 
-                import nijigenerate.core.selector.treestore : TreeStore;
-                auto ts = new TreeStore();
+                import nijigenerate.core.selector.treestore : TreeStore_, TreeStore;
+                auto ts = new TreeStore_!false();
                 ts.setResources(results);
 
                 JSONValue makeTree(Resource res) {
@@ -547,8 +547,8 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
                 if (selectorParam.length) sel.build(selectorParam);
                 auto results = sel.run();
 
-                import nijigenerate.core.selector.treestore : TreeStore;
-                auto ts = new TreeStore();
+                import nijigenerate.core.selector.treestore : TreeStore_, TreeStore;
+                auto ts = new TreeStore_!false();
                 ts.setResources(results);
 
                 JSONValue makeTree(Resource res) {
