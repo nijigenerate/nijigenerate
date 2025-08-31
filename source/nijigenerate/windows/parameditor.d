@@ -41,6 +41,19 @@ private:
     EditableAxisPoint[][2] points;
     vec2 endPoint;
 
+    // Local mapping based on edited min/max values (not yet applied to param)
+    float mapAxisLocal(uint axis, float value) {
+        float aMin = axis == 0 ? min.x : min.y;
+        float aMax = axis == 0 ? max.x : max.y;
+        if (aMax == aMin) return 0; // avoid div by zero
+        return (value - aMin) / (aMax - aMin);
+    }
+    float unmapAxisLocal(uint axis, float norm) {
+        float aMin = axis == 0 ? min.x : min.y;
+        float aMax = axis == 0 ? max.x : max.y;
+        return aMin + norm * (aMax - aMin);
+    }
+
     void findEndPoint() {
         foreach(i, x; points[0]) {
             if (!x.fixed) endPoint.x = i;
@@ -52,7 +65,7 @@ private:
 
     void createPoint(ulong axis) {
         float normValue = (points[axis][0].normValue + points[axis][1].normValue) / 2;
-        float value = param.unmapAxis(cast(uint)axis, normValue);
+        float value = unmapAxisLocal(cast(uint)axis, normValue);
         points[axis] ~= EditableAxisPoint(-1, false, value, normValue);
         this.findEndPoint();
     }
@@ -71,15 +84,15 @@ private:
                     if (pt.origIndex != -1) {
                         range = vec2(points[axis][i - 1].value, points[axis][i + 1].value);
                     } else if (axis == 0) {
-                        range = vec2(param.min.x, param.max.x);
+                        range = vec2(min.x, max.x);
                     } else {
-                        range = vec2(param.min.y, param.max.y);
+                        range = vec2(min.y, max.y);
                     }
                     range = range + vec2(0.01, -0.01);
                     igSetNextItemWidth(80);
                     igPushID(cast(int)i);
                     if (incDragFloat("adj_offset", &pt.value, 0.01, range.x, range.y, "%.2f", ImGuiSliderFlags.NoRoundToFormat)) {
-                        pt.normValue = param.mapAxis(cast(uint)axis, pt.value);
+                        pt.normValue = mapAxisLocal(cast(uint)axis, pt.value);
                     }
                     igSameLine(0, 0);
                     if (i == endPoint.vector[axis]) {
@@ -195,8 +208,8 @@ protected:
                     }
                 }
                 // Reverse tab order: Axes first, then Properties
-                renderAxes();
                 renderProps();
+                renderAxes();
                 igEndTabBar();
             }
         }
@@ -275,7 +288,7 @@ public:
             foreach(j, ref point; axisPoints) {
                 point.origIndex = cast(int)j;
                 point.normValue = param.axisPoints[i][j];
-                point.value = param.unmapAxis(cast(uint)i, point.normValue);
+                point.value = unmapAxisLocal(cast(uint)i, point.normValue);
             }
             axisPoints[0].fixed = true;
             axisPoints[$ - 1].fixed = true;
