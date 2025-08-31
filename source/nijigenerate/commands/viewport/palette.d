@@ -10,6 +10,7 @@ import i18n;
 import std.string : toStringz, toLower;
 import std.algorithm.searching : canFind, countUntil;
 import std.algorithm.comparison : min;
+import std.ascii : isUpper, isLower, isAlphaNum;
 
 // Command Palette for viewport: searchable list of commands
 
@@ -62,6 +63,73 @@ private Command[] collectAllCommands()
     return arr;
 }
 
+// Derive parent category name for a command (based on settings.d organization)
+private string getParentCategory(Command c)
+{
+    // Helper to check if command is in a specific AA
+    auto inAA(alias AA)(Command cmd) {
+        foreach (k, v; AA) {
+            if (v is cmd) return true;
+        }
+        return false;
+    }
+
+    import nijigenerate.commands;
+    // ===== Main menu =====
+    if (inAA!(nijigenerate.commands.puppet.file.commands)(c)) return "File";
+    if (inAA!(nijigenerate.commands.puppet.edit.commands)(c)) return "Edit";
+    if (inAA!(nijigenerate.commands.puppet.view.commands)(c)) return "View";
+    if (inAA!(nijigenerate.commands.view.panel.togglePanelCommands)(c)) return "View/Panels";
+    if (inAA!(nijigenerate.commands.puppet.tool.commands)(c)) return "Tools";
+    // ===== Viewport =====
+    if (inAA!(nijigenerate.commands.viewport.control.commands)(c)) return "Viewport";
+    if (inAA!(nijigenerate.commands.viewport.palette.commands)(c)) return "Palette";
+    if (inAA!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(c)) return "Mesh Editor Tools";
+    // ===== Node Popup =====
+    if (inAA!(nijigenerate.commands.node.node.commands)(c)) return "Nodes";
+    if (inAA!(nijigenerate.commands.node.dynamic.addNodeCommands)(c)) return "Add Node";
+    if (inAA!(nijigenerate.commands.node.dynamic.insertNodeCommands)(c)) return "Insert Node";
+    if (inAA!(nijigenerate.commands.node.dynamic.convertNodeCommands)(c)) return "Convert Node";
+    // Inspector Panel
+    if (inAA!(nijigenerate.commands.inspector.apply_node.commands)(c)) return "Panel/Inspector";
+    // ===== Parameters =====
+    if (inAA!(nijigenerate.commands.parameter.param.commands)(c)) return "Parameter";
+    if (inAA!(nijigenerate.commands.parameter.paramedit.commands)(c)) return "Parameter Edit";
+    if (inAA!(nijigenerate.commands.binding.binding.commands)(c)) return "Binding";
+    if (inAA!(nijigenerate.commands.parameter.group.commands)(c)) return "Parameter Group";
+    if (inAA!(nijigenerate.commands.parameter.animedit.commands)(c)) return "Animation Edit";
+    return "";
+}
+
+// Derive an English-like search token from the command's type name.
+// Example: nijigenerate.commands.puppet.file.OpenFileCommand -> "open file"
+private string deriveEnglishToken(Command c)
+{
+    // Use dynamic class info via Object to get concrete subclass name
+    auto tn = typeid(cast(Object)c).toString();
+    size_t lastDot = 0; bool hasDot = false;
+    foreach (i, ch; tn) {
+        if (ch == '.') { lastDot = i; hasDot = true; }
+    }
+    string cls = hasDot ? tn[lastDot + 1 .. $] : tn;
+    // Strip common suffix
+    enum suffix = "Command";
+    if (cls.length > suffix.length && cls[$ - suffix.length .. $] == suffix)
+        cls = cls[0 .. $ - suffix.length];
+
+    // Decamelize: "OpenFile" -> "Open File"
+    char[] buf;
+    foreach (i, char ch; cls) {
+        if (i > 0 && isUpper(ch) && isLower(cls[i - 1]))
+            buf ~= ' ';
+        else if (i > 0 && isAlphaNum(ch) && !isAlphaNum(cls[i - 1]))
+            buf ~= ' ';
+        buf ~= ch;
+    }
+    auto s = cast(string)buf.idup;
+    return s.toLower;
+}
+
 /// Show a searchable list and execute on Enter.
 class ListCommandCommand : ExCommand!()
 {
@@ -95,7 +163,17 @@ class ListCommandCommand : ExCommand!()
                 if (c is null) continue;
                 if (c is self) continue; // exclude self
                 auto lbl = c.label();
-                if (q.length == 0 || canFind(lbl.toLower, q)) {
+                auto eng = deriveEnglishToken(c);
+                auto parentEn = getParentCategory(c);
+                auto parentLc = parentEn.toLower;
+                // Also match localized parent name
+                string parentLocLc;
+                if (parentEn.length) {
+                    import std.string : fromStringz;
+                    parentLocLc = fromStringz(__(parentEn)).idup.toLower;
+                }
+                if (q.length == 0 || canFind(lbl.toLower, q) || canFind(eng, q) || 
+                    (parentLc.length && canFind(parentLc, q)) || (parentLocLc.length && canFind(parentLocLc, q))) {
                     filtered ~= c;
                 }
             }
@@ -122,7 +200,8 @@ class ListCommandCommand : ExCommand!()
 
             // Results list with scrolling when exceeding viewport height
             float lineH = igGetTextLineHeightWithSpacing();
-            float estimated = filtered.length * lineH;
+            import std.algorithm : max;
+            float estimated = max(filtered.length, 4) * lineH; // always more then 4 prevent 1 element underflow
             float maxListH = io.DisplaySize.y * 0.8f;
             float listH = estimated < maxListH ? estimated : maxListH;
             if (listH < lineH * 3 && filtered.length > 0) listH = lineH * filtered.length; // minimal fit
@@ -131,8 +210,18 @@ class ListCommandCommand : ExCommand!()
                 import nijigenerate.core.shortcut : ngShortcutFor;
                 foreach (i, c; filtered) {
                     auto lbl = c.label();
+                    auto parentEn = getParentCategory(c);
+                    // Compose display: [Parent] Label (localize parent)
+                    string display;
+                    if (parentEn.length) {
+                        import std.string : fromStringz;
+                        string parentLoc = fromStringz(__(parentEn)).idup;
+                        display = "[" ~ parentLoc ~ "] " ~ lbl;
+                    } else {
+                        display = lbl;
+                    }
                     bool selected = (i == gPaletteSelectedIndex);
-                    if (igSelectable(lbl.toStringz, selected)) {
+                    if (igSelectable(display.toStringz, selected)) {
                         gPaletteSelectedIndex = i;
                         // Execute on mouse selection
                         executeCommand(c);
