@@ -120,10 +120,11 @@ protected:
 
     override void onUpdate() {
         igPushID(cast(void*)param);
-        // Render tabs. Default active tab determined by drawing order.
-        if (igBeginTabBar("###ParamEditorTabBar", ImGuiTabBarFlags.None)) {
-            void renderProps() {
-                if (igBeginTabItem(__("Properties"))) {
+        // Upper area for tabs (leave space for bottom buttons)
+        if (igBeginChild("###ParamEditorTabs", ImVec2(0, -36))) {
+            if (igBeginTabBar("###ParamEditorTabBar", ImGuiTabBarFlags.None)) {
+                void renderProps() {
+                    if (igBeginTabItem(__("Properties"))) {
                     if (igBeginChild("###MainSettings", ImVec2(0, -28))) {
                         incText(_("Parameter Name"));
                         igIndent();
@@ -162,11 +163,11 @@ protected:
                         igUnindent();
                     }
                     igEndChild();
-                    igEndTabItem();
+                        igEndTabItem();
+                    }
                 }
-            }
-            void renderAxes() {
-                if (igBeginTabItem(__("Axes"))) {
+                void renderAxes() {
+                    if (igBeginTabItem(__("Axes"))) {
                     ImVec2 avail = incAvailableSpace();
                     float reqSpace = param.isVec2 ? 128 : 32;
                     if (igBeginChild("###ControllerView", ImVec2(192, avail.y))) {
@@ -190,25 +191,16 @@ protected:
                     }
                     igEndChild();
                     igEndGroup();
-                    igEndTabItem();
+                        igEndTabItem();
+                    }
                 }
+                // Reverse tab order: Axes first, then Properties
+                renderAxes();
+                renderProps();
+                igEndTabBar();
             }
-
-            // Draw desired default tab first
-            static if (true) {
-                final switch (defaultTab) {
-                    case ParamEditorTab.Properties:
-                        renderProps();
-                        renderAxes();
-                        break;
-                    case ParamEditorTab.Axes:
-                        renderAxes();
-                        renderProps();
-                        break;
-                }
-            }
-            igEndTabBar();
         }
+        igEndChild();
 
         // Bottom button bar
         if (igBeginChild("###SettingsBtns", ImVec2(0, 0))) {
