@@ -32,7 +32,7 @@ enum SettingsPane : string {
     Viewport = "Viewport",
     Accessibility = "Accessbility",
     FileHandling = "File Handling",
-    Shotcuts = "Shotcuts",
+    Shortcuts = "Shortcuts",
 }
 
 /**
@@ -113,8 +113,8 @@ protected:
                     settingsPane = SettingsPane.FileHandling;
                 }
 
-                if (igSelectable(__("Shotcuts"), settingsPane == SettingsPane.Shotcuts)) {
-                    settingsPane = SettingsPane.Shotcuts;
+                if (igSelectable(__("Shortcuts"), settingsPane == SettingsPane.Shortcuts)) {
+                    settingsPane = SettingsPane.Shortcuts;
                 }
             igPopTextWrapPos();
         }
@@ -184,8 +184,8 @@ protected:
                             endSection();
                         }
                         break;
-                    case SettingsPane.Shotcuts:
-                        drawShotcutsPane();
+                    case SettingsPane.Shortcuts:
+                        drawShortcutsPane();
                         break;
                     case SettingsPane.Accessibility:
                         beginSection(__("Accessibility"));
@@ -484,8 +484,8 @@ protected:
         igSeparator();
     }
 
-    void drawShotcutsPane() {
-        beginSection(__("Shotcuts"));
+    void drawShortcutsPane() {
+        beginSection(__("Shortcuts"));
             incText(_("Assign shortcuts to commands. Click Set and press keys. Use Clear to remove a binding."));
 
             // macOS-specific option: swap Command and Control in shortcuts
