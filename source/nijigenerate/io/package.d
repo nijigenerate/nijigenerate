@@ -227,8 +227,6 @@ enum AskKeepLayerFolder {
     Preserve, NotPreserve, Cancel
 }
 
-const(char)* INC_KEEP_STRUCT_DIALOG_NAME = "ImportKeepFolderStructPopup";
-
 /**
     Function for importing pop-up dialog
 */
@@ -238,42 +236,47 @@ bool incKeepStructDialog(ImportKeepHandler handler) {
     } else if (incGetKeepLayerFolder() == "NotPreserve") {
         handler.load(AskKeepLayerFolder.NotPreserve);
     } else {
-        incRegisterDialogHandler(handler);
-
-        // Show dialog
-        incDialog(
-            INC_KEEP_STRUCT_DIALOG_NAME,
-            __("Import File"),
-            _("Do you want to preserve the folder structure of the imported file? You can change this in the settings."),
-            DialogLevel.Warning,
-            DialogButtons.Yes | DialogButtons.No | DialogButtons.Cancel
-        );
+        handler.register();
+        handler.show();
     }
 
     return true;
 }
 
 class ImportKeepHandler : DialogHandler {
+    const(char)* INC_KEEP_STRUCT_DIALOG_NAME = "ImportKeepFolderStructPopup";
+
     this () {
         super(INC_KEEP_STRUCT_DIALOG_NAME);
     }
 
     override
-    bool onClick(DialogButtons button) {
-        switch (button) {
-            case DialogButtons.Cancel:
-                return this.load(AskKeepLayerFolder.Cancel);
-            case DialogButtons.Yes:
-                return this.load(AskKeepLayerFolder.Preserve);
-            case DialogButtons.No:
-                return this.load(AskKeepLayerFolder.NotPreserve);
-            default:
-                throw new Exception("Invalid button");
-        }
+    bool onClickCancel() {
+        return this.load(AskKeepLayerFolder.Cancel);
+    }
+
+    override
+    bool onClickYes() {
+        return this.load(AskKeepLayerFolder.Preserve);
+    }
+
+    override
+    bool onClickNo() {
+        return this.load(AskKeepLayerFolder.NotPreserve);
     }
 
     bool load(AskKeepLayerFolder select) {
         // override this
         return false;
+    }
+
+    void show() {
+        incDialog(
+            INC_KEEP_STRUCT_DIALOG_NAME,
+            __("File import"),
+            _("Would you like to keep the folder structure of the imported file?\n\nYou can change the default behaviour in the settings."),
+            DialogLevel.Warning,
+            DialogButtons.Yes | DialogButtons.No | DialogButtons.Cancel
+        );
     }
 }

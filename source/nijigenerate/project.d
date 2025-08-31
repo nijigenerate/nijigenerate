@@ -213,6 +213,7 @@ void incInitAnimationPlayer(Puppet puppet) {
 
 /**
     Creates a new project
+    if you want to call in UI, also see incNewProjectAsk()
 */
 void incNewProject() {
     incPopWelcomeWindow();
