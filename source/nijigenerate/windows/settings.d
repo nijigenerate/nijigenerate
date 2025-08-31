@@ -329,10 +329,18 @@ protected:
                 igTableSetupColumn(__("Edit"), ImGuiTableColumnFlags.None, 0.2, 2);
                 igTableHeadersRow();
 
-                foreach (k, cmd; CmdsAA) {
-                    // Hide commands that are not intended to be bound as shortcuts
-                    if (!cmd.shortcutRunnable())
-                        continue;
+                // Helper: deduce AA key type
+                template KeyTypeOfAA(alias AA) {
+                    static if (is(typeof(AA) : V[K], V, K))
+                        alias KeyTypeOfAA = K;
+                    else
+                        static assert(0, AA.stringof ~ " is not an associative array");
+                }
+                alias KeyT = KeyTypeOfAA!(CmdsAA);
+
+                // Row renderer
+                void renderRow(TKey)(TKey k, Command cmd) {
+                    if (!cmd.shortcutRunnable()) return;
                     igTableNextRow(ImGuiTableRowFlags.None, 0.0);
                     igTableSetColumnIndex(0);
                     auto lbl = cmd.label();
@@ -342,7 +350,6 @@ protected:
                     import nijigenerate.core.shortcut : ngShortcutFor;
                     import nijigenerate.core.input : ngModifierLabelCtrl, ngModifierLabelSuper;
                     auto sc = ngShortcutFor(cmd);
-                    // On macOS, if swap is enabled, show swapped labels for stored shortcuts
                     version (OSX) {
                         if (incSettingsGet!bool("MacSwapCmdCtrl", false) && sc.length) {
                             import std.string : replace;
@@ -382,6 +389,18 @@ protected:
                         ngSaveShortcutsToSettings();
                     }
                     igPopID();
+                }
+
+                // Enum-ordered iteration when the AA key is an enum
+                static if (is(KeyT == enum)) {
+                    import std.traits : EnumMembers;
+                    static foreach (ek; EnumMembers!KeyT) {
+                        if (auto p = ek in CmdsAA) renderRow(ek, *p);
+                    }
+                } else {
+                    foreach (k, cmd; CmdsAA) {
+                        renderRow(k, cmd);
+                    }
                 }
                 igEndTable();
             }
@@ -475,31 +494,39 @@ protected:
 
         // Group by command categories in a scrollable child so header stays visible
         if (igBeginChild("ShortcutsTables", ImVec2(0, 0), true)) {
+            // ===== Main menu =====
+            // File → Edit → View → View/Panels → Tools
             renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
             renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
             renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
+            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("View/Panels"));
             renderCommandTable!(nijigenerate.commands.puppet.tool.commands)(__("Tools"));
+
+            // ===== Viewport =====
             renderCommandTable!(nijigenerate.commands.viewport.control.commands)(__("Viewport"));
             renderCommandTable!(nijigenerate.commands.viewport.palette.commands)(__("Palette"));
-            renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Node"));
-            renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Inspector"));
-            // Node add/insert (dynamic by node type)
-            renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
-            renderCommandTable!(nijigenerate.commands.node.dynamic.insertNodeCommands)(__("Insert Node"));
-            renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
-            renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
-            renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
-            renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
-            renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
-
             // Mesh editor tool modes (dynamically generated per mode)
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
 
-            // Panels (dynamically generated per panel)
-            renderCommandTable!(nijigenerate.commands.view.panel.togglePanelCommands)(__("Panels"));
+            // ===== Node Popup =====
+            if (incBeginCategory(__("Nodes"))) {
+                renderCommandTable!(nijigenerate.commands.node.node.commands)(__("Nodes"));
+                // Add / Insert / Convert Nodes...
+                renderCommandTable!(nijigenerate.commands.node.dynamic.addNodeCommands)(__("Add Node"));
+                renderCommandTable!(nijigenerate.commands.node.dynamic.insertNodeCommands)(__("Insert Node"));
+                renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
+                incEndCategory();
+            }
+            // Inspector Panel
+            renderCommandTable!(nijigenerate.commands.inspector.apply_node.commands)(__("Panel/Inspector"));
 
-            // Convert Node To (dynamic per destination type; availability depends on selection)
-            renderCommandTable!(nijigenerate.commands.node.dynamic.convertNodeCommands)(__("Convert Node"));
+            // ===== Parameters =====
+            renderCommandTable!(nijigenerate.commands.parameter.param.commands)(__("Parameter"));
+            renderCommandTable!(nijigenerate.commands.parameter.paramedit.commands)(__("Parameter Edit"));
+            renderCommandTable!(nijigenerate.commands.binding.binding.commands)(__("Binding"));
+            renderCommandTable!(nijigenerate.commands.parameter.group.commands)(__("Parameter Group"));
+            renderCommandTable!(nijigenerate.commands.parameter.animedit.commands)(__("Animation Edit"));
+
         }
         igEndChild();
     }
