@@ -366,12 +366,8 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             setTransparency(1.0, 1.0);
             if (igBeginPopup("###EditParam")) {
 
-                if (igMenuItem(__("Edit Properties"), "", false, true)) {
-                    incPushWindowList(new ParamPropWindow(param));
-                }
-                
-                if (igMenuItem(__("Edit Axes Points"), "", false, true)) {
-                    incPushWindowList(new ParamAxesWindow(param));
+                if (igMenuItem(__("Edit"), "", false, true)) {
+                    incPushWindowList(new ParamEditorWindow(param));
                 }
                 
                 if (igMenuItem(__("Split"), "", false, true)) {
