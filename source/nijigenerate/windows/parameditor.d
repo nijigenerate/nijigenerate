@@ -183,36 +183,50 @@ protected:
                 if (igBeginChild("###ControllerSettings", ImVec2(0, 0))) {
                     avail = incAvailableSpace();
                     if (param.isVec2) {
-                        // X axis min/max + list
-                        incText("X");
-                        igIndent();
-                            igSetNextItemWidth(64);
-                            igPushID(0);
-                                incDragFloat("adj_x_min", &min.vector[0], 1, -float.max, max.x-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                            igPopID();
-                            igSameLine(0, 4);
-                            igSetNextItemWidth(64);
-                            igPushID(1);
-                                incDragFloat("adj_x_max", &max.vector[0], 1, min.x+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                            igPopID();
-                        igUnindent();
-                        axisPointList(0, ImVec2(avail.x, (avail.y/2)-42));
-                        // Y axis list
-                        incText("Y");
-                        igIndent();
-                            igSetNextItemWidth(64);
-                            igPushID(2);
-                                incDragFloat("adj_y_min", &min.vector[1], 1, -float.max, max.y-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                            igPopID();
-                            igSameLine(0, 4);
-                            igSetNextItemWidth(64);
-                            igPushID(3);
-                                incDragFloat("adj_y_max", &max.vector[1], 1, min.y+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                            igPopID();
-                        igUnindent();
-                        axisPointList(1, ImVec2(avail.x, (avail.y/2)-42));
+                        float colW = (avail.x - 8); // spacing accounted after first column
+                        colW *= 0.5f;
+
+                        // X column
+                        if (igBeginChild("###AxisX", ImVec2(colW, 0))) {
+                            incText("X");
+                            igIndent();
+                                igSetNextItemWidth(64);
+                                igPushID(0);
+                                    incDragFloat("adj_x_min", &min.vector[0], 1, -float.max, max.x-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                                igPopID();
+                                igSameLine(0, 4);
+                                igSetNextItemWidth(64);
+                                igPushID(1);
+                                    incDragFloat("adj_x_max", &max.vector[0], 1, min.x+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                                igPopID();
+                            igUnindent();
+                            auto axAvail = incAvailableSpace();
+                            axisPointList(0, ImVec2(axAvail.x, axAvail.y));
+                        }
+                        igEndChild();
+
+                        igSameLine(0, 8);
+
+                        // Y column
+                        if (igBeginChild("###AxisY", ImVec2(0, 0))) {
+                            incText("Y");
+                            igIndent();
+                                igSetNextItemWidth(64);
+                                igPushID(2);
+                                    incDragFloat("adj_y_min", &min.vector[1], 1, -float.max, max.y-1, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                                igPopID();
+                                igSameLine(0, 4);
+                                igSetNextItemWidth(64);
+                                igPushID(3);
+                                    incDragFloat("adj_y_max", &max.vector[1], 1, min.y+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                                igPopID();
+                            igUnindent();
+                            auto ayAvail = incAvailableSpace();
+                            axisPointList(1, ImVec2(ayAvail.x, ayAvail.y));
+                        }
+                        igEndChild();
                     } else {
-                        // 1D: min/max + list
+                        // 1D: min/max + list (single column)
                         incText(_("Breakpoints"));
                         igIndent();
                             igSetNextItemWidth(64);
@@ -225,7 +239,8 @@ protected:
                                 incDragFloat("adj_x_max", &max.vector[0], 1, min.x+1, float.max, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
                             igPopID();
                         igUnindent();
-                        axisPointList(0, ImVec2(avail.x, avail.y-38));
+                        auto a1 = incAvailableSpace();
+                        axisPointList(0, ImVec2(a1.x, a1.y));
                     }
                 }
                 igEndChild();
