@@ -14,6 +14,7 @@ import nijigenerate.utils.link;
 import i18n;
 import nijilive;
 import std.math;
+import std.algorithm : sort;
 
 // Reuse types used by axes editor
 import nijigenerate.widgets.controller : EditableAxisPoint, incControllerAxisDemo;
@@ -64,9 +65,28 @@ private:
     }
 
     void createPoint(ulong axis) {
-        float normValue = (points[axis][0].normValue + points[axis][1].normValue) / 2;
-        float value = unmapAxisLocal(cast(uint)axis, normValue);
-        points[axis] ~= EditableAxisPoint(-1, false, value, normValue);
+        // Ensure current points are in ascending order by actual value
+        sort!((a, b) => a.value < b.value)(points[axis]);
+
+        // Find the largest gap between consecutive points
+        size_t insertLeft = 0;
+        float maxGap = -float.infinity;
+        foreach (i; 0 .. points[axis].length - 1) {
+            float gap = points[axis][i + 1].value - points[axis][i].value;
+            if (gap > maxGap) {
+                maxGap = gap;
+                insertLeft = i;
+            }
+        }
+
+        // Midpoint of the largest gap
+        float newValue = (points[axis][insertLeft].value + points[axis][insertLeft + 1].value) * 0.5f;
+        float newNorm = mapAxisLocal(cast(uint)axis, newValue);
+
+        // Append and re-sort to keep ascending order
+        points[axis] ~= EditableAxisPoint(-1, false, newValue, newNorm);
+        sort!((a, b) => a.value < b.value)(points[axis]);
+
         this.findEndPoint();
     }
 
