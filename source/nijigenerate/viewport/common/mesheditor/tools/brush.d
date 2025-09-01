@@ -237,7 +237,7 @@ class BrushTool : NodeSelect {
 
 }
 
-class BrushToolInfo : ToolInfoBase!BrushTool {
+class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         if (deformOnly)

@@ -320,7 +320,7 @@ public:
     }
 }
 
-class LassoToolInfo : ToolInfoBase!LassoTool {
+class ToolInfoImpl(T: LassoTool) : ToolInfoBase!(T) {
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         return super.viewportTools(deformOnly, toolMode, editors);

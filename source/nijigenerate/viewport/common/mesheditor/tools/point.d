@@ -477,7 +477,7 @@ class PointTool : NodeSelect {
     }
 }
 
-class PointToolInfo : ToolInfoBase!PointTool {
+class ToolInfoImpl(T: PointTool) : ToolInfoBase!(T) {
     override
     VertexToolMode mode() { return VertexToolMode.Points; }
     override

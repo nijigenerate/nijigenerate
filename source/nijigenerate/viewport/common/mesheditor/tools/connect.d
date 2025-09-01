@@ -103,7 +103,7 @@ class ConnectTool : NodeSelect {
     }
 }
 
-class ConnectToolInfo : ToolInfoBase!ConnectTool {
+class ToolInfoImpl(T: ConnectTool) : ToolInfoBase!(T) {
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         if (!deformOnly)
