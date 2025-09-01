@@ -9,6 +9,7 @@ public import nijigenerate.viewport.common.mesheditor.tools.pathdeform;
 public import nijigenerate.viewport.common.mesheditor.tools.bezierdeform;
 public import nijigenerate.viewport.common.mesheditor.tools.grid;
 public import nijigenerate.viewport.common.mesheditor.tools.brush;
+public import nijigenerate.viewport.common.mesheditor.tools.lasso;
 public import nijigenerate.viewport.common.mesheditor.tools.onetimedeform;
 import nijilive;
 
@@ -23,6 +24,7 @@ ToolInfo[] incGetToolInfo() {
         infoList ~= new ToolInfoImpl!(PathDeformTool);
         infoList ~= new ToolInfoImpl!(GridTool);
         infoList ~= new ToolInfoImpl!(BrushTool);
+        infoList ~= new ToolInfoImpl!(LassoTool);
         infoList ~= new ToolInfoImpl!(BezierDeformTool);
 //        infoList ~= new ToolInfoImpl!(OneTimeDeform!MeshGroup); // Disabled tool temporary
 //        infoList ~= new ToolInfoImpl!(OneTimeDeform!PathDeformer); // Disabled tool temporary
