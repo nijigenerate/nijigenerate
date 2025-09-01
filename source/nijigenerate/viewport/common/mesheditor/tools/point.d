@@ -142,26 +142,27 @@ class PointTool : NodeSelect {
             } else {
                 auto action = new VertexAddAction(impl.getTarget().name, impl);
 
-                ulong off = implD.vertices.length;
-                if (impl.isOnMirror(impl.mousePos, impl.meshEditAOE)) {
-                    impl.placeOnMirror(impl.mousePos, impl.meshEditAOE);
-                } else {
-                    impl.foreachMirror((uint axis) {
-                        MeshVertex* vertex = new MeshVertex(impl.mirror(axis, impl.mousePos));
-                        action.addVertex(vertex);
-                    });
+                void addVertex(ref MeshVertex* vertex) {
+                    ulong off = implD.vertices.length;
+                    if (impl.isOnMirror(impl.mousePos, impl.meshEditAOE)) {
+                        impl.placeOnMirror(impl.mousePos, impl.meshEditAOE);
+                    } else {
+                        impl.foreachMirror((uint axis) {
+                            vertex = new MeshVertex(impl.mirror(axis, impl.mousePos));
+                            action.addVertex(vertex);
+                        });
+                    }
+                    impl.refreshMesh();
+                    impl.vertexMapDirty = true;
+                    if (io.KeyCtrl) impl.selectOne(implD.vertices.length - 1);
+                    else impl.selectOne(off);
+                    action.updateNewState();
+                    incActionPush(action);
+                    changed = true;
                 }
-                impl.refreshMesh();
-                impl.vertexMapDirty = true;
-                if (io.KeyCtrl) impl.selectOne(implD.vertices.length - 1);
-                else impl.selectOne(off);
-                action.updateNewState();
-                incActionPush(action);
-                changed = true;
-                /*
-                /// FIXME: Disabled auto connection because Action class is changed and degraded in bezier-deform branch.
 
                 // connect if there is a selected vertex
+                auto mesh = implDrawable.getMesh();
                 void connectVertex(ref MeshVertex* vertex) {
                     if (vertex is null) return;
 
@@ -169,7 +170,7 @@ class PointTool : NodeSelect {
                     auto lastAddAction = incActionFindLast!VertexAddAction(3);
                     if (lastAddAction is null || lastAddAction.vertices.length == 0) return;
 
-                    auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.axisVertices[0][$ - 1].position);
+                    auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.vertices[$-1][$-1].position);
                     auto prevVertex = impl.getVerticesByIndex([prevVertexIdx])[0];
                     if (prevVertex == null) return;
                     auto action = new MeshConnectAction(impl.getTarget().name, impl, mesh);
@@ -190,9 +191,9 @@ class PointTool : NodeSelect {
 
                 MeshVertex* vertex;
                 addVertex(vertex);
-                */
-//                if (autoConnect)
-//                    connectVertex(vertex);
+
+                if (autoConnect)
+                    connectVertex(vertex);
             }
         }
 
