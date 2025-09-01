@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea for Inochi Creator
+description: Suggest an idea for nijigenerate
 title: "[Feature Request]"
 labels: ["Enhancement", "Triage"] 
 body:
@@ -23,7 +23,7 @@ body:
       label: Description
       description: |
         Clear and concise description of the problem being solved. Please make the reason and usecases as detailed as possible. If you intend to submit a PR for this issue, tell us in the description. Thanks!
-      placeholder: When using Inochi Creator, I would like to be able to [goal / wish] so that [benefit].
+      placeholder: When using nijigenerate, I would like to be able to [goal / wish] so that [benefit].
     validations:
       required: true
   - type: textarea

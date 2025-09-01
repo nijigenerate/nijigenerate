@@ -1,30 +1,37 @@
 /*
     Copyright © 2020-2023, Inochi2D Project
+    Copyright ©      2024, nijigenerate Project
     Distributed under the 2-Clause BSD License, see LICENSE file.
     
     Authors: Luna Nielsen
 */
-import std.stdio;
+//import std.stdio;
 import std.string;
-import creator.core;
-import creator.core.settings;
-import creator.utils.crashdump;
-import creator.panels;
-import creator.windows;
-import creator.widgets;
-import creator.core.actionstack;
-import creator.core.i18n;
-import creator.io;
-import creator.io.autosave;
-import creator.atlas.atlas : incInitAtlassing;
-import creator.ext;
-import creator.windows.flipconfig;
-import inochi2d;
-import creator;
+import nijigenerate.core;
+import nijigenerate.core.settings;
+import nijigenerate.utils.crashdump;
+import nijigenerate.panels;
+import nijigenerate.panels.resource;
+import nijigenerate.windows;
+import nijigenerate.widgets;
+import nijigenerate.widgets.mainmenu;
+import nijigenerate.core.actionstack;
+import nijigenerate.core.shortcut;               // package re-exports base
+import nijigenerate.core.shortcut.base : ngLoadShortcutsFromSettings; // load persisted shortcuts
+import nijigenerate.core.shortcut.defaults : ngRegisterDefaultShortcuts;
+import nijigenerate.commands : ngInitAllCommands; // explicit commands init to avoid ctor cycles
+import nijigenerate.core.i18n;
+import nijigenerate.io;
+import nijigenerate.io.autosave;
+import nijigenerate.atlas.atlas : incInitAtlassing;
+import nijigenerate.ext;
+import nijigenerate.windows.flipconfig;
+import nijilive;
+import nijigenerate;
 import i18n;
 
 version(D_X32) {
-    pragma(msg, "Inochi Creator does not support compilation on 32 bit platforms");
+    pragma(msg, "nijigenerate does not support compilation on 32 bit platforms");
     static assert(0, "😎👉👉 no");
 }
 
@@ -62,7 +69,7 @@ int main(string[] args)
 
         inSetUpdateBounds(true);
 
-        // Initialize Window and Inochi2D
+        // Initialize Window and nijilive
         incInitPanels();
         incActionInit();
         incOpenWindow();
@@ -72,6 +79,8 @@ int main(string[] args)
 
         incInitFlipConfig();
 
+        ngInitResourcePanel();
+
         // Initialize video exporting
         incInitVideoExport();
         
@@ -80,6 +89,13 @@ int main(string[] args)
 
         // Initialize default post processing shader
         inPostProcessingAddBasicLighting();
+
+        // Initialize command registries explicitly (avoid module ctor cycles)
+        ngInitAllCommands();
+
+        // Register default shortcuts, then load user overrides from settings
+        ngRegisterDefaultShortcuts();
+        ngLoadShortcutsFromSettings();
 
         // Open or create project
         if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
@@ -93,18 +109,11 @@ int main(string[] args)
         version(InNightly) incModalAdd(
             new Nagscreen(
                 _("Warning!"), 
-                _("You're running a nightly build of Inochi Creator!\nInochi Creator may crash unexpectedly and you will likely encounter bugs.\nMake sure to save and back up your work often!"),
+                _("You're running a nightly build of nijigenerate!\nnijigenerate may crash unexpectedly and you will likely encounter bugs.\nMake sure to save and back up your work often!"),
                 5
             )
         );
         
-        version(InDemo) incModalAdd(
-            new Nagscreen(
-                _("Thank you!"), 
-                _("Thank you for downloading Inochi Creator!\nSoftware is expensive to create and the same goes for Inochi Creator.\nKindly consider chipping in to fund the development!\n\nTo remove this nagscreen, [buy a copy today!](https://inochi2d.com)"),
-                10
-            )
-        );
         // Update loop
         while(!incIsCloseRequested()) {
             incUpdate();
@@ -130,7 +139,7 @@ int main(string[] args)
 */
 void incUpdate() {
 
-    // Update Inochi2D
+    // Update nijilive
     incAnimationUpdate();
     inUpdate();
 
@@ -139,14 +148,13 @@ void incUpdate() {
     // Begin IMGUI loop
     incBeginLoop();
         if (incShouldProcess()) {
-            incStatusbar();
 
             incHandleShortcuts();
             incMainMenu();
-            incToolbar();
 
             incUpdatePanels();
             incUpdateWindows();
+            incStatusUpdate();
         }
     incEndLoop();
 }
@@ -156,21 +164,20 @@ void incUpdate() {
 */
 void incUpdateNoEv() {
 
-    // Update Inochi2D
+    // Update nijilive
     incAnimationUpdate();
     inUpdate();
     
     // Begin IMGUI loop
     incBeginLoopNoEv();
         if (incShouldProcess()) {
-            incStatusbar();
 
             incHandleShortcuts();
             incMainMenu();
-            incToolbar();
 
             incUpdatePanels();
             incUpdateWindows();
+            incStatusUpdate();
         }
     incEndLoop();
 }

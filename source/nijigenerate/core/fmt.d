@@ -1,0 +1,2 @@
+module nijigenerate.core.fmt;
+

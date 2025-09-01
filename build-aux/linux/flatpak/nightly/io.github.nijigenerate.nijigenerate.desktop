@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=nijigenerate (Nightly)
+Exec=nijigenerate
+Icon=io.github.nijigenerate.nijigenerate
+Type=Application
+Categories=Utility

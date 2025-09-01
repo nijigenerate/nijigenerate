@@ -1,71 +1,29 @@
-name "inochi-creator"
-description "Inochi2D rigging application"
-authors "Inochi2D Project"
-copyright "Copyright © 2020, Inochi2D Project"
+name "nijigenerate"
+description "2D rigging application"
+authors "nijigenerate project"
+copyright "Copyright © 2024, nijigenerate project"
 license "BSD 2-clause"
 dependency "psd-d" version="~>0.6.1"
-dependency "inmath" version="~>1.0.5"
-dependency "kra-d" version="~>0.5.5"
+dependency "inmath" version="1.0.6"
+dependency "kra-d" repository="git+https://github.com/inochi2d/kra-d.git" version="6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42"
 dependency "tinyfiledialogs" version="~>0.10.1"
-dependency "facetrack-d" version="~>0.7.6"
 dependency "bindbc-sdl" version="~>1.1.2"
-dependency "dcv:core" version="~>0.3.0"
 dependency "i18n-d" version="~>1.0.2"
-dependency "i2d-imgui" version="~>0.8.0"
-dependency "inochi2d" version="~>0.8.3"
+dependency "i2d-imgui" version="0.8.0"
+dependency "nijilive" version="~>0.0.1"
 targetPath "out/"
 workingDirectory "out/"
 dflags "-mscrtlib=msvcrt" platform="windows-ldc"
 lflags "-rpath=$$ORIGIN" platform="linux"
-versions "GL_32" "USE_SDL2" "SDL_208" "UseUIScaling"
+versions "GL_32" "USE_SDL2" "SDL_2020" "UseUIScaling"
 stringImportPaths "res/" "./"
 
-
-// Barebones build
-configuration "barebones" {
-	platforms "linux"
-	dependency "dportals" version="~>0.1.0"
-	targetType "executable"
-	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	copyFiles "res/NotoSansCJK-Regular-LICENSE" "res/MaterialIcons-LICENSE" "res/OpenDyslexic-LICENSE" "LICENSE"
-}
 
 // Metadata generation
 configuration "meta" {
 	targetType "none"
-	preGenerateCommands "dub run -y gitver -- --prefix INC --file source/creator/ver.d --mod creator.ver --appname \"Inochi Creator\" --itchfile version.txt"
-	preGenerateCommands "rc.exe /v build-aux\\windows\\inochi-creator.rc" platform="windows"
-}
-
-// Linux build
-configuration "linux-demo" {
-
-	platforms "linux"
-	dependency "dportals" version="~>0.1.0"
-	targetType "executable"
-	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "InBranding" "InDemo"
-}
-
-// macOS build
-configuration "osx-demo" {
-	platforms "osx"
-	targetType "executable"
-	targetPath "out/Inochi Creator.app/Contents/MacOS"
-	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
-	dflags "-force-dwarf-frame-section=false"
-	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
-	versions "InBranding" "InDemo"
-}
-
-// Windows build
-configuration "win32-demo" {
-	platforms "windows"
-	targetType "executable"
-	subConfiguration "i2d-imgui" "static_staticCRT"
-	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
-	sourceFiles "build-aux\\windows\\inochi-creator.res"
-	versions "InBranding" "InDemo"
+	preGenerateCommands "dub run -y gitver -- --prefix INC --file source/nijigenerate/ver.d --mod nijigenerate.ver --appname \"nijigenerate\" --itchfile version.txt"
+	preGenerateCommands "rc.exe /v build-aux\\windows\\nijigenerate.rc" platform="windows"
 }
 
 // Linux build
@@ -75,18 +33,16 @@ configuration "linux-full" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "InBranding"
 }
 
 // macOS build
 configuration "osx-full" {
 	platforms "osx"
 	targetType "executable"
-	targetPath "out/Inochi Creator.app/Contents/MacOS"
+	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
-	versions "InBranding"
 }
 
 // Windows build
@@ -95,8 +51,7 @@ configuration "win32-full" {
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_staticCRT"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
-	sourceFiles "build-aux\\windows\\inochi-creator.res"
-	versions "InBranding"
+	sourceFiles "build-aux\\windows\\nijigenerate.res"
 }
 
 // Linux nightly build
@@ -105,18 +60,18 @@ configuration "linux-nightly" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "InBranding" "InNightly"
+	versions "InNightly"
 }
 
 // macOS nightly build
 configuration "osx-nightly" {
 	platforms "osx"
 	targetType "executable"
-	targetPath "out/Inochi Creator.app/Contents/MacOS"
+	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
-	versions "InBranding" "InNightly"
+	versions "InNightly"
 }
 
 // Windows nightly build
@@ -125,6 +80,6 @@ configuration "win32-nightly" {
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_staticCRT"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
-	sourceFiles "build-aux\\windows\\inochi-creator.res"
-	versions "InBranding" "InNightly"
+	sourceFiles "build-aux\\windows\\nijigenerate.res"
+	versions "InNightly"
 }

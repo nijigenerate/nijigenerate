@@ -1,6 +1,49 @@
 ## Project Managment
 
 ### Project Creator and BDFL
+  [seagetch](https://twitter.com/seagetch)
+
+## Designers
+### nijilive Logo
+  [seagetch](https://twitter.com/seagetch) 
+
+## Mascot
+### Mascot Design
+  [seagetch](https://twitter.com/seagetch)
+
+### Mascot Model Art
+  [DALL-E3](https://chat.openai.com)
+
+### Chibi UI Mascot
+  [DALL-E3](https://chat.openai.com)
+
+## Technology Used
+  ImGui
+  OpenGL
+  TinyFileDialogs
+  PSD-D
+  bindbc
+  gl3n
+  SDL2
+  LDC2
+  DLang
+
+## Fonts Used
+  Noto
+  Noto CJK
+  OpenDyslexic
+  Material Icons
+
+## Special Thanks
+  [Inochi2D Project](https://inochi2d.com/)
+
+-----
+
+## Inochi2D Credits
+
+## Project Managment
+
+### Project Creator and BDFL
   [Luna the Foxgirl](https://twitter.com/LunaFoxgirlVT)
 
 ### ImGui Binding Maintainer
@@ -47,20 +90,3 @@
 ### 中文
   [LovelyA72](https://twitter.com/LovelyA72) (简体中文)
   [cheetosysst](https://twitter.com/Thect_36) (繁體中文)
-
-## Technology Used
-  ImGui
-  OpenGL
-  TinyFileDialogs
-  PSD-D
-  bindbc
-  gl3n
-  SDL2
-  LDC2
-  DLang
-
-## Fonts Used
-  Noto
-  Noto CJK
-  OpenDyslexic
-  Material Icons

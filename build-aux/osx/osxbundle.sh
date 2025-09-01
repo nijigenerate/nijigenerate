@@ -3,7 +3,7 @@ LASTPWD=$PWD
 
 # Handle copying all the dylibs to their respective directories
 # As well handle creating our directory structure
-cd out/Inochi\ Creator.app/Contents
+cd out/nijigenerate.app/Contents
 
 # Remove old files
 if [ -d "Frameworks" ]; then
@@ -23,28 +23,28 @@ cd $LASTPWD
 echo "Setting up file structure..."
 
 # Copy info plist and icon
-cp build-aux/osx/Info.plist out/Inochi\ Creator.app/Contents/
+cp build-aux/osx/Info.plist out/nijigenerate.app/Contents/
 
 # Move any translation files in if any.
-mv -n out/*.mo out/Inochi\ Creator.app/Contents/Resources/i18n/
+mv -n out/*.mo out/nijigenerate.app/Contents/Resources/i18n/
 
 # Copy license info to SharedSupport
-cp res/*-LICENSE out/Inochi\ Creator.app/Contents/SharedSupport/
-cp LICENSE out/Inochi\ Creator.app/Contents/SharedSupport/LICENSE
+cp res/*-LICENSE out/nijigenerate.app/Contents/SharedSupport/
+cp LICENSE out/nijigenerate.app/Contents/SharedSupport/LICENSE
 
 
 # Create icons dir
 # TODO: check if dir exists, skip this step if it does
-if [ ! -d "out/InochiCreator.icns" ]; then
-    iconutil -c icns -o out/InochiCreator.icns build-aux/osx/Inochi-Creator.iconset
+if [ ! -d "out/nijigenerate.icns" ]; then
+    iconutil -c icns -o out/nijigenerate.icns build-aux/osx/nijigenerate.iconset
 else
     echo "Icons already exist, skipping..."
 fi
 
 echo "Applying Icon..."
-cp out/InochiCreator.icns out/Inochi\ Creator.app/Contents/Resources/InochiCreator.icns 
+cp out/nijigenerate.icns out/nijigenerate.app/Contents/Resources/nijigenerate.icns 
 
 echo "Cleaning up..."
-find out/Inochi\ Creator.app/Contents/MacOS -type f ! -name "inochi-creator" -delete
+find out/nijigenerate.app/Contents/MacOS -type f ! -name "nijigenerate" -delete
 
 echo "Done!"
