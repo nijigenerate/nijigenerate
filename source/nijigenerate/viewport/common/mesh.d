@@ -12,15 +12,51 @@
         https://github.com/jhasse/poly2tri
 */
 module nijigenerate.viewport.common.mesh;
-import nijigenerate.viewport;
 import nijigenerate.viewport.common.mesheditor.brushes;
+import nijigenerate.project;
+import nijigenerate.core.math.mesh;
 import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.algorithm;
+import std.typecons;
+import std.range;
 import nijigenerate.core.math;
 public import nijigenerate.core.math.mesh;
+
+
+import std.algorithm.iteration;
+import std.algorithm;
+import std.array;
+import std.range;
+
+bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
+    if (vertices.length < 4) {
+        gridAxes.length = 0;
+        return false;
+    }
+    int[float] yPoints;
+    int[float] xPoints;
+    foreach (v; vertices) {
+        yPoints[v.position.y] ++;
+        xPoints[v.position.x] ++;
+    }
+    foreach (k; yPoints.keys()) {
+        if (yPoints[k] != xPoints.keys().length) {
+            return false;
+        }
+    }
+    foreach (k; xPoints.keys()) {
+        if (xPoints[k] != yPoints.keys().length) {
+            return false;
+        }
+    }
+    gridAxes.length = 2;
+    gridAxes[0] = yPoints.keys().sort.array;
+    gridAxes[1] = xPoints.keys().sort.array;
+    return true;
+}
 
 class IncMesh {
 private:
@@ -56,7 +92,6 @@ private:
         }
         
         void printConnections(MeshVertex* v) {
-            import std.stdio;
             ushort[] conns;
             vec2[] coords;
             foreach(conn; v.connections) {
@@ -76,9 +111,10 @@ private:
         }
 
         axes = [];
+        float[][] gridAxes;
         if (reset) {
-            if (data.isGrid()) {
-                foreach (axis; data.gridAxes) {
+            if (data.vertices.isGrid(gridAxes)) {
+                foreach (axis; gridAxes) {
                     float[] newAxis;
                     foreach (axValue; axis) {
                         newAxis ~= axValue;
@@ -87,7 +123,6 @@ private:
                 }
             }
         }
-
         refresh();
     }
 
@@ -201,11 +236,10 @@ private:
             }
         }
 
-        import std.stdio;
         if (axes.length >= 2) {
             newData.gridAxes = axes[];
         }
-        newData.clearGridIsDirty();
+        newData.clearGridIfDirty();
 
         // Save the data as the new data and refresh
         data = newData;
@@ -231,17 +265,18 @@ private:
         // setup
         lines.length = 0;
         wlines.length = 0;
-        MeshVertex*[] visited;
+        bool[MeshVertex*] visited;
+        MeshVertex*[] stack;
         
         // our crazy recursive func
         void recurseLines(MeshVertex* cur) {
-            visited ~= cur;
+            visited[cur] = true;
 
             // First add the lines
             foreach(conn; cur.connections) {
 
                 // Skip already scanned connections
-                if (!visited.canFind(conn)) {
+                if (conn !in visited) {
                     lines ~= [vec3(cur.position, 0), vec3(conn.position, 0)];
                 }
             }
@@ -249,17 +284,41 @@ private:
             foreach(conn; cur.connections) {
 
                 // Skip already scanned connections
-                if (!visited.canFind(conn)) {
+                if (conn !in visited) {
                     recurseLines(conn);
                 }
             }
         }
 
-        foreach(ref vert; vertices) {
-            if (!visited.canFind(vert)) {
-                recurseLines(vert);
+        foreach_reverse(ref vert; vertices) {
+            if (vert !in visited) {
+                stack ~= vert;
             }
         }
+
+        while (true) {
+            if (stack.length == 0) break;
+            auto cur = stack[$-1];
+            stack.popBack(); 
+            visited[cur] = true;
+
+            // First add the lines
+            foreach(conn; cur.connections) {
+
+                // Skip already scanned connections
+                if (conn !in visited) {
+                    lines ~= [vec3(cur.position, 0), vec3(conn.position, 0)];
+                }
+            }
+            // Then scan the next unvisited point
+            foreach_reverse(conn; cur.connections) {
+                // Skip already scanned connections
+                if (conn !in visited) {
+                    stack ~= conn;
+                }
+            }
+        }
+
     }
 
 public:
@@ -274,6 +333,12 @@ public:
     */
     this(ref MeshData mesh) {
         import_(mesh);
+    }
+
+    this(IncMesh src) {
+        import_(*src.data);
+        selectRadius = src.selectRadius;
+        maxGroupId = src.maxGroupId;
     }
 
     final
@@ -420,13 +485,22 @@ public:
         }
     }
 
-    void drawPoints(mat4 trans = mat4.identity) {
+    void drawPoints(mat4 trans = mat4.identity, vec4 color = vec4(1, 1, 1, 1), Tuple!(ptrdiff_t[], vec4)[] markers = null) {
         if (points.length > 0) {
             inDbgSetBuffer(points);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
+            if (markers) {
+                foreach (marker; markers) {
+                    auto pts = marker[0].map!(i=>points[i]).array;
+                    inDbgSetBuffer(pts);
+                    inDbgPointsSize(10);
+                    inDbgDrawPoints(marker[1], trans);
+                }
+            }
+            inDbgSetBuffer(points);
             inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1), trans);
+            inDbgDrawPoints(color, trans);
         }
     }
 
@@ -451,21 +525,21 @@ public:
         inDbgDrawPoints(color, trans);
     }
 
-    void draw(mat4 trans = mat4.identity) {
-        drawLines(trans);
-        drawPoints(trans);
+    void draw(mat4 trans = mat4.identity, vec4 vertexColor=vec4(1, 1, 1, 1), vec4 edgeColor=vec4(0.7, 0.7, 0.7, 1), Tuple!(ptrdiff_t[], vec4)[] markers = null) {
+        drawLines(trans, edgeColor);
+        drawPoints(trans, vertexColor, markers);
     }
 
-    bool isPointOverVertex(vec2 point) {
-        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, point);
+    bool isPointOverVertex(vec2 point, float zoomRate) {
+        return nijigenerate.core.math.vertex.isPointOverVertex(vertices, point, zoomRate);
     }
 
-    void removeVertexAt(vec2 point) {
-        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i) { this.remove(i); })(vertices, point);
+    void removeVertexAt(vec2 point, float zoomRate) {
+        nijigenerate.core.math.vertex.removeVertexAt!(MeshVertex*, (MeshVertex* i) { this.remove(i); })(vertices, point, zoomRate);
     }
 
-    ulong getVertexFromPoint(vec2 point) {
-        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, point);
+    ulong getVertexFromPoint(vec2 point, float zoomRate) {
+        return nijigenerate.core.math.vertex.getVertexFromPoint(vertices, point, zoomRate);
     }
 
     float[] getVerticesInBrush(vec2 point, Brush brush) {
@@ -488,8 +562,10 @@ public:
         vec2[] offsets;
 
         offsets.length = vertices.length;
-        foreach(idx, vertex; vertices) {
-            offsets[idx] = vertex.position - data.vertices[idx];
+        if (data.vertices !is null && data.vertices.length >= vertices.length) {
+            foreach(idx, vertex; vertices) {
+                offsets[idx] = vertex.position - data.vertices[idx];
+            }
         }
         return offsets;
     }
@@ -533,490 +609,40 @@ public:
         return nijigenerate.core.math.getInRect(vertices, min, max, groupId);
     }
 
-    IncMesh autoTriangulate() {
-        import std.stdio;
-        debug(delaunay) writeln("==== autoTriangulate ====");
-        if (vertices.length < 3) return new IncMesh(*data);
-
-        IncMesh newMesh = new IncMesh(*data);
-        newMesh.changed = true;
-
-        vec2 min, max;
-        getBounds(min, max);
-
-        // Pad (fudge factors are a hack to work around contains() instability, TODO: fix)
-        vec2 range = max - min;
-        min -= range + vec2(range.y, range.x) + vec2(0.123, 0.125);
-        max += range + vec2(range.y, range.x) + vec2(0.127, 0.129);
-
-        vec3u[] tris;
-        vec3u[] tri2edge;
-        vec2u[] edge2tri;
-
-        vec2[] vtx;
-        vtx.length = 4;
-
-        // Define initial state (two tris)
-        vtx[0] = vec2(min.x, min.y);
-        vtx[1] = vec2(min.x, max.y);
-        vtx[2] = vec2(max.x, max.y);
-        vtx[3] = vec2(max.x, min.y);
-        tris ~= vec3u(0, 1, 3);
-        tris ~= vec3u(1, 2, 3);
-        tri2edge ~= vec3u(0, 1, 2);
-        tri2edge ~= vec3u(3, 4, 1);
-        edge2tri ~= vec2u(0, 0);
-        edge2tri ~= vec2u(0, 1);
-        edge2tri ~= vec2u(0, 0);
-        edge2tri ~= vec2u(1, 1);
-        edge2tri ~= vec2u(1, 1);
-
-        // Helpers
-        float sign(vec2 p1, vec2 p2, vec2 p3) {
-            return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
-        }
-
-        bool contains(vec3u tri, vec2 pt) {
-            float d1, d2, d3;
-            bool hasNeg, hasPos;
-
-            d1 = sign(pt, vtx[tri.x], vtx[tri.y]);
-            d2 = sign(pt, vtx[tri.y], vtx[tri.z]);
-            d3 = sign(pt, vtx[tri.z], vtx[tri.x]);
-
-            hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-            hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
-            return !(hasNeg && hasPos);
-        }
-
-        void replaceE2T(ref vec2u e2t, uint from, uint to) {
-            if (e2t.x == from) {
-                e2t.x = to;
-                if (e2t.y == from) e2t.y = to;
-            } else if (e2t.y == from) {
-                e2t.y = to;
-            } else assert(false, "edge mismatch");
-        }
-
-        void orientTri(uint tri, uint edge) {
-            vec3u t2e = tri2edge[tri];
-            vec3u pt = tris[tri];
-            if (t2e.x == edge) {
-                return;
-            } else if (t2e.y == edge) {
-                tri2edge[tri] = vec3u(t2e.y, t2e.z, t2e.x);
-                tris[tri] = vec3u(pt.y, pt.z, pt.x);
-            } else if (t2e.z == edge) {
-                tri2edge[tri] = vec3u(t2e.z, t2e.x, t2e.y);
-                tris[tri] = vec3u(pt.z, pt.x, pt.y);
-            } else {
-                assert(false, "triangle does not own edge");
-            }
-        }
-
-        void splitEdges() {
-            uint edgeCnt = cast(uint)edge2tri.length;
-            for(uint e = 0; e < edgeCnt; e++) {
-                vec2u tr = edge2tri[e];
-
-                if (tr.x != tr.y) continue; // Only handle outer edges
-
-                orientTri(tr.x, e);
-
-                uint t1 = tr.x;
-                uint t2 = cast(uint)tris.length;
-                uint l = tris[t1].x;
-                uint r = tris[t1].y;
-                uint z = tris[t1].z;
-                uint m = cast(uint)vtx.length;
-                vtx ~= (vtx[l] + vtx[r]) / 2;
-
-                uint xe = cast(uint)edge2tri.length;
-                uint me = xe + 1;
-                uint re = tri2edge[t1].y;
-
-                tris[t1].y = m;
-                tri2edge[t1].y = me;
-                tris ~= vec3u(m, r, z);
-                tri2edge ~= vec3u(xe, re, me);
-                edge2tri ~= vec2u(t2, t2);
-                edge2tri ~= vec2u(t1, t2);
-                replaceE2T(edge2tri[re], t1, t2);
-            }
-        }
-
-        bool inCircle(vec2 pa, vec2 pb, vec2 pc, vec2 pd) {
-            debug(delaunay) writefln("in_circle(%s, %s, %s, %s)", pa, pb, pc, pd);
-            float adx = pa.x - pd.x;
-            float ady = pa.y - pd.y;
-            float bdx = pb.x - pd.x;
-            float bdy = pb.y - pd.y;
-
-            float adxbdy = adx * bdy;
-            float bdxady = bdx * ady;
-            float oabd = adxbdy - bdxady;
-
-            if (oabd <= 0) return false;
-
-            float cdx = pc.x - pd.x;
-            float cdy = pc.y - pd.y;
-
-            float cdxady = cdx * ady;
-            float adxcdy = adx * cdy;
-            float ocad = cdxady - adxcdy;
-
-            if (ocad <= 0) return false;
-
-            float bdxcdy = bdx * cdy;
-            float cdxbdy = cdx * bdy;
-
-            float alift = adx * adx + ady * ady;
-            float blift = bdx * bdx + bdy * bdy;
-            float clift = cdx * cdx + cdy * cdy;
-
-            float det = alift * (bdxcdy - cdxbdy) + blift * ocad + clift * oabd;
-
-            debug(delaunay) writefln("det=%s", det);
-            return det > 0;
-        }
-
-        splitEdges();
-        splitEdges();
-        splitEdges();
-        splitEdges();
-
-        uint dropVertices = cast(uint)vtx.length;
-
-        // Add vertices, preserving Delaunay condition
-        foreach(orig_i, vertex; vertices) {
-            uint i = cast(uint)orig_i + dropVertices;
-            debug(delaunay) writefln("Add @%d: %s", i, vertex.position);
-            vtx ~= vertex.position;
-            bool found = false;
-
-            uint[] affectedEdges;
-
-            foreach(a_, tri; tris) {
-                if (!contains(tri, vertex.position)) continue;
-
-                /*
-                           x
-                  Y-----------------X
-                   \`,            '/    XYZ = original vertices
-                    \ `q   a   p' /     a = original triangle
-                     \  `,    '  /      bc = new triangles
-                      \   `i'   /       xyz = original edges
-                     y \ b | c / z      pqr = new edges
-                        \  r  /
-                         \ | /
-                          \|/
-                           Z
-                */
-
-                // Subdivide containing triangle
-                // New triangles
-                uint a = cast(uint)a_;
-                uint b = cast(uint)tris.length;
-                uint c = b + 1;
-                tris[a] = vec3u(tri.x, tri.y, i);
-                tris ~= vec3u(tri.y, tri.z, i); // b
-                tris ~= vec3u(tri.z, tri.x, i); // c
-
-                debug(delaunay) writefln("*** Tri %d: %s Edges: %s", a, tris[a], tri2edge[a]);
-
-                // New inner edges
-                uint p = cast(uint)edge2tri.length;
-                uint q = p + 1;
-                uint r = q + 1;
-
-                // Get outer edges
-                uint x = tri2edge[a].x;
-                uint y = tri2edge[a].y;
-                uint z = tri2edge[a].z;
-
-                // Update triangle to edge mappings
-                tri2edge[a] = vec3u(x, q, p);
-                tri2edge ~= vec3u(y, r, q);
-                tri2edge ~= vec3u(z, p, r);
-
-                debug(delaunay) writefln("  * Tri a %d: %s Edges: %s", a, tris[a], tri2edge[a]);
-                debug(delaunay) writefln("  + Tri b %d: %s Edges: %s", b, tris[b], tri2edge[b]);
-                debug(delaunay) writefln("  + Tri c %d: %s Edges: %s", c, tris[c], tri2edge[c]);
-
-                // Save new edges
-                edge2tri ~= vec2u(c, a);
-                edge2tri ~= vec2u(a, b);
-                edge2tri ~= vec2u(b, c);
-                debug(delaunay) writefln("  + Edg p %d: Tris %s", p, edge2tri[p]);
-                debug(delaunay) writefln("  + Edg q %d: Tris %s", q, edge2tri[q]);
-                debug(delaunay) writefln("  + Edg r %d: Tris %s", r, edge2tri[r]);
-
-                // Update two outer edges
-                debug(delaunay) writefln("  - Edg y %d: Tris %s", y, edge2tri[y]);
-                replaceE2T(edge2tri[y], a, b);
-                debug(delaunay) writefln("  + Edg y %d: Tris %s", y, edge2tri[y]);
-                debug(delaunay) writefln("  - Edg z %d: Tris %s", y, edge2tri[z]);
-                replaceE2T(edge2tri[z], a, c);
-                debug(delaunay) writefln("  + Edg z %d: Tris %s", z, edge2tri[z]);
-
-                // Keep track of what edges we have to look at
-                affectedEdges ~= [x, y, z, p, q, r];
-
-                found = true;
-                break;
-            }
-            if (!found) {
-                debug(delaunay) writeln("FAILED!");
-                break;
-            }
-
-            bool[] checked;
-            checked.length = edge2tri.length;
-
-            for (uint j = 0; j < affectedEdges.length; j++) {
-                uint e = affectedEdges[j];
-                vec2u t = edge2tri[e];
-
-                debug(delaunay) writefln(" ## Edge %d: T %s: %s %s", e, t, tris[t.x], tris[t.y]);
-
-                if (t.x == t.y) {
-                    debug(delaunay) writefln("  + Outer edge");
-                    continue; // Outer edge
-                }
-
-                // Orient triangles so 1st edge is shared
-                orientTri(t.x, e);
-                orientTri(t.y, e);
-
-                assert(tris[t.x].x == tris[t.y].y, "triangles do not share edge");
-                assert(tris[t.y].x == tris[t.x].y, "triangles do not share edge");
-
-                uint a = tris[t.x].x;
-                uint c = tris[t.x].y;
-                uint d = tris[t.x].z;
-                uint b = tris[t.y].z;
-
-                // Delaunay check
-                if (!inCircle(vtx[b], vtx[a], vtx[c], vtx[d])) {
-                    // We're good
-                    debug(delaunay) writefln("  + Meets condition");
-                    continue;
-                }
-
-                debug(delaunay) writefln("  - Flip!");
-
-                // Flip edge
-                /*
-                   c          c
-                  /|\      r / \ q
-                 / | \      / x \
-                d x|y b -> d-----b
-                 \ | /      \ y /
-                  \|/      s \ / p
-                   a          a
-                */
-                uint r = tri2edge[t.x].y;
-                uint s = tri2edge[t.x].z;
-                uint p = tri2edge[t.y].y;
-                uint q = tri2edge[t.y].z;
-
-                tris[t.x] = vec3u(d, b, c);
-                tris[t.t] = vec3u(b, d, a);
-                tri2edge[t.x] = vec3u(e, q, r);
-                tri2edge[t.y] = vec3u(e, s, p);
-                replaceE2T(edge2tri[q], t.y, t.x);
-                replaceE2T(edge2tri[s], t.x, t.y);
-
-                // Mark it as checked
-                checked[e] = true;
-
-                // Check the neighboring edges
-                if (!checked[p]) affectedEdges ~= p;
-                if (!checked[q]) affectedEdges ~= q;
-                if (!checked[r]) affectedEdges ~= r;
-                if (!checked[s]) affectedEdges ~= s;
-            }
-        }
-
-        // Copy vertices
-        newMesh.vertices.length = 0;
+    void importVertsAndTris(vec2[] vtx, vec3u[] tris) {
         foreach(v; vtx) {
-            newMesh.vertices ~= new MeshVertex(v, []);
+            this.vertices ~= new MeshVertex(v, []);
         }
 
         // Extract tris into connections
         foreach(tri; tris) {
-            connect(newMesh.vertices[tri.x], newMesh.vertices[tri.y]);
-            connect(newMesh.vertices[tri.y], newMesh.vertices[tri.z]);
-            connect(newMesh.vertices[tri.z], newMesh.vertices[tri.x]);
+            connect(this.vertices[tri.x], this.vertices[tri.y]);
+            connect(this.vertices[tri.y], this.vertices[tri.z]);
+            connect(this.vertices[tri.z], this.vertices[tri.x]);
         }
 
-        // Get rid of corners
-        foreach(i; 0..dropVertices)
-            newMesh.remove(newMesh.vertices[0]);
+    }
 
+    IncMesh autoTriangulate() {
+        debug(delaunay) import std.stdio;
+        debug(delaunay) writeln("==== autoTriangulate ====");
+        if (vertices.length < 3) return new IncMesh(*data);
+
+        vec2 min, max;
+        getBounds(min, max);
+
+        auto vert_ind = triangulate(vertices, vec4(min.xy, max.xy));
+        auto vtx = vert_ind[0];
+        auto tris = vert_ind[1];
+
+        // Copy vertices
+        IncMesh newMesh = new IncMesh(*data);
+        newMesh.changed = true;
+        newMesh.vertices.length = 0;
+        newMesh.importVertsAndTris(vtx, tris);
         newMesh.refresh();
         debug(delaunay) writeln("==== autoTriangulate done ====");
         return newMesh;
-    }
-
-    Deformation* deformByDeformationBinding(DeformationParameterBinding binding, vec2u index, bool flipHorz = false) {
-        import std.stdio;
-        if (!binding) {
-            return null;
-        }
-        Drawable part = cast(Drawable)binding.getTarget().node;
-        if (!part) {
-            return null;
-        }
-        Deformation deform = binding.getValue(index);
-        return deformByDeformationBinding(part, deform, flipHorz);
-    }
-
-    Deformation* deformByDeformationBinding(Drawable part, Deformation deform, bool flipHorz = false) {
-
-        // Check whether deform has more than 1 triangle.
-        // If not, returns default Deformation which has dummpy offsets.
-        if (deform.vertexOffsets.length < 3 || vertices.length < 3 || part.getMesh().vertices.length < 3) {
-            vec2[] vertexOffsets = [];
-            for (int i = 0; i < vertices.length; i++)
-                vertexOffsets ~= vec2(0, 0);
-            return new Deformation(vertexOffsets);
-        }
-
-        auto origVertices = vertices.dup;
-
-        // find triangle which covers specified point. 
-        // If no triangl is found, nearest triangl for the point is selected.
-        int[] findSurroundingTriangle(vec2 pt, ref MeshData bindingMesh) {
-            bool isPointInTriangle(vec2 pt, int[] triangle) {
-                float sign (ref vec2 p1, ref vec2 p2, ref vec2 p3) {
-                    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
-                }
-                vec2 p1 = bindingMesh.vertices[triangle[0]];
-                vec2 p2 = bindingMesh.vertices[triangle[1]];
-                vec2 p3 = bindingMesh.vertices[triangle[2]];
-
-                auto d1 = sign(pt, p1, p2);
-                auto d2 = sign(pt, p2, p3);
-                auto d3 = sign(pt, p3, p1);
-
-                auto hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-                auto hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
-                return !(hasNeg && hasPos);
-            }
-            int i = 0;
-            int[] triangle = [0, 1, 2];
-            while (i < bindingMesh.indices.length) {
-                triangle[0] = bindingMesh.indices[i];
-                triangle[1] = bindingMesh.indices[i+1];
-                triangle[2] = bindingMesh.indices[i+2];
-                if (isPointInTriangle(pt, triangle)) {
-                    return triangle;
-                }
-                i += 3;
-            }
-            return null;
-        }
-        int[] findNearestTriangle(vec2 pt, ref MeshData bindingMesh) {
-            int i = 0;
-            int[] triangle = [0, 1, 2];
-            float nearestDistance = -1;
-            int nearestIndex = 0;
-            while (i < bindingMesh.indices.length) {
-                triangle[0] = bindingMesh.indices[i];
-                triangle[1] = bindingMesh.indices[i+1];
-                triangle[2] = bindingMesh.indices[i+2];
-                auto d1 = (pt - bindingMesh.vertices[triangle[0]]).lengthSquared;
-                auto d2 = (pt - bindingMesh.vertices[triangle[1]]).lengthSquared;
-                auto d3 = (pt - bindingMesh.vertices[triangle[2]]).lengthSquared;
-                auto dmin = min(d1, d2, d3);
-                if (nearestDistance < 0 || dmin < nearestDistance) {
-                    nearestDistance = dmin;
-                    nearestIndex = i;
-                }
-                i += 3;
-            }
-            return [bindingMesh.indices[nearestIndex], 
-                    bindingMesh.indices[nearestIndex + 1], 
-                    bindingMesh.indices[nearestIndex + 2]];
-        }
-        // Calculate offset of point in coordinates of triangle.
-        vec2 calcOffsetInTriangleCoords(vec2 pt, ref MeshData bindingMesh, ref int[] triangle) {
-            auto p1 = bindingMesh.vertices[triangle[0]];
-            if (pt == p1)
-                return vec2(0, 0);
-            auto p2 = bindingMesh.vertices[triangle[1]];
-            auto p3 = bindingMesh.vertices[triangle[2]];
-            vec2 axis0 = p2 - p1;
-            float axis0len = axis0.length;
-            axis0 /= axis0.length;
-            vec2 axis1 = p3 - p1;
-            float axis1len = axis1.length;
-            axis1 /= axis1.length;
-            vec3 raxis1 = mat3([axis0.x, axis0.y, 0, -axis0.y, axis0.x, 0, 0, 0, 1]) * vec3(axis1, 1);
-            float cosA = raxis1.x;
-            float sinA = raxis1.y;
-            mat3 H = mat3([axis0len > 0? 1/axis0len: 0,                           0, 0,
-                           0,                           axis1len > 0? 1/axis1len: 0, 0,
-                           0,                                                     0, 1]) * 
-                     mat3([1, -cosA/sinA, 0, 
-                           0,     1/sinA, 0, 
-                           0,          0, 1]) * 
-                     mat3([ axis0.x, axis0.y, 0, 
-                           -axis0.y, axis0.x, 0, 
-                                  0,       0, 1]) * 
-                     mat3([1, 0, -(p1).x, 
-                           0, 1, -(p1).y, 
-                           0, 0,       1]);
-            return (H * vec3(pt.x, pt.y, 1)).xy;
-        }
-
-        // Apply transform for mesh
-        vec2[] transformMesh(ref MeshData bindingMesh, Deformation deform) {
-            vec2[] result;
-            if (bindingMesh.vertices.length != deform.vertexOffsets.length) {
-                result.length = bindingMesh.vertices.length;
-                return result;
-            }
-//            assert(bindingMesh.vertices.length == deform.vertexOffsets.length);
-            foreach (i, v; bindingMesh.vertices) {
-                result ~= v + deform.vertexOffsets[i];
-            }
-            return result;
-        }
-
-        // Calculate position of the vertex using coordinates of the triangle.      
-        vec2 transformPointInTriangleCoords(vec2 pt, vec2 offset, vec2[] vertices, ref int[] triangle) {
-            auto p1 = vertices[triangle[0]];
-            auto p2 = vertices[triangle[1]];
-            auto p3 = vertices[triangle[2]];
-            vec2 axis0 = p2 - p1;
-            vec2 axis1 = p3 - p1;
-            return p1 + axis0 * offset.x + axis1 * offset.y;
-        }
-
-        MeshData bindingMesh = part.getMesh();
-        Deformation* newDeform = new Deformation([]);
-
-        auto targetMesh = transformMesh(bindingMesh, deform);
-        foreach (i, v; vertices) {
-            vec2 pt = v.position;
-            if (flipHorz)
-                pt.x = -pt.x;
-            int[] triangle = findSurroundingTriangle(pt, bindingMesh);
-            vec2 newPos;
-            if (triangle is null)
-                triangle = findNearestTriangle(pt, bindingMesh);
-            vec2 ofs = calcOffsetInTriangleCoords(pt, bindingMesh, triangle);
-            newPos = transformPointInTriangleCoords(pt, ofs, targetMesh, triangle);
-            if (flipHorz)
-                newPos.x = -newPos.x;
-            newDeform.vertexOffsets ~= newPos - origVertices[i].position;
-        }
-        return newDeform;
     }
 
     void copyFromMeshData(MeshData data) {

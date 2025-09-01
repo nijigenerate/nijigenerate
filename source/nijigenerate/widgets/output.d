@@ -1,6 +1,6 @@
 module nijigenerate.widgets.output;
 
-import std.stdio;
+//import std.stdio;
 import std.array;
 import std.string;
 import std.math;
@@ -19,6 +19,8 @@ import nijigenerate.panels.inspector;
 import nijigenerate.panels.parameters;
 import nijigenerate.panels.nodes;
 import nijigenerate.ext;
+import nijigenerate.core.input;
+import nijigenerate.commands.parameter.base;
 
 private {
     string parameterGrabStr;
@@ -30,72 +32,35 @@ private {
         VertNarrower
     };
 
-    void onNodeView(Node node) {
-        if (node !is null && node != incActivePuppet().root) {
+    InspectorHolder!Node nodeInspector = null;
+
+    void initInspectors() {
+        if (nodeInspector is null) {
+            nodeInspector = ngNodeInspector([]);
+        }
+    }
+
+    void onNodeView(Node node, InspectorHolder!Node activeNodeInspector = null) {
+        initInspectors();
+        if (activeNodeInspector is null) {
+            activeNodeInspector = nodeInspector;
+            nodeInspector.capture([node]);
+        }
+        ModelEditSubMode subMode = ngModelEditSubMode();
+        if (node !is null) {
             // Per-edit mode inspector drawers
             switch(incEditMode()) {
                 case EditMode.ModelEdit:
-                    if (incArmedParameter()) {
-                        Parameter param = incArmedParameter();
-                        vec2u cursor = param.findClosestKeypoint();
-                        incCommonNonEditHeader(node);
-                        incInspectorDeformTRS(node, param, cursor);
-
-                        // Node Part Section
-                        if (Part part = cast(Part)node) {
-                            incInspectorDeformPart(part, param, cursor);
-                        }
-
-                        if (Composite composite = cast(Composite)node) {
-                            incInspectorDeformComposite(composite, param, cursor);
-                        }
-
-                        if (SimplePhysics phys = cast(SimplePhysics)node) {
-                            incInspectorDeformSimplePhysics(phys, param, cursor);
-                        }
-
-                    } else {
-                        incModelModeHeader(node);
-                        incInspectorModelTRS(node);
-
-                        // Node Camera Section
-                        if (ExCamera camera = cast(ExCamera)node) {
-                            incInspectorModelCamera(camera);
-                        }
-
-                        // Node Drawable Section
-                        if (Composite composite = cast(Composite)node) {
-                            incInspectorModelComposite(composite);
-                        }
-
-
-                        // Node Drawable Section
-                        if (Drawable drawable = cast(Drawable)node) {
-                            incInspectorModelDrawable(drawable);
-                        }
-
-                        // Node Part Section
-                        if (Part part = cast(Part)node) {
-                            incInspectorModelPart(part);
-                        }
-
-                        // Node SimplePhysics Section
-                        if (SimplePhysics part = cast(SimplePhysics)node) {
-                            incInspectorModelSimplePhysics(part);
-                        }
-
-                        // Node MeshGroup Section
-                        if (MeshGroup group = cast(MeshGroup)node) {
-                            incInspectorModelMeshGroup(group);
-                        }
-                    }
-                
-                break;
+                    Parameter param = incArmedParameter();
+                    vec2u cursor = param? param.findClosestKeypoint() : vec2u.init;
+                    activeNodeInspector.subMode = subMode;
+                    activeNodeInspector.inspect(param, cursor);
+                    break;
                 default:
                     incCommonNonEditHeader(node);
                     break;
             }
-        } else incInspectorModelInfo();        
+        }
     }
 
     void onParameterView(ulong index, Parameter param) {
@@ -227,74 +192,17 @@ interface Output {
     void reset();
 }
 
-class TreeStore {
-public:
-    CommandIssuer panel;
-
-    Resource[] nodes;
-    Resource[][Resource] children;
-    Resource[] roots;
-    bool[Resource] nodeIncluded;
-
-    void reset() {
-        children.clear();
-        nodes.length = 0;
-        nodeIncluded.clear();
-        roots.length = 0;
-    }
-
-    void setResources(Resource[] nodes_) {
-        nodes = nodes_;
-        roots.length = 0;
-        children.clear();
-        nodeIncluded.clear();
-        Resource[Resource] parentMap;
-        bool[Resource] rootMap;
-        bool[Resource][Resource] childMap;
-        foreach (n; nodes) {
-            nodeIncluded[n] = true;
-        }
-
-        void addToMap(Resource res, int level = 0) {
-            if (res in parentMap) return;
-            auto source = res.source;
-            while (source) {
-                if (source.source is null) break;
-                if (source in nodeIncluded || source.explicit) break;
-                source = source.source;
-            }
-            if (source) {
-                parentMap[res] = source;
-                childMap.require(source);
-                childMap[source][res] = true;
-                addToMap(source, level + 1);
-            } else {
-                rootMap[res] = true;
-            }
-        }
-
-        foreach (res; nodes) {
-            addToMap(res);
-        }
-        foreach (res; childMap.keys) {
-            if (res !in parentMap || parentMap[res] is null) {
-                rootMap[res] = true;
-            }
-        }
-        roots = rootMap.keys.sort!((a,b)=>a.index<b.index).array;
-        foreach (item; childMap.byKeyValue) {
-            children[item.key] = item.value.keys.sort!((a,b)=>a.index<b.index).array;
-        }
-    }
-}
+// TreeStore moved to nijigenerate.core.selector.treestore
+import nijigenerate.core.selector.treestore : TreeStore;
 
 class ListOutput : Output {
 protected:
     TreeStore self;
+    CommandIssuer panel;
 
     int IconSize = 20;
-    ref CommandIssuer panel() { return self.panel; }
     Resource popupOpened = null;
+    InspectorHolder!Node activeInspector = null;
 
     ref Resource[] nodes() { return self.nodes; }
     ref Resource[][Resource] children() { return self.children; }
@@ -426,7 +334,7 @@ protected:
                 incNodeActionsPopup!("NodeActionsPopup2", false, true)(node);
             igSameLine();
             igText(res.name.toStringz);
-            onNodeView(node);
+            onNodeView(node, activeInspector);
         } else if (res.type == ResourceType.Parameter) {
             Parameter param = to!Parameter(res);
             if (auto exGroup = cast(ExParameterGroup)param) {
@@ -468,6 +376,7 @@ protected:
         ImGuiTreeNodeFlags flags;
         if (res !in children) 
             flags |= ImGuiTreeNodeFlags.Leaf;
+
         flags |= ImGuiTreeNodeFlags.DefaultOpen;
         flags |= ImGuiTreeNodeFlags.OpenOnArrow;
         return flags;
@@ -499,6 +408,7 @@ protected:
         case ResourceType.Parameter:
             auto param = to!Parameter(res);
             isActive = incArmedParameter() == param;
+            selected = incParamInSelection(param);
             break;
         case ResourceType.Binding:
             auto binding = to!ParameterBinding(res);
@@ -513,6 +423,19 @@ protected:
             if (isNode) {
                 node = to!Node(res);
                 incSelectNode(node);
+            } else if (res.type == ResourceType.Parameter) {
+                auto param = to!Parameter(res);
+                auto io = igGetIO();
+                bool already = incParamInSelection(param);
+                if (already) {
+                    if (incSelectedParams().length > 1) {
+                        if (io.KeyCtrl) incRemoveSelectParam(param);
+                        else incSelectParam(param);
+                    }
+                } else {
+                    if (io.KeyCtrl) incAddSelectParam(param);
+                    else incSelectParam(param);
+                }
             }
         }
         if (isNode) {
@@ -620,12 +543,42 @@ protected:
         ImRect bounds;
         bool nextInHorizontal = false;
         bool scrolledOut = false;
+        bool folded = false;
+        bool buttonPressed = false;
     }
     SubItemLayout[uint] _layout;
     bool prevMouseDown = false;
     bool mouseDown = false;
     bool showRootThumb = false;
     Snapshot snapshot = null;
+
+    override
+    ImGuiTreeNodeFlags setFlag(Resource res) {
+        auto flags = super.setFlag(res);
+        if (res.uuid in layout && layout[res.uuid].folded) {
+            flags &= ~ImGuiTreeNodeFlags.DefaultOpen;
+        }
+        return flags;
+    }
+
+    bool isNodeClicked(R)(R res, ImGuiMouseButton button = ImGuiMouseButton.Left) {
+        if (igIsItemHovered() && igIsMouseDown(button)) {
+            layout.require(res.uuid);
+            layout[res.uuid].buttonPressed = true;
+            return false;
+        }
+        if (res.uuid in layout && layout[res.uuid].buttonPressed && igIsItemHovered() && incInputIsMouseReleased(button)) {
+            layout.require(res.uuid);
+            layout[res.uuid].buttonPressed = false;
+            return true;
+        }
+        if (res.uuid in layout && layout[res.uuid].buttonPressed && !igIsItemHovered() && incInputIsMouseReleased(button)) {
+            layout.require(res.uuid);
+            layout[res.uuid].buttonPressed = false;
+            return false;
+        }
+        return false;
+    }
 
     void drawNode(Resource res, Node node, ref ImVec2 widgetMinPos, ref ImVec2 widgetMaxPos, ref bool hovered) {
         bool selected = incNodeInSelection(node);
@@ -640,13 +593,23 @@ protected:
             auto io = igGetIO();
             if (selected) {
                 if (incSelectedNodes().length > 1) {
-                    if (io.KeyCtrl) incRemoveSelectNode(n);
-                    else incSelectNode(n);
+                    if (io.KeyCtrl) {
+                        incRemoveSelectNode(n);
+                        activeInspector = null;
+                    } else {
+                        incSelectNode(n);
+                        activeInspector = null;
+                    }
                 }
             } else {
-                if (io.KeyCtrl) incAddSelectNode(n);
-                else incSelectNode(n);
-            }            if (igGetIO().KeyCtrl) {}
+                if (io.KeyCtrl) {
+                    incAddSelectNode(n);
+                    activeInspector = null;
+                } else {
+                    incSelectNode(n);
+                    activeInspector = null;
+                }
+            }
         }
 
         if (isRoot) {
@@ -670,7 +633,7 @@ protected:
                     snapshot = Snapshot.get(incActivePuppet());
                 incTextureSlotUntitled("ICON", snapshot.capture(), ImVec2(IconSize * 3, IconSize * 3), 1, ImGuiWindowFlags.NoInputs, selected);
                 igGetStyle().FramePadding.y = paddingY;
-                if (igIsItemClicked()) {
+                if (isNodeClicked(node)) {
                     onSelect(node);
                 }
                 igGetItemRectMax(&widgetMaxPos);
@@ -701,7 +664,7 @@ protected:
             igGetStyle().FramePadding.y = 1;
             incTextureSlotUntitled("ICON", part.textures[0], ImVec2(IconSize, IconSize), 1, ImGuiWindowFlags.NoInputs, selected);
             igGetStyle().FramePadding.y = paddingY;
-            if (igIsItemClicked()) {
+            if (isNodeClicked(res)) {
                 onSelect(node);
             }
             igGetItemRectMax(&widgetMaxPos);
@@ -730,19 +693,42 @@ protected:
         bool isActive = false;
         auto param = to!Parameter(res);
         isActive = incArmedParameter() == param;
+        bool isSelected = incParamInSelection(param);
         bool menuOpened = false;
         if (auto exGroup = cast(ExParameterGroup)param) {
             igGetItemRectMin(&widgetMinPos);
-            if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, false, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+            if (igSelectable("%s%s".format(incTypeIdToIcon(res.typeId), res.name).toStringz, incParamInSelection(exGroup), ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+                auto io = igGetIO();
+                bool already = incParamInSelection(exGroup);
+                if (already) {
+                    if (incSelectedParams().length > 1) {
+                        if (io.KeyCtrl) incRemoveSelectParam(exGroup);
+                        else incSelectParam(exGroup);
+                    }
+                } else {
+                    if (io.KeyCtrl) incAddSelectParam(exGroup);
+                    else incSelectParam(exGroup);
+                }
             }
             setParamDragTarget(exGroup);
             igGetItemRectMax(&widgetMaxPos);
         } else {
             igGetItemRectMin(&widgetMinPos);
             igPushID(cast(void*)param);
-            if (igSelectable(res.name.toStringz, incArmedParameter() == param, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
+            if (igSelectable(res.name.toStringz, isSelected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 16))) {
+                auto io = igGetIO();
+                bool already = incParamInSelection(param);
+                if (already) {
+                    if (incSelectedParams().length > 1) {
+                        if (io.KeyCtrl) incRemoveSelectParam(param);
+                        else incSelectParam(param);
+                    }
+                } else {
+                    if (io.KeyCtrl) incAddSelectParam(param);
+                    else incSelectParam(param);
+                }
             }
-            if (igIsItemClicked(ImGuiMouseButton.Right)) {
+            if (isNodeClicked(res, ImGuiMouseButton.Right)) {
                 menuOpened = true;
             }
             setParamDragSource(param);
@@ -806,7 +792,7 @@ protected:
         bool isHovered = igIsItemHovered(); // Check if the selectable is hovered
         const char* popupName  = "##IconTreeViewNodeView";
         const char* popupName2 = "##IconTreeViewNodeMenu";
-        menuOpened = menuOpened || (isHovered && igIsItemClicked(ImGuiMouseButton.Right));
+        menuOpened = menuOpened || (isHovered && isNodeClicked(res, ImGuiMouseButton.Right));
 
         if (popupOpened == res) {
             auto flags = ImGuiWindowFlags.NoCollapse | 
@@ -817,6 +803,13 @@ protected:
             if (igBegin(popupName, null, flags)) {
                 hovered |= popupOpened == res && isWindowHovered();
                 if (res.uuid in contentsDrawn) return;
+                bool invalid = activeInspector is null || activeInspector.getTargets().countUntil(node) < 0;
+                bool selected = node !is null && incNodeInSelection(node);
+                if (!selected || invalid) {
+                    if (!selected)
+                        incSelectNode(node);
+                    activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
+                }
                 showContents(res);
                 contentsDrawn[res.uuid] = true;
 
@@ -887,6 +880,7 @@ public:
             bool popupVisited = popupOpened is null;
 
             ImRect traverse(Resource res, ref bool prevHorz, ref uint[] parentUUIDs) {
+                auto avail = incAvailableSpace();
                 if (popupOpened == res) popupVisited = true;
                 ImGuiTreeNodeFlags flags = setFlag(res);
                 bool nextInHorizontal = res.uuid in layout && layout[res.uuid].nextInHorizontal;
@@ -931,6 +925,9 @@ public:
                         foreach (i; 0..(subParentUUIDs.length - parentUUIDs.length)) {
                             igEndChild();
                         }
+                        if (res.uuid in layout) {
+                            layout[res.uuid].folded = false;
+                        }
                     }
                     igTreePop();
                 }
@@ -941,6 +938,21 @@ public:
                         layout[res.uuid].scrolledOut = false;
                     } else {
                         layout[res.uuid].scrolledOut = true;
+                    }
+                }
+                if (!opened && res in children) {
+                    bool outOfArea = result.Min.y == result.Max.y || result.Min.y > avail.y || result.Min.y < 0;
+                    if (!outOfArea) {
+                        layout.require(res.uuid);
+                        if (!layout[res.uuid].folded) {
+//                            writefln(" fold  : %s,%s <=>%s", res.name, result, avail);
+                            layout[res.uuid].folded = true;
+                        }
+                    }
+                } else if (opened && res.uuid in layout) {
+                    if (layout[res.uuid].folded) {
+//                            writefln(" unfold: %s,%s <=>%s", res.name, result, avail);
+                            layout[res.uuid].folded = false;
                     }
                 }
                 foreach (parentUUID; parentUUIDs) {

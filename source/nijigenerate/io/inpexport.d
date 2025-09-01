@@ -6,6 +6,7 @@ import std.algorithm.sorting;
 import std.algorithm.mutation;
 import i18n;
 import std.exception;
+import std.file : rename;
 
 private {
     vec2 mapUVCoord(vec2 value, vec2 min, vec2 max) {
@@ -143,7 +144,7 @@ Part[] incINPExportGetBestSort(Puppet puppet) {
     // TODO: Implement a better sorting strategy that optimizes rendering perf.
     Part[] parts = puppet.getAllParts().dup;
     parts.sort!(
-        (a, b) => a.textures[0].width+a.textures[0].height > b.textures[0].width+b.textures[0].height, 
+        (a, b) => (a.textures[0] && b.textures[0])? a.textures[0].width+a.textures[0].height > b.textures[0].width+b.textures[0].height: (a.textures[0] !is null), 
         SwapStrategy.stable
     )();
 
@@ -390,5 +391,8 @@ void incINPExport(Puppet puppet, IncINPExportSettings settings, string file) {
     incINPExportFlatten(source);
     incINPExportFinalizePacking(source, atlasses);
     
-    inWriteINPPuppet(source, file);
+    // using swp prevent file corruption
+    string swapPath = file ~ ".export.swp";
+    inWriteINPPuppet(source, swapPath);
+    rename(swapPath, file);
 }

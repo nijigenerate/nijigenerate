@@ -6,7 +6,7 @@ import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.operations;
 import nijigenerate.viewport.common.mesheditor.brushes;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
@@ -22,7 +22,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.string;
 import std.range;
 
@@ -76,7 +76,7 @@ class BrushTool : NodeSelect {
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
         super.setToolMode(toolMode, impl);
-        incViewportSetAlwaysUpdate(true);
+        incViewport.alwaysUpdate = true;
     }
 
     override 
@@ -214,7 +214,7 @@ class BrushTool : NodeSelect {
                 if (v is null)
                     continue;
                 if (weight > 0) {
-                    v.position += diffPos * weight;
+                    impl.moveMeshVertex(v, v.position + diffPos * weight);
                     impl.markActionDirty();
                 }
             }
@@ -244,6 +244,7 @@ class BrushToolInfo : ToolInfoBase!BrushTool {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) { return deformOnly; }
     override
     bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));

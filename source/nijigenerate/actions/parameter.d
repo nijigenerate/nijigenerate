@@ -22,13 +22,16 @@ class ParameterAddRemoveAction(bool added = true) : Action {
 public:
     Parameter self;
     Driver[] drivers;
-    Parameter[]* parentList;
+//    Parameter[]* parentList;
     ExParameterGroup originalParent;
     long indexInGroup;
 
     this(Parameter self, Parameter[]* parentList) {
+        this(self);
+    }
+    this(Parameter self) {
         this.self = self;
-        this.parentList = parentList;
+//        this.parentList = parentList;
 
         auto exParam = cast(ExParameter)self;
         originalParent = (exParam !is null)? exParam.getParent(): null;
@@ -52,7 +55,6 @@ public:
         incActivePuppet().root.notifyChange(incActivePuppet().root, NotifyReason.StructureChanged);
     }
 
-    import std.stdio;
     /**
         Rollback
     */
@@ -357,11 +359,11 @@ class ParameterChangeBindingsAction : AbstractParameterChangeBindingsAction!() {
 
 Action BindingValueChangeMapper(ParameterBinding binding, int pointx, int pointy) {
     if (auto typedBinding = cast(ValueParameterBinding)binding) {
-        return new ParameterBindingValueChangeAction!(float)(typedBinding.getName(), typedBinding, pointx, pointy);
+        return new ParameterBindingValueChangeAction!(float,typeof(typedBinding))(typedBinding.getName(), typedBinding, pointx, pointy);
     } else if (auto typedBinding = cast(DeformationParameterBinding)binding) {
-        return new ParameterBindingValueChangeAction!(Deformation)(typedBinding.getName(), typedBinding, pointx, pointy);
+        return new ParameterBindingValueChangeAction!(Deformation,typeof(typedBinding))(typedBinding.getName(), typedBinding, pointx, pointy);
     } else if (auto typedBinding = cast(ParameterParameterBinding)binding) {
-        return new ParameterBindingValueChangeAction!(float)(typedBinding.getName(), typedBinding, pointx, pointy);
+        return new ParameterBindingValueChangeAction!(float,typeof(typedBinding))(typedBinding.getName(), typedBinding, pointx, pointy);
     } else {
         return null;
     }

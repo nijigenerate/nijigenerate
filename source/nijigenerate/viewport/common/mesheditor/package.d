@@ -10,7 +10,6 @@ module nijigenerate.viewport.common.mesheditor;
     - Asahi Lina
 */
 import i18n;
-import nijigenerate.viewport;
 public import nijigenerate.viewport.common.mesheditor.operations;
 import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.viewport.common;
@@ -31,12 +30,12 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.format;
 import std.string;
 
 class IncMeshEditor {
-private:
+protected:
     IncMeshEditorOne[Node] editors;
     bool previewTriangulate = false;
     bool mirrorHoriz = false;
@@ -63,70 +62,9 @@ public:
         return null;
     }
 
-    void addTarget(Node target) {
-        if (target in editors)
-            return;
-        IncMeshEditorOne subEditor;
-        if (deformOnly) {
-            if (auto drawable = cast(Drawable)target) { 
-                subEditor = new IncMeshEditorOneDrawableDeform();
-            } else if (auto deformable = cast(Drawable)target) {
-                subEditor = new IncMeshEditorOneDeformableDeform();
-            }
-        } else {
-            if (auto drawable = cast(Drawable)target) {
-                incActionPushStack();
-                subEditor = new IncMeshEditorOneDrawableVertex();
-                if (drawable.getMesh().isGrid()) {
-                    subEditor.toolMode = VertexToolMode.Grid;
-                    toolMode           = VertexToolMode.Grid;
-                }
-            } else if (auto deformable = cast(Deformable)target) {
-                incActionPushStack();
-                subEditor = new IncMeshEditorOneDeformableVertex();
-            }
-        }
-        subEditor.setTarget(target);
-        subEditor.mirrorHoriz = mirrorHoriz;
-        subEditor.mirrorVert  = mirrorVert;
-        subEditor.previewTriangulate = previewTriangulate;
-        editors[target] = subEditor;
-    }
+    abstract void addTarget(Node target);
 
-    void setTargets(Node[] targets) {
-        IncMeshEditorOne[Node] newEditors;
-        foreach (t; targets) {
-            if (t in editors) {
-                newEditors[t] = editors[t];
-            } else {
-                IncMeshEditorOne subEditor = null;
-                if (auto drawable = cast(Drawable)t) {
-                    if (deformOnly)
-                        subEditor = new IncMeshEditorOneDrawableDeform();
-                    else {
-                        incActionPushStack();
-                        subEditor = new IncMeshEditorOneDrawableVertex();
-                    }
-                    (cast(IncMeshEditorOneDrawable)subEditor).setTarget(drawable);
-                } else if (auto deformable = cast(Deformable)t) {
-                    if (deformOnly)
-                        subEditor = new IncMeshEditorOneDeformableDeform();
-                    else {
-                        incActionPushStack();
-                        subEditor = new IncMeshEditorOneDeformableVertex();
-                    }
-                } else {
-                    subEditor = new IncMeshEditorOneNode(deformOnly);
-                    (cast(IncMeshEditorOneNode)subEditor).setTarget(t);
-                }
-                subEditor.mirrorHoriz = mirrorHoriz;
-                subEditor.mirrorVert  = mirrorVert;
-                subEditor.previewTriangulate = previewTriangulate;
-                newEditors[t] = subEditor;
-            }
-        }
-        editors = newEditors;
-    }
+    abstract void setTargets(Node[] targets);
 
     void removeTarget(Node target) {
         if (target in editors)
@@ -188,15 +126,19 @@ public:
         }
     }
 
-    void setToolMode(VertexToolMode toolMode) {
-        this.toolMode = toolMode;
-        foreach (drawing, editor; editors) {
-            editor.setToolMode(toolMode);
-        }
-    }
-
     VertexToolMode getToolMode() {
         return toolMode;
+    }
+
+    // Only update current mode indicator (no side effects)
+    void setToolMode(VertexToolMode mode) {
+        auto info = ngGetToolInfoOf(mode);
+        if (info) {
+            foreach (e; editors) {
+                info.setupToolMode(e, mode);
+            }
+           this.toolMode = mode;
+        }
     }
 
     void viewportTools() {
@@ -206,7 +148,10 @@ public:
                 auto info = incGetToolInfo();
                 foreach (i; info) {
                     if (i.viewportTools(deformOnly, getToolMode(), editors)) {
-                        toolMode = i.mode();
+                        import nijigenerate.commands.base : Context;
+                        import nijigenerate.commands.mesheditor.tool : ensureSelectToolModeCommand;
+                        auto ctx = new Context();
+                        ensureSelectToolModeCommand(i.mode()).run(ctx);
                     }
                 }
 
@@ -215,6 +160,8 @@ public:
     }
 
     void displayGroupIds() {
+        if (editors.values.length == 0)
+            return;
         // Show group Id
         if (auto drawableEditor = cast(IncMeshEditorOneDrawable)editors.values[0]) {
             if (editors.length > 0 && drawableEditor.getMesh().maxGroupId > 1) {
@@ -378,4 +325,3 @@ public:
     }
 
 }
-

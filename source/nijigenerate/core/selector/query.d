@@ -12,9 +12,10 @@ import nijigenerate.core.selector.tokenizer;
 import nijigenerate.core.selector.parser;
 import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType, Proxy;
 import nijigenerate.core.selector.resource: to;
+import std.stdio : writefln;
 import nijigenerate;
 import nijigenerate.ext;
-import std.stdio;
+//import std.stdio;
 
 private {
     ExParameterGroup dummyRoot = null;
@@ -102,6 +103,7 @@ class ResourceAttrFilter(string name: "name", T, alias op) : ResourceProcessor {
     Resource[] process(Resource[] targets) {
         Resource[] result;
         foreach(target; targets) {
+            auto tname = target.name.toStringz.fromStringz;
             if (mixin("(target.name.toStringz).fromStringz "~op~" value")) {
                 target.index = result.length;
                 result ~= target;
@@ -379,6 +381,7 @@ class Selector {
                 auto typeId = query["typeId"];
                 auto selectors = query["selectors"];
                 auto pseudoClass = query["pseudoClass"];
+                auto attrs = query["attr"];
 
                 string typeIdStr = typeId? typeId.token.literal: "";
                 bool isPrevNode = inHasNodeType(lastTypeIdStr) || lastTypeIdStr == "" || lastTypeIdStr == "*";
@@ -422,10 +425,31 @@ class Selector {
                                 uint uuid = parse!uint(value);
                                 andProcessors ~= new UUIDFilter(uuid);
                             } catch (std.conv.ConvException e) {        
-                                writefln("parse error %s", selector["name"].token.literal);
+//                                writefln("parse error %s", selector["name"].token.literal);
                             }
                         } else {
                             // Should not reached here.
+                        }
+                    }
+                }
+                // Handle attribute filters like [name="Foo"], [uuid=123], [typeId=Node]
+                if (attrs) {
+                    foreach (attrKey, attrItem; attrs) {
+                        auto an = attrItem["name"];
+                        auto av = attrItem["value"];
+                        if (an is null || av is null) continue;
+                        string attrName = an.token.literal;
+                        // value token literal can be id/digits/string; use literal directly for name/typeId
+                        string valStr = av.token.literal.dup;
+                        if (attrName == "name") {
+                            andProcessors ~= new NameFilter(valStr);
+                        } else if (attrName == "uuid") {
+                            try {
+                                uint u = parse!uint(valStr);
+                                andProcessors ~= new UUIDFilter(u);
+                            } catch (std.conv.ConvException e) {}
+                        } else if (attrName == "typeId") {
+                            andProcessors ~= new TypeIdFilter(valStr);
                         }
                     }
                 }

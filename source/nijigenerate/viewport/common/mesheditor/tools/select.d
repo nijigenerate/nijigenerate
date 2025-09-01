@@ -4,7 +4,7 @@ import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.operations;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
@@ -20,7 +20,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 
 class NodeSelect : Tool, Draggable {
     bool isDragging = false;
@@ -38,10 +38,10 @@ class NodeSelect : Tool, Draggable {
 
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
-        assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
+//        assert(!impl.deformOnly || toolMode != VertexToolMode.Connect);
         isDragging = false;
         impl.isSelecting = false;
-        incViewportSetAlwaysUpdate(false);
+        incViewport.alwaysUpdate = false;
     }
 
     vec3 calculateMousePosIntersection(IncMeshEditorOne impl, vec2 mousePos) {
@@ -199,4 +199,7 @@ class NodeSelect : Tool, Draggable {
             inDbgDrawLines(vec4(0, 1, 0, 1),impl. transform);
         }
     }
+
+    override
+    void finalizeToolMode(IncMeshEditorOne impl) { }
 }

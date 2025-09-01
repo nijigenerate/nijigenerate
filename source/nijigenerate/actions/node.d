@@ -16,7 +16,9 @@ import std.exception;
 import std.array: insertInPlace;
 import std.algorithm.mutation: remove;
 import std.algorithm.searching;
-
+import std.algorithm;
+import std.range:zip;
+import std.array;
 /**
     An action that happens when a node is changed
 */
@@ -73,6 +75,8 @@ public:
         
         // Reparent
         foreach(ref sn; nodes) {
+
+            auto tmpTransform = sn.transform;
             
             // Store ref to prev parent
             if (sn.parent) {
@@ -84,7 +88,11 @@ public:
 
             // Set relative position
             if (new_) {
-                sn.reparent(new_, pOffset);
+                sn.reparent(new_, pOffset, true);
+                if (sn.uuid in zSort) {
+                    sn.zSort = zSort[sn.uuid] - new_.zSort();
+                }
+                sn.localTransform.translation = (new_.transform.matrix.inverse * vec4(tmpTransform.translation, 1)).xyz;
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
             } else sn.parent = null;
@@ -105,15 +113,21 @@ public:
         foreach(ref sn; nodes) {
             if (sn.uuid in prevParents && prevParents[sn.uuid]) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(prevParents[sn.uuid]);
-                sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid]);
+                sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid], true);
                 if (sn.uuid in zSort) {
                     sn.zSort = zSort[sn.uuid] - prevParents[sn.uuid].zSort();
                 }
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
-                if (newParent) newParent.notifyChange(sn, NotifyReason.StructureChanged);
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
-            } else sn.parent = null;
+                if (newParent) {
+                    newParent.notifyChange(sn, NotifyReason.StructureChanged);
+                }
+            } else {
+                sn.reparent(null, 0);
+                if (newParent)
+                    newParent.notifyChange(sn, NotifyReason.StructureChanged);
+            }
         }
         incActivePuppet().rescanNodes();
     }
@@ -125,12 +139,18 @@ public:
         foreach(sn; nodes) {
             if (newParent) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
-                sn.reparent(newParent, parentOffset);
+                sn.reparent(newParent, parentOffset, true);
+                if (sn.uuid in zSort) {
+                    sn.zSort = zSort[sn.uuid] - newParent.zSort();
+                }
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
-                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
-            } else sn.parent = null;
+                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
+            } else {
+                sn.reparent(null, 0);
+                if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
+            }
         }
         incActivePuppet().rescanNodes();
     }
@@ -213,17 +233,16 @@ public:
         srcNode = src;
         toNode = to;
 
-        if (src.parent !is null)
-            children = src.children.dup;
-        else if (to.parent !is null)
-            children = to.children.dup;
-
         if (cast(DynamicComposite)srcNode !is null && 
             cast(DynamicComposite)toNode is null &&
             cast(Part)toNode !is null) {
             deepCopy = false;
         }
         this.deepCopy = deepCopy;
+        if (deepCopy) {
+            if (srcNode.children.length > 0)
+                children = srcNode.children.dup;
+        }
 
         // Set visual name
         descrName = src.name;
@@ -241,18 +260,27 @@ public:
         auto parent = toNode.parent;
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(toNode);
-        Transform tmpTransform = toNode.transform;
+        Transform tmpTransform = toNode.localTransform;
+        auto childTransforms   = children? children.map!((c)=>c.localTransform).array: null;
         toNode.reparent(null, 0);
-        toNode.localTransform = tmpTransform;
-        srcNode.reparent(parent, pOffset);
+        srcNode.reparent(parent, pOffset, true);
+        srcNode.localTransform = tmpTransform;
+        srcNode.transformChanged();
         updateParameterBindings();
-        if (deepCopy) {
+        if (deepCopy && children) {
             foreach (i, child; children) {
-                child.reparent(srcNode, i);
+                child.reparent(srcNode, i, true);
+                child.localTransform = childTransforms[i];
+                child.transformChanged();
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
         } else
             srcNode.notifyChange(srcNode, NotifyReason.StructureChanged);
+    
+        if (incNodeInSelection(toNode)) {
+            incRemoveSelectNode(toNode);
+            incAddSelectNode(srcNode);
+        }
     }
 
     /**
@@ -262,18 +290,27 @@ public:
         auto parent = srcNode.parent;
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(srcNode);
-        Transform tmpTransform = srcNode.transform;
+        Transform tmpTransform = srcNode.localTransform;
+        auto childTransforms   = children? children.map!((c)=>c.localTransform).array: null;
         srcNode.reparent(null, 0);
-        srcNode.localTransform = tmpTransform;
-        toNode.reparent(parent, pOffset);
+        toNode.reparent(parent, pOffset, true);
+        toNode.localTransform = tmpTransform;
+        toNode.transformChanged();
         updateParameterBindings();
-        if (deepCopy) {
+        if (deepCopy && children) {
             foreach (i, child; children) {
-                child.reparent(toNode, i);
+                child.reparent(toNode, i, true);
+                child.localTransform = childTransforms[i];
+                child.transformChanged();
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
         } else
             toNode.notifyChange(toNode, NotifyReason.StructureChanged);
+
+        if (incNodeInSelection(srcNode)) {
+            incRemoveSelectNode(srcNode);
+            incAddSelectNode(toNode);
+        }
     }
 
     /**
@@ -573,7 +610,6 @@ public:
             link.indices = newIndices;
             counterLink.weight = newCounterWeight;
             counterLink.indices = newCounterIndices;
-            import std.stdio;
         }
     }
 
@@ -769,16 +805,16 @@ void incDeleteChildrenWithHistory(Node[] ns) {
 /**
     Node value changed action
 */
-class NodeValueChangeAction(TNode, T) : Action if (is(TNode : Node)) {
+class NodeValueChangeAction(TNode, TValue) : Action if (is(TNode : Node)) {
 public:
     alias TSelf = typeof(this);
     TNode node;
-    T oldValue;
-    T newValue;
-    T* valuePtr;
+    TValue oldValue;
+    TValue newValue;
+    TValue* valuePtr;
     string name;
 
-    this(string name, TNode node, T oldValue, T newValue, T* valuePtr) {
+    this(string name, TNode node, TValue oldValue, TValue newValue, TValue* valuePtr) {
         this.name = name;
         this.node = node;
         this.oldValue = oldValue;
@@ -815,6 +851,86 @@ public:
     */
     string describeUndo() {
         return _("%s->%s changed from %s").format(node.name, name, oldValue);
+    }
+
+    /**
+        Gets name of this action
+    */
+    string getName() {
+        return name;
+    }
+    
+    /**
+        Merge
+    */
+    bool merge(Action other) {
+        if (this.canMerge(other)) {
+            this.newValue = (cast(TSelf)other).newValue;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+        Gets whether this node can merge with an other
+    */
+    bool canMerge(Action other) {
+        TSelf otherChange = cast(TSelf) other;
+        return (otherChange !is null && otherChange.getName() == this.getName());
+    }
+}
+
+class NodeValueChangeAction(TNode, TValue) : Action if (is(TNode == U[], U)) {
+public:
+    alias TSelf = typeof(this);
+    TNode node;
+    TValue[] oldValue;
+    TValue[] newValue;
+    TValue*[] valuePtr;
+    string name;
+
+    this(string name, TNode node, TValue[] oldValue, TValue[] newValue, TValue*[] valuePtr) {
+        this.name = name;
+        this.node = node;
+        this.oldValue = oldValue;
+        this.newValue = newValue;
+        this.valuePtr = valuePtr;
+        foreach (n; node)
+            n.notifyChange(n, NotifyReason.AttributeChanged);
+    }
+
+    /**
+        Rollback
+    */
+    void rollback() {
+        foreach (i; 0..node.length) {
+            *(valuePtr[i]) = oldValue[i];
+            node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+        }
+    }
+
+    /**
+        Redo
+    */
+    void redo() {
+        foreach (i; 0..node.length) {
+            *(valuePtr[i]) = newValue[i];
+            node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+        }
+    }
+
+    /**
+        Describe the action
+    */
+    string describe() {
+        return zip(node, newValue).map!((p) => _("%s->%s changed to %s").format(p[0].name, name, p[1])).join(",");
+    }
+
+    /**
+        Describe the action
+    */
+    string describeUndo() {
+        return zip(node, oldValue).map!((p) => _("%s->%s changed from %s").format(p[0].name, name, p[1])).join(",");
     }
 
     /**

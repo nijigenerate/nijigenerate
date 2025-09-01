@@ -13,7 +13,7 @@ import nijilive.core.nodes.part;
 import nijilive.core.nodes;
 import nijilive.core;
 import nijilive.fmt.serialize;
-import std.stdio : writeln;
+//import std.stdio : writeln;
 import nijilive.math;
 
 @TypeId("Part")
@@ -34,7 +34,6 @@ protected:
         if (!data["psdLayerPath"].isEmpty) data["psdLayerPath"].deserializeValue(layerPath);
         return null;
     }
-
 
 public:
     /**

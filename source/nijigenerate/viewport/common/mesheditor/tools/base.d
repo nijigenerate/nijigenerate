@@ -1,7 +1,6 @@
 module nijigenerate.viewport.common.mesheditor.tools.base;
 
 import i18n;
-import nijigenerate.viewport;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.tools.enums;
@@ -18,7 +17,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 import std.string: toStringz;
 
 class Tool {
@@ -27,6 +26,7 @@ class Tool {
     abstract bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed);
     abstract void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl);
     abstract void draw(Camera camera, IncMeshEditorOne impl);
+    abstract void finalizeToolMode(IncMeshEditorOne impl);
 
     MeshEditorAction!DeformationAction editorAction(Node target, DeformationAction action) {
         return new MeshEditorAction!(DeformationAction)(target, action);
@@ -55,6 +55,12 @@ interface Draggable {
 /// ToolInfo holds meta information and UI handling code for tools.
 /// Objects of this class are instantiated only once in the program, and stored into infoList array.
 interface ToolInfo {
+    /// setupToolMode is called when tool are selected and being active.
+    /// This function setup all required setup for IncMeshEditorOne level.
+    /// Originally implemented directly in IncMeshEditorOneImpl, but move here
+    /// in order to decouple tools and oprations.
+    void setupToolMode(IncMeshEditorOne e, VertexToolMode mode);
+
     /// viewportTools is called from MeshEditor, and displays tool icons
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors);
 
@@ -72,6 +78,10 @@ interface ToolInfo {
 
     /// newTool returns new instance of tool.
     Tool newTool();
+
+    /// Whether this tool can be used in the current context.
+    /// Defaults to true; specific ToolInfoImpl may restrict by mode or target types.
+    bool canUse(bool deformOnly, Node[] targets);
 }
 
 
@@ -79,11 +89,9 @@ interface ToolInfo {
 /// Every instance of ToolInfo must inherit this class, and should be declared as ToolInfoImpl(class) template.
 class ToolInfoBase(T) : ToolInfo {
 
-    /// setupToolMode is called when tool are selected and being active.
-    /// This function setup all required setup for IncMeshEditorOne level.
-    /// Originally implemented directly in IncMeshEditorOneImpl, but move here
-    /// in order to decouple tools and oprations.
+    override
     void setupToolMode(IncMeshEditorOne e, VertexToolMode mode) {
+        e.finalizeToolMode();
         e.setToolMode(mode);
         e.setPath(null);
         e.refreshMesh();
@@ -94,9 +102,6 @@ class ToolInfoBase(T) : ToolInfo {
         bool result = false;
         if (incButtonColored(icon.toStringz, ImVec2(0, 0), toolMode == mode ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
             result = true;
-            foreach (e; editors) {
-                setupToolMode(e, mode);
-            }
         }
         incTooltip(description);
         return result;
@@ -110,4 +115,6 @@ class ToolInfoBase(T) : ToolInfo {
     abstract string description();
     override
     Tool newTool() { return new T; }
+
+    override bool canUse(bool deformOnly, Node[] targets) { return true; }
 }

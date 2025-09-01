@@ -5,7 +5,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.8.4</string>
+	<string>0.9.1</string>
 	<key>CFBundleName</key>
 	<string>nijigenerate</string>
 	<key>CFBundleDisplayName</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleIdentifier</key>
 	<string>nijigenerate.nijigenerate</string>
 	<key>CFBundleVersion</key>
-	<string>0.8.4</string>
+	<string>0.9.1</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleSignature</key>

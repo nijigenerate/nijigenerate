@@ -14,6 +14,7 @@ private {
     Action[][] actions;
     size_t currentLevel = 0;
     GroupAction[] currentGroup = null;
+    int[] groupCount;
     size_t[] actionPointer;
     size_t[] actionIndex;
     size_t maxUndoHistory;
@@ -32,6 +33,7 @@ void incActionInit() {
     actionPointer.length = currentLevel + 1;
     actionIndex.length = currentLevel + 1;
     currentGroup.length = currentLevel + 1;
+    groupCount.length = currentLevel + 1;
 }
 
 /**
@@ -121,6 +123,35 @@ Action incActionTop() {
 }
 
 /**
+    Gets the last Action by backtrack index
+*/
+Action incActionBacktrack(size_t backIndex) {
+    if (actionPointer[currentLevel] > backIndex)
+        return actions[currentLevel][actionPointer[currentLevel]-backIndex-1];
+
+    return null;
+}
+
+/**
+    Finds the last action of a specific type
+*/
+T incActionFindLast(T)(int maxSteps) {
+    for (int i = 0; i < maxSteps; i++) {
+        auto lastActionGroup = cast(GroupAction) incActionBacktrack(i);
+        if (lastActionGroup is null) return null;
+
+        if (lastActionGroup.actions.length == 0) continue;
+
+        foreach_reverse (action; lastActionGroup.actions) {
+            auto TAction = cast(T) action;
+            if (TAction !is null) return TAction;
+        }
+    }
+
+    return null;
+}
+
+/**
     Notify that the top action has changed
 */
 void incActionNotifyTopChanged() {
@@ -176,6 +207,7 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         actionPointer.length = currentLevel + 1;
         actionIndex.length = currentLevel + 1;
         currentGroup.length = currentLevel + 1;
+        groupCount.length = currentLevel + 1;
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
@@ -197,10 +229,12 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
 void incActionPushGroup() {
     if (!currentGroup[currentLevel])
         currentGroup[currentLevel] = new GroupAction();
+    groupCount[currentLevel] += 1;
 }
 
 void incActionPopGroup() {
-    if (currentGroup[currentLevel]) {
+    groupCount[currentLevel] -= 1;
+    if (groupCount[currentLevel] == 0 && currentGroup[currentLevel]) {
         auto group = currentGroup[currentLevel];
         currentGroup[currentLevel] = null;
         if (group !is null && !group.empty())
@@ -214,6 +248,7 @@ void incActionPushStack() {
     actionPointer.length = currentLevel + 1;
     actionIndex.length = currentLevel + 1;
     currentGroup.length = currentLevel + 1;
+    groupCount.length = currentLevel + 1;
 }
 
 void incActionPopStack() {
@@ -223,5 +258,10 @@ void incActionPopStack() {
         actionPointer.length = currentLevel + 1;
         actionIndex.length = currentLevel + 1;
         currentGroup.length = currentLevel + 1;
+        groupCount.length = currentLevel + 1;
     }
+}
+
+bool incIsActionStackEmpty() {
+    return actions[currentLevel].length == 0;
 }

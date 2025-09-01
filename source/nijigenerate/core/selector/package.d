@@ -4,6 +4,7 @@ public import nijigenerate.core.selector.tokenizer;
 public import nijigenerate.core.selector.parser;
 public import nijigenerate.core.selector.resource;
 public import nijigenerate.core.selector.query;
+public import nijigenerate.core.selector.treestore;
 
 
 unittest {

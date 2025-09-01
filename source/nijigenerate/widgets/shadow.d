@@ -1,6 +1,6 @@
 module nijigenerate.widgets.shadow;
 import bindbc.imgui;
-import std.stdio : writeln;
+//import std.stdio : writeln;
 
 /**
     Creates drawlist

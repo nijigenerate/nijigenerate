@@ -33,7 +33,7 @@ protected:
 
 public:
     this() {
-        super("Armed Parameters", _("Armed Parameters"), false);
+        super("Armed Parameters", _("Armed Parameters"), true);
     }
 
     override

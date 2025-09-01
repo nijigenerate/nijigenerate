@@ -6,7 +6,6 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.widgets.toolbar;
-import nijigenerate.viewport;
 import nijigenerate.widgets;
 import nijigenerate.core;
 import nijigenerate.windows;

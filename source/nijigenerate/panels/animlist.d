@@ -10,7 +10,7 @@ import nijigenerate.panels;
 import nijigenerate : EditMode;
 import i18n;
 import bindbc.imgui;
-import nijigenerate;
+import nijigenerate.project;
 import std.string;
 import nijilive;
 import nijigenerate.widgets;

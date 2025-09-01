@@ -13,6 +13,10 @@ public import nijigenerate.actions.mesheditor;
 public import nijigenerate.actions.drawable;
 public import nijigenerate.actions.mesh;
 public import nijigenerate.actions.deformable;
+public import nijigenerate.actions.vertex;
+
+import std.algorithm;
+import std.range;
 
 /**
     An undo/redo-able action
@@ -134,8 +138,23 @@ public:
         return this.stringof;
     }
     
-    bool merge(Action other) { return false; }
-    bool canMerge(Action other) { return false; }
+    bool merge(Action other) { 
+        bool result = canMerge(other);
+        if (!result) return false;
+        auto group = cast(GroupAction)other;
+        foreach (i; 0..actions.length) {
+            result &= actions[i].merge(group.actions[i]);
+        } 
+        return result;
+    }
+
+    bool canMerge(Action other) { 
+        if (auto group = cast(GroupAction)other) {
+            if (actions.length != group.actions.length) return false;
+            return zip(actions, group.actions).all!((t)=>t[0].canMerge(t[1]));
+        }
+        return false;
+    }
 
     bool empty() { return actions.length == 0; }
 }

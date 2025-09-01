@@ -7,10 +7,9 @@
 */
 module nijigenerate.viewport.common.spline;
 import nijigenerate.viewport.common.mesh;
-import nijigenerate.viewport;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
-import nijigenerate.core;
+//import nijigenerate.core;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
@@ -18,7 +17,7 @@ import bindbc.opengl;
 import std.algorithm.mutation;
 import std.array;
 import std.math : isFinite, PI, atan2;
-import std.stdio;
+//import std.stdio;
 import std.algorithm.searching;
 
 private {
@@ -202,7 +201,7 @@ public:
 //                incActionPush(new ParameterBindingAddAction(param, b));
             }
             // Push action
-//            incActionPush(new ParameterBindingValueChangeAction!(float)(b.getName(), b, index.x, index.y));
+//            incActionPush(new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(b.getName(), b, index.x, index.y));
             float result = b.getValue(index);
             b.setValue(index, newValue);
             return result;
@@ -414,7 +413,7 @@ public:
         if (target) target.appendPoint(point);
     }
 
-    int findPoint(vec2 point) {
+    int findPoint(vec2 point, float zoomRate) {
         uint bestIdx = 0;
         float bestDist = float.infinity;
         foreach(idx, pt; points) {
@@ -425,11 +424,11 @@ public:
             }
         }
 
-        if (bestDist > selectRadius/incViewportZoom) return -1;
+        if (bestDist > selectRadius/zoomRate) return -1;
         return bestIdx;
     }
 
-    int addPoint(vec2 point) {
+    int addPoint(vec2 point, float zoomRate) {
         if (points.length < 2) {
             appendPoint(point);
             return cast(int)points.length - 1;
@@ -445,7 +444,7 @@ public:
             return cast(int)points.length - 1;
         }
         vec2 onCurve = eval(off);
-        if (abs(point.distance(onCurve)) < selectRadius/incViewportZoom) {
+        if (abs(point.distance(onCurve)) < selectRadius/zoomRate) {
             splitAt(off);
             return 1 + cast(int)off;
         }

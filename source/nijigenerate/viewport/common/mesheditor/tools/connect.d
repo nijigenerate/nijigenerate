@@ -5,7 +5,7 @@ import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.operations;
 import i18n;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.core.input;
@@ -18,7 +18,7 @@ import nijilive;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
-import std.stdio;
+//import std.stdio;
 
 class ConnectTool : NodeSelect {
 
@@ -110,6 +110,7 @@ class ConnectToolInfo : ToolInfoBase!ConnectTool {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
+    override bool canUse(bool deformOnly, Node[] targets) { return !deformOnly; }
     override VertexToolMode mode() { return VertexToolMode.Connect; };
     override string icon() { return "";}
     override string description() { return _("Edge Tool");}

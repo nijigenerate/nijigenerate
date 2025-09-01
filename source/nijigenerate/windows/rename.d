@@ -7,14 +7,14 @@
 */
 module nijigenerate.windows.rename;
 import nijigenerate.widgets;
-import nijigenerate.windows;
+import nijigenerate.windows.base;
 import nijigenerate.core;
 import nijigenerate;
 import std.string;
 import nijigenerate.utils.link;
 import nijilive;
 import i18n;
-import std.stdio;
+//import std.stdio;
 
 class RenameWindow : Window {
 private:

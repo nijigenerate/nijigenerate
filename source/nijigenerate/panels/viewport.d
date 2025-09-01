@@ -21,6 +21,7 @@ import nijilive.core.dbg;
 import bindbc.imgui;
 import std.string;
 import i18n;
+import nijigenerate.commands;
 
 /**
     A viewport
@@ -91,6 +92,7 @@ protected:
             }
         }
         if (igBeginChild("##ViewportView", ImVec2(0, -38), false, flags)) {
+            MainViewport viewport = incViewport;
             igGetContentRegionAvail(&currSize);
             currSize = ImVec2(
                 clamp(currSize.x, 128, float.max), 
@@ -101,7 +103,7 @@ protected:
                 inSetViewport(cast(int)(currSize.x*incGetUIScale()), cast(int)(currSize.y*incGetUIScale()));
             }
 
-            incViewportPoll();
+            viewport.poll();
 
             // Ignore events within child windows *unless* drag started within
             // viewport.
@@ -111,18 +113,18 @@ protected:
                 actingInViewport = igIsMouseDown(ImGuiMouseButton.Left) ||
                     igIsMouseDown(ImGuiMouseButton.Middle) ||
                     igIsMouseDown(ImGuiMouseButton.Right);
-                incViewportUpdate();
-            } else if (incViewportAlwaysUpdate()) {
-                incViewportUpdate(true);
+                viewport.update();
+            } else if (incViewport.alwaysUpdate()) {
+                viewport.update(true);
             }
 
             auto style = igGetStyle();
             if (incShouldMirrorViewport) {
                 camera.scale.x *= -1;
-                incViewportDraw();
+                viewport.draw();
                 camera.scale.x *= -1;
             } else {
-                incViewportDraw();
+                viewport.draw();
             }
 
             int width, height;
@@ -163,7 +165,7 @@ protected:
             
             // Popup right click menu
             igPushStyleVar(ImGuiStyleVar.WindowPadding, priorWindowPadding);
-            if (incViewportHasMenu()) {
+            if (viewport.hasMenu()) {
                 static ImVec2 downPos;
                 ImVec2 currPos;
                 if (igIsItemHovered()) {
@@ -176,14 +178,14 @@ protected:
                         float dist = sqrt(((downPos.x-currPos.x)^^2)+((downPos.y-currPos.y)^^2));
                         
                         if (dist < 16) {
-                            incViewportMenuOpening();
+                            viewport.menuOpening();
                             igOpenPopup("ViewportMenu");
                         }
                     }
                 }
 
                 if (igBeginPopup("ViewportMenu")) {
-                    incViewportMenu();
+                    viewport.menu();
                     igEndPopup();
                 }
             }
@@ -192,18 +194,18 @@ protected:
             //igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
                 incBeginViewportToolArea("ToolArea", ImGuiDir.Left);
                     igPushStyleVar_Vec2(ImGuiStyleVar.FramePadding, ImVec2(6, 6));
-                        incViewportDrawTools();
+                        viewport.drawTools();
                     igPopStyleVar();
                 incEndViewportToolArea();
 
                 incBeginViewportToolArea("OptionsArea", ImGuiDir.Right);
                     igPushStyleVar_Vec2(ImGuiStyleVar.FramePadding, ImVec2(6, 6));
-                        incViewportDrawOptions();
+                        viewport.drawOptions();
                     igPopStyleVar();
                 incEndViewportToolArea();
 
                 incBeginViewportToolArea("ConfirmArea", ImGuiDir.Left, ImGuiDir.Down, false);
-                    incViewportDrawConfirmBar();
+                    viewport.drawConfirmBar();
                 incEndViewportToolArea();
                 if (incEditMode == EditMode.ModelEdit)
                     incViewportTransformHandle();
@@ -252,6 +254,10 @@ protected:
                         incAskImportKRA(file);
                         break mainLoop;
 
+                    case ".inx":
+                        incOpenProject(file);
+                        break mainLoop;
+
                     default:
                         incDialog(__("Error"), _("%s is not supported").format(fname)); 
                         break;
@@ -286,7 +292,9 @@ protected:
                 if (incViewportTargetZoom != 1) {
                     igSameLine(0, 8);
                     if (incButtonColored("", ImVec2(0, 0))) {
-                        incViewportTargetZoom = 1;
+                        auto ctx = new Context;
+                        if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                        cmd!(ViewportCommand.ResetViewportZoom)(ctx);
                     }
                 }
 
@@ -298,7 +306,9 @@ protected:
                 if (incViewportTargetPosition != vec2(0)) {
                     igSameLine(0, 8);
                     if (incButtonColored("##2", ImVec2(0, 0))) {
-                        incViewportTargetPosition = vec2(0, 0);
+                        auto ctx = new Context;
+                        if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                        cmd!(ViewportCommand.ResetViewportPosition)(ctx);
                     }
                 }
 
@@ -310,66 +320,81 @@ protected:
         igGetContentRegionAvail(&currSize);
         igSameLine();
         // if add new buttons, please increase the offset
-        igDummy(ImVec2(currSize.x-currSize.x-(32*8), 0));
+        igDummy(ImVec2(currSize.x-currSize.x-(32*10), 0));
         igSameLine();
 
         if (igBeginChild("##ModelControl", ImVec2(0, currSize.y), false, flags.NoScrollbar)) {
-            if (incButtonColored("##MirrorView", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incShouldMirrorViewport = !incShouldMirrorViewport;
+
+            if (incButtonColored("\ue8d4", ImVec2(32, 0), incShouldMirrorViewport ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.ToggleMirrorView)(ctx);
             }
             incTooltip(_("Mirror View"));
 
             igSameLine(0, 0);
 
+            auto onion = OnionSlice.singleton;
+            if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
+                auto ctx = new Context;
+                cmd!(ViewportCommand.ToggleOnionSlice)(ctx);
+            }
+            incTooltip(_("Onion slice"));
+
+            igSameLine();
+
             if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incActivePuppet().enableDrivers = !incActivePuppet().enableDrivers;
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.TogglePhysics)(ctx);
             }
             incTooltip(_("Enable physics"));
 
             igSameLine(0, 0);
 
             if (incButtonColored("", ImVec2(32, 0), incShouldPostProcess ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
-                if (incActivePuppet() !is null)
-                    incShouldPostProcess = !incShouldPostProcess;
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.TogglePostProcess)(ctx);
             }
             incTooltip(_("Enable post processing"));
 
             igSameLine();
 
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet() !is null)
-                    incActivePuppet().resetDrivers();
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.ResetPhysics)(ctx);
             }
             incTooltip(_("Reset physics"));
 
             igSameLine(0, 0);
 
-            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet() !is null)
-                    incPushWindow(new FlipPairWindow());
-            }
-            incTooltip(_("Configure Flip Pairings"));
-            
-            igSameLine();
-
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
-                if (incActivePuppet()) {
-                    foreach(ref parameter; incActivePuppet().parameters) {
-                        parameter.value = parameter.defaults;
-                    }
-                }
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.ResetParameters)(ctx);
             }
             incTooltip(_("Reset parameters"));
             
+            igSameLine();
+
+            if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.OpenFlipPairWindow)(ctx);
+            }
+            incTooltip(_("Configure Flip Pairings"));
+            
             igSameLine(0, 0);
 
-            auto onion = OnionSlice.singleton;
-            if (incButtonColored("\ue71c", ImVec2(32, 0), onion.enabled? ImVec4.init: ImVec4(0.6, 0.6, 0.6, 1))) {
-                onion.toggle();
+            if (incButtonColored("", ImVec2(32, 0))) {
+                auto ctx = new Context;
+                if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                cmd!(ViewportCommand.OpenAutomeshBatching)(ctx);
             }
-            incTooltip(_("Onion slice"));
+            incTooltip(_("Automesh Batching"));
+
         }
         igEndChild();
 

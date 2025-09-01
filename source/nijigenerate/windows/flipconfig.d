@@ -6,8 +6,8 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.windows.flipconfig;
-import nijigenerate.windows;
-import nijigenerate.core;
+import nijigenerate.windows.base;
+//import nijigenerate.core;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijigenerate.ext;
@@ -23,7 +23,7 @@ import std.string;
 import std.algorithm.searching : canFind, countUntil;
 import std.algorithm.mutation : remove;
 import std.array : appender, Appender;
-import std.stdio;
+//import std.stdio;
 /**
     Binding between layer and node
 */
@@ -45,12 +45,12 @@ class FlipPair : ISerializable {
     }
 
     void serialize(S)(ref S serializer) {
-        auto state = serializer.objectBegin();
+        auto state = serializer.structBegin();
             serializer.putKey("uuid1");
             serializer.putValue(parts[0]? parts[0].uuid: InInvalidUUID);
             serializer.putKey("uuid2");
             serializer.putValue(parts[1]? parts[1].uuid: InInvalidUUID);
-        serializer.objectEnd(state);
+        serializer.structEnd(state);
     }
 
     SerdeException deserializeFromFghj(Fghj data) {
@@ -106,12 +106,12 @@ void incDumpFlipConfig(Puppet puppet) {
     if (flipPairs.length > 0) {
         auto app = appender!(char[]);
         auto serializer = inCreateSerializer(app);
-        auto i = serializer.arrayBegin();
+        auto i = serializer.listBegin();
         foreach (pair; flipPairs) {
             serializer.elemBegin;
             serializer.serializeValue(pair);
         }
-        serializer.arrayEnd(i);
+        serializer.listEnd(i);
         serializer.flush();
         puppet.extData[FlipConfigPath] = cast(ubyte[])app.data;
 
@@ -244,7 +244,6 @@ private:
 
     void pairView() {
 
-        import std.stdio;
         ImGuiStyle* style = igGetStyle();
         int deleted = -1;
 
@@ -285,7 +284,7 @@ private:
                             break;
                         }
                     }
-                    debug writefln("parts[0]: flippable set=%s, node=%s", targetPair, node);
+//                    debug writefln("parts[0]: flippable set=%s, node=%s", targetPair, node);
                     if (targetPair !is null && targetPair != &pair) {
                         if ((*targetPair).parts[0].uuid == node.uuid) {
                             (*targetPair).parts[0] = null;
@@ -296,7 +295,7 @@ private:
                     pair.parts[0] = node;
                     map[node.uuid] = i;
                     pair.update();
-                    debug writefln("set parts[0]: name=%s", pair.name);
+//                    debug writefln("set parts[0]: name=%s", pair.name);
 
                     igEndDragDropTarget();
                     igPopID();
@@ -320,7 +319,7 @@ private:
                             break;
                         }
                     }
-                    debug writefln("pair: flippable set=%s, node=%s", targetPair, node);
+//                    debug writefln("pair: flippable set=%s, node=%s", targetPair, node);
                     if (targetPair !is null && targetPair != &pair) {
                         if ((*targetPair).parts[0].uuid == node.uuid) {
                             (*targetPair).parts[0] = null;
@@ -331,7 +330,7 @@ private:
                     pair.parts[1] = node;
                     map[node.uuid] = i;
                     pair.update();
-                    debug writefln("set parts[1]: name=%s", pair.name);
+//                    debug writefln("set parts[1]: name=%s", pair.name);
 
                     igEndDragDropTarget();
                     igPopID();
@@ -376,7 +375,6 @@ protected:
     override
     void onBeginUpdate() {
         flags |= ImGuiWindowFlags.NoSavedSettings;
-        incIsSettingsOpen = true;
         
         ImVec2 wpos = ImVec2(
             igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
@@ -536,4 +534,3 @@ public:
         flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     }
 }
-

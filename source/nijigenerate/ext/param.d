@@ -32,7 +32,7 @@ public:
     }
 
     override
-    FghjException deserializeFromFghj(Fghj data) {
+    mir.serde.SerdeException deserializeFromFghj(Fghj data) {
         data["groupUUID"].deserializeValue(this.uuid_);
         if (!data["name"].isEmpty) data["name"].deserializeValue(this.name_);
         if (!data["color"].isEmpty) data["color"].deserializeValue(this.color.vector);
@@ -92,14 +92,12 @@ public:
         this.parent = parent;
     }
     override
-    FghjException deserializeFromFghj(Fghj data) {
+    mir.serde.SerdeException deserializeFromFghj(Fghj data) {
         if (!data["parentUUID"].isEmpty)
             data["parentUUID"].deserializeValue(this.parentUUID);
         try{
         return super.deserializeFromFghj(data);
         }catch(Exception ex) {
-            import std.stdio;
-            writefln("%s", name);
             throw ex;
         }
     }
@@ -136,7 +134,6 @@ public:
     override
     void finalize(Puppet _puppet) {
         auto puppet = cast(ExPuppet)_puppet;
-        import std.stdio;
         if (puppet !is null && parent is null && parentUUID != InInvalidUUID) {
             setParent(puppet.findGroup(parentUUID));
         }

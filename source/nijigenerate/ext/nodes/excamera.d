@@ -13,7 +13,7 @@ import nijilive.core.nodes.part;
 import nijilive.core.nodes;
 import nijilive.core;
 import nijilive.fmt.serialize;
-import std.stdio : writeln;
+//import std.stdio : writeln;
 import nijilive.math;
 import nijilive.core.dbg;
 
@@ -113,6 +113,10 @@ public:
     */
     ref vec2 getViewport() {
         return viewport;
+    }
+
+    void setViewport(vec2 value) {
+        viewport = value;
     }
 
 }

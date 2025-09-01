@@ -6,5 +6,8 @@ enum VertexToolMode {
     PathDeform,
     Grid,
     Brush,
+    BezierDeform,
+    AltMeshGroup,
+    AltBezierDeform,
     LassoSelection,
 };

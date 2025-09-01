@@ -13,7 +13,6 @@ import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.brushes;
 import i18n;
-import nijigenerate.viewport;
 import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.spline;
@@ -29,7 +28,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
-import std.stdio;
+//import std.stdio;
 
 class IncMeshEditorOne {
 public:
@@ -41,7 +40,10 @@ public:
     abstract bool addVertex(ImGuiIO* io);
     abstract bool updateChanged(bool changed);
     abstract void addMeshVertex(MeshVertex* v2);
+    abstract void insertMeshVertex(int index, MeshVertex* v2);
     abstract void removeMeshVertex(MeshVertex* v2);
+    int  indexOfMesh(MeshVertex* v) { return -1; };
+    abstract void moveMeshVertex(MeshVertex* v, vec2 newPos);
     
     abstract bool isPointOver(vec2 mousePos);
     abstract ulong[] getInRect(vec2 min, vec2 max, uint groupId);
@@ -67,11 +69,21 @@ public:
     bool invertSelection = false;
     ulong maybeSelectOne;
     ulong vtxAtMouse;
+
     vec2 selectOrigin;
     IncMesh previewMesh;
 
     bool deforming = false;
     float meshEditAOE = 4;
+
+    bool previewTriangulate = false;
+    bool mirrorHoriz = false;
+    bool mirrorVert = false;
+    vec2 mirrorOrigin = vec2(0, 0);
+    mat4 transform = mat4.identity;
+
+    vec4 vertexColor = vec4(1, 1, 1, 1);
+    vec4 edgeColor   = vec4(0.5, 0.5, 0.5, 1);
 
     bool isSelected(ulong vertIndex) {
         import std.algorithm.searching : canFind;
@@ -177,6 +189,14 @@ public:
         return vInd;
     }
 
+    MeshVertex* mirrorVertex(uint axis, MeshVertex* vtx) {
+        if (axis == 0) return vtx;
+        ulong vInd = getVertexFromPoint(mirror(axis, vtx.position));
+        MeshVertex* v = getVerticesByIndex([vInd])[0];
+        if (v is null || v == vtx) return null;
+        return getVerticesByIndex([vInd])[0];
+    }
+
     bool isOnMirror(vec2 pos, float aoe) {
         return 
             (mirrorVert && pos.y > -aoe && pos.y < aoe) ||
@@ -230,11 +250,6 @@ public:
         }
         selected = tmpSelected;
     }
-    bool previewTriangulate = false;
-    bool mirrorHoriz = false;
-    bool mirrorVert = false;
-    vec2 mirrorOrigin = vec2(0, 0);
-    mat4 transform = mat4.identity;
 
     this(bool deformOnly) {
         this.deformOnly = deformOnly;
@@ -245,6 +260,7 @@ public:
     }
 
     abstract void setToolMode(VertexToolMode toolMode);
+    abstract void finalizeToolMode();
 
     bool previewingTriangulation() {
          return previewTriangulate && toolMode == VertexToolMode.Points;
@@ -252,6 +268,9 @@ public:
 
     abstract Node getTarget();
     abstract void setTarget(Node target);
+    abstract Node[] getFilterTargets();
+    abstract void addFilterTarget(Node parent);
+    abstract void removeFilterTarget(Node parent);
     abstract void resetMesh();
     abstract void refreshMesh();
     abstract void importMesh(ref MeshData data);

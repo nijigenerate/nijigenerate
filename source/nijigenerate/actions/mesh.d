@@ -3,15 +3,15 @@ module nijigenerate.actions.mesh;
 import nijigenerate.core.actionstack;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.operations;
+import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate.viewport.vertex;
-import nijigenerate.viewport;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
 import std.format;
 import std.range;
 import i18n;
-import std.stdio;
+//import std.stdio;
 import std.algorithm;
 
 /**
@@ -22,6 +22,8 @@ abstract class MeshAction  : LazyBoundAction {
     bool dirty;
     IncMeshEditorOne editor;
     IncMesh mesh;
+    SubToolMode[] oldSubToolMode;
+    SubToolMode[] newSubToolMode;
 
     struct Connection {
         MeshVertex* v1;
@@ -30,11 +32,20 @@ abstract class MeshAction  : LazyBoundAction {
 
     bool undoable = true;
 
+    alias self = editor;
+
     this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
         this.name = name;
         this.editor = editor;
         this.mesh = mesh;
         this.clear();
+
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
+            import std.stdio;
+            writefln("MeshAction: capture oldSubToolMode=%s", oldSubToolMode);
+        }
 
         if (update !is null) {
             update();
@@ -45,6 +56,12 @@ abstract class MeshAction  : LazyBoundAction {
     void markAsDirty() { dirty = true; }
 
     void updateNewState() {
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
+            import std.stdio;
+            writefln("MeshAction: capture newSubToolMode=%s", newSubToolMode);
+        }
     }
 
     void clear() {
@@ -71,267 +88,34 @@ abstract class MeshAction  : LazyBoundAction {
     string getName() {
         return this.stringof;
     }
-};
 
-class MeshAddAction  : MeshAction {
-    MeshVertex*[] vertices;
-
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
-    }
-
-    void addVertex(MeshVertex* vertex) {
-        vertices ~= vertex;
-        mesh.vertices ~= vertex;
-        dirty = true;
-    }
-
-    override
-    void markAsDirty() { dirty = true; }
-
-    override
-    void updateNewState() {
-    }
-
-    override
-    void clear() {
-        vertices.length = 0;
-        super.clear();
-    }
-
-    /**
-        Rollback
-    */
-    void rollback() {
-        if (undoable) {
-            foreach (v; vertices) {
-                mesh.remove (v);
-            }
-            undoable = false;
-            editor.refreshMesh();
-        }
-    }
-
-    /**
-        Redo
-    */
-    void redo() {
-        if (!undoable) {
-            foreach (v; vertices) {
-                mesh.vertices ~= v;
-            }
-            undoable = true;
-            editor.refreshMesh();
-        }
-    }
-
-    /**
-        Describe the action
-    */
-    override
-    string describe() {
-        return _("%s: vertex was added.").format(name);
-    }
-
-    /**
-        Describe the action
-    */
-    override
-    string describeUndo() {
-        return _("%s: vertex was removed.").format(name);
-    }
-
-    /**
-        Gets name of this action
-    */
-    override
-    string getName() {
-        return this.stringof;
-    }
-};
-
-class MeshRemoveAction  : MeshAction {
-    MeshVertex*[] vertices;
-    Connection[] connections;
-
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
-    }
-
-    void removeVertex(MeshVertex* vertex, bool executeAction = true) {
-        vertices ~= vertex;
-        foreach (con; vertex.connections) {
-            connections ~= Connection(vertex, con);
-        }
-        if (executeAction)
-            mesh.remove(vertex);
-        dirty = true;
-    }
-
-    void removeVertices() {
-        foreach (v; vertices) {
-            mesh.remove(v);
-        }
-    }
-
-    override
-    void markAsDirty() { dirty = true; }
-
-    override
-    void updateNewState() {
-    }
-
-    override
-    void clear() {
-        vertices.length = 0;
-        super.clear();
-    }
-
-    /**
-        Rollback
-    */
     override
     void rollback() {
-        if (undoable) {
-            foreach (v; vertices) {
-                mesh.vertices ~= v;
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            foreach (i, t; filterTargets) {
+                (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
             }
-            foreach (c; connections) {
-                c.v1.connect(c.v2);
-            }
-            undoable = false;
-            editor.refreshMesh();
+            import std.stdio;
+            writefln("MeshAction: undo.mode=%s", oldSubToolMode);
         }
     }
 
-    /**
-        Redo
-    */
     override
     void redo() {
-        if (!undoable) {
-            foreach (v; vertices) {
-                mesh.remove(v);
+        auto filterTargets = self ? self.getFilterTargets(): [];
+        if (filterTargets.length > 0) {
+            foreach (i, t; filterTargets) {
+                (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
             }
-            undoable = true;
-            editor.refreshMesh();
+            import std.stdio;
+            writefln("MeshAction: redo.mode=%s", newSubToolMode);
         }
     }
 
-    /**
-        Describe the action
-    */
-    override
-    string describe() {
-        return _("%s: vertex was removed.").format(name);
-    }
-
-    /**
-        Describe the action
-    */
-    override
-    string describeUndo() {
-        return _("%s: vertex was added.").format(name);
-    }
-
-    /**
-        Gets name of this action
-    */
-    override
-    string getName() {
-        return this.stringof;
-    }
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
 };
-
-
-class MeshMoveAction  : MeshAction {
-    struct Translation {
-        vec2 original;
-        vec2 translated;
-    };
-    Translation[MeshVertex*] translations;
-
-    this(string name, IncMeshEditorOne editor, IncMesh mesh, void delegate() update = null) {
-        super(name, editor, mesh, update);
-    }
-
-    void moveVertex(MeshVertex* vertex, vec2 newPos) {
-        if (vertex in translations) {
-            translations[vertex].translated = newPos;
-        } else {
-            translations[vertex] = Translation(vertex.position, newPos);
-        }
-        vertex.position = newPos;
-        dirty = true;
-    }
-
-    override
-    void markAsDirty() { dirty = true; }
-
-    override
-    void updateNewState() {}
-
-    override
-    void clear() {
-        translations.clear();
-        super.clear();
-    }
-
-    /**
-        Rollback
-    */
-    override
-    void rollback() {
-        if (undoable) {
-            foreach (v, t; translations) {
-                auto vertex = cast(MeshVertex*)v;
-                vertex.position = t.original;
-            }
-            undoable = false;
-            editor.refreshMesh();
-        }
-    }
-
-    /**
-        Redo
-    */
-    override
-    void redo() {
-        if (!undoable) {
-            foreach (v, t; translations) {
-                auto vertex = cast(MeshVertex*)v;
-                vertex.position = t.translated;
-            }
-            undoable = true;
-            editor.refreshMesh();
-        }
-    }
-
-    /**
-        Describe the action
-    */
-    override
-    string describe() {
-        return _("%s: vertex was translated.").format(name);
-    }
-
-    /**
-        Describe the action
-    */
-    override
-    string describeUndo() {
-        return _("%s: vertex was translated.").format(name);
-    }
-
-    /**
-        Gets name of this action
-    */
-    override
-    string getName() {
-        return this.stringof;
-    }
-};
-
 
 class MeshConnectAction  : MeshAction {
     MeshVertex*[][MeshVertex*] connected;
@@ -352,6 +136,7 @@ class MeshConnectAction  : MeshAction {
 
     override
     void updateNewState() {
+        super.updateNewState();
     }
 
     override
@@ -366,6 +151,7 @@ class MeshConnectAction  : MeshAction {
     override
     void rollback() {
         if (undoable) {
+            super.rollback();
             foreach (v, c; connected) {
                 auto vertex = cast(MeshVertex*)v;
                 foreach (other; c) {
@@ -383,6 +169,7 @@ class MeshConnectAction  : MeshAction {
     override
     void redo() {
         if (!undoable) {
+            super.redo();
             foreach (v, c; connected) {
                 auto vertex = cast(MeshVertex*)v;
                 foreach (other; c) {
@@ -439,6 +226,7 @@ class MeshDisconnectAction  : MeshAction {
 
     override
     void updateNewState() {
+        super.updateNewState();
     }
 
     override
