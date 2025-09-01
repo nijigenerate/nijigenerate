@@ -12,7 +12,9 @@ import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.operations;
+import nijigenerate.viewport.model.mesheditor;
 import nijigenerate.widgets;
+import nijigenerate : EditMode, incEditMode;
 import i18n;
 import bindbc.imgui;
 import nijilive;
@@ -111,7 +113,7 @@ public:
 
         // get the vertices
         vec2[] vertices;
-        if (auto tmpImpl = cast(IncMeshEditorOneDrawableDeform)impl) {
+        if (auto tmpImpl = cast(IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit))impl) {
             auto drawable = cast(Drawable)tmpImpl.getTarget();
             vertices.length = drawable.vertices().length;
             foreach (index, vec; drawable.vertices())
