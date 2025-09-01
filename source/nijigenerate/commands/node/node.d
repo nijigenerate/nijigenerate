@@ -11,6 +11,7 @@ import nijigenerate.viewport.vertex;
 import nijilive;
 import nijigenerate.widgets;
 import i18n;
+import core.exception;
 
 
 //==================================================================================
@@ -33,7 +34,7 @@ class AddNodeCommand : ExCommand!(
             } else if (ctx.hasPuppet && ctx.puppet !is null) {
                 ngAddNodes([ctx.puppet.root], className, _suffix);
             }
-        } catch (Exception e) {
+        } catch (RangeError e) {
             // should return failure.
         }
     }
@@ -54,7 +55,7 @@ class InsertNodeCommand : ExCommand!(
             } else if (ctx.hasPuppet && ctx.puppet !is null) {
                 ngInsertNodes([ctx.puppet.root], className, _suffix);
             }
-        } catch (Exception e) {
+        } catch (RangeError e) {
             // should return failure.
         }
     }
