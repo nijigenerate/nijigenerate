@@ -6,7 +6,7 @@
     Authors: Lin, Yong Xiang <r888800009@gmail.com>
 */
 module nijigenerate.viewport.common.mesheditor.tools.lasso;
-import nijigenerate.viewport;
+import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
