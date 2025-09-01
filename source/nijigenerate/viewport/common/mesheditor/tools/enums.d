@@ -8,5 +8,6 @@ enum VertexToolMode {
     Brush,
     BezierDeform,
     AltMeshGroup,
-    AltBezierDeform
+    AltBezierDeform,
+    LassoSelection,
 };
