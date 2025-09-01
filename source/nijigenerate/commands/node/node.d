@@ -27,8 +27,15 @@ class AddNodeCommand : ExCommand!(
 
     override
     void run(Context ctx) {
-        if (ctx.hasNodes)
-            ngAddNodes(ctx.nodes, className, _suffix);
+        try {
+            if (ctx.hasNodes) {
+                ngAddNodes(ctx.nodes, className, _suffix);
+            } else if (ctx.hasPuppet && ctx.puppet !is null) {
+                ngAddNodes([ctx.puppet.root], className, _suffix);
+            }
+        } catch (Exception e) {
+            // should return failure.
+        }
     }
 }
 
@@ -41,8 +48,15 @@ class InsertNodeCommand : ExCommand!(
 
     override
     void run(Context ctx) {
-        if (ctx.hasNodes)
-            ngInsertNodes(ctx.nodes, className, _suffix);
+        try {
+            if (ctx.hasNodes) {
+                ngInsertNodes(ctx.nodes, className, _suffix);
+            } else if (ctx.hasPuppet && ctx.puppet !is null) {
+                ngInsertNodes([ctx.puppet.root], className, _suffix);
+            }
+        } catch (Exception e) {
+            // should return failure.
+        }
     }
 }
 
