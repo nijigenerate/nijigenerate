@@ -218,6 +218,10 @@ protected:
                     incEndCategory();
                 }
             }
+
+            // assert user camera size is not odd, it will cause ffmpeg to fail and crash
+            bool userAssertOdd = incVerifyCameraSizeShowWarning(selectedCamera);
+
             igEndChild();
         igEndDisabled();
 
@@ -227,7 +231,11 @@ protected:
             igSameLine(0, 4);
 
             if (!vctx) {
-                if (incButtonColored(__("Export"), ImVec2(64, 24))) {
+                igBeginDisabled(userAssertOdd);
+                    bool clicked = incButtonColored(__("Export"), ImVec2(64, 24));
+                igEndDisabled();
+
+                if (clicked) {
                     playback = player.createOrGet(animToExport);
 
                     loops = clamp(loops, 1, int.max);
@@ -269,6 +277,7 @@ protected:
                     }
                 } else {
                     if (incButtonColored(__("Close"), ImVec2(64, 24))) {
+                        vctx.end();
                         this.close();
                     }
                 }
