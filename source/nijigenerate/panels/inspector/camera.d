@@ -26,10 +26,11 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExCamera)
             incText(_("Viewport"));
             igIndent();
                 igSetNextItemWidth(incAvailableSpace().x);
-                if (_shared!viewportOrigin(()=>igDragFloat2("###VIEWPORT", cast(float[2]*)(viewportOrigin.value.ptr)))) {
+                if (_shared!viewportOrigin(()=>igDragFloat2("###VIEWPORT", cast(float[2]*)(viewportOrigin.value.ptr), 2))) {
                     auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.ViewportOrigin)(ctx, viewportOrigin.value);
                 }
+                incVerifyCameraSizeShowWarning(node);
             igUnindent();
 
             // Padding
