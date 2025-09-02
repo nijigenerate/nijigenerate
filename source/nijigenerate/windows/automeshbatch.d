@@ -102,13 +102,49 @@ private:
 
     }
 
-    void treeView() {
-
+    Node[] getFilteredNodes() {
         import std.algorithm.searching : canFind;
-        selectAll = true;
-        foreach(i, ref Node node; nodes) {
-            if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
 
+        // if nodeFilter empty, return all nodes
+        if (nodeFilter.length == 0) return nodes;
+        
+        Node[] filteredNodes;
+        foreach(node; nodes) {
+            if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
+            filteredNodes ~= node;
+        }
+        return filteredNodes;
+    }
+
+    void handleKeyboardNavigation(Node[] filteredNodes) {
+        import std.algorithm.searching : countUntil;
+        
+        // Don't handle keyboard navigation if any ImGui item is currently active (e.g., text input)
+        if (igIsAnyItemActive()) return;
+        
+        if (filteredNodes.length == 0) return;
+        
+        // Find current index
+        ptrdiff_t currentIndex = active ? filteredNodes.countUntil(active) : -1;
+        
+        // Handle navigation keys
+        if (igIsKeyPressed(ImGuiKey.UpArrow, true)) {
+            currentIndex = currentIndex <= 0 ? filteredNodes.length - 1 : currentIndex - 1;
+            active = filteredNodes[currentIndex];
+        } else if (igIsKeyPressed(ImGuiKey.DownArrow, true)) {
+            currentIndex = currentIndex >= filteredNodes.length - 1 ? 0 : currentIndex + 1;
+            active = filteredNodes[currentIndex];
+        }
+        
+        // Handle space key for toggle selection
+        if (igIsKeyPressed(ImGuiKey.Space, true) && active && isApplicable(active)) {
+            selected[active.uuid] = !selected.get(active.uuid, false);
+        }
+    }
+
+    void renderNodeList(Node[] filteredNodes) {
+        selectAll = true;
+        foreach(i, ref Node node; filteredNodes) {
             igPushID(cast(int)i);
 
             if (igSelectable("###%x".format(node.uuid).toStringz, active == node, ImGuiSelectableFlagsI.SpanAvailWidth | ImGuiSelectableFlags.AllowItemOverlap)) {
@@ -164,7 +200,13 @@ private:
             igPopID();
         }
         toggleAction = ToggleAction.NoAction;
+    }
 
+    void treeView() {
+        // Pipeline: 1. Filter -> 2. Handle Keyboard Navigation -> 3. Render
+        Node[] filteredNodes = getFilteredNodes();
+        handleKeyboardNavigation(filteredNodes);
+        renderNodeList(filteredNodes);
     }
 
     bool shouldBeSelected(Node node) {
