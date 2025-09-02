@@ -104,6 +104,9 @@ private:
 
     Node[] getFilteredNodes() {
         import std.algorithm.searching : canFind;
+
+        // if nodeFilter empty, return all nodes
+        if (nodeFilter.length == 0) return nodes;
         
         Node[] filteredNodes;
         foreach(node; nodes) {
