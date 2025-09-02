@@ -102,9 +102,46 @@ private:
 
     }
 
+    void handleKeyboardNavigation() {
+        import std.algorithm.searching : canFind, countUntil;
+        
+        // Don't handle keyboard navigation if any ImGui item is currently active (e.g., text input)
+        if (igIsAnyItemActive()) return;
+        
+        // Get filtered nodes
+        Node[] filteredNodes;
+        foreach(node; nodes) {
+            if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
+            filteredNodes ~= node;
+        }
+        
+        if (filteredNodes.length == 0) return;
+        
+        // Find current index
+        ptrdiff_t currentIndex = active ? filteredNodes.countUntil(active) : -1;
+        
+        // Handle navigation keys
+        if (igIsKeyPressed(ImGuiKey.UpArrow, true)) {
+            currentIndex = currentIndex <= 0 ? filteredNodes.length - 1 : currentIndex - 1;
+            active = filteredNodes[currentIndex];
+        } else if (igIsKeyPressed(ImGuiKey.DownArrow, true)) {
+            currentIndex = currentIndex >= filteredNodes.length - 1 ? 0 : currentIndex + 1;
+            active = filteredNodes[currentIndex];
+        }
+        
+        // Handle space key for toggle selection
+        if (igIsKeyPressed(ImGuiKey.Space, true) && active && isApplicable(active)) {
+            selected[active.uuid] = !selected.get(active.uuid, false);
+        }
+    }
+
     void treeView() {
 
         import std.algorithm.searching : canFind;
+        
+        // Handle keyboard navigation
+        handleKeyboardNavigation();
+        
         selectAll = true;
         foreach(i, ref Node node; nodes) {
             if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
