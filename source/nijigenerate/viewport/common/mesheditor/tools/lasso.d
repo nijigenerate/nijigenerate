@@ -111,14 +111,21 @@ public:
         if (lassoPoints.length < 2 * 2)
             return;
 
+        // Helper function to get deformed vertices from a deformable object
+        void getDeformedVertices(T)(T deformableObject, ref vec2[] vertices) {
+            vertices.length = deformableObject.vertices().length;
+            foreach (index, vec; deformableObject.vertices())
+                vertices[index] = vec + deformableObject.deformation[index];
+        }
+
         // get the vertices
         vec2[] vertices;
         if (auto tmpImpl = cast(IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit))impl) {
             // We need to use Drawable because it has been Deformed
-            auto drawable = cast(Drawable)tmpImpl.getTarget();
-            vertices.length = drawable.vertices().length;
-            foreach (index, vec; drawable.vertices())
-                vertices[index] = vec + drawable.deformation[index];
+            getDeformedVertices(cast(Drawable)tmpImpl.getTarget(), vertices);
+        } else if (auto tmpImpl = cast(IncMeshEditorOneFor!(Deformable, EditMode.ModelEdit))impl) {
+            // Handle Deformable in ModelEdit mode
+            getDeformedVertices(cast(Deformable)tmpImpl.getTarget(), vertices);
         } else if (auto tmpImpl = cast(IncMeshEditorOneDrawable)impl) {
             // We can't use Drawable because the Drawable hasn't been updated yet
             // For edit mode we are not affected by binding so can use mesh vertices directly
@@ -130,7 +137,10 @@ public:
             foreach (index, meshVertex; mesh.vertices)
                 vertices[index] = meshVertex.position;
         } else {
-            throw new Exception("Invalid IncMeshEditorOne type");
+            // Prevent Hard Crash
+            string typeName = typeid(impl).name;
+            incDialog(__("Error"), "Lasso Tool Error: \nInvalid IncMeshEditorOne type, please report this issue to the developer. \n\nType: " ~ typeName);
+            return;
         }
 
         // check if the point is inside the lasso polygon
