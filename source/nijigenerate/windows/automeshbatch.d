@@ -102,18 +102,22 @@ private:
 
     }
 
-    void handleKeyboardNavigation() {
-        import std.algorithm.searching : canFind, countUntil;
+    Node[] getFilteredNodes() {
+        import std.algorithm.searching : canFind;
         
-        // Don't handle keyboard navigation if any ImGui item is currently active (e.g., text input)
-        if (igIsAnyItemActive()) return;
-        
-        // Get filtered nodes
         Node[] filteredNodes;
         foreach(node; nodes) {
             if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
             filteredNodes ~= node;
         }
+        return filteredNodes;
+    }
+
+    void handleKeyboardNavigation(Node[] filteredNodes) {
+        import std.algorithm.searching : countUntil;
+        
+        // Don't handle keyboard navigation if any ImGui item is currently active (e.g., text input)
+        if (igIsAnyItemActive()) return;
         
         if (filteredNodes.length == 0) return;
         
@@ -135,17 +139,9 @@ private:
         }
     }
 
-    void treeView() {
-
-        import std.algorithm.searching : canFind;
-        
-        // Handle keyboard navigation
-        handleKeyboardNavigation();
-        
+    void renderNodeList(Node[] filteredNodes) {
         selectAll = true;
-        foreach(i, ref Node node; nodes) {
-            if (nodeFilter.length > 0 && !node.name.toLower.canFind(nodeFilter.toLower)) continue;
-
+        foreach(i, ref Node node; filteredNodes) {
             igPushID(cast(int)i);
 
             if (igSelectable("###%x".format(node.uuid).toStringz, active == node, ImGuiSelectableFlagsI.SpanAvailWidth | ImGuiSelectableFlags.AllowItemOverlap)) {
@@ -201,7 +197,13 @@ private:
             igPopID();
         }
         toggleAction = ToggleAction.NoAction;
+    }
 
+    void treeView() {
+        // Pipeline: 1. Filter -> 2. Handle Keyboard Navigation -> 3. Render
+        Node[] filteredNodes = getFilteredNodes();
+        handleKeyboardNavigation(filteredNodes);
+        renderNodeList(filteredNodes);
     }
 
     bool shouldBeSelected(Node node) {
