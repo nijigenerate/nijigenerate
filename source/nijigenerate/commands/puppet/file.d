@@ -31,7 +31,7 @@ class ShowOpenFileDialogCommand : ExCommand!() {
 }
 
 class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) {
-    this(string file) { super(_("Open"), _("Open puppet from specified file."), file); }
+    this(string file) { super(_("Open from file path"), _("Open puppet from specified file."), file); }
 
     override
     void run(Context ctx) {
@@ -52,7 +52,7 @@ class ShowSaveFileDialogCommand : ExCommand!() {
 }
 
 class SaveFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) {
-    this(string file) { super(_("Save"), _("Save puppet to specified file."), file); }
+    this(string file) { super(_("Save to file path"), _("Save puppet to specified file."), file); }
 
     override
     void run(Context ctx) {
