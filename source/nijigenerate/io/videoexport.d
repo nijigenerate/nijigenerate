@@ -188,6 +188,13 @@ public:
                 null,
                 Config(Config.Flags.suppressConsole)
             );
+
+            // Prevent parent process hard crash caused by ffmpeg
+            version (Posix) {
+                // Ignore SIGPIPE so writing to a closed pipe won't kill parent process
+                import core.sys.posix.signal : signal, SIGPIPE, SIG_IGN;
+                signal(SIGPIPE, SIG_IGN);
+            }
             isAlive = true;
         } catch (Exception ex) {
             errors_ ~= ex.msg;
@@ -226,10 +233,18 @@ public:
     }
 
     /**
-        Closes pipes
+        Closes stdin (non-blocking). Finalization is polled via hasTerminated().
     */
     void end() {
         this.ffmpegPipes.stdin.close();
+    }
+
+    /**
+        Non-blocking check: returns true once ffmpeg has terminated.
+    */
+    bool hasTerminated() {
+        auto t = tryWait(this.ffmpegPipes.pid);
+        return t.terminated;
     }
 
     /**

@@ -58,6 +58,7 @@ private:
     VideoCodec codec;
     string animToExport;
     bool done = false;
+    bool finalizing = false;
 
     AnimationPlayer player;
     AnimationPlaybackRef playback;
@@ -139,16 +140,32 @@ protected:
         }
 
         if (vctx && !done) {
-            this.exportFrame();
-            if (vctx.progress >= 1) {
-                incEndExportVideo();
-                done = true;
-            }
+            bool send_stdin_finished = (vctx.progress >= 1);
+            
+            if (send_stdin_finished) {
+                import std.stdio : writeln;
 
-            if (!vctx.checkState) {
-                incDialog("ENCODE_ERROR", __("Error"), "FFMPEG Encoding Error:\n"~vctx.errors());
-                vctx.end();
-                vctx = null;
+                // Finalize once all frames were produced. Non-blocking: poll until ffmpeg terminates.
+                if (!finalizing) {
+                    writeln("ffmpeg closing stdin and waiting for termination");
+                    vctx.end();
+                    finalizing = true;
+                }
+                if (vctx.hasTerminated) {
+                    writeln("ffmpeg terminated");
+                    incEndExportVideo();
+                    done = true;
+                }
+            } else {
+                // Still exporting
+                this.exportFrame();
+
+                if (!vctx.checkState) {
+                    // Only reached for genuine early failures (before completion)
+                    incDialog("ENCODE_ERROR", __("Error"), "FFMPEG Encoding Error:\n"~vctx.errors());
+                    vctx.end();
+                    vctx = null;
+                }
             }
         }
 
@@ -277,7 +294,6 @@ protected:
                     }
                 } else {
                     if (incButtonColored(__("Close"), ImVec2(64, 24))) {
-                        vctx.end();
                         this.close();
                     }
                 }
