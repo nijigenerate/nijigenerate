@@ -47,6 +47,7 @@ private {
             "Paste": "\ue14f",
             "Reload": "\ue5d5",
             "More Info": "\ue88e",
+            "Parameter Usage": "\ue429",
             "Recalculate origin": "\ue57b",
             "Convert To...": "\ue043",
         ];
@@ -202,6 +203,34 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                 igEndMenu();
             }
             if (icon) incTooltip(_(nodeActionToIcon!false("More Info")));
+
+            // Show which parameters use this node (by parameter IDs)
+            if (igBeginMenu(__(nodeActionToIcon!icon("Parameter Usage")), true)) {
+                bool anyFound = false;
+                foreach (param; incActivePuppet().parameters) {
+                    bool found = false;
+                    foreach (binding; param.bindings) {
+                        auto targetRes = binding.getTarget().target;
+                        if (auto targetNode = cast(Node)targetRes) {
+                            if (targetNode is n) { found = true; break; }
+                        }
+                    }
+                    if (found) {
+                        anyFound = true;
+                        if (igMenuItem(param.name.toStringz, null, false, true)) {
+                            Context pctx = new Context();
+                            pctx.puppet = incActivePuppet();
+                            pctx.parameters = [param];
+                            cmd!(ParameditCommand.ToggleParameterArm)(pctx);
+                        }
+                    }
+                }
+                if (!anyFound) {
+                    incText(_("No parameter uses this node"));
+                }
+                igEndMenu();
+            }
+            if (icon) incTooltip(_(nodeActionToIcon!false("Parameter Usage")));
 
             if (igMenuItem(__(nodeActionToIcon!icon("Recalculate origin")), "", false, true)) {
                 cmd!(NodeCommand.CentralizeNode)(ctx);
