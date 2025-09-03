@@ -45,6 +45,3 @@ build-aux/windows/wix/bin
 build.log
 build.err
 
-# Exclude agent guidance doc from commits
-AGENTS.md
-AGENT.md
