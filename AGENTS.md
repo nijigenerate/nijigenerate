@@ -44,14 +44,17 @@
 - Functions: Add `ng` prefix for public scope functions. do not add any prefix for private scope functions. No prefix is required for methods.
 - Compile‑time configuration constants follow `NG_*` (or `INC_*` for older definitions) uppercase style (see `source/nijigenerate/config.d`).
 - Imports: group logically; prefer specific imports; minimize `public import` to stable surface areas.
+- Blocks: `{` must be on the same line as the function declaration; do not place it on a new line.
 - Formatting: keep consistent with existing code; if available, run `dfmt -i source/...` before pushing.
+- Comments: must be written in English.
 
 ## Testing Guidelines
-- Checks: verfiy implementation by following build instruction when you make any change for source codes; update docs/strings when changing UI; avoid unrelated formatting churn.
+- Checks: verfiy implementation by executing build instruction when you make any change for source codes; update docs/strings when changing UI; avoid unrelated formatting churn.
 
 ## Commit & Pull Request Guidelines
 - Do not commit automatically. Commit only if explicitly specified.
 - Commits: present tense and concise. Optional scope prefix (e.g., `fix: core: …`, `feature: ui: …`, `refactor: shortcuts: …`).
+- Commit comments: must be written in English.
 - For forks/unofficial builds, update links in `source/nijigenerate/config.d` (bug reports, docs, website) before distribution.
 - No PR without approval.
 
