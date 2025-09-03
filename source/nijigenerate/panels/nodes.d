@@ -47,6 +47,7 @@ private {
             "Paste": "\ue14f",
             "Reload": "\ue5d5",
             "More Info": "\ue88e",
+            "Parameter Usage": "\ue429",
             "Recalculate origin": "\ue57b",
             "Convert To...": "\ue043",
         ];
