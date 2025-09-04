@@ -12,7 +12,7 @@ import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
-import nijigenerate.core.math.mesh;
+import nijigenerate.core.math;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
@@ -229,6 +229,18 @@ public:
     ulong[] getInRect(vec2 min, vec2 max, uint groupId = 0) { 
         return mesh.getInRect(selectOrigin, mousePos, groupId);
     }
+
+    override
+    ulong[] getInPoly(vec2[] points, uint groupId) {
+        ulong[] matching;
+        foreach(idx, vertex; mesh.vertices) {
+            if (!pointInPolygon(vertex, points, groupId)) continue;
+            matching ~= idx;
+        }
+
+        return matching;        
+    }
+
     override 
     MeshVertex*[] getVerticesByIndex(ulong[] indices, bool removeNull = false) {
         MeshVertex*[] result;

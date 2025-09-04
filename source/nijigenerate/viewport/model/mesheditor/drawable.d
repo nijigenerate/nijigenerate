@@ -10,6 +10,7 @@ import nijigenerate.viewport.common.mesheditor.brushes;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
+import nijigenerate.core.math;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.ext;
@@ -196,6 +197,17 @@ public:
             if (min.y > vertex.y) continue;
             if (max.x < vertex.x) continue;
             if (max.y < vertex.y) continue;
+            matching ~= idx;
+        }
+
+        return matching;        
+    }
+
+    override
+    ulong[] getInPoly(vec2[] points, uint groupId) {
+        ulong[] matching;
+        foreach(idx, vertex; vertices) {
+            if (!pointInPolygon(vertex, points, groupId)) continue;
             matching ~= idx;
         }
 
