@@ -209,7 +209,7 @@ public:
     }
 
     override
-    ulong[] getInPoly(vec2[] points, uint groupId) {
+    ulong[] getInPolygon(vec2[] points, uint groupId) {
         ulong[] matching;
         foreach(idx, vertex; vertices) {
             if (!pointInPolygon(vertex, points, groupId)) continue;

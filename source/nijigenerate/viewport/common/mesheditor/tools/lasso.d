@@ -114,7 +114,7 @@ public:
         if (lassoPoints.length < 2 * 2)
             return;
 
-        auto indices = impl.getInPoly(lassoPoints, impl.getGroupId());
+        auto indices = impl.getInPolygon(lassoPoints, impl.getGroupId());
 
         // check if the point is inside the lasso polygon
         if (!addSelect && !removeSelect)

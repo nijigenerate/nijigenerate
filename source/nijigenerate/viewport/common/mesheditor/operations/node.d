@@ -247,7 +247,7 @@ public:
     }
 
     override
-    ulong[] getInPoly(vec2[] points, uint groupId) {
+    ulong[] getInPolygon(vec2[] points, uint groupId) {
         if (pointInPolygon(translation, points, groupId)) {
             return [0];
         }
