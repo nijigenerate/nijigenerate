@@ -205,14 +205,13 @@ public:
     }
 
     override
-    ulong[] getInPolygon(vec2[] points, uint groupId) {
+    ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
         ulong[] matching;
-        foreach(idx, vertex; vertices) {
-            if (!pointInPolygon(vertex, points, groupId)) continue;
-            matching ~= idx;
+        foreach (idx, vertex; vertices) {
+            if (filter(vertex)) matching ~= idx;
         }
 
-        return matching;        
+        return matching;
     }
 
     override

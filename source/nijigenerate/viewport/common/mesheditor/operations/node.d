@@ -247,10 +247,9 @@ public:
     }
 
     override
-    ulong[] getInPolygon(vec2[] points, uint groupId) {
-        if (pointInPolygon(translation, points, groupId)) {
+    ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
+        if (filter(new MeshVertex(translation)))
             return [0];
-        }
         return [];
     }
 
