@@ -11,6 +11,9 @@ public import nijigenerate.viewport.common.mesheditor.tools.grid;
 public import nijigenerate.viewport.common.mesheditor.tools.brush;
 public import nijigenerate.viewport.common.mesheditor.tools.lasso;
 public import nijigenerate.viewport.common.mesheditor.tools.onetimedeform;
+
+// Vertex only tools
+public import nijigenerate.viewport.vertex.mesheditor.tools.edgecutter;
 import nijilive;
 
 private {
@@ -25,6 +28,7 @@ ToolInfo[] incGetToolInfo() {
         infoList ~= new ToolInfoImpl!(GridTool);
         infoList ~= new ToolInfoImpl!(BrushTool);
         infoList ~= new ToolInfoImpl!(LassoTool);
+        infoList ~= new ToolInfoImpl!(EdgeCutterTool);
         infoList ~= new ToolInfoImpl!(BezierDeformTool);
 //        infoList ~= new ToolInfoImpl!(OneTimeDeform!MeshGroup); // Disabled tool temporary
 //        infoList ~= new ToolInfoImpl!(OneTimeDeform!PathDeformer); // Disabled tool temporary

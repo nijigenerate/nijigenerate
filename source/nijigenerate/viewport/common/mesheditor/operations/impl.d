@@ -47,6 +47,13 @@ public:
         return target;
     }
 
+    // Default no-op implementations so non-drawable editors don't need to implement edge ops
+    override void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor) { }
+    override MeshDisconnectAction newMeshDisconnectAction(string name) {
+        assert(0, "newMeshDisconnectAction is only supported for drawable editors");
+        return null;
+    }
+
     override
     void setTarget(Node target) {
         this.target = cast(T)(target);
@@ -263,6 +270,23 @@ public:
 
     MeshVertex*[] vertices() {
         return mesh.vertices;
+    }
+
+    // Provide safe helpers so tools don't access mesh directly
+    override void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor) {
+        // Simple and safe: snapshot connections per vertex to avoid mutation issues.
+        // Each undirected edge will be visited once (when iterating the first endpoint)
+        // because by the time we reach the other endpoint, that connection has been removed.
+        foreach (v; mesh.vertices) {
+            auto conns = v.connections.dup;
+            foreach (conn; conns) {
+                visitor(v, conn);
+            }
+        }
+    }
+
+    override MeshDisconnectAction newMeshDisconnectAction(string name) {
+        return new MeshDisconnectAction(name, this, mesh);
     }
 }
 
