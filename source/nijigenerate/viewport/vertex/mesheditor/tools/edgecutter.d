@@ -21,6 +21,7 @@ import nijilive.core.dbg;
 import nijilive.math;
 import bindbc.imgui;
 import nijigenerate.widgets;
+import std.algorithm.searching : all;
 
 class EdgeCutterTool : NodeSelect {
     vec2 dragOrigin;
@@ -104,11 +105,21 @@ class EdgeCutterTool : NodeSelect {
 class ToolInfoImpl(T: EdgeCutterTool) : ToolInfoBase!(T) {
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
-        if (!deformOnly)
+        if (deformOnly)
+            return false;
+
+        bool isDrawable = editors.keys.all!(k => cast(Drawable)k !is null);
+        if (isDrawable) {
             return super.viewportTools(deformOnly, toolMode, editors);
+        }
         return false;
     }
-    override bool canUse(bool deformOnly, Node[] targets) { return !deformOnly; }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        if (deformOnly)
+            return false;
+
+        return targets.all!(k => cast(Drawable)k !is null);
+    }
     override VertexToolMode mode() { return VertexToolMode.EdgeCutter; }
     override string icon() { return "\uf1f8"; }
     override string description() { return _("Edge Cutter"); }
