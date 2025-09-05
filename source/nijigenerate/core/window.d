@@ -721,7 +721,7 @@ void incSetDefaultLayout() {
     ImGuiID 
         dockMainID, dockIDNodes, dockIDInspector, dockIDHistory, dockIDParams,
         dockIDToolSettings, dockIDLoggerAndTextureSlots, dockIDTimeline, dockIDAnimList,
-        dockIDArmedParams;
+        dockIDArmedParams, dockIDResources;
 
     dockMainID = viewportDock;
     dockIDAnimList = igDockBuilderSplitNode(dockMainID, ImGuiDir.Left, 0.10f, null, &dockMainID);
@@ -733,6 +733,7 @@ void incSetDefaultLayout() {
     dockIDParams = igDockBuilderSplitNode(dockMainID, ImGuiDir.Left, 0.15f, null, &dockMainID);
     // Split Parameters area to place Armed Parameters above Parameters
     dockIDArmedParams = igDockBuilderSplitNode(dockIDParams, ImGuiDir.Up, 0.3f, null, &dockIDParams);
+    dockIDResources = igDockBuilderSplitNode(dockMainID, ImGuiDir.Left, 0.20f, null, &dockMainID);
 
     igDockBuilderDockWindow("###Nodes", dockIDNodes);
     igDockBuilderDockWindow("###Inspector", dockIDInspector);
@@ -745,6 +746,7 @@ void incSetDefaultLayout() {
     igDockBuilderDockWindow("###Armed Parameters", dockIDArmedParams);
     igDockBuilderDockWindow("###Parameters", dockIDParams);
     igDockBuilderDockWindow("###Texture Slots", dockIDLoggerAndTextureSlots);
+    igDockBuilderDockWindow("###Resources", dockIDResources);
 
     igDockBuilderFinish(viewportDock);
 }
