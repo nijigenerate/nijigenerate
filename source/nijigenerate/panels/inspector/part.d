@@ -356,6 +356,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                         MaskBinding* masker = &node.masks[i];
                         igPushID(cast(int)i);
                             if (igBeginPopup("###MaskSettings")) {
+                                if (igMenuItem(__("Focus"))) {
+                                    incFocusCamera(masker.maskSrc);
+                                    incSelectNode(masker.maskSrc);
+                                }
                                 if (igBeginMenu(__("Mode"))) {
                                     if (igMenuItem(__("Mask"), null, masker.mode == MaskingMode.Mask)) {
                                         masker.mode = MaskingMode.Mask;
@@ -450,6 +454,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                         Drawable.WeldingLink* welded = &node.welded[i];
                         igPushID(cast(int)i);
                             if (igBeginPopup("###WeldedLink")) {
+                                if (igMenuItem(__("Focus"))) {
+                                    incFocusCamera(welded.target);
+                                    incSelectNode(welded.target);
+                                }
 
                                 if (igMenuItem(__("Delete"))) {
                                     incActionPush(new DrawableRemoveWeldingAction(node, node.welded[i].target, node.welded[i].indices, node.welded[i].weight));

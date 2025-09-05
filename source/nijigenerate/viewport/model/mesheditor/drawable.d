@@ -10,6 +10,7 @@ import nijigenerate.viewport.common.mesheditor.brushes;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
+import nijigenerate.core.math;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.ext;
@@ -200,6 +201,18 @@ public:
         }
 
         return matching;        
+    }
+
+    override
+    ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
+        ulong[] matching;
+        MeshVertex mv;
+        foreach (idx, vertex; vertices) {
+            mv.position = vertex;
+            if (filter(&mv)) matching ~= idx;
+        }
+
+        return matching;
     }
 
     override 
