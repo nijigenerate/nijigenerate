@@ -193,7 +193,7 @@ public:
         if (min.y > max.y) swap(min.y, max.y);
 
         ulong[] matching;
-        foreach(idx, vertex; vertices) {
+        foreach(idx, vertex; inputVertices) {
             if (min.x > vertex.position.x) continue;
             if (min.y > vertex.position.y) continue;
             if (max.x < vertex.position.x) continue;
@@ -207,8 +207,10 @@ public:
     override
     ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
         ulong[] matching;
-        foreach (idx, vertex; vertices) {
-            if (filter(vertex)) matching ~= idx;
+        MeshVertex mv;
+        foreach (idx, vertex; inputVertices) {
+            mv.position = vertex;
+            if (filter(&mv)) matching ~= idx;
         }
 
         return matching;
