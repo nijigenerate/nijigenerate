@@ -209,6 +209,18 @@ public:
     }
 
     override
+    ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
+        ulong[] matching;
+        foreach(idx, vertex; vertices) {
+            if (filter(vertex)) 
+                matching ~= idx;
+        }
+
+        return matching;
+    }
+
+
+    override
     void createPathTarget() {
     }
 

@@ -18,6 +18,7 @@ import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.brushes;
 import nijigenerate.viewport.common.spline;
 import nijigenerate.core.input;
+import nijigenerate.core.math.triangle;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.ext;
@@ -243,6 +244,13 @@ public:
         if (max.x < translation.x) return [];
         if (max.y < translation.y) return [];
         return [0];
+    }
+
+    override
+    ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
+        if (filter(new MeshVertex(translation)))
+            return [0];
+        return [];
     }
 
     override 

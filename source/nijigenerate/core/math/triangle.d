@@ -620,3 +620,56 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
         }
     }
 }
+
+bool pointInPolygon(T, S)(T p, S[] poly, uint groupId) {
+
+    /**
+        check lines are crossing on x axis
+    */
+    pragma(inline, true)
+    bool isCrossingXaxis(float y, S p1, S p2) {
+        if (p1.position.y > p2.position.y)
+            swap(p1, p2);
+        return p1.position.y <= y && y <= p2.position.y && p1.position.y != p2.position.y;
+    }
+
+    /**
+        Gets the point on the X axis that y crosses p1 and p2
+    */
+    pragma(inline, true)
+    float getCrossX(float y, S p1, S p2) {
+        return p1.position.x + (y - p1.position.y) / (p2.position.y - p1.position.y) * (p2.position.x - p1.position.x);
+    }
+
+    /**
+        Gets whether the crossing direction is "up" or "down"
+    */
+    pragma(inline, true)
+    bool getCrossDir(S p1, S p2) {
+        return p1.position.y < p2.position.y ? true : false;
+    }
+
+    debug assert(poly.length % 2 == 0);
+    
+    if (groupId > 0 && !groupIdEquals(p, groupId)) return false;
+    // Sunday's algorithm
+    ptrdiff_t crossings = 0;
+    for (size_t i = 0; i < poly.length; i += 2) {
+        vec2 p1 = poly[i].xy;
+        vec2 p2 = poly[i + 1].xy;
+        if (isCrossingXaxis(p.position.y, p1, p2)) {
+
+            // check point is on the left side of the line
+            float crossX = getCrossX(p.position.y, p1, p2);
+            
+            // Check direction of line
+            bool dir = getCrossDir(p1, p2);
+
+            if (p.position.x < crossX) {
+                if (dir)    crossings++;
+                else        crossings--;
+            }
+        }
+    }
+    return crossings != 0;
+}
