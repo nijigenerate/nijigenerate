@@ -206,8 +206,10 @@ public:
     override
     ulong[] filterVertices(bool delegate(MeshVertex*) filter) {
         ulong[] matching;
-        foreach (idx, vertex; mesh.vertices) {
-            if (filter(vertex)) matching ~= idx;
+        MeshVertex mv;
+        foreach (idx, vertex; vertices) {
+            mv.position = vertex;
+            if (filter(&mv)) matching ~= idx;
         }
 
         return matching;
