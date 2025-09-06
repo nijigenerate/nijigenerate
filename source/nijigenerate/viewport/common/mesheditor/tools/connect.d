@@ -19,6 +19,7 @@ import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 //import std.stdio;
+import std.algorithm.searching : all;
 
 class ConnectTool : NodeSelect {
 
@@ -106,11 +107,22 @@ class ConnectTool : NodeSelect {
 class ToolInfoImpl(T: ConnectTool) : ToolInfoBase!(T) {
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
-        if (!deformOnly)
+        if (deformOnly)
+            return false;
+
+        bool isDrawable = editors.keys.all!(k => cast(Drawable)k !is null);
+        if (isDrawable) {
             return super.viewportTools(deformOnly, toolMode, editors);
+        }
+
         return false;
     }
-    override bool canUse(bool deformOnly, Node[] targets) { return !deformOnly; }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        if (deformOnly)
+            return false;
+
+        return targets.all!(k => cast(Drawable)k !is null);
+    }
     override VertexToolMode mode() { return VertexToolMode.Connect; };
     override string icon() { return "";}
     override string description() { return _("Edge Tool");}

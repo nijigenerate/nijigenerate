@@ -161,39 +161,42 @@ class PointTool : NodeSelect {
                     changed = true;
                 }
 
-                // connect if there is a selected vertex
-                auto mesh = implDrawable.getMesh();
-                void connectVertex(ref MeshVertex* vertex) {
-                    if (vertex is null) return;
-
-                    // search last MeshAddAction to connect
-                    auto lastAddAction = incActionFindLast!VertexAddAction(3);
-                    if (lastAddAction is null || lastAddAction.vertices.length == 0) return;
-
-                    auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.vertices[$-1][$-1].position);
-                    auto prevVertex = impl.getVerticesByIndex([prevVertexIdx])[0];
-                    if (prevVertex == null) return;
-                    auto action = new MeshConnectAction(impl.getTarget().name, impl, mesh);
-                    impl.foreachMirror((uint axis) {
-                        MeshVertex* mPrev = impl.mirrorVertex(axis, prevVertex);
-                        MeshVertex* mSel  = impl.mirrorVertex(axis, vertex);
-
-                        if (mPrev !is null && mSel !is null) {
-                            action.connect(mPrev, mSel);
-                        }
-                    });
-                    impl.refreshMesh();
-                    action.updateNewState();
-                    incActionPush(action);
-
-                    changed = true;
-                }
-
                 MeshVertex* vertex;
                 addVertex(vertex);
+                
+                // TODO: consider refactoring this to IncMeshEditorOneDrawable?
+                if (implDrawable) {
+                    // connect if there is a selected vertex
+                    auto mesh = implDrawable.getMesh();
+                    void connectVertex(ref MeshVertex* vertex) {
+                        if (vertex is null) return;
 
-                if (autoConnect)
-                    connectVertex(vertex);
+                        // search last MeshAddAction to connect
+                        auto lastAddAction = incActionFindLast!VertexAddAction(3);
+                        if (lastAddAction is null || lastAddAction.vertices.length == 0) return;
+
+                        auto prevVertexIdx = impl.getVertexFromPoint(lastAddAction.vertices[$-1][$-1].position);
+                        auto prevVertex = impl.getVerticesByIndex([prevVertexIdx])[0];
+                        if (prevVertex == null) return;
+                        auto action = new MeshConnectAction(impl.getTarget().name, impl, mesh);
+                        impl.foreachMirror((uint axis) {
+                            MeshVertex* mPrev = impl.mirrorVertex(axis, prevVertex);
+                            MeshVertex* mSel  = impl.mirrorVertex(axis, vertex);
+
+                            if (mPrev !is null && mSel !is null) {
+                                action.connect(mPrev, mSel);
+                            }
+                        });
+                        impl.refreshMesh();
+                        action.updateNewState();
+                        incActionPush(action);
+
+                        changed = true;
+                    }
+
+                    if (autoConnect)
+                        connectVertex(vertex);
+                }
             }
         }
 
