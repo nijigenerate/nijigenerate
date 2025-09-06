@@ -23,6 +23,7 @@ import std.array;
 import std.algorithm.searching: countUntil;
 import std.algorithm.mutation;
 import std.algorithm.sorting;
+import std.algorithm.searching : all;
 
 class GridTool : NodeSelect {
     GridActionID currentAction;
@@ -368,11 +369,22 @@ class ToolInfoImpl(T: GridTool) : ToolInfoBase!(T) {
 
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
-        if (!deformOnly)
+        if (deformOnly)
+            return false;
+
+        bool isDrawable = editors.keys.all!(k => cast(Drawable)k !is null);
+        if (isDrawable) {
             return super.viewportTools(deformOnly, toolMode, editors);
+        }
+
         return false;
     }
-    override bool canUse(bool deformOnly, Node[] targets) { return !deformOnly; }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        if (deformOnly)
+            return false;
+
+        return targets.all!(k => cast(Drawable)k !is null);
+    }
     override VertexToolMode mode() { return VertexToolMode.Grid; };
     override string icon() { return "";}
     override string description() { return _("Grid Vertex Tool");}
