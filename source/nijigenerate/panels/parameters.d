@@ -739,24 +739,19 @@ protected:
         igEndChild();
 
         if (igBeginChild("ParametersList", ImVec2(0, -36))) {
-            
-            // Always render the currently armed parameter on top
-            if (incArmedParameter()) {
-                incParameterView!true(incArmedParameterIdx(), incArmedParameter(), &grabParam, false, parameters);
-            }
 
             // Render other parameters
             void displayParameters(Parameter[] targetParams, bool hideChildren) {
                 foreach(i, ref param; targetParams) {
-                    if (incArmedParameter() == param) continue;
+                    // keep armed parameter rendered in place
                     if (hideChildren && (cast(ExParameter)param) && (cast(ExParameter)param).parent) continue;
                     import std.algorithm.searching : canFind;
                     ExParameterGroup group = cast(ExParameterGroup)param;
-                    bool found = filter.length == 0 || param.indexableName.canFind(filter);
+                    bool found = filter.length == 0 || param.indexableName.canFind(filter) || (incArmedParameter() == param);
                     if (group) {
                         foreach (ix, ref child; group.children) {
-                            if (incArmedParameter() == child) continue;
-                            if (child.indexableName.canFind(filter))
+                            // keep armed child parameter rendered in place
+                            if (child.indexableName.canFind(filter) || (incArmedParameter() == child))
                                 found = true;
                         }
                     }
@@ -797,11 +792,7 @@ protected:
                                 // Render children if open
                                 if (open) {
                                     foreach(ix, ref child; group.children) {
-
-                                        // Skip armed param
-                                        if (incArmedParameter() == child) continue;
-                                        if (child.indexableName.canFind(filter)) {
-                                            // Otherwise render it
+                                        if (child.indexableName.canFind(filter) || (incArmedParameter() == child)) {
                                             incParameterView(ix, child, &grabParam, false, group.children, group.color);
                                         }
                                     }
