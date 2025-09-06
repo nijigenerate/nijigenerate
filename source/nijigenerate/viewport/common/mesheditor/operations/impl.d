@@ -274,13 +274,18 @@ public:
 
     // Provide safe helpers so tools don't access mesh directly
     override void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor) {
-        // Simple and safe: snapshot connections per vertex to avoid mutation issues.
-        // Each undirected edge will be visited once (when iterating the first endpoint)
-        // because by the time we reach the other endpoint, that connection has been removed.
         foreach (v; mesh.vertices) {
+            // duplicate connections for safe iteration
             auto conns = v.connections.dup;
-            foreach (conn; conns) {
-                visitor(v, conn);
+            foreach (v2; conns) {
+                // Prevent duplicate visits; assumes mesh adjacency is symmetric.
+                // TODO: consider comparing vertex IDs instead of pointers (currently unavailable).
+                // Unique vertex pointers are assumed; integrity guaranteed during initialization/connection.
+                debug assert(cast(void*) v2 != cast(void*) v);
+                if (cast(void*) v2 < cast(void*) v)
+                    continue;
+
+                visitor(v, v2);
             }
         }
     }
