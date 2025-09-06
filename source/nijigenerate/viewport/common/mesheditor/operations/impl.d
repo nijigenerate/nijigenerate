@@ -47,6 +47,13 @@ public:
         return target;
     }
 
+    // Default no-op implementations so non-drawable editors don't need to implement edge ops
+    override void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor) { }
+    override MeshDisconnectAction newMeshDisconnectAction() {
+        assert(0, "newMeshDisconnectAction is only supported for drawable editors");
+        return null;
+    }
+
     override
     void setTarget(Node target) {
         this.target = cast(T)(target);
@@ -263,6 +270,28 @@ public:
 
     MeshVertex*[] vertices() {
         return mesh.vertices;
+    }
+
+    // Provide safe helpers so tools don't access mesh directly
+    override void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor) {
+        foreach (v; mesh.vertices) {
+            // duplicate connections for safe iteration
+            auto conns = v.connections.dup;
+            foreach (v2; conns) {
+                // Prevent duplicate visits; assumes mesh adjacency is symmetric.
+                // TODO: consider comparing vertex IDs instead of pointers (currently unavailable).
+                // Unique vertex pointers are assumed; integrity guaranteed during initialization/connection.
+                debug assert(cast(void*) v2 != cast(void*) v);
+                if (cast(void*) v2 < cast(void*) v)
+                    continue;
+
+                visitor(v, v2);
+            }
+        }
+    }
+
+    override MeshDisconnectAction newMeshDisconnectAction() {
+        return new MeshDisconnectAction(this.getTarget().name, this, mesh);
     }
 }
 

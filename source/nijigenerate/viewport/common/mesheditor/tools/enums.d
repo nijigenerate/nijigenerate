@@ -10,4 +10,5 @@ enum VertexToolMode {
     AltMeshGroup,
     AltBezierDeform,
     LassoSelection,
+    EdgeCutter,
 };

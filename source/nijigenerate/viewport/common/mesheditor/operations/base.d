@@ -291,6 +291,9 @@ public:
     abstract Action getCleanDeformAction();
     abstract void forceResetAction();
 
+    // Edge iteration and mesh actions for tools; implemented where supported
+    abstract void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor);
+    abstract MeshDisconnectAction newMeshDisconnectAction();
 
     abstract int peek(ImGuiIO* io, Camera camera);
     abstract int unify(int[] actions);
