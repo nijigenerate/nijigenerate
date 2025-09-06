@@ -19,6 +19,8 @@ import std.math: abs;
 import std.conv;
 import std.array;
 import std.algorithm.iteration: uniq;
+import nijigenerate.viewport.vertex.automesh.alpha_provider;
+import nijigenerate.core.cv.image;
 
 alias Point = vec2u; // vec2u は (uint x, uint y) を想定（必要に応じて調整）
 
@@ -31,6 +33,8 @@ private:
     float maskThreshold = 15;
     int targetPointCount = 10;
     Point[] controlPoints; // RDP により得られた制御点群（後で平行移動済み）
+    // Unified alpha preview state
+    private AlphaPreviewState _alphaPreview;
 
 public:
     override IncMesh autoMesh(Drawable target, IncMesh mesh,
@@ -38,8 +42,43 @@ public:
                               bool mirrorVert = false, float axisVert = 0)
     {
         Part part = cast(Part)target;
-        if (!part)
-            return mesh;
+        if (!part) {
+            auto provider = new MeshGroupAlphaProvider(target);
+            scope(exit) provider.dispose();
+            int width = provider.width();
+            int height = provider.height();
+            if (width <= 0 || height <= 0) return mesh;
+
+            // Pack provider alpha into Image RGBA
+            auto img = new Image(width, height, ImageFormat.IF_RGB_ALPHA);
+            img.data[] = 0;
+            const(ubyte)* ap = provider.alphaPtr();
+            foreach (i; 0 .. width*height) img.data[i*4 + 3] = ap[i];
+
+            vec2 imgCenter = vec2(width / 2, height / 2);
+            auto imbin = img.sliced[0 .. $, 0 .. $, 3].dup;
+            foreach (y; 0..imbin.shape[0]) foreach (x; 0..imbin.shape[1])
+                imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
+
+            skeletonizeImage(imbin);
+            auto path = extractPath(imbin, width, height);
+            controlPoints = simplifyByTargetCount(path, targetPointCount);
+
+            mesh.clear();
+            foreach (Point pt; controlPoints) {
+                vec2 position = vec2(pt.x, pt.y);
+                mesh.vertices ~= new MeshVertex(position - imgCenter);
+            }
+
+            auto b = provider.boundsWorld();
+            vec2 worldCenter = vec2(b.x + b.w * 0.5f, b.y + b.h * 0.5f);
+            mat4 inv = target.transform.matrix.inverse;
+            foreach (v; mesh.vertices) {
+                vec2 worldPos = v.position + worldCenter;
+                v.position = (inv * vec4(worldPos, 0, 1)).xy;
+            }
+            return mesh.autoTriangulate();
+        }
 
         Texture texture = part.textures[0];
         if (!texture)
@@ -91,7 +130,11 @@ public:
     }
 
     override void configure() {
-        // 必要に応じて実装
+        igSeparator();
+        incText(_("Alpha Preview"));
+        igIndent();
+        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
+        igUnindent();
     }
 
     /// 抽出された制御点の取得

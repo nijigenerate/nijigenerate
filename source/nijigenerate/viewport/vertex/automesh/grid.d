@@ -14,6 +14,7 @@ import std.algorithm.iteration: map, reduce;
 //import std.stdio;
 import std.array;
 import bindbc.imgui;
+import nijigenerate.viewport.vertex.automesh.alpha_provider;
 
 class GridAutoMeshProcessor : AutoMeshProcessor {
     float[] scaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
@@ -21,12 +22,63 @@ class GridAutoMeshProcessor : AutoMeshProcessor {
     float maskThreshold = 15;
     float xSegments = 2, ySegments = 2;
     float margin = 0.1;
+    // Unified alpha preview state
+    private AlphaPreviewState _alphaPreview;
 public:
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         Part part = cast(Part)target;
-        if (!part)
+        if (!part) {
+            // Non-Part: use provider alpha and map result into target local
+            auto provider = new MeshGroupAlphaProvider(target);
+            scope(exit) provider.dispose();
+            int pw = provider.width();
+            int ph = provider.height();
+            if (pw <= 0 || ph <= 0) return mesh;
+
+            const(ubyte)* ap = provider.alphaPtr();
+            // Find mask bounds in provider alpha
+            int minX = pw, minY = ph, maxX = -1, maxY = -1;
+            foreach (y; 0 .. ph) {
+                foreach (x; 0 .. pw) {
+                    ubyte a = ap[y*pw + x];
+                    if (a >= cast(ubyte)maskThreshold) {
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (maxX < 0 || maxY < 0) return mesh;
+
+            mesh.clear();
+            vec2 imgCenter = vec2(pw / 2, ph / 2);
+
+            MeshData meshData;
+            mesh.axes = [[], []];
+            scaleY.sort!((a, b)=> a<b);
+            foreach (y; scaleY) {
+                mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
+            }
+            scaleX.sort!((a, b)=> a<b);
+            foreach (x; scaleX) {
+                mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
+            }
+            meshData.gridAxes = mesh.axes[];
+            meshData.regenerateGrid();
+            mesh.copyFromMeshData(meshData);
+
+            // Map to target local coordinates via provider bounds center
+            auto b = provider.boundsWorld();
+            vec2 worldCenter = vec2(b.x + b.w * 0.5f, b.y + b.h * 0.5f);
+            mat4 inv = target.transform.matrix.inverse;
+            foreach (v; mesh.vertices) {
+                vec2 worldPos = v.position + worldCenter;
+                v.position = (inv * vec4(worldPos, 0, 1)).xy;
+            }
             return mesh;
+        }
 
         Texture texture = part.textures[0];
         if (!texture)
@@ -227,7 +279,11 @@ public:
             }
             incEndCategory();
         igPopID();
-
+        igSeparator();
+        incText(_("Alpha Preview"));
+        igIndent();
+        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
+        igUnindent();
     }
 
     override
