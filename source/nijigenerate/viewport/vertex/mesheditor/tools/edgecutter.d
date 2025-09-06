@@ -51,7 +51,7 @@ class EdgeCutterTool : NodeSelect {
         dragEnd = mousePos;
 
         // Disconnect edges that intersect with the cutter line using impl interface (no casting)
-        auto action = impl.newMeshDisconnectAction(impl.getTarget().name);
+        auto action = impl.newMeshDisconnectAction();
 
         vec2 a = dragOrigin;
         vec2 b = dragEnd;

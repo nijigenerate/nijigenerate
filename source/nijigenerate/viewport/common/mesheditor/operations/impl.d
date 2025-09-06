@@ -49,7 +49,7 @@ public:
 
     // Default no-op implementations so non-drawable editors don't need to implement edge ops
     override void forEachEdge(void delegate(MeshVertex*, MeshVertex*) visitor) { }
-    override MeshDisconnectAction newMeshDisconnectAction(string name) {
+    override MeshDisconnectAction newMeshDisconnectAction() {
         assert(0, "newMeshDisconnectAction is only supported for drawable editors");
         return null;
     }
@@ -285,8 +285,8 @@ public:
         }
     }
 
-    override MeshDisconnectAction newMeshDisconnectAction(string name) {
-        return new MeshDisconnectAction(name, this, mesh);
+    override MeshDisconnectAction newMeshDisconnectAction() {
+        return new MeshDisconnectAction(this.getTarget().name, this, mesh);
     }
 }
 
