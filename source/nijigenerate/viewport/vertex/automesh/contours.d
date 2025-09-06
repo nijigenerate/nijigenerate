@@ -6,7 +6,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
 import inmath;
-import nijigenerate.core.cv; // dcv系から置換
+import nijigenerate.core.cv; // replaced from dcv-like APIs
 import mir.ndslice;
 import mir.math.stat: mean;
 import std.algorithm;
@@ -14,6 +14,9 @@ import std.algorithm.iteration: map, reduce;
 //import std.stdio;
 import std.array;
 import bindbc.imgui;
+import nijigenerate.viewport.vertex.automesh.alpha_provider;
+import nijigenerate.viewport.vertex.automesh.common;
+import nijigenerate.project : incSelectedNodes;
 
 class ContourAutoMeshProcessor : AutoMeshProcessor {
     float SAMPLING_STEP = 32;
@@ -23,17 +26,31 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
     float MAX_DISTANCE = -1;
     float[] SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1];
     string presetName;
-public:
+    // Unified alpha preview state
+    private AlphaPreviewState _alphaPreview;
+    public:
+    // Remove single-use helpers; keep logic in autoMesh.
+
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        if (MAX_DISTANCE < 0)
-            MAX_DISTANCE = SAMPLING_STEP * 2;
-        // Helper: Convert each contour (an array of vec2i) to a vec2[] with swapped components.
+        if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
+        auto ai = getAlphaInput(target);
+        if (ai.w == 0 || ai.h == 0 || ai.img is null) return mesh;
+
+        auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3];
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
+
+        mesh.clear();
+        vec2 imgCenter = vec2(ai.w / 2, ai.h / 2);
+
+        vec2i[][] foundContours;
+        ContourHierarchy[] hierarchy;
+        findContours(imbin, foundContours, hierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
+
         auto contoursToVec2s(ContourType)(ref ContourType contours) {
             vec2[] result;
-            foreach (p; contours) {
-                // Here p is a vec2i (Vector!(uint,2)); create a vec2 with swapped components.
-                result ~= vec2(p.x, p.y);
-            }
+            foreach (p; contours) result ~= vec2(p.x, p.y);
             return result;
         }
         auto calcMoment(vec2[] contour) {
@@ -43,15 +60,15 @@ public:
         auto scaling(vec2[] contour, vec2 moment, float scale, int erode_dilate) {
             return contour.map!((c) { return (c - moment) * scale + moment; }).array;
         }
-        auto resampling(vec2[] contour, double rate, bool mirrorHoriz, float axisHoriz, bool mirrorVert, float axisVert) {
+        auto resampling(vec2[] contour, double rate, bool mirrorHoriz_, float axisHoriz_, bool mirrorVert_, float axisVert_) {
             vec2[] sampled;
             ulong base = 0;
-            if (mirrorHoriz) {
+            if (mirrorHoriz_) {
                 float minDistance = -1;
                 foreach (i, vertex; contour) {
-                    if (minDistance < 0 || vertex.x - axisHoriz < minDistance) {
+                    if (minDistance < 0 || vertex.x - axisHoriz_ < minDistance) {
                         base = i;
-                        minDistance = vertex.x - axisHoriz;
+                        minDistance = vertex.x - axisHoriz_;
                     }
                 }
             }
@@ -61,65 +78,33 @@ public:
                 vec2 prev = sampled[$ - 1];
                 vec2 c = contour[(idx + base) % contour.length];
                 if ((c - prev).lengthSquared > rate * rate) {
-                    if (mirrorHoriz) {
-                        if (side == 0) {
-                            side = sign(c.x - axisHoriz);
-                        } else if (sign(c.x - axisHoriz) != side) {
-                            continue;
-                        }
+                    if (mirrorHoriz_) {
+                        if (side == 0) side = sign(c.x - axisHoriz_);
+                        else if (sign(c.x - axisHoriz_) != side) continue;
                     }
                     sampled ~= c;
                 }
             }
             return sampled;
         }
-        Part part = cast(Part)target;
-        if (!part)
-            return mesh;
-        Texture texture = part.textures[0];
-        if (!texture)
-            return mesh;
-        ubyte[] data = texture.getTextureData();
-        auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
-        copy(data, img.data);
-        ubyte step = 1;
-        auto gray = img.sliced[0 .. $, 0 .. $, 3]; // Use transparent channel for boundary search
-        auto imbin = gray;
-        foreach (y; 0 .. imbin.shape[0]) {
-            foreach (x; 0 .. imbin.shape[1]) {
-                imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
-            }
-        }
-        mesh.clear();
-        vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
-        // Use nijigenerate.core.cv.contours's findContours with EXTERNAL, SIMPLE.
-        vec2i[][] foundContours;
-        ContourHierarchy[] hierarchy;
-        findContours(imbin, foundContours, hierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
+
         foreach (contour; foundContours) {
             auto contourVec = contoursToVec2s(contour);
-            if (contourVec.length == 0)
-                continue;
+            if (contourVec.length == 0) continue;
             float[] scales = SCALES;
             auto moment = calcMoment(contourVec);
-            auto minSize = MIN_DISTANCE;
+            if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
             foreach (double scale; scales) {
                 double samplingRate = SAMPLING_STEP;
                 samplingRate = min(MAX_DISTANCE / scale, scale > 0 ? samplingRate / (scale * scale) : 1);
                 auto contour2 = resampling(contourVec, samplingRate, mirrorHoriz, imgCenter.x + axisHoriz, mirrorVert, imgCenter.y + axisVert);
                 auto contour3 = scaling(contour2, moment, scale, 0);
-                if (mirrorHoriz) {
-                    auto flipped = contour3.map!((a) { return vec2(imgCenter.x + axisHoriz - (a.x - imgCenter.x - axisHoriz), a.y); })();
-                    foreach (f; flipped) {
-                        auto scaledContourVec = scaling(contourVec, moment, scale, 0);
-                        auto index = scaledContourVec.map!((a) { return (a - f).lengthSquared; }).minIndex();
-                        contour3 ~= scaledContourVec[index];
-                    }
-                }
                 foreach (vec2 c; contour3) {
                     if (mesh.vertices.length > 0) {
-                        auto minDistance = mesh.vertices.map!((v) { return ((c - imgCenter) - v.position).length; }).reduce!((a, b) { return a < b ? a : b; });
-                        if (minDistance > minSize)
+                        auto minDistance = mesh.vertices
+                            .map!((v) { return ((c - imgCenter) - v.position).length; })
+                            .reduce!((a, b) { return a < b ? a : b; });
+                        if (minDistance > MIN_DISTANCE)
                             mesh.vertices ~= new MeshVertex(c - imgCenter, []);
                     } else {
                         mesh.vertices ~= new MeshVertex(c - imgCenter, []);
@@ -127,11 +112,97 @@ public:
                 }
             }
         }
-        if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) {
-                vertex.position += dcomposite.textureOffset;
+
+        auto outMesh = mesh.autoTriangulate();
+        mapImageCenteredMeshToTargetLocal(outMesh, target, ai);
+        return outMesh;
+    }
+
+    /// Build mesh from arbitrary nodes by projecting alpha (includes Mask/Shape)
+    IncMesh autoMesh(Node[] targets, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0)
+    {
+        auto provider = new GenericProjectionAlphaProvider(targets);
+        scope(exit) provider.dispose();
+        auto ai = alphaInputFromProviderWithImage(provider);
+        if (ai.w == 0 || ai.h == 0 || ai.img is null) return mesh;
+
+        auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3];
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
+
+        mesh.clear();
+        vec2 imgCenter = vec2(ai.w / 2, ai.h / 2);
+
+        vec2i[][] foundContours;
+        ContourHierarchy[] hierarchy;
+        findContours(imbin, foundContours, hierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
+
+        auto contoursToVec2s(ContourType)(ref ContourType contours) {
+            vec2[] result;
+            foreach (p; contours) result ~= vec2(p.x, p.y);
+            return result;
+        }
+        auto calcMoment(vec2[] contour) {
+            auto moment = contour.reduce!((a, b) { return a + b; })();
+            return moment / contour.length;
+        }
+        auto scaling(vec2[] contour, vec2 moment, float scale, int erode_dilate) {
+            return contour.map!((c) { return (c - moment) * scale + moment; }).array;
+        }
+        auto resampling(vec2[] contour, double rate, bool mirrorHoriz_, float axisHoriz_, bool mirrorVert_, float axisVert_) {
+            vec2[] sampled;
+            ulong base = 0;
+            if (mirrorHoriz_) {
+                float minDistance = -1;
+                foreach (i, vertex; contour) {
+                    if (minDistance < 0 || vertex.x - axisHoriz_ < minDistance) {
+                        base = i;
+                        minDistance = vertex.x - axisHoriz_;
+                    }
+                }
+            }
+            sampled ~= contour[base];
+            float side = 0;
+            foreach (idx; 1 .. contour.length) {
+                vec2 prev = sampled[$ - 1];
+                vec2 c = contour[(idx + base) % contour.length];
+                if ((c - prev).lengthSquared > rate * rate) {
+                    if (mirrorHoriz_) {
+                        if (side == 0) side = sign(c.x - axisHoriz_);
+                        else if (sign(c.x - axisHoriz_) != side) continue;
+                    }
+                    sampled ~= c;
+                }
+            }
+            return sampled;
+        }
+
+        foreach (contour; foundContours) {
+            auto contourVec = contoursToVec2s(contour);
+            if (contourVec.length == 0) continue;
+            float[] scales = SCALES;
+            auto moment = calcMoment(contourVec);
+            if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
+            foreach (double scale; scales) {
+                double samplingRate = SAMPLING_STEP;
+                samplingRate = min(MAX_DISTANCE / scale, scale > 0 ? samplingRate / (scale * scale) : 1);
+                auto contour2 = resampling(contourVec, samplingRate, mirrorHoriz, imgCenter.x + axisHoriz, mirrorVert, imgCenter.y + axisVert);
+                auto contour3 = scaling(contour2, moment, scale, 0);
+                foreach (vec2 c; contour3) {
+                    if (mesh.vertices.length > 0) {
+                        auto minDistance = mesh.vertices
+                            .map!((v) { return ((c - imgCenter) - v.position).length; })
+                            .reduce!((a, b) { return a < b ? a : b; });
+                        if (minDistance > MIN_DISTANCE)
+                            mesh.vertices ~= new MeshVertex(c - imgCenter, []);
+                    } else {
+                        mesh.vertices ~= new MeshVertex(c - imgCenter, []);
+                    }
+                }
             }
         }
+
         return mesh.autoTriangulate();
     }
     override void configure() {
@@ -307,6 +378,12 @@ public:
         }
         incEndCategory();
         igPopID();
+
+        igSeparator();
+        incText(_("Alpha Preview"));
+        igIndent();
+        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
+        igUnindent();
     }
     override 
     string icon() {

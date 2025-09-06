@@ -11,6 +11,7 @@ import nijilive;
 import nijilive.core.animation.player;
 import nijigenerate.project;
 public import nijigenerate.viewport.base;
+import nijigenerate.viewport.vertex.automesh.alpha_provider : alphaPreviewDisposeTexture;
 
 private {
 
@@ -21,6 +22,10 @@ private {
         void onEditModeChanged(EditMode mode) {
             incViewport.onEditModeChanged(mode);
             incViewport.present();
+            // Dispose alpha preview texture when exiting VertexEdit
+            if (mode != EditMode.VertexEdit) {
+                alphaPreviewDisposeTexture();
+            }
         }
 
         void onCameraFocused(float focus, vec2 pos) {

@@ -26,6 +26,9 @@ import std.typecons;
 import bindbc.imgui;
 import nijigenerate.core.cv.image;
 import core.exception;
+import nijigenerate.viewport.vertex.automesh.alpha_provider;
+import nijigenerate.viewport.vertex.automesh.common;
+import nijigenerate.viewport.vertex.automesh.contours : ContourAutoMeshProcessor;
 
 class OptimumAutoMeshProcessor : AutoMeshProcessor {
     float LARGE_THRESHOLD = 400;
@@ -41,6 +44,8 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
     float DIV_PER_PART = 12;
 
     string presetName;
+    // Unified alpha preview state
+    private AlphaPreviewState _alphaPreview;
 public:
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
 
@@ -196,20 +201,17 @@ public:
         // --- End of helper functions ---
 
         Part part = cast(Part)target;
-        if (!part)
-            return mesh;
 
-        Texture texture = part.textures[0];
-        if (!texture)
-            return mesh;
-        ubyte[] data = texture.getTextureData();
-        auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
-        copy(data, img.data);
+        // Prepare Image (alpha-only) either from Part texture or Provider alpha
+        auto ai = getAlphaInput(target);
+        if (ai.w <= 0 || ai.h <= 0 || ai.img is null) return mesh;
+        auto img = ai.img;
+        int texW = ai.w, texH = ai.h;
         if (mirrorHoriz) {
-            axisHoriz += texture.width / 2;
+            axisHoriz += texW / 2;
         }
         if (mirrorVert) {
-            axisVert += texture.height / 2;
+            axisVert += texH / 2;
         }
         
         float step = 1;
@@ -293,9 +295,9 @@ public:
         }
         // --- End of calculateWidthMap function ---
 
-        vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
-        float size_avg = (texture.width + texture.height) / 2.0;
-        float min_distance = max(max(texture.width, texture.height) / DIV_PER_PART, MIN_DISTANCE);
+        vec2 imgCenter = vec2(texW / 2, texH / 2);
+        float size_avg = (texW + texH) / 2.0;
+        float min_distance = max(max(texW, texH) / DIV_PER_PART, MIN_DISTANCE);
 
         vec2[] vertices;
         vec2[] vB1;
@@ -382,7 +384,7 @@ public:
             vertices = vertices.stdUniq.array;
         }
 
-        vec4 bounds = vec4(0, 0, texture.width, texture.height);
+        vec4 bounds = vec4(0, 0, texW, texH);
         auto vert_ind = triangulate(vertices, bounds);
         vertices = vert_ind[0];
         auto tris = vert_ind[1];
@@ -399,7 +401,7 @@ public:
             import mir.ndslice.topology;
             int err;
             auto compensated1D = compensated.reshape([-1], err);
-            fillPoly(compensated1D, texture.width, texture.height, bounds, vertices, tris, 0, cast(ubyte)0);
+            fillPoly(compensated1D, texW, texH, bounds, vertices, tris, 0, cast(ubyte)0);
             int initialRemainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
             if (initialRemainingArea == 0) { 
                 outVertices = vertices;
@@ -421,8 +423,8 @@ public:
                 }
                 int x = cast(int)round(p.x);
                 int y = cast(int)round(p.y);
-                if(x >= 0 && x < texture.width && y >= 0 && y < texture.height) {
-                    int idx = y * texture.width + x;
+                if(x >= 0 && x < texW && y >= 0 && y < texH) {
+                    int idx = y * texW + x;
                     if(compensated1D[idx] == 255 && !skip)
                         filteredCandidates ~= p;
                 }
@@ -442,12 +444,12 @@ public:
                 int y = cast(int)round(p.y);
                 int x1 = max(0, x - windowSize);
                 int y1 = max(0, y - windowSize);
-                int x2 = min(texture.width - 1, x + windowSize);
-                int y2 = min(texture.height - 1, y + windowSize);
+                int x2 = min(texW - 1, x + windowSize);
+                int y2 = min(texH - 1, y + windowSize);
                 int score = 0;
                 for (int j = y1; j <= y2; j++) {
                     for (int i = x1; i <= x2; i++) {
-                        int idx = j * texture.width + i;
+                        int idx = j * texW + i;
                         if (compensated1D[idx] == 255)
                             score++;
                     }
@@ -463,12 +465,12 @@ public:
                 return false;
             }
             vec2[] newFinalVertices = vertices ~ [ bestCandidate ];
-            auto newVertsInd = triangulate(newFinalVertices, vec4(0, 0, texture.width, texture.height));
+            auto newVertsInd = triangulate(newFinalVertices, vec4(0, 0, texW, texH));
             auto newTriangles = newVertsInd[1];
             auto newVertices = newVertsInd[0];
             if(newTriangles !is null) {
                 foreach(i, tri; newTriangles) {
-                    fillPoly(compensated1D, texture.width, texture.height, bounds, newVertices, newTriangles, i, cast(ubyte)0);                        
+                    fillPoly(compensated1D, texW, texH, bounds, newVertices, newTriangles, i, cast(ubyte)0);                        
                 }
                 int remainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
                 if(remainingArea < initialRemainingArea) {
@@ -493,13 +495,8 @@ public:
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
-        newMesh.importVertsAndTris(vertices.map!((x){
-            auto v = x - imgCenter;
-            if (auto dcomposite = cast(DynamicComposite)target) {
-                v += dcomposite.textureOffset;
-            }
-            return v;
-        }).array, tris);
+        newMesh.importVertsAndTris(vertices.map!((x){ return x - imgCenter; }).array, tris);
+        mapImageCenteredMeshToTargetLocal(newMesh, target, ai);
         newMesh.refresh();
         return newMesh;
     }
@@ -643,6 +640,12 @@ public:
         }
         incEndCategory();
         igPopID();
+
+        igSeparator();
+        incText(_("Alpha Preview"));
+        igIndent();
+        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
+        igUnindent();
     }
 
     override

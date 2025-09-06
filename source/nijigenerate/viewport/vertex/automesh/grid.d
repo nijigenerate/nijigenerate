@@ -14,6 +14,8 @@ import std.algorithm.iteration: map, reduce;
 //import std.stdio;
 import std.array;
 import bindbc.imgui;
+import nijigenerate.viewport.vertex.automesh.alpha_provider;
+import nijigenerate.viewport.vertex.automesh.common : getAlphaInput, alphaImageCenter, mapImageCenteredMeshToTargetLocal;
 
 class GridAutoMeshProcessor : AutoMeshProcessor {
     float[] scaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
@@ -21,67 +23,55 @@ class GridAutoMeshProcessor : AutoMeshProcessor {
     float maskThreshold = 15;
     float xSegments = 2, ySegments = 2;
     float margin = 0.1;
+    // Unified alpha preview state
+    private AlphaPreviewState _alphaPreview;
 public:
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        Part part = cast(Part)target;
-        if (!part)
-            return mesh;
+        // 1) Branch only for input acquisition
+        auto ai = getAlphaInput(target);
+        if (ai.w <= 0 || ai.h <= 0) return mesh;
 
-        Texture texture = part.textures[0];
-        if (!texture)
-            return mesh;
-        ubyte[] data = texture.getTextureData();
-        auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
-        copy(data, img.data);
-        
-        auto gray = img.sliced[0..$, 0..$, 3]; // Use transparent channel for boundary search
-        auto imbin = gray;
-        foreach (y; 0..imbin.shape[0]) {
-            foreach (x; 0..imbin.shape[1]) {
-                imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold? 0: 255;
+        // 2) Common: binarize alpha and compute bounding box
+        auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3];
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
+
+        int minX = ai.w, minY = ai.h, maxX = -1, maxY = -1;
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            if (imbin[y, x] > 0) {
+                int xi = cast(int)x;
+                int yi = cast(int)y;
+                if (xi < minX) minX = xi;
+                if (yi < minY) minY = yi;
+                if (xi > maxX) maxX = xi;
+                if (yi > maxY) maxY = yi;
             }
-        }
-        vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
+        if (maxX < 0 || maxY < 0) return mesh; // no mask found
+
+        // 3) Common: build grid axes (relative to image center)
         mesh.clear();
+        vec2 imgCenter = alphaImageCenter(ai);
 
-        float minX = texture.width();
-        float minY = texture.height();
-        float maxX = 0;
-        float maxY = 0;
-        foreach (y; 0..imbin.shape[0]) {
-            foreach (x; 0..imbin.shape[1]) {
-                if (imbin[y, x] > 0) {
-                    minX = min(x, minX);
-                    minY = min(y, minY);
-                    maxX = max(x, maxX);
-                    maxY = max(y, maxY);
-                }
-            }
-        }
-
-        auto dcomposite = cast(DynamicComposite)target;
         MeshData meshData;
-        
         mesh.axes = [[], []];
-        scaleY.sort!((a, b)=> a<b);
-        foreach (y; scaleY) {
+
+        scaleY.sort!((a, b) => a < b);
+        foreach (y; scaleY)
             mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
-            if (dcomposite !is null) {
-                mesh.axes[0][$ - 1] += dcomposite.textureOffset.y;
-            }
-        }
-        scaleX.sort!((a, b)=> a<b);
-        foreach (x; scaleX) {
+
+        scaleX.sort!((a, b) => a < b);
+        foreach (x; scaleX)
             mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
-            if (dcomposite !is null) {
-                mesh.axes[1][$ - 1] += dcomposite.textureOffset.x;
-            }
-        }
+
         meshData.gridAxes = mesh.axes[];
         meshData.regenerateGrid();
         mesh.copyFromMeshData(meshData);
 
+        // 4) Common: map to target local coordinates
+        mapImageCenteredMeshToTargetLocal(mesh, target, ai);
         return mesh;
     }
 
@@ -227,7 +217,11 @@ public:
             }
             incEndCategory();
         igPopID();
-
+        igSeparator();
+        incText(_("Alpha Preview"));
+        igIndent();
+        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
+        igUnindent();
     }
 
     override
