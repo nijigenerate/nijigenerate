@@ -35,10 +35,10 @@ import nijilive; // Node, Parameter, Puppet
 
 // mcp-d
 import mcp.server;
-import mcp.transport.http : createHttpTransport;
 import mcp.schema : SchemaBuilder;
 import mcp.prompts : PromptArgument, PromptResponse, PromptMessage; // proper prompt API
 import mcp.resources : ResourceNotifier; // for resource change notifications
+import nijigenerate.api.mcp.http_transport;
 // Selector + Nodes
 import nijigenerate.core.selector;
 import nijigenerate.core.selector.resource : Resource, to;
@@ -89,7 +89,7 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
     gServerStarted = true;
     // Create server and register tools on the main thread to avoid TLS issues
     auto transport = createHttpTransport(host, port);
-    auto server = new MCPServer(transport, "Nijigenerate MCP", "0.0.1");
+    auto server = new ExtMCPServer(transport, "Nijigenerate MCP", "0.0.1");
 
     // Minimal, robust registration that does not depend on TLS of another thread
     bool[string] registered;
