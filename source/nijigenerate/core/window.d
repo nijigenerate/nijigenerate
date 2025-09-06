@@ -871,3 +871,4 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
+

@@ -236,6 +236,7 @@ bool incKeepStructDialog(ImportKeepHandler handler) {
     } else if (incGetKeepLayerFolder() == "NotPreserve") {
         handler.load(AskKeepLayerFolder.NotPreserve);
     } else {
+        // Register handler and display dialog via handler API
         handler.register();
         handler.show();
     }

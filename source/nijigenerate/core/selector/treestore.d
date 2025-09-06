@@ -6,7 +6,14 @@ import nijigenerate.core.selector.resource : Resource;
 
 // Lightweight, UI-agnostic tree builder for selector Resources.
 // Builds parent-child relationships based on Resource.source and explicit flags.
-class TreeStore {
+//
+// Template parameter `addNonIncluded` controls whether ancestors that are not
+// part of the initial `nodes` set are added to the resulting forest:
+// - true  (default): current behavior, climb ancestors and include them as
+//                    parents/roots when needed.
+// - false           : restrict relationships strictly within `nodes` (results);
+//                    parents are linked only if also included in `nodes`.
+class TreeStore_(bool addNonIncluded = true) {
 public:
     Resource[] nodes;
     Resource[][Resource] children;
@@ -34,28 +41,52 @@ public:
 
         void addToMap(Resource res, int level = 0) {
             if (res in parentMap) return;
-            auto source = res.source;
-            while (source) {
-                if (source.source is null) break;
-                if (source in nodeIncluded || source.explicit) break;
-                source = source.source;
-            }
-            if (source) {
-                parentMap[res] = source;
-                childMap.require(source);
-                childMap[source][res] = true;
-                addToMap(source, level + 1);
+            static if (addNonIncluded) {
+                auto source = res.source;
+                while (source) {
+                    if (source.source is null) break;
+                    if (source in nodeIncluded || source.explicit) break;
+                    source = source.source;
+                }
+                if (source) {
+                    parentMap[res] = source;
+                    childMap.require(source);
+                    childMap[source][res] = true;
+                    // Recurse so that included/non-included ancestors are linked and
+                    // roots can be determined.
+                    addToMap(source, level + 1);
+                } else {
+                    rootMap[res] = true;
+                }
             } else {
-                rootMap[res] = true;
+                // Restrict links to the provided `nodes` only. Find the nearest
+                // ancestor that is also included; otherwise mark as root.
+                auto source = res.source;
+                Resource parentInSet = null;
+                while (source) {
+                    if (source in nodeIncluded) { parentInSet = source; break; }
+                    source = source.source;
+                }
+                if (parentInSet !is null) {
+                    parentMap[res] = parentInSet;
+                    childMap.require(parentInSet);
+                    childMap[parentInSet][res] = true;
+                    // Do NOT recurse into parent when it's already part of nodes;
+                    // its mapping will be processed in its own addToMap call.
+                } else {
+                    rootMap[res] = true;
+                }
             }
         }
 
         foreach (res; nodes) {
             addToMap(res);
         }
-        foreach (res; childMap.keys) {
-            if (res !in parentMap || parentMap[res] is null) {
-                rootMap[res] = true;
+        static if (addNonIncluded) {
+            foreach (res; childMap.keys) {
+                if (res !in parentMap || parentMap[res] is null) {
+                    rootMap[res] = true;
+                }
             }
         }
         roots = rootMap.keys.sort!((a,b)=>a.index<b.index).array;
@@ -65,3 +96,5 @@ public:
     }
 }
 
+// Backward-compatible alias: default behavior includes non-included ancestors.
+alias TreeStore = TreeStore_!();

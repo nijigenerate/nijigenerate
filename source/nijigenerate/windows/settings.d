@@ -33,6 +33,7 @@ enum SettingsPane : string {
     Accessibility = "Accessbility",
     FileHandling = "File Handling",
     Shortcuts = "Shortcuts",
+    Integration = "Integration",
 }
 
 /**
@@ -115,6 +116,9 @@ protected:
 
                 if (igSelectable(__("Shortcuts"), settingsPane == SettingsPane.Shortcuts)) {
                     settingsPane = SettingsPane.Shortcuts;
+                }
+                if (igSelectable(__("Integration"), settingsPane == SettingsPane.Integration)) {
+                    settingsPane = SettingsPane.Integration;
                 }
             igPopTextWrapPos();
         }
@@ -273,6 +277,42 @@ protected:
                             }
                         endSection();
                         break;
+                    case SettingsPane.Integration:
+                        beginSection(__("MCP Server"));
+                            // Persist only; apply on Done (window close)
+                            bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
+                            if (ngCheckbox(__("Enable MCP HTTP Server"), &mcpEnabled)) {
+                                incSettingsSet("MCP.Enabled", mcpEnabled);
+                            }
+                            if (mcpEnabled) {
+                                string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+                                int port = incSettingsGet!int("MCP.Port", 8088);
+                                import std.string : toStringz;
+                                // Host input
+                                char[128] hostBuf;
+                                // initialize buffer from current host
+                                if (host.length < hostBuf.length) {
+                                    hostBuf[0 .. host.length] = host[];
+                                    hostBuf[host.length] = '\0';
+                                } else {
+                                    hostBuf[0] = '\0';
+                                }
+                                if (igInputText(__("Host"), hostBuf.ptr, hostBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
+                                    import std.string : fromStringz;
+                                    string newHost = fromStringz(hostBuf.ptr).idup;
+                                    incSettingsSet("MCP.Host", newHost);
+                                }
+                                // Port input
+                                if (igInputInt(__("Port"), &port, 1, 10, ImGuiInputTextFlags.EnterReturnsTrue)) {
+                                    if (port < 1) port = 1; if (port > 65535) port = 65535;
+                                    incSettingsSet("MCP.Port", port);
+                                }
+                                incTooltip(_("Changes will apply when you click Done."));
+                            } else {
+                                incTooltip(_("Server disabled. Click Done to apply."));
+                            }
+                        endSection();
+                        break;
                     default:
                         incLabelOver(_("No settings for this category."), ImVec2(0, 0), true);
                         break;
@@ -307,6 +347,9 @@ protected:
         // Persist current shortcut registry to settings before saving
         import nijigenerate.core.shortcut.base : ngSaveShortcutsToSettings;
         ngSaveShortcutsToSettings();
+        // Apply integration/server settings on confirmation
+        import nijigenerate.api.mcp : ngMcpLoadSettings;
+        ngMcpLoadSettings();
         incSettingsSave();
         incIsSettingsOpen = false;
     }
