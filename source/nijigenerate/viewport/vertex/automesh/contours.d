@@ -6,7 +6,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
 import inmath;
-import nijigenerate.core.cv; // dcv系から置換
+import nijigenerate.core.cv; // replaced from dcv-like APIs
 import mir.ndslice;
 import mir.math.stat: mean;
 import std.algorithm;
@@ -29,7 +29,7 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
     // Unified alpha preview state
     private AlphaPreviewState _alphaPreview;
     public:
-    // 不要な単回利用のヘルパーは削除し、autoMesh 本体で処理します。
+    // Remove single-use helpers; keep logic in autoMesh.
 
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
@@ -99,20 +99,16 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
                 samplingRate = min(MAX_DISTANCE / scale, scale > 0 ? samplingRate / (scale * scale) : 1);
                 auto contour2 = resampling(contourVec, samplingRate, mirrorHoriz, imgCenter.x + axisHoriz, mirrorVert, imgCenter.y + axisVert);
                 auto contour3 = scaling(contour2, moment, scale, 0);
-                if (mirrorHoriz) {
-                    auto flipped = contour3.map!((a) { return vec2(imgCenter.x + axisHoriz - (a.x - imgCenter.x - axisHoriz), a.y); })();
-                    foreach (f; flipped) {
-                        auto scaledContourVec = scaling(contourVec, moment, scale, 0);
-                        auto index = scaledContourVec.map!((a) { return (a - f).lengthSquared; }).minIndex();
-                        contour3 ~= scaledContourVec[index];
-                    }
-                }
                 foreach (vec2 c; contour3) {
                     if (mesh.vertices.length > 0) {
-                        auto last = mesh.vertices[$ - 1].position + imgCenter;
-                        if ((last - c).lengthSquared < MIN_DISTANCE * MIN_DISTANCE) continue;
+                        auto minDistance = mesh.vertices
+                            .map!((v) { return ((c - imgCenter) - v.position).length; })
+                            .reduce!((a, b) { return a < b ? a : b; });
+                        if (minDistance > MIN_DISTANCE)
+                            mesh.vertices ~= new MeshVertex(c - imgCenter, []);
+                    } else {
+                        mesh.vertices ~= new MeshVertex(c - imgCenter, []);
                     }
-                    mesh.vertices ~= new MeshVertex(c - imgCenter);
                 }
             }
         }
@@ -122,7 +118,7 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
         return outMesh;
     }
 
-    /// 任意ノード配列を対象にプロジェクションAからメッシュ化（Mask/Shape 含む）
+    /// Build mesh from arbitrary nodes by projecting alpha (includes Mask/Shape)
     IncMesh autoMesh(Node[] targets, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0)
     {
         auto provider = new GenericProjectionAlphaProvider(targets);
@@ -193,20 +189,16 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
                 samplingRate = min(MAX_DISTANCE / scale, scale > 0 ? samplingRate / (scale * scale) : 1);
                 auto contour2 = resampling(contourVec, samplingRate, mirrorHoriz, imgCenter.x + axisHoriz, mirrorVert, imgCenter.y + axisVert);
                 auto contour3 = scaling(contour2, moment, scale, 0);
-                if (mirrorHoriz) {
-                    auto flipped = contour3.map!((a) { return vec2(imgCenter.x + axisHoriz - (a.x - imgCenter.x - axisHoriz), a.y); })();
-                    foreach (f; flipped) {
-                        auto scaledContourVec = scaling(contourVec, moment, scale, 0);
-                        auto index = scaledContourVec.map!((a) { return (a - f).lengthSquared; }).minIndex();
-                        contour3 ~= scaledContourVec[index];
-                    }
-                }
                 foreach (vec2 c; contour3) {
                     if (mesh.vertices.length > 0) {
-                        auto last = mesh.vertices[$ - 1].position + imgCenter;
-                        if ((last - c).lengthSquared < MIN_DISTANCE * MIN_DISTANCE) continue;
+                        auto minDistance = mesh.vertices
+                            .map!((v) { return ((c - imgCenter) - v.position).length; })
+                            .reduce!((a, b) { return a < b ? a : b; });
+                        if (minDistance > MIN_DISTANCE)
+                            mesh.vertices ~= new MeshVertex(c - imgCenter, []);
+                    } else {
+                        mesh.vertices ~= new MeshVertex(c - imgCenter, []);
                     }
-                    mesh.vertices ~= new MeshVertex(c - imgCenter);
                 }
             }
         }

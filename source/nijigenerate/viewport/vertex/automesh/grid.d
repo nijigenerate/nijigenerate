@@ -28,11 +28,11 @@ class GridAutoMeshProcessor : AutoMeshProcessor {
 public:
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        // 1) 最初の処理だけ分岐: AlphaInput の取得
+        // 1) Branch only for input acquisition
         auto ai = getAlphaInput(target);
         if (ai.w <= 0 || ai.h <= 0) return mesh;
 
-        // 2) 共通処理: マスクの二値化と外接矩形の算出
+        // 2) Common: binarize alpha and compute bounding box
         auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3];
         foreach (y; 0 .. imbin.shape[0])
         foreach (x; 0 .. imbin.shape[1])
@@ -49,9 +49,9 @@ public:
                 if (xi > maxX) maxX = xi;
                 if (yi > maxY) maxY = yi;
             }
-        if (maxX < 0 || maxY < 0) return mesh; // マスク無し
+        if (maxX < 0 || maxY < 0) return mesh; // no mask found
 
-        // 3) 共通処理: グリッド軸作成（画像中心基準）
+        // 3) Common: build grid axes (relative to image center)
         mesh.clear();
         vec2 imgCenter = alphaImageCenter(ai);
 
@@ -70,7 +70,7 @@ public:
         meshData.regenerateGrid();
         mesh.copyFromMeshData(meshData);
 
-        // 4) 共通処理: 対象ローカル座標へマッピング
+        // 4) Common: map to target local coordinates
         mapImageCenteredMeshToTargetLocal(mesh, target, ai);
         return mesh;
     }

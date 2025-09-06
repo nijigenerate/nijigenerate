@@ -99,7 +99,7 @@ final class MeshGroupAlphaProvider : IAlphaProvider {
         auto puppet = meshGroup.puppet is null ? incActivePuppet() : meshGroup.puppet;
         enforce(puppet !is null, "No active puppet for MeshGroupAlphaProvider");
 
-        // DynamicComposite を使って対象ノードのみをオフスクリーン投影
+        // Use DynamicComposite to render only target nodes offscreen
         auto r = projectAlphaExec([meshGroup], puppet, opt);
         _w = r.w; _h = r.h; _bounds = r.bounds; _alpha = r.alpha;
     }
@@ -112,8 +112,8 @@ final class MeshGroupAlphaProvider : IAlphaProvider {
 }
 
 /**
- * GenericProjectionAlphaProvider: 任意のノード配列を対象に、暫定的に現在の
- * ビューポートから A をダンプして返す（後続でサブグラフ限定投影に差し替え）。
+ * GenericProjectionAlphaProvider: For arbitrary nodes, temporarily dump alpha (A)
+ * from current viewport; replace with subgraph-limited projection later.
  */
 final class GenericProjectionAlphaProvider : IAlphaProvider {
     private ubyte[] _alpha;
