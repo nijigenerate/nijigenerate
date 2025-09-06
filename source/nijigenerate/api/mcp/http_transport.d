@@ -11,7 +11,7 @@ import std.json;
 
 import vibe.http.server;
 import vibe.http.router;
-import vibe.core.core : runApplication, exitEventLoop, yield, runTask;
+import vibe.core.core : runApplication, exitEventLoop, yield, runTask, setTimer;
 import core.thread.fiber : Fiber;
 import vibe.core.stream : OutputStream;
 import vibe.stream.operations : readAllUTF8;
@@ -30,6 +30,7 @@ class HttpTransport : Transport {
         ushort port;
         bool running;
         bool shouldExit; // close() called before or during run()
+        bool loopExited;
     }
 
     // Run on the event loop to stop listening and exit cleanly
@@ -153,6 +154,8 @@ class HttpTransport : Transport {
     }
 
     void run() {
+        import std.stdio : writefln;
+        writefln("[MCP/HTTP] run(): binding on %s:%s", host, port);
         auto router = new URLRouter;
         router.post("/mcp", &handlePost);
         router.get("/events", &handleEvents);
@@ -168,11 +171,23 @@ class HttpTransport : Transport {
             running = false;
             return;
         }
+        // Watchdog: periodically check for shutdown requests from other threads
+        import core.time : msecs;
+        setTimer(100.msecs, {
+            if (shouldExit) {
+                try exitEventLoop(); catch (Exception) {}
+            }
+        }, true);
         string[] unrecognized;
+        writefln("[MCP/HTTP] run(): entering event loop");
         runApplication(&unrecognized);
+        loopExited = true;
+        writefln("[MCP/HTTP] run(): event loop exited");
     }
 
     void close() {
+        import std.stdio : writefln;
+        writefln("[MCP/HTTP] close(): request transport shutdown");
         // Mark for early exit and stop accepting new connections ASAP
         shouldExit = true;
         running = false;
@@ -190,6 +205,10 @@ class HttpTransport : Transport {
         performStopListening();
         // Stop listener and exit event loop on the event loop thread
         runTask(&performShutdown);
+    }
+
+    bool hasExited() const @nogc nothrow @safe {
+        return loopExited;
     }
 }
 
@@ -224,5 +243,10 @@ class ExtMCPServer : MCPServer {
         if (_transport !is null) {
             _transport.close();
         }
+    }
+
+    bool transportExited() const {
+        auto ht = cast(HttpTransport) _transport;
+        return ht is null || ht.hasExited();
     }
 }

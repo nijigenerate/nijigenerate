@@ -28,7 +28,7 @@ import nijigenerate.ext;
 import nijigenerate.windows.flipconfig;
 import nijilive;
 import nijigenerate;
-import nijigenerate.api.mcp : ngMcpInit, ngMcpProcessQueue;
+import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings;
 import i18n;
 
 version(D_X32) {
@@ -98,8 +98,8 @@ int main(string[] args)
         ngRegisterDefaultShortcuts();
         ngLoadShortcutsFromSettings();
 
-        // Start MCP HTTP server in background (no impact on main thread)
-        ngMcpInit();
+        // Start/stop MCP HTTP server based on persisted settings (single read)
+        ngMcpLoadSettings();
 
         // Open or create project
         if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);

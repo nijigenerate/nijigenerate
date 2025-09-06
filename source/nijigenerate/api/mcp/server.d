@@ -55,6 +55,11 @@ private struct EnqueuedCommand { void delegate() action; }
 private __gshared EnqueuedCommand[] gQueue;
 private __gshared Mutex gQueueMutex;
 private __gshared bool gServerStarted = false;
+private __gshared Thread gServerThread;
+private __gshared string gServerHost = "127.0.0.1";
+private __gshared ushort gServerPort = 8088;
+private __gshared bool gServerEnabled = false;
+private __gshared ExtMCPServer gServerInstance;
 // Resource change notifiers (for MCP resources)
 private __gshared ResourceNotifier gNotifyResourcesFind;
 private __gshared ResourceNotifier gNotifyResourceByUuid;
@@ -81,15 +86,20 @@ private void _enqueueAction(void delegate() action)
     synchronized (gQueueMutex) gQueue ~= EnqueuedCommand(action);
 }
 
-// Public: initialize and start MCP server in background
-void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
+// Internal: start server (assumes not started)
+private void _ngMcpStart(string host, ushort port)
 {
     if (gServerStarted) return;
-    gQueueMutex = new Mutex();
+    if (gQueueMutex is null) gQueueMutex = new Mutex();
     gServerStarted = true;
+    gServerEnabled = true;
+    gServerHost = host;
+    gServerPort = port;
+    writefln("[MCP] starting server host=%s port=%s", host, port);
     // Create server and register tools on the main thread to avoid TLS issues
     auto transport = createHttpTransport(host, port);
     auto server = new ExtMCPServer(transport, "Nijigenerate MCP", "0.0.1");
+    gServerInstance = server;
 
     // Minimal, robust registration that does not depend on TLS of another thread
     bool[string] registered;
@@ -676,7 +686,12 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
         }
     );
 
-    auto t = new Thread({ server.start(); });
+    auto t = new Thread({
+        writefln("[MCP] server thread entering start() ...");
+        server.start();
+        writefln("[MCP] server thread exited start()");
+    });
+    gServerThread = t;
     t.isDaemon = true;
     t.start();
 
@@ -846,9 +861,83 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
     );
 }
 
+// Public: initialize and start MCP server in background
+void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
+{
+    _ngMcpStart(host, port);
+}
+
+// Public: stop MCP server if running
+void ngMcpStop()
+{
+    if (!gServerStarted) { writefln("[MCP] stop requested but server not started"); return; }
+    gServerEnabled = false;
+    if (gServerInstance !is null) {
+        writefln("[MCP] requesting server stop...");
+        try {
+            gServerInstance.stop();
+            writefln("[MCP] stop() invoked on transport");
+            // Wait briefly for transport event loop to exit to free the port
+            import core.time : msecs;
+            import core.thread : Thread;
+            foreach (i; 0 .. 20) { // up to ~1s
+                if (gServerInstance.transportExited()) { writefln("[MCP] transport exited"); break; }
+                Thread.sleep(50.msecs);
+            }
+        } catch (Exception e) {
+            writefln("[MCP] stop() threw: %s", e.msg);
+        }
+    } else writefln("[MCP] no server instance to stop");
+    // Do not block the UI thread waiting for shutdown; the server thread is daemon and will exit.
+    gServerThread = null;
+    gServerInstance = null;
+    gServerStarted = false;
+    writefln("[MCP] server state cleared (stopped=true)");
+}
+
+// Public: apply settings without per-frame polling
+void ngMcpApplySettings(bool enabled, string host, ushort port)
+{
+    writefln("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
+    if (!enabled) {
+        if (gServerStarted) {
+            writefln("[MCP] settings disabled -> stopping");
+            ngMcpStop();
+        } else {
+            writefln("[MCP] settings disabled and not running -> no-op");
+        }
+        return;
+    }
+    if (!gServerStarted) {
+        writefln("[MCP] settings enabled and not running -> start");
+        _ngMcpStart(host, port);
+        return;
+    }
+    if (host != gServerHost || port != gServerPort) {
+        writefln("[MCP] settings changed host/port -> restart");
+        ngMcpStop();
+        _ngMcpStart(host, port);
+    } else {
+        writefln("[MCP] settings unchanged and running -> no-op");
+    }
+}
+
+// Public: read settings and apply in one call (no per-frame polling)
+void ngMcpLoadSettings()
+{
+    import nijigenerate.core.settings;
+    // Default to disabled to avoid unexpected background server on first run
+    bool enabled = incSettingsGet!bool("MCP.Enabled", false);
+    string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+    ushort port = cast(ushort) incSettingsGet!int("MCP.Port", 8088);
+    writefln("[MCP] load settings: enabled=%s host=%s port=%s", enabled, host, port);
+    ngMcpApplySettings(enabled, host, port);
+}
+
 // Public: process pending queue items on the main thread
 void ngMcpProcessQueue()
 {
+    if (gQueueMutex is null) return;
     EnqueuedCommand[] items;
     synchronized (gQueueMutex) {
         if (gQueue.length == 0) return;
