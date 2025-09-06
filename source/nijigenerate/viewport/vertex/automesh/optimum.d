@@ -27,6 +27,7 @@ import bindbc.imgui;
 import nijigenerate.core.cv.image;
 import core.exception;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
+import nijigenerate.viewport.vertex.automesh.common;
 import nijigenerate.viewport.vertex.automesh.contours : ContourAutoMeshProcessor;
 
 class OptimumAutoMeshProcessor : AutoMeshProcessor {
@@ -202,31 +203,10 @@ public:
         Part part = cast(Part)target;
 
         // Prepare Image (alpha-only) either from Part texture or Provider alpha
-        Image img;
-        int texW, texH;
-        bool fromProvider = false;
-        vec2 providerWorldCenter;
-        if (part) {
-            Texture texture = part.textures[0];
-            if (!texture) return mesh;
-            ubyte[] data = texture.getTextureData();
-            img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
-            copy(data, img.data);
-            texW = texture.width;
-            texH = texture.height;
-        } else {
-            auto provider = new MeshGroupAlphaProvider(target);
-            scope(exit) provider.dispose();
-            texW = provider.width(); texH = provider.height();
-            if (texW <= 0 || texH <= 0) return mesh;
-            img = new Image(texW, texH, ImageFormat.IF_RGB_ALPHA);
-            img.data[] = 0;
-            const(ubyte)* ap = provider.alphaPtr();
-            foreach (i; 0 .. texW*texH) img.data[i*4 + 3] = ap[i];
-            auto b = provider.boundsWorld();
-            providerWorldCenter = vec2(b.x + b.w * 0.5f, b.y + b.h * 0.5f);
-            fromProvider = true;
-        }
+        auto ai = getAlphaInput(target);
+        if (ai.w <= 0 || ai.h <= 0 || ai.img is null) return mesh;
+        auto img = ai.img;
+        int texW = ai.w, texH = ai.h;
         if (mirrorHoriz) {
             axisHoriz += texW / 2;
         }
@@ -515,19 +495,8 @@ public:
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
-        newMesh.importVertsAndTris(vertices.map!((x){
-            auto v = x - imgCenter;
-            if (fromProvider) {
-                // provider image座標中心 → world → target local
-                vec2 worldPos = v + providerWorldCenter;
-                v = (target.transform.matrix.inverse * vec4(worldPos, 0, 1)).xy;
-            } else {
-                if (auto dcomposite = cast(DynamicComposite)target) {
-                    v += dcomposite.textureOffset;
-                }
-            }
-            return v;
-        }).array, tris);
+        newMesh.importVertsAndTris(vertices.map!((x){ return x - imgCenter; }).array, tris);
+        mapImageCenteredMeshToTargetLocal(newMesh, target, ai);
         newMesh.refresh();
         return newMesh;
     }

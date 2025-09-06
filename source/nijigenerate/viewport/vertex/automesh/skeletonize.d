@@ -21,6 +21,7 @@ import std.array;
 import std.algorithm.iteration: uniq;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.core.cv.image;
+import nijigenerate.viewport.vertex.automesh.common : getAlphaInput, mapImageCenteredMeshToTargetLocal;
 
 alias Point = vec2u; // vec2u は (uint x, uint y) を想定（必要に応じて調整）
 
@@ -41,91 +42,31 @@ public:
                               bool mirrorHoriz = false, float axisHoriz = 0,
                               bool mirrorVert = false, float axisVert = 0)
     {
-        Part part = cast(Part)target;
-        if (!part) {
-            auto provider = new MeshGroupAlphaProvider(target);
-            scope(exit) provider.dispose();
-            int width = provider.width();
-            int height = provider.height();
-            if (width <= 0 || height <= 0) return mesh;
+        // 1) 最初の処理のみ分岐: AlphaInput の取得
+        auto ai = getAlphaInput(target);
+        if (ai.w <= 0 || ai.h <= 0 || ai.img is null) return mesh;
 
-            // Pack provider alpha into Image RGBA
-            auto img = new Image(width, height, ImageFormat.IF_RGB_ALPHA);
-            img.data[] = 0;
-            const(ubyte)* ap = provider.alphaPtr();
-            foreach (i; 0 .. width*height) img.data[i*4 + 3] = ap[i];
+        // 2) 共通処理: 二値化
+        auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3].dup;
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
 
-            vec2 imgCenter = vec2(width / 2, height / 2);
-            auto imbin = img.sliced[0 .. $, 0 .. $, 3].dup;
-            foreach (y; 0..imbin.shape[0]) foreach (x; 0..imbin.shape[1])
-                imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
-
-            skeletonizeImage(imbin);
-            auto path = extractPath(imbin, width, height);
-            controlPoints = simplifyByTargetCount(path, targetPointCount);
-
-            mesh.clear();
-            foreach (Point pt; controlPoints) {
-                vec2 position = vec2(pt.x, pt.y);
-                mesh.vertices ~= new MeshVertex(position - imgCenter);
-            }
-
-            auto b = provider.boundsWorld();
-            vec2 worldCenter = vec2(b.x + b.w * 0.5f, b.y + b.h * 0.5f);
-            mat4 inv = target.transform.matrix.inverse;
-            foreach (v; mesh.vertices) {
-                vec2 worldPos = v.position + worldCenter;
-                v.position = (inv * vec4(worldPos, 0, 1)).xy;
-            }
-            return mesh.autoTriangulate();
-        }
-
-        Texture texture = part.textures[0];
-        if (!texture)
-            return mesh;
-
-        ubyte[] data = texture.getTextureData();
-        int width = texture.width;
-        int height = texture.height;
-        vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
-
-        // Image 型は dcv.imgproc などのラッパーと仮定
-        auto img = new Image(width, height, ImageFormat.IF_RGB_ALPHA);
-        copy(data, img.data);
-        
-        // NDslice を用いて透明チャンネル（インデックス 3）を抽出
-        // img.sliced[...] は NDslice を返すので、dup してミュータブルなビューを得る
-        auto imbin = img.sliced[0 .. $, 0 .. $, 3].dup;
-        // ※ imbin の shape は [height, width] となる
-
-        // マスク化: 各画素を maskThreshold と比較し、値を 0 か 255 にする
-        foreach (y; 0..imbin.shape[0]) {
-            foreach (x; 0..imbin.shape[1]) {
-                imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
-            }
-        }
-
-        // 細線化（NDslice のビュー imbin をそのまま変更）
+        // 3) 共通処理: 細線化 → パス抽出 → 単純化
         skeletonizeImage(imbin);
-
-        // DFS で連続パス抽出
-        auto path = extractPath(imbin, width, height);
-
-        // 曲線単純化
+        auto path = extractPath(imbin, ai.w, ai.h);
         controlPoints = simplifyByTargetCount(path, targetPointCount);
 
+        // 4) 共通処理: 画像中心基準で頂点生成
         mesh.clear();
+        vec2 imgCenter = vec2(ai.w / 2, ai.h / 2);
         foreach (Point pt; controlPoints) {
             vec2 position = vec2(pt.x, pt.y);
             mesh.vertices ~= new MeshVertex(position - imgCenter);
         }
 
-        if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) {
-                vertex.position += dcomposite.textureOffset;
-            }
-        }
-
+        // 5) 共通処理: 対象ローカルへマッピング
+        mapImageCenteredMeshToTargetLocal(mesh, target, ai);
         return mesh.autoTriangulate();
     }
 

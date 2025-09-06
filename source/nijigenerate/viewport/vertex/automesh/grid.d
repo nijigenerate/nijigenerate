@@ -15,6 +15,7 @@ import std.algorithm.iteration: map, reduce;
 import std.array;
 import bindbc.imgui;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
+import nijigenerate.viewport.vertex.automesh.common : getAlphaInput, alphaImageCenter, mapImageCenteredMeshToTargetLocal;
 
 class GridAutoMeshProcessor : AutoMeshProcessor {
     float[] scaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
@@ -27,113 +28,50 @@ class GridAutoMeshProcessor : AutoMeshProcessor {
 public:
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        Part part = cast(Part)target;
-        if (!part) {
-            // Non-Part: use provider alpha and map result into target local
-            auto provider = new MeshGroupAlphaProvider(target);
-            scope(exit) provider.dispose();
-            int pw = provider.width();
-            int ph = provider.height();
-            if (pw <= 0 || ph <= 0) return mesh;
+        // 1) 最初の処理だけ分岐: AlphaInput の取得
+        auto ai = getAlphaInput(target);
+        if (ai.w <= 0 || ai.h <= 0) return mesh;
 
-            const(ubyte)* ap = provider.alphaPtr();
-            // Find mask bounds in provider alpha
-            int minX = pw, minY = ph, maxX = -1, maxY = -1;
-            foreach (y; 0 .. ph) {
-                foreach (x; 0 .. pw) {
-                    ubyte a = ap[y*pw + x];
-                    if (a >= cast(ubyte)maskThreshold) {
-                        if (x < minX) minX = x;
-                        if (y < minY) minY = y;
-                        if (x > maxX) maxX = x;
-                        if (y > maxY) maxY = y;
-                    }
-                }
-            }
-            if (maxX < 0 || maxY < 0) return mesh;
+        // 2) 共通処理: マスクの二値化と外接矩形の算出
+        auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3];
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
 
-            mesh.clear();
-            vec2 imgCenter = vec2(pw / 2, ph / 2);
+        int minX = ai.w, minY = ai.h, maxX = -1, maxY = -1;
+        foreach (y; 0 .. imbin.shape[0])
+        foreach (x; 0 .. imbin.shape[1])
+            if (imbin[y, x] > 0) {
+                int xi = cast(int)x;
+                int yi = cast(int)y;
+                if (xi < minX) minX = xi;
+                if (yi < minY) minY = yi;
+                if (xi > maxX) maxX = xi;
+                if (yi > maxY) maxY = yi;
+            }
+        if (maxX < 0 || maxY < 0) return mesh; // マスク無し
 
-            MeshData meshData;
-            mesh.axes = [[], []];
-            scaleY.sort!((a, b)=> a<b);
-            foreach (y; scaleY) {
-                mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
-            }
-            scaleX.sort!((a, b)=> a<b);
-            foreach (x; scaleX) {
-                mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
-            }
-            meshData.gridAxes = mesh.axes[];
-            meshData.regenerateGrid();
-            mesh.copyFromMeshData(meshData);
-
-            // Map to target local coordinates via provider bounds center
-            auto b = provider.boundsWorld();
-            vec2 worldCenter = vec2(b.x + b.w * 0.5f, b.y + b.h * 0.5f);
-            mat4 inv = target.transform.matrix.inverse;
-            foreach (v; mesh.vertices) {
-                vec2 worldPos = v.position + worldCenter;
-                v.position = (inv * vec4(worldPos, 0, 1)).xy;
-            }
-            return mesh;
-        }
-
-        Texture texture = part.textures[0];
-        if (!texture)
-            return mesh;
-        ubyte[] data = texture.getTextureData();
-        auto img = new Image(texture.width, texture.height, ImageFormat.IF_RGB_ALPHA);
-        copy(data, img.data);
-        
-        auto gray = img.sliced[0..$, 0..$, 3]; // Use transparent channel for boundary search
-        auto imbin = gray;
-        foreach (y; 0..imbin.shape[0]) {
-            foreach (x; 0..imbin.shape[1]) {
-                imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold? 0: 255;
-            }
-        }
-        vec2 imgCenter = vec2(texture.width / 2, texture.height / 2);
+        // 3) 共通処理: グリッド軸作成（画像中心基準）
         mesh.clear();
+        vec2 imgCenter = alphaImageCenter(ai);
 
-        float minX = texture.width();
-        float minY = texture.height();
-        float maxX = 0;
-        float maxY = 0;
-        foreach (y; 0..imbin.shape[0]) {
-            foreach (x; 0..imbin.shape[1]) {
-                if (imbin[y, x] > 0) {
-                    minX = min(x, minX);
-                    minY = min(y, minY);
-                    maxX = max(x, maxX);
-                    maxY = max(y, maxY);
-                }
-            }
-        }
-
-        auto dcomposite = cast(DynamicComposite)target;
         MeshData meshData;
-        
         mesh.axes = [[], []];
-        scaleY.sort!((a, b)=> a<b);
-        foreach (y; scaleY) {
+
+        scaleY.sort!((a, b) => a < b);
+        foreach (y; scaleY)
             mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
-            if (dcomposite !is null) {
-                mesh.axes[0][$ - 1] += dcomposite.textureOffset.y;
-            }
-        }
-        scaleX.sort!((a, b)=> a<b);
-        foreach (x; scaleX) {
+
+        scaleX.sort!((a, b) => a < b);
+        foreach (x; scaleX)
             mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
-            if (dcomposite !is null) {
-                mesh.axes[1][$ - 1] += dcomposite.textureOffset.x;
-            }
-        }
+
         meshData.gridAxes = mesh.axes[];
         meshData.regenerateGrid();
         mesh.copyFromMeshData(meshData);
 
+        // 4) 共通処理: 対象ローカル座標へマッピング
+        mapImageCenteredMeshToTargetLocal(mesh, target, ai);
         return mesh;
     }
 
