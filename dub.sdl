@@ -14,6 +14,13 @@ dependency "nijilive" version="~>0.0.1"
 dependency "mcp" version="~>1.0.1"
 dependency "vibe-d:http" version="~>0.10.0"
 
+// Disable tls until vibe upstream supports openssl 3.x
+// https://github.com/vibe-d/vibe.d/issues/2648
+// homebrew openssl 1.1 is deprecated, may not work on macOS arm64
+// https://formulae.brew.sh/formula/openssl@1.1
+dependency "vibe-stream:tls" version="~>1.0"
+subConfiguration "vibe-stream:tls" "notls"
+
 targetPath "out/"
 workingDirectory "out/"
 dflags "-mscrtlib=msvcrt" platform="windows-ldc"
