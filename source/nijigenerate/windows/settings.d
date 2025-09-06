@@ -307,6 +307,21 @@ protected:
                                     if (port < 1) port = 1; if (port > 65535) port = 65535;
                                     incSettingsSet("MCP.Port", port);
                                 }
+                                // Security warning when hosting on non-local address
+                                {
+                                    import std.string : fromStringz, toLower;
+                                    string hostPreview = fromStringz(hostBuf.ptr).idup;
+                                    auto lh = hostPreview.toLower();
+                                    bool isLocal = (lh == "127.0.0.1") || (lh == "localhost");
+                                    if (!isLocal) {
+                                        igPushTextWrapPos(256+128);
+                                        incTextColored(
+                                            ImVec4(0.9, 0.2, 0.2, 1),
+                                            _("Warning: MCP server host is not local. Others may connect to your nijigenerate. Use only on a trusted network and ensure proper firewall/network protections.")
+                                        );
+                                        igPopTextWrapPos();
+                                    }
+                                }
                                 incTooltip(_("Changes will apply when you click Done."));
                             } else {
                                 incTooltip(_("Server disabled. Click Done to apply."));
