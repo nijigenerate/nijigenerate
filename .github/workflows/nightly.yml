@@ -217,6 +217,14 @@ jobs:
         # Remove conflicting brew items
         brew remove --ignore-dependencies libpng brotli harfbuzz
 
+    - name: "Fetch openssl x86_64 bottle via brew"
+      continue-on-error: true
+      run: |
+        # sonoma = macos-14
+        TAR=$(brew fetch --bottle-tag=x86_64_sonoma openssl@3 | grep '/.\+openssl@3.\+sonoma.\+tar\.gz' -o)
+        tar -xzf "$TAR"
+        ln -s ./openssl@3/3.* ./openssl_3
+
     - name: "Remove final conflicting files"
       continue-on-error: true
       run: |
