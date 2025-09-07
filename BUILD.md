@@ -48,6 +48,18 @@ sudo dnf -y install \
     dbus-devel
 ```
 
+### macos
+```bash
+brew update
+brew install create-dmg gettext ldc
+
+# for mcp server
+brew install openssl@3 
+```
+For other dependencies, refer to Linux and use brew commands instead.
+
+For `x86_64` builds you need to install the `x86_64` version of brew, then install openssl@3
+
 ## Build nijilive Project
 First, we need to clone the four projects under nijigenerate and add them to `dub add-local`.
 ```bash
@@ -84,7 +96,6 @@ dub build --config=meta
 dub build --compiler=ldc2 --build=release --config=linux-full
 ./out/nijigenerate
 ```
-
 build nijiexpose
 ```
 cd nijiexpose
@@ -93,3 +104,13 @@ dub build --compiler=ldc2 --build=release --config=linux-full
 ./out/nijiexpose
 ```
 
+## Packing up a dmg file
+```
+./gentl.sh
+# macos arm64
+dub build --compiler=ldc2 --build=release --config=osx-full --arch=arm64-apple-macos
+# macos x86_64
+# dub build --compiler=ldc2 --build=release --config=osx-full --arch=x86_64-apple-macos
+./build-aux/osx/osxbundle.sh
+./build-aux/osx/gendmg.sh
+```
