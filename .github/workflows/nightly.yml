@@ -217,17 +217,12 @@ jobs:
         # Remove conflicting brew items
         brew remove --ignore-dependencies libpng brotli harfbuzz
 
-    - name: "Download openssl x86_64"
+    - name: "Fetch openssl x86_64 bottle via brew"
       continue-on-error: true
       run: |
-        # https://github.com/Homebrew/homebrew-core/blob/main/Formula/o/openssl@3.rb
         # sonoma = macos-14
-        URL="https://ghcr.io/v2/homebrew/core/openssl/3/blobs/sha256:dcbc84c30251575424915590a347d12f89088e055a76da319422f887d9e71faf"
-        REPO="homebrew/core/openssl/3"
-        TOKEN_JSON=$(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${REPO}:pull")
-        token=$(echo "$TOKEN_JSON" | jq -r .token)
-        curl -H "Authorization: Bearer $token" -L -o openssl3.tar.gz "$URL"
-        tar -xf openssl3.tar.gz
+        TAR=$(brew fetch --bottle-tag=x86_64_sonoma openssl@3 | grep '/.\+openssl@3.\+sonoma.\+tar\.gz' -o)
+        tar -xzf "$TAR"
         ln -s ./openssl@3/3.* ./openssl_3
 
     - name: "Remove final conflicting files"
