@@ -14,13 +14,6 @@ dependency "nijilive" version="~>0.0.1"
 dependency "mcp" version="~>1.0.1"
 dependency "vibe-d:http" version="~>0.10.0"
 
-// Disable tls until vibe upstream supports openssl 3.x
-// https://github.com/vibe-d/vibe.d/issues/2648
-// homebrew openssl 1.1 is deprecated, may not work on macOS arm64
-// https://formulae.brew.sh/formula/openssl@1.1
-dependency "vibe-stream:tls" version="~>1.0"
-subConfiguration "vibe-stream:tls" "notls"
-
 targetPath "out/"
 workingDirectory "out/"
 dflags "-mscrtlib=msvcrt" platform="windows-ldc"
@@ -53,6 +46,11 @@ configuration "osx-full" {
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
+
+  // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
+  lflags "-L./openssl_3/lib" platform="osx-x86_64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
 }
 
 // Windows build
@@ -82,6 +80,11 @@ configuration "osx-nightly" {
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 	versions "InNightly"
+
+  // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
+  lflags "-L./openssl_3/lib" platform="osx-x86_64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
 }
 
 // Windows nightly build
