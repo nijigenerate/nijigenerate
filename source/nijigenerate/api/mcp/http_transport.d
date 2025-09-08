@@ -129,7 +129,10 @@ class HttpTransport : Transport {
     private {
         void delegate(JSONValue) messageHandler;
         HTTPListener listener;
-        OutputStream[] clients; // SSE clients for /events
+        // bodyWriter の実際の公開型に追従するため、HTTPServerResponse から型を取得する
+        // （vibe のバージョン差異で InterfaceProxy!OutputStream 等に変化しても対応できる）
+        alias ClientStream = typeof((cast(HTTPServerResponse) null).bodyWriter);
+        ClientStream[] clients; // SSE clients for /events
         JSONValue*[Fiber] responseSlots;
         string host;
         ushort port;
@@ -233,14 +236,12 @@ private:
     string protectedResourceMetadataUrl() { return selfBase() ~ "/.well-known/oauth-protected-resource/mcp"; }
 
     // ===== Utils for tokens/PKCE =====
-    import std.base64 : Base64, Base64URL;
+    import std.base64 : Base64URLNoPadding;
     import std.digest.sha;
     import std.datetime : Clock, SysTime;
 
-        string b64url(in ubyte[] data) {
-        auto b64 = Base64("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_", '\0');
-        auto s = b64.encode(data);
-        return cast(string)s;
+    string b64url(in ubyte[] data) {
+        return cast(string) Base64URLNoPadding.encode(data);
     }
     string sha256_b64url(string s) {
         ubyte[32] result;
