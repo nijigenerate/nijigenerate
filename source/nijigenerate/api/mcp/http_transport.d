@@ -26,9 +26,8 @@ import std.array;
 import std.exception;
 import std.random;
 import std.typecons : Nullable, nullable, tuple;
-import core.time;
 import core.thread.fiber : Fiber;
-import std.datetime : SysTime, Clock;
+import core.time;
 
 import vibe.http.server;
 import vibe.http.router;
@@ -40,89 +39,8 @@ import std.uri : decodeComponent;
 
 import mcp.transport.stdio;
 import mcp.server;
-
-// ======================= 承認バス（インプロセス・共通キュー） =======================
-import core.sync.mutex;
-import core.sync.condition;
-
-/// 認可リクエスト（UIに見せたい情報）
-struct ApprovalRequest {
-    string reqId;
-    string clientId;
-    string scopeId;
-    string resource;
-    string state;
-    string redirectUri;
-}
-
-/// ネイティブアプリのUIスレッドとHTTPスレッドが共有する承認バス
-class ApprovalBus {
-private:
-    Mutex m;
-    Condition cv;
-    ApprovalRequest[] queue;          // 待ちキュー（FIFO）
-    string[string] decisions;         // reqId -> "approve" | "deny"
-
-public:
-    this() { m = new Mutex(); cv = new Condition(m); }
-
-    /// リクエストをキューに積む（HTTPスレッド側が呼ぶ）
-    void publish(ApprovalRequest req) {
-        m.lock();
-        scope(exit) m.unlock();
-        queue ~= req;
-        cv.notifyAll();
-    }
-
-    /// UIスレッドが次のリクエストを取り出す（timeoutMsで待機可能; 0で即時）
-    /// 戻り値: (hasValue, req)
-    auto pop(int timeoutMs) {
-        m.lock();
-        scope(exit) m.unlock();
-
-        if (queue.length == 0 && timeoutMs > 0) {
-            // timeoutまで待機（スプリアスウェイク対策のループ）
-            SysTime deadline = Clock.currTime() + msecs(timeoutMs);
-            while (queue.length == 0) {
-                Duration remain = deadline - Clock.currTime();
-                if (remain <= 0.seconds) break;
-                cv.wait(remain);
-            }
-        }
-        if (queue.length == 0) return tuple(false, ApprovalRequest.init);
-
-        auto req = queue[0];
-        if (queue.length > 1) queue = queue[1 .. $];
-        else queue.length = 0;
-        return tuple(true, req);
-    }
-
-    /// UI put a decision
-    void decide(string reqId, string decision) {
-        m.lock();
-        scope(exit) { cv.notifyAll(); m.unlock(); }
-        decisions[reqId] = decision; // "approve" or "deny"
-    }
-
-    /// HTTP server take one decision
-    string consumeDecision(string reqId) {
-        m.lock();
-        scope(exit) m.unlock();
-        if (auto p = reqId in decisions) {
-            string d = *p;
-            decisions.remove(reqId);
-            return d;
-        }
-        return "";
-    }
-}
-
-// グローバル承認バス（同一プロセス内で共有）
-__gshared ApprovalBus gApprovalBus;
-ApprovalBus approvalBus() {
-    if (gApprovalBus is null) gApprovalBus = new ApprovalBus();
-    return gApprovalBus;
-}
+import nijigenerate.api.mcp.task;
+import nijigenerate.api.mcp.auth;
 
 // ======================= HTTP Transport =======================
 class HttpTransport : Transport {
@@ -170,12 +88,9 @@ class HttpTransport : Transport {
         string[string]      rtDb; // refresh_token -> access_token
 
         // Discovery values
-        bool   authEnabled = true;
+        bool   _authEnabled = true;
         string issuer;              // e.g. http://127.0.0.1:8080/auth
         string canonicalResource;   // e.g. http://127.0.0.1:8080/mcp
-
-        // waiting time for approval
-        Duration approvalTimeout = 120.seconds;
     }
 
     this(string host = "127.0.0.1", ushort port = 8080) {
@@ -183,9 +98,10 @@ class HttpTransport : Transport {
         this.port = port;
         issuer            = selfBase() ~ "/auth";
         canonicalResource = selfBase() ~ "/mcp";
-        // initialize approval bus.
-        approvalBus();
     }
+
+    bool authEnabled() { return _authEnabled; }
+    void authEnabled(bool value) { _authEnabled = value; }
 
     void setMessageHandler(void delegate(JSONValue) handler) { 
         messageHandler = handler; 
@@ -228,7 +144,7 @@ private:
         import std.datetime : Clock;
         if (token in atDb) {
             auto t = atDb[token];
-            if (Clock.currTime() < t.expiresAt && t.resource == resource) return true;
+            if (Clock.currTime() < t.expiresAt && resource.startsWith(t.resource)) return true;
         }
         return false;
     }
@@ -300,6 +216,8 @@ private:
     private void handleEvents(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         if (authEnabled) {
             auto auth = req.headers.get("Authorization", "");
+            import std.stdio;
+            writefln("[MCP/HTTP] check token=%s",auth);
             if (!auth.startsWith("Bearer ")) { setUnauthorized(res); return; }
             auto tok = auth["Bearer ".length .. $];
             if (!checkToken(tok, canonicalResource)) { setUnauthorized(res); return; }
@@ -342,6 +260,8 @@ private:
 
     // ---- OAuth well-known (Protected Resource Metadata) ----
     void handleProtectedResourceMetadata(scope HTTPServerRequest req, scope HTTPServerResponse res) {
+        import std.stdio;
+        writefln("[MCP/HTTP] Protected Resource Metadata");
         res.headers["Content-Type"] = "application/json";
         JSONValue payload = [
             "resource": JSONValue(canonicalResource),
@@ -355,6 +275,8 @@ private:
 
     // ---- OAuth AS metadata (RFC 8414) ----
     void handleASMetadata(scope HTTPServerRequest req, scope HTTPServerResponse res) {
+        import std.stdio;
+        writefln("[MCP/HTTP] AS Metadata");
         res.headers["Content-Type"] = "application/json";
         JSONValue payload = [
             "issuer": JSONValue(issuer),
@@ -371,6 +293,8 @@ private:
 
     // ---- Authorize（Waiting decision → 302） ----
     void handleAuthorize(scope HTTPServerRequest req, scope HTTPServerResponse res) {
+        import std.stdio;
+        writefln("[MCP/HTTP] Authorization.");
         auto q = req.query;
         auto clientId     = q.get("client_id", "mcp-local");
         auto redirectUri  = q.get("redirect_uri", "");
@@ -381,8 +305,9 @@ private:
         auto chalMethod   = q.get("code_challenge_method", "S256");
         auto resource     = q.get("resource", "");
 
+        writefln("[MCP/HTTP] responseType=%s, redirectUri=%s resource=%s, canonicalResource=%s, chalMethod=%s", responseType, redirectUri, resource, canonicalResource, chalMethod);
         // validate (PKCE S256 & resource REQUIRED; loopback/http(s) redirect)
-        if (responseType != "code" || redirectUri.length == 0 || resource != canonicalResource || chalMethod != "S256") {
+        if (responseType != "code" || redirectUri.length == 0 || !canonicalResource.startsWith(resource) || chalMethod != "S256") {
             res.statusCode = 400; res.writeBody("invalid_request"); return;
         }
         if (!redirectUri.startsWith("http://127.0.0.1") &&
@@ -393,19 +318,10 @@ private:
 
         // create and enqueue approval request.
         string reqId = randToken("req_");
-        approvalBus().publish(ApprovalRequest(
+        string decision = ngSimpleAuth(ApprovalRequest(
             reqId, clientId, scopeId, resource, state, redirectUri
         ));
 
-        // wait for decision.
-        SysTime deadline = Clock.currTime() + approvalTimeout;
-        string decision;
-        while (Clock.currTime() < deadline) {
-            decision = approvalBus().consumeDecision(reqId);
-            if (decision.length) break;
-            sleep(200.msecs);
-            yield();
-        }
         if (decision.length == 0) decision = "deny"; // timeout
 
         if (decision == "approve") {
@@ -423,6 +339,8 @@ private:
 
     // ---- Token endpoint ----
     void handleToken(scope HTTPServerRequest req, scope HTTPServerResponse res) {
+        import std.stdio;
+        writefln("[MCP/HTTP] Token.");
         auto body = req.bodyReader.readAllUTF8();
         string[string] form;
         foreach (p; body.split("&")) {
