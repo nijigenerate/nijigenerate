@@ -151,7 +151,13 @@ private:
         }
         return false;
     }
-    string selfBase() { return "http://" ~ host ~ ":" ~ to!string(port); }
+    string selfBase() {
+        bool enabledSSL = incSettingsGet!bool("MCP.https", true);
+        if (enabledSSL) {
+            return "https://" ~ host ~ ":" ~ to!string(port);
+        }
+        return "http://" ~ host ~ ":" ~ to!string(port); 
+    }
     string protectedResourceMetadataUrl() { return selfBase() ~ "/.well-known/oauth-protected-resource/mcp"; }
 
     // ===== Utils for tokens/PKCE =====
