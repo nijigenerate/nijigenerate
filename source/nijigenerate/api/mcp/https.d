@@ -15,7 +15,6 @@ import deimos.openssl.x509v3;
 public:
 
 extern(C) void ngCreateSelfSignedCertificate(const(char)* certPath, const(char)* keyPath) {
-    SSL_CTX* ctx;
     EVP_PKEY* pkey = null;
     X509* x509 = null;
 
@@ -23,16 +22,7 @@ extern(C) void ngCreateSelfSignedCertificate(const(char)* certPath, const(char)*
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
 
-    ctx = SSL_CTX_new(TLS_server_method());
-    if (ctx is null) {
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    // Set TLS 1.2+ only and disable insecure options
-    SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION);
+    // Only generate artifacts; do not configure SSL_CTX here
 
     // Generate ECC P-256 private key
     pkey = EVP_PKEY_new();
@@ -75,22 +65,8 @@ extern(C) void ngCreateSelfSignedCertificate(const(char)* certPath, const(char)*
     PEM_write_PrivateKey(keyFile, pkey, null, null, 0, null, null);
     fclose(keyFile);
 
-    // Set certificate and key to SSL_CTX
-    if (SSL_CTX_use_certificate(ctx, x509) <= 0) {
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-    if (SSL_CTX_use_PrivateKey(ctx, pkey) <= 0) {
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
+    // Free allocated objects (owned locally)
     EVP_PKEY_free(pkey);
     X509_free(x509);
-
-    // Do not return ctx as we only generate and write files now
-    EVP_PKEY_free(pkey);
-    X509_free(x509);
-    SSL_CTX_free(ctx);
     return;
 }
