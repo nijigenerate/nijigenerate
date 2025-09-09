@@ -255,6 +255,14 @@ protected:
         if (incButtonColored("\ue145", ImVec2(30, 30))) { //New
             igOpenPopup("###AddResource");
         }
+/*
+        igSameLine();
+        // Follow Selection toggle
+        if (incButtonColored("\ue87a###FollowSelection", ImVec2(30, 30), followSelection ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+            followSelection = !followSelection;
+        }
+        incTooltip(_("Follow Selection"));
+*/
 //        igSameLine();
 //        incButtonColored("\ue872"); //Delete
 //        igSameLine();
