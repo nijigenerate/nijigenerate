@@ -43,6 +43,7 @@ import mcp.server;
 import nijigenerate.api.mcp.task;
 import nijigenerate.api.mcp.auth;
 import nijigenerate.api.mcp.https : ngCreateSelfSignedCertificate;
+import nijigenerate.core.settings; // incSettingsGet
 
 // ======================= HTTP Transport =======================
 class HttpTransport : Transport {
@@ -430,13 +431,21 @@ public:
         // settings
         auto settings = new HTTPServerSettings;
 
-        // self-signed certificate
-        auto enabledSSL = true;
+        // HTTPS (self-signed) optional
+        bool enabledSSL = incSettingsGet!bool("MCP.https", true);
         if (enabledSSL) {
-            ngCreateSelfSignedCertificate();
+            import std.path : buildPath;
+            import std.file : mkdirRecurse, exists;
+            import std.string : toStringz;
+            import nijigenerate.core.path : incGetAppConfigPath;
+            auto outDir = buildPath(incGetAppConfigPath(), "mcp");
+            if (!exists(outDir)) mkdirRecurse(outDir);
+            auto certPath = buildPath(outDir, "server.crt");
+            auto keyPath  = buildPath(outDir, "server.key");
+            ngCreateSelfSignedCertificate(certPath.toStringz, keyPath.toStringz);
             settings.tlsContext = createTLSContext(TLSContextKind.server);
-            settings.tlsContext.useCertificateChainFile("server.crt");
-            settings.tlsContext.usePrivateKeyFile("server.key");
+            settings.tlsContext.useCertificateChainFile(certPath);
+            settings.tlsContext.usePrivateKeyFile(keyPath);
         }
 
         // Start server
