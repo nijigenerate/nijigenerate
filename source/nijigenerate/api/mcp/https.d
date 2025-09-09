@@ -14,7 +14,7 @@ import deimos.openssl.x509v3;
 
 public:
 
-extern(C) SSL_CTX* ngCreateSelfSignedCertificate() {
+extern(C) void ngCreateSelfSignedCertificate(const(char)* certPath, const(char)* keyPath) {
     SSL_CTX* ctx;
     EVP_PKEY* pkey = null;
     X509* x509 = null;
@@ -59,17 +59,17 @@ extern(C) SSL_CTX* ngCreateSelfSignedCertificate() {
     X509_sign(x509, pkey, EVP_sha256());
 
     // Write certificate and private key to files (vibe-d requires file)
-    auto certFile = fopen("server.crt", "w");
+    auto certFile = fopen(certPath, "w");
     if (certFile is null) {
-        writefln("Failed to open server.crt\n");
+        writefln("Failed to open cert file\n");
         exit(EXIT_FAILURE);
     }
     PEM_write_X509(certFile, x509);
     fclose(certFile);
 
-    auto keyFile = fopen("server.key", "w");
+    auto keyFile = fopen(keyPath, "w");
     if (keyFile is null) {
-        writefln("Failed to open server.key\n");
+        writefln("Failed to open key file\n");
         exit(EXIT_FAILURE);
     }
     PEM_write_PrivateKey(keyFile, pkey, null, null, 0, null, null);
@@ -88,5 +88,9 @@ extern(C) SSL_CTX* ngCreateSelfSignedCertificate() {
     EVP_PKEY_free(pkey);
     X509_free(x509);
 
-    return ctx;
+    // Do not return ctx as we only generate and write files now
+    EVP_PKEY_free(pkey);
+    X509_free(x509);
+    SSL_CTX_free(ctx);
+    return;
 }
