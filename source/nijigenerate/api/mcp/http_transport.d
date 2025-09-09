@@ -444,7 +444,7 @@ public:
             if (!exists(outDir)) mkdirRecurse(outDir);
             auto certPath = buildPath(outDir, "server.crt");
             auto keyPath  = buildPath(outDir, "server.key");
-            ngCreateSelfSignedCertificate(certPath.toStringz, keyPath.toStringz);
+            ngCreateSelfSignedCertificate(certPath, keyPath);
             settings.tlsContext = createTLSContext(TLSContextKind.server);
             settings.tlsContext.useCertificateChainFile(certPath);
             settings.tlsContext.usePrivateKeyFile(keyPath);
