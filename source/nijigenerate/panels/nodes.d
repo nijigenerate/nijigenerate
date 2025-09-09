@@ -33,6 +33,8 @@ import nijigenerate.commands.node.dynamic : ensureAddNodeCommand, ensureInsertNo
 import nijigenerate.commands.node.base;
 
 private {
+    // Follow selection toggle (panel-local, default disabled)
+    bool followSelection = false;
     string[string] actionIconMap;
     string suffixName;
     static this() {
@@ -287,6 +289,8 @@ private:
     Node[] rangeSelectNodes;
     bool selectStateUpdate = false;
     bool revserseOrder = false;
+    bool pendingFocus = false;
+    uint lastSelUuid = 0;
 
 protected:
     /**
@@ -464,6 +468,11 @@ protected:
                         }
 
                         trackingRenderedNode(n);
+                        // Auto-focus when selection changes and feature is enabled
+                        if (followSelection && pendingFocus && selected) {
+                            igSetScrollHereY(0.25f);
+                            pendingFocus = false;
+                        }
 
                         if (igIsItemClicked(ImGuiMouseButton.Right)) {
                             igOpenPopup("NodeActionsPopup");
@@ -585,6 +594,13 @@ protected:
         }
 
         if (igBeginChild("NodesMain", ImVec2(0, -30), false)) {
+            // Detect selection change to schedule focus
+            auto _sel = incSelectedNodes();
+            uint curSel = _sel.length > 0 ? _sel[0].uuid : 0;
+            if (curSel != lastSelUuid) {
+                lastSelUuid = curSel;
+                pendingFocus = true;
+            }
             
             // temp variables
             float scrollDelta = 0;
@@ -677,6 +693,12 @@ protected:
                 revserseOrder = !revserseOrder;
             }
             incTooltip(_("Reverse Node Order"));
+
+            igSameLine(0, 2);
+            if (incButtonColored("\ue87a###FollowSelection", ImVec2(24, 24), followSelection ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
+                followSelection = !followSelection;
+            }
+            incTooltip(_("Follow Selection"));
 
             if(igBeginDragDropTarget()) {
                 const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
