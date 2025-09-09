@@ -47,8 +47,6 @@ class HttpTransport : Transport {
     private {
         void delegate(JSONValue) messageHandler;
         HTTPListener listener;
-        // bodyWriter の実際の公開型に追従するため、HTTPServerResponse から型を取得する
-        // （vibe のバージョン差異で InterfaceProxy!OutputStream 等に変化しても対応できる）
         alias ClientStream = typeof((cast(HTTPServerResponse) null).bodyWriter);
         ClientStream[] clients; // SSE clients for /events
         JSONValue*[Fiber] responseSlots;
