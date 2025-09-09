@@ -21,6 +21,7 @@ extern(C) void ngCreateSelfSignedCertificate(const(char)* certPath, const(char)*
     SSL_library_init();
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
+    RAND_poll();
 
     // Only generate artifacts; do not configure SSL_CTX here
 
