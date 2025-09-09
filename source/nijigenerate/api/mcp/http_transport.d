@@ -35,12 +35,14 @@ import vibe.http.client;
 import vibe.core.core : runApplication, exitEventLoop, yield, runTask, setTimer, sleep;
 import vibe.core.stream : OutputStream, InputStream;
 import vibe.stream.operations : readAllUTF8;
+import vibe.stream.tls;
 import std.uri : decodeComponent;
 
 import mcp.transport.stdio;
 import mcp.server;
 import nijigenerate.api.mcp.task;
 import nijigenerate.api.mcp.auth;
+import nijigenerate.api.mcp.https : ngCreateSelfSignedCertificate;
 
 // ======================= HTTP Transport =======================
 class HttpTransport : Transport {
@@ -425,8 +427,19 @@ public:
         router.get("/auth/authorize", &handleAuthorize);
         router.post("/auth/token",    &handleToken);
 
-        // Start server
+        // settings
         auto settings = new HTTPServerSettings;
+
+        // self-signed certificate
+        auto enabledSSL = true;
+        if (enabledSSL) {
+            ngCreateSelfSignedCertificate();
+            settings.tlsContext = createTLSContext(TLSContextKind.server);
+            settings.tlsContext.useCertificateChainFile("server.crt");
+            settings.tlsContext.usePrivateKeyFile("server.key");
+        }
+
+        // Start server
         settings.port = port;
         settings.bindAddresses = [host];
         listener = listenHTTP(settings, router);
