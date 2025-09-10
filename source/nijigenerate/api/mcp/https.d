@@ -1,0 +1,80 @@
+module nijigenerate.api.mcp.https;
+
+import core.stdc.stdio : FILE; // for File.getFP interop
+import std.stdio : File;       // RAII file
+import std.exception : enforce;
+
+import deimos.openssl.bio;
+import deimos.openssl.err;
+import deimos.openssl.opensslv;
+import deimos.openssl.rand;
+import deimos.openssl.ssl;
+import deimos.openssl.stack;
+import deimos.openssl.x509v3;
+
+struct SelfSignedCertificate {
+    EVP_PKEY* pkey = null;
+    X509* x509 = null;
+    EC_KEY* ecKey = null;
+    ~this() {
+        if (pkey !is null) EVP_PKEY_free(pkey);
+        if (x509 !is null) X509_free(x509);
+        // ecKey is owned by pkey after successful EVP_PKEY_assign_EC_KEY
+    }
+}
+
+public:
+void ngCreateSelfSignedCertificate(string certPath, string keyPath) {
+    SelfSignedCertificate cert;
+
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    RAND_poll();
+
+    // Only generate artifacts; do not configure SSL_CTX here
+
+    // Generate ECC P-256 private key
+    cert.pkey = EVP_PKEY_new();
+    enforce(cert.pkey !is null, "EVP_PKEY_new failed");
+    cert.ecKey = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+    enforce(cert.ecKey !is null, "EC_KEY_new_by_curve_name failed");
+    if (EC_KEY_generate_key(cert.ecKey) != 1) {
+        EC_KEY_free(cert.ecKey); cert.ecKey = null;
+        enforce(false, "EC_KEY_generate_key failed");
+    }
+    enforce(EVP_PKEY_assign_EC_KEY(cert.pkey, cert.ecKey) == 1, "EVP_PKEY_assign_EC_KEY failed");
+
+    // Generate X509 self-signed certificate
+    cert.x509 = X509_new();
+    enforce(cert.x509 !is null, "X509_new failed");
+    ASN1_INTEGER_set(X509_get_serialNumber(cert.x509), 1);
+    X509_gmtime_adj(X509_get_notBefore(cert.x509), 0);
+    X509_gmtime_adj(X509_get_notAfter(cert.x509), 31536000L); // 1 year validity
+    X509_set_pubkey(cert.x509, cert.pkey);
+
+    auto name = X509_get_subject_name(cert.x509);
+    X509_NAME_add_entry_by_txt(name, "C",  MBSTRING_ASC, cast(ubyte*)"US", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "O",  MBSTRING_ASC, cast(ubyte*)"TestOrg", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, cast(ubyte*)"localhost", -1, -1, 0);
+
+    // Subject Alternative Name: localhost, 127.0.0.1
+    auto san = X509V3_EXT_conf_nid(null, null, NID_subject_alt_name, cast(char*)"DNS:localhost,IP:127.0.0.1");
+    if (san !is null) {
+        X509_add_ext(cert.x509, san, -1);
+        X509_EXTENSION_free(san);
+    }
+    X509_set_issuer_name(cert.x509, name);
+
+    enforce(X509_sign(cert.x509, cert.pkey, EVP_sha256()) > 0, "X509_sign failed");
+
+    // Write certificate and private key using D's File RAII
+    auto cf = File(certPath, "w");
+    enforce(PEM_write_X509(cf.getFP(), cert.x509) == 1, "PEM_write_X509 failed");
+
+    auto kf = File(keyPath, "w");
+    enforce(PEM_write_PrivateKey(kf.getFP(), cert.pkey, null, null, 0, null, null) == 1, "PEM_write_PrivateKey failed");
+
+    // RAII frees cert members automatically
+    return;
+}

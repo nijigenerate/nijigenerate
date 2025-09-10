@@ -35,12 +35,15 @@ import vibe.http.client;
 import vibe.core.core : runApplication, exitEventLoop, yield, runTask, setTimer, sleep;
 import vibe.core.stream : OutputStream, InputStream;
 import vibe.stream.operations : readAllUTF8;
+import vibe.stream.tls;
 import std.uri : decodeComponent;
 
 import mcp.transport.stdio;
 import mcp.server;
 import nijigenerate.api.mcp.task;
 import nijigenerate.api.mcp.auth;
+import nijigenerate.api.mcp.https : ngCreateSelfSignedCertificate;
+import nijigenerate.core.settings; // incSettingsGet
 
 // ======================= HTTP Transport =======================
 class HttpTransport : Transport {
@@ -146,7 +149,13 @@ private:
         }
         return false;
     }
-    string selfBase() { return "http://" ~ host ~ ":" ~ to!string(port); }
+    string selfBase() {
+        bool enabledSSL = incSettingsGet!bool("MCP.https", true);
+        if (enabledSSL) {
+            return "https://" ~ host ~ ":" ~ to!string(port);
+        }
+        return "http://" ~ host ~ ":" ~ to!string(port); 
+    }
     string protectedResourceMetadataUrl() { return selfBase() ~ "/.well-known/oauth-protected-resource/mcp"; }
 
     // ===== Utils for tokens/PKCE =====
@@ -425,8 +434,27 @@ public:
         router.get("/auth/authorize", &handleAuthorize);
         router.post("/auth/token",    &handleToken);
 
-        // Start server
+        // settings
         auto settings = new HTTPServerSettings;
+
+        // HTTPS (self-signed) optional
+        bool enabledSSL = incSettingsGet!bool("MCP.https", true);
+        if (enabledSSL) {
+            import std.path : buildPath;
+            import std.file : mkdirRecurse, exists;
+            import std.string : toStringz;
+            import nijigenerate.core.path : incGetAppConfigPath;
+            auto outDir = buildPath(incGetAppConfigPath(), "mcp");
+            if (!exists(outDir)) mkdirRecurse(outDir);
+            auto certPath = buildPath(outDir, "server.crt");
+            auto keyPath  = buildPath(outDir, "server.key");
+            ngCreateSelfSignedCertificate(certPath, keyPath);
+            settings.tlsContext = createTLSContext(TLSContextKind.server);
+            settings.tlsContext.useCertificateChainFile(certPath);
+            settings.tlsContext.usePrivateKeyFile(keyPath);
+        }
+
+        // Start server
         settings.port = port;
         settings.bindAddresses = [host];
         listener = listenHTTP(settings, router);
