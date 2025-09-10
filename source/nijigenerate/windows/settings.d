@@ -312,10 +312,6 @@ protected:
                                 if (ngCheckbox(__("Enabled authorization."), &authEnabled)) {
                                     incSettingsSet("MCP.authEnabled", authEnabled);
                                 }
-                                bool httpsEnabled = incSettingsGet!bool("MCP.https", true);
-                                if (ngCheckbox(__("Enable HTTPS (self-signed)"), &httpsEnabled)) {
-                                    incSettingsSet("MCP.https", httpsEnabled);
-                                }
                             } else {
                                 incTooltip(_("Server disabled. Click Done to apply."));
                             }
