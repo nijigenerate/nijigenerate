@@ -18,7 +18,6 @@ module nijigenerate.api.mcp.server;
  */
 
 import core.thread : Thread;
-import core.sync.mutex : Mutex;
 import std.json;
 import std.array : array, join;
 import std.conv : to;
@@ -46,28 +45,23 @@ import nijilive.core.nodes : Node, SerializeNodeFlags;
 import nijilive.fmt.serialize : InochiSerializer, inCreateSerializer; 
 import std.array : appender;
 import std.json : parseJSON;
-import core.sync.condition : Condition;
+public import nijigenerate.api.mcp.task;
+import nijigenerate.core.settings;
 
-// Simple queue item representing a command to run on the main thread
-private struct EnqueuedCommand { void delegate() action; }
-
-// Queue and synchronization
-private __gshared EnqueuedCommand[] gQueue;
-private __gshared Mutex gQueueMutex;
 private __gshared bool gServerStarted = false;
 private __gshared Thread gServerThread;
 private __gshared string gServerHost = "127.0.0.1";
 private __gshared ushort gServerPort = 8088;
 private __gshared bool gServerEnabled = false;
-private __gshared ExtMCPServer gServerInstance;
+private __gshared ExtMCPServer gServerInstance = null;
+private __gshared HttpTransport gTransport = null;
 // Resource change notifiers (for MCP resources)
 private __gshared ResourceNotifier gNotifyResourcesFind;
 private __gshared ResourceNotifier gNotifyResourceByUuid;
 private __gshared ResourceNotifier gNotifyResourceIndex;
 
 // Resolve command instance by string id in the form "EnumType.Value"
-private Command _resolveCommandByString(string id)
-{
+private Command _resolveCommandByString(string id) {
     Command result = null;
     static foreach (AA; AllCommandMaps) {
         foreach (k, v; AA) {
@@ -80,17 +74,10 @@ private Command _resolveCommandByString(string id)
     return result;
 }
 
-// Enqueue a command run request
-private void _enqueueAction(void delegate() action)
-{
-    synchronized (gQueueMutex) gQueue ~= EnqueuedCommand(action);
-}
-
 // Internal: start server (assumes not started)
-private void _ngMcpStart(string host, ushort port)
-{
+private void _ngMcpStart(string host, ushort port) {
     if (gServerStarted) return;
-    if (gQueueMutex is null) gQueueMutex = new Mutex();
+    ngMcpInitTask();
     gServerStarted = true;
     gServerEnabled = true;
     gServerHost = host;
@@ -100,6 +87,8 @@ private void _ngMcpStart(string host, ushort port)
     auto transport = createHttpTransport(host, port);
     auto server = new ExtMCPServer(transport, "Nijigenerate MCP", "0.0.1");
     gServerInstance = server;
+    gTransport = transport;
+    ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled", false));
 
     // Minimal, robust registration that does not depend on TLS of another thread
     bool[string] registered;
@@ -224,7 +213,7 @@ private void _ngMcpStart(string host, ushort port)
                     // Debug: print incoming JSON for this tool call
                     writefln("[MCP] call %s: %s", toolName, payload.toString());
                     auto payloadCopy = payload;
-                    _enqueueAction({
+                    ngRunInMainThread({
                         // 1) Start from default context
                         auto ctx = ngBuildExecutionContext();
                         // 2) Override only provided keys from context, if any
@@ -418,12 +407,9 @@ private void _ngMcpStart(string host, ushort port)
         (JSONValue payload) {
             writefln("[MCP] call resources/find: %s", payload.toString());
             auto payloadCopy = payload;
-            auto lock = new Mutex();
-            auto cond = new Condition(lock);
-            bool done = false;
             JSONValue result;
 
-            _enqueueAction({
+            result = ngRunInMainThread({
                 SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
                 string selectorParam = ("selector" in payloadCopy && payloadCopy["selector"].type == JSONType.string) ? payloadCopy["selector"].str : "";
                 writefln("[MCP resources/find] selector='%s' (Basics + Children)", selectorParam);
@@ -460,14 +446,8 @@ private void _ngMcpStart(string host, ushort port)
 
                 JSONValue[] rootsOut;
                 foreach (r; ts.roots) rootsOut ~= makeTree(r);
-
-                synchronized (lock) {
-                    result = JSONValue(["items": JSONValue(rootsOut)]);
-                    done = true;
-                    cond.notify();
-                }
+                return JSONValue(["items": JSONValue(rootsOut)]);
             });
-            synchronized (lock) { while (!done) cond.wait(); }
             return result;
         }
     );
@@ -482,12 +462,9 @@ private void _ngMcpStart(string host, ushort port)
         (JSONValue payload) {
             writefln("[MCP] call resources/get: %s", payload.toString());
             auto payloadCopy = payload;
-            auto lock = new Mutex();
-            auto cond = new Condition(lock);
-            bool done = false;
             JSONValue result;
 
-            _enqueueAction({
+            result = ngRunInMainThread({
                 uint uuid = 0;
                 if ("uuid" in payloadCopy && payloadCopy["uuid"].type == JSONType.integer) uuid = cast(uint) payloadCopy["uuid"].integer;
                 SerializeNodeFlags flags = SerializeNodeFlags.Basics | SerializeNodeFlags.State | SerializeNodeFlags.Geometry | SerializeNodeFlags.Links;
@@ -513,13 +490,8 @@ private void _ngMcpStart(string host, ushort port)
                     }
                 }
                 JSONValue obj = map.length ? JSONValue(map) : JSONValue(null);
-                synchronized (lock) {
-                    result = JSONValue(["item": obj]);
-                    done = true;
-                    cond.notify();
-                }
+                return JSONValue(["item": obj]);
             });
-            synchronized (lock) { while (!done) cond.wait(); }
             return result;
         }
     );
@@ -546,12 +518,9 @@ private void _ngMcpStart(string host, ushort port)
             }
 
             // Block until main-thread serialization completes
-            auto lock = new Mutex();
-            auto cond = new Condition(lock);
-            bool done = false;
             JSONValue result;
 
-            _enqueueAction({
+            result = ngRunInMainThread({
                 SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
                 Selector sel = new Selector();
                 if (selectorParam.length) sel.build(selectorParam);
@@ -587,13 +556,8 @@ private void _ngMcpStart(string host, ushort port)
                 JSONValue[] rootsOut;
                 foreach (r; ts.roots) rootsOut ~= makeTree(r);
 
-                synchronized (lock) {
-                    result = JSONValue(["items": JSONValue(rootsOut)]);
-                    done = true;
-                    cond.notify();
-                }
+                return JSONValue(["items": JSONValue(rootsOut)]);
             });
-            synchronized (lock) { while (!done) cond.wait(); }
 
             import mcp.resources : ResourceContents;
             return ResourceContents.makeText("application/json", result.toString());
@@ -619,12 +583,9 @@ private void _ngMcpStart(string host, ushort port)
             }
 
             // Block until main-thread serialization completes
-            auto lock = new Mutex();
-            auto cond = new Condition(lock);
-            bool done = false;
             JSONValue result;
 
-            _enqueueAction({
+            result = ngRunInMainThread({
                 SerializeNodeFlags flags = SerializeNodeFlags.Basics | SerializeNodeFlags.State | SerializeNodeFlags.Geometry | SerializeNodeFlags.Links;
                 JSONValue[string] map;
                 auto puppet = incActivePuppet();
@@ -647,13 +608,8 @@ private void _ngMcpStart(string host, ushort port)
                     }
                 }
                 JSONValue obj = map.length ? JSONValue(map) : JSONValue(null);
-                synchronized (lock) {
-                    result = JSONValue(["item": obj]);
-                    done = true;
-                    cond.notify();
-                }
+                return JSONValue(["item": obj]);
             });
-            synchronized (lock) { while (!done) cond.wait(); }
 
             import mcp.resources : ResourceContents;
             return ResourceContents.makeText("application/json", result.toString());
@@ -862,14 +818,12 @@ private void _ngMcpStart(string host, ushort port)
 }
 
 // Public: initialize and start MCP server in background
-void ngMcpInit(string host = "127.0.0.1", ushort port = 8088)
-{
+void ngMcpInit(string host = "127.0.0.1", ushort port = 8088) {
     _ngMcpStart(host, port);
 }
 
 // Public: stop MCP server if running
-void ngMcpStop()
-{
+void ngMcpStop() {
     if (!gServerStarted) { writefln("[MCP] stop requested but server not started"); return; }
     gServerEnabled = false;
     if (gServerInstance !is null) {
@@ -896,8 +850,7 @@ void ngMcpStop()
 }
 
 // Public: apply settings without per-frame polling
-void ngMcpApplySettings(bool enabled, string host, ushort port)
-{
+void ngMcpApplySettings(bool enabled, string host, ushort port) {
     writefln("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
     if (!enabled) {
         if (gServerStarted) {
@@ -923,9 +876,7 @@ void ngMcpApplySettings(bool enabled, string host, ushort port)
 }
 
 // Public: read settings and apply in one call (no per-frame polling)
-void ngMcpLoadSettings()
-{
-    import nijigenerate.core.settings;
+void ngMcpLoadSettings() {
     // Default to disabled to avoid unexpected background server on first run
     bool enabled = incSettingsGet!bool("MCP.Enabled", false);
     string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
@@ -934,20 +885,11 @@ void ngMcpLoadSettings()
     ngMcpApplySettings(enabled, host, port);
 }
 
-// Public: process pending queue items on the main thread
-void ngMcpProcessQueue()
-{
-    if (gQueueMutex is null) return;
-    EnqueuedCommand[] items;
-    synchronized (gQueueMutex) {
-        if (gQueue.length == 0) return;
-        items = gQueue;
-        gQueue.length = 0;
-    }
+void ngMcpAuthEnabled(bool value) {
+    if (gTransport) gTransport.authEnabled = value;
+}
 
-    foreach (item; items) {
-        if (item.action !is null) {
-            try item.action(); catch (Exception) {}
-        }
-    }
+bool ngMcpAuthEnabled() {
+    if (gTransport) return gTransport.authEnabled;
+    return false;
 }

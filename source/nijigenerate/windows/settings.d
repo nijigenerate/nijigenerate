@@ -308,6 +308,10 @@ protected:
                                     incSettingsSet("MCP.Port", port);
                                 }
                                 incTooltip(_("Changes will apply when you click Done."));
+                                bool authEnabled = incSettingsGet!bool("MCP.authEnabled", false);
+                                if (ngCheckbox(__("Enabled authorization."), &authEnabled)) {
+                                    incSettingsSet("MCP.authEnabled", authEnabled);
+                                }
                             } else {
                                 incTooltip(_("Server disabled. Click Done to apply."));
                             }
@@ -349,7 +353,9 @@ protected:
         ngSaveShortcutsToSettings();
         // Apply integration/server settings on confirmation
         import nijigenerate.api.mcp : ngMcpLoadSettings;
+        import nijigenerate.api.mcp.server;
         ngMcpLoadSettings();
+        ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled"));
         incSettingsSave();
         incIsSettingsOpen = false;
     }
