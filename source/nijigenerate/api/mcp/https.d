@@ -1,7 +1,5 @@
 module nijigenerate.api.mcp.https;
 
-import core.stdc.stdio : FILE; // for File.getFP interop
-import std.stdio : File;       // RAII file
 import std.exception : enforce;
 
 import deimos.openssl.bio;
@@ -43,7 +41,12 @@ void ngCreateSelfSignedCertificate(string certPath, string keyPath) {
         EC_KEY_free(cert.ecKey); cert.ecKey = null;
         enforce(false, "EC_KEY_generate_key failed");
     }
-    enforce(EVP_PKEY_assign_EC_KEY(cert.pkey, cert.ecKey) == 1, "EVP_PKEY_assign_EC_KEY failed");
+    // On failure, EVP_PKEY does not take ownership; free ecKey to avoid leak
+    if (EVP_PKEY_assign_EC_KEY(cert.pkey, cert.ecKey) != 1) {
+        EC_KEY_free(cert.ecKey);
+        cert.ecKey = null;
+        enforce(false, "EVP_PKEY_assign_EC_KEY failed");
+    }
 
     // Generate X509 self-signed certificate
     cert.x509 = X509_new();
@@ -68,12 +71,16 @@ void ngCreateSelfSignedCertificate(string certPath, string keyPath) {
 
     enforce(X509_sign(cert.x509, cert.pkey, EVP_sha256()) > 0, "X509_sign failed");
 
-    // Write certificate and private key using D's File RAII
-    auto cf = File(certPath, "w");
-    enforce(PEM_write_X509(cf.getFP(), cert.x509) == 1, "PEM_write_X509 failed");
+    // Write certificate and private key using OpenSSL BIO to avoid CRT/openssl_uplink issues
+    BIO* bioCert = BIO_new_file(cast(char*)certPath.ptr, "w");
+    enforce(bioCert !is null, "BIO_new_file for cert failed");
+    scope(exit) BIO_free_all(bioCert);
+    enforce(PEM_write_bio_X509(bioCert, cert.x509) == 1, "PEM_write_bio_X509 failed");
 
-    auto kf = File(keyPath, "w");
-    enforce(PEM_write_PrivateKey(kf.getFP(), cert.pkey, null, null, 0, null, null) == 1, "PEM_write_PrivateKey failed");
+    BIO* bioKey = BIO_new_file(cast(char*)keyPath.ptr, "w");
+    enforce(bioKey !is null, "BIO_new_file for key failed");
+    scope(exit) BIO_free_all(bioKey);
+    enforce(PEM_write_bio_PrivateKey(bioKey, cert.pkey, null, null, 0, null, null) == 1, "PEM_write_bio_PrivateKey failed");
 
     // RAII frees cert members automatically
     return;

@@ -421,7 +421,7 @@ public:
 
     void run() {
         import std.stdio : writefln;
-        writefln("[MCP/HTTP] run(): binding on %s:%s", host, port);
+        writefln("[MCP/HTTP] run(): initializing router");
         auto router = new URLRouter;
 
         // MCP protected endpoints
@@ -448,13 +448,18 @@ public:
             if (!exists(outDir)) mkdirRecurse(outDir);
             auto certPath = buildPath(outDir, "server.crt");
             auto keyPath  = buildPath(outDir, "server.key");
+
+            writefln("[MCP/HTTP] run(): creating self-signed certificate at %s and %s", certPath, keyPath);
             ngCreateSelfSignedCertificate(certPath, keyPath);
+
+            writefln("[MCP/HTTP] run(): enabling HTTPS");
             settings.tlsContext = createTLSContext(TLSContextKind.server);
             settings.tlsContext.useCertificateChainFile(certPath);
             settings.tlsContext.usePrivateKeyFile(keyPath);
         }
 
         // Start server
+        writefln("[MCP/HTTP] run(): binding on %s:%s", host, port);
         settings.port = port;
         settings.bindAddresses = [host];
         listener = listenHTTP(settings, router);
