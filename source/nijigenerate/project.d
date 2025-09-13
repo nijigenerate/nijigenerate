@@ -363,6 +363,11 @@ void incSaveProject(string path, string autosaveStamp = "") {
         inWriteINPPuppet(incActivePuppet(), swapPath);
         rename(swapPath, finalPath);
 
+        // Update modified state only for manual saves
+        if (!isAutosave) {
+            incActionMarkSaved();
+        }
+
         if (!isAutosave) incReleaseLockfile();
         incActivePuppet().resetDrivers();
 
