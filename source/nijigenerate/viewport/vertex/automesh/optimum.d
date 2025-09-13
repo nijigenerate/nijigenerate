@@ -39,7 +39,6 @@ class OptimumAutoMeshProcessor : AutoMeshProcessor {
     float NONSHARP_CONTRACTION_FACTOR = 0.05;
     float[] SCALES = [0.5, 0.];
     float MIN_DISTANCE = 10;
-    float SIZE_AVG = 100;
     float MASK_THRESHOLD = 1;
     float DIV_PER_PART = 12;
 
@@ -552,91 +551,122 @@ public:
         igUnindent();
 
         igPushID("CONFIGURE_OPTIONS");
-        if (incBeginCategory(__("Details"))) {
-
-            if (igBeginChild("###CONTOUR_OPTIONS", ImVec2(0, 320))) {
-
+        // Simple parameters that drive the algorithm
+        if (incBeginCategory(__("Simple"))) {
+            if (igBeginChild("###SIMPLE_OPTIONS", ImVec2(0, 160))) {
+                // Alpha mask binarization
                 incText(_("Mask threshold"));
                 igIndent();
                 igPushID("MASK_THRESHOLD");
-                    igSetNextItemWidth(64);
+                    igSetNextItemWidth(96);
                     if (incDragFloat(
                         "mask_threshold", &MASK_THRESHOLD, 1,
                         1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
                     ) {
-                        MASK_THRESHOLD = MASK_THRESHOLD;
+                        // no-op
                     }
                 igPopID();
                 igUnindent();
 
+                // Vertex density relative to part size
+                incText(_("Vertex density (div per part)"));
+                igIndent();
+                igPushID("DIV_PER_PART");
+                    igSetNextItemWidth(96);
+                    if (incDragFloat(
+                        "div_per_part", &DIV_PER_PART, 0.5,
+                        4, 64, "%.1f", ImGuiSliderFlags.NoRoundToFormat)
+                    ) {
+                        // used in sampling distance derivation
+                    }
+                igPopID();
+                igUnindent();
+            }
+            igEndChild();
+        }
+        incEndCategory();
+
+        // Advanced parameters, for fine tuning
+        if (incBeginCategory(__("Advanced"))) {
+            if (igBeginChild("###ADV_OPTIONS", ImVec2(0, 420))) {
+                // Absolute minimum distance clamp
                 incText(_("Distance between vertices"));
                 igIndent();
                     incText(_("Minimum"));
                     igIndent();
                         igPushID("MIN_DISTANCE");
-                            igSetNextItemWidth(64);
+                            igSetNextItemWidth(96);
                             if (incDragFloat(
                                 "min_distance", &MIN_DISTANCE, 1,
                                 1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
                             ) {
-                                MIN_DISTANCE = MIN_DISTANCE;
+                                // no-op
                             }
                         igPopID();
                     igUnindent();
                 igUnindent();
 
+                // Sharp/unsharp heuristics
+                incText(_("Sharpness heuristics"));
+                igIndent();
+                    igPushID("SHARP_THRESH");
+                        igSetNextItemWidth(120);
+                        incDragFloat("large_threshold", &LARGE_THRESHOLD, 5, 50, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSetNextItemWidth(120);
+                        incDragFloat("length_threshold", &LENGTH_THRESHOLD, 5, 20, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSetNextItemWidth(120);
+                        incDragFloat("ratio_threshold", &RATIO_THRESHOLD, 0.01, 0.01, 1.0, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                    igPopID();
+                igUnindent();
+
+                incText(_("Expand/Contract factors"));
+                igIndent();
+                    igPushID("FACTORS");
+                        igSetNextItemWidth(120);
+                        incDragFloat("sharp_expand", &SHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.2, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSetNextItemWidth(120);
+                        incDragFloat("unsharp_expand", &NONSHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
+                        igSetNextItemWidth(120);
+                        incDragFloat("unsharp_contract", &NONSHARP_CONTRACTION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
+                    igPopID();
+                igUnindent();
+
+                // Scales list
                 int deleteIndex = -1;
                 incText("Scales");
                 igIndent();
                     igPushID("SCALES");
-                        if (igBeginChild("###AXIS_ADJ", ImVec2(0, 240))) {
+                        if (igBeginChild("###SCALES", ImVec2(0, 200))) {
                             if (SCALES.length > 0) {
-                                int ix;
-                                foreach(i, ref pt; SCALES) {
-                                    ix++;
-                                    vec2 range = vec2(0, 2);
-                                    igSetNextItemWidth(80);
+                                foreach(i, ref s; SCALES) {
+                                    igSetNextItemWidth(96);
                                     igPushID(cast(int)i);
-                                        if (incDragFloat(
-                                            "adj_offset", &SCALES[i], 0.01,
-                                            range.x, range.y, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                                        ) {
-                                        }
+                                        incDragFloat("scale", &SCALES[i], 0.01, 0, 2, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
                                         igSameLine(0, 0);
                                         if (i == SCALES.length - 1) {
                                             incDummy(ImVec2(-52, 32));
                                             igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                deleteIndex = cast(int)i;
-                                            }
+                                            if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
                                             igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                SCALES ~= 1.0;
-                                            }
+                                            if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
                                         } else {
                                             incDummy(ImVec2(-28, 32));
                                             igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                deleteIndex = cast(int)i;
-                                            }
+                                            if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
                                         }
                                     igPopID();
                                 }
                             } else {
                                 incDummy(ImVec2(-28, 24));
                                 igSameLine(0, 0);
-                                if (incButtonColored("", ImVec2(24, 24))) {
-                                    SCALES ~= 1.0;
-                                }
+                                if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
                             }
                         }
                         igEndChild();
                     igPopID();
                 igUnindent();
                 incTooltip(_("Specifying scaling factor to apply for contours. If multiple scales are specified, vertices are populated per scale factors."));
-                if (deleteIndex != -1) {
-                    SCALES = SCALES.remove(cast(uint)deleteIndex);
-                }
+                if (deleteIndex != -1) SCALES = SCALES.remove(cast(uint)deleteIndex);
             }
             igEndChild();
         }
