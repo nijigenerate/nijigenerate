@@ -87,11 +87,12 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
         bool bgFinished = false;
         bool fgFinished = false;
 
+        ulong popupId = 0;
         auto scheduleTask = delegate(){
             // Show notification popup (infinite until completion/cancel) on main thread
             import bindbc.imgui; // igProgressBar
             import nijigenerate.widgets : incButtonColored; // button helper
-            NotificationPopup.instance().popup((ImGuiIO* io){
+            popupId = NotificationPopup.instance().popup((ImGuiIO* io){
                 float prog = 0;
                 string cur; size_t _done, _total; string _proc;
                 // No mutex needed on main thread
@@ -140,7 +141,7 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
                         }
                     }
                     bgFinished = true;
-                    if (fgFinished) NotificationPopup.instance().close();
+                    if (fgFinished) NotificationPopup.instance().close(popupId);
                 });
             });
             if (parts.length > 0) th.start(); else bgFinished = true;
@@ -162,11 +163,11 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
                         incTaskYield();
                     }
                     fgFinished = true;
-                    if (bgFinished) NotificationPopup.instance().close();
+                    if (bgFinished) NotificationPopup.instance().close(popupId);
                 });
             } else {
                 fgFinished = true;
-                if (bgFinished) NotificationPopup.instance().close();
+                if (bgFinished) NotificationPopup.instance().close(popupId);
             }
         };
 
