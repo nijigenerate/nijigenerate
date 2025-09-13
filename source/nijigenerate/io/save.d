@@ -20,10 +20,8 @@ import i18n;
     check project has changes
 */
 bool incIsProjectModified() {
-    // TODO: we need more detailed check, maybe history action stack or tracking all changes
-    // currently just assume user history action stack should record all changes
-    // if not record, it is action stack bug
-    return !incIsActionStackEmpty();
+    // Consider project modified if action pointer differs from last saved index
+    return incActionIsModified();
 }
 
 bool incFileOpen() {

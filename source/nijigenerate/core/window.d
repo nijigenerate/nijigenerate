@@ -102,6 +102,10 @@ package {
     bool done = false;
     ImGuiID viewportDock;
     bool firstFrame = true;
+    // Current subtitle (model name) to display in window title
+    string windowSubtitle;
+    // Cached modified flag to avoid redundant title updates
+    bool lastWindowModified = false;
 
     bool isDarkMode = false;
     string[] files;
@@ -366,9 +370,30 @@ SDL_Window* incGetWindowPtr() {
     return window;
 }
 
+void incRefreshWindowTitle() {
+    import std.string : toStringz;
+    if (windowSubtitle.length > 0) {
+        string mark = incIsProjectModified() ? " ●" : "";
+        SDL_SetWindowTitle(window, ("nijigenerate - " ~ windowSubtitle ~ mark).toStringz);
+    } else {
+        SDL_SetWindowTitle(window, "nijigenerate");
+    }
+}
+
 void incSetWindowTitle(string subtitle) {
-    if (subtitle.length > 0) SDL_SetWindowTitle(window, ("nijigenerate - "~subtitle).toStringz);
-    else SDL_SetWindowTitle(window, "nijigenerate");
+    windowSubtitle = subtitle;
+    // Update cached flag and refresh immediately
+    lastWindowModified = incIsProjectModified();
+    incRefreshWindowTitle();
+}
+
+// Checks modified state and refreshes title when it changes
+void incUpdateWindowTitleTick() {
+    bool modified = incIsProjectModified();
+    if (modified != lastWindowModified) {
+        lastWindowModified = modified;
+        incRefreshWindowTitle();
+    }
 }
 
 /**
@@ -691,6 +716,9 @@ void incBeginLoopNoEv() {
         files.length = 0;
     }
 
+    // Update window title dot when modified state toggles
+    incUpdateWindowTitleTick();
+
     // Add docking space
     viewportDock = igDockSpaceOverViewport(null, ImGuiDockNodeFlags.NoDockingInCentralNode, null);
     if (!incSettingsCanGet("firstrun_complete")) {
@@ -871,4 +899,3 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
-

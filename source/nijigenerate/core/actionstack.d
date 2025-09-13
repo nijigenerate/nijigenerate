@@ -17,6 +17,8 @@ private {
     int[] groupCount;
     size_t[] actionPointer;
     size_t[] actionIndex;
+    // Tracks the action index last marked as "saved" per level
+    size_t[] savedIndex;
     size_t maxUndoHistory;
 }
 
@@ -34,6 +36,7 @@ void incActionInit() {
     actionIndex.length = currentLevel + 1;
     currentGroup.length = currentLevel + 1;
     groupCount.length = currentLevel + 1;
+    savedIndex.length = currentLevel + 1;
 }
 
 /**
@@ -208,9 +211,12 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         actionIndex.length = currentLevel + 1;
         currentGroup.length = currentLevel + 1;
         groupCount.length = currentLevel + 1;
+        savedIndex.length = currentLevel + 1;
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
+        // Newly cleared history equals saved state
+        savedIndex[currentLevel] = 0;
         break;
     case ActionStackClear.CurrentLevel:
         actions[currentLevel].length = 0;
@@ -249,6 +255,8 @@ void incActionPushStack() {
     actionIndex.length = currentLevel + 1;
     currentGroup.length = currentLevel + 1;
     groupCount.length = currentLevel + 1;
+    savedIndex.length = currentLevel + 1;
+    savedIndex[currentLevel] = 0;
 }
 
 void incActionPopStack() {
@@ -259,9 +267,28 @@ void incActionPopStack() {
         actionIndex.length = currentLevel + 1;
         currentGroup.length = currentLevel + 1;
         groupCount.length = currentLevel + 1;
+        savedIndex.length = currentLevel + 1;
     }
 }
 
 bool incIsActionStackEmpty() {
     return actions[currentLevel].length == 0;
+}
+
+/**
+    Marks the current action index as the saved state
+*/
+void incActionMarkSaved() {
+    // Ensure array is sized
+    if (savedIndex.length <= currentLevel) savedIndex.length = currentLevel + 1;
+    savedIndex[currentLevel] = actionPointer[currentLevel];
+}
+
+/**
+    Returns true if there are changes since the last save
+*/
+bool incActionIsModified() {
+    // If arrays are mismatched, consider modified only if pointers differ from 0
+    size_t saved = (savedIndex.length > currentLevel) ? savedIndex[currentLevel] : 0;
+    return actionPointer[currentLevel] != saved;
 }
