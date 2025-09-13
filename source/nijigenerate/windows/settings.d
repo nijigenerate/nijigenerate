@@ -448,7 +448,7 @@ protected:
                     }
 
                     igTableSetColumnIndex(2);
-                    auto setLbl = __("Set");
+                    auto setLbl = "\ue145".toStringz;
                     auto _idStr = to!string(k);
                     igPushID(_idStr.toStringz);
                     if (incButtonColored(setLbl, ImVec2(0, 0))) {
@@ -460,7 +460,7 @@ protected:
                         ngSetShortcutCapture(true);
                     }
                     igSameLine(0, 4);
-                    auto clrLbl = __("Clear");
+                    auto clrLbl = "\ue5cd".toStringz;
                     if (incButtonColored(clrLbl, ImVec2(0, 0))) {
                         ngClearShortcutFor(cmd);
                         import nijigenerate.core.shortcut : ngSaveShortcutsToSettings;
