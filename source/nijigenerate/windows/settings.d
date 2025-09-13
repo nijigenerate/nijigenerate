@@ -586,6 +586,12 @@ protected:
             // Mesh editor tool modes (dynamically generated per mode)
             renderCommandTable!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(__("Mesh Editor Tools"));
 
+            // ===== AutoMesh =====
+            bool hasAutoMesh = hasMatchingCommands!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)();
+            if (hasAutoMesh) {
+                renderCommandTable!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)(__("AutoMesh"));
+            }
+
             // ===== Node Popup =====
             bool hasNodeCommands = hasMatchingCommands!(nijigenerate.commands.node.node.commands)() ||
                                    hasMatchingCommands!(nijigenerate.commands.node.dynamic.addNodeCommands)() ||

@@ -36,6 +36,7 @@ private __gshared string gPaletteQuery;
 private __gshared size_t gPaletteSelectedIndex;
 private __gshared bool gPaletteActive;
 private __gshared bool gPaletteFocusPending;
+private __gshared ulong gPalettePopupId;
 
 private void paletteOpen()
 {
@@ -43,12 +44,14 @@ private void paletteOpen()
     gPaletteSelectedIndex = 0;
     gPaletteActive = true;
     gPaletteFocusPending = true;
+    gPalettePopupId = 0;
 }
 
 private void paletteClose()
 {
     gPaletteActive = false;
-    NotificationPopup.instance().close();
+    if (gPalettePopupId)
+        NotificationPopup.instance().close(gPalettePopupId);
 }
 
 // Collect all registered commands across AllCommandMaps
@@ -85,6 +88,7 @@ private string getParentCategory(Command c)
     if (inAA!(nijigenerate.commands.viewport.control.commands)(c)) return "Viewport";
     if (inAA!(nijigenerate.commands.viewport.palette.commands)(c)) return "Palette";
     if (inAA!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(c)) return "Mesh Editor Tools";
+    if (inAA!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)(c)) return "AutoMesh";
     // ===== Node Popup =====
     if (inAA!(nijigenerate.commands.node.node.commands)(c)) return "Nodes";
     if (inAA!(nijigenerate.commands.node.dynamic.addNodeCommands)(c)) return "Add Node";
@@ -140,7 +144,7 @@ class ListCommandCommand : ExCommand!()
         auto self = this; // capture for exclusion
         paletteOpen();
 
-        NotificationPopup.instance().popup((ImGuiIO* io) {
+        gPalettePopupId = NotificationPopup.instance().popup((ImGuiIO* io) {
             if (!gPaletteActive) return; // closed
 
             // Input field

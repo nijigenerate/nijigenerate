@@ -17,6 +17,7 @@ public import nijigenerate.commands.viewport.palette;
 public import nijigenerate.commands.mesheditor.tool;
 public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
+public import nijigenerate.commands.automesh.dynamic;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
@@ -43,6 +44,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.node.dynamic.insertNodeCommands,
     nijigenerate.commands.node.dynamic.convertNodeCommands,
     nijigenerate.commands.inspector.apply_node.commands,
+    nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
     );
 
 // Explicit initialization to avoid module constructor cycles

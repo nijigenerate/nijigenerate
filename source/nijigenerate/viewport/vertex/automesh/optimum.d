@@ -282,7 +282,9 @@ public:
 
             float[] widthMap;
             foreach(s; skelPath) {
-                if (s.y > dt.shape[0] || s.x > dt.shape[1]) continue;
+                // Guard against out-of-bounds: valid indices are [0 .. shape-1]
+                if (s.y < 0 || s.x < 0) continue;
+                if (s.y >= dt.shape[0] || s.x >= dt.shape[1]) continue;
                 if (dt[s.y, s.x] > 0) {
                     widthMap ~= 2 * dt[s.y, s.x];
                     debug(automesh_opt) writef("w, h = %d x %d, ", regionWidth, regionHeight);
