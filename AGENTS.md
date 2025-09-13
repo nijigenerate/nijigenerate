@@ -53,18 +53,25 @@
 
 ## Commit & Pull Request Guidelines
 - Never perform Git operations (commit, amend, rebase, push, branch create/delete, tag) or open/close PRs unless the user explicitly instructs you to do so in this session.
-- When changes are requested but Git actions are not explicitly authorized, provide changes as patches (diffs) only and wait for instructions.
+- When changes are requested but Git actions are not explicitly authorized, apply edits to files in the workspace (e.g., via `apply_patch`) and stop there — do not run any Git/GitHub commands.
 - Commits: present tense and concise. Optional scope prefix (e.g., `fix: core: …`, `feat: ui: …`, `refactor: shortcuts: …`).
 - Commit messages and PR text must be written in English unless the user explicitly requests another language.
 - For forks/unofficial builds, update links in `source/nijigenerate/config.d` (bug reports, docs, website) before distribution.
 - Do not create PRs without explicit user approval, and never create new branches unless explicitly instructed (specify target remote and branch name).
 
+### Git/GitHub Command Execution (Hard Rule)
+- Do not execute any `git` or `gh` commands unless explicitly instructed by the user in this session.
+- This includes (but is not limited to): `git commit`, `git push`, `git fetch`, `git pull`, `git checkout`, `git switch`, `git branch`, `git tag`, `git reset`, `git revert`, `git rebase`, and all `gh` subcommands (e.g., `gh repo fork`, `gh pr create`, `gh pr close`, `gh repo delete`).
+- When Git/GitHub interaction is desired, output the exact commands as plain text for the user to run themselves. Do not execute them.
+- Never auto‑fork, auto‑open PRs, or auto‑create/delete branches/remotes without an explicit user command.
+
 ## Agent Operation & Safety Rules
-- No side effects without consent: Do not execute actions that change repository state, open network connections, or modify system configuration unless explicitly requested by the user.
-- Ask before acting: When an operation could be destructive, high-impact, or ambiguous, ask for confirmation with a concise plan and exact commands you intend to run.
+- Default-allowed operations: Edit files in the local workspace to implement requested changes (use `apply_patch`); inspect code; and run local build/test commands (e.g., `dub build`, `dub test`) when relevant to the requested task.
+- Prohibited without explicit user approval: Any Git/GitHub operations; network access not inherent to the task; environment/system configuration changes; and destructive operations.
+- Ask before acting: When an operation could be destructive, high-impact, long-running, or ambiguous, ask for confirmation with a concise plan and the exact commands.
 - Minimal scope: Prefer the smallest, surgical change that resolves the issue; avoid unrelated edits or refactors.
-- Reproducibility: When possible, include exact commands to build, run, and test the changes. Do not run long/expensive commands without instruction.
-- Local patches first: Prefer providing `apply_patch`-style diffs; only commit/push when instructed.
+- Reproducibility: When possible, include exact commands to build, run, and test the changes. Avoid long/expensive commands unless requested.
+- Local edits first: Apply changes directly to files; do not perform Git actions unless explicitly instructed.
 
 ## Language Policy
 - Always respond in the same language used by the user’s latest message, unless the user explicitly requests another language.
