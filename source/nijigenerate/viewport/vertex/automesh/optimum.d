@@ -596,124 +596,128 @@ public:
         igUnindent();
 
         igPushID("CONFIGURE_OPTIONS");
-        // Simple parameters that drive the algorithm
+        // Simple parameters that drive the algorithm (no child window to avoid extra padding)
         if (incBeginCategory(__("Simple"))) {
-            if (igBeginChild("###SIMPLE_OPTIONS", ImVec2(0, 160))) {
-                // Alpha mask binarization
-                incText(_("Mask threshold"));
-                igIndent();
-                igPushID("MASK_THRESHOLD");
-                    igSetNextItemWidth(96);
-                    if (incDragFloat(
-                        "mask_threshold", &MASK_THRESHOLD, 1,
-                        1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        // no-op
-                    }
-                igPopID();
-                igUnindent();
+            // Alpha mask binarization
+            incText(_("Mask threshold"));
+            igIndent();
+            igPushID("MASK_THRESHOLD");
+                igSetNextItemWidth(96);
+                if (incDragFloat(
+                    "mask_threshold", &MASK_THRESHOLD, 1,
+                    1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
+                ) {
+                    // no-op
+                }
+            igPopID();
+            igUnindent();
 
-                // Vertex density relative to part size
-                incText(_("Vertex density (div per part)"));
-                igIndent();
-                igPushID("DIV_PER_PART");
-                    igSetNextItemWidth(96);
-                    if (incDragFloat(
-                        "div_per_part", &DIV_PER_PART, 0.5,
-                        4, 64, "%.1f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        // used in sampling distance derivation
-                    }
-                igPopID();
-                igUnindent();
-            }
-            igEndChild();
+            // Vertex density relative to part size
+            incText(_("Vertex density (div per part)"));
+            igIndent();
+            igPushID("DIV_PER_PART");
+                igSetNextItemWidth(96);
+                if (incDragFloat(
+                    "div_per_part", &DIV_PER_PART, 0.5,
+                    4, 64, "%.1f", ImGuiSliderFlags.NoRoundToFormat)
+                ) {
+                    // used in sampling distance derivation
+                }
+            igPopID();
+            igUnindent();
         }
         incEndCategory();
 
-        // Advanced parameters, for fine tuning
+        // Advanced parameters, for fine tuning (single child or none to avoid nested scrollbars)
         if (incBeginCategory(__("Advanced"))) {
-            if (igBeginChild("###ADV_OPTIONS", ImVec2(0, 420))) {
-                // Absolute minimum distance clamp
-                incText(_("Distance between vertices"));
+            // Keep content inline; avoid inner child windows to prevent multi-scrollbars
+            // Absolute minimum distance clamp
+            incText(_("Distance between vertices"));
+            igIndent();
+                incText(_("Minimum"));
                 igIndent();
-                    incText(_("Minimum"));
-                    igIndent();
-                        igPushID("MIN_DISTANCE");
-                            igSetNextItemWidth(96);
-                            if (incDragFloat(
-                                "min_distance", &MIN_DISTANCE, 1,
-                                1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                            ) {
-                                // no-op
-                            }
-                        igPopID();
-                    igUnindent();
-                igUnindent();
-
-                // Sharp/unsharp heuristics
-                incText(_("Sharpness heuristics"));
-                igIndent();
-                    igPushID("SHARP_THRESH");
-                        igSetNextItemWidth(120);
-                        incDragFloat("large_threshold", &LARGE_THRESHOLD, 5, 50, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-                        igSetNextItemWidth(120);
-                        incDragFloat("length_threshold", &LENGTH_THRESHOLD, 5, 20, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-                        igSetNextItemWidth(120);
-                        incDragFloat("ratio_threshold", &RATIO_THRESHOLD, 0.01, 0.01, 1.0, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                    igPopID();
-                igUnindent();
-
-                incText(_("Expand/Contract factors"));
-                igIndent();
-                    igPushID("FACTORS");
-                        igSetNextItemWidth(120);
-                        incDragFloat("sharp_expand", &SHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.2, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
-                        igSetNextItemWidth(120);
-                        incDragFloat("unsharp_expand", &NONSHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
-                        igSetNextItemWidth(120);
-                        incDragFloat("unsharp_contract", &NONSHARP_CONTRACTION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
-                    igPopID();
-                igUnindent();
-
-                // Scales list
-                int deleteIndex = -1;
-                incText("Scales");
-                igIndent();
-                    igPushID("SCALES");
-                        if (igBeginChild("###SCALES", ImVec2(0, 200))) {
-                            if (SCALES.length > 0) {
-                                foreach(i, ref s; SCALES) {
-                                    igSetNextItemWidth(96);
-                                    igPushID(cast(int)i);
-                                        incDragFloat("scale", &SCALES[i], 0.01, 0, 2, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                                        igSameLine(0, 0);
-                                        if (i == SCALES.length - 1) {
-                                            incDummy(ImVec2(-52, 32));
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
-                                        } else {
-                                            incDummy(ImVec2(-28, 32));
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
-                                        }
-                                    igPopID();
-                                }
-                            } else {
-                                incDummy(ImVec2(-28, 24));
-                                igSameLine(0, 0);
-                                if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
-                            }
+                    igPushID("MIN_DISTANCE");
+                        igSetNextItemWidth(96);
+                        if (incDragFloat(
+                            "min_distance", &MIN_DISTANCE, 1,
+                            1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
+                        ) {
+                            // no-op
                         }
-                        igEndChild();
                     igPopID();
                 igUnindent();
-                incTooltip(_("Specifying scaling factor to apply for contours. If multiple scales are specified, vertices are populated per scale factors."));
-                if (deleteIndex != -1) SCALES = SCALES.remove(cast(uint)deleteIndex);
-            }
-            igEndChild();
+            igUnindent();
+
+            // Sharp/unsharp heuristics
+            incText(_("Sharpness heuristics"));
+            igSameLine(0, 4);
+            igTextDisabled("(?)");
+            incTooltip(_("Classifies shape as 'sharp' to choose vertex strategy.\n- large_threshold: upper bound for average thickness along skeleton.\n- length_threshold: upper bound for skeleton length (short = sharper).\n- ratio_threshold: upper bound for avg_thickness_per_point (smaller = sharper)."));
+            igIndent();
+                igPushID("SHARP_THRESH");
+                    igSetNextItemWidth(120);
+                    incDragFloat("large_threshold", &LARGE_THRESHOLD, 5, 50, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
+                    incTooltip(_("Avg thickness threshold. Lower = more parts treated as sharp."));
+                    igSetNextItemWidth(120);
+                    incDragFloat("length_threshold", &LENGTH_THRESHOLD, 5, 20, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
+                    incTooltip(_("Skeleton length threshold. Lower = shorter shapes treated as sharp."));
+                    igSetNextItemWidth(120);
+                    incDragFloat("ratio_threshold", &RATIO_THRESHOLD, 0.01, 0.01, 1.0, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                    incTooltip(_("Avg thickness per point threshold (avg/len). Lower = thinner shapes treated as sharp."));
+                igPopID();
+            igUnindent();
+
+            incText(_("Expand/Contract factors"));
+            igSameLine(0, 4);
+            igTextDisabled("(?)");
+            incTooltip(_("Offsets vertices outward/inward from the thinned contour.\n- sharp_expand: outward offset for sharp shapes.\n- unsharp_expand: outward offset for non-sharp shapes.\n- unsharp_contract: inward offset for non-sharp shapes."));
+            igIndent();
+                igPushID("FACTORS");
+                    igSetNextItemWidth(120);
+                    incDragFloat("sharp_expand", &SHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.2, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
+                    incTooltip(_("Outward offset for sharp shapes (scaled by part size)."));
+                    igSetNextItemWidth(120);
+                    incDragFloat("unsharp_expand", &NONSHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
+                    incTooltip(_("Outward offset for non-sharp shapes (scaled by part size)."));
+                    igSetNextItemWidth(120);
+                    incDragFloat("unsharp_contract", &NONSHARP_CONTRACTION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
+                    incTooltip(_("Inward offset for non-sharp shapes (scaled by part size)."));
+                igPopID();
+            igUnindent();
+
+            // Scales list (no child window; inline list)
+            int deleteIndex = -1;
+            incText("Scales");
+            igIndent();
+                igPushID("SCALES");
+                    if (SCALES.length > 0) {
+                        foreach(i, ref s; SCALES) {
+                            igSetNextItemWidth(96);
+                            igPushID(cast(int)i);
+                                incDragFloat("scale", &SCALES[i], 0.01, 0, 2, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+                                igSameLine(0, 0);
+                                if (i == SCALES.length - 1) {
+                                    incDummy(ImVec2(-52, 32));
+                                    igSameLine(0, 0);
+                                    if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
+                                    igSameLine(0, 0);
+                                    if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
+                                } else {
+                                    incDummy(ImVec2(-28, 32));
+                                    igSameLine(0, 0);
+                                    if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
+                                }
+                            igPopID();
+                        }
+                    } else {
+                        incDummy(ImVec2(-28, 24));
+                        igSameLine(0, 0);
+                        if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
+                    }
+                igPopID();
+            igUnindent();
+            incTooltip(_("Specifying scaling factor to apply for contours. If multiple scales are specified, vertices are populated per scale factors."));
+            if (deleteIndex != -1) SCALES = SCALES.remove(cast(uint)deleteIndex);
         }
         incEndCategory();
         igPopID();
