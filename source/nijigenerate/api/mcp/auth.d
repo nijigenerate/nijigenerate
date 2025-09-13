@@ -32,12 +32,12 @@ string ngSimpleAuth(ApprovalRequest req) {
         pid = NotificationPopup.instance().popup((ImGuiIO* io) {
             igText(_("Got authentication request for MCP server from %s (scope=%s), Do you approve it?").format(req.clientId, req.scopeId).toStringz);
             igSameLine();
-            if (incButtonColored(__("Deny"))) {
+            if (incButtonColored(__(" Deny"))) {
                 decision = "deny";
                 NotificationPopup.instance().close(pid);
             }
             igSameLine();
-            if (incButtonColored(__("Approve"))) {
+            if (incButtonColored(__(" Approve"))) {
                 decision = "approve";
                 NotificationPopup.instance().close(pid);
             }
