@@ -108,8 +108,12 @@ public:
         items = kept;
     }
 
-    // Close all popups immediately
-    void close() {
+    // Close all popups immediately (removed to enforce id-based closing)
+    // Deprecated: use close(id) or clearAll() explicitly if needed.
+    // void close();
+
+    // Optional: clear all (explicit API name)
+    void clearAll() {
         items.length = 0;
     }
 

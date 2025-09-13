@@ -52,8 +52,6 @@ private void paletteClose()
     gPaletteActive = false;
     if (gPalettePopupId)
         NotificationPopup.instance().close(gPalettePopupId);
-    else
-        NotificationPopup.instance().close();
 }
 
 // Collect all registered commands across AllCommandMaps

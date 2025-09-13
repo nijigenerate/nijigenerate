@@ -50,7 +50,7 @@ string ngSimpleAuth(ApprovalRequest req) {
         if (decision.length) break;
         sleep(200.msecs);
     }
-    ngRunInMainThread({ NotificationPopup.instance().close(); });
+    ngRunInMainThread({ NotificationPopup.instance().close(pid); });
     writefln("[MCP/auth] auth done");
     return decision;
 }
