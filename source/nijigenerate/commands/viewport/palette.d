@@ -85,6 +85,7 @@ private string getParentCategory(Command c)
     if (inAA!(nijigenerate.commands.viewport.control.commands)(c)) return "Viewport";
     if (inAA!(nijigenerate.commands.viewport.palette.commands)(c)) return "Palette";
     if (inAA!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(c)) return "Mesh Editor Tools";
+    if (inAA!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)(c)) return "AutoMesh";
     // ===== Node Popup =====
     if (inAA!(nijigenerate.commands.node.node.commands)(c)) return "Nodes";
     if (inAA!(nijigenerate.commands.node.dynamic.addNodeCommands)(c)) return "Add Node";
