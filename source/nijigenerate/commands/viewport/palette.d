@@ -36,6 +36,7 @@ private __gshared string gPaletteQuery;
 private __gshared size_t gPaletteSelectedIndex;
 private __gshared bool gPaletteActive;
 private __gshared bool gPaletteFocusPending;
+private __gshared ulong gPalettePopupId;
 
 private void paletteOpen()
 {
@@ -43,12 +44,16 @@ private void paletteOpen()
     gPaletteSelectedIndex = 0;
     gPaletteActive = true;
     gPaletteFocusPending = true;
+    gPalettePopupId = 0;
 }
 
 private void paletteClose()
 {
     gPaletteActive = false;
-    NotificationPopup.instance().close();
+    if (gPalettePopupId)
+        NotificationPopup.instance().close(gPalettePopupId);
+    else
+        NotificationPopup.instance().close();
 }
 
 // Collect all registered commands across AllCommandMaps
@@ -141,7 +146,7 @@ class ListCommandCommand : ExCommand!()
         auto self = this; // capture for exclusion
         paletteOpen();
 
-        NotificationPopup.instance().popup((ImGuiIO* io) {
+        gPalettePopupId = NotificationPopup.instance().popup((ImGuiIO* io) {
             if (!gPaletteActive) return; // closed
 
             // Input field

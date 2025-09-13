@@ -7,12 +7,14 @@ import std.string;
 class NotificationPopup {
 private:
     struct Item {
+        ulong id;
         float remaining;
         bool infinite;
         char* messagez;
         void delegate(ImGuiIO* io) callback;
     }
     Item[] items; // stack: older at front, newest at back
+    ulong nextId = 1;
 
 protected:
     static NotificationPopup instance_ = null;
@@ -33,23 +35,27 @@ public:
     }
 
     // Push a text notification
-    void popup(string text, float duration) {
+    ulong popup(string text, float duration) {
         Item it;
+        it.id = nextId++;
         it.messagez = cast(char*)text.toStringz;
         it.remaining = duration;
         it.infinite = duration < 0;
         it.callback = null;
         items ~= it;
+        return it.id;
     }
 
     // Push an interactive notification
-    void popup(void delegate(ImGuiIO*) _callback, float duration) {
+    ulong popup(void delegate(ImGuiIO*) _callback, float duration) {
         Item it;
+        it.id = nextId++;
         it.messagez = null;
         it.remaining = duration;
         it.infinite = duration < 0;
         it.callback = _callback;
         items ~= it;
+        return it.id;
     }
 
     void onUpdate() {
@@ -71,7 +77,7 @@ public:
 
             igPushStyleColor(ImGuiCol.WindowBg, lightGreen);
             import std.conv : to;
-            auto winLabel = "##NotificationPopup" ~ idx.to!string;
+            auto winLabel = "##NotificationPopup" ~ it.id.to!string;
             if (igBegin(winLabel.toStringz, null, flags)) {
                 if (it.callback !is null) {
                     it.callback(io);
@@ -105,5 +111,12 @@ public:
     // Close all popups immediately
     void close() {
         items.length = 0;
+    }
+
+    // Close a specific popup by id
+    void close(ulong id) {
+        Item[] kept;
+        foreach (it; items) if (it.id != id) kept ~= it;
+        items = kept;
     }
 }

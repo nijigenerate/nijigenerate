@@ -26,19 +26,20 @@ struct ApprovalRequest {
 string ngSimpleAuth(ApprovalRequest req) {
     import std.stdio;
     string decision;
+    ulong pid = 0;
     ngRunInMainThread({
         writefln("[MCP/auth] popup");
-        NotificationPopup.instance().popup((ImGuiIO* io) {
+        pid = NotificationPopup.instance().popup((ImGuiIO* io) {
             igText(_("Got authentication request for MCP server from %s (scope=%s), Do you approve it?").format(req.clientId, req.scopeId).toStringz);
             igSameLine();
             if (incButtonColored(__("Deny"))) {
                 decision = "deny";
-                NotificationPopup.instance().close();
+                NotificationPopup.instance().close(pid);
             }
             igSameLine();
             if (incButtonColored(__("Approve"))) {
                 decision = "approve";
-                NotificationPopup.instance().close();
+                NotificationPopup.instance().close(pid);
             }
         }, 120);
     });
@@ -49,9 +50,7 @@ string ngSimpleAuth(ApprovalRequest req) {
         if (decision.length) break;
         sleep(200.msecs);
     }
-    ngRunInMainThread({
-        NotificationPopup.instance().close();
-    });
+    ngRunInMainThread({ NotificationPopup.instance().close(); });
     writefln("[MCP/auth] auth done");
     return decision;
 }
