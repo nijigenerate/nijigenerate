@@ -512,39 +512,84 @@ public:
         if(igBeginCombo(__("Presets"), __(presetName))) {
             if (igSelectable(__("Normal parts"))) {
                 presetName = "Normal parts";
+                // Binarization / density
                 MASK_THRESHOLD = 15;
+                DIV_PER_PART = 12;
                 MIN_DISTANCE = 16;
                 SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+                // Heuristics
+                LARGE_THRESHOLD = 400;
+                LENGTH_THRESHOLD = 100;
+                RATIO_THRESHOLD = 0.20;
+                // Expand/contract factors
+                SHARP_EXPANSION_FACTOR = 0.010;
+                NONSHARP_EXPANSION_FACTOR = 0.050;
+                NONSHARP_CONTRACTION_FACTOR = 0.050;
             }
             if (igSelectable(__("Detailed mesh"))) {
                 presetName = "Detailed mesh";
                 MASK_THRESHOLD = 15;
-                MIN_DISTANCE = 16;
+                DIV_PER_PART = 16; // denser
+                MIN_DISTANCE = 12;
                 SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+                LARGE_THRESHOLD = 380;
+                LENGTH_THRESHOLD = 90;
+                RATIO_THRESHOLD = 0.18;
+                SHARP_EXPANSION_FACTOR = 0.008;
+                NONSHARP_EXPANSION_FACTOR = 0.045;
+                NONSHARP_CONTRACTION_FACTOR = 0.045;
             }
             if (igSelectable(__("Large parts"))) {
                 presetName = "Large parts";
                 MASK_THRESHOLD = 15;
+                DIV_PER_PART = 8; // sparser
                 MIN_DISTANCE = 24;
                 SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+                LARGE_THRESHOLD = 600;
+                LENGTH_THRESHOLD = 200;
+                RATIO_THRESHOLD = 0.30;
+                SHARP_EXPANSION_FACTOR = 0.015;
+                NONSHARP_EXPANSION_FACTOR = 0.080;
+                NONSHARP_CONTRACTION_FACTOR = 0.080;
             }
             if (igSelectable(__("Small parts"))) {
                 presetName = "Small parts";
                 MASK_THRESHOLD = 15;
+                DIV_PER_PART = 18; // denser
                 MIN_DISTANCE = 12;
                 SCALES = [1, 1.1, 0.6, 0.2];
+                LARGE_THRESHOLD = 300;
+                LENGTH_THRESHOLD = 80;
+                RATIO_THRESHOLD = 0.15;
+                SHARP_EXPANSION_FACTOR = 0.008;
+                NONSHARP_EXPANSION_FACTOR = 0.040;
+                NONSHARP_CONTRACTION_FACTOR = 0.040;
             }
             if (igSelectable(__("Thin and minimum parts"))) {
                 presetName = "Thin and minimum parts";
-                MASK_THRESHOLD = 1;
+                MASK_THRESHOLD = 1; // pick up very thin lines
+                DIV_PER_PART = 24;  // highest density
                 MIN_DISTANCE = 4;
                 SCALES = [1];
+                LARGE_THRESHOLD = 200;
+                LENGTH_THRESHOLD = 60;
+                RATIO_THRESHOLD = 0.10;
+                SHARP_EXPANSION_FACTOR = 0.006;
+                NONSHARP_EXPANSION_FACTOR = 0.030;
+                NONSHARP_CONTRACTION_FACTOR = 0.030;
             }
             if (igSelectable(__("Preserve edges"))) {
                 presetName = "Preserve edges";
                 MASK_THRESHOLD = 15;
+                DIV_PER_PART = 20; // dense but conservative
                 MIN_DISTANCE = 8;
                 SCALES = [1, 1.2, 0.8];
+                LARGE_THRESHOLD = 350;
+                LENGTH_THRESHOLD = 80;
+                RATIO_THRESHOLD = 0.15;
+                SHARP_EXPANSION_FACTOR = 0.010;
+                NONSHARP_EXPANSION_FACTOR = 0.030;
+                NONSHARP_CONTRACTION_FACTOR = 0.030;
             }
             igEndCombo();
         }
