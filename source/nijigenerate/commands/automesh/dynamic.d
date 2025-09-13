@@ -13,7 +13,6 @@ import core.thread : Thread;
 import core.thread.fiber : Fiber;
 import core.sync.mutex : Mutex;
 import nijigenerate.api.mcp.task : ngRunInMainThread, ngMcpEnqueueAction; // scheduling helpers
-import nijigenerate.core.tasks : incTaskAdd, incTaskYield, incTaskProgress;
 import nijigenerate.widgets.notification : NotificationPopup; // UI progress popup
 
 // Stable key for per-processor AutoMesh commands
@@ -63,10 +62,24 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
         // Prepare meshes
         IncMesh[] meshList = targets.map!(t => new IncMesh(t.getMesh())).array;
 
-        // Split by type and lock part textures (match batching window behavior)
-        auto parts = targets.filter!(t => cast(Part)t !is null).map!(t => cast(Part)t).array;
-        auto nonParts = targets.filter!(t => cast(Part)t is null).array;
-        foreach (p; parts) if (p.textures.length > 0 && p.textures[0]) p.textures[0].lock();
+        // Lock textures for any Part reachable under targets to ensure thread-safe readback
+        Texture[] toLock;
+        bool[Texture] locked;
+        void collectPartTextures(Node n) {
+            if (n is null) return;
+            if (auto p = cast(Part)n) {
+                if (p.textures.length > 0 && p.textures[0] !is null) {
+                    auto tex = p.textures[0];
+                    if (!(tex in locked)) {
+                        tex.lock();
+                        locked[tex] = true;
+                        toLock ~= tex;
+                    }
+                }
+            }
+            foreach (child; n.children) collectPartTextures(child);
+        }
+        foreach (t; targets) collectPartTextures(t);
 
         // Shared state for UI/progress
         auto mtx = new Mutex();
@@ -84,8 +97,7 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
         }
 
         // Build a scheduler that enqueues a main-thread Fiber task
-        bool bgFinished = false;
-        bool fgFinished = false;
+        bool workerFinished = false;
 
         ulong popupId = 0;
         auto scheduleTask = delegate(){
@@ -106,7 +118,7 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
                 if (incButtonColored("Cancel", ImVec2(96, 24))) canceled = true;
             }, -1);
 
-            // Run actual automesh on a background thread (Parts only); apply results on main thread
+            // Run actual automesh on a background thread for ALL targets; apply results on main thread
             Thread th = new Thread({
                 IncMesh[uint] results;
                 bool cb(Drawable d, IncMesh mesh) {
@@ -120,8 +132,8 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
                     return !stop;
                 }
                 void work() {
-                    // Build background target lists for Parts only
-                    Drawable[] bgTargets = parts.map!(p => cast(Drawable)p).array;
+                    // Build background target lists for ALL drawables
+                    Drawable[] bgTargets = targets;
                     IncMesh[] bgMeshes = bgTargets.map!(t => new IncMesh(t.getMesh())).array;
                     chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
                 }
@@ -129,7 +141,7 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
                 while (fib.state != Fiber.State.TERM) fib.call();
 
                 // Unlock textures
-                foreach (p; parts) if (p.textures.length > 0 && p.textures[0]) p.textures[0].unlock();
+                foreach (tex; toLock) if (tex) tex.unlock();
 
                 // Enqueue apply on main thread
                 ngMcpEnqueueAction({
@@ -140,35 +152,11 @@ class ApplyAutoMeshCommand : ExCommand!(TW!(string, "processorId", "AutoMesh pro
                                 applyMeshToTarget(t, mesh.vertices, &mesh);
                         }
                     }
-                    bgFinished = true;
-                    if (fgFinished) NotificationPopup.instance().close(popupId);
+                    workerFinished = true;
+                    NotificationPopup.instance().close(popupId);
                 });
             });
-            if (parts.length > 0) th.start(); else bgFinished = true;
-
-            // Non-Parts: process sequentially on main thread Fiber (avoid GL/context issues)
-            if (nonParts.length > 0) {
-                incTaskAdd("Apply AutoMesh (NonParts)", {
-                    size_t idx = 0;
-                    while (idx < nonParts.length && !canceled) {
-                        auto t = nonParts[idx];
-                        currentName = t.name;
-                        auto cur = new IncMesh(t.getMesh());
-                        auto outMesh = chosen.autoMesh(t, cur, false, 0, false, 0);
-                        if (outMesh.vertices.length >= 3)
-                            applyMeshToTarget(t, outMesh.vertices, &outMesh);
-                        ++done;
-                        ++idx;
-                        incTaskProgress(total > 0 ? cast(float)done / cast(float)total : 0);
-                        incTaskYield();
-                    }
-                    fgFinished = true;
-                    if (bgFinished) NotificationPopup.instance().close(popupId);
-                });
-            } else {
-                fgFinished = true;
-                if (bgFinished) NotificationPopup.instance().close(popupId);
-            }
+            th.start();
         };
 
         // Dispatch scheduling depending on thread context
