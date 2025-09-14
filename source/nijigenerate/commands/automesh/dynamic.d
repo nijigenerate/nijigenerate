@@ -54,7 +54,9 @@ template ApplyAutoMeshPT(alias PT)
             auto chosen = cast(AutoMeshProcessor)new PT();
 
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-            Drawable[] targets = enumerateDrawablesForAutoMesh(ns);
+            // Apply only to explicitly selected drawables (do not include descendants)
+            Drawable[] targets;
+            foreach (n; ns) if (auto d = cast(Drawable) n) targets ~= d;
             if (targets.length == 0) return;
 
             IncMesh[] meshList = targets.map!(t => new IncMesh(t.getMesh())).array;
