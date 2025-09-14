@@ -2,6 +2,8 @@ module nijigenerate.viewport.vertex.automesh.contours;
 
 import i18n;
 import nijigenerate.viewport.vertex.automesh.automesh;
+import nijigenerate.viewport.vertex.automesh.meta;
+import std.json : JSONValue, JSONType, parseJSON;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
@@ -18,14 +20,76 @@ import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.viewport.vertex.automesh.common;
 import nijigenerate.project : incSelectedNodes;
 
-class ContourAutoMeshProcessor : AutoMeshProcessor {
+class ContourAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
+    @AMParam(AutoMeshLevel.Simple, "sampling_step", "Sampling rate", "Contour sampling rate", "drag", 1, 200, 1)
     float SAMPLING_STEP = 32;
     const float SMALL_THRESHOLD = 256;
+    @AMParam(AutoMeshLevel.Simple, "mask_threshold", "Mask threshold", "Alpha binarize cutoff", "drag", 1, 200, 1)
     float maskThreshold = 15;
+    @AMParam(AutoMeshLevel.Advanced, "min_distance", "Minimum distance", "Minimum distance between vertices", "drag", 1, 200, 1)
     float MIN_DISTANCE = 16;
+    @AMParam(AutoMeshLevel.Advanced, "max_distance", "Maximum distance", "Maximum distance between vertices", "drag", 1, 200, 1)
     float MAX_DISTANCE = -1;
+    @AMParam(AutoMeshLevel.Advanced, "scales", "Scales", "Contour scales", "array")
+    @AMArray(0, 2, 0.01)
     float[] SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1];
     string presetName;
+
+    // Presets annotated for reflection
+    @AMPreset("Normal parts")
+    static void presetNormal(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 50;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 16;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+        p.presetName = "Normal parts";
+    }
+    @AMPreset("Detailed mesh")
+    static void presetDetailed(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 32;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 16;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+        p.presetName = "Detailed mesh";
+    }
+    @AMPreset("Large parts")
+    static void presetLarge(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 80;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 24;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+        p.presetName = "Large parts";
+    }
+    @AMPreset("Small parts")
+    static void presetSmall(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 24;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 12;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.6, 0.2];
+        p.presetName = "Small parts";
+    }
+    @AMPreset("Thin and minimum parts")
+    static void presetThin(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 12;
+        p.maskThreshold = 1;
+        p.MIN_DISTANCE = 4;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1];
+        p.presetName = "Thin and minimum parts";
+    }
+    @AMPreset("Preserve edges")
+    static void presetEdges(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 24;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 8;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.2, 0.8];
+        p.presetName = "Preserve edges";
+    }
     // Unified alpha preview state
     private AlphaPreviewState _alphaPreview;
     public:
@@ -388,5 +452,61 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
     override 
     string icon() {
         return "";
+    }
+    // IAutoMeshReflect
+    string amSchema() {
+        JSONValue obj = JSONValue(JSONType.object);
+        obj["type"] = "ContourAutoMeshProcessor";
+        JSONValue presets = JSONValue(JSONType.array);
+        foreach (name; ["Normal parts","Detailed mesh","Large parts","Small parts","Thin and minimum parts","Preserve edges"]) {
+            JSONValue p; p["name"] = name; presets.array ~= p;
+        }
+        obj["presets"] = presets;
+        JSONValue simple = JSONValue(JSONType.array);
+        JSONValue adv = JSONValue(JSONType.array);
+        JSONValue it;
+        it["id"] = "sampling_step"; it["label"] = "Sampling rate"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
+        it["id"] = "mask_threshold"; it["label"] = "Mask threshold"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
+        it["id"] = "min_distance"; it["label"] = "Minimum distance"; it["type"] = "float"; adv.array ~= it; it = JSONValue.init;
+        it["id"] = "max_distance"; it["label"] = "Maximum distance"; it["type"] = "float"; adv.array ~= it; it = JSONValue.init;
+        it["id"] = "scales"; it["label"] = "Scales"; it["type"] = "float[]"; adv.array ~= it;
+        obj["Simple"] = simple; obj["Advanced"] = adv;
+        return obj.toString();
+    }
+    string amValues(string levelName) {
+        JSONValue v = JSONValue(JSONType.object);
+        if (levelName == "Advanced") {
+            v["min_distance"] = JSONValue(cast(double)MIN_DISTANCE);
+            v["max_distance"] = JSONValue(cast(double)MAX_DISTANCE);
+            JSONValue sc = JSONValue(JSONType.array); foreach (s; SCALES) sc.array ~= JSONValue(cast(double)s); v["scales"] = sc;
+        } else {
+            v["sampling_step"] = JSONValue(cast(double)SAMPLING_STEP);
+            v["mask_threshold"] = JSONValue(cast(double)maskThreshold);
+        }
+        return v.toString();
+    }
+    bool amApplyPreset(string name) {
+        switch (name) {
+            case "Normal parts":    presetNormal(this); return true;
+            case "Detailed mesh":   presetDetailed(this); return true;
+            case "Large parts":     presetLarge(this); return true;
+            case "Small parts":     presetSmall(this); return true;
+            case "Thin and minimum parts": presetThin(this); return true;
+            case "Preserve edges":  presetEdges(this); return true;
+            default: return false;
+        }
+    }
+    bool amWriteValues(string levelName, string updatesJson) {
+        auto u = parseJSON(updatesJson);
+        bool any;
+        if (levelName == "Advanced") {
+            if ("min_distance" in u && (u["min_distance"].type==JSONType.float_||u["min_distance"].type==JSONType.integer)) { MIN_DISTANCE = cast(float)u["min_distance"].floating; any=true; }
+            if ("max_distance" in u && (u["max_distance"].type==JSONType.float_||u["max_distance"].type==JSONType.integer)) { MAX_DISTANCE = cast(float)u["max_distance"].floating; any=true; }
+            if ("scales" in u && u["scales"].type==JSONType.array) { SCALES.length = 0; foreach (e; u["scales"].array) if (e.type==JSONType.float_||e.type==JSONType.integer) SCALES ~= cast(float)e.floating; any=true; }
+        } else {
+            if ("sampling_step" in u && (u["sampling_step"].type==JSONType.float_||u["sampling_step"].type==JSONType.integer)) { SAMPLING_STEP = cast(float)u["sampling_step"].floating; any=true; }
+            if ("mask_threshold" in u && (u["mask_threshold"].type==JSONType.float_||u["mask_threshold"].type==JSONType.integer)) { maskThreshold = cast(float)u["mask_threshold"].floating; any=true; }
+        }
+        return any;
     }
 };

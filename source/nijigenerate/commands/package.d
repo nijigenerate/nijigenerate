@@ -18,6 +18,7 @@ public import nijigenerate.commands.mesheditor.tool;
 public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
 public import nijigenerate.commands.automesh.dynamic;
+public import nijigenerate.commands.automesh.config;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
@@ -45,7 +46,8 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.node.dynamic.convertNodeCommands,
     nijigenerate.commands.inspector.apply_node.commands,
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
-    );
+    nijigenerate.commands.automesh.config.commands,
+);
 
 // Explicit initialization to avoid module constructor cycles
 // Discover and initialize commands for each enum key present in AllCommandMaps.
