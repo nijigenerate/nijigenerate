@@ -2,6 +2,8 @@ module nijigenerate.viewport.vertex.automesh.contours;
 
 import i18n;
 import nijigenerate.viewport.vertex.automesh.automesh;
+import nijigenerate.viewport.vertex.automesh.meta;
+import std.json : JSONValue, JSONType, parseJSON;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
@@ -18,19 +20,83 @@ import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.viewport.vertex.automesh.common;
 import nijigenerate.project : incSelectedNodes;
 
-class ContourAutoMeshProcessor : AutoMeshProcessor {
+@AMProcessor("contour", "Contour", 100)
+class ContourAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
+    @AMParam(AutoMeshLevel.Simple, "sampling_step", "Sampling rate", "Contour sampling rate", "drag", 1, 200, 1)
     float SAMPLING_STEP = 32;
     const float SMALL_THRESHOLD = 256;
+    @AMParam(AutoMeshLevel.Simple, "mask_threshold", "Mask threshold", "Alpha binarize cutoff", "drag", 1, 200, 1)
     float maskThreshold = 15;
+    @AMParam(AutoMeshLevel.Advanced, "min_distance", "Minimum distance", "Minimum distance between vertices", "drag", 1, 200, 1)
     float MIN_DISTANCE = 16;
+    @AMParam(AutoMeshLevel.Advanced, "max_distance", "Maximum distance", "Maximum distance between vertices", "drag", 1, 200, 1)
     float MAX_DISTANCE = -1;
+    @AMParam(AutoMeshLevel.Advanced, "scales", "Scales", "Contour scales", "array")
+    @AMArray(0, 2, 0.01)
     float[] SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1];
     string presetName;
-    // Unified alpha preview state
-    private AlphaPreviewState _alphaPreview;
-    public:
-    // Remove single-use helpers; keep logic in autoMesh.
 
+    // Presets annotated for reflection
+    @AMPreset("Normal parts")
+    static void presetNormal(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 50;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 16;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+        p.presetName = "Normal parts";
+    }
+    @AMPreset("Detailed mesh")
+    static void presetDetailed(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 32;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 16;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+        p.presetName = "Detailed mesh";
+    }
+    @AMPreset("Large parts")
+    static void presetLarge(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 80;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 24;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
+        p.presetName = "Large parts";
+    }
+    @AMPreset("Small parts")
+    static void presetSmall(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 24;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 12;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.1, 0.6, 0.2];
+        p.presetName = "Small parts";
+    }
+    @AMPreset("Thin and minimum parts")
+    static void presetThin(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 12;
+        p.maskThreshold = 1;
+        p.MIN_DISTANCE = 4;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1];
+        p.presetName = "Thin and minimum parts";
+    }
+    @AMPreset("Preserve edges")
+    static void presetEdges(ContourAutoMeshProcessor p) {
+        p.SAMPLING_STEP = 24;
+        p.maskThreshold = 15;
+        p.MIN_DISTANCE = 8;
+        p.MAX_DISTANCE = p.SAMPLING_STEP * 2;
+        p.SCALES = [1, 1.2, 0.8];
+        p.presetName = "Preserve edges";
+    }
+    // Unified alpha preview state (used by mixin)
+    private AlphaPreviewState _alphaPreview;
+public:
+    mixin AutoMeshClassInfo!();
+    // Bring in unified reflection/UI
+    mixin AutoMeshReflection!();
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
         auto ai = getAlphaInput(target);
@@ -205,188 +271,10 @@ class ContourAutoMeshProcessor : AutoMeshProcessor {
 
         return mesh.autoTriangulate();
     }
-    override void configure() {
-        if (MAX_DISTANCE < 0)
-            MAX_DISTANCE = SAMPLING_STEP * 2;
-        if (!presetName) {
-            presetName = "Normal parts";
-        }
-        incText(_("Presets"));
-        igIndent();
-        if(igBeginCombo(__("Presets"), __(presetName))) {
-            if (igSelectable(__("Normal parts"))) {
-                presetName = "Normal parts";
-                SAMPLING_STEP = 50;
-                maskThreshold = 15;
-                MIN_DISTANCE = 16;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-            }
-            if (igSelectable(__("Detailed mesh"))) {
-                presetName = "Detailed mesh";
-                SAMPLING_STEP = 32;
-                maskThreshold = 15;
-                MIN_DISTANCE = 16;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-            }
-            if (igSelectable(__("Large parts"))) {
-                presetName = "Large parts";
-                SAMPLING_STEP = 80;
-                maskThreshold = 15;
-                MIN_DISTANCE = 24;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-            }
-            if (igSelectable(__("Small parts"))) {
-                presetName = "Small parts";
-                SAMPLING_STEP = 24;
-                maskThreshold = 15;
-                MIN_DISTANCE = 12;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.6, 0.2];
-            }
-            if (igSelectable(__("Thin and minimum parts"))) {
-                presetName = "Thin and minimum parts";
-                SAMPLING_STEP = 12;
-                maskThreshold = 1;
-                MIN_DISTANCE = 4;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1];
-            }
-            if (igSelectable(__("Preserve edges"))) {
-                presetName = "Preserve edges";
-                SAMPLING_STEP = 24;
-                maskThreshold = 15;
-                MIN_DISTANCE = 8;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.2, 0.8];
-            }
-            igEndCombo();
-        }
-        igUnindent();
-        igPushID("CONFIGURE_OPTIONS");
-        if (incBeginCategory(__("Details"))) {
-            if (igBeginChild("###CONTOUR_OPTIONS", ImVec2(0, 320))) {
-                incText(_("Sampling rate"));
-                igIndent();
-                igPushID("SAMPLING_STEP");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "sampling_rate", &SAMPLING_STEP, 1,
-                        1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        SAMPLING_STEP = SAMPLING_STEP;
-                        if (MAX_DISTANCE < SAMPLING_STEP)
-                            MAX_DISTANCE  = SAMPLING_STEP * 2;
-                    }
-                igPopID();
-                igUnindent();
-                incText(_("Mask threshold"));
-                igIndent();
-                igPushID("MASK_THRESHOLD");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "mask_threshold", &maskThreshold, 1,
-                        1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        maskThreshold = maskThreshold;
-                    }
-                igPopID();
-                igUnindent();
-                incText(_("Distance between vertices"));
-                igIndent();
-                    incText(_("Minimum"));
-                    igIndent();
-                        igPushID("MIN_DISTANCE");
-                            igSetNextItemWidth(64);
-                            if (incDragFloat(
-                                "min_distance", &MIN_DISTANCE, 1,
-                                1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                            ) {
-                                MIN_DISTANCE = MIN_DISTANCE;
-                            }
-                        igPopID();
-                    igUnindent();
-                    incText(_("Maximum"));
-                    igIndent();
-                        igPushID("MAX_DISTANCE");
-                            igSetNextItemWidth(64);
-                            if (incDragFloat(
-                                "min_distance", &MAX_DISTANCE, 1,
-                                1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                            ) {
-                                MAX_DISTANCE = MAX_DISTANCE;
-                            }
-                        igPopID();
-                    igUnindent();
-                igUnindent();
-                int deleteIndex = -1;
-                incText("Scales");
-                igIndent();
-                    igPushID("SCALES");
-                        if (igBeginChild("###AXIS_ADJ", ImVec2(0, 240))) {
-                            if (SCALES.length > 0) {
-                                int ix;
-                                foreach(i, ref pt; SCALES) {
-                                    ix++;
-                                    vec2 range = vec2(0, 2);
-                                    igSetNextItemWidth(80);
-                                    igPushID(cast(int)i);
-                                        if (incDragFloat(
-                                            "adj_offset", &SCALES[i], 0.01,
-                                            range.x, range.y, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                                        ) {
-                                        }
-                                        igSameLine(0, 0);
-                                        if (i == SCALES.length - 1) {
-                                            incDummy(ImVec2(-52, 32));
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                deleteIndex = cast(int)i;
-                                            }
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                SCALES ~= 1.0;
-                                            }
-                                        } else {
-                                            incDummy(ImVec2(-28, 32));
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                deleteIndex = cast(int)i;
-                                            }
-                                        }
-                                    igPopID();
-                                }
-                            } else {
-                                incDummy(ImVec2(-28, 24));
-                                igSameLine(0, 0);
-                                if (incButtonColored("", ImVec2(24, 24))) {
-                                    SCALES ~= 1.0;
-                                }
-                            }
-                        }
-                        igEndChild();
-                    igPopID();
-                igUnindent();
-                incTooltip(_("Specifying scaling factor to apply for contours. If multiple scales are specified, vertices are populated per scale factors."));
-                if (deleteIndex != -1) {
-                    SCALES = SCALES.remove(cast(uint)deleteIndex);
-                }
-            }
-            igEndChild();
-        }
-        incEndCategory();
-        igPopID();
-
-        igSeparator();
-        incText(_("Alpha Preview"));
-        igIndent();
-        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
-        igUnindent();
-    }
+    // configure() provided by AutoMeshReflection mixin; keep MAX_DISTANCE guard in autoMesh
     override 
     string icon() {
         return "";
     }
+    // IAutoMeshReflect provided by mixin
 };

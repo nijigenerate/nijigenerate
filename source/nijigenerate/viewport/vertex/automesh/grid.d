@@ -2,6 +2,8 @@ module nijigenerate.viewport.vertex.automesh.grid;
 
 import i18n;
 import nijigenerate.viewport.vertex.automesh.automesh;
+import nijigenerate.viewport.vertex.automesh.meta;
+import std.json : JSONValue, JSONType; // for JSON building
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
@@ -17,15 +19,48 @@ import bindbc.imgui;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput, alphaImageCenter, mapImageCenteredMeshToTargetLocal;
 
-class GridAutoMeshProcessor : AutoMeshProcessor {
+@AMProcessor("grid", "Grid", 200)
+class GridAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
+
+    @AMParam(AutoMeshLevel.Advanced, "scale_x", "X Scale", "Axis scale factors (X)", "array")
+    @AMArray(0, 2, 0.01)
     float[] scaleX = [-0.1, 0.0, 0.5, 1.0, 1.1];
+    @AMParam(AutoMeshLevel.Advanced, "scale_y", "Y Scale", "Axis scale factors (Y)", "array")
+    @AMArray(0, 2, 0.01)
     float[] scaleY = [-0.1, 0.0, 0.5, 1.0, 1.1];
+
+    @AMParam(AutoMeshLevel.Simple, "mask_threshold", "Mask threshold", "Alpha binarize cutoff", "drag", 1, 200, 1)
     float maskThreshold = 15;
-    float xSegments = 2, ySegments = 2;
+    @AMParam(AutoMeshLevel.Simple, "x_segments", "X Segments", "Grid density X", "drag", 2, 20, 1)
+    float xSegments = 2;
+    @AMParam(AutoMeshLevel.Simple, "y_segments", "Y Segments", "Grid density Y", "drag", 2, 20, 1)
+    float ySegments = 2;
+    @AMParam(AutoMeshLevel.Simple, "margin", "Margin", "Outer margin factor", "drag", 0, 1, 0.1)
     float margin = 0.1;
     // Unified alpha preview state
     private AlphaPreviewState _alphaPreview;
 public:
+    mixin AutoMeshClassInfo!();
+    // Bring in unified reflection/UI
+    mixin AutoMeshReflection!();
+    private void rebuildScalesFromSegments() {
+        scaleY.length = 0; scaleX.length = 0;
+        int ys = cast(int)(ySegments < 1 ? 1 : ySegments);
+        int xs = cast(int)(xSegments < 1 ? 1 : xSegments);
+        if (margin != 0) { scaleY ~= -margin; scaleX ~= -margin; }
+        foreach (y; 0 .. ys + 1) scaleY ~= cast(float)y / cast(float)ys;
+        foreach (x; 0 .. xs + 1) scaleX ~= cast(float)x / cast(float)xs;
+        if (margin != 0) { scaleY ~= 1 + margin; scaleX ~= 1 + margin; }
+    }
+    // Hook for mixin to react to param changes
+    void ngPostParamWrite(string id) {
+        if (id == "x_segments" || id == "y_segments" || id == "margin") {
+            rebuildScalesFromSegments();
+        }
+    }
+
+    // IAutoMeshReflect provided by mixin
+    // schema/values/writeValues provided by mixin
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         // 1) Branch only for input acquisition
@@ -58,13 +93,15 @@ public:
         MeshData meshData;
         mesh.axes = [[], []];
 
+        // Ensure ascending order for scales
         scaleY.sort!((a, b) => a < b);
+        // Use standard lerp: (1 - t) * min + t * max
         foreach (y; scaleY)
-            mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
+            mesh.axes[0] ~= (minY * (1 - y) + maxY * y) - imgCenter.y;
 
         scaleX.sort!((a, b) => a < b);
         foreach (x; scaleX)
-            mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
+            mesh.axes[1] ~= (minX * (1 - x) + maxX * x) - imgCenter.x;
 
         meshData.gridAxes = mesh.axes[];
         meshData.regenerateGrid();
@@ -75,8 +112,7 @@ public:
         return mesh;
     }
 
-    override
-    void configure() {
+    void configureLegacyUI() {
         void editScale(ref float[] scales) {
             int deleteIndex = -1;
             if (igBeginChild("###AXIS_ADJ", ImVec2(0, 240))) {
@@ -85,8 +121,8 @@ public:
                     foreach(i, ref pt; scales) {
                         ix++;
 
-                        // Do not allow existing points to cross over
-                        vec2 range = vec2(0, 2);
+                        // Allow slight extrapolation to support margins
+                        vec2 range = vec2(-1, 2);
 
                         igSetNextItemWidth(80);
                         igPushID(cast(int)i);
@@ -133,22 +169,19 @@ public:
         }
 
         void divideAxes() {
+            // Rebuild axis scales from segment counts and margin.
             scaleY.length = 0;
             scaleX.length = 0;
-            if (margin != 0) {
-                scaleY ~= -margin;
-                scaleX ~= -margin;
+            int ys = cast(int) (ySegments < 1 ? 1 : ySegments);
+            int xs = cast(int) (xSegments < 1 ? 1 : xSegments);
+            if (margin != 0) { scaleY ~= -margin; scaleX ~= -margin; }
+            foreach (y; 0 .. ys + 1) {
+                scaleY ~= cast(float)y / cast(float)ys;
             }
-            foreach (y; 0..(ySegments+1)) {
-                scaleY ~= y / ySegments;
+            foreach (x; 0 .. xs + 1) {
+                scaleX ~= cast(float)x / cast(float)xs;
             }
-            foreach (x; 0..(xSegments+1)) {                
-                scaleX ~= x / xSegments;
-            }
-            if (margin != 0) {
-                scaleY ~= 1 + margin;
-                scaleX ~= 1 + margin;
-            }
+            if (margin != 0) { scaleY ~= 1 + margin; scaleX ~= 1 + margin; }
         }
 
         igPushID("CONFIGURE_OPTIONS");
@@ -227,5 +260,55 @@ public:
     override
     string icon() {
         return "";
+    }
+
+    // Legacy reflection impl (kept for reference; not used)
+    string schemaLegacy() {
+        JSONValue obj = JSONValue(JSONType.object);
+        obj["type"] = "GridAutoMeshProcessor";
+        JSONValue simple = JSONValue(JSONType.array);
+        JSONValue adv = JSONValue(JSONType.array);
+        // Simple
+        JSONValue it;
+        it["id"] = "mask_threshold"; it["label"] = "Mask threshold"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
+        it["id"] = "x_segments"; it["label"] = "X Segments"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
+        it["id"] = "y_segments"; it["label"] = "Y Segments"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
+        it["id"] = "margin"; it["label"] = "Margin"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
+        // Advanced
+        it["id"] = "scale_x"; it["label"] = "X Scale"; it["type"] = "float[]"; adv.array ~= it; it = JSONValue.init;
+        it["id"] = "scale_y"; it["label"] = "Y Scale"; it["type"] = "float[]"; adv.array ~= it;
+        obj["Simple"] = simple;
+        obj["Advanced"] = adv;
+        obj["presets"] = JSONValue(JSONType.array);
+        return obj.toString();
+    }
+    string valuesLegacy(string levelName) {
+        JSONValue v = JSONValue(JSONType.object);
+        if (levelName == "Advanced") {
+            JSONValue sx = JSONValue(JSONType.array); foreach(x; scaleX) sx.array ~= JSONValue(cast(double)x); v["scale_x"] = sx;
+            JSONValue sy = JSONValue(JSONType.array); foreach(y; scaleY) sy.array ~= JSONValue(cast(double)y); v["scale_y"] = sy;
+        } else {
+            v["mask_threshold"] = JSONValue(cast(double)maskThreshold);
+            v["x_segments"] = JSONValue(cast(double)xSegments);
+            v["y_segments"] = JSONValue(cast(double)ySegments);
+            v["margin"] = JSONValue(cast(double)margin);
+        }
+        return v.toString();
+    }
+    bool applyPresetLegacy(string name) { return false; }
+    bool writeValuesLegacy(string levelName, string updatesJson) {
+        import std.json : parseJSON;
+        auto u = parseJSON(updatesJson);
+        bool any;
+        if (levelName == "Advanced") {
+            if ("scale_x" in u) { auto arr = u["scale_x"]; if (arr.type == JSONType.array) { scaleX.length=0; foreach(e; arr.array) if (e.type==JSONType.float_||e.type==JSONType.integer) scaleX ~= cast(float)e.floating; any=true; } }
+            if ("scale_y" in u) { auto arr = u["scale_y"]; if (arr.type == JSONType.array) { scaleY.length=0; foreach(e; arr.array) if (e.type==JSONType.float_||e.type==JSONType.integer) scaleY ~= cast(float)e.floating; any=true; } }
+        } else {
+            if ("mask_threshold" in u && (u["mask_threshold"].type==JSONType.float_||u["mask_threshold"].type==JSONType.integer)) { maskThreshold = cast(float)u["mask_threshold"].floating; any=true; }
+            if ("x_segments" in u && (u["x_segments"].type==JSONType.float_||u["x_segments"].type==JSONType.integer)) { xSegments = cast(float)u["x_segments"].floating; any=true; }
+            if ("y_segments" in u && (u["y_segments"].type==JSONType.float_||u["y_segments"].type==JSONType.integer)) { ySegments = cast(float)u["y_segments"].floating; any=true; }
+            if ("margin" in u && (u["margin"].type==JSONType.float_||u["margin"].type==JSONType.integer)) { margin = cast(float)u["margin"].floating; any=true; }
+        }
+        return any;
     }
 };

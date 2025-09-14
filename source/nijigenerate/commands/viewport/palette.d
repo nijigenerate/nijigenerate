@@ -89,6 +89,14 @@ private string getParentCategory(Command c)
     if (inAA!(nijigenerate.commands.viewport.palette.commands)(c)) return "Palette";
     if (inAA!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(c)) return "Mesh Editor Tools";
     if (inAA!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)(c)) return "AutoMesh";
+    // Legacy JSON config maps kept for compatibility
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshGetConfigCommands)(c)) return "AutoMesh/Config";
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetConfigCommands)(c)) return "AutoMesh/Config";
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetSimpleCommands)(c)) return "AutoMesh/Set Simple";
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetAdvancedCommands)(c)) return "AutoMesh/Set Advanced";
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetPresetCommands)(c)) return "AutoMesh/Presets";
+    // New typed per-processor AutoMesh commands
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshTypedCommands)(c)) return "AutoMesh/Typed";
     // ===== Node Popup =====
     if (inAA!(nijigenerate.commands.node.node.commands)(c)) return "Nodes";
     if (inAA!(nijigenerate.commands.node.dynamic.addNodeCommands)(c)) return "Add Node";
