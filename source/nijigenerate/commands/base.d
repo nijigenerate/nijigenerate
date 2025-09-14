@@ -167,6 +167,10 @@ abstract class ExCommand(T...) : Command {
         // Preferred: label + description
         this(string label, string desc) { this._label = label; this._desc = desc; }
     } else {
+        // Allow derived classes to set labels/fields without passing args
+        this() {}
+        // Optional: label + description only (fields left default-initialized)
+        this(string label, string desc) { this._label = label; this._desc = desc; }
         // Backward-compatible: single-arg (desc) + args
         this(A...)(string desc, A args)
             if (A.length == T.length) {

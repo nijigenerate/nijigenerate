@@ -29,23 +29,39 @@ import core.exception;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.viewport.vertex.automesh.common;
 import nijigenerate.viewport.vertex.automesh.contours : ContourAutoMeshProcessor;
+import nijigenerate.viewport.vertex.automesh.meta; // IAutoMeshReflect
+import std.json : JSONValue, JSONType, parseJSON;
 
-class OptimumAutoMeshProcessor : AutoMeshProcessor {
+@AMProcessor("optimum", "Optimum", 50)
+class OptimumAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
+    @AMParam(AutoMeshLevel.Advanced, "large_threshold", "Large threshold", "Region area threshold", "drag", 50, 2000, 5)
     float LARGE_THRESHOLD = 400;
+    @AMParam(AutoMeshLevel.Advanced, "length_threshold", "Length threshold", "Contour length threshold", "drag", 20, 2000, 5)
     float LENGTH_THRESHOLD = 100;
+    @AMParam(AutoMeshLevel.Advanced, "ratio_threshold", "Ratio threshold", "Width/length threshold", "drag", 0.01, 1.0, 0.01)
     float RATIO_THRESHOLD = 0.2;
+    @AMParam(AutoMeshLevel.Advanced, "sharp_expand", "Sharp expand", "Edge expansion for sharp parts", "drag", 0, 0.2, 0.005)
     float SHARP_EXPANSION_FACTOR = 0.01;
+    @AMParam(AutoMeshLevel.Advanced, "unsharp_expand", "Unsharp expand", "Edge expansion for non-sharp", "drag", 0, 0.5, 0.005)
     float NONSHARP_EXPANSION_FACTOR = 0.05;
+    @AMParam(AutoMeshLevel.Advanced, "unsharp_contract", "Unsharp contract", "Edge contraction for non-sharp", "drag", 0, 0.5, 0.005)
     float NONSHARP_CONTRACTION_FACTOR = 0.05;
+    @AMParam(AutoMeshLevel.Simple, "scales", "Scales", "Contour scales", "array") @AMArray(0, 2, 0.01)
     float[] SCALES = [0.5, 0.];
+    @AMParam(AutoMeshLevel.Simple, "min_distance", "Min distance", "Minimum vertex spacing", "drag", 1, 200, 1)
     float MIN_DISTANCE = 10;
+    @AMParam(AutoMeshLevel.Simple, "mask_threshold", "Mask threshold", "Alpha binarize cutoff", "drag", 1, 200, 1)
     float MASK_THRESHOLD = 1;
+    @AMParam(AutoMeshLevel.Simple, "div_per_part", "Div per part", "Division per part", "drag", 4, 64, 0.5)
     float DIV_PER_PART = 12;
 
     string presetName;
-    // Unified alpha preview state
+    // Unified alpha preview state (used by mixin)
     private AlphaPreviewState _alphaPreview;
 public:
+    mixin AutoMeshClassInfo!();
+    // Bring in unified reflection/UI
+    mixin AutoMeshReflection!();
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
 
         // Convert contours to a vec2 array
@@ -502,235 +518,51 @@ public:
         return newMesh;
     }
 
-    override void configure() {
-        if (!presetName) {
-            presetName = "Normal parts";
-        }
-
-        incText(_("Presets"));
-        igIndent();
-        if(igBeginCombo(__("Presets"), __(presetName))) {
-            if (igSelectable(__("Normal parts"))) {
-                presetName = "Normal parts";
-                // Binarization / density
-                MASK_THRESHOLD = 15;
-                DIV_PER_PART = 12;
-                MIN_DISTANCE = 16;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-                // Heuristics
-                LARGE_THRESHOLD = 400;
-                LENGTH_THRESHOLD = 100;
-                RATIO_THRESHOLD = 0.20;
-                // Expand/contract factors
-                SHARP_EXPANSION_FACTOR = 0.010;
-                NONSHARP_EXPANSION_FACTOR = 0.050;
-                NONSHARP_CONTRACTION_FACTOR = 0.050;
-            }
-            if (igSelectable(__("Detailed mesh"))) {
-                presetName = "Detailed mesh";
-                MASK_THRESHOLD = 15;
-                DIV_PER_PART = 16; // denser
-                MIN_DISTANCE = 12;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-                LARGE_THRESHOLD = 380;
-                LENGTH_THRESHOLD = 90;
-                RATIO_THRESHOLD = 0.18;
-                SHARP_EXPANSION_FACTOR = 0.008;
-                NONSHARP_EXPANSION_FACTOR = 0.045;
-                NONSHARP_CONTRACTION_FACTOR = 0.045;
-            }
-            if (igSelectable(__("Large parts"))) {
-                presetName = "Large parts";
-                MASK_THRESHOLD = 15;
-                DIV_PER_PART = 8; // sparser
-                MIN_DISTANCE = 24;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-                LARGE_THRESHOLD = 600;
-                LENGTH_THRESHOLD = 200;
-                RATIO_THRESHOLD = 0.30;
-                SHARP_EXPANSION_FACTOR = 0.015;
-                NONSHARP_EXPANSION_FACTOR = 0.080;
-                NONSHARP_CONTRACTION_FACTOR = 0.080;
-            }
-            if (igSelectable(__("Small parts"))) {
-                presetName = "Small parts";
-                MASK_THRESHOLD = 15;
-                DIV_PER_PART = 18; // denser
-                MIN_DISTANCE = 12;
-                SCALES = [1, 1.1, 0.6, 0.2];
-                LARGE_THRESHOLD = 300;
-                LENGTH_THRESHOLD = 80;
-                RATIO_THRESHOLD = 0.15;
-                SHARP_EXPANSION_FACTOR = 0.008;
-                NONSHARP_EXPANSION_FACTOR = 0.040;
-                NONSHARP_CONTRACTION_FACTOR = 0.040;
-            }
-            if (igSelectable(__("Thin and minimum parts"))) {
-                presetName = "Thin and minimum parts";
-                MASK_THRESHOLD = 1; // pick up very thin lines
-                DIV_PER_PART = 24;  // highest density
-                MIN_DISTANCE = 4;
-                SCALES = [1];
-                LARGE_THRESHOLD = 200;
-                LENGTH_THRESHOLD = 60;
-                RATIO_THRESHOLD = 0.10;
-                SHARP_EXPANSION_FACTOR = 0.006;
-                NONSHARP_EXPANSION_FACTOR = 0.030;
-                NONSHARP_CONTRACTION_FACTOR = 0.030;
-            }
-            if (igSelectable(__("Preserve edges"))) {
-                presetName = "Preserve edges";
-                MASK_THRESHOLD = 15;
-                DIV_PER_PART = 20; // dense but conservative
-                MIN_DISTANCE = 8;
-                SCALES = [1, 1.2, 0.8];
-                LARGE_THRESHOLD = 350;
-                LENGTH_THRESHOLD = 80;
-                RATIO_THRESHOLD = 0.15;
-                SHARP_EXPANSION_FACTOR = 0.010;
-                NONSHARP_EXPANSION_FACTOR = 0.030;
-                NONSHARP_CONTRACTION_FACTOR = 0.030;
-            }
-            igEndCombo();
-        }
-        igUnindent();
-
-        igPushID("CONFIGURE_OPTIONS");
-        // Simple parameters that drive the algorithm (no child window to avoid extra padding)
-        if (incBeginCategory(__("Simple"))) {
-            // Alpha mask binarization
-            incText(_("Mask threshold"));
-            igIndent();
-            igPushID("MASK_THRESHOLD");
-                igSetNextItemWidth(96);
-                if (incDragFloat(
-                    "mask_threshold", &MASK_THRESHOLD, 1,
-                    1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                ) {
-                    // no-op
-                }
-            igPopID();
-            igUnindent();
-
-            // Vertex density relative to part size
-            incText(_("Vertex density (div per part)"));
-            igIndent();
-            igPushID("DIV_PER_PART");
-                igSetNextItemWidth(96);
-                if (incDragFloat(
-                    "div_per_part", &DIV_PER_PART, 0.5,
-                    4, 64, "%.1f", ImGuiSliderFlags.NoRoundToFormat)
-                ) {
-                    // used in sampling distance derivation
-                }
-            igPopID();
-            igUnindent();
-        }
-        incEndCategory();
-
-        // Advanced parameters, for fine tuning (single child or none to avoid nested scrollbars)
-        if (incBeginCategory(__("Advanced"))) {
-            // Keep content inline; avoid inner child windows to prevent multi-scrollbars
-            // Absolute minimum distance clamp
-            incText(_("Distance between vertices"));
-            igIndent();
-                incText(_("Minimum"));
-                igIndent();
-                    igPushID("MIN_DISTANCE");
-                        igSetNextItemWidth(96);
-                        if (incDragFloat(
-                            "min_distance", &MIN_DISTANCE, 1,
-                            1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                        ) {
-                            // no-op
-                        }
-                    igPopID();
-                igUnindent();
-            igUnindent();
-
-            // Sharp/unsharp heuristics
-            incText(_("Sharpness heuristics"));
-            igSameLine(0, 4);
-            igTextDisabled("(?)");
-            incTooltip(_("Classifies shape as 'sharp' to choose vertex strategy.\n- large_threshold: upper bound for average thickness along skeleton.\n- length_threshold: upper bound for skeleton length (short = sharper).\n- ratio_threshold: upper bound for avg_thickness_per_point (smaller = sharper)."));
-            igIndent();
-                igPushID("SHARP_THRESH");
-                    igSetNextItemWidth(120);
-                    incDragFloat("large_threshold", &LARGE_THRESHOLD, 5, 50, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-                    incTooltip(_("Avg thickness threshold. Lower = more parts treated as sharp."));
-                    igSetNextItemWidth(120);
-                    incDragFloat("length_threshold", &LENGTH_THRESHOLD, 5, 20, 2000, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-                    incTooltip(_("Skeleton length threshold. Lower = shorter shapes treated as sharp."));
-                    igSetNextItemWidth(120);
-                    incDragFloat("ratio_threshold", &RATIO_THRESHOLD, 0.01, 0.01, 1.0, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                    incTooltip(_("Avg thickness per point threshold (avg/len). Lower = thinner shapes treated as sharp."));
-                igPopID();
-            igUnindent();
-
-            incText(_("Expand/Contract factors"));
-            igSameLine(0, 4);
-            igTextDisabled("(?)");
-            incTooltip(_("Offsets vertices outward/inward from the thinned contour.\n- sharp_expand: outward offset for sharp shapes.\n- unsharp_expand: outward offset for non-sharp shapes.\n- unsharp_contract: inward offset for non-sharp shapes."));
-            igIndent();
-                igPushID("FACTORS");
-                    igSetNextItemWidth(120);
-                    incDragFloat("sharp_expand", &SHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.2, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
-                    incTooltip(_("Outward offset for sharp shapes (scaled by part size)."));
-                    igSetNextItemWidth(120);
-                    incDragFloat("unsharp_expand", &NONSHARP_EXPANSION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
-                    incTooltip(_("Outward offset for non-sharp shapes (scaled by part size)."));
-                    igSetNextItemWidth(120);
-                    incDragFloat("unsharp_contract", &NONSHARP_CONTRACTION_FACTOR, 0.005, 0.0, 0.5, "%.3f", ImGuiSliderFlags.NoRoundToFormat);
-                    incTooltip(_("Inward offset for non-sharp shapes (scaled by part size)."));
-                igPopID();
-            igUnindent();
-
-            // Scales list (no child window; inline list)
-            int deleteIndex = -1;
-            incText("Scales");
-            igIndent();
-                igPushID("SCALES");
-                    if (SCALES.length > 0) {
-                        foreach(i, ref s; SCALES) {
-                            igSetNextItemWidth(96);
-                            igPushID(cast(int)i);
-                                incDragFloat("scale", &SCALES[i], 0.01, 0, 2, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-                                igSameLine(0, 0);
-                                if (i == SCALES.length - 1) {
-                                    incDummy(ImVec2(-52, 32));
-                                    igSameLine(0, 0);
-                                    if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
-                                    igSameLine(0, 0);
-                                    if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
-                                } else {
-                                    incDummy(ImVec2(-28, 32));
-                                    igSameLine(0, 0);
-                                    if (incButtonColored("", ImVec2(24, 24))) deleteIndex = cast(int)i;
-                                }
-                            igPopID();
-                        }
-                    } else {
-                        incDummy(ImVec2(-28, 24));
-                        igSameLine(0, 0);
-                        if (incButtonColored("", ImVec2(24, 24))) SCALES ~= 1.0;
-                    }
-                igPopID();
-            igUnindent();
-            incTooltip(_("Specifying scaling factor to apply for contours. If multiple scales are specified, vertices are populated per scale factors."));
-            if (deleteIndex != -1) SCALES = SCALES.remove(cast(uint)deleteIndex);
-        }
-        incEndCategory();
-        igPopID();
-
-        igSeparator();
-        incText(_("Alpha Preview"));
-        igIndent();
-        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
-        igUnindent();
-    }
+    // configure() provided by AutoMeshReflection mixin
 
     override
-    string icon() {
-        return "";
+    string icon() { return ""; }
+    // Presets using UDA
+    @AMPreset("Normal parts")
+    static void presetNormal(OptimumAutoMeshProcessor p) {
+        p.MASK_THRESHOLD = 15; p.DIV_PER_PART = 12; p.MIN_DISTANCE = 16; p.SCALES = [1,1.1,0.9,0.7,0.4,0.2,0.1,0];
+        p.LARGE_THRESHOLD = 400; p.LENGTH_THRESHOLD = 100; p.RATIO_THRESHOLD = 0.20;
+        p.SHARP_EXPANSION_FACTOR = 0.010; p.NONSHARP_EXPANSION_FACTOR = 0.050; p.NONSHARP_CONTRACTION_FACTOR = 0.050;
+        p.presetName = "Normal parts";
+    }
+    @AMPreset("Detailed mesh")
+    static void presetDetailed(OptimumAutoMeshProcessor p) {
+        p.MASK_THRESHOLD = 15; p.DIV_PER_PART = 16; p.MIN_DISTANCE = 12; p.SCALES = [1,1.1,0.9,0.7,0.4,0.2,0.1,0];
+        p.LARGE_THRESHOLD = 380; p.LENGTH_THRESHOLD = 90; p.RATIO_THRESHOLD = 0.18;
+        p.SHARP_EXPANSION_FACTOR = 0.008; p.NONSHARP_EXPANSION_FACTOR = 0.045; p.NONSHARP_CONTRACTION_FACTOR = 0.045;
+        p.presetName = "Detailed mesh";
+    }
+    @AMPreset("Large parts")
+    static void presetLarge(OptimumAutoMeshProcessor p) {
+        p.MASK_THRESHOLD = 15; p.DIV_PER_PART = 8; p.MIN_DISTANCE = 24; p.SCALES = [1,1.1,0.9,0.7,0.4,0.2,0.1,0];
+        p.LARGE_THRESHOLD = 600; p.LENGTH_THRESHOLD = 200; p.RATIO_THRESHOLD = 0.30;
+        p.SHARP_EXPANSION_FACTOR = 0.015; p.NONSHARP_EXPANSION_FACTOR = 0.080; p.NONSHARP_CONTRACTION_FACTOR = 0.080;
+        p.presetName = "Large parts";
+    }
+    @AMPreset("Small parts")
+    static void presetSmall(OptimumAutoMeshProcessor p) {
+        p.MASK_THRESHOLD = 15; p.DIV_PER_PART = 18; p.MIN_DISTANCE = 12; p.SCALES = [1,1.1,0.6,0.2];
+        p.LARGE_THRESHOLD = 300; p.LENGTH_THRESHOLD = 80; p.RATIO_THRESHOLD = 0.15;
+        p.SHARP_EXPANSION_FACTOR = 0.008; p.NONSHARP_EXPANSION_FACTOR = 0.040; p.NONSHARP_CONTRACTION_FACTOR = 0.040;
+        p.presetName = "Small parts";
+    }
+    @AMPreset("Thin and minimum parts")
+    static void presetThin(OptimumAutoMeshProcessor p) {
+        p.MASK_THRESHOLD = 1; p.DIV_PER_PART = 24; p.MIN_DISTANCE = 4; p.SCALES = [1];
+        p.LARGE_THRESHOLD = 200; p.LENGTH_THRESHOLD = 60; p.RATIO_THRESHOLD = 0.10;
+        p.SHARP_EXPANSION_FACTOR = 0.006; p.NONSHARP_EXPANSION_FACTOR = 0.030; p.NONSHARP_CONTRACTION_FACTOR = 0.030;
+        p.presetName = "Thin and minimum parts";
+    }
+    @AMPreset("Preserve edges")
+    static void presetEdges(OptimumAutoMeshProcessor p) {
+        p.MASK_THRESHOLD = 15; p.DIV_PER_PART = 20; p.MIN_DISTANCE = 8; p.SCALES = [1,1.2,0.8];
+        p.LARGE_THRESHOLD = 350; p.LENGTH_THRESHOLD = 80; p.RATIO_THRESHOLD = 0.15;
+        p.SHARP_EXPANSION_FACTOR = 0.010; p.NONSHARP_EXPANSION_FACTOR = 0.030; p.NONSHARP_CONTRACTION_FACTOR = 0.030;
+        p.presetName = "Preserve edges";
     }
 };

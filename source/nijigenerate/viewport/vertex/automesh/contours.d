@@ -20,6 +20,7 @@ import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.viewport.vertex.automesh.common;
 import nijigenerate.project : incSelectedNodes;
 
+@AMProcessor("contour", "Contour", 100)
 class ContourAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
     @AMParam(AutoMeshLevel.Simple, "sampling_step", "Sampling rate", "Contour sampling rate", "drag", 1, 200, 1)
     float SAMPLING_STEP = 32;
@@ -90,11 +91,12 @@ class ContourAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
         p.SCALES = [1, 1.2, 0.8];
         p.presetName = "Preserve edges";
     }
-    // Unified alpha preview state
+    // Unified alpha preview state (used by mixin)
     private AlphaPreviewState _alphaPreview;
-    public:
-    // Remove single-use helpers; keep logic in autoMesh.
-
+public:
+    mixin AutoMeshClassInfo!();
+    // Bring in unified reflection/UI
+    mixin AutoMeshReflection!();
     override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
         auto ai = getAlphaInput(target);
@@ -269,244 +271,10 @@ class ContourAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
 
         return mesh.autoTriangulate();
     }
-    override void configure() {
-        if (MAX_DISTANCE < 0)
-            MAX_DISTANCE = SAMPLING_STEP * 2;
-        if (!presetName) {
-            presetName = "Normal parts";
-        }
-        incText(_("Presets"));
-        igIndent();
-        if(igBeginCombo(__("Presets"), __(presetName))) {
-            if (igSelectable(__("Normal parts"))) {
-                presetName = "Normal parts";
-                SAMPLING_STEP = 50;
-                maskThreshold = 15;
-                MIN_DISTANCE = 16;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-            }
-            if (igSelectable(__("Detailed mesh"))) {
-                presetName = "Detailed mesh";
-                SAMPLING_STEP = 32;
-                maskThreshold = 15;
-                MIN_DISTANCE = 16;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-            }
-            if (igSelectable(__("Large parts"))) {
-                presetName = "Large parts";
-                SAMPLING_STEP = 80;
-                maskThreshold = 15;
-                MIN_DISTANCE = 24;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.9, 0.7, 0.4, 0.2, 0.1, 0];
-            }
-            if (igSelectable(__("Small parts"))) {
-                presetName = "Small parts";
-                SAMPLING_STEP = 24;
-                maskThreshold = 15;
-                MIN_DISTANCE = 12;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.1, 0.6, 0.2];
-            }
-            if (igSelectable(__("Thin and minimum parts"))) {
-                presetName = "Thin and minimum parts";
-                SAMPLING_STEP = 12;
-                maskThreshold = 1;
-                MIN_DISTANCE = 4;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1];
-            }
-            if (igSelectable(__("Preserve edges"))) {
-                presetName = "Preserve edges";
-                SAMPLING_STEP = 24;
-                maskThreshold = 15;
-                MIN_DISTANCE = 8;
-                MAX_DISTANCE = SAMPLING_STEP * 2;
-                SCALES = [1, 1.2, 0.8];
-            }
-            igEndCombo();
-        }
-        igUnindent();
-        igPushID("CONFIGURE_OPTIONS");
-        if (incBeginCategory(__("Details"))) {
-            if (igBeginChild("###CONTOUR_OPTIONS", ImVec2(0, 320))) {
-                incText(_("Sampling rate"));
-                igIndent();
-                igPushID("SAMPLING_STEP");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "sampling_rate", &SAMPLING_STEP, 1,
-                        1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        SAMPLING_STEP = SAMPLING_STEP;
-                        if (MAX_DISTANCE < SAMPLING_STEP)
-                            MAX_DISTANCE  = SAMPLING_STEP * 2;
-                    }
-                igPopID();
-                igUnindent();
-                incText(_("Mask threshold"));
-                igIndent();
-                igPushID("MASK_THRESHOLD");
-                    igSetNextItemWidth(64);
-                    if (incDragFloat(
-                        "mask_threshold", &maskThreshold, 1,
-                        1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                    ) {
-                        maskThreshold = maskThreshold;
-                    }
-                igPopID();
-                igUnindent();
-                incText(_("Distance between vertices"));
-                igIndent();
-                    incText(_("Minimum"));
-                    igIndent();
-                        igPushID("MIN_DISTANCE");
-                            igSetNextItemWidth(64);
-                            if (incDragFloat(
-                                "min_distance", &MIN_DISTANCE, 1,
-                                1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                            ) {
-                                MIN_DISTANCE = MIN_DISTANCE;
-                            }
-                        igPopID();
-                    igUnindent();
-                    incText(_("Maximum"));
-                    igIndent();
-                        igPushID("MAX_DISTANCE");
-                            igSetNextItemWidth(64);
-                            if (incDragFloat(
-                                "min_distance", &MAX_DISTANCE, 1,
-                                1, 200, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                            ) {
-                                MAX_DISTANCE = MAX_DISTANCE;
-                            }
-                        igPopID();
-                    igUnindent();
-                igUnindent();
-                int deleteIndex = -1;
-                incText("Scales");
-                igIndent();
-                    igPushID("SCALES");
-                        if (igBeginChild("###AXIS_ADJ", ImVec2(0, 240))) {
-                            if (SCALES.length > 0) {
-                                int ix;
-                                foreach(i, ref pt; SCALES) {
-                                    ix++;
-                                    vec2 range = vec2(0, 2);
-                                    igSetNextItemWidth(80);
-                                    igPushID(cast(int)i);
-                                        if (incDragFloat(
-                                            "adj_offset", &SCALES[i], 0.01,
-                                            range.x, range.y, "%.2f", ImGuiSliderFlags.NoRoundToFormat)
-                                        ) {
-                                        }
-                                        igSameLine(0, 0);
-                                        if (i == SCALES.length - 1) {
-                                            incDummy(ImVec2(-52, 32));
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                deleteIndex = cast(int)i;
-                                            }
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                SCALES ~= 1.0;
-                                            }
-                                        } else {
-                                            incDummy(ImVec2(-28, 32));
-                                            igSameLine(0, 0);
-                                            if (incButtonColored("", ImVec2(24, 24))) {
-                                                deleteIndex = cast(int)i;
-                                            }
-                                        }
-                                    igPopID();
-                                }
-                            } else {
-                                incDummy(ImVec2(-28, 24));
-                                igSameLine(0, 0);
-                                if (incButtonColored("", ImVec2(24, 24))) {
-                                    SCALES ~= 1.0;
-                                }
-                            }
-                        }
-                        igEndChild();
-                    igPopID();
-                igUnindent();
-                incTooltip(_("Specifying scaling factor to apply for contours. If multiple scales are specified, vertices are populated per scale factors."));
-                if (deleteIndex != -1) {
-                    SCALES = SCALES.remove(cast(uint)deleteIndex);
-                }
-            }
-            igEndChild();
-        }
-        incEndCategory();
-        igPopID();
-
-        igSeparator();
-        incText(_("Alpha Preview"));
-        igIndent();
-        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
-        igUnindent();
-    }
+    // configure() provided by AutoMeshReflection mixin; keep MAX_DISTANCE guard in autoMesh
     override 
     string icon() {
         return "";
     }
-    // IAutoMeshReflect
-    string amSchema() {
-        JSONValue obj = JSONValue(JSONType.object);
-        obj["type"] = "ContourAutoMeshProcessor";
-        JSONValue presets = JSONValue(JSONType.array);
-        foreach (name; ["Normal parts","Detailed mesh","Large parts","Small parts","Thin and minimum parts","Preserve edges"]) {
-            JSONValue p; p["name"] = name; presets.array ~= p;
-        }
-        obj["presets"] = presets;
-        JSONValue simple = JSONValue(JSONType.array);
-        JSONValue adv = JSONValue(JSONType.array);
-        JSONValue it;
-        it["id"] = "sampling_step"; it["label"] = "Sampling rate"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
-        it["id"] = "mask_threshold"; it["label"] = "Mask threshold"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
-        it["id"] = "min_distance"; it["label"] = "Minimum distance"; it["type"] = "float"; adv.array ~= it; it = JSONValue.init;
-        it["id"] = "max_distance"; it["label"] = "Maximum distance"; it["type"] = "float"; adv.array ~= it; it = JSONValue.init;
-        it["id"] = "scales"; it["label"] = "Scales"; it["type"] = "float[]"; adv.array ~= it;
-        obj["Simple"] = simple; obj["Advanced"] = adv;
-        return obj.toString();
-    }
-    string amValues(string levelName) {
-        JSONValue v = JSONValue(JSONType.object);
-        if (levelName == "Advanced") {
-            v["min_distance"] = JSONValue(cast(double)MIN_DISTANCE);
-            v["max_distance"] = JSONValue(cast(double)MAX_DISTANCE);
-            JSONValue sc = JSONValue(JSONType.array); foreach (s; SCALES) sc.array ~= JSONValue(cast(double)s); v["scales"] = sc;
-        } else {
-            v["sampling_step"] = JSONValue(cast(double)SAMPLING_STEP);
-            v["mask_threshold"] = JSONValue(cast(double)maskThreshold);
-        }
-        return v.toString();
-    }
-    bool amApplyPreset(string name) {
-        switch (name) {
-            case "Normal parts":    presetNormal(this); return true;
-            case "Detailed mesh":   presetDetailed(this); return true;
-            case "Large parts":     presetLarge(this); return true;
-            case "Small parts":     presetSmall(this); return true;
-            case "Thin and minimum parts": presetThin(this); return true;
-            case "Preserve edges":  presetEdges(this); return true;
-            default: return false;
-        }
-    }
-    bool amWriteValues(string levelName, string updatesJson) {
-        auto u = parseJSON(updatesJson);
-        bool any;
-        if (levelName == "Advanced") {
-            if ("min_distance" in u && (u["min_distance"].type==JSONType.float_||u["min_distance"].type==JSONType.integer)) { MIN_DISTANCE = cast(float)u["min_distance"].floating; any=true; }
-            if ("max_distance" in u && (u["max_distance"].type==JSONType.float_||u["max_distance"].type==JSONType.integer)) { MAX_DISTANCE = cast(float)u["max_distance"].floating; any=true; }
-            if ("scales" in u && u["scales"].type==JSONType.array) { SCALES.length = 0; foreach (e; u["scales"].array) if (e.type==JSONType.float_||e.type==JSONType.integer) SCALES ~= cast(float)e.floating; any=true; }
-        } else {
-            if ("sampling_step" in u && (u["sampling_step"].type==JSONType.float_||u["sampling_step"].type==JSONType.integer)) { SAMPLING_STEP = cast(float)u["sampling_step"].floating; any=true; }
-            if ("mask_threshold" in u && (u["mask_threshold"].type==JSONType.float_||u["mask_threshold"].type==JSONType.integer)) { maskThreshold = cast(float)u["mask_threshold"].floating; any=true; }
-        }
-        return any;
-    }
+    // IAutoMeshReflect provided by mixin
 };

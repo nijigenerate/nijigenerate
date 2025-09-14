@@ -151,32 +151,7 @@ private ProjectionResult projectAlphaExec(Node[] targets, Puppet puppet, Project
     }
 
     // Collect drawables under targets with coverOthers-aware traversal
-    Drawable[] drawables;
-    void findSubDrawable(Node n) {
-        if (n is null) return;
-        // If node covers others, we only consider its children
-        if (n.coverOthers()) {
-            foreach (child; n.children) findSubDrawable(child);
-            return;
-        }
-        // Composite handling
-        if (auto comp = cast(Composite)n) {
-            if (comp.propagateMeshGroup) {
-                foreach (child; n.children) findSubDrawable(child);
-            }
-            // Do not traverse further under non-propagating composites
-            return;
-        }
-        // Drawable is a terminal we want; also traverse children
-        if (auto d = cast(Drawable)n) {
-            drawables ~= d;
-            foreach (child; n.children) findSubDrawable(child);
-            return;
-        }
-        // Plain Node: stop here (exclude descendants)
-        return;
-    }
-    foreach (t; targets) findSubDrawable(t);
+    Drawable[] drawables = enumerateDrawablesForAutoMesh(targets);
     if (drawables.length == 0) {
         res.w = res.h = 0; res.bounds = RectF(0,0,0,0); return res;
     }
@@ -315,6 +290,23 @@ private ProjectionResult projectAlphaExec(Node[] targets, Puppet puppet, Project
     res.w = w; res.h = h; res.alpha = outA;
     res.bounds = RectF(minX, minY, maxX - minX, maxY - minY);
     return res;
+}
+
+// Enumerate drawables under nodes respecting coverOthers/propagateMeshGroup rules
+package(nijigenerate) Drawable[] enumerateDrawablesForAutoMesh(Node[] targets) {
+    Drawable[] list;
+    void findSubDrawable(Node n) {
+        if (n is null) return;
+        if (n.coverOthers()) { foreach (child; n.children) findSubDrawable(child); return; }
+        if (auto comp = cast(Composite)n) {
+            if (comp.propagateMeshGroup) { foreach (child; n.children) findSubDrawable(child); }
+            return;
+        }
+        if (auto d = cast(Drawable)n) { list ~= d; foreach (child; n.children) findSubDrawable(child); return; }
+        return;
+    }
+    foreach (t; targets) findSubDrawable(t);
+    return list;
 }
 
 // Unified alpha preview widget state and renderer

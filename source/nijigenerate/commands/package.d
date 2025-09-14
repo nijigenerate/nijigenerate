@@ -46,17 +46,70 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.node.dynamic.convertNodeCommands,
     nijigenerate.commands.inspector.apply_node.commands,
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
-    nijigenerate.commands.automesh.config.commands,
+    // Prefer typed AutoMesh commands only (per-processor)
+    nijigenerate.commands.automesh.config.autoMeshTypedCommands,
 );
+pragma(msg, "[CT] AllCommandMaps includes typed AutoMesh only");
+
+// ===== Compile-time visibility diagnostics for ngInitCommands =====
+private template _BoolStr(bool B) { enum _BoolStr = B ? "1" : "0"; }
+mixin template CTInitScan(alias AAx, alias Kx, int IDX) {
+    enum _hasGen = __traits(compiles, { ngInitCommands!Kx(); });
+    enum _hasDyn = __traits(compiles, { nijigenerate.commands.automesh.dynamic.ngInitCommands!Kx(); });
+    enum _hasCfg = __traits(compiles, { nijigenerate.commands.automesh.config.ngInitCommands!Kx(); });
+    pragma(msg, "[CT][InitScan] #" ~ IDX.stringof ~ ": AA=" ~ typeof(AAx).stringof ~
+                 " K=" ~ Kx.stringof ~
+                 " hasGen=" ~ _BoolStr!_hasGen ~
+                 " hasDyn=" ~ _BoolStr!_hasDyn ~
+                 " hasCfg=" ~ _BoolStr!_hasCfg);
+}
+mixin template CTInitScanInvoke(alias AA, int IDX) {
+    mixin CTInitScan!(AA, KeyTypeOfAA!(AA), IDX);
+}
+static foreach (ii, AA; AllCommandMaps) {
+    mixin CTInitScanInvoke!(AA, ii);
+}
+
+// Fail fast if AutoMesh initializers are not visible at CT (prevents silent skips)
+static assert(__traits(compiles, {
+    import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
+    nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
+}), "[CT][Guard] AutoMeshKey initializer not visible");
+
+static if (!__traits(compiles, {
+        import nijigenerate.commands.automesh.config : AutoMeshTypedCommand;
+        ngInitCommands!AutoMeshTypedCommand();
+    }) && !__traits(compiles, {
+        import nijigenerate.commands.automesh.config : AutoMeshTypedCommand;
+        nijigenerate.commands.automesh.config.ngInitCommands!AutoMeshTypedCommand();
+    })) {
+    pragma(msg, "[CT][Warn] AutoMeshTypedCommand initializer not visible at this stage (will init explicitly at runtime)");
+}
 
 // Explicit initialization to avoid module constructor cycles
 // Discover and initialize commands for each enum key present in AllCommandMaps.
 void ngInitAllCommands() {
-    static foreach (AA; AllCommandMaps) {
-        static if (__traits(compiles, { ngInitCommands!(KeyTypeOfAA!(AA))(); })) {
-            ngInitCommands!(KeyTypeOfAA!(AA))();
+    import std.stdio : writefln;
+    static foreach (AA; AllCommandMaps) {{
+        alias K = KeyTypeOfAA!(AA);
+        writefln("[CMD] init begin: AA=%s key=%s", typeof(AA).stringof, K.stringof);
+        import std.traits : fullyQualifiedName;
+        enum fq = fullyQualifiedName!K; // e.g. nijigenerate.commands.binding.binding.BindingCommand
+        enum mod = ({ string s = fq; size_t last = 0; foreach (i, ch; s) { if (ch == '.') last = i; } return s[0 .. last+1]; })(); // module path with trailing dot
+        enum call = mod ~ "ngInitCommands!(" ~ fq ~ ")();";
+        static if (__traits(compiles, mixin(call))) {
+            mixin(call);
+        } else static if (__traits(compiles, { ngInitCommands!K(); })) {
+            ngInitCommands!K();
+        } else {
+            writefln("[CMD] init skipped (no ngInitCommands) for key=%s", K.stringof);
         }
-    }
+        size_t cnt = 0; foreach (_k, _v; AA) ++cnt;
+        writefln("[CMD] init end:   AA=%s count=%s", typeof(AA).stringof, cnt);
+    }}
+    // Explicit initialization for AutoMesh maps (bypass name resolution issues)
+    nijigenerate.commands.automesh.dynamic.ngInitCommands!(nijigenerate.commands.automesh.dynamic.AutoMeshKey)();
+    nijigenerate.commands.automesh.config.ngInitCommands!(nijigenerate.commands.automesh.config.AutoMeshTypedCommand)();
     /*
     import std.stdio;
     import std.conv;

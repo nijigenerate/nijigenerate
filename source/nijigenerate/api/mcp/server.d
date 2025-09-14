@@ -27,6 +27,7 @@ import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
+import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import inmath : vec2u;
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
@@ -47,6 +48,30 @@ import std.array : appender;
 import std.json : parseJSON;
 public import nijigenerate.api.mcp.task;
 import nijigenerate.core.settings;
+
+// === Compile-time diagnostics ===
+// KeyType extractor for AA like V[K]
+private template _McpKeyTypeOfAA(alias AA) {
+    static if (is(typeof(AA) : V[K], V, K)) alias _McpKeyTypeOfAA = K;
+    else alias _McpKeyTypeOfAA = void;
+}
+
+// List AllCommandMaps entries (type + key type) at compile time
+static foreach (AA; AllCommandMaps) {
+    pragma(msg, "[CT][MCP] AllCommandMaps entry: " ~ typeof(AA).stringof ~ " Key=" ~ _McpKeyTypeOfAA!(AA).stringof);
+}
+
+// List AutoMeshTypedCommand enum members (if any) at compile time
+private string _mcpListTypedMembers()() {
+    string s;
+    static foreach (n; __traits(allMembers, AutoMeshTypedCommand)) {
+        static if (n != "init" && n != "min" && n != "max" && n != "stringof") {
+            s ~= n ~ ",";
+        }
+    }
+    return s;
+}
+pragma(msg, "[CT][MCP] AutoMeshTypedCommand members: " ~ _mcpListTypedMembers());
 
 private __gshared bool gServerStarted = false;
 private __gshared Thread gServerThread;
@@ -90,9 +115,14 @@ private void _ngMcpStart(string host, ushort port) {
     gTransport = transport;
     ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled", false));
 
+    // Ensure commands are initialized (safety in case caller forgot)
+    import nijigenerate.commands : ngInitAllCommands;
+    ngInitAllCommands();
+
     // Minimal, robust registration that does not depend on TLS of another thread
     bool[string] registered;
-    static foreach (AA; AllCommandMaps) {
+    static foreach (AA; AllCommandMaps) {{
+        size_t _aaAdded = 0;
         foreach (k, v; AA) {
             auto baseName = typeof(k).stringof ~ "." ~ to!string(k);
             string toolName = baseName;
@@ -107,6 +137,7 @@ private void _ngMcpStart(string host, ushort port) {
             registered[toolName] = true;
             auto toolDesc = v.description();
             auto cmdInst = v; // capture concrete instance for execution
+            ++_aaAdded;
 
             // Build context schema
             auto ctxSchema = SchemaBuilder.object()
@@ -395,7 +426,9 @@ private void _ngMcpStart(string host, ushort port) {
                 }
             );
         }
-    }
+        // Summary per AA (useful to spot empty maps)
+        writefln("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
+    }}
 
     // Register resources/find as a Tool (returns JSON)
     writefln("[MCP] addTool: resources/find (special)");

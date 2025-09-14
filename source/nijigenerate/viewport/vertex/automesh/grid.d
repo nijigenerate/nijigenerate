@@ -19,6 +19,7 @@ import bindbc.imgui;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput, alphaImageCenter, mapImageCenteredMeshToTargetLocal;
 
+@AMProcessor("grid", "Grid", 200)
 class GridAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
 
     @AMParam(AutoMeshLevel.Advanced, "scale_x", "X Scale", "Axis scale factors (X)", "array")
@@ -39,6 +40,27 @@ class GridAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
     // Unified alpha preview state
     private AlphaPreviewState _alphaPreview;
 public:
+    mixin AutoMeshClassInfo!();
+    // Bring in unified reflection/UI
+    mixin AutoMeshReflection!();
+    private void rebuildScalesFromSegments() {
+        scaleY.length = 0; scaleX.length = 0;
+        int ys = cast(int)(ySegments < 1 ? 1 : ySegments);
+        int xs = cast(int)(xSegments < 1 ? 1 : xSegments);
+        if (margin != 0) { scaleY ~= -margin; scaleX ~= -margin; }
+        foreach (y; 0 .. ys + 1) scaleY ~= cast(float)y / cast(float)ys;
+        foreach (x; 0 .. xs + 1) scaleX ~= cast(float)x / cast(float)xs;
+        if (margin != 0) { scaleY ~= 1 + margin; scaleX ~= 1 + margin; }
+    }
+    // Hook for mixin to react to param changes
+    void ngPostParamWrite(string id) {
+        if (id == "x_segments" || id == "y_segments" || id == "margin") {
+            rebuildScalesFromSegments();
+        }
+    }
+
+    // IAutoMeshReflect provided by mixin
+    // schema/values/writeValues provided by mixin
     override
     IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         // 1) Branch only for input acquisition
@@ -71,13 +93,15 @@ public:
         MeshData meshData;
         mesh.axes = [[], []];
 
+        // Ensure ascending order for scales
         scaleY.sort!((a, b) => a < b);
+        // Use standard lerp: (1 - t) * min + t * max
         foreach (y; scaleY)
-            mesh.axes[0] ~= (minY * y + maxY * (1 - y)) - imgCenter.y;
+            mesh.axes[0] ~= (minY * (1 - y) + maxY * y) - imgCenter.y;
 
         scaleX.sort!((a, b) => a < b);
         foreach (x; scaleX)
-            mesh.axes[1] ~= (minX * x + maxX * (1 - x)) - imgCenter.x;
+            mesh.axes[1] ~= (minX * (1 - x) + maxX * x) - imgCenter.x;
 
         meshData.gridAxes = mesh.axes[];
         meshData.regenerateGrid();
@@ -88,8 +112,7 @@ public:
         return mesh;
     }
 
-    override
-    void configure() {
+    void configureLegacyUI() {
         void editScale(ref float[] scales) {
             int deleteIndex = -1;
             if (igBeginChild("###AXIS_ADJ", ImVec2(0, 240))) {
@@ -98,8 +121,8 @@ public:
                     foreach(i, ref pt; scales) {
                         ix++;
 
-                        // Do not allow existing points to cross over
-                        vec2 range = vec2(0, 2);
+                        // Allow slight extrapolation to support margins
+                        vec2 range = vec2(-1, 2);
 
                         igSetNextItemWidth(80);
                         igPushID(cast(int)i);
@@ -146,22 +169,19 @@ public:
         }
 
         void divideAxes() {
+            // Rebuild axis scales from segment counts and margin.
             scaleY.length = 0;
             scaleX.length = 0;
-            if (margin != 0) {
-                scaleY ~= -margin;
-                scaleX ~= -margin;
+            int ys = cast(int) (ySegments < 1 ? 1 : ySegments);
+            int xs = cast(int) (xSegments < 1 ? 1 : xSegments);
+            if (margin != 0) { scaleY ~= -margin; scaleX ~= -margin; }
+            foreach (y; 0 .. ys + 1) {
+                scaleY ~= cast(float)y / cast(float)ys;
             }
-            foreach (y; 0..(ySegments+1)) {
-                scaleY ~= y / ySegments;
+            foreach (x; 0 .. xs + 1) {
+                scaleX ~= cast(float)x / cast(float)xs;
             }
-            foreach (x; 0..(xSegments+1)) {                
-                scaleX ~= x / xSegments;
-            }
-            if (margin != 0) {
-                scaleY ~= 1 + margin;
-                scaleX ~= 1 + margin;
-            }
+            if (margin != 0) { scaleY ~= 1 + margin; scaleX ~= 1 + margin; }
         }
 
         igPushID("CONFIGURE_OPTIONS");
@@ -242,8 +262,8 @@ public:
         return "";
     }
 
-    // IAutoMeshReflect (manual implementation)
-    string amSchema() {
+    // Legacy reflection impl (kept for reference; not used)
+    string schemaLegacy() {
         JSONValue obj = JSONValue(JSONType.object);
         obj["type"] = "GridAutoMeshProcessor";
         JSONValue simple = JSONValue(JSONType.array);
@@ -262,7 +282,7 @@ public:
         obj["presets"] = JSONValue(JSONType.array);
         return obj.toString();
     }
-    string amValues(string levelName) {
+    string valuesLegacy(string levelName) {
         JSONValue v = JSONValue(JSONType.object);
         if (levelName == "Advanced") {
             JSONValue sx = JSONValue(JSONType.array); foreach(x; scaleX) sx.array ~= JSONValue(cast(double)x); v["scale_x"] = sx;
@@ -275,8 +295,8 @@ public:
         }
         return v.toString();
     }
-    bool amApplyPreset(string name) { return false; }
-    bool amWriteValues(string levelName, string updatesJson) {
+    bool applyPresetLegacy(string name) { return false; }
+    bool writeValuesLegacy(string levelName, string updatesJson) {
         import std.json : parseJSON;
         auto u = parseJSON(updatesJson);
         bool any;
