@@ -256,6 +256,8 @@ private string _genTwListForLevel(alias PT, AutoMeshLevel levelV)()
             if (hasParam && p.level == levelV) {
                 static if (is(typeof(__traits(getMember, PT, mname)) == float)) {
                     list ~= `TW!(float, "` ~ p.id ~ `", "` ~ p.label ~ `"),`;
+                } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
+                    list ~= `TW!(float[], "` ~ p.id ~ `", "` ~ p.label ~ ` (array)"),`;
                 } else {
                     if (hasEnum) static if (is(typeof(__traits(getMember, PT, mname)) == string)) {
                         list ~= `TW!(int, "` ~ p.id ~ `", "` ~ p.label ~ ` (index)"),`;
@@ -287,6 +289,12 @@ private string _genSettersForLevel(alias PT, AutoMeshLevel levelV)()
                     code ~= `{
                         float v = ` ~ p.id ~ `;` ~ minClamp ~ maxClamp ~ `
                         (cast(PT)inst).` ~ mname ~ ` = v;
+                        static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
+                    }
+                    `;
+                } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
+                    code ~= `{
+                        (cast(PT)inst).` ~ mname ~ ` = ` ~ p.id ~ `;
                         static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
                     }
                     `;
