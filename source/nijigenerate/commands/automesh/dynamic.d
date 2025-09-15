@@ -51,7 +51,18 @@ template ApplyAutoMeshPT(alias PT)
         }
         override void run(Context ctx) {
             if (!runnable(ctx)) return;
-            auto chosen = cast(AutoMeshProcessor)new PT();
+            AutoMeshProcessor chosen = null;
+            foreach (processor; ngAutoMeshProcessors) {
+                if (cast(PT)processor) {
+                    chosen = processor; 
+                    break;
+                }
+            }
+            if (!chosen) {
+                import std.stdio;
+                writefln("[BUG] No appropriate AutoMeshProcessor exists!");
+                return;
+            }
 
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
             // Apply only to explicitly selected drawables (do not include descendants)
