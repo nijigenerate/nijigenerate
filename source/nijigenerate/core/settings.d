@@ -65,6 +65,10 @@ void incSettingsLoad() {
     // Always ask the user whether to preserve the folder structure during import
     // also see incGetKeepLayerFolder()
     settings["KeepLayerFolder"] = "Ask";
+
+    // Replace LayerGroup with which node type on import when preserving structure
+    // Allowed values: "Node", "MeshGroup", "DynamicComposite"
+    settings["LayerGroupReplacement"] = "Node";
 }
 
 /**

@@ -240,6 +240,32 @@ protected:
                         }
                         endSection();
 
+                        beginSection(__("Layer group replacement")); {
+                            // Choose which node type replaces LayerGroup when preserving structure
+                            string[string] options = [
+                                "Node": _("Node"),
+                                "MeshGroup": _("MeshGroup"),
+                                "DynamicComposite": _("DynamicComposite")
+                            ];
+
+                            import nijigenerate.core.settings : incSettingsGet, incSettingsSet;
+                            string current = incSettingsGet!string("LayerGroupReplacement", "Node");
+                            string display = options.get(current, _("Node"));
+
+                            import std.string : toStringz;
+                            if (igBeginCombo(__("Replace LayerGroup with"), display.toStringz)) {
+                                foreach (key, label; options) {
+                                    if (igSelectable(label.toStringz, current == key)) {
+                                        incSettingsSet("LayerGroupReplacement", key);
+                                        current = key;
+                                    }
+                                }
+                                igEndCombo();
+                            }
+                            incTooltip(_("Node type to create for imported layer groups when preserving structure."));
+                        }
+                        endSection();
+
                         beginSection(__("On close project")); {
                             import nijigenerate.io.save;
                             string[string] option = incGetSaveProjectOption();
