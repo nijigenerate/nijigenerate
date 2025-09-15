@@ -35,7 +35,9 @@ class ConvertNodeToCommand : ExCommand!(
     TW!(string, "toType", "destination node type")
 ) {
     this(string toType) {
-        super("Convert To " ~ toType, toType);
+        super("Convert To " ~ toType, "Convert To " ~ toType, toType);
+        import std.stdio;
+        writefln("New class Convert to : %s", this.toType);
     }
     override bool runnable(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0) return false;
@@ -134,7 +136,13 @@ void ngInitCommands(T)() if (is(T == ConvertToKey))
 Command ensureConvertToCommand(string toType)
 {
     ConvertToKey key = ConvertToKey(toType);
-    if (auto p = key in convertNodeCommands) return *p;
+    if (auto p = key in convertNodeCommands) {
+        auto cnv = cast(ConvertNodeToCommand)*p;
+        if (cnv.toType != toType) {
+            cnv.toType = toType;
+        }
+        return *p;
+    }
     auto cmd = cast(Command) new ConvertNodeToCommand(toType);
     convertNodeCommands[key] = cmd;
     return cmd;
