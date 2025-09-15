@@ -68,7 +68,7 @@ void incSettingsLoad() {
 
     // Replace LayerGroup with which node type on import when preserving structure
     // Allowed values: "Node", "MeshGroup", "DynamicComposite"
-    settings["LayerGroupReplacement"] = "DynamicComposite";
+    settings["LayerGroupReplacement"] = "Node";
 }
 
 /**
