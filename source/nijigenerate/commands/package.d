@@ -19,6 +19,8 @@ public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
 public import nijigenerate.commands.automesh.dynamic;
 public import nijigenerate.commands.automesh.config;
+public import nijigenerate.commands.vertex.define_mesh;
+public import nijigenerate.commands.model.set_deform_binding;
 
 import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
@@ -48,6 +50,8 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
     // Prefer typed AutoMesh commands only (per-processor)
     nijigenerate.commands.automesh.config.autoMeshTypedCommands,
+    nijigenerate.commands.vertex.define_mesh.commands,
+    nijigenerate.commands.model.set_deform_binding.commands,
 );
 pragma(msg, "[CT] AllCommandMaps includes typed AutoMesh only");
 
