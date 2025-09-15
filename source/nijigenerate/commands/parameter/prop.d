@@ -43,7 +43,7 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
     TW!(float[],  "axisY", "Normalized Y breakpoints (including endpoints; empty for 1D)")
 ) {
     this(float[2] min, float[2] max, float[] axisX, float[] axisY) {
-        super(_("Apply Parameter Axes + Props"), min, max, axisX, axisY);
+        super(null, _("Apply Parameter Axes + Props"), min, max, axisX, axisY);
     }
     override bool shortcutRunnable() { return false; }
     override

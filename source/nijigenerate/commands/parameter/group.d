@@ -19,7 +19,7 @@ import std.array : insertInPlace;
 
 
 class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(int, "index", "")) {
-    this(ExParameterGroup group, int index) { super("Move Parameter", group, index);}
+    this(ExParameterGroup group, int index) { super(null, "Move Parameter", group, index);}
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0) return;
@@ -29,7 +29,7 @@ class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(in
 }
 
 class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
-    this(int index = 0) { super("Create Parameter Group", index); }
+    this(int index = 0) { super(null, "Create Parameter Group", index); }
     override
     void run(Context ctx) {
 
@@ -45,7 +45,7 @@ class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
 }
 
 class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value for target Parameter Group.")) {
-    this(float[3] color = [0f, 0f, 0f]) { super("Change Parameter Group Color", color); }
+    this(float[3] color = [0f, 0f, 0f]) { super(null, "Change Parameter Group Color", color); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
@@ -56,7 +56,7 @@ class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value f
 }
 
 class DeleteParamGroupCommand : ExCommand!() {
-    this() { super("Delete Parameter Group"); }
+    this() { super(null, "Delete Parameter Group"); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)

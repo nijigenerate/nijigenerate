@@ -428,7 +428,7 @@ class PasteBindingCommand : ExCommand!() {
 //==================================================================================
 
 class RemoveBindingCommand : ExCommand!() {
-    this() { super(_("Remove Bindings")); }
+    this() { super(null, _("Remove Bindings")); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
@@ -449,7 +449,7 @@ class RemoveBindingCommand : ExCommand!() {
 }
 
 class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify the new interpolation mode.")) {
-    this(InterpolateMode mode) { super("Set Bindings to " ~ mode.stringof, mode); }
+    this(InterpolateMode mode) { super(null, "Set Bindings to " ~ mode.stringof, mode); }
     override
     void run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))

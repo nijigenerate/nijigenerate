@@ -284,7 +284,7 @@ void addBinding(Parameter param, Parameter p, int fromAxis, int toAxis) {
 }
 
 class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to copy"), TW!(int, "fromAxis", "axis in source parameter"), TW!(int, "toAxis", "axis in dest parameter")) {
-    this(Parameter toParam, int fromAxis, int toAxis) { super(_("Delete Parameter"), toParam, fromAxis, toAxis); }
+    this(Parameter toParam, int fromAxis, int toAxis) { super(null, _("Delete Parameter"), toParam, fromAxis, toAxis); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {
@@ -298,7 +298,7 @@ class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to 
 
 
 class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the index of the armed parameter in the parent group.")) {
-    this(int index) { super(_("Toggle Armed Parameter"), index); }
+    this(int index) { super(null, _("Toggle Armed Parameter"), index); }
     override
     void run(Context ctx) {
         if (ctx.hasPuppet && ctx.hasParameters) {
@@ -318,7 +318,7 @@ class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the inde
 }
 
 class SetStartingKeyFrameCommand : ExCommand!() {
-    this() { super(_("Set Starting KeyFrame")); }
+    this() { super(null, _("Set Starting KeyFrame")); }
     override
     void run(Context ctx) {
         if (ctx.hasParameters()) {

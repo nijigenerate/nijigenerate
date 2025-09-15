@@ -25,7 +25,7 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
     // The `DefApply` template will generate a constructor that calls this.
     alias ValT  = typeof(mixin("(cast(I)(null))."~PropName~".value"));
     this(ValT value) {
-        super("Apply " ~ PropName, value);
+        super(null, "Apply " ~ PropName, value);
     }
 
     override void run(Context ctx) {

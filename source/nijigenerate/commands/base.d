@@ -165,31 +165,22 @@ abstract class ExCommand(T...) : Command {
         // Backward-compatible: single-arg constructor sets description only
         this(string desc) { this._desc = desc; this._label = ""; }
         // Preferred: label + description
-        this(string label, string desc) { this._label = label; this._desc = desc; }
+        this(string label, string desc) { 
+            this._label = label ? label: desc; 
+            this._desc = desc; 
+        }
     } else {
         // Allow derived classes to set labels/fields without passing args
         this() {}
         // Optional: label + description only (fields left default-initialized)
         this(string label, string desc) { this._label = label; this._desc = desc; }
-        // Backward-compatible: single-arg (desc) + args
-        this(A...)(string desc, A args)
-            if (A.length == T.length) {
-            this._desc = desc;
-            this._label = "";
-            static if (A.length != T.length)
-                static assert(false, "Expected " ~ T.length.stringof ~ " args, got " ~ A.length.stringof);
-            static foreach (i, Param; T) {
-                static if (isInstanceOf!(TW, Param)) {
-                    mixin("this." ~ TemplateArgsOf!Param[1] ~ " = args[" ~ i.to!string ~ "];");
-                } else {
-                    mixin("this.arg" ~ i.to!string ~ " = args[" ~ i.to!string ~ "];");
-                }
-            }
-        }
         // Preferred: label + description + args
         this(A...)(string label, string desc, A args)
             if (A.length == T.length) {
-            this._label = label;
+            if (label !is null)
+                this._label = label;
+            else
+                this._label = desc;
             this._desc = desc;
             static if (A.length != T.length)
                 static assert(false, "Expected " ~ T.length.stringof ~ " args, got " ~ A.length.stringof);

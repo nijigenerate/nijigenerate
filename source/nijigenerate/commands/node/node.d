@@ -23,7 +23,7 @@ class AddNodeCommand : ExCommand!(
         TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
         // Dynamic label; keep as-is for now (static part is translatable elsewhere)
-        super("Add Node " ~ className, className, _suffix);
+        super(null, "Add Node " ~ className, className, _suffix);
     }
 
     override
@@ -44,7 +44,7 @@ class InsertNodeCommand : ExCommand!(
         TW!(string, "className", "class name of new node."), 
         TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
-        super("Insert Node " ~ className, className, _suffix);
+        super(null, "Insert Node " ~ className, className, _suffix);
     }
 
     override
@@ -65,7 +65,7 @@ class MoveNodeCommand : ExCommand!(
         TW!(Node, "newParent", "new parent node"), 
         TW!(ulong, "index", "index in new parent node")) {
     this(Node newParent, ulong index) {
-        super(_("Move Node "), newParent, index);
+        super(null, _("Move Node "), newParent, index);
     }
 
     override
@@ -85,7 +85,7 @@ class MoveNodeCommand : ExCommand!(
 
 class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for node")) {
     this(string className) {
-        super("Convert Node to "~className, className);
+        super(null, "Convert Node to "~className, className);
     }
 
     override
@@ -96,7 +96,7 @@ class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for
 }
 
 class DeleteNodeCommand : ExCommand!() {
-    this() { super(_("Delete Node")); }
+    this() { super(null, _("Delete Node")); }
     override
     void run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
