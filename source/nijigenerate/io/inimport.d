@@ -154,10 +154,17 @@ class LoadHandler(T) : ImportKeepHandler {
     bool load(AskKeepLayerFolder select) {
         switch (select) {
             case AskKeepLayerFolder.NotPreserve:
+                // Do not preserve structure; node type choice irrelevant
                 incImport!T(file, IncImportSettings(false));
                 return true;
             case AskKeepLayerFolder.Preserve:
-                incImport!T(file, IncImportSettings(true));
+                // Preserve structure; choose replacement node type for LayerGroup
+                IncImportSettings s;
+                s.keepStructure = true;
+                // Read from settings with sane default
+                import nijigenerate.core.settings : incSettingsGet;
+                s.layerGroupNodeType = incSettingsGet!string("LayerGroupReplacement", "Node");
+                incImport!T(file, s);
                 return true;
             case AskKeepLayerFolder.Cancel:
                 return false;
