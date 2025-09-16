@@ -211,6 +211,9 @@ private void _ngMcpStart(string host, ushort port) {
                                 } else static if (is(TParam == float[3])) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[3] [x,y,z]"));
                                     paramLog ~= fname ~ ":float[3]";
+                                } else static if (is(TParam == ushort[])) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"ushort[]"));
+                                    paramLog ~= fname ~ ":float[]";
                                 } else static if (is(TParam == uint[2])) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"uint[2] [x,y]"));
                                     paramLog ~= fname ~ ":uint[2]";
@@ -377,6 +380,17 @@ private void _ngMcpStart(string host, ushort port) {
                                                             float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
                                                             float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
                                                             mixin("inst."~fname~" = [x,y,z];");
+                                                        }
+                                                    } else static if (is(TParam == ushort[])) {
+                                                        if (val.type == JSONType.array) {
+                                                            ushort[] outv;
+                                                            foreach (e; val.array) {
+                                                                if (e.type == JSONType.float_)
+                                                                    outv ~= cast(ushort)e.floating;
+                                                                else if (e.type == JSONType.integer)
+                                                                    outv ~= cast(ushort)cast(double)e.integer;
+                                                            }
+                                                            mixin("inst."~fname~" = outv;");
                                                         }
                                                     } else static if (is(TParam == uint[2])) {
                                                         if (val.type == JSONType.array && val.array.length >= 2) {
