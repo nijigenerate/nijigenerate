@@ -239,10 +239,7 @@ class SetFromHorizontalMirrorCommand : ExCommand!() {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
                 auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
-                if (targetBindingsNull)
-                    incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
-                else if(targetBinding !is null)
-                    incBindingAutoFlip(targetBinding, binding, cParamPoint, 0);
+                incBindingAutoFlip(binding, targetBinding, cParamPoint, 0);
             }
         }
         action.updateNewState();
@@ -270,10 +267,7 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
                 auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
-                if (targetBindingsNull)
-                    incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
-                else if(targetBinding !is null)
-                    incBindingAutoFlip(targetBinding, binding, cParamPoint, 1);
+                incBindingAutoFlip(binding, targetBinding, cParamPoint, 1);
             }
         }
         action.updateNewState();
@@ -302,10 +296,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
             if (auto target = cast(Node)binding.getTarget().target) {
                 auto pair = incGetFlipPairFor(target);
                 auto targetBinding = incBindingGetPairFor(param, target, pair, binding.getTarget().name, true);
-                if (targetBindingsNull)
-                    incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
-                else if(targetBinding !is null)
-                    incBindingAutoFlip(targetBinding, binding, cParamPoint, -1);
+                incBindingAutoFlip(binding, targetBinding, cParamPoint, -1);
             }
         }
         action.updateNewState();
