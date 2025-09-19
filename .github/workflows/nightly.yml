@@ -253,6 +253,11 @@ jobs:
         git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
         git submodule update --recursive
 
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    
     - name: 'Build nijigenerate'
       env:
         DFLAGS: "-g -force-dwarf-frame-section=false"
