@@ -17,6 +17,7 @@ import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.modal;
 import nijigenerate.widgets.button;
 import nijilive;
+import nijilive.core.renderpipeline : DifferenceEvaluationResult;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
 import nijigenerate.io.save;
@@ -132,6 +133,11 @@ package {
 }
 
 bool incShowStatsForNerds;
+bool incDifferenceAggregationDebugEnabled;
+size_t incDifferenceAggregationTargetIndex;
+size_t incDifferenceAggregationResolvedIndex = size_t.max;
+DifferenceEvaluationResult incDifferenceAggregationResult;
+bool incDifferenceAggregationResultValid;
 
 
 bool incIsWayland() {

@@ -3,6 +3,7 @@ module nijigenerate.commands.puppet.view;
 import nijigenerate.commands.base;
 import nijigenerate.core.window;
 import nijilive;
+import nijilive.core.renderpipeline : DifferenceEvaluationResult;
 import tinyfiledialogs;
 import nijigenerate.io;
 import i18n;
@@ -81,11 +82,27 @@ class ShowStatusForNerdsCommand : ExCommand!() {
     }
 }
 
+class ToggleDifferenceAggregationCommand : ExCommand!() {
+    this() { super(_("Difference Aggregation Debug"), _("Toggle GPU difference aggregation for the selected node.")); }
+
+    override
+    void run(Context ctx) {
+        incDifferenceAggregationDebugEnabled = !incDifferenceAggregationDebugEnabled;
+        if (!incDifferenceAggregationDebugEnabled) {
+            incDifferenceAggregationResolvedIndex = size_t.max;
+            incDifferenceAggregationResultValid = false;
+            incDifferenceAggregationResult = DifferenceEvaluationResult.init;
+            inSetDifferenceAggregationEnabled(false);
+        }
+    }
+}
+
 enum ViewCommand {
     SetDefaultLayout,
     ShowSaveScreenshotDialog,
     SaveScreenshot,
     ShowStatusForNerds,
+    ToggleDifferenceAggregation,
 }
 
 

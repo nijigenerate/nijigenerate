@@ -8,6 +8,13 @@ import nijigenerate.core.actionstack;
 import nijigenerate.core.settings;
 import nijigenerate.core.dpi;
 import nijigenerate.actions;
+import nijigenerate.project;
+import nijigenerate.core.window :
+    incDifferenceAggregationDebugEnabled,
+    incDifferenceAggregationTargetIndex,
+    incDifferenceAggregationResolvedIndex,
+    incDifferenceAggregationResult,
+    incDifferenceAggregationResultValid;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
@@ -20,6 +27,9 @@ import i18n;
 import bindbc.imgui;
 import std.algorithm.sorting;
 import std.algorithm.searching;
+import std.algorithm : clamp;
+import std.math : floor, ceil, isFinite, fabs;
+import nijilive.core.renderpipeline : DifferenceEvaluationResult;
 //import std.stdio;
 
 private {
@@ -149,9 +159,32 @@ class MainViewport : DelegationViewport {
 
     void draw() { 
         auto camera = inGetCamera();
+        bool differenceActive = prepareDifferenceAggregation(camera);
         inBeginScene();
         (cast(Viewport)this).draw(camera);
         inEndScene();
+
+        if (differenceActive) {
+            int viewportWidth, viewportHeight;
+            inGetViewport(viewportWidth, viewportHeight);
+            auto texture = inGetRenderImage();
+            if (inEvaluateDifferenceAggregation(texture, viewportWidth, viewportHeight)) {
+                DifferenceEvaluationResult result;
+                if (inFetchDifferenceAggregationResult(result)) {
+                    incDifferenceAggregationResult = result;
+                    incDifferenceAggregationResultValid = true;
+                } else {
+                    incDifferenceAggregationResult = DifferenceEvaluationResult.init;
+                    incDifferenceAggregationResultValid = false;
+                }
+            } else {
+                incDifferenceAggregationResult = DifferenceEvaluationResult.init;
+                incDifferenceAggregationResultValid = false;
+            }
+        } else {
+            incDifferenceAggregationResult = DifferenceEvaluationResult.init;
+            incDifferenceAggregationResultValid = false;
+        }
 
         if (incShouldPostProcess) {
             inPostProcessScene();
@@ -203,6 +236,118 @@ class MainViewport : DelegationViewport {
             auto param = incArmedParameter();
             subView.armedParameterChanged(param);
         }
+    }
+private:
+    struct DifferenceAggregationRegion {
+        int x;
+        int y;
+        int width;
+        int height;
+    }
+
+    bool prepareDifferenceAggregation(Camera camera) {
+        incDifferenceAggregationResolvedIndex = size_t.max;
+
+        if (!incDifferenceAggregationDebugEnabled) {
+            inSetDifferenceAggregationEnabled(false);
+            return false;
+        }
+
+        auto nodes = incSelectedNodes();
+        if (nodes.length == 0) {
+            inSetDifferenceAggregationEnabled(false);
+            return false;
+        }
+
+        size_t targetIndex = incDifferenceAggregationTargetIndex;
+        if (targetIndex >= nodes.length) targetIndex = nodes.length - 1;
+
+        Node targetNode = nodes[targetIndex];
+
+        int viewportWidth, viewportHeight;
+        inGetViewport(viewportWidth, viewportHeight);
+
+        DifferenceAggregationRegion region;
+        if (!computeDifferenceAggregationRegion(targetNode, camera, viewportWidth, viewportHeight, region)) {
+            inSetDifferenceAggregationEnabled(false);
+            return false;
+        }
+
+        incDifferenceAggregationResolvedIndex = targetIndex;
+        inSetDifferenceAggregationEnabled(true);
+        inSetDifferenceAggregationRegion(region.x, region.y, region.width, region.height);
+        return true;
+    }
+
+    static bool computeDifferenceAggregationRegion(Node node, Camera camera, int viewportWidth, int viewportHeight, out DifferenceAggregationRegion region) {
+        auto bounds = node.getCombinedBoundsRect!(true, true)();
+        if (!isFinite(bounds.width) || !isFinite(bounds.height) || bounds.width <= 0 || bounds.height <= 0) {
+            return false;
+        }
+
+        float left = bounds.x;
+        float bottom = bounds.y;
+        float right = bounds.x + bounds.width;
+        float top = bounds.y + bounds.height;
+
+        vec2[4] corners = [
+            vec2(left, bottom),
+            vec2(right, bottom),
+            vec2(left, top),
+            vec2(right, top),
+        ];
+
+        mat4 camMatrix = camera.matrix();
+
+        float minX = float.max;
+        float maxX = -float.max;
+        float minY = float.max;
+        float maxY = -float.max;
+        bool anyValid = false;
+
+        foreach (corner; corners) {
+            vec4 clip = camMatrix * vec4(corner.x, corner.y, 0, 1);
+            if (fabs(clip.w) < 1e-6f) continue;
+            vec2 ndc = clip.xy / clip.w;
+            if (!isFinite(ndc.x) || !isFinite(ndc.y)) continue;
+
+            float px = (ndc.x * 0.5f + 0.5f) * viewportWidth;
+            float py = (ndc.y * 0.5f + 0.5f) * viewportHeight;
+
+            if (!isFinite(px) || !isFinite(py)) continue;
+
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+
+            anyValid = true;
+        }
+
+        if (!anyValid) {
+            return false;
+        }
+
+        float clampedMinX = clamp(minX, 0f, cast(float)viewportWidth);
+        float clampedMaxX = clamp(maxX, 0f, cast(float)viewportWidth);
+        float clampedMinY = clamp(minY, 0f, cast(float)viewportHeight);
+        float clampedMaxY = clamp(maxY, 0f, cast(float)viewportHeight);
+
+        if (clampedMaxX <= clampedMinX || clampedMaxY <= clampedMinY) {
+            return false;
+        }
+
+        int rx = cast(int)floor(clampedMinX);
+        int ry = cast(int)floor(clampedMinY);
+        int rw = cast(int)ceil(clampedMaxX) - rx;
+        int rh = cast(int)ceil(clampedMaxY) - ry;
+
+        if (rw <= 0 || rh <= 0) {
+            return false;
+        }
+
+        region = DifferenceAggregationRegion(rx, ry, rw, rh);
+        return true;
     }
 }
 
