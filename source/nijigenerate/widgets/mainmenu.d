@@ -350,10 +350,20 @@ void incMainMenu() {
             string statsText = fpsText;
             if (incDifferenceAggregationDebugEnabled) {
                 string diffValue;
-                if (incDifferenceAggregationResultValid && incDifferenceAggregationResult.sampleCount > 0) {
-                    diffValue = "%.3f".format(
-                        incDifferenceAggregationResult.total / cast(double)incDifferenceAggregationResult.sampleCount
-                    );
+                if (incDifferenceAggregationResultValid) {
+                    double sumTotals = 0;
+                    double sumWeights = 0;
+                    foreach (i; 0 .. incDifferenceAggregationResult.tileTotals.length) {
+                        sumTotals += incDifferenceAggregationResult.tileTotals[i];
+                        sumWeights += incDifferenceAggregationResult.tileCounts[i];
+                    }
+                    if (sumWeights > 0) {
+                        diffValue = "%.3f".format(sumTotals / sumWeights);
+                    } else if (incDifferenceAggregationResult.alpha > 0) {
+                        diffValue = "%.3f".format(incDifferenceAggregationResult.total / incDifferenceAggregationResult.alpha);
+                    } else {
+                        diffValue = "--";
+                    }
                 } else {
                     diffValue = "--";
                 }
