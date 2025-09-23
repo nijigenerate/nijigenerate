@@ -413,29 +413,6 @@ class BrushTool : NodeSelect {
                     tileValues[i] = double.infinity;
                 }
             }
-
-            static size_t tileDebugCounter;
-            if (tileDebugCounter < 10) {
-                double minValue = double.infinity;
-                double maxValue = -double.infinity;
-                foreach (value; tileValues) {
-                    if (isFinite(value)) {
-                        if (value < minValue) minValue = value;
-                        if (value > maxValue) maxValue = value;
-                    }
-                }
-                stderr.writefln("[diff] brush sample #%s global=%.6f min=%.6f max=%.6f", tileDebugCounter, globalScore, minValue, maxValue);
-                foreach (int ty; 0 .. TileColumns) {
-                    string line;
-                    foreach (int tx; 0 .. TileColumns) {
-                        size_t idx = cast(size_t)ty * TileColumns + tx;
-                        double value = tileValues[idx];
-                        line ~= isFinite(value) ? format(" %8.5f", value) : "    nan";
-                    }
-                    stderr.writefln("[diff] brush row %02d:%s", ty, line);
-                }
-                tileDebugCounter++;
-            }
         }
 
         mat4 combinedMatrix = computeCombinedMatrix(impl);
