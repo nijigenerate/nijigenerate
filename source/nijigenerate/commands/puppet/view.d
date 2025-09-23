@@ -3,7 +3,7 @@ module nijigenerate.commands.puppet.view;
 import nijigenerate.commands.base;
 import nijigenerate.core.window;
 import nijilive;
-import nijilive.core.renderpipeline : DifferenceEvaluationResult;
+import nijilive.core.diff_collect : DifferenceEvaluationResult;
 import tinyfiledialogs;
 import nijigenerate.io;
 import i18n;
@@ -92,6 +92,7 @@ class ToggleDifferenceAggregationCommand : ExCommand!() {
             incDifferenceAggregationResolvedIndex = size_t.max;
             incDifferenceAggregationResultValid = false;
             incDifferenceAggregationResult = DifferenceEvaluationResult.init;
+            incDifferenceAggregationResultSerial = 0;
             inSetDifferenceAggregationEnabled(false);
         }
     }

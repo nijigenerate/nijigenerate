@@ -22,6 +22,7 @@ import nijigenerate.io.save;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
+import nijigenerate.viewport.common.mesheditor.brushstate;
 
 import i18n;
 import nijigenerate.ext;
@@ -228,20 +229,6 @@ void incMainMenu() {
                     ngMenuItemFor!(ViewCommand.ShowSaveScreenshotDialog)(ctx);
                     incTooltip(_("Saves screenshot as PNG of the editor framebuffer."));
                     ngMenuItemFor!(ViewCommand.ShowStatusForNerds)(ctx, incShowStatsForNerds, true);
-                    ngMenuItemFor!(ViewCommand.ToggleDifferenceAggregation)(ctx, incDifferenceAggregationDebugEnabled, true);
-                    if (incDifferenceAggregationDebugEnabled) {
-                        auto selectedNodes = incSelectedNodes();
-                        igPushItemWidth(120);
-                        int idx = cast(int)incDifferenceAggregationTargetIndex;
-                        int maxIdx = selectedNodes.length > 0 ? cast(int)(selectedNodes.length - 1) : 0;
-                        if (igDragInt("Difference Target Index".toStringz, &idx, 1, 0, maxIdx, "%d".toStringz, ImGuiSliderFlags.AlwaysClamp)) {
-                            if (idx < 0) idx = 0;
-                            incDifferenceAggregationTargetIndex = cast(size_t)idx;
-                        }
-                        igPopItemWidth();
-                        string selectionText = "Selection: %d".format(cast(int)selectedNodes.length);
-                        igText(selectionText.toStringz);
-                    }
 
 
                     igEndMenu();
@@ -339,7 +326,8 @@ void incMainMenu() {
         // This code is very ugly because imgui doesn't really exactly understand this
         // stuff natively.
         ImVec2 secondSectionLength = ImVec2(0, 0);
-        string statsPlaceholder = incDifferenceAggregationDebugEnabled ? "1000ms | Diff[000] 0.000" : "1000ms";
+        bool teacherDiffActive = incBrushHasTeacherPart();
+        string statsPlaceholder = teacherDiffActive ? "1000ms | Diff 0.000" : "1000ms";
         if (incShowStatsForNerds) { // Extra padding I guess
             secondSectionLength.x += igGetStyle().ItemSpacing.x;
             secondSectionLength.x += incMeasureString(statsPlaceholder).x;
@@ -348,7 +336,7 @@ void incMainMenu() {
         if (incShowStatsForNerds) {
             string fpsText = "%.0fms".format(1000f/io.Framerate);
             string statsText = fpsText;
-            if (incDifferenceAggregationDebugEnabled) {
+            if (teacherDiffActive) {
                 string diffValue;
                 if (incDifferenceAggregationResultValid) {
                     double sumTotals = 0;
@@ -367,8 +355,7 @@ void incMainMenu() {
                 } else {
                     diffValue = "--";
                 }
-                string indexText = incDifferenceAggregationResolvedIndex != size_t.max ? "%s".format(incDifferenceAggregationResolvedIndex) : "-";
-                statsText ~= " | Diff[%s] %s".format(indexText, diffValue);
+                statsText ~= " | Diff %s".format(diffValue);
             }
             float textAreaDummyWidth = incMeasureString(statsPlaceholder).x - incMeasureString(statsText).x;
             if (textAreaDummyWidth > 0) incDummy(ImVec2(textAreaDummyWidth, 0));

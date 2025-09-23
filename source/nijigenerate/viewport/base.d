@@ -10,15 +10,15 @@ import nijigenerate.core.dpi;
 import nijigenerate.actions;
 import nijigenerate.project;
 import nijigenerate.core.window :
-    incDifferenceAggregationDebugEnabled,
-    incDifferenceAggregationTargetIndex,
     incDifferenceAggregationResolvedIndex,
     incDifferenceAggregationResult,
-    incDifferenceAggregationResultValid;
+    incDifferenceAggregationResultValid,
+    incDifferenceAggregationResultSerial;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.anim;
+import nijigenerate.viewport.common.mesheditor.brushstate;
 import nijigenerate.widgets.viewport;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.tooltip;
@@ -29,7 +29,7 @@ import std.algorithm.sorting;
 import std.algorithm.searching;
 import std.algorithm : clamp;
 import std.math : floor, ceil, isFinite, fabs;
-import nijilive.core.renderpipeline : DifferenceEvaluationResult;
+import nijilive.core.diff_collect : DifferenceEvaluationResult;
 //import std.stdio;
 
 private {
@@ -173,17 +173,23 @@ class MainViewport : DelegationViewport {
                 if (inFetchDifferenceAggregationResult(result)) {
                     incDifferenceAggregationResult = result;
                     incDifferenceAggregationResultValid = true;
+                    incDifferenceAggregationResultSerial++;
                 } else {
-                    incDifferenceAggregationResult = DifferenceEvaluationResult.init;
-                    incDifferenceAggregationResultValid = false;
+                    // Keep the previous result when fetch fails so transient stalls
+                    // (for example when the target selection changes) do not cause
+                    // the visible difference metric to flicker.
+                    // Leave incDifferenceAggregationResult unchanged and preserve
+                    // the last-known validity state.
                 }
             } else {
                 incDifferenceAggregationResult = DifferenceEvaluationResult.init;
                 incDifferenceAggregationResultValid = false;
+                incDifferenceAggregationResultSerial = 0;
             }
         } else {
             incDifferenceAggregationResult = DifferenceEvaluationResult.init;
             incDifferenceAggregationResultValid = false;
+            incDifferenceAggregationResultSerial = 0;
         }
 
         if (incShouldPostProcess) {
@@ -248,32 +254,22 @@ private:
     bool prepareDifferenceAggregation(Camera camera) {
         incDifferenceAggregationResolvedIndex = size_t.max;
 
-        if (!incDifferenceAggregationDebugEnabled) {
+        if (!incBrushHasTeacherPart()) {
             inSetDifferenceAggregationEnabled(false);
             return false;
         }
 
-        auto nodes = incSelectedNodes();
-        if (nodes.length == 0) {
-            inSetDifferenceAggregationEnabled(false);
-            return false;
-        }
-
-        size_t targetIndex = incDifferenceAggregationTargetIndex;
-        if (targetIndex >= nodes.length) targetIndex = nodes.length - 1;
-
-        Node targetNode = nodes[targetIndex];
+        Node targetNode = incBrushGetTeacherPart();
 
         int viewportWidth, viewportHeight;
         inGetViewport(viewportWidth, viewportHeight);
 
         DifferenceAggregationRegion region;
-        if (!computeDifferenceAggregationRegion(targetNode, camera, viewportWidth, viewportHeight, region)) {
+        if (targetNode is null || !computeDifferenceAggregationRegion(targetNode, camera, viewportWidth, viewportHeight, region)) {
             inSetDifferenceAggregationEnabled(false);
             return false;
         }
 
-        incDifferenceAggregationResolvedIndex = targetIndex;
         inSetDifferenceAggregationEnabled(true);
         inSetDifferenceAggregationRegion(region.x, region.y, region.width, region.height);
         return true;

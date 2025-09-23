@@ -17,7 +17,7 @@ import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.modal;
 import nijigenerate.widgets.button;
 import nijilive;
-import nijilive.core.renderpipeline : DifferenceEvaluationResult;
+import nijilive.core.diff_collect : DifferenceEvaluationResult;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
 import nijigenerate.io.save;
@@ -138,6 +138,7 @@ size_t incDifferenceAggregationTargetIndex;
 size_t incDifferenceAggregationResolvedIndex = size_t.max;
 DifferenceEvaluationResult incDifferenceAggregationResult;
 bool incDifferenceAggregationResultValid;
+ulong incDifferenceAggregationResultSerial;
 
 
 bool incIsWayland() {
