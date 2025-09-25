@@ -40,9 +40,12 @@ import nijigenerate.core.window :
     incDifferenceAggregationResultValid,
     incDifferenceAggregationResultSerial;
 
+
 enum TileColumns = 16;
 enum TileCount = TileColumns * TileColumns;
-enum OptimizationSampleCount = 101;
+enum float OptimizationInitialStride = 0.1f;
+enum float OptimizationFinalStrideThreshold = 0.01f;
+enum float OptimizationParameterEpsilon = 1e-6f;
 enum float OptimizationMoveEpsilon = 1e-4f;
 
 private struct StrokeVertex {
@@ -76,7 +79,6 @@ class BrushTool : NodeSelect {
     bool optimizePending;
 
     StrokeVertex[] strokeVertices;
-    float[] optimizationSamples;
     bool waitingForResult;
     float pendingSampleParameter;
     ulong lastResultSerial;
@@ -87,6 +89,15 @@ class BrushTool : NodeSelect {
     int activeViewportWidth;
     int activeViewportHeight;
     size_t currentSampleIndex;
+    size_t currentStageSampleCount;
+    float currentStride;
+    float currentRangeMin;
+    float currentRangeMax;
+    double stageBestScore;
+    float stageBestParameter;
+    double bestAggregateScore;
+    float bestAggregateParameter;
+    double lastSampleAggregateScore;
     bool anyVertexAdjusted;
     double[] baselineTileValues;
     double baselineGlobalScore = double.infinity;
@@ -99,7 +110,6 @@ class BrushTool : NodeSelect {
         dragStartPositions = typeof(dragStartPositions).init;
         draggedVertices.length = 0;
         strokeVertices.length = 0;
-        optimizationSamples.length = 0;
         waitingForResult = false;
         pendingSampleParameter = 1.0f;
         lastResultSerial = incDifferenceAggregationResultSerial;
@@ -110,6 +120,15 @@ class BrushTool : NodeSelect {
         activeViewportHeight = 0;
         activeRegion = DifferenceEvaluationRegion.init;
         currentSampleIndex = 0;
+        currentStageSampleCount = 0;
+        currentStride = 0;
+        currentRangeMin = 0;
+        currentRangeMax = 1;
+        stageBestScore = double.infinity;
+        stageBestParameter = 1.0f;
+        bestAggregateScore = double.infinity;
+        bestAggregateParameter = 1.0f;
+        lastSampleAggregateScore = double.infinity;
         anyVertexAdjusted = false;
         optimizePending = false;
         baselineTileValues.length = 0;
@@ -354,7 +373,6 @@ class BrushTool : NodeSelect {
             strokeVertices ~= StrokeVertex(vertex, startPos, endPos);
         }
 
-        optimizationSamples.length = 0;
         waitingForResult = false;
         pendingSampleParameter = 1.0f;
         lastResultSerial = incDifferenceAggregationResultSerial;
@@ -380,16 +398,80 @@ class BrushTool : NodeSelect {
         activeViewportWidth = viewportWidth;
         activeViewportHeight = viewportHeight;
 
-        optimizationSamples.length = OptimizationSampleCount;
-        foreach (i; 0 .. OptimizationSampleCount) {
-            optimizationSamples[i] = OptimizationSampleCount <= 1 ? 1.0f : cast(float)i / cast(float)(OptimizationSampleCount - 1);
-        }
+        currentStride = OptimizationInitialStride;
+        currentRangeMin = 0.0f;
+        currentRangeMax = 1.0f;
+        bestAggregateScore = double.infinity;
+        bestAggregateParameter = 1.0f;
+        stageBestScore = double.infinity;
+        stageBestParameter = 1.0f;
+        lastSampleAggregateScore = double.infinity;
+        configureOptimizationStage();
 
-        currentSampleIndex = 0;
         waitingForResult = false;
         anyVertexAdjusted = false;
         optimizePending = true;
     }
+
+    void configureOptimizationStage() {
+        currentStageSampleCount = computeStageSampleCount(currentRangeMin, currentRangeMax, currentStride);
+        if (currentStageSampleCount == 0) {
+            currentStageSampleCount = 1;
+        }
+        currentSampleIndex = 0;
+        stageBestScore = double.infinity;
+        stageBestParameter = computeSampleParameter(0);
+    }
+
+    size_t computeStageSampleCount(float rangeMin, float rangeMax, float stride) const {
+        if (stride <= OptimizationParameterEpsilon) {
+            return 1;
+        }
+        float clampedMin = clamp(rangeMin, 0.0f, 1.0f);
+        float clampedMax = clamp(rangeMax, 0.0f, 1.0f);
+        float span = clampedMax - clampedMin;
+        if (span <= OptimizationParameterEpsilon) {
+            return 1;
+        }
+        size_t steps = cast(size_t)ceil(cast(double)span / cast(double)stride) + 1;
+        if (steps < 2) {
+            steps = 2;
+        }
+        return steps;
+    }
+
+    float computeSampleParameter(size_t index) const {
+        if (currentStageSampleCount <= 1) {
+            return clamp(currentRangeMin, 0.0f, 1.0f);
+        }
+        float clampedMin = clamp(currentRangeMin, 0.0f, 1.0f);
+        float clampedMax = clamp(currentRangeMax, 0.0f, 1.0f);
+        float parameter = clampedMin + currentStride * cast(float)index;
+        if (index >= currentStageSampleCount - 1 || parameter >= clampedMax - OptimizationParameterEpsilon) {
+            parameter = clampedMax;
+        }
+        if (parameter < clampedMin) {
+            parameter = clampedMin;
+        }
+        if (parameter > clampedMax) {
+            parameter = clampedMax;
+        }
+        return parameter;
+    }
+
+    double computeLocalContributionWeight() const {
+        if (currentStride <= OptimizationFinalStrideThreshold + OptimizationParameterEpsilon) {
+            return 1.0;
+        }
+        if (OptimizationInitialStride <= OptimizationParameterEpsilon) {
+            return 1.0;
+        }
+        double ratio = 1.0 - cast(double)currentStride / cast(double)OptimizationInitialStride;
+        if (ratio < 0) ratio = 0;
+        if (ratio > 1) ratio = 1;
+        return ratio;
+    }
+
 
     void setStrokeParameter(IncMeshEditorOne impl, float parameter) {
         foreach (ref data; strokeVertices) {
@@ -398,7 +480,7 @@ class BrushTool : NodeSelect {
         }
     }
 
-    void updateScoresForSample(IncMeshEditorOne impl) {
+    double updateScoresForSample(IncMeshEditorOne impl) {
         double globalScore = computeGlobalDifferenceMetric();
 
         double[TileCount] tileValues;
@@ -419,29 +501,64 @@ class BrushTool : NodeSelect {
         auto camera = inGetCamera();
         mat4 cameraMatrix = camera.matrix();
 
+        double localWeight = computeLocalContributionWeight();
+        double aggregateSum = 0;
+        size_t aggregateCount = 0;
+        const double scoreEpsilon = 1e-9;
+
         foreach (i, ref data; strokeVertices) {
             vec2 position = data.vertex.position;
-            double score = double.infinity;
+            double localScore = double.infinity;
             if (activeRegionValid && anyFinite) {
-                score = sampleDifferenceAt(position, combinedMatrix, cameraMatrix, tileValues);
+                localScore = sampleDifferenceAt(position, combinedMatrix, cameraMatrix, tileValues);
             }
-            if (!isFinite(score)) {
-                score = globalScore;
+
+            double blendedScore = double.infinity;
+            bool hasLocal = isFinite(localScore);
+            bool hasGlobal = isFinite(globalScore);
+
+            if (localWeight >= 1.0 - scoreEpsilon && hasLocal) {
+                blendedScore = localScore;
+            } else if (localWeight <= scoreEpsilon || !hasLocal) {
+                blendedScore = globalScore;
+            } else if (hasLocal && hasGlobal) {
+                blendedScore = globalScore * (1.0 - localWeight) + localScore * localWeight;
+            } else if (hasLocal) {
+                blendedScore = localScore;
+            } else {
+                blendedScore = globalScore;
             }
-            if (!isFinite(score))
+
+            if (!isFinite(blendedScore))
                 continue;
 
-            if (score <= bestScores[i]) {
-                bestScores[i] = score;
+            if (!isFinite(bestScores[i]) || blendedScore <= bestScores[i] - scoreEpsilon) {
+                bestScores[i] = blendedScore;
                 bestParameters[i] = pendingSampleParameter;
             }
+
+            aggregateSum += blendedScore;
+            ++aggregateCount;
         }
+
+        if (aggregateCount == 0) {
+            return globalScore;
+        }
+        return aggregateSum / cast(double)aggregateCount;
     }
 
     void applyBestParameters(IncMeshEditorOne impl) {
         bool adjusted = false;
+        bool hasFallback = isFinite(bestAggregateScore);
+        float fallbackParameter = clamp(bestAggregateParameter, 0.0f, 1.0f);
         foreach (i, ref data; strokeVertices) {
-            float parameter = (i < bestParameters.length) ? clamp(bestParameters[i], 0.0f, 1.0f) : 1.0f;
+            float parameter = 1.0f;
+            if (i < bestParameters.length && i < bestScores.length && isFinite(bestScores[i])) {
+                parameter = clamp(bestParameters[i], 0.0f, 1.0f);
+            } else if (hasFallback) {
+                parameter = fallbackParameter;
+            }
+
             vec2 candidate = data.startPos * (1 - parameter) + data.endPos * parameter;
             if ((candidate - data.endPos).length > OptimizationMoveEpsilon) {
                 adjusted = true;
@@ -596,22 +713,55 @@ class BrushTool : NodeSelect {
                 lastResultSerial = incDifferenceAggregationResultSerial;
                 activeRegion = inGetDifferenceAggregationRegion();
                 activeRegionValid = activeRegion.width > 0 && activeRegion.height > 0;
-                updateScoresForSample(impl);
+                double aggregate = updateScoresForSample(impl);
+                lastSampleAggregateScore = aggregate;
+                if (isFinite(aggregate)) {
+                    if (!isFinite(stageBestScore) || aggregate < stageBestScore) {
+                        stageBestScore = aggregate;
+                        stageBestParameter = pendingSampleParameter;
+                    }
+                    if (!isFinite(bestAggregateScore) || aggregate < bestAggregateScore) {
+                        bestAggregateScore = aggregate;
+                        bestAggregateParameter = pendingSampleParameter;
+                    }
+                }
                 waitingForResult = false;
             }
             return false;
         }
 
-        if (currentSampleIndex >= optimizationSamples.length) {
-            finalizeOptimization(impl);
+        if (currentSampleIndex >= currentStageSampleCount || currentStageSampleCount == 0) {
+            float pivot = stageBestParameter;
+            if (!isFinite(stageBestScore) && isFinite(bestAggregateScore)) {
+                pivot = bestAggregateParameter;
+            }
+            pivot = clamp(pivot, 0.0f, 1.0f);
+
+            if (currentStride <= OptimizationFinalStrideThreshold + OptimizationParameterEpsilon || currentStageSampleCount <= 1) {
+                finalizeOptimization(impl);
+                return true;
+            }
+
+            currentRangeMin = clamp(pivot - currentStride, 0.0f, 1.0f);
+            currentRangeMax = clamp(pivot + currentStride, 0.0f, 1.0f);
+            currentStride *= 0.5f;
+            if (currentRangeMax - currentRangeMin <= OptimizationParameterEpsilon) {
+                currentRangeMin = pivot;
+                currentRangeMax = pivot;
+            }
+            configureOptimizationStage();
+        }
+
+        if (currentSampleIndex < currentStageSampleCount) {
+            pendingSampleParameter = computeSampleParameter(currentSampleIndex++);
+            setStrokeParameter(impl, pendingSampleParameter);
+            lastResultSerial = incDifferenceAggregationResultSerial;
+            impl.refreshMesh();
+            waitingForResult = true;
             return true;
         }
 
-        pendingSampleParameter = optimizationSamples[currentSampleIndex++];
-        setStrokeParameter(impl, pendingSampleParameter);
-        lastResultSerial = incDifferenceAggregationResultSerial;
-        impl.refreshMesh();
-        waitingForResult = true;
+        finalizeOptimization(impl);
         return true;
     }
 
@@ -726,7 +876,7 @@ class BrushTool : NodeSelect {
         if (!(igGetIO().KeyAlt))
             currentBrush.draw(impl.mousePos, impl.transform);
 
-        drawDifferenceDiagnostics(impl);
+//        drawDifferenceDiagnostics(impl);
     }
 
 }
@@ -745,7 +895,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
         igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         auto brushTool = cast(BrushTool)(editors.length == 0 ? null: editors.values()[0].getTool());
             igBeginGroup();
-                if (incButtonColored("", ImVec2(0, 0), (brushTool !is null && !brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
+                if (incButtonColored("Drag", ImVec2(0, 0), (brushTool !is null && !brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
                     foreach (e; editors) {
                         auto bt = cast(BrushTool)(e.getTool());
                         if (bt)
@@ -755,7 +905,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
                 incTooltip(_("Drag mode"));
 
                 igSameLine(0, 0);
-                if (incButtonColored("", ImVec2(0, 0), (brushTool !is null && brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
+                if (incButtonColored("Flow", ImVec2(0, 0), (brushTool !is null && brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
                     foreach (e; editors) {
                         auto bt = cast(BrushTool)(e.getTool());
                         if (bt)
@@ -790,7 +940,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
         return false;
     }
     override VertexToolMode mode() { return VertexToolMode.Brush; };
-    override string icon() { return "";}
+    override string icon() { return "B";}
     override string description() { return _("Brush Tool");}
 }
 
@@ -845,3 +995,13 @@ private void drawTeacherTargetOption(BrushTool brushTool) {
         }
     igPopID();
 }
+
+
+
+
+
+
+
+
+
+
