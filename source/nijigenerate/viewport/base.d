@@ -10,10 +10,10 @@ import nijigenerate.core.dpi;
 import nijigenerate.actions;
 import nijigenerate.project;
 import nijigenerate.core.window :
-    incDifferenceAggregationResolvedIndex,
-    incDifferenceAggregationResult,
-    incDifferenceAggregationResultValid,
-    incDifferenceAggregationResultSerial;
+    ngDifferenceAggregationResolvedIndex,
+    ngDifferenceAggregationResult,
+    ngDifferenceAggregationResultValid,
+    ngDifferenceAggregationResultSerial;
 import nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
@@ -171,25 +171,25 @@ class MainViewport : DelegationViewport {
             if (inEvaluateDifferenceAggregation(texture, viewportWidth, viewportHeight)) {
                 DifferenceEvaluationResult result;
                 if (inFetchDifferenceAggregationResult(result)) {
-                    incDifferenceAggregationResult = result;
-                    incDifferenceAggregationResultValid = true;
-                    incDifferenceAggregationResultSerial++;
+                    ngDifferenceAggregationResult = result;
+                    ngDifferenceAggregationResultValid = true;
+                    ngDifferenceAggregationResultSerial++;
                 } else {
                     // Keep the previous result when fetch fails so transient stalls
                     // (for example when the target selection changes) do not cause
                     // the visible difference metric to flicker.
-                    // Leave incDifferenceAggregationResult unchanged and preserve
+                    // Leave ngDifferenceAggregationResult unchanged and preserve
                     // the last-known validity state.
                 }
             } else {
-                incDifferenceAggregationResult = DifferenceEvaluationResult.init;
-                incDifferenceAggregationResultValid = false;
-                incDifferenceAggregationResultSerial = 0;
+                ngDifferenceAggregationResult = DifferenceEvaluationResult.init;
+                ngDifferenceAggregationResultValid = false;
+                ngDifferenceAggregationResultSerial = 0;
             }
         } else {
-            incDifferenceAggregationResult = DifferenceEvaluationResult.init;
-            incDifferenceAggregationResultValid = false;
-            incDifferenceAggregationResultSerial = 0;
+            ngDifferenceAggregationResult = DifferenceEvaluationResult.init;
+            ngDifferenceAggregationResultValid = false;
+            ngDifferenceAggregationResultSerial = 0;
         }
 
         if (incShouldPostProcess) {
@@ -252,7 +252,7 @@ private:
     }
 
     bool prepareDifferenceAggregation(Camera camera) {
-        incDifferenceAggregationResolvedIndex = size_t.max;
+        ngDifferenceAggregationResolvedIndex = size_t.max;
 
         if (!incBrushHasTeacherPart()) {
             inSetDifferenceAggregationEnabled(false);

@@ -36,9 +36,9 @@ import std.range : iota;
 import std.stdio : stderr, writefln;
 import nijigenerate.core.dpi : incGetUIScale;
 import nijigenerate.core.window :
-    incDifferenceAggregationResult,
-    incDifferenceAggregationResultValid,
-    incDifferenceAggregationResultSerial;
+    ngDifferenceAggregationResult,
+    ngDifferenceAggregationResultValid,
+    ngDifferenceAggregationResultSerial;
 
 
 enum TileColumns = 16;
@@ -112,7 +112,7 @@ class BrushTool : NodeSelect {
         strokeVertices.length = 0;
         waitingForResult = false;
         pendingSampleParameter = 1.0f;
-        lastResultSerial = incDifferenceAggregationResultSerial;
+        lastResultSerial = ngDifferenceAggregationResultSerial;
         bestScores.length = 0;
         bestParameters.length = 0;
         activeRegionValid = false;
@@ -138,10 +138,10 @@ class BrushTool : NodeSelect {
 
     void captureBaselineDifference() {
         baselineTileValues.length = TileCount;
-        if (incDifferenceAggregationResultValid) {
+        if (ngDifferenceAggregationResultValid) {
             foreach (i; 0 .. TileCount) {
-                double count = incDifferenceAggregationResult.tileCounts[i];
-                double value = count > 0 ? incDifferenceAggregationResult.tileTotals[i] / count : double.infinity;
+                double count = ngDifferenceAggregationResult.tileCounts[i];
+                double value = count > 0 ? ngDifferenceAggregationResult.tileTotals[i] / count : double.infinity;
                 baselineTileValues[i] = value;
             }
             baselineGlobalScore = computeGlobalDifferenceMetric();
@@ -375,7 +375,7 @@ class BrushTool : NodeSelect {
 
         waitingForResult = false;
         pendingSampleParameter = 1.0f;
-        lastResultSerial = incDifferenceAggregationResultSerial;
+        lastResultSerial = ngDifferenceAggregationResultSerial;
         activeRegionValid = false;
 
         if (strokeVertices.length == 0) {
@@ -487,9 +487,9 @@ class BrushTool : NodeSelect {
         bool anyFinite = false;
         if (activeRegionValid) {
             foreach (i; 0 .. TileCount) {
-                double count = incDifferenceAggregationResult.tileCounts[i];
+                double count = ngDifferenceAggregationResult.tileCounts[i];
                 if (count > 0) {
-                    tileValues[i] = incDifferenceAggregationResult.tileTotals[i] / count;
+                    tileValues[i] = ngDifferenceAggregationResult.tileTotals[i] / count;
                     anyFinite = true;
                 } else {
                     tileValues[i] = double.infinity;
@@ -654,18 +654,18 @@ class BrushTool : NodeSelect {
     }
 
     double computeGlobalDifferenceMetric() const {
-        if (!incDifferenceAggregationResultValid)
+        if (!ngDifferenceAggregationResultValid)
             return double.infinity;
 
-        if (incDifferenceAggregationResult.alpha > 0) {
-            return incDifferenceAggregationResult.total / incDifferenceAggregationResult.alpha;
+        if (ngDifferenceAggregationResult.alpha > 0) {
+            return ngDifferenceAggregationResult.total / ngDifferenceAggregationResult.alpha;
         }
         double sumTotals = 0;
         double sumWeights = 0;
-        foreach (value; incDifferenceAggregationResult.tileTotals) {
+        foreach (value; ngDifferenceAggregationResult.tileTotals) {
             sumTotals += value;
         }
-        foreach (value; incDifferenceAggregationResult.tileCounts) {
+        foreach (value; ngDifferenceAggregationResult.tileCounts) {
             sumWeights += value;
         }
 
@@ -693,7 +693,7 @@ class BrushTool : NodeSelect {
             return false;
         }
 
-        if (!baselineValid && incDifferenceAggregationResultValid) {
+        if (!baselineValid && ngDifferenceAggregationResultValid) {
             captureBaselineDifference();
         }
 
@@ -709,8 +709,8 @@ class BrushTool : NodeSelect {
         }
 
         if (waitingForResult) {
-            if (incDifferenceAggregationResultValid && incDifferenceAggregationResultSerial != lastResultSerial) {
-                lastResultSerial = incDifferenceAggregationResultSerial;
+            if (ngDifferenceAggregationResultValid && ngDifferenceAggregationResultSerial != lastResultSerial) {
+                lastResultSerial = ngDifferenceAggregationResultSerial;
                 activeRegion = inGetDifferenceAggregationRegion();
                 activeRegionValid = activeRegion.width > 0 && activeRegion.height > 0;
                 double aggregate = updateScoresForSample(impl);
@@ -755,7 +755,7 @@ class BrushTool : NodeSelect {
         if (currentSampleIndex < currentStageSampleCount) {
             pendingSampleParameter = computeSampleParameter(currentSampleIndex++);
             setStrokeParameter(impl, pendingSampleParameter);
-            lastResultSerial = incDifferenceAggregationResultSerial;
+            lastResultSerial = ngDifferenceAggregationResultSerial;
             impl.refreshMesh();
             waitingForResult = true;
             return true;
@@ -765,8 +765,8 @@ class BrushTool : NodeSelect {
         return true;
     }
 
-    void drawDifferenceDiagnostics(IncMeshEditorOne impl) {
-        if (!baselineValid && incDifferenceAggregationResultValid) {
+    void dbgDrawDifferenceDiagnostics(IncMeshEditorOne impl) {
+        if (!baselineValid && ngDifferenceAggregationResultValid) {
             captureBaselineDifference();
         }
 
@@ -803,7 +803,7 @@ class BrushTool : NodeSelect {
         mat4 viewProj = camera.matrix();
         mat4 invViewProj = viewProj.inverse();
 
-        double currentGlobal = incDifferenceAggregationResultValid ? computeGlobalDifferenceMetric() : baselineGlobalScore;
+        double currentGlobal = ngDifferenceAggregationResultValid ? computeGlobalDifferenceMetric() : baselineGlobalScore;
         const double epsilon = 1e-6;
         vec4 improveColor = vec4(0, 1, 0, 0.8f);
         vec4 worsenColor = vec4(1, 0, 0, 0.8f);
@@ -820,9 +820,9 @@ class BrushTool : NodeSelect {
                 if (!isFinite(baselineValue)) baselineValue = baselineGlobalScore;
 
                 double currentValue;
-                if (incDifferenceAggregationResultValid) {
-                    double count = incDifferenceAggregationResult.tileCounts[idx];
-                    currentValue = count > 0 ? incDifferenceAggregationResult.tileTotals[idx] / count : currentGlobal;
+                if (ngDifferenceAggregationResultValid) {
+                    double count = ngDifferenceAggregationResult.tileCounts[idx];
+                    currentValue = count > 0 ? ngDifferenceAggregationResult.tileTotals[idx] / count : currentGlobal;
                 } else {
                     currentValue = baselineValue;
                 }
@@ -876,7 +876,7 @@ class BrushTool : NodeSelect {
         if (!(igGetIO().KeyAlt))
             currentBrush.draw(impl.mousePos, impl.transform);
 
-//        drawDifferenceDiagnostics(impl);
+//        dbgDrawDifferenceDiagnostics(impl);
     }
 
 }
@@ -895,7 +895,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
         igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         auto brushTool = cast(BrushTool)(editors.length == 0 ? null: editors.values()[0].getTool());
             igBeginGroup();
-                if (incButtonColored("Drag", ImVec2(0, 0), (brushTool !is null && !brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
+                if (incButtonColored("", ImVec2(0, 0), (brushTool !is null && !brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
                     foreach (e; editors) {
                         auto bt = cast(BrushTool)(e.getTool());
                         if (bt)
@@ -905,7 +905,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
                 incTooltip(_("Drag mode"));
 
                 igSameLine(0, 0);
-                if (incButtonColored("Flow", ImVec2(0, 0), (brushTool !is null && brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
+                if (incButtonColored("", ImVec2(0, 0), (brushTool !is null && brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
                     foreach (e; editors) {
                         auto bt = cast(BrushTool)(e.getTool());
                         if (bt)
@@ -936,21 +936,21 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
             igEndGroup();
         igPopStyleVar(2);
 
+        igSameLine(0,4);
         drawTeacherTargetOption(brushTool);
         return false;
     }
     override VertexToolMode mode() { return VertexToolMode.Brush; };
-    override string icon() { return "B";}
+    override string icon() { return "";}
     override string description() { return _("Brush Tool");}
 }
 
 private void drawTeacherTargetOption(BrushTool brushTool) {
     if (brushTool is null) return;
 
-    igSpacing();
-    incText(_("Teacher Part"));
     Part teacher = incBrushGetTeacherPart();
 
+    igSameLine(0, 4);
     ImVec2 previewSize = ImVec2(72, 72);
     igPushID("BRUSH_TEACHER_TARGET");
         if (teacher !is null && teacher.textures.length > 0 && teacher.textures[0]) {
@@ -959,8 +959,8 @@ private void drawTeacherTargetOption(BrushTool brushTool) {
             ImVec4 bg = *igGetStyleColorVec4(ImGuiCol.ChildBg);
             bg.w = 0.15f;
             igPushStyleColor(ImGuiCol.ChildBg, bg);
-            igBeginChild("TeacherDropPlaceholder", previewSize, true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysUseWindowPadding);
-                incText(_("Drop Part Here"));
+            igBeginChild("Teacher Part", previewSize, true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysUseWindowPadding);
+                incText(_("Teacher Part"));
             igEndChild();
             igPopStyleColor();
         }
@@ -977,22 +977,15 @@ private void drawTeacherTargetOption(BrushTool brushTool) {
             igEndDragDropTarget();
         }
 
+        igSameLine(0, 0);
         if (igBeginPopupContextItem("TeacherTargetContext", ImGuiPopupFlags.MouseButtonRight)) {
+            igSameLine(0, 4);
             if (igMenuItem(__("Clear"))) {
                 incBrushClearTeacherPart();
             }
             igEndPopup();
         }
 
-        igSpacing();
-        if (teacher !is null) {
-            incText(teacher.name);
-            if (igButton(_("Clear Teacher").toStringz, ImVec2(0, 0))) {
-                incBrushClearTeacherPart();
-            }
-        } else {
-            incText(_("None"));
-        }
     igPopID();
 }
 

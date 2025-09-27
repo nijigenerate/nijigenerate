@@ -133,12 +133,12 @@ package {
 }
 
 bool incShowStatsForNerds;
-bool incDifferenceAggregationDebugEnabled;
-size_t incDifferenceAggregationTargetIndex;
-size_t incDifferenceAggregationResolvedIndex = size_t.max;
-DifferenceEvaluationResult incDifferenceAggregationResult;
-bool incDifferenceAggregationResultValid;
-ulong incDifferenceAggregationResultSerial;
+bool ngDifferenceAggregationDebugEnabled;
+size_t ngDifferenceAggregationTargetIndex;
+size_t ngDifferenceAggregationResolvedIndex = size_t.max;
+DifferenceEvaluationResult ngDifferenceAggregationResult;
+bool ngDifferenceAggregationResultValid;
+ulong ngDifferenceAggregationResultSerial;
 
 
 bool incIsWayland() {

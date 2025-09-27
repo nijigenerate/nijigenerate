@@ -338,17 +338,17 @@ void incMainMenu() {
             string statsText = fpsText;
             if (teacherDiffActive) {
                 string diffValue;
-                if (incDifferenceAggregationResultValid) {
+                if (ngDifferenceAggregationResultValid) {
                     double sumTotals = 0;
                     double sumWeights = 0;
-                    foreach (i; 0 .. incDifferenceAggregationResult.tileTotals.length) {
-                        sumTotals += incDifferenceAggregationResult.tileTotals[i];
-                        sumWeights += incDifferenceAggregationResult.tileCounts[i];
+                    foreach (i; 0 .. ngDifferenceAggregationResult.tileTotals.length) {
+                        sumTotals += ngDifferenceAggregationResult.tileTotals[i];
+                        sumWeights += ngDifferenceAggregationResult.tileCounts[i];
                     }
                     if (sumWeights > 0) {
                         diffValue = "%.3f".format(sumTotals / sumWeights);
-                    } else if (incDifferenceAggregationResult.alpha > 0) {
-                        diffValue = "%.3f".format(incDifferenceAggregationResult.total / incDifferenceAggregationResult.alpha);
+                    } else if (ngDifferenceAggregationResult.alpha > 0) {
+                        diffValue = "%.3f".format(ngDifferenceAggregationResult.total / ngDifferenceAggregationResult.alpha);
                     } else {
                         diffValue = "--";
                     }

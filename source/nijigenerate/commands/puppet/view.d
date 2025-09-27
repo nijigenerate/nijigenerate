@@ -87,12 +87,12 @@ class ToggleDifferenceAggregationCommand : ExCommand!() {
 
     override
     void run(Context ctx) {
-        incDifferenceAggregationDebugEnabled = !incDifferenceAggregationDebugEnabled;
-        if (!incDifferenceAggregationDebugEnabled) {
-            incDifferenceAggregationResolvedIndex = size_t.max;
-            incDifferenceAggregationResultValid = false;
-            incDifferenceAggregationResult = DifferenceEvaluationResult.init;
-            incDifferenceAggregationResultSerial = 0;
+        ngDifferenceAggregationDebugEnabled = !ngDifferenceAggregationDebugEnabled;
+        if (!ngDifferenceAggregationDebugEnabled) {
+            ngDifferenceAggregationResolvedIndex = size_t.max;
+            ngDifferenceAggregationResultValid = false;
+            ngDifferenceAggregationResult = DifferenceEvaluationResult.init;
+            ngDifferenceAggregationResultSerial = 0;
             inSetDifferenceAggregationEnabled(false);
         }
     }
