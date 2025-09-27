@@ -895,7 +895,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
         igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
         auto brushTool = cast(BrushTool)(editors.length == 0 ? null: editors.values()[0].getTool());
             igBeginGroup();
-                if (incButtonColored("", ImVec2(0, 0), (brushTool !is null && !brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
+                if (incButtonColored("\ue39e", ImVec2(0, 0), (brushTool !is null && !brushTool.getFlow()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // drag mode toggle
                     foreach (e; editors) {
                         auto bt = cast(BrushTool)(e.getTool());
                         if (bt)
@@ -905,7 +905,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
                 incTooltip(_("Drag mode"));
 
                 igSameLine(0, 0);
-                if (incButtonColored("", ImVec2(0, 0), (brushTool !is null && brushTool.getFlow())? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // path definition
+                if (incButtonColored("\ue3a2", ImVec2(0, 0), (brushTool !is null && brushTool.getFlow()) ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) { // flow mode toggle
                     foreach (e; editors) {
                         auto bt = cast(BrushTool)(e.getTool());
                         if (bt)
@@ -941,7 +941,7 @@ class ToolInfoImpl(T: BrushTool) : ToolInfoBase!(T) {
         return false;
     }
     override VertexToolMode mode() { return VertexToolMode.Brush; };
-    override string icon() { return "";}
+    override string icon() { return "\ue3ae";}
     override string description() { return _("Brush Tool");}
 }
 
@@ -951,7 +951,8 @@ private void drawTeacherTargetOption(BrushTool brushTool) {
     Part teacher = incBrushGetTeacherPart();
 
     igSameLine(0, 4);
-    ImVec2 previewSize = ImVec2(72, 72);
+    ImVec2 previewSize = ImVec2(64, 64);
+    ImVec2 previewSizeNone = ImVec2(64, 32);
     igPushID("BRUSH_TEACHER_TARGET");
         if (teacher !is null && teacher.textures.length > 0 && teacher.textures[0]) {
             incTextureSlotUntitled("TeacherPreview", teacher.textures[0], previewSize, 32, ImGuiWindowFlags.None, false);
@@ -959,8 +960,8 @@ private void drawTeacherTargetOption(BrushTool brushTool) {
             ImVec4 bg = *igGetStyleColorVec4(ImGuiCol.ChildBg);
             bg.w = 0.15f;
             igPushStyleColor(ImGuiCol.ChildBg, bg);
-            igBeginChild("Teacher Part", previewSize, true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysUseWindowPadding);
-                incText(_("Teacher Part"));
+            igBeginChild("Teacher Part", previewSizeNone, true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysUseWindowPadding);
+                igText(_("Teacher").toStringz);
             igEndChild();
             igPopStyleColor();
         }
