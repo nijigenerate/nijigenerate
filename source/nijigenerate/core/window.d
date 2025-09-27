@@ -17,6 +17,7 @@ import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.modal;
 import nijigenerate.widgets.button;
 import nijilive;
+import nijilive.core.diff_collect : DifferenceEvaluationResult;
 import nijigenerate.backend.gl;
 import nijigenerate.io.autosave;
 import nijigenerate.io.save;
@@ -115,6 +116,9 @@ package {
     
     ImVec4[ImGuiCol.COUNT] incDarkModeColors;
     ImVec4[ImGuiCol.COUNT] incLightModeColors;
+    bool viewportBackgroundOverrideActive;
+    ImVec4 viewportBackgroundOverrideColor;
+    ImVec4 viewportBackgroundStoredColor;
 
     SDL_Window* tryCreateWindow(string title, SDL_WindowFlags flags) {
         auto w = SDL_CreateWindow(
@@ -132,6 +136,12 @@ package {
 }
 
 bool incShowStatsForNerds;
+bool ngDifferenceAggregationDebugEnabled;
+size_t ngDifferenceAggregationTargetIndex;
+size_t ngDifferenceAggregationResolvedIndex = size_t.max;
+DifferenceEvaluationResult ngDifferenceAggregationResult;
+bool ngDifferenceAggregationResultValid;
+ulong ngDifferenceAggregationResultSerial;
 
 
 bool incIsWayland() {
@@ -373,7 +383,7 @@ SDL_Window* incGetWindowPtr() {
 void incRefreshWindowTitle() {
     import std.string : toStringz;
     if (windowSubtitle.length > 0) {
-        string mark = incIsProjectModified() ? " ●" : "";
+        string mark = incIsProjectModified() ? " *" : "";
         SDL_SetWindowTitle(window, ("nijigenerate - " ~ windowSubtitle ~ mark).toStringz);
     } else {
         SDL_SetWindowTitle(window, "nijigenerate");
@@ -870,13 +880,73 @@ void incDebugImGuiState(string msg, int indent = 0) {
     Resets the clear color
 */
 void incResetClearColor() {
-    if (incGetDarkMode()) {
-        inSetClearColor(0, 0, 0, 1);
-    } else {
-        inSetClearColor(1, 1, 1, 1);
+    ImVec4 defaultColor = incGetDarkMode() ? ImVec4(0, 0, 0, 1) : ImVec4(1, 1, 1, 1);
+    inSetClearColor(defaultColor.x, defaultColor.y, defaultColor.z, defaultColor.w);
+    if (viewportBackgroundOverrideActive) {
+        viewportBackgroundStoredColor = defaultColor;
+        inSetClearColor(
+            viewportBackgroundOverrideColor.x,
+            viewportBackgroundOverrideColor.y,
+            viewportBackgroundOverrideColor.z,
+            viewportBackgroundOverrideColor.w,
+        );
     }
 }
 
+
+bool incViewportHasTemporaryBackgroundColor() {
+    return viewportBackgroundOverrideActive;
+}
+
+void incViewportGetBackgroundColor(ref ImVec4 color) {
+    if (viewportBackgroundOverrideActive) {
+        color = viewportBackgroundOverrideColor;
+    } else {
+        inGetClearColor(color.x, color.y, color.z, color.w);
+    }
+}
+
+ImVec4 incViewportGetBackgroundColor() {
+    ImVec4 color;
+    incViewportGetBackgroundColor(color);
+    return color;
+}
+
+/**
+    Temporarily overrides the viewport background color until cleared.
+*/
+void incViewportSetTemporaryBackgroundColor(float r, float g, float b, float a = 1.0f) {
+    if (!viewportBackgroundOverrideActive) {
+        inGetClearColor(
+            viewportBackgroundStoredColor.x,
+            viewportBackgroundStoredColor.y,
+            viewportBackgroundStoredColor.z,
+            viewportBackgroundStoredColor.w,
+        );
+        viewportBackgroundOverrideActive = true;
+    }
+    viewportBackgroundOverrideColor = ImVec4(r, g, b, a);
+    inSetClearColor(r, g, b, a);
+}
+
+void incViewportSetTemporaryBackgroundColor(ImVec4 color) {
+    incViewportSetTemporaryBackgroundColor(color.x, color.y, color.z, color.w);
+}
+
+/**
+    Restores the viewport background color to the stored value.
+*/
+void incViewportClearTemporaryBackgroundColor() {
+    if (!viewportBackgroundOverrideActive)
+        return;
+    inSetClearColor(
+        viewportBackgroundStoredColor.x,
+        viewportBackgroundStoredColor.y,
+        viewportBackgroundStoredColor.z,
+        viewportBackgroundStoredColor.w,
+    );
+    viewportBackgroundOverrideActive = false;
+}
 /**
     Gets whether nijigenerate has requested the app to close
 */
@@ -899,3 +969,4 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
+

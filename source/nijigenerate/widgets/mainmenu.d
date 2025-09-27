@@ -22,12 +22,14 @@ import nijigenerate.io.save;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
+import nijigenerate.viewport.common.mesheditor.brushstate;
 
 import i18n;
 import nijigenerate.ext;
 import nijigenerate.core.logo;
 
 import std.string;
+import std.format;
 //import std.stdio;
 import std.path;
 
@@ -324,16 +326,40 @@ void incMainMenu() {
         // This code is very ugly because imgui doesn't really exactly understand this
         // stuff natively.
         ImVec2 secondSectionLength = ImVec2(0, 0);
+        bool teacherDiffActive = incBrushHasTeacherPart();
+        string statsPlaceholder = teacherDiffActive ? "1000ms | Diff 0.000" : "1000ms";
         if (incShowStatsForNerds) { // Extra padding I guess
             secondSectionLength.x += igGetStyle().ItemSpacing.x;
-            secondSectionLength.x += incMeasureString("1000ms").x;
+            secondSectionLength.x += incMeasureString(statsPlaceholder).x;
         }
         igDummy(ImVec2(tabBarWidth - secondSectionLength.x, 0));
         if (incShowStatsForNerds) {
             string fpsText = "%.0fms".format(1000f/io.Framerate);
-            float textAreaDummyWidth = incMeasureString("1000ms").x-incMeasureString(fpsText).x;
-            incDummy(ImVec2(textAreaDummyWidth, 0));
-            incText(fpsText);
+            string statsText = fpsText;
+            if (teacherDiffActive) {
+                string diffValue;
+                if (ngDifferenceAggregationResultValid) {
+                    double sumTotals = 0;
+                    double sumWeights = 0;
+                    foreach (i; 0 .. ngDifferenceAggregationResult.tileTotals.length) {
+                        sumTotals += ngDifferenceAggregationResult.tileTotals[i];
+                        sumWeights += ngDifferenceAggregationResult.tileCounts[i];
+                    }
+                    if (sumWeights > 0) {
+                        diffValue = "%.3f".format(sumTotals / sumWeights);
+                    } else if (ngDifferenceAggregationResult.alpha > 0) {
+                        diffValue = "%.3f".format(ngDifferenceAggregationResult.total / ngDifferenceAggregationResult.alpha);
+                    } else {
+                        diffValue = "--";
+                    }
+                } else {
+                    diffValue = "--";
+                }
+                statsText ~= " | Diff %s".format(diffValue);
+            }
+            float textAreaDummyWidth = incMeasureString(statsPlaceholder).x - incMeasureString(statsText).x;
+            if (textAreaDummyWidth > 0) incDummy(ImVec2(textAreaDummyWidth, 0));
+            incText(statsText);
         }
         igSetNextItemWidth (avail.x - tabBarWidth);
         igBeginTabBar("###ModeTab");
