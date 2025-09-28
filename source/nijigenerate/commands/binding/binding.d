@@ -371,22 +371,52 @@ class PasteBindingCommand : ExCommand!() {
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
 
-        // Find the bindings we should apply
-        // This allows us to skip the application process if we can't apply anything.
-        ParameterBinding[] bindingsToApply;
-        foreach(ref binding; bindings) {
-            if (binding.getTarget() in cClipboardBindings) bindingsToApply ~= binding;
+        // Build list of bindings to apply and create missing ones when appropriate
+        bool explicitTargets = !targetBindingsNull;
+        ParameterBinding[] targetsToApply;
+        ParameterBinding[] sourceBindings;
+        ParameterBinding[] newlyCreatedBindings;
+
+        if (explicitTargets) {
+            foreach (binding; bindings) {
+                auto targetKey = binding.getTarget();
+                ParameterBinding* srcBinding = targetKey in cClipboardBindings;
+                if (!srcBinding)
+                    continue;
+
+                auto ensured = param.getOrAddBinding(targetKey.target, targetKey.name);
+                if (ensured !is binding)
+                    newlyCreatedBindings ~= ensured;
+
+                targetsToApply ~= ensured;
+                sourceBindings ~= *srcBinding;
+            }
+        } else {
+            foreach (kv; cClipboardBindings.byKeyValue) {
+                auto targetKey = kv.key;
+                auto srcBinding = kv.value;
+                auto destBinding = param.getBinding(targetKey.target, targetKey.name);
+                if (destBinding is null) {
+                    destBinding = param.getOrAddBinding(targetKey.target, targetKey.name);
+                    newlyCreatedBindings ~= destBinding;
+                }
+                targetsToApply ~= destBinding;
+                sourceBindings ~= srcBinding;
+            }
         }
 
-        // Whether there's only a single binding, if so, we should not push a group
-        bool isSingle = (bindings.length == 1 && cClipboardBindings.length == 1) || bindingsToApply.length == 1;
-
-        if (bindingsToApply.length > 0) {
+        if (targetsToApply.length > 0) {
+            bool isSingle = targetsToApply.length == 1 && cClipboardBindings.length == 1;
             if (!isSingle) incActionPushGroup();
-            foreach(binding; bindingsToApply) {
-                auto action = new ParameterChangeBindingsValueAction("paste", param, bindings, cParamPoint.x, cParamPoint.y);
-                ParameterBinding origBinding = cClipboardBindings[binding.getTarget()];
-                origBinding.copyKeypointToBinding(cClipboardPoint, binding, cParamPoint);
+            if (newlyCreatedBindings.length > 0) {
+                auto addAction = new ParameterAddBindingsAction("paste", param, newlyCreatedBindings);
+                addAction.updateNewState();
+                incActionPush(addAction);
+            }
+            foreach (i, targetBinding; targetsToApply) {
+                auto action = new ParameterChangeBindingsValueAction("paste", param, [targetBinding], cParamPoint.x, cParamPoint.y);
+                auto srcBinding = sourceBindings[i];
+                srcBinding.copyKeypointToBinding(cClipboardPoint, targetBinding, cParamPoint);
                 action.updateNewState();
                 incActionPush(action);
             }
@@ -400,7 +430,6 @@ class PasteBindingCommand : ExCommand!() {
                     auto newDeform = deformByDeformationBinding(deformBinding, cast(DeformationParameterBinding)srcBinding, cParamPoint, false);
                     if (newDeform)
                         deformBinding.setValue(cParamPoint, *newDeform);
-
                 } else {
                     ValueParameterBinding valueBinding = cast(ValueParameterBinding)(binding);
                     ValueParameterBinding valueSrcBinding = cast(ValueParameterBinding)(srcBinding);
@@ -412,8 +441,8 @@ class PasteBindingCommand : ExCommand!() {
         }
 
     }
-}
 
+}
 //==================================================================================
 // Command Palette Definition for Binding
 //==================================================================================
@@ -514,3 +543,4 @@ void ngInitCommands(T)() if (is(T == BindingCommand))
     import nijigenerate.commands.binding.base : ngInitBindingProviders;
     ngInitBindingProviders();
 }
+
