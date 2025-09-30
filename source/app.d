@@ -27,13 +27,14 @@ import nijigenerate.atlas.atlas : incInitAtlassing;
 import nijigenerate.ext;
 import nijigenerate.windows.flipconfig;
 import nijilive;
+import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 import nijigenerate;
 import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings;
 import i18n;
 
 version(D_X32) {
     pragma(msg, "nijigenerate does not support compilation on 32 bit platforms");
-    static assert(0, "😎👉👉 no");
+    static assert(0, "nijigenerate does not support 32-bit builds.");
 }
 
 version(Windows) {
@@ -74,6 +75,9 @@ int main(string[] args)
         incInitPanels();
         incActionInit();
         incOpenWindow();
+        bool tripleBufferFallback = incSettingsGet!bool("TripleBufferFallback", nlIsTripleBufferFallbackEnabled());
+        nlSetTripleBufferFallback(tripleBufferFallback);
+        nlApplyBlendingCapabilities();
 
         // Initialize node overrides
         incInitExt();
@@ -187,3 +191,7 @@ void incUpdateNoEv() {
         }
     incEndLoop();
 }
+
+
+
+
