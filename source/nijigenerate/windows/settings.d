@@ -600,7 +600,7 @@ protected:
                     // Persist and take effect immediately for detection/preview
                     incSettingsSet("MacSwapCmdCtrl", swapCmdCtrl);
                 }
-                incTooltip(_("When enabled, Command (Cmd) and Control (Ctrl) are treated as swapped for shortcuts."));
+                incTooltip(_("When enabled, Command (\ueae7) and Control (\eae6) are treated as swapped for shortcuts."));
                 incDummy(ImVec2(0, 4));
             }
         endSection();
@@ -618,7 +618,7 @@ protected:
             }
 
             // ===== Main menu =====
-            // File ↁEEdit ↁEView ↁEView/Panels ↁETools
+            // File →Edit →View →View/Panels →Tools
             renderCommandTable!(nijigenerate.commands.puppet.file.commands)(__("File"));
             renderCommandTable!(nijigenerate.commands.puppet.edit.commands)(__("Edit"));
             renderCommandTable!(nijigenerate.commands.puppet.view.commands)(__("View"));
