@@ -10,6 +10,7 @@ import nijigenerate.core;
 import nijigenerate.project;
 import nijigenerate.actions;
 import i18n;
+import std.format : format;
 
 class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
     this(int min, int max) { super(null, _("Add 1D Parameter (%d..%d)").format(min, max), min, max); }
@@ -107,3 +108,4 @@ void ngInitCommands(T)() if (is(T == ParamCommand))
     mixin(registerCommand!(ParamCommand.Add1DParameter, -1, 1));
     mixin(registerCommand!(ParamCommand.Add2DParameter, -1, 1));
 }
+
