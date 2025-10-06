@@ -24,6 +24,8 @@ import nijigenerate.utils.link;
 import i18n;
 import inmath;
 import nijigenerate.commands; // list command maps per category
+import nijilive;
+import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 
 bool incIsSettingsOpen;
 
@@ -31,6 +33,7 @@ enum SettingsPane : string {
     LookAndFeel = "Look and Feel",
     Viewport = "Viewport",
     Accessibility = "Accessbility",
+    Rendering = "Rendering",
     FileHandling = "File Handling",
     Shortcuts = "Shortcuts",
     Integration = "Integration",
@@ -108,6 +111,10 @@ protected:
                 
                 if (igSelectable(__("Accessbility"), settingsPane == SettingsPane.Accessibility)) {
                     settingsPane = SettingsPane.Accessibility;
+                }
+
+                if (igSelectable(__("Rendering"), settingsPane == SettingsPane.Rendering)) {
+                    settingsPane = SettingsPane.Rendering;
                 }
 
                 if (igSelectable(__("File Handling"), settingsPane == SettingsPane.FileHandling)) {
@@ -201,6 +208,18 @@ protected:
                             incTooltip(_("Use the OpenDyslexic font for Latin text characters."));
                         endSection();
                         break;
+                    case SettingsPane.Rendering:
+                        beginSection(__("Rendering"));
+                            bool tripleBufferFallback = incSettingsGet!bool("TripleBufferFallback", nlIsTripleBufferFallbackEnabled());
+                            if (ngCheckbox(__("Enable triple buffer fallback"), &tripleBufferFallback)) {
+                                incSettingsSet("TripleBufferFallback", tripleBufferFallback);
+                                nlSetTripleBufferFallback(tripleBufferFallback);
+                                nlApplyBlendingCapabilities();
+                            }
+                            incTooltip(_("Fallback to double buffering when triple buffering is unstable."));
+                        endSection();
+                        break;
+
                     case SettingsPane.FileHandling:
                         beginSection(__("Autosaves"));
                             bool autosaveEnabled = incGetAutosaveEnabled();
@@ -581,7 +600,7 @@ protected:
                     // Persist and take effect immediately for detection/preview
                     incSettingsSet("MacSwapCmdCtrl", swapCmdCtrl);
                 }
-                incTooltip(_("When enabled, Command () and Control () are treated as swapped for shortcuts."));
+                incTooltip(_("When enabled, Command (\ueae7) and Control (\ueae6) are treated as swapped for shortcuts."));
                 incDummy(ImVec2(0, 4));
             }
         endSection();
@@ -646,3 +665,8 @@ protected:
         igEndChild();
     }
 }
+
+
+
+
+
