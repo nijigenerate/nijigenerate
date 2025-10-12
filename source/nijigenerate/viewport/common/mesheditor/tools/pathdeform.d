@@ -399,6 +399,7 @@ class ToolInfoImpl(T: PathDeformTool) : ToolInfoBase!(T) {
         return false;
     }
     override bool canUse(bool deformOnly, Node[] targets) {
+        if (!super.canUse(deformOnly, targets)) return false;
         import std.algorithm.searching : all;
         return deformOnly && targets.all!(k => cast(Drawable)k !is null || cast(Deformable)k is null);
     }

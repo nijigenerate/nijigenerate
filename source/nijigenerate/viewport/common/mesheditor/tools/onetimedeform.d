@@ -483,7 +483,10 @@ class ToolInfoImpl(T: OneTimeDeform!MeshGroup) : ToolInfoBase!(T) {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
-    override bool canUse(bool deformOnly, Node[] targets) { return deformOnly; }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        if (!super.canUse(deformOnly, targets)) return false;
+        return deformOnly;
+    }
     override VertexToolMode mode() { return VertexToolMode.AltMeshGroup; };
     override string icon() { return "";}
     override string description() { return _("Mesh deformation");}
@@ -496,7 +499,10 @@ class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
             return super.viewportTools(deformOnly, toolMode, editors);
         return false;
     }
-    override bool canUse(bool deformOnly, Node[] targets) { return deformOnly; }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        if (!super.canUse(deformOnly, targets)) return false;
+        return deformOnly;
+    }
     override VertexToolMode mode() { return VertexToolMode.AltBezierDeform; };
     override string icon() { return "";}
     override string description() { return _("Path deformation");}

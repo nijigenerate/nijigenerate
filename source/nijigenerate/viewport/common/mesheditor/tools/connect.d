@@ -118,6 +118,7 @@ class ToolInfoImpl(T: ConnectTool) : ToolInfoBase!(T) {
         return false;
     }
     override bool canUse(bool deformOnly, Node[] targets) {
+        if (!super.canUse(deformOnly, targets)) return false;
         if (deformOnly)
             return false;
 

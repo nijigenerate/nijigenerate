@@ -34,11 +34,21 @@ public:
         super(false);
     }
 
+private void enforceGridTool() {
+        foreach (node; editors.keys()) {
+            if (cast(GridDeformer)node !is null) {
+                setToolMode(VertexToolMode.Grid);
+                return;
+            }
+        }
+    }
+
     override
     void addTarget(Node target) {
         if (target in editors)
             return;
         IncMeshEditorOne subEditor;
+        bool forceGridTool = false;
 
         if (auto drawable = cast(Drawable)target) {
             incActionPushStack();
@@ -54,6 +64,10 @@ public:
             if (cast(PathDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.BezierDeform;
                 toolMode = VertexToolMode.BezierDeform;
+            } else if (cast(GridDeformer)deformable) {
+                subEditor.toolMode = VertexToolMode.Grid;
+                toolMode = VertexToolMode.Grid;
+                forceGridTool = true;
             }
         }
 
@@ -62,6 +76,10 @@ public:
         subEditor.mirrorVert  = mirrorVert;
         subEditor.previewTriangulate = previewTriangulate;
         editors[target] = subEditor;
+        if (forceGridTool) {
+            setToolMode(VertexToolMode.Grid);
+        }
+        enforceGridTool();
     }
 
     override
@@ -90,6 +108,6 @@ public:
             }
         }
         editors = newEditors;
+        enforceGridTool();
     }
 }
-

@@ -2,7 +2,7 @@ module nijigenerate.commands.node.dynamic;
 
 import nijigenerate.commands.base;
 import nijigenerate.commands.node.node : AddNodeCommand, InsertNodeCommand;
-import nijigenerate.commands.node.base : conversionMap, ngGetCommonNodeType, ngConvertTo; // known types + helpers
+import nijigenerate.commands.node.base : conversionMap, ngCanConvertTo, ngConvertTo; // known types + helpers
 import nijilive; // inInstantiateNode
 import i18n;
 
@@ -41,15 +41,10 @@ class ConvertNodeToCommand : ExCommand!(
     }
     override bool runnable(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0) return false;
-        auto from = ngGetCommonNodeType(ctx.nodes);
-        if (!from) return false;
-        if (auto p = from in conversionMap) {
-            foreach (v; *p) if (v == toType) return true;
-        }
-        return false;
+        return ngCanConvertTo(ctx.nodes, toType);
     }
     override void run(Context ctx) {
-        if (!runnable(ctx)) return;
+        if (!ngCanConvertTo(ctx.nodes, toType)) return;
         ngConvertTo(ctx.nodes, toType);
     }
 }
@@ -86,6 +81,7 @@ private string[] discoverNodeTypes()
         "MeshGroup",
         "DynamicComposite",
         "PathDeformer",
+        "GridDeformer",
         "Camera",
     ];
 }

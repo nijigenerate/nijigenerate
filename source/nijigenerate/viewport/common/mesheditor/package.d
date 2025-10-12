@@ -134,6 +134,10 @@ public:
     void setToolMode(VertexToolMode mode) {
         auto info = ngGetToolInfoOf(mode);
         if (info) {
+            auto targets = editors.keys();
+            if (!info.canUse(deformOnly, targets)) {
+                return;
+            }
             foreach (e; editors) {
                 info.setupToolMode(e, mode);
             }

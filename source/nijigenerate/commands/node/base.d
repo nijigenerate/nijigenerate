@@ -50,8 +50,9 @@ import i18n;
         if (_conversionMap.length == 0) {
             _conversionMap = [
                 "Node": ["MeshGroup", "DynamicComposite"],
-                "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite"],
-                "MeshGroup": ["DynamicComposite", "Node"],
+                "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite", "GridDeformer"],
+                "MeshGroup": ["DynamicComposite", "Node", "GridDeformer"],
+                "GridDeformer": ["MeshGroup", "DynamicComposite"],
                 "Composite": ["DynamicComposite", "Node"]
             ];
         }
@@ -112,9 +113,43 @@ string ngGetCommonNodeType(Node[] nodes) {
     return type;
 }
 
+bool ngCanConvertTo(Node[] nodes, string toType) {
+    import std.algorithm : canFind;
+    import nijigenerate.viewport.common.mesh : IncMesh, isGrid;
+
+    if (!toType || nodes.length == 0) return false;
+    string fromType = ngGetCommonNodeType(nodes);
+    if (!fromType.length) return false;
+
+    auto map = conversionMap();
+    auto ptr = fromType in map;
+    if (ptr is null) return false;
+    if (!(*ptr).canFind(toType)) return false;
+
+    if (toType == "GridDeformer") {
+        foreach (node; nodes) {
+            if (!(cast(MeshGroup)node || cast(DynamicComposite)node)) {
+                return false;
+            }
+
+            Drawable drawable = cast(Drawable)node;
+            if (drawable is null) {
+                return false;
+            }
+
+            auto meshWrapper = new IncMesh(drawable.getMesh());
+            float[][] axes;
+            if (!meshWrapper.vertices.isGrid(axes)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 void ngConvertTo(Node[] nodes, string toType) {
-    if (!toType) return;
-    if (nodes.length == 0) return;
+    if (!ngCanConvertTo(nodes, toType)) return;
 
     auto group = new GroupAction();
     Node[] newNodes = [];

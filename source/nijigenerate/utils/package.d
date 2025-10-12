@@ -14,6 +14,7 @@ string incTypeIdToIcon(string typeId) {
         case "MeshGroup": return "";
         case "DynamicComposite": return "";
         case "PathDeformer": return "";
+        case "GridDeformer": return "\ue3ec";
         case "Parameter": return "";
         case "Binding": return "";
         default: return "\ue97a"; 

@@ -57,9 +57,9 @@ private template _McpKeyTypeOfAA(alias AA) {
 }
 
 // List AllCommandMaps entries (type + key type) at compile time
-static foreach (AA; AllCommandMaps) {
-    pragma(msg, "[CT][MCP] AllCommandMaps entry: " ~ typeof(AA).stringof ~ " Key=" ~ _McpKeyTypeOfAA!(AA).stringof);
-}
+// static foreach (AA; AllCommandMaps) {
+//     pragma(msg, "[CT][MCP] AllCommandMaps entry: " ~ typeof(AA).stringof ~ " Key=" ~ _McpKeyTypeOfAA!(AA).stringof);
+// }
 
 // List AutoMeshTypedCommand enum members (if any) at compile time
 private string _mcpListTypedMembers()() {
@@ -71,7 +71,7 @@ private string _mcpListTypedMembers()() {
     }
     return s;
 }
-pragma(msg, "[CT][MCP] AutoMeshTypedCommand members: " ~ _mcpListTypedMembers());
+// pragma(msg, "[CT][MCP] AutoMeshTypedCommand members: " ~ _mcpListTypedMembers());
 
 private __gshared bool gServerStarted = false;
 private __gshared Thread gServerThread;

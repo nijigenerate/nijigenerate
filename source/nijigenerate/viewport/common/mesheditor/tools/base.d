@@ -12,6 +12,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
@@ -88,6 +89,14 @@ interface ToolInfo {
 /// Base implementation of ToolInfo interface.
 /// Every instance of ToolInfo must inherit this class, and should be declared as ToolInfoImpl(class) template.
 class ToolInfoBase(T) : ToolInfo {
+    private bool hasGridTarget(Node[] targets) const {
+        foreach (target; targets) {
+            if (cast(GridDeformer)target !is null) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     override
     void setupToolMode(IncMeshEditorOne e, VertexToolMode mode) {
@@ -99,11 +108,15 @@ class ToolInfoBase(T) : ToolInfo {
 
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
+        auto targets = editors.keys();
+        bool usable = canUse(deformOnly, targets);
+        if (!usable) igBeginDisabled(true);
         bool result = false;
         if (incButtonColored(icon.toStringz, ImVec2(0, 0), toolMode == mode ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
-            result = true;
+            if (usable) result = true;
         }
         incTooltip(description);
+        if (!usable) igEndDisabled();
         return result;
     }
     override
@@ -116,5 +129,10 @@ class ToolInfoBase(T) : ToolInfo {
     override
     Tool newTool() { return new T; }
 
-    override bool canUse(bool deformOnly, Node[] targets) { return true; }
+    override bool canUse(bool deformOnly, Node[] targets) {
+        if (hasGridTarget(targets) && mode() != VertexToolMode.Grid) {
+            return false;
+        }
+        return true;
+    }
 }

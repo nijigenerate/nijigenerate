@@ -553,6 +553,7 @@ class ToolInfoImpl(T: BezierDeformTool) : ToolInfoBase!(T) {
         return false;
     }
     override bool canUse(bool deformOnly, Node[] targets) {
+        if (!super.canUse(deformOnly, targets)) return false;
         import std.algorithm.searching : all;
         return targets.all!(k => cast(PathDeformer)k !is null);
     }
