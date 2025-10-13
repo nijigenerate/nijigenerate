@@ -20,6 +20,7 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.dbg;
 import bindbc.imgui;
 import i18n;
@@ -130,6 +131,54 @@ public:
                                 }
                             }
                             drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
+                        }
+                    } else if (auto gridDeformer = cast(GridDeformer)selectedNode) {
+                        auto baseVerts = gridDeformer.vertices;
+                        auto deform = gridDeformer.deformation;
+                        if (baseVerts.length >= 4 && deform.length == baseVerts.length) {
+                            auto actual = baseVerts.dup;
+                            foreach (i; 0 .. actual.length) {
+                                actual[i] += deform[i];
+                            }
+                            auto xs = baseVerts.map!(v => v.x).array;
+                            auto ys = baseVerts.map!(v => v.y).array;
+                            xs.sort();
+                            ys.sort();
+                            xs = xs.uniq.array;
+                            ys = ys.uniq.array;
+                            size_t cols = xs.length;
+                            size_t rows = ys.length;
+                            if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
+                                vec3[] lines;
+                                vec3[] points;
+                                auto idx = (size_t x, size_t y) { return x * rows + y; };
+                                foreach (x; 0 .. cols) {
+                                    foreach (y; 0 .. rows) {
+                                        size_t cur = idx(x, y);
+                                        vec3 p = vec3(actual[cur], 0);
+                                        points ~= p;
+                                        if (x + 1 < cols) {
+                                            size_t right = idx(x + 1, y);
+                                            lines ~= [p, vec3(actual[right], 0)];
+                                        }
+                                        if (y + 1 < rows) {
+                                            size_t up = idx(x, y + 1);
+                                            lines ~= [p, vec3(actual[up], 0)];
+                                        }
+                                    }
+                                }
+                                mat4 trans = gridDeformer.transform.matrix;
+                                vec4 color = vec4(0.2, 0.9, 0.9, 1);
+                                if (lines.length) {
+                                    inDbgSetBuffer(lines);
+                                    inDbgDrawLines(color, trans);
+                                }
+                                if (points.length) {
+                                    inDbgSetBuffer(points);
+                                    inDbgPointsSize(4);
+                                    inDbgDrawPoints(color, trans);
+                                }
+                            }
                         }
                     }
                     

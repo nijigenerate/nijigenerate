@@ -130,7 +130,7 @@ class ToolInfoBase(T) : ToolInfo {
     Tool newTool() { return new T; }
 
     override bool canUse(bool deformOnly, Node[] targets) {
-        if (hasGridTarget(targets) && mode() != VertexToolMode.Grid) {
+        if (!deformOnly && hasGridTarget(targets) && mode() != VertexToolMode.Grid) {
             return false;
         }
         return true;

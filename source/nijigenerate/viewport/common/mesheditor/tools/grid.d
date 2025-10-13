@@ -122,6 +122,41 @@ class GridTool : NodeSelect {
         impl.vertexMapDirty = true;
     }
 
+    void drawGrid(float[][] axes, IncMeshEditorOne impl, vec4 color) {
+        if (axes.length != 2 || axes[0].length < 2 || axes[1].length < 2) return;
+        axes[0].sort();
+        axes[1].sort();
+
+        float minY = axes[0][0];
+        float maxY = axes[0][$-1];
+        float minX = axes[1][0];
+        float maxX = axes[1][$-1];
+
+        vec3[] lines;
+        foreach (y; axes[0]) {
+            lines ~= [vec3(minX, y, 0), vec3(maxX, y, 0)];
+        }
+        foreach (x; axes[1]) {
+            lines ~= [vec3(x, minY, 0), vec3(x, maxY, 0)];
+        }
+        if (lines.length) {
+            inDbgSetBuffer(lines);
+            inDbgDrawLines(color, impl.transform);
+        }
+
+        vec3[] points;
+        foreach (y; axes[0]) {
+            foreach (x; axes[1]) {
+                points ~= vec3(x, y, 0);
+            }
+        }
+        if (points.length) {
+            inDbgSetBuffer(points);
+            inDbgPointsSize(4);
+            inDbgDrawPoints(color, impl.transform);
+        }
+    }
+
     bool isOnGridAxes(float[][] axes, int axis, vec2 mousePos, float threshold, out float value) {
         if (axes.length != 2 || axes[axis].length == 0 || axes[1-axis].length == 0) return false;
         float minBound = axes[1-axis][0] - threshold;
@@ -648,10 +683,9 @@ class GridTool : NodeSelect {
     }
 
     override void draw (Camera camera, IncMeshEditorOne impl) {
+        vec4 color = vec4(0.2, 0.9, 0.9, 1);
         if (currentAction == GridActionID.Create) {
             vec3[] lines;
-            vec4 color = vec4(0.2, 0.9, 0.9, 1);
-
             vec4 bounds = vec4(min(dragOrigin.x, dragEnd.x), min(dragOrigin.y, dragEnd.y),
                                max(dragOrigin.x, dragEnd.x), max(dragOrigin.y, dragEnd.y));
             float width  = bounds.z - bounds.x;
@@ -664,12 +698,9 @@ class GridTool : NodeSelect {
                 lines ~= [vec3(offx, bounds.y, 0), vec3(offx, bounds.w, 0)];
             }
             inDbgSetBuffer(lines);
-            inDbgDrawLines(color, mat4.identity());
-
-        } else if (currentAction == GridActionID.TranslateX || currentAction == GridActionID.TranslateY || currentAction == GridActionID.TranslateFree) {
-
+            inDbgDrawLines(color, impl.transform);
         } else {
-
+            drawGrid(currentAxes(impl), impl, color);
         }
     }
 }
