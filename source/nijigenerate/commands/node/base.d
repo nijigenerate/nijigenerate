@@ -3,8 +3,6 @@ module nijigenerate.commands.node.base;
 import nijigenerate.commands.base;
 
 import nijigenerate.viewport.vertex;
-import nijigenerate.viewport.common.mesh : applyMeshToTarget, IncMesh;
-import nijilive.core.meshdata : MeshData;
 import nijigenerate.widgets.dragdrop;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
@@ -18,7 +16,6 @@ import nijigenerate.core;
 import nijigenerate.core.input;
 import nijigenerate.utils;
 import nijilive;
-import nijilive.core.meshdata : MeshData;
 import std.algorithm;
 import std.string;
 import std.array;
@@ -175,23 +172,9 @@ void ngApplySourceGeometry(Node source, Node target) {
         return;
     }
 
-    vec2[] baseVertices = srcDef.vertices.dup;
-    MeshData meshCopy;
-    MeshData* meshPtr = null;
-
-    if (auto srcDrawable = cast(Drawable)srcDef) {
-        meshCopy = srcDrawable.getMesh().copy();
-        meshPtr = &meshCopy;
-        baseVertices = meshCopy.vertices.dup;
-    }
-
-    if (baseVertices.length == 0) return;
-
-    applyMeshToTarget(dstDef, baseVertices, meshPtr);
-
-    auto dstBase = dstDef.vertices;
-    vec2[] actualVertices = ngCollectActualVertices(srcDef);
-    ngMapOffsets(dstBase, actualVertices, dstDef);
+    auto mapping = ngBuildVertexMapping(srcDef.vertices, dstDef.vertices);
+    ngApplyDeformationMapping(srcDef, dstDef, mapping);
+    ngRemapBindings(dstDef, mapping);
 }
 
 vec2[] ngCollectBaseVertices(Deformable def) {
@@ -240,4 +223,94 @@ void ngMapOffsets(const(vec2)[] base, const(vec2)[] actual, Deformable target) {
         target.deformation[i] = offset;
     }
     target.updateDeform();
+}
+
+size_t[] ngBuildVertexMapping(const(vec2)[] srcVertices, const(vec2)[] dstVertices) {
+    size_t[] mapping;
+    mapping.length = dstVertices.length;
+    bool[] used;
+    used.length = srcVertices.length;
+
+    foreach (i, dstPos; dstVertices) {
+        size_t bestIdx = size_t.max;
+        float bestDist = float.max;
+        foreach (j, srcPos; srcVertices) {
+            if (used[j]) continue;
+            float dx = srcPos.x - dstPos.x;
+            float dy = srcPos.y - dstPos.y;
+            float dist = dx*dx + dy*dy;
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = j;
+            }
+        }
+        if (bestIdx != size_t.max) {
+            used[bestIdx] = true;
+        }
+        mapping[i] = bestIdx;
+    }
+    return mapping;
+}
+
+void ngApplyDeformationMapping(Deformable srcDef, Deformable dstDef, size_t[] mapping) {
+    vec2[] newDeform;
+    newDeform.length = dstDef.vertices.length;
+    foreach (i, idx; mapping) {
+        vec2 value = vec2(0, 0);
+        if (idx != size_t.max && idx < srcDef.deformation.length) {
+            value = srcDef.deformation[idx];
+        }
+        newDeform[i] = value;
+    }
+    dstDef.deformation = newDeform;
+    dstDef.updateDeform();
+}
+
+void ngRemapBindings(Deformable target, size_t[] mapping) {
+    DeformationParameterBinding[] touched;
+
+    void remapBinding(DeformationParameterBinding binding) {
+        if (!binding) return;
+        bool changed = false;
+        foreach (ref column; binding.values) {
+            foreach (ref deformation; column) {
+                auto oldOffsets = deformation.vertexOffsets;
+                vec2[] newOffsets;
+                newOffsets.length = mapping.length;
+                foreach (i, idx; mapping) {
+                    vec2 value = vec2(0, 0);
+                    if (idx != size_t.max && idx < oldOffsets.length) {
+                        value = oldOffsets[idx];
+                    }
+                    newOffsets[i] = value;
+                }
+                if (newOffsets != deformation.vertexOffsets) {
+                    deformation.vertexOffsets = newOffsets;
+                    changed = true;
+                }
+            }
+        }
+        if (changed) {
+            touched ~= binding;
+        }
+    }
+
+    auto puppet = incActivePuppet();
+    if (!puppet) return;
+
+    foreach (param; puppet.parameters) {
+        if (auto group = cast(ExParameterGroup)param) {
+            foreach(_, ref child; group.children) {
+                auto binding = cast(DeformationParameterBinding)child.getBinding(target, "deform");
+                remapBinding(binding);
+            }
+        } else {
+            auto binding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+            remapBinding(binding);
+        }
+    }
+
+    foreach (binding; touched) {
+        binding.reInterpolate();
+    }
 }
