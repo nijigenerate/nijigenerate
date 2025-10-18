@@ -4,12 +4,47 @@ import nijigenerate.core.math.vertex;
 import nijigenerate.viewport.common.mesh;
 import nijilive.math.triangle;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 
 import std.typecons;
 import std.algorithm;
 import std.array;
 import std.traits;
 import core.exception;
+
+private vec2[] ngCollectPositions(T)(T[] points) {
+    vec2[] result;
+    result.length = points.length;
+    foreach (i; 0 .. points.length) {
+        result[i] = position(points[i]);
+    }
+    return result;
+}
+
+private vec2[] ngApplyOffsets(const(vec2)[] baseVertices, const(vec2)[] offsets) {
+    vec2[] actual;
+    actual.length = baseVertices.length;
+    foreach (i; 0 .. baseVertices.length) {
+        vec2 offset = i < offsets.length ? offsets[i] : vec2(0, 0);
+        actual[i] = baseVertices[i] + offset;
+    }
+    return actual;
+}
+
+private Deformation* ngBuildGridDeformation(const(vec2)[] actual, const(vec2)[] targetBase, bool flipHorz) {
+    Deformation* result = new Deformation([]);
+    result.vertexOffsets.length = targetBase.length;
+    foreach (i; 0 .. targetBase.length) {
+        vec2 basePos = targetBase[i];
+        vec2 actualPos = i < actual.length ? actual[i] : basePos;
+        if (flipHorz) {
+            actualPos.x = -actualPos.x;
+            basePos.x = -basePos.x;
+        }
+        result.vertexOffsets[i] = actualPos - basePos;
+    }
+    return result;
+}
 
 Deformation* deformByDeformationBinding(DeformationParameterBinding binding, DeformationParameterBinding srcBinding, vec2u index, bool flipHorz = false) {
     if (!binding || !srcBinding) return null;
@@ -24,6 +59,22 @@ Deformation* deformByDeformationBinding(DeformationParameterBinding binding, Def
             Deformation deform = srcBinding.getValue(index);
             return deformByDeformationBinding(deformable.vertices, srcDeformable, deform, flipHorz);
         }
+    } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
+        Deformation deform = srcBinding.getValue(index);
+        vec2[] actual;
+        if (auto srcDrawable = cast(Drawable)srcBinding.getTarget().node) {
+            auto mesh = new IncMesh(srcDrawable.getMesh());
+            actual = ngApplyOffsets(ngCollectPositions(mesh.vertices), deform.vertexOffsets);
+        } else if (auto srcGrid = cast(GridDeformer)srcBinding.getTarget().node) {
+            actual = ngApplyOffsets(srcGrid.vertices, deform.vertexOffsets);
+        } else if (auto srcPath = cast(PathDeformer)srcBinding.getTarget().node) {
+            auto derived = deformByDeformationBinding(srcPath.vertices, srcPath, deform, flipHorz);
+            if (derived is null) return null;
+            actual = ngApplyOffsets(srcPath.vertices, derived.vertexOffsets);
+        } else {
+            return null;
+        }
+        return ngBuildGridDeformation(actual, grid.vertices, flipHorz);
     }
     return null;
 }
@@ -38,6 +89,11 @@ Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBin
     } else if (auto deformable = cast(PathDeformer)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
         return deformByDeformationBinding(vertices, deformable, deform, flipHorz);
+    } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
+        Deformation deform = binding.getValue(index);
+        auto actual = ngApplyOffsets(grid.vertices, deform.vertexOffsets);
+        auto targetBase = ngCollectPositions(vertices);
+        return ngBuildGridDeformation(actual, targetBase, flipHorz);
     }
     return null;
 }

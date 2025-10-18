@@ -3,6 +3,8 @@ module nijigenerate.commands.node.base;
 import nijigenerate.commands.base;
 
 import nijigenerate.viewport.vertex;
+import nijigenerate.viewport.common.mesh : applyMeshToTarget, IncMesh;
+import nijilive.core.meshdata : MeshData;
 import nijigenerate.widgets.dragdrop;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
@@ -16,6 +18,7 @@ import nijigenerate.core;
 import nijigenerate.core.input;
 import nijigenerate.utils;
 import nijilive;
+import nijilive.core.meshdata : MeshData;
 import std.algorithm;
 import std.string;
 import std.array;
@@ -157,9 +160,84 @@ void ngConvertTo(Node[] nodes, string toType) {
         Node newNode = inInstantiateNode(toType);
         newNode.copyFrom(node, true, false);
         group.addAction(new NodeReplaceAction(node, newNode, true));
+        ngApplySourceGeometry(node, newNode);
         newNodes ~= newNode;
         newNode.notifyChange(newNode, NotifyReason.StructureChanged);
     }
     incActionPush(group);
     incSelectNodes(newNodes);
+}
+
+void ngApplySourceGeometry(Node source, Node target) {
+    Deformable srcDef = cast(Deformable)source;
+    Deformable dstDef = cast(Deformable)target;
+    if (srcDef is null || dstDef is null) {
+        return;
+    }
+
+    vec2[] baseVertices = srcDef.vertices.dup;
+    MeshData meshCopy;
+    MeshData* meshPtr = null;
+
+    if (auto srcDrawable = cast(Drawable)srcDef) {
+        meshCopy = srcDrawable.getMesh().copy();
+        meshPtr = &meshCopy;
+        baseVertices = meshCopy.vertices.dup;
+    }
+
+    if (baseVertices.length == 0) return;
+
+    applyMeshToTarget(dstDef, baseVertices, meshPtr);
+
+    auto dstBase = dstDef.vertices;
+    vec2[] actualVertices = ngCollectActualVertices(srcDef);
+    ngMapOffsets(dstBase, actualVertices, dstDef);
+}
+
+vec2[] ngCollectBaseVertices(Deformable def) {
+    vec2[] result = def.vertices.dup;
+    return result;
+}
+
+vec2[] ngCollectActualVertices(Deformable def) {
+    vec2[] result = def.vertices.dup;
+    size_t count = result.length;
+    size_t limit = def.deformation.length;
+    if (limit > count) limit = count;
+    foreach (i; 0 .. limit) {
+        result[i] += def.deformation[i];
+    }
+    return result;
+}
+
+void ngMapOffsets(const(vec2)[] base, const(vec2)[] actual, Deformable target) {
+    target.deformation.length = base.length;
+    if (base.length == 0) return;
+
+    const float tolerance = 1e-4;
+    const float tol2 = tolerance * tolerance;
+    bool[] used;
+    used.length = actual.length;
+
+    foreach (i, basePos; base) {
+        size_t bestIdx = size_t.max;
+        float bestDist = float.max;
+        foreach (j, actPos; actual) {
+            if (used[j]) continue;
+            float dx = actPos.x - basePos.x;
+            float dy = actPos.y - basePos.y;
+            float dist = dx*dx + dy*dy;
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = j;
+            }
+        }
+        vec2 offset = vec2(0, 0);
+        if (bestIdx != size_t.max && bestDist <= tol2) {
+            offset = actual[bestIdx] - basePos;
+            used[bestIdx] = true;
+        }
+        target.deformation[i] = offset;
+    }
+    target.updateDeform();
 }
