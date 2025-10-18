@@ -33,6 +33,83 @@ private vec2[] ngApplyOffsets(const(vec2)[] baseVertices, const(vec2)[] offsets)
     return actual;
 }
 
+private size_t[] ngBuildVertexMappingGrid(const(vec2)[] srcVertices, const(vec2)[] dstVertices) {
+    size_t[] mapping;
+    mapping.length = dstVertices.length;
+    bool[] used;
+    used.length = srcVertices.length;
+
+    foreach (i, dstPos; dstVertices) {
+        size_t bestIdx = size_t.max;
+        float bestDist = float.infinity;
+        foreach (j, srcPos; srcVertices) {
+            if (used[j]) continue;
+            float dx = srcPos.x - dstPos.x;
+            float dy = srcPos.y - dstPos.y;
+            float dist = dx*dx + dy*dy;
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = j;
+            }
+        }
+        if (bestIdx != size_t.max) {
+            used[bestIdx] = true;
+        }
+        mapping[i] = bestIdx;
+    }
+    return mapping;
+}
+
+private vec2 ngFindNearest(const(vec2)[] points, vec2 target) {
+    if (points.length == 0) return target;
+    size_t bestIdx = 0;
+    float bestDist = float.infinity;
+    foreach (i, pt; points) {
+        float dx = pt.x - target.x;
+        float dy = pt.y - target.y;
+        float dist = dx*dx + dy*dy;
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+        }
+    }
+    return points[bestIdx];
+}
+
+private Deformation* ngBuildGridRemappedDeformation(const(vec2)[] targetBase, const(vec2)[] sourceBase, const(vec2)[] sourceActual, bool flipHorz) {
+    auto mapping = ngBuildVertexMappingGrid(sourceBase, targetBase);
+
+    vec2[] targetAdj = targetBase.dup;
+    vec2[] actualAdj = sourceActual.dup;
+    vec2[] sourceAdj = sourceBase.dup;
+    if (flipHorz) {
+        foreach (ref v; targetAdj) v.x = -v.x;
+        foreach (ref v; actualAdj) v.x = -v.x;
+        foreach (ref v; sourceAdj) v.x = -v.x;
+    }
+
+    Deformation* result = new Deformation([]);
+    result.vertexOffsets.length = targetBase.length;
+
+    foreach (i, idx; mapping) {
+        vec2 basePos = targetAdj[i];
+        vec2 actualPos = basePos;
+        if (idx != size_t.max) {
+            if (idx < actualAdj.length) {
+                actualPos = actualAdj[idx];
+            } else if (idx < sourceAdj.length) {
+                actualPos = sourceAdj[idx];
+            }
+        } else {
+            actualPos = ngFindNearest(actualAdj.length ? actualAdj : sourceAdj, basePos);
+        }
+        vec2 offset = actualPos - basePos;
+        if (flipHorz) offset.x = -offset.x;
+        result.vertexOffsets[i] = offset;
+    }
+    return result;
+}
+
 private Deformation* ngBuildRemappedDeformation(const(vec2)[] targetBase, const(vec2)[] actual, bool flipHorz) {
     const float tolerance = 1e-4;
     const float tol2 = tolerance * tolerance;
@@ -91,20 +168,28 @@ Deformation* deformByDeformationBinding(DeformationParameterBinding binding, Def
         }
     } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
         Deformation deform = srcBinding.getValue(index);
+        vec2[] sourceBase;
         vec2[] actual;
         if (auto srcDrawable = cast(Drawable)srcBinding.getTarget().node) {
             auto mesh = new IncMesh(srcDrawable.getMesh());
-            actual = ngApplyOffsets(ngCollectPositions(mesh.vertices), deform.vertexOffsets);
+            sourceBase = ngCollectPositions(mesh.vertices);
+            actual = ngApplyOffsets(sourceBase, deform.vertexOffsets);
         } else if (auto srcGrid = cast(GridDeformer)srcBinding.getTarget().node) {
-            actual = ngApplyOffsets(srcGrid.vertices, deform.vertexOffsets);
+            sourceBase = ngCollectPositions(srcGrid.vertices);
+            actual = ngApplyOffsets(sourceBase, deform.vertexOffsets);
         } else if (auto srcPath = cast(PathDeformer)srcBinding.getTarget().node) {
             auto derived = deformByDeformationBinding(srcPath.vertices, srcPath, deform, flipHorz);
             if (derived is null) return null;
-            actual = ngApplyOffsets(srcPath.vertices, derived.vertexOffsets);
+            sourceBase = ngCollectPositions(srcPath.vertices);
+            actual = ngApplyOffsets(sourceBase, derived.vertexOffsets);
         } else {
             return null;
         }
-        return ngBuildRemappedDeformation(ngCollectPositions(grid.vertices), actual, flipHorz);
+        auto targetBase = ngCollectPositions(grid.vertices);
+        if (sourceBase.length == 0) {
+            return ngBuildRemappedDeformation(targetBase, actual, flipHorz);
+        }
+        return ngBuildGridRemappedDeformation(targetBase, sourceBase, actual, flipHorz);
     } else if (auto deformable = cast(Deformable)binding.getTarget().node) {
         Deformation deform = srcBinding.getValue(index);
         auto base = ngCollectPositions(deformable.vertices);
@@ -126,9 +211,10 @@ Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBin
         return deformByDeformationBinding(vertices, deformable, deform, flipHorz);
     } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
-        auto actual = ngApplyOffsets(ngCollectPositions(grid.vertices), deform.vertexOffsets);
+        auto sourceBase = ngCollectPositions(grid.vertices);
+        auto actual = ngApplyOffsets(sourceBase, deform.vertexOffsets);
         auto targetBase = ngCollectPositions(vertices);
-        return ngBuildRemappedDeformation(targetBase, actual, flipHorz);
+        return ngBuildGridRemappedDeformation(targetBase, sourceBase, actual, flipHorz);
     } else if (auto deformable = cast(Deformable)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
         auto base = ngCollectPositions(deformable.vertices);
