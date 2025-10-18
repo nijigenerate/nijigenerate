@@ -142,18 +142,31 @@ public:
                             ys.sort();
                             xs = xs.uniq.array;
                             ys = ys.uniq.array;
-                            if (xs.length >= 2 && ys.length >= 2 && xs.length * ys.length == baseVerts.length) {
+                            size_t cols = xs.length;
+                            size_t rows = ys.length;
+                            bool haveDeform = grid.deformation.length == baseVerts.length;
+                            if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
                                 vec3[] lines;
-                                foreach (y; 0 .. ys.length) {
-                                    foreach (x; 0 .. xs.length - 1) {
-                                        lines ~= vec3(xs[x], ys[y], 0);
-                                        lines ~= vec3(xs[x + 1], ys[y], 0);
-                                    }
-                                }
-                                foreach (x; 0 .. xs.length) {
-                                    foreach (y; 0 .. ys.length - 1) {
-                                        lines ~= vec3(xs[x], ys[y], 0);
-                                        lines ~= vec3(xs[x], ys[y + 1], 0);
+                                foreach (y; 0 .. rows) {
+                                    foreach (x; 0 .. cols) {
+                                        size_t idx = y * cols + x;
+                                        vec2 startPos = baseVerts[idx];
+                                        if (haveDeform) startPos += grid.deformation[idx];
+                                        auto start = vec3(startPos, 0);
+                                        if (x + 1 < cols) {
+                                            size_t nextIdx = idx + 1;
+                                            vec2 rightPos = baseVerts[nextIdx];
+                                            if (haveDeform) rightPos += grid.deformation[nextIdx];
+                                            lines ~= start;
+                                            lines ~= vec3(rightPos, 0);
+                                        }
+                                        if (y + 1 < rows) {
+                                            size_t nextIdx = idx + cols;
+                                            vec2 downPos = baseVerts[nextIdx];
+                                            if (haveDeform) downPos += grid.deformation[nextIdx];
+                                            lines ~= start;
+                                            lines ~= vec3(downPos, 0);
+                                        }
                                     }
                                 }
                                 if (lines.length > 0) {
