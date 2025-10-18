@@ -16,6 +16,7 @@ public import nijigenerate.viewport.model.mesheditor.node;
 
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.dbg;
 import nijigenerate.viewport.common.mesheditor.tools.enums;
 import bindbc.opengl;
@@ -46,6 +47,9 @@ public:
             if (cast(PathDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.BezierDeform;
                 toolMode = VertexToolMode.BezierDeform;
+            } else if (cast(GridDeformer)deformable) {
+                subEditor.toolMode = VertexToolMode.Grid;
+                toolMode = VertexToolMode.Grid;
             }
         }
 
@@ -68,6 +72,10 @@ public:
                     subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.ModelEdit)();
                 } else if (auto deformable = cast(Deformable)t) {
                     subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.ModelEdit)();
+                    if (cast(GridDeformer)deformable) {
+                        subEditor.toolMode = VertexToolMode.Grid;
+                        toolMode = VertexToolMode.Grid;
+                    }
                     if (cast(PathDeformer)deformable) {
                         subEditor.toolMode = VertexToolMode.BezierDeform;
                         toolMode = VertexToolMode.BezierDeform;
@@ -85,4 +93,3 @@ public:
         editors = newEditors;
     }
 }
-

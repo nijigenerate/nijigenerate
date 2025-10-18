@@ -29,7 +29,7 @@ import std.range: enumerate;
 /// Model View
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : BaseInspector!(mode, T) 
-    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer))
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer) && !is(T: GridDeformer))
 {
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
@@ -276,8 +276,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 /// Armed parameter view
 
 
-class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : BaseInspector!(mode, T)
-    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer))
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Node) : BaseInspector!(mode, T) 
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer) && !is(T: GridDeformer))
 {
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);

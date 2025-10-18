@@ -18,6 +18,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
@@ -90,6 +91,11 @@ private {
     void setup(T: MeshGroup)() {
         fVertImpl.setToolMode(VertexToolMode.Grid);
         fDefImpl.setToolMode(VertexToolMode.Points);
+    }
+
+    void setup(T: GridDeformer)() {
+        fVertImpl.setToolMode(VertexToolMode.Grid);
+        fDefImpl.setToolMode(VertexToolMode.Grid);
     }
 
     void setup(T: PathDeformer)() {

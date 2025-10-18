@@ -20,11 +20,13 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.dbg;
 import bindbc.imgui;
 import i18n;
 //import std.stdio;
 import std.algorithm;
+import std.algorithm.iteration : uniq;
 import std.array;
 
 private {
@@ -131,8 +133,36 @@ public:
                             }
                             drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                         }
+                    } else if (auto grid = cast(GridDeformer)selectedNode) {
+                        auto baseVerts = grid.vertices;
+                        if (baseVerts.length >= 4) {
+                            auto xs = baseVerts.map!(v => v.x).array;
+                            auto ys = baseVerts.map!(v => v.y).array;
+                            xs.sort();
+                            ys.sort();
+                            xs = xs.uniq.array;
+                            ys = ys.uniq.array;
+                            if (xs.length >= 2 && ys.length >= 2 && xs.length * ys.length == baseVerts.length) {
+                                vec3[] lines;
+                                foreach (y; 0 .. ys.length) {
+                                    foreach (x; 0 .. xs.length - 1) {
+                                        lines ~= vec3(xs[x], ys[y], 0);
+                                        lines ~= vec3(xs[x + 1], ys[y], 0);
+                                    }
+                                }
+                                foreach (x; 0 .. xs.length) {
+                                    foreach (y; 0 .. ys.length - 1) {
+                                        lines ~= vec3(xs[x], ys[y], 0);
+                                        lines ~= vec3(xs[x], ys[y + 1], 0);
+                                    }
+                                }
+                                if (lines.length > 0) {
+                                    inDbgSetBuffer(lines);
+                                    inDbgDrawLines(vec4(0.5, 1, 0.5, 1), grid.transform.matrix);
+                                }
+                            }
+                        }
                     }
-                    
                     if (Driver selectedDriver = cast(Driver)selectedNode) {
                         selectedDriver.drawDebug();
                     }

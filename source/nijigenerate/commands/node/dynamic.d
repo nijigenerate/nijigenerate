@@ -86,6 +86,7 @@ private string[] discoverNodeTypes()
         "MeshGroup",
         "DynamicComposite",
         "PathDeformer",
+        "GridDeformer",
         "Camera",
     ];
 }

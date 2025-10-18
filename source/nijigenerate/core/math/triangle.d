@@ -4,6 +4,7 @@ import nijigenerate.core.math.vertex;
 import nijigenerate.viewport.common.mesh;
 import nijilive.math.triangle;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 
 import std.typecons;
 import std.algorithm;
@@ -18,6 +19,11 @@ Deformation* deformByDeformationBinding(DeformationParameterBinding binding, Def
             auto mesh = new IncMesh(drawable.getMesh());
             Deformation deform = srcBinding.getValue(index);
             return deformByDeformationBinding(mesh.vertices, srcDrawable, deform, flipHorz);
+        }
+    } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
+        if (auto srcGrid = cast(GridDeformer)srcBinding.getTarget().node) {
+            Deformation deform = srcBinding.getValue(index);
+            return deformByDeformationBinding(grid.vertices, srcGrid, deform, flipHorz);
         }
     } else if (auto deformable = cast(PathDeformer)binding.getTarget().node) {
         if (auto srcDeformable = cast(PathDeformer)srcBinding.getTarget().node) {
@@ -35,6 +41,9 @@ Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBin
     if (auto part = cast(Drawable)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
         return deformByDeformationBinding(vertices, part, deform, flipHorz);
+    } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
+        Deformation deform = binding.getValue(index);
+        return deformByDeformationBinding(vertices, grid, deform, flipHorz);
     } else if (auto deformable = cast(PathDeformer)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
         return deformByDeformationBinding(vertices, deformable, deform, flipHorz);
@@ -231,6 +240,19 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
         newDeform.vertexOffsets ~= deformedVertex - cVertex;
     }
     return newDeform;
+}
+
+Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
+    vec2[] vertexOffsets;
+    vertexOffsets.length = vertices.length;
+    foreach (i, v; vertices) {
+        vec2 offset = i < deform.vertexOffsets.length ? deform.vertexOffsets[i] : vec2(0, 0);
+        if (flipHorz) {
+            offset.x = -offset.x;
+        }
+        vertexOffsets[i] = offset;
+    }
+    return new Deformation(vertexOffsets);
 }
 
 

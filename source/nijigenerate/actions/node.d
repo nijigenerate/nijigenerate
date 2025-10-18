@@ -10,6 +10,11 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
+import nijilive.core.param.binding : DeformationParameterBinding;
+import nijilive.core.nodes.deformable : Deformable;
+import nijilive.core.nodes.drawable : Drawable;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
+import nijilive.math : vec2;
 import std.format;
 import i18n;
 import std.exception;
@@ -203,10 +208,80 @@ class NodeReplaceAction : Action {
         }
         assert(parent.puppet !is null);
         auto parameters = parent.puppet.parameters;
+
+        vec2[] collectVertices(Node node) {
+            vec2[] result;
+            if (auto deformable = cast(Deformable)node) {
+                result = deformable.vertices.dup;
+            } else if (auto drawable = cast(Drawable)node) {
+                result = drawable.getMesh().vertices.dup;
+            }
+            return result;
+        }
+
+        size_t[] buildRemap(const(vec2)[] oldVerts, const(vec2)[] newVerts) {
+            enum float tol = 1e-4f;
+            if (oldVerts.length == 0 || oldVerts.length != newVerts.length) return [];
+            size_t[] remap;
+            remap.length = oldVerts.length;
+            bool[] used;
+            used.length = newVerts.length;
+            foreach (oldIdx, oldPos; oldVerts) {
+                size_t match = size_t.max;
+                foreach (newIdx, newPos; newVerts) {
+                    if (used[newIdx]) continue;
+                    vec2 delta = oldPos - newPos;
+                    if (delta.lengthSquared <= tol * tol) {
+                        match = newIdx;
+                        break;
+                    }
+                }
+                if (match == size_t.max) {
+                    return [];
+                }
+                remap[oldIdx] = match;
+                used[match] = true;
+            }
+            return remap;
+        }
+
+        void reorderOffsets(DeformationParameterBinding binding, const(size_t)[] remap) {
+            if (remap.length == 0) return;
+            foreach (x; 0 .. binding.values.length) {
+                foreach (y; 0 .. binding.values[x].length) {
+                    auto offsets = binding.values[x][y].vertexOffsets;
+                    if (offsets.length != remap.length) {
+                        offsets.length = remap.length;
+                        foreach (ref v; offsets) {
+                            v = vec2(0, 0);
+                        }
+                        binding.values[x][y].vertexOffsets = offsets;
+                        binding.isSet_[x][y] = false;
+                        continue;
+                    }
+                    vec2[] reordered;
+                    reordered.length = offsets.length;
+                    foreach (oldIdx, newIdx; remap) {
+                        reordered[newIdx] = offsets[oldIdx];
+                    }
+                    binding.values[x][y].vertexOffsets = reordered;
+                }
+            }
+            binding.reInterpolate();
+        }
+
         foreach (param; parameters) {
             foreach (binding; param.bindings) {
                 if (binding.getTarget().node == src) {
+                    auto oldVerts = collectVertices(src);
                     binding.setTarget(to, binding.getTarget().name);
+                    if (auto grid = cast(GridDeformer)to) {
+                        if (auto deformBinding = cast(DeformationParameterBinding)binding) {
+                            auto newVerts = collectVertices(grid);
+                            auto remap = buildRemap(oldVerts, newVerts);
+                            reorderOffsets(deformBinding, remap);
+                        }
+                    }
                 }
             }
         }

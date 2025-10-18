@@ -14,6 +14,7 @@ import nijigenerate.panels.inspector.part;
 import nijigenerate.panels.inspector.meshgroup;
 import nijigenerate.panels.inspector.pathdeform;
 import nijigenerate.panels.inspector.simplephysics;
+import nijigenerate.panels.inspector.griddeform;
 // Inspector resolution must be via ctx.inspectors (no global resolver)
 import nijilive; // Node, Drawable
 import nijigenerate.commands.base : toCodeString;
@@ -252,6 +253,9 @@ enum InspectorNodeApplyCommand {
     ToggleMeshGroupDynamic,
     MeshGroupTranslateChildren,
     ToggleMeshGroupTranslateChildren,
+    // GridDeformer
+    GridDeformDynamic,
+    ToggleGridDeformDynamic,
     // PathDeformer
     PathDeformDynamic,
     TogglePathDeformDynamic,
@@ -285,6 +289,7 @@ alias NICam  = nijigenerate.panels.inspector.camera.NodeInspector!(ModelEditSubM
 alias NICmp  = nijigenerate.panels.inspector.composite.NodeInspector!(ModelEditSubMode.Layout, Composite);
 alias NIPart = nijigenerate.panels.inspector.part.NodeInspector!(ModelEditSubMode.Layout, Part);
 alias NIMesh = nijigenerate.panels.inspector.meshgroup.NodeInspector!(ModelEditSubMode.Layout, MeshGroup);
+alias NIGrid = nijigenerate.panels.inspector.griddeform.NodeInspector!(ModelEditSubMode.Layout, GridDeformer);
 alias NIPath = nijigenerate.panels.inspector.pathdeform.NodeInspector!(ModelEditSubMode.Layout, PathDeformer);
 alias NISPhys = nijigenerate.panels.inspector.simplephysics.NodeInspector!(ModelEditSubMode.Layout, SimplePhysics);
 
@@ -340,6 +345,9 @@ mixin(DefApply!("PartAutoResizedMesh",   NIPart, "autoResizedMesh"));
 // MeshGroup
 mixin(DefApply!("MeshGroupDynamic",           NIMesh, "dynamic"));
 mixin(DefApply!("MeshGroupTranslateChildren", NIMesh, "translateChildren"));
+
+// GridDeformer
+mixin(DefApply!("GridDeformDynamic",          NIGrid, "dynamic"));
 
 // PathDeformer
 mixin(DefApply!("PathDeformDynamic",         NIPath, "dynamic"));
