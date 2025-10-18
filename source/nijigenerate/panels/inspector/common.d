@@ -475,6 +475,8 @@ mixin template MultiEdit() {
             void set(T n,"~type.stringof~" v) {
                 "~setter("n", "v")~";
                 this.isShared = true;
+                static if (is(T: Node))
+                    n.notifyChange(n);
             }
             bool capture() {
                 if (targets.length == 0) {
