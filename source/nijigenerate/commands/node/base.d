@@ -157,7 +157,9 @@ void ngConvertTo(Node[] nodes, string toType) {
         Node newNode = inInstantiateNode(toType);
         newNode.copyFrom(node, true, false);
         group.addAction(new NodeReplaceAction(node, newNode, true));
-        ngApplySourceGeometry(node, newNode);
+        if (auto remap = ngApplySourceGeometry(node, newNode)) {
+            group.addAction(remap);
+        }
         newNodes ~= newNode;
         newNode.notifyChange(newNode, NotifyReason.StructureChanged);
     }
@@ -165,16 +167,40 @@ void ngConvertTo(Node[] nodes, string toType) {
     incSelectNodes(newNodes);
 }
 
-void ngApplySourceGeometry(Node source, Node target) {
+GroupAction ngApplySourceGeometry(Node source, Node target) {
     Deformable srcDef = cast(Deformable)source;
     Deformable dstDef = cast(Deformable)target;
     if (srcDef is null || dstDef is null) {
-        return;
+        return null;
     }
 
     auto mapping = ngBuildVertexMapping(srcDef.vertices, dstDef.vertices);
-    ngApplyDeformationMapping(srcDef, dstDef, mapping);
-    ngRemapBindings(dstDef, mapping);
+    auto remapGroup = new GroupAction();
+
+    if (dstDef.vertices.length > 0) {
+        auto oldDeform = dstDef.deformation.dup;
+        auto newDeform = ngComputeRemappedDeformation(srcDef, mapping, dstDef.vertices.length);
+        remapGroup.addAction(new NodeValueChangeAction!(Deformable, vec2[])("deformation", dstDef, oldDeform, newDeform, &dstDef.deformation));
+
+        dstDef.deformation = newDeform;
+        dstDef.updateDeform();
+        dstDef.notifyChange(dstDef, NotifyReason.StructureChanged);
+    }
+
+    auto puppet = incActivePuppet();
+    if (puppet) {
+        foreach (param; puppet.parameters) {
+            if (auto group = cast(ExParameterGroup)param) {
+                foreach(_, ref child; group.children) {
+                    ngApplyBindingRemap(remapGroup, child, cast(DeformationParameterBinding)child.getBinding(dstDef, "deform"), mapping);
+                }
+            } else {
+                ngApplyBindingRemap(remapGroup, param, cast(DeformationParameterBinding)param.getBinding(dstDef, "deform"), mapping);
+            }
+        }
+    }
+
+    return remapGroup.empty() ? null : remapGroup;
 }
 
 vec2[] ngCollectBaseVertices(Deformable def) {
@@ -252,9 +278,9 @@ size_t[] ngBuildVertexMapping(const(vec2)[] srcVertices, const(vec2)[] dstVertic
     return mapping;
 }
 
-void ngApplyDeformationMapping(Deformable srcDef, Deformable dstDef, size_t[] mapping) {
+vec2[] ngComputeRemappedDeformation(Deformable srcDef, size_t[] mapping, size_t targetCount) {
     vec2[] newDeform;
-    newDeform.length = dstDef.vertices.length;
+    newDeform.length = targetCount;
     foreach (i, idx; mapping) {
         vec2 value = vec2(0, 0);
         if (idx != size_t.max && idx < srcDef.deformation.length) {
@@ -262,55 +288,48 @@ void ngApplyDeformationMapping(Deformable srcDef, Deformable dstDef, size_t[] ma
         }
         newDeform[i] = value;
     }
-    dstDef.deformation = newDeform;
-    dstDef.updateDeform();
+    return newDeform;
 }
 
-void ngRemapBindings(Deformable target, size_t[] mapping) {
-    DeformationParameterBinding[] touched;
+void ngApplyBindingRemap(GroupAction remapGroup, Parameter param, DeformationParameterBinding binding, size_t[] mapping) {
+    if (!binding) return;
 
-    void remapBinding(DeformationParameterBinding binding) {
-        if (!binding) return;
-        bool changed = false;
-        foreach (ref column; binding.values) {
-            foreach (ref deformation; column) {
-                auto oldOffsets = deformation.vertexOffsets;
-                vec2[] newOffsets;
-                newOffsets.length = mapping.length;
-                foreach (i, idx; mapping) {
-                    vec2 value = vec2(0, 0);
-                    if (idx != size_t.max && idx < oldOffsets.length) {
-                        value = oldOffsets[idx];
-                    }
-                    newOffsets[i] = value;
+    Deformation[][] newValues;
+    newValues.length = binding.values.length;
+    bool anyChange = false;
+
+    foreach (x; 0 .. binding.values.length) {
+        newValues[x].length = binding.values[x].length;
+        foreach (y; 0 .. binding.values[x].length) {
+            auto current = binding.values[x][y];
+            vec2[] remapped;
+            remapped.length = mapping.length;
+            foreach (i, idx; mapping) {
+                vec2 value = vec2(0, 0);
+                if (idx != size_t.max && idx < current.vertexOffsets.length) {
+                    value = current.vertexOffsets[idx];
                 }
-                if (newOffsets != deformation.vertexOffsets) {
-                    deformation.vertexOffsets = newOffsets;
-                    changed = true;
-                }
+                remapped[i] = value;
             }
-        }
-        if (changed) {
-            touched ~= binding;
+            if (remapped != current.vertexOffsets) {
+                anyChange = true;
+            }
+            newValues[x][y] = current;
+            newValues[x][y].vertexOffsets = remapped;
         }
     }
 
-    auto puppet = incActivePuppet();
-    if (!puppet) return;
+    if (!anyChange) return;
 
-    foreach (param; puppet.parameters) {
-        if (auto group = cast(ExParameterGroup)param) {
-            foreach(_, ref child; group.children) {
-                auto binding = cast(DeformationParameterBinding)child.getBinding(target, "deform");
-                remapBinding(binding);
-            }
-        } else {
-            auto binding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
-            remapBinding(binding);
+    remapGroup.addAction(new ParameterChangeBindingsAction("Remap Deformation", param, [binding]));
+
+    foreach (x; 0 .. binding.values.length) {
+        foreach (y; 0 .. binding.values[x].length) {
+            binding.values[x][y].vertexOffsets = newValues[x][y].vertexOffsets.dup;
         }
     }
-
-    foreach (binding; touched) {
-        binding.reInterpolate();
+    binding.reInterpolate();
+    if (auto node = cast(Node)binding.getTarget().target) {
+        node.notifyChange(node, NotifyReason.AttributeChanged);
     }
 }
