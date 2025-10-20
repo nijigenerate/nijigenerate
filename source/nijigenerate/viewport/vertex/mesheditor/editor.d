@@ -30,6 +30,45 @@ import std.format;
 import std.string;
 
 class VertexMeshEditor : IncMeshEditor {
+private:
+    void adjustToolModeForSelection() {
+        bool anyGrid = false;
+        bool anyPath = false;
+        bool anyOther = false;
+
+        foreach (node; editors.keys) {
+            if (cast(GridDeformer)node) {
+                anyGrid = true;
+            } else if (cast(PathDeformer)node) {
+                anyPath = true;
+            } else {
+                anyOther = true;
+            }
+        }
+
+        auto current = getToolMode();
+
+        if (anyGrid) {
+            if (!anyPath && !anyOther) {
+                if (current != VertexToolMode.Grid) {
+                    setToolMode(VertexToolMode.Grid);
+                }
+            } else if (current == VertexToolMode.Grid) {
+                if (anyPath && !anyOther) {
+                    if (current != VertexToolMode.BezierDeform) {
+                        setToolMode(VertexToolMode.BezierDeform);
+                    }
+                } else {
+                    setToolMode(VertexToolMode.Points);
+                }
+            }
+        } else if (anyPath && !anyOther) {
+            if (current != VertexToolMode.BezierDeform) {
+                setToolMode(VertexToolMode.BezierDeform);
+            }
+        }
+    }
+
 public:
     this() {
         super(false);
@@ -54,10 +93,8 @@ public:
             subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.VertexEdit)();
             if (cast(PathDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.BezierDeform;
-                toolMode = VertexToolMode.BezierDeform;
             } else if (cast(GridDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.Grid;
-                toolMode = VertexToolMode.Grid;
             }
         }
 
@@ -66,6 +103,7 @@ public:
         subEditor.mirrorVert  = mirrorVert;
         subEditor.previewTriangulate = previewTriangulate;
         editors[target] = subEditor;
+        adjustToolModeForSelection();
     }
 
     override
@@ -84,11 +122,9 @@ public:
                     subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.VertexEdit)();
                     if (cast(GridDeformer)deformable) {
                         subEditor.toolMode = VertexToolMode.Grid;
-                        toolMode = VertexToolMode.Grid;
                     }
                     if (cast(PathDeformer)deformable) {
                         subEditor.toolMode = VertexToolMode.BezierDeform;
-                        toolMode = VertexToolMode.BezierDeform;
                     }
                 } else {
                     incActionPushStack();
@@ -102,5 +138,6 @@ public:
             }
         }
         editors = newEditors;
+        adjustToolModeForSelection();
     }
 }
