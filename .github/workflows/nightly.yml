@@ -80,6 +80,12 @@ jobs:
         git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
         git submodule update --recursive
 
+    - name: confirm version
+      run: |
+        dub --version
+        cd i2d-imgui
+        git rev-parse HEAD
+
     - name: 'Build nijigenerate'
       run: |
         # Build metadata (like version information and icons)
