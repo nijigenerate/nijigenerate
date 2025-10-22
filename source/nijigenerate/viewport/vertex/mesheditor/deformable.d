@@ -311,7 +311,7 @@ public:
                 /**
                     Draws the mesh
                 */
-                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color) {
                     if (curve.controlPoints.length == 0)
                         return;
                     vec3[] lines;
