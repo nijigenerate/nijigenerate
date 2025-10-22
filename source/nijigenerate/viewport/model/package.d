@@ -90,7 +90,7 @@ public:
                                 inDbgDrawLines(color, trans);
                             }
                         }
-                        drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                        drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 0.5, 0.5, 1));
                         drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                         debug(path_deform) {
                             void drawLines2(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
@@ -171,7 +171,7 @@ public:
                                 }
                                 if (lines.length > 0) {
                                     inDbgSetBuffer(lines);
-                                    inDbgDrawLines(vec4(0.5, 1, 0.5, 1), grid.transform.matrix);
+                                    inDbgDrawLines(vec4(0.5, 0.5, 0.5, 1), grid.transform.matrix);
                                 }
                             }
                         }
