@@ -8,6 +8,9 @@ import nijilive.core.nodes.deformer.grid : GridDeformer;
 
 import std.typecons;
 import std.algorithm;
+import std.algorithm.iteration : uniq;
+import std.algorithm : sort;
+import std.math : isClose;
 import std.array;
 import std.traits;
 import core.exception;
@@ -243,16 +246,115 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
 }
 
 Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
-    vec2[] vertexOffsets;
-    vertexOffsets.length = vertices.length;
-    foreach (i, v; vertices) {
-        vec2 offset = i < deform.vertexOffsets.length ? deform.vertexOffsets[i] : vec2(0, 0);
-        if (flipHorz) {
-            offset.x = -offset.x;
-        }
-        vertexOffsets[i] = offset;
+    auto gridVerts = deformable.vertices;
+    auto offsets = deform.vertexOffsets;
+    if (gridVerts.length < 4 || offsets.length != gridVerts.length) {
+        vec2[] zeroOffsets;
+        zeroOffsets.length = vertices.length;
+        foreach (ref ofs; zeroOffsets) ofs = vec2(0, 0);
+        return new Deformation(zeroOffsets);
     }
-    return new Deformation(vertexOffsets);
+
+    auto xsRaw = gridVerts.map!(v => v.x).array;
+    auto ysRaw = gridVerts.map!(v => v.y).array;
+    xsRaw.sort();
+    ysRaw.sort();
+    auto xs = xsRaw.uniq.array;
+    auto ys = ysRaw.uniq.array;
+    size_t cols = xs.length;
+    size_t rows = ys.length;
+    if (cols < 2 || rows < 2 || cols * rows != gridVerts.length) {
+        vec2[] zeroOffsets;
+        zeroOffsets.length = vertices.length;
+        foreach (ref ofs; zeroOffsets) ofs = vec2(0, 0);
+        return new Deformation(zeroOffsets);
+    }
+
+    vec2[] samplePositions;
+    samplePositions.length = vertices.length;
+    foreach (i, vertex; vertices) {
+        samplePositions[i] = position(vertex);
+        if (flipHorz) {
+            samplePositions[i].x = -samplePositions[i].x;
+        }
+    }
+
+    float clampValue(float value, float minValue, float maxValue) {
+        if (value < minValue) return minValue;
+        if (value > maxValue) return maxValue;
+        return value;
+    }
+
+    bool locateInterval(const float[] axis, float value, out size_t cell, out float weight) {
+        if (axis.length < 2) return false;
+        enum float maxRel = 1e-4f;
+        enum float maxAbs = 1e-5f;
+        if (value <= axis[0]) {
+            if (isClose(value, axis[0], maxRel, maxAbs)) {
+                cell = 0;
+                weight = 0;
+                return true;
+            }
+            return false;
+        }
+        if (value >= axis[$ - 1]) {
+            if (isClose(value, axis[$ - 1], maxRel, maxAbs)) {
+                cell = axis.length - 2;
+                weight = 1;
+                return true;
+            }
+            return false;
+        }
+        foreach (i; 0 .. axis.length - 1) {
+            auto a = axis[i];
+            auto b = axis[i + 1];
+            if (value >= a && value <= b) {
+                auto span = b - a;
+                weight = span > 0 ? (value - a) / span : 0;
+                weight = clampValue(weight, 0.0f, 1.0f);
+                cell = i;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    vec2 bilinear(vec2 p00, vec2 p10, vec2 p01, vec2 p11, float u, float v) {
+        auto a = p00 * (1 - u) + p10 * u;
+        auto b = p01 * (1 - u) + p11 * u;
+        return a * (1 - v) + b * v;
+    }
+
+    Deformation* result = new Deformation([]);
+    result.vertexOffsets.length = vertices.length;
+
+    foreach (i, query; samplePositions) {
+        size_t cellX, cellY;
+        float u, v;
+        if (!locateInterval(xs, query.x, cellX, u) || !locateInterval(ys, query.y, cellY, v)) {
+            result.vertexOffsets[i] = vec2(0, 0);
+            continue;
+        }
+
+        auto idx00 = cellY * cols + cellX;
+        auto idx10 = cellY * cols + (cellX + 1);
+        auto idx01 = (cellY + 1) * cols + cellX;
+        auto idx11 = (cellY + 1) * cols + (cellX + 1);
+
+        auto def00 = gridVerts[idx00] + offsets[idx00];
+        auto def10 = gridVerts[idx10] + offsets[idx10];
+        auto def01 = gridVerts[idx01] + offsets[idx01];
+        auto def11 = gridVerts[idx11] + offsets[idx11];
+
+        auto defPos = bilinear(def00, def10, def01, def11, u, v);
+        if (flipHorz) {
+            defPos.x = -defPos.x;
+        }
+        vec2 original = position(vertices[i]);
+        result.vertexOffsets[i] = defPos - original;
+    }
+
+    return result;
 }
 
 
