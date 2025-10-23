@@ -19,10 +19,14 @@ private:
         dst.origin   = src.origin;
     }
 public:
+    struct DeformableState {
+        vec2[] vertices;
+    }
+
     Deformable self;
     string name;
 
-    vec2[] vertices;
+    DeformableState state;
     bool   undoable;
 
     this(string name, Deformable self) {
@@ -30,7 +34,7 @@ public:
         this.name = name;
         this.self = self;
         this.undoable = true;
-        vertices = self.vertices()[];
+        state = captureState();
     }
 
     override
@@ -49,10 +53,9 @@ public:
     override
     void rollback() {
         if (undoable) {
-            vec2[] tmpVertices = vertices[];
-            self.rebuffer(vertices);
-            self.clearCache();
-            vertices = tmpVertices;
+            auto current = captureState();
+            applyState(state);
+            state = current;
             undoable = false;
         }
         super.rollback();
@@ -64,10 +67,9 @@ public:
     override
     void redo() {
         if (!undoable) {
-            vec2[] tmpVertices = vertices[];
-            self.rebuffer(vertices);
-            self.clearCache();
-            vertices = tmpVertices;
+            auto current = captureState();
+            applyState(state);
+            state = current;
             undoable = true;
         }
         super.redo();
@@ -99,4 +101,16 @@ public:
     
     override bool merge(Action other) { return false; }
     override bool canMerge(Action other) { return false; }
+
+private:
+    DeformableState captureState() {
+        DeformableState result;
+        result.vertices = self.vertices.dup;
+        return result;
+    }
+
+    void applyState(ref DeformableState st) {
+        self.rebuffer(st.vertices);
+        self.clearCache();
+    }
 }

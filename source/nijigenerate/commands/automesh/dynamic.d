@@ -18,9 +18,9 @@ import nijigenerate.api.mcp.task : ngRunInMainThread, ngMcpEnqueueAction; // sch
 import nijigenerate.widgets.notification : NotificationPopup; // UI progress popup
 
 // Compile-time presence check for initializer
-static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshKey)(); } }))
-    pragma(msg, "[CT] automesh.dynamic: ngInitCommands!(AutoMeshKey) present");
-else
+static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshKey)(); } })) {
+    //pragma(msg, "[CT] automesh.dynamic: ngInitCommands!(AutoMeshKey) present");
+} else
     pragma(msg, "[CT] automesh.dynamic: ngInitCommands!(AutoMeshKey) MISSING");
 
 // Stable key for per-processor AutoMesh commands

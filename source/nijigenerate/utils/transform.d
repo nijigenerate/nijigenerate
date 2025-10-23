@@ -13,6 +13,7 @@ import nijigenerate.windows.flipconfig;
 import nijigenerate;
 import std.string;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import i18n;
 //import std.stdio;
 import nijigenerate.utils;
@@ -112,6 +113,8 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
         if (deformBinding !is null && srcDeformBinding !is null) {
             PathDeformer deformable = cast(PathDeformer)deformBinding.getTarget().node;
             PathDeformer srcDeformable = cast(PathDeformer)srcDeformBinding.getTarget().node;
+            GridDeformer grid = cast(GridDeformer)deformBinding.getTarget().node;
+            GridDeformer srcGrid = cast(GridDeformer)srcDeformBinding.getTarget().node;
             Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
             Drawable srcDrawable = cast(Drawable)srcDeformBinding.getTarget().node;
             Deformation* newDeform = null;
@@ -126,6 +129,11 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
                 Deformation deform = extrapolation? extrapolateValueAt!Deformation(srcDeformBinding, index, axis):
                                                     interpolateValueAt!Deformation(srcDeformBinding, index, axis);
                 newDeform = deformByDeformationBinding(deformable.vertices, srcDeformable, deform, extrapolation || axis < 1);
+                if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
+            } else if (grid !is null && srcGrid !is null) {
+                Deformation deform = extrapolation? extrapolateValueAt!Deformation(srcDeformBinding, index, axis):
+                                                    interpolateValueAt!Deformation(srcDeformBinding, index, axis);
+                newDeform = deformByDeformationBinding(grid.vertices, srcGrid, deform, extrapolation || axis < 1);
                 if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
             }
             if (newDeform)
@@ -149,6 +157,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
         if (deformBinding !is null) {
             Drawable drawable = cast(Drawable)deformBinding.getTarget().node;
             PathDeformer deformable = cast(PathDeformer)deformBinding.getTarget().node;
+            GridDeformer grid = cast(GridDeformer)deformBinding.getTarget().node;
             // Return if target node doesn't support deformations 
             Deformation* newDeform = null;
             if (drawable !is null) {
@@ -160,6 +169,10 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
                 Deformation deform = extrapolation? extrapolateValueAt!Deformation(deformBinding, index, axis):
                                                     interpolateValueAt!Deformation(deformBinding, index, axis);
                 newDeform = deformByDeformationBinding(deformable.vertices, deformable, deform, extrapolation || axis < 1);
+            } else if (grid !is null) {
+                Deformation deform = extrapolation? extrapolateValueAt!Deformation(deformBinding, index, axis):
+                                                    interpolateValueAt!Deformation(deformBinding, index, axis);
+                newDeform = deformByDeformationBinding(grid.vertices, grid, deform, extrapolation || axis < 1);
             }
             if (selected) newDeform = getMaskedDeformation(&deformBinding.getValue(index), newDeform, selected);
             if (newDeform)

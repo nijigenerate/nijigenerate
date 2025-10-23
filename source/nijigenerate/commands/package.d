@@ -53,7 +53,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.vertex.define_mesh.commands,
     nijigenerate.commands.model.set_deform_binding.commands,
 );
-pragma(msg, "[CT] AllCommandMaps includes typed AutoMesh only");
+//pragma(msg, "[CT] AllCommandMaps includes typed AutoMesh only");
 
 // ===== Compile-time visibility diagnostics for ngInitCommands =====
 private template _BoolStr(bool B) { enum _BoolStr = B ? "1" : "0"; }
@@ -61,11 +61,13 @@ mixin template CTInitScan(alias AAx, alias Kx, int IDX) {
     enum _hasGen = __traits(compiles, { ngInitCommands!Kx(); });
     enum _hasDyn = __traits(compiles, { nijigenerate.commands.automesh.dynamic.ngInitCommands!Kx(); });
     enum _hasCfg = __traits(compiles, { nijigenerate.commands.automesh.config.ngInitCommands!Kx(); });
+    /*
     pragma(msg, "[CT][InitScan] #" ~ IDX.stringof ~ ": AA=" ~ typeof(AAx).stringof ~
                  " K=" ~ Kx.stringof ~
                  " hasGen=" ~ _BoolStr!_hasGen ~
                  " hasDyn=" ~ _BoolStr!_hasDyn ~
                  " hasCfg=" ~ _BoolStr!_hasCfg);
+    */
 }
 mixin template CTInitScanInvoke(alias AA, int IDX) {
     mixin CTInitScan!(AA, KeyTypeOfAA!(AA), IDX);

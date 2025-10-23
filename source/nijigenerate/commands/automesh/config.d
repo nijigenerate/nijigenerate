@@ -14,9 +14,9 @@ import i18n;
 import bindbc.imgui; // optional UI list rendering
 
 // Compile-time presence check for initializer
-static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshTypedCommand)(); } }))
-    pragma(msg, "[CT] automesh.config: ngInitCommands!(AutoMeshTypedCommand) present");
-else
+static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshTypedCommand)(); } })) {
+    //    pragma(msg, "[CT] automesh.config: ngInitCommands!(AutoMeshTypedCommand) present");
+} else
     pragma(msg, "[CT] automesh.config: ngInitCommands!(AutoMeshTypedCommand) MISSING");
 
 // ===== Typed per-processor enum and map (for MCP tool discovery) =====
@@ -37,7 +37,7 @@ private string _genTypedEnumMembers()() {
     return s;
 }
 mixin("enum AutoMeshTypedCommand { " ~ _genTypedEnumMembers() ~ "}");
-pragma(msg, "[CT] AutoMeshTypedCommand members: " ~ _genTypedEnumMembers());
+//pragma(msg, "[CT] AutoMeshTypedCommand members: " ~ _genTypedEnumMembers());
 
 Command[AutoMeshTypedCommand] autoMeshTypedCommands;
 
@@ -400,6 +400,7 @@ void ngInitCommands(T)() if (is(T == AutoMeshTypedCommand))
 {
     // Compile-time: dump per-processor reflected params for verification
     template _ctDumpParams(alias PT) {
+        /*
         enum string _name = AMProcInfo!(PT).name;
         enum string _dump = ({
             string s;
@@ -421,6 +422,7 @@ void ngInitCommands(T)() if (is(T == AutoMeshTypedCommand))
             return s;
         })();
         pragma(msg, _dump);
+        */
     }
     static foreach (PT; AutoMeshProcessorTypes) { mixin _ctDumpParams!PT; }
 
@@ -430,7 +432,7 @@ void ngInitCommands(T)() if (is(T == AutoMeshTypedCommand))
     static foreach (n; __traits(allMembers, AutoMeshTypedCommand)) {{
         static if (n != "init" && n != "min" && n != "max" && n != "stringof") {
             static if (__traits(compiles, mixin("AutoMeshTypedCommand."~n))) {
-                pragma(msg, "[CT] Register typed command class for enum: " ~ n);
+//                pragma(msg, "[CT] Register typed command class for enum: " ~ n);
                 alias KS = mixin("AutoMeshTypedCommand."~n);
                 alias C  = mixin(n ~ "Command");
                 autoMeshTypedCommands[KS] = cast(Command) new C();

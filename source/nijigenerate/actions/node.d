@@ -8,8 +8,15 @@
 module nijigenerate.actions.node;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
+import nijigenerate.actions.binding : ParameterBindingAllValueChangeAction;
 import nijigenerate;
 import nijilive;
+import nijilive.core.param.binding : DeformationParameterBinding;
+import nijilive.core.nodes.deformable : Deformable;
+import nijilive.core.nodes.drawable : Drawable;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
+import nijilive.math : vec2;
 import std.format;
 import i18n;
 import std.exception;
@@ -192,7 +199,7 @@ class NodeReplaceAction : Action {
       Update the binding target of parameters.
       This function must be called after redo / undo operations are done.
      */
-    void updateParameterBindings() {
+    void updateParameterBindings(bool recordActions = true) {
         auto parent = srcNode.parent;
         auto src = toNode;
         auto to  = srcNode;
@@ -203,10 +210,88 @@ class NodeReplaceAction : Action {
         }
         assert(parent.puppet !is null);
         auto parameters = parent.puppet.parameters;
+        if (recordActions)
+            bindingReorderActions.length = 0;
+
+        vec2[] collectVertices(Node node) {
+            vec2[] result;
+            if (auto deformable = cast(Deformable)node) {
+                result = deformable.vertices.dup;
+            } else if (auto drawable = cast(Drawable)node) {
+                result = drawable.getMesh().vertices.dup;
+            }
+            return result;
+        }
+
+        size_t[] buildRemap(const(vec2)[] oldVerts, const(vec2)[] newVerts) {
+            enum float tol = 1e-4f;
+            if (oldVerts.length == 0 || oldVerts.length != newVerts.length) return [];
+            size_t[] remap;
+            remap.length = oldVerts.length;
+            bool[] used;
+            used.length = newVerts.length;
+            foreach (oldIdx, oldPos; oldVerts) {
+                size_t match = size_t.max;
+                foreach (newIdx, newPos; newVerts) {
+                    if (used[newIdx]) continue;
+                    vec2 delta = oldPos - newPos;
+                    if (delta.lengthSquared <= tol * tol) {
+                        match = newIdx;
+                        break;
+                    }
+                }
+                if (match == size_t.max) {
+                    return [];
+                }
+                remap[oldIdx] = match;
+                used[match] = true;
+            }
+            return remap;
+        }
+
         foreach (param; parameters) {
             foreach (binding; param.bindings) {
                 if (binding.getTarget().node == src) {
+                    auto oldVerts = collectVertices(src);
                     binding.setTarget(to, binding.getTarget().name);
+                    if (auto grid = cast(GridDeformer)to) {
+                        if (auto deformBinding = cast(DeformationParameterBinding)binding) {
+                            auto newVerts = collectVertices(grid);
+                            auto remap = buildRemap(oldVerts, newVerts);
+                            if (remap.length) {
+                                bool needsReInterpolate = false;
+                                foreach (x; 0 .. deformBinding.values.length) {
+                                    foreach (y; 0 .. deformBinding.values[x].length) {
+                                        auto offsets = deformBinding.values[x][y].vertexOffsets;
+                                        if (offsets.length != remap.length) {
+                                            offsets.length = remap.length;
+                                            foreach (ref v; offsets) {
+                                                v = vec2(0, 0);
+                                            }
+                                            deformBinding.values[x][y].vertexOffsets = offsets;
+                                            deformBinding.isSet_[x][y] = false;
+                                        } else {
+                                            vec2[] reordered;
+                                            reordered.length = offsets.length;
+                                            foreach (oldIdx, newIdx; remap) {
+                                                reordered[newIdx] = offsets[oldIdx];
+                                            }
+                                            deformBinding.values[x][y].vertexOffsets = reordered;
+                                        }
+                                        if (recordActions) {
+                                            auto action = new ParameterChangeBindingsValueAction("Reorder Deformation", param, [deformBinding], cast(int)x, cast(int)y);
+                                            bindingReorderActions ~= action;
+                                            action.updateNewState();
+                                        }
+                                        needsReInterpolate = true;
+                                    }
+                                }
+                                if (needsReInterpolate) {
+                                    deformBinding.reInterpolate();
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -225,6 +310,16 @@ public:
     Node toNode;
     Node[] children;
     bool deepCopy;
+    ParameterChangeBindingsValueAction[] bindingReorderActions;
+
+    private void applyReorderOps(bool forward) {
+        foreach (action; bindingReorderActions) {
+            if (forward)
+                action.redo();
+            else
+                action.rollback();
+        }
+    }
 
     /**
         Creates a new node change action
@@ -250,7 +345,7 @@ public:
         if (toNode.parent is null)
             redo();
 
-        updateParameterBindings();
+        updateParameterBindings(true);
     }
 
     /**
@@ -266,7 +361,8 @@ public:
         srcNode.reparent(parent, pOffset, true);
         srcNode.localTransform = tmpTransform;
         srcNode.transformChanged();
-        updateParameterBindings();
+        updateParameterBindings(false);
+        applyReorderOps(false);
         if (deepCopy && children) {
             foreach (i, child; children) {
                 child.reparent(srcNode, i, true);
@@ -296,7 +392,8 @@ public:
         toNode.reparent(parent, pOffset, true);
         toNode.localTransform = tmpTransform;
         toNode.transformChanged();
-        updateParameterBindings();
+        updateParameterBindings(false);
+        applyReorderOps(true);
         if (deepCopy && children) {
             foreach (i, child; children) {
                 child.reparent(toNode, i, true);

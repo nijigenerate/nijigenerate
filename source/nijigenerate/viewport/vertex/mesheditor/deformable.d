@@ -17,6 +17,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.nodes.utils: removeByValue;
 import nijilive.core.dbg;
 import bindbc.opengl;
@@ -25,7 +26,8 @@ import std.algorithm.mutation;
 import std.algorithm.searching;
 //import std.stdio;
 import std.range: enumerate;
-import std.algorithm: map;
+import std.algorithm : map, sort;
+import std.algorithm.iteration : uniq;
 import std.array;
 /**
  * MeshEditor of Deformable for vertex operation.
@@ -309,7 +311,7 @@ public:
                 /**
                     Draws the mesh
                 */
-                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color) {
                     if (curve.controlPoints.length == 0)
                         return;
                     vec3[] lines;
@@ -324,6 +326,48 @@ public:
                 }
                 auto curve = deformable.createCurve(vertices.map!((v)=>v.position).array);
                 drawLines(curve, trans, edgeColor);
+            } else if (auto grid = cast(GridDeformer)target) {
+                auto baseVerts = grid.vertices;
+                if (baseVerts.length >= 4) {
+                    auto xs = baseVerts.map!(v => v.x).array;
+                    auto ys = baseVerts.map!(v => v.y).array;
+                    xs.sort();
+                    ys.sort();
+                    xs = xs.uniq.array;
+                    ys = ys.uniq.array;
+                    size_t cols = xs.length;
+                    size_t rows = ys.length;
+                    if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
+                        vec3[] lines;
+                        bool haveDeform = grid.deformation.length == baseVerts.length;
+                        foreach (y; 0 .. rows) {
+                            foreach (x; 0 .. cols) {
+                                size_t idx = y * cols + x;
+                                vec2 startPos = baseVerts[idx];
+                                if (haveDeform) startPos += grid.deformation[idx];
+                                auto start = vec3(startPos, 0);
+                                if (x + 1 < cols) {
+                                    size_t nextIdx = idx + 1;
+                                    vec2 rightPos = baseVerts[nextIdx];
+                                    if (haveDeform) rightPos += grid.deformation[nextIdx];
+                                    lines ~= start;
+                                    lines ~= vec3(rightPos, 0);
+                                }
+                                if (y + 1 < rows) {
+                                    size_t nextIdx = idx + cols;
+                                    vec2 downPos = baseVerts[nextIdx];
+                                    if (haveDeform) downPos += grid.deformation[nextIdx];
+                                    lines ~= start;
+                                    lines ~= vec3(downPos, 0);
+                                }
+                            }
+                        }
+                        if (lines.length > 0) {
+                            inDbgSetBuffer(lines);
+                            inDbgDrawLines(edgeColor, trans);
+                        }
+                    }
+                }
             }
             inDbgSetBuffer(points);
             inDbgPointsSize(10);

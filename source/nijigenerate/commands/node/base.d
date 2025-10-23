@@ -49,10 +49,11 @@ import i18n;
     string[][string] conversionMap() {
         if (_conversionMap.length == 0) {
             _conversionMap = [
-                "Node": ["MeshGroup", "DynamicComposite"],
+                "Node": ["MeshGroup", "DynamicComposite", "GridDeformer"],
                 "DynamicComposite": ["MeshGroup", "Node", "Part", "Composite"],
-                "MeshGroup": ["DynamicComposite", "Node"],
-                "Composite": ["DynamicComposite", "Node"]
+                "MeshGroup": ["DynamicComposite", "Node", "GridDeformer"],
+                "Composite": ["DynamicComposite", "Node"],
+                "GridDeformer": ["MeshGroup", "Node"]
             ];
         }
         return _conversionMap;

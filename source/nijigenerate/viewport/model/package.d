@@ -20,11 +20,13 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.dbg;
 import bindbc.imgui;
 import i18n;
 //import std.stdio;
 import std.algorithm;
+import std.algorithm.iteration : uniq;
 import std.array;
 
 private {
@@ -88,7 +90,7 @@ public:
                                 inDbgDrawLines(color, trans);
                             }
                         }
-                        drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                        drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 0.5, 0.5, 1));
                         drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                         debug(path_deform) {
                             void drawLines2(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
@@ -131,8 +133,49 @@ public:
                             }
                             drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                         }
+                    } else if (auto grid = cast(GridDeformer)selectedNode) {
+                        auto baseVerts = grid.vertices;
+                        if (baseVerts.length >= 4) {
+                            auto xs = baseVerts.map!(v => v.x).array;
+                            auto ys = baseVerts.map!(v => v.y).array;
+                            xs.sort();
+                            ys.sort();
+                            xs = xs.uniq.array;
+                            ys = ys.uniq.array;
+                            size_t cols = xs.length;
+                            size_t rows = ys.length;
+                            bool haveDeform = grid.deformation.length == baseVerts.length;
+                            if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
+                                vec3[] lines;
+                                foreach (y; 0 .. rows) {
+                                    foreach (x; 0 .. cols) {
+                                        size_t idx = y * cols + x;
+                                        vec2 startPos = baseVerts[idx];
+                                        if (haveDeform) startPos += grid.deformation[idx];
+                                        auto start = vec3(startPos, 0);
+                                        if (x + 1 < cols) {
+                                            size_t nextIdx = idx + 1;
+                                            vec2 rightPos = baseVerts[nextIdx];
+                                            if (haveDeform) rightPos += grid.deformation[nextIdx];
+                                            lines ~= start;
+                                            lines ~= vec3(rightPos, 0);
+                                        }
+                                        if (y + 1 < rows) {
+                                            size_t nextIdx = idx + cols;
+                                            vec2 downPos = baseVerts[nextIdx];
+                                            if (haveDeform) downPos += grid.deformation[nextIdx];
+                                            lines ~= start;
+                                            lines ~= vec3(downPos, 0);
+                                        }
+                                    }
+                                }
+                                if (lines.length > 0) {
+                                    inDbgSetBuffer(lines);
+                                    inDbgDrawLines(vec4(0.5, 0.5, 0.5, 1), grid.transform.matrix);
+                                }
+                            }
+                        }
                     }
-                    
                     if (Driver selectedDriver = cast(Driver)selectedNode) {
                         selectedDriver.drawDebug();
                     }
