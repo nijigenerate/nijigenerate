@@ -4,6 +4,7 @@ import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
 import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.operations;
+import nijigenerate.viewport.common.mesheditor.operations.impl : IncMeshEditorOneDrawable, IncMeshEditorOneDeformable;
 import i18n;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.common;
@@ -16,6 +17,7 @@ import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
 import nijilive.core.dbg;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.opengl;
 import bindbc.imgui;
 //import std.stdio;
@@ -26,6 +28,57 @@ import std.algorithm.sorting;
 import std.algorithm.searching : all;
 
 class GridTool : NodeSelect {
+private:
+    struct VirtualMeshContext {
+        IncMesh mesh;
+    }
+
+    VirtualMeshContext[IncMeshEditorOneDeformable] deformableMeshes;
+
+    IncMesh getMesh(IncMeshEditorOne impl, out bool isVirtual) {
+        if (auto drawable = cast(IncMeshEditorOneDrawable)impl) {
+            isVirtual = false;
+            return drawable.getMesh();
+        }
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            isVirtual = true;
+            if (auto ctx = deformable in deformableMeshes) {
+                return ctx.mesh;
+            }
+            auto grid = cast(GridDeformer)deformable.getTarget();
+            if (!grid) {
+                return null;
+            }
+            MeshData data;
+            data.vertices = grid.vertices.dup;
+            auto mesh = new IncMesh(data);
+            deformableMeshes[deformable] = VirtualMeshContext(mesh);
+            deformable.vertices = mesh.vertices.dup;
+            deformable.vertexMapDirty = true;
+            deformable.refreshMesh();
+            return mesh;
+        }
+        return null;
+    }
+
+    public:
+
+    void refreshMeshView(IncMeshEditorOne impl, IncMesh mesh) {
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            deformable.vertices = mesh.vertices.dup;
+            deformable.vertexMapDirty = true;
+            deformable.refreshMesh();
+        } else {
+            impl.refreshMesh();
+        }
+    }
+
+    void markChanged(IncMeshEditorOne impl) {
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            deformable.vertexMapDirty = true;
+        }
+    }
+
     GridActionID currentAction;
     int numCut = 3;
     vec2 dragOrigin;
@@ -87,9 +140,12 @@ class GridTool : NodeSelect {
     }
 
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
-        auto implDrawable = cast(IncMeshEditorOneDrawable)(impl);
-        assert(implDrawable !is null);
-        auto mesh = implDrawable.getMesh();
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (mesh is null) {
+            currentAction = GridActionID.End;
+            return false;
+        }
 
         auto vtxAtMouse = impl.getVerticesByIndex([impl.vtxAtMouse])[0];
         if (vtxAtMouse) {
@@ -149,6 +205,10 @@ class GridTool : NodeSelect {
     }
 
     override bool onDragEnd(vec2 mousePos, IncMeshEditorOne impl) {
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (mesh is null)
+            return false;
         if (currentAction == GridActionID.TranslateX || currentAction == GridActionID.TranslateY || currentAction == GridActionID.TranslateFree) {
             currentAction = GridActionID.End;
             return true;
@@ -158,11 +218,6 @@ class GridTool : NodeSelect {
                                max(dragOrigin.x, dragEnd.x), max(dragOrigin.y, dragEnd.y));
             float width  = bounds.z - bounds.x;
             float height = bounds.w - bounds.y;
-
-            auto implDrawable = cast(IncMeshEditorOneDrawable)(impl);
-            assert(implDrawable !is null);
-
-            auto mesh = implDrawable.getMesh();
             MeshData meshData;
             
             meshData.gridAxes = [[], []];
@@ -172,7 +227,7 @@ class GridTool : NodeSelect {
             }
             meshData.regenerateGrid();
             mesh.copyFromMeshData(meshData);
-            impl.refreshMesh();
+            refreshMeshView(impl, mesh);
             currentAction = GridActionID.End;
             return true;
         }
@@ -180,9 +235,10 @@ class GridTool : NodeSelect {
     }
 
     override bool onDragUpdate(vec2 mousePos, IncMeshEditorOne impl) {
-        auto implDrawable = cast(IncMeshEditorOneDrawable)(impl);
-        assert(implDrawable !is null);
-        auto mesh = implDrawable.getMesh();
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (mesh is null)
+            return false;
         dragEnd = impl.mousePos;
 
         if (currentAction == GridActionID.TranslateX) {
@@ -193,7 +249,8 @@ class GridTool : NodeSelect {
             meshData.gridAxes = mesh.axes[];
             meshData.regenerateGrid();
             mesh.copyFromMeshData(meshData);
-            impl.refreshMesh();
+            refreshMeshView(impl, mesh);
+            markChanged(impl);
             return true;
         } else if (currentAction == GridActionID.TranslateY) {
             mesh.axes[0][dragTargetYIndex] = mousePos.y;
@@ -203,7 +260,8 @@ class GridTool : NodeSelect {
             meshData.gridAxes = mesh.axes[];
             meshData.regenerateGrid();
             mesh.copyFromMeshData(meshData);
-            impl.refreshMesh();
+            refreshMeshView(impl, mesh);
+            markChanged(impl);
             return true;
         } else if (currentAction == GridActionID.TranslateFree) {
             mesh.axes[0][dragTargetYIndex] = mousePos.y;
@@ -217,7 +275,8 @@ class GridTool : NodeSelect {
             meshData.gridAxes = mesh.axes[];
             meshData.regenerateGrid();
             mesh.copyFromMeshData(meshData);
-            impl.refreshMesh();
+            refreshMeshView(impl, mesh);
+            markChanged(impl);
             return true;
         } else if (currentAction == GridActionID.Create) {
             return true;
@@ -227,9 +286,10 @@ class GridTool : NodeSelect {
     }
 
     bool updateMeshEdit(ImGuiIO* io, IncMeshEditorOne impl, out bool changed) {
-        auto implDrawable = cast(IncMeshEditorOneDrawable)(impl);
-        assert(implDrawable !is null);
-        auto mesh = implDrawable.getMesh();
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (mesh is null)
+            return false;
 
         if (isDragging && incInputIsMouseReleased(ImGuiMouseButton.Left)) {
             onDragEnd(impl.mousePos, impl);
@@ -272,7 +332,8 @@ class GridTool : NodeSelect {
                     meshData.gridAxes = mesh.axes[];
                     meshData.regenerateGrid();
                     mesh.copyFromMeshData(meshData);
-                    impl.refreshMesh();
+                    refreshMeshView(impl, mesh);
+                    markChanged(impl);
                     impl.vtxAtMouse = ulong(-1);
                 }
 
@@ -306,7 +367,8 @@ class GridTool : NodeSelect {
                     meshData.gridAxes = mesh.axes[];
                     meshData.regenerateGrid();
                     mesh.copyFromMeshData(meshData);
-                    impl.refreshMesh();
+                    refreshMeshView(impl, mesh);
+                    markChanged(impl);
                 }
             }
 
@@ -332,10 +394,15 @@ class GridTool : NodeSelect {
     }
 
     override void draw (Camera camera, IncMeshEditorOne impl) {
-        if (currentAction == GridActionID.Create) {
-            vec3[] lines;
-            vec4 color = vec4(0.2, 0.9, 0.9, 1);
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (mesh is null || mesh.axes.length != 2)
+            return;
 
+        vec3[] lines;
+        vec4 color = vec4(0.2, 0.9, 0.9, 1);
+
+        if (currentAction == GridActionID.Create) {
             vec4 bounds = vec4(min(dragOrigin.x, dragEnd.x), min(dragOrigin.y, dragEnd.y),
                                max(dragOrigin.x, dragEnd.x), max(dragOrigin.y, dragEnd.y));
             float width  = bounds.z - bounds.x;
@@ -347,13 +414,23 @@ class GridTool : NodeSelect {
                 lines ~= [vec3(bounds.x, offy, 0), vec3(bounds.z, offy, 0)];
                 lines ~= [vec3(offx, bounds.y, 0), vec3(offx, bounds.w, 0)];
             }
+        } else {
+            float minX = mesh.axes[1][0];
+            float maxX = mesh.axes[1][$ - 1];
+            float minY = mesh.axes[0][0];
+            float maxY = mesh.axes[0][$ - 1];
+
+            foreach (y; mesh.axes[0]) {
+                lines ~= [vec3(minX, y, 0), vec3(maxX, y, 0)];
+            }
+            foreach (x; mesh.axes[1]) {
+                lines ~= [vec3(x, minY, 0), vec3(x, maxY, 0)];
+            }
+        }
+
+        if (lines.length) {
             inDbgSetBuffer(lines);
             inDbgDrawLines(color, mat4.identity());
-
-        } else if (currentAction == GridActionID.TranslateX || currentAction == GridActionID.TranslateY || currentAction == GridActionID.TranslateFree) {
-
-        } else {
-
         }
     }
 }
@@ -373,7 +450,8 @@ class ToolInfoImpl(T: GridTool) : ToolInfoBase!(T) {
             return false;
 
         bool isDrawable = editors.keys.all!(k => cast(Drawable)k !is null);
-        if (isDrawable) {
+        bool isGridDeformer = editors.keys.all!(k => cast(GridDeformer)k !is null);
+        if (isDrawable || isGridDeformer) {
             return super.viewportTools(deformOnly, toolMode, editors);
         }
 
@@ -383,7 +461,7 @@ class ToolInfoImpl(T: GridTool) : ToolInfoBase!(T) {
         if (deformOnly)
             return false;
 
-        return targets.all!(k => cast(Drawable)k !is null);
+        return targets.all!(k => cast(Drawable)k !is null || cast(GridDeformer)k !is null);
     }
     override VertexToolMode mode() { return VertexToolMode.Grid; };
     override string icon() { return "";}
