@@ -97,7 +97,7 @@ public:
     mixin AutoMeshClassInfo!();
     // Bring in unified reflection/UI
     mixin AutoMeshReflection!();
-    override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+    override IncMesh autoMesh(Deformable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
         auto ai = getAlphaInput(target);
         if (ai.w == 0 || ai.h == 0 || ai.img is null) return mesh;

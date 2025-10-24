@@ -7,6 +7,7 @@ import std.json : JSONValue, JSONType; // for JSON building
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import inmath;
 import nijigenerate.core.cv;
 import mir.ndslice;
@@ -59,55 +60,51 @@ public:
         }
     }
 
+    private void rebuildGridMesh(IncMesh mesh, float minX, float maxX, float minY, float maxY, vec2 center) {
+        mesh.clear();
+        mesh.axes = [[], []];
+
+        scaleY.sort!((a, b) => a < b);
+        foreach (y; scaleY)
+            mesh.axes[0] ~= (minY * (1 - y) + maxY * y) - center.y;
+
+        scaleX.sort!((a, b) => a < b);
+        foreach (x; scaleX)
+            mesh.axes[1] ~= (minX * (1 - x) + maxX * x) - center.x;
+
+        MeshData meshData;
+        meshData.gridAxes = mesh.axes[];
+        meshData.regenerateGrid();
+        mesh.copyFromMeshData(meshData);
+    }
+
     // IAutoMeshReflect provided by mixin
     // schema/values/writeValues provided by mixin
     override
-    IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
-        // 1) Branch only for input acquisition
+    IncMesh autoMesh(Deformable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
         auto ai = getAlphaInput(target);
         if (ai.w <= 0 || ai.h <= 0) return mesh;
 
-        // 2) Common: binarize alpha and compute bounding box
         auto imbin = ai.img.sliced[0 .. $, 0 .. $, 3];
         foreach (y; 0 .. imbin.shape[0])
         foreach (x; 0 .. imbin.shape[1])
             imbin[y, x] = imbin[y, x] < cast(ubyte)maskThreshold ? 0 : 255;
 
-        int minX = ai.w, minY = ai.h, maxX = -1, maxY = -1;
+        int minXi = ai.w, minYi = ai.h, maxXi = -1, maxYi = -1;
         foreach (y; 0 .. imbin.shape[0])
         foreach (x; 0 .. imbin.shape[1])
             if (imbin[y, x] > 0) {
                 int xi = cast(int)x;
                 int yi = cast(int)y;
-                if (xi < minX) minX = xi;
-                if (yi < minY) minY = yi;
-                if (xi > maxX) maxX = xi;
-                if (yi > maxY) maxY = yi;
+                if (xi < minXi) minXi = xi;
+                if (yi < minYi) minYi = yi;
+                if (xi > maxXi) maxXi = xi;
+                if (yi > maxYi) maxYi = yi;
             }
-        if (maxX < 0 || maxY < 0) return mesh; // no mask found
+        if (maxXi < 0 || maxYi < 0) return mesh;
 
-        // 3) Common: build grid axes (relative to image center)
-        mesh.clear();
         vec2 imgCenter = alphaImageCenter(ai);
-
-        MeshData meshData;
-        mesh.axes = [[], []];
-
-        // Ensure ascending order for scales
-        scaleY.sort!((a, b) => a < b);
-        // Use standard lerp: (1 - t) * min + t * max
-        foreach (y; scaleY)
-            mesh.axes[0] ~= (minY * (1 - y) + maxY * y) - imgCenter.y;
-
-        scaleX.sort!((a, b) => a < b);
-        foreach (x; scaleX)
-            mesh.axes[1] ~= (minX * (1 - x) + maxX * x) - imgCenter.x;
-
-        meshData.gridAxes = mesh.axes[];
-        meshData.regenerateGrid();
-        mesh.copyFromMeshData(meshData);
-
-        // 4) Common: map to target local coordinates
+        rebuildGridMesh(mesh, cast(float)minXi, cast(float)maxXi, cast(float)minYi, cast(float)maxYi, imgCenter);
         mapImageCenteredMeshToTargetLocal(mesh, target, ai);
         return mesh;
     }

@@ -49,11 +49,10 @@ private:
             if (!grid) {
                 return null;
             }
-            MeshData data;
-            data.vertices = grid.vertices.dup;
-            auto mesh = new IncMesh(data);
+            auto mesh = ngCreateIncMesh(grid.vertices);
             deformableMeshes[deformable] = VirtualMeshContext(mesh);
-            deformable.vertices = mesh.vertices.dup;
+            auto positions = ngMeshPositions(mesh);
+            deformable.vertices = ngMeshVerticesFromPositions(positions);
             deformable.vertexMapDirty = true;
             deformable.refreshMesh();
             return mesh;
@@ -65,7 +64,8 @@ private:
 
     void refreshMeshView(IncMeshEditorOne impl, IncMesh mesh) {
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
-            deformable.vertices = mesh.vertices.dup;
+            auto positions = ngMeshPositions(mesh);
+            deformable.vertices = ngMeshVerticesFromPositions(positions);
             deformable.vertexMapDirty = true;
             deformable.refreshMesh();
         } else {

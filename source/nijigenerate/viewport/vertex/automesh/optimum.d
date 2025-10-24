@@ -62,7 +62,7 @@ public:
     mixin AutoMeshClassInfo!();
     // Bring in unified reflection/UI
     mixin AutoMeshReflection!();
-    override IncMesh autoMesh(Drawable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+    override IncMesh autoMesh(Deformable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
 
         // Convert contours to a vec2 array
         auto contoursToVec2s(ContourType)(ContourType contours) {

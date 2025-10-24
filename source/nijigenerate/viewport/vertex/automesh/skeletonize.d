@@ -37,7 +37,7 @@ private:
     private AlphaPreviewState _alphaPreview;
 
 public:
-    override IncMesh autoMesh(Drawable target, IncMesh mesh,
+    override IncMesh autoMesh(Deformable target, IncMesh mesh,
                               bool mirrorHoriz = false, float axisHoriz = 0,
                               bool mirrorVert = false, float axisVert = 0)
     {
