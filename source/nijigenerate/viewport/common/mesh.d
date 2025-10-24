@@ -23,10 +23,11 @@ import std.algorithm;
 import std.typecons;
 import std.range;
 import nijigenerate.core.math;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 public import nijigenerate.core.math.mesh;
 
 
-import std.algorithm.iteration;
+import std.algorithm.iteration : uniq, map;
 import std.algorithm;
 import std.array;
 import std.range;
@@ -113,7 +114,8 @@ private:
         axes = [];
         float[][] gridAxes;
         if (reset) {
-            if (data.vertices.isGrid(gridAxes)) {
+            auto dataVertices = &data.vertices;
+            if (isGrid(data.vertices, gridAxes)) {
                 foreach (axis; gridAxes) {
                     float[] newAxis;
                     foreach (axValue; axis) {
@@ -648,4 +650,41 @@ public:
     void copyFromMeshData(MeshData data) {
         mImport(data);
     }
+}
+
+IncMesh ngCreateIncMesh(vec2[] positions) {
+    MeshData data;
+    float[][] gridAxes;
+    if (isGrid(positions, gridAxes)) {
+        if (gridAxes[0].length >= 2 && gridAxes[1].length >= 2) {
+            data.gridAxes.length = 2;
+            data.gridAxes = gridAxes;
+            data.regenerateGrid();
+        } else {
+            data.vertices = positions.dup;
+        }
+    } else {
+        data.vertices = positions.dup;
+    }
+    return new IncMesh(data);
+}
+
+vec2[] ngMeshPositions(IncMesh mesh) {
+    vec2[] positions;
+    positions.length = mesh.vertices.length;
+    foreach (i, v; mesh.vertices) {
+        if (v !is null)
+            positions[i] = v.position;
+    }
+    return positions;
+}
+
+MeshVertex*[] ngMeshVerticesFromPositions(const(vec2)[] positions) {
+    MeshVertex*[] result;
+    foreach (pos; positions) {
+        auto mv = new MeshVertex;
+        mv.position = pos;
+        result ~= mv;
+    }
+    return result;
 }

@@ -83,11 +83,11 @@ final class PartAlphaProvider : IAlphaProvider {
 }
 
 /**
- * MeshGroupAlphaProvider (stub): projection-based alpha provider for MeshGroup
+ * DeformableAlphaProvider (stub): projection-based alpha provider for MeshGroup
  * and other composite nodes. This class defines the interface and basic state,
  * and can be extended to perform offscreen rendering and readback.
  */
-final class MeshGroupAlphaProvider : IAlphaProvider {
+final class DeformableAlphaProvider : IAlphaProvider {
     private ubyte[] _alpha;
     private int _w, _h;
     private RectF _bounds;
@@ -97,7 +97,7 @@ final class MeshGroupAlphaProvider : IAlphaProvider {
             _w = _h = 0; _bounds = RectF(0,0,0,0); return;
         }
         auto puppet = meshGroup.puppet is null ? incActivePuppet() : meshGroup.puppet;
-        enforce(puppet !is null, "No active puppet for MeshGroupAlphaProvider");
+        enforce(puppet !is null, "No active puppet for DeformableAlphaProvider");
 
         // Use DynamicComposite to render only target nodes offscreen
         auto r = projectAlphaExec([meshGroup], puppet, opt);
@@ -340,7 +340,7 @@ void alphaPreviewWidget(ref AlphaPreviewState state, ImVec2 size = ImVec2(192, 1
         scope(exit) if (provider) provider.dispose();
         if (nodes.length == 1) {
             if (auto part = cast(Part)nodes[0]) provider = new PartAlphaProvider(part);
-            else provider = new MeshGroupAlphaProvider(nodes[0]);
+            else provider = new DeformableAlphaProvider(nodes[0]);
         } else if (nodes.length > 1) {
             provider = new GenericProjectionAlphaProvider(nodes);
         }

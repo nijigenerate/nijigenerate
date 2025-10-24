@@ -11,6 +11,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.vertex.mesheditor;
+import nijigenerate.viewport.common.mesheditor.operations.impl : IncMeshEditorOneDrawable, IncMeshEditorOneDeformable;
 import nijigenerate.actions;
 public import nijigenerate.viewport.vertex.automesh;
 import nijigenerate.core.input;
@@ -18,6 +19,7 @@ import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.imgui;
 //import std.stdio;
 import std.string;
@@ -207,24 +209,42 @@ public:
             igSameLine(0, 4);
 
             igBeginGroup();
-                void runAutoMesh(Node drawable, IncMeshEditorOneDrawable e) {
-                    if (e !is null) {
+                void runAutoMesh(Node node) {
+                    if (auto drawableEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(node)) {
+                        auto drawable = cast(Drawable)node;
+                        if (!drawable) return;
                         import core.thread.fiber;
                         void worker() {
-                            auto newMesh = ngActiveAutoMeshProcessor.autoMesh(cast(Drawable)drawable, e.getMesh(), e.mirrorHoriz, 0, e.mirrorVert, 0);
-                            e.setMesh(newMesh);
+                            auto newMesh = ngActiveAutoMeshProcessor.autoMesh(drawable, drawableEditor.getMesh(), drawableEditor.mirrorHoriz, 0, drawableEditor.mirrorVert, 0);
+                            drawableEditor.setMesh(newMesh);
                         }
-                        import core.memory: pageSize;
+                        import core.memory : pageSize;
                         auto fib = new Fiber(&worker, pageSize * Fiber.defaultStackPages * 4);
                         while (fib.state != Fiber.State.TERM) {
                             fib.call();
                         }
+                    } else if (auto deformEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(node)) {
+                        auto deform = cast(Deformable)node;
+                        if (!deform) return;
+                        auto mesh = ngCreateIncMesh(deform.vertices);
+                        import core.thread.fiber;
+                        void worker() {
+                            mesh = ngActiveAutoMeshProcessor.autoMesh(deform, mesh, deformEditor.mirrorHoriz, 0, deformEditor.mirrorVert, 0);
+                        }
+                        import core.memory : pageSize;
+                        auto fib = new Fiber(&worker, pageSize * Fiber.defaultStackPages * 4);
+                        while (fib.state != Fiber.State.TERM) {
+                            fib.call();
+                        }
+                        auto positions = ngMeshPositions(mesh);
+                        deformEditor.vertices = ngMeshVerticesFromPositions(positions);
+                        deformEditor.vertexMapDirty = true;
+                        deformEditor.refreshMesh();
                     }
                 }
                 if (incButtonColored("")) {
-                    foreach (drawable; editor.getTargets()) {
-                        auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
-                        runAutoMesh(drawable, e);
+                    foreach (node; editor.getTargets()) {
+                        runAutoMesh(node);
                     }
                     editor.refreshMesh();
                 }
@@ -242,10 +262,9 @@ public:
 
                     // Button which bakes some auto generated content
                     // In this case, a mesh is baked from the triangulation.
-                    if (incButtonColored(__("Bake"),ImVec2(incAvailableSpace().x, 0))) {
-                        foreach (drawable; editor.getTargets()) {
-                            auto e = cast(IncMeshEditorOneDrawable)editor.getEditorFor(drawable);
-                            runAutoMesh(drawable, e);
+                    if (incButtonColored(__("Bake"), ImVec2(incAvailableSpace().x, 0))) {
+                        foreach (node; editor.getTargets()) {
+                            runAutoMesh(node);
                         }
                         editor.refreshMesh();
                     }
@@ -390,18 +409,24 @@ public:
     }
 
     void clear() {
-        foreach (d; editor.getTargets()) {
-            auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d);
-            if (meshEditor !is null)
+        foreach (node; editor.getTargets()) {
+            if (auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(node)) {
                 meshEditor.getMesh().clear();
+            } else if (auto deformEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(node)) {
+                deformEditor.vertices.length = 0;
+                deformEditor.vertexMapDirty = true;
+                deformEditor.refreshMesh();
+            }
         }
     }
 
     void reset() {
-        foreach (d; editor.getTargets()) {
-            auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d);
-            if (meshEditor !is null)
+        foreach (node; editor.getTargets()) {
+            if (auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(node)) {
                 meshEditor.getMesh().reset();
+            } else if (auto deformEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(node)) {
+                deformEditor.resetMesh();
+            }
         }
     }
 }

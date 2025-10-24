@@ -35,7 +35,7 @@ AlphaInput alphaInputFromProviderWithImage(IAlphaProvider provider) {
     return ai;
 }
 
-AlphaInput getAlphaInput(Drawable target) {
+AlphaInput getAlphaInput(Deformable target) {
     AlphaInput ai;
     if (auto part = cast(Part)target) {
         auto tex = part.textures[0];
@@ -53,7 +53,7 @@ AlphaInput getAlphaInput(Drawable target) {
         }
         ai.fromProvider = false;
     } else {
-        auto provider = new MeshGroupAlphaProvider(target);
+        auto provider = new DeformableAlphaProvider(target);
         scope(exit) provider.dispose();
         ai.w = provider.width();
         ai.h = provider.height();
@@ -73,7 +73,7 @@ vec2 alphaImageCenter(AlphaInput ai) {
     return vec2(ai.w / 2, ai.h / 2);
 }
 
-void mapImageCenteredMeshToTargetLocal(ref IncMesh mesh, Drawable target, AlphaInput ai) {
+void mapImageCenteredMeshToTargetLocal(ref IncMesh mesh, Deformable target, AlphaInput ai) {
     // mesh vertices are expected to be relative to image center (imgCenter at (0,0))
     if (ai.fromProvider) {
         mat4 inv = target.transform.matrix.inverse;
