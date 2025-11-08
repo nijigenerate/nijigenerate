@@ -48,17 +48,23 @@ public:
         if (targets.length > 0) {
             foreach (target; targets) {
                 if (Part part = cast(Part)target) {
-                    // Draw albedo texture at 0, 0
-                    auto origin = vec2(0, 0);
-                    if (part.textures[0] !is null) {
-                        if (DynamicComposite dcomposite = cast(DynamicComposite)part) origin = dcomposite.textureOffset;
-                        inDrawTextureAtPosition(part.textures[0], origin);
-                    } else {
-                        mat4 transform = part.transform.matrix.inverse;
-                        part.setOneTimeTransform(&transform);
-                        part.drawOne();
-                        part.setOneTimeTransform(null);
+                    mat4 transform = part.transform.matrix.inverse;
+                    auto originalDeform = part.deformation.dup;
+                    scope(exit) {
+                        part.deformation = originalDeform;
+                        part.refreshDeform();
                     }
+                    if (part.deformation.length != part.vertices.length) {
+                        part.deformation.length = part.vertices.length;
+                    }
+                    foreach (ref d; part.deformation) {
+                        d = vec2(0, 0);
+                    }
+                    part.refreshDeform();
+
+                    part.setOneTimeTransform(&transform);
+                    part.drawOne();
+                    part.setOneTimeTransform(null);
                 } else if (target.coverOthers()) {
                     mat4 transform = target.transform.matrix.inverse;
                     target.setOneTimeTransform(&transform);
