@@ -19,6 +19,8 @@ import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.render.immediate : inDrawTextureAtPosition;
+import nijilive.core.texture : Texture;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.imgui;
 //import std.stdio;
@@ -48,7 +50,6 @@ public:
         if (targets.length > 0) {
             foreach (target; targets) {
                 if (Part part = cast(Part)target) {
-                    mat4 transform = part.transform.matrix.inverse;
                     auto originalDeform = part.deformation.dup;
                     scope(exit) {
                         part.deformation = originalDeform;
@@ -62,9 +63,16 @@ public:
                     }
                     part.refreshDeform();
 
-                    part.setOneTimeTransform(&transform);
-                    part.drawOne();
-                    part.setOneTimeTransform(null);
+                    Texture baseTexture = part.textures.length ? part.textures[0] : null;
+                    if (baseTexture !is null) {
+                        vec2 texturePosition = -part.getMesh().origin;
+                        inDrawTextureAtPosition(baseTexture, texturePosition, part.opacity, part.tint, part.screenTint);
+                    } else {
+                        mat4 transform = part.transform.matrix.inverse;
+                        part.setOneTimeTransform(&transform);
+                        part.drawOne();
+                        part.setOneTimeTransform(null);
+                    }
                 } else if (target.coverOthers()) {
                     mat4 transform = target.transform.matrix.inverse;
                     target.setOneTimeTransform(&transform);
