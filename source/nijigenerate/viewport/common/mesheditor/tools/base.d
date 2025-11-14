@@ -12,7 +12,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;

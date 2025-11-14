@@ -18,6 +18,8 @@ import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate;
 import nijigenerate.viewport.common.mesheditor.tools.onetimedeform;
 import nijilive;
+import nijilive.math : Vec2Array, Vec3Array;
+import nijilive.math : Vec2Array;
 import std.format;
 import std.range;
 import std.algorithm;
@@ -35,7 +37,7 @@ class DeformationAction  : LazyBoundAction {
     Node       target;
     DeformationParameterBinding    deform;
     bool isSet;
-    vec2[] vertices;
+    Vec2Array vertices;
     vec2u  keypoint;
     bool bindingAdded;
     bool undoable = true;
@@ -96,7 +98,7 @@ class DeformationAction  : LazyBoundAction {
             deform       = null;
             bindingAdded = false;
             dirty        = false;
-            vertices     = null;
+            vertices.length = 0;
             isSet        = false;
         } else {
             param        = incArmedParameter();
@@ -124,10 +126,10 @@ class DeformationAction  : LazyBoundAction {
         writefln("undo %s, %s", cast(void*)this, target ? target.name: "<null>");
         resolveCurrentFilter();
         if (undoable) {
-            if (vertices) {
+            if (vertices.length) {
                 if (deform !is null) {
                     writefln(" execute undo");
-                    vec2[] tmpVertices = vertices;
+                    auto tmpVertices = vertices;
                     bool   tmpIsSet    = isSet;
                     vertices = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
                     isSet    = deform.isSet_[keypoint.x][keypoint.y];
@@ -141,11 +143,10 @@ class DeformationAction  : LazyBoundAction {
                 if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        vec2[] offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
+                        auto offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
                         size_t targetLen = self.getOffsets().length;
                         if (offs.length != targetLen) {
-                            vec2[] resized;
-                            resized.length = targetLen;
+                            auto resized = Vec2Array(targetLen);
                             size_t n = offs.length < targetLen ? offs.length : targetLen;
                             foreach (i; 0..n) resized[i] = offs[i];
                             foreach (i; n..targetLen) resized[i] = vec2(0);
@@ -165,9 +166,9 @@ class DeformationAction  : LazyBoundAction {
     void redo() {
         resolveCurrentFilter();
         if (!undoable) {
-            if (vertices) {
+            if (vertices.length) {
                 if (deform !is null) {
-                    vec2[] tmpVertices = vertices;
+                    auto tmpVertices = vertices;
                     bool   tmpIsSet    = isSet;
                     vertices = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
                     isSet    = deform.isSet_[keypoint.x][keypoint.y];
@@ -181,11 +182,10 @@ class DeformationAction  : LazyBoundAction {
                 if (self !is null && self.getTarget() == this.target) {
                     self.resetMesh();
                     if (deform !is null) {
-                        vec2[] offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
+                        auto offs = deform.values[keypoint.x][keypoint.y].vertexOffsets.dup;
                         size_t targetLen = self.getOffsets().length;
                         if (offs.length != targetLen) {
-                            vec2[] resized;
-                            resized.length = targetLen;
+                            auto resized = Vec2Array(targetLen);
                             size_t n = offs.length < targetLen ? offs.length : targetLen;
                             foreach (i; 0..n) resized[i] = offs[i];
                             foreach (i; n..targetLen) resized[i] = vec2(0);
@@ -420,14 +420,18 @@ public:
     SplinePoint[] oldTargetPathPoints;
     SplinePoint[] newPathPoints;
     SplinePoint[] newTargetPathPoints;
-    vec2[] oldInitTangents;
-    vec2[] newInitTangents;
-    vec3[] oldRefOffsets;
-    vec3[] newRefOffsets;
+    Vec2Array oldInitTangents;
+    Vec2Array newInitTangents;
+    Vec3Array oldRefOffsets;
+    Vec3Array newRefOffsets;
     ulong[] oldSelected;
     ulong[] newSelected;
-    vec2[] oldDeformation;
-    vec2[] newDeformation;
+    Vec2Array oldDeformation;
+    Vec2Array newDeformation;
+    bool hasOldInitTangents;
+    bool hasOldRefOffsets;
+    bool hasOldDeformation;
+    bool hasNewDeformation;
     float oldOrigX, oldOrigY, oldOrigRotZ;
     float newOrigX, newOrigY, newOrigRotZ;
     
@@ -447,25 +451,35 @@ public:
         if (path !is null) {
             oldPathPoints = path.points.dup;
             oldInitTangents = path.initTangents.dup;
+            hasOldInitTangents = true;
             oldRefOffsets = path.refOffsets.dup;
+            hasOldRefOffsets = true;
             oldOrigX = path.origX;
             oldOrigY = path.origY;
             oldOrigRotZ = path.origRotZ;
         } else {
             oldPathPoints = null;
-            oldInitTangents = null;
-            oldRefOffsets = null;
+            oldInitTangents = Vec2Array.init;
+            hasOldInitTangents = false;
+            oldRefOffsets = Vec3Array.init;
+            hasOldRefOffsets = false;
             oldOrigX = 0;
             oldOrigY = 0;
             oldOrigRotZ = 0;
         }
         if (self !is null) {
             oldSelected = self.selected;
-            if (selfDeform !is null)
-                oldDeformation = selfDeform.deformation;
+            if (selfDeform !is null) {
+                oldDeformation = selfDeform.deformation.dup;
+                hasOldDeformation = true;
+            } else {
+                oldDeformation = Vec2Array.init;
+                hasOldDeformation = false;
+            }
         } else {
             oldSelected = null;
-            oldDeformation = null;
+            oldDeformation = Vec2Array.init;
+            hasOldDeformation = false;
         }
 
         if (this.path && this.path.target !is null)
@@ -487,8 +501,17 @@ public:
         }
         if (self !is null) {
             newSelected = self.selected;
-            if (selfDeform !is null)
-                newDeformation = selfDeform.deformation;
+            if (selfDeform !is null) {
+                newDeformation = selfDeform.deformation.dup;
+                hasNewDeformation = true;
+            } else {
+                newDeformation = Vec2Array.init;
+                hasNewDeformation = false;
+            }
+        } else {
+            newSelected = null;
+            newDeformation = Vec2Array.init;
+            hasNewDeformation = false;
         }
         if (path !is null && path.target !is null) 
             newTargetPathPoints = path.target.points.dup;        
@@ -500,29 +523,44 @@ public:
         if (path !is null) {
             oldPathPoints = path.points.dup;
             oldInitTangents = path.initTangents.dup;
+            hasOldInitTangents = true;
             oldRefOffsets = path.refOffsets.dup;
+            hasOldRefOffsets = true;
             oldOrigX = path.origX;
             oldOrigY = path.origY;
             oldOrigRotZ = path.origRotZ;
         } else {
             oldPathPoints = null;
-            oldInitTangents = null;
+            oldInitTangents = Vec2Array.init;
+            hasOldInitTangents = false;
+            oldRefOffsets = Vec3Array.init;
+            hasOldRefOffsets = false;
             oldOrigX = 0;
             oldOrigY = 0;
             oldOrigRotZ = 0;
         }
         if (self !is null) {
             oldSelected = self.selected;
-            if (selfDeform !is null)
-                oldDeformation = selfDeform.deformation;
+            if (selfDeform !is null) {
+                oldDeformation = selfDeform.deformation.dup;
+                hasOldDeformation = true;
+            } else {
+                oldDeformation = Vec2Array.init;
+                hasOldDeformation = false;
+            }
+        } else {
+            oldSelected = null;
+            oldDeformation = Vec2Array.init;
+            hasOldDeformation = false;
         }
-        else oldSelected = null;
         if (path !is null && path.target !is null)
             oldTargetPathPoints = path.target.points.dup;
         else
             oldTargetPathPoints = null;
         newPathPoints = null;
         newTargetPathPoints = null;
+        newDeformation = Vec2Array.init;
+        hasNewDeformation = false;
     }
 
     /**
@@ -544,7 +582,7 @@ public:
             if (oldSelected !is null) {
                 self.selected = oldSelected.dup;
             }
-            if (oldDeformation !is null)
+            if (hasOldDeformation)
                 selfDeform.deformation = oldDeformation.dup;
             if (oldTargetPathPoints !is null && oldTargetPathPoints.length > 0 && path !is null && path.target !is null) {
                 path.target.points = oldTargetPathPoints.dup;
@@ -572,7 +610,7 @@ public:
             if (newSelected !is null) {
                 self.selected = newSelected.dup;
             }
-            if (newDeformation !is null)
+            if (hasNewDeformation)
                 selfDeform.deformation = newDeformation.dup;
             if (newTargetPathPoints !is null && newTargetPathPoints.length > 0 && path !is null && path.target !is null) {
                 path.target.points = newTargetPathPoints.dup;

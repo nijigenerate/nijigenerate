@@ -17,7 +17,7 @@ import i18n;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import nijilive.math;
 import bindbc.imgui;
 import nijigenerate.widgets;
@@ -94,7 +94,7 @@ class EdgeCutterTool : NodeSelect {
     override void draw(Camera camera, IncMeshEditorOne impl) {
         super.draw(camera, impl);
         if (!isDragging) return;
-        vec3[] lines = [vec3(dragOrigin, 0), vec3(dragEnd, 0)];
+        Vec3Array lines = [vec3(dragOrigin, 0), vec3(dragEnd, 0)];
         inDbgSetBuffer(lines);
         inDbgLineWidth(3);
         inDbgDrawLines(vec4(0, 0, 0, 1), mat4.identity());

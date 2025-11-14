@@ -69,7 +69,7 @@ class SetDeformBindingCommand : ExCommand!(
             ParameterBinding[]            newlyAdded;
 
             // Pre-parse deform offsets if applicable
-            vec2[] offsets;
+            Vec2Array offsets;
             bool hasOffsets = (values.length >= 2) && (values.length % 2 == 0);
             if (hasOffsets) {
                 offsets.length = values.length / 2;

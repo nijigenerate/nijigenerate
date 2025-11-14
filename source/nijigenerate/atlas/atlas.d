@@ -41,7 +41,7 @@ private {
 
             inSetBlendMode(blendMode);
 
-            vec2[] bufData = [
+            Vec2Array bufData = [
                 vec2(where.left,    where.top),
                 vec2(uvs.left,      uvs.top),
                 vec2(where.left,    where.bottom),
@@ -57,7 +57,8 @@ private {
                 vec2(uvs.right,     uvs.bottom),
             ];
             glBindBuffer(GL_ARRAY_BUFFER, writeVBO);
-            glBufferData(GL_ARRAY_BUFFER, bufData.length*vec2.sizeof, bufData.ptr, GL_DYNAMIC_DRAW);
+            auto bufAoS = bufData.toArray();
+            glBufferData(GL_ARRAY_BUFFER, bufAoS.length*vec2.sizeof, bufAoS.ptr, GL_DYNAMIC_DRAW);
 
             glEnableVertexAttribArray(0);
             glEnableVertexAttribArray(1);
@@ -152,7 +153,8 @@ public:
 
         // Calculate how much of the texture is actually used in UV coordinates
         vec4 uvArea = vec4(1, 1, 0, 0);
-        foreach(vec2 uv; mesh.uvs) {
+        foreach (uvVal; mesh.uvs) {
+            vec2 uv = uvVal.toVector();
             if (uv.x < uvArea.x) uvArea.x = uv.x;
             if (uv.y < uvArea.y) uvArea.y = uv.y;
             if (uv.x > uvArea.z) uvArea.z = uv.x;

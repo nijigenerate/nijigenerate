@@ -4,6 +4,7 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
+import nijilive.math : Vec2Array;
 import std.format;
 import i18n;
 
@@ -20,7 +21,7 @@ private:
     }
 public:
     struct DeformableState {
-        vec2[] vertices;
+        Vec2Array vertices;
     }
 
     Deformable self;

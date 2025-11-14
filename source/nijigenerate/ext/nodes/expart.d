@@ -53,22 +53,23 @@ public:
    Creates a basic ExPart
 */
 ExPart incCreateExPart(Texture tex, Node parent = null, string name = "New Part") {
-	MeshData data = MeshData([
+	MeshData data;
+	data.vertices = Vec2Array([
 		vec2(-(tex.width/2), -(tex.height/2)),
 		vec2(-(tex.width/2), tex.height/2),
 		vec2(tex.width/2, -(tex.height/2)),
 		vec2(tex.width/2, tex.height/2),
-	], 
-	[
+	]);
+	data.uvs = Vec2Array([
 		vec2(0, 0),
 		vec2(0, 1),
 		vec2(1, 0),
 		vec2(1, 1),
-	],
-	[
+	]);
+	data.indices = [
 		0, 1, 2,
 		2, 1, 3
-	]);
+	];
 	ExPart p = new ExPart(data, [tex], parent);
 	p.name = name;
     return p;

@@ -19,7 +19,7 @@ import nijigenerate.widgets;
 import nijigenerate.widgets.texture;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import nijilive.core.diff_collect : DifferenceEvaluationRegion;
 import nijilive.core : inGetDifferenceAggregationRegion;
 import bindbc.opengl;
@@ -809,9 +809,9 @@ class BrushTool : NodeSelect {
         vec4 worsenColor = vec4(1, 0, 0, 0.8f);
         vec4 unchangedColor = vec4(0.6f, 0.6f, 0.6f, 0.8f);
 
-        vec3[] improvedPoints;
-        vec3[] worsenedPoints;
-        vec3[] unchangedPoints;
+        Vec3Array improvedPoints;
+        Vec3Array worsenedPoints;
+        Vec3Array unchangedPoints;
 
         foreach (int ty; 0 .. TileColumns) {
             foreach (int tx; 0 .. TileColumns) {

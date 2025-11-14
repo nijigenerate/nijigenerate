@@ -20,7 +20,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;

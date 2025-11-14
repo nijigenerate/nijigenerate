@@ -19,7 +19,7 @@ import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 //import std.stdio;
@@ -306,10 +306,10 @@ public:
                 if (deform is null) return;
                 auto kp = parameter.findClosestKeypoint();
                 auto binding = deform.getValue(kp);
-                vec2[] offs = binding.vertexOffsets.dup;
+                Vec2Array offs = binding.vertexOffsets.dup;
                 size_t targetLen = fDefImpl.getOffsets().length;
                 if (offs.length != targetLen) {
-                    vec2[] resized;
+                    Vec2Array resized;
                     resized.length = targetLen;
                     size_t n = offs.length < targetLen ? offs.length : targetLen;
                     foreach (i; 0..n) resized[i] = offs[i];

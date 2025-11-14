@@ -18,7 +18,7 @@ import nijigenerate.panels;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.imgui;
 import std.string;
 import i18n;

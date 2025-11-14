@@ -17,7 +17,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -324,8 +324,13 @@ class BezierDeformTool : NodeSelect {
 
                 auto insertAction = new VertexInsertAction(impl.getTarget().name, impl);
                 if (auto path = cast(PathDeformer)impl.getTarget()) {
-                    auto curve = path.createCurve(deformImpl.vertices.map!(v=>v.position).array);
-                    auto relVertices = deformImpl.vertices.map!(v=>curve.closestPoint(v.position)).array;
+                    auto vertsAoS = deformImpl.vertices.map!(v => v.position).array;
+                    auto curve = path.createCurve(Vec2Array(vertsAoS));
+                    float[] relVertices;
+                    relVertices.length = deformImpl.vertices.length;
+                    foreach (i, vtx; deformImpl.vertices) {
+                        relVertices[i] = curve.closestPoint(vtx.position);
+                    }
                     float relNew = curve.closestPoint(impl.mousePos);
                     vec2 newPos = curve.point(relNew);
                     bool inserted = false;
@@ -442,7 +447,8 @@ class BezierDeformTool : NodeSelect {
                 if (auto path = cast(PathDeformer)impl.getTarget()) {
                     if (origCurve.isNull || origCurvePoint != incArmedParameter().findClosestKeypoint()) {
                         origCurvePoint = incArmedParameter().findClosestKeypoint();
-                        origCurve = path.createCurve(deformImpl.vertices.map!(i=>i.position).array);
+                        auto vertsAoS = deformImpl.vertices.map!(i => i.position).array;
+                        origCurve = path.createCurve(Vec2Array(vertsAoS));
                     }
                     vec2 pos = origCurve.get.point(origCurve.get.closestPoint(impl.mousePos));
                     deformImpl.vertices[impl.selected[0]].position = pos;
@@ -508,7 +514,7 @@ class BezierDeformTool : NodeSelect {
         auto deformImpl = cast(IncMeshEditorOneDeformable)impl;
         super.draw(camera, impl);
         if (lockedPoint != ulong(-1)) {
-            vec3[] drawPoints = [vec3(deformImpl.vertices[lockedPoint].position, 0)];
+            Vec3Array drawPoints = [vec3(deformImpl.vertices[lockedPoint].position, 0)];
             inDbgSetBuffer(drawPoints);
             inDbgPointsSize(4);
             inDbgDrawPoints(vec4(0, 1, 0, 1), impl.transform);

@@ -574,14 +574,19 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
     }
 }
 
+import nijigenerate.core.math.vertex : position;
+
 ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
     ptrdiff_t[] indices;
+    auto counterVerts = counterDrawable.vertices.toArray();
     foreach (i, v; node.vertices) {
-        auto vv = (node.transform.matrix * vec4(v, 0, 1)).xy;
-        auto minDistance = counterDrawable.vertices.enumerate.minElement!((a)=>((counterDrawable.transform.matrix * vec4(a.value, 0, 1))).xy.distance(vv))();
-        auto dist = (counterDrawable.transform.matrix * vec4(minDistance[1], 0, 1)).xy.distance(vv);
+        auto vv = (node.transform.matrix * vec4(position(v), 0, 1)).xy;
+        auto minDistance = counterVerts.enumerate.minElement!(
+            (a)=>((counterDrawable.transform.matrix * vec4(a.value, 0, 1))).xy.distance(vv)
+        )();
+        auto dist = (counterDrawable.transform.matrix * vec4(minDistance.value, 0, 1)).xy.distance(vv);
         if (dist < 4) {
-            indices ~= minDistance[0];
+            indices ~= minDistance.index;
         } else {
             indices ~= -1;
         }

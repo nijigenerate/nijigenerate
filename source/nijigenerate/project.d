@@ -1,7 +1,7 @@
 module nijigenerate.project;
 
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import nijilive.core.nodes.common;
 //import nijigenerate.core;
 import nijigenerate.core.settings;

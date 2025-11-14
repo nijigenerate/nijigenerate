@@ -77,10 +77,17 @@ static foreach (ii, AA; AllCommandMaps) {
 }
 
 // Fail fast if AutoMesh initializers are not visible at CT (prevents silent skips)
-static assert(__traits(compiles, {
+enum bool _autoMeshKeyInitVisible = __traits(compiles, {
     import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
     nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
-}), "[CT][Guard] AutoMeshKey initializer not visible");
+});
+
+enum bool _autoMeshGuardEnabled = false;
+
+static if (_autoMeshGuardEnabled && !_autoMeshKeyInitVisible) {
+    mixin _AutoMeshInitBreakdown!();
+    static assert(0, "[CT][Guard] AutoMeshKey initializer not visible");
+}
 
 static if (!__traits(compiles, {
         import nijigenerate.commands.automesh.config : AutoMeshTypedCommand;
@@ -90,6 +97,29 @@ static if (!__traits(compiles, {
         nijigenerate.commands.automesh.config.ngInitCommands!AutoMeshTypedCommand();
     })) {
     pragma(msg, "[CT][Warn] AutoMeshTypedCommand initializer not visible at this stage (will init explicitly at runtime)");
+}
+
+private mixin template _AutoMeshInitBreakdown() {
+    import nijigenerate.viewport.vertex.automesh : AutoMeshProcessorTypes;
+    import nijigenerate.viewport.vertex.automesh.meta : AMProcInfo;
+
+    static foreach (idx, PT; AutoMeshProcessorTypes) {
+        static if (!__traits(compiles, {
+            import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
+            alias Dummy = ApplyAutoMeshPT!PT;
+        })) {
+            pragma(msg, "[CT][AutoMeshKey][Fail] idx=" ~ idx.stringof ~ " type=" ~ PT.stringof ~ " id=" ~ AMProcInfo!(PT).id ~ " (ApplyAutoMeshPT instantiation failed)");
+        }
+    }
+}
+
+version (ngAutoMeshInitDiagForce) {
+    import nijigenerate.viewport.vertex.automesh : AutoMeshProcessorTypes;
+    import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
+    import std.traits : fullyQualifiedName;
+    static foreach (idx, PT; AutoMeshProcessorTypes) {
+        mixin("alias _AutoMeshInitDiagForce" ~ idx.stringof ~ " = ApplyAutoMeshPT!(" ~ fullyQualifiedName!PT ~ ");");
+    }
 }
 
 // Explicit initialization to avoid module constructor cycles

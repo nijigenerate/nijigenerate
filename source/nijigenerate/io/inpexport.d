@@ -340,7 +340,7 @@ void incINPExportFinalizePacking(ref Puppet source, Atlas[] atlasses) {
 
                 // This will remap the UV coordinates of the part
                 // To 0..1 range if need be.
-                vec2[] uvs = part.getMesh().uvs.dup;
+                auto uvs = part.getMesh().uvs.dup.toArray();
                 vec4 uvArea = vec4(1, 1, 0, 0);
                 foreach(vec2 uv; uvs) {
                     if (uv.x < uvArea.x) uvArea.x = uv.x;
@@ -361,7 +361,7 @@ void incINPExportFinalizePacking(ref Puppet source, Atlas[] atlasses) {
                 }
 
                 // Apply our UVs
-                part.getMesh().uvs = uvs;
+                part.getMesh().uvs = Vec2Array(uvs);
 
                 // Finally apply our atlas textures to the part
                 foreach(i; 0..TextureUsage.COUNT) {

@@ -25,7 +25,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -71,15 +71,15 @@ public:
     override void mergeMesh(ref MeshData data, mat4 matrix) {}
 
     override
-    void applyOffsets(vec2[] offsets) {
+    void applyOffsets(Vec2Array offsets) {
         assert(deformOnly);
         translation = offsets[0];
     }
 
     override
-    vec2[] getOffsets() {
+    Vec2Array getOffsets() {
         assert(deformOnly);
-        return [translation];
+        return Vec2Array([translation]);
     }
 
     override
@@ -317,7 +317,7 @@ public:
     void draw(Camera camera) {
 
         if (isSelecting) {
-            vec3[] rectLines = incCreateRectBuffer(selectOrigin, mousePos);
+            Vec3Array rectLines = incCreateRectBuffer(selectOrigin, mousePos);
             inDbgSetBuffer(rectLines);
         }
 

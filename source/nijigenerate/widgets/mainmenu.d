@@ -21,7 +21,7 @@ import nijigenerate.io.autosave;
 import nijigenerate.io.save;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import nijigenerate.viewport.common.mesheditor.brushstate;
 
 import i18n;

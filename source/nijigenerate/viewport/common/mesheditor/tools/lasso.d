@@ -18,7 +18,7 @@ import nijigenerate : EditMode, incEditMode;
 import i18n;
 import bindbc.imgui;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import std.algorithm.mutation : swap;
 import std.algorithm;
 import std.array;
@@ -74,7 +74,7 @@ class LassoIO {
 
 class LassoTool : NodeSelect {
 private:
-    vec2[] lassoPoints;
+    Vec2Array lassoPoints;
     size_t[] rollbackCheckpoints;
 
 public:
@@ -114,7 +114,8 @@ public:
         if (lassoPoints.length < 2 * 2)
             return;
 
-        auto indices = impl.filterVertices((MeshVertex* v) => pointInPolygon(v, lassoPoints, impl.getGroupId));
+        auto lassoAoS = lassoPoints.toArray();
+        auto indices = impl.filterVertices((MeshVertex* v) => pointInPolygon(v, lassoAoS, impl.getGroupId));
 
         // check if the point is inside the lasso polygon
         if (!addSelect && !removeSelect)
@@ -218,17 +219,20 @@ public:
         vec2 mousePos = impl.mousePos;
         size_t p = isClosestToStart(mousePos);
         if (p != -1) {
-            inDbgSetBuffer([vec3(lassoPoints[p], 0)]);
+            inDbgSetBuffer([vec3(lassoPoints[p].toVector(), 0)]);
             inDbgPointsSize(10);
             inDbgDrawPoints(vec4(1, 0, 0, 1), transform);
         } else if (lassoType == LassoType.PolyLasso) {
             // draw the first point to hint the user to close the polygon
-            inDbgSetBuffer([vec3(lassoPoints[0], 0)]);
+            inDbgSetBuffer([vec3(lassoPoints[0].toVector(), 0)]);
             inDbgPointsSize(7);
             inDbgDrawPoints(vec4(0.6, 0.6, 0.6, 0.6), transform);
         }
 
-        inDbgSetBuffer((lassoPoints ~ [lassoPoints[$ - 1], impl.mousePos]).map!((i)=>vec3(i, 0)).array);
+        auto lassoAoS = lassoPoints.toArray();
+        auto preview = lassoAoS ~ [lassoAoS[$ - 1], impl.mousePos];
+        auto previewLines = preview.map!(i => vec3(i, 0)).array;
+        inDbgSetBuffer(Vec3Array(previewLines));
         inDbgLineWidth(3);
         inDbgDrawLines(vec4(.0, .0, .0, 1), transform);
         inDbgLineWidth(1);

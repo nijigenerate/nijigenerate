@@ -249,9 +249,13 @@ private string _genTwListForLevel(alias PT, AutoMeshLevel levelV)()
     static foreach (mname; __traits(allMembers, PT)) {{
         static if (__traits(compiles, __traits(getMember, PT, mname))) {{
             AMParam p; bool hasParam = false; AMEnum e; bool hasEnum = false;
-            foreach (attr; __traits(getAttributes, __traits(getMember, PT, mname))) {
-                static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
-                static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
+            enum bool _isFunctionMember = __traits(compiles, __traits(getOverloads, PT, mname));
+            static if (!_isFunctionMember) {
+                alias Member = __traits(getMember, PT, mname);
+                foreach (attr; __traits(getAttributes, Member)) {
+                    static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
+                    static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
+                }
             }
             if (hasParam && p.level == levelV) {
                 static if (is(typeof(__traits(getMember, PT, mname)) == float)) {
@@ -276,9 +280,13 @@ private string _genSettersForLevel(alias PT, AutoMeshLevel levelV)()
     static foreach (mname; __traits(allMembers, PT)) {{
         static if (__traits(compiles, __traits(getMember, PT, mname))) {{
             AMParam p; bool hasParam = false; AMEnum e; bool hasEnum = false;
-            foreach (attr; __traits(getAttributes, __traits(getMember, PT, mname))) {
-                static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
-                static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
+            enum bool _isFunctionMember = __traits(compiles, __traits(getOverloads, PT, mname));
+            static if (!_isFunctionMember) {
+                alias Member = __traits(getMember, PT, mname);
+                foreach (attr; __traits(getAttributes, Member)) {
+                    static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
+                    static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
+                }
             }
             if (hasParam && p.level == levelV) {
                 static if (is(typeof(__traits(getMember, PT, mname)) == float)) {

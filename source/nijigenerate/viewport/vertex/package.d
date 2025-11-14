@@ -58,8 +58,8 @@ public:
                     if (part.deformation.length != part.vertices.length) {
                         part.deformation.length = part.vertices.length;
                     }
-                    foreach (ref d; part.deformation) {
-                        d = vec2(0, 0);
+                    foreach (i; 0 .. part.deformation.length) {
+                        part.deformation[i] = vec2(0, 0);
                     }
                     part.refreshDeform();
 

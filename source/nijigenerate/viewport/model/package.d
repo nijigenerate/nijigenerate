@@ -21,7 +21,7 @@ import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.imgui;
 import i18n;
 //import std.stdio;
@@ -80,7 +80,7 @@ public:
                         void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
                             if (curve is null || curve.controlPoints.length == 0)
                                 return;
-                            vec3[] lines;
+                            Vec3Array lines;
                             foreach (i; 1..100) {
                                 lines ~= vec3(curve.point((i - 1) / 100.0), 0);
                                 lines ~= vec3(curve.point(i / 100.0), 0);
@@ -93,10 +93,10 @@ public:
                         drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 0.5, 0.5, 1));
                         drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
                         debug(path_deform) {
-                            void drawLines2(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
+                            void drawLines2(Vec2Array[Node] closestPoints, mat4 trans, vec4 color) {
                                 if (closestPoints.length == 0)
                                     return;
-                                vec3[] lines;
+                                Vec3Array lines;
                                 foreach (t2, deformed; closestPoints) {
                                     if (auto deformable2 = cast(Deformable)t2) {
                                         mat4 conv = trans.inverse * deformable2.transform.matrix;
@@ -112,15 +112,18 @@ public:
                                 }
                             }
                             drawLines2(deformable.closestPointsOriginal, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
-                            void drawLines3(vec2[][Node] closestPoints, mat4 trans, vec4 color) {
+                            void drawLines3(Vec2Array[Node] closestPoints, mat4 trans, vec4 color) {
                                 if (closestPoints.length == 0)
                                     return;
-                                vec3[] lines;
+                                Vec3Array lines;
                                 foreach (t, deformed; closestPoints) {
                                     if (auto deformable2 = cast(Deformable)t) {
                                         mat4 conv = trans.inverse * deformable2.transform.matrix;
-                                        import std.range;
-                                        foreach (i, v; zip(deformable2.vertices, deformable2.deformation).map!((t)=>t[0] + t[1]).array) {
+                                        auto vertCount = deformable2.vertices.length;
+                                        auto deformCount = deformable2.deformation.length;
+                                        foreach (i; 0 .. vertCount) {
+                                            vec2 v = deformable2.vertices[i].toVector();
+                                            if (i < deformCount) v += deformable2.deformation[i].toVector();
                                             lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
                                             lines ~= vec3(deformed[i], 0);
                                         }
@@ -136,8 +139,9 @@ public:
                     } else if (auto grid = cast(GridDeformer)selectedNode) {
                         auto baseVerts = grid.vertices;
                         if (baseVerts.length >= 4) {
-                            auto xs = baseVerts.map!(v => v.x).array;
-                            auto ys = baseVerts.map!(v => v.y).array;
+                            auto baseVertsAoS = baseVerts.toArray();
+                            auto xs = baseVertsAoS.map!(v => v.x).array;
+                            auto ys = baseVertsAoS.map!(v => v.y).array;
                             xs.sort();
                             ys.sort();
                             xs = xs.uniq.array;
@@ -146,23 +150,23 @@ public:
                             size_t rows = ys.length;
                             bool haveDeform = grid.deformation.length == baseVerts.length;
                             if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
-                                vec3[] lines;
+                                Vec3Array lines;
                                 foreach (y; 0 .. rows) {
                                     foreach (x; 0 .. cols) {
                                         size_t idx = y * cols + x;
-                                        vec2 startPos = baseVerts[idx];
+                                        vec2 startPos = baseVertsAoS[idx];
                                         if (haveDeform) startPos += grid.deformation[idx];
                                         auto start = vec3(startPos, 0);
                                         if (x + 1 < cols) {
                                             size_t nextIdx = idx + 1;
-                                            vec2 rightPos = baseVerts[nextIdx];
+                                            vec2 rightPos = baseVertsAoS[nextIdx];
                                             if (haveDeform) rightPos += grid.deformation[nextIdx];
                                             lines ~= start;
                                             lines ~= vec3(rightPos, 0);
                                         }
                                         if (y + 1 < rows) {
                                             size_t nextIdx = idx + cols;
-                                            vec2 downPos = baseVerts[nextIdx];
+                                            vec2 downPos = baseVertsAoS[nextIdx];
                                             if (haveDeform) downPos += grid.deformation[nextIdx];
                                             lines ~= start;
                                             lines ~= vec3(downPos, 0);

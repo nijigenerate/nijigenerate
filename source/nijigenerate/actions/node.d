@@ -12,6 +12,7 @@ import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.actions.binding : ParameterBindingAllValueChangeAction;
 import nijigenerate;
 import nijilive;
+import nijilive.math : Vec2Array;
 import nijilive.core.param.binding : DeformationParameterBinding;
 import nijilive.core.nodes.deformable : Deformable;
 import nijilive.core.nodes.drawable : Drawable;
@@ -213,8 +214,8 @@ class NodeReplaceAction : Action {
         if (recordActions)
             bindingReorderActions.length = 0;
 
-        vec2[] collectVertices(Node node) {
-            vec2[] result;
+        Vec2Array collectVertices(Node node) {
+            Vec2Array result;
             if (auto deformable = cast(Deformable)node) {
                 result = deformable.vertices.dup;
             } else if (auto drawable = cast(Drawable)node) {
@@ -223,7 +224,7 @@ class NodeReplaceAction : Action {
             return result;
         }
 
-        size_t[] buildRemap(const(vec2)[] oldVerts, const(vec2)[] newVerts) {
+        size_t[] buildRemap(const Vec2Array oldVerts, const Vec2Array newVerts) {
             enum float tol = 1e-4f;
             if (oldVerts.length == 0 || oldVerts.length != newVerts.length) return [];
             size_t[] remap;
@@ -262,17 +263,16 @@ class NodeReplaceAction : Action {
                                 bool needsReInterpolate = false;
                                 foreach (x; 0 .. deformBinding.values.length) {
                                     foreach (y; 0 .. deformBinding.values[x].length) {
-                                        auto offsets = deformBinding.values[x][y].vertexOffsets;
+                                        auto offsets = deformBinding.values[x][y].vertexOffsets.dup;
                                         if (offsets.length != remap.length) {
                                             offsets.length = remap.length;
-                                            foreach (ref v; offsets) {
-                                                v = vec2(0, 0);
+                                            foreach (i; 0 .. offsets.length) {
+                                                offsets[i] = vec2(0, 0);
                                             }
                                             deformBinding.values[x][y].vertexOffsets = offsets;
                                             deformBinding.isSet_[x][y] = false;
                                         } else {
-                                            vec2[] reordered;
-                                            reordered.length = offsets.length;
+                                            auto reordered = Vec2Array(offsets.length);
                                             foreach (oldIdx, newIdx; remap) {
                                                 reordered[newIdx] = offsets[oldIdx];
                                             }

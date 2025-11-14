@@ -44,8 +44,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: GridDefor
             size_t rows = 0;
             bool validGrid = false;
             if (baseVerts.length >= 4) {
-                auto xs = baseVerts.map!(v => v.x).array;
-                auto ys = baseVerts.map!(v => v.y).array;
+                auto baseArray = baseVerts.toArray();
+                auto xs = baseArray.map!(v => v.x).array;
+                auto ys = baseArray.map!(v => v.y).array;
                 xs.sort();
                 ys.sort();
                 xs = xs.uniq.array;

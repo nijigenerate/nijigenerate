@@ -8,6 +8,7 @@ import nijigenerate.core.math.skeletonize;
 import nijigenerate.core.math.path;
 import nijigenerate.core.math.triangle;
 import nijilive.core;
+import nijilive.math : Vec2Array;
 import inmath;
 import mir.rc.array : RCArray, rcarray;
 import nijigenerate.core.cv.distancetransform;
@@ -66,7 +67,7 @@ public:
 
         // Convert contours to a vec2 array
         auto contoursToVec2s(ContourType)(ContourType contours) {
-            vec2[] result;
+            Vec2Array result;
             bool[ulong] visited;
             ulong nextIndex = 0;
             ulong findNearest(C)(ref C contour) {
@@ -103,42 +104,44 @@ public:
             return result;
         }
 
-        auto calcMoment(vec2[] contour) {
-            auto moment = contour.reduce!((a, b){ return a + b; })();
+        auto calcMoment(Vec2Array contour) {
+            auto moment = contour.toArray().reduce!((a, b){ return a + b; })();
             return moment / contour.length;
         }
 
-        auto scaling(vec2[] contour, vec2 moment, float scale, int erode_dilate) {
+        auto scaling(Vec2Array contour, vec2 moment, float scale, int erode_dilate) {
             // Scaling function applied to contour points
-            return contour.map!((c) { return (c - moment) * scale + moment; })().array;
+            return contour.toArray().map!((c) { return (c - moment) * scale + moment; }).array;
         }
         
-        auto horizontalMirrored(vec2[] sampled) {
+        auto horizontalMirrored(Vec2Array sampled) {
             // Mirrors sampled points horizontally using axisHoriz
             float side = 0;
-            vec2[] mirrored;
-            foreach(idx; 0 .. sampled.length) {
-                vec2 c = sampled[idx];
-                bool[ulong] used;
+            Vec2Array mirrored;
+            bool[ulong] used;
+            auto sampledAoS = sampled.toArray();
+            foreach(idx; 0 .. sampledAoS.length) {
+                vec2 c = sampledAoS[idx];
                 if (side == 0) {
                     side = sign(c.x - axisHoriz);
-                    mirrored ~= sampled[idx];
+                    mirrored ~= sampledAoS[idx];
                 } else if (sign(c.x - axisHoriz) != side) {
                     auto flipped = vec2(axisHoriz * 2 - c.x, c.y);
-                    auto index = sampled.map!((a) => (a - flipped).lengthSquared).minIndex();
+                    auto index = sampledAoS.map!((a) => (a - flipped).lengthSquared).minIndex();
                     if (index !in used) {
-                        mirrored ~= vec2(axisHoriz * 2 - sampled[index].x, sampled[index].y);
+                        mirrored ~= vec2(axisHoriz * 2 - sampledAoS[index].x, sampledAoS[index].y);
                         used[index] = true;
                     }
                 } else {
-                    mirrored ~= sampled[idx];
+                    mirrored ~= sampledAoS[idx];
                 }
             }
-            return mirrored.stdUniq.array;
+            auto unique = mirrored.toArray().uniq.array;
+            return Vec2Array(unique);
         }
 
-        auto resampling(vec2[] contour, double rate, bool mirrorHoriz, float axisHoriz, bool mirrorVert, float axisVert) {
-            vec2[] sampled;
+        auto resampling(Vec2Array contour, double rate, bool mirrorHoriz, float axisHoriz, bool mirrorVert, float axisVert) {
+            Vec2Array sampled;
             ulong base = 0;
             /*
             if (mirrorHoriz) {
@@ -171,12 +174,12 @@ public:
             return (norm == 0) ? vec2(0, 0) : vec2(vx / norm, vy / norm);
         }
 
-        vec2[] sampleExpandedFromThinned(vec2[] thinnedPoints, float expDist) {
+        Vec2Array sampleExpandedFromThinned(Vec2Array thinnedPoints, float expDist) {
             // Expand points along normal direction
             auto n = thinnedPoints.length;
             if(n < 3)
                 return thinnedPoints;
-            vec2[] expanded;
+            Vec2Array expanded;
             for (size_t i = 0; i < n; i++) {
                 auto pPrev = thinnedPoints[(i + n - 1) % n];
                 auto pNext = thinnedPoints[(i + 1) % n];
@@ -184,15 +187,16 @@ public:
                 expanded ~= vec2(thinnedPoints[i].x + normal.x * expDist,
                                   thinnedPoints[i].y + normal.y * expDist);
             }
-            return expanded.stdUniq.array;
+            auto unique = expanded.toArray().uniq.array;
+            return Vec2Array(unique);
         }
 
-        vec2[] sampleContractedFromThinned(vec2[] thinnedPoints, float contDist, float factor = 1) {
+        Vec2Array sampleContractedFromThinned(Vec2Array thinnedPoints, float contDist, float factor = 1) {
             // Contract points along normal direction
             auto n = thinnedPoints.length;
             if(n < 3)
                 return thinnedPoints;
-            vec2[] contracted;
+            Vec2Array contracted;
             for (size_t i = 0; i < n; i++) {
                 auto pPrev = thinnedPoints[(i + n - 1) % n];
                 auto pNext = thinnedPoints[(i + 1) % n];
@@ -200,18 +204,20 @@ public:
                 contracted ~= vec2(thinnedPoints[i].x - normal.x * (contDist * factor),
                                     thinnedPoints[i].y - normal.y * (contDist * factor));
             }
-            return contracted.stdUniq.array;
+            auto unique = contracted.toArray().uniq.array;
+            return Vec2Array(unique);
         }
 
-        vec2[] sampleCentroidContractedContour(vec2[] contour, float scale, float minDistance) {
+        Vec2Array sampleCentroidContractedContour(Vec2Array contour, float scale, float minDistance) {
             // Scale contour around its centroid
-            vec2 centroid = contour.sum / contour.length;
-            vec2[] pts;
+            vec2 centroid = contour.toArray().sum / contour.length;
+            Vec2Array pts;
             foreach(p; contour) {
                 pts ~= vec2(centroid.x + scale * (p.x - centroid.x),
                             centroid.y + scale * (p.y - centroid.y));
             }
-            return pts.stdUniq.array;
+            auto unique = pts.toArray().uniq.array;
+            return Vec2Array(unique);
         }
         // --- End of helper functions ---
 
@@ -316,8 +322,8 @@ public:
         float size_avg = (texW + texH) / 2.0;
         float min_distance = max(max(texW, texH) / DIV_PER_PART, MIN_DISTANCE);
 
-        vec2[] vertices;
-        vec2[] vB1;
+        Vec2Array vertices;
+        Vec2Array vB1;
         double sumWidth = 0;
         double length = 0;
         double widthMapLength = 0;
@@ -381,8 +387,8 @@ public:
             vertices ~= vB3;
             foreach(scale; SCALES) {
                 auto vCentroid = sampleCentroidContractedContour(vB1, scale, min_distance);
-                auto sampledAtRate(vec2[] contours, float rate) {
-                    vec2[] sampled;
+                auto sampledAtRate(Vec2Array contours, float rate) {
+                    Vec2Array sampled;
                     float samplingFlag = 0;
                     foreach (v; contours) {
                         if (samplingFlag <= 0) {
@@ -398,11 +404,11 @@ public:
                     vCentroid = horizontalMirrored(vCentroid);
                 vertices ~= vCentroid;
             }
-            vertices = vertices.stdUniq.array;
+            vertices = Vec2Array(vertices.toArray().uniq.array);
         }
 
         vec4 bounds = vec4(0, 0, texW, texH);
-        auto vert_ind = triangulate(vertices, bounds);
+        auto vert_ind = triangulate(vertices.toArray(), bounds);
         vertices = vert_ind[0];
         auto tris = vert_ind[1];
 
@@ -414,11 +420,11 @@ public:
             }
         }
 
-        bool completeUncoveredArea(T)(T compensated, vec2[] vertices, vec3u[] tris, vec2[] contourVec, float min_distance, out vec2[] outVertices, out vec3u[] outTris) {
+        bool completeUncoveredArea(T)(T compensated, Vec2Array vertices, vec3u[] tris, Vec2Array contourVec, float min_distance, out Vec2Array outVertices, out vec3u[] outTris) {
             import mir.ndslice.topology;
             int err;
             auto compensated1D = compensated.reshape([-1], err);
-            fillPoly(compensated1D, texW, texH, bounds, vertices, tris, 0, cast(ubyte)0);
+            fillPoly(compensated1D, texW, texH, bounds, vertices.toArray(), tris, 0, cast(ubyte)0);
             int initialRemainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
             if (initialRemainingArea == 0) { 
                 outVertices = vertices;
@@ -427,7 +433,7 @@ public:
             }
             
             // Select candidate points that are sufficiently far from existing vertices
-            vec2[] filteredCandidates;
+            Vec2Array filteredCandidates;
             foreach(p; contourVec) {
                 bool skip = false;
                 if (vertices.length > 0) {
@@ -481,13 +487,14 @@ public:
                 outTris = tris;
                 return false;
             }
-            vec2[] newFinalVertices = vertices ~ [ bestCandidate ];
-            auto newVertsInd = triangulate(newFinalVertices, vec4(0, 0, texW, texH));
+            Vec2Array newFinalVertices = vertices.dup;
+            newFinalVertices ~= bestCandidate;
+            auto newVertsInd = triangulate(newFinalVertices.toArray(), vec4(0, 0, texW, texH));
             auto newTriangles = newVertsInd[1];
             auto newVertices = newVertsInd[0];
             if(newTriangles !is null) {
                 foreach(i, tri; newTriangles) {
-                    fillPoly(compensated1D, texW, texH, bounds, newVertices, newTriangles, i, cast(ubyte)0);                        
+                    fillPoly(compensated1D, texW, texH, bounds, newVertices.toArray(), newTriangles, i, cast(ubyte)0);
                 }
                 int remainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
                 if(remainingArea < initialRemainingArea) {
@@ -512,7 +519,8 @@ public:
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
-        newMesh.importVertsAndTris(vertices.map!((x){ return x - imgCenter; }).array, tris);
+        auto translated = Vec2Array(vertices.toArray().map!((x){ return x - imgCenter; }).array);
+        newMesh.importVertsAndTris(translated, tris);
         mapImageCenteredMeshToTargetLocal(newMesh, target, ai);
         newMesh.refresh();
         return newMesh;

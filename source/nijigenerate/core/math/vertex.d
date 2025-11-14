@@ -19,14 +19,20 @@ float pointDistance(T: MeshVertex*)(ref T vertex, vec2 point) {
 }
 
 
-ref vec2 position(T: vec2)(ref T vertex) {
+vec2 position(T: vec2)(ref T vertex) {
     return vertex;
 }
-ref vec2 position(T: MeshVertex)(ref T vertex) {
+vec2 position(T: MeshVertex)(ref T vertex) {
     return vertex.position;
 }
-ref vec2 position(T: MeshVertex*)(ref T vertex) {
+vec2 position(T: MeshVertex*)(ref T vertex) {
     return vertex.position;
+}
+vec2 position(T: vecv!(float, 2))(T vertex) {
+    return vertex.toVector();
+}
+vec2 position(T: vecvConst!(float, 2))(T vertex) {
+    return vertex.toVector();
 }
 
 bool groupIdEquals(T: vec2)(T vertex, uint groupId) { return true; }
@@ -45,6 +51,10 @@ bool isPointOverVertex(T)(T[] vertices, vec2 point, float zoomRate) {
     return false;
 }
 
+bool isPointOverVertex(Vec2Array vertices, vec2 point, float zoomRate) {
+    return isPointOverVertex(vertices.toArray(), point, zoomRate);
+}
+
 void removeVertexAt(T, alias remove)(ref T[] vertices, vec2 point, float zoomRate) {
     foreach(i; 0..vertices.length) {
         if (abs(pointDistance(vertices[i], point)) < selectRadius/zoomRate) {
@@ -61,12 +71,20 @@ ulong getVertexFromPoint(T)(T[] vertices, vec2 point, float zoomRate) {
     return -1;
 }
 
+ulong getVertexFromPoint(Vec2Array vertices, vec2 point, float zoomRate) {
+    return getVertexFromPoint(vertices.toArray(), point, zoomRate);
+}
+
 float[] getVerticesInBrush(T)(T[] vertices, vec2 point, Brush brush) {
     float[] indices;
     foreach(idx, ref vert; vertices) {
         indices ~= brush.weightAt(point, position(vert));
     }
     return indices;
+}
+
+float[] getVerticesInBrush(Vec2Array vertices, vec2 point, Brush brush) {
+    return getVerticesInBrush(vertices.toArray(), point, brush);
 }
 
 void getBounds(T)(T[] vertices, out vec2 min, out vec2 max) {

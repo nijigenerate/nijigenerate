@@ -45,8 +45,8 @@ class DefineMeshCommand : ExCommand!(
         enforce(vertices.length % 2 == 0, "vertices length must be even (x,y pairs)");
         enforce(indices.length % 3 == 0, "indices length must be a multiple of 3 (triangles)");
 
-        // Convert flattened float[] -> vec2[]
-        vec2[] vtx;
+        // Convert flattened float[] -> Vec2Array
+        Vec2Array vtx;
         vtx.length = vertices.length / 2;
         foreach (i; 0 .. vtx.length) {
             vtx[i] = vec2(vertices[i*2 + 0], vertices[i*2 + 1]);

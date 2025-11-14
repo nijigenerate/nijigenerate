@@ -25,7 +25,7 @@ import nijigenerate.widgets;
 import nijigenerate.utils.transform;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;

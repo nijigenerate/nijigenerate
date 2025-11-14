@@ -4,7 +4,7 @@ import nijigenerate.viewport.common.mesheditor.brushes.base;
 import nijigenerate.viewport.common;
 import nijigenerate.widgets.drag;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import inmath;
 import bindbc.imgui;
 
@@ -38,7 +38,7 @@ class DoubleThreshBrush : Brush {
     }
 
     override
-    float[] weightsAt(vec2 center, vec2[] positions) {
+    float[] weightsAt(vec2 center, Vec2Array positions) {
         float[] result;
         foreach (p; positions) {
             result ~= weightAt(center, p);
@@ -48,7 +48,7 @@ class DoubleThreshBrush : Brush {
     
     override
     void draw(vec2 center, mat4 transform) {
-        vec3[] drawPoints = incCreateCircleBuffer(center, vec2(radius, radius), 32) ~
+        Vec3Array drawPoints = incCreateCircleBuffer(center, vec2(radius, radius), 32) ~
                             incCreateCircleBuffer(center, vec2(innerRadius, innerRadius), 32);
         drawPoints ~= vec3(center.x - radius, center.y, 0);
         drawPoints ~= vec3(center.x + radius, center.y, 0);

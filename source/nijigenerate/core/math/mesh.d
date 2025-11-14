@@ -24,9 +24,13 @@ private {
     struct Applier(T: Deformable) if (!is(T: Drawable)) {
         static auto changeAction(T target)  { return new DeformableChangeAction(target.name, target); }
         static void postApply(T target) { }
-        // Overload for vec2[] directly
-        static void rebuffer(M)(T target, vec2[] vertices, M* data = null) {
+        // Overload for Vec2Array directly
+        static void rebuffer(M)(T target, Vec2Array vertices, M* data = null) {
             target.rebuffer(vertices);
+        }
+        // Overload for AoS vec2 arrays
+        static void rebuffer(M)(T target, Vector!(float, 2)[] vertices, M* data = null) {
+            target.rebuffer(Vec2Array(vertices));
         }
         // Overload for MeshVertex*[]
         static void rebuffer(M)(T target, MeshVertex*[] vertices, M* data = null) {

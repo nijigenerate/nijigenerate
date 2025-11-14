@@ -12,7 +12,7 @@ import nijigenerate.core.actionstack;
 //import nijigenerate.core;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.array;
@@ -70,22 +70,22 @@ struct BezierSegment {
 
 class CatmullSpline {
 private:
-    vec2[] interpolated;
-    vec3[] drawLines;
-    vec3[] drawPoints;
+    Vec2Array interpolated;
+    Vec3Array drawLines;
+    Vec3Array drawPoints;
 
 public:
     uint resolution = 40;
     float selectRadius = 16f;
     SplinePoint[] points;
-    vec2[] refMesh;
-    vec2[] initTangents;
+    Vec2Array refMesh;
+    Vec2Array initTangents;
     CatmullSpline target;
-    vec3[] refOffsets;
+    Vec3Array refOffsets;
 
     float origX, origY, origRotZ;
 
-    void createTarget(T)(T reference, mat4 trans, vec2[] vertices = null) {
+    void createTarget(T)(T reference, mat4 trans, const(Vec2Array)* vertices = null) {
         target = new CatmullSpline;
         target.resolution = resolution;
         target.selectRadius = selectRadius;
@@ -95,13 +95,13 @@ public:
         remapTarget(reference, trans, vertices);
     }
 
-    void remapTarget(T)(T reference, mat4 trans = mat4.identity, vec2[] vertices = null) {}
+    void remapTarget(T)(T reference, mat4 trans = mat4.identity, const(Vec2Array)* vertices = null) {}
 
-    void remapTarget(IncMesh reference, mat4 trans = mat4.identity, vec2[] vertices = null) {
+    void remapTarget(IncMesh reference, mat4 trans = mat4.identity, const(Vec2Array)* vertices = null) {
         if (target !is null) {
             refMesh.length = 0;
             if (vertices !is null) {
-                foreach(vertex; vertices) {
+                foreach(vertex; *vertices) {
                     refMesh ~= (trans * vec4(vertex, 0, 1)).xy;
                 }
             } else {
@@ -113,7 +113,7 @@ public:
         }
     }
 
-    void remapTarget(Node node, mat4 trans = mat4.identity, vec2[] vertices = null) {
+    void remapTarget(Node node, mat4 trans = mat4.identity, const(Vec2Array)* vertices = null) {
         if (target !is null) {
             refMesh.length = 0;
             vec2 local = vec2(node.getValue("transform.t.x"), node.getValue("transform.t.y"));
@@ -171,20 +171,20 @@ public:
         }
     }
 
-    mat4 exportTarget(T)(ref T mesh, size_t i, ref vec2 vtx, vec2 tangent, vec2 initTangent, mat4 invert, vec2 deformation) {
+    mat4 exportTarget(T)(ref T mesh, size_t i, vec2 vtx, vec2 tangent, vec2 initTangent, mat4 invert, vec2 deformation) {
         return mat4.identity();
     }
 
-    mat4 exportTarget(T)(ref T mesh, size_t i, ref vec2 vtx, vec2 tangent, vec2 initTangent) {
+    mat4 exportTarget(T)(ref T mesh, size_t i, vec2 vtx, vec2 tangent, vec2 initTangent) {
         return mat4.identity();
     }
 
-    mat4 exportTarget(ref IncMesh mesh, size_t i, ref vec2 vtx, vec2 tangent, vec2 initTangent, mat4 invert, vec2 deformation) {
+    mat4 exportTarget(ref IncMesh mesh, size_t i, vec2 vtx, vec2 tangent, vec2 initTangent, mat4 invert, vec2 deformation) {
         mesh.vertices[i].position = (invert * vec4(vtx, 0, 1)).xy - deformation;
         return mat4.identity();
     }
 
-    mat4 exportTarget(ref Node node, size_t i, ref vec2 vtx, vec2 tangent, vec2 initTangent) {
+    mat4 exportTarget(ref Node node, size_t i, vec2 vtx, vec2 tangent, vec2 initTangent) {
         
         auto curAngle = atan2(tangent.y, tangent.x);
         auto origAngle = atan2(initTangent.y, initTangent.x);
@@ -233,13 +233,14 @@ public:
         }
     }
 
-    mat4 updateTarget(T)(T mesh, ulong[] selected = null, mat4 invert = mat4.identity, vec2[] deformations = null) {
+    mat4 updateTarget(T)(T mesh, ulong[] selected = null, mat4 invert = mat4.identity, Vec2Array deformations = Vec2Array.init) {
         if (points.length < 2) {
             resetTarget(mesh);
             return mat4.identity;
         }
 
         float epsilon = 0.0001;
+        bool hasDeformations = deformations.length > 0;
         mat4 result;
         foreach(i, rel; refOffsets) {
             if (!isFinite(rel.z)) continue;
@@ -256,10 +257,13 @@ public:
                 pt.y + rel.y * tangent.x + rel.x * tangent.y
             );
 //             writefln("%s %s %s", vtx, rel, tangent);
-            if(deformations is null){
-                result = exportTarget(mesh, i, vtx, tangent, initTangents.length > i ? initTangents[i]: tangent);
+            vec2 initTangent = initTangents.length > i ? initTangents[i] : tangent;
+            if (!hasDeformations) {
+                result = exportTarget(mesh, i, vtx, tangent, initTangent);
+            } else if (i < deformations.length) {
+                result = exportTarget(mesh, i, vtx, tangent, initTangent, invert, deformations[i].toVector());
             } else {
-                result = exportTarget(mesh, i, vtx, tangent, initTangents.length > i ? initTangents[i]: tangent, invert, deformations[i]);
+                result = exportTarget(mesh, i, vtx, tangent, initTangent);
             }
         }
         return result;
@@ -470,7 +474,7 @@ public:
             inDbgDrawPoints(color, trans);
         }
         if (lockedPoint >= 0 && lockedPoint < drawPoints.length) {
-            inDbgSetBuffer([drawPoints[lockedPoint]]);
+            inDbgSetBuffer([drawPoints[lockedPoint].toVector()]);
             inDbgPointsSize(6);
             inDbgDrawPoints(vec4(1, 0, 0, 1), trans);
         }
