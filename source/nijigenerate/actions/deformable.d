@@ -21,7 +21,7 @@ private:
     }
 public:
     struct DeformableState {
-        Vec2Array vertices;
+        vec2[] vertices;
     }
 
     Deformable self;
@@ -106,12 +106,12 @@ public:
 private:
     DeformableState captureState() {
         DeformableState result;
-        result.vertices = self.vertices.dup;
+        result.vertices = self.vertices.toArray();
         return result;
     }
 
     void applyState(ref DeformableState st) {
-        self.rebuffer(st.vertices);
+        self.rebuffer(Vec2Array(st.vertices));
         self.clearCache();
     }
 }

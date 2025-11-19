@@ -214,17 +214,17 @@ class NodeReplaceAction : Action {
         if (recordActions)
             bindingReorderActions.length = 0;
 
-        Vec2Array collectVertices(Node node) {
-            Vec2Array result;
+        vec2[] collectVertices(Node node) {
+            vec2[] result;
             if (auto deformable = cast(Deformable)node) {
-                result = deformable.vertices.dup;
+                result = deformable.vertices.toArray();
             } else if (auto drawable = cast(Drawable)node) {
-                result = drawable.getMesh().vertices.dup;
+                result = drawable.getMesh().vertices.toArray();
             }
             return result;
         }
 
-        size_t[] buildRemap(const Vec2Array oldVerts, const Vec2Array newVerts) {
+        size_t[] buildRemap(const vec2[] oldVerts, const vec2[] newVerts) {
             enum float tol = 1e-4f;
             if (oldVerts.length == 0 || oldVerts.length != newVerts.length) return [];
             size_t[] remap;
