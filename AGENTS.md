@@ -60,7 +60,7 @@
 - Do not create PRs without explicit user approval, and never create new branches unless explicitly instructed (specify target remote and branch name).
 
 ### Git/GitHub Command Execution (Hard Rule)
-- Do not execute any `git` or `gh` commands unless explicitly instructed by the user in this session.
+- Do not execute any `git` or `gh` commands unless explicitly instructed by the user in this session (explicit, current-session approval from the user is required).
 - This includes (but is not limited to): `git commit`, `git push`, `git fetch`, `git pull`, `git checkout`, `git switch`, `git branch`, `git tag`, `git reset`, `git revert`, `git rebase`, and all `gh` subcommands (e.g., `gh repo fork`, `gh pr create`, `gh pr close`, `gh repo delete`).
 - When Git/GitHub interaction is desired, output the exact commands as plain text for the user to run themselves. Do not execute them.
 - Never auto‑fork, auto‑open PRs, or auto‑create/delete branches/remotes without an explicit user command.
