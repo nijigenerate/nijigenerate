@@ -29,7 +29,7 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
         super(null, "Apply " ~ PropName, value);
     }
 
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         I ni = null;
         if (ctx.hasInspectors) {
             foreach (i; ctx.inspectors) {
@@ -37,7 +37,7 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                 if (ni !is null) break;
             }
         }
-        if (ni is null) return;
+        if (ni is null) return CommandResult(false, "Inspector not available");
         import std.traits : TemplateArgsOf;
         alias NodeT = TemplateArgsOf!I[1];
 
@@ -113,6 +113,7 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
 
         if (ctx.hasNodes)
             ni.capture(cast(Node[])ctx.nodes);
+        return CommandResult(true);
     }
 
     // Apply-style inspector commands require specifying values and are not suited for shortcuts
@@ -124,7 +125,7 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
         super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
     }
 
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         I ni = null;
         if (ctx.hasInspectors) {
             foreach (i; ctx.inspectors) {
@@ -132,7 +133,7 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
                 if (ni !is null) break;
             }
         }
-        if (ni is null) return;
+        if (ni is null) return CommandResult(false, "Inspector not available");
 
         import std.traits : TemplateArgsOf;
         alias NodeT = TemplateArgsOf!I[1];
@@ -208,6 +209,7 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
 
         if (ctx.hasNodes)
             ni.capture(cast(Node[])ctx.nodes);
+        return CommandResult(true);
     }
 }
 

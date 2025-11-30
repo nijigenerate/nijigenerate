@@ -48,9 +48,10 @@ class ConvertNodeToCommand : ExCommand!(
         }
         return false;
     }
-    override void run(Context ctx) {
-        if (!runnable(ctx)) return;
+    override CommandResult run(Context ctx) {
+        if (!runnable(ctx)) return CommandResult(false, "Context not convertible");
         ngConvertTo(ctx.nodes, toType);
+        return CommandResult(true);
     }
 }
 

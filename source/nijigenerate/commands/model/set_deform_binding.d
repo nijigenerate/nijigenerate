@@ -41,23 +41,25 @@ class SetDeformBindingCommand : ExCommand!(
     // Not available via shortcut (requires external data)
     override bool shortcutRunnable() { return false; }
 
-    override void run(Context ctx) {
-        if (!runnable(ctx)) return;
+    override CommandResult run(Context ctx) {
+        if (!runnable(ctx)) return CommandResult(false, "No applicable parameters or nodes");
 
         // No-op if values not provided
-        if (values is null || values.length == 0) return;
+        if (values is null || values.length == 0) return CommandResult(false, "No values provided");
 
         // Resolve parameter to operate on
         Parameter[] params;
         if (ctx.hasArmedParameters && ctx.armedParameters.length > 0) params = ctx.armedParameters;
         else if (ctx.hasParameters && ctx.parameters.length > 0) params = ctx.parameters;
         else if (auto p = incArmedParameter()) params = [p];
-        if (params.length == 0) return;
+        if (params.length == 0) return CommandResult(false, "No parameters resolved");
 
         // Resolve targets
         Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-        if (ns.length == 0) return;
+        if (ns.length == 0) return CommandResult(false, "No target nodes");
 
+        bool anyChanged = false;
+        ParameterBinding[] allCreated;
         // For each parameter, set binding at target keypoint
         foreach (param; params) {
             // Determine keypoint
@@ -143,6 +145,7 @@ class SetDeformBindingCommand : ExCommand!(
             auto group = new GroupAction();
             foreach (nb; newlyAdded) {
                 group.addAction(new ParameterBindingAddAction(param, nb));
+                allCreated ~= nb;
             }
             if (deformBindings.length > 0) {
                 auto action = new ParameterChangeBindingsValueAction(_("Set Deform Binding"), param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
@@ -157,11 +160,20 @@ class SetDeformBindingCommand : ExCommand!(
                 action.updateNewState();
                 group.addAction(action);
             }
-            if (!group.empty()) incActionPush(group);
+            if (!group.empty()) {
+                incActionPush(group);
+                anyChanged = true;
+            }
         }
 
         // Refresh deformation viewport/editor state
         incViewportNodeDeformNotifyParamValueChanged();
+        if (allCreated.length > 0) {
+            auto res = ResourceResult!ParameterBinding(anyChanged, ResourceChange.Created, created: allCreated, message: anyChanged ? "" : "No bindings updated");
+            res.succeeded = anyChanged;
+            return res.toCommandResult();
+        }
+        return CommandResult(anyChanged, anyChanged ? "" : "No bindings updated");
     }
 }
 

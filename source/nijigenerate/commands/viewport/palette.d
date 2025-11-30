@@ -147,7 +147,7 @@ class ListCommandCommand : ExCommand!()
 {
     this() { super(_("Show Command Palette.")); }
 
-    override void run(Context ctx)
+    override CommandResult run(Context ctx)
     {
         auto self = this; // capture for exclusion
         paletteOpen();
@@ -280,6 +280,7 @@ class ListCommandCommand : ExCommand!()
                 return;
             }
         }, -1); // infinite until closed
+        return CommandResult(true);
     }
 
 private:
@@ -288,8 +289,10 @@ private:
         import nijigenerate.core.shortcut.base : ngBuildExecutionContext; // wrapper to build Context
         auto ctx = ngBuildExecutionContext();
         if (c !is null && c.runnable(ctx)) {
-            c.run(ctx);
-            paletteClose();
+            auto res = c.run(ctx);
+            if (res.succeeded) {
+                paletteClose();
+            }
         } else {
             // Keep palette open if command cannot run in current context
             // Optionally, we could show a status message here.

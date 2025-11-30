@@ -10,8 +10,9 @@ import i18n;
 class UndoCommand : ExCommand!() {
     this() { super(_("Undo"), _("Undo last action")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incActionUndo();
+        return CommandResult(true);
     }
     override bool runnable(Context ctx) { return incActionCanUndo(); }
 }
@@ -19,8 +20,9 @@ class UndoCommand : ExCommand!() {
 class RedoCommand : ExCommand!() {
     this() { super(_("Redo"), _("Redo previously undone action")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incActionRedo();
+        return CommandResult(true);
     }
     override bool runnable(Context ctx) { return incActionCanRedo(); }
 }
@@ -28,8 +30,9 @@ class RedoCommand : ExCommand!() {
 class ShowSettingsWindowCommand : ExCommand!() {
     this() { super(_("Settings"), _("Show settings window")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!incIsSettingsOpen) incPushWindow(new SettingsWindow);
+        return CommandResult(true);
     }
 }
 

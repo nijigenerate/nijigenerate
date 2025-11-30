@@ -27,7 +27,7 @@ class AddNodeCommand : ExCommand!(
     }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         try {
             if (ctx.hasNodes) {
                 ngAddNodes(ctx.nodes, className, _suffix);
@@ -36,7 +36,9 @@ class AddNodeCommand : ExCommand!(
             }
         } catch (RangeError e) {
             // should return failure.
+            return CommandResult(false, "Failed to add node");
         }
+        return CommandResult(true);
     }
 }
 
@@ -48,7 +50,7 @@ class InsertNodeCommand : ExCommand!(
     }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         try {
             if (ctx.hasNodes) {
                 ngInsertNodes(ctx.nodes, className, _suffix);
@@ -57,7 +59,9 @@ class InsertNodeCommand : ExCommand!(
             }
         } catch (RangeError e) {
             // should return failure.
+            return CommandResult(false, "Failed to insert node");
         }
+        return CommandResult(true);
     }
 }
 
@@ -69,8 +73,8 @@ class MoveNodeCommand : ExCommand!(
     }
 
     override
-    void run(Context ctx) {
-        if (!ctx.hasNodes || ctx.nodes.length == 0) return;
+    CommandResult run(Context ctx) {
+        if (!ctx.hasNodes || ctx.nodes.length == 0) return CommandResult(false, "No nodes");
         auto selectedNodes = incSelectedNodes();
         auto child = ctx.nodes[0];
         try {
@@ -78,8 +82,9 @@ class MoveNodeCommand : ExCommand!(
             else incMoveChildWithHistory(child, newParent, 0);
         } catch (Exception ex) {
             incDialog(__("Error"), ex.msg);
+            return CommandResult(false, ex.msg);
         }
-
+        return CommandResult(true);
     }
 }
 
@@ -89,18 +94,21 @@ class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for
     }
 
     override
-    void run(Context ctx) {
-        if (ctx.hasNodes)
+    CommandResult run(Context ctx) {
+        if (ctx.hasNodes) {
             ngConvertTo(ctx.nodes, className);
+            return CommandResult(true);
+        }
+        return CommandResult(false, "No nodes");
     }
 }
 
 class DeleteNodeCommand : ExCommand!() {
     this() { super(null, _("Delete Node")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
-            return;
+            return CommandResult(false, "No nodes");
 
         auto n = ctx.nodes[0];
         auto selected = incSelectedNodes();
@@ -119,6 +127,7 @@ class DeleteNodeCommand : ExCommand!() {
         
         // Make sure we don't keep selecting a node we've removed
         incSelectNode(null);
+        return CommandResult(true);
     }
 }
 
@@ -126,9 +135,9 @@ class CutNodeCommand : ExCommand!() {
     this() { super(_("Cut"), _("Cut Node")); }
 
     override 
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
-            return;
+            return CommandResult(false, "No nodes");
         /*
         auto n = ctx.nodes[0];
         auto selected = incSelectedNodes();
@@ -137,6 +146,7 @@ class CutNodeCommand : ExCommand!() {
         else
             copyToClipboard([n]);
         */
+        return CommandResult(true);
     }
 
     override bool runnable(Context ctx) {
@@ -149,9 +159,9 @@ class CopyNodeCommand : ExCommand!() {
     this() { super(_("Copy"), _("Copy Node")); }
 
     override 
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
-            return;
+            return CommandResult(false, "No nodes");
 
         auto n = ctx.nodes[0];
         auto selected = incSelectedNodes();
@@ -159,6 +169,7 @@ class CopyNodeCommand : ExCommand!() {
             copyToClipboard(selected);
         else
             copyToClipboard([n]);
+        return CommandResult(true);
     }
 
     override bool runnable(Context ctx) {
@@ -169,14 +180,16 @@ class CopyNodeCommand : ExCommand!() {
 class PasteNodeCommand : ExCommand!() {
     this() { super(_("Paste"), _("Paste Node")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
-            return;
+            return CommandResult(false, "No nodes");
 
         auto n = ctx.nodes[0];
         if (clipboardNodes.length > 0) {
             pasteFromClipboard(n);
+            return CommandResult(true);
         }
+        return CommandResult(false, "Clipboard empty");
     }
 
     override bool runnable(Context ctx) {
@@ -188,9 +201,12 @@ class ReloadNodeCommand : ExCommand!() {
     this() { super(_("Reload Node")); }
 
     override
-    void run(Context ctx) {
-        if (ctx.hasNodes)
+    CommandResult run(Context ctx) {
+        if (ctx.hasNodes) {
             incReloadNode(ctx.nodes);
+            return CommandResult(true);
+        }
+        return CommandResult(false, "No nodes");
     }
 }
 
@@ -198,7 +214,7 @@ class VertexModeCommand : ExCommand!() {
     this() { super(_("Edit Vertex")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (ctx.hasNodes && ctx.nodes.length > 0) {
             Node n = ctx.nodes[0];
             if (auto d = cast(Deformable)n) {
@@ -207,6 +223,7 @@ class VertexModeCommand : ExCommand!() {
                 }
             }
         }
+        return CommandResult(true);
     }
 }
 
@@ -214,23 +231,25 @@ class ToggleVisibilityCommand : ExCommand!() {
     this() { super(_("Toggle Visibility")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
-            return;
+            return CommandResult(false, "No nodes");
         auto n = ctx.nodes[0];
         n.setEnabled(!n.getEnabled());
+        return CommandResult(true);
     }
 }
 
 class CentralizeNodeCommand : ExCommand!() {
     this() { super(_("Centralize Node")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
-            return;
+            return CommandResult(false, "No nodes");
 
         auto n = ctx.nodes[0];
         n.centralize();
+        return CommandResult(true);
     }
 }
 

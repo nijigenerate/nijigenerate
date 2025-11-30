@@ -214,7 +214,7 @@ private void _applyArgs(alias C, A...)(C inst, auto ref A args) {
 /// Look up a pre-registered command instance from `commands` by enum id,
 /// apply passed args to its fields, then run it.
 /// Note: `commands` must be an AA like `Command[typeof(id)]` and populated beforehand.
-auto cmd(alias id, A...)(ref Context ctx, auto ref A args) {
+CommandResult cmd(alias id, A...)(ref Context ctx, auto ref A args) {
     // 1) Choose the appropriate commands AA by the id's type, then find the instance (no new)
     alias CmdsAA = MapByKeyType!(typeof(id), AllCommandMaps);
     auto p = id in CmdsAA;
@@ -237,7 +237,6 @@ auto cmd(alias id, A...)(ref Context ctx, auto ref A args) {
 
     _applyArgs!(C, A)(inst, args);
 
-    // 4) Run and return
-    inst.run(ctx);
-    return inst;
+    // 4) Run and return result
+    return inst.run(ctx);
 }

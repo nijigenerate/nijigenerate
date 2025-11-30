@@ -55,8 +55,62 @@ template registerCommand(alias id, Args...) {
 import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
+import std.variant : Variant;
 
 struct TW(alias T, string fieldName, string fieldDesc) {}
+
+struct CommandResult {
+    bool succeeded;
+    string message;
+    Variant payload; // optional typed payload (e.g., ResourceResult!R)
+    this(bool succeeded, string message = "", Variant payload = Variant.init) {
+        this.succeeded = succeeded;
+        this.message = message;
+        this.payload = payload;
+    }
+    // Helper to wrap a payload of any type
+    static CommandResult withPayload(T)(bool succeeded, T payload, string message = "") {
+        return CommandResult(succeeded, message, Variant(payload));
+    }
+}
+
+struct ExCommandResult(T) {
+    bool succeeded;
+    string message;
+    T result;
+    this(bool succeeded, T result = T.init, string message = "") {
+        this.succeeded = succeeded;
+        this.result = result;
+        this.message = message;
+    }
+}
+
+enum ResourceChange { Created, Deleted }
+
+struct ResourceResult(R) {
+    bool succeeded;
+    string message;
+    ResourceChange change;
+    R[] created;
+    R[] deleted;
+    R[] loaded;
+    this(bool succeeded, ResourceChange change = ResourceChange.Created, R[] created = null, R[] deleted = null, R[] loaded = null, string message = "") {
+        this.succeeded = succeeded;
+        this.change = change;
+        if (created !is null) this.created = created;
+        if (deleted !is null) this.deleted = deleted;
+        if (loaded !is null) this.loaded = loaded;
+        this.message = message;
+    }
+    /// Convenience constructors
+    static ResourceResult createdOne(R r, string message = "") {
+        return ResourceResult(true, ResourceChange.Created, [r], null, null, message);
+    }
+    static ResourceResult deletedOne(R r, string message = "") {
+        return ResourceResult(true, ResourceChange.Deleted, null, [r], null, message);
+    }
+    CommandResult toCommandResult() const { return CommandResult.withPayload(succeeded, this, message); }
+}
 
 class Context {
     Puppet _puppet;
@@ -123,7 +177,7 @@ class Context {
 }
 
 interface Command {
-    void run(Context context);
+    CommandResult run(Context context);
     string label();        // short display name for menus, i18n-applied at call site
     string description();  // longer human description
     /// Whether this command can run in the given context
@@ -193,7 +247,7 @@ abstract class ExCommand(T...) : Command {
             }
         }
     }
-    override void run(Context context) {}
+    override CommandResult run(Context context) { return CommandResult(true); }
     override string label() { return _label.length ? _label : _desc; }
     override string description() { return _desc; }
     override bool runnable(Context context) { return true; }
@@ -277,6 +331,9 @@ private template _BaseExArgsOf(alias C)
         alias _BaseExArgsOf = _Picked;
     }
 }
+
+// Public alias for reuse outside this module
+alias BaseExArgsOf = _BaseExArgsOf;
 
 // Apply passed args to the instance fields declared by ExCommand!T before run(ctx)
 private void _applyArgsFor(alias C, A...)(C inst, auto ref A args)

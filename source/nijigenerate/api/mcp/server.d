@@ -27,11 +27,12 @@ import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
+import nijigenerate.commands.base : BaseExArgsOf;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
-import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
-import inmath : vec2u;
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
 import nijilive; // Node, Parameter, Puppet
+import nijilive.core.param.binding : ParameterBinding;
+import nijigenerate.ext.param : ExParameterGroup;
 
 // mcp-d
 import mcp.server;
@@ -48,6 +49,10 @@ import std.array : appender;
 import std.json : parseJSON;
 public import nijigenerate.api.mcp.task;
 import nijigenerate.core.settings;
+import std.meta : AliasSeq;
+
+// helpers
+import nijigenerate.api.mcp.helpers : commandResultToJson, buildContextFromPayload, applyPayloadToInstance;
 
 // === Compile-time diagnostics ===
 // KeyType extractor for AA like V[K]
@@ -147,21 +152,9 @@ private void _ngMcpStart(string host, ushort port) {
                 .addProperty("nodes", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Node UUIDs (uint[])"))
                 .addProperty("keyPoint", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Index (order) of the target key point. uint[x,y]."));
 
-            // Helper to extract ExCommand template parameters
-            template BaseExArgsOf(alias C_) {
-                alias _Bases = BaseClassesTuple!C_;
-                private template _FindExArgs(Bases...) {
-                    static if (Bases.length == 0) alias _FindExArgs = void;
-                    else static if (isInstanceOf!(ExCommand, Bases[0])) alias _FindExArgs = TemplateArgsOf!(Bases[0]);
-                    else alias _FindExArgs = _FindExArgs!(Bases[1 .. $]);
-                }
-                alias Picked = _FindExArgs!(_Bases);
-                static if (is(Picked == void)) alias BaseExArgsOf = void; else alias BaseExArgsOf = Picked;
-            }
-
-            // Build tool input schema with top-level parameters (separate from context)
-            auto inputSchema = SchemaBuilder.object()
-                .setDescription("Input for nijigenerate Command tool. Context is optional; other parameters map to command-specific arguments.")
+    // Build tool input schema with top-level parameters (separate from context)
+    auto inputSchema = SchemaBuilder.object()
+        .setDescription("Input for nijigenerate Command tool. Context is optional; other parameters map to command-specific arguments.")
                 .addProperty("context", ctxSchema);
 
             string[] paramLog;
@@ -247,55 +240,10 @@ private void _ngMcpStart(string host, ushort port) {
                     // Debug: print incoming JSON for this tool call
                     writefln("[MCP] call %s: %s", toolName, payload.toString());
                     auto payloadCopy = payload;
-                    ngRunInMainThread({
-                        // 1) Start from default context
-                        auto ctx = ngBuildExecutionContext();
-                        // 2) Override only provided keys from context, if any
-                        if ("context" in payloadCopy && payloadCopy["context"].type == JSONType.object) {
-                            auto cobj = payloadCopy["context"];
-                            auto puppet = incActivePuppet();
-                            if (puppet !is null) {
-                                if ("parameters" in cobj && cobj["parameters"].type == JSONType.array) {
-                                    Parameter[] params;
-                                    foreach (u; cobj["parameters"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
-                                            if (p !is null) params ~= p;
-                                        }
-                                    }
-                                    if (params.length) ctx.parameters = params;
-                                }
-                                if ("armedParameters" in cobj && cobj["armedParameters"].type == JSONType.array) {
-                                    Parameter[] aparams;
-                                    foreach (u; cobj["armedParameters"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
-                                            if (p !is null) aparams ~= p;
-                                        }
-                                    }
-                                    if (aparams.length) ctx.armedParameters = aparams;
-                                }
-                                if ("nodes" in cobj && cobj["nodes"].type == JSONType.array) {
-                                    Node[] nodes;
-                                    foreach (u; cobj["nodes"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto n = puppet.find!(Node)(cast(uint)u.integer);
-                                            if (n !is null) nodes ~= n;
-                                        }
-                                    }
-                                    if (nodes.length) ctx.nodes = nodes;
-                                }
-                            }
-                            if ("keyPoint" in cobj && cobj["keyPoint"].type == JSONType.array && cobj["keyPoint"].array.length >= 2) {
-                                auto a = cobj["keyPoint"].array;
-                                if ((a[0].type == JSONType.integer || a[0].type == JSONType.float_)
-                                 && (a[1].type == JSONType.integer || a[1].type == JSONType.float_)) {
-                                    ctx.keyPoint = vec2u(cast(uint)(a[0].type == JSONType.integer ? a[0].integer : cast(long)a[0].floating),
-                                                         cast(uint)(a[1].type == JSONType.integer ? a[1].integer : cast(long)a[1].floating));
-                                }
-                            }
-                        }
-                        // 3) Apply command-specific parameters (top-level)
+                    return ngRunInMainThread({
+                        // 1) Build context from payload
+                        auto ctx = buildContextFromPayload(payloadCopy);
+                        // 2) Apply command-specific parameters (top-level)
                         alias K = typeof(k);
                         static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
                             if (k == m) {{
@@ -304,139 +252,22 @@ private void _ngMcpStart(string host, ushort port) {
                                 static if (__traits(compiles, mixin(_typeName))) {
                                     alias C = mixin(_typeName);
                                     if (auto inst = cast(C) cmdInst) {
-                                        static if (!is(BaseExArgsOf!C == void)) {
-                                            alias Declared = BaseExArgsOf!C;
-                                            static foreach (i, Param; Declared) {{
-                                                static if (isInstanceOf!(TW, Param)) {
-                                                    enum fname = TemplateArgsOf!Param[1];
-                                                    alias TParam = TemplateArgsOf!Param[0];
-                                                } else {
-                                                    enum fname = "arg" ~ i.stringof;
-                                                    alias TParam = Param;
-                                                }
-                                                if (fname in payloadCopy) {
-                                                    auto val = payloadCopy[fname];
-                                                    static if (is(TParam == bool)) {
-                                                        if (val.type == JSONType.true_ || val.type == JSONType.false_) mixin("inst."~fname~" = (val.type==JSONType.true_);");
-                                                    } else static if (is(TParam == enum)) {
-                                                        static if (__traits(compiles, cast(string) TParam.init)) {
-                                                            if (val.type == JSONType.string) {
-                                                                static foreach (mem; EnumMembers!TParam) {{
-                                                                    static if (__traits(compiles, cast(string)mem)) {
-                                                                        enum string memStr = cast(string)mem;
-                                                                        if (val.str == memStr) { mixin("inst."~fname~" = mem;"); }
-                                                                    }
-                                                                }}
-                                                            }
-                                                        } else {
-                                                            if (val.type == JSONType.integer) {
-                                                                mixin("inst."~fname~" = cast(TParam) cast(int) val.integer;");
-                                                            }
-                                                        }
-                                                    } else static if (isIntegral!TParam) {
-                                                        if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) val.integer;");
-                                                    } else static if (isFloatingPoint!TParam) {
-                                                        if (val.type == JSONType.float_) mixin("inst."~fname~" = cast(TParam) val.floating;");
-                                                        else if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) val.integer;");
-                                                    } else static if (isSomeString!TParam) {
-                                                        if (val.type == JSONType.string) mixin("inst."~fname~" = val.str;");
-                                                    } else static if (is(TParam == vec2u)) {
-                                                        if (val.type == JSONType.array && val.array.length >= 2) {
-                                                            auto a = val.array;
-                                                            uint x = cast(uint)(a[0].type==JSONType.integer ? a[0].integer : cast(long)a[0].floating);
-                                                            uint y = cast(uint)(a[1].type==JSONType.integer ? a[1].integer : cast(long)a[1].floating);
-                                                            mixin("inst."~fname~" = vec2u(x,y);");
-                                                        }
-                                                    } else static if (is(TParam == vec3)) {
-                                                        if (val.type == JSONType.array && val.array.length >= 3) {
-                                                            auto a = val.array;
-                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                                            float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
-                                                            mixin("inst."~fname~" = vec3(x,y,z);");
-                                                        }
-                                                    } else static if (is(TParam == float[])) {
-                                                        if (val.type == JSONType.array) {
-                                                            float[] outv;
-                                                            foreach (e; val.array) {
-                                                                if (e.type == JSONType.float_)
-                                                                    outv ~= cast(float)e.floating;
-                                                                else if (e.type == JSONType.integer)
-                                                                    outv ~= cast(float)cast(double)e.integer;
-                                                            }
-                                                            mixin("inst."~fname~" = outv;");
-                                                        }
-                                                    } else static if (is(TParam == float[2])) {
-                                                        if (val.type == JSONType.array && val.array.length >= 2) {
-                                                            auto a = val.array;
-                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                                            mixin("inst."~fname~" = [x,y];");
-                                                        }
-                                                    } else static if (is(TParam == float[3])) {
-                                                        if (val.type == JSONType.array && val.array.length >= 3) {
-                                                            auto a = val.array;
-                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                                            float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
-                                                            mixin("inst."~fname~" = [x,y,z];");
-                                                        }
-                                                    } else static if (is(TParam == ushort[])) {
-                                                        if (val.type == JSONType.array) {
-                                                            ushort[] outv;
-                                                            foreach (e; val.array) {
-                                                                if (e.type == JSONType.float_)
-                                                                    outv ~= cast(ushort)e.floating;
-                                                                else if (e.type == JSONType.integer)
-                                                                    outv ~= cast(ushort)cast(double)e.integer;
-                                                            }
-                                                            mixin("inst."~fname~" = outv;");
-                                                        }
-                                                    } else static if (is(TParam == uint[2])) {
-                                                        if (val.type == JSONType.array && val.array.length >= 2) {
-                                                            auto a = val.array;
-                                                            uint x = cast(uint)(a[0].type==JSONType.integer ? a[0].integer : cast(long)a[0].floating);
-                                                            uint y = cast(uint)(a[1].type==JSONType.integer ? a[1].integer : cast(long)a[1].floating);
-                                                            mixin("inst."~fname~" = [x,y];");
-                                                        }
-                                                    } else static if (is(TParam : Node)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto puppet = incActivePuppet()) {
-                                                                auto nodeVal = puppet.find!(TParam)(cast(uint)val.integer);
-                                                                if (nodeVal !is null) mixin("inst."~fname~" = nodeVal;");
-                                                            }
-                                                        }
-                                                    } else static if (is(TParam : Parameter)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto puppet = incActivePuppet()) {
-                                                                auto pVal = puppet.find!(TParam)(cast(uint)val.integer);
-                                                                if (pVal !is null) mixin("inst."~fname~" = pVal;");
-                                                            }
-                                                        }
-                                                    } else static if (is(TParam : Resource)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto puppet = incActivePuppet()) {
-                                                                auto nVal = puppet.find!(Node)(cast(uint)val.integer);
-                                                                if (nVal !is null) mixin("inst."~fname~" = cast(TParam) nVal;");
-                                                                else {
-                                                                    auto pVal = puppet.find!(Parameter)(cast(uint)val.integer);
-                                                                    if (pVal !is null) mixin("inst."~fname~" = cast(TParam) pVal;");
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }}
-                                        }
+                                        applyPayloadToInstance(inst, payloadCopy);
                                     }
                                 }
                             }}
                         }}
 
-                        // 4) Run the captured command instance with the prepared context
-                        if (cmdInst !is null && cmdInst.runnable(ctx)) cmdInst.run(ctx);
+                        // 3) Run the captured command instance with the prepared context
+                        if (cmdInst !is null && cmdInst.runnable(ctx)) {
+                            auto res = cmdInst.run(ctx);
+                            if (!res.succeeded) {
+                                writefln("[MCP] command failed: %s", res.message);
+                            }
+                            return commandResultToJson(res);
+                        }
+                        return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
                     });
-                    return JSONValue(["status": JSONValue("queued"), "id": JSONValue(toolName)]);
                 }
             );
         }

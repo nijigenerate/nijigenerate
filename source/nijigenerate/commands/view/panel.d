@@ -17,10 +17,11 @@ class TogglePanelVisibilityCommand : ExCommand!(TW!(Panel, "panel", "target pane
         return panel !is null && !panel.alwaysVisible && panel.isActive();
     }
 
-    override void run(Context ctx) {
-        if (panel is null || panel.alwaysVisible) return;
+    override CommandResult run(Context ctx) {
+        if (panel is null || panel.alwaysVisible) return CommandResult(false, "Panel not toggleable");
         panel.visible = !panel.visible;
         incSettingsSet(panel.name ~ ".visible", panel.visible);
+        return CommandResult(true);
     }
 }
 

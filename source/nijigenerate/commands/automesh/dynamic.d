@@ -49,8 +49,8 @@ template ApplyAutoMeshPT(alias PT)
             foreach (n; ns) if (cast(Drawable)n) return true;
             return false;
         }
-        override void run(Context ctx) {
-            if (!runnable(ctx)) return;
+        override CommandResult run(Context ctx) {
+            if (!runnable(ctx)) return CommandResult(false, "No drawable nodes");
             AutoMeshProcessor chosen = null;
             foreach (processor; ngAutoMeshProcessors) {
                 if (cast(PT)processor) {
@@ -61,14 +61,14 @@ template ApplyAutoMeshPT(alias PT)
             if (!chosen) {
                 import std.stdio;
                 writefln("[BUG] No appropriate AutoMeshProcessor exists!");
-                return;
+                return CommandResult(false, "AutoMesh processor missing");
             }
 
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
             // Apply only to explicitly selected drawables (do not include descendants)
             Drawable[] targets;
             foreach (n; ns) if (auto d = cast(Drawable) n) targets ~= d;
-            if (targets.length == 0) return;
+            if (targets.length == 0) return CommandResult(false, "No drawable targets");
 
             IncMesh[] meshList = targets.map!(t => new IncMesh(t.getMesh())).array;
 
@@ -121,6 +121,7 @@ template ApplyAutoMeshPT(alias PT)
 
             bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
             if (onMain) scheduleTask(); else ngMcpEnqueueAction(scheduleTask);
+            return CommandResult(true);
         }
     }
 }
