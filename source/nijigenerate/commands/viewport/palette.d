@@ -54,8 +54,8 @@ private void paletteClose()
         NotificationPopup.instance().close(gPalettePopupId);
 }
 
-// Collect all registered commands across AllCommandMaps
-private Command[] collectAllCommands()
+// Collect all registered commands across AllCommandMaps (shared with Command Browser)
+Command[] collectAllCommands()
 {
     Command[] arr;
     static foreach (AA; AllCommandMaps) {
@@ -67,7 +67,7 @@ private Command[] collectAllCommands()
 }
 
 // Derive parent category name for a command (based on settings.d organization)
-private string getParentCategory(Command c)
+string getParentCategory(Command c)
 {
     // Helper to check if command is in a specific AA
     auto inAA(alias AA)(Command cmd) {
@@ -115,7 +115,7 @@ private string getParentCategory(Command c)
 
 // Derive an English-like search token from the command's type name.
 // Example: nijigenerate.commands.puppet.file.OpenFileCommand -> "open file"
-private string deriveEnglishToken(Command c)
+string deriveEnglishToken(Command c)
 {
     // Use dynamic class info via Object to get concrete subclass name
     auto tn = typeid(cast(Object)c).toString();
@@ -140,6 +140,34 @@ private string deriveEnglishToken(Command c)
     }
     auto s = cast(string)buf.idup;
     return s.toLower;
+}
+
+// Shared filtering logic (used by palette popup and command browser)
+Command[] filterCommands(string query, Command exclude = null)
+{
+    string q = query.toLower;
+    Command[] all = collectAllCommands();
+
+    Command[] filtered;
+    foreach (c; all) {
+        if (c is null) continue;
+        if (exclude !is null && c is exclude) continue; // exclude self when needed
+        auto lbl = c.label();
+        auto eng = deriveEnglishToken(c);
+        auto parentEn = getParentCategory(c);
+        auto parentLc = parentEn.toLower;
+        // Also match localized parent name
+        string parentLocLc;
+        if (parentEn.length) {
+            import std.string : fromStringz;
+            parentLocLc = fromStringz(__(parentEn)).idup.toLower;
+        }
+        if (q.length == 0 || canFind(lbl.toLower, q) || canFind(eng, q) ||
+            (parentLc.length && canFind(parentLc, q)) || (parentLocLc.length && canFind(parentLocLc, q))) {
+            filtered ~= c;
+        }
+    }
+    return filtered;
 }
 
 /// Show a searchable list and execute on Enter.
@@ -167,28 +195,7 @@ class ListCommandCommand : ExCommand!()
             igPopItemWidth();
 
             // Gather and filter commands by label substring (case-insensitive)
-            string q = gPaletteQuery.toLower;
-            Command[] all = collectAllCommands();
-
-            Command[] filtered;
-            foreach (c; all) {
-                if (c is null) continue;
-                if (c is self) continue; // exclude self
-                auto lbl = c.label();
-                auto eng = deriveEnglishToken(c);
-                auto parentEn = getParentCategory(c);
-                auto parentLc = parentEn.toLower;
-                // Also match localized parent name
-                string parentLocLc;
-                if (parentEn.length) {
-                    import std.string : fromStringz;
-                    parentLocLc = fromStringz(__(parentEn)).idup.toLower;
-                }
-                if (q.length == 0 || canFind(lbl.toLower, q) || canFind(eng, q) || 
-                    (parentLc.length && canFind(parentLc, q)) || (parentLocLc.length && canFind(parentLocLc, q))) {
-                    filtered ~= c;
-                }
-            }
+            auto filtered = filterCommands(gPaletteQuery, self);
 
             // Adjust selection bounds
             if (gPaletteSelectedIndex >= filtered.length) {

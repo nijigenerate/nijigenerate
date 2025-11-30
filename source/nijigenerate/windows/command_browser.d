@@ -5,16 +5,17 @@ module nijigenerate.windows.command_browser;
 
 import nijigenerate.windows.base;
 import nijigenerate.widgets; // incBeginCategory helpers
+import nijigenerate.widgets.inputtext : incInputText;
 import nijigenerate.commands; // AllCommandMaps
 import nijigenerate.commands.base : BaseExArgsOf, TW;
+import nijigenerate.commands.viewport.palette : filterCommands; // shared filtering
 import i18n;
 import std.string : toLower, format, toStringz, fromStringz;
 import std.array : array, join;
 import std.traits : TemplateArgsOf, isInstanceOf;
 import std.meta : AliasSeq;
 import std.conv : to;
-import std.algorithm.searching : countUntil, canFind;
-import std.algorithm : filter;
+import std.algorithm.searching : canFind;
 
 bool incIsCommandBrowserOpen;
 
@@ -32,6 +33,7 @@ private struct CommandInfo {
 }
 
 private __gshared CommandInfo[] gCommandInfos;
+private __gshared CommandInfo[Command] gCommandInfosByCmd;
 
 // Extract key type of AA like V[K]
 private template _KeyTypeOfAA(alias AA) {
@@ -41,6 +43,7 @@ private template _KeyTypeOfAA(alias AA) {
 
 private void rebuildCommandInfos() {
     gCommandInfos.length = 0;
+    gCommandInfosByCmd.clear();
     static foreach (AA; AllCommandMaps) {{
         alias K = _KeyTypeOfAA!AA;
         foreach (k, v; AA) {
@@ -66,19 +69,20 @@ private void rebuildCommandInfos() {
                 }
             }
 
-            gCommandInfos ~= CommandInfo(
+            auto info = CommandInfo(
                 K.stringof ~ "." ~ to!string(k),
                 K.stringof,
                 v,
                 args
             );
+            gCommandInfos ~= info;
+            gCommandInfosByCmd[v] = info;
         }
     }}
 }
 
 class CommandBrowserWindow : Window {
 private:
-    char[256] filterBuf;
     string filterText;
     size_t selectedIndex;
 
@@ -120,6 +124,8 @@ protected:
         flags |= ImGuiWindowFlags.NoSavedSettings;
         incIsCommandBrowserOpen = true;
         if (gCommandInfos.length == 0) rebuildCommandInfos();
+        filterText = "";
+        selectedIndex = 0;
         super.onBeginUpdate();
     }
 
@@ -131,9 +137,8 @@ protected:
     override void onUpdate() {
         auto avail = incAvailableSpace();
         igPushItemWidth(-1);
-        if (igInputText(__("Search"), filterBuf.ptr, filterBuf.length)) {
-            filterText = cast(string) fromStringz(cast(const char*)filterBuf.ptr);
-        }
+        auto searchLabel = fromStringz(__("Search")).idup;
+        incInputText("COMMAND_BROWSER_SEARCH", searchLabel, filterText);
         igPopItemWidth();
         igSameLine();
         if (igButton(__("Refresh"))) {
@@ -141,11 +146,12 @@ protected:
         }
 
         // Filter commands
-        string f = filterText.toLower();
-        auto filtered = gCommandInfos.filter!(c => f.length == 0 ||
-            c.id.toLower().canFind(f) ||
-            c.cmd.label().toLower().canFind(f) ||
-            c.cmd.description().toLower().canFind(f)).array;
+        Command[] filteredCmds = filterCommands(filterText);
+        CommandInfo[] filtered;
+        foreach (c; filteredCmds) {
+            auto p = c in gCommandInfosByCmd;
+            if (p) filtered ~= *p;
+        }
 
         if (selectedIndex >= filtered.length) selectedIndex = filtered.length ? filtered.length - 1 : 0;
 
