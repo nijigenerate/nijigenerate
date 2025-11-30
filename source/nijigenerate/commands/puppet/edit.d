@@ -5,6 +5,7 @@ import nijilive;
 import nijigenerate.core.actionstack;
 import nijigenerate.windows;           // incPushWindow
 import nijigenerate.windows.settings;  // SettingsWindow class
+import nijigenerate.windows.command_browser; // CommandBrowserWindow class
 import i18n;
 
 class UndoCommand : ExCommand!() {
@@ -36,11 +37,21 @@ class ShowSettingsWindowCommand : ExCommand!() {
     }
 }
 
+class ShowCommandBrowserWindowCommand : ExCommand!() {
+    this() { super(_("Command Browser"), _("Inspect available commands and their inputs/outputs.")); }
+    override
+    CommandResult run(Context ctx) {
+        if (!incIsCommandBrowserOpen) incPushWindow(new CommandBrowserWindow);
+        return CommandResult(true);
+    }
+}
+
 
 enum EditCommand {
     Undo,
     Redo,
     ShowSettingsWindow,
+    ShowCommandBrowserWindow,
 }
 
 
