@@ -13,12 +13,6 @@ import std.string : format;
 import i18n;
 import bindbc.imgui; // optional UI list rendering
 
-// Compile-time presence check for initializer
-static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshTypedCommand)(); } })) {
-    //    pragma(msg, "[CT] automesh.config: ngInitCommands!(AutoMeshTypedCommand) present");
-} else
-    pragma(msg, "[CT] automesh.config: ngInitCommands!(AutoMeshTypedCommand) MISSING");
-
 // ===== Typed per-processor enum and map (for MCP tool discovery) =====
 private string _sanitizeId(string s) {
     import std.ascii : isAlphaNum;
