@@ -13,9 +13,11 @@ import i18n;
 import std.string : toLower, format, toStringz, fromStringz;
 import std.array : array, join;
 import std.traits : TemplateArgsOf, isInstanceOf;
+import std.traits : EnumMembers;
 import std.meta : AliasSeq;
 import std.conv : to;
 import std.algorithm.searching : canFind;
+import std.algorithm : sort;
 
 bool incIsCommandBrowserOpen;
 
@@ -48,25 +50,36 @@ private void rebuildCommandInfos() {
         alias K = _KeyTypeOfAA!AA;
         foreach (k, v; AA) {
             CommandArgInfo[] args;
-            alias C = typeof(v);
-            static if (__traits(compiles, BaseExArgsOf!C) && !is(BaseExArgsOf!C == void)) {
-                alias Declared = BaseExArgsOf!C;
-                static foreach (i, Param; Declared) {
-                    CommandArgInfo info;
-                    static if (isInstanceOf!(TW, Param)) {
-                        alias TParam = TemplateArgsOf!Param[0];
-                        enum fname = TemplateArgsOf!Param[1];
-                        enum fdesc = TemplateArgsOf!Param[2];
-                        info.name = fname;
-                        info.typeName = TParam.stringof;
-                        info.desc = fdesc;
-                    } else {
-                        info.name = "arg" ~ i.to!string;
-                        info.typeName = Param.stringof;
-                        info.desc = "";
-                    }
-                    args ~= info;
-                }
+            alias KT = typeof(k);
+            static if (is(KT == enum)) {
+                static foreach (m; EnumMembers!KT) {{
+                    if (k == m) {{
+                        enum _mName  = __traits(identifier, m);
+                        enum _typeName = _mName ~ "Command";
+                        static if (__traits(compiles, mixin(_typeName))) {
+                            alias C = mixin(_typeName);
+                            static if (__traits(compiles, BaseExArgsOf!C) && !is(BaseExArgsOf!C == void)) {
+                                alias Declared = BaseExArgsOf!C;
+                                static foreach (i, Param; Declared) {{
+                                    CommandArgInfo info;
+                                    static if (isInstanceOf!(TW, Param)) {
+                                        alias TParam = TemplateArgsOf!Param[0];
+                                        enum fname = TemplateArgsOf!Param[1];
+                                        enum fdesc = TemplateArgsOf!Param[2];
+                                        info.name = fname;
+                                        info.typeName = TParam.stringof;
+                                        info.desc = fdesc;
+                                    } else {
+                                        info.name = "arg" ~ i.to!string;
+                                        info.typeName = Param.stringof;
+                                        info.desc = "";
+                                    }
+                                    args ~= info;
+                                }}
+                            }
+                        }
+                    }}
+                }}
             }
 
             auto info = CommandInfo(
@@ -85,6 +98,8 @@ class CommandBrowserWindow : Window {
 private:
     string filterText;
     size_t selectedIndex;
+    Command selectedCmd;
+    bool initialized;
 
     void drawInputsTable(ref CommandInfo info) {
         if (igBeginTable("inputs", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable)) {
@@ -114,18 +129,56 @@ private:
         }
     }
 
+    void drawContextTable() {
+        if (igBeginTable("context", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable)) {
+            igTableSetupColumn(__("Context key"));
+            igTableSetupColumn(__("Type"));
+            igTableSetupColumn(__("Notes"));
+            igTableHeadersRow();
+
+            igTableNextRow(); igTableSetColumnIndex(0); igText("parameters");
+            igTableSetColumnIndex(1); igText("uint[]");
+            igTableSetColumnIndex(2); igText(__("Optional. Parameter UUIDs. Used by many commands."));
+
+            igTableNextRow(); igTableSetColumnIndex(0); igText("armedParameters");
+            igTableSetColumnIndex(1); igText("uint[]");
+            igTableSetColumnIndex(2); igText(__("Optional. Parameters to arm before execution."));
+
+            igTableNextRow(); igTableSetColumnIndex(0); igText("nodes");
+            igTableSetColumnIndex(1); igText("uint[]");
+            igTableSetColumnIndex(2); igText(__("Optional. Node UUIDs. Used by inspector/node commands."));
+
+            igTableNextRow(); igTableSetColumnIndex(0); igText("keyPoint");
+            igTableSetColumnIndex(1); igText("[uint,uint]");
+            igTableSetColumnIndex(2); igText(__("Optional. Key point index (x,y)."));
+
+            igTableNextRow(); igTableSetColumnIndex(0); igText("required?");
+            igTableSetColumnIndex(1); igText(__("(per-command)"));
+            igTableSetColumnIndex(2); igText(__("Requirements depend on each command's runnable/context check; not declared statically."));
+
+            igEndTable();
+        }
+    }
+
 public:
     this() {
         super(_("Command Browser"));
+        initialized = false;
     }
 
 protected:
     override void onBeginUpdate() {
         flags |= ImGuiWindowFlags.NoSavedSettings;
+        igSetNextWindowSize(ImVec2(900, 640), ImGuiCond.FirstUseEver);
+        igSetNextWindowSizeConstraints(ImVec2(700, 480), ImVec2(float.max, float.max));
         incIsCommandBrowserOpen = true;
         if (gCommandInfos.length == 0) rebuildCommandInfos();
-        filterText = "";
-        selectedIndex = 0;
+        if (!initialized) {
+            filterText = "";
+            selectedIndex = 0;
+            selectedCmd = null;
+            initialized = true;
+        }
         super.onBeginUpdate();
     }
 
@@ -152,15 +205,33 @@ protected:
             auto p = c in gCommandInfosByCmd;
             if (p) filtered ~= *p;
         }
+        // Stabilize ordering to avoid flicker when AA order changes
+        filtered.sort!((a, b) => a.cmd.label().toLower < b.cmd.label().toLower || (a.cmd.label().toLower == b.cmd.label().toLower && a.id < b.id));
 
+        // Re-anchor selection every frame based on selectedCmd when available
+        if (selectedCmd !is null) {
+            foreach (i, info; filtered) {
+                if (info.cmd is selectedCmd) { selectedIndex = i; break; }
+            }
+        }
+        // Clamp if the current index is out of range
         if (selectedIndex >= filtered.length) selectedIndex = filtered.length ? filtered.length - 1 : 0;
+        // If nothing is selected but we have results, default to current index
+        if (filtered.length) {
+            if (selectedCmd is null || filtered[selectedIndex].cmd !is selectedCmd) {
+                selectedCmd = filtered[selectedIndex].cmd;
+            }
+        } else {
+            selectedCmd = null;
+        }
 
         float listWidth = avail.x * 0.35f;
         if (igBeginChild("command_list", ImVec2(listWidth, 0), true)) {
             foreach (i, info; filtered) {
-                bool selected = (i == selectedIndex);
+                bool selected = (info.cmd is selectedCmd) || (selectedCmd is null && i == selectedIndex);
                 if (igSelectable(toStringz(format("%s##cmd_%s", info.cmd.label(), info.id)), selected)) {
                     selectedIndex = i;
+                    selectedCmd = info.cmd;
                 }
                 if (igIsItemHovered()) incTooltip(info.id);
                 igTextDisabled(toStringz(info.id));
@@ -179,6 +250,9 @@ protected:
                 if (info.cmd.description().length) {
                     igTextWrapped(toStringz(info.cmd.description()));
                 }
+                igSeparator();
+                igText(__("Context (shared schema)"));
+                drawContextTable();
                 igSeparator();
                 igText(__("Inputs"));
                 drawInputsTable(info);
