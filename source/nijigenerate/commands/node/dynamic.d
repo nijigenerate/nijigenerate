@@ -20,8 +20,8 @@ struct NodeTypeKey {
     }
 }
 
-Command[NodeTypeKey] addNodeCommands;
-Command[NodeTypeKey] insertNodeCommands;
+AddNodeCommand[NodeTypeKey] addNodeCommands;
+InsertNodeCommand[NodeTypeKey] insertNodeCommands;
 
 // Convert-To dynamic commands per destination type; source type is derived from context
 struct ConvertToKey {
@@ -48,14 +48,15 @@ class ConvertNodeToCommand : ExCommand!(
         }
         return false;
     }
-    override CommandResult run(Context ctx) {
-        if (!runnable(ctx)) return CommandResult(false, "Context not convertible");
-        ngConvertTo(ctx.nodes, toType);
-        return CommandResult(true);
+    override CreateResult!Node run(Context ctx) {
+        if (!runnable(ctx)) return new CreateResult!Node(false, null, "Context not convertible");
+        auto before = ctx.nodes.dup;
+        auto converted = ngConvertTo(ctx.nodes, toType);
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from "~before.length.stringof) : "No nodes converted");
     }
 }
 
-Command[ConvertToKey] convertNodeCommands;
+ConvertNodeToCommand[ConvertToKey] convertNodeCommands;
 
 private bool tryInstantiateNode(string className)
 {
@@ -92,20 +93,20 @@ private string[] discoverNodeTypes()
     ];
 }
 
-Command ensureAddNodeCommand(string className, string suffix = null)
+AddNodeCommand ensureAddNodeCommand(string className, string suffix = null)
 {
     NodeTypeKey key = NodeTypeKey(className, suffix);
     if (auto p = key in addNodeCommands) return *p;
-    auto cmd = cast(Command) new AddNodeCommand(className, suffix);
+    auto cmd = new AddNodeCommand(className, suffix);
     addNodeCommands[key] = cmd;
     return cmd;
 }
 
-Command ensureInsertNodeCommand(string className, string suffix = null)
+InsertNodeCommand ensureInsertNodeCommand(string className, string suffix = null)
 {
     NodeTypeKey key = NodeTypeKey(className, suffix);
     if (auto p = key in insertNodeCommands) return *p;
-    auto cmd = cast(Command) new InsertNodeCommand(className, suffix);
+    auto cmd = new InsertNodeCommand(className, suffix);
     insertNodeCommands[key] = cmd;
     return cmd;
 }
@@ -135,17 +136,17 @@ void ngInitCommands(T)() if (is(T == ConvertToKey))
     }
 }
 
-Command ensureConvertToCommand(string toType)
+ConvertNodeToCommand ensureConvertToCommand(string toType)
 {
     ConvertToKey key = ConvertToKey(toType);
     if (auto p = key in convertNodeCommands) {
-        auto cnv = cast(ConvertNodeToCommand)*p;
+        auto cnv = *p;
         if (cnv.toType != toType) {
             cnv.toType = toType;
         }
         return *p;
     }
-    auto cmd = cast(Command) new ConvertNodeToCommand(toType);
+    auto cmd = new ConvertNodeToCommand(toType);
     convertNodeCommands[key] = cmd;
     return cmd;
 }

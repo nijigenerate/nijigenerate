@@ -55,61 +55,81 @@ template registerCommand(alias id, Args...) {
 import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
-import std.variant : Variant;
-
 struct TW(alias T, string fieldName, string fieldDesc) {}
 
-struct CommandResult {
+class CommandResult {
     bool succeeded;
     string message;
-    Variant payload; // optional typed payload (e.g., ResourceResult!R)
-    this(bool succeeded, string message = "", Variant payload = Variant.init) {
+    this(bool succeeded, string message = "") {
         this.succeeded = succeeded;
         this.message = message;
-        this.payload = payload;
     }
-    // Helper to wrap a payload of any type
-    static CommandResult withPayload(T)(bool succeeded, T payload, string message = "") {
-        return CommandResult(succeeded, message, Variant(payload));
+    static CommandResult opCall(bool succeeded, string message = "") {
+        return new CommandResult(succeeded, message);
     }
 }
 
-struct ExCommandResult(T) {
-    bool succeeded;
-    string message;
+// If T is already a CommandResult (e.g., CreateResult!R), inherit from it directly.
+static if (is(T : CommandResult))
+class ExCommandResult(T) : T {
+    this(Args...)(Args args) if (__traits(compiles, { super(args); })) { super(args); }
+    static ExCommandResult!T opCall(Args...)(Args args) if (__traits(compiles, { return new ExCommandResult!T(args); })) {
+        return new ExCommandResult!T(args);
+    }
+}
+else
+// General ExCommandResult: if T is already a CommandResult, just alias to T.
+template ExCommandResult(T) {
+    static if (is(T : CommandResult)) {
+        alias ExCommandResult = T;
+    } else {
+        alias ExCommandResult = ExCommandResultImpl!T;
+    }
+}
+
+// Payload-carrying ExCommandResult for non-CommandResult types
+class ExCommandResultImpl(T) : CommandResult {
     T result;
     this(bool succeeded, T result = T.init, string message = "") {
-        this.succeeded = succeeded;
+        super(succeeded, message);
         this.result = result;
-        this.message = message;
+    }
+    static ExCommandResultImpl!T opCall(bool succeeded, T result = T.init, string message = "") {
+        return new ExCommandResultImpl!T(succeeded, result, message);
     }
 }
 
-enum ResourceChange { Created, Deleted }
-
-struct ResourceResult(R) {
-    bool succeeded;
-    string message;
-    ResourceChange change;
+class CreateResult(R) : CommandResult {
     R[] created;
-    R[] deleted;
-    R[] loaded;
-    this(bool succeeded, ResourceChange change = ResourceChange.Created, R[] created = null, R[] deleted = null, R[] loaded = null, string message = "") {
-        this.succeeded = succeeded;
-        this.change = change;
+    this(bool succeeded, R[] created = null, string message = "") {
+        super(succeeded, message);
         if (created !is null) this.created = created;
+    }
+    static CreateResult!R opCall(bool succeeded, R[] created = null, string message = "") {
+        return new CreateResult!R(succeeded, created, message);
+    }
+}
+
+class DeleteResult(R) : CommandResult {
+    R[] deleted;
+    this(bool succeeded, R[] deleted = null, string message = "") {
+        super(succeeded, message);
         if (deleted !is null) this.deleted = deleted;
+    }
+    static DeleteResult!R opCall(bool succeeded, R[] deleted = null, string message = "") {
+        return new DeleteResult!R(succeeded, deleted, message);
+    }
+}
+
+class LoadResult(R) : CommandResult {
+    R[] loaded;
+    this(bool succeeded, R[] loaded = null, string message = "") {
+        super(succeeded, message);
         if (loaded !is null) this.loaded = loaded;
-        this.message = message;
     }
-    /// Convenience constructors
-    static ResourceResult createdOne(R r, string message = "") {
-        return ResourceResult(true, ResourceChange.Created, [r], null, null, message);
+    static LoadResult!R opCall(bool succeeded, R[] loaded = null, string message = "") {
+        return new LoadResult!R(succeeded, loaded, message);
     }
-    static ResourceResult deletedOne(R r, string message = "") {
-        return ResourceResult(true, ResourceChange.Deleted, null, [r], null, message);
-    }
-    CommandResult toCommandResult() const { return CommandResult.withPayload(succeeded, this, message); }
 }
 
 class Context {

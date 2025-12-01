@@ -22,7 +22,7 @@ import std.json;
 import std.array : array, join;
 import std.conv : to;
 import std.algorithm : canFind;
-import std.traits : isInstanceOf, TemplateArgsOf, isIntegral, isFloatingPoint, isSomeString, BaseClassesTuple, EnumMembers;
+import std.traits : isInstanceOf, TemplateArgsOf, isIntegral, isFloatingPoint, isSomeString, BaseClassesTuple, EnumMembers, ReturnType;
 import std.stdio : writefln;
 
 // nijigenerate command system
@@ -260,11 +260,13 @@ private void _ngMcpStart(string host, ushort port) {
 
                         // 3) Run the captured command instance with the prepared context
                         if (cmdInst !is null && cmdInst.runnable(ctx)) {
-                            auto res = cmdInst.run(ctx);
+                            alias RunType = ReturnType!(typeof(cmdInst.run));
+                            auto resAny = cmdInst.run(ctx);
+                            auto res = cast(RunType) resAny;
                             if (!res.succeeded) {
                                 writefln("[MCP] command failed: %s", res.message);
                             }
-                            return commandResultToJson(res);
+                            return commandResultToJson!RunType(res);
                         }
                         return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
                     });

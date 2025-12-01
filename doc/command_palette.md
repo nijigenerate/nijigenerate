@@ -14,11 +14,10 @@ This document outlines how to evolve the command palette so that commands return
 - `ExCommandResult!(T)` (for commands deriving from `ExCommand!(T...)`)
   - `bool succeeded;`
   - `T result;` (or a small struct wrapping multiple fields if the command already has multiple outputs).
-- `ResourceResult!(R)` (for commands that create or delete a resource of type `R`)
-  - Extends `ExCommandResult!(R)` semantics.
-  - `bool succeeded;`
-  - `R resource;` (the created or deleted resource instance)
-  - `enum ResourceChange { Created, Deleted; } change;`
+- Resource-oriented results  
+  - `CreateResult!(R)` — `bool succeeded; R[] created; string message;`
+  - `DeleteResult!(R)` — `bool succeeded; R[] deleted; string message;`
+  - `LoadResult!(R)`   — `bool succeeded; R[] loaded;  string message;`
 
 ## Interface Changes
 - `interface Command` → `CommandResult run(Context context);`
@@ -27,8 +26,9 @@ This document outlines how to evolve the command palette so that commands return
   - For commands that already convey information via dialogs, the dialog remains but `succeeded` must still be set accurately.
 
 ## Resource-Oriented Commands
-- Creation commands: return `ResourceResult!(R)(succeeded: true, change: Created, resource: <new>)` on success; `succeeded=false` on failure (resource may be `null`/`void`).
-- Deletion commands: return `ResourceResult!(R)(succeeded: true, change: Deleted, resource: <deleted>)` before disposal so callers can reference it.
+- Creation commands: return `CreateResult!(R)` with `created` populated.
+- Deletion commands: return `DeleteResult!(R)` with `deleted` populated (before disposal so callers can reference it).
+- Load commands: return `LoadResult!(R)` with `loaded` populated.
 - These results let the palette or MCP server broadcast resource additions/removals without re-querying state.
 
 ## Migration Plan
@@ -37,7 +37,7 @@ This document outlines how to evolve the command palette so that commands return
 3) Incrementally migrate commands:
    - Simple commands: return `CommandResult(succeeded: <bool>)`.
    - Typed commands: define a per-command payload type and return `ExCommandResult!(Payload)`.
-   - Resource commands: return `ResourceResult!(R)` as above.
+   - Resource commands: return `CreateResult!` / `DeleteResult!` / `LoadResult!` as above.
 4) Update command dispatchers (palette, shortcuts, MCP) to check `succeeded` and optionally surface `message` or resource info.
 5) Add minimal tests for representative commands (simple, typed, resource create/delete) to validate the new contract.
 

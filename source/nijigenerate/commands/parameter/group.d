@@ -32,9 +32,9 @@ class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(in
 class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
     this(int index = 0) { super(null, "Create Parameter Group", index); }
     override
-    CommandResult run(Context ctx) {
+    CreateResult!ExParameterGroup run(Context ctx) {
 
-        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        if (!ctx.hasPuppet) return new CreateResult!ExParameterGroup(false, null, "No puppet");
 
 //        if (index < 0) index = 0;
 //        else if (index > ctx.puppet.parameters.length) 
@@ -42,8 +42,8 @@ class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
 
         auto group = new ExParameterGroup(_("New Parameter Group"));
         (cast(ExPuppet)ctx.puppet).addGroup(group);
-        auto res = ResourceResult!ExParameterGroup.createdOne(group, "Parameter group created");
-        return res.toCommandResult();
+        auto res = new CreateResult!ExParameterGroup(true, [group], "Parameter group created");
+        return res;
     }
 }
 
@@ -62,9 +62,9 @@ class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value f
 class DeleteParamGroupCommand : ExCommand!() {
     this() { super(null, "Delete Parameter Group"); }
     override
-    CommandResult run(Context ctx) {
+    DeleteResult!ExParameterGroup run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
-            return CommandResult(false, "No parameter group");
+            return new DeleteResult!ExParameterGroup(false, null, "No parameter group");
         auto group = cast(ExParameterGroup)ctx.parameters[0];
 
         foreach(child; group.children) {
@@ -72,8 +72,8 @@ class DeleteParamGroupCommand : ExCommand!() {
             exChild.setParent(null);
         }
         (cast(ExPuppet)incActivePuppet()).removeGroup(group);
-        auto res = ResourceResult!ExParameterGroup(true, ResourceChange.Deleted, deleted: [group], message: "Parameter group deleted");
-        return res.toCommandResult();
+        auto res = new DeleteResult!ExParameterGroup(true, [group], "Parameter group deleted");
+        return res;
     }
 }
 

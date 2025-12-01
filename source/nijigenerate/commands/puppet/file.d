@@ -36,14 +36,13 @@ class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
     this(string file) { super(_("Open from file path"), _("Open puppet from specified file."), file); }
 
     override
-    CommandResult run(Context ctx) {
+    LoadResult!Puppet run(Context ctx) {
         if (file) {
             incOpenProject(file);
             auto puppet = incActivePuppet();
-            auto res = ResourceResult!Puppet(true, ResourceChange.Created, loaded: puppet ? [puppet] : null, message: "Puppet loaded");
-            return res.toCommandResult();
+            return new LoadResult!Puppet(true, puppet ? [puppet] : null, "Puppet loaded");
         }
-        return CommandResult(false, "File path not provided");
+        return new LoadResult!Puppet(false, null, "File path not provided");
     }
 
     // Do not expose direct-execution variant to shortcut editor (use dialog command)
@@ -109,7 +108,7 @@ class ShowImportINPDialogCommand : ExCommand!() {
     this() { super(_("Import nijilive puppet"), _("Show \"Import nijilive puppet file\" dialog.")); }
 
     override
-    CommandResult run(Context ctx) {
+    LoadResult!Puppet run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.inp"], "nijilive Puppet (*.inp)" }
         ];
@@ -118,10 +117,9 @@ class ShowImportINPDialogCommand : ExCommand!() {
         if (file) {
             incImportINP(file);
             auto puppet = incActivePuppet();
-            auto res = ResourceResult!Puppet(true, ResourceChange.Created, loaded: puppet ? [puppet] : null, message: "Puppet imported");
-            return res.toCommandResult();
+            return new LoadResult!Puppet(true, puppet ? [puppet] : null, "Puppet imported");
         }
-        return CommandResult(false, "Import canceled");
+        return new LoadResult!Puppet(false, null, "Import canceled");
     }
 }
 

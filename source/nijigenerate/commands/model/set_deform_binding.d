@@ -169,9 +169,7 @@ class SetDeformBindingCommand : ExCommand!(
         // Refresh deformation viewport/editor state
         incViewportNodeDeformNotifyParamValueChanged();
         if (allCreated.length > 0) {
-            auto res = ResourceResult!ParameterBinding(anyChanged, ResourceChange.Created, created: allCreated, message: anyChanged ? "" : "No bindings updated");
-            res.succeeded = anyChanged;
-            return res.toCommandResult();
+            return new CreateResult!ParameterBinding(anyChanged, allCreated, anyChanged ? "" : "No bindings updated");
         }
         return CommandResult(anyChanged, anyChanged ? "" : "No bindings updated");
     }

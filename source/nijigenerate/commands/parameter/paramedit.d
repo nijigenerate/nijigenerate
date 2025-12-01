@@ -197,8 +197,8 @@ class PasteParameterWithFlipCommand : ExCommand!() {
 class DuplicateParameterCommand : ExCommand!() {
     this() { super(_("Duplicate Parameter")); }
     override
-    CommandResult run(Context ctx) {
-        if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return CommandResult(false, "No parameters");
+    CreateResult!Parameter run(Context ctx) {
+        if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return new CreateResult!Parameter(false, null, "No parameters");
         auto param = ctx.parameters[0];
 
         Parameter newParam = param.dup;
@@ -207,16 +207,16 @@ class DuplicateParameterCommand : ExCommand!() {
             exParam.setParent((cast(ExParameter)param).getParent());
         }
         incActionPush(new ParameterAddAction(newParam));
-        auto res = ResourceResult!Parameter.createdOne(newParam, "Parameter duplicated");
-        return res.toCommandResult();
+        auto res = new CreateResult!Parameter(true, [newParam], "Parameter duplicated");
+        return res;
     }
 }
 
 class DuplicateParameterWithFlipCommand : ExCommand!() {
     this() { super(_("Duplicate Parameter with Flip")); }
     override
-    CommandResult run(Context ctx) {
-        if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return CommandResult(false, "No parameters");
+    CreateResult!Parameter run(Context ctx) {
+        if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return new CreateResult!Parameter(false, null, "No parameters");
         auto param = ctx.parameters[0];
 
         Parameter newParam = param.dup;
@@ -227,16 +227,16 @@ class DuplicateParameterWithFlipCommand : ExCommand!() {
             exParam.setParent((cast(ExParameter)param).getParent());
         }
         incActionPush(new ParameterAddAction(newParam, cast(Parameter[]*)[])); //parentList is not used. so passed [].
-        auto res = ResourceResult!Parameter.createdOne(newParam, "Parameter duplicated with flip");
-        return res.toCommandResult();
+        auto res = new CreateResult!Parameter(true, [newParam], "Parameter duplicated with flip");
+        return res;
     }
 }
 
 class DeleteParameterCommand : ExCommand!() {
     this() { super(_("Delete Parameter")); }
     override
-    CommandResult run(Context ctx) {
-        if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return CommandResult(false, "No parameters");
+    DeleteResult!Parameter run(Context ctx) {
+        if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return new DeleteResult!Parameter(false, null, "No parameters");
         auto param = ctx.parameters[0];
 
         if (ctx.puppet == param) {
@@ -244,7 +244,7 @@ class DeleteParameterCommand : ExCommand!() {
         }
         incActionPush(new ParameterRemoveAction(param));
         ctx.puppet.removeParameter(param);
-        return CommandResult(true);
+        return new DeleteResult!Parameter(true, [param], "Parameter deleted");
     }
 }
 
@@ -274,7 +274,7 @@ void addBinding(Parameter param, Parameter p, int fromAxis, int toAxis) {
 }
 
 class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to copy"), TW!(int, "fromAxis", "axis in source parameter"), TW!(int, "toAxis", "axis in dest parameter")) {
-    this(Parameter toParam, int fromAxis, int toAxis) { super(null, _("Delete Parameter"), toParam, fromAxis, toAxis); }
+    this(Parameter toParam, int fromAxis, int toAxis) { super(null, _("Link To Parameter"), toParam, fromAxis, toAxis); }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0) return CommandResult(false, "No parameters");

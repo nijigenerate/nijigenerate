@@ -374,9 +374,9 @@ class CopyBindingCommand : ExCommand!() {
 class PasteBindingCommand : ExCommand!() {
     this() { super(_("Paste Bindings")); }
     override
-    CommandResult run(Context ctx) {
+    CreateResult!ParameterBinding run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
+            return new CreateResult!ParameterBinding(false, null, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.parameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -417,7 +417,7 @@ class PasteBindingCommand : ExCommand!() {
             }
         }
 
-        ResourceResult!ParameterBinding resPayload;
+        CreateResult!ParameterBinding resPayload;
         bool payloadSet = false;
 
         if (targetsToApply.length > 0) {
@@ -427,7 +427,7 @@ class PasteBindingCommand : ExCommand!() {
                 auto addAction = new ParameterAddBindingsAction("paste", param, newlyCreatedBindings);
                 addAction.updateNewState();
                 incActionPush(addAction);
-                resPayload = ResourceResult!ParameterBinding(true, ResourceChange.Created, created: newlyCreatedBindings);
+                resPayload = new CreateResult!ParameterBinding(true, newlyCreatedBindings);
                 payloadSet = true;
             }
             foreach (i, targetBinding; targetsToApply) {
@@ -457,8 +457,8 @@ class PasteBindingCommand : ExCommand!() {
             }
         }
 
-        if (payloadSet) return resPayload.toCommandResult();
-        return CommandResult(true);
+        if (payloadSet) return resPayload;
+        return new CreateResult!ParameterBinding(true, null, "");
 
     }
 }
@@ -470,9 +470,9 @@ class PasteBindingCommand : ExCommand!() {
 class RemoveBindingCommand : ExCommand!() {
     this() { super(null, _("Remove Bindings")); }
     override
-    CommandResult run(Context ctx) {
+    DeleteResult!ParameterBinding run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
-            return CommandResult(false, "No parameters/bindings");
+            return new DeleteResult!ParameterBinding(false, null, "No parameters/bindings");
         
         auto param = ctx.parameters[0];
 
@@ -488,10 +488,9 @@ class RemoveBindingCommand : ExCommand!() {
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
         if (removed.length) {
-            auto res = ResourceResult!ParameterBinding(true, ResourceChange.Deleted, deleted: removed, message: "Bindings removed");
-            return res.toCommandResult();
+            return new DeleteResult!ParameterBinding(true, removed, "Bindings removed");
         }
-        return CommandResult(false, "No bindings removed");
+        return new DeleteResult!ParameterBinding(false, null, "No bindings removed");
     }
 }
 

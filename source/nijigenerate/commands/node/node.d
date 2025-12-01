@@ -27,18 +27,18 @@ class AddNodeCommand : ExCommand!(
     }
 
     override
-    CommandResult run(Context ctx) {
+    CreateResult!Node run(Context ctx) {
+        Node[] created = null;
         try {
             if (ctx.hasNodes) {
-                ngAddNodes(ctx.nodes, className, _suffix);
+                created = ngAddNodes(ctx.nodes, className, _suffix);
             } else if (ctx.hasPuppet && ctx.puppet !is null) {
-                ngAddNodes([ctx.puppet.root], className, _suffix);
+                created = ngAddNodes([ctx.puppet.root], className, _suffix);
             }
         } catch (RangeError e) {
-            // should return failure.
-            return CommandResult(false, "Failed to add node");
+            return new CreateResult!Node(false, null, "Failed to add node");
         }
-        return CommandResult(true);
+        return new CreateResult!Node(created.length > 0, created, created.length ? null : "No nodes created");
     }
 }
 
@@ -50,18 +50,18 @@ class InsertNodeCommand : ExCommand!(
     }
 
     override
-    CommandResult run(Context ctx) {
+    CreateResult!Node run(Context ctx) {
+        Node[] created = null;
         try {
             if (ctx.hasNodes) {
-                ngInsertNodes(ctx.nodes, className, _suffix);
+                created = ngInsertNodes(ctx.nodes, className, _suffix);
             } else if (ctx.hasPuppet && ctx.puppet !is null) {
-                ngInsertNodes([ctx.puppet.root], className, _suffix);
+                created = ngInsertNodes([ctx.puppet.root], className, _suffix);
             }
         } catch (RangeError e) {
-            // should return failure.
-            return CommandResult(false, "Failed to insert node");
+            return new CreateResult!Node(false, null, "Failed to insert node");
         }
-        return CommandResult(true);
+        return new CreateResult!Node(created.length > 0, created, created.length ? null : "No nodes inserted");
     }
 }
 
@@ -94,12 +94,12 @@ class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for
     }
 
     override
-    CommandResult run(Context ctx) {
-        if (ctx.hasNodes) {
-            ngConvertTo(ctx.nodes, className);
-            return CommandResult(true);
-        }
-        return CommandResult(false, "No nodes");
+    CreateResult!Node run(Context ctx) {
+        if (!ctx.hasNodes) return new CreateResult!Node(false, null, "No nodes");
+
+        auto before = ctx.nodes.dup;
+        auto converted = ngConvertTo(ctx.nodes, className);
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.stringof) : "No nodes converted");
     }
 }
 

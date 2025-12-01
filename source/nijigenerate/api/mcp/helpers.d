@@ -4,9 +4,8 @@ import std.json;
 import std.stdio : writefln;
 import std.meta : AliasSeq;
 import std.traits : isInstanceOf, TemplateArgsOf, EnumMembers;
-import std.variant : Variant;
 import inmath : vec2u, vec3;
-import nijigenerate.commands.base : CommandResult, ResourceResult, TW, BaseExArgsOf;
+import nijigenerate.commands.base : CommandResult, ExCommandResult, TW, BaseExArgsOf, CreateResult, DeleteResult, LoadResult;
 import nijigenerate.commands : Context, AllCommandMaps;
 import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.core.selector.resource : Resource, to;
@@ -26,41 +25,80 @@ private JSONValue _encodeResource(R)(R r) {
     return JSONValue(m);
 }
 
-private JSONValue _encodeResourceResult(R)(ResourceResult!R rr) {
+private JSONValue _encodeCreateResult(R)(CreateResult!R rr) {
     JSONValue[string] m;
     m["succeeded"] = JSONValue(rr.succeeded);
-    m["message"] = JSONValue(rr.message);
-    m["change"] = JSONValue(rr.change.stringof);
+    if (rr.message.length) m["message"] = JSONValue(rr.message);
     JSONValue arrCreated = JSONValue(JSONType.array);
     foreach (c; rr.created) arrCreated.array ~= _encodeResource(c);
+    m["created"] = arrCreated;
+    return JSONValue(m);
+}
+private JSONValue _encodeDeleteResult(R)(DeleteResult!R rr) {
+    JSONValue[string] m;
+    m["succeeded"] = JSONValue(rr.succeeded);
+    if (rr.message.length) m["message"] = JSONValue(rr.message);
     JSONValue arrDeleted = JSONValue(JSONType.array);
     foreach (d; rr.deleted) arrDeleted.array ~= _encodeResource(d);
+    m["deleted"] = arrDeleted;
+    return JSONValue(m);
+}
+private JSONValue _encodeLoadResult(R)(LoadResult!R rr) {
+    JSONValue[string] m;
+    m["succeeded"] = JSONValue(rr.succeeded);
+    if (rr.message.length) m["message"] = JSONValue(rr.message);
     JSONValue arrLoaded = JSONValue(JSONType.array);
     foreach (l; rr.loaded) arrLoaded.array ~= _encodeResource(l);
-    m["created"] = arrCreated;
-    m["deleted"] = arrDeleted;
     m["loaded"] = arrLoaded;
     return JSONValue(m);
 }
 
-JSONValue commandResultToJson(CommandResult res) {
+// Generic encoder for result payloads
+private JSONValue _encodeValue(T)(auto ref T v) {
+    static if (is(T == bool)) return JSONValue(v);
+    else static if (is(T : long) || is(T : ulong) || is(T : int) || is(T : uint) || is(T : short) || is(T : ushort)) return JSONValue(cast(long)v);
+    else static if (is(T : double) || is(T : float)) return JSONValue(cast(double)v);
+    else static if (is(T == string)) return JSONValue(v);
+    else static if (is(T : Resource)) return _encodeResource(v);
+    else static if (is(T == JSONValue)) return v;
+    else static if (is(T : const(JSONValue))) return v;
+    else static if (is(T == Parameter[])) {
+        JSONValue arr = JSONValue(JSONType.array);
+        foreach (p; v) arr.array ~= _encodeResource(p);
+        return arr;
+    } else static if (is(T == Node[])) {
+        JSONValue arr = JSONValue(JSONType.array);
+        foreach (n; v) arr.array ~= _encodeResource(n);
+        return arr;
+    } else {
+        import std.conv : to;
+        return JSONValue(to!string(v));
+    }
+}
+
+// Encode CommandResult using static result type RT when available
+JSONValue commandResultToJson(RT)(RT res) if (is(RT : CommandResult)) {
     JSONValue[string] m;
     m["status"] = JSONValue(res.succeeded ? "ok" : "error");
     m["succeeded"] = JSONValue(res.succeeded);
     if (res.message.length) m["message"] = JSONValue(res.message);
-    auto pt = res.payload.type;
-    if (pt && pt !is typeid(void)) {
-        bool handled = false;
-        static foreach (R; AliasSeq!(Puppet, Parameter, ExParameterGroup, ParameterBinding)) {
-            if (res.payload.convertsTo!(ResourceResult!R)) {
-                auto rr = res.payload.get!(ResourceResult!R);
-                m["payload"] = _encodeResourceResult(rr);
-                handled = true;
-            }
-        }
-        if (!handled) {
-            m["payloadType"] = JSONValue(pt.toString());
-        }
+
+    static if (is(RT : CreateResult!R, R)) {
+        m["result"] = _encodeCreateResult(cast(CreateResult!R)res);
+        m["resultType"] = JSONValue("CreateResult!(" ~ R.stringof ~ ")");
+    } else static if (is(RT : DeleteResult!R, R)) {
+        m["result"] = _encodeDeleteResult(cast(DeleteResult!R)res);
+        m["resultType"] = JSONValue("DeleteResult!(" ~ R.stringof ~ ")");
+    } else static if (is(RT : LoadResult!R, R)) {
+        m["result"] = _encodeLoadResult(cast(LoadResult!R)res);
+        m["resultType"] = JSONValue("LoadResult!(" ~ R.stringof ~ ")");
+    } else static if (isInstanceOf!(ExCommandResult, RT)) {
+        alias T = TemplateArgsOf!RT[0];
+        auto er = cast(ExCommandResult!T) res;
+        m["resultType"] = JSONValue(T.stringof);
+        m["result"] = _encodeValue(er.result);
+    } else {
+        m["resultType"] = JSONValue("CommandResult");
     }
     return JSONValue(m);
 }

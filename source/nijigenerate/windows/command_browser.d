@@ -7,12 +7,12 @@ import nijigenerate.windows.base;
 import nijigenerate.widgets; // incBeginCategory helpers
 import nijigenerate.widgets.inputtext : incInputText;
 import nijigenerate.commands; // AllCommandMaps
-import nijigenerate.commands.base : BaseExArgsOf, TW;
+import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult, ExCommandResult;
 import nijigenerate.commands.viewport.palette : filterCommands; // shared filtering
 import i18n;
 import std.string : toLower, format, toStringz, fromStringz;
 import std.array : array, join;
-import std.traits : TemplateArgsOf, isInstanceOf;
+import std.traits : TemplateArgsOf, isInstanceOf, ReturnType;
 import std.traits : EnumMembers;
 import std.meta : AliasSeq;
 import std.conv : to;
@@ -32,6 +32,12 @@ private struct CommandInfo {
     string category;   // Enum type name
     Command cmd;
     CommandArgInfo[] inputs;
+    string outputType;
+    bool isResource;
+    string resourceType;
+    string resourceChange; // Created/Deleted/Loaded (if known)
+    bool isExResult;
+    string exResultType;
 }
 
 private __gshared CommandInfo[] gCommandInfos;
@@ -42,14 +48,25 @@ private template _KeyTypeOfAA(alias AA) {
     static if (is(typeof(AA) : V[K], V, K)) alias _KeyTypeOfAA = K;
     else alias _KeyTypeOfAA = void;
 }
+private template _ValueTypeOfAA(alias AA) {
+    static if (is(typeof(AA) : V[K], V, K)) alias _ValueTypeOfAA = V;
+    else alias _ValueTypeOfAA = void;
+}
 
 private void rebuildCommandInfos() {
     gCommandInfos.length = 0;
     gCommandInfosByCmd.clear();
     static foreach (AA; AllCommandMaps) {{
         alias K = _KeyTypeOfAA!AA;
+        alias V = _ValueTypeOfAA!AA;
         foreach (k, v; AA) {
             CommandArgInfo[] args;
+            string outputType;
+            bool isResource = false;
+            string resourceType;
+            string resourceChange;
+            bool isExResult = false;
+            string exResultType;
             alias KT = typeof(k);
             static if (is(KT == enum)) {
                 static foreach (m; EnumMembers!KT) {{
@@ -77,16 +94,106 @@ private void rebuildCommandInfos() {
                                     args ~= info;
                                 }}
                             }
+                            alias RunType = ReturnType!(typeof((cast(C)null).run));
+                            outputType = RunType.stringof;
+                            static if (is(RunType : CreateResult!RT, RT)) {
+                                isResource = true;
+                                resourceType = RT.stringof;
+                                resourceChange = "Created";
+                            } else static if (is(RunType : DeleteResult!RT, RT)) {
+                                isResource = true;
+                                resourceType = RT.stringof;
+                                resourceChange = "Deleted";
+                            } else static if (is(RunType : LoadResult!RT, RT)) {
+                                isResource = true;
+                                resourceType = RT.stringof;
+                                resourceChange = "Loaded";
+                            } else static if (is(RunType : ExCommandResult!RT, RT)) {
+                                isExResult = true;
+                                exResultType = RT.stringof;
+                                static if (is(RT : CreateResult!RRT, RRT)) {
+                                    isResource = true;
+                                    resourceType = RRT.stringof;
+                                    resourceChange = "Created";
+                                } else static if (is(RT : DeleteResult!RRT, RRT)) {
+                                    isResource = true;
+                                    resourceType = RRT.stringof;
+                                    resourceChange = "Deleted";
+                                } else static if (is(RT : LoadResult!RRT, RRT)) {
+                                    isResource = true;
+                                    resourceType = RRT.stringof;
+                                    resourceChange = "Loaded";
+                                }
+                            }
                         }
                     }}
                 }}
+            } else static if (!is(V == void)) {
+                // Non-enum keys (dynamic commands) — inspect the value type directly
+                alias C = V;
+                static if (__traits(compiles, BaseExArgsOf!C) && !is(BaseExArgsOf!C == void)) {
+                    alias Declared = BaseExArgsOf!C;
+                    static foreach (i, Param; Declared) {{
+                        CommandArgInfo info;
+                        static if (isInstanceOf!(TW, Param)) {
+                            alias TParam = TemplateArgsOf!Param[0];
+                            enum fname = TemplateArgsOf!Param[1];
+                            enum fdesc = TemplateArgsOf!Param[2];
+                            info.name = fname;
+                            info.typeName = TParam.stringof;
+                            info.desc = fdesc;
+                        } else {
+                            info.name = "arg" ~ i.to!string;
+                            info.typeName = Param.stringof;
+                            info.desc = "";
+                        }
+                        args ~= info;
+                    }}
+                }
+                alias RunType = ReturnType!(typeof((cast(C)null).run));
+                outputType = RunType.stringof;
+                static if (is(RunType : CreateResult!RT, RT)) {
+                    isResource = true;
+                    resourceType = RT.stringof;
+                    resourceChange = "Created";
+                } else static if (is(RunType : DeleteResult!RT, RT)) {
+                    isResource = true;
+                    resourceType = RT.stringof;
+                    resourceChange = "Deleted";
+                } else static if (is(RunType : LoadResult!RT, RT)) {
+                    isResource = true;
+                    resourceType = RT.stringof;
+                    resourceChange = "Loaded";
+                } else static if (is(RunType : ExCommandResult!RT, RT)) {
+                    isExResult = true;
+                    exResultType = RT.stringof;
+                    static if (is(RT : CreateResult!RRT, RRT)) {
+                        isResource = true;
+                        resourceType = RRT.stringof;
+                        resourceChange = "Created";
+                    } else static if (is(RT : DeleteResult!RRT, RRT)) {
+                        isResource = true;
+                        resourceType = RRT.stringof;
+                        resourceChange = "Deleted";
+                    } else static if (is(RT : LoadResult!RRT, RRT)) {
+                        isResource = true;
+                        resourceType = RRT.stringof;
+                        resourceChange = "Loaded";
+                    }
+                }
             }
 
             auto info = CommandInfo(
                 K.stringof ~ "." ~ to!string(k),
                 K.stringof,
                 v,
-                args
+                args,
+                outputType,
+                isResource,
+                resourceType,
+                resourceChange,
+                isExResult,
+                exResultType
             );
             gCommandInfos ~= info;
             gCommandInfosByCmd[v] = info;
@@ -117,14 +224,29 @@ private:
         }
     }
 
-    void drawOutputsTable() {
+    void drawOutputsTable(ref CommandInfo info) {
         if (igBeginTable("outputs", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable)) {
             igTableSetupColumn(__("Field"));
             igTableSetupColumn(__("Meaning"));
             igTableHeadersRow();
+            igTableNextRow(); igTableSetColumnIndex(0); igText("type"); igTableSetColumnIndex(1); igText(toStringz(info.outputType.length ? info.outputType : "CommandResult"));
             igTableNextRow(); igTableSetColumnIndex(0); igText("succeeded"); igTableSetColumnIndex(1); igText(__("True on success, false on failure."));
             igTableNextRow(); igTableSetColumnIndex(0); igText("message"); igTableSetColumnIndex(1); igText(__("Optional user-facing message."));
-            igTableNextRow(); igTableSetColumnIndex(0); igText("payload"); igTableSetColumnIndex(1); igText(__("Optional typed payload (e.g., ResourceResult)."));
+            if (info.isResource) {
+                igTableNextRow(); igTableSetColumnIndex(0); igText("resourceType"); igTableSetColumnIndex(1); igText(toStringz(info.resourceType));
+                if (info.resourceChange.length) {
+                    igTableNextRow(); igTableSetColumnIndex(0); igText("change"); igTableSetColumnIndex(1); igText(toStringz(info.resourceChange));
+                }
+                const(char)[] rtype = info.resourceType.length ? info.resourceType : "Resource";
+                bool showCreated = !info.resourceChange.length || info.resourceChange == "Created";
+                bool showDeleted = !info.resourceChange.length || info.resourceChange == "Deleted";
+                bool showLoaded  = !info.resourceChange.length || info.resourceChange == "Loaded";
+                if (showCreated) { igTableNextRow(); igTableSetColumnIndex(0); igText("created"); igTableSetColumnIndex(1); igText(toStringz(format("%s[] (may be empty)", rtype))); }
+                if (showDeleted) { igTableNextRow(); igTableSetColumnIndex(0); igText("deleted"); igTableSetColumnIndex(1); igText(toStringz(format("%s[] (may be empty)", rtype))); }
+                if (showLoaded)  { igTableNextRow(); igTableSetColumnIndex(0); igText("loaded");  igTableSetColumnIndex(1); igText(toStringz(format("%s[] (may be empty)", rtype))); }
+            } else if (info.isExResult) {
+                igTableNextRow(); igTableSetColumnIndex(0); igText("result"); igTableSetColumnIndex(1); igText(toStringz(info.exResultType.length ? info.exResultType : "T"));
+            }
             igEndTable();
         }
     }
@@ -172,7 +294,8 @@ protected:
         igSetNextWindowSize(ImVec2(900, 640), ImGuiCond.FirstUseEver);
         igSetNextWindowSizeConstraints(ImVec2(700, 480), ImVec2(float.max, float.max));
         incIsCommandBrowserOpen = true;
-        if (gCommandInfos.length == 0) rebuildCommandInfos();
+        // Always rebuild to reflect latest command signatures/types
+        rebuildCommandInfos();
         if (!initialized) {
             filterText = "";
             selectedIndex = 0;
@@ -258,7 +381,7 @@ protected:
                 drawInputsTable(info);
                 igSeparator();
                 igText(__("Output"));
-                drawOutputsTable();
+                drawOutputsTable(info);
             }
         }
         igEndChild();
