@@ -85,7 +85,7 @@ class AddMouthParameterCommand : ExCommand!() {
 }
 
 class RemoveParameterCommand : ExCommand!() {
-    this() { super(null, _("Remove Parameter")); }
+    this() { super(null, _("Remove selected parameters from the active puppet")); }
     override
     DeleteResult!Parameter run(Context ctx) {
         if (!ctx.hasParameters) return new DeleteResult!Parameter(false, null, "No parameters");

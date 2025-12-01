@@ -54,6 +54,11 @@ import std.meta : AliasSeq;
 // helpers
 import nijigenerate.api.mcp.helpers : commandResultToJson, buildContextFromPayload, applyPayloadToInstance;
 
+// Debug logging (compiled out in non-debug builds)
+private void mcpLog(T...)(T args) {
+    version(MCP_LOG) writefln(args);
+}
+
 // === Compile-time diagnostics ===
 // KeyType extractor for AA like V[K]
 private template _McpKeyTypeOfAA(alias AA) {
@@ -112,7 +117,7 @@ private void _ngMcpStart(string host, ushort port) {
     gServerEnabled = true;
     gServerHost = host;
     gServerPort = port;
-    writefln("[MCP] starting server host=%s port=%s", host, port);
+    mcpLog("[MCP] starting server host=%s port=%s", host, port);
     // Create server and register tools on the main thread to avoid TLS issues
     auto transport = createHttpTransport(host, port);
     auto server = new ExtMCPServer(transport, "Nijigenerate MCP", "0.0.1");
@@ -144,18 +149,11 @@ private void _ngMcpStart(string host, ushort port) {
             auto cmdInst = v; // capture concrete instance for execution
             ++_aaAdded;
 
-            // Build context schema
-            auto ctxSchema = SchemaBuilder.object()
-                .setDescription("Optional. Omit or null to use active app state. Keys: parameters, armedParameters, nodes, keyPoint")
-                .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Parameter UUIDs (uint[])"))
-                .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Armed Parameter UUIDs (uint[])"))
-                .addProperty("nodes", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Node UUIDs (uint[])"))
-                .addProperty("keyPoint", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Index (order) of the target key point. uint[x,y]."));
-
-    // Build tool input schema with top-level parameters (separate from context)
-    auto inputSchema = SchemaBuilder.object()
-        .setDescription("Input for nijigenerate Command tool. Context is optional; other parameters map to command-specific arguments.")
-                .addProperty("context", ctxSchema);
+            // Build tool input schema (command args only). Context is allowed as an additional property (any type),
+            // so that clients may pass null or omit it entirely. The handler will ignore non-object contexts.
+            auto inputSchema = SchemaBuilder.object()
+                .setDescription("Input for nijigenerate Command tool. Context is optional (omit or null); other parameters map to command-specific arguments.")
+                .allowAdditional(true);
 
             string[] paramLog;
             alias K = typeof(k);
@@ -230,7 +228,7 @@ private void _ngMcpStart(string host, ushort port) {
             }}
 
             // Log registration with parameters
-            writefln("[MCP] addTool: %s params=[%s]", toolName, paramLog.join(", "));
+            mcpLog("[MCP] addTool: %s params=[%s]", toolName, paramLog.join(", "));
 
             server.addTool(
                 toolName,
@@ -238,7 +236,7 @@ private void _ngMcpStart(string host, ushort port) {
                 inputSchema,
                 (JSONValue payload) {
                     // Debug: print incoming JSON for this tool call
-                    writefln("[MCP] call %s: %s", toolName, payload.toString());
+                    mcpLog("[MCP] call %s: %s", toolName, payload.toString());
                     auto payloadCopy = payload;
                     return ngRunInMainThread({
                         // 1) Build context from payload
@@ -264,7 +262,7 @@ private void _ngMcpStart(string host, ushort port) {
                             auto resAny = cmdInst.run(ctx);
                             auto res = cast(RunType) resAny;
                             if (!res.succeeded) {
-                                writefln("[MCP] command failed: %s", res.message);
+                                mcpLog("[MCP] command failed: %s", res.message);
                             }
                             return commandResultToJson!RunType(res);
                         }
@@ -274,25 +272,25 @@ private void _ngMcpStart(string host, ushort port) {
             );
         }
         // Summary per AA (useful to spot empty maps)
-        writefln("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
+        mcpLog("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
     }}
 
     // Register resources/find as a Tool (returns JSON)
-    writefln("[MCP] addTool: resources/find (special)");
+    mcpLog("[MCP] addTool: resources/find (special)");
     server.addTool(
         "resources/find",
         "Find resources by selector and return Basics + Children only.",
         SchemaBuilder.object()
             .addProperty("selector", SchemaBuilder.string_().setDescription("Selector string (nijigenerate.core.selector)")),
         (JSONValue payload) {
-            writefln("[MCP] call resources/find: %s", payload.toString());
+            mcpLog("[MCP] call resources/find: %s", payload.toString());
             auto payloadCopy = payload;
             JSONValue result;
 
             result = ngRunInMainThread({
                 SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
                 string selectorParam = ("selector" in payloadCopy && payloadCopy["selector"].type == JSONType.string) ? payloadCopy["selector"].str : "";
-                writefln("[MCP resources/find] selector='%s' (Basics + Children)", selectorParam);
+                mcpLog("[MCP resources/find] selector='%s' (Basics + Children)", selectorParam);
                 Selector sel = new Selector();
                 if (selectorParam.length) sel.build(selectorParam);
                 auto results = sel.run();
@@ -333,14 +331,14 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     // Register resources/get as a Tool (returns JSON)
-    writefln("[MCP] addTool: resources/get (special)");
+    mcpLog("[MCP] addTool: resources/get (special)");
     server.addTool(
         "resources/get",
         "Get a single resource by UUID. Returns Basics + State + Geometry + Links for Nodes; basics for Parameters.",
         SchemaBuilder.object()
             .addProperty("uuid", SchemaBuilder.integer().setDescription("UUID of resource (numeric)")),
         (JSONValue payload) {
-            writefln("[MCP] call resources/get: %s", payload.toString());
+            mcpLog("[MCP] call resources/get: %s", payload.toString());
             auto payloadCopy = payload;
             JSONValue result;
 
@@ -378,14 +376,14 @@ private void _ngMcpStart(string host, ushort port) {
 
     // Also expose as Resources (for clients expecting MCP resources)
     // Dynamic resource: resource://nijigenerate/resources/find?selector=...
-    writefln("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?");
+    mcpLog("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?");
     gNotifyResourcesFind = server.addDynamicResource(
         "resource://nijigenerate/resources/find?",
         "Find Resources",
         "Find resources by selector. Returns JSON tree with Basics + Children.",
         (string path) {
             // path is the query string after '?', e.g. "selector=..." (URL-encoded)
-            writefln("[MCP] read resource resources/find?%s", path);
+            mcpLog("[MCP] read resource resources/find?%s", path);
             string selectorParam;
             // Minimal query parser (only 'selector' supported)
             import std.string : split;
@@ -445,7 +443,7 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     // Template resource: resource://nijigenerate/resources/{uuid}
-    writefln("[MCP] addTemplate: %s", "resource://nijigenerate/resources/{uuid}");
+    mcpLog("[MCP] addTemplate: %s", "resource://nijigenerate/resources/{uuid}");
     gNotifyResourceByUuid = server.addTemplate(
         "resource://nijigenerate/resources/{uuid}",
         "Get Resource",
@@ -497,7 +495,7 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     // Static resource: index of all UUID-based resource URIs for current puppet
-    writefln("[MCP] addResource: %s", "resource://nijigenerate/resources/index");
+    mcpLog("[MCP] addResource: %s", "resource://nijigenerate/resources/index");
     gNotifyResourceIndex = server.addResource(
         "resource://nijigenerate/resources/index",
         "Resource Index",
@@ -523,9 +521,9 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     auto t = new Thread({
-        writefln("[MCP] server thread entering start() ...");
+        mcpLog("[MCP] server thread entering start() ...");
         server.start();
-        writefln("[MCP] server thread exited start()");
+        mcpLog("[MCP] server thread exited start()");
     });
     gServerThread = t;
     t.isDaemon = true;
@@ -631,7 +629,7 @@ private void _ngMcpStart(string host, ushort port) {
         "- Run for specific nodes: {\"context\": {\"nodes\":[123,456]}}\n";
 
     // Register prompts using the proper API (no static-if fallbacks)
-    writefln("[MCP] addPrompt: resources/find");
+    mcpLog("[MCP] addPrompt: resources/find");
     server.addPrompt(
         "resources/find",
         "How to use the resources/find tool",
@@ -644,7 +642,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: resources/get");
+    mcpLog("[MCP] addPrompt: resources/get");
     server.addPrompt(
         "resources/get",
         "How to use resources/get tool",
@@ -657,7 +655,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: selectors/guide");
+    mcpLog("[MCP] addPrompt: selectors/guide");
     server.addPrompt(
         "selectors/guide",
         "Selector syntax and examples",
@@ -670,7 +668,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: resources/guide");
+    mcpLog("[MCP] addPrompt: resources/guide");
     server.addPrompt(
         "resources/guide",
         "Resources usage guide",
@@ -683,7 +681,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: tools/guide");
+    mcpLog("[MCP] addPrompt: tools/guide");
     server.addPrompt(
         "tools/guide",
         "Tools input and context guide",
@@ -704,54 +702,54 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088) {
 
 // Public: stop MCP server if running
 void ngMcpStop() {
-    if (!gServerStarted) { writefln("[MCP] stop requested but server not started"); return; }
+    if (!gServerStarted) { mcpLog("[MCP] stop requested but server not started"); return; }
     gServerEnabled = false;
     if (gServerInstance !is null) {
-        writefln("[MCP] requesting server stop...");
+        mcpLog("[MCP] requesting server stop...");
         try {
             gServerInstance.stop();
-            writefln("[MCP] stop() invoked on transport");
+            mcpLog("[MCP] stop() invoked on transport");
             // Wait briefly for transport event loop to exit to free the port
             import core.time : msecs;
             import core.thread : Thread;
             foreach (i; 0 .. 20) { // up to ~1s
-                if (gServerInstance.transportExited()) { writefln("[MCP] transport exited"); break; }
+                if (gServerInstance.transportExited()) { mcpLog("[MCP] transport exited"); break; }
                 Thread.sleep(50.msecs);
             }
         } catch (Exception e) {
-            writefln("[MCP] stop() threw: %s", e.msg);
+            mcpLog("[MCP] stop() threw: %s", e.msg);
         }
-    } else writefln("[MCP] no server instance to stop");
+    } else mcpLog("[MCP] no server instance to stop");
     // Do not block the UI thread waiting for shutdown; the server thread is daemon and will exit.
     gServerThread = null;
     gServerInstance = null;
     gServerStarted = false;
-    writefln("[MCP] server state cleared (stopped=true)");
+    mcpLog("[MCP] server state cleared (stopped=true)");
 }
 
 // Public: apply settings without per-frame polling
 void ngMcpApplySettings(bool enabled, string host, ushort port) {
-    writefln("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
+    mcpLog("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
     if (!enabled) {
         if (gServerStarted) {
-            writefln("[MCP] settings disabled -> stopping");
+            mcpLog("[MCP] settings disabled -> stopping");
             ngMcpStop();
         } else {
-            writefln("[MCP] settings disabled and not running -> no-op");
+            mcpLog("[MCP] settings disabled and not running -> no-op");
         }
         return;
     }
     if (!gServerStarted) {
-        writefln("[MCP] settings enabled and not running -> start");
+        mcpLog("[MCP] settings enabled and not running -> start");
         _ngMcpStart(host, port);
         return;
     }
     if (host != gServerHost || port != gServerPort) {
-        writefln("[MCP] settings changed host/port -> restart");
+        mcpLog("[MCP] settings changed host/port -> restart");
         ngMcpStop();
         _ngMcpStart(host, port);
     } else {
-        writefln("[MCP] settings unchanged and running -> no-op");
+        mcpLog("[MCP] settings unchanged and running -> no-op");
     }
 }
 
@@ -761,7 +759,7 @@ void ngMcpLoadSettings() {
     bool enabled = incSettingsGet!bool("MCP.Enabled", false);
     string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
     ushort port = cast(ushort) incSettingsGet!int("MCP.Port", 8088);
-    writefln("[MCP] load settings: enabled=%s host=%s port=%s", enabled, host, port);
+    mcpLog("[MCP] load settings: enabled=%s host=%s port=%s", enabled, host, port);
     ngMcpApplySettings(enabled, host, port);
 }
 

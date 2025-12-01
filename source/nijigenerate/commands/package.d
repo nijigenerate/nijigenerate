@@ -26,6 +26,10 @@ import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
 import std.exception : enforce;
 import std.conv;
+import std.stdio : writefln;
+
+version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
+else             private void cmdLog(T...)(T args) {}
 
 alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.binding.binding.commands,
@@ -98,7 +102,7 @@ void ngInitAllCommands() {
     import std.stdio : writefln;
     static foreach (AA; AllCommandMaps) {{
         alias K = KeyTypeOfAA!(AA);
-        writefln("[CMD] init begin: AA=%s key=%s", typeof(AA).stringof, K.stringof);
+        cmdLog("[CMD] init begin: AA=%s key=%s", typeof(AA).stringof, K.stringof);
         import std.traits : fullyQualifiedName;
         enum fq = fullyQualifiedName!K; // e.g. nijigenerate.commands.binding.binding.BindingCommand
         enum mod = ({ string s = fq; size_t last = 0; foreach (i, ch; s) { if (ch == '.') last = i; } return s[0 .. last+1]; })(); // module path with trailing dot
@@ -108,10 +112,10 @@ void ngInitAllCommands() {
         } else static if (__traits(compiles, { ngInitCommands!K(); })) {
             ngInitCommands!K();
         } else {
-            writefln("[CMD] init skipped (no ngInitCommands) for key=%s", K.stringof);
+            cmdLog("[CMD] init skipped (no ngInitCommands) for key=%s", K.stringof);
         }
         size_t cnt = 0; foreach (_k, _v; AA) ++cnt;
-        writefln("[CMD] init end:   AA=%s count=%s", typeof(AA).stringof, cnt);
+        cmdLog("[CMD] init end:   AA=%s count=%s", typeof(AA).stringof, cnt);
     }}
     // Explicit initialization for AutoMesh maps (bypass name resolution issues)
     nijigenerate.commands.automesh.dynamic.ngInitCommands!(nijigenerate.commands.automesh.dynamic.AutoMeshKey)();

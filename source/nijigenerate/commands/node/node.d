@@ -23,7 +23,7 @@ class AddNodeCommand : ExCommand!(
         TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
         // Dynamic label; keep as-is for now (static part is translatable elsewhere)
-        super(null, "Add Node " ~ className, className, _suffix);
+        super(null, "Add Node " ~ className ~ " under selection or root", className, _suffix);
     }
 
     override
@@ -46,7 +46,7 @@ class InsertNodeCommand : ExCommand!(
         TW!(string, "className", "class name of new node."), 
         TW!(string, "_suffix", "suffix pattern for new node")) {
     this(string className, string _suffix = null) {
-        super(null, "Insert Node " ~ className, className, _suffix);
+        super(null, "Insert Node " ~ className ~ " next to selection", className, _suffix);
     }
 
     override
@@ -90,7 +90,7 @@ class MoveNodeCommand : ExCommand!(
 
 class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for node")) {
     this(string className) {
-        super(null, "Convert Node to "~className, className);
+        super(null, "Convert selected nodes to "~className, className);
     }
 
     override

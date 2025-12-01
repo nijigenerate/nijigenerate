@@ -35,7 +35,7 @@ class ConvertNodeToCommand : ExCommand!(
     TW!(string, "toType", "destination node type")
 ) {
     this(string toType) {
-        super("Convert To " ~ toType, "Convert To " ~ toType, toType);
+        super("Convert To " ~ toType, "Convert selected nodes to " ~ toType, toType);
         import std.stdio;
         writefln("New class Convert to : %s", this.toType);
     }

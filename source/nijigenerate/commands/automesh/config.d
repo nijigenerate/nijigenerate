@@ -12,6 +12,10 @@ import std.array : array;
 import std.string : format;
 import i18n;
 import bindbc.imgui; // optional UI list rendering
+import std.stdio : writefln;
+
+version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
+else             private void cmdLog(T...)(T args) {}
 
 // Compile-time presence check for initializer
 static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshTypedCommand)(); } })) {
@@ -448,7 +452,7 @@ void ngInitCommands(T)() if (is(T == AutoMeshTypedCommand))
         }
     }}
     size_t after = 0; foreach (_k, _v; autoMeshTypedCommands) ++after;
-    writefln("[CMD] AutoMeshTypedCommand init: before=%s after=%s", before, after);
+    cmdLog("[CMD] AutoMeshTypedCommand init: before=%s after=%s", before, after);
 }
 // Get currently active AutoMesh processor
 class AutoMeshGetActiveCommand : ExCommand!() {

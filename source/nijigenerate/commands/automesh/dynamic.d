@@ -14,8 +14,12 @@ import std.array : array;
 import core.thread : Thread;
 import core.thread.fiber : Fiber;
 import core.sync.mutex : Mutex;
+import std.stdio : writefln;
 import nijigenerate.api.mcp.task : ngRunInMainThread, ngMcpEnqueueAction; // scheduling helpers
 import nijigenerate.widgets.notification : NotificationPopup; // UI progress popup
+
+version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
+else             private void cmdLog(T...)(T args) {}
 
 // Compile-time presence check for initializer
 static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshKey)(); } })) {
@@ -150,12 +154,11 @@ Command ensureApplyAutoMeshCommand(string id)
 // Initialize commands for all available AutoMesh processors
 void ngInitCommands(T)() if (is(T == AutoMeshKey))
 {
-    import std.stdio : writefln;
     size_t before = 0; foreach (_k, _v; autoMeshApplyCommands) ++before;
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         autoMeshApplyCommands[AutoMeshKey(pid)] = cast(Command) new ApplyAutoMeshPT!PT();
     }}
     size_t after = 0; foreach (_k, _v; autoMeshApplyCommands) ++after;
-    writefln("[CMD] AutoMeshKey init: before=%s after=%s", before, after);
+    cmdLog("[CMD] AutoMeshKey init: before=%s after=%s", before, after);
 }

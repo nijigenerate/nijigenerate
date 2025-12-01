@@ -7,7 +7,7 @@ import i18n;
 
 /// Toggle visibility for a given Panel instance.
 class TogglePanelVisibilityCommand : ExCommand!(TW!(Panel, "panel", "target panel to toggle")) {
-    this() { super(null, _("Toggle Panel"), cast(Panel)null); }
+    this() { super(null, _("Toggle visibility of the specified panel"), cast(Panel)null); }
 
     override string label() {
         return panel ? panel.displayName() : _label;

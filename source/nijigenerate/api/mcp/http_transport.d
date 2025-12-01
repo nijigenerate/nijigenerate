@@ -24,6 +24,7 @@ import std.string : startsWith, format;
 import std.algorithm;
 import std.array;
 import std.exception;
+import std.stdio : writefln;
 import std.random;
 import std.typecons : Nullable, nullable, tuple;
 import core.thread.fiber : Fiber;
@@ -43,6 +44,10 @@ import nijigenerate.api.mcp.task;
 import nijigenerate.api.mcp.auth;
 
 // ======================= HTTP Transport =======================
+private void httpLog(T...)(T args) {
+    version(MCP_LOG) writefln(args);
+}
+
 class HttpTransport : Transport {
     private {
         void delegate(JSONValue) messageHandler;
@@ -215,7 +220,7 @@ private:
         if (authEnabled) {
             auto auth = req.headers.get("Authorization", "");
             import std.stdio;
-            writefln("[MCP/HTTP] check token=%s",auth);
+            httpLog("[MCP/HTTP] check token=%s",auth);
             if (!auth.startsWith("Bearer ")) { setUnauthorized(res); return; }
             auto tok = auth["Bearer ".length .. $];
             if (!checkToken(tok, canonicalResource)) { setUnauthorized(res); return; }
@@ -259,7 +264,7 @@ private:
     // ---- OAuth well-known (Protected Resource Metadata) ----
     void handleProtectedResourceMetadata(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] Protected Resource Metadata");
+        httpLog("[MCP/HTTP] Protected Resource Metadata");
         res.headers["Content-Type"] = "application/json";
         JSONValue payload = [
             "resource": JSONValue(canonicalResource),
@@ -274,7 +279,7 @@ private:
     // ---- OAuth AS metadata (RFC 8414) ----
     void handleASMetadata(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] AS Metadata");
+        httpLog("[MCP/HTTP] AS Metadata");
         res.headers["Content-Type"] = "application/json";
         JSONValue payload = [
             "issuer": JSONValue(issuer),
@@ -292,7 +297,7 @@ private:
     // ---- Authorize（Waiting decision → 302） ----
     void handleAuthorize(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] Authorization.");
+        httpLog("[MCP/HTTP] Authorization.");
         auto q = req.query;
         auto clientId     = q.get("client_id", "mcp-local");
         auto redirectUri  = q.get("redirect_uri", "");
@@ -303,7 +308,7 @@ private:
         auto chalMethod   = q.get("code_challenge_method", "S256");
         auto resource     = q.get("resource", "");
 
-        writefln("[MCP/HTTP] responseType=%s, redirectUri=%s resource=%s, canonicalResource=%s, chalMethod=%s", responseType, redirectUri, resource, canonicalResource, chalMethod);
+        httpLog("[MCP/HTTP] responseType=%s, redirectUri=%s resource=%s, canonicalResource=%s, chalMethod=%s", responseType, redirectUri, resource, canonicalResource, chalMethod);
         // validate (PKCE S256 & resource REQUIRED; loopback/http(s) redirect)
         if (responseType != "code" || redirectUri.length == 0 || !canonicalResource.startsWith(resource) || chalMethod != "S256") {
             res.statusCode = 400; res.writeBody("invalid_request"); return;
@@ -338,7 +343,7 @@ private:
     // ---- Token endpoint ----
     void handleToken(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] Token.");
+        httpLog("[MCP/HTTP] Token.");
         auto body = req.bodyReader.readAllUTF8();
         string[string] form;
         foreach (p; body.split("&")) {
@@ -412,7 +417,7 @@ public:
 
     void run() {
         import std.stdio : writefln;
-        writefln("[MCP/HTTP] run(): binding on %s:%s", host, port);
+        httpLog("[MCP/HTTP] run(): binding on %s:%s", host, port);
         auto router = new URLRouter;
 
         // MCP protected endpoints
@@ -445,15 +450,15 @@ public:
             }
         }, true);
 
-        writefln("[MCP/HTTP] run(): listening on %s:%s", host, port);
+        httpLog("[MCP/HTTP] run(): listening on %s:%s", host, port);
         runApplication();
         loopExited = true;
-        writefln("[MCP/HTTP] run(): event loop exited");
+        httpLog("[MCP/HTTP] run(): event loop exited");
     }
 
     void close() {
         import std.stdio : writefln;
-        writefln("[MCP/HTTP] close(): request transport shutdown");
+        httpLog("[MCP/HTTP] close(): request transport shutdown");
         // Mark for early exit and stop accepting new connections ASAP
         shouldExit = true;
         running = false;

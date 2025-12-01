@@ -286,7 +286,7 @@ class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to 
 
 
 class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the index of the armed parameter in the parent group.")) {
-    this(int index) { super(null, _("Toggle Armed Parameter"), index); }
+    this(int index) { super(null, _("Arm/Disarm the selected parameter at index"), index); }
     override
     CommandResult run(Context ctx) {
         if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return CommandResult(false, "No parameters");
@@ -304,7 +304,7 @@ class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the inde
 }
 
 class SetStartingKeyFrameCommand : ExCommand!() {
-    this() { super(null, _("Set Starting KeyFrame")); }
+    this() { super(null, _("Set the current parameter value as starting keyframe")); }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0) return CommandResult(false, "No parameters");
