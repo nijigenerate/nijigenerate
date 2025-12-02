@@ -15,6 +15,7 @@ import nijigenerate.commands; // cmd!, Context
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand; // enum ids
 import nijilive;
 import nijilive.core.nodes.common;
+import nijilive.core.nodes.drivers; // SimplePhysics, Driver types
 import std.string;
 import std.algorithm;
 import std.algorithm.searching;

@@ -18,9 +18,9 @@ import core.exception;
 // Command Palette Definition for Node
 //==================================================================================
 
-class AddNodeCommand : ExCommand!(
-        TW!(string, "className", "class name of new node."), 
-        TW!(string, "_suffix", "suffix pattern for new node")) {
+class AddNodeCommandT(bool exposeClassName = true) : ExCommand!(
+        TW!(string, "className", "class name of new node.", !exposeClassName),
+        TW!(string, "_suffix", "suffix pattern for new node", false)) {
     this(string className, string _suffix = null) {
         // Dynamic label; keep as-is for now (static part is translatable elsewhere)
         super(null, "Add Node " ~ className ~ " under selection or root", className, _suffix);
@@ -42,9 +42,9 @@ class AddNodeCommand : ExCommand!(
     }
 }
 
-class InsertNodeCommand : ExCommand!(
-        TW!(string, "className", "class name of new node."), 
-        TW!(string, "_suffix", "suffix pattern for new node")) {
+class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
+        TW!(string, "className", "class name of new node.", !exposeClassName),
+        TW!(string, "_suffix", "suffix pattern for new node", false)) {
     this(string className, string _suffix = null) {
         super(null, "Insert Node " ~ className ~ " next to selection", className, _suffix);
     }
@@ -88,7 +88,7 @@ class MoveNodeCommand : ExCommand!(
     }
 }
 
-class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for node")) {
+class ConvertToCommandT(bool exposeClassName = true) : ExCommand!(TW!(string, "className", "new class name for node", !exposeClassName)) {
     this(string className) {
         super(null, "Convert selected nodes to "~className, className);
     }
@@ -102,6 +102,10 @@ class ConvertToCommand : ExCommand!(TW!(string, "className", "new class name for
         return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.stringof) : "No nodes converted");
     }
 }
+
+alias AddNodeCommand = AddNodeCommandT!(true);
+alias InsertNodeCommand = InsertNodeCommandT!(true);
+alias ConvertToCommand = ConvertToCommandT!(true);
 
 class DeleteNodeCommand : ExCommand!() {
     this() { super(null, _("Delete Node")); }

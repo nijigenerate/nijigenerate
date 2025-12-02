@@ -24,6 +24,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijilive;
+import nijilive.core.nodes.drivers; // SimplePhysics registrations
 import i18n;
 import std.utf;
 import std.algorithm;

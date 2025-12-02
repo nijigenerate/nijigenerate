@@ -17,6 +17,7 @@ import nijigenerate.panels.inspector.simplephysics;
 import nijigenerate.panels.inspector.griddeform;
 // Inspector resolution must be via ctx.inspectors (no global resolver)
 import nijilive; // Node, Drawable
+import nijilive.core.nodes.drivers; // SimplePhysics
 import nijigenerate.commands.base : toCodeString;
 
 // Generic apply command using NodeInspector; compile-time PropName

@@ -8,6 +8,8 @@ import std.conv : to;
 import std.exception : enforce;
 import nijigenerate.panels.inspector.common;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
+static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
+static import nijilive.core.nodes.drivers.simplephysics;
 
 string toCodeString(T)(T arg) {
     import std.traits : isSomeString, isIntegral, isFloatingPoint;
@@ -55,7 +57,7 @@ template registerCommand(alias id, Args...) {
 import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
-struct TW(alias T, string fieldName, string fieldDesc) {}
+struct TW(alias T, string fieldName, string fieldDesc, bool hidden = false) {}
 
 class CommandResult {
     bool succeeded;
