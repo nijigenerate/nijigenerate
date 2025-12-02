@@ -1,6 +1,6 @@
 module nijigenerate.commands.base;
 
-import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple, fullyQualifiedName;
+import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple, fullyQualifiedName, EnumMembers;
 import std.meta : staticMap, AliasSeq;
 import std.array : join;
 import std.format : format;
@@ -58,6 +58,23 @@ import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
 struct TW(alias T, string fieldName, string fieldDesc, bool hidden = false) {}
+
+// Append enum choices to description for UI/MCP exposure
+string enrichArgDesc(T)(string baseDesc) {
+    static if (is(T == enum)) {
+        string s;
+        bool first = true;
+        foreach (mem; EnumMembers!T) {
+            if (!first) s ~= "|";
+            first = false;
+            s ~= mem.stringof;
+        }
+        auto choices = "(" ~ s ~ ")";
+        return baseDesc.length ? (baseDesc ~ " " ~ choices) : choices;
+    } else {
+        return baseDesc;
+    }
+}
 
 class CommandResult {
     bool succeeded;

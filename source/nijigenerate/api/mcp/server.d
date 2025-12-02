@@ -27,7 +27,7 @@ import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
-import nijigenerate.commands.base : BaseExArgsOf;
+import nijigenerate.commands.base : BaseExArgsOf, enrichArgDesc;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
 import nijilive; // Node, Parameter, Puppet
@@ -175,47 +175,48 @@ private void _ngMcpStart(string host, ushort port) {
                                     alias TParam = Param;
                                     enum fdesc = "";
                                 }
+                                enum desc = enrichArgDesc!TParam(fdesc);
                                 static if (is(TParam == bool)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.boolean().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.boolean().setDescription(desc));
                                     paramLog ~= fname ~ ":bool";
                                 } else static if (isIntegral!TParam || is(TParam == enum)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription(desc));
                                     paramLog ~= fname ~ ":int";
                                 } else static if (isFloatingPoint!TParam) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.number().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.number().setDescription(desc));
                                     paramLog ~= fname ~ ":number";
                                 } else static if (isSomeString!TParam) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription(desc));
                                     paramLog ~= fname ~ ":string";
                                 } else static if (is(TParam == vec2u)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"vec2u [x,y]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"vec2u [x,y]"));
                                     paramLog ~= fname ~ ":vec2u";
                                 } else static if (is(TParam == vec3)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"vec3 [x,y,z]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"vec3 [x,y,z]"));
                                     paramLog ~= fname ~ ":vec3";
                                 } else static if (is(TParam == float[])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"float[]"));
                                     paramLog ~= fname ~ ":float[]";
                                 } else static if (is(TParam == float[2])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[2] [x,y]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"float[2] [x,y]"));
                                     paramLog ~= fname ~ ":float[2]";
                                 } else static if (is(TParam == float[3])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[3] [x,y,z]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"float[3] [x,y,z]"));
                                     paramLog ~= fname ~ ":float[3]";
                                 } else static if (is(TParam == ushort[])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"ushort[]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"ushort[]"));
                                     paramLog ~= fname ~ ":float[]";
                                 } else static if (is(TParam == uint[2])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"uint[2] [x,y]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"uint[2] [x,y]"));
                                     paramLog ~= fname ~ ":uint[2]";
                                 } else static if (is(TParam : Resource)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Resource"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((desc.length?desc~"; ":"")~"UUID of Resource"));
                                     paramLog ~= fname ~ ":ResourceUUID";
                                 } else static if (is(TParam : Node)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Node"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((desc.length?desc~"; ":"")~"UUID of Node"));
                                     paramLog ~= fname ~ ":NodeUUID";
                                 } else static if (is(TParam : Parameter)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Parameter"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((desc.length?desc~"; ":"")~"UUID of Parameter"));
                                     paramLog ~= fname ~ ":ParameterUUID";
                                 } else {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription((fdesc.length?fdesc~"; ":"")~"Unsupported type; pass as string"));

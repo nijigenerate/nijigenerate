@@ -47,6 +47,7 @@ private struct CommandArgInfo {
     string typeName;
     string desc;
     bool hidden;
+    string[] enumValues;
 }
 
 private struct CommandInfo {
@@ -72,6 +73,9 @@ private __gshared CommandInfo[Command] gCommandInfosByCmd;
 private bool parseArgValue(T)(string raw, ref T outVal) {
     import std.conv : to;
     static if (is(T == string)) { outVal = raw; return true; }
+    else static if (is(T == enum)) {
+        try { outVal = to!T(raw); return true; } catch(Exception) { return false; }
+    }
     else static if (is(T == bool)) {
         auto low = raw.toLower;
         if (low == "true" || low == "1" || low == "yes") { outVal = true; return true; }
@@ -163,9 +167,11 @@ private void rebuildCommandInfos() {
                                     alias TParam = TemplateArgsOf!Param[0];
                                     enum fname = TemplateArgsOf!Param[1];
                                     enum fdesc = TemplateArgsOf!Param[2];
+                                    enum isEnum = is(TParam == enum);
                                     info.name = fname;
                                     info.typeName = TParam.stringof;
-                                    info.desc = fdesc;
+                                    info.desc = enrichArgDesc!TParam(fdesc);
+                                    static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                                     info.hidden = hidden;
                                     static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
                                         resourceArgs ~= fname;
@@ -268,21 +274,23 @@ private void rebuildCommandInfos() {
                         }}
                     };
                     alias Declared = BaseExArgsOf!C;
-                static foreach (i, Param; Declared) {{
-                    CommandArgInfo info;
-                    static if (isInstanceOf!(TW, Param)) {
-                        alias TParam = TemplateArgsOf!Param[0];
-                        enum fname = TemplateArgsOf!Param[1];
-                        enum fdesc = TemplateArgsOf!Param[2];
-                        enum hidden = TemplateArgsOf!Param.length >= 4 ? TemplateArgsOf!Param[3] : false;
-                        info.name = fname;
-                        info.typeName = TParam.stringof;
-                        info.desc = fdesc;
-                        info.hidden = hidden;
-                        static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
-                            resourceArgs ~= fname;
-                        }
-                    } else {
+                    static foreach (i, Param; Declared) {{
+                        CommandArgInfo info;
+                        static if (isInstanceOf!(TW, Param)) {
+                            alias TParam = TemplateArgsOf!Param[0];
+                            enum fname = TemplateArgsOf!Param[1];
+                            enum fdesc = TemplateArgsOf!Param[2];
+                            enum hidden = TemplateArgsOf!Param.length >= 4 ? TemplateArgsOf!Param[3] : false;
+                            enum isEnum = is(TParam == enum);
+                            info.name = fname;
+                            info.typeName = TParam.stringof;
+                            info.desc = enrichArgDesc!TParam(fdesc);
+                            static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
+                            info.hidden = hidden;
+                            static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
+                                resourceArgs ~= fname;
+                            }
+                        } else {
                         info.name = "arg" ~ i.to!string;
                         info.typeName = Param.stringof;
                         info.desc = "";
@@ -442,7 +450,22 @@ private:
                 igTableSetColumnIndex(1); igText(toStringz(arg.typeName));
                 igTableSetColumnIndex(2); igText(arg.desc.length ? toStringz(arg.desc) : "-");
                 igTableSetColumnIndex(3);
-                if (arg.typeName == "Node[]") {
+                if (arg.enumValues.length) {
+                    if (argValues is null || arg.name !in argValues) {
+                        argValues[arg.name] = arg.enumValues.length ? arg.enumValues[0] : "";
+                    }
+                    auto current = argValues[arg.name];
+                    if (igBeginCombo(toStringz("##enum_"~arg.name), toStringz(current.length ? current : "-"))) {
+                        foreach (opt; arg.enumValues) {
+                            bool sel = (opt == current);
+                            if (igSelectable(toStringz(opt), sel)) {
+                                argValues[arg.name] = opt;
+                                current = opt;
+                            }
+                        }
+                        igEndCombo();
+                    }
+                } else if (arg.typeName == "Node[]") {
                     renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet());
                 } else if (arg.typeName == "Parameter[]") {
                     renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet());
