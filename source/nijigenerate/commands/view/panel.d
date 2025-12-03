@@ -13,6 +13,14 @@ class TogglePanelVisibilityCommand : ExCommand!(TW!(Panel, "panel", "target pane
         return panel ? panel.displayName() : _label;
     }
 
+    override string description() {
+        if (panel !is null) {
+            import std.format : format;
+            return format(_("Toggle visibility of panel '%s'"), panel.displayName());
+        }
+        return _desc;
+    }
+
     override bool runnable(Context ctx) {
         return panel !is null && !panel.alwaysVisible && panel.isActive();
     }

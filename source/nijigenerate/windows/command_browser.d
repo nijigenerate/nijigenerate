@@ -35,11 +35,6 @@ __gshared uint[ParameterBinding] gBindingIds;
 __gshared ParameterBinding[uint] gBindingById;
 __gshared uint gBindingNextId = 1;
 
-// Pending selections per picker (by id)
-__gshared Node[string] gPendingNodeSel;
-__gshared Parameter[string] gPendingParamSel;
-__gshared ParameterBinding[string] gPendingBindingSel;
-
 bool incIsCommandBrowserOpen;
 
 private struct CommandArgInfo {
@@ -48,6 +43,8 @@ private struct CommandArgInfo {
     string desc;
     bool hidden;
     string[] enumValues;
+    bool isIntegral;
+    bool isFloat;
 }
 
 private struct CommandInfo {
@@ -107,6 +104,14 @@ private string trimAtNul(string s) {
     if (idx >= 0) return s[0 .. idx];
     return s;
 }
+private void textWrappedInColumn(const(char)* s) {
+    if (s is null) { igText("-"); return; }
+    auto wrapPos = igGetCursorPosX() + igGetColumnWidth();
+    igPushTextWrapPos(wrapPos);
+    igTextWrapped(s);
+    igPopTextWrapPos();
+}
+private void textWrappedInColumn(string s) { textWrappedInColumn(toStringz(s)); }
 
 private void rebuildCommandInfos() {
     gCommandInfos.length = 0;
@@ -171,6 +176,8 @@ private void rebuildCommandInfos() {
                                     info.name = fname;
                                     info.typeName = TParam.stringof;
                                     info.desc = enrichArgDesc!TParam(fdesc);
+                                    info.isIntegral = isIntegral!TParam;
+                                    info.isFloat = isFloatingPoint!TParam;
                                     static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                                     info.hidden = hidden;
                                     static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
@@ -180,6 +187,8 @@ private void rebuildCommandInfos() {
                                     info.name = "arg" ~ i.to!string;
                                     info.typeName = Param.stringof;
                                     info.desc = "";
+                                    info.isIntegral = isIntegral!Param;
+                                    info.isFloat = isFloatingPoint!Param;
                                     info.hidden = hidden;
                                 }
                                 if (!hidden) args ~= info;
@@ -448,7 +457,8 @@ private:
                 igTableNextRow();
                 igTableSetColumnIndex(0); igText(toStringz(arg.name));
                 igTableSetColumnIndex(1); igText(toStringz(arg.typeName));
-                igTableSetColumnIndex(2); igText(arg.desc.length ? toStringz(arg.desc) : "-");
+                igTableSetColumnIndex(2);
+                textWrappedInColumn(arg.desc.length ? arg.desc : "-");
                 igTableSetColumnIndex(3);
                 if (arg.enumValues.length) {
                     if (argValues is null || arg.name !in argValues) {
@@ -464,6 +474,22 @@ private:
                             }
                         }
                         igEndCombo();
+                    }
+                } else if (arg.isFloat) {
+                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "0";
+                    float v = 0;
+                    try { v = to!float(argValues[arg.name]); } catch(Exception) {}
+                    auto label = toStringz("##f_"~arg.name);
+                    if (igInputFloat(label, &v, 0, 0, "%.4f")) {
+                        argValues[arg.name] = to!string(v);
+                    }
+                } else if (arg.isIntegral) {
+                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "0";
+                    int v = 0;
+                    try { v = to!int(argValues[arg.name]); } catch(Exception) {}
+                    auto label = toStringz("##i_"~arg.name);
+                    if (igInputInt(label, &v)) {
+                        argValues[arg.name] = to!string(v);
                     }
                 } else if (arg.typeName == "Node[]") {
                     renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet());
@@ -500,13 +526,13 @@ private:
             igTableSetupColumn(__("Meaning"));
             igTableSetupColumn(__("Value"));
             igTableHeadersRow();
-            igTableNextRow(); igTableSetColumnIndex(0); igText("type"); igTableSetColumnIndex(1); igText(toStringz(info.outputType.length ? info.outputType : "CommandResult")); igTableSetColumnIndex(2); igText(__("Declared return type")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult ? (lastResultType.length ? lastResultType : info.outputType) : "-"));
-            igTableNextRow(); igTableSetColumnIndex(0); igText("succeeded"); igTableSetColumnIndex(1); igText("bool"); igTableSetColumnIndex(2); igText(__("True on success, false on failure.")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult ? (lastSucceeded ? "true" : "false") : "-"));
-            igTableNextRow(); igTableSetColumnIndex(0); igText("message"); igTableSetColumnIndex(1); igText("string"); igTableSetColumnIndex(2); igText(__("Optional user-facing message.")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult && lastMessage.length ? lastMessage : "-"));
+            igTableNextRow(); igTableSetColumnIndex(0); igText("type"); igTableSetColumnIndex(1); igText(toStringz(info.outputType.length ? info.outputType : "CommandResult")); igTableSetColumnIndex(2); textWrappedInColumn(__("Declared return type")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult ? (lastResultType.length ? lastResultType : info.outputType) : "-"));
+            igTableNextRow(); igTableSetColumnIndex(0); igText("succeeded"); igTableSetColumnIndex(1); igText("bool"); igTableSetColumnIndex(2); textWrappedInColumn(__("True on success, false on failure.")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult ? (lastSucceeded ? "true" : "false") : "-"));
+            igTableNextRow(); igTableSetColumnIndex(0); igText("message"); igTableSetColumnIndex(1); igText("string"); igTableSetColumnIndex(2); textWrappedInColumn(__("Optional user-facing message.")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult && lastMessage.length ? lastMessage : "-"));
             if (info.isResource) {
-                igTableNextRow(); igTableSetColumnIndex(0); igText("resourceType"); igTableSetColumnIndex(1); igText("string"); igTableSetColumnIndex(2); igText(__("Resource element type")); igTableSetColumnIndex(3); igText(toStringz(info.resourceType));
+                igTableNextRow(); igTableSetColumnIndex(0); igText("resourceType"); igTableSetColumnIndex(1); igText("string"); igTableSetColumnIndex(2); textWrappedInColumn(__("Resource element type")); igTableSetColumnIndex(3); igText(toStringz(info.resourceType));
                 if (info.resourceChange.length) {
-                    igTableNextRow(); igTableSetColumnIndex(0); igText("change"); igTableSetColumnIndex(1); igText("string"); igTableSetColumnIndex(2); igText(__("Created/Deleted/Loaded (hint)")); igTableSetColumnIndex(3); igText(toStringz(info.resourceChange));
+                    igTableNextRow(); igTableSetColumnIndex(0); igText("change"); igTableSetColumnIndex(1); igText("string"); igTableSetColumnIndex(2); textWrappedInColumn(__("Created/Deleted/Loaded (hint)")); igTableSetColumnIndex(3); igText(toStringz(info.resourceChange));
                 }
                 const(char)[] rtype = info.resourceType.length ? info.resourceType : "Resource";
                 bool showCreated = !info.resourceChange.length || info.resourceChange == "Created";
@@ -514,7 +540,7 @@ private:
                 bool showLoaded  = !info.resourceChange.length || info.resourceChange == "Loaded";
                 if (showCreated) {
                     igTableNextRow(); igTableSetColumnIndex(0); igText("created"); igTableSetColumnIndex(1); igText(toStringz(format("%s[]", rtype)));
-                    igTableSetColumnIndex(2); igText(__("Resources created (may be empty)"));
+                    igTableSetColumnIndex(2); textWrappedInColumn(__("Resources created (may be empty)"));
                     igTableSetColumnIndex(3);
                     if (lastHasResult && lastCreated.length) {
                         igText(toStringz(lastCreated.join(", ")));
@@ -524,7 +550,7 @@ private:
                 }
                 if (showDeleted) {
                     igTableNextRow(); igTableSetColumnIndex(0); igText("deleted"); igTableSetColumnIndex(1); igText(toStringz(format("%s[]", rtype)));
-                    igTableSetColumnIndex(2); igText(__("Resources deleted (may be empty)"));
+                    igTableSetColumnIndex(2); textWrappedInColumn(__("Resources deleted (may be empty)"));
                     igTableSetColumnIndex(3);
                     if (lastHasResult && lastDeleted.length) {
                         igText(toStringz(lastDeleted.join(", ")));
@@ -534,7 +560,7 @@ private:
                 }
                 if (showLoaded)  {
                     igTableNextRow(); igTableSetColumnIndex(0); igText("loaded");  igTableSetColumnIndex(1); igText(toStringz(format("%s[]", rtype)));
-                    igTableSetColumnIndex(2); igText(__("Resources loaded (may be empty)"));
+                    igTableSetColumnIndex(2); textWrappedInColumn(__("Resources loaded (may be empty)"));
                     igTableSetColumnIndex(3);
                     if (lastHasResult && lastLoaded.length) {
                         igText(toStringz(lastLoaded.join(", ")));
@@ -543,7 +569,7 @@ private:
                     }
                 }
             } else if (info.isExResult) {
-                igTableNextRow(); igTableSetColumnIndex(0); igText("result"); igTableSetColumnIndex(1); igText(toStringz(info.exResultType.length ? info.exResultType : "T")); igTableSetColumnIndex(2); igText(__("Wrapped ExCommand result type")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult ? lastResultDetail : "-"));
+                igTableNextRow(); igTableSetColumnIndex(0); igText("result"); igTableSetColumnIndex(1); igText(toStringz(info.exResultType.length ? info.exResultType : "T")); igTableSetColumnIndex(2); textWrappedInColumn(__("Wrapped ExCommand result type")); igTableSetColumnIndex(3); igText(toStringz(lastHasResult ? lastResultDetail : "-"));
             }
             igEndTable();
         }
@@ -710,7 +736,7 @@ protected:
                 drawInputsTable(info);
                 igSeparator();
                 igText(__("Run"));
-                if (igButton(__("Run Command"))) {
+                if (incButtonColored(__("Run Command"))) {
                     auto ctx = ngBuildExecutionContext();
                     auto puppet = incActivePuppet();
                     auto parseList = (ref string src, ref Parameter[] outParams, ref Parameter[] outArmed, ref Node[] outNodes) {
@@ -915,10 +941,23 @@ string labelFor(ParameterBinding b) { return b is null ? to!string(__("- (none) 
 bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet) {
     bool changed = false;
     if (selected is null) selected = [];
+    igPushID(toStringz(id));
+    // If empty, show only add button (axes-like behavior, same style as axes)
+    if (selected.length == 0) {
+        if (incButtonColored("", ImVec2(24, 24))) {
+            selected ~= null; // placeholder; user picks actual resource
+            changed = true;
+        }
+        igPopID();
+        return changed;
+    }
+
     // Existing rows with remove button
-    foreach (i, sel; selected.dup) {
+    size_t i = 0;
+    while (i < selected.length) {
+        auto sel = selected[i];
+        igPushID(cast(int)i);
         string lbl = labelFor(sel);
-        igPushID(toStringz(format("%s_row_%s", id, i)));
         if (igBeginCombo("##combo", toStringz(lbl))) {
             auto style = igGetStyle();
             igPushStyleVar(ImGuiStyleVar.IndentSpacing, style.IndentSpacing * 0.25f);
@@ -931,57 +970,25 @@ bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet) {
                 renderBindingTree(puppet, chosen);
             }
             igEndCombo();
-            if (chosen !is sel) { selected[i] = chosen; changed = true; }
             igPopStyleVar(1);
+            if (chosen !is sel) { selected[i] = chosen; changed = true; }
         }
-        igSameLine();
-        if (igSmallButton(__("Delete"))) {
+        igSameLine(0, 0);
+        if (incButtonColored("", ImVec2(24, 24))) {
             selected = selected[0 .. i] ~ selected[i+1 .. $];
-            igPopID();
             changed = true;
-            break;
+            igPopID();
+            continue; // do not advance i; list is shifted
         }
         igPopID();
+        ++i;
     }
-    // Add row (combo + add button)
-    igPushID(toStringz(format("add_%s", id)));
-    T newSel = null;
-    static if (is(T == Node)) {
-        if (auto p = id in gPendingNodeSel) newSel = *p;
-    } else static if (is(T == Parameter)) {
-        if (auto p = id in gPendingParamSel) newSel = *p;
-    } else static if (is(T == ParameterBinding)) {
-        if (auto p = id in gPendingBindingSel) newSel = *p;
-    }
-    string newLbl = labelFor(newSel);
-        if (igBeginCombo("##combo_add", toStringz(newLbl))) {
-            auto style = igGetStyle();
-            igPushStyleVar(ImGuiStyleVar.IndentSpacing, style.IndentSpacing * 0.25f);
-            T chosen = newSel;
-            static if (is(T == Node)) {
-                if (puppet !is null && puppet.root !is null) renderNodeTree(puppet.root, chosen);
-                gPendingNodeSel[id] = chosen;
-            } else static if (is(T == Parameter)) {
-                renderParameterTree(puppet, chosen);
-                gPendingParamSel[id] = chosen;
-            } else static if (is(T == ParameterBinding)) {
-                renderBindingTree(puppet, chosen);
-                gPendingBindingSel[id] = chosen;
-            }
-            igEndCombo();
-            igPopStyleVar(1);
-        }
-    igSameLine();
-    if (igSmallButton(__("Add"))) {
-        T val = null;
-        static if (is(T == Node)) {
-            if (auto p = id in gPendingNodeSel) val = *p;
-        } else static if (is(T == Parameter)) {
-            if (auto p = id in gPendingParamSel) val = *p;
-        } else static if (is(T == ParameterBinding)) {
-            if (auto p = id in gPendingBindingSel) val = *p;
-        }
-        if (val !is null) { selected ~= val; changed = true; }
+
+    // Add button after rows (same line as last row)
+    igSameLine(0, 0);
+    if (incButtonColored("", ImVec2(24, 24))) {
+        selected ~= null;
+        changed = true;
     }
     igPopID();
     return changed;

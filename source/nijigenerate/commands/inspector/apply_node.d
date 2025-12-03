@@ -19,6 +19,7 @@ import nijigenerate.panels.inspector.griddeform;
 import nijilive; // Node, Drawable
 import nijilive.core.nodes.drivers; // SimplePhysics
 import nijigenerate.commands.base : toCodeString;
+import std.traits : TemplateArgsOf;
 
 // Generic apply command using NodeInspector; compile-time PropName
 class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixin("(cast(I)(null))."~PropName~".value")), "value", "Value to apply")) {
@@ -27,7 +28,13 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
     // The `DefApply` template will generate a constructor that calls this.
     alias ValT  = typeof(mixin("(cast(I)(null))."~PropName~".value"));
     this(ValT value) {
-        super(null, "Apply " ~ PropName, value);
+        alias NodeT = TemplateArgsOf!I[1];
+        static if (is(NodeT == Node)) {
+            super(null, "Apply " ~ PropName, value);
+        } else {
+            enum string targetName = NodeT.stringof;
+            super(null, "Apply " ~ PropName ~ " (" ~ targetName ~ ")", value);
+        }
     }
 
     override CommandResult run(Context ctx) {
@@ -123,7 +130,13 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
 
 class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
     this() {
-        super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
+        alias NodeT = TemplateArgsOf!I[1];
+        static if (is(NodeT == Node)) {
+            super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
+        } else {
+            enum string targetName = NodeT.stringof;
+            super("Toggle " ~ PropName ~ " (" ~ targetName ~ ")", "Toggles the value of " ~ PropName ~ " for " ~ targetName);
+        }
     }
 
     override CommandResult run(Context ctx) {
@@ -136,7 +149,6 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
         }
         if (ni is null) return CommandResult(false, "Inspector not available");
 
-        import std.traits : TemplateArgsOf;
         alias NodeT = TemplateArgsOf!I[1];
         alias ValT = typeof(mixin("(cast(I)(null))."~PropName~".value"));
         static assert(is(ValT == bool), "Toggle command only works for boolean properties");
