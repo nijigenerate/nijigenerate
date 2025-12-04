@@ -28,7 +28,8 @@ import std.algorithm : sort, map;
 import std.traits : isIntegral, isFloatingPoint;
 import nijilive.core.param.binding : ParameterBinding;
 import nijigenerate.utils : incTypeIdToIcon;
-import bindbc.imgui : ImGuiStyleVar, igPushStyleVar, igPopStyleVar, igGetStyle;
+import bindbc.imgui : ImGuiStyleVar, igPushStyleVar, igPopStyleVar, igGetStyle, ImGuiSliderFlags, igCheckbox;
+import std.math : isNaN;
 
 // Binding id map (session-scoped) — used only for stable ImGui IDs
 __gshared uint[ParameterBinding] gBindingIds;
@@ -45,6 +46,7 @@ private struct CommandArgInfo {
     string[] enumValues;
     bool isIntegral;
     bool isFloat;
+    bool isBool;
 }
 
 private struct CommandInfo {
@@ -81,7 +83,12 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
     } else static if (isIntegral!T) {
         try { outVal = to!T(raw); return true; } catch(Exception) { return false; }
     } else static if (isFloatingPoint!T) {
-        try { outVal = to!T(raw); return true; } catch(Exception) { return false; }
+        try {
+            auto v = to!T(raw);
+            if (isNaN(v)) return false;
+            outVal = v;
+            return true;
+        } catch(Exception) { return false; }
     } else {
         return false; // unsupported (e.g., Node/Parameter)
     }
@@ -178,6 +185,7 @@ private void rebuildCommandInfos() {
                                     info.desc = enrichArgDesc!TParam(fdesc);
                                     info.isIntegral = isIntegral!TParam;
                                     info.isFloat = isFloatingPoint!TParam;
+                                    info.isBool = is(TParam == bool);
                                     static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                                     info.hidden = hidden;
                                     static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
@@ -189,6 +197,7 @@ private void rebuildCommandInfos() {
                                     info.desc = "";
                                     info.isIntegral = isIntegral!Param;
                                     info.isFloat = isFloatingPoint!Param;
+                                    info.isBool = is(Param == bool);
                                     info.hidden = hidden;
                                 }
                                 if (!hidden) args ~= info;
@@ -454,6 +463,7 @@ private:
             igTableSetupColumn(__("Value"));
             igTableHeadersRow();
             foreach (arg; info.inputs) {
+                igPushID(toStringz(arg.name));
                 igTableNextRow();
                 igTableSetColumnIndex(0); igText(toStringz(arg.name));
                 igTableSetColumnIndex(1); igText(toStringz(arg.typeName));
@@ -475,18 +485,29 @@ private:
                         }
                         igEndCombo();
                     }
+                } else if (arg.isBool) {
+                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "false";
+                    bool v = false;
+                    parseArgValue!bool(argValues[arg.name], v);
+                    auto label = toStringz("##b_"~arg.name);
+                    if (igCheckbox(label, &v)) {
+                        argValues[arg.name] = v ? "true" : "false";
+                    }
                 } else if (arg.isFloat) {
-                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "0";
+                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "";
                     float v = 0;
-                    try { v = to!float(argValues[arg.name]); } catch(Exception) {}
-                    auto label = toStringz("##f_"~arg.name);
-                    if (igInputFloat(label, &v, 0, 0, "%.4f")) {
+                    bool hasVal = argValues[arg.name].length && parseArgValue!float(argValues[arg.name], v);
+                    if (!hasVal) { v = 0; argValues[arg.name] = "0"; } // keep internal arg to match displayed value
+                    string label = "##f_"~arg.name;
+                    // Align with inspector-style dragging input
+                    if (incDragFloat(label, &v, 0.1f, -float.max, float.max, "%.4f", ImGuiSliderFlags.NoRoundToFormat)) {
                         argValues[arg.name] = to!string(v);
                     }
                 } else if (arg.isIntegral) {
-                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "0";
+                    if (argValues is null || arg.name !in argValues) argValues[arg.name] = "";
                     int v = 0;
-                    try { v = to!int(argValues[arg.name]); } catch(Exception) {}
+                    bool hasVal = argValues[arg.name].length && parseArgValue!int(argValues[arg.name], v);
+                    if (!hasVal) { v = 0; argValues[arg.name] = "0"; }
                     auto label = toStringz("##i_"~arg.name);
                     if (igInputInt(label, &v)) {
                         argValues[arg.name] = to!string(v);
@@ -502,6 +523,7 @@ private:
                     auto key = format("arg_%s", arg.name);
                     incInputText(key, fromStringz(arg.name).idup, argValues[arg.name]);
                 }
+                igPopID();
                 // Only mark context dirty for the context rows (handled below)
             }
             // Context override rows (inline with inputs)
