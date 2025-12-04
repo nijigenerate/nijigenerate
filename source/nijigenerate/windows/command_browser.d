@@ -28,7 +28,7 @@ import std.algorithm : sort, map;
 import std.traits : isIntegral, isFloatingPoint;
 import nijilive.core.param.binding : ParameterBinding;
 import nijigenerate.utils : incTypeIdToIcon;
-import bindbc.imgui : ImGuiStyleVar, igPushStyleVar, igPopStyleVar, igGetStyle, ImGuiSliderFlags, igCheckbox;
+import bindbc.imgui : ImGuiStyleVar, igPushStyleVar, igPopStyleVar, igGetStyle, ImGuiSliderFlags;
 import std.math : isNaN;
 
 // Binding id map (session-scoped) — used only for stable ImGui IDs
@@ -489,8 +489,8 @@ private:
                     if (argValues is null || arg.name !in argValues) argValues[arg.name] = "false";
                     bool v = false;
                     parseArgValue!bool(argValues[arg.name], v);
-                    auto label = toStringz("##b_"~arg.name);
-                    if (igCheckbox(label, &v)) {
+                    string label = "##b_"~arg.name;
+                    if (ngToggleSwitch(label, v, ImVec2(38, 20))) {
                         argValues[arg.name] = v ? "true" : "false";
                     }
                 } else if (arg.isFloat) {

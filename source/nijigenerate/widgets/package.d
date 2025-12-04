@@ -27,6 +27,7 @@ public import nijigenerate.widgets.dragdrop;
 public import nijigenerate.widgets.timeline;
 public import nijigenerate.widgets.notification;
 public import nijigenerate.widgets.modal;
+public import nijigenerate.widgets.toggle;
 
 bool incBegin(const(char)* name, bool* pOpen, ImGuiWindowFlags flags) {
     version (NoUIScaling) {

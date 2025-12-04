@@ -239,11 +239,43 @@ void ngEndTabItem() {
 }
 
 bool ngCheckbox(const char* text, bool* value) {
-    bool result = false;
+    if (text is null || value is null) return false;
+    import core.stdc.string : strlen;
+    import std.string : startsWith;
+    import std.conv : to;
+
+    auto style = igGetStyle();
     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(2, 2));
     igPushStyleVar(ImGuiStyleVar.ItemInnerSpacing, ImVec2(2, 2));
     igPushStyleVar(ImGuiStyleVar.FrameRounding, 2);
-    result = igCheckbox(text, value);
+
+    string label = to!string(text[0 .. strlen(text)]);
+    bool hasLabel = label.length && !label.startsWith("###");
+    float toggleW = 36;
+    float toggleH = igGetFrameHeight(); // consistent with other controls
+    ImVec2 lineStart; igGetCursorScreenPos(&lineStart);
+    if (hasLabel) {
+        igAlignTextToFramePadding();
+        igText(text);
+        igSameLine(0, style.ItemInnerSpacing.x);
+        float textH = igGetTextLineHeight();
+        float centerY = lineStart.y + textH * 0.5f;
+        float toggleTop = centerY - toggleH * 0.5f;
+        if (toggleTop < lineStart.y) toggleTop = lineStart.y;
+
+        // Right-align toggle within remaining content region
+        ImVec2 avail; igGetContentRegionAvail(&avail);
+        ImVec2 pos; igGetCursorScreenPos(&pos);
+        float switchX = pos.x + avail.x - toggleW;
+        if (switchX < pos.x) switchX = pos.x; // fallback if not enough space
+        pos.x = switchX;
+        pos.y = toggleTop;
+        igSetCursorScreenPos(pos);
+    }
+    string id = label.length ? label : "##toggle";
+    string switchId = id ~ "##switch";
+    bool result = ngToggleSwitch(switchId, *value, ImVec2(toggleW, toggleH));
+
     igPopStyleVar(3);
     return result;
 }
