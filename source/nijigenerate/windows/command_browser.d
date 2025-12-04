@@ -80,6 +80,48 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
         if (low == "true" || low == "1" || low == "yes") { outVal = true; return true; }
         if (low == "false" || low == "0" || low == "no") { outVal = false; return true; }
         return false;
+    } else static if (is(T == Parameter)) {
+        import std.conv : to;
+        try {
+            auto id = to!uint(raw);
+            auto p = incActivePuppet();
+            if (p is null) return false;
+            auto found = p.find!(Parameter)(id);
+            if (found is null) return false;
+            outVal = found;
+            return true;
+        } catch(Exception) { return false; }
+    } else static if (is(T == Node)) {
+        import std.conv : to;
+        try {
+            auto id = to!uint(raw);
+            auto p = incActivePuppet();
+            if (p is null) return false;
+            auto found = p.find!(Node)(id);
+            if (found is null) return false;
+            outVal = found;
+            return true;
+        } catch(Exception) { return false; }
+    } else static if (is(T == ParameterBinding)) {
+        import std.conv : to;
+        try {
+            auto id = to!uint(raw);
+            auto p = incActivePuppet();
+            if (p is null) return false;
+            foreach (param; p.parameters) {
+                foreach (b; param.bindings) {
+                    static uint ensureBindingId(ParameterBinding b) {
+                        if (auto idp = b in gBindingIds) return *idp;
+                        auto nid = gBindingNextId++;
+                        gBindingIds[b] = nid;
+                        gBindingById[nid] = b;
+                        return nid;
+                    }
+                    if (ensureBindingId(b) == id) { outVal = b; return true; }
+                }
+            }
+            return false;
+        } catch(Exception) { return false; }
     } else static if (isIntegral!T) {
         try { outVal = to!T(raw); return true; } catch(Exception) { return false; }
     } else static if (isFloatingPoint!T) {
@@ -250,7 +292,7 @@ private void rebuildCommandInfos() {
                                         enum fname = "arg" ~ i.to!string;
                                         enum hidden = false;
                                     }
-                                    static if (!hidden && !is(TParam : Node) && !is(TParam : Parameter) && !is(TParam : ParameterBinding)) {
+                                    static if (!hidden && !is(TParam : Node[]) && !is(TParam : Parameter[]) && !is(TParam : ParameterBinding[])) {
                                         try {
                                             auto v = mixin("inst."~fname);
                                             // Truncate at first NUL for display, keep simple string conversion
@@ -518,6 +560,20 @@ private:
                     renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet());
                 } else if (arg.typeName == "ParameterBinding[]") {
                     renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet());
+                } else if (arg.typeName == "Parameter") {
+                    auto sel = argParamSelections.get(arg.name, cast(Parameter[])null);
+                    if (sel is null) sel = [];
+                    // limit to single selection
+                    if (sel.length > 1) sel = sel[0 .. 1];
+                    if (renderResourcePicker!Parameter(arg.name, sel, incActivePuppet())) {
+                        if (sel.length > 1) sel = sel[0 .. 1];
+                        argParamSelections[arg.name] = sel;
+                    }
+                    if (sel.length > 0 && sel[0] !is null) {
+                        argValues[arg.name] = to!string(sel[0].uuid);
+                    } else {
+                        argValues[arg.name] = "";
+                    }
                 } else {
                     if (argValues is null || arg.name !in argValues) argValues[arg.name] = "";
                     auto key = format("arg_%s", arg.name);
