@@ -5,6 +5,7 @@ module nijigenerate.windows.command_browser;
 
 import nijigenerate.windows.base;
 import nijigenerate.widgets; // incBeginCategory helpers
+import nijigenerate.widgets.controller : incController;
 import nijigenerate.widgets.inputtext : incInputText;
 import nijigenerate.commands; // AllCommandMaps
 import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult, ExCommandResult;
@@ -591,8 +592,55 @@ private:
             if (renderResourcePicker!Parameter("ctx_armed", ctxArmedSel, incActivePuppet())) contextDirty = true;
             igTableNextRow(); igTableSetColumnIndex(0); igText("context.bindings"); igTableSetColumnIndex(1); igText("ParameterBinding[]"); igTableSetColumnIndex(2); igText(__("Select bindings (optional)")); igTableSetColumnIndex(3);
             if (renderResourcePicker!ParameterBinding("ctx_bindings", ctxBindingsSel, incActivePuppet())) contextDirty = true;
-            igTableNextRow(); igTableSetColumnIndex(0); igText("context.keyPoint"); igTableSetColumnIndex(1); igText("[uint,uint]"); igTableSetColumnIndex(2); igText(__("Key point index (x,y), optional")); igTableSetColumnIndex(3);
-            if (incInputText("ctx_keypoint", fromStringz(__("keyPoint (x,y)")).idup, ctxKeyPoint)) contextDirty = true;
+            igTableNextRow(); igTableSetColumnIndex(0); igText("context.keyPoint"); igTableSetColumnIndex(1); igText("[uint,uint]"); igTableSetColumnIndex(2); igText(__("Key point (pick via controller), optional")); igTableSetColumnIndex(3);
+            // Build parameter candidates
+            Parameter[] kpParams = ctxParamsSel.length ? ctxParamsSel : ctxArmedSel.length ? ctxArmedSel : ctxParamsSel;
+            if (!kpParams.length && argParamSelections.length) {
+                foreach (_, selList; argParamSelections) {
+                    if (selList.length) { kpParams = [selList[0]]; break; }
+                }
+            }
+            // Current label
+            auto noneLbl = to!string(__("- (none) -"));
+            string currentLbl = ctxKeyPoint.length ? ctxKeyPoint : noneLbl;
+            if (igButton(toStringz(currentLbl))) {
+                igOpenPopup("ctx_kp_popup");
+            }
+            if (igBeginPopup("ctx_kp_popup")) {
+                if (kpParams.length == 0 || kpParams[0] is null) {
+                    igText(__("No Parameter selected"));
+                } else {
+                    static int kpParamIdx = 0;
+                    if (kpParamIdx >= cast(int)kpParams.length) kpParamIdx = 0;
+                    // Parameter selector if multiple
+                    if (kpParams.length > 1) {
+                        if (igBeginCombo("##kp_param_combo", toStringz(kpParams[kpParamIdx].name))) {
+                            foreach (i, p; kpParams) {
+                                if (p is null) continue;
+                                bool sel = (i == kpParamIdx);
+                                if (igSelectable(toStringz(p.name), sel))
+                                    kpParamIdx = cast(int)i;
+                            }
+                            igEndCombo();
+                        }
+                    } else {
+                        igText(toStringz(kpParams[kpParamIdx].name));
+                    }
+                    auto p = kpParams[kpParamIdx];
+                    ImVec2 ctrlSize = p.isVec2 ? ImVec2(240, 160) : ImVec2(240, 64);
+                    // Keep parameter value intact; use controller only for picking
+                    auto prevVal = p.value;
+                    if (incController("ctx_kp_ctrl", p, ctrlSize, true)) {
+                        auto kp = p.findClosestKeypoint();
+                        ctxKeyPoint = format("%s,%s", kp.x, kp.y);
+                        contextDirty = true;
+                    }
+                    p.value = prevVal;
+                    igSeparator();
+                    igText(__("Click on controller to pick keypoint."));
+                }
+                igEndPopup();
+            }
             igEndTable();
         }
     }
