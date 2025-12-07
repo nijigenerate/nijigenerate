@@ -8,6 +8,7 @@
 module nijigenerate.panels.agent;
 
 import std.string : format, toStringz, join;
+import std.stdio : writeln;
 import std.array : appender;
 import std.file : getcwd, exists;
 import std.path : isAbsolute, buildPath;
@@ -46,6 +47,8 @@ private:
     PendingLine[] pendingLines; // ordered pending buffers per role (raw bytes)
     string lastRoleSeen;
     bool hasLastRoleSeen;
+    bool convoContentAdded;
+    bool logContentAdded;
 
     string safeDecode(const(ubyte)[] bytes) {
         import std.utf : decode, UTFException;
@@ -76,16 +79,36 @@ private:
     Condition qCond;
 
     void log(string msg) {
-        logLines ~= shrinkLine(msg);
+        pushLogLine(shrinkLine(msg));
         logBuffer = logLines.join("\n");
     }
 
     enum size_t kMaxLineChars = 2000;
+    enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
     string shrinkLine(string s) {
         if (s.length <= kMaxLineChars) return s;
         auto head = s[0 .. kMaxLineChars];
         auto rest = s.length - kMaxLineChars;
         return head ~ " ... (truncated " ~ rest.to!string ~ " chars)";
+    }
+
+    void pushChatLine(string line) {
+        chatLines ~= line;
+        convoContentAdded = true;
+        if (chatLines.length > kMaxLines) {
+            // drop oldest surplus
+            auto drop = chatLines.length - kMaxLines;
+            chatLines = chatLines[drop .. $].dup;
+        }
+    }
+
+    void pushLogLine(string line) {
+        logLines ~= line;
+        logContentAdded = true;
+        if (logLines.length > kMaxLines) {
+            auto drop = logLines.length - kMaxLines;
+            logLines = logLines[drop .. $].dup;
+        }
     }
 
     void appendStream(string role, string text) {
@@ -106,7 +129,7 @@ private:
             auto idx = countUntil(combined, cast(ubyte) '\n');
             if (idx < 0) break;
             auto lineBytes = combined[0 .. idx];
-            chatLines ~= role ~ ": " ~ shrinkLine(safeDecode(lineBytes));
+            pushChatLine(role ~ ": " ~ shrinkLine(safeDecode(lineBytes)));
             combined = combined[idx + 1 .. $];
         }
         pendingLines[idxRole].bytes = cast(ubyte[]) combined.idup;
@@ -128,7 +151,11 @@ private:
 
     string[] pendingLinesSnapshot() {
         string[] linesBuf;
-        linesBuf ~= chatLines;
+        if (chatLines.length > kMaxLines) {
+            linesBuf ~= chatLines[$ - kMaxLines .. $];
+        } else {
+            linesBuf ~= chatLines;
+        }
         foreach (pl; pendingLines) {
             if (pl.bytes.length == 0) continue;
             linesBuf ~= pl.role ~ ": " ~ shrinkLine(safeDecode(pl.bytes));
@@ -499,52 +526,29 @@ protected:
         if (igBeginTabBar("AgentTabs", ImGuiTabBarFlags.None)) {
             if (igBeginTabItem(_("Conversation").toStringz())) {
                 auto lines = pendingLinesSnapshot();
-                bool convoHover = false;
-                bool convoActive = false;
                 if (igBeginChild("AgentConversation", logSize, true,
                         ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
                     igPushTextWrapPos(0);
-                    ImGuiListClipper clipper;
-                    ImGuiListClipper_Begin(&clipper, cast(int) lines.length, 0);
-                    while (ImGuiListClipper_Step(&clipper)) {
-                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-                            igTextUnformatted(lines[i].toStringz());
-                        }
+                    foreach (line; lines) {
+                        igTextUnformatted(line.toStringz());
                     }
-                    ImGuiListClipper_End(&clipper);
                     igPopTextWrapPos();
-                    convoHover = igIsWindowHovered(ImGuiHoveredFlags.None);
-                    convoActive = igIsAnyItemActive() || igIsWindowFocused(ImGuiFocusedFlags.ChildWindows);
-                    // Auto-scroll to bottom when not user-scrolling
-                    if (!convoHover && !convoActive) {
-                        igSetScrollHereY(1.0f);
-                    }
                 }
                 igEndChild();
+                convoContentAdded = false;
                 igEndTabItem();
             }
             if (igBeginTabItem(_("Log").toStringz())) {
-                bool logHover = false;
-                bool logActive = false;
                 if (igBeginChild("AgentLog", logSize, true,
                         ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
                     igPushTextWrapPos(0);
-                    ImGuiListClipper clipper;
-                    ImGuiListClipper_Begin(&clipper, cast(int) logLines.length, 0);
-                    while (ImGuiListClipper_Step(&clipper)) {
-                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-                            igTextUnformatted(logLines[i].toStringz());
-                        }
+                    foreach (line; logLines) {
+                        igTextUnformatted(line.toStringz());
                     }
-                    ImGuiListClipper_End(&clipper);
                     igPopTextWrapPos();
-                    logHover = igIsWindowHovered(ImGuiHoveredFlags.None);
-                    logActive = igIsAnyItemActive() || igIsWindowFocused(ImGuiFocusedFlags.ChildWindows);
-                    if (!logHover && !logActive) {
-                        igSetScrollHereY(1.0f);
-                    }
                 }
                 igEndChild();
+                logContentAdded = false;
                 igEndTabItem();
             }
             igEndTabBar();
