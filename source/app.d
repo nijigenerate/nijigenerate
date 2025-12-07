@@ -30,6 +30,7 @@ import nijilive;
 import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 import nijigenerate;
 import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings;
+import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
 
 version(D_X32) {
@@ -59,6 +60,8 @@ version(Windows) {
 int main(string[] args)
 {
     try {
+        // Always stop ACP worker on any exit path (normal close, exception, early return).
+        scope(exit) ngAcpStopAll();
         incSettingsLoad();
         incLocaleInit();
         if (incSettingsCanGet("lang")) {
@@ -127,6 +130,7 @@ int main(string[] args)
             incUpdate();
         }
         incSettingsSave();
+        ngAcpStopAll(); // ensure ACP worker stops on exit
         incFinalize();
     } catch(Throwable ex) {
         debug {
@@ -191,7 +195,3 @@ void incUpdateNoEv() {
         }
     incEndLoop();
 }
-
-
-
-

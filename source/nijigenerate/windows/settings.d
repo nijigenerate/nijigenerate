@@ -361,6 +361,36 @@ protected:
                                 incTooltip(_("Server disabled. Click Done to apply."));
                             }
                         endSection();
+
+                        beginSection(__("Coding Agent (ACP)"));
+                            string agentCmd = incSettingsGet!string("ACP.Command", "./out/nijigenerate-agent");
+                            string agentCwd = incSettingsGet!string("ACP.Workdir", "");
+
+                            char[256] cmdBuf;
+                            cmdBuf[] = 0;
+                            if (agentCmd.length < cmdBuf.length) {
+                                cmdBuf[0 .. agentCmd.length] = agentCmd[];
+                                cmdBuf[agentCmd.length] = '\0';
+                            }
+                            if (igInputText(__("Command"), cmdBuf.ptr, cmdBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
+                                import std.string : fromStringz;
+                                agentCmd = fromStringz(cmdBuf.ptr).idup;
+                                incSettingsSet("ACP.Command", agentCmd);
+                            }
+
+                            char[256] cwdBuf;
+                            cwdBuf[] = 0;
+                            if (agentCwd.length < cwdBuf.length) {
+                                cwdBuf[0 .. agentCwd.length] = agentCwd[];
+                                cwdBuf[agentCwd.length] = '\0';
+                            }
+                            if (igInputText(__("Working Dir (optional)"), cwdBuf.ptr, cwdBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
+                                import std.string : fromStringz;
+                                agentCwd = fromStringz(cwdBuf.ptr).idup;
+                                incSettingsSet("ACP.Workdir", agentCwd);
+                            }
+                            incTooltip(_("Command line is saved immediately. Agent panel will pick this up on next open."));
+                        endSection();
                         break;
                     default:
                         incLabelOver(_("No settings for this category."), ImVec2(0, 0), true);
@@ -665,7 +695,6 @@ protected:
         igEndChild();
     }
 }
-
 
 
 
