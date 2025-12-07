@@ -21,6 +21,7 @@ import mcp.protocol : Request;
 import nijigenerate.api.acp.protocol;
 import nijigenerate.api.acp.types;
 import nijigenerate.api.acp.transport.stdio;
+import nijigenerate.core.settings : incSettingsGet;
 
 /// Editor側からCoding Agentと対話する最小クライアント。
 /// - OS依存を避けるため、コマンドはシェル文字列ではなく string[] で渡す。
@@ -214,7 +215,9 @@ class ACPClient {
         auto idStr = nextId++.to!string;
         import std.file : getcwd;
         auto cwd = getcwd();
-        auto raw = `{"jsonrpc":"2.0","id":` ~ idStr ~ `,"method":"session/new","params":{"cwd":"` ~ escapeJsonString(cwd) ~ `","mcpServers":[]}}`;
+        auto mcpJson = currentMcpServers();
+        auto raw = `{"jsonrpc":"2.0","id":` ~ idStr ~ `,"method":"session/new","params":{"cwd":"`
+            ~ escapeJsonString(cwd) ~ `","mcpServers":` ~ mcpJson.toString() ~ `}}`;
         sendRawLine(raw);
         auto res = waitResponse();
         // Expect result.sessionId
@@ -263,6 +266,38 @@ class ACPClient {
             "protocolVersion": JSONValue(ACP_PROTOCOL_VERSION),
             "clientInfo": clientInfo
         ]);
+    }
+
+    /// Decide which MCP servers to advertise to the agent.
+    /// Priority: if embedded MCP HTTP server is enabled, use that;
+    /// otherwise fall back to user-provided JSON in ACP.McpServers (array).
+    JSONValue currentMcpServers() {
+        bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
+        auto host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+        auto port = incSettingsGet!int("MCP.Port", 8088);
+        if (!(mcpEnabled || host.length)) {
+            return parseJSON("[]");
+        }
+        if (!host.length) host = "127.0.0.1";
+        auto url = format("http://%s:%s/mcp", host, port);
+        // Expected format (union variant http):
+        // {"type":"http","name":"nijigenerate","url":"http://host:port","headers":[{"name":"","value":""},...]}
+        auto name = incSettingsGet!string("MCP.Name", "nijigenerate");
+        string headersRaw = incSettingsGet!string("MCP.Headers", "[]");
+        JSONValue headers;
+        try {
+            headers = parseJSON(headersRaw);
+        } catch (Exception) {
+            headers = parseJSON("[]");
+        }
+        if (headers.type != JSONType.array) headers = parseJSON("[]");
+        auto jsonStr = `[{` ~
+            `"type":"http",` ~
+            `"name":"` ~ escapeJsonString(name) ~ `",` ~
+            `"url":"` ~ escapeJsonString(url) ~ `",` ~
+            `"headers":` ~ headers.toString() ~
+        `}]`;
+        return parseJSON(jsonStr);
     }
 
     /// pingを送る（例外が出なければ成功）。

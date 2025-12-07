@@ -59,6 +59,15 @@ private void mcpLog(T...)(T args) {
     version(MCP_LOG) writefln(args);
 }
 
+private bool _mcpValidToolName(string s) {
+    import std.uni : isAlphaNum;
+    if (s.length == 0) return false;
+    foreach (ch; s) {
+        if (!(isAlphaNum(ch) || ch == '_' || ch == '-')) return false;
+    }
+    return true;
+}
+
 // === Compile-time diagnostics ===
 // KeyType extractor for AA like V[K]
 private template _McpKeyTypeOfAA(alias AA) {
@@ -134,15 +143,27 @@ private void _ngMcpStart(string host, ushort port) {
     static foreach (AA; AllCommandMaps) {{
         size_t _aaAdded = 0;
         foreach (k, v; AA) {
-            auto baseName = typeof(k).stringof ~ "." ~ to!string(k);
-            string toolName = baseName;
-            // Disambiguate duplicates by appending command class name or counter
+            // Build a spec-compliant tool name: only [a-zA-Z0-9_-]
+            string makeSafe(string s) {
+                import std.uni : isAlphaNum;
+                auto app = appender!string();
+                foreach (ch; s) app ~= (isAlphaNum(ch) || ch == '_' || ch == '-') ? ch : '_';
+                return app.data;
+            }
+
+            auto baseName = typeof(k).stringof ~ "_" ~ to!string(k); // join with '_' to avoid dot
+            string toolName = makeSafe(baseName);
+
+            // Disambiguate duplicates by appending command class name or counter (also sanitized)
             if (toolName in registered) {
-                import std.string : replace;
-                auto cls = typeid(v).name.replace(".", "/");
-                toolName = baseName ~ "@" ~ cls;
+                auto cls = makeSafe(typeid(v).name);
+                toolName = toolName ~ "_" ~ cls;
                 size_t n = 1;
-                while (toolName in registered) { toolName = baseName ~ "@" ~ cls ~ "#" ~ n.to!string; ++n; }
+                while (toolName in registered) { toolName = toolName ~ "_" ~ n.to!string; ++n; }
+            }
+            if (!_mcpValidToolName(toolName)) {
+                mcpLog("[MCP][WARN] skip tool with invalid sanitized name: '%s' (base='%s')", toolName, baseName);
+                continue;
             }
             registered[toolName] = true;
             auto toolDesc = v.description();
@@ -276,105 +297,6 @@ private void _ngMcpStart(string host, ushort port) {
         mcpLog("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
     }}
 
-    // Register resources/find as a Tool (returns JSON)
-    mcpLog("[MCP] addTool: resources/find (special)");
-    server.addTool(
-        "resources/find",
-        "Find resources by selector and return Basics + Children only.",
-        SchemaBuilder.object()
-            .addProperty("selector", SchemaBuilder.string_().setDescription("Selector string (nijigenerate.core.selector)")),
-        (JSONValue payload) {
-            mcpLog("[MCP] call resources/find: %s", payload.toString());
-            auto payloadCopy = payload;
-            JSONValue result;
-
-            result = ngRunInMainThread({
-                SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
-                string selectorParam = ("selector" in payloadCopy && payloadCopy["selector"].type == JSONType.string) ? payloadCopy["selector"].str : "";
-                mcpLog("[MCP resources/find] selector='%s' (Basics + Children)", selectorParam);
-                Selector sel = new Selector();
-                if (selectorParam.length) sel.build(selectorParam);
-                auto results = sel.run();
-
-                import nijigenerate.core.selector.treestore : TreeStore_, TreeStore;
-                auto ts = new TreeStore_!false();
-                ts.setResources(results);
-
-                JSONValue makeTree(Resource res) {
-                    JSONValue[string] map;
-                    map["typeId"] = JSONValue(res.typeId);
-                    map["uuid"] = JSONValue(cast(long)res.uuid);
-                    map["name"] = JSONValue(res.name);
-
-                    auto node = nijigenerate.core.selector.resource.to!Node(res);
-                    if (node !is null) {
-                        auto app = appender!(char[]);
-                        auto ser = inCreateSerializer(app);
-                        auto st = ser.structBegin();
-                        node.serializePartial(ser, flags, true);
-                        ser.structEnd(st);
-                        ser.flush();
-                        map["data"] = parseJSON(cast(string)app.data);
-                    }
-
-                    JSONValue[] childArr;
-                    if (res in ts.children) foreach (child; ts.children[res]) childArr ~= makeTree(child);
-                    map["children"] = JSONValue(childArr);
-                    return JSONValue(map);
-                }
-
-                JSONValue[] rootsOut;
-                foreach (r; ts.roots) rootsOut ~= makeTree(r);
-                return JSONValue(["items": JSONValue(rootsOut)]);
-            });
-            return result;
-        }
-    );
-
-    // Register resources/get as a Tool (returns JSON)
-    mcpLog("[MCP] addTool: resources/get (special)");
-    server.addTool(
-        "resources/get",
-        "Get a single resource by UUID. Returns Basics + State + Geometry + Links for Nodes; basics for Parameters.",
-        SchemaBuilder.object()
-            .addProperty("uuid", SchemaBuilder.integer().setDescription("UUID of resource (numeric)")),
-        (JSONValue payload) {
-            mcpLog("[MCP] call resources/get: %s", payload.toString());
-            auto payloadCopy = payload;
-            JSONValue result;
-
-            result = ngRunInMainThread({
-                uint uuid = 0;
-                if ("uuid" in payloadCopy && payloadCopy["uuid"].type == JSONType.integer) uuid = cast(uint) payloadCopy["uuid"].integer;
-                SerializeNodeFlags flags = SerializeNodeFlags.Basics | SerializeNodeFlags.State | SerializeNodeFlags.Geometry | SerializeNodeFlags.Links;
-
-                JSONValue[string] map;
-                auto puppet = incActivePuppet();
-                if (puppet !is null && uuid != 0) {
-                    if (auto node = puppet.find!(Node)(uuid)) {
-                        map["typeId"] = JSONValue("Node");
-                        map["uuid"] = JSONValue(cast(long)uuid);
-                        map["name"] = JSONValue(node.name);
-                        auto app = appender!(char[]);
-                        auto ser = inCreateSerializer(app);
-                        auto st = ser.structBegin();
-                        node.serializePartial(ser, flags, true);
-                        ser.structEnd(st);
-                        ser.flush();
-                        map["data"] = parseJSON(cast(string)app.data);
-                    } else if (auto param = puppet.find!(Parameter)(uuid)) {
-                        map["typeId"] = JSONValue("Parameter");
-                        map["uuid"] = JSONValue(cast(long)uuid);
-                        map["name"] = JSONValue(param.name);
-                    }
-                }
-                JSONValue obj = map.length ? JSONValue(map) : JSONValue(null);
-                return JSONValue(["item": obj]);
-            });
-            return result;
-        }
-    );
-
     // Also expose as Resources (for clients expecting MCP resources)
     // Dynamic resource: resource://nijigenerate/resources/find?selector=...
     mcpLog("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?");
@@ -502,20 +424,23 @@ private void _ngMcpStart(string host, ushort port) {
         "Resource Index",
         "List of UUID-based resource URIs for current puppet.",
         () {
-            Selector sel = new Selector();
-            sel.build("Node, Parameter");
-            auto results = sel.run();
-            JSONValue[] items;
-            foreach (res; results) {
-                auto uri = "resource://nijigenerate/resources/" ~ to!string(res.uuid);
-                JSONValue[string] m;
-                m["uri"] = JSONValue(uri);
-                m["uuid"] = JSONValue(cast(long)res.uuid);
-                m["typeId"] = JSONValue(res.typeId);
-                m["name"] = JSONValue(res.name);
-                items ~= JSONValue(m);
-            }
-            auto payload = JSONValue(["items": JSONValue(items)]);
+            // Build the index on the main thread to ensure the active puppet is visible.
+            auto payload = ngRunInMainThread({
+                Selector sel = new Selector();
+                sel.build("Node, Parameter");
+                auto results = sel.run();
+                JSONValue[] items;
+                foreach (res; results) {
+                    auto uri = "resource://nijigenerate/resources/" ~ to!string(res.uuid);
+                    JSONValue[string] m;
+                    m["uri"] = JSONValue(uri);
+                    m["uuid"] = JSONValue(cast(long)res.uuid);
+                    m["typeId"] = JSONValue(res.typeId);
+                    m["name"] = JSONValue(res.name);
+                    items ~= JSONValue(m);
+                }
+                return JSONValue(["items": JSONValue(items)]);
+            });
             import mcp.resources : ResourceContents;
             return ResourceContents.makeText("application/json", payload.toString());
         }

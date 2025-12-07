@@ -12,6 +12,7 @@ import std.array : appender;
 import std.file : getcwd, exists;
 import std.path : isAbsolute, buildPath;
 import std.conv : to;
+import std.algorithm.searching : countUntil;
 import core.thread;
 import core.sync.mutex;
 import core.sync.condition;
@@ -40,8 +41,32 @@ private:
     string[] logLines;
     string logBuffer;
     string userText;
+    string[] chatLines;        // committed lines in order
+    struct PendingLine { string role; ubyte[] bytes; }
+    PendingLine[] pendingLines; // ordered pending buffers per role (raw bytes)
+    string lastRoleSeen;
+    bool hasLastRoleSeen;
+
+    string safeDecode(const(ubyte)[] bytes) {
+        import std.utf : decode, UTFException;
+        auto app = appender!string();
+        size_t i = 0;
+        while (i < bytes.length) {
+            try {
+                auto chars = cast(const(char)[]) bytes;
+                dchar ch = decode(chars, i);
+                app.put(ch);
+            } catch (UTFException) {
+                app.put("\uFFFD");
+                ++i; // skip one byte and continue
+            }
+        }
+        return app.data;
+    }
     bool initInFlight;
     MonoTime initStart;
+    bool autoStartDone;
+    MonoTime lastStartAttempt;
 
     Thread worker;
     bool workerRunning;
@@ -51,8 +76,74 @@ private:
     Condition qCond;
 
     void log(string msg) {
-        logLines ~= msg;
+        logLines ~= shrinkLine(msg);
         logBuffer = logLines.join("\n");
+    }
+
+    enum size_t kMaxLineChars = 2000;
+    string shrinkLine(string s) {
+        if (s.length <= kMaxLineChars) return s;
+        auto head = s[0 .. kMaxLineChars];
+        auto rest = s.length - kMaxLineChars;
+        return head ~ " ... (truncated " ~ rest.to!string ~ " chars)";
+    }
+
+    void appendStream(string role, string text) {
+        if (hasLastRoleSeen && role != lastRoleSeen) {
+            flushPending();
+        }
+        lastRoleSeen = role;
+        hasLastRoleSeen = true;
+        size_t idxRole = pendingLines.length;
+        foreach (i, pl; pendingLines) {
+            if (pl.role == role) { idxRole = i; break; }
+        }
+        if (idxRole == pendingLines.length) {
+            pendingLines ~= PendingLine(role, cast(ubyte[])[]);
+        }
+        auto combined = pendingLines[idxRole].bytes ~ cast(const(ubyte)[]) text;
+        while (true) {
+            auto idx = countUntil(combined, cast(ubyte) '\n');
+            if (idx < 0) break;
+            auto lineBytes = combined[0 .. idx];
+            chatLines ~= role ~ ": " ~ shrinkLine(safeDecode(lineBytes));
+            combined = combined[idx + 1 .. $];
+        }
+        pendingLines[idxRole].bytes = cast(ubyte[]) combined.idup;
+    }
+
+    string pendingSnapshot() {
+        auto app = appender!string();
+        foreach (i, line; chatLines) {
+            app.put(line);
+            app.put("\n");
+        }
+        foreach (pl; pendingLines) {
+            if (pl.bytes.length == 0) continue;
+            app.put(pl.role ~ ": " ~ safeDecode(pl.bytes));
+            app.put("\n");
+        }
+        return app.data;
+    }
+
+    string[] pendingLinesSnapshot() {
+        string[] linesBuf;
+        linesBuf ~= chatLines;
+        foreach (pl; pendingLines) {
+            if (pl.bytes.length == 0) continue;
+            linesBuf ~= pl.role ~ ": " ~ shrinkLine(safeDecode(pl.bytes));
+        }
+        return linesBuf;
+    }
+
+    void flushPending() {
+        foreach (ref pl; pendingLines) {
+            if (pl.bytes.length == 0) continue;
+            chatLines ~= pl.role ~ ": " ~ safeDecode(pl.bytes);
+            pl.bytes = null;
+        }
+        pendingLines.length = 0;
+        hasLastRoleSeen = false;
     }
 
     void enqueueUserText() {
@@ -104,6 +195,85 @@ private:
         qCond.notifyAll();
     }
 
+    void handleInbound(JSONValue obj) {
+        if (obj.type == JSONType.object && "method" in obj.object) {
+            auto m = obj["method"].str;
+            if (m == "session/update") {
+                auto params = obj["params"];
+                if ("update" in params.object) {
+                    auto upd = params["update"];
+                    string kind = "session/update";
+                    if ("sessionUpdate" in upd.object) kind = upd["sessionUpdate"].str;
+
+                    string label = kind;
+                    if (kind == "agent_message_chunk") label = "Assistant";
+                    else if (kind == "agent_thought_chunk") label = "Assistant (thinking)";
+                    else if (kind == "user_message_chunk") label = "You (echo)";
+                    else if (kind == "plan") label = "Plan";
+                    else if (kind == "tool_call" || kind == "tool_call_update") label = "Tool";
+                    else if (kind == "available_commands_update") label = "Command list";
+                    else if (kind == "current_mode_update") label = "Mode";
+
+                    string text;
+                    string status;
+                    if ("status" in upd.object && upd["status"].type == JSONType.string) {
+                        status = upd["status"].str;
+                    }
+                    string title;
+                    if ("title" in upd.object && upd["title"].type == JSONType.string) {
+                        title = upd["title"].str;
+                    }
+                    if ("content" in upd.object) {
+                        auto content = upd["content"];
+                        if (content.type == JSONType.object && "text" in content.object) {
+                            text = content["text"].str;
+                        } else if (content.type == JSONType.array && content.array.length) {
+                            foreach (item; content.array) {
+                                if (item.type == JSONType.object && "text" in item.object) {
+                                    text ~= item["text"].str;
+                                    if ("annotations" in item.object && item["annotations"].type == JSONType.array) {
+                                        foreach (ann; item["annotations"].array) {
+                                            if (ann.type == JSONType.object && "title" in ann.object) {
+                                                text ~= " (" ~ ann["title"].str ~ ")";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (text.length == 0 && "message" in upd.object) {
+                        text = upd["message"].toString();
+                    }
+                    if (text.length == 0 && "rawOutput" in upd.object) {
+                        text = upd["rawOutput"].toString();
+                    }
+                    if (text.length == 0) {
+                        // fallback: whole update JSON
+                        text = upd.toString();
+                    }
+                    string summary = text;
+                    if (kind == "tool_call" || kind == "tool_call_update") {
+                        if (title.length) summary = title ~ " " ~ summary;
+                        if (status.length) summary ~= " (status: " ~ status ~ ")";
+                    }
+                    appendStream(label, summary);
+                }
+            }
+            pushResult("log", false, obj.toString());
+            return;
+        }
+
+        if (obj.type == JSONType.object && "id" in obj.object) {
+            // response: finalize any streaming buffers into history
+            flushPending();
+            pushResult("log", false, obj.toString());
+            return;
+        }
+
+        pushResult("log", false, obj.toString());
+    }
+
     void workerLoop(string[] cmd, string wd) {
         ACPClient localClient;
         try {
@@ -141,6 +311,7 @@ private:
                 } else if (c.startsWith("msg:")) {
                     auto text = c[4 .. $];
                     try {
+                        appendStream("You", text);
                         localClient.sendPrompt(text);
                         pushResult("log", false, "prompt: "~text);
                     } catch (Exception e) {
@@ -159,10 +330,13 @@ private:
                         pushResult("init", false, pr.result.toString());
                     continue;
                 }
-                if (pr.error.length)
+                if (pr.error.length) {
                     pushResult("log", true, pr.error);
-                else
-                    pushResult("log", false, pr.result.toString());
+                    continue;
+                }
+                // handle notifications/responses
+                auto obj = pr.result;
+                handleInbound(obj);
             }
 
             // if still waiting for init and nothing arrived, check once
@@ -203,6 +377,7 @@ private:
         if (cmd.length == 0) {
             statusText = "Command is empty";
             log(statusText);
+            lastStartAttempt = MonoTime.currTime;
             return;
         }
         if (cmd.length > 0 && !isAbsolute(cmd[0])) {
@@ -212,6 +387,7 @@ private:
         if (!exists(cmd[0])) {
             statusText = "Executable not found";
             log("not found: "~cmd[0]);
+            lastStartAttempt = MonoTime.currTime;
             return;
         }
         try {
@@ -228,10 +404,12 @@ private:
             initInFlight = true;
             statusText = "Initializing...";
             log("worker started");
+            autoStartDone = true;
         } catch (Exception e) {
             statusText = "Start failed";
             log("error: " ~ e.toString());
             workerRunning = false;
+            lastStartAttempt = MonoTime.currTime;
         }
     }
 
@@ -287,29 +465,22 @@ public:
         qCond = new Condition(qMutex);
         agentPath = incSettingsGet!string("ACP.Command", agentPath);
         workingDir = incSettingsGet!string("ACP.Workdir", workingDir);
+        lastStartAttempt = MonoTime.currTime;
     }
 
 protected:
     override void onUpdate() {
         ImVec2 avail = incAvailableSpace();
 
-        igText(_("Coding Agent executable:").toStringz());
-        incInputText("##acp_agent_path", avail.x, agentPath);
+        // auto-start once when possible (cooldown 1s between attempts)
+        auto now = MonoTime.currTime;
+        if (!workerRunning && !initInFlight) {
+            auto delta = now - lastStartAttempt;
+            if (delta > seconds(1)) {
+                startAgent();
+            }
+        }
 
-        igText(_("Working directory (optional):").toStringz());
-        incInputText("##acp_agent_cwd", avail.x, workingDir);
-
-        if (igButton(_("Start").toStringz(), ImVec2(80, 0))) startAgent();
-        igSameLine();
-        if (igButton(_("Ping").toStringz(), ImVec2(80, 0))) pingAgent();
-        igSameLine();
-        if (igButton(_("Stop").toStringz(), ImVec2(80, 0))) stopAgent();
-        igSameLine();
-        if (igButton(_("Send Text").toStringz(), ImVec2(100, 0))) enqueueUserText();
-
-        igSeparator();
-        igText(_("Message to agent:").toStringz());
-        incInputText("##acp_user_text", avail.x, userText);
         igSeparator();
         igText(_("Status: %s").format(statusText).toStringz());
         igSeparator();
@@ -317,28 +488,73 @@ protected:
         // handle results from worker
         drainResults();
 
-        igText(_("Session output / logs:").toStringz());
-
         ImVec2 availLog = incAvailableSpace();
-        float inputAreaH = igGetFrameHeightWithSpacing() * 2;
-        ImVec2 logSize = ImVec2(0, availLog.y - inputAreaH);
-        if (logSize.y < 80) logSize.y = availLog.y * 0.7f;
+        float inputAreaH = igGetFrameHeightWithSpacing() * 2   // status + separator padding
+                         + igGetStyle().ItemSpacing.y * 3      // tab bar + spacing
+                         + igGetFrameHeightWithSpacing();      // user message line height
+        ImVec2 logSize = ImVec2(availLog.x, availLog.y - inputAreaH);
+        if (logSize.y < 160) logSize.y = availLog.y * 0.65f;
 
-        if (igBeginChild("AgentLog", logSize, true,
-                ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            auto flags = ImGuiInputTextFlags.ReadOnly
-                       | ImGuiInputTextFlags.NoHorizontalScroll
-                       | ImGuiInputTextFlags.AllowTabInput;
-            incInputTextMultiline("##AgentLog", logBuffer, logSize, flags);
+        // Conversation / Log tabs
+        if (igBeginTabBar("AgentTabs", ImGuiTabBarFlags.None)) {
+            if (igBeginTabItem(_("Conversation").toStringz())) {
+                auto lines = pendingLinesSnapshot();
+                bool convoHover = false;
+                bool convoActive = false;
+                if (igBeginChild("AgentConversation", logSize, true,
+                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+                    igPushTextWrapPos(0);
+                    ImGuiListClipper clipper;
+                    ImGuiListClipper_Begin(&clipper, cast(int) lines.length, 0);
+                    while (ImGuiListClipper_Step(&clipper)) {
+                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                            igTextUnformatted(lines[i].toStringz());
+                        }
+                    }
+                    ImGuiListClipper_End(&clipper);
+                    igPopTextWrapPos();
+                    convoHover = igIsWindowHovered(ImGuiHoveredFlags.None);
+                    convoActive = igIsAnyItemActive() || igIsWindowFocused(ImGuiFocusedFlags.ChildWindows);
+                    // Auto-scroll to bottom when not user-scrolling
+                    if (!convoHover && !convoActive) {
+                        igSetScrollHereY(1.0f);
+                    }
+                }
+                igEndChild();
+                igEndTabItem();
+            }
+            if (igBeginTabItem(_("Log").toStringz())) {
+                bool logHover = false;
+                bool logActive = false;
+                if (igBeginChild("AgentLog", logSize, true,
+                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+                    igPushTextWrapPos(0);
+                    ImGuiListClipper clipper;
+                    ImGuiListClipper_Begin(&clipper, cast(int) logLines.length, 0);
+                    while (ImGuiListClipper_Step(&clipper)) {
+                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                            igTextUnformatted(logLines[i].toStringz());
+                        }
+                    }
+                    ImGuiListClipper_End(&clipper);
+                    igPopTextWrapPos();
+                    logHover = igIsWindowHovered(ImGuiHoveredFlags.None);
+                    logActive = igIsAnyItemActive() || igIsWindowFocused(ImGuiFocusedFlags.ChildWindows);
+                    if (!logHover && !logActive) {
+                        igSetScrollHereY(1.0f);
+                    }
+                }
+                igEndChild();
+                igEndTabItem();
+            }
+            igEndTabBar();
         }
-        igEndChild();
 
         igSeparator();
         igText(_("User message:").toStringz());
-        ImVec2 availBottom = incAvailableSpace();
         float sendBtnW = 80;
-        float textW = availBottom.x - sendBtnW - igGetStyle().ItemSpacing.x;
-        if (textW < 100) textW = availBottom.x * 0.7f;
+        float textW = availLog.x - sendBtnW - igGetStyle().ItemSpacing.x;
+        if (textW < 160) textW = availLog.x * 0.75f;
         incInputText("##acp_user_text", textW, userText);
         igSameLine();
         if (igButton(_("Send").toStringz(), ImVec2(sendBtnW, 0))) {
