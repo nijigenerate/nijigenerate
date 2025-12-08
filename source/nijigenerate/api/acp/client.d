@@ -168,13 +168,21 @@ class ACPClient {
     }
 
     /// 任意のユーザ入力テキストを session/prompt で送る。
-    void sendPrompt(string text) {
+    string sendPrompt(string text) {
         if (sessionId.length == 0) {
             newSession();
         }
         auto idStr = nextId++.to!string;
         auto textEsc = escapeJsonString(text);
         auto raw = `{"jsonrpc":"2.0","id":` ~ idStr ~ `,"method":"session/prompt","params":{"sessionId":"` ~ sessionId ~ `","prompt":[{"type":"text","text":"` ~ textEsc ~ `"}]}}`;
+        sendRawLine(raw);
+        return idStr;
+    }
+
+    /// session/cancel notification to abort the current prompt turn.
+    void cancelPrompt() {
+        if (sessionId.length == 0) return;
+        auto raw = `{"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":"` ~ sessionId ~ `"}}`;
         sendRawLine(raw);
     }
 

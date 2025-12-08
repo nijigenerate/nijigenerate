@@ -49,6 +49,7 @@ private:
     bool hasLastRoleSeen;
     bool convoContentAdded;
     bool logContentAdded;
+    bool promptPending;
 
     string safeDecode(const(ubyte)[] bytes) {
         import std.utf : decode, UTFException;
@@ -88,11 +89,16 @@ private:
     enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
     void renderClippedLines(const(string)[] lines, float wrapWidth) {
         // Variable-height manual culling. We sum heights for scrollbar, but only draw visible lines.
+        auto style = igGetStyle();
+        ImVec2 avail;
+        igGetContentRegionAvail(&avail);
+        float wrapW = (wrapWidth > 0) ? wrapWidth : avail.x;
+        float cursorX = igGetCursorPosX();
+        igPushTextWrapPos(cursorX + wrapW);
         const float scrollY = igGetScrollY();
         const float viewY   = igGetWindowHeight();
-        const float pad     = igGetTextLineHeight() * 2; // slack to avoid popping at edges
-        const float top     = scrollY - pad;
-        const float bottom  = scrollY + viewY + pad;
+        const float top     = scrollY;
+        const float bottom  = scrollY + viewY;
 
         const float baseY = igGetCursorPosY();
         float y = 0;
@@ -100,28 +106,20 @@ private:
 
         foreach (line; lines) {
             ImVec2 sz;
-            igCalcTextSize(&sz, line.toStringz(), null, true, wrapWidth);
-            float h = sz.y;
+            igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
+            float h = sz.y + style.ItemSpacing.y;
 
-            if (y + h < top) { // entirely above view
-                y += h;
-                continue;
-            }
-            if (y > bottom) { // below view; no more drawing needed
-                y += h;
-                break;
-            }
-            if (firstDraw) {
+            bool visible = (y + h >= top) && (y <= bottom);
+            if (visible) {
                 igSetCursorPosY(baseY + y);
+                igTextUnformatted(line.toStringz());
                 firstDraw = false;
-            } else {
-                igSetCursorPosY(baseY + y);
             }
-            igTextUnformatted(line.toStringz());
             y += h;
         }
         // Advance cursor to total content height so scrollbar reflects full text.
         igSetCursorPosY(baseY + y);
+        igPopTextWrapPos();
     }
 
     string[] expandLines(const string[] src) {
@@ -247,6 +245,8 @@ private:
     void enqueueUserText() {
         if (userText.length == 0) return;
         enqueueCommand("msg:" ~ userText);
+        promptPending = true;
+        userText = "";
     }
     void enqueueCommand(string cmd) {
         qMutex.lock();
@@ -261,27 +261,29 @@ private:
         resultQueue.length = 0;
         qMutex.unlock();
 
-        foreach (res; results) {
-            if (res.kind == "log" && !res.isError) {
-                log(res.message);
-                continue;
-            }
-            if (res.isError) {
-                statusText = res.message;
-                log(res.message);
-                if (res.kind == "init") initInFlight = false;
-            } else if (res.kind == "init") {
-                statusText = "Initialized";
-                log("initialize: "~res.message);
-                initInFlight = false;
-            } else if (res.kind == "ping") {
-                statusText = "Ping ok";
-                log("ping ok");
-            } else {
-                log(res.message);
+            foreach (res; results) {
+                if (res.kind == "log" && !res.isError) {
+                    log(res.message);
+                    continue;
+                }
+                if (res.isError) {
+                    statusText = res.message;
+                    log(res.message);
+                    if (res.kind == "init") initInFlight = false;
+                } else if (res.kind == "init") {
+                    statusText = "Initialized";
+                    log("initialize: "~res.message);
+                    initInFlight = false;
+                } else if (res.kind == "ping") {
+                    statusText = "Ping ok";
+                    log("ping ok");
+                } else if (res.kind == "promptDone") {
+                    promptPending = false;
+                } else {
+                    log(res.message);
+                }
             }
         }
-    }
 
     void pushResult(string kind, bool isError, string msg) {
         qMutex.lock();
@@ -365,6 +367,7 @@ private:
         if (obj.type == JSONType.object && "id" in obj.object) {
             // response: finalize any streaming buffers into history
             flushPending();
+            promptPending = false;
             pushResult("log", false, obj.toString());
             return;
         }
@@ -414,6 +417,13 @@ private:
                         pushResult("log", false, "prompt: "~text);
                     } catch (Exception e) {
                         pushResult("log", true, "send failed: "~e.msg);
+                    }
+                } else if (c == "cancel") {
+                    try {
+                        localClient.cancelPrompt();
+                        pushResult("promptDone", false, "cancel sent");
+                    } catch (Exception e) {
+                        pushResult("log", true, "cancel failed: "~e.msg);
                     }
                 }
             }
@@ -599,9 +609,7 @@ protected:
         auto lines = expandLines(pendingLinesSnapshot());
         if (igBeginChild("AgentConversation", logSize, true,
                 ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            igPushTextWrapPos(0);
             renderClippedLines(lines, logSize.x);
-            igPopTextWrapPos();
         }
         igEndChild();
         convoContentAdded = false;
@@ -611,14 +619,12 @@ protected:
         auto linesLog = expandLines(logLines);
         if (igBeginChild("AgentLog", logSize, true,
                 ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            igPushTextWrapPos(0);
             renderClippedLines(linesLog, logSize.x);
-            igPopTextWrapPos();
         }
         igEndChild();
         logContentAdded = false;
         igEndTabItem();
-            }
+    }
             igEndTabBar();
         }
 
@@ -627,11 +633,20 @@ protected:
         float sendBtnW = 80;
         float textW = availLog.x - sendBtnW - igGetStyle().ItemSpacing.x;
         if (textW < 160) textW = availLog.x * 0.75f;
-        incInputText("##acp_user_text", textW, userText);
+        bool submit = incInputText("##acp_user_text", textW, userText, ImGuiInputTextFlags.EnterReturnsTrue);
+        if (submit && userText.length) {
+            enqueueUserText();
+        }
         igSameLine();
-        if (igButton(_("Send").toStringz(), ImVec2(sendBtnW, 0))) {
-            if (userText.length) {
-                enqueueCommand("msg:" ~ userText);
+        if (!promptPending) {
+            if (igButton(_("Send").toStringz(), ImVec2(sendBtnW, 0))) {
+                if (userText.length) {
+                    enqueueUserText();
+                }
+            }
+        } else {
+            if (igButton(_("Stop").toStringz(), ImVec2(sendBtnW, 0))) {
+                enqueueCommand("cancel");
             }
         }
     }
