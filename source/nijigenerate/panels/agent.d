@@ -79,18 +79,85 @@ private:
     Condition qCond;
 
     void log(string msg) {
-        pushLogLine(shrinkLine(msg));
+        pushLogLine(shrinkLineLog(msg));
         logBuffer = logLines.join("\n");
     }
 
-    enum size_t kMaxLineChars = 2000;
+    enum size_t kMaxChatLineChars = 2000; // allow long assistant/user lines safely
+    enum size_t kMaxLogLineChars  = 200;  // logs stay short to protect DrawList
     enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
-    string shrinkLine(string s) {
-        if (s.length <= kMaxLineChars) return s;
-        auto head = s[0 .. kMaxLineChars];
-        auto rest = s.length - kMaxLineChars;
+    void renderClippedLines(const(string)[] lines, float wrapWidth) {
+        // Variable-height manual culling. We sum heights for scrollbar, but only draw visible lines.
+        const float scrollY = igGetScrollY();
+        const float viewY   = igGetWindowHeight();
+        const float pad     = igGetTextLineHeight() * 2; // slack to avoid popping at edges
+        const float top     = scrollY - pad;
+        const float bottom  = scrollY + viewY + pad;
+
+        const float baseY = igGetCursorPosY();
+        float y = 0;
+        bool firstDraw = true;
+
+        foreach (line; lines) {
+            ImVec2 sz;
+            igCalcTextSize(&sz, line.toStringz(), null, true, wrapWidth);
+            float h = sz.y;
+
+            if (y + h < top) { // entirely above view
+                y += h;
+                continue;
+            }
+            if (y > bottom) { // below view; no more drawing needed
+                y += h;
+                break;
+            }
+            if (firstDraw) {
+                igSetCursorPosY(baseY + y);
+                firstDraw = false;
+            } else {
+                igSetCursorPosY(baseY + y);
+            }
+            igTextUnformatted(line.toStringz());
+            y += h;
+        }
+        // Advance cursor to total content height so scrollbar reflects full text.
+        igSetCursorPosY(baseY + y);
+    }
+
+    string[] expandLines(const string[] src) {
+        auto buf = appender!(string[])();
+        foreach (line; src) {
+            size_t start = 0;
+            foreach (idx, ch; line) {
+                if (ch == '\n') {
+                    buf.put(line[start .. idx]);
+                    start = idx + 1;
+                }
+            }
+            buf.put(line[start .. line.length]);
+        }
+        return buf.data;
+    }
+    string[] splitLines(string s) {
+        auto buf = appender!(string[])();
+        size_t start = 0;
+        foreach (idx, ch; s) {
+            if (ch == '\n') {
+                buf.put(s[start .. idx]);
+                start = idx + 1;
+            }
+        }
+        buf.put(s[start .. $]);
+        return buf.data;
+    }
+    string shrinkLine(string s, size_t limit) {
+        if (s.length <= limit) return s;
+        auto head = s[0 .. limit];
+        auto rest = s.length - limit;
         return head ~ " ... (truncated " ~ rest.to!string ~ " chars)";
     }
+    string shrinkLineChat(string s) { return shrinkLine(s, kMaxChatLineChars); }
+    string shrinkLineLog(string s)  { return shrinkLine(s, kMaxLogLineChars); }
 
     void pushChatLine(string line) {
         chatLines ~= line;
@@ -103,7 +170,7 @@ private:
     }
 
     void pushLogLine(string line) {
-        logLines ~= line;
+        logLines ~= shrinkLineLog(line);
         logContentAdded = true;
         if (logLines.length > kMaxLines) {
             auto drop = logLines.length - kMaxLines;
@@ -129,7 +196,8 @@ private:
             auto idx = countUntil(combined, cast(ubyte) '\n');
             if (idx < 0) break;
             auto lineBytes = combined[0 .. idx];
-            pushChatLine(role ~ ": " ~ shrinkLine(safeDecode(lineBytes)));
+            auto lineDec = safeDecode(lineBytes);
+            pushChatLine(role ~ ": " ~ shrinkLineChat(lineDec));
             combined = combined[idx + 1 .. $];
         }
         pendingLines[idxRole].bytes = cast(ubyte[]) combined.idup;
@@ -158,7 +226,10 @@ private:
         }
         foreach (pl; pendingLines) {
             if (pl.bytes.length == 0) continue;
-            linesBuf ~= pl.role ~ ": " ~ shrinkLine(safeDecode(pl.bytes));
+            auto decoded = safeDecode(pl.bytes);
+            foreach (piece; splitLines(decoded)) {
+                linesBuf ~= pl.role ~ ": " ~ shrinkLineChat(piece);
+            }
         }
         return linesBuf;
     }
@@ -525,31 +596,28 @@ protected:
         // Conversation / Log tabs
         if (igBeginTabBar("AgentTabs", ImGuiTabBarFlags.None)) {
             if (igBeginTabItem(_("Conversation").toStringz())) {
-                auto lines = pendingLinesSnapshot();
-                if (igBeginChild("AgentConversation", logSize, true,
-                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-                    igPushTextWrapPos(0);
-                    foreach (line; lines) {
-                        igTextUnformatted(line.toStringz());
-                    }
-                    igPopTextWrapPos();
-                }
-                igEndChild();
-                convoContentAdded = false;
-                igEndTabItem();
-            }
-            if (igBeginTabItem(_("Log").toStringz())) {
-                if (igBeginChild("AgentLog", logSize, true,
-                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-                    igPushTextWrapPos(0);
-                    foreach (line; logLines) {
-                        igTextUnformatted(line.toStringz());
-                    }
-                    igPopTextWrapPos();
-                }
-                igEndChild();
-                logContentAdded = false;
-                igEndTabItem();
+        auto lines = expandLines(pendingLinesSnapshot());
+        if (igBeginChild("AgentConversation", logSize, true,
+                ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+            igPushTextWrapPos(0);
+            renderClippedLines(lines, logSize.x);
+            igPopTextWrapPos();
+        }
+        igEndChild();
+        convoContentAdded = false;
+        igEndTabItem();
+    }
+    if (igBeginTabItem(_("Log").toStringz())) {
+        auto linesLog = expandLines(logLines);
+        if (igBeginChild("AgentLog", logSize, true,
+                ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+            igPushTextWrapPos(0);
+            renderClippedLines(linesLog, logSize.x);
+            igPopTextWrapPos();
+        }
+        igEndChild();
+        logContentAdded = false;
+        igEndTabItem();
             }
             igEndTabBar();
         }
