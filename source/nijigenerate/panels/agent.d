@@ -42,15 +42,27 @@ private:
     string[] logLines;
     string logBuffer;
     string userText;
-    string[] chatLines;        // committed lines in order
-    struct PendingLine { string role; ubyte[] bytes; }
-    PendingLine[] pendingLines; // ordered pending buffers per role (raw bytes)
-    string lastRoleSeen;
-    bool hasLastRoleSeen;
+    struct LineHeightCache {
+        float wrapW = 0;
+        float[] heights;
+        size_t[] lens;    // cached line lengths to detect edits without length change
+        uint dataVer = uint.max;
+        float totalHeight = 0;
+    }
+    struct LogBlock {
+        string role;
+        string[] lines;
+        LineHeightCache cache;
+        uint ver;
+    }
+    LogBlock[] convoBlocks;     // committed blocks in order
+    string pendingRole;
+    ubyte[] pendingBuf; // partial bytes for current role
+    bool pendingNewline; // true when previous chunk ended with '\n' → next chunk starts a new line
+    bool hasPendingRole;
     bool convoContentAdded;
     bool logContentAdded;
     bool promptPending;
-    uint convoVersion;
     uint logVersion;
 
     string safeDecode(const(ubyte)[] bytes) {
@@ -89,14 +101,7 @@ private:
     enum size_t kMaxChatLineChars = 200; // reasonable chunk; rely on precise height clipping to avoid overflow
     enum size_t kMaxLogLineChars  = 200;  // logs stay short to protect DrawList
     enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
-    struct LineHeightCache {
-        float wrapW = 0;
-        float[] heights;
-        size_t[] lens;    // cached line lengths to detect edits without length change
-        uint dataVer = uint.max;
-        float totalHeight = 0;
-    }
-    LineHeightCache convoCache;
+    enum size_t kMaxDrawCharsPerLine = 4000; // safety cap to avoid ImGui 16-bit index overflow
     LineHeightCache logCache;
 
     void renderClippedLines(const(string)[] lines, float wrapWidth, uint dataVer, ref LineHeightCache cache) {
@@ -109,51 +114,65 @@ private:
         igPushTextWrapPos(cursorX + wrapW);
 
         auto style = igGetStyle();
-        const float top    = igGetScrollY();
-        const float bottom = top + igGetWindowHeight();
+        const float topWin    = igGetScrollY();
+        const float bottomWin = topWin + igGetWindowHeight();
+        const float relTop    = topWin - baseY;
+        const float relBottom = bottomWin - baseY;
 
         bool wrapChanged   = cache.wrapW != wrapW;
         bool lengthChanged = cache.heights.length != lines.length;
         bool versionChanged = cache.dataVer != dataVer;
 
+        auto drawableText = (string line) {
+            if (line.length > kMaxDrawCharsPerLine)
+                return line[0 .. kMaxDrawCharsPerLine] ~ " ... (display truncated)";
+            return line;
+        };
+
         if (wrapChanged || lengthChanged) {
-            // width変更や行数変化時は全再計算
             cache.heights.length = 0;
             cache.lens.length = 0;
             cache.totalHeight = 0;
             foreach (line; lines) {
+                auto drawLine = drawableText(line);
                 ImVec2 sz;
-                igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
+                igCalcTextSize(&sz, drawLine.toStringz(), null, true, wrapW);
                 float h = sz.y + style.ItemSpacing.y;
                 cache.heights ~= h;
-                cache.lens ~= line.length;
+                cache.lens ~= drawLine.length;
                 cache.totalHeight += h;
             }
             cache.wrapW = wrapW;
             cache.dataVer = dataVer;
         } else if (versionChanged) {
-            // 行数は同じだが内容が変わった可能性: 変化した行だけ再計算
             cache.totalHeight = 0;
             foreach (i, line; lines) {
-                if (i >= cache.lens.length || cache.lens[i] != line.length) {
+                auto drawLine = drawableText(line);
+                if (i >= cache.lens.length || cache.lens[i] != drawLine.length) {
                     ImVec2 sz;
-                    igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
+                    igCalcTextSize(&sz, drawLine.toStringz(), null, true, wrapW);
                     float h = sz.y + style.ItemSpacing.y;
                     cache.heights[i] = h;
-                    cache.lens[i] = line.length;
+                    cache.lens[i] = drawLine.length;
                 }
                 cache.totalHeight += cache.heights[i];
             }
             cache.dataVer = dataVer;
+        } else {
+            // 完全ヒット: 再計算不要
         }
 
         float y = 0;
         foreach (i, line; lines) {
             float h = cache.heights[i];
-            bool visible = (y + h >= top) && (y <= bottom);
+            bool visible = (y + h >= relTop) && (y <= relBottom);
             if (visible) {
                 igSetCursorPosY(baseY + y);
-                igTextUnformatted(line.toStringz());
+                string toDraw = line;
+                if (toDraw.length > kMaxDrawCharsPerLine) {
+                    toDraw = toDraw[0 .. kMaxDrawCharsPerLine] ~ " ... (display truncated)";
+                }
+                igTextUnformatted(toDraw.toStringz());
             }
             y += h;
         }
@@ -197,27 +216,52 @@ private:
     string shrinkLineChat(string s) { return shrinkLine(s, kMaxChatLineChars); }
     string shrinkLineLog(string s)  { return shrinkLine(s, kMaxLogLineChars); }
 
-    string[] chunkLine(string s) {
-        auto buf = appender!(string[])();
-        size_t pos = 0;
-        while (pos < s.length) {
-            auto end = pos + kMaxChatLineChars;
-            if (end > s.length) end = s.length;
-            buf.put(s[pos .. end]);
-            pos = end;
+    void ensureBlock(string role) {
+        if (convoBlocks.length == 0 || convoBlocks[$-1].role != role) {
+            LogBlock blk;
+            blk.role = role;
+            blk.ver = 0;
+            convoBlocks ~= blk;
         }
-        return buf.data;
     }
 
-    void pushChatLine(string line) {
-        chatLines ~= line;
+    void pushChatLine(string role, string line) {
+        ensureBlock(role);
+        auto blk = &convoBlocks[$-1];
+        blk.lines ~= line;
+        blk.ver++;
         convoContentAdded = true;
-        ++convoVersion;
-        if (chatLines.length > kMaxLines) {
-            // drop oldest surplus
-            auto drop = chatLines.length - kMaxLines;
-            chatLines = chatLines[drop .. $].dup;
+        // cap blocks by trimming oldest lines if overall too large
+        // simple cap: if total lines exceed kMaxLines drop from front
+        size_t total = 0;
+        foreach (b; convoBlocks) total += b.lines.length;
+        if (total > kMaxLines) {
+            size_t toDrop = total - kMaxLines;
+            size_t bi = 0;
+            while (toDrop > 0 && bi < convoBlocks.length) {
+                auto n = convoBlocks[bi].lines.length;
+                if (n <= toDrop) {
+                    toDrop -= n;
+                    convoBlocks = convoBlocks[bi + 1 .. $];
+                    bi = 0;
+                } else {
+                    convoBlocks[bi].lines = convoBlocks[bi].lines[toDrop .. $].dup;
+                    toDrop = 0;
+                }
+            }
         }
+    }
+
+    void appendToLastLine(string role, string fragment) {
+        ensureBlock(role);
+        auto blk = &convoBlocks[$-1];
+        if (blk.lines.length == 0) {
+            blk.lines ~= fragment;
+        } else {
+            blk.lines[$-1] ~= fragment;
+        }
+        blk.ver++;
+        convoContentAdded = true;
     }
 
     void pushLogLine(string line) {
@@ -231,87 +275,74 @@ private:
     }
 
     void appendStream(string role, string text) {
-        if (hasLastRoleSeen && role != lastRoleSeen) {
+        if (hasPendingRole && role != pendingRole) {
             flushPending();
-            pushChatLine(role); // header line
-        } else if (!hasLastRoleSeen) {
-            pushChatLine(role);
-            hasLastRoleSeen = true;
-            lastRoleSeen = role;
         }
-        lastRoleSeen = role;
-        size_t idxRole = pendingLines.length;
-        foreach (i, pl; pendingLines) {
-            if (pl.role == role) { idxRole = i; break; }
-        }
-        if (idxRole == pendingLines.length) {
-            pendingLines ~= PendingLine(role, cast(ubyte[])[]);
-        }
-        auto combined = pendingLines[idxRole].bytes ~ cast(const(ubyte)[]) text;
+        pendingRole = role;
+        hasPendingRole = true;
+        auto combined = pendingBuf ~ cast(const(ubyte)[]) text;
+        size_t start = 0;
+        bool startNewLine = pendingNewline;
+        pendingNewline = false;
+
         while (true) {
-            auto idx = countUntil(combined, cast(ubyte) '\n');
-            if (idx < 0) break;
-            auto lineBytes = combined[0 .. idx];
-            auto lineDec = safeDecode(lineBytes);
-            foreach (chunk; chunkLine(lineDec)) {
-                pushChatLine(chunk);
-            }
-            combined = combined[idx + 1 .. $];
-        }
-        pendingLines[idxRole].bytes = cast(ubyte[]) combined.idup;
-    }
-
-    string pendingSnapshot() {
-        auto app = appender!string();
-        foreach (i, line; chatLines) {
-            app.put(line);
-            app.put("\n");
-        }
-        foreach (pl; pendingLines) {
-            if (pl.bytes.length == 0) continue;
-            app.put(safeDecode(pl.bytes));
-            app.put("\n");
-        }
-        return app.data;
-    }
-
-    string[] pendingLinesSnapshot() {
-        string[] linesBuf;
-        if (chatLines.length > kMaxLines) {
-            linesBuf ~= chatLines[$ - kMaxLines .. $];
-        } else {
-            linesBuf ~= chatLines;
-        }
-        foreach (pl; pendingLines) {
-            if (pl.bytes.length == 0) continue;
-            if (linesBuf.length == 0 || linesBuf[$-1] != pl.role) {
-                linesBuf ~= pl.role;
-            }
-            auto decoded = safeDecode(pl.bytes);
-            foreach (piece; splitLines(decoded)) {
-                foreach (chunk; chunkLine(piece)) {
-                    linesBuf ~= chunk;
+            auto rel = countUntil(combined[start .. $], cast(ubyte) '\n');
+            if (rel < 0) {
+                auto slice = combined[start .. $];
+                if (slice.length) {
+                    auto dec = safeDecode(slice);
+                    if (startNewLine || start > 0) {
+                        pushChatLine(role, dec);
+                    } else {
+                        appendToLastLine(role, dec);
+                    }
                 }
+                pendingBuf = null;
+                hasPendingRole = false;
+                return;
+            }
+            auto idx = start + rel;
+            auto lineBytes = combined[start .. idx];
+            auto lineDec = safeDecode(lineBytes);
+            if (!startNewLine && start == 0 && convoBlocks.length > 0 && convoBlocks[$-1].role == role && convoBlocks[$-1].lines.length > 0) {
+                // first segment of this chunk extends current last line
+                appendToLastLine(role, lineDec);
+            } else {
+                pushChatLine(role, lineDec);
+            }
+            start = idx + 1;
+            startNewLine = false;
+            if (start == combined.length) {
+                pendingNewline = true; // ended exactly on newline → next chunk starts fresh line
+                pendingBuf = null;
+                hasPendingRole = true;
+                return;
             }
         }
-        return linesBuf;
     }
 
     void flushPending() {
-        foreach (ref pl; pendingLines) {
-            if (pl.bytes.length == 0) continue;
-            if (chatLines.length == 0 || chatLines[$-1] != pl.role) {
-                chatLines ~= pl.role;
-                ++convoVersion;
-            }
-            foreach (chunk; chunkLine(safeDecode(pl.bytes))) {
-                chatLines ~= chunk;
-                ++convoVersion;
-            }
-            pl.bytes = null;
+        if (!hasPendingRole || (pendingBuf.length == 0 && !pendingNewline)) {
+            hasPendingRole = false;
+            pendingBuf = null;
+            pendingNewline = false;
+            return;
         }
-        pendingLines.length = 0;
-        hasLastRoleSeen = false;
+        if (pendingNewline && pendingBuf.length == 0) {
+            // dangling newline only – nothing to append, just reset state
+            pendingNewline = false;
+            hasPendingRole = false;
+            return;
+        }
+        auto decoded = safeDecode(pendingBuf);
+        if (pendingNewline) {
+            pushChatLine(pendingRole, decoded);
+        } else {
+            appendToLastLine(pendingRole, decoded);
+        }
+        pendingBuf = null;
+        hasPendingRole = false;
+        pendingNewline = false;
     }
 
     void enqueueUserText() {
@@ -553,6 +584,10 @@ private:
 
     void startAgent() {
         stopAgent(); // ensure previous process closed
+        convoBlocks.length = 0;
+        pendingBuf = null;
+        pendingNewline = false;
+        hasPendingRole = false;
         auto cmd = parseCommandLine(agentPath);
         if (cmd.length == 0) {
             statusText = "Command is empty";
@@ -600,6 +635,10 @@ private:
     void stopAgent() {
         stopWorker();
         statusText = "Stopped";
+        convoBlocks.length = 0;
+        pendingBuf = null;
+        pendingNewline = false;
+        hasPendingRole = false;
     }
 
     /// Very small command-line tokenizer (handles quotes, no escapes)
@@ -678,25 +717,36 @@ protected:
         // Conversation / Log tabs
         if (igBeginTabBar("AgentTabs", ImGuiTabBarFlags.None)) {
             if (igBeginTabItem(_("Conversation").toStringz())) {
-        auto lines = expandLines(pendingLinesSnapshot());
-        if (igBeginChild("AgentConversation", logSize, true,
-                ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            renderClippedLines(lines, logSize.x, convoVersion, convoCache);
-        }
-        igEndChild();
-        convoContentAdded = false;
-        igEndTabItem();
-    }
-    if (igBeginTabItem(_("Log").toStringz())) {
-        auto linesLog = expandLines(logLines);
-        if (igBeginChild("AgentLog", logSize, true,
-                ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            renderClippedLines(linesLog, logSize.x, logVersion, logCache);
-        }
-        igEndChild();
-        logContentAdded = false;
-        igEndTabItem();
-    }
+                flushPending(); // show latest partial lines
+                if (igBeginChild("AgentConversation", logSize, true,
+                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+                    foreach (i, blk; convoBlocks) {
+                        auto label = (blk.role ~ "##blk" ~ i.to!string()).toStringz();
+                        auto flags = ImGuiTreeNodeFlags.None;
+                        // 最終ブロックは開く。ユーザ(You)ブロックも常に開く。
+                        if (i == convoBlocks.length - 1 || blk.role == "You") {
+                            flags |= ImGuiTreeNodeFlags.DefaultOpen;
+                        }
+                        if (igTreeNodeEx(label, flags)) {
+                            renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache);
+                            igTreePop();
+                        }
+                    }
+                }
+                igEndChild();
+                convoContentAdded = false;
+                igEndTabItem();
+            }
+            if (igBeginTabItem(_("Log").toStringz())) {
+                auto linesLog = expandLines(logLines);
+                if (igBeginChild("AgentLog", logSize, true,
+                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+                    renderClippedLines(linesLog, logSize.x, logVersion, logCache);
+                }
+                igEndChild();
+                logContentAdded = false;
+                igEndTabItem();
+            }
             igEndTabBar();
         }
 
@@ -711,13 +761,13 @@ protected:
         }
         igSameLine();
         if (!promptPending) {
-            if (igButton(_("Send").toStringz(), ImVec2(sendBtnW, 0))) {
+            if (incButtonColored(_("\ue037").toStringz(), ImVec2(sendBtnW, 0))) {
                 if (userText.length) {
                     enqueueUserText();
                 }
             }
         } else {
-            if (igButton(_("Stop").toStringz(), ImVec2(sendBtnW, 0))) {
+            if (incButtonColored(_("\ue047").toStringz(), ImVec2(sendBtnW, 0))) {
                 enqueueCommand("cancel");
             }
         }
