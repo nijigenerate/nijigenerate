@@ -84,26 +84,23 @@ private:
         logBuffer = logLines.join("\n");
     }
 
-    enum size_t kMaxChatLineChars = 2000; // allow long assistant/user lines safely
+    enum size_t kMaxChatLineChars = 200; // reasonable chunk; rely on precise height clipping to avoid overflow
     enum size_t kMaxLogLineChars  = 200;  // logs stay short to protect DrawList
     enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
     void renderClippedLines(const(string)[] lines, float wrapWidth) {
-        // Variable-height manual culling. We sum heights for scrollbar, but only draw visible lines.
-        auto style = igGetStyle();
+        // Variable-height manual culling using actual wrapped height per line.
         ImVec2 avail;
         igGetContentRegionAvail(&avail);
         float wrapW = (wrapWidth > 0) ? wrapWidth : avail.x;
         float cursorX = igGetCursorPosX();
+        float baseY   = igGetCursorPosY();
         igPushTextWrapPos(cursorX + wrapW);
-        const float scrollY = igGetScrollY();
-        const float viewY   = igGetWindowHeight();
-        const float top     = scrollY;
-        const float bottom  = scrollY + viewY;
 
-        const float baseY = igGetCursorPosY();
+        auto style = igGetStyle();
+        const float top    = igGetScrollY();
+        const float bottom = top + igGetWindowHeight();
+
         float y = 0;
-        bool firstDraw = true;
-
         foreach (line; lines) {
             ImVec2 sz;
             igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
@@ -113,11 +110,10 @@ private:
             if (visible) {
                 igSetCursorPosY(baseY + y);
                 igTextUnformatted(line.toStringz());
-                firstDraw = false;
             }
             y += h;
         }
-        // Advance cursor to total content height so scrollbar reflects full text.
+        // Advance cursor so scrollbar size matches total content.
         igSetCursorPosY(baseY + y);
         igPopTextWrapPos();
     }
@@ -157,6 +153,18 @@ private:
     string shrinkLineChat(string s) { return shrinkLine(s, kMaxChatLineChars); }
     string shrinkLineLog(string s)  { return shrinkLine(s, kMaxLogLineChars); }
 
+    string[] chunkLine(string s) {
+        auto buf = appender!(string[])();
+        size_t pos = 0;
+        while (pos < s.length) {
+            auto end = pos + kMaxChatLineChars;
+            if (end > s.length) end = s.length;
+            buf.put(s[pos .. end]);
+            pos = end;
+        }
+        return buf.data;
+    }
+
     void pushChatLine(string line) {
         chatLines ~= line;
         convoContentAdded = true;
@@ -179,9 +187,13 @@ private:
     void appendStream(string role, string text) {
         if (hasLastRoleSeen && role != lastRoleSeen) {
             flushPending();
+            pushChatLine(role); // header line
+        } else if (!hasLastRoleSeen) {
+            pushChatLine(role);
+            hasLastRoleSeen = true;
+            lastRoleSeen = role;
         }
         lastRoleSeen = role;
-        hasLastRoleSeen = true;
         size_t idxRole = pendingLines.length;
         foreach (i, pl; pendingLines) {
             if (pl.role == role) { idxRole = i; break; }
@@ -195,7 +207,9 @@ private:
             if (idx < 0) break;
             auto lineBytes = combined[0 .. idx];
             auto lineDec = safeDecode(lineBytes);
-            pushChatLine(role ~ ": " ~ shrinkLineChat(lineDec));
+            foreach (chunk; chunkLine(lineDec)) {
+                pushChatLine(chunk);
+            }
             combined = combined[idx + 1 .. $];
         }
         pendingLines[idxRole].bytes = cast(ubyte[]) combined.idup;
@@ -224,9 +238,14 @@ private:
         }
         foreach (pl; pendingLines) {
             if (pl.bytes.length == 0) continue;
+            if (linesBuf.length == 0 || linesBuf[$-1] != pl.role) {
+                linesBuf ~= pl.role;
+            }
             auto decoded = safeDecode(pl.bytes);
             foreach (piece; splitLines(decoded)) {
-                linesBuf ~= pl.role ~ ": " ~ shrinkLineChat(piece);
+                foreach (chunk; chunkLine(piece)) {
+                    linesBuf ~= chunk;
+                }
             }
         }
         return linesBuf;
@@ -235,7 +254,12 @@ private:
     void flushPending() {
         foreach (ref pl; pendingLines) {
             if (pl.bytes.length == 0) continue;
-            chatLines ~= pl.role ~ ": " ~ safeDecode(pl.bytes);
+            if (chatLines.length == 0 || chatLines[$-1] != pl.role) {
+                chatLines ~= pl.role;
+            }
+            foreach (chunk; chunkLine(safeDecode(pl.bytes))) {
+                chatLines ~= chunk;
+            }
             pl.bytes = null;
         }
         pendingLines.length = 0;
