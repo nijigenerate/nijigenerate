@@ -50,6 +50,8 @@ private:
     bool convoContentAdded;
     bool logContentAdded;
     bool promptPending;
+    uint convoVersion;
+    uint logVersion;
 
     string safeDecode(const(ubyte)[] bytes) {
         import std.utf : decode, UTFException;
@@ -87,8 +89,18 @@ private:
     enum size_t kMaxChatLineChars = 200; // reasonable chunk; rely on precise height clipping to avoid overflow
     enum size_t kMaxLogLineChars  = 200;  // logs stay short to protect DrawList
     enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
-    void renderClippedLines(const(string)[] lines, float wrapWidth) {
-        // Variable-height manual culling using actual wrapped height per line.
+    struct LineHeightCache {
+        float wrapW = 0;
+        float[] heights;
+        size_t[] lens;    // cached line lengths to detect edits without length change
+        uint dataVer = uint.max;
+        float totalHeight = 0;
+    }
+    LineHeightCache convoCache;
+    LineHeightCache logCache;
+
+    void renderClippedLines(const(string)[] lines, float wrapWidth, uint dataVer, ref LineHeightCache cache) {
+        // Variable-height manual culling using cached wrapped heights.
         ImVec2 avail;
         igGetContentRegionAvail(&avail);
         float wrapW = (wrapWidth > 0) ? wrapWidth : avail.x;
@@ -100,12 +112,44 @@ private:
         const float top    = igGetScrollY();
         const float bottom = top + igGetWindowHeight();
 
-        float y = 0;
-        foreach (line; lines) {
-            ImVec2 sz;
-            igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
-            float h = sz.y + style.ItemSpacing.y;
+        bool wrapChanged   = cache.wrapW != wrapW;
+        bool lengthChanged = cache.heights.length != lines.length;
+        bool versionChanged = cache.dataVer != dataVer;
 
+        if (wrapChanged || lengthChanged) {
+            // width変更や行数変化時は全再計算
+            cache.heights.length = 0;
+            cache.lens.length = 0;
+            cache.totalHeight = 0;
+            foreach (line; lines) {
+                ImVec2 sz;
+                igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
+                float h = sz.y + style.ItemSpacing.y;
+                cache.heights ~= h;
+                cache.lens ~= line.length;
+                cache.totalHeight += h;
+            }
+            cache.wrapW = wrapW;
+            cache.dataVer = dataVer;
+        } else if (versionChanged) {
+            // 行数は同じだが内容が変わった可能性: 変化した行だけ再計算
+            cache.totalHeight = 0;
+            foreach (i, line; lines) {
+                if (i >= cache.lens.length || cache.lens[i] != line.length) {
+                    ImVec2 sz;
+                    igCalcTextSize(&sz, line.toStringz(), null, true, wrapW);
+                    float h = sz.y + style.ItemSpacing.y;
+                    cache.heights[i] = h;
+                    cache.lens[i] = line.length;
+                }
+                cache.totalHeight += cache.heights[i];
+            }
+            cache.dataVer = dataVer;
+        }
+
+        float y = 0;
+        foreach (i, line; lines) {
+            float h = cache.heights[i];
             bool visible = (y + h >= top) && (y <= bottom);
             if (visible) {
                 igSetCursorPosY(baseY + y);
@@ -114,7 +158,7 @@ private:
             y += h;
         }
         // Advance cursor so scrollbar size matches total content.
-        igSetCursorPosY(baseY + y);
+        igSetCursorPosY(baseY + cache.totalHeight);
         igPopTextWrapPos();
     }
 
@@ -168,6 +212,7 @@ private:
     void pushChatLine(string line) {
         chatLines ~= line;
         convoContentAdded = true;
+        ++convoVersion;
         if (chatLines.length > kMaxLines) {
             // drop oldest surplus
             auto drop = chatLines.length - kMaxLines;
@@ -178,6 +223,7 @@ private:
     void pushLogLine(string line) {
         logLines ~= shrinkLineLog(line);
         logContentAdded = true;
+        ++logVersion;
         if (logLines.length > kMaxLines) {
             auto drop = logLines.length - kMaxLines;
             logLines = logLines[drop .. $].dup;
@@ -223,7 +269,7 @@ private:
         }
         foreach (pl; pendingLines) {
             if (pl.bytes.length == 0) continue;
-            app.put(pl.role ~ ": " ~ safeDecode(pl.bytes));
+            app.put(safeDecode(pl.bytes));
             app.put("\n");
         }
         return app.data;
@@ -256,9 +302,11 @@ private:
             if (pl.bytes.length == 0) continue;
             if (chatLines.length == 0 || chatLines[$-1] != pl.role) {
                 chatLines ~= pl.role;
+                ++convoVersion;
             }
             foreach (chunk; chunkLine(safeDecode(pl.bytes))) {
                 chatLines ~= chunk;
+                ++convoVersion;
             }
             pl.bytes = null;
         }
@@ -633,7 +681,7 @@ protected:
         auto lines = expandLines(pendingLinesSnapshot());
         if (igBeginChild("AgentConversation", logSize, true,
                 ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            renderClippedLines(lines, logSize.x);
+            renderClippedLines(lines, logSize.x, convoVersion, convoCache);
         }
         igEndChild();
         convoContentAdded = false;
@@ -643,7 +691,7 @@ protected:
         auto linesLog = expandLines(logLines);
         if (igBeginChild("AgentLog", logSize, true,
                 ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-            renderClippedLines(linesLog, logSize.x);
+            renderClippedLines(linesLog, logSize.x, logVersion, logCache);
         }
         igEndChild();
         logContentAdded = false;
