@@ -21,6 +21,8 @@ import core.sync.condition;
 import core.time : msecs, MonoTime, seconds;
 import std.process : ProcessException;
 import std.json;
+import std.algorithm : min;
+import std.string : strip;
 import bindbc.imgui;
 import i18n;
 
@@ -57,8 +59,10 @@ private:
         JSONValue[] payloads; // legacy per-line payloads (kept for non-tool)
         JSONValue payloadMerged; // for tool_call/_update
         bool hasPayloadMerged;
+        string status;        // tool status
         LineHeightCache cache;
         uint ver;
+        size_t dirtyFrom = size_t.max; // first line index that needs height recompute
     }
     LogBlock[] convoBlocks;     // committed blocks in order
     string pendingRole;
@@ -110,7 +114,8 @@ private:
     LineHeightCache logCache;
 
     void renderClippedLines(const(string)[] lines, float wrapWidth, uint dataVer, ref LineHeightCache cache,
-            bool prefixFirstOnly = false, string prefix = "", ImVec4* optColor = null) {
+            bool prefixFirstOnly = false, string prefix = "", ImVec4* optColor = null,
+            size_t dirtyFrom = 0) {
         // Variable-height manual culling using cached wrapped heights.
         ImVec2 avail;
         igGetContentRegionAvail(&avail);
@@ -161,12 +166,17 @@ private:
             cache.wrapW = wrapW;
             cache.dataVer = dataVer;
         } else if (versionChanged) {
-            cache.totalHeight = 0;
+            size_t start = (dirtyFrom < lines.length) ? dirtyFrom : 0;
             if (cache.heights.length != lines.length) {
                 cache.heights.length = lines.length;
                 cache.lens.length = lines.length;
+                start = 0;
             }
-            foreach (i, line; lines) {
+            float oldSeg = 0;
+            foreach (idx; start .. cache.heights.length) oldSeg += cache.heights[idx];
+
+            float newSeg = 0;
+            foreach (i; start .. lines.length) {
                 auto disp = displayLine(i);
                 auto drawLine = drawableText(disp);
                 if (i >= cache.lens.length || cache.lens[i] != drawLine.length) {
@@ -176,8 +186,9 @@ private:
                     cache.heights[i] = h;
                     cache.lens[i] = drawLine.length;
                 }
-                cache.totalHeight += cache.heights[i];
+                newSeg += cache.heights[i];
             }
+            cache.totalHeight = cache.totalHeight - oldSeg + newSeg;
             cache.dataVer = dataVer;
         } else {
             // 完全ヒット: 再計算不要
@@ -330,6 +341,19 @@ private:
         return src;
     }
 
+    ImU32 statusColor(string s) {
+        ImVec4 col;
+        switch (s) {
+            case "in_progress": col = ImVec4(0, 0.4f, 0.8f, 1); break; // blue
+            case "completed": col = ImVec4(0, 0.75f, 0, 1); break; // green
+            case "failed": col = ImVec4(0.9f, 0, 0, 1); break; // red
+            case "queued": col = ImVec4(0.9f, 0.5f, 0, 1); break; // orange
+            case "cancelled": col = ImVec4(0.5f, 0.5f, 0.5f, 1); break; // gray
+            default: col = ImVec4(0.6f, 0.6f, 0.6f, 1); break;
+        }
+        return igGetColorU32(col);
+    }
+
     void renderJsonTree(JSONValue v, string label, float wrapW, string path = "", size_t siblingIdx = 0) {
         string nextLabel(string lbl, string p) {
             auto pathNext = p.length ? (p ~ "/" ~ lbl) : lbl;
@@ -382,8 +406,10 @@ private:
     void pushChatLine(string role, string line, JSONValue payload = JSONValue.init, string title = "", bool payloadPresent = false) {
         ensureBlock(role, title);
         auto blk = &convoBlocks[$-1];
+        size_t idx = blk.lines.length;
         blk.lines ~= line;
         blk.payloads ~= (payloadPresent ? payload : JSONValue.init);
+        blk.dirtyFrom = min(blk.dirtyFrom, idx);
         blk.ver++;
         convoContentAdded = true;
         // cap blocks by trimming oldest lines if overall too large
@@ -404,6 +430,8 @@ private:
                     if (blk.payloads.length == blk.lines.length + toDrop) {
                         convoBlocks[bi].payloads = convoBlocks[bi].payloads[toDrop .. $].dup;
                     }
+                    convoBlocks[bi].dirtyFrom = 0;
+                    convoBlocks[bi].cache.dataVer = uint.max; // force recompute
                     toDrop = 0;
                 }
             }
@@ -417,11 +445,13 @@ private:
             blk.lines ~= fragment;
             blk.payloads ~= (payloadPresent ? payload : JSONValue.init);
         } else {
+            size_t idx = blk.lines.length - 1;
             blk.lines[$-1] ~= fragment;
             if (payloadPresent && blk.payloads.length == blk.lines.length)
                 blk.payloads[$-1] = payload;
             else if (payloadPresent && blk.payloads.length == blk.lines.length - 1)
                 blk.payloads ~= payload;
+            blk.dirtyFrom = min(blk.dirtyFrom, idx);
         }
         blk.ver++;
         convoContentAdded = true;
@@ -494,7 +524,7 @@ private:
         return null;
     }
 
-    void handleToolUpdate(string role, string title, string text, JSONValue payload, bool isInitial) {
+    void handleToolUpdate(string role, string title, string text, JSONValue payload, bool isInitial, string status) {
         flushPending(); // avoid mixing with streaming buffers
         LogBlock* blk = findToolBlock(role);
         if (isInitial || blk is null) {
@@ -505,6 +535,7 @@ private:
                 nb.lines ~= text;
             nb.payloadMerged = payload;
             nb.hasPayloadMerged = (payload.type != JSONType.null_);
+            nb.status = status;
             nb.ver = 1;
             convoBlocks ~= nb;
             convoContentAdded = true;
@@ -522,6 +553,7 @@ private:
             else blk.payloadMerged = payload;
             blk.hasPayloadMerged = true;
         }
+        if (status.length) blk.status = status;
         blk.ver++;
         convoContentAdded = true;
     }
@@ -682,7 +714,7 @@ private:
                     if (kind == "tool_call" || kind == "tool_call_update") {
                         string role = toolId.length ? "Tool#" ~ toolId : "Tool";
                         bool isInitial = (kind == "tool_call");
-                        handleToolUpdate(role, title, summary, upd, isInitial);
+                        handleToolUpdate(role, title, summary, upd, isInitial, status);
                     } else {
                         bool isTool = false;
                         bool toolNewLine = false;
@@ -948,11 +980,12 @@ protected:
                 if (igBeginChild("AgentConversation", logSize, true,
                         ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
                     auto style = igGetStyle();
-                    foreach (i, blk; convoBlocks) {
+                    foreach (i, ref blk; convoBlocks) {
                         if (blk.role == "You") {
                             auto col = style.Colors[0]; // ImGuiCol_Text
                             renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache,
-                                true, "You: ", &col);
+                                true, "You: ", &col, blk.dirtyFrom);
+                            blk.dirtyFrom = size_t.max;
                             continue;
                         }
                         bool isAssistantFinal = (blk.role == "Assistant");
@@ -961,11 +994,26 @@ protected:
                         bool isLastBlock = (i == convoBlocks.length - 1);
 
                         if (startsWith(blk.role, "Tool")) {
-                            auto label = (("tool: " ~ (blk.title.length ? blk.title : blk.role)) ~ "##blk" ~ i.to!string()).toStringz();
+                            ImVec4 c;
+                            switch (blk.status) {
+                                case "in_progress": c = ImVec4(0, 0.4f, 0.8f, 1); break;
+                                case "completed": c = ImVec4(0, 0.75f, 0, 1); break;
+                                case "failed": c = ImVec4(0.9f, 0, 0, 1); break;
+                                case "queued": c = ImVec4(0.9f, 0.5f, 0, 1); break;
+                                case "cancelled": c = ImVec4(0.5f, 0.5f, 0.5f, 1); break;
+                                default: c = ImVec4(0.6f, 0.6f, 0.6f, 1); break;
+                            }
+                            auto labelVis = "tool: " ~ (blk.title.length ? blk.title : blk.role);
+                            auto labelId = ("##blk" ~ i.to!string).toStringz();
                             auto flags = ImGuiTreeNodeFlags.None;
                             if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
-                            if (igTreeNodeEx(label, flags)) {
-                                // Do not render stringified payload; show structured payload only
+                            bool open = igTreeNodeEx(labelId, flags);
+                            float labelSpacing = igGetTreeNodeToLabelSpacing();
+                            igSameLine(0, labelSpacing);
+                            igTextColored(c, "\ue84f");
+                            igSameLine(0, 4);
+                            igTextUnformatted(labelVis.toStringz());
+                            if (open) {
                                 if (blk.hasPayloadMerged) {
                                     if (blk.payloadMerged.type == JSONType.object || blk.payloadMerged.type == JSONType.array) {
                                         renderJsonTree(blk.payloadMerged, "payload", logSize.x);
@@ -978,7 +1026,24 @@ protected:
                             }
                             continue;
                         }
-                        auto label = (blk.role ~ "##blk" ~ i.to!string()).toStringz();
+                        string thinkingLabel;
+                        size_t thinkingFirstIdx = 0;
+                        if (isAssistantThinking) {
+                            bool found = false;
+                            foreach (idx, ln; blk.lines) {
+                                if (ln.strip.length) {
+                                    thinkingLabel = ln;
+                                    thinkingFirstIdx = idx;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found && blk.lines.length)
+                                thinkingLabel = blk.lines[0];
+                            else if (!found)
+                                thinkingLabel = blk.role; // fallback
+                        }
+                        auto label = ((isAssistantThinking ? thinkingLabel : blk.role) ~ "##blk" ~ i.to!string()).toStringz();
                         auto flags = ImGuiTreeNodeFlags.None;
                         // ルール:
                         //  - Assistant 最終回答 (role=="Assistant") かつ最終ブロックのとき開く
@@ -987,7 +1052,18 @@ protected:
                         if (isAssistantFinal && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
                         else if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
                         if (igTreeNodeEx(label, flags)) {
-                            renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache);
+                            if (isAssistantThinking) {
+                                // ラベルに使った行を除いた残りを表示
+                                size_t startIdx = thinkingFirstIdx + 1;
+                                if (startIdx < blk.lines.length) {
+                                    auto rest = blk.lines[startIdx .. $];
+                                    LineHeightCache tmp;
+                                    renderClippedLines(rest, logSize.x, blk.ver, tmp);
+                                }
+                            } else {
+                                renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
+                                blk.dirtyFrom = size_t.max;
+                            }
                             igTreePop();
                         }
                     }
