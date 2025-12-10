@@ -300,6 +300,105 @@ private:
     string shrinkLineChat(string s) { return shrinkLine(s, kMaxChatLineChars); }
     string shrinkLineLog(string s)  { return shrinkLine(s, kMaxLogLineChars); }
 
+    string deriveUpdateKind(JSONValue upd) {
+        if (upd.type == JSONType.object && "sessionUpdate" in upd.object)
+            return upd["sessionUpdate"].str;
+        return "session/update";
+    }
+
+    string deriveToolId(JSONValue upd) {
+        if (upd.type == JSONType.object && "toolCallId" in upd.object
+            && upd["toolCallId"].type == JSONType.string)
+            return upd["toolCallId"].str;
+        return "";
+    }
+
+    string deriveRoleFromKind(string kind, string toolId) {
+        if (kind == "agent_message_chunk") return "Assistant";
+        if (kind == "agent_thought_chunk") return "Assistant (thinking)";
+        if (kind == "user_message_chunk") return "You (echo)";
+        if (kind == "plan") return "Plan";
+        if (kind == "tool_call" || kind == "tool_call_update")
+            return toolId.length ? "Tool#" ~ toolId : "Tool";
+        if (kind == "available_commands_update") return "Command list";
+        if (kind == "current_mode_update") return "Mode";
+        return kind;
+    }
+
+    string extractTextFromContent(JSONValue upd) {
+        if (upd.type != JSONType.object) return "";
+        JSONValue content = JSONValue.init;
+        if (upd.type == JSONType.object && "content" in upd.object)
+            content = upd["content"];
+        if (content.type == JSONType.object && "text" in content.object) {
+            return content["text"].str;
+        }
+        if (content.type == JSONType.array && content.array.length) {
+            string acc;
+            foreach (item; content.array) {
+                if (item.type == JSONType.object && "text" in item.object) {
+                    acc ~= item["text"].str;
+                    if ("annotations" in item.object && item["annotations"].type == JSONType.array) {
+                        foreach (ann; item["annotations"].array) {
+                            if (ann.type == JSONType.object && "title" in ann.object) {
+                                acc ~= " (" ~ ann["title"].str ~ ")";
+                            }
+                        }
+                    }
+                }
+            }
+            return acc;
+        }
+        return "";
+    }
+
+    string fallbackText(JSONValue upd) {
+        if (upd.type != JSONType.object) return upd.toString();
+        if ("message" in upd.object && upd["message"].type == JSONType.string)
+            return upd["message"].str;
+        if ("rawOutput" in upd.object)
+            return upd["rawOutput"].toString();
+        return upd.toString();
+    }
+
+    void handleSessionUpdate(JSONValue upd) {
+        string kind = deriveUpdateKind(upd);
+        string toolId = deriveToolId(upd);
+        string role = deriveRoleFromKind(kind, toolId);
+
+        string status;
+        if (upd.type == JSONType.object && "status" in upd.object
+            && upd["status"].type == JSONType.string)
+            status = upd["status"].str;
+
+        string title;
+        if (upd.type == JSONType.object && "title" in upd.object
+            && upd["title"].type == JSONType.string)
+            title = upd["title"].str;
+
+        string text = extractTextFromContent(upd);
+
+        bool isTool = (kind == "tool_call" || kind == "tool_call_update");
+
+        if (isTool) {
+            if (text.length == 0 && "message" in upd.object && upd["message"].type == JSONType.string)
+                text = upd["message"].str;
+            if (text.length == 0) text = "tool update";
+            if (title.length) text = title ~ " " ~ text;
+            if (status.length) text ~= " (status: " ~ status ~ ")";
+            if (toolId.length) text = "[" ~ toolId ~ "] " ~ text;
+
+            bool isInitial = (kind == "tool_call");
+            handleToolUpdate(role, title, text, upd, isInitial, status);
+            return;
+        }
+
+        if (text.length == 0)
+            text = fallbackText(upd);
+
+        appendStream(role, text, upd, title, false, false);
+    }
+
     string jsonScalar(JSONValue v) {
         switch (v.type) {
             case JSONType.string:   return "\"" ~ v.str ~ "\"";
@@ -331,6 +430,109 @@ private:
         auto p = title.indexOf('\n');
         if (p >= 0) return title[0 .. p] ~ " ...";
         return title;
+    }
+
+    enum RoleKind { You, Tool, AssistantFinal, AssistantThinking, Other }
+
+    RoleKind roleKind(const LogBlock blk) {
+        if (blk.role == "You") return RoleKind.You;
+        if (blk.role.startsWith("Tool")) return RoleKind.Tool;
+        if (blk.role == "Assistant") return RoleKind.AssistantFinal;
+        if (blk.role.startsWith("Assistant")) return RoleKind.AssistantThinking;
+        return RoleKind.Other;
+    }
+
+    void renderYou(ref LogBlock blk, float w, ImVec4 col) {
+        auto tv = trimBlankEdges(blk.lines);
+        auto view = blk.lines[tv.start .. tv.end];
+        if (tv.trimmed) {
+            LineHeightCache tmp;
+            renderClippedLines(view, w, blk.ver, tmp, true, "\ue7fd: ", &col);
+        } else {
+            renderClippedLines(view, w, blk.ver, blk.cache, true, "\ue7fd: ", &col, blk.dirtyFrom);
+            blk.dirtyFrom = size_t.max;
+        }
+    }
+
+    void renderTool(ref LogBlock blk, float w, bool isLast) {
+        ImVec4 c;
+        igColorConvertU32ToFloat4(&c, statusColor(blk.status));
+        auto labelVis = "tool: " ~ (blk.title.length ? shortToolTitle(blk.title) : blk.role);
+        auto labelId = ("##blk" ~ (cast(size_t)&blk).to!string()).toStringz();
+        auto flags = ImGuiTreeNodeFlags.None;
+        if (isLast) flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        bool open = igTreeNodeEx(labelId, flags);
+        float labelSpacing = igGetTreeNodeToLabelSpacing();
+        igSameLine(0, labelSpacing);
+        igTextColored(c, "\ue84f");
+        igSameLine(0, 4);
+        igTextUnformatted(labelVis.toStringz());
+        if (open) {
+            if (blk.hasPayloadMerged) {
+                string[] keys = ["rawInput", "contents"];
+                renderJsonFiltered(blk.payloadMerged, w, keys);
+            }
+            igTreePop();
+        }
+    }
+
+    void renderAssistantThinking(ref LogBlock blk, float w) {
+        string thinkingLabel;
+        size_t thinkingFirstIdx = 0;
+        bool found = false;
+        foreach (idx, ln; blk.lines) {
+            if (ln.strip.length) { thinkingLabel = ln; thinkingFirstIdx = idx; found = true; break; }
+        }
+        if (!found && blk.lines.length) thinkingLabel = blk.lines[0];
+        if (!found && thinkingLabel.length == 0) thinkingLabel = blk.role;
+
+        auto labelId = (thinkingLabel ~ "##blk" ~ (cast(size_t)&blk).to!string()).toStringz();
+        if (igTreeNodeEx(labelId, ImGuiTreeNodeFlags.None)) {
+            size_t startIdx = thinkingFirstIdx + 1;
+            if (startIdx < blk.lines.length) {
+                auto tvThink = trimBlankEdges(blk.lines[startIdx .. $]);
+                auto viewThink = blk.lines[startIdx + tvThink.start .. startIdx + tvThink.end];
+                LineHeightCache tmp;
+                renderClippedLines(viewThink, w, blk.ver, tmp);
+            }
+            igTreePop();
+        }
+    }
+
+    void renderAssistantFinal(ref LogBlock blk, float w, bool isLast) {
+        auto labelId = (blk.role ~ "##blk" ~ (cast(size_t)&blk).to!string()).toStringz();
+        auto catFlags = isLast ? IncCategoryFlags.None : IncCategoryFlags.DefaultClosed;
+        bool opened = incBeginCategory(labelId, catFlags);
+        if (opened) {
+            auto tv = trimBlankEdges(blk.lines);
+            auto view = blk.lines[tv.start .. tv.end];
+            if (tv.trimmed) {
+                LineHeightCache tmp;
+                renderClippedLines(view, w, blk.ver, tmp);
+            } else {
+                renderClippedLines(view, w, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
+                blk.dirtyFrom = size_t.max;
+            }
+        }
+        incEndCategory();
+    }
+
+    void renderOther(ref LogBlock blk, float w, bool isLast) {
+        auto labelId = (blk.role ~ "##blk" ~ (cast(size_t)&blk).to!string()).toStringz();
+        auto flags = ImGuiTreeNodeFlags.None;
+        if (isLast) flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        if (igTreeNodeEx(labelId, flags)) {
+            auto tv = trimBlankEdges(blk.lines);
+            auto view = blk.lines[tv.start .. tv.end];
+            if (tv.trimmed) {
+                LineHeightCache tmp;
+                renderClippedLines(view, w, blk.ver, tmp);
+            } else {
+                renderClippedLines(view, w, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
+                blk.dirtyFrom = size_t.max;
+            }
+            igTreePop();
+        }
     }
 
     JSONValue mergeJson(JSONValue dst, JSONValue src) {
@@ -773,84 +975,7 @@ private:
                 auto params = obj["params"];
                 if ("update" in params.object) {
                     auto upd = params["update"];
-                    string kind = "session/update";
-                    if ("sessionUpdate" in upd.object) kind = upd["sessionUpdate"].str;
-
-                    string toolId;
-                    if ("toolCallId" in upd.object && upd["toolCallId"].type == JSONType.string) {
-                        toolId = upd["toolCallId"].str;
-                    }
-                    string label = kind;
-                    if (kind == "agent_message_chunk") label = "Assistant";
-                    else if (kind == "agent_thought_chunk") label = "Assistant (thinking)";
-                    else if (kind == "user_message_chunk") label = "You (echo)";
-                    else if (kind == "plan") label = "Plan";
-                    else if (kind == "tool_call" || kind == "tool_call_update") {
-                        label = toolId.length ? "Tool#" ~ toolId : "Tool";
-                    }
-                    else if (kind == "available_commands_update") label = "Command list";
-                    else if (kind == "current_mode_update") label = "Mode";
-
-                    string text;
-                    string status;
-                    if ("status" in upd.object && upd["status"].type == JSONType.string) {
-                        status = upd["status"].str;
-                    }
-                    string title;
-                    if ("title" in upd.object && upd["title"].type == JSONType.string) {
-                        title = upd["title"].str;
-                    }
-                    if ("content" in upd.object) {
-                        auto content = upd["content"];
-                        if (content.type == JSONType.object && "text" in content.object) {
-                            text = content["text"].str;
-                        } else if (content.type == JSONType.array && content.array.length) {
-                            foreach (item; content.array) {
-                                if (item.type == JSONType.object && "text" in item.object) {
-                                    text ~= item["text"].str;
-                                    if ("annotations" in item.object && item["annotations"].type == JSONType.array) {
-                                        foreach (ann; item["annotations"].array) {
-                                            if (ann.type == JSONType.object && "title" in ann.object) {
-                                                text ~= " (" ~ ann["title"].str ~ ")";
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // tool系は JSON 本体を文字列化して行に混ぜない
-                    if (!(kind == "tool_call" || kind == "tool_call_update")) {
-                        if (text.length == 0 && "message" in upd.object) {
-                            text = upd["message"].toString();
-                        }
-                        if (text.length == 0 && "rawOutput" in upd.object) {
-                            text = upd["rawOutput"].toString();
-                        }
-                        if (text.length == 0) {
-                            // fallback: whole update JSON
-                            text = upd.toString();
-                        }
-                    }
-                    string summary = text;
-                    if (kind == "tool_call" || kind == "tool_call_update") {
-                        if (summary.length == 0 && "message" in upd.object && upd["message"].type == JSONType.string)
-                            summary = upd["message"].str;
-                        if (summary.length == 0) summary = "tool update";
-                        if (title.length) summary = title ~ " " ~ summary;
-                        if (status.length) summary ~= " (status: " ~ status ~ ")";
-                        if (toolId.length) summary = "[" ~ toolId ~ "] " ~ summary;
-                    }
-                    // Tool updatesは専用処理でまとめる
-                    if (kind == "tool_call" || kind == "tool_call_update") {
-                        string role = toolId.length ? "Tool#" ~ toolId : "Tool";
-                        bool isInitial = (kind == "tool_call");
-                        handleToolUpdate(role, title, summary, upd, isInitial, status);
-                    } else {
-                        bool isTool = false;
-                        bool toolNewLine = false;
-                        appendStream(label, summary, upd, title, isTool, toolNewLine);
-                    }
+                    handleSessionUpdate(upd);
                 }
             }
             pushResult("log", false, obj.toString());
@@ -1118,107 +1243,24 @@ protected:
                         ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
                     auto style = igGetStyle();
                     foreach (i, ref blk; convoBlocks) {
-                        if (blk.role == "You") {
-                            auto col = style.Colors[0]; // ImGuiCol_Text
-                            auto tv = trimBlankEdges(blk.lines);
-                            auto view = blk.lines[tv.start .. tv.end];
-                            if (tv.trimmed) {
-                                LineHeightCache tmp;
-                                renderClippedLines(view, logSize.x, blk.ver, tmp, true, "\ue7fd: ", &col);
-                            } else {
-                                renderClippedLines(view, logSize.x, blk.ver, blk.cache,
-                                    true, "\ue7fd: ", &col, blk.dirtyFrom);
-                                blk.dirtyFrom = size_t.max;
-                            }
-                            continue;
+                        bool isLast = (i == convoBlocks.length - 1);
+                        final switch (roleKind(blk)) {
+                            case RoleKind.You:
+                                renderYou(blk, logSize.x, style.Colors[0]);
+                                break;
+                            case RoleKind.Tool:
+                                renderTool(blk, logSize.x, isLast);
+                                break;
+                            case RoleKind.AssistantThinking:
+                                renderAssistantThinking(blk, logSize.x);
+                                break;
+                            case RoleKind.AssistantFinal:
+                                renderAssistantFinal(blk, logSize.x, isLast);
+                                break;
+                            case RoleKind.Other:
+                                renderOther(blk, logSize.x, isLast);
+                                break;
                         }
-                        bool isAssistantFinal = (blk.role == "Assistant");
-                        bool isAssistantThinking = (blk.role.startsWith("Assistant") && blk.role != "Assistant");
-                        bool isAssistant = (isAssistantFinal || isAssistantThinking);
-                        bool isLastBlock = (i == convoBlocks.length - 1);
-
-                        if (startsWith(blk.role, "Tool")) {
-                            ImVec4 c;
-                            switch (blk.status) {
-                                case "in_progress": c = ImVec4(0, 0.4f, 0.8f, 1); break;
-                                case "completed": c = ImVec4(0, 0.75f, 0, 1); break;
-                                case "failed": c = ImVec4(0.9f, 0, 0, 1); break;
-                                case "queued": c = ImVec4(0.9f, 0.5f, 0, 1); break;
-                                case "cancelled": c = ImVec4(0.5f, 0.5f, 0.5f, 1); break;
-                                default: c = ImVec4(0.6f, 0.6f, 0.6f, 1); break;
-                            }
-                            auto labelVis = "tool: " ~ (blk.title.length ? shortToolTitle(blk.title) : blk.role);
-                            auto labelId = ("##blk" ~ i.to!string).toStringz();
-                            auto flags = ImGuiTreeNodeFlags.None;
-                            if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
-                            bool open = igTreeNodeEx(labelId, flags);
-                            float labelSpacing = igGetTreeNodeToLabelSpacing();
-                            igSameLine(0, labelSpacing);
-                            igTextColored(c, "\ue86c");
-                            igSameLine(0, 4);
-                            igTextUnformatted(labelVis.toStringz());
-                            if (open) {
-                                if (blk.hasPayloadMerged) {
-                                    string[] keys = ["rawInput", "rawOutput", "contents"];
-                                    renderJsonFiltered(blk.payloadMerged, logSize.x, keys);
-                                }
-                                igTreePop();
-                            }
-                            continue;
-                        }
-                        string thinkingLabel;
-                        size_t thinkingFirstIdx = 0;
-                        if (isAssistantThinking) {
-                            bool found = false;
-                            foreach (idx, ln; blk.lines) {
-                                if (ln.strip.length) {
-                                    thinkingLabel = ln;
-                                    thinkingFirstIdx = idx;
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found && blk.lines.length)
-                                thinkingLabel = blk.lines[0];
-                            else if (!found)
-                                thinkingLabel = blk.role; // fallback
-                        }
-                        auto label = (isAssistantThinking ? thinkingLabel : blk.role);
-                        auto labelId = (label ~ "##blk" ~ i.to!string()).toStringz();
-                        auto flags = ImGuiTreeNodeFlags.None;
-                        // ルール:
-                        //  - Assistant 最終回答 (role=="Assistant") かつ最終ブロックのとき開く
-                        //  - thinking など他の Assistant ブロックは閉じる
-                        //  - 非Assistant は最終ブロックのみ開く
-                        if (isAssistantFinal && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
-                        else if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
-                        bool usedCategory = isAssistantFinal;
-                        bool opened = usedCategory ? incBeginCategory(labelId, IncCategoryFlags.None)
-                                                   : igTreeNodeEx(labelId, flags);
-                        if (opened) {
-                            if (isAssistantThinking) {
-                                // 残りの行を描画（ラベルに使った行より後）
-                                size_t startIdx = thinkingFirstIdx + 1;
-                                if (startIdx < blk.lines.length) {
-                                    auto tvThink = trimBlankEdges(blk.lines[startIdx .. $]);
-                                    auto viewThink = blk.lines[startIdx + tvThink.start .. startIdx + tvThink.end];
-                                    LineHeightCache tmp;
-                                    renderClippedLines(viewThink, logSize.x, blk.ver, tmp);
-                                }
-                            } else {
-                                auto tv = trimBlankEdges(blk.lines);
-                                auto view = blk.lines[tv.start .. tv.end];
-                                if (tv.trimmed) {
-                                    LineHeightCache tmp;
-                                    renderClippedLines(view, logSize.x, blk.ver, tmp);
-                                } else {
-                                    renderClippedLines(view, logSize.x, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
-                                    blk.dirtyFrom = size_t.max;
-                                }
-                            }
-                        }
-                        if (usedCategory) incEndCategory();
-                        else if (opened) igTreePop();
                     }
                 }
                 igEndChild();
