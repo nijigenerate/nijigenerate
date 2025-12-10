@@ -74,6 +74,19 @@ private:
     bool promptPending;
     uint logVersion;
 
+    void clearState() {
+        convoBlocks.length = 0;
+        logLines.length = 0;
+        logBuffer = "";
+        logCache = LineHeightCache.init;
+        logVersion = 0;
+        pendingBuf = null;
+        pendingNewline = false;
+        hasPendingRole = false;
+        convoContentAdded = false;
+        logContentAdded = false;
+    }
+
     string safeDecode(const(ubyte)[] bytes) {
         import std.utf : decode, UTFException;
         auto app = appender!string();
@@ -115,7 +128,7 @@ private:
 
     void renderClippedLines(const(string)[] lines, float wrapWidth, uint dataVer, ref LineHeightCache cache,
             bool prefixFirstOnly = false, string prefix = "", ImVec4* optColor = null,
-            size_t dirtyFrom = 0) {
+            size_t dirtyFrom = size_t.max, size_t startIdx = 0) {
         // Variable-height manual culling using cached wrapped heights.
         ImVec2 avail;
         igGetContentRegionAvail(&avail);
@@ -166,40 +179,72 @@ private:
             cache.wrapW = wrapW;
             cache.dataVer = dataVer;
         } else if (versionChanged) {
-            size_t start = (dirtyFrom < lines.length) ? dirtyFrom : 0;
-            if (cache.heights.length != lines.length) {
-                cache.heights.length = lines.length;
-                cache.lens.length = lines.length;
-                start = 0;
-            }
-            float oldSeg = 0;
-            foreach (idx; start .. cache.heights.length) oldSeg += cache.heights[idx];
-
-            float newSeg = 0;
-            foreach (i; start .. lines.length) {
-                auto disp = displayLine(i);
-                auto drawLine = drawableText(disp);
-                if (i >= cache.lens.length || cache.lens[i] != drawLine.length) {
+            // length shrink →再計算（まれ）
+            if (lengthChanged && lines.length < cache.heights.length) {
+                cache.heights.length = 0;
+                cache.lens.length = 0;
+                cache.totalHeight = 0;
+                foreach (idx, line; lines) {
+                    auto disp = displayLine(idx);
+                    auto drawLine = drawableText(disp);
                     ImVec2 sz;
                     igCalcTextSize(&sz, drawLine.toStringz(), null, true, wrapW);
                     float h = sz.y + style.ItemSpacing.y;
-                    cache.heights[i] = h;
-                    cache.lens[i] = drawLine.length;
+                    cache.heights ~= h;
+                    cache.lens ~= drawLine.length;
+                    cache.totalHeight += h;
                 }
-                newSeg += cache.heights[i];
+                cache.wrapW = wrapW;
+                cache.dataVer = dataVer;
+            } else {
+                // length grow (append) →新行だけ追加
+                if (lengthChanged && lines.length > cache.heights.length) {
+                    auto start = cache.heights.length;
+                    cache.heights.length = lines.length;
+                    cache.lens.length = lines.length;
+                    foreach (i; start .. lines.length) {
+                        auto disp = displayLine(i);
+                        auto drawLine = drawableText(disp);
+                        ImVec2 sz;
+                        igCalcTextSize(&sz, drawLine.toStringz(), null, true, wrapW);
+                        float h = sz.y + style.ItemSpacing.y;
+                        cache.heights[i] = h;
+                        cache.lens[i] = drawLine.length;
+                        cache.totalHeight += h;
+                    }
+                }
+                // 更新が入った範囲のみ再計算
+                if (dirtyFrom != size_t.max && dirtyFrom < lines.length) {
+                    foreach (i; dirtyFrom .. lines.length) {
+                        auto disp = displayLine(i);
+                        auto drawLine = drawableText(disp);
+                        ImVec2 sz;
+                        igCalcTextSize(&sz, drawLine.toStringz(), null, true, wrapW);
+                        float h = sz.y + style.ItemSpacing.y;
+                        auto oldH = (i < cache.heights.length) ? cache.heights[i] : 0;
+                        cache.heights[i] = h;
+                        cache.lens[i] = drawLine.length;
+                        cache.totalHeight += (h - oldH);
+                    }
+                }
+                cache.wrapW = wrapW;
+                cache.dataVer = dataVer;
             }
-            cache.totalHeight = cache.totalHeight - oldSeg + newSeg;
-            cache.dataVer = dataVer;
         } else {
             // 完全ヒット: 再計算不要
         }
 
+        float prefixH = 0;
+        if (startIdx > 0 && startIdx <= cache.heights.length) {
+            foreach (k; 0 .. startIdx) prefixH += cache.heights[k];
+        }
         float y = 0;
-        foreach (i, line; lines) {
+        foreach (offset, line; lines[startIdx .. $]) {
+            size_t i = startIdx + offset;
             float h = cache.heights[i];
-            bool visible = (y + h >= relTop) && (y <= relBottom);
+            bool visible = (prefixH + y + h >= relTop) && (prefixH + y <= relBottom);
             if (visible) {
-                igSetCursorPosY(baseY + y);
+                igSetCursorPosY(baseY + prefixH + y);
                 auto disp = displayLine(i);
                 string toDraw = drawableText(disp);
                 if (toDraw.length > kMaxDrawCharsPerLine) {
@@ -212,6 +257,8 @@ private:
                 }
             }
             y += h;
+            // これ以降の行も全て下に位置するので、ウィンドウ下端より下なら打ち切る
+            if (prefixH + y > relBottom && !visible) break;
         }
         // Advance cursor so scrollbar size matches total content.
         igSetCursorPosY(baseY + cache.totalHeight);
@@ -354,7 +401,32 @@ private:
         return igGetColorU32(col);
     }
 
-    void renderJsonTree(JSONValue v, string label, float wrapW, string path = "", size_t siblingIdx = 0) {
+    bool renderJsonFiltered(JSONValue v, float wrapW, string[] focusKeys) {
+        bool shown = false;
+        switch (v.type) {
+            case JSONType.object: {
+                size_t idx = 0;
+                foreach (k, val; v.object) {
+                    if (renderJsonTree(val, k, wrapW, "", idx++, focusKeys)) shown = true;
+                }
+                break;
+            }
+            case JSONType.array: {
+                foreach (idx, val; v.array) {
+                    if (renderJsonTree(val, "[" ~ idx.to!string ~ "]", wrapW, "", idx, focusKeys)) shown = true;
+                }
+                break;
+            }
+            default:
+                // scalar with no label cannot match focus; ignore
+                break;
+        }
+        return shown;
+    }
+
+    // focusKeys: when非空 → そのキーを含む枝だけを表示。
+    // allowAllBelow: true のとき子孫はフィルタを適用せず全表示（＝キーにヒットしたノード配下）。
+    bool renderJsonTree(JSONValue v, string label, float wrapW, string path = "", size_t siblingIdx = 0, string[] focusKeys = null, bool allowAllBelow = false) {
         string nextLabel(string lbl, string p) {
             auto pathNext = p.length ? (p ~ "/" ~ lbl) : lbl;
             auto h = crc32Of(pathNext);
@@ -363,31 +435,70 @@ private:
         }
         auto id = nextLabel(label ~ "#" ~ siblingIdx.to!string, path);
         string nextPath = path.length ? (path ~ "/" ~ label ~ "#" ~ siblingIdx.to!string) : (label ~ "#" ~ siblingIdx.to!string);
-        switch (v.type) {
-            case JSONType.object:
-                if (igTreeNodeEx(id.toStringz(), ImGuiTreeNodeFlags.None)) {
-                    size_t i = 0;
-                    foreach (k, val; v.object) {
-                        renderJsonTree(val, k, wrapW, nextPath, i++);
+
+        bool hasFocus = focusKeys !is null && focusKeys.length > 0;
+        bool keyMatch(string k) {
+            if (!hasFocus) return true;
+            foreach (fk; focusKeys) if (k == fk) return true;
+            return false;
+        }
+        bool containsKey(JSONValue vv) {
+            switch (vv.type) {
+                case JSONType.object:
+                    foreach (k, val; vv.object) {
+                        if (keyMatch(k)) return true;
+                        if (containsKey(val)) return true;
                     }
-                    igTreePop();
-                }
-                break;
-            case JSONType.array:
-                if (igTreeNodeEx(id.toStringz(), ImGuiTreeNodeFlags.None)) {
-                    foreach (idx, val; v.array) {
-                        renderJsonTree(val, "[" ~ idx.to!string ~ "]", wrapW, nextPath, idx);
-                    }
-                    igTreePop();
-                }
-                break;
-            default: {
-                auto line = label.length ? (label ~ ": " ~ jsonScalar(v)) : jsonScalar(v);
-                LineHeightCache tmp;
-                renderClippedLines([line], wrapW, 0, tmp);
-                break;
+                    return false;
+                case JSONType.array:
+                    foreach (val; vv.array) if (containsKey(val)) return true;
+                    return false;
+                default:
+                    return false;
             }
         }
+
+        switch (v.type) {
+            case JSONType.object:
+                bool matchedHere = keyMatch(label);
+                if (!allowAllBelow && hasFocus && !matchedHere && !containsKey(v)) return false;
+                if (igTreeNodeEx(id.toStringz(), ImGuiTreeNodeFlags.None)) {
+                    size_t idx = 0;
+                    foreach (k, val; v.object) {
+                        bool childMatched = keyMatch(k);
+                        bool childAllow = allowAllBelow || matchedHere || childMatched;
+                        if (allowAllBelow || matchedHere || childMatched || !hasFocus || containsKey(val)) {
+                            renderJsonTree(val, k, wrapW, nextPath, idx, focusKeys, childAllow);
+                        }
+                        ++idx;
+                    }
+                    igTreePop();
+                }
+                return true;
+            case JSONType.array:
+                if (!allowAllBelow && hasFocus && !containsKey(v)) return false;
+                if (igTreeNodeEx(id.toStringz(), ImGuiTreeNodeFlags.None)) {
+                    foreach (idx, val; v.array) {
+                        bool childAllow = allowAllBelow;
+                        if (allowAllBelow || !hasFocus || containsKey(val)) {
+                            renderJsonTree(val, "[" ~ idx.to!string ~ "]", wrapW, nextPath, idx, focusKeys, childAllow);
+                        }
+                    }
+                    igTreePop();
+                }
+                return true;
+            default: {
+                if (allowAllBelow || !hasFocus || keyMatch(label)) {
+                    auto line = label.length ? (label ~ ": " ~ jsonScalar(v)) : jsonScalar(v);
+                    LineHeightCache tmp;
+                    renderClippedLines([line], wrapW, 0, tmp);
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+        return true; // fallback
     }
 
     void ensureBlock(string role, string title = "") {
@@ -894,10 +1005,7 @@ private:
     void stopAgent() {
         stopWorker();
         statusText = "Stopped";
-        convoBlocks.length = 0;
-        pendingBuf = null;
-        pendingNewline = false;
-        hasPendingRole = false;
+        clearState();
     }
 
     /// Very small command-line tokenizer (handles quotes, no escapes)
@@ -949,6 +1057,15 @@ public:
 protected:
     override void onUpdate() {
         ImVec2 avail = incAvailableSpace();
+
+        // controls
+        if (igButton(_("New").toStringz())) {
+            stopAgent();
+            statusText = "Initializing...";
+            clearState();
+            startAgent();
+        }
+        igSameLine();
 
         // auto-start once when possible (cooldown 1s between attempts)
         auto now = MonoTime.currTime;
@@ -1015,12 +1132,8 @@ protected:
                             igTextUnformatted(labelVis.toStringz());
                             if (open) {
                                 if (blk.hasPayloadMerged) {
-                                    if (blk.payloadMerged.type == JSONType.object || blk.payloadMerged.type == JSONType.array) {
-                                        renderJsonTree(blk.payloadMerged, "payload", logSize.x);
-                                    } else if (blk.payloadMerged.type != JSONType.null_) {
-                                        LineHeightCache tmpLine;
-                                        renderClippedLines([jsonScalar(blk.payloadMerged)], logSize.x, blk.ver, tmpLine);
-                                    }
+                                    string[] keys = ["rawInput", "content"];
+                                    renderJsonFiltered(blk.payloadMerged, logSize.x, keys);
                                 }
                                 igTreePop();
                             }
@@ -1053,12 +1166,11 @@ protected:
                         else if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
                         if (igTreeNodeEx(label, flags)) {
                             if (isAssistantThinking) {
-                                // ラベルに使った行を除いた残りを表示
+                                // 残りの行を描画（ラベルに使った行より後）
                                 size_t startIdx = thinkingFirstIdx + 1;
                                 if (startIdx < blk.lines.length) {
-                                    auto rest = blk.lines[startIdx .. $];
-                                    LineHeightCache tmp;
-                                    renderClippedLines(rest, logSize.x, blk.ver, tmp);
+                                    renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache,
+                                        false, "", null, blk.dirtyFrom, startIdx);
                                 }
                             } else {
                                 renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
