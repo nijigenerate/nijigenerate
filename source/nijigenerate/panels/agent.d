@@ -22,7 +22,7 @@ import core.time : msecs, MonoTime, seconds;
 import std.process : ProcessException;
 import std.json;
 import std.algorithm : min;
-import std.string : strip;
+import std.string : strip, indexOf;
 import bindbc.imgui;
 import i18n;
 
@@ -311,6 +311,26 @@ private:
             case JSONType.float_:   return v.floating.to!string;
             default:                return v.toString();
         }
+    }
+
+    struct TrimView {
+        size_t start;
+        size_t end;
+        bool trimmed;
+    }
+
+    TrimView trimBlankEdges(const(string)[] src) {
+        size_t s = 0;
+        size_t e = src.length;
+        while (s < e && src[s].strip.length == 0) ++s;
+        while (e > s && src[e - 1].strip.length == 0) --e;
+        return TrimView(s, e, s > 0 || e < src.length);
+    }
+
+    string shortToolTitle(string title) {
+        auto p = title.indexOf('\n');
+        if (p >= 0) return title[0 .. p] ~ " ...";
+        return title;
     }
 
     JSONValue mergeJson(JSONValue dst, JSONValue src) {
@@ -1100,9 +1120,16 @@ protected:
                     foreach (i, ref blk; convoBlocks) {
                         if (blk.role == "You") {
                             auto col = style.Colors[0]; // ImGuiCol_Text
-                            renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache,
-                                true, "You: ", &col, blk.dirtyFrom);
-                            blk.dirtyFrom = size_t.max;
+                            auto tv = trimBlankEdges(blk.lines);
+                            auto view = blk.lines[tv.start .. tv.end];
+                            if (tv.trimmed) {
+                                LineHeightCache tmp;
+                                renderClippedLines(view, logSize.x, blk.ver, tmp, true, "\ue7fd: ", &col);
+                            } else {
+                                renderClippedLines(view, logSize.x, blk.ver, blk.cache,
+                                    true, "\ue7fd: ", &col, blk.dirtyFrom);
+                                blk.dirtyFrom = size_t.max;
+                            }
                             continue;
                         }
                         bool isAssistantFinal = (blk.role == "Assistant");
@@ -1120,19 +1147,19 @@ protected:
                                 case "cancelled": c = ImVec4(0.5f, 0.5f, 0.5f, 1); break;
                                 default: c = ImVec4(0.6f, 0.6f, 0.6f, 1); break;
                             }
-                            auto labelVis = "tool: " ~ (blk.title.length ? blk.title : blk.role);
+                            auto labelVis = "tool: " ~ (blk.title.length ? shortToolTitle(blk.title) : blk.role);
                             auto labelId = ("##blk" ~ i.to!string).toStringz();
                             auto flags = ImGuiTreeNodeFlags.None;
                             if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
                             bool open = igTreeNodeEx(labelId, flags);
                             float labelSpacing = igGetTreeNodeToLabelSpacing();
                             igSameLine(0, labelSpacing);
-                            igTextColored(c, "\ue84f");
+                            igTextColored(c, "\ue86c");
                             igSameLine(0, 4);
                             igTextUnformatted(labelVis.toStringz());
                             if (open) {
                                 if (blk.hasPayloadMerged) {
-                                    string[] keys = ["rawInput", "content"];
+                                    string[] keys = ["rawInput", "rawOutput", "contents"];
                                     renderJsonFiltered(blk.payloadMerged, logSize.x, keys);
                                 }
                                 igTreePop();
@@ -1156,7 +1183,8 @@ protected:
                             else if (!found)
                                 thinkingLabel = blk.role; // fallback
                         }
-                        auto label = ((isAssistantThinking ? thinkingLabel : blk.role) ~ "##blk" ~ i.to!string()).toStringz();
+                        auto label = (isAssistantThinking ? thinkingLabel : blk.role);
+                        auto labelId = (label ~ "##blk" ~ i.to!string()).toStringz();
                         auto flags = ImGuiTreeNodeFlags.None;
                         // ルール:
                         //  - Assistant 最終回答 (role=="Assistant") かつ最終ブロックのとき開く
@@ -1164,20 +1192,33 @@ protected:
                         //  - 非Assistant は最終ブロックのみ開く
                         if (isAssistantFinal && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
                         else if (!isAssistant && isLastBlock) flags |= ImGuiTreeNodeFlags.DefaultOpen;
-                        if (igTreeNodeEx(label, flags)) {
+                        bool usedCategory = isAssistantFinal;
+                        bool opened = usedCategory ? incBeginCategory(labelId, IncCategoryFlags.None)
+                                                   : igTreeNodeEx(labelId, flags);
+                        if (opened) {
                             if (isAssistantThinking) {
                                 // 残りの行を描画（ラベルに使った行より後）
                                 size_t startIdx = thinkingFirstIdx + 1;
                                 if (startIdx < blk.lines.length) {
-                                    renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache,
-                                        false, "", null, blk.dirtyFrom, startIdx);
+                                    auto tvThink = trimBlankEdges(blk.lines[startIdx .. $]);
+                                    auto viewThink = blk.lines[startIdx + tvThink.start .. startIdx + tvThink.end];
+                                    LineHeightCache tmp;
+                                    renderClippedLines(viewThink, logSize.x, blk.ver, tmp);
                                 }
                             } else {
-                                renderClippedLines(blk.lines, logSize.x, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
-                                blk.dirtyFrom = size_t.max;
+                                auto tv = trimBlankEdges(blk.lines);
+                                auto view = blk.lines[tv.start .. tv.end];
+                                if (tv.trimmed) {
+                                    LineHeightCache tmp;
+                                    renderClippedLines(view, logSize.x, blk.ver, tmp);
+                                } else {
+                                    renderClippedLines(view, logSize.x, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
+                                    blk.dirtyFrom = size_t.max;
+                                }
                             }
-                            igTreePop();
                         }
+                        if (usedCategory) incEndCategory();
+                        else if (opened) igTreePop();
                     }
                 }
                 igEndChild();
@@ -1186,9 +1227,16 @@ protected:
             }
             if (igBeginTabItem(_("Log").toStringz())) {
                 auto linesLog = expandLines(logLines);
+                auto tvLog = trimBlankEdges(linesLog);
+                auto viewLog = linesLog[tvLog.start .. tvLog.end];
                 if (igBeginChild("AgentLog", logSize, true,
                         ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-                    renderClippedLines(linesLog, logSize.x, logVersion, logCache);
+                    if (tvLog.trimmed) {
+                        LineHeightCache tmp;
+                        renderClippedLines(viewLog, logSize.x, logVersion, tmp);
+                    } else {
+                        renderClippedLines(viewLog, logSize.x, logVersion, logCache);
+                    }
                 }
                 igEndChild();
                 logContentAdded = false;
@@ -1208,13 +1256,13 @@ protected:
         }
         igSameLine();
         if (!promptPending) {
-            if (incButtonColored(_("\ue037").toStringz(), ImVec2(sendBtnW, 0))) {
+            if (incButtonColored(_("\ue163").toStringz(), ImVec2(sendBtnW, 0))) {
                 if (userText.length) {
                     enqueueUserText();
                 }
             }
         } else {
-            if (incButtonColored(_("\ue047").toStringz(), ImVec2(sendBtnW, 0))) {
+            if (incButtonColored(_("\ue5c9").toStringz(), ImVec2(sendBtnW, 0))) {
                 enqueueCommand("cancel");
             }
         }
