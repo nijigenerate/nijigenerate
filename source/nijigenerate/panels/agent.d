@@ -7,7 +7,7 @@
 */
 module nijigenerate.panels.agent;
 
-import std.string : format, toStringz, join;
+import std.string : format, toStringz, join, split;
 import std.stdio : writeln;
 import std.array : appender, array, replicate;
 import std.digest.crc : crc32Of;
@@ -37,10 +37,14 @@ struct ACPResult {
     string message;
 }
 
+struct PermissionRequest {
+    string id;
+    string reason;
+    JSONValue params;
+}
+
 class AgentPanel : Panel {
 private:
-    string agentPath = "./out/nijigenerate-agent";
-    string workingDir;
     string statusText = "Idle";
     string[] logLines;
     string logBuffer;
@@ -114,6 +118,8 @@ private:
     ACPResult[] resultQueue;
     Mutex qMutex;
     Condition qCond;
+    PermissionRequest[] permQueue;
+    bool permChanged = false;
 
     void log(string msg) {
         pushLogLine(shrinkLineLog(msg));
@@ -121,7 +127,7 @@ private:
     }
 
     enum size_t kMaxChatLineChars = 200; // reasonable chunk; rely on precise height clipping to avoid overflow
-    enum size_t kMaxLogLineChars  = 200;  // logs stay short to protect DrawList
+    enum size_t kMaxLogLineChars  = 2000;  // logs stay short to protect DrawList
     enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
     enum size_t kMaxDrawCharsPerLine = 4000; // safety cap to avoid ImGui 16-bit index overflow
     LineHeightCache logCache;
@@ -464,7 +470,7 @@ private:
         bool open = igTreeNodeEx(labelId, flags);
         float labelSpacing = igGetTreeNodeToLabelSpacing();
         igSameLine(0, labelSpacing);
-        igTextColored(c, "\ue84f");
+        igTextColored(c, "\ue86c");
         igSameLine(0, 4);
         igTextUnformatted(labelVis.toStringz());
         if (open) {
@@ -971,6 +977,18 @@ private:
     void handleInbound(JSONValue obj) {
         if (obj.type == JSONType.object && "method" in obj.object) {
             auto m = obj["method"].str;
+            if (m == "request_permission") {
+                string pid = ("id" in obj.object) ? obj["id"].toString() : "";
+                string reason;
+                if ("params" in obj.object && obj["params"].type == JSONType.object
+                    && "reason" in obj["params"].object && obj["params"]["reason"].type == JSONType.string) {
+                    reason = obj["params"]["reason"].str;
+                }
+                permQueue ~= PermissionRequest(pid, reason, obj["params"]);
+                permChanged = true;
+                pushResult("log", false, obj.toString());
+                return;
+            }
             if (m == "session/update") {
                 auto params = obj["params"];
                 if ("update" in params.object) {
@@ -1043,6 +1061,18 @@ private:
                     } catch (Exception e) {
                         pushResult("log", true, "cancel failed: "~e.msg);
                     }
+                } else if (c.startsWith("perm:")) {
+                    auto parts = c.split(':');
+                    if (parts.length >= 3) {
+                        string pid = parts[1];
+                        bool allow = (parts[2] == "yes");
+                        try {
+                            localClient.sendPermissionResponse(pid, allow);
+                            pushResult("log", false, "permission " ~ (allow ? "granted" : "denied") ~ " id=" ~ pid);
+                        } catch (Exception e) {
+                            pushResult("log", true, "permission response failed: "~e.msg);
+                        }
+                    }
                 }
             }
 
@@ -1103,7 +1133,9 @@ private:
         pendingBuf = null;
         pendingNewline = false;
         hasPendingRole = false;
-        auto cmd = parseCommandLine(agentPath);
+
+        auto cmd = parseCommandLine(incSettingsGet!string("ACP.Command"));
+        auto workingDir = incSettingsGet!string("ACP.Workingdir");
         if (cmd.length == 0) {
             statusText = "Command is empty";
             log(statusText);
@@ -1121,9 +1153,6 @@ private:
             return;
         }
         try {
-            incSettingsSet("ACP.Command", agentPath);
-            incSettingsSet("ACP.Workdir", workingDir);
-            incSettingsSave();
             workerRunning = true;
             auto cmdCopy = cmd.dup;
             auto wdCopy = workingDir;
@@ -1194,8 +1223,6 @@ public:
     override void onInit() {
         qMutex = new Mutex();
         qCond = new Condition(qMutex);
-        agentPath = incSettingsGet!string("ACP.Command", agentPath);
-        workingDir = incSettingsGet!string("ACP.Workdir", workingDir);
         lastStartAttempt = MonoTime.currTime;
     }
 
@@ -1224,6 +1251,23 @@ protected:
         igSeparator();
         igText(_("Status: %s").format(statusText).toStringz());
         igSeparator();
+
+        // Pending permission requests
+        if (permQueue.length) {
+            auto rq = permQueue[0];
+            string reason = rq.reason.length ? rq.reason : "(no reason)";
+            igText(_("Permission requested: %s").format(reason).toStringz());
+            if (igButton(_("Allow").toStringz())) {
+                enqueueCommand("perm:" ~ rq.id ~ ":yes");
+                permQueue = permQueue[1 .. $];
+            }
+            igSameLine();
+            if (igButton(_("Deny").toStringz())) {
+                enqueueCommand("perm:" ~ rq.id ~ ":no");
+                permQueue = permQueue[1 .. $];
+            }
+            igSeparator();
+        }
 
         // handle results from worker
         drainResults();

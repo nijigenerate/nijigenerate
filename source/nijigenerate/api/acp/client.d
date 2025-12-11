@@ -186,6 +186,12 @@ class ACPClient {
         sendRawLine(raw);
     }
 
+    /// respond to request_permission
+    void sendPermissionResponse(string id, bool granted) {
+        auto raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"granted":` ~ (granted ? "true" : "false") ~ `}}`;
+        sendRawLine(raw);
+    }
+
     /// reader thread drains stdout/stderr and buffers results
     void startReader() {
         inboundMutex = new Mutex();
@@ -299,11 +305,16 @@ class ACPClient {
             headers = parseJSON("[]");
         }
         if (headers.type != JSONType.array) headers = parseJSON("[]");
+        // Some agents validate presence of stdio-style fields even for HTTP transport.
+        // Provide empty defaults to satisfy schema: command/args/env.
         auto jsonStr = `[{` ~
             `"type":"http",` ~
             `"name":"` ~ escapeJsonString(name) ~ `",` ~
             `"url":"` ~ escapeJsonString(url) ~ `",` ~
-            `"headers":` ~ headers.toString() ~
+            `"headers":` ~ headers.toString() ~ `,` ~
+            `"command":"",` ~
+            `"args":[],` ~
+            `"env":[]` ~
         `}]`;
         return parseJSON(jsonStr);
     }

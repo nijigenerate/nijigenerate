@@ -689,6 +689,10 @@ void ngMcpLoadSettings() {
     ngMcpApplySettings(enabled, host, port);
 }
 
+void ngAcpLoadSettings() {
+    // no-op: ACP settings are read on demand via incSettingsGet
+}
+
 void ngMcpAuthEnabled(bool value) {
     if (gTransport) gTransport.authEnabled = value;
 }
