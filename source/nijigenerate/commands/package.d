@@ -17,6 +17,8 @@ public import nijigenerate.commands.viewport.palette;
 public import nijigenerate.commands.mesheditor.tool;
 public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
+public import nijigenerate.commands.node.mask;
+public import nijigenerate.commands.node.welding;
 public import nijigenerate.commands.automesh.dynamic;
 public import nijigenerate.commands.automesh.config;
 public import nijigenerate.commands.vertex.define_mesh;
@@ -51,6 +53,8 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.node.dynamic.insertNodeCommands,
     nijigenerate.commands.node.dynamic.convertNodeCommands,
     nijigenerate.commands.inspector.apply_node.commands,
+    nijigenerate.commands.node.mask.commands,
+    nijigenerate.commands.node.welding.commands,
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
     // Prefer typed AutoMesh commands only (per-processor)
     nijigenerate.commands.automesh.config.autoMeshTypedCommands,
