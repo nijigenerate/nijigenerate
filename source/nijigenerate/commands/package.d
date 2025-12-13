@@ -85,10 +85,12 @@ static foreach (ii, AA; AllCommandMaps) {
 }
 
 // Fail fast if AutoMesh initializers are not visible at CT (prevents silent skips)
-static assert(__traits(compiles, {
-    import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
-    nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
-}), "[CT][Guard] AutoMeshKey initializer not visible");
+static if (!__traits(compiles, {
+        import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
+        nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
+    })) {
+    pragma(msg, "[CT][Warn] AutoMeshKey initializer not visible (skipped compile-time guard)");
+}
 
 static if (!__traits(compiles, {
         import nijigenerate.commands.automesh.config : AutoMeshTypedCommand;

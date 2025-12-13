@@ -50,7 +50,9 @@ template ApplyAutoMeshPT(alias PT)
         }
         override bool runnable(Context ctx) {
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-            foreach (n; ns) if (cast(Drawable)n) return true;
+            foreach (n; ns) {
+                if (cast(Deformable)n) return true;
+            }
             return false;
         }
         override CommandResult run(Context ctx) {
@@ -69,12 +71,22 @@ template ApplyAutoMeshPT(alias PT)
             }
 
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-            // Apply only to explicitly selected drawables (do not include descendants)
-            Drawable[] targets;
-            foreach (n; ns) if (auto d = cast(Drawable) n) targets ~= d;
-            if (targets.length == 0) return CommandResult(false, "No drawable targets");
-
-            IncMesh[] meshList = targets.map!(t => new IncMesh(t.getMesh())).array;
+            // Apply to explicitly selected deformables (do not include descendants)
+            Deformable[] targets;
+            IncMesh[] meshList;
+            foreach (n; ns) {
+                if (auto d = cast(Deformable)n) {
+                    IncMesh mesh;
+                    if (auto dr = cast(Drawable)d) {
+                        mesh = new IncMesh(dr.getMesh());
+                    } else {
+                        mesh = ngCreateIncMesh(d.vertices); // fallback from vertices only
+                    }
+                    targets ~= d;
+                    meshList ~= mesh;
+                }
+            }
+            if (targets.length == 0) return CommandResult(false, "No deformable targets");
 
             Texture[] toLock; bool[Texture] locked;
             void collectPartTextures(Node n) {
@@ -104,19 +116,26 @@ template ApplyAutoMeshPT(alias PT)
 
                 Thread th = new Thread({
                     IncMesh[uint] results;
-                    bool cb(Drawable d, IncMesh mesh) {
+                    bool cb(Deformable d, IncMesh mesh) {
                         synchronized(mtx){ currentName = d.name; }
                         if (mesh !is null) { synchronized(mtx){ ++done; } results[d.uuid] = mesh; }
                         bool stop; synchronized(mtx){ stop = canceled; } return !stop;
                     }
                     void work() {
-                        Drawable[] bgTargets = targets; IncMesh[] bgMeshes = bgTargets.map!(t => new IncMesh(t.getMesh())).array;
+                        Deformable[] bgTargets = targets; IncMesh[] bgMeshes = meshList.dup;
                         chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
                     }
                     auto fib = new Fiber(&work); while (fib.state != Fiber.State.TERM) fib.call();
                     foreach (tex; toLock) if (tex) tex.unlock();
                     ngMcpEnqueueAction({
-                        foreach (t; targets) if (auto pm = t.uuid in results) { auto mesh = *pm; if (mesh.vertices.length >= 3) applyMeshToTarget(t, mesh.vertices, &mesh); }
+                        foreach (t; targets) if (auto pm = t.uuid in results) {
+                            auto mesh = *pm;
+                            if (mesh.vertices.length < 3) continue;
+                            if (auto dr = cast(Drawable)t)
+                                applyMeshToTarget(dr, mesh.vertices, &mesh);
+                            else
+                                applyMeshToTarget(t, mesh.vertices, &mesh);
+                        }
                         workerFinished = true; NotificationPopup.instance().close(popupId);
                     });
                 });

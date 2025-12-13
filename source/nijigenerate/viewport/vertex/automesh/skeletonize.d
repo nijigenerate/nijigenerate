@@ -41,6 +41,8 @@ public:
                               bool mirrorHoriz = false, float axisHoriz = 0,
                               bool mirrorVert = false, float axisVert = 0)
     {
+        import nijilive.core.nodes.deformer.grid : GridDeformer;
+        if (cast(GridDeformer)target) return mesh;
         // 1) Branch only for AlphaInput acquisition
         auto ai = getAlphaInput(target);
         if (ai.w <= 0 || ai.h <= 0 || ai.img is null) return mesh;

@@ -7,6 +7,7 @@ import std.algorithm;
 
 class AutoMeshProcessor {
 public:
+    // Per-target entry point (Deformable, not just Drawable)
     abstract IncMesh autoMesh(Deformable target, IncMesh meshData, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0);
     abstract void configure();
     abstract string icon();
@@ -19,17 +20,14 @@ public:
     }
     string displayName() { return procId(); }
     int order() { return 0; }
-    IncMesh[] autoMesh(Drawable[] targets, IncMesh[] meshData, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0, bool delegate(Drawable, IncMesh) callback = null) {
+    // Batch entry: accept Deformable list
+    IncMesh[] autoMesh(Deformable[] targets, IncMesh[] meshData, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0, bool delegate(Deformable, IncMesh) callback = null) {
         IncMesh[] result;
         foreach (ref p; zip(targets, meshData)) {
-            if (callback) { 
-                if (!callback(p[0], null)) return result;
-            }
-            IncMesh r = autoMesh(p[0], p[1], mirrorHoriz, axisHoriz, mirrorVert, axisVert );
+            if (callback) { if (!callback(p[0], null)) return result; }
+            IncMesh r = autoMesh(p[0], p[1], mirrorHoriz, axisHoriz, mirrorVert, axisVert);
             result ~= r;
-            if (callback) { 
-                if (!callback(p[0], r)) return result;
-            }
+            if (callback) { if (!callback(p[0], r)) return result; }
         }
         return result;
     }
