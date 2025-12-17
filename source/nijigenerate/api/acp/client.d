@@ -186,9 +186,14 @@ class ACPClient {
         sendRawLine(raw);
     }
 
-    /// respond to request_permission
+    /// respond to session/request_permission
     void sendPermissionResponse(string id, bool granted) {
-        auto raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"granted":` ~ (granted ? "true" : "false") ~ `}}`;
+        if (id.length == 0 || id == "null") {
+            throw new Exception("permission response missing request id");
+        }
+        // Keep backward compatibility (granted: bool) and also include outcome for newer implementations.
+        auto outcome = granted ? "granted" : "denied";
+        auto raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"granted":` ~ (granted ? "true" : "false") ~ `,"outcome":"` ~ outcome ~ `"}}`;
         sendRawLine(raw);
     }
 

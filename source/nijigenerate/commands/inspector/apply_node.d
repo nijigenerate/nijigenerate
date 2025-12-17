@@ -46,6 +46,8 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
             }
         }
         if (ni is null) return CommandResult(false, "Inspector not available");
+        ni.subMode = ngModelEditSubMode();
+        if (ctx.hasNodes) ni.capture(cast(Node[])ctx.nodes);
         import std.traits : TemplateArgsOf;
         alias NodeT = TemplateArgsOf!I[1];
 
@@ -148,6 +150,8 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
             }
         }
         if (ni is null) return CommandResult(false, "Inspector not available");
+        ni.subMode = ngModelEditSubMode();
+        if (ctx.hasNodes) ni.capture(cast(Node[])ctx.nodes);
 
         alias NodeT = TemplateArgsOf!I[1];
         alias ValT = typeof(mixin("(cast(I)(null))."~PropName~".value"));

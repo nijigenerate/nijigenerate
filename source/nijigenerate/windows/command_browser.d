@@ -8,7 +8,7 @@ import nijigenerate.widgets; // incBeginCategory helpers
 import nijigenerate.widgets.controller : incController;
 import nijigenerate.widgets.inputtext : incInputText;
 import nijigenerate.commands; // AllCommandMaps
-import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult, ExCommandResult;
+import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult, ExCommandResult, ngCommandIdFromKey;
 import nijigenerate.commands.viewport.palette : filterCommands; // shared filtering
 import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.project : incActivePuppet;
@@ -418,7 +418,7 @@ private void rebuildCommandInfos() {
             }
 
             auto info = CommandInfo(
-                K.stringof ~ "." ~ to!string(k),
+                ngCommandIdFromKey(k),
                 K.stringof,
                 v,
                 args,

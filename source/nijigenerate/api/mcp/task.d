@@ -43,25 +43,36 @@ T ngRunInMainThread(T)(T delegate() action) {
     auto lock = new Mutex();
     auto cond = new Condition(lock);
     bool done = false;
+    Exception captured;
     static if (!is(T: void)) T result;
 
     ngMcpEnqueueAction({
         static if (!is(T: void)) T result2;
-        if (action !is null) {
-            static if (!is(T: void))
-                result2 = action();
-            else
-                action();
-        }
-        synchronized (lock) {
-            static if (!is(T: void)) result = result2;
-            done = true;
-            cond.notify();
+        try {
+            if (action !is null) {
+                static if (!is(T: void))
+                    result2 = action();
+                else
+                    action();
+            }
+            synchronized (lock) {
+                static if (!is(T: void)) result = result2;
+                done = true;
+                cond.notify();
+            }
+        } catch (Exception e) {
+            // Preserve exception and still notify waiters to avoid deadlock/timeouts
+            synchronized (lock) {
+                captured = e;
+                done = true;
+                cond.notify();
+            }
         }
     });
     synchronized (lock) { 
         while (!done) cond.wait(); 
     }
+    if (captured !is null) throw captured;
     static if (!is(T: void))
         return result;
 }

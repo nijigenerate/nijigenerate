@@ -6,8 +6,8 @@ import nijigenerate.commands.node.base : conversionMap, ngGetCommonNodeType, ngC
 import nijilive; // inInstantiateNode
 import i18n;
 
-// Stable key type for Node-type-based commands (avoids generic string)
-struct NodeTypeKey {
+// Stable key payload for Node-type-based commands (avoids generic string)
+private struct NodeTypeKey {
     string name;     // class name
     string suffix;   // optional suffix
     string toString() const { return suffix.length ? (name ~ "|" ~ suffix) : name; }
@@ -20,8 +20,30 @@ struct NodeTypeKey {
     }
 }
 
-AddNodeCommandT!(false)[NodeTypeKey] addNodeCommands;
-InsertNodeCommandT!(false)[NodeTypeKey] insertNodeCommands;
+// NOTE: Shortcut persistence uses typeof(key).stringof + "." + to!string(key) as the command id.
+// Using different key types for Add/Insert avoids collisions like "NodeTypeKey.Node".
+struct AddNodeKey {
+    private NodeTypeKey base;
+    this(string name, string suffix = null) { base = NodeTypeKey(name, suffix); }
+    string name() const { return base.name; }
+    string suffix() const { return base.suffix; }
+    string toString() const { return base.toString(); }
+    size_t toHash() const @safe nothrow @nogc { return base.toHash(); }
+    bool opEquals(const AddNodeKey rhs) const @safe nothrow @nogc { return base == rhs.base; }
+}
+
+struct InsertNodeKey {
+    private NodeTypeKey base;
+    this(string name, string suffix = null) { base = NodeTypeKey(name, suffix); }
+    string name() const { return base.name; }
+    string suffix() const { return base.suffix; }
+    string toString() const { return base.toString(); }
+    size_t toHash() const @safe nothrow @nogc { return base.toHash(); }
+    bool opEquals(const InsertNodeKey rhs) const @safe nothrow @nogc { return base == rhs.base; }
+}
+
+AddNodeCommandT!(false)[AddNodeKey] addNodeCommands;
+InsertNodeCommandT!(false)[InsertNodeKey] insertNodeCommands;
 
 // Convert-To dynamic commands per destination type; source type is derived from context
 struct ConvertToKey {
@@ -95,7 +117,7 @@ private string[] discoverNodeTypes()
 
 AddNodeCommandT!(false) ensureAddNodeCommand(string className, string suffix = null)
 {
-    NodeTypeKey key = NodeTypeKey(className, suffix);
+    AddNodeKey key = AddNodeKey(className, suffix);
     if (auto p = key in addNodeCommands) return *p;
     auto cmd = new AddNodeCommandT!(false)(className, suffix);
     addNodeCommands[key] = cmd;
@@ -104,7 +126,7 @@ AddNodeCommandT!(false) ensureAddNodeCommand(string className, string suffix = n
 
 InsertNodeCommandT!(false) ensureInsertNodeCommand(string className, string suffix = null)
 {
-    NodeTypeKey key = NodeTypeKey(className, suffix);
+    InsertNodeKey key = InsertNodeKey(className, suffix);
     if (auto p = key in insertNodeCommands) return *p;
     auto cmd = new InsertNodeCommandT!(false)(className, suffix);
     insertNodeCommands[key] = cmd;
@@ -112,10 +134,16 @@ InsertNodeCommandT!(false) ensureInsertNodeCommand(string className, string suff
 }
 
 // Pre-populate on startup like mesheditor/tool
-void ngInitCommands(T)() if (is(T == NodeTypeKey))
+void ngInitCommands(T)() if (is(T == AddNodeKey))
 {
     foreach (t; discoverNodeTypes()) {
         ensureAddNodeCommand(t);
+    }
+}
+
+void ngInitCommands(T)() if (is(T == InsertNodeKey))
+{
+    foreach (t; discoverNodeTypes()) {
         ensureInsertNodeCommand(t);
     }
 }

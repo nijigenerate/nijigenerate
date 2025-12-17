@@ -41,6 +41,8 @@ struct PermissionRequest {
     string id;
     string reason;
     JSONValue params;
+    bool responded;
+    bool granted;
 }
 
 class AgentPanel : Panel {
@@ -324,6 +326,7 @@ private:
         if (kind == "agent_thought_chunk") return "Assistant (thinking)";
         if (kind == "user_message_chunk") return "You (echo)";
         if (kind == "plan") return "Plan";
+        if (kind == "error") return "Error";
         if (kind == "tool_call" || kind == "tool_call_update")
             return toolId.length ? "Tool#" ~ toolId : "Tool";
         if (kind == "available_commands_update") return "Command list";
@@ -385,6 +388,7 @@ private:
         string text = extractTextFromContent(upd);
 
         bool isTool = (kind == "tool_call" || kind == "tool_call_update");
+        bool isPlan = (kind == "plan");
 
         if (isTool) {
             if (text.length == 0 && "message" in upd.object && upd["message"].type == JSONType.string)
@@ -396,6 +400,11 @@ private:
 
             bool isInitial = (kind == "tool_call");
             handleToolUpdate(role, title, text, upd, isInitial, status);
+            return;
+        }
+
+        if (isPlan) {
+            handlePlanUpdate(text, upd, status);
             return;
         }
 
@@ -438,13 +447,23 @@ private:
         return title;
     }
 
-    enum RoleKind { You, Tool, AssistantFinal, AssistantThinking, Other }
+    struct PlanView {
+        string[] lines;
+        JSONValue payload;
+        string status;
+        uint ver;
+    }
+    bool hasPlan;
+    PlanView planView;
+
+    enum RoleKind { You, Tool, AssistantFinal, AssistantThinking, Error, Other }
 
     RoleKind roleKind(const LogBlock blk) {
         if (blk.role == "You") return RoleKind.You;
         if (blk.role.startsWith("Tool")) return RoleKind.Tool;
         if (blk.role == "Assistant") return RoleKind.AssistantFinal;
         if (blk.role.startsWith("Assistant")) return RoleKind.AssistantThinking;
+        if (blk.role == "Error") return RoleKind.Error;
         return RoleKind.Other;
     }
 
@@ -475,8 +494,11 @@ private:
         igTextUnformatted(labelVis.toStringz());
         if (open) {
             if (blk.hasPayloadMerged) {
-                string[] keys = ["rawInput", "contents"];
-                renderJsonFiltered(blk.payloadMerged, w, keys);
+                // Show tool input/output; include rawInput/rawOutput/content/contents
+                string[] keys = ["rawInput", "rawOutput", "content", "contents"];
+                bool shown = renderJsonFiltered(blk.payloadMerged, w, keys);
+                // If nothing matched the filter, fall back to showing entire payload
+                if (!shown) renderJsonTree(blk.payloadMerged, "", w, "", 0, null, true);
             }
             igTreePop();
         }
@@ -521,6 +543,25 @@ private:
             }
         }
         incEndCategory();
+    }
+
+    void renderError(ref LogBlock blk, float w, bool isLast) {
+        ImVec4 red = ImVec4(0.9f, 0.1f, 0.1f, 1);
+        auto labelId = (blk.role ~ "##blk" ~ (cast(size_t)&blk).to!string()).toStringz();
+        auto flags = ImGuiTreeNodeFlags.None;
+        if (isLast) flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        if (igTreeNodeEx(labelId, flags)) {
+            auto tv = trimBlankEdges(blk.lines);
+            auto view = blk.lines[tv.start .. tv.end];
+            if (tv.trimmed) {
+                LineHeightCache tmp;
+                renderClippedLines(view, w, blk.ver, tmp, false, "", &red);
+            } else {
+                renderClippedLines(view, w, blk.ver, blk.cache, false, "", &red, blk.dirtyFrom);
+                blk.dirtyFrom = size_t.max;
+            }
+            igTreePop();
+        }
     }
 
     void renderOther(ref LogBlock blk, float w, bool isLast) {
@@ -876,10 +917,10 @@ private:
             nb.hasPayloadMerged = (payload.type != JSONType.null_);
             nb.status = status;
             nb.ver = 1;
-            convoBlocks ~= nb;
-            convoContentAdded = true;
-            return;
-        }
+        convoBlocks ~= nb;
+        convoContentAdded = true;
+        return;
+    }
         // update existing block
         if (text.length) {
             if (blk.lines.length == 0)
@@ -895,6 +936,25 @@ private:
         if (status.length) blk.status = status;
         blk.ver++;
         convoContentAdded = true;
+    }
+
+    void handlePlanUpdate(string text, JSONValue payload, string status) {
+        flushPending();
+        if (!hasPlan) {
+            hasPlan = true;
+            planView = PlanView.init;
+        }
+        if (text.length) {
+            planView.lines = splitLines(text);
+        }
+        if (payload.type != JSONType.null_) {
+            if (planView.payload.type != JSONType.null_)
+                planView.payload = mergeJson(planView.payload, payload);
+            else
+                planView.payload = payload;
+        }
+        if (status.length) planView.status = status;
+        planView.ver++;
     }
 
     void flushPending() {
@@ -977,14 +1037,25 @@ private:
     void handleInbound(JSONValue obj) {
         if (obj.type == JSONType.object && "method" in obj.object) {
             auto m = obj["method"].str;
-            if (m == "request_permission") {
-                string pid = ("id" in obj.object) ? obj["id"].toString() : "";
+            const bool isPermReq = (m == "session/request_permission"
+                || m == "request_permission"
+                || m == "request_permissions"
+                || m == "request_prermissions"); // tolerate legacy/misspelled names
+            if (isPermReq) {
+                string pid;
+                if ("id" in obj.object) pid = obj["id"].toString();
+                if (pid.length == 0 && "params" in obj.object && obj["params"].type == JSONType.object) {
+                    auto p = obj["params"];
+                    if ("id" in p.object) pid = p["id"].toString();
+                    else if ("requestId" in p.object) pid = p["requestId"].toString();
+                    else if ("request_id" in p.object) pid = p["request_id"].toString();
+                }
                 string reason;
                 if ("params" in obj.object && obj["params"].type == JSONType.object
                     && "reason" in obj["params"].object && obj["params"]["reason"].type == JSONType.string) {
                     reason = obj["params"]["reason"].str;
                 }
-                permQueue ~= PermissionRequest(pid, reason, obj["params"]);
+                permQueue ~= PermissionRequest(pid, reason, obj["params"], false, false);
                 permChanged = true;
                 pushResult("log", false, obj.toString());
                 return;
@@ -1228,16 +1299,44 @@ public:
 
 protected:
     override void onUpdate() {
+        // ImGui context guard: avoid touching style arrays when context is not ready
+        auto ctxImgui = igGetCurrentContext();
+        if (ctxImgui is null || ctxImgui.Style.Colors.length == 0) {
+            return;
+        }
         ImVec2 avail = incAvailableSpace();
+        auto style = igGetStyle();
 
-        // controls
-        if (igButton(_("New").toStringz())) {
+        // controls (right aligned)
+        auto statusLabel = _("Status: %s").format(statusText).toStringz();
+        ImVec2 szStatus;
+        igCalcTextSize(&szStatus, statusLabel, null, false, 0);
+
+        auto newLabel = "\ue266".toStringz();
+        ImVec2 szBtnTxt;
+        igCalcTextSize(&szBtnTxt, newLabel, null, false, 0);
+        float btnW = szBtnTxt.x + style.FramePadding.x * 2;
+        float totalW = szStatus.x + style.ItemSpacing.x + btnW;
+        float baseX = igGetCursorPosX();
+        ImVec2 availCR;
+        igGetContentRegionAvail(&availCR);
+        float availX = availCR.x;
+        float offsetX = (availX > totalW) ? (availX - totalW) : 0;
+        igSetCursorPosX(baseX + offsetX);
+
+        igTextUnformatted(statusLabel);
+        igSameLine();
+        if (igButton(newLabel)) {
             stopAgent();
             statusText = "Initializing...";
             clearState();
             startAgent();
         }
-        igSameLine();
+        if (igIsItemHovered()) {
+            igBeginTooltip();
+            igTextUnformatted(_("New session").toStringz());
+            igEndTooltip();
+        }
 
         // auto-start once when possible (cooldown 1s between attempts)
         auto now = MonoTime.currTime;
@@ -1249,22 +1348,49 @@ protected:
         }
 
         igSeparator();
-        igText(_("Status: %s").format(statusText).toStringz());
-        igSeparator();
 
         // Pending permission requests
         if (permQueue.length) {
             auto rq = permQueue[0];
             string reason = rq.reason.length ? rq.reason : "(no reason)";
-            igText(_("Permission requested: %s").format(reason).toStringz());
-            if (igButton(_("Allow").toStringz())) {
-                enqueueCommand("perm:" ~ rq.id ~ ":yes");
-                permQueue = permQueue[1 .. $];
+            string optSummary;
+            if (rq.params.type == JSONType.object && "options" in rq.params.object) {
+                auto opts = rq.params["options"];
+                if (opts.type == JSONType.array) {
+                    optSummary = opts.array.length.to!string ~ " option(s)";
+                }
             }
+            igText(_("Permission requested: %s").format(reason).toStringz());
+            if (rq.id.length == 0) {
+                igTextColored(ImVec4(1, 0.3f, 0.3f, 1), _("Cannot respond: missing request id").toStringz());
+            }
+            if (optSummary.length) {
+                igText(_("Options: %s").format(optSummary).toStringz());
+            }
+            if (!rq.responded) {
+                if (igButton(_("Allow").toStringz())) {
+                    enqueueCommand("perm:" ~ rq.id ~ ":yes");
+                    permQueue[0].responded = true;
+                    permQueue[0].granted = true;
+                    promptPending = true;
+                }
             igSameLine();
-            if (igButton(_("Deny").toStringz())) {
-                enqueueCommand("perm:" ~ rq.id ~ ":no");
-                permQueue = permQueue[1 .. $];
+                if (igButton(_("Deny").toStringz())) {
+                    enqueueCommand("perm:" ~ rq.id ~ ":no");
+                    permQueue[0].responded = true;
+                    permQueue[0].granted = false;
+                    promptPending = true;
+                }
+            } else {
+                igTextDisabled((rq.granted ? _("Sent: Allow") : _("Sent: Deny")).toStringz());
+                if (igButton(_("Dismiss").toStringz())) {
+                    permQueue = permQueue[1 .. $];
+                }
+                igSameLine();
+                if (igButton(_("Resend").toStringz())) {
+                    enqueueCommand("perm:" ~ rq.id ~ ":" ~ (rq.granted ? "yes" : "no"));
+                    promptPending = true;
+                }
             }
             igSeparator();
         }
@@ -1276,7 +1402,12 @@ protected:
         float inputAreaH = igGetFrameHeightWithSpacing() * 2   // status + separator padding
                          + igGetStyle().ItemSpacing.y * 3      // tab bar + spacing
                          + igGetFrameHeightWithSpacing();      // user message line height
-        ImVec2 logSize = ImVec2(availLog.x, availLog.y - inputAreaH);
+        float planAreaH = 0;
+        if (hasPlan && planView.lines.length) {
+            float lineH = igGetTextLineHeightWithSpacing();
+            planAreaH = lineH * planView.lines.length + igGetStyle().ItemSpacing.y * 2;
+        }
+        ImVec2 logSize = ImVec2(availLog.x, availLog.y - inputAreaH - planAreaH);
         if (logSize.y < 160) logSize.y = availLog.y * 0.65f;
 
         // Conversation / Log tabs
@@ -1285,12 +1416,12 @@ protected:
                 flushPending(); // show latest partial lines
                 if (igBeginChild("AgentConversation", logSize, true,
                         ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-                    auto style = igGetStyle();
+                    auto styleConv = igGetStyle();
                     foreach (i, ref blk; convoBlocks) {
                         bool isLast = (i == convoBlocks.length - 1);
                         final switch (roleKind(blk)) {
                             case RoleKind.You:
-                                renderYou(blk, logSize.x, style.Colors[0]);
+                                renderYou(blk, logSize.x, styleConv.Colors[0]);
                                 break;
                             case RoleKind.Tool:
                                 renderTool(blk, logSize.x, isLast);
@@ -1300,6 +1431,9 @@ protected:
                                 break;
                             case RoleKind.AssistantFinal:
                                 renderAssistantFinal(blk, logSize.x, isLast);
+                                break;
+                            case RoleKind.Error:
+                                renderError(blk, logSize.x, isLast);
                                 break;
                             case RoleKind.Other:
                                 renderOther(blk, logSize.x, isLast);
@@ -1331,17 +1465,33 @@ protected:
             igEndTabBar();
         }
 
+        // Plan overlay (shown until新しいPlanが来る)
+        if (hasPlan && planView.lines.length) {
+            igSeparator();
+            igText(_("Plan").toStringz());
+            ImU32 colStatus = statusColor(planView.status.length ? planView.status : "in_progress");
+            ImVec4 col;
+            igColorConvertU32ToFloat4(&col, colStatus);
+            foreach (idx, line; planView.lines) {
+                auto label = format("%d. %s", idx + 1, line).toStringz();
+                igTextColored(col, label);
+            }
+            igSeparator();
+        }
+
         igSeparator();
         igText(_("User message:").toStringz());
         float sendBtnW = 80;
         float textW = availLog.x - sendBtnW - igGetStyle().ItemSpacing.x;
         if (textW < 160) textW = availLog.x * 0.75f;
+        bool awaitingPermission = permQueue.length > 0;
+        bool awaitingAgent = promptPending || awaitingPermission;
         bool submit = incInputText("##acp_user_text", textW, userText, ImGuiInputTextFlags.EnterReturnsTrue);
         if (submit && userText.length) {
-            enqueueUserText();
+            if (!awaitingAgent) enqueueUserText();
         }
         igSameLine();
-        if (!promptPending) {
+        if (!awaitingAgent) {
             if (incButtonColored(_("\ue163").toStringz(), ImVec2(sendBtnW, 0))) {
                 if (userText.length) {
                     enqueueUserText();

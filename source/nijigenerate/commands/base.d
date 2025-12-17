@@ -317,6 +317,30 @@ import i18n;
 import std.string : toStringz;
 import std.traits : isInstanceOf, BaseClassesTuple, TemplateArgsOf;
 
+// Build a human-facing, stable identifier for a command-map key.
+// This string is used in user-visible listings (e.g., Command Browser) and persistence (e.g., shortcuts).
+string ngCommandIdFromKey(K)(K k)
+{
+    import std.conv : to;
+    static import nodeDynamic = nijigenerate.commands.node.dynamic;
+    static import autoMeshDynamic = nijigenerate.commands.automesh.dynamic;
+    static import panelView = nijigenerate.commands.view.panel;
+
+    static if (is(K == nodeDynamic.AddNodeKey)) {
+        return "Node.Add." ~ to!string(k);
+    } else static if (is(K == nodeDynamic.InsertNodeKey)) {
+        return "Node.Insert." ~ to!string(k);
+    } else static if (is(K == nodeDynamic.ConvertToKey)) {
+        return "Node.ConvertTo." ~ to!string(k);
+    } else static if (is(K == autoMeshDynamic.AutoMeshKey)) {
+        return "AutoMesh.Apply." ~ to!string(k);
+    } else static if (is(K == panelView.PanelKey)) {
+        return "Panel.Toggle." ~ to!string(k);
+    } else {
+        return typeof(k).stringof ~ "." ~ to!string(k);
+    }
+}
+
 // Resolve pre-registered command instance by enum id
 private Command _resolveCommandInstance(alias id)()
 {

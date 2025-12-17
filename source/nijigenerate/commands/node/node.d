@@ -76,10 +76,17 @@ class MoveNodeCommand : ExCommand!(
     CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0) return CommandResult(false, "No nodes");
         auto selectedNodes = incSelectedNodes();
-        auto child = ctx.nodes[0];
+        Node[] movingNodes = null;
         try {
-            if (incNodeInSelection(child)) incMoveChildrenWithHistory(selectedNodes, newParent, 0);
-            else incMoveChildWithHistory(child, newParent, 0);
+            if (ctx.nodes.length > 1) {
+                movingNodes = ctx.nodes;
+            } else {
+                auto child = ctx.nodes[0];
+                if (incNodeInSelection(child)) movingNodes = selectedNodes;
+                else movingNodes = [child];
+            }
+
+            incMoveChildrenWithHistory(movingNodes, newParent, index);
         } catch (Exception ex) {
             incDialog(__("Error"), ex.msg);
             return CommandResult(false, ex.msg);

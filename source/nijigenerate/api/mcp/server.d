@@ -27,7 +27,7 @@ import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
-import nijigenerate.commands.base : BaseExArgsOf, enrichArgDesc;
+import nijigenerate.commands.base : BaseExArgsOf, enrichArgDesc, ngCommandIdFromKey;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
 import nijilive; // Node, Parameter, Puppet
@@ -109,8 +109,9 @@ private Command _resolveCommandByString(string id) {
     Command result = null;
     static foreach (AA; AllCommandMaps) {
         foreach (k, v; AA) {
-            string key = typeof(k).stringof ~ "." ~ to!string(k);
-            if (key == id) {
+            auto key = ngCommandIdFromKey(k);
+            auto legacyKey = typeof(k).stringof ~ "." ~ to!string(k);
+            if (key == id || legacyKey == id) {
                 result = v;
             }
         }
@@ -151,24 +152,11 @@ private void _ngMcpStart(string host, ushort port) {
                 return app.data;
             }
 
-            auto baseName = typeof(k).stringof ~ "_" ~ to!string(k); // join with '_' to avoid dot
-            string toolName = makeSafe(baseName);
-
-            // Disambiguate duplicates by appending command class name or counter (also sanitized)
-            if (toolName in registered) {
-                auto cls = makeSafe(typeid(v).name);
-                toolName = toolName ~ "_" ~ cls;
-                size_t n = 1;
-                while (toolName in registered) { toolName = toolName ~ "_" ~ n.to!string; ++n; }
-            }
-            if (!_mcpValidToolName(toolName)) {
-                mcpLog("[MCP][WARN] skip tool with invalid sanitized name: '%s' (base='%s')", toolName, baseName);
-                continue;
-            }
-            registered[toolName] = true;
             auto toolDesc = v.description();
             auto cmdInst = v; // capture concrete instance for execution
-            ++_aaAdded;
+            auto newBaseName = ngCommandIdFromKey(k);
+            auto legacyBaseName = typeof(k).stringof ~ "." ~ to!string(k);
+            string[] baseNames = (legacyBaseName != newBaseName) ? [newBaseName, legacyBaseName] : [newBaseName];
 
             // Build tool input schema (command args only). Context is allowed as an additional property (any type),
             // so that clients may pass null or omit it entirely. The handler will ignore non-object contexts.
@@ -249,49 +237,69 @@ private void _ngMcpStart(string host, ushort port) {
                 }}
             }}
 
-            // Log registration with parameters
-            mcpLog("[MCP] addTool: %s params=[%s]", toolName, paramLog.join(", "));
+            foreach (baseName; baseNames) {
+                string toolName = makeSafe(baseName);
+                auto toolNameCaptured = toolName;
 
-            server.addTool(
-                toolName,
-                (toolDesc.length ? toolDesc : ("Run command " ~ toolName)) ~ "\n\nInput: optional 'context' (null to use active app state).",
-                inputSchema,
-                (JSONValue payload) {
-                    // Debug: print incoming JSON for this tool call
-                    mcpLog("[MCP] call %s: %s", toolName, payload.toString());
-                    auto payloadCopy = payload;
-                    return ngRunInMainThread({
-                        // 1) Build context from payload
-                        auto ctx = buildContextFromPayload(payloadCopy);
-                        // 2) Apply command-specific parameters (top-level)
-                        alias K = typeof(k);
-                        static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                            if (k == m) {{
-                                enum _mName  = __traits(identifier, m);
-                                enum _typeName = _mName ~ "Command";
-                                static if (__traits(compiles, mixin(_typeName))) {
-                                    alias C = mixin(_typeName);
-                                    if (auto inst = cast(C) cmdInst) {
-                                        applyPayloadToInstance(inst, payloadCopy);
-                                    }
-                                }
-                            }}
-                        }}
-
-                        // 3) Run the captured command instance with the prepared context
-                        if (cmdInst !is null && cmdInst.runnable(ctx)) {
-                            alias RunType = ReturnType!(typeof(cmdInst.run));
-                            auto resAny = cmdInst.run(ctx);
-                            auto res = cast(RunType) resAny;
-                            if (!res.succeeded) {
-                                mcpLog("[MCP] command failed: %s", res.message);
-                            }
-                            return commandResultToJson!RunType(res);
-                        }
-                        return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
-                    });
+                // Disambiguate duplicates by appending command class name or counter (also sanitized)
+                if (toolNameCaptured in registered) {
+                    auto cls = makeSafe(typeid(v).name);
+                    toolNameCaptured = toolNameCaptured ~ "_" ~ cls;
+                    size_t n = 1;
+                    while (toolNameCaptured in registered) { toolNameCaptured = toolNameCaptured ~ "_" ~ n.to!string; ++n; }
                 }
-            );
+                if (!_mcpValidToolName(toolNameCaptured)) {
+                    mcpLog("[MCP][WARN] skip tool with invalid sanitized name: '%s' (base='%s')", toolNameCaptured, baseName);
+                    continue;
+                }
+                registered[toolNameCaptured] = true;
+                ++_aaAdded;
+                auto toolNameLocal = toolNameCaptured;
+
+                // Log registration with parameters
+                mcpLog("[MCP] addTool: %s params=[%s]", toolNameLocal, paramLog.join(", "));
+
+                server.addTool(
+                    toolNameLocal,
+                    (toolDesc.length ? toolDesc : ("Run command " ~ toolNameLocal)) ~ "\n\nInput: optional 'context' (null to use active app state).",
+                    inputSchema,
+                    (JSONValue payload) {
+                        // Debug: print incoming JSON for this tool call
+                        mcpLog("[MCP] call %s: %s", toolNameLocal, payload.toString());
+                        auto payloadCopy = payload;
+                        return ngRunInMainThread({
+                            // 1) Build context from payload
+                            auto ctx = buildContextFromPayload(payloadCopy);
+                            // 2) Apply command-specific parameters (top-level)
+                            alias K = typeof(k);
+                            static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
+                                if (k == m) {{
+                                    enum _mName  = __traits(identifier, m);
+                                    enum _typeName = _mName ~ "Command";
+                                    static if (__traits(compiles, mixin(_typeName))) {
+                                        alias C = mixin(_typeName);
+                                        if (auto inst = cast(C) cmdInst) {
+                                            applyPayloadToInstance(inst, payloadCopy);
+                                        }
+                                    }
+                                }}
+                            }}
+
+                            // 3) Run the captured command instance with the prepared context
+                            if (cmdInst !is null && cmdInst.runnable(ctx)) {
+                                alias RunType = ReturnType!(typeof(cmdInst.run));
+                                auto resAny = cmdInst.run(ctx);
+                                auto res = cast(RunType) resAny;
+                                if (!res.succeeded) {
+                                    mcpLog("[MCP] command failed: %s", res.message);
+                                }
+                                return commandResultToJson!RunType(res);
+                            }
+                            return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
+                        });
+                    }
+                );
+            }
         }
         // Summary per AA (useful to spot empty maps)
         mcpLog("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
