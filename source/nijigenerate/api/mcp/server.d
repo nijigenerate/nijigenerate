@@ -434,17 +434,44 @@ private void _ngMcpStart(string host, ushort port) {
         () {
             // Build the index on the main thread to ensure the active puppet is visible.
             auto payload = ngRunInMainThread({
-                Selector sel = new Selector();
-                sel.build("Node, Parameter");
-                auto results = sel.run();
                 JSONValue[] items;
-                foreach (res; results) {
-                    auto uri = "resource://nijigenerate/resources/" ~ to!string(res.uuid);
+
+                auto puppet = incActivePuppet();
+                if (puppet is null) {
+                    return JSONValue(["items": JSONValue(items), "warning": JSONValue("No active puppet")]);
+                }
+
+                bool[uint] seen;
+
+                void addNode(Node n) {
+                    if (n is null) return;
+                    if (n.uuid in seen) return;
+                    seen[n.uuid] = true;
+
+                    auto uri = "resource://nijigenerate/resources/" ~ to!string(n.uuid);
                     JSONValue[string] m;
                     m["uri"] = JSONValue(uri);
-                    m["uuid"] = JSONValue(cast(long)res.uuid);
-                    m["typeId"] = JSONValue(res.typeId);
-                    m["name"] = JSONValue(res.name);
+                    m["uuid"] = JSONValue(cast(long)n.uuid);
+                    m["typeId"] = JSONValue(n.typeId);
+                    m["name"] = JSONValue(n.name);
+                    items ~= JSONValue(m);
+
+                    foreach (c; n.children) addNode(c);
+                }
+
+                // Always include root so the index is non-empty for a new/empty puppet.
+                addNode(puppet.root);
+
+                foreach (param; puppet.parameters) {
+                    if (param is null) continue;
+                    if (param.uuid in seen) continue;
+                    seen[param.uuid] = true;
+                    auto uri = "resource://nijigenerate/resources/" ~ to!string(param.uuid);
+                    JSONValue[string] m;
+                    m["uri"] = JSONValue(uri);
+                    m["uuid"] = JSONValue(cast(long)param.uuid);
+                    m["typeId"] = JSONValue("Parameter");
+                    m["name"] = JSONValue(param.name);
                     items ~= JSONValue(m);
                 }
                 return JSONValue(["items": JSONValue(items)]);
