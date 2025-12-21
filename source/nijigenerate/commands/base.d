@@ -1,6 +1,6 @@
 module nijigenerate.commands.base;
 
-import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple, fullyQualifiedName;
+import std.traits : isInstanceOf, TemplateArgsOf, BaseClassesTuple, fullyQualifiedName, EnumMembers;
 import std.meta : staticMap, AliasSeq;
 import std.array : join;
 import std.format : format;
@@ -8,6 +8,8 @@ import std.conv : to;
 import std.exception : enforce;
 import nijigenerate.panels.inspector.common;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
+static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
+static import nijilive.core.nodes.drivers.simplephysics;
 
 string toCodeString(T)(T arg) {
     import std.traits : isSomeString, isIntegral, isFloatingPoint;
@@ -55,8 +57,99 @@ template registerCommand(alias id, Args...) {
 import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
+struct TW(alias T, string fieldName, string fieldDesc, bool hidden = false) {}
 
-struct TW(alias T, string fieldName, string fieldDesc) {}
+// Append enum choices to description for UI/MCP exposure
+string enrichArgDesc(T)(string baseDesc) {
+    static if (is(T == enum)) {
+        string s;
+        bool first = true;
+        foreach (mem; EnumMembers!T) {
+            if (!first) s ~= "|";
+            first = false;
+            s ~= mem.stringof;
+        }
+        auto choices = "(" ~ s ~ ")";
+        return baseDesc.length ? (baseDesc ~ " " ~ choices) : choices;
+    } else {
+        return baseDesc;
+    }
+}
+
+class CommandResult {
+    bool succeeded;
+    string message;
+    this(bool succeeded, string message = "") {
+        this.succeeded = succeeded;
+        this.message = message;
+    }
+    static CommandResult opCall(bool succeeded, string message = "") {
+        return new CommandResult(succeeded, message);
+    }
+}
+
+// If T is already a CommandResult (e.g., CreateResult!R), inherit from it directly.
+static if (is(T : CommandResult))
+class ExCommandResult(T) : T {
+    this(Args...)(Args args) if (__traits(compiles, { super(args); })) { super(args); }
+    static ExCommandResult!T opCall(Args...)(Args args) if (__traits(compiles, { return new ExCommandResult!T(args); })) {
+        return new ExCommandResult!T(args);
+    }
+}
+else
+// General ExCommandResult: if T is already a CommandResult, just alias to T.
+template ExCommandResult(T) {
+    static if (is(T : CommandResult)) {
+        alias ExCommandResult = T;
+    } else {
+        alias ExCommandResult = ExCommandResultImpl!T;
+    }
+}
+
+// Payload-carrying ExCommandResult for non-CommandResult types
+class ExCommandResultImpl(T) : CommandResult {
+    T result;
+    this(bool succeeded, T result = T.init, string message = "") {
+        super(succeeded, message);
+        this.result = result;
+    }
+    static ExCommandResultImpl!T opCall(bool succeeded, T result = T.init, string message = "") {
+        return new ExCommandResultImpl!T(succeeded, result, message);
+    }
+}
+
+class CreateResult(R) : CommandResult {
+    R[] created;
+    this(bool succeeded, R[] created = null, string message = "") {
+        super(succeeded, message);
+        if (created !is null) this.created = created;
+    }
+    static CreateResult!R opCall(bool succeeded, R[] created = null, string message = "") {
+        return new CreateResult!R(succeeded, created, message);
+    }
+}
+
+class DeleteResult(R) : CommandResult {
+    R[] deleted;
+    this(bool succeeded, R[] deleted = null, string message = "") {
+        super(succeeded, message);
+        if (deleted !is null) this.deleted = deleted;
+    }
+    static DeleteResult!R opCall(bool succeeded, R[] deleted = null, string message = "") {
+        return new DeleteResult!R(succeeded, deleted, message);
+    }
+}
+
+class LoadResult(R) : CommandResult {
+    R[] loaded;
+    this(bool succeeded, R[] loaded = null, string message = "") {
+        super(succeeded, message);
+        if (loaded !is null) this.loaded = loaded;
+    }
+    static LoadResult!R opCall(bool succeeded, R[] loaded = null, string message = "") {
+        return new LoadResult!R(succeeded, loaded, message);
+    }
+}
 
 class Context {
     Puppet _puppet;
@@ -123,7 +216,7 @@ class Context {
 }
 
 interface Command {
-    void run(Context context);
+    CommandResult run(Context context);
     string label();        // short display name for menus, i18n-applied at call site
     string description();  // longer human description
     /// Whether this command can run in the given context
@@ -193,7 +286,7 @@ abstract class ExCommand(T...) : Command {
             }
         }
     }
-    override void run(Context context) {}
+    override CommandResult run(Context context) { return CommandResult(true); }
     override string label() { return _label.length ? _label : _desc; }
     override string description() { return _desc; }
     override bool runnable(Context context) { return true; }
@@ -223,6 +316,30 @@ import bindbc.imgui;
 import i18n;
 import std.string : toStringz;
 import std.traits : isInstanceOf, BaseClassesTuple, TemplateArgsOf;
+
+// Build a human-facing, stable identifier for a command-map key.
+// This string is used in user-visible listings (e.g., Command Browser) and persistence (e.g., shortcuts).
+string ngCommandIdFromKey(K)(K k)
+{
+    import std.conv : to;
+    static import nodeDynamic = nijigenerate.commands.node.dynamic;
+    static import autoMeshDynamic = nijigenerate.commands.automesh.dynamic;
+    static import panelView = nijigenerate.commands.view.panel;
+
+    static if (is(K == nodeDynamic.AddNodeKey)) {
+        return "Node.Add." ~ to!string(k);
+    } else static if (is(K == nodeDynamic.InsertNodeKey)) {
+        return "Node.Insert." ~ to!string(k);
+    } else static if (is(K == nodeDynamic.ConvertToKey)) {
+        return "Node.ConvertTo." ~ to!string(k);
+    } else static if (is(K == autoMeshDynamic.AutoMeshKey)) {
+        return "AutoMesh.Apply." ~ to!string(k);
+    } else static if (is(K == panelView.PanelKey)) {
+        return "Panel.Toggle." ~ to!string(k);
+    } else {
+        return typeof(k).stringof ~ "." ~ to!string(k);
+    }
+}
 
 // Resolve pre-registered command instance by enum id
 private Command _resolveCommandInstance(alias id)()
@@ -277,6 +394,9 @@ private template _BaseExArgsOf(alias C)
         alias _BaseExArgsOf = _Picked;
     }
 }
+
+// Public alias for reuse outside this module
+alias BaseExArgsOf = _BaseExArgsOf;
 
 // Apply passed args to the instance fields declared by ExCommand!T before run(ctx)
 private void _applyArgsFor(alias C, A...)(C inst, auto ref A args)

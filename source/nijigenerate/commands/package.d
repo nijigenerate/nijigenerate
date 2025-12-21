@@ -17,6 +17,8 @@ public import nijigenerate.commands.viewport.palette;
 public import nijigenerate.commands.mesheditor.tool;
 public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
+public import nijigenerate.commands.node.mask;
+public import nijigenerate.commands.node.welding;
 public import nijigenerate.commands.automesh.dynamic;
 public import nijigenerate.commands.automesh.config;
 public import nijigenerate.commands.vertex.define_mesh;
@@ -26,6 +28,10 @@ import std.meta : AliasSeq;
 import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
 import std.exception : enforce;
 import std.conv;
+import std.stdio : writefln;
+
+version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
+else             private void cmdLog(T...)(T args) {}
 
 alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.binding.binding.commands,
@@ -47,6 +53,8 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.node.dynamic.insertNodeCommands,
     nijigenerate.commands.node.dynamic.convertNodeCommands,
     nijigenerate.commands.inspector.apply_node.commands,
+    nijigenerate.commands.node.mask.commands,
+    nijigenerate.commands.node.welding.commands,
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
     // Prefer typed AutoMesh commands only (per-processor)
     nijigenerate.commands.automesh.config.autoMeshTypedCommands,
@@ -77,10 +85,12 @@ static foreach (ii, AA; AllCommandMaps) {
 }
 
 // Fail fast if AutoMesh initializers are not visible at CT (prevents silent skips)
-static assert(__traits(compiles, {
-    import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
-    nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
-}), "[CT][Guard] AutoMeshKey initializer not visible");
+static if (!__traits(compiles, {
+        import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
+        nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
+    })) {
+    pragma(msg, "[CT][Warn] AutoMeshKey initializer not visible (skipped compile-time guard)");
+}
 
 static if (!__traits(compiles, {
         import nijigenerate.commands.automesh.config : AutoMeshTypedCommand;
@@ -98,7 +108,7 @@ void ngInitAllCommands() {
     import std.stdio : writefln;
     static foreach (AA; AllCommandMaps) {{
         alias K = KeyTypeOfAA!(AA);
-        writefln("[CMD] init begin: AA=%s key=%s", typeof(AA).stringof, K.stringof);
+        cmdLog("[CMD] init begin: AA=%s key=%s", typeof(AA).stringof, K.stringof);
         import std.traits : fullyQualifiedName;
         enum fq = fullyQualifiedName!K; // e.g. nijigenerate.commands.binding.binding.BindingCommand
         enum mod = ({ string s = fq; size_t last = 0; foreach (i, ch; s) { if (ch == '.') last = i; } return s[0 .. last+1]; })(); // module path with trailing dot
@@ -108,10 +118,10 @@ void ngInitAllCommands() {
         } else static if (__traits(compiles, { ngInitCommands!K(); })) {
             ngInitCommands!K();
         } else {
-            writefln("[CMD] init skipped (no ngInitCommands) for key=%s", K.stringof);
+            cmdLog("[CMD] init skipped (no ngInitCommands) for key=%s", K.stringof);
         }
         size_t cnt = 0; foreach (_k, _v; AA) ++cnt;
-        writefln("[CMD] init end:   AA=%s count=%s", typeof(AA).stringof, cnt);
+        cmdLog("[CMD] init end:   AA=%s count=%s", typeof(AA).stringof, cnt);
     }}
     // Explicit initialization for AutoMesh maps (bypass name resolution issues)
     nijigenerate.commands.automesh.dynamic.ngInitCommands!(nijigenerate.commands.automesh.dynamic.AutoMeshKey)();
@@ -214,7 +224,7 @@ private void _applyArgs(alias C, A...)(C inst, auto ref A args) {
 /// Look up a pre-registered command instance from `commands` by enum id,
 /// apply passed args to its fields, then run it.
 /// Note: `commands` must be an AA like `Command[typeof(id)]` and populated beforehand.
-auto cmd(alias id, A...)(ref Context ctx, auto ref A args) {
+CommandResult cmd(alias id, A...)(ref Context ctx, auto ref A args) {
     // 1) Choose the appropriate commands AA by the id's type, then find the instance (no new)
     alias CmdsAA = MapByKeyType!(typeof(id), AllCommandMaps);
     auto p = id in CmdsAA;
@@ -237,7 +247,6 @@ auto cmd(alias id, A...)(ref Context ctx, auto ref A args) {
 
     _applyArgs!(C, A)(inst, args);
 
-    // 4) Run and return
-    inst.run(ctx);
-    return inst;
+    // 4) Run and return result
+    return inst.run(ctx);
 }

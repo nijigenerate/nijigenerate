@@ -98,6 +98,8 @@ public:
     // Bring in unified reflection/UI
     mixin AutoMeshReflection!();
     override IncMesh autoMesh(Deformable target, IncMesh mesh, bool mirrorHoriz = false, float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+        import nijilive.core.nodes.deformer.grid : GridDeformer;
+        if (cast(GridDeformer)target) return mesh;
         if (MAX_DISTANCE < 0) MAX_DISTANCE = SAMPLING_STEP * 2;
         auto ai = getAlphaInput(target);
         if (ai.w == 0 || ai.h == 0 || ai.img is null) return mesh;

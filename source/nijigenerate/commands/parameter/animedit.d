@@ -8,7 +8,7 @@ class AddKeyFrameCommand : ExCommand!() {
     this() { super("Add KeyFrame"); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (ctx.hasParameters()) {
             if (ctx.parameters.length != 0) {
                 auto param = ctx.parameters[0];
@@ -19,8 +19,10 @@ class AddKeyFrameCommand : ExCommand!() {
                 } else {
                     incAnimationKeyframeAdd(param, 0, param.value.vector[0]);
                 }
+                return CommandResult(true);
             }
         }
+        return CommandResult(false, "No parameters");
     }
 }
 

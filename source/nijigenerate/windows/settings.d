@@ -50,7 +50,6 @@ private:
 
     int tmpUIScale;
     float targetUIScale;
-
     SettingsPane settingsPane = SettingsPane.LookAndFeel;
 
     // Shortcut capture state
@@ -77,7 +76,7 @@ protected:
     void onBeginUpdate() {
         flags |= ImGuiWindowFlags.NoSavedSettings;
         incIsSettingsOpen = true;
-        
+
         ImVec2 wpos = ImVec2(
             igGetMainViewport().Pos.x+(igGetMainViewport().Size.x/2),
             igGetMainViewport().Pos.y+(igGetMainViewport().Size.y/2),
@@ -358,9 +357,38 @@ protected:
                                     incSettingsSet("MCP.authEnabled", authEnabled);
                                 }
                             } else {
-                                incTooltip(_("Server disabled. Click Done to apply."));
-                            }
-                        endSection();
+                            incTooltip(_("Server disabled. Click Done to apply."));
+                        }
+                    endSection();
+
+                    beginSection(__("Coding Agent (ACP)"));
+                        string agentCmd = incSettingsGet!string("ACP.Command", "./out/nijigenerate-agent");
+                        string agentCwd = incSettingsGet!string("ACP.Workdir", "");
+                        char[256] cmdBuf;
+                        cmdBuf[] = 0;
+                        if (agentCmd.length < cmdBuf.length) {
+                            cmdBuf[0 .. agentCmd.length] = agentCmd[];
+                            cmdBuf[agentCmd.length] = '\0';
+                        } else cmdBuf[0] = '\0';
+                        if (igInputText(__("Command"), cmdBuf.ptr, cmdBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
+                            import std.string : fromStringz;
+                            agentCmd = fromStringz(cmdBuf.ptr).idup;
+                            incSettingsSet("ACP.Command", agentCmd);
+                        }
+
+                        char[256] cwdBuf;
+                        cwdBuf[] = 0;
+                        if (agentCwd.length < cwdBuf.length) {
+                            cwdBuf[0 .. agentCwd.length] = agentCwd[];
+                            cwdBuf[agentCwd.length] = '\0';
+                        } else cwdBuf[0] = '\0';
+                        if (igInputText(__("Working Dir (optional)"), cwdBuf.ptr, cwdBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
+                            import std.string : fromStringz;
+                            agentCwd = fromStringz(cwdBuf.ptr).idup;
+                            incSettingsSet("ACP.Workdir", agentCwd);
+                        }
+                        incTooltip(_("Command line is saved immediately."));
+                    endSection();
                         break;
                     default:
                         incLabelOver(_("No settings for this category."), ImVec2(0, 0), true);
@@ -396,11 +424,13 @@ protected:
         // Persist current shortcut registry to settings before saving
         import nijigenerate.core.shortcut.base : ngSaveShortcutsToSettings;
         ngSaveShortcutsToSettings();
-        // Apply integration/server settings on confirmation
-        import nijigenerate.api.mcp : ngMcpLoadSettings;
-        import nijigenerate.api.mcp.server;
-        ngMcpLoadSettings();
-        ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled"));
+        // Apply integration/server settings on confirmation (use current UI values)
+        import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled;
+        bool enabled = incSettingsGet!bool("MCP.Enabled", false);
+        string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+        ushort port = cast(ushort) incSettingsGet!int("MCP.Port", 8088);
+        ngMcpApplySettings(enabled, host, port);
+        ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled", false));
         incSettingsSave();
         incIsSettingsOpen = false;
     }
@@ -665,8 +695,3 @@ protected:
         igEndChild();
     }
 }
-
-
-
-
-

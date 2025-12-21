@@ -9,6 +9,8 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.commands; // cmd!, Context
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
+import nijigenerate.commands.node.mask : NodeMaskCommand;
+import nijigenerate.commands.node.welding : NodeWeldingCommand;
 import nijilive;
 import std.format;
 import std.utf;
@@ -361,20 +363,19 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                     incSelectNode(masker.maskSrc);
                                 }
                                 if (igBeginMenu(__("Mode"))) {
+                                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                                     if (igMenuItem(__("Mask"), null, masker.mode == MaskingMode.Mask)) {
-                                        masker.mode = MaskingMode.Mask;
-                                        node.notifyChange(node, NotifyReason.AttributeChanged);
+                                        cmd!(NodeMaskCommand.ChangeMaskMode)(ctx, masker.maskSrc, MaskingMode.Mask);
                                     }
                                     if (igMenuItem(__("Dodge"), null, masker.mode == MaskingMode.DodgeMask)) {
-                                        masker.mode = MaskingMode.DodgeMask;
-                                        node.notifyChange(node, NotifyReason.AttributeChanged);
+                                        cmd!(NodeMaskCommand.ChangeMaskMode)(ctx, masker.maskSrc, MaskingMode.DodgeMask);
                                     }
                                     igEndMenu();
                                 }
 
                                 if (igMenuItem(__("Delete"))) {
-                                    incActionPush(new PartRemoveMaskAction(node.masks[i].maskSrc, node, node.masks[i].mode));
-                                    node.notifyChange(node, NotifyReason.StructureChanged);
+                                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                    cmd!(NodeMaskCommand.RemoveMask)(ctx, node.masks[i].maskSrc);
                                     igEndPopup();
                                     igPopID();
                                     igEndListBox();
@@ -431,7 +432,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
                             // Make sure we don't mask against ourselves as well as don't double mask
                             if (payloadDrawable != node && !node.isMaskedBy(payloadDrawable)) {
-                                incActionPush(new PartAddMaskAction(payloadDrawable, node, MaskingMode.Mask));
+                                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                cmd!(NodeMaskCommand.AddMask)(ctx, payloadDrawable, MaskingMode.Mask);
                             }
                         }
                     }
@@ -460,8 +462,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                 }
 
                                 if (igMenuItem(__("Delete"))) {
-                                    incActionPush(new DrawableRemoveWeldingAction(node, node.welded[i].target, node.welded[i].indices, node.welded[i].weight));
-                                    node.notifyChange(node, NotifyReason.StructureChanged);
+                                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                    cmd!(NodeWeldingCommand.RemoveWelding)(ctx, node.welded[i].target);
                                     igEndPopup();
                                     igPopID();
                                     igEndListBox();
@@ -484,12 +486,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                 igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
                                 igSetNextItemWidth(64);
                                 if (igSliderFloat("###weight", &weight, 0, 1f, "%%0.2f")) {
-                                    welded.weight = weight;
-                                    auto index = welded.target.welded.countUntil!("a.target == b")(node);
-                                    if (index != -1) {
-                                        welded.target.welded[index].weight = 1 - weight;
-                                    }
-                                    node.notifyChange(node, NotifyReason.AttributeChanged);
+                                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                    cmd!(NodeWeldingCommand.ChangeWeldingWeight)(ctx, welded.target, weight);
                                 }
                                 igPopStyleVar();
                             }
@@ -523,7 +521,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
                             // Make sure we don't mask against ourselves as well as don't double mask
                             if (payloadDrawable != node && !node.isWeldedBy(payloadDrawable) && payloadDrawable.vertices.length != 0) {
-                                incRegisterWeldedPoints(node, payloadDrawable);
+                                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                cmd!(NodeWeldingCommand.AddWelding)(ctx, payloadDrawable, 0.5f);
                             }
                         }
                     }

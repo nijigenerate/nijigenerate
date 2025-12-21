@@ -38,9 +38,9 @@ import nijigenerate.commands.binding.base;
 class UnsetKeyFrameCommand : ExCommand!() {
     this() { super(_("Unset Key Frame")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -53,15 +53,16 @@ class UnsetKeyFrameCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class SetKeyFrameCommand : ExCommand!() {
     this() { super(_("Set Key Frame")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -75,15 +76,16 @@ class SetKeyFrameCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class ResetKeyFrameCommand : ExCommand!() {
     this() { super(_("Reset Key Frame")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -97,15 +99,16 @@ class ResetKeyFrameCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class InvertKeyFrameCommand : ExCommand!() {
     this() { super(_("Invert Key Frame")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -119,15 +122,16 @@ class InvertKeyFrameCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Horizontally")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -141,15 +145,16 @@ class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class MirrorKeyFrameVerticallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Vertically")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -163,15 +168,16 @@ class MirrorKeyFrameVerticallyCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class FlipDeformCommand : ExCommand!() {
     this() { super(_("Flip Deform")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -189,15 +195,16 @@ class FlipDeformCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class SymmetrizeDeformCommand : ExCommand!() {
     this() { super(_("Symmetrize Deform")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -219,15 +226,16 @@ class SymmetrizeDeformCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class SetFromHorizontalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Horizontal Mirror")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto param = ctx.armedParameters[0];
@@ -246,15 +254,16 @@ class SetFromHorizontalMirrorCommand : ExCommand!() {
         incActionPush(action);
         incActionPopGroup();
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class SetFromVerticalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Vertical Mirror")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
@@ -274,6 +283,7 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
         incActionPush(action);
         incActionPopGroup();
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
@@ -281,9 +291,9 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
 class SetFromDiagonalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Diagonal Mirror")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
@@ -303,6 +313,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
         incActionPush(action);
         incActionPopGroup();
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
@@ -310,9 +321,9 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
 class SetFrom1DMirrorCommand : ExCommand!() {
     this() { super(_("Set From 1D Mirror")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
@@ -334,16 +345,17 @@ class SetFrom1DMirrorCommand : ExCommand!() {
         action.updateNewState();
         incActionPush(action);
         incActionPopGroup();
-        incViewportNodeDeformNotifyParamValueChanged();        
+        incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
 class CopyBindingCommand : ExCommand!() {
     this() { super(_("Copy Bindings")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return CommandResult(false, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.parameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -355,16 +367,16 @@ class CopyBindingCommand : ExCommand!() {
         foreach(binding; bindings) {
             cClipboardBindings[binding.getTarget()] = binding;
         }
-
+        return CommandResult(true);
     }
 }
 
 class PasteBindingCommand : ExCommand!() {
     this() { super(_("Paste Bindings")); }
     override
-    void run(Context ctx) {
+    CreateResult!ParameterBinding run(Context ctx) {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return;
+            return new CreateResult!ParameterBinding(false, null, "No armed parameter/bindings/keypoint");
         
         auto param = ctx.parameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
@@ -405,6 +417,9 @@ class PasteBindingCommand : ExCommand!() {
             }
         }
 
+        CreateResult!ParameterBinding resPayload;
+        bool payloadSet = false;
+
         if (targetsToApply.length > 0) {
             bool isSingle = targetsToApply.length == 1 && cClipboardBindings.length == 1;
             if (!isSingle) incActionPushGroup();
@@ -412,6 +427,8 @@ class PasteBindingCommand : ExCommand!() {
                 auto addAction = new ParameterAddBindingsAction("paste", param, newlyCreatedBindings);
                 addAction.updateNewState();
                 incActionPush(addAction);
+                resPayload = new CreateResult!ParameterBinding(true, newlyCreatedBindings);
+                payloadSet = true;
             }
             foreach (i, targetBinding; targetsToApply) {
                 auto action = new ParameterChangeBindingsValueAction("paste", param, [targetBinding], cParamPoint.x, cParamPoint.y);
@@ -440,9 +457,12 @@ class PasteBindingCommand : ExCommand!() {
             }
         }
 
-    }
+        if (payloadSet) return resPayload;
+        return new CreateResult!ParameterBinding(true, null, "");
 
+    }
 }
+
 //==================================================================================
 // Command Palette Definition for Binding
 //==================================================================================
@@ -450,36 +470,43 @@ class PasteBindingCommand : ExCommand!() {
 class RemoveBindingCommand : ExCommand!() {
     this() { super(null, _("Remove Bindings")); }
     override
-    void run(Context ctx) {
+    DeleteResult!ParameterBinding run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
-            return;
+            return new DeleteResult!ParameterBinding(false, null, "No parameters/bindings");
         
         auto param = ctx.parameters[0];
 
         auto action = new GroupAction();
+        ParameterBinding[] removed;
         foreach(binding; cSelectedBindings.byValue()) {
             action.addAction(new ParameterBindingRemoveAction(param, binding));
             param.removeBinding(binding);
             if (auto node = cast(Node)binding.getTarget().target)
                 node.notifyChange(node, NotifyReason.StructureChanged);
+            removed ~= binding;
         }
         incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
+        if (removed.length) {
+            return new DeleteResult!ParameterBinding(true, removed, "Bindings removed");
+        }
+        return new DeleteResult!ParameterBinding(false, null, "No bindings removed");
     }
 }
 
 class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify the new interpolation mode.")) {
     this(InterpolateMode mode) { super(null, "Set Bindings to " ~ mode.stringof, mode); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
-            return;
+            return CommandResult(false, "No parameters/bindings");
         
         auto param = ctx.parameters[0];
         foreach(binding; cSelectedBindings.values) {
             binding.interpolateMode = mode;
         }
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 
@@ -543,4 +570,3 @@ void ngInitCommands(T)() if (is(T == BindingCommand))
     import nijigenerate.commands.binding.base : ngInitBindingProviders;
     ngInitBindingProviders();
 }
-

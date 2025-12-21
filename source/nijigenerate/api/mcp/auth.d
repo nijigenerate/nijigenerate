@@ -5,11 +5,16 @@ import nijigenerate.api.mcp.task;
 import nijigenerate.widgets.notification;
 import nijigenerate.widgets.button;
 import std.string;
+import std.stdio : writefln;
 import core.time;
 import std.datetime : SysTime, Clock, Duration;
 import i18n;
 import core.thread;
 import vibe.core.core : sleep;
+
+private void authLog(T...)(T args) {
+    version(MCP_LOG) writefln(args);
+}
 
 // waiting time for approval
 private Duration approvalTimeout = 120.seconds;
@@ -24,11 +29,10 @@ struct ApprovalRequest {
 }
 
 string ngSimpleAuth(ApprovalRequest req) {
-    import std.stdio;
     string decision;
     ulong pid = 0;
     ngRunInMainThread({
-        writefln("[MCP/auth] popup");
+        authLog("[MCP/auth] popup");
         pid = NotificationPopup.instance().popup((ImGuiIO* io) {
             igText(_("Got authentication request for MCP server from %s (scope=%s), Do you approve it?").format(req.clientId, req.scopeId).toStringz);
             igSameLine();
@@ -43,7 +47,7 @@ string ngSimpleAuth(ApprovalRequest req) {
             }
         }, 120);
     });
-    writefln("[MCP/auth] wait for close");
+    authLog("[MCP/auth] wait for close");
     // wait for decision.
     SysTime deadline = Clock.currTime() + approvalTimeout;
     while (Clock.currTime() < deadline) {
@@ -51,6 +55,6 @@ string ngSimpleAuth(ApprovalRequest req) {
         sleep(200.msecs);
     }
     ngRunInMainThread({ NotificationPopup.instance().close(pid); });
-    writefln("[MCP/auth] auth done");
+    authLog("[MCP/auth] auth done");
     return decision;
 }

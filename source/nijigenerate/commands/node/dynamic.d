@@ -1,13 +1,13 @@
 module nijigenerate.commands.node.dynamic;
 
 import nijigenerate.commands.base;
-import nijigenerate.commands.node.node : AddNodeCommand, InsertNodeCommand;
+import nijigenerate.commands.node.node : AddNodeCommand, InsertNodeCommand, AddNodeCommandT, InsertNodeCommandT, ConvertToCommandT;
 import nijigenerate.commands.node.base : conversionMap, ngGetCommonNodeType, ngConvertTo; // known types + helpers
 import nijilive; // inInstantiateNode
 import i18n;
 
-// Stable key type for Node-type-based commands (avoids generic string)
-struct NodeTypeKey {
+// Stable key payload for Node-type-based commands (avoids generic string)
+private struct NodeTypeKey {
     string name;     // class name
     string suffix;   // optional suffix
     string toString() const { return suffix.length ? (name ~ "|" ~ suffix) : name; }
@@ -20,8 +20,30 @@ struct NodeTypeKey {
     }
 }
 
-Command[NodeTypeKey] addNodeCommands;
-Command[NodeTypeKey] insertNodeCommands;
+// NOTE: Shortcut persistence uses typeof(key).stringof + "." + to!string(key) as the command id.
+// Using different key types for Add/Insert avoids collisions like "NodeTypeKey.Node".
+struct AddNodeKey {
+    private NodeTypeKey base;
+    this(string name, string suffix = null) { base = NodeTypeKey(name, suffix); }
+    string name() const { return base.name; }
+    string suffix() const { return base.suffix; }
+    string toString() const { return base.toString(); }
+    size_t toHash() const @safe nothrow @nogc { return base.toHash(); }
+    bool opEquals(const AddNodeKey rhs) const @safe nothrow @nogc { return base == rhs.base; }
+}
+
+struct InsertNodeKey {
+    private NodeTypeKey base;
+    this(string name, string suffix = null) { base = NodeTypeKey(name, suffix); }
+    string name() const { return base.name; }
+    string suffix() const { return base.suffix; }
+    string toString() const { return base.toString(); }
+    size_t toHash() const @safe nothrow @nogc { return base.toHash(); }
+    bool opEquals(const InsertNodeKey rhs) const @safe nothrow @nogc { return base == rhs.base; }
+}
+
+AddNodeCommandT!(false)[AddNodeKey] addNodeCommands;
+InsertNodeCommandT!(false)[InsertNodeKey] insertNodeCommands;
 
 // Convert-To dynamic commands per destination type; source type is derived from context
 struct ConvertToKey {
@@ -31,11 +53,11 @@ struct ConvertToKey {
     bool opEquals(const ConvertToKey rhs) const @safe nothrow @nogc { return toType == rhs.toType; }
 }
 
-class ConvertNodeToCommand : ExCommand!(
-    TW!(string, "toType", "destination node type")
+class ConvertNodeToCommand(bool expose = true) : ExCommand!(
+    TW!(string, "toType", "destination node type", !expose)
 ) {
     this(string toType) {
-        super("Convert To " ~ toType, "Convert To " ~ toType, toType);
+        super("Convert To " ~ toType, "Convert selected nodes to " ~ toType, toType);
         import std.stdio;
         writefln("New class Convert to : %s", this.toType);
     }
@@ -48,13 +70,15 @@ class ConvertNodeToCommand : ExCommand!(
         }
         return false;
     }
-    override void run(Context ctx) {
-        if (!runnable(ctx)) return;
-        ngConvertTo(ctx.nodes, toType);
+    override CreateResult!Node run(Context ctx) {
+        if (!runnable(ctx)) return new CreateResult!Node(false, null, "Context not convertible");
+        auto before = ctx.nodes.dup;
+        auto converted = ngConvertTo(ctx.nodes, toType);
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from "~before.length.stringof) : "No nodes converted");
     }
 }
 
-Command[ConvertToKey] convertNodeCommands;
+ConvertNodeToCommand!(false)[ConvertToKey] convertNodeCommands;
 
 private bool tryInstantiateNode(string className)
 {
@@ -91,29 +115,35 @@ private string[] discoverNodeTypes()
     ];
 }
 
-Command ensureAddNodeCommand(string className, string suffix = null)
+AddNodeCommandT!(false) ensureAddNodeCommand(string className, string suffix = null)
 {
-    NodeTypeKey key = NodeTypeKey(className, suffix);
+    AddNodeKey key = AddNodeKey(className, suffix);
     if (auto p = key in addNodeCommands) return *p;
-    auto cmd = cast(Command) new AddNodeCommand(className, suffix);
+    auto cmd = new AddNodeCommandT!(false)(className, suffix);
     addNodeCommands[key] = cmd;
     return cmd;
 }
 
-Command ensureInsertNodeCommand(string className, string suffix = null)
+InsertNodeCommandT!(false) ensureInsertNodeCommand(string className, string suffix = null)
 {
-    NodeTypeKey key = NodeTypeKey(className, suffix);
+    InsertNodeKey key = InsertNodeKey(className, suffix);
     if (auto p = key in insertNodeCommands) return *p;
-    auto cmd = cast(Command) new InsertNodeCommand(className, suffix);
+    auto cmd = new InsertNodeCommandT!(false)(className, suffix);
     insertNodeCommands[key] = cmd;
     return cmd;
 }
 
 // Pre-populate on startup like mesheditor/tool
-void ngInitCommands(T)() if (is(T == NodeTypeKey))
+void ngInitCommands(T)() if (is(T == AddNodeKey))
 {
     foreach (t; discoverNodeTypes()) {
         ensureAddNodeCommand(t);
+    }
+}
+
+void ngInitCommands(T)() if (is(T == InsertNodeKey))
+{
+    foreach (t; discoverNodeTypes()) {
         ensureInsertNodeCommand(t);
     }
 }
@@ -128,23 +158,23 @@ void ngInitCommands(T)() if (is(T == ConvertToKey))
             added[to] = to;
             ConvertToKey key = ConvertToKey(to);
             if (auto p = key in convertNodeCommands) continue;
-            auto cmd = cast(Command) new ConvertNodeToCommand(to);
+            auto cmd = cast(Command) new ConvertNodeToCommand!(false)(to);
             convertNodeCommands[key] = cmd;
         }
     }
 }
 
-Command ensureConvertToCommand(string toType)
+ConvertNodeToCommand!(false) ensureConvertToCommand(string toType)
 {
     ConvertToKey key = ConvertToKey(toType);
     if (auto p = key in convertNodeCommands) {
-        auto cnv = cast(ConvertNodeToCommand)*p;
+        auto cnv = *p;
         if (cnv.toType != toType) {
             cnv.toType = toType;
         }
         return *p;
     }
-    auto cmd = cast(Command) new ConvertNodeToCommand(toType);
+    auto cmd = new ConvertNodeToCommand!(false)(toType);
     convertNodeCommands[key] = cmd;
     return cmd;
 }
