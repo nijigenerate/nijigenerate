@@ -15,81 +15,91 @@ import i18n;
 
 class ToggleMirrorViewCommand : ExCommand!() {
     this() { super(_("Toggle mirror view.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
         incShouldMirrorViewport = !incShouldMirrorViewport;
+        return CommandResult(true);
     }
 }
 
 class ToggleOnionSliceCommand : ExCommand!() {
     this() { super(_("Toggle onion slice overlay.")); }
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         auto onion = OnionSlice.singleton;
         onion.toggle();
+        return CommandResult(true);
     }
 }
 
 class TogglePhysicsCommand : ExCommand!() {
     this() { super(_("Toggle physics drivers.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet || ctx.puppet is null) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false, "No puppet");
         ctx.puppet.enableDrivers = !ctx.puppet.enableDrivers;
+        return CommandResult(true);
     }
 }
 
 class TogglePostProcessCommand : ExCommand!() {
     this() { super(_("Toggle post processing.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
         incShouldPostProcess = !incShouldPostProcess;
+        return CommandResult(true);
     }
 }
 
 class ResetPhysicsCommand : ExCommand!() {
     this() { super(_("Reset physics.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet || ctx.puppet is null) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false, "No puppet");
         ctx.puppet.resetDrivers();
+        return CommandResult(true);
     }
 }
 
 class ResetParametersCommand : ExCommand!() {
     this() { super(_("Reset parameters to defaults.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet || ctx.puppet is null) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false, "No puppet");
         foreach (ref parameter; ctx.puppet.parameters) {
             parameter.value = parameter.defaults;
         }
+        return CommandResult(true);
     }
 }
 
 class OpenFlipPairWindowCommand : ExCommand!() {
     this() { super(_("Open Flip Pair configuration window.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
         incPushWindow(new FlipPairWindow());
+        return CommandResult(true);
     }
 }
 
 class OpenAutomeshBatchingCommand : ExCommand!() {
     this() { super(_("Open Automesh Batching modal.")); }
-    override void run(Context ctx) {
-        if (!ctx.hasPuppet) return;
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
         incModalAdd(new AutoMeshBatchWindow());
+        return CommandResult(true);
     }
 }
 
 class ResetViewportZoomCommand : ExCommand!() {
     this() { super(_("Reset viewport zoom to 1.0.")); }
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         incViewportTargetZoom = 1;
+        return CommandResult(true);
     }
 }
 
 class ResetViewportPositionCommand : ExCommand!() {
     this() { super(_("Reset viewport position to origin.")); }
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         incViewportTargetPosition = vec2(0, 0);
+        return CommandResult(true);
     }
 }
 

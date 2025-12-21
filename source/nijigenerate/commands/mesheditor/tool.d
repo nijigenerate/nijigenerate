@@ -16,14 +16,15 @@ class SelectToolModeCommand : ExCommand!(TW!(VertexToolMode, "mode", "Tool mode"
         super(null, _("Select mesh editor tool mode"), mode); 
         _init();
     }
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         auto editor = incViewportModelDeformGetEditor();
         static if (__traits(compiles, { nijigenerate.viewport.vertex.incVertexViewportGetEditor(); })) {
             if (editor is null) editor = nijigenerate.viewport.vertex.incVertexViewportGetEditor();
         }
-        if (editor is null) return;
+        if (editor is null) return CommandResult(false, "No editor available");
         // Only set current mode indicator; UI flow performs actual setup
         editor.setToolMode(mode);
+        return CommandResult(true);
     }
 
     override bool runnable(Context ctx) {

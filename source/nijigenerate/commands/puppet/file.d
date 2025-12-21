@@ -16,8 +16,9 @@ class NewFileCommand : ExCommand!() {
     this() { super(_("New"), _("Create new project.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incNewProjectAsk();
+        return CommandResult(true);
     }
 }
 
@@ -25,8 +26,9 @@ class ShowOpenFileDialogCommand : ExCommand!() {
     this() { super(_("Open"), _("Show \"Open\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incFileOpen();
+        return CommandResult(true);
     }
 }
 
@@ -34,8 +36,13 @@ class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
     this(string file) { super(_("Open from file path"), _("Open puppet from specified file."), file); }
 
     override
-    void run(Context ctx) {
-        if (file) incOpenProject(file);
+    LoadResult!Puppet run(Context ctx) {
+        if (file) {
+            incOpenProject(file);
+            auto puppet = incActivePuppet();
+            return new LoadResult!Puppet(true, puppet ? [puppet] : null, "Puppet loaded");
+        }
+        return new LoadResult!Puppet(false, null, "File path not provided");
     }
 
     // Do not expose direct-execution variant to shortcut editor (use dialog command)
@@ -46,8 +53,9 @@ class ShowSaveFileDialogCommand : ExCommand!() {
     this() { super(_("Save"), _("Show \"Save\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incFileSave();
+        return CommandResult(true);
     }
 }
 
@@ -55,8 +63,9 @@ class SaveFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
     this(string file) { super(_("Save to file path"), _("Save puppet to specified file."), file); }
 
     override
-    void run(Context ctx) {
-        if (file) incSaveProject(file);
+    CommandResult run(Context ctx) {
+        if (file) { incSaveProject(file); return CommandResult(true); }
+        return CommandResult(false, "File path not provided");
     }
 
     // Do not expose direct-execution variant to shortcut editor (use dialog command)
@@ -67,8 +76,9 @@ class ShowSaveFileAsDialogCommand : ExCommand!() {
     this() { super(_("Save As..."), _("Show \"Save as\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incFileSaveAs();
+        return CommandResult(true);
     }
 }
 
@@ -76,9 +86,10 @@ class ShowImportPSDDialogCommand : ExCommand!() {
     this() { super(_("Import Photoshop Document"), _("Show \"Import Photoshop Document\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incPopWelcomeWindow();
         incImportShowPSDDialog();
+        return CommandResult(true);
     }
 }
 
@@ -86,9 +97,10 @@ class ShowImportKRADialogCommand : ExCommand!() {
     this() { super(_("Import Krita Document"), _("Show \"Import Krita Document\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incPopWelcomeWindow();
         incImportShowKRADialog();
+        return CommandResult(true);
     }
 }
 
@@ -96,7 +108,7 @@ class ShowImportINPDialogCommand : ExCommand!() {
     this() { super(_("Import nijilive puppet"), _("Show \"Import nijilive puppet file\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    LoadResult!Puppet run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.inp"], "nijilive Puppet (*.inp)" }
         ];
@@ -104,7 +116,10 @@ class ShowImportINPDialogCommand : ExCommand!() {
         string file = incShowOpenDialog(filters, _("Import..."));
         if (file) {
             incImportINP(file);
+            auto puppet = incActivePuppet();
+            return new LoadResult!Puppet(true, puppet ? [puppet] : null, "Puppet imported");
         }
+        return new LoadResult!Puppet(false, null, "Import canceled");
     }
 }
 
@@ -112,11 +127,13 @@ class ShowImportImageFolderDialogCommand : ExCommand!() {
     this() { super(_("Import Image Folder"), _("Show \"Import Image Folder\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         string folder = incShowOpenFolderDialog(_("Select a Folder..."));
         if (folder) {
             incImportFolder(folder);
+            return CommandResult(true);
         }
+        return CommandResult(false, "Import canceled");
     }
 }
 
@@ -124,7 +141,7 @@ class ShowMergePSDDialogCommand : ExCommand!() {
     this() { super(_("Merge Photoshop Document"), _("Show \"Merge Photoshop Document\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.psd"], "Photoshop Document (*.psd)" }
         ];
@@ -133,7 +150,9 @@ class ShowMergePSDDialogCommand : ExCommand!() {
         if (file) {
             incPopWelcomeWindow();
             incPushWindow(new PSDMergeWindow(file));
+            return CommandResult(true);
         }
+        return CommandResult(false, "Merge canceled");
     }
 }
 
@@ -141,7 +160,7 @@ class ShowMergeKRADialogCommand : ExCommand!() {
     this() { super(_("Merge Krita Document"), _("Show \"Merge Krita Document\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.kra"], "Krita Document (*.kra)" }
         ];
@@ -150,7 +169,9 @@ class ShowMergeKRADialogCommand : ExCommand!() {
         if (file) {
             incPopWelcomeWindow();
             incPushWindow(new KRAMergeWindow(file));
+            return CommandResult(true);
         }
+        return CommandResult(false, "Merge canceled");
     }
 }
 
@@ -158,7 +179,7 @@ class ShowMergeImageFileDialogCommand : ExCommand!() {
     this() { super(_("Merge Image Files"), _("Show \"Merge image files\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.png"], "Portable Network Graphics (*.png)" },
             { ["*.jpeg", "*.jpg"], "JPEG Image (*.jpeg)" },
@@ -169,10 +190,13 @@ class ShowMergeImageFileDialogCommand : ExCommand!() {
         if (path) {
             try {
                 incCreatePartsFromFiles(path.split("|"));
+                return CommandResult(true);
             } catch (Exception ex) {
                 incDialog(__("Error"), ex.msg);
+                return CommandResult(false, ex.msg);
             }
         }
+        return CommandResult(false, "Merge canceled");
     }
 }
 
@@ -180,7 +204,7 @@ class ShowMergeINPDialogCommand : ExCommand!() {
     this() { super(_("Merge nijigenerate project"), _("Show \"Merge nijilive puppet file\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incPopWelcomeWindow();
         // const TFD_Filter[] filters = [
         //     { ["*.inp"], "nijilive Puppet (*.inp)" }
@@ -190,6 +214,7 @@ class ShowMergeINPDialogCommand : ExCommand!() {
         // if (filename !is null) {
         //     string file = cast(string)filename.fromStringz;
         // }
+        return CommandResult(true);
     }
 }
 
@@ -197,13 +222,14 @@ class ShowExportToINPDialogCommand : ExCommand!() {
     this() { super(_("Export nijilive puppet"), _("Show \"Export to nijilive puppet\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.inp"], "nijilive Puppet (*.inp)" }
         ];
 
         string file = incShowSaveDialog(filters, "", _("Export..."));
-        if (file) incExportINP(file);
+        if (file) { incExportINP(file); return CommandResult(true); }
+        return CommandResult(false, "Export canceled");
     }
 }
 
@@ -211,13 +237,14 @@ class ShowExportToPNGDialogCommand : ExCommand!() {
     this() { super(_("Export PNG (*.png)"), _("Show \"Export to png image\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.png"], "Portable Network Graphics (*.png)" }
         ];
 
         string file = incShowSaveDialog(filters, "", _("Export..."));
-        if (file) incPushWindow(new ImageExportWindow(file.setExtension("png")));
+        if (file) { incPushWindow(new ImageExportWindow(file.setExtension("png"))); return CommandResult(true); }
+        return CommandResult(false, "Export canceled");
     }
 }
 
@@ -225,13 +252,14 @@ class ShowExportToJpegDialogCommand : ExCommand!() {
     this() { super(_("Export JPEG (*.jpeg)"), _("Show \"Export to jpeg image\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.jpeg", "*.jpg"], "JPEG Image (*.jpeg)" }
         ];
 
         string file = incShowSaveDialog(filters, "", _("Export..."));
-        if (file) incPushWindow(new ImageExportWindow(file.setExtension("jpeg")));
+        if (file) { incPushWindow(new ImageExportWindow(file.setExtension("jpeg"))); return CommandResult(true); }
+        return CommandResult(false, "Export canceled");
     }
 }
 
@@ -239,13 +267,14 @@ class ShowExportToTGADialogCommand : ExCommand!() {
     this() { super(_("Export TARGA (*.tga)"), _("Show \"Export to TGA image\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.tga"], "TARGA Graphics (*.tga)" }
         ];
 
         string file = incShowSaveDialog(filters, "", _("Export..."));
-        if (file) incPushWindow(new ImageExportWindow(file.setExtension("tga")));
+        if (file) { incPushWindow(new ImageExportWindow(file.setExtension("tga"))); return CommandResult(true); }
+        return CommandResult(false, "Export canceled");
     }
 }
 
@@ -253,7 +282,7 @@ class ShowExportToVideoDialogCommand : ExCommand!() {
     this() { super(_("Export Video"), _("Show \"Export to video\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.mp4"], "H.264 Video (*.mp4)" },
             { ["*.avi"], "AVI Video (*.avi)" },
@@ -267,7 +296,9 @@ class ShowExportToVideoDialogCommand : ExCommand!() {
             // Fallback to .mp4
             if (!extension(file)) file = file.setExtension("mp4");
             incPushWindow(new VideoExportWindow(file));
+            return CommandResult(true);
         }
+        return CommandResult(false, "Export canceled");
     }
 }
 
@@ -275,8 +306,9 @@ class CloseProjectCommand : ExCommand!() {
     this() { super(_("Close Project"), _("Close active puppet project.")); }
     
     override 
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incCloseProjectAsk();
+        return CommandResult(true);
     }
 }
 

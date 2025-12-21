@@ -22,16 +22,17 @@ import std.json;
 import std.array : array, join;
 import std.conv : to;
 import std.algorithm : canFind;
-import std.traits : isInstanceOf, TemplateArgsOf, isIntegral, isFloatingPoint, isSomeString, BaseClassesTuple, EnumMembers;
+import std.traits : isInstanceOf, TemplateArgsOf, isIntegral, isFloatingPoint, isSomeString, BaseClassesTuple, EnumMembers, ReturnType;
 import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
+import nijigenerate.commands.base : BaseExArgsOf, enrichArgDesc, ngCommandIdFromKey;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
-import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
-import inmath : vec2u;
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
 import nijilive; // Node, Parameter, Puppet
+import nijilive.core.param.binding : ParameterBinding;
+import nijigenerate.ext.param : ExParameterGroup;
 
 // mcp-d
 import mcp.server;
@@ -48,6 +49,24 @@ import std.array : appender;
 import std.json : parseJSON;
 public import nijigenerate.api.mcp.task;
 import nijigenerate.core.settings;
+import std.meta : AliasSeq;
+
+// helpers
+import nijigenerate.api.mcp.helpers : commandResultToJson, buildContextFromPayload, applyPayloadToInstance;
+
+// Debug logging (compiled out in non-debug builds)
+private void mcpLog(T...)(T args) {
+    version(MCP_LOG) writefln(args);
+}
+
+private bool _mcpValidToolName(string s) {
+    import std.uni : isAlphaNum;
+    if (s.length == 0) return false;
+    foreach (ch; s) {
+        if (!(isAlphaNum(ch) || ch == '_' || ch == '-')) return false;
+    }
+    return true;
+}
 
 // === Compile-time diagnostics ===
 // KeyType extractor for AA like V[K]
@@ -90,8 +109,9 @@ private Command _resolveCommandByString(string id) {
     Command result = null;
     static foreach (AA; AllCommandMaps) {
         foreach (k, v; AA) {
-            string key = typeof(k).stringof ~ "." ~ to!string(k);
-            if (key == id) {
+            auto key = ngCommandIdFromKey(k);
+            auto legacyKey = typeof(k).stringof ~ "." ~ to!string(k);
+            if (key == id || legacyKey == id) {
                 result = v;
             }
         }
@@ -107,7 +127,7 @@ private void _ngMcpStart(string host, ushort port) {
     gServerEnabled = true;
     gServerHost = host;
     gServerPort = port;
-    writefln("[MCP] starting server host=%s port=%s", host, port);
+    mcpLog("[MCP] starting server host=%s port=%s", host, port);
     // Create server and register tools on the main thread to avoid TLS issues
     auto transport = createHttpTransport(host, port);
     auto server = new ExtMCPServer(transport, "Nijigenerate MCP", "0.0.1");
@@ -124,45 +144,25 @@ private void _ngMcpStart(string host, ushort port) {
     static foreach (AA; AllCommandMaps) {{
         size_t _aaAdded = 0;
         foreach (k, v; AA) {
-            auto baseName = typeof(k).stringof ~ "." ~ to!string(k);
-            string toolName = baseName;
-            // Disambiguate duplicates by appending command class name or counter
-            if (toolName in registered) {
-                import std.string : replace;
-                auto cls = typeid(v).name.replace(".", "/");
-                toolName = baseName ~ "@" ~ cls;
-                size_t n = 1;
-                while (toolName in registered) { toolName = baseName ~ "@" ~ cls ~ "#" ~ n.to!string; ++n; }
+            // Build a spec-compliant tool name: only [a-zA-Z0-9_-]
+            string makeSafe(string s) {
+                import std.uni : isAlphaNum;
+                auto app = appender!string();
+                foreach (ch; s) app ~= (isAlphaNum(ch) || ch == '_' || ch == '-') ? ch : '_';
+                return app.data;
             }
-            registered[toolName] = true;
+
             auto toolDesc = v.description();
             auto cmdInst = v; // capture concrete instance for execution
-            ++_aaAdded;
+            auto newBaseName = ngCommandIdFromKey(k);
+            auto legacyBaseName = typeof(k).stringof ~ "." ~ to!string(k);
+            string[] baseNames = (legacyBaseName != newBaseName) ? [newBaseName, legacyBaseName] : [newBaseName];
 
-            // Build context schema
-            auto ctxSchema = SchemaBuilder.object()
-                .setDescription("Optional. Omit or null to use active app state. Keys: parameters, armedParameters, nodes, keyPoint")
-                .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Parameter UUIDs (uint[])"))
-                .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Armed Parameter UUIDs (uint[])"))
-                .addProperty("nodes", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Node UUIDs (uint[])"))
-                .addProperty("keyPoint", SchemaBuilder.array(SchemaBuilder.integer()).setDescription("Index (order) of the target key point. uint[x,y]."));
-
-            // Helper to extract ExCommand template parameters
-            template BaseExArgsOf(alias C_) {
-                alias _Bases = BaseClassesTuple!C_;
-                private template _FindExArgs(Bases...) {
-                    static if (Bases.length == 0) alias _FindExArgs = void;
-                    else static if (isInstanceOf!(ExCommand, Bases[0])) alias _FindExArgs = TemplateArgsOf!(Bases[0]);
-                    else alias _FindExArgs = _FindExArgs!(Bases[1 .. $]);
-                }
-                alias Picked = _FindExArgs!(_Bases);
-                static if (is(Picked == void)) alias BaseExArgsOf = void; else alias BaseExArgsOf = Picked;
-            }
-
-            // Build tool input schema with top-level parameters (separate from context)
+            // Build tool input schema (command args only). Context is allowed as an additional property (any type),
+            // so that clients may pass null or omit it entirely. The handler will ignore non-object contexts.
             auto inputSchema = SchemaBuilder.object()
-                .setDescription("Input for nijigenerate Command tool. Context is optional; other parameters map to command-specific arguments.")
-                .addProperty("context", ctxSchema);
+                .setDescription("Input for nijigenerate Command tool. Context is optional (omit or null); other parameters map to command-specific arguments.")
+                .allowAdditional(true);
 
             string[] paramLog;
             alias K = typeof(k);
@@ -184,47 +184,48 @@ private void _ngMcpStart(string host, ushort port) {
                                     alias TParam = Param;
                                     enum fdesc = "";
                                 }
+                                enum desc = enrichArgDesc!TParam(fdesc);
                                 static if (is(TParam == bool)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.boolean().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.boolean().setDescription(desc));
                                     paramLog ~= fname ~ ":bool";
                                 } else static if (isIntegral!TParam || is(TParam == enum)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription(desc));
                                     paramLog ~= fname ~ ":int";
                                 } else static if (isFloatingPoint!TParam) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.number().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.number().setDescription(desc));
                                     paramLog ~= fname ~ ":number";
                                 } else static if (isSomeString!TParam) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription(fdesc));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription(desc));
                                     paramLog ~= fname ~ ":string";
                                 } else static if (is(TParam == vec2u)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"vec2u [x,y]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"vec2u [x,y]"));
                                     paramLog ~= fname ~ ":vec2u";
                                 } else static if (is(TParam == vec3)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"vec3 [x,y,z]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"vec3 [x,y,z]"));
                                     paramLog ~= fname ~ ":vec3";
                                 } else static if (is(TParam == float[])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"float[]"));
                                     paramLog ~= fname ~ ":float[]";
                                 } else static if (is(TParam == float[2])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[2] [x,y]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"float[2] [x,y]"));
                                     paramLog ~= fname ~ ":float[2]";
                                 } else static if (is(TParam == float[3])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((fdesc.length?fdesc~"; ":"")~"float[3] [x,y,z]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.number()).setDescription((desc.length?desc~"; ":"")~"float[3] [x,y,z]"));
                                     paramLog ~= fname ~ ":float[3]";
                                 } else static if (is(TParam == ushort[])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"ushort[]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"ushort[]"));
                                     paramLog ~= fname ~ ":float[]";
                                 } else static if (is(TParam == uint[2])) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((fdesc.length?fdesc~"; ":"")~"uint[2] [x,y]"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"uint[2] [x,y]"));
                                     paramLog ~= fname ~ ":uint[2]";
                                 } else static if (is(TParam : Resource)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Resource"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((desc.length?desc~"; ":"")~"UUID of Resource"));
                                     paramLog ~= fname ~ ":ResourceUUID";
                                 } else static if (is(TParam : Node)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Node"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((desc.length?desc~"; ":"")~"UUID of Node"));
                                     paramLog ~= fname ~ ":NodeUUID";
                                 } else static if (is(TParam : Parameter)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((fdesc.length?fdesc~"; ":"")~"UUID of Parameter"));
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription((desc.length?desc~"; ":"")~"UUID of Parameter"));
                                     paramLog ~= fname ~ ":ParameterUUID";
                                 } else {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription((fdesc.length?fdesc~"; ":"")~"Unsupported type; pass as string"));
@@ -236,323 +237,84 @@ private void _ngMcpStart(string host, ushort port) {
                 }}
             }}
 
-            // Log registration with parameters
-            writefln("[MCP] addTool: %s params=[%s]", toolName, paramLog.join(", "));
+            foreach (baseName; baseNames) {
+                string toolName = makeSafe(baseName);
+                auto toolNameCaptured = toolName;
 
-            server.addTool(
-                toolName,
-                (toolDesc.length ? toolDesc : ("Run command " ~ toolName)) ~ "\n\nInput: optional 'context' (null to use active app state).",
-                inputSchema,
-                (JSONValue payload) {
-                    // Debug: print incoming JSON for this tool call
-                    writefln("[MCP] call %s: %s", toolName, payload.toString());
-                    auto payloadCopy = payload;
-                    ngRunInMainThread({
-                        // 1) Start from default context
-                        auto ctx = ngBuildExecutionContext();
-                        // 2) Override only provided keys from context, if any
-                        if ("context" in payloadCopy && payloadCopy["context"].type == JSONType.object) {
-                            auto cobj = payloadCopy["context"];
-                            auto puppet = incActivePuppet();
-                            if (puppet !is null) {
-                                if ("parameters" in cobj && cobj["parameters"].type == JSONType.array) {
-                                    Parameter[] params;
-                                    foreach (u; cobj["parameters"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
-                                            if (p !is null) params ~= p;
-                                        }
-                                    }
-                                    if (params.length) ctx.parameters = params;
-                                }
-                                if ("armedParameters" in cobj && cobj["armedParameters"].type == JSONType.array) {
-                                    Parameter[] aparams;
-                                    foreach (u; cobj["armedParameters"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto p = puppet.find!(Parameter)(cast(uint)u.integer);
-                                            if (p !is null) aparams ~= p;
-                                        }
-                                    }
-                                    if (aparams.length) ctx.armedParameters = aparams;
-                                }
-                                if ("nodes" in cobj && cobj["nodes"].type == JSONType.array) {
-                                    Node[] nodes;
-                                    foreach (u; cobj["nodes"].array) {
-                                        if (u.type == JSONType.integer) {
-                                            auto n = puppet.find!(Node)(cast(uint)u.integer);
-                                            if (n !is null) nodes ~= n;
-                                        }
-                                    }
-                                    if (nodes.length) ctx.nodes = nodes;
-                                }
-                            }
-                            if ("keyPoint" in cobj && cobj["keyPoint"].type == JSONType.array && cobj["keyPoint"].array.length >= 2) {
-                                auto a = cobj["keyPoint"].array;
-                                if ((a[0].type == JSONType.integer || a[0].type == JSONType.float_)
-                                 && (a[1].type == JSONType.integer || a[1].type == JSONType.float_)) {
-                                    ctx.keyPoint = vec2u(cast(uint)(a[0].type == JSONType.integer ? a[0].integer : cast(long)a[0].floating),
-                                                         cast(uint)(a[1].type == JSONType.integer ? a[1].integer : cast(long)a[1].floating));
-                                }
-                            }
-                        }
-                        // 3) Apply command-specific parameters (top-level)
-                        alias K = typeof(k);
-                        static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                            if (k == m) {{
-                                enum _mName  = __traits(identifier, m);
-                                enum _typeName = _mName ~ "Command";
-                                static if (__traits(compiles, mixin(_typeName))) {
-                                    alias C = mixin(_typeName);
-                                    if (auto inst = cast(C) cmdInst) {
-                                        static if (!is(BaseExArgsOf!C == void)) {
-                                            alias Declared = BaseExArgsOf!C;
-                                            static foreach (i, Param; Declared) {{
-                                                static if (isInstanceOf!(TW, Param)) {
-                                                    enum fname = TemplateArgsOf!Param[1];
-                                                    alias TParam = TemplateArgsOf!Param[0];
-                                                } else {
-                                                    enum fname = "arg" ~ i.stringof;
-                                                    alias TParam = Param;
-                                                }
-                                                if (fname in payloadCopy) {
-                                                    auto val = payloadCopy[fname];
-                                                    static if (is(TParam == bool)) {
-                                                        if (val.type == JSONType.true_ || val.type == JSONType.false_) mixin("inst."~fname~" = (val.type==JSONType.true_);");
-                                                    } else static if (is(TParam == enum)) {
-                                                        static if (__traits(compiles, cast(string) TParam.init)) {
-                                                            if (val.type == JSONType.string) {
-                                                                static foreach (mem; EnumMembers!TParam) {{
-                                                                    static if (__traits(compiles, cast(string)mem)) {
-                                                                        enum string memStr = cast(string)mem;
-                                                                        if (val.str == memStr) { mixin("inst."~fname~" = mem;"); }
-                                                                    }
-                                                                }}
-                                                            }
-                                                        } else {
-                                                            if (val.type == JSONType.integer) {
-                                                                mixin("inst."~fname~" = cast(TParam) cast(int) val.integer;");
-                                                            }
-                                                        }
-                                                    } else static if (isIntegral!TParam) {
-                                                        if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) val.integer;");
-                                                    } else static if (isFloatingPoint!TParam) {
-                                                        if (val.type == JSONType.float_) mixin("inst."~fname~" = cast(TParam) val.floating;");
-                                                        else if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) val.integer;");
-                                                    } else static if (isSomeString!TParam) {
-                                                        if (val.type == JSONType.string) mixin("inst."~fname~" = val.str;");
-                                                    } else static if (is(TParam == vec2u)) {
-                                                        if (val.type == JSONType.array && val.array.length >= 2) {
-                                                            auto a = val.array;
-                                                            uint x = cast(uint)(a[0].type==JSONType.integer ? a[0].integer : cast(long)a[0].floating);
-                                                            uint y = cast(uint)(a[1].type==JSONType.integer ? a[1].integer : cast(long)a[1].floating);
-                                                            mixin("inst."~fname~" = vec2u(x,y);");
-                                                        }
-                                                    } else static if (is(TParam == vec3)) {
-                                                        if (val.type == JSONType.array && val.array.length >= 3) {
-                                                            auto a = val.array;
-                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                                            float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
-                                                            mixin("inst."~fname~" = vec3(x,y,z);");
-                                                        }
-                                                    } else static if (is(TParam == float[])) {
-                                                        if (val.type == JSONType.array) {
-                                                            float[] outv;
-                                                            foreach (e; val.array) {
-                                                                if (e.type == JSONType.float_)
-                                                                    outv ~= cast(float)e.floating;
-                                                                else if (e.type == JSONType.integer)
-                                                                    outv ~= cast(float)cast(double)e.integer;
-                                                            }
-                                                            mixin("inst."~fname~" = outv;");
-                                                        }
-                                                    } else static if (is(TParam == float[2])) {
-                                                        if (val.type == JSONType.array && val.array.length >= 2) {
-                                                            auto a = val.array;
-                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                                            mixin("inst."~fname~" = [x,y];");
-                                                        }
-                                                    } else static if (is(TParam == float[3])) {
-                                                        if (val.type == JSONType.array && val.array.length >= 3) {
-                                                            auto a = val.array;
-                                                            float x = cast(float)(a[0].type==JSONType.float_ ? a[0].floating : cast(double)a[0].integer);
-                                                            float y = cast(float)(a[1].type==JSONType.float_ ? a[1].floating : cast(double)a[1].integer);
-                                                            float z = cast(float)(a[2].type==JSONType.float_ ? a[2].floating : cast(double)a[2].integer);
-                                                            mixin("inst."~fname~" = [x,y,z];");
-                                                        }
-                                                    } else static if (is(TParam == ushort[])) {
-                                                        if (val.type == JSONType.array) {
-                                                            ushort[] outv;
-                                                            foreach (e; val.array) {
-                                                                if (e.type == JSONType.float_)
-                                                                    outv ~= cast(ushort)e.floating;
-                                                                else if (e.type == JSONType.integer)
-                                                                    outv ~= cast(ushort)cast(double)e.integer;
-                                                            }
-                                                            mixin("inst."~fname~" = outv;");
-                                                        }
-                                                    } else static if (is(TParam == uint[2])) {
-                                                        if (val.type == JSONType.array && val.array.length >= 2) {
-                                                            auto a = val.array;
-                                                            uint x = cast(uint)(a[0].type==JSONType.integer ? a[0].integer : cast(long)a[0].floating);
-                                                            uint y = cast(uint)(a[1].type==JSONType.integer ? a[1].integer : cast(long)a[1].floating);
-                                                            mixin("inst."~fname~" = [x,y];");
-                                                        }
-                                                    } else static if (is(TParam : Node)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto puppet = incActivePuppet()) {
-                                                                auto nodeVal = puppet.find!(TParam)(cast(uint)val.integer);
-                                                                if (nodeVal !is null) mixin("inst."~fname~" = nodeVal;");
-                                                            }
-                                                        }
-                                                    } else static if (is(TParam : Parameter)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto puppet = incActivePuppet()) {
-                                                                auto pVal = puppet.find!(TParam)(cast(uint)val.integer);
-                                                                if (pVal !is null) mixin("inst."~fname~" = pVal;");
-                                                            }
-                                                        }
-                                                    } else static if (is(TParam : Resource)) {
-                                                        if (val.type == JSONType.integer) {
-                                                            if (auto puppet = incActivePuppet()) {
-                                                                auto nVal = puppet.find!(Node)(cast(uint)val.integer);
-                                                                if (nVal !is null) mixin("inst."~fname~" = cast(TParam) nVal;");
-                                                                else {
-                                                                    auto pVal = puppet.find!(Parameter)(cast(uint)val.integer);
-                                                                    if (pVal !is null) mixin("inst."~fname~" = cast(TParam) pVal;");
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }}
-                                        }
-                                    }
-                                }
-                            }}
-                        }}
-
-                        // 4) Run the captured command instance with the prepared context
-                        if (cmdInst !is null && cmdInst.runnable(ctx)) cmdInst.run(ctx);
-                    });
-                    return JSONValue(["status": JSONValue("queued"), "id": JSONValue(toolName)]);
+                // Disambiguate duplicates by appending command class name or counter (also sanitized)
+                if (toolNameCaptured in registered) {
+                    auto cls = makeSafe(typeid(v).name);
+                    toolNameCaptured = toolNameCaptured ~ "_" ~ cls;
+                    size_t n = 1;
+                    while (toolNameCaptured in registered) { toolNameCaptured = toolNameCaptured ~ "_" ~ n.to!string; ++n; }
                 }
-            );
+                if (!_mcpValidToolName(toolNameCaptured)) {
+                    mcpLog("[MCP][WARN] skip tool with invalid sanitized name: '%s' (base='%s')", toolNameCaptured, baseName);
+                    continue;
+                }
+                registered[toolNameCaptured] = true;
+                ++_aaAdded;
+                auto toolNameLocal = toolNameCaptured;
+
+                // Log registration with parameters
+                mcpLog("[MCP] addTool: %s params=[%s]", toolNameLocal, paramLog.join(", "));
+
+                server.addTool(
+                    toolNameLocal,
+                    (toolDesc.length ? toolDesc : ("Run command " ~ toolNameLocal)) ~ "\n\nInput: optional 'context' (null to use active app state).",
+                    inputSchema,
+                    (JSONValue payload) {
+                        // Debug: print incoming JSON for this tool call
+                        mcpLog("[MCP] call %s: %s", toolNameLocal, payload.toString());
+                        auto payloadCopy = payload;
+                        return ngRunInMainThread({
+                            // 1) Build context from payload
+                            auto ctx = buildContextFromPayload(payloadCopy);
+                            // 2) Apply command-specific parameters (top-level)
+                            alias K = typeof(k);
+                            static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
+                                if (k == m) {{
+                                    enum _mName  = __traits(identifier, m);
+                                    enum _typeName = _mName ~ "Command";
+                                    static if (__traits(compiles, mixin(_typeName))) {
+                                        alias C = mixin(_typeName);
+                                        if (auto inst = cast(C) cmdInst) {
+                                            applyPayloadToInstance(inst, payloadCopy);
+                                        }
+                                    }
+                                }}
+                            }}
+
+                            // 3) Run the captured command instance with the prepared context
+                            if (cmdInst !is null && cmdInst.runnable(ctx)) {
+                                alias RunType = ReturnType!(typeof(cmdInst.run));
+                                auto resAny = cmdInst.run(ctx);
+                                auto res = cast(RunType) resAny;
+                                if (!res.succeeded) {
+                                    mcpLog("[MCP] command failed: %s", res.message);
+                                }
+                                return commandResultToJson!RunType(res);
+                            }
+                            return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
+                        });
+                    }
+                );
+            }
         }
         // Summary per AA (useful to spot empty maps)
-        writefln("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
+        mcpLog("[MCP] addTool summary: AA=%s key=%s added=%s", typeof(AA).stringof, _McpKeyTypeOfAA!(AA).stringof, _aaAdded);
     }}
-
-    // Register resources/find as a Tool (returns JSON)
-    writefln("[MCP] addTool: resources/find (special)");
-    server.addTool(
-        "resources/find",
-        "Find resources by selector and return Basics + Children only.",
-        SchemaBuilder.object()
-            .addProperty("selector", SchemaBuilder.string_().setDescription("Selector string (nijigenerate.core.selector)")),
-        (JSONValue payload) {
-            writefln("[MCP] call resources/find: %s", payload.toString());
-            auto payloadCopy = payload;
-            JSONValue result;
-
-            result = ngRunInMainThread({
-                SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
-                string selectorParam = ("selector" in payloadCopy && payloadCopy["selector"].type == JSONType.string) ? payloadCopy["selector"].str : "";
-                writefln("[MCP resources/find] selector='%s' (Basics + Children)", selectorParam);
-                Selector sel = new Selector();
-                if (selectorParam.length) sel.build(selectorParam);
-                auto results = sel.run();
-
-                import nijigenerate.core.selector.treestore : TreeStore_, TreeStore;
-                auto ts = new TreeStore_!false();
-                ts.setResources(results);
-
-                JSONValue makeTree(Resource res) {
-                    JSONValue[string] map;
-                    map["typeId"] = JSONValue(res.typeId);
-                    map["uuid"] = JSONValue(cast(long)res.uuid);
-                    map["name"] = JSONValue(res.name);
-
-                    auto node = nijigenerate.core.selector.resource.to!Node(res);
-                    if (node !is null) {
-                        auto app = appender!(char[]);
-                        auto ser = inCreateSerializer(app);
-                        auto st = ser.structBegin();
-                        node.serializePartial(ser, flags, true);
-                        ser.structEnd(st);
-                        ser.flush();
-                        map["data"] = parseJSON(cast(string)app.data);
-                    }
-
-                    JSONValue[] childArr;
-                    if (res in ts.children) foreach (child; ts.children[res]) childArr ~= makeTree(child);
-                    map["children"] = JSONValue(childArr);
-                    return JSONValue(map);
-                }
-
-                JSONValue[] rootsOut;
-                foreach (r; ts.roots) rootsOut ~= makeTree(r);
-                return JSONValue(["items": JSONValue(rootsOut)]);
-            });
-            return result;
-        }
-    );
-
-    // Register resources/get as a Tool (returns JSON)
-    writefln("[MCP] addTool: resources/get (special)");
-    server.addTool(
-        "resources/get",
-        "Get a single resource by UUID. Returns Basics + State + Geometry + Links for Nodes; basics for Parameters.",
-        SchemaBuilder.object()
-            .addProperty("uuid", SchemaBuilder.integer().setDescription("UUID of resource (numeric)")),
-        (JSONValue payload) {
-            writefln("[MCP] call resources/get: %s", payload.toString());
-            auto payloadCopy = payload;
-            JSONValue result;
-
-            result = ngRunInMainThread({
-                uint uuid = 0;
-                if ("uuid" in payloadCopy && payloadCopy["uuid"].type == JSONType.integer) uuid = cast(uint) payloadCopy["uuid"].integer;
-                SerializeNodeFlags flags = SerializeNodeFlags.Basics | SerializeNodeFlags.State | SerializeNodeFlags.Geometry | SerializeNodeFlags.Links;
-
-                JSONValue[string] map;
-                auto puppet = incActivePuppet();
-                if (puppet !is null && uuid != 0) {
-                    if (auto node = puppet.find!(Node)(uuid)) {
-                        map["typeId"] = JSONValue("Node");
-                        map["uuid"] = JSONValue(cast(long)uuid);
-                        map["name"] = JSONValue(node.name);
-                        auto app = appender!(char[]);
-                        auto ser = inCreateSerializer(app);
-                        auto st = ser.structBegin();
-                        node.serializePartial(ser, flags, true);
-                        ser.structEnd(st);
-                        ser.flush();
-                        map["data"] = parseJSON(cast(string)app.data);
-                    } else if (auto param = puppet.find!(Parameter)(uuid)) {
-                        map["typeId"] = JSONValue("Parameter");
-                        map["uuid"] = JSONValue(cast(long)uuid);
-                        map["name"] = JSONValue(param.name);
-                    }
-                }
-                JSONValue obj = map.length ? JSONValue(map) : JSONValue(null);
-                return JSONValue(["item": obj]);
-            });
-            return result;
-        }
-    );
 
     // Also expose as Resources (for clients expecting MCP resources)
     // Dynamic resource: resource://nijigenerate/resources/find?selector=...
-    writefln("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?");
+    mcpLog("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?");
     gNotifyResourcesFind = server.addDynamicResource(
         "resource://nijigenerate/resources/find?",
         "Find Resources",
         "Find resources by selector. Returns JSON tree with Basics + Children.",
         (string path) {
             // path is the query string after '?', e.g. "selector=..." (URL-encoded)
-            writefln("[MCP] read resource resources/find?%s", path);
+            mcpLog("[MCP] read resource resources/find?%s", path);
             string selectorParam;
             // Minimal query parser (only 'selector' supported)
             import std.string : split;
@@ -612,7 +374,7 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     // Template resource: resource://nijigenerate/resources/{uuid}
-    writefln("[MCP] addTemplate: %s", "resource://nijigenerate/resources/{uuid}");
+    mcpLog("[MCP] addTemplate: %s", "resource://nijigenerate/resources/{uuid}");
     gNotifyResourceByUuid = server.addTemplate(
         "resource://nijigenerate/resources/{uuid}",
         "Get Resource",
@@ -664,35 +426,65 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     // Static resource: index of all UUID-based resource URIs for current puppet
-    writefln("[MCP] addResource: %s", "resource://nijigenerate/resources/index");
+    mcpLog("[MCP] addResource: %s", "resource://nijigenerate/resources/index");
     gNotifyResourceIndex = server.addResource(
         "resource://nijigenerate/resources/index",
         "Resource Index",
         "List of UUID-based resource URIs for current puppet.",
         () {
-            Selector sel = new Selector();
-            sel.build("Node, Parameter");
-            auto results = sel.run();
-            JSONValue[] items;
-            foreach (res; results) {
-                auto uri = "resource://nijigenerate/resources/" ~ to!string(res.uuid);
-                JSONValue[string] m;
-                m["uri"] = JSONValue(uri);
-                m["uuid"] = JSONValue(cast(long)res.uuid);
-                m["typeId"] = JSONValue(res.typeId);
-                m["name"] = JSONValue(res.name);
-                items ~= JSONValue(m);
-            }
-            auto payload = JSONValue(["items": JSONValue(items)]);
+            // Build the index on the main thread to ensure the active puppet is visible.
+            auto payload = ngRunInMainThread({
+                JSONValue[] items;
+
+                auto puppet = incActivePuppet();
+                if (puppet is null) {
+                    return JSONValue(["items": JSONValue(items), "warning": JSONValue("No active puppet")]);
+                }
+
+                bool[uint] seen;
+
+                void addNode(Node n) {
+                    if (n is null) return;
+                    if (n.uuid in seen) return;
+                    seen[n.uuid] = true;
+
+                    auto uri = "resource://nijigenerate/resources/" ~ to!string(n.uuid);
+                    JSONValue[string] m;
+                    m["uri"] = JSONValue(uri);
+                    m["uuid"] = JSONValue(cast(long)n.uuid);
+                    m["typeId"] = JSONValue(n.typeId);
+                    m["name"] = JSONValue(n.name);
+                    items ~= JSONValue(m);
+
+                    foreach (c; n.children) addNode(c);
+                }
+
+                // Always include root so the index is non-empty for a new/empty puppet.
+                addNode(puppet.root);
+
+                foreach (param; puppet.parameters) {
+                    if (param is null) continue;
+                    if (param.uuid in seen) continue;
+                    seen[param.uuid] = true;
+                    auto uri = "resource://nijigenerate/resources/" ~ to!string(param.uuid);
+                    JSONValue[string] m;
+                    m["uri"] = JSONValue(uri);
+                    m["uuid"] = JSONValue(cast(long)param.uuid);
+                    m["typeId"] = JSONValue("Parameter");
+                    m["name"] = JSONValue(param.name);
+                    items ~= JSONValue(m);
+                }
+                return JSONValue(["items": JSONValue(items)]);
+            });
             import mcp.resources : ResourceContents;
             return ResourceContents.makeText("application/json", payload.toString());
         }
     );
 
     auto t = new Thread({
-        writefln("[MCP] server thread entering start() ...");
+        mcpLog("[MCP] server thread entering start() ...");
         server.start();
-        writefln("[MCP] server thread exited start()");
+        mcpLog("[MCP] server thread exited start()");
     });
     gServerThread = t;
     t.isDaemon = true;
@@ -798,7 +590,7 @@ private void _ngMcpStart(string host, ushort port) {
         "- Run for specific nodes: {\"context\": {\"nodes\":[123,456]}}\n";
 
     // Register prompts using the proper API (no static-if fallbacks)
-    writefln("[MCP] addPrompt: resources/find");
+    mcpLog("[MCP] addPrompt: resources/find");
     server.addPrompt(
         "resources/find",
         "How to use the resources/find tool",
@@ -811,7 +603,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: resources/get");
+    mcpLog("[MCP] addPrompt: resources/get");
     server.addPrompt(
         "resources/get",
         "How to use resources/get tool",
@@ -824,7 +616,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: selectors/guide");
+    mcpLog("[MCP] addPrompt: selectors/guide");
     server.addPrompt(
         "selectors/guide",
         "Selector syntax and examples",
@@ -837,7 +629,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: resources/guide");
+    mcpLog("[MCP] addPrompt: resources/guide");
     server.addPrompt(
         "resources/guide",
         "Resources usage guide",
@@ -850,7 +642,7 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    writefln("[MCP] addPrompt: tools/guide");
+    mcpLog("[MCP] addPrompt: tools/guide");
     server.addPrompt(
         "tools/guide",
         "Tools input and context guide",
@@ -871,54 +663,70 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088) {
 
 // Public: stop MCP server if running
 void ngMcpStop() {
-    if (!gServerStarted) { writefln("[MCP] stop requested but server not started"); return; }
+    if (!gServerStarted) { mcpLog("[MCP] stop requested but server not started"); return; }
     gServerEnabled = false;
     if (gServerInstance !is null) {
-        writefln("[MCP] requesting server stop...");
+        mcpLog("[MCP] requesting server stop...");
         try {
             gServerInstance.stop();
-            writefln("[MCP] stop() invoked on transport");
-            // Wait briefly for transport event loop to exit to free the port
+            mcpLog("[MCP] stop() invoked on transport");
+            // Wait briefly for the transport/event loop to exit and the thread to finish.
             import core.time : msecs;
             import core.thread : Thread;
-            foreach (i; 0 .. 20) { // up to ~1s
-                if (gServerInstance.transportExited()) { writefln("[MCP] transport exited"); break; }
+            foreach (i; 0 .. 40) { // up to ~2s
+                bool exited = gServerInstance.transportExited();
+                bool running = (gServerThread !is null) && gServerThread.isRunning();
+                if (exited && !running) { mcpLog("[MCP] transport exited and thread stopped"); break; }
                 Thread.sleep(50.msecs);
             }
         } catch (Exception e) {
-            writefln("[MCP] stop() threw: %s", e.msg);
+            mcpLog("[MCP] stop() threw: %s", e.msg);
         }
-    } else writefln("[MCP] no server instance to stop");
-    // Do not block the UI thread waiting for shutdown; the server thread is daemon and will exit.
-    gServerThread = null;
-    gServerInstance = null;
-    gServerStarted = false;
-    writefln("[MCP] server state cleared (stopped=true)");
+    } else mcpLog("[MCP] no server instance to stop");
+
+    // Only clear global references once the transport has exited and the thread has stopped.
+    // Clearing early can leave a running thread without a strongly-held owner reference.
+    bool canClear = true;
+    if (gServerInstance !is null && !gServerInstance.transportExited()) canClear = false;
+    if (gServerThread !is null && gServerThread.isRunning()) canClear = false;
+
+    if (canClear) {
+        if (gServerThread !is null) {
+            try gServerThread.join(); catch (Exception) {}
+        }
+        gServerThread = null;
+        gServerInstance = null;
+        gTransport = null;
+        gServerStarted = false;
+        mcpLog("[MCP] server state cleared (stopped=true)");
+    } else {
+        mcpLog("[MCP][WARN] stop requested but server did not exit in time; keeping references");
+    }
 }
 
 // Public: apply settings without per-frame polling
 void ngMcpApplySettings(bool enabled, string host, ushort port) {
-    writefln("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
+    mcpLog("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
     if (!enabled) {
         if (gServerStarted) {
-            writefln("[MCP] settings disabled -> stopping");
+            mcpLog("[MCP] settings disabled -> stopping");
             ngMcpStop();
         } else {
-            writefln("[MCP] settings disabled and not running -> no-op");
+            mcpLog("[MCP] settings disabled and not running -> no-op");
         }
         return;
     }
     if (!gServerStarted) {
-        writefln("[MCP] settings enabled and not running -> start");
+        mcpLog("[MCP] settings enabled and not running -> start");
         _ngMcpStart(host, port);
         return;
     }
     if (host != gServerHost || port != gServerPort) {
-        writefln("[MCP] settings changed host/port -> restart");
+        mcpLog("[MCP] settings changed host/port -> restart");
         ngMcpStop();
         _ngMcpStart(host, port);
     } else {
-        writefln("[MCP] settings unchanged and running -> no-op");
+        mcpLog("[MCP] settings unchanged and running -> no-op");
     }
 }
 
@@ -928,8 +736,12 @@ void ngMcpLoadSettings() {
     bool enabled = incSettingsGet!bool("MCP.Enabled", false);
     string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
     ushort port = cast(ushort) incSettingsGet!int("MCP.Port", 8088);
-    writefln("[MCP] load settings: enabled=%s host=%s port=%s", enabled, host, port);
+    mcpLog("[MCP] load settings: enabled=%s host=%s port=%s", enabled, host, port);
     ngMcpApplySettings(enabled, host, port);
+}
+
+void ngAcpLoadSettings() {
+    // no-op: ACP settings are read on demand via incSettingsGet
 }
 
 void ngMcpAuthEnabled(bool value) {

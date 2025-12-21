@@ -14,8 +14,12 @@ import std.array : array;
 import core.thread : Thread;
 import core.thread.fiber : Fiber;
 import core.sync.mutex : Mutex;
+import std.stdio : writefln;
 import nijigenerate.api.mcp.task : ngRunInMainThread, ngMcpEnqueueAction; // scheduling helpers
 import nijigenerate.widgets.notification : NotificationPopup; // UI progress popup
+
+version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
+else             private void cmdLog(T...)(T args) {}
 
 // Compile-time presence check for initializer
 static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshKey)(); } })) {
@@ -46,11 +50,13 @@ template ApplyAutoMeshPT(alias PT)
         }
         override bool runnable(Context ctx) {
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-            foreach (n; ns) if (cast(Drawable)n) return true;
+            foreach (n; ns) {
+                if (cast(Deformable)n) return true;
+            }
             return false;
         }
-        override void run(Context ctx) {
-            if (!runnable(ctx)) return;
+        override CommandResult run(Context ctx) {
+            if (!runnable(ctx)) return CommandResult(false, "No drawable nodes");
             AutoMeshProcessor chosen = null;
             foreach (processor; ngAutoMeshProcessors) {
                 if (cast(PT)processor) {
@@ -61,34 +67,55 @@ template ApplyAutoMeshPT(alias PT)
             if (!chosen) {
                 import std.stdio;
                 writefln("[BUG] No appropriate AutoMeshProcessor exists!");
-                return;
+                return CommandResult(false, "AutoMesh processor missing");
             }
 
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-            // Apply only to explicitly selected drawables (do not include descendants)
-            Drawable[] targets;
-            foreach (n; ns) if (auto d = cast(Drawable) n) targets ~= d;
-            if (targets.length == 0) return;
-
-            IncMesh[] meshList = targets.map!(t => new IncMesh(t.getMesh())).array;
-
-            Texture[] toLock; bool[Texture] locked;
-            void collectPartTextures(Node n) {
-                if (n is null) return;
-                if (auto p = cast(Part)n) {
-                    if (p.textures.length > 0 && p.textures[0] !is null) {
-                        auto tex = p.textures[0];
-                        if (!(tex in locked)) { tex.lock(); locked[tex] = true; toLock ~= tex; }
+            // Apply to explicitly selected deformables (do not include descendants)
+            Deformable[] targets;
+            IncMesh[] meshList;
+            foreach (n; ns) {
+                if (auto d = cast(Deformable)n) {
+                    IncMesh mesh;
+                    if (auto dr = cast(Drawable)d) {
+                        mesh = new IncMesh(dr.getMesh());
+                    } else {
+                        mesh = ngCreateIncMesh(d.vertices); // fallback from vertices only
                     }
+                    targets ~= d;
+                    meshList ~= mesh;
                 }
-                foreach (child; n.children) collectPartTextures(child);
             }
-            foreach (t; targets) collectPartTextures(t);
+            if (targets.length == 0) return CommandResult(false, "No deformable targets");
+
+            // NOTE: AutoMesh alpha acquisition may call Texture.getTextureData().
+            // Ensure any referenced Part textures are locked on the main thread before running the worker.
+            Texture[] toLock;
+            bool[Texture] locked;
 
             auto mtx = new Mutex(); bool canceled = false; size_t total = targets.length; size_t done = 0; string currentName;
             string procName = chosen.displayName(); bool workerFinished = false; ulong popupId = 0;
             auto scheduleTask = delegate(){
                 import bindbc.imgui; import nijigenerate.widgets : incButtonColored;
+
+                // Lock all Part textures that can be referenced by the selected targets and their descendants.
+                Node[] lockTargets;
+                foreach (t; targets) {
+                    if (auto n = cast(Node)t) lockTargets ~= n;
+                }
+                auto drawables = enumerateDrawablesForAutoMesh(lockTargets);
+                foreach (d; drawables) {
+                    auto p = cast(Part)d;
+                    if (p is null) continue;
+                    foreach (tex; p.textures) {
+                        if (tex is null) continue;
+                        if (tex in locked) continue;
+                        tex.lock();
+                        locked[tex] = true;
+                        toLock ~= tex;
+                    }
+                }
+
                 popupId = NotificationPopup.instance().popup((ImGuiIO* io){
                     float prog = 0; string cur; size_t _done, _total; string _proc;
                     _done = done; _total = total; cur = currentName; _proc = procName;
@@ -100,19 +127,26 @@ template ApplyAutoMeshPT(alias PT)
 
                 Thread th = new Thread({
                     IncMesh[uint] results;
-                    bool cb(Drawable d, IncMesh mesh) {
+                    bool cb(Deformable d, IncMesh mesh) {
                         synchronized(mtx){ currentName = d.name; }
                         if (mesh !is null) { synchronized(mtx){ ++done; } results[d.uuid] = mesh; }
                         bool stop; synchronized(mtx){ stop = canceled; } return !stop;
                     }
                     void work() {
-                        Drawable[] bgTargets = targets; IncMesh[] bgMeshes = bgTargets.map!(t => new IncMesh(t.getMesh())).array;
+                        Deformable[] bgTargets = targets; IncMesh[] bgMeshes = meshList.dup;
                         chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
                     }
                     auto fib = new Fiber(&work); while (fib.state != Fiber.State.TERM) fib.call();
-                    foreach (tex; toLock) if (tex) tex.unlock();
                     ngMcpEnqueueAction({
-                        foreach (t; targets) if (auto pm = t.uuid in results) { auto mesh = *pm; if (mesh.vertices.length >= 3) applyMeshToTarget(t, mesh.vertices, &mesh); }
+                        foreach (t; targets) if (auto pm = t.uuid in results) {
+                            auto mesh = *pm;
+                            if (mesh.vertices.length < 3) continue;
+                            if (auto dr = cast(Drawable)t)
+                                applyMeshToTarget(dr, mesh.vertices, &mesh);
+                            else
+                                applyMeshToTarget(t, mesh.vertices, &mesh);
+                        }
+                        foreach (tex; toLock) if (tex) tex.unlock();
                         workerFinished = true; NotificationPopup.instance().close(popupId);
                     });
                 });
@@ -121,6 +155,7 @@ template ApplyAutoMeshPT(alias PT)
 
             bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
             if (onMain) scheduleTask(); else ngMcpEnqueueAction(scheduleTask);
+            return CommandResult(true);
         }
     }
 }
@@ -149,12 +184,11 @@ Command ensureApplyAutoMeshCommand(string id)
 // Initialize commands for all available AutoMesh processors
 void ngInitCommands(T)() if (is(T == AutoMeshKey))
 {
-    import std.stdio : writefln;
     size_t before = 0; foreach (_k, _v; autoMeshApplyCommands) ++before;
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         autoMeshApplyCommands[AutoMeshKey(pid)] = cast(Command) new ApplyAutoMeshPT!PT();
     }}
     size_t after = 0; foreach (_k, _v; autoMeshApplyCommands) ++after;
-    writefln("[CMD] AutoMeshKey init: before=%s after=%s", before, after);
+    cmdLog("[CMD] AutoMeshKey init: before=%s after=%s", before, after);
 }

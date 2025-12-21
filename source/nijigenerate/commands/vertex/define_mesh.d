@@ -34,12 +34,12 @@ class DefineMeshCommand : ExCommand!(
     // Do not expose as a usable shortcut (args must be provided programmatically)
     override bool shortcutRunnable() { return false; }
 
-    override void run(Context ctx) {
-        if (!runnable(ctx)) return;
+    override CommandResult run(Context ctx) {
+        if (!runnable(ctx)) return CommandResult(false, "No drawable nodes available");
 
         // No-op when verts/inds are not provided (or empty)
-        if (vertices is null || indices is null) return;
-        if (vertices.length == 0 || indices.length == 0) return;
+        if (vertices is null || indices is null) return CommandResult(false, "Vertices or indices not provided");
+        if (vertices.length == 0 || indices.length == 0) return CommandResult(false, "Vertices or indices empty");
 
         // Basic validation
         enforce(vertices.length % 2 == 0, "vertices length must be even (x,y pairs)");
@@ -67,7 +67,7 @@ class DefineMeshCommand : ExCommand!(
         // Resolve targets
         Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
         auto targets = ns.filter!(n => cast(Drawable)n !is null).map!(n => cast(Drawable)n).array;
-        if (targets.length == 0) return;
+        if (targets.length == 0) return CommandResult(false, "No drawable targets");
 
         // Apply to each target: build IncMesh from arrays, then applyMeshToTarget
         foreach (t; targets) {
@@ -80,6 +80,7 @@ class DefineMeshCommand : ExCommand!(
             // For Drawable targets, applyMeshToTarget will use mesh.export_() for topology
             applyMeshToTarget(t, mesh.vertices, &mesh);
         }
+        return CommandResult(true);
     }
 }
 

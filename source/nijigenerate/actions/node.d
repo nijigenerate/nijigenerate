@@ -530,6 +530,57 @@ public:
 
 alias PartAddMaskAction = PartAddRemoveMaskAction!true;
 alias PartRemoveMaskAction = PartAddRemoveMaskAction!false;
+
+/**
+    Change masking mode for an existing mask binding on a Part.
+*/
+class PartChangeMaskModeAction : Action {
+public:
+    Part target;
+    Drawable maskSrc;
+    size_t idx;
+    MaskingMode oldMode;
+    MaskingMode newMode;
+
+    this(Part target, Drawable maskSrc, MaskingMode newMode) {
+        this.target = target;
+        this.maskSrc = maskSrc;
+        this.newMode = newMode;
+
+        auto found = target.getMaskIdx(maskSrc);
+        enforce(found >= 0, "Mask entry not found");
+        idx = cast(size_t)found;
+        oldMode = target.masks[idx].mode;
+
+        target.masks[idx].mode = newMode;
+        target.notifyChange(target, NotifyReason.AttributeChanged);
+        incActivePuppet().rescanNodes();
+    }
+
+    override void rollback() {
+        target.masks[idx].mode = oldMode;
+        target.notifyChange(target, NotifyReason.AttributeChanged);
+        incActivePuppet().rescanNodes();
+    }
+
+    override void redo() {
+        target.masks[idx].mode = newMode;
+        target.notifyChange(target, NotifyReason.AttributeChanged);
+        incActivePuppet().rescanNodes();
+    }
+
+    override string describe() {
+        return _("%s mask mode changed").format(maskSrc.name);
+    }
+
+    override string describeUndo() {
+        return _("%s mask mode restored").format(maskSrc.name);
+    }
+
+    override string getName() { return this.stringof; }
+    override bool merge(Action other) { return false; }
+    override bool canMerge(Action other) { return false; }
+}
 /**
     An action that happens when a node is changed
 */

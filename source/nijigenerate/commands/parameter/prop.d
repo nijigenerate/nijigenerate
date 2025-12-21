@@ -14,8 +14,8 @@ class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter
     this(string newName) { super(_("Set Parameter Name"), newName); }
     override bool shortcutRunnable() { return false; }
     override
-    void run(Context ctx) {
-        if (!ctx.hasParameters) return;
+    CommandResult run(Context ctx) {
+        if (!ctx.hasParameters) return CommandResult(false, "No parameters");
         auto param = ctx.parameters[0];
 
         // Validate name uniqueness within active puppet
@@ -24,7 +24,7 @@ class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter
             auto fparam = ex.findParameter(newName);
             if (fparam !is null && fparam.uuid != param.uuid) {
                 // Name already taken; do nothing
-                return;
+                return CommandResult(false, "Name already taken");
             }
         }
 
@@ -32,6 +32,7 @@ class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter
         // No action push for name (pointer to property not supported); follow existing behavior
         param.name = newName;
         param.makeIndexable();
+        return CommandResult(true);
     }
 }
 
@@ -47,8 +48,8 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
     }
     override bool shortcutRunnable() { return false; }
     override
-    void run(Context ctx) {
-        if (!ctx.hasParameters) return;
+    CommandResult run(Context ctx) {
+        if (!ctx.hasParameters) return CommandResult(false, "No parameters");
         auto param = ctx.parameters[0];
 
         // Convert to vec2 for internal use
@@ -264,6 +265,7 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
 
         // Notify after remap
         incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
     }
 }
 

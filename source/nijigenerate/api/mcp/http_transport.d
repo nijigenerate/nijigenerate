@@ -24,15 +24,17 @@ import std.string : startsWith, format;
 import std.algorithm;
 import std.array;
 import std.exception;
+import std.stdio : writefln;
 import std.random;
 import std.typecons : Nullable, nullable, tuple;
 import core.thread.fiber : Fiber;
 import core.time;
+import core.atomic : atomicLoad, atomicStore;
 
 import vibe.http.server;
 import vibe.http.router;
 import vibe.http.client;
-import vibe.core.core : runApplication, exitEventLoop, yield, runTask, setTimer, sleep;
+import vibe.core.core : runApplication, exitEventLoop, setTimer, sleep;
 import vibe.core.stream : OutputStream, InputStream;
 import vibe.stream.operations : readAllUTF8;
 import std.uri : decodeComponent;
@@ -43,6 +45,10 @@ import nijigenerate.api.mcp.task;
 import nijigenerate.api.mcp.auth;
 
 // ======================= HTTP Transport =======================
+private void httpLog(T...)(T args) {
+    version(MCP_LOG) writefln(args);
+}
+
 class HttpTransport : Transport {
     private {
         void delegate(JSONValue) messageHandler;
@@ -52,14 +58,9 @@ class HttpTransport : Transport {
         JSONValue*[Fiber] responseSlots;
         string host;
         ushort port;
-        bool running;
-        bool shouldExit;
-        bool loopExited;
-        // Run on the event loop to stop listening and exit cleanly
-        private void performShutdown() nothrow @system {
-            try { listener.stopListening(); } catch (Exception) {}
-            try { exitEventLoop(); } catch (Exception) {}
-        }
+        shared bool running;
+        shared bool shouldExit;
+        shared bool loopExited;
         // Stop listening without touching the event loop state (safe after loop exit)
         private void performStopListening() nothrow @system {
             try { listener.stopListening(); } catch (Exception) {}
@@ -215,7 +216,7 @@ private:
         if (authEnabled) {
             auto auth = req.headers.get("Authorization", "");
             import std.stdio;
-            writefln("[MCP/HTTP] check token=%s",auth);
+            httpLog("[MCP/HTTP] check token=%s",auth);
             if (!auth.startsWith("Bearer ")) { setUnauthorized(res); return; }
             auto tok = auth["Bearer ".length .. $];
             if (!checkToken(tok, canonicalResource)) { setUnauthorized(res); return; }
@@ -244,9 +245,9 @@ private:
         // Keep the handler alive and send a heartbeat every ~15s to prevent
         // idle proxies from closing the connection.
 
-        while (running) {
+        while (atomicLoad(running)) {
             sleep(10.seconds);
-            if (!running) break;
+            if (!atomicLoad(running)) break;
             try { 
                 stream.write(": heartbeat\n\n"); 
                 stream.flush(); 
@@ -259,7 +260,7 @@ private:
     // ---- OAuth well-known (Protected Resource Metadata) ----
     void handleProtectedResourceMetadata(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] Protected Resource Metadata");
+        httpLog("[MCP/HTTP] Protected Resource Metadata");
         res.headers["Content-Type"] = "application/json";
         JSONValue payload = [
             "resource": JSONValue(canonicalResource),
@@ -274,7 +275,7 @@ private:
     // ---- OAuth AS metadata (RFC 8414) ----
     void handleASMetadata(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] AS Metadata");
+        httpLog("[MCP/HTTP] AS Metadata");
         res.headers["Content-Type"] = "application/json";
         JSONValue payload = [
             "issuer": JSONValue(issuer),
@@ -292,7 +293,7 @@ private:
     // ---- Authorize（Waiting decision → 302） ----
     void handleAuthorize(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] Authorization.");
+        httpLog("[MCP/HTTP] Authorization.");
         auto q = req.query;
         auto clientId     = q.get("client_id", "mcp-local");
         auto redirectUri  = q.get("redirect_uri", "");
@@ -303,7 +304,7 @@ private:
         auto chalMethod   = q.get("code_challenge_method", "S256");
         auto resource     = q.get("resource", "");
 
-        writefln("[MCP/HTTP] responseType=%s, redirectUri=%s resource=%s, canonicalResource=%s, chalMethod=%s", responseType, redirectUri, resource, canonicalResource, chalMethod);
+        httpLog("[MCP/HTTP] responseType=%s, redirectUri=%s resource=%s, canonicalResource=%s, chalMethod=%s", responseType, redirectUri, resource, canonicalResource, chalMethod);
         // validate (PKCE S256 & resource REQUIRED; loopback/http(s) redirect)
         if (responseType != "code" || redirectUri.length == 0 || !canonicalResource.startsWith(resource) || chalMethod != "S256") {
             res.statusCode = 400; res.writeBody("invalid_request"); return;
@@ -338,7 +339,7 @@ private:
     // ---- Token endpoint ----
     void handleToken(scope HTTPServerRequest req, scope HTTPServerResponse res) {
         import std.stdio;
-        writefln("[MCP/HTTP] Token.");
+        httpLog("[MCP/HTTP] Token.");
         auto body = req.bodyReader.readAllUTF8();
         string[string] form;
         foreach (p; body.split("&")) {
@@ -412,7 +413,7 @@ public:
 
     void run() {
         import std.stdio : writefln;
-        writefln("[MCP/HTTP] run(): binding on %s:%s", host, port);
+        httpLog("[MCP/HTTP] run(): binding on %s:%s", host, port);
         auto router = new URLRouter;
 
         // MCP protected endpoints
@@ -431,32 +432,32 @@ public:
         settings.bindAddresses = [host];
         listener = listenHTTP(settings, router);
 
-        running = true;
+        atomicStore(running, true);
         scope(exit) performStopListening();
 
-        if (shouldExit) { 
-            running = false; 
+        if (atomicLoad(shouldExit)) {
+            atomicStore(running, false);
             return; 
         }
 
         setTimer(100.msecs, { 
-            if (shouldExit) { 
+            if (atomicLoad(shouldExit)) {
                 try exitEventLoop(); catch (Exception) {}
             }
         }, true);
 
-        writefln("[MCP/HTTP] run(): listening on %s:%s", host, port);
+        httpLog("[MCP/HTTP] run(): listening on %s:%s", host, port);
         runApplication();
-        loopExited = true;
-        writefln("[MCP/HTTP] run(): event loop exited");
+        atomicStore(loopExited, true);
+        httpLog("[MCP/HTTP] run(): event loop exited");
     }
 
     void close() {
         import std.stdio : writefln;
-        writefln("[MCP/HTTP] close(): request transport shutdown");
+        httpLog("[MCP/HTTP] close(): request transport shutdown");
         // Mark for early exit and stop accepting new connections ASAP
-        shouldExit = true;
-        running = false;
+        atomicStore(shouldExit, true);
+        atomicStore(running, false);
         // Proactively close any connected SSE clients to release handles
         synchronized (this) {
             size_t i = 0;
@@ -469,12 +470,10 @@ public:
         }
         // Stop listener immediately even if event loop is not running yet
         performStopListening();
-        // Stop listener and exit event loop on the event loop thread
-        runTask(&performShutdown);
     }
 
     bool hasExited() const @nogc nothrow @safe { 
-        return loopExited; 
+        return atomicLoad(loopExited);
     }
 }
 
