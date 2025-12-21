@@ -162,7 +162,7 @@ void ngInitAllCommands() {
     import std.stdio;
     import std.conv;
     foreach (cmds; AllCommandMaps) {
-        // cmds は連想配列(enumType => valueType)
+        // cmds is an associative array (enumType => valueType)
         foreach (k, v; cmds) {
             writeln("[", typeof(k).stringof, "] ", k.to!string, " => ", v);
         }

@@ -23,9 +23,9 @@ import nijigenerate.api.acp.types;
 import nijigenerate.api.acp.transport.stdio;
 import nijigenerate.core.settings : incSettingsGet;
 
-/// Editor側からCoding Agentと対話する最小クライアント。
-/// - OS依存を避けるため、コマンドはシェル文字列ではなく string[] で渡す。
-/// - 既存の Transport を注入することも可能。
+/// Minimal client for interacting with the Coding Agent from the editor.
+/// - Pass commands as string[] (not a shell string) to avoid OS-specific behavior.
+/// - You can also inject an existing Transport.
 class ACPClient {
     private {
         StdioTransport transport;
@@ -78,18 +78,18 @@ class ACPClient {
         return pr;
     }
 
-    /// 既存Transportを使うコンストラクタ（同一プロセス内など）。
+    /// Constructor using an existing Transport (e.g. same process).
     this(StdioTransport transport) {
         this.transport = transport;
         this.ownsProcess = false;
         startReader();
     }
 
-    /// Coding Agent 実行ファイルを子プロセスとして起動（OS非依存）。
-    /// `command` は ["./out/nijigenerate-agent"] や ["node","agent.js"] のように分割済みで渡す。
+    /// Launch the Coding Agent executable as a child process (OS-agnostic).
+    /// `command` should be split, e.g. ["./out/nijigenerate-agent"] or ["node","agent.js"].
     this(string[] command, string cwd = null) {
-        // pipeProcess は内部でプラットフォーム毎の適切なCreateProcess/posix spawnを使用し、
-        // シェル解釈を行わないため安全かつOS依存が少ない。
+        // pipeProcess uses CreateProcess/posix spawn internally and avoids shell parsing,
+        // which is safer and less OS-dependent.
         // pipeProcess creates stdin/stdout pipes by default
         auto proc = pipeProcess(command, Redirect.all, null, Config.none, cwd);
         pid = proc.pid;
@@ -101,22 +101,22 @@ class ACPClient {
         startStderrReader();
     }
 
-    /// stdoutをそのままホスト側に表示するかどうかを切り替える（デバッグ用）。
+    /// Toggle whether to show stdout on the host side (debug).
     void setDebugStdout(bool enabled) {
         debugStdout = enabled;
     }
 
-    /// 子プロセス stdout/stderr の生ログを logger に流す（デフォルトON）
+    /// Forward raw child stdout/stderr logs to logger (default ON).
     void setDebugEcho(bool enabled) {
         debugEchoPipes = enabled;
     }
 
-    /// ログ出力先（Agentパネルなど）を設定
+    /// Set log output target (e.g. Agent panel).
     void setLogger(void delegate(string) cb) {
         logger = cb;
     }
 
-    /// キャンセルチェック（外部フラグを参照するデリゲート）を設定
+    /// Set a cancel-check delegate (reads an external flag).
     void setCancelCheck(bool delegate() cb) {
         cancelCheck = cb;
     }
@@ -125,12 +125,12 @@ class ACPClient {
         if (logger) logger(msg);
     }
 
-    /// 送信モードを指定 ("line" または "content-length")
+    /// Set send mode ("line" or "content-length").
     void setSendMode(string mode) {
         preferredSendMode = (mode == "content-length") ? "content-length" : "line";
     }
 
-    /// 行JSONをそのまま送る（Content-Lengthなし）
+    /// Send line-delimited JSON as-is (no Content-Length).
     void sendRawLine(string raw) {
         try {
             pipes.stdin.write(raw ~ "\n");
@@ -167,7 +167,7 @@ class ACPClient {
         return w.data;
     }
 
-    /// 任意のユーザ入力テキストを session/prompt で送る。
+    /// Send arbitrary user input text via session/prompt.
     string sendPrompt(string text) {
         if (sessionId.length == 0) {
             newSession();
@@ -222,14 +222,14 @@ class ACPClient {
         return res;
     }
 
-    /// initializeを送り、サーバ情報を受け取る。
+    /// Send initialize and receive server info.
     JSONValue initialize() {
         auto req = Request(ACP_METHOD_INITIALIZE, buildInitParams(), JSONValue(nextId++));
         send(req.toJSON());
         return waitResponse();
     }
 
-    /// 新規セッション作成（session/new）
+    /// Create a new session (session/new).
     void newSession() {
         auto idStr = nextId++.to!string;
         import std.file : getcwd;
@@ -253,7 +253,7 @@ class ACPClient {
         }
     }
 
-    /// ノンブロッキング版 initialize: 送信だけ行い、結果は pollInitialize で取得
+    /// Non-blocking initialize: send only, get the result via pollInitialize.
     void initializeAsync() {
         initPending = true;
         initResult = JSONValue.init;
@@ -262,7 +262,7 @@ class ACPClient {
         send(req.toJSON());
     }
 
-    /// initialize の結果をポーリング。返値: true=完了/失敗いずれも終了, false=まだ
+    /// Poll initialize result. Returns: true=done (success or failure), false=not yet.
     bool pollInitialize() {
         if (!initPending) return true;
         auto maybe = popInbound();
@@ -324,14 +324,14 @@ class ACPClient {
         return parseJSON(jsonStr);
     }
 
-    /// pingを送る（例外が出なければ成功）。
+    /// Send ping (success if no exception).
     void ping() {
         auto req = Request(ACP_METHOD_PING, parseJSON("{}"), JSONValue(nextId++));
         send(req.toJSON());
         waitResponse();
     }
 
-    /// 子プロセスを持っている場合に終了処理を行う。
+    /// Perform shutdown when owning a child process.
     void close() {
         readerRunning = false;
         stderrRunning = false;

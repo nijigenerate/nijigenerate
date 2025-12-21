@@ -13,7 +13,7 @@ import std.conv : to;
  * - On "initialize": replies with minimal capabilities.
  * - Otherwise: echoes params back in result.
  * Usage: ldc2 -O -release -version=ACP_ECHO_TOOL -of=out/acp-echo source/nijigenerate/api/acp/echo_agent.d
- * Transport: Content-Length framing (LSP/MCP形式) または 1行JSON 両対応。
+ * Transport: Content-Length framing (LSP/MCP format) or single-line JSON.
  */
 
 void main() {

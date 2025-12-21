@@ -9,12 +9,12 @@ import core.thread.fiber;
 
 
 /////////////////////////////////////////////////////////////
-// 2. Zhang-Suen 細線化アルゴリズム（NDslice を用いる）
+// 2. Zhang-Suen thinning algorithm (using NDslice)
 void skeletonizeImage(T)(T imbin) {
 
     int countNeighbors(T)(T image, int i, int j) {
         int count = 0;
-        // ループで -1 から +1 のオフセット
+        // Offsets from -1 to +1 in the loops
         for (int di = -1; di <= 1; di++) {
             for (int dj = -1; dj <= 1; dj++) {
                 if (di == 0 && dj == 0)
@@ -26,7 +26,7 @@ void skeletonizeImage(T)(T imbin) {
         return count;
     }
 
-    /// 8近傍（p2～p9）のうち、背景から前景へ変化する回数を返す
+    /// Return the number of background-to-foreground transitions among the 8 neighbors (p2-p9)
     int countTransitions(T)(T image, int i, int j) {
         ubyte[8] neighbors;
         neighbors[0] = image[i - 1, j];      // p2
@@ -47,11 +47,11 @@ void skeletonizeImage(T)(T imbin) {
     }
 
 
-    // 画像サイズのローカル変数化
+    // Cache image size locally
     ulong h = imbin.shape[0];
     ulong w = imbin.shape[1];
 
-    // 初期候補セット: 内部領域（境界を除く）の前景画素全て
+    // Initial candidate set: all foreground pixels in the inner region (exclude borders)
     vec2u[] candidates;
     for (int i = 1; i < h - 1; i++) {
         for (int j = 1; j < w - 1; j++) {
@@ -62,11 +62,11 @@ void skeletonizeImage(T)(T imbin) {
     
     bool changedOverall = true;
     
-    // ループ：候補セットが空になるか、変更がなくなるまで
+    // Loop until the candidate set is empty or no changes occur
     while (changedOverall) {
         changedOverall = false;
         
-        // --- サブイテレーション 1 ---
+        // --- Sub-iteration 1 ---
         vec2u[] toDelete;
         foreach (pt; candidates) {
             int i = pt.y;
@@ -83,38 +83,38 @@ void skeletonizeImage(T)(T imbin) {
                 continue;
             if (imbin[i, j + 1] && imbin[i + 1, j] && imbin[i, j - 1])
                 continue;
-            // 条件を満たす場合は削除対象に追加
+            // If conditions are met, add to deletion set
             toDelete ~= pt;
         }
         
         vec2u[] newCandidates;
         if (toDelete.length > 0) {
             changedOverall = true;
-            // 削除対象の画素を0に設定し、その近傍を新たな候補に追加
+            // Set deletions to 0 and add neighbors as new candidates
             foreach (pt; toDelete) {
                 int i = pt.y;
                 int j = pt.x;
                 imbin[i, j] = 0;
-                // 近傍 (8方向) を候補に追加（重複は後で除去）
+                // Add neighbors (8 directions) as candidates (dedupe later)
                 for (int di = -1; di <= 1; di++) {
                     for (int dj = -1; dj <= 1; dj++) {
                         int ni = i + di;
                         int nj = j + dj;
-                        // 範囲チェック：境界は除外
+                        // Bounds check: exclude borders
                         if (ni < 1 || ni >= h - 1 || nj < 1 || nj >= w - 1)
                             continue;
                         newCandidates ~= vec2u(nj, ni);
                     }
                 }
             }
-            // 重複除去：y座標、x座標でソートしてユニークな候補に
+            // Deduplicate: sort by y then x and uniq
             newCandidates.sort!((a, b) =>
                 (a.y < b.y) || (a.y == b.y && a.x < b.x)
             );
             newCandidates = newCandidates.uniq.array;
         }
         
-        // --- サブイテレーション 2 ---
+        // --- Sub-iteration 2 ---
         vec2u[] toDelete2;
         foreach (pt; newCandidates) {
             int i = pt.y;
@@ -157,9 +157,9 @@ void skeletonizeImage(T)(T imbin) {
             newCandidates2 = newCandidates2.uniq.array;
         }
         
-        // 次回の候補は、サブイテレーション2で更新された候補集合
+        // Next candidates are those updated in sub-iteration 2
         candidates = newCandidates2;
-        // 候補が空の場合、全画素を再スキャンして前景が残っていれば候補集合に追加
+        // If candidates are empty, rescan all pixels and add remaining foreground
         if (candidates.length == 0) {
             for (int i = 1; i < h - 1; i++) {
                 for (int j = 1; j < w - 1; j++) {
@@ -167,7 +167,7 @@ void skeletonizeImage(T)(T imbin) {
                         candidates ~= vec2u(j, i);
                 }
             }
-            // 変更がなければアルゴリズム終了
+            // If no changes, end the algorithm
             if (candidates.length == 0)
                 break;
         }

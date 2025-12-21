@@ -297,7 +297,7 @@ public:
 
     override bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         incStatusTooltip(_("Switch Mode"), _("TAB"));
-        // Deform表示をバインディングから読み取って反映（読み取り専用。書き込みはしない）
+        // Seed deform display from the binding (read-only; no writes).
         void seedViewFromBinding() {
             auto parameter = incArmedParameter();
             if (!parameter) return;
@@ -395,7 +395,7 @@ public:
                     fDefImpl.setTarget(cast(T)filter);
                     // Reset deform editor baseline; do not push here
                     fDefImpl.getCleanDeformAction();
-                    // 画面表示を現在のバインディングからシード
+                    // Seed the view from the current binding
                     seedViewFromBinding();
                 }
                 break;
@@ -429,7 +429,7 @@ public:
         case SubToolMode.Vertex:
             if (acquired) {
                 bool result = fVertImpl.getTool().update(io, fVertImpl, vertActionId, changed);
-                // 頂点数やマップ更新が起きたら、変形を現在の形状へ正確に移す
+                // When vertex count or map updates, transfer deformation to the current shape accurately
                 if (fVertImpl.vertexMapDirty) {
                     fVertImpl.applyToTarget();
                     auto parameter = incArmedParameter();

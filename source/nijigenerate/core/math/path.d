@@ -11,18 +11,18 @@ vec2u[] extractPath(T)(T skeleton, int width, int height)
 {
     if (skeleton.length == 0) return [];
     
-    // 連結成分管理用のグローバル visited 配列（NDslice）
+    // Global visited array for connected components (NDslice)
     ubyte[] globalVisitedData = new ubyte[height * width];
     int err;
     auto globalVisited = globalVisitedData.sliced.reshape([height, width], err);
     vec2u[] longestPathOverall;
 
-    // 2次元座標を1次元インデックスに変換するヘルパー関数
+    // Helper to convert 2D coordinates into a 1D index
     int encode(vec2u p) {
         return p.y * width + p.x;
     }
 
-    // 与えた点から連結成分をBFSで収集する（キューは先頭インデックス管理により高速化）
+    // Collect connected component from the given point via BFS (queue uses head index for speed)
     vec2u[] getComponent(vec2u p) {
         vec2u[] comp;
         vec2u[] queue;
@@ -51,7 +51,7 @@ vec2u[] extractPath(T)(T skeleton, int width, int height)
         return comp;
     }
 
-    // コンポーネント内の隣接点を、連想配列 compMap を使って高速に探索する
+    // Find neighbors within the component quickly using compMap
     vec2u[] getNeighbors(vec2u pt, bool[int] compMap) {
         vec2u[] neighbors;
         for (int di = -1; di <= 1; di++) {
@@ -65,13 +65,13 @@ vec2u[] extractPath(T)(T skeleton, int width, int height)
         return neighbors;
     }
 
-    // BFSを用いて、コンポーネント内の src からの最遠点とその経路を求める
+    // Use BFS to find the farthest point from src within the component and its path
     Tuple!(vec2u, vec2u[]) bfsDiameter(vec2u src, vec2u[] comp, bool[int] compMap) {
         vec2u[] queue;
         int[] dist = new int[height * width];
         foreach (i; 0 .. dist.length)
             dist[i] = -1;
-        vec2u[int] pred; // 各点の直前の点を記録する連想配列
+        vec2u[int] pred; // associative array storing the predecessor for each point
 
         int head = 0;
         queue ~= src;
@@ -110,22 +110,22 @@ vec2u[] extractPath(T)(T skeleton, int width, int height)
         return tuple(farthest, path);
     }
 
-    // skeleton 全体を走査し、各連結成分ごとに直径（最長パス）を求める
+    // Scan the entire skeleton and compute the diameter (longest path) per connected component
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
             if (skeleton[i, j] && !globalVisited[i, j]) {
-                // 新たな連結成分を取得
+                // Get a new connected component
                 auto comp = getComponent(vec2u(j, i));
-                // 連想配列を用いてコンポーネント内の各点をマーク（定数時間アクセス）
+                // Mark each point in the component via associative array (O(1) access)
                 bool[int] compMap;
                 foreach (pt; comp) {
-                    // ptが有効な座標であることを確認
+                    // Ensure pt is a valid coordinate
                     if (pt.x < 0 || pt.x >= width || pt.y < 0 || pt.y >= height)
                         continue;
                     compMap[encode(pt)] = true;
                 }
                 Fiber.yield();
-                // 端点（隣接画素が1個）の探索（線形探索ではなく、compMapを利用）
+                // Find endpoints (one neighbor) using compMap instead of a linear scan
                 vec2u[] endpoints;
                 foreach (pt; comp) {
                     auto nbrs = getNeighbors(pt, compMap);
@@ -133,7 +133,7 @@ vec2u[] extractPath(T)(T skeleton, int width, int height)
                         endpoints ~= pt;
                     Fiber.yield;
                 }
-                // 端点が存在すればそのうちの1つ、なければ comp の最初の点を直径計算の起点とする
+                // If endpoints exist, use one; otherwise use the first point as the diameter seed
                 vec2u startForDiameter = (endpoints.length > 0) ? endpoints[0] : comp[0];
                 auto result1 = bfsDiameter(startForDiameter, comp, compMap);
                 auto result2 = bfsDiameter(result1[0], comp, compMap);

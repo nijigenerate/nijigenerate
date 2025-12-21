@@ -14,7 +14,7 @@ import std.uni : icmp;
 
     // The name of the language this translation is a translation to
     // in the native script of the language (for the region)
-    // Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
+    // Eg. this would be "Dansk" for Danish and "Nihongo" for Japanese.
     _("LANG_NAME")
 +/
 
