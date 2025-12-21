@@ -11,6 +11,7 @@ import nijigenerate.ext;
 import nijigenerate.actions.binding;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.drivers; // Driver
 import std.format;
 import i18n;
 import std.algorithm.searching: countUntil;

@@ -9,6 +9,7 @@ import nijigenerate.actions;
 import nijigenerate.commands; // cmd!, Context
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijilive;
+import nijilive.core.nodes.drivers; // SimplePhysics
 import std.format;
 import std.utf;
 import std.string;

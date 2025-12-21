@@ -20,6 +20,7 @@ import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.drivers; // Driver
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijigenerate.core.dbg;
 import bindbc.imgui;

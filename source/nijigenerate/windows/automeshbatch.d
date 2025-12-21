@@ -228,21 +228,25 @@ private:
 protected:
 
     void runBatch() {
-        auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Drawable)n).array;
+        auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Deformable)n).filter!(d=>d !is null).array;
         auto meshList = targets.map!(t=>new IncMesh(meshes[t.uuid])).array;
         status.clear();
         foreach (t; targets) status[t.uuid] = Status.Waiting;
-        Drawable currentTarget = null;
-        bool callback(Drawable drawable, IncMesh mesh) {
-            currentTarget = drawable;
+        Deformable currentTarget = null;
+        bool callback(Deformable deformable, IncMesh mesh) {
+            currentTarget = deformable;
             if (mesh is null) {
-                status[drawable.uuid] = Status.Running;
+                status[deformable.uuid] = Status.Running;
             } else {
                 if (mesh.vertices.length >= 3) {
-                    status[drawable.uuid] = Status.Succeeded;
-                    meshes[drawable.uuid] = mesh;
+                    if (auto dr = cast(Drawable)deformable) {
+                        status[deformable.uuid] = Status.Succeeded;
+                        meshes[dr.uuid] = mesh;
+                    } else {
+                        status[deformable.uuid] = Status.Failed;
+                    }
                 } else {
-                    status[drawable.uuid] = Status.Failed;
+                    status[deformable.uuid] = Status.Failed;
                 }
             }
             bool result = false;

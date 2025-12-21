@@ -35,6 +35,7 @@ import nijigenerate.core.window : incResetClearColor;
 import std.algorithm : min, max;
 import std.exception : enforce;
 import bindbc.imgui;
+import nijigenerate.widgets : ngCheckbox;
 import nijigenerate.project : incSelectedNodes;
 import nijigenerate.widgets.texture : incTextureSlot;
 import std.conv : to;
@@ -326,7 +327,7 @@ package(nijigenerate) void alphaPreviewDisposeTexture() {
 }
 
 void alphaPreviewWidget(ref AlphaPreviewState state, ImVec2 size = ImVec2(192, 192)) {
-    igCheckbox("show_alpha_preview", &state.show);
+    ngCheckbox("show_alpha_preview", &state.show);
     if (!state.show) return;
 
     auto nodes = incSelectedNodes();

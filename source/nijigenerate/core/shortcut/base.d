@@ -1,7 +1,7 @@
 module nijigenerate.core.shortcut.base;
 
 // Keep this module free of command/UI imports. It provides infrastructure only.
-import nijigenerate.commands.base : Command, Context; // base types
+import nijigenerate.commands.base : Command, Context, ngCommandIdFromKey; // base types + id helper
 import nijigenerate.core.input;            // incShortcut
 import nijigenerate.project;               // active/selection state
 import bindbc.imgui;
@@ -130,6 +130,7 @@ private Context buildExecutionContext()
 
     // Current inspector instances from the InspectorPanel in incPanels
     TypedInspector!Node[] inspectors;
+    bool resolvedInspectors = false;
     static InspectorPanel ip = null;
     if (ip is null) {
         foreach (p; incPanels) {
@@ -142,9 +143,20 @@ private Context buildExecutionContext()
         if (ip && ip.activeNodeInspectors) {
             auto ins = ip.activeNodeInspectors.getAll();
             foreach (i; ins) inspectors ~= i;
+            resolvedInspectors = inspectors.length > 0;
         }
         if (inspectors.length > 0)
             ctx.inspectors = inspectors;
+    }
+
+    // When the Inspector panel is hidden, it may not update/hold inspectors.
+    // Provide ephemeral inspectors based on current selection for inspector commands.
+    if (!resolvedInspectors && selNodes.length > 0) {
+        import nijigenerate.panels.inspector.base : ngNodeInspector;
+        auto holder = ngNodeInspector(selNodes);
+        auto ins = holder.getAll();
+        if (ins.length > 0)
+            ctx.inspectors = ins;
     }
     return ctx;
 }
@@ -157,8 +169,10 @@ void incHandleShortcuts()
     foreach (cmd, entry; gShortcutEntries) {
         if (incShortcut(entry.shortcut, entry.repeat)) {
             auto ctx = buildExecutionContext();
-            if (entry.command.runnable(ctx))
-                entry.command.run(ctx);
+            if (entry.command.runnable(ctx)) {
+                auto res = entry.command.run(ctx);
+                // TODO: surface res.message or res.payload to UI/log if needed
+            }
             break; // handle one per frame, closest match wins
         }
     }
@@ -177,11 +191,16 @@ private Command[string] _buildCommandIdMap()
 {
     Command[string] res;
     import nijigenerate.commands : AllCommandMaps;
+    import std.conv : to;
 
     static foreach (AA; AllCommandMaps) {
         foreach (k, v; AA) {
-            string id = typeof(k).stringof ~ "." ~ to!string(k);
+            auto id = ngCommandIdFromKey(k);
             res[id] = v;
+
+            // Backward compatibility: accept legacy id format as well.
+            auto legacyId = typeof(k).stringof ~ "." ~ to!string(k);
+            if (legacyId != id) res[legacyId] = v;
         }
     }
     return res;
@@ -191,10 +210,20 @@ private Command[string] _buildCommandIdMap()
 private string _commandIdFor(Command cmd)
 {
     auto all = _buildCommandIdMap();
+    string best;
     foreach (id, c; all) {
-        if (c is cmd) return id;
+        if (c !is cmd) continue;
+        if (best.length == 0) best = id;
+        if ((id.length >= 5 && id[0 .. 5] == "Node.") ||
+            (id.length >= 6 && id[0 .. 6] == "Panel.") ||
+            (id.length >= 8 && id[0 .. 8] == "AutoMesh.")) {
+            best = id;
+            break;
+        }
+        import std.string : indexOf;
+        if (best.indexOf("Key.") != -1 && id.indexOf("Key.") == -1) best = id;
     }
-    return "";
+    return best;
 }
 
 // Save current shortcuts to settings as an object map: { "Type.Value": "Shortcut" }

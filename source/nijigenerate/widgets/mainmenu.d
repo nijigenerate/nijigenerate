@@ -161,6 +161,7 @@ void incMainMenu() {
 
                     igSeparator();
                     ngMenuItemFor!(EditCommand.ShowSettingsWindow)(ctx);
+                    ngMenuItemFor!(EditCommand.ShowCommandBrowserWindow)(ctx);
                     
                     debug {
                         igSpacing();

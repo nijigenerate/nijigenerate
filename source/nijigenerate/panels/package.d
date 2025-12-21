@@ -13,6 +13,7 @@ import nijigenerate : EditMode, incEditMode;
 import bindbc.imgui;
 import std.string;
 import i18n;
+import std.algorithm : find;
 
 /**
     A Widget
@@ -173,3 +174,11 @@ void incInitPanels() {
     Panel list
 */
 Panel[] incPanels;
+
+/// Find panel by name; returns null if not found
+Panel incFindPanelByName(string name) {
+    foreach (p; incPanels) {
+        if (p.name == name) return p;
+    }
+    return null;
+}

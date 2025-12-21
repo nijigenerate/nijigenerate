@@ -59,12 +59,15 @@ import i18n;
         return _conversionMap;
     }
 
-    void insertNodesAux(Node[] parents, Node[] children, string className, string suffixName) {
+    Node[] insertNodesAux(Node[] parents, Node[] children, string className, string suffixName) {
         if (children && parents.length != children.length)
             children = null;
+        Node[] created;
         incActionPushGroup();
         foreach (i, p; parents) {
             Node newChild = inInstantiateNode(className, null);
+            if (newChild is null) continue;
+            created ~= newChild;
             string nodeName = null;
             if (suffixName && suffixName.length != 0) {
                 if (children)
@@ -80,6 +83,7 @@ import i18n;
             }
         }
         incActionPopGroup();
+        return created;
     }
 
 
@@ -93,12 +97,12 @@ void incReloadNode(Node[] nodes) {
     }
 }
 
-void ngAddNodes(Node[] parents, string className, string _suffixName = null) {
-    insertNodesAux(parents, null, className, _suffixName);
+Node[] ngAddNodes(Node[] parents, string className, string _suffixName = null) {
+    return insertNodesAux(parents, null, className, _suffixName);
 }
 
-void ngInsertNodes(Node[] children, string className, string _suffixName = null) {
-    insertNodesAux(children.map!((v)=>v.parent).array, children, className, _suffixName);
+Node[] ngInsertNodes(Node[] children, string className, string _suffixName = null) {
+    return insertNodesAux(children.map!((v)=>v.parent).array, children, className, _suffixName);
 }
 
 string ngGetCommonNodeType(Node[] nodes) {
@@ -113,9 +117,9 @@ string ngGetCommonNodeType(Node[] nodes) {
     return type;
 }
 
-void ngConvertTo(Node[] nodes, string toType) {
-    if (!toType) return;
-    if (nodes.length == 0) return;
+Node[] ngConvertTo(Node[] nodes, string toType) {
+    if (!toType) return null;
+    if (nodes.length == 0) return null;
 
     auto group = new GroupAction();
     Node[] newNodes = [];
@@ -128,4 +132,5 @@ void ngConvertTo(Node[] nodes, string toType) {
     }
     incActionPush(group);
     incSelectNodes(newNodes);
+    return newNodes;
 }

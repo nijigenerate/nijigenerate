@@ -16,8 +16,9 @@ class SetDefaultLayoutCommand : ExCommand!() {
     this() { super(_("Reset Layout"), _("Set default layout of panels.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incSetDefaultLayout();
+        return CommandResult(true);
     }
 }
 
@@ -25,7 +26,7 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
     this() { super(_("Save Screenshot"), _("Shows \"Save screenshot\" dialog.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
             { ["*.png"], "PNG Image (*.png)" }
         ];
@@ -35,9 +36,10 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
             auto cmd = cast(SaveScreenshotCommand)commands[ViewCommand.SaveScreenshot];
             if (cmd) {
                 cmd.filename = filename;
-                cmd.run(ctx);
+                return cmd.run(ctx);
             }
         }
+        return CommandResult(false, "Screenshot save canceled");
     }
 }
 
@@ -45,7 +47,7 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
     this(string filename) { super(_("Save Screenshot"), _("Save screenshot."), filename); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         if (filename) {
             string file = filename.setExtension("png");
 
@@ -69,16 +71,19 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
             outTexture.setData(textureData);
 
             outTexture.save(file);
+            return CommandResult(true);
         }
+        return CommandResult(false, "Filename not set");
     }
 }
 
 class ShowStatusForNerdsCommand : ExCommand!() {
     this() { super(_("Show Stats for Nerds"), _("Show status for nerds.")); }
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         incShowStatsForNerds = !incShowStatsForNerds;
         incSettingsSet("NerdStats", incShowStatsForNerds);
+        return CommandResult(true);
     }
 }
 
@@ -86,7 +91,7 @@ class ToggleDifferenceAggregationCommand : ExCommand!() {
     this() { super(_("Difference Aggregation Debug"), _("Toggle GPU difference aggregation for the selected node.")); }
 
     override
-    void run(Context ctx) {
+    CommandResult run(Context ctx) {
         ngDifferenceAggregationDebugEnabled = !ngDifferenceAggregationDebugEnabled;
         if (!ngDifferenceAggregationDebugEnabled) {
             ngDifferenceAggregationResolvedIndex = size_t.max;
@@ -95,6 +100,7 @@ class ToggleDifferenceAggregationCommand : ExCommand!() {
             ngDifferenceAggregationResultSerial = 0;
             inSetDifferenceAggregationEnabled(false);
         }
+        return CommandResult(true);
     }
 }
 

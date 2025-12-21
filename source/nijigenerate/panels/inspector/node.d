@@ -15,6 +15,7 @@ import nijigenerate.commands; // cmd!, Context
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand; // enum ids
 import nijilive;
 import nijilive.core.nodes.common;
+import nijilive.core.nodes.drivers; // SimplePhysics, Driver types
 import std.string;
 import std.algorithm;
 import std.algorithm.searching;
@@ -99,11 +100,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
                     // Button which locks all transformation to be based off the root node
                     // of the puppet, this more or less makes the item stay in place
                     // even if the parent moves.
-                    ImVec2 textLength = incMeasureString(_("Lock to Root Node"));
-                    igTextColored(CategoryTextColor, __("Lock to Root Node"));
-
-                    incSpacer(ImVec2(-12, 1));
-                    if (_shared!lockToRoot(()=>incLockButton(&lockToRoot.value, "root_lk"))) {
+                    if (_shared!lockToRoot(()=>ngCheckbox(__("Lock to Root Node"), &lockToRoot.value))) {
                         auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                         cmd!(InspectorNodeApplyCommand.LockToRoot)(ctx, lockToRoot.value);
                     }
@@ -213,10 +210,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : B
 
             // An option in which positions will be snapped to whole integer values.
             // In other words texture will always be on a pixel.
-            textLength = incMeasureString(_("Snap to Pixel"));
-            igTextColored(CategoryTextColor, __("Snap to Pixel"));
-            incSpacer(ImVec2(-12, 1));
-            if (_shared!(pixelSnap)(()=>incLockButton(&pixelSnap.value, "pix_lk"))) {
+            if (_shared!(pixelSnap)(()=>ngCheckbox(__("Snap to Pixel"), &pixelSnap.value))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PixelSnap)(ctx, pixelSnap.value);
             }

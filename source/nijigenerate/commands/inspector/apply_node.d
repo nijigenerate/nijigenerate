@@ -17,7 +17,9 @@ import nijigenerate.panels.inspector.simplephysics;
 import nijigenerate.panels.inspector.griddeform;
 // Inspector resolution must be via ctx.inspectors (no global resolver)
 import nijilive; // Node, Drawable
+import nijilive.core.nodes.drivers; // SimplePhysics
 import nijigenerate.commands.base : toCodeString;
+import std.traits : TemplateArgsOf;
 
 // Generic apply command using NodeInspector; compile-time PropName
 class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixin("(cast(I)(null))."~PropName~".value")), "value", "Value to apply")) {
@@ -26,10 +28,16 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
     // The `DefApply` template will generate a constructor that calls this.
     alias ValT  = typeof(mixin("(cast(I)(null))."~PropName~".value"));
     this(ValT value) {
-        super(null, "Apply " ~ PropName, value);
+        alias NodeT = TemplateArgsOf!I[1];
+        static if (is(NodeT == Node)) {
+            super(null, "Apply " ~ PropName, value);
+        } else {
+            enum string targetName = NodeT.stringof;
+            super(null, "Apply " ~ PropName ~ " (" ~ targetName ~ ")", value);
+        }
     }
 
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         I ni = null;
         if (ctx.hasInspectors) {
             foreach (i; ctx.inspectors) {
@@ -37,7 +45,9 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                 if (ni !is null) break;
             }
         }
-        if (ni is null) return;
+        if (ni is null) return CommandResult(false, "Inspector not available");
+        ni.subMode = ngModelEditSubMode();
+        if (ctx.hasNodes) ni.capture(cast(Node[])ctx.nodes);
         import std.traits : TemplateArgsOf;
         alias NodeT = TemplateArgsOf!I[1];
 
@@ -113,6 +123,7 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
 
         if (ctx.hasNodes)
             ni.capture(cast(Node[])ctx.nodes);
+        return CommandResult(true);
     }
 
     // Apply-style inspector commands require specifying values and are not suited for shortcuts
@@ -121,10 +132,16 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
 
 class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
     this() {
-        super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
+        alias NodeT = TemplateArgsOf!I[1];
+        static if (is(NodeT == Node)) {
+            super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
+        } else {
+            enum string targetName = NodeT.stringof;
+            super("Toggle " ~ PropName ~ " (" ~ targetName ~ ")", "Toggles the value of " ~ PropName ~ " for " ~ targetName);
+        }
     }
 
-    override void run(Context ctx) {
+    override CommandResult run(Context ctx) {
         I ni = null;
         if (ctx.hasInspectors) {
             foreach (i; ctx.inspectors) {
@@ -132,9 +149,10 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
                 if (ni !is null) break;
             }
         }
-        if (ni is null) return;
+        if (ni is null) return CommandResult(false, "Inspector not available");
+        ni.subMode = ngModelEditSubMode();
+        if (ctx.hasNodes) ni.capture(cast(Node[])ctx.nodes);
 
-        import std.traits : TemplateArgsOf;
         alias NodeT = TemplateArgsOf!I[1];
         alias ValT = typeof(mixin("(cast(I)(null))."~PropName~".value"));
         static assert(is(ValT == bool), "Toggle command only works for boolean properties");
@@ -208,6 +226,7 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
 
         if (ctx.hasNodes)
             ni.capture(cast(Node[])ctx.nodes);
+        return CommandResult(true);
     }
 }
 

@@ -24,6 +24,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate.utils;
 import nijilive;
+import nijilive.core.nodes.drivers; // SimplePhysics registrations
 import i18n;
 import std.utf;
 import std.algorithm;
@@ -34,6 +35,7 @@ import std.array;
 private {
 
 TypedInspector!Node delegate()[] nodeInspectors;
+bool inspectorsInitialized = false;
 
 void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Node)();
@@ -52,6 +54,7 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Layout, GridDeformer)();
 
     ngRegisterInspector!(ModelEditSubMode.Layout, Puppet)();
+    inspectorsInitialized = true;
 }
 
 }
@@ -67,6 +70,9 @@ void ngRegisterInspector(ModelEditSubMode mode, T: Puppet)() {
 
 
 InspectorHolder!Node ngNodeInspector(Node[] targets) {
+    if (!inspectorsInitialized) {
+        initInspectors();
+    }
     auto mode = ngModelEditSubMode;
     auto result = new InspectorHolder!Node(targets, mode);
     result.setInspectors(nodeInspectors.map!((i) => i()).array);

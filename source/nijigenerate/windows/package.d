@@ -23,3 +23,4 @@ public import nijigenerate.windows.flipconfig;
 public import nijigenerate.windows.videoexport;
 public import nijigenerate.windows.editanim;
 public import nijigenerate.windows.automeshbatch;
+public import nijigenerate.windows.command_browser;
