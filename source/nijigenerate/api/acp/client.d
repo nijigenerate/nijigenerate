@@ -450,6 +450,13 @@ class ACPClient {
         ]);
         return JSONValue([
             "protocolVersion": JSONValue(ACP_PROTOCOL_VERSION),
+            "clientCapabilities": JSONValue([
+                "fs": JSONValue([
+                    "readTextFile": JSONValue(false),
+                    "writeTextFile": JSONValue(false)
+                ]),
+                "terminal": JSONValue(false)
+            ]),
             "clientInfo": clientInfo
         ]);
     }
