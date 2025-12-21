@@ -29,11 +29,12 @@ import std.random;
 import std.typecons : Nullable, nullable, tuple;
 import core.thread.fiber : Fiber;
 import core.time;
+import core.atomic : atomicLoad, atomicStore;
 
 import vibe.http.server;
 import vibe.http.router;
 import vibe.http.client;
-import vibe.core.core : runApplication, exitEventLoop, yield, runTask, setTimer, sleep;
+import vibe.core.core : runApplication, exitEventLoop, setTimer, sleep;
 import vibe.core.stream : OutputStream, InputStream;
 import vibe.stream.operations : readAllUTF8;
 import std.uri : decodeComponent;
@@ -57,14 +58,9 @@ class HttpTransport : Transport {
         JSONValue*[Fiber] responseSlots;
         string host;
         ushort port;
-        bool running;
-        bool shouldExit;
-        bool loopExited;
-        // Run on the event loop to stop listening and exit cleanly
-        private void performShutdown() nothrow @system {
-            try { listener.stopListening(); } catch (Exception) {}
-            try { exitEventLoop(); } catch (Exception) {}
-        }
+        shared bool running;
+        shared bool shouldExit;
+        shared bool loopExited;
         // Stop listening without touching the event loop state (safe after loop exit)
         private void performStopListening() nothrow @system {
             try { listener.stopListening(); } catch (Exception) {}
@@ -249,9 +245,9 @@ private:
         // Keep the handler alive and send a heartbeat every ~15s to prevent
         // idle proxies from closing the connection.
 
-        while (running) {
+        while (atomicLoad(running)) {
             sleep(10.seconds);
-            if (!running) break;
+            if (!atomicLoad(running)) break;
             try { 
                 stream.write(": heartbeat\n\n"); 
                 stream.flush(); 
@@ -436,23 +432,23 @@ public:
         settings.bindAddresses = [host];
         listener = listenHTTP(settings, router);
 
-        running = true;
+        atomicStore(running, true);
         scope(exit) performStopListening();
 
-        if (shouldExit) { 
-            running = false; 
+        if (atomicLoad(shouldExit)) {
+            atomicStore(running, false);
             return; 
         }
 
         setTimer(100.msecs, { 
-            if (shouldExit) { 
+            if (atomicLoad(shouldExit)) {
                 try exitEventLoop(); catch (Exception) {}
             }
         }, true);
 
         httpLog("[MCP/HTTP] run(): listening on %s:%s", host, port);
         runApplication();
-        loopExited = true;
+        atomicStore(loopExited, true);
         httpLog("[MCP/HTTP] run(): event loop exited");
     }
 
@@ -460,8 +456,8 @@ public:
         import std.stdio : writefln;
         httpLog("[MCP/HTTP] close(): request transport shutdown");
         // Mark for early exit and stop accepting new connections ASAP
-        shouldExit = true;
-        running = false;
+        atomicStore(shouldExit, true);
+        atomicStore(running, false);
         // Proactively close any connected SSE clients to release handles
         synchronized (this) {
             size_t i = 0;
@@ -474,12 +470,10 @@ public:
         }
         // Stop listener immediately even if event loop is not running yet
         performStopListening();
-        // Stop listener and exit event loop on the event loop thread
-        runTask(&performShutdown);
     }
 
     bool hasExited() const @nogc nothrow @safe { 
-        return loopExited; 
+        return atomicLoad(loopExited);
     }
 }
 

@@ -3,6 +3,8 @@ module nijigenerate.api.mcp.task;
 import core.thread : Thread;
 import core.sync.mutex : Mutex;
 import core.sync.condition : Condition;
+import vibe.core.task : Task;
+import vibe.core.core : vibeYield = yield;
 
 // Queue and synchronization
 // Simple queue item representing a command to run on the main thread
@@ -69,8 +71,23 @@ T ngRunInMainThread(T)(T delegate() action) {
             }
         }
     });
-    synchronized (lock) { 
-        while (!done) cond.wait(); 
+
+    // If we're running inside a vibe TaskFiber (i.e., on the MCP server thread),
+    // avoid blocking the OS thread with Condition.wait() and instead yield.
+    // Blocking the event loop thread can cause timeouts and internal fiber issues.
+    bool inVibeTaskFiber = cast(bool) Task.getThis();
+
+    if (inVibeTaskFiber) {
+        for (;;) {
+            synchronized (lock) {
+                if (done) break;
+            }
+            vibeYield();
+        }
+    } else {
+        synchronized (lock) {
+            while (!done) cond.wait();
+        }
     }
     if (captured !is null) throw captured;
     static if (!is(T: void))

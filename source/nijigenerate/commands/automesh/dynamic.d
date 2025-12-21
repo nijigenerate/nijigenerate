@@ -88,23 +88,34 @@ template ApplyAutoMeshPT(alias PT)
             }
             if (targets.length == 0) return CommandResult(false, "No deformable targets");
 
-            Texture[] toLock; bool[Texture] locked;
-            void collectPartTextures(Node n) {
-                if (n is null) return;
-                if (auto p = cast(Part)n) {
-                    if (p.textures.length > 0 && p.textures[0] !is null) {
-                        auto tex = p.textures[0];
-                        if (!(tex in locked)) { tex.lock(); locked[tex] = true; toLock ~= tex; }
-                    }
-                }
-                foreach (child; n.children) collectPartTextures(child);
-            }
-            foreach (t; targets) collectPartTextures(t);
+            // NOTE: AutoMesh alpha acquisition may call Texture.getTextureData().
+            // Ensure any referenced Part textures are locked on the main thread before running the worker.
+            Texture[] toLock;
+            bool[Texture] locked;
 
             auto mtx = new Mutex(); bool canceled = false; size_t total = targets.length; size_t done = 0; string currentName;
             string procName = chosen.displayName(); bool workerFinished = false; ulong popupId = 0;
             auto scheduleTask = delegate(){
                 import bindbc.imgui; import nijigenerate.widgets : incButtonColored;
+
+                // Lock all Part textures that can be referenced by the selected targets and their descendants.
+                Node[] lockTargets;
+                foreach (t; targets) {
+                    if (auto n = cast(Node)t) lockTargets ~= n;
+                }
+                auto drawables = enumerateDrawablesForAutoMesh(lockTargets);
+                foreach (d; drawables) {
+                    auto p = cast(Part)d;
+                    if (p is null) continue;
+                    foreach (tex; p.textures) {
+                        if (tex is null) continue;
+                        if (tex in locked) continue;
+                        tex.lock();
+                        locked[tex] = true;
+                        toLock ~= tex;
+                    }
+                }
+
                 popupId = NotificationPopup.instance().popup((ImGuiIO* io){
                     float prog = 0; string cur; size_t _done, _total; string _proc;
                     _done = done; _total = total; cur = currentName; _proc = procName;
@@ -126,7 +137,6 @@ template ApplyAutoMeshPT(alias PT)
                         chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
                     }
                     auto fib = new Fiber(&work); while (fib.state != Fiber.State.TERM) fib.call();
-                    foreach (tex; toLock) if (tex) tex.unlock();
                     ngMcpEnqueueAction({
                         foreach (t; targets) if (auto pm = t.uuid in results) {
                             auto mesh = *pm;
@@ -136,6 +146,7 @@ template ApplyAutoMeshPT(alias PT)
                             else
                                 applyMeshToTarget(t, mesh.vertices, &mesh);
                         }
+                        foreach (tex; toLock) if (tex) tex.unlock();
                         workerFinished = true; NotificationPopup.instance().close(popupId);
                     });
                 });

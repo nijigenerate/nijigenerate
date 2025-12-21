@@ -1304,29 +1304,21 @@ protected:
         if (ctxImgui is null || ctxImgui.Style.Colors.length == 0) {
             return;
         }
-        ImVec2 avail = incAvailableSpace();
         auto style = igGetStyle();
 
         // controls (right aligned)
         auto statusLabel = _("Status: %s").format(statusText).toStringz();
-        ImVec2 szStatus;
-        igCalcTextSize(&szStatus, statusLabel, null, false, 0);
-
-        auto newLabel = "\ue266".toStringz();
-        ImVec2 szBtnTxt;
-        igCalcTextSize(&szBtnTxt, newLabel, null, false, 0);
-        float btnW = szBtnTxt.x + style.FramePadding.x * 2;
-        float totalW = szStatus.x + style.ItemSpacing.x + btnW;
-        float baseX = igGetCursorPosX();
-        ImVec2 availCR;
-        igGetContentRegionAvail(&availCR);
-        float availX = availCR.x;
-        float offsetX = (availX > totalW) ? (availX - totalW) : 0;
-        igSetCursorPosX(baseX + offsetX);
-
         igTextUnformatted(statusLabel);
         igSameLine();
-        if (igButton(newLabel)) {
+
+        ImVec2 avail = incAvailableSpace();
+        auto newLabel = "\ue266".toStringz();
+        float btnSize = 24;
+        float totalW = style.ItemSpacing.x + btnSize;
+        float offsetX = (avail.x > totalW) ? (avail.x - totalW) : 0;
+        incDummy(ImVec2(offsetX, 1));
+        igSameLine();
+        if (incButtonColored(newLabel, ImVec2(btnSize, btnSize))) {
             stopAgent();
             statusText = "Initializing...";
             clearState();

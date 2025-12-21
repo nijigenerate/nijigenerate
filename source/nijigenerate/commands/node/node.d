@@ -46,7 +46,7 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
         TW!(string, "className", "class name of new node.", !exposeClassName),
         TW!(string, "_suffix", "suffix pattern for new node", false)) {
     this(string className, string _suffix = null) {
-        super(null, "Insert Node " ~ className ~ " next to selection", className, _suffix);
+        super(null, "Insert Node " ~ className ~ " under parent of selection", className, _suffix);
     }
 
     override

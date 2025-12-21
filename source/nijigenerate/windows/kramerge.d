@@ -65,7 +65,9 @@ private:
 
         ExPart findPartForSegment(string segment) {
             foreach(ref ExPart part; parts) {
-                if (part.layerPath == segment) return part;
+                // Some puppets may have missing/empty layerPath; fall back to name-based pseudo path.
+                auto candidate = part.layerPath.length ? part.layerPath : ("/" ~ part.name);
+                if (candidate == segment) return part;
             }
             return null;
         }
@@ -73,7 +75,8 @@ private:
         ExPart findPartForName(string segment) {
             import std.path : baseName;
             foreach(ref ExPart part; parts) {
-                if (baseName(part.layerPath) == baseName(segment)) return part;
+                auto candidate = part.layerPath.length ? part.layerPath : ("/" ~ part.name);
+                if (baseName(candidate) == baseName(segment)) return part;
             }
             return null;
         }
@@ -235,12 +238,14 @@ private:
         foreach(i; 0..bindings.length) {
             auto layer = bindings[i];
 
-            if (onlyUnmapped && layer.replaceTexture) continue;
+            auto root = incActivePuppet.root;
+            bool isUnmapped = !layer.replaceTexture || layer.node is null || layer.node is root;
+            if (onlyUnmapped && !isUnmapped) continue;
             if (layerFilter.length > 0 && !layer.indexableName.canFind(layerFilter.toLower)) continue;
 
             igPushID(cast(int)i);
                 const(char)* displayName = layer.layerName;
-                if (layer.replaceTexture) {
+                if (layer.replaceTexture && layer.node !is null) {
                     displayName = _("%s  %s").format(layer.layer.name, layer.node.name).toStringz;
                 }
 
@@ -310,7 +315,7 @@ private:
                     // Don't allow multiple bindings to a single part.
                     foreach(ref expn; bindings) {
                         if (expn.node == part) {
-                            expn.node = null;
+                            expn.node = incActivePuppet.root;
                             expn.replaceTexture = false;
                         }
                     }
@@ -383,11 +388,25 @@ protected:
     override
     void onUpdate() {
         ImVec2 space = incAvailableSpace();
+        auto style = igGetStyle();
         float gapspace = 8;
         float childWidth = (space.x/2);
-        float childHeight = space.y-(24);
-        float filterWidgetHeight = 45;
-        float optionsListHeight = 24;
+        // Reserve enough space for the footer (3 toggle switches + a button).
+        const float footerBtnH = 24;
+        // Match ngCheckbox's internal style (smaller FramePadding) so we don't over-reserve height.
+        igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(2, 2));
+        igPushStyleVar(ImGuiStyleVar.ItemInnerSpacing, ImVec2(2, 2));
+        igPushStyleVar(ImGuiStyleVar.FrameRounding, 2);
+        float checkboxLineH = igGetFrameHeight();
+        igPopStyleVar(3);
+
+        float footerHeight = checkboxLineH * 3 + style.ItemSpacing.y * 2;
+        float footerActionsHeight = gapspace + footerBtnH;
+        if (footerHeight < footerActionsHeight) footerHeight = footerActionsHeight;
+        float childHeight = space.y - footerHeight;
+        if (childHeight < 0) childHeight = 0;
+        float filterWidgetHeight = igGetFrameHeight() + style.ItemSpacing.y;
+        float optionsListHeight = 0;
 
         igBeginGroup();
             if (igBeginChild("###Layers", ImVec2(childWidth, childHeight))) {
@@ -396,8 +415,6 @@ protected:
                 igBeginListBox("###LayerList", ImVec2(childWidth-gapspace, childHeight-filterWidgetHeight-optionsListHeight));
                     layerView();
                 igEndListBox();
-                
-                ngCheckbox(__("Only show unmapped"), &onlyUnmapped);
             }
             igEndChild();
 
@@ -413,37 +430,44 @@ protected:
             igEndChild();
         igEndGroup();
 
+        // Footer: options and merge action.
+        // Use a table to keep bool switch hitboxes from overlapping the button area.
+        const float btnW = 64;
+        const float btnH = 24;
+        if (igBeginTable("###KraMergeFooter", 2, ImGuiTableFlags.SizingStretchProp)) {
+            igTableSetupColumn("###Options", ImGuiTableColumnFlags.WidthStretch);
+            igTableSetupColumn("###Actions", ImGuiTableColumnFlags.WidthFixed, btnW);
 
-        igBeginGroup();
+            igTableNextRow();
 
-            // Auto-rename
-            ngCheckbox(__("Auto-rename"), &renameMapped);
-            incTooltip(_("Renames all mapped nodes to match the names of the KRA layer that was merged in to them."));
+            igTableNextColumn();
+                igBeginGroup();
+                    ngCheckbox(__("Only show unmapped"), &onlyUnmapped);
 
-            igSameLine(0, 8);
-            ngCheckbox(__("Re-translate"), &retranslateMapped);
-            incTooltip(_("Moves all nodes so that they visually match their position in the canvas."));
+                    // Auto-rename
+                    ngCheckbox(__("Auto-rename"), &renameMapped);
+                    incTooltip(_("Renames all mapped nodes to match the names of the KRA layer that was merged in to them."));
 
-            // igSameLine(0, 8);
-            // ngCheckbox(__("Re-sort"), &resortModel);
-            // incTooltip(_("[NOT IMPLEMENTED] Sorts all nodes zSorting position to match the sorting in the KRA."));
+                    ngCheckbox(__("Re-translate"), &retranslateMapped);
+                    incTooltip(_("Moves all nodes so that they visually match their position in the canvas."));
 
-
-            // Spacer
-            space = incAvailableSpace();
-            incSpacer(ImVec2(-(64), 32));
-
-            // 
-            igSameLine(0, 0);
-            if (incButtonColored(__("Merge"), ImVec2(64, 24))) {
-                appliedTextures = true;
-                apply();
-                this.close();
-                
+                    // ngCheckbox(__("Re-sort"), &resortModel);
+                    // incTooltip(_("[NOT IMPLEMENTED] Sorts all nodes zSorting position to match the sorting in the KRA."));
                 igEndGroup();
-                return;
-            }
-        igEndGroup();
+
+            igTableNextColumn();
+                igDummy(ImVec2(0, gapspace));
+                if (incButtonColored(__("Merge"), ImVec2(btnW, btnH))) {
+                    appliedTextures = true;
+                    apply();
+                    this.close();
+
+                    igEndTable();
+                    return;
+                }
+
+            igEndTable();
+        }
     }
 
     override
@@ -473,4 +497,3 @@ public:
         flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
     }
 }
-

@@ -670,22 +670,38 @@ void ngMcpStop() {
         try {
             gServerInstance.stop();
             mcpLog("[MCP] stop() invoked on transport");
-            // Wait briefly for transport event loop to exit to free the port
+            // Wait briefly for the transport/event loop to exit and the thread to finish.
             import core.time : msecs;
             import core.thread : Thread;
-            foreach (i; 0 .. 20) { // up to ~1s
-                if (gServerInstance.transportExited()) { mcpLog("[MCP] transport exited"); break; }
+            foreach (i; 0 .. 40) { // up to ~2s
+                bool exited = gServerInstance.transportExited();
+                bool running = (gServerThread !is null) && gServerThread.isRunning();
+                if (exited && !running) { mcpLog("[MCP] transport exited and thread stopped"); break; }
                 Thread.sleep(50.msecs);
             }
         } catch (Exception e) {
             mcpLog("[MCP] stop() threw: %s", e.msg);
         }
     } else mcpLog("[MCP] no server instance to stop");
-    // Do not block the UI thread waiting for shutdown; the server thread is daemon and will exit.
-    gServerThread = null;
-    gServerInstance = null;
-    gServerStarted = false;
-    mcpLog("[MCP] server state cleared (stopped=true)");
+
+    // Only clear global references once the transport has exited and the thread has stopped.
+    // Clearing early can leave a running thread without a strongly-held owner reference.
+    bool canClear = true;
+    if (gServerInstance !is null && !gServerInstance.transportExited()) canClear = false;
+    if (gServerThread !is null && gServerThread.isRunning()) canClear = false;
+
+    if (canClear) {
+        if (gServerThread !is null) {
+            try gServerThread.join(); catch (Exception) {}
+        }
+        gServerThread = null;
+        gServerInstance = null;
+        gTransport = null;
+        gServerStarted = false;
+        mcpLog("[MCP] server state cleared (stopped=true)");
+    } else {
+        mcpLog("[MCP][WARN] stop requested but server did not exit in time; keeping references");
+    }
 }
 
 // Public: apply settings without per-frame polling
