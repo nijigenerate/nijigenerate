@@ -16,7 +16,7 @@ import nijigenerate.viewport.common.mesheditor.brushes;
 import nijigenerate.project;
 import nijigenerate.core.math.mesh;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import std.algorithm.mutation;
 import std.algorithm;
@@ -32,6 +32,8 @@ import std.algorithm;
 import std.array;
 import std.range;
 
+import nijigenerate.core.math.vertex : position;
+
 bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
     if (vertices.length < 4) {
         gridAxes.length = 0;
@@ -39,9 +41,10 @@ bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
     }
     int[float] yPoints;
     int[float] xPoints;
-    foreach (v; vertices) {
-        yPoints[v.position.y] ++;
-        xPoints[v.position.x] ++;
+    foreach (ref v; vertices) {
+        auto pos = position(v);
+        yPoints[pos.y] ++;
+        xPoints[pos.x] ++;
     }
     foreach (k; yPoints.keys()) {
         if (yPoints[k] != xPoints.keys().length) {
@@ -57,6 +60,10 @@ bool isGrid(T)(T[] vertices, out float[][] gridAxes) {
     gridAxes[0] = yPoints.keys().sort.array;
     gridAxes[1] = xPoints.keys().sort.array;
     return true;
+}
+
+bool isGrid(Vec2Array vertices, out float[][] gridAxes) {
+    return isGrid(vertices.toArray(), gridAxes);
 }
 
 class IncMesh {
@@ -94,7 +101,7 @@ private:
         
         void printConnections(MeshVertex* v) {
             ushort[] conns;
-            vec2[] coords;
+            Vec2Array coords;
             foreach(conn; v.connections) {
                 foreach(key, value; iVertices) {
                     if (value == conn) {
@@ -114,8 +121,7 @@ private:
         axes = [];
         float[][] gridAxes;
         if (reset) {
-            auto dataVertices = &data.vertices;
-            if (isGrid(data.vertices, gridAxes)) {
+    if (isGrid(data.vertices, gridAxes)) {
                 foreach (axis; gridAxes) {
                     float[] newAxis;
                     foreach (axValue; axis) {
@@ -249,9 +255,9 @@ private:
         return *newData;
     }
 
-    vec3[] points;
-    vec3[] lines;
-    vec3[] wlines;
+    Vec3Array points;
+    Vec3Array lines;
+    Vec3Array wlines;
     void regen() {
         points.length = 0;
         
@@ -494,8 +500,8 @@ public:
             inDbgDrawPoints(vec4(0, 0, 0, 1), trans);
             if (markers) {
                 foreach (marker; markers) {
-                    auto pts = marker[0].map!(i=>points[i]).array;
-                    inDbgSetBuffer(pts);
+                    auto pts = marker[0].map!(i => points[i].toVector()).array;
+                    inDbgSetBuffer(Vec3Array(pts));
                     inDbgPointsSize(10);
                     inDbgDrawPoints(marker[1], trans);
                 }
@@ -507,7 +513,7 @@ public:
     }
 
     void drawPointSubset(MeshVertex*[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
-        vec3[] subPoints;
+        Vec3Array subPoints;
 
         if (subset.length == 0) return;
 
@@ -560,11 +566,11 @@ public:
         changed = true;
     }
 
-    vec2[] getOffsets() {
-        vec2[] offsets;
+    Vec2Array getOffsets() {
+        Vec2Array offsets;
 
         offsets.length = vertices.length;
-        if (data.vertices !is null && data.vertices.length >= vertices.length) {
+        if (data.vertices.length >= vertices.length) {
             foreach(idx, vertex; vertices) {
                 offsets[idx] = vertex.position - data.vertices[idx];
             }
@@ -572,7 +578,7 @@ public:
         return offsets;
     }
 
-    void applyOffsets(vec2[] offsets) {
+    void applyOffsets(Vec2Array offsets) {
         foreach(idx, vertex; vertices) {
             vertex.position += offsets[idx];
         }
@@ -611,7 +617,7 @@ public:
         return nijigenerate.core.math.getInRect(vertices, min, max, groupId);
     }
 
-    void importVertsAndTris(vec2[] vtx, vec3u[] tris) {
+    void importVertsAndTris(Vec2Array vtx, vec3u[] tris) {
         foreach(v; vtx) {
             this.vertices ~= new MeshVertex(v, []);
         }
@@ -652,7 +658,7 @@ public:
     }
 }
 
-IncMesh ngCreateIncMesh(vec2[] positions) {
+IncMesh ngCreateIncMesh(Vec2Array positions) {
     MeshData data;
     float[][] gridAxes;
     if (isGrid(positions, gridAxes)) {
@@ -669,8 +675,8 @@ IncMesh ngCreateIncMesh(vec2[] positions) {
     return new IncMesh(data);
 }
 
-vec2[] ngMeshPositions(IncMesh mesh) {
-    vec2[] positions;
+Vec2Array ngMeshPositions(IncMesh mesh) {
+    Vec2Array positions;
     positions.length = mesh.vertices.length;
     foreach (i, v; mesh.vertices) {
         if (v !is null)
@@ -687,4 +693,8 @@ MeshVertex*[] ngMeshVerticesFromPositions(const(vec2)[] positions) {
         result ~= mv;
     }
     return result;
+}
+
+MeshVertex*[] ngMeshVerticesFromPositions(Vec2Array positions) {
+    return ngMeshVerticesFromPositions(positions.toArray());
 }

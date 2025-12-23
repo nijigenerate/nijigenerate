@@ -4,6 +4,7 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate;
 import nijilive;
+import nijilive.math : Vec2Array;
 import std.format;
 import i18n;
 
@@ -105,12 +106,12 @@ public:
 private:
     DeformableState captureState() {
         DeformableState result;
-        result.vertices = self.vertices.dup;
+        result.vertices = self.vertices.toArray();
         return result;
     }
 
     void applyState(ref DeformableState st) {
-        self.rebuffer(st.vertices);
+        self.rebuffer(Vec2Array(st.vertices));
         self.clearCache();
     }
 }

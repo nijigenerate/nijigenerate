@@ -19,7 +19,7 @@ import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 //import std.stdio;
@@ -297,7 +297,7 @@ public:
 
     override bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         incStatusTooltip(_("Switch Mode"), _("TAB"));
-        // Deform表示をバインディングから読み取って反映（読み取り専用。書き込みはしない）
+        // Seed deform display from the binding (read-only; no writes).
         void seedViewFromBinding() {
             auto parameter = incArmedParameter();
             if (!parameter) return;
@@ -306,10 +306,10 @@ public:
                 if (deform is null) return;
                 auto kp = parameter.findClosestKeypoint();
                 auto binding = deform.getValue(kp);
-                vec2[] offs = binding.vertexOffsets.dup;
+                Vec2Array offs = binding.vertexOffsets.dup;
                 size_t targetLen = fDefImpl.getOffsets().length;
                 if (offs.length != targetLen) {
-                    vec2[] resized;
+                    Vec2Array resized;
                     resized.length = targetLen;
                     size_t n = offs.length < targetLen ? offs.length : targetLen;
                     foreach (i; 0..n) resized[i] = offs[i];
@@ -395,7 +395,7 @@ public:
                     fDefImpl.setTarget(cast(T)filter);
                     // Reset deform editor baseline; do not push here
                     fDefImpl.getCleanDeformAction();
-                    // 画面表示を現在のバインディングからシード
+                    // Seed the view from the current binding
                     seedViewFromBinding();
                 }
                 break;
@@ -429,7 +429,7 @@ public:
         case SubToolMode.Vertex:
             if (acquired) {
                 bool result = fVertImpl.getTool().update(io, fVertImpl, vertActionId, changed);
-                // 頂点数やマップ更新が起きたら、変形を現在の形状へ正確に移す
+                // When vertex count or map updates, transfer deformation to the current shape accurately
                 if (fVertImpl.vertexMapDirty) {
                     fVertImpl.applyToTarget();
                     auto parameter = incArmedParameter();

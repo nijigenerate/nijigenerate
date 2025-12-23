@@ -4,7 +4,8 @@ import nijigenerate.viewport.common.mesheditor.brushes.base;
 import nijigenerate.viewport.common;
 import nijigenerate.widgets.drag;
 import nijilive;
-import nijilive.core.dbg;
+import nijilive.math : Vec2Array, Vec3Array;
+import nijigenerate.core.dbg;
 import inmath;
 import bindbc.imgui;
 
@@ -32,7 +33,7 @@ class CircleBrush : Brush {
     }
 
     override
-    float[] weightsAt(vec2 center, vec2[] positions) {
+    float[] weightsAt(vec2 center, Vec2Array positions) {
         float[] result;
         foreach (p; positions) {
             result ~= weightAt(center, p);
@@ -42,7 +43,7 @@ class CircleBrush : Brush {
     
     override
     void draw(vec2 center, mat4 transform) {
-        vec3[] drawPoints = incCreateCircleBuffer(center, vec2(radius, radius), 32);
+        Vec3Array drawPoints = incCreateCircleBuffer(center, vec2(radius, radius), 32);
         drawPoints ~= vec3(center.x - radius, center.y, 0);
         drawPoints ~= vec3(center.x + radius, center.y, 0);
         drawPoints ~= vec3(center.x, center.y - radius, 0);

@@ -1,7 +1,7 @@
 module nijigenerate.core.cv.image;
 
 import std.exception : enforce;
-import mir.ndslice.slice; // sliced() 拡張メソッドを利用するため
+import mir.ndslice.slice; // for sliced() extension method
 import mir.ndslice.allocation;
  
 /// Image (pixel) format.
@@ -36,7 +36,7 @@ private:
     ubyte[] _data = null;
  
 public:
-    // 新しいバッファを確保する場合
+    // When allocating a new buffer
     this(size_t width, size_t height, ImageFormat format) {
         _width = width;
         _height = height;
@@ -45,7 +45,7 @@ public:
         _data = new ubyte[width * height * channels];
     }
  
-    // 既存のバッファを利用する場合
+    // When using an existing buffer
     this(size_t width, size_t height, ImageFormat format, BitDepth depth, ubyte[] data) {
         _width = width;
         _height = height;
@@ -92,22 +92,22 @@ public:
  
     @property auto empty() const { return _data is null; }
  
-    /// sliced プロパティ：内部データを mir.ndslice の sliced() 拡張メソッドで取得
+    /// sliced property: get internal data via mir.ndslice's sliced() extension method
     @property auto sliced(T = ubyte)() inout {
-        // ※ data() は関数であり、this.data!T() を呼び出す必要がある
+        // Note: data() is a function, so call this.data!T()
         return this.data!T().sliced(_height, _width, channels);
     }
  
-    // 以下、asType やその他のメソッドは省略（参考コードそのまま）
+    // asType and other methods omitted (left as in the reference code)
 }
  
 unittest {
-    // 新しいバッファを確保する例 (RGB_ALPHA: 4 チャンネル)
+    // Example: allocating a new buffer (RGB_ALPHA: 4 channels)
     auto imbin = new Image(640, 480, ImageFormat.IF_RGB_ALPHA);
-    auto slice1 = imbin.sliced!float; // float型としてスライス
+    auto slice1 = imbin.sliced!float; // slice as float
     assert(slice1.shape == [480, 640, 4]);
  
-    // 既存のバッファを利用する例 (モノクロ: 1 チャンネル)
+    // Example: using an existing buffer (monochrome: 1 channel)
     ubyte[] d = new ubyte[200 * 150];
     auto img = new Image(200, 150, ImageFormat.IF_MONO, BitDepth.BD_8, d);
     auto imgSlice = img.sliced;

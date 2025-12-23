@@ -19,6 +19,8 @@ import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
+import nijilive.core.render.immediate : inDrawTextureAtPosition;
+import nijilive.core.texture : Texture;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.imgui;
 //import std.stdio;
@@ -48,11 +50,23 @@ public:
         if (targets.length > 0) {
             foreach (target; targets) {
                 if (Part part = cast(Part)target) {
-                    // Draw albedo texture at 0, 0
-                    auto origin = vec2(0, 0);
-                    if (part.textures[0] !is null) {
-                        if (DynamicComposite dcomposite = cast(DynamicComposite)part) origin = dcomposite.textureOffset;
-                        inDrawTextureAtPosition(part.textures[0], origin);
+                    auto originalDeform = part.deformation.dup;
+                    scope(exit) {
+                        part.deformation = originalDeform;
+                        part.refreshDeform();
+                    }
+                    if (part.deformation.length != part.vertices.length) {
+                        part.deformation.length = part.vertices.length;
+                    }
+                    foreach (i; 0 .. part.deformation.length) {
+                        part.deformation[i] = vec2(0, 0);
+                    }
+                    part.refreshDeform();
+
+                    Texture baseTexture = part.textures.length ? part.textures[0] : null;
+                    if (baseTexture !is null) {
+                        vec2 texturePosition = -part.getMesh().origin;
+                        inDrawTextureAtPosition(baseTexture, texturePosition, part.opacity, part.tint, part.screenTint);
                     } else {
                         mat4 transform = part.transform.matrix.inverse;
                         part.setOneTimeTransform(&transform);

@@ -15,7 +15,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -163,24 +163,33 @@ public:
 
 }
 
-vec2[] getVertices(T)(T node) {
+Vec2Array getVertices(T)(T node) {
     if (auto deform = cast(Deformable)node) {
         return deform.vertices;
     }
-    return [node.transform.translation.xy];
+    return Vec2Array([node.transform.translation.xy]);
 }
-void setVertices(T)(T node, vec2[] value) {
+void setVertices(T)(T node, Vec2Array value) {
     if (auto deform = cast(Deformable)node) {
         deform.vertices = value;
     } else {
         node.transform.translation = vec3(value[0], value[1], 0);
     }
 }
-vec2[] toVertices(T: MeshVertex*)(T[] array) {
-    return array.map!((MeshVertex* vtx){return vtx.position; }).array;
+Vec2Array toVertices(T: MeshVertex*)(T[] array) {
+    return Vec2Array(array.map!((MeshVertex* vtx){return vtx.position; }).array);
 }
 MeshVertex*[] toMVertices(T: vec2)(T[] array) {
     return array.map!((vec2 vtx) { return new MeshVertex(vtx); }).array;
+}
+
+MeshVertex*[] toMVertices(Vec2Array array) {
+    MeshVertex*[] result;
+    result.reserve(array.length);
+    foreach (i; 0 .. array.length) {
+        result ~= new MeshVertex(array[i].toVector());
+    }
+    return result;
 }
 
 void resize(T:MeshVertex*)(ref T[] array, ulong size) {
@@ -197,7 +206,7 @@ void resize(T:MeshVertex*)(ref T[] array, ulong size) {
 bool toBool(T: MeshVertex*)(T vtx) { return vtx !is null; }
 bool toBool(T: vec2)(T vtx) { return true; }
 void drawPointSubset(T)(T[] subset, vec4 color, mat4 trans = mat4.identity, float size=6) {
-    vec3[] subPoints;
+    Vec3Array subPoints;
     if (subset.length == 0) return;
 
     // Updates all point positions
@@ -238,12 +247,22 @@ public:
 
 void incUpdateWeldedPoints(Drawable drawable) {
     foreach (welded; drawable.welded) {
+        auto weldedVertsAoS = welded.target.vertices.toArray();
         ptrdiff_t[] indices;
         foreach (i, v; drawable.vertices) {
             auto vv = drawable.transform.matrix * vec4(v, 0, 1);
-            auto minDistance = welded.target.vertices.enumerate.minElement!((a)=>(welded.target.transform.matrix * vec4(a.value, 0, 1)).distance(vv))();
-            if ((welded.target.transform.matrix * vec4(minDistance[1], 0, 1)).distance(vv) < 4)
-                indices ~= minDistance[0];
+            ptrdiff_t bestIndex = -1;
+            float bestDist = float.max;
+            foreach (idx, candidate; weldedVertsAoS) {
+                auto candidateWorld = welded.target.transform.matrix * vec4(candidate, 0, 1);
+                auto dist = candidateWorld.distance(vv);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIndex = cast(ptrdiff_t)idx;
+                }
+            }
+            if (bestIndex != -1 && bestDist < 4)
+                indices ~= bestIndex;
             else
                 indices ~= -1;
         }
@@ -307,4 +326,3 @@ IncMeshEditorOne ngGetEditorFor(Node target) {
     }
     return targetEditor;
 }
-

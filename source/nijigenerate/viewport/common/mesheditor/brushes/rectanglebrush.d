@@ -4,7 +4,7 @@ import nijigenerate.viewport.common.mesheditor.brushes.base;
 import nijigenerate.viewport.common;
 import nijigenerate.widgets.drag;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import inmath;
 import bindbc.imgui;
 
@@ -39,7 +39,7 @@ class RectangleBrush : Brush {
     }
 
     override
-    float[] weightsAt(vec2 center, vec2[] positions) {
+    float[] weightsAt(vec2 center, Vec2Array positions) {
         float[] result;
         foreach (p; positions) {
             result ~= weightAt(center, p);

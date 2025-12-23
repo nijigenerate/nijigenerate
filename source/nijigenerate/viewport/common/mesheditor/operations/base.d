@@ -23,7 +23,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -276,8 +276,8 @@ public:
     abstract void refreshMesh();
     abstract void importMesh(ref MeshData data);
     abstract void mergeMesh(ref MeshData data, mat4 matrix);
-    abstract void applyOffsets(vec2[] offsets);
-    abstract vec2[] getOffsets();
+    abstract void applyOffsets(Vec2Array offsets);
+    abstract Vec2Array getOffsets();
 
     abstract void applyToTarget();
     abstract void applyPreview();

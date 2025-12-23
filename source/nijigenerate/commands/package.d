@@ -85,11 +85,20 @@ static foreach (ii, AA; AllCommandMaps) {
 }
 
 // Fail fast if AutoMesh initializers are not visible at CT (prevents silent skips)
-static if (!__traits(compiles, {
-        import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
-        nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
-    })) {
-    pragma(msg, "[CT][Warn] AutoMeshKey initializer not visible (skipped compile-time guard)");
+enum bool _autoMeshKeyInitVisible = __traits(compiles, {
+    import nijigenerate.commands.automesh.dynamic : AutoMeshKey;
+    nijigenerate.commands.automesh.dynamic.ngInitCommands!AutoMeshKey();
+});
+
+enum bool _autoMeshGuardEnabled = false;
+
+static if (!_autoMeshKeyInitVisible) {
+    static if (_autoMeshGuardEnabled) {
+        mixin _AutoMeshInitBreakdown!();
+        static assert(0, "[CT][Guard] AutoMeshKey initializer not visible");
+    } else {
+        pragma(msg, "[CT][Warn] AutoMeshKey initializer not visible (skipped compile-time guard)");
+    }
 }
 
 static if (!__traits(compiles, {
@@ -100,6 +109,29 @@ static if (!__traits(compiles, {
         nijigenerate.commands.automesh.config.ngInitCommands!AutoMeshTypedCommand();
     })) {
     pragma(msg, "[CT][Warn] AutoMeshTypedCommand initializer not visible at this stage (will init explicitly at runtime)");
+}
+
+private mixin template _AutoMeshInitBreakdown() {
+    import nijigenerate.viewport.vertex.automesh : AutoMeshProcessorTypes;
+    import nijigenerate.viewport.vertex.automesh.meta : AMProcInfo;
+
+    static foreach (idx, PT; AutoMeshProcessorTypes) {
+        static if (!__traits(compiles, {
+            import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
+            alias Dummy = ApplyAutoMeshPT!PT;
+        })) {
+            pragma(msg, "[CT][AutoMeshKey][Fail] idx=" ~ idx.stringof ~ " type=" ~ PT.stringof ~ " id=" ~ AMProcInfo!(PT).id ~ " (ApplyAutoMeshPT instantiation failed)");
+        }
+    }
+}
+
+version (ngAutoMeshInitDiagForce) {
+    import nijigenerate.viewport.vertex.automesh : AutoMeshProcessorTypes;
+    import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
+    import std.traits : fullyQualifiedName;
+    static foreach (idx, PT; AutoMeshProcessorTypes) {
+        mixin("alias _AutoMeshInitDiagForce" ~ idx.stringof ~ " = ApplyAutoMeshPT!(" ~ fullyQualifiedName!PT ~ ");");
+    }
 }
 
 // Explicit initialization to avoid module constructor cycles
@@ -130,7 +162,7 @@ void ngInitAllCommands() {
     import std.stdio;
     import std.conv;
     foreach (cmds; AllCommandMaps) {
-        // cmds は連想配列(enumType => valueType)
+        // cmds is an associative array (enumType => valueType)
         foreach (k, v; cmds) {
             writeln("[", typeof(k).stringof, "] ", k.to!string, " => ", v);
         }

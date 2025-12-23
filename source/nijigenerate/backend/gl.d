@@ -267,7 +267,8 @@ void incGLBackendRenderDrawData(ImDrawData* draw_data) {
                     glScissor(cast(int)clip_rect.x, cast(int)(fb_height - clip_rect.w), cast(int)(clip_rect.z - clip_rect.x), cast(int)(clip_rect.w - clip_rect.y));
 
                     // Ugly hack
-                    if (cast(GLuint)(cast(int*)(pcmd.TextureId)) == inGetRenderImage()) glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                    auto renderImageHandle = cast(GLuint)inGetRenderImage();
+                    if (cast(GLuint)(cast(int*)(pcmd.TextureId)) == renderImageHandle) glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                     else glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
                     // Bind texture, Draw

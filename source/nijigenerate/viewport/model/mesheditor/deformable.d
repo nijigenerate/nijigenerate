@@ -19,13 +19,12 @@ import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.nodes.utils: removeByValue;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
 import std.algorithm.searching;
 //import std.stdio;
-import std.range: enumerate, zip;
 import std.algorithm : map, sort;
 import std.algorithm.iteration : uniq;
 import std.array;
@@ -35,8 +34,8 @@ import std.array;
  */
 class IncMeshEditorOneFor(T: Deformable, EditMode mode: EditMode.ModelEdit): IncMeshEditorOneDeformable if (!is(T: Drawable)) {
 protected:
-    vec2[] deformation;
-    vec2[] inputVertices;
+    Vec2Array deformation;
+    Vec2Array inputVertices;
 
     override
     void substituteMeshVertices(MeshVertex* meshVertex) {
@@ -113,15 +112,17 @@ public:
     }
 
     override
-    void applyOffsets(vec2[] offsets) {
-        foreach(v,o; zip(vertices, offsets)) {
-            v.position += o;
+    void applyOffsets(Vec2Array offsets) {
+        auto count = min(vertices.length, offsets.length);
+        foreach (i; 0 .. count) {
+            vec2 delta = offsets[i].toVector();
+            vertices[i].position += delta;
         }
     }
 
     override
-    vec2[] getOffsets() {
-        vec2[] offsets;
+    Vec2Array getOffsets() {
+        Vec2Array offsets;
 
         offsets.length = vertices.length;
         foreach(idx, vertex; vertices) {
@@ -292,7 +293,7 @@ public:
         updateTarget();
         auto trans = transform;
 
-        vec3[] points;
+        Vec3Array points;
 
         points ~= vec3(0, 0, 0);
         inDbgSetBuffer(points);
@@ -313,7 +314,7 @@ public:
                 void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color) {
                     if (curve.controlPoints.length == 0)
                         return;
-                    vec3[] lines;
+                    Vec3Array lines;
                     foreach (i; 1..100) {
                         lines ~= vec3(curve.point((i - 1) / 100.0), 0);
                         lines ~= vec3(curve.point(i / 100.0), 0);
@@ -323,13 +324,14 @@ public:
                         inDbgDrawLines(color, trans);
                     }
                 }
-                auto curve = deformer.createCurve(inputVertices.map!((v)=>v).array);
+                auto curve = deformer.createCurve(inputVertices.dup);
                 drawLines(curve, trans, edgeColor);
             } else if (auto grid = cast(GridDeformer)target) {
                 auto baseVerts = grid.vertices;
                 if (baseVerts.length >= 4) {
-                    auto xs = baseVerts.map!(v => v.x).array;
-                    auto ys = baseVerts.map!(v => v.y).array;
+                    auto baseVertsAoS = baseVerts.toArray();
+                    auto xs = baseVertsAoS.map!(v => v.x).array;
+                    auto ys = baseVertsAoS.map!(v => v.y).array;
                     xs.sort();
                     ys.sort();
                     xs = xs.uniq.array;
@@ -337,24 +339,24 @@ public:
                     size_t cols = xs.length;
                     size_t rows = ys.length;
                     if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
-                        vec3[] lines;
+                        Vec3Array lines;
                         bool haveDeform = grid.deformation.length == baseVerts.length;
                         foreach (y; 0 .. rows) {
                             foreach (x; 0 .. cols) {
                                 size_t idx = y * cols + x;
-                                vec2 startPos = baseVerts[idx];
+                                vec2 startPos = baseVertsAoS[idx];
                                 if (haveDeform) startPos += grid.deformation[idx];
                                 auto start = vec3(startPos, 0);
                                 if (x + 1 < cols) {
                                     size_t nextIdx = idx + 1;
-                                    vec2 rightPos = baseVerts[nextIdx];
+                                    vec2 rightPos = baseVertsAoS[nextIdx];
                                     if (haveDeform) rightPos += grid.deformation[nextIdx];
                                     lines ~= start;
                                     lines ~= vec3(rightPos, 0);
                                 }
                                 if (y + 1 < rows) {
                                     size_t nextIdx = idx + cols;
-                                    vec2 downPos = baseVerts[nextIdx];
+                                    vec2 downPos = baseVertsAoS[nextIdx];
                                     if (haveDeform) downPos += grid.deformation[nextIdx];
                                     lines ~= start;
                                     lines ~= vec3(downPos, 0);
@@ -399,7 +401,7 @@ public:
         }
 
         if (isSelecting) {
-            vec3[] rectLines = incCreateRectBuffer(selectOrigin, mousePos);
+            Vec3Array rectLines = incCreateRectBuffer(selectOrigin, mousePos);
             inDbgSetBuffer(rectLines);
             if (!mutateSelection) inDbgDrawLines(vec4(1, 0, 0, 1), trans);
             else if(invertSelection) inDbgDrawLines(vec4(0, 1, 1, 0.8), trans);
@@ -416,7 +418,7 @@ public:
 
         vec2 camSize = camera.getRealSize();
         vec2 camPosition = camera.position;
-        vec3[] axisLines;
+        Vec3Array axisLines;
         if (mirrorHoriz) {
             axisLines ~= incCreateLineBuffer(
                 vec2(mirrorOrigin.x, -camSize.y - camPosition.y),

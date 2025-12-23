@@ -17,7 +17,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -69,8 +69,8 @@ protected:
     }
 
 public:
-    vec2[] deformation;
-    vec2[] vertices;
+    Vec2Array deformation;
+    Vec2Array vertices;
 
     this() {
         super(true);
@@ -112,12 +112,12 @@ public:
     }
 
     override
-    void applyOffsets(vec2[] offsets) {
+    void applyOffsets(Vec2Array offsets) {
         mesh.applyOffsets(offsets);
     }
 
     override
-    vec2[] getOffsets() {
+    Vec2Array getOffsets() {
         return mesh.getOffsets();
     }
 
@@ -141,10 +141,10 @@ public:
     override
     ulong getVertexFromPoint(vec2 mousePos) {
         // return vertices position from mousePos
-        foreach(i, ref vert; vertices) {
-            if (abs(vert.distance(mousePos)) < mesh.selectRadius/incViewportZoom) {
+        foreach (i; 0 .. vertices.length) {
+            vec2 vert = vertices[i].toVector();
+            if (abs(vert.distance(mousePos)) < mesh.selectRadius / incViewportZoom)
                 return i;
-            }
         }
         return -1;
     }
@@ -229,7 +229,7 @@ public:
 
     override
     void createPathTarget() {
-        getPath().createTarget(mesh, mat4.identity, vertices); //transform.inverse() * target.transform.matrix);
+        getPath().createTarget(mesh, mat4.identity, &vertices); //transform.inverse() * target.transform.matrix);
     }
 
     override
@@ -244,7 +244,7 @@ public:
 
     override
     void remapPathTarget(ref CatmullSpline p, mat4 trans) {
-        p.remapTarget(mesh, trans, vertices); //mat4.identity);
+        p.remapTarget(mesh, trans, &vertices); //mat4.identity);
     }
 
     override
@@ -314,10 +314,10 @@ public:
         }
 
         drawable.drawMeshLines(edgeColor);
-        vec3[] points;
+        Vec3Array points;
         points.length = vertices.length;
         foreach (i; 0..vertices.length) {
-            points[i] = vec3(vertices[i], 0);
+            points[i] = vec3(vertices[i].toVector(), 0);
         }
         if (points.length > 0) {
             inDbgSetBuffer(points);
@@ -337,8 +337,8 @@ public:
 
             if (markers) {
                 foreach (marker; markers) {
-                    auto pts = marker[0].map!(i=>points[i]).array;
-                    inDbgSetBuffer(pts);
+                    auto pts = marker[0].map!(i => points[i].toVector()).array;
+                    inDbgSetBuffer(Vec3Array(pts));
                     inDbgPointsSize(10);
                     inDbgDrawPoints(marker[1], trans);
                 }
@@ -379,7 +379,7 @@ public:
         }
 
         if (isSelecting) {
-            vec3[] rectLines = incCreateRectBuffer(selectOrigin, mousePos);
+            Vec3Array rectLines = incCreateRectBuffer(selectOrigin, mousePos);
             inDbgSetBuffer(rectLines);
             if (!mutateSelection) inDbgDrawLines(vec4(1, 0, 0, 1), trans);
             else if(invertSelection) inDbgDrawLines(vec4(0, 1, 1, 0.8), trans);
@@ -396,7 +396,7 @@ public:
 
         vec2 camSize = camera.getRealSize();
         vec2 camPosition = camera.position;
-        vec3[] axisLines;
+        Vec3Array axisLines;
         if (mirrorHoriz) {
             axisLines ~= incCreateLineBuffer(
                 vec2(mirrorOrigin.x, -camSize.y - camPosition.y),

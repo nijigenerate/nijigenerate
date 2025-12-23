@@ -15,7 +15,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -193,7 +193,7 @@ class NodeSelect : Tool, Draggable {
     void draw(Camera camera, IncMeshEditorOne impl) {
         if (impl.deformOnly) {
             float radius = 5;
-            vec3[] drawPoints = incCreateCircleBuffer(impl.mousePos, vec2(radius, radius), 32);
+            Vec3Array drawPoints = incCreateCircleBuffer(impl.mousePos, vec2(radius, radius), 32);
             inDbgSetBuffer(drawPoints);
             inDbgPointsSize(4);
             inDbgDrawLines(vec4(0, 1, 0, 1),impl. transform);

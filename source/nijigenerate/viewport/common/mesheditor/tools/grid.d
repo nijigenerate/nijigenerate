@@ -16,7 +16,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.opengl;
 import bindbc.imgui;
@@ -399,7 +399,7 @@ private:
         if (mesh is null || mesh.axes.length != 2)
             return;
 
-        vec3[] lines;
+        Vec3Array lines;
         vec4 color = vec4(0.2, 0.9, 0.9, 1);
 
         if (currentAction == GridActionID.Create) {

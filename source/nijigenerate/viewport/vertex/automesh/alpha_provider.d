@@ -202,7 +202,7 @@ private ProjectionResult projectAlphaExec(Node[] targets, Puppet puppet, Project
         if (d.deformation.length != verts.length) d.refreshDeform();
 
         // Precompute world positions
-        vec2[] wpos; wpos.length = verts.length;
+        Vec2Array wpos; wpos.length = verts.length;
         foreach (i, v; verts) {
             wpos[i] = (m * vec4(v + d.deformation[i], 0, 1)).xy;
         }

@@ -17,7 +17,7 @@ enum ErrorCode {
     internalError  = -32603
 }
 
-/// Common ACP method names (CodingAgent側で扱うもの)。
+/// Common ACP method names (handled on the Coding Agent side).
 enum string ACP_METHOD_INITIALIZE = "initialize";
 enum string ACP_METHOD_PING       = "ping";
 enum string ACP_METHOD_APPLY_EDIT = "workspace/applyEdit";

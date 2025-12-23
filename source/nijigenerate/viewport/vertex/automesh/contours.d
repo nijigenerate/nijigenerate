@@ -7,6 +7,7 @@ import std.json : JSONValue, JSONType, parseJSON;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
+import nijilive.math : Vec2Array;
 import inmath;
 import nijigenerate.core.cv; // replaced from dcv-like APIs
 import mir.ndslice;
@@ -117,19 +118,19 @@ public:
         findContours(imbin, foundContours, hierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
 
         auto contoursToVec2s(ContourType)(ref ContourType contours) {
-            vec2[] result;
+            Vec2Array result;
             foreach (p; contours) result ~= vec2(p.x, p.y);
             return result;
         }
-        auto calcMoment(vec2[] contour) {
-            auto moment = contour.reduce!((a, b) { return a + b; })();
+        auto calcMoment(Vec2Array contour) {
+            auto moment = contour.toArray().reduce!((a, b) { return a + b; })();
             return moment / contour.length;
         }
-        auto scaling(vec2[] contour, vec2 moment, float scale, int erode_dilate) {
-            return contour.map!((c) { return (c - moment) * scale + moment; }).array;
+        auto scaling(Vec2Array contour, vec2 moment, float scale, int erode_dilate) {
+            return contour.toArray().map!((c) { return (c - moment) * scale + moment; }).array;
         }
-        auto resampling(vec2[] contour, double rate, bool mirrorHoriz_, float axisHoriz_, bool mirrorVert_, float axisVert_) {
-            vec2[] sampled;
+        auto resampling(Vec2Array contour, double rate, bool mirrorHoriz_, float axisHoriz_, bool mirrorVert_, float axisVert_) {
+            Vec2Array sampled;
             ulong base = 0;
             if (mirrorHoriz_) {
                 float minDistance = -1;
@@ -207,19 +208,19 @@ public:
         findContours(imbin, foundContours, hierarchy, RetrievalMode.EXTERNAL, ApproximationMethod.SIMPLE);
 
         auto contoursToVec2s(ContourType)(ref ContourType contours) {
-            vec2[] result;
+            Vec2Array result;
             foreach (p; contours) result ~= vec2(p.x, p.y);
             return result;
         }
-        auto calcMoment(vec2[] contour) {
-            auto moment = contour.reduce!((a, b) { return a + b; })();
+        auto calcMoment(Vec2Array contour) {
+            auto moment = contour.toArray().reduce!((a, b) { return a + b; })();
             return moment / contour.length;
         }
-        auto scaling(vec2[] contour, vec2 moment, float scale, int erode_dilate) {
-            return contour.map!((c) { return (c - moment) * scale + moment; }).array;
+        auto scaling(Vec2Array contour, vec2 moment, float scale, int erode_dilate) {
+            return contour.toArray().map!((c) { return (c - moment) * scale + moment; }).array;
         }
-        auto resampling(vec2[] contour, double rate, bool mirrorHoriz_, float axisHoriz_, bool mirrorVert_, float axisVert_) {
-            vec2[] sampled;
+        auto resampling(Vec2Array contour, double rate, bool mirrorHoriz_, float axisHoriz_, bool mirrorVert_, float axisVert_) {
+            Vec2Array sampled;
             ulong base = 0;
             if (mirrorHoriz_) {
                 float minDistance = -1;

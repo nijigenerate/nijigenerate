@@ -18,7 +18,7 @@ import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate;
 import nijilive;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm.mutation;
@@ -86,12 +86,12 @@ public:
     }
 
     override
-    void applyOffsets(vec2[] offsets) {
+    void applyOffsets(Vec2Array offsets) {
     }
 
     override
-    vec2[] getOffsets() {
-        return null;
+    Vec2Array getOffsets() {
+        return Vec2Array.init;
     }
 
     override
@@ -377,7 +377,7 @@ public:
         }
 
         if (isSelecting) {
-            vec3[] rectLines = incCreateRectBuffer(selectOrigin, mousePos);
+            Vec3Array rectLines = incCreateRectBuffer(selectOrigin, mousePos);
             inDbgSetBuffer(rectLines);
             if (!mutateSelection) inDbgDrawLines(vec4(1, 0, 0, 1), trans);
             else if(invertSelection) inDbgDrawLines(vec4(0, 1, 1, 0.8), trans);
@@ -397,7 +397,7 @@ public:
 
         vec2 camSize = camera.getRealSize();
         vec2 camPosition = camera.position;
-        vec3[] axisLines;
+        Vec3Array axisLines;
         if (mirrorHoriz) {
             axisLines ~= incCreateLineBuffer(
                 vec2(mirrorOrigin.x, -camSize.y - camPosition.y),

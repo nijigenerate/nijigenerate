@@ -187,7 +187,7 @@ private:
             cache.wrapW = wrapW;
             cache.dataVer = dataVer;
         } else if (versionChanged) {
-            // length shrink →再計算（まれ）
+            // length shrink -> recompute (rare)
             if (lengthChanged && lines.length < cache.heights.length) {
                 cache.heights.length = 0;
                 cache.lens.length = 0;
@@ -205,7 +205,7 @@ private:
                 cache.wrapW = wrapW;
                 cache.dataVer = dataVer;
             } else {
-                // length grow (append) →新行だけ追加
+                // length grow (append) -> add only new lines
                 if (lengthChanged && lines.length > cache.heights.length) {
                     auto start = cache.heights.length;
                     cache.heights.length = lines.length;
@@ -221,7 +221,7 @@ private:
                         cache.totalHeight += h;
                     }
                 }
-                // 更新が入った範囲のみ再計算
+                // Recompute only the updated range
                 if (dirtyFrom != size_t.max && dirtyFrom < lines.length) {
                     foreach (i; dirtyFrom .. lines.length) {
                         auto disp = displayLine(i);
@@ -239,7 +239,7 @@ private:
                 cache.dataVer = dataVer;
             }
         } else {
-            // 完全ヒット: 再計算不要
+            // Full hit: no recompute needed
         }
 
         float prefixH = 0;
@@ -265,7 +265,7 @@ private:
                 }
             }
             y += h;
-            // これ以降の行も全て下に位置するので、ウィンドウ下端より下なら打ち切る
+            // All remaining lines are below; stop if past the window bottom
             if (prefixH + y > relBottom && !visible) break;
         }
         // Advance cursor so scrollbar size matches total content.
@@ -635,7 +635,7 @@ private:
                             merged.object["text"].str = d["text"].str ~ v["text"].str;
                             res.object[k] = merged;
                         } else {
-                            // 非textのときは配列に積む
+                            // If not text, push into an array
                             JSONValue merged;
                             if (d.type == JSONType.array)
                                 merged.array = d.array ~ [v];
@@ -693,8 +693,8 @@ private:
         return shown;
     }
 
-    // focusKeys: when非空 → そのキーを含む枝だけを表示。
-    // allowAllBelow: true のとき子孫はフィルタを適用せず全表示（＝キーにヒットしたノード配下）。
+    // focusKeys: when non-empty -> show only branches containing those keys.
+    // allowAllBelow: when true, show descendants without filtering (under a key hit).
     bool renderJsonTree(JSONValue v, string label, float wrapW, string path = "", size_t siblingIdx = 0, string[] focusKeys = null, bool allowAllBelow = false) {
         string nextLabel(string lbl, string p) {
             auto pathNext = p.length ? (p ~ "/" ~ lbl) : lbl;
@@ -1457,7 +1457,7 @@ protected:
             igEndTabBar();
         }
 
-        // Plan overlay (shown until新しいPlanが来る)
+        // Plan overlay (shown until a new plan arrives)
         if (hasPlan && planView.lines.length) {
             igSeparator();
             igText(_("Plan").toStringz());

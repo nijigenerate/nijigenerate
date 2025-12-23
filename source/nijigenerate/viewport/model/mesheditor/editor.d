@@ -17,7 +17,7 @@ public import nijigenerate.viewport.model.mesheditor.node;
 import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 import nijigenerate.viewport.common.mesheditor.tools.enums;
 import bindbc.opengl;
 import bindbc.imgui;

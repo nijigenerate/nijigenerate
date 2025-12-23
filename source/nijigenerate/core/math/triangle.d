@@ -3,6 +3,7 @@ module nijigenerate.core.math.triangle;
 import nijigenerate.core.math.vertex;
 import nijigenerate.viewport.common.mesh;
 import nijilive.math.triangle;
+import nijilive.math : Vec2Array;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 
@@ -14,6 +15,23 @@ import std.math : isClose;
 import std.array;
 import std.traits;
 import core.exception;
+
+private Vec2Array toVec2Array(T)(T[] vertices) {
+    static if (is(T == Vec2Array))
+        return vertices;
+    else static if (is(T == vec2))
+        return Vec2Array(vertices);
+    else static if (is(T == MeshVertex*)) {
+        Vec2Array result = Vec2Array(vertices.length);
+        foreach (i, vtx; vertices) {
+            result[i] = vtx.position;
+        }
+        return result;
+    }
+    else {
+        static assert(false, "Unsupported vertex array type: "~T.stringof);
+    }
+}
 
 Deformation* deformByDeformationBinding(DeformationParameterBinding binding, DeformationParameterBinding srcBinding, vec2u index, bool flipHorz = false) {
     if (!binding || !srcBinding) return null;
@@ -38,34 +56,35 @@ Deformation* deformByDeformationBinding(DeformationParameterBinding binding, Def
 }
 
 Deformation* deformByDeformationBinding(T)(T[] vertices, DeformationParameterBinding binding, vec2u index, bool flipHorz = false) {
+    auto vecVertices = toVec2Array(vertices);
     if (!binding) {
         return null;
     }
     if (auto part = cast(Drawable)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
-        return deformByDeformationBinding(vertices, part, deform, flipHorz);
+        return deformByDeformationBinding(vecVertices, part, deform, flipHorz);
     } else if (auto grid = cast(GridDeformer)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
-        return deformByDeformationBinding(vertices, grid, deform, flipHorz);
+        return deformByDeformationBinding(vecVertices, grid, deform, flipHorz);
     } else if (auto deformable = cast(PathDeformer)binding.getTarget().node) {
         Deformation deform = binding.getValue(index);
-        return deformByDeformationBinding(vertices, deformable, deform, flipHorz);
+        return deformByDeformationBinding(vecVertices, deformable, deform, flipHorz);
     }
     return null;
 }
 
-Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, Deformation deform, bool flipHorz = false) {
+Deformation* deformByDeformationBinding(S: Drawable)(Vec2Array vecVertices, S part, Deformation deform, bool flipHorz = false) {
 
     // Check whether deform has more than 1 triangle.
     // If not, returns default Deformation which has dummpy offsets.
-    if (deform.vertexOffsets.length < 3 || vertices.length < 3 || part.getMesh().vertices.length < 3) {
-        vec2[] vertexOffsets = [];
-        for (int i = 0; i < vertices.length; i++)
+    if (deform.vertexOffsets.length < 3 || vecVertices.length < 3 || part.getMesh().vertices.length < 3) {
+        Vec2Array vertexOffsets;
+        for (int i = 0; i < vecVertices.length; i++)
             vertexOffsets ~= vec2(0, 0);
         return new Deformation(vertexOffsets);
     }
 
-    auto origVertices = vertices.dup;
+    auto origVertices = vecVertices.dup;
 
     // find triangle which covers specified point. 
     // If no triangl is found, nearest triangl for the point is selected.
@@ -155,8 +174,8 @@ Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, De
     }
 
     // Apply transform for mesh
-    vec2[] transformMesh(ref MeshData bindingMesh, Deformation deform) {
-        vec2[] result;
+    Vec2Array transformMesh(ref MeshData bindingMesh, Deformation deform) {
+        Vec2Array result;
         if (bindingMesh.vertices.length != deform.vertexOffsets.length) {
             result.length = bindingMesh.vertices.length;
             return result;
@@ -169,7 +188,7 @@ Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, De
     }
 
     // Calculate position of the vertex using coordinates of the triangle.      
-    vec2 transformPointInTriangleCoords(vec2 pt, vec2 offset, vec2[] vertices, ref int[] triangle) {
+    vec2 transformPointInTriangleCoords(vec2 pt, vec2 offset, Vec2Array vertices, ref int[] triangle) {
         auto p1 = vertices[triangle[0]];
         auto p2 = vertices[triangle[1]];
         auto p3 = vertices[triangle[2]];
@@ -179,10 +198,10 @@ Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, De
     }
 
     MeshData bindingMesh = part.getMesh();
-    Deformation* newDeform = new Deformation([]);
+    Deformation* newDeform = new Deformation;
 
     auto targetMesh = transformMesh(bindingMesh, deform);
-    foreach (i, v; vertices) {
+    foreach (i, v; vecVertices) {
         vec2 pt = position(v);
         if (flipHorz)
             pt.x = -pt.x;
@@ -199,12 +218,16 @@ Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, De
     return newDeform;
 }
 
-Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
+Deformation* deformByDeformationBinding(T, S: Drawable)(T[] vertices, S part, Deformation deform, bool flipHorz = false) {
+    return deformByDeformationBinding(toVec2Array(vertices), part, deform, flipHorz);
+}
+
+Deformation* deformByDeformationBinding(S: PathDeformer)(Vec2Array vecVertices, S deformable, Deformation deform, bool flipHorz = false) {
     // Check whether deform has more than 1 triangle.
     // If not, returns default Deformation which has dummpy offsets.
-    if (deform.vertexOffsets.length < 2 || vertices.length < 2 || deformable.vertices.length < 2) {
-        vec2[] vertexOffsets = [];
-        for (int i = 0; i < vertices.length; i++)
+    if (deform.vertexOffsets.length < 2 || vecVertices.length < 2 || deformable.vertices.length < 2) {
+        Vec2Array vertexOffsets;
+        for (int i = 0; i < vecVertices.length; i++)
             vertexOffsets ~= vec2(0, 0);
         return new Deformation(vertexOffsets);
     }
@@ -221,9 +244,9 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
     auto originalCurve = deformable.createCurve(origControlPoints);
     auto deformedCurve = deformable.createCurve(deformedControlPoints);
 
-    Deformation* newDeform = new Deformation([]);
+    Deformation* newDeform = new Deformation;
 
-    foreach (i, v; vertices) {
+    foreach (i, v; vecVertices) {
         auto cVertex = position(v);
         float t = originalCurve.closestPoint(cVertex);
         vec2 closestPointOriginal = originalCurve.point(t);
@@ -245,18 +268,30 @@ Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S defo
     return newDeform;
 }
 
-Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
-    auto gridVerts = deformable.vertices;
-    auto offsets = deform.vertexOffsets;
+Deformation* deformByDeformationBinding(T, S: PathDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
+    return deformByDeformationBinding(toVec2Array(vertices), deformable, deform, flipHorz);
+}
+
+Deformation* deformByDeformationBinding(S: GridDeformer)(Vec2Array vecVertices, S deformable, Deformation deform, bool flipHorz = false) {
+    Vec2Array gridVerts = deformable.vertices.dup;
+    Vec2Array offsets = deform.vertexOffsets.dup;
     if (gridVerts.length < 4 || offsets.length != gridVerts.length) {
-        vec2[] zeroOffsets;
-        zeroOffsets.length = vertices.length;
-        foreach (ref ofs; zeroOffsets) ofs = vec2(0, 0);
-        return new Deformation(zeroOffsets);
+        Vec2Array zeroOffsets;
+        zeroOffsets.length = vecVertices.length;
+        foreach (i; 0 .. zeroOffsets.length) zeroOffsets[i] = vec2(0, 0);
+        auto def = new Deformation;
+        def.vertexOffsets = zeroOffsets;
+        return def;
     }
 
-    auto xsRaw = gridVerts.map!(v => v.x).array;
-    auto ysRaw = gridVerts.map!(v => v.y).array;
+    float[] xsRaw;
+    float[] ysRaw;
+    xsRaw.length = gridVerts.length;
+    ysRaw.length = gridVerts.length;
+    foreach (i, v; gridVerts) {
+        xsRaw[i] = v.x;
+        ysRaw[i] = v.y;
+    }
     xsRaw.sort();
     ysRaw.sort();
     auto xs = xsRaw.uniq.array;
@@ -264,15 +299,17 @@ Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S defo
     size_t cols = xs.length;
     size_t rows = ys.length;
     if (cols < 2 || rows < 2 || cols * rows != gridVerts.length) {
-        vec2[] zeroOffsets;
-        zeroOffsets.length = vertices.length;
-        foreach (ref ofs; zeroOffsets) ofs = vec2(0, 0);
-        return new Deformation(zeroOffsets);
+        Vec2Array zeroOffsets;
+        zeroOffsets.length = vecVertices.length;
+        foreach (i; 0 .. zeroOffsets.length) zeroOffsets[i] = vec2(0, 0);
+        auto def = new Deformation;
+        def.vertexOffsets = zeroOffsets;
+        return def;
     }
 
-    vec2[] samplePositions;
-    samplePositions.length = vertices.length;
-    foreach (i, vertex; vertices) {
+    Vec2Array samplePositions;
+    samplePositions.length = vecVertices.length;
+    foreach (i, vertex; vecVertices) {
         samplePositions[i] = position(vertex);
         if (flipHorz) {
             samplePositions[i].x = -samplePositions[i].x;
@@ -325,8 +362,8 @@ Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S defo
         return a * (1 - v) + b * v;
     }
 
-    Deformation* result = new Deformation([]);
-    result.vertexOffsets.length = vertices.length;
+    Deformation* result = new Deformation;
+    result.vertexOffsets.length = vecVertices.length;
 
     foreach (i, query; samplePositions) {
         size_t cellX, cellY;
@@ -350,11 +387,15 @@ Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S defo
         if (flipHorz) {
             defPos.x = -defPos.x;
         }
-        vec2 original = position(vertices[i]);
+        vec2 original = position(vecVertices[i]);
         result.vertexOffsets[i] = defPos - original;
     }
 
     return result;
+}
+
+Deformation* deformByDeformationBinding(T, S: GridDeformer)(T[] vertices, S deformable, Deformation deform, bool flipHorz = false) {
+    return deformByDeformationBinding(toVec2Array(vertices), deformable, deform, flipHorz);
 }
 
 
@@ -372,7 +413,7 @@ auto triangulate(T)(T[] vertices, vec4 bounds) {
     vec3u[] tri2edge;
     vec2u[] edge2tri;
 
-    vec2[] vtx;
+    Vec2Array vtx;
     vtx.length = 4;
 
     // Define initial state (two tris)
@@ -658,7 +699,13 @@ auto triangulate(T)(T[] vertices, vec4 bounds) {
         }
     }
     tris = tris.filter!((t)=>t.x >= dropVertices && t.y >= dropVertices && t.z >= dropVertices).array;
-    vtx = vtx[dropVertices..$];
+    if (dropVertices > 0 && dropVertices < vtx.length) {
+        auto trimmed = Vec2Array(vtx.length - dropVertices);
+        foreach (i; 0 .. trimmed.length) {
+            trimmed[i] = vtx[i + dropVertices];
+        }
+        vtx = trimmed;
+    }
     foreach (ref t; tris) {
         t.x -= dropVertices;
         t.y -= dropVertices;
@@ -686,9 +733,9 @@ vec4 getBounds(T)(ref T vertices) {
 void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[] vertices , U[] indices, ulong index, V value) if (isNumeric!U) {
     if (vertices.length < 3) return;
     vec2[3] tvertices = [
-        vertices[indices[3*index]].position,
-        vertices[indices[3*index+1]].position,
-        vertices[indices[3*index+2]].position
+        position(vertices[indices[3*index]]),
+        position(vertices[indices[3*index+1]]),
+        position(vertices[indices[3*index+2]])
     ];
 
     vec4 tbounds = getBounds(tvertices);
@@ -699,7 +746,7 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
     foreach (y; 0..bheight) {
         foreach (x; 0..bwidth) {
             vec2 pt = vec2(left + x, top + y);
-            if (isPointInTriangle(pt, tvertices)) {
+            if (isPointInTriangle(pt, Vec2Array(tvertices[]))) {
                 pt-= bounds.xy;
                 if (cast(int)(pt.y * width + pt.x) >= texture.length) {
                     texture[cast(int)(pt.y * width + pt.x)] = value;
@@ -719,9 +766,9 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
         indices[index].y >= vertices.length || 
         indices[index].z >= vertices.length) return;
     tvertices = [
-        vertices[indices[index].x].position,
-        vertices[indices[index].y].position,
-        vertices[indices[index].z].position
+        position(vertices[indices[index].x]),
+        position(vertices[indices[index].y]),
+        position(vertices[indices[index].z])
     ];
 
     vec4 tbounds = getBounds(tvertices);
@@ -732,7 +779,7 @@ void fillPoly(T, S, U, V)(T texture, ulong width, ulong height, vec4 bounds, S[]
     foreach (y; max(0, bounds.y)..min(bheight, height)) {
         foreach (x; max(0, bounds.x)..min(bwidth, width)) {
             vec2 pt = vec2(left + x, top + y);
-            if (isPointInTriangle(pt, tvertices)) {
+            if (isPointInTriangle(pt, Vec2Array(tvertices[]))) {
                 pt-= bounds.xy;
                 if (cast(int)(pt.y * width + pt.x) >= texture.length) {
 //                    import std.stdio;

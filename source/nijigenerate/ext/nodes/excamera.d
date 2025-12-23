@@ -15,7 +15,7 @@ import nijilive.core;
 import nijilive.fmt.serialize;
 //import std.stdio : writeln;
 import nijilive.math;
-import nijilive.core.dbg;
+import nijigenerate.core.dbg;
 
 @TypeId("Camera")
 class ExCamera : Node {

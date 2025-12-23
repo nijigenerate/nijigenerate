@@ -8,9 +8,9 @@
 module nijigenerate.viewport.common;
 import nijilive;
 
-vec3[] incCreateCircleBuffer(vec2 origin, vec2 radii, uint segments)
+Vec3Array incCreateCircleBuffer(vec2 origin, vec2 radii, uint segments)
 {
-    vec3[] lines;
+    Vec3Array lines;
 
     void addPoint(ulong i) {
         float theta = i * 2 * PI / segments;
@@ -25,8 +25,8 @@ vec3[] incCreateCircleBuffer(vec2 origin, vec2 radii, uint segments)
     return lines;
 }
 
-vec3[] incCreateRectBuffer(vec2 from, vec2 to) {
-    return [
+Vec3Array incCreateRectBuffer(vec2 from, vec2 to) {
+    return Vec3Array([
         vec3(from.x, from.y, 0),
         vec3(to.x, from.y, 0),
         vec3(to.x, from.y, 0),
@@ -35,12 +35,12 @@ vec3[] incCreateRectBuffer(vec2 from, vec2 to) {
         vec3(from.x, to.y, 0),
         vec3(from.x, to.y, 0),
         vec3(from.x, from.y, 0),
-    ];
+    ]);
 }
 
-vec3[] incCreateLineBuffer(vec2 from, vec2 to) {
-    return [
+Vec3Array incCreateLineBuffer(vec2 from, vec2 to) {
+    return Vec3Array([
         vec3(from.x, from.y, 0),
         vec3(to.x, to.y, 0),
-    ];
+    ]);
 }

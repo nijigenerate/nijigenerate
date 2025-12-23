@@ -349,13 +349,13 @@ mixin template MultiEdit() {
         float width = igCalcItemWidth();
 
         if (!varName.isShared) {
-            // **varName.isShared が false の場合はエディットボックスを使わず、ComboBox を表示**
+            // **If varName.isShared is false, show a ComboBox instead of an edit box**
             igSetNextItemWidth(width);
             if (igBeginCombo(("##combo_" ~ __traits(identifier, varName)).toStringz, "Select Value")) {
                 foreach (t; targets) {
                     typeof(varName.value) value = varName.get(t);
 
-                    // "オブジェクト名: 値" の形式で表示
+                    // Show in "Object Name: Value" format
                     string displayValue = "%s: %s".format(t.name, value);
 
                     if (igSelectable(displayValue.toStringz, false)) {
@@ -367,7 +367,7 @@ mixin template MultiEdit() {
                 igEndCombo();
             }
         } else {
-            // **varName.isShared が true の場合は通常のエディットボックスを表示**
+            // **If varName.isShared is true, show the normal edit box**
             igSetNextItemWidth(width);
             valueChanged |= editFunc();
         }
@@ -406,7 +406,7 @@ mixin template MultiEdit() {
                 incActionPopGroup();
             }
         } else if (!varR.isShared || !varG.isShared || !varB.isShared) {
-            // 最大のオブジェクト名の幅を計算
+            // Compute the max object name width
             float maxTextWidth = 0;
             foreach (t; targets) {
                 ImVec2 textSize;
@@ -421,18 +421,18 @@ mixin template MultiEdit() {
                 foreach (t; targets) {
                     float[3] rgb = [varR.get(t), varG.get(t), varB.get(t)];
 
-                    // igSelectable を使って行全体を選択可能にする
+                    // Use igSelectable to make the whole row selectable
                     bool selected = false;
                     if (igSelectable(("##row_" ~ t.name).toStringz, false, ImGuiSelectableFlags.None, ImVec2(igCalcItemWidth(), 20))) {
                         selected = true;
                     }
 
-                    // **オブジェクト名を表示（最大幅を確保）**
+                    // **Show object name (reserve max width)**
                     igSameLine();
                     igText(t.name.toStringz);
-                    igSameLine(maxTextWidth + 10); // 余白を確保
+                    igSameLine(maxTextWidth + 10); // Keep spacing
 
-                    // **カラーバーを表示**
+                    // **Show color bar**
                     ImVec4 rgba;
                     rgba.x = rgb[0];
                     rgba.y = rgb[1];
@@ -441,7 +441,7 @@ mixin template MultiEdit() {
 
                     igColorButton(("##color_" ~ t.name).toStringz, rgba, ImGuiColorEditFlags.None, ImVec2(20, 20));
 
-                    // 選択された場合に色を適用
+                    // Apply color when selected
                     if (selected) {
                         incActionPushGroup();
                         varR.value = rgb[0];
