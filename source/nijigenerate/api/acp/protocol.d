@@ -3,7 +3,7 @@ module nijigenerate.api.acp.protocol;
 import std.json;
 
 /// ACP protocol version supported by this implementation.
-enum string ACP_PROTOCOL_VERSION = "2024-11-05";
+enum int ACP_PROTOCOL_VERSION = 1;
 
 /// JSON-RPC version used by ACP.
 enum string JSONRPC_VERSION = "2.0";

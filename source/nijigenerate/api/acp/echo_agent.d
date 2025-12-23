@@ -6,6 +6,7 @@ import std.stdio;
 import std.string;
 import std.json;
 import std.conv : to;
+import nijigenerate.api.acp.protocol : ACP_PROTOCOL_VERSION;
 
 /**
  * Simple ACP echo agent for debugging.
@@ -41,7 +42,7 @@ private JSONValue handle(JSONValue req) {
 
     if (method == "initialize") {
         auto result = JSONValue([
-            "protocolVersion": JSONValue("2024-11-05"),
+            "protocolVersion": JSONValue(ACP_PROTOCOL_VERSION),
             "serverInfo": JSONValue([
                 "name": JSONValue("EchoAgent"),
                 "version": JSONValue("0.0.1")

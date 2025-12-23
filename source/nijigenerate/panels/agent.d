@@ -48,8 +48,6 @@ struct PermissionRequest {
 class AgentPanel : Panel {
 private:
     string statusText = "Idle";
-    string[] logLines;
-    string logBuffer;
     string userText;
     struct LineHeightCache {
         float wrapW = 0;
@@ -66,6 +64,7 @@ private:
         JSONValue payloadMerged; // for tool_call/_update
         bool hasPayloadMerged;
         string status;        // tool status
+        string toolId;        // toolCallId for tool blocks
         LineHeightCache cache;
         uint ver;
         size_t dirtyFrom = size_t.max; // first line index that needs height recompute
@@ -76,21 +75,17 @@ private:
     bool pendingNewline; // true when previous chunk ended with '\n' → next chunk starts a new line
     bool hasPendingRole;
     bool convoContentAdded;
-    bool logContentAdded;
     bool promptPending;
-    uint logVersion;
+    size_t[string] toolBlockIndex;
 
     void clearState() {
         convoBlocks.length = 0;
-        logLines.length = 0;
-        logBuffer = "";
-        logCache = LineHeightCache.init;
-        logVersion = 0;
         pendingBuf = null;
         pendingNewline = false;
         hasPendingRole = false;
         convoContentAdded = false;
-        logContentAdded = false;
+        toolBlockIndex = null;
+        clearAgentLog();
     }
 
     string safeDecode(const(ubyte)[] bytes) {
@@ -122,17 +117,37 @@ private:
     Condition qCond;
     PermissionRequest[] permQueue;
     bool permChanged = false;
+    string agentLogPath;
 
     void log(string msg) {
-        pushLogLine(shrinkLineLog(msg));
-        logBuffer = logLines.join("\n");
+        appendAgentLog(shrinkLineLog(msg));
+    }
+
+    string getAgentLogPath() {
+        if (agentLogPath.length == 0) {
+            import std.file : tempDir;
+            import std.path : buildPath;
+            agentLogPath = buildPath(tempDir(), "nijigenerate-agent.log");
+        }
+        return agentLogPath;
+    }
+
+    void appendAgentLog(string line) {
+        import std.file : append;
+        auto path = getAgentLogPath();
+        append(path, line ~ "\n");
+    }
+
+    void clearAgentLog() {
+        import std.file : write;
+        auto path = getAgentLogPath();
+        write(path, "");
     }
 
     enum size_t kMaxChatLineChars = 200; // reasonable chunk; rely on precise height clipping to avoid overflow
     enum size_t kMaxLogLineChars  = 2000;  // logs stay short to protect DrawList
-    enum size_t kMaxLines      = 4000; // cap to avoid huge draw lists
+    enum size_t kMaxLines      = 4000; // cap total conversation lines
     enum size_t kMaxDrawCharsPerLine = 4000; // safety cap to avoid ImGui 16-bit index overflow
-    LineHeightCache logCache;
 
     void renderClippedLines(const(string)[] lines, float wrapWidth, uint dataVer, ref LineHeightCache cache,
             bool prefixFirstOnly = false, string prefix = "", ImVec4* optColor = null,
@@ -399,7 +414,7 @@ private:
             if (toolId.length) text = "[" ~ toolId ~ "] " ~ text;
 
             bool isInitial = (kind == "tool_call");
-            handleToolUpdate(role, title, text, upd, isInitial, status);
+            handleToolUpdate(role, title, text, upd, isInitial, status, toolId);
             return;
         }
 
@@ -837,15 +852,6 @@ private:
         convoContentAdded = true;
     }
 
-    void pushLogLine(string line) {
-        logLines ~= shrinkLineLog(line);
-        logContentAdded = true;
-        ++logVersion;
-        if (logLines.length > kMaxLines) {
-            auto drop = logLines.length - kMaxLines;
-            logLines = logLines[drop .. $].dup;
-        }
-    }
 
     void appendStream(string role, string text, JSONValue payload = JSONValue.init, string title = "", bool payloadPresent = false, bool forceNewLine = false) {
         if (hasPendingRole && role != pendingRole) {
@@ -904,23 +910,39 @@ private:
         return null;
     }
 
-    void handleToolUpdate(string role, string title, string text, JSONValue payload, bool isInitial, string status) {
+    void handleToolUpdate(string role, string title, string text, JSONValue payload, bool isInitial, string status, string toolId) {
         flushPending(); // avoid mixing with streaming buffers
-        LogBlock* blk = findToolBlock(role);
+        LogBlock* blk = null;
+        if (toolId.length) {
+            if (auto idx = toolId in toolBlockIndex) {
+                if (*idx < convoBlocks.length) {
+                    blk = &convoBlocks[*idx];
+                } else {
+                    toolBlockIndex.remove(toolId);
+                }
+            }
+        }
+        if (blk is null && !toolId.length) {
+            blk = findToolBlock(role);
+        }
         if (isInitial || blk is null) {
             LogBlock nb;
             nb.role = role;
             nb.title = title;
+            nb.toolId = toolId;
             if (text.length)
                 nb.lines ~= text;
             nb.payloadMerged = payload;
             nb.hasPayloadMerged = (payload.type != JSONType.null_);
             nb.status = status;
             nb.ver = 1;
-        convoBlocks ~= nb;
-        convoContentAdded = true;
-        return;
-    }
+            convoBlocks ~= nb;
+            if (toolId.length) {
+                toolBlockIndex[toolId] = convoBlocks.length - 1;
+            }
+            convoContentAdded = true;
+            return;
+        }
         // update existing block
         if (text.length) {
             if (blk.lines.length == 0)
@@ -1392,7 +1414,7 @@ protected:
 
         ImVec2 availLog = incAvailableSpace();
         float inputAreaH = igGetFrameHeightWithSpacing() * 2   // status + separator padding
-                         + igGetStyle().ItemSpacing.y * 3      // tab bar + spacing
+                         + igGetStyle().ItemSpacing.y * 2      // spacing
                          + igGetFrameHeightWithSpacing();      // user message line height
         float planAreaH = 0;
         if (hasPlan && planView.lines.length) {
@@ -1402,60 +1424,37 @@ protected:
         ImVec2 logSize = ImVec2(availLog.x, availLog.y - inputAreaH - planAreaH);
         if (logSize.y < 160) logSize.y = availLog.y * 0.65f;
 
-        // Conversation / Log tabs
-        if (igBeginTabBar("AgentTabs", ImGuiTabBarFlags.None)) {
-            if (igBeginTabItem(_("Conversation").toStringz())) {
-                flushPending(); // show latest partial lines
-                if (igBeginChild("AgentConversation", logSize, true,
-                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-                    auto styleConv = igGetStyle();
-                    foreach (i, ref blk; convoBlocks) {
-                        bool isLast = (i == convoBlocks.length - 1);
-                        final switch (roleKind(blk)) {
-                            case RoleKind.You:
-                                renderYou(blk, logSize.x, styleConv.Colors[0]);
-                                break;
-                            case RoleKind.Tool:
-                                renderTool(blk, logSize.x, isLast);
-                                break;
-                            case RoleKind.AssistantThinking:
-                                renderAssistantThinking(blk, logSize.x);
-                                break;
-                            case RoleKind.AssistantFinal:
-                                renderAssistantFinal(blk, logSize.x, isLast);
-                                break;
-                            case RoleKind.Error:
-                                renderError(blk, logSize.x, isLast);
-                                break;
-                            case RoleKind.Other:
-                                renderOther(blk, logSize.x, isLast);
-                                break;
-                        }
-                    }
+        // Conversation view
+        flushPending(); // show latest partial lines
+        if (igBeginChild("AgentConversation", logSize, true,
+                ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
+            auto styleConv = igGetStyle();
+            foreach (i, ref blk; convoBlocks) {
+                bool isLast = (i == convoBlocks.length - 1);
+                final switch (roleKind(blk)) {
+                    case RoleKind.You:
+                        renderYou(blk, logSize.x, styleConv.Colors[0]);
+                        break;
+                    case RoleKind.Tool:
+                        renderTool(blk, logSize.x, isLast);
+                        break;
+                    case RoleKind.AssistantThinking:
+                        renderAssistantThinking(blk, logSize.x);
+                        break;
+                    case RoleKind.AssistantFinal:
+                        renderAssistantFinal(blk, logSize.x, isLast);
+                        break;
+                    case RoleKind.Error:
+                        renderError(blk, logSize.x, isLast);
+                        break;
+                    case RoleKind.Other:
+                        renderOther(blk, logSize.x, isLast);
+                        break;
                 }
-                igEndChild();
-                convoContentAdded = false;
-                igEndTabItem();
             }
-            if (igBeginTabItem(_("Log").toStringz())) {
-                auto linesLog = expandLines(logLines);
-                auto tvLog = trimBlankEdges(linesLog);
-                auto viewLog = linesLog[tvLog.start .. tvLog.end];
-                if (igBeginChild("AgentLog", logSize, true,
-                        ImGuiWindowFlags.AlwaysVerticalScrollbar)) {
-                    if (tvLog.trimmed) {
-                        LineHeightCache tmp;
-                        renderClippedLines(viewLog, logSize.x, logVersion, tmp);
-                    } else {
-                        renderClippedLines(viewLog, logSize.x, logVersion, logCache);
-                    }
-                }
-                igEndChild();
-                logContentAdded = false;
-                igEndTabItem();
-            }
-            igEndTabBar();
         }
+        igEndChild();
+        convoContentAdded = false;
 
         // Plan overlay (shown until a new plan arrives)
         if (hasPlan && planView.lines.length) {

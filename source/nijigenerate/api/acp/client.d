@@ -5,7 +5,7 @@ import std.json : parseJSON, JSONValue, JSONType;
 import std.stdio : StdioException;
 import std.exception : ErrnoException;
 import std.format : format;
-import std.string : startsWith, strip, split;
+import std.string : startsWith, strip, split, indexOf;
 import std.algorithm : startsWith;
 import std.algorithm.searching : countUntil;
 import std.conv : to;
@@ -46,7 +46,7 @@ class ACPClient {
         Condition inboundCond;
         Thread reader;
         bool readerRunning;
-        string readBuffer;
+        ubyte[] readBuffer;
         Thread stderrThread;
         bool stderrRunning;
         string preferredSendMode = "line"; // "line" or "content-length"
@@ -61,21 +61,188 @@ class ACPClient {
 
     PollResult decodeJson(string payload) {
         PollResult pr;
+        if (payload.length == 0) return pr;
         try {
             auto json = parseJSON(payload);
             log("recv: "~payload);
             pr.result = json;
             pr.hasValue = true;
         } catch (Exception pe) {
-            auto err = drainStderr();
-            auto msg = "JSON parse failed: "~pe.msg~" | line="~payload;
-            if (err.length) msg ~= " | stderr: "~err;
-            msg ~= " | state: " ~ stateSnapshot();
-            log(msg);
-            pr.error = msg;
-            pr.hasValue = true;
+            // Some agents emit JSON as an escaped string (e.g. \"{...}\").
+            JSONValue decoded;
+            if (tryDecodeEscapedJsonString(payload, decoded)) {
+                log("recv: "~decoded.toString());
+                pr.result = decoded;
+                pr.hasValue = true;
+                return pr;
+            }
+            // Retry once after sanitizing control chars inside JSON strings.
+            bool recovered = false;
+            try {
+                auto sanitized = sanitizeJsonPayload(payload);
+                auto json = parseJSON(sanitized);
+                log("recv: "~sanitized);
+                pr.result = json;
+                pr.hasValue = true;
+                recovered = true;
+            } catch (Exception) {
+                // keep original error
+            }
+            if (!recovered) {
+                auto err = drainStderr();
+                auto msg = "JSON parse failed: " ~ pe.msg;
+                logParseFailure(payload, pe.msg);
+                if (err.length) log("stderr: "~err);
+                log("state: " ~ stateSnapshot());
+                pr.error = msg;
+                pr.hasValue = true;
+            }
         }
         return pr;
+    }
+
+    ptrdiff_t findByteIndex(const(ubyte)[] buf, ubyte value) {
+        foreach (i, b; buf) {
+            if (b == value) return cast(ptrdiff_t)i;
+        }
+        return -1;
+    }
+
+    ubyte[] truncateAtNull(ubyte[] bytes) {
+        foreach (i, b; bytes) {
+            if (b == 0) return bytes[0 .. i];
+        }
+        return bytes;
+    }
+
+    bool tryDecodeEscapedJsonString(string payload, out JSONValue result) {
+        result = JSONValue.init;
+        if (payload.length == 0) return false;
+        string candidate = payload;
+        if (payload[0] == '\\') {
+            if (payload.length < 2) return false;
+            if (payload[1] == '{' || payload[1] == '[') {
+                // ok
+            } else if (payload[1] == '"') {
+                if (payload.length < 3 || !(payload[2] == '{' || payload[2] == '[')) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+            candidate = "\"" ~ payload ~ "\"";
+        } else if (payload[0] != '"') {
+            return false;
+        }
+        JSONValue tmp;
+        try {
+            tmp = parseJSON(candidate);
+        } catch (Exception) {
+            return false;
+        }
+        if (tmp.type != JSONType.string) return false;
+        try {
+            result = parseJSON(tmp.str);
+            return true;
+        } catch (Exception) {
+            return false;
+        }
+    }
+
+    void logParseFailure(string payload, string errMsg) {
+        import std.base64 : Base64;
+        import std.conv : to;
+        auto rawBytes = cast(const(ubyte)[])payload;
+        auto rawB64 = Base64.encode(rawBytes);
+        enum size_t kMaxB64 = 600;
+        string head = rawB64.length > kMaxB64 ? rawB64[0 .. kMaxB64].idup : rawB64.idup;
+        string tail = rawB64.length > kMaxB64 ? rawB64[$ - kMaxB64 .. $].idup : "";
+        auto msg = "JSON parse failed: " ~ errMsg ~ " | raw.len=" ~ payload.length.to!string ~
+            " | raw.b64.head=" ~ head;
+        if (tail.length) msg ~= " | raw.b64.tail=" ~ tail;
+        log(msg);
+    }
+
+    void logParseFailureBytes(const(ubyte)[] payload, string errMsg) {
+        import std.base64 : Base64;
+        import std.conv : to;
+        auto rawB64 = Base64.encode(payload);
+        enum size_t kMaxB64 = 600;
+        string head = rawB64.length > kMaxB64 ? rawB64[0 .. kMaxB64].idup : rawB64.idup;
+        string tail = rawB64.length > kMaxB64 ? rawB64[$ - kMaxB64 .. $].idup : "";
+        auto msg = "JSON parse failed: " ~ errMsg ~ " | raw.len=" ~ payload.length.to!string ~
+            " | raw.b64.head=" ~ head;
+        if (tail.length) msg ~= " | raw.b64.tail=" ~ tail;
+        log(msg);
+    }
+
+    string sanitizeJsonPayload(string payload) {
+        import std.array : appender;
+        auto buf = appender!string();
+        bool inString = false;
+        bool escaped = false;
+        auto bytes = cast(const(ubyte)[])payload;
+        for (size_t i = 0; i < bytes.length; ++i) {
+            ubyte b = bytes[i];
+            if (!inString) {
+                if (b == '"') inString = true;
+                buf.put(cast(char)b);
+                continue;
+            }
+            if (escaped) {
+                escaped = false;
+                buf.put(cast(char)b);
+                continue;
+            }
+            if (b == '\\') {
+                if (i + 1 < bytes.length) {
+                    ubyte next = bytes[i + 1];
+                    immutable bool validEscape =
+                        next == '"' || next == '\\' || next == '/' ||
+                        next == 'b' || next == 'f' || next == 'n' ||
+                        next == 'r' || next == 't' || next == 'u';
+                    if (validEscape) {
+                        escaped = true;
+                        buf.put('\\');
+                    } else {
+                        // Fix invalid escapes like \a by escaping the backslash.
+                        buf.put("\\\\");
+                        if (next < 0x20) {
+                            import std.format : format;
+                            buf.put(format("\\u%04x", next));
+                        } else {
+                            buf.put(cast(char)next);
+                        }
+                        ++i;
+                    }
+                } else {
+                    buf.put("\\\\");
+                }
+                continue;
+            }
+            if (b == '"') {
+                inString = false;
+                buf.put('"');
+                continue;
+            }
+            if (b < 0x20) {
+                // Escape control chars inside strings to keep JSON parser happy.
+                switch (b) {
+                    case 0x08: buf.put("\\b"); break;
+                    case 0x09: buf.put("\\t"); break;
+                    case 0x0A: buf.put("\\n"); break;
+                    case 0x0C: buf.put("\\f"); break;
+                    case 0x0D: buf.put("\\r"); break;
+                    default:
+                        import std.format : format;
+                        buf.put(format("\\u%04x", b));
+                        break;
+                }
+                continue;
+            }
+            buf.put(cast(char)b);
+        }
+        return buf.data;
     }
 
     /// Constructor using an existing Transport (e.g. same process).
@@ -283,6 +450,13 @@ class ACPClient {
         ]);
         return JSONValue([
             "protocolVersion": JSONValue(ACP_PROTOCOL_VERSION),
+            "clientCapabilities": JSONValue([
+                "fs": JSONValue([
+                    "readTextFile": JSONValue(false),
+                    "writeTextFile": JSONValue(false)
+                ]),
+                "terminal": JSONValue(false)
+            ]),
             "clientInfo": clientInfo
         ]);
     }
@@ -310,16 +484,11 @@ class ACPClient {
             headers = parseJSON("[]");
         }
         if (headers.type != JSONType.array) headers = parseJSON("[]");
-        // Some agents validate presence of stdio-style fields even for HTTP transport.
-        // Provide empty defaults to satisfy schema: command/args/env.
         auto jsonStr = `[{` ~
             `"type":"http",` ~
             `"name":"` ~ escapeJsonString(name) ~ `",` ~
             `"url":"` ~ escapeJsonString(url) ~ `",` ~
-            `"headers":` ~ headers.toString() ~ `,` ~
-            `"command":"",` ~
-            `"args":[],` ~
-            `"env":[]` ~
+            `"headers":` ~ headers.toString() ~
         `}]`;
         return parseJSON(jsonStr);
     }
@@ -431,39 +600,58 @@ private:
     void readerLoop() {
         while (readerRunning) {
             try {
-                auto line = pipes.stdout.readln();
-                if (line.length == 0) continue;
-                auto raw = line;
-                if (debugEchoPipes) {
+                string chunk;
+                bool hasChunk = readStdoutChunk(chunk);
+                if (!hasChunk) {
+                    if (!readerRunning) break;
+                    Thread.sleep(10.msecs);
+                    continue;
+                }
+                if (debugEchoPipes && chunk.length) {
                     import std.base64 : Base64;
-                    auto b64 = Base64.encode(cast(const(ubyte)[])raw);
+                    auto b64 = Base64.encode(cast(const(ubyte)[])chunk);
                     log("[stdout-raw] " ~ cast(string)b64);
                 }
-                line = line.strip();
-                if (line.length == 0) continue;
-                PollResult pr;
-                if (line.startsWith("Content-Length")) {
-                    auto parts = line.split(":");
-                    size_t len = (parts.length > 1) ? parts[1].strip.to!size_t : 0;
-                    // consume empty line
-                    auto _ = pipes.stdout.readln();
-                    auto buf = new char[](len);
-                    pipes.stdout.rawRead(buf);
-                    pr = decodeJson(cast(string)buf);
-                } else {
-                    pr = decodeJson(line);
-                }
-                if (pr.hasValue) {
-                    inboundMutex.lock();
-                    inboundQueue ~= pr;
-                    inboundCond.notify();
-                    inboundMutex.unlock();
-                }
+                if (chunk.length == 0) continue;
+                appendChunkBytes(cast(const(ubyte)[])chunk);
             } catch (Exception e) {
                 log("reader exit: "~e.msg);
                 break;
             }
         }
+    }
+
+    void appendChunkBytes(const(ubyte)[] chunk) {
+        readBuffer ~= chunk;
+        parseReadBuffer();
+    }
+
+    void parseReadBuffer() {
+        while (readBuffer.length) {
+            auto nl = findByteIndex(readBuffer, cast(ubyte)'\n');
+            if (nl < 0) break;
+            auto lineBytes = readBuffer[0 .. cast(size_t)nl];
+            if (lineBytes.length && lineBytes[$ - 1] == '\r') {
+                lineBytes = lineBytes[0 .. $ - 1];
+            }
+            readBuffer = readBuffer[cast(size_t)nl + 1 .. $];
+            lineBytes = truncateAtNull(lineBytes);
+            if (lineBytes.length == 0) continue;
+            auto pr = decodeJson(cast(string)lineBytes);
+            if (pr.error.length) {
+                logParseFailureBytes(lineBytes, pr.error);
+            }
+            enqueueResult(pr);
+        }
+    }
+
+
+    void enqueueResult(PollResult pr) {
+        if (!pr.hasValue) return;
+        inboundMutex.lock();
+        inboundQueue ~= pr;
+        inboundCond.notify();
+        inboundMutex.unlock();
     }
 
     /// read available stdout into buffer with timeout (ms). returns true if any bytes read.
@@ -502,16 +690,12 @@ private:
 
     string drainStderr() {
         string output;
-        if (pipes.stderr.isOpen()) {
-            while (!pipes.stderr.eof) {
-                try {
-                    auto ln = pipes.stderr.readln();
-                    output ~= ln;
-                    if (debugEchoPipes) log("[stderr] "~ln);
-                } catch (StdioException) {
-                    break;
-                }
-            }
+        for (;;) {
+            string chunk;
+            if (!readStderrChunk(chunk)) break;
+            if (chunk.length == 0) break;
+            output ~= chunk;
+            if (debugEchoPipes) log("[stderr] " ~ chunk);
         }
         return output;
     }
@@ -519,12 +703,98 @@ private:
     void stderrLoop() {
         while (stderrRunning) {
             try {
-                auto ln = pipes.stderr.readln();
-                if (ln.length == 0) continue;
-                log("[stderr] "~ln.strip());
+                string chunk;
+                bool hasChunk = readStderrChunk(chunk);
+                if (!hasChunk) {
+                    if (!stderrRunning) break;
+                    Thread.sleep(10.msecs);
+                    continue;
+                }
+                if (chunk.length == 0) continue;
+                log("[stderr] " ~ chunk);
             } catch (Exception) {
                 break;
             }
+        }
+    }
+
+    bool readStdoutChunk(out string chunk) {
+        chunk = null;
+        if (!pipes.stdout.isOpen()) return false;
+        version(Posix) {
+            auto fd = pipes.stdout.fileno();
+            if (fd < 0) return false;
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(fd, &rfds);
+            timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = 0;
+            int ready = select(fd + 1, &rfds, null, null, &tv);
+            if (ready <= 0) return false;
+            ubyte[4096] buf;
+            auto n = read(fd, buf.ptr, buf.length);
+            if (n <= 0) return false;
+            auto data = buf[0 .. n].dup;
+            chunk = cast(string)data;
+            return true;
+        } else version(Windows) {
+            import core.sys.windows.windows : HANDLE, DWORD, PeekNamedPipe, ReadFile, INVALID_HANDLE_VALUE;
+            HANDLE h = pipes.stdout.windowsHandle;
+            if (h is null || h == INVALID_HANDLE_VALUE) return false;
+            DWORD bytesAvail = 0;
+            auto ok = PeekNamedPipe(h, null, 0, null, &bytesAvail, null);
+            if (ok == 0 || bytesAvail == 0) return false;
+            ubyte[4096] buf;
+            DWORD toRead = bytesAvail < buf.length ? bytesAvail : cast(DWORD)buf.length;
+            DWORD bytesRead = 0;
+            ok = ReadFile(h, buf.ptr, toRead, &bytesRead, null);
+            if (ok == 0 || bytesRead == 0) return false;
+            auto data = buf[0 .. bytesRead].dup;
+            chunk = cast(string)data;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool readStderrChunk(out string chunk) {
+        chunk = null;
+        if (!pipes.stderr.isOpen()) return false;
+        version(Posix) {
+            auto fd = pipes.stderr.fileno();
+            if (fd < 0) return false;
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(fd, &rfds);
+            timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = 0;
+            int ready = select(fd + 1, &rfds, null, null, &tv);
+            if (ready <= 0) return false;
+            ubyte[4096] buf;
+            auto n = read(fd, buf.ptr, buf.length);
+            if (n <= 0) return false;
+            auto data = buf[0 .. n].dup;
+            chunk = cast(string)data;
+            return true;
+        } else version(Windows) {
+            import core.sys.windows.windows : HANDLE, DWORD, PeekNamedPipe, ReadFile, INVALID_HANDLE_VALUE;
+            HANDLE h = pipes.stderr.windowsHandle;
+            if (h is null || h == INVALID_HANDLE_VALUE) return false;
+            DWORD bytesAvail = 0;
+            auto ok = PeekNamedPipe(h, null, 0, null, &bytesAvail, null);
+            if (ok == 0 || bytesAvail == 0) return false;
+            ubyte[4096] buf;
+            DWORD toRead = bytesAvail < buf.length ? bytesAvail : cast(DWORD)buf.length;
+            DWORD bytesRead = 0;
+            ok = ReadFile(h, buf.ptr, toRead, &bytesRead, null);
+            if (ok == 0 || bytesRead == 0) return false;
+            auto data = buf[0 .. bytesRead].dup;
+            chunk = cast(string)data;
+            return true;
+        } else {
+            return false;
         }
     }
 }
