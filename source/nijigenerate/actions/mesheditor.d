@@ -51,8 +51,6 @@ class DeformationAction  : LazyBoundAction {
             update();
             this.updateNewState();
         }
-        import std.stdio;
-        writefln("DeformationAction: %s, target=%s", cast(void*)this, this.target);
     }
 
     auto self() {
@@ -121,13 +119,10 @@ class DeformationAction  : LazyBoundAction {
         Rollback
     */
     void rollback() {
-        import std.stdio;
-        writefln("undo %s, %s", cast(void*)this, target ? target.name: "<null>");
         resolveCurrentFilter();
         if (undoable) {
             if (vertices.length) {
                 if (deform !is null) {
-                    writefln(" execute undo");
                     auto tmpVertices = vertices;
                     bool   tmpIsSet    = isSet;
                     vertices = deform.values[keypoint.x][keypoint.y].vertexOffsets.toArray();
@@ -259,8 +254,6 @@ class MeshEditorAction(T)  : LazyBoundAction {
         auto filterTargets = self ? self.getFilterTargets(): [];
         if (filterTargets.length > 0) {
             oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-            import std.stdio;
-            writefln("MeshEditorAction: capture oldSubToolMode=%s", oldSubToolMode);
         }
     }
 
@@ -286,8 +279,6 @@ class MeshEditorAction(T)  : LazyBoundAction {
         auto filterTargets = self ? self.getFilterTargets(): [];
         if (filterTargets.length > 0) {
             newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-            import std.stdio;
-            writefln("MeshEditorAction: capture newSubToolMode=%s", newSubToolMode);
         }
     }
 
@@ -329,8 +320,6 @@ class MeshEditorAction(T)  : LazyBoundAction {
                 foreach (i, t; filterTargets) {
                     (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
                 }
-                import std.stdio;
-                writefln("MeshEditorAction: undo.mode=%s", oldSubToolMode);
             }
         }
     }
@@ -356,8 +345,6 @@ class MeshEditorAction(T)  : LazyBoundAction {
                 foreach (i, t; filterTargets) {
                     (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
                 }
-                import std.stdio;
-                writefln("MeshEditorAction: redo.mode=%s", newSubToolMode);
             }
         }
     }
