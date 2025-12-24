@@ -130,7 +130,6 @@ public:
     override
     void pushDeformAction() {
         import std.stdio;
-        writefln("push deform action: %s, %s, %s", cast(void*)this, cast(void*)editorAction, target.name);
         if (editorAction && editorAction.action.dirty) {
             editorAction.updateNewState();
             incActionPush(editorAction);

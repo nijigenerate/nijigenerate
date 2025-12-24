@@ -43,8 +43,6 @@ abstract class MeshAction  : LazyBoundAction {
         auto filterTargets = self ? self.getFilterTargets(): [];
         if (filterTargets.length > 0) {
             oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-            import std.stdio;
-            writefln("MeshAction: capture oldSubToolMode=%s", oldSubToolMode);
         }
 
         if (update !is null) {
@@ -59,8 +57,6 @@ abstract class MeshAction  : LazyBoundAction {
         auto filterTargets = self ? self.getFilterTargets(): [];
         if (filterTargets.length > 0) {
             newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-            import std.stdio;
-            writefln("MeshAction: capture newSubToolMode=%s", newSubToolMode);
         }
     }
 
@@ -96,8 +92,6 @@ abstract class MeshAction  : LazyBoundAction {
             foreach (i, t; filterTargets) {
                 (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
             }
-            import std.stdio;
-            writefln("MeshAction: undo.mode=%s", oldSubToolMode);
         }
     }
 
@@ -108,8 +102,6 @@ abstract class MeshAction  : LazyBoundAction {
             foreach (i, t; filterTargets) {
                 (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
             }
-            import std.stdio;
-            writefln("MeshAction: redo.mode=%s", newSubToolMode);
         }
     }
 

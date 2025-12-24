@@ -13,7 +13,6 @@ import nijilive;
 import std.format;
 import std.range;
 import i18n;
-import std.stdio;
 import std.algorithm;
 import std.typecons;
 
@@ -43,8 +42,6 @@ abstract class VertexAction  : LazyBoundAction {
         auto filterTargets = self ? self.getFilterTargets(): [];
         if (filterTargets.length > 0) {
             oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-            import std.stdio;
-            writefln("VertexAction: capture oldSubToolMode=%s", oldSubToolMode);
         }
 
         if (update !is null) {
@@ -59,8 +56,6 @@ abstract class VertexAction  : LazyBoundAction {
         auto filterTargets = self ? self.getFilterTargets(): [];
         if (filterTargets.length > 0) {
             newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-            import std.stdio;
-            writefln("VertexAction: capture newSubToolMode=%s", newSubToolMode);
         }
     }
 
@@ -71,8 +66,6 @@ abstract class VertexAction  : LazyBoundAction {
             foreach (i, t; filterTargets) {
                 (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
             }
-            import std.stdio;
-            writefln("VertexAction: undo.mode=%s", oldSubToolMode);
         }        
     }
 
@@ -83,8 +76,6 @@ abstract class VertexAction  : LazyBoundAction {
             foreach (i, t; filterTargets) {
                 (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
             }
-            import std.stdio;
-            writefln("VertexAction: redo.mode=%s", newSubToolMode);
         }
     }
 
