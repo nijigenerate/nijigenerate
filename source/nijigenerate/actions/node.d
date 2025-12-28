@@ -18,6 +18,7 @@ import nijilive.core.nodes.deformable : Deformable;
 import nijilive.core.nodes.drawable : Drawable;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.math : vec2;
+import nijilive.core.nodes.composite.projectable : Projectable;
 import std.format;
 import i18n;
 import std.exception;
@@ -328,8 +329,8 @@ public:
         srcNode = src;
         toNode = to;
 
-        if (cast(DynamicComposite)srcNode !is null && 
-            cast(DynamicComposite)toNode is null &&
+        if (cast(Projectable)srcNode !is null && 
+            cast(Projectable)toNode is null &&
             cast(Part)toNode !is null) {
             deepCopy = false;
         }

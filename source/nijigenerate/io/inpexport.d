@@ -2,6 +2,7 @@ module nijigenerate.io.inpexport;
 import nijigenerate.atlas;
 import nijigenerate.ext;
 import nijilive;
+import nijilive.core.nodes.composite.projectable : Projectable;
 import std.algorithm.sorting;
 import std.algorithm.mutation;
 import i18n;
@@ -331,7 +332,7 @@ void incINPExportFinalizePacking(ref Puppet source, Atlas[] atlasses) {
     
     // Apply all atlasses
     foreach(Part part; source.getAllParts()) {
-        if (cast(DynamicComposite)part !is null)
+        if (cast(Projectable)part !is null)
             continue;
         foreach(Atlas atlas; atlasses) {
             

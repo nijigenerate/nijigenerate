@@ -12,6 +12,7 @@ import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijigenerate.commands.node.mask : NodeMaskCommand;
 import nijigenerate.commands.node.welding : NodeWeldingCommand;
 import nijilive;
+import nijilive.core.nodes.composite.projectable : Projectable;
 import std.format;
 import std.utf;
 import std.string;
@@ -172,7 +173,7 @@ void incInspectorTextureSlot(Part p, TextureUsage usage, string title, ImVec2 el
     igPopID();
 }
 
-class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : BaseInspector!(mode, T) {
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : BaseInspector!(mode, T) if (is(T : Part) && !is(T : Composite)) {
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);
     }
@@ -333,7 +334,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                 cmd!(InspectorNodeApplyCommand.PartMaskAlphaThreshold)(ctx, maskAlphaThreshold.value);
             }
 
-            if (DynamicComposite dcomposite = cast(DynamicComposite)node) {
+            if (auto proj = cast(Projectable)node) {
                 if (ngCheckbox(__("Resize automatically"), &autoResizedMesh.value)) {
                     auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                     cmd!(InspectorNodeApplyCommand.PartAutoResizedMesh)(ctx, autoResizedMesh.value);
@@ -548,15 +549,15 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
     mixin(attribute!(float, "maskAlphaThreshold"));
     mixin(attribute!(bool, "autoResizedMesh", 
         (x) { return "(x) {
-            if (auto dcomp = cast(DynamicComposite)x) { 
-                return dcomp.autoResizedMesh; 
+            if (auto proj = cast(Projectable)x) { 
+                return proj.autoResizedMesh; 
             } else { 
                 return false; 
             } 
         }("~x~")"; },
         (x, v) { return "(x, v) {
-            if (auto dcomp = cast(DynamicComposite)x) {
-                dcomp.autoResizedMesh = v;
+            if (auto proj = cast(Projectable)x) {
+                proj.autoResizedMesh = v;
             }
         }("~x~","~v~")"; }));
 
@@ -596,7 +597,7 @@ ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, flo
 
 /// Armed Parameter View
 
-class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part) : BaseInspector!(mode, T) {
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Deform, T: Part) : BaseInspector!(mode, T) if (is(T : Part) && !is(T : Composite)) {
     this(T[] nodes, ModelEditSubMode mode) {
         super(nodes, mode);
     }
