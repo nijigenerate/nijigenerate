@@ -10,6 +10,7 @@ import nijigenerate.ext;
 import nijigenerate.utils;
 import nijigenerate;
 import nijilive;
+import nijilive.core.nodes.composite.projectable : Projectable;
 import i18n;
 import std.string;
 import std.array;
@@ -211,9 +212,8 @@ private:
 
     bool shouldBeSelected(Node node) {
         if (auto part = cast(ApplicableClass)node) {
-            if (auto dcomposite = cast(DynamicComposite)part) {
-                if (dcomposite.autoResizedMesh)
-                    return false;
+            if (auto proj = cast(Projectable)part) {
+                if (proj.autoResizedMesh) return false;
             }
 
             return true;

@@ -14,6 +14,7 @@ import nijigenerate.ext;
 import std.string;
 import nijigenerate.utils.link;
 import nijilive;
+import nijilive.core.nodes.composite.projectable : Projectable;
 import i18n;
 import psd;
 import std.uni : toLower;
@@ -136,8 +137,8 @@ private:
     void updatePart(Node node) {
         import nijigenerate.viewport.common.mesh;
         auto part = cast(Part)node;
-        auto dcomposite = cast(DynamicComposite)node;
-        if (part !is null && dcomposite is null) {
+        auto proj = cast(Projectable)node;
+        if (part !is null && proj is null) {
             auto mesh = new IncMesh(part.getMesh());
             MeshData data = mesh.export_();
             data.fixWinding();

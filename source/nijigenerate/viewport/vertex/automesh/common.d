@@ -1,6 +1,7 @@
 module nijigenerate.viewport.vertex.automesh.common;
 
 import nijilive.core;
+import nijilive.core.nodes.composite.projectable : Projectable;
 import nijigenerate.core.cv.image;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
@@ -82,8 +83,8 @@ void mapImageCenteredMeshToTargetLocal(ref IncMesh mesh, Deformable target, Alph
             v.position = (inv * vec4(worldPos, 0, 1)).xy;
         }
     } else {
-        if (auto dcomposite = cast(DynamicComposite)target) {
-            foreach (vertex; mesh.vertices) vertex.position += dcomposite.textureOffset;
+        if (auto proj = cast(Projectable)target) {
+            foreach (vertex; mesh.vertices) vertex.position += proj.textureOffset;
         }
     }
 }
