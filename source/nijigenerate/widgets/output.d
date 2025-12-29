@@ -550,6 +550,7 @@ protected:
     bool prevMouseDown = false;
     bool mouseDown = false;
     bool showRootThumb = false;
+    Texture rootThumbTex = null;
     Snapshot snapshot = null;
 
     override
@@ -631,7 +632,15 @@ protected:
                 igGetStyle().FramePadding.y = 1;
                 if (snapshot is null)
                     snapshot = Snapshot.get(incActivePuppet());
-                incTextureSlotUntitled("ICON", snapshot.capture(), ImVec2(IconSize * 3, IconSize * 3), 1, ImGuiWindowFlags.NoInputs, selected);
+                snapshot.onCaptured((Texture tex) {
+                    rootThumbTex = tex;
+                });
+                snapshot.capture();
+                if (rootThumbTex !is null) {
+                    incTextureSlotUntitled("ICON", rootThumbTex, ImVec2(IconSize * 3, IconSize * 3), 1, ImGuiWindowFlags.NoInputs, selected);
+                } else {
+                    igDummy(ImVec2(IconSize * 3, IconSize * 3));
+                }
                 igGetStyle().FramePadding.y = paddingY;
                 if (isNodeClicked(node)) {
                     onSelect(node);

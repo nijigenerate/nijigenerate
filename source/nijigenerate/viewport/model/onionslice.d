@@ -72,11 +72,14 @@ public:
         if (snapshot !is null) {
             if (keypoint == lastKeypoint) return;
             lastKeypoint = keypoint;
-            if (history[lastIndex] !is null) {
-                history[lastIndex].dispose();
-            }
-            history[lastIndex] = snapshot.capture().dup();
-            lastIndex = (lastIndex + 1)%numHistory;
+            snapshot.onCaptured((Texture tex) {
+                if (history[lastIndex] !is null) {
+                    history[lastIndex].dispose();
+                }
+                history[lastIndex] = tex.dup();
+                lastIndex = (lastIndex + 1)%numHistory;
+            });
+            snapshot.capture();
         }
     }
 
