@@ -219,14 +219,6 @@ jobs:
         # Remove conflicting brew items
         brew remove --ignore-dependencies libpng brotli harfbuzz
 
-    - name: "Fetch openssl x86_64 bottle via brew"
-      continue-on-error: true
-      run: |
-        # sonoma = macos-14
-        TAR=$(brew fetch --bottle-tag=x86_64_sonoma openssl@3 | grep '/.\+openssl@3.\+sonoma.\+tar\.gz' -o)
-        tar -xzf "$TAR"
-        ln -s ./openssl@3/3.* ./openssl_3
-
     - name: "Remove final conflicting files"
       continue-on-error: true
       run: |
@@ -269,27 +261,12 @@ jobs:
         # Build metadata (like version information and icons)
         dub build --config=meta
 
-        # First build ARM64 version...
+        # Build ARM64 version only
         echo "Building arm64 binary..."
         dub build --config=osx-nightly --arch=arm64-apple-macos
-        mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
-
-        # Then the X86_64 version...
-        echo "Building x86_64 binary..."
-        dub build --config=osx-nightly --arch=x86_64-apple-macos
-        mv "out/nijigenerate.app/Contents/MacOS/nijigenerate" "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64"
-
-        # Glue them together with lipo
-        echo "Gluing them together..."
-        lipo "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64" -output "out/nijigenerate.app/Contents/MacOS/nijigenerate" -create
-
-        # Print some nice info
-        echo "Done!"
-        lipo -info "out/nijigenerate.app/Contents/MacOS/nijigenerate"
-
-        # Cleanup and bundle
-        echo "Cleaning up..."
-        rm "out/nijigenerate.app/Contents/MacOS/nijigenerate-x86_64" "out/nijigenerate.app/Contents/MacOS/nijigenerate-arm64"
+        
+        # Bundle app
+        echo "Bundling app..."
         ./build-aux/osx/osxbundle.sh
 
     - name: 'Build DMG'
