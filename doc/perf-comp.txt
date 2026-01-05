@@ -1,0 +1,203 @@
+* gimp-tan 2.7 model (1)
+
+
+
+* gimp-tan 2.7 model (2)
+
+Frame（v0.9-perf, 52–53fps 実計測）
+├─ Puppet.Update……………………………… 8.3–8.5 ms/frame（52–53 call）
+│ ├─ Puppet.Update.Parameters……… 1.7 ms/frame
+│ ├─ Puppet.Update.NodeUpdate……… 3.6 ms/frame
+│ ├─ Puppet.Update.End………………… 2.0–2.1 ms/frame
+│ ├─ Puppet.Update.Drivers…………… 0.5–0.7 ms/frame
+│ ├─ Puppet.Update.Begin……………… 0.3 ms/frame
+│ ├─ Puppet.Update.Transform………… 0.006 ms/frame
+│ ├─ Puppet.Update.TransformTree… 0.002 ms/frame
+│ └─ Puppet.Update.Automation……… 0.001 ms/frame
+└─ Immediate Render（OpenGL 呼び出し）
+  ├─ DrawPart………………………………… 0.002 ms/call × 8.2k（≈15 ms/s）
+  ├─ DrawPart.Mask………………………… 0.001 ms/call × 5.6k（≈6 ms/s）
+  ├─ DrawComposite……………………… 0.001 ms/call × 420（≈0.5 ms/s）
+  ├─ BeginScene / EndScene………… 0.016 / 0.005 ms/frame
+  └─ その他（RenderScene/DrawScene 等）ログには計測なし
+
+Frame（現行 refactor/composite, 21 ms/frame・28 fps付近）
+├─ Puppet.Update……………………………12.2 ms/frame
+│ ├─ Init+Parameters…………………… 4.1 ms（Task.Parameters 3.3 ms）
+│ └─ Setup/ExecuteTasks……………… 8.1 ms
+│ ├─ Task.PreProcess……………… 3.1 ms（DeformationStack, bounds 更新）
+│ ├─ Task.Post0……………………… 1.1 ms
+│ ├─ Task.RenderBegin…………… 0.5 ms
+│ ├─ Task.Render………………… 0.6 ms（RenderGraph 経由の draw）
+│ ├─ Task.Init / Final…………… 0.29 / 0.96 ms
+│ └─ Task.Dynamic/Post1/Post2… ≤0.1 ms
+└─ CommandEmitter.Frame……………… 5.5 ms/frame
+  └─ RenderGraph.Playback………… 5.4 ms
+    ├─ DrawPart………………………… 2.2 ms（同 6.7k call）
+    ├─ ApplyMask……………………… 1.1 ms（ステンシル切替 4.6k 回）
+    ├─ UploadVertices……………… 0.12 ms
+    ├─ RenderGraph.Enqueue/SI…… 0.18 ms
+    ├─ UploadDeform/Atlas………… 0.05 ms
+    └─ Begin/EndMask/UploadUV… 0.07 ms
+
+
+Frame
+├─ Puppet.Update………………………………………12.19
+│ ├─ Init+Parameters…………………………… 4.06
+│ │ └─ Task.Parameters (27 call)…… 3.26
+│ └─ Setup…………………………………………… 8.11
+│ └─ ExecuteTasks………………………… 8.10
+│ ├─ Task.PreProcess (209 call)…… 3.07 ← 前処理タスク群（DeformationStack のリセット＋加算、createSimpleMesh/getChildrenBounds の境界更新もここで走る）
+│ ├─ Task.Post0 (188 call)…………… 1.09 ← 直後ポスト処理
+│ ├─ Task.RenderBegin (8 call)…… 0.54
+│ ├─ Task.Render (171 call)………… 0.59
+│ ├─ Task.Init (228 call)……………… 0.29
+│ ├─ Task.Final (228 call)…………… 0.96
+│ ├─ Task.RenderEnd (8 call)……… 0.07
+│ ├─ Task.Dynamic (10 call)………… 0.09
+│ ├─ Task.Post1 (10 call)……………… 0.01
+│ └─ Task.Post2 (10 call)……………… 0.01
+│
+└─ CommandEmitter.Frame………………………… 5.55
+  └─ RenderGraph.Playback…………………… 5.41
+    ├─ DrawPart (267 call)………………… 2.19 ← Projectable が createSimpleMesh→DrawPart で個別パーツを描画
+    ├─ ApplyMask (180 call)……………… 1.07 ← 各 Part の描画前後でステンシル切替
+    ├─ RenderGraph.Enqueue……………… 0.15
+    ├─ RenderGraph.SortItems…………… 0.03
+    ├─ UploadVertices (1.3 call)……… 0.12
+    ├─ UploadDeform/Atlas………………… 0.05
+    ├─ Begin/End/Content Mask………… 0.05
+    ├─ UploadUV…………………………………… 0.02
+    └─ その他 (BeginScene/EndScene 他) … 0.11
+Composite 関連のサブ処理
+├─ Composite:createSimpleMesh (27 call)…… 0.16
+└─ Composite:getChildrenBounds (149 call)… 0.11
+
+
+* Aka 2024 Model
+
+Frame（v0.9-perf, 60–61 fps 実測）
+├─ Puppet.Update……………………………………≈13 ms/frame（60–61 call）
+│ ├─ NodeUpdate…………………………………10.8 ms　← ルート以下の Node.tick 全体
+│ ├─ End………………………………………………1.2 ms　← endUpdate(0/1/2/−1)
+│ ├─ Begin……………………………………………0.13 ms　← beginUpdate
+│ ├─ Parameters……………………………………0.42 ms
+│ ├─ Drivers………………………………………0.27 ms
+│ ├─ Transform……………………………………0.004 ms
+│ ├─ TransformTree……………………………0.002 ms
+│ └─ Automation…………………………………<0.001 ms
+└─ Immediate Render（OpenGL 即時発行）
+  ├─ DrawPart………………………………………0.002 ms/call × 7.3k（≈14–20 ms/s）
+  ├─ DrawPart.Mask………………………………0.001 ms/call × 360
+  ├─ DrawComposite……………………………0.001 ms/call × 240
+  ├─ BeginScene / EndScene…………………0.006 / 0.02 ms/frame
+  └─ その他（ApplyMask 相当）……………ログには未計測
+
+Frame（60 fps モデル例）
+├─ Puppet.Update………………………………………7.2 ms/frame（60 call）
+│ ├─ Init+Parameters……………………………1.35–1.53 ms
+│ │ └─ Task.Parameters…………………………0.75–0.93 ms
+│ └─ Setup……………………………………………5.8–6.1 ms
+│ └─ ExecuteTasks…………………………5.8–6.1 ms
+│ ├─ Task.PreProcess…………………3.3 ms（10,440 call）
+│ ├─ Task.Post0…………………………0.35 ms（9,600 call）
+│ ├─ Task.RenderBegin………………0.11 ms（240 call）
+│ ├─ Task.Render…………………………0.38 ms（7,620 call）
+│ ├─ Task.RenderEnd…………………0.025 ms（240 call）
+│ ├─ Task.Dynamic……………………0.025 ms（240 call）
+│ ├─ Task.Init / Final………………0.19 / 0.24 ms
+│ └─ Task.Post1/2………………………0.003 ms
+└─ CommandEmitter.Frame…………………………1.6–1.9 ms/frame
+  └─ RenderGraph.Playback……………………1.54–1.87 ms
+    ├─ DrawPart……………………………………0.96–1.14 ms（9,120 call）
+    ├─ ApplyMask……………………………………0.07–0.08 ms（360 call）
+    ├─ RenderGraph.Enqueue…………………0.06–0.07 ms
+    ├─ UploadVertices……………………………0.05 ms（~60 call）
+    ├─ UploadDeform/Atlas……………………0.05–0.11 ms
+    ├─ Composite:createSimpleMesh………0.03 ms（~500 call）
+    ├─ Composite:getChildrenBounds………0.01 ms
+    ├─ Begin/EndScene……………………………0.015 ms
+    └─ その他（Begin/EndMask など）……≤0.01 ms
+
+
+
+* Ada Model
+
+Frame（v0.9-perf, 60 fps 周辺モデル）
+├─ Puppet.Update………………………………11.5–11.8 ms/frame（59–61 call）
+│ ├─ NodeUpdate……………………………8.8–9.4 ms
+│ ├─ End…………………………………………1.3 ms
+│ ├─ Parameters……………………………0.59–0.68 ms
+│ ├─ Drivers…………………………………0.30–0.34 ms
+│ ├─ Begin……………………………………0.12 ms
+│ ├─ Transform/Tree……………………0.003–0.004 ms
+│ └─ Automation……………………………0.02 ms
+└─ 即時描画（OpenGL直呼び）
+  ├─ DrawPart………………………………0.002 ms/call × 8.6k（≈18 ms/s）
+  ├─ DrawPart.Mask………………………0.001 ms/call × 1.0k
+  ├─ DrawComposite……………………0.001 ms/call × 360
+  ├─ BeginScene / EndScene………0.006 / 0.004 ms/frame
+  └─ その他（マスク処理など）……≦0.01 ms
+
+Frame（現行モデル、約60 fps）
+├─ Puppet.Update………………………………………5.8–6.4 ms/frame（60 call）
+│ ├─ Init+Parameters……………………………1.8–2.0 ms（Task.Parameters 1.15–1.35 ms）
+│ └─ Setup/ExecuteTasks……………………4.0–4.3 ms
+│ ├─ Task.PreProcess………………………1.2–1.3 ms（11.5k call）
+│ ├─ Task.Post0………………………………0.35–0.40 ms（9.6k call）
+│ ├─ Task.RenderBegin…………………0.18–0.33 ms（360 call）
+│ ├─ Task.Render……………………………0.46–0.53 ms（9.1k call）
+│ ├─ Task.Dynamic/RenderEnd……0.10–0.13 ms
+│ ├─ Task.Init / Final…………………≈0.23 ms
+│ └─ Task.Post1/2…………………………≈0.02 ms
+└─ CommandEmitter.Frame………………………2.2–2.5 ms/frame
+  └─ RenderGraph.Playback…………………2.1–2.4 ms
+    ├─ DrawPart………………………………………1.2–1.3 ms（11.2k call）
+    ├─ ApplyMask……………………………………0.08–0.16 ms（1.1k call）
+    ├─ RenderGraph.Enqueue…………………0.07 ms
+    ├─ UploadVertices……………………………0.05–0.07 ms（≤120 call）
+    ├─ UploadDeform/Atlas……………………0.08 ms
+    ├─ Composite:createSimpleMesh………0.004–0.006 ms（~1k call）
+    ├─ Composite:getChildrenBounds………0.004 ms
+    ├─ Begin/EndScene……………………………0.01 ms
+    ├─ Begin/End/Content Mask………………0.01–0.03 ms
+    └─ Task.Post2/Post1/Dynamic……各0.004–0.008 ms
+
+
+* Midori 2025
+
+Frame（v0.9, 60 fps周辺モデル）
+├─ Puppet.Update………………………………………12.1–12.7 ms/frame（60前後 call）
+│ ├─ NodeUpdate……………………………………10.3–10.7 ms
+│ ├─ End…………………………………………………1.0–1.3 ms
+│ ├─ Begin………………………………………………0.15 ms
+│ ├─ Parameters………………………………………0.68–0.75 ms
+│ ├─ Drivers……………………………………………0.13–0.16 ms
+│ ├─ Transform/Tree………………………………0.004 ms
+│ └─ Automation………………………………………0.02 ms
+└─ 即時描画（OpenGL直呼び出し）
+  ├─ DrawPart………………………………………0.002 ms/call × 約8 k（14–21 ms/s）
+  ├─ DrawPart.Mask………………………………0.001 ms/call × 1.2 k
+  ├─ DrawMask（Mask本体）…………………0.001 ms/call × 360
+  ├─ BeginScene / EndScene…………………0.006 / 0.005 ms/frame
+  └─ その他（DrawComposite 等）…………≦0.001 ms
+
+Frame（現行、60–61 fpsモデル）
+├─ Puppet.Update…………………………………7.1–8.2 ms/frame（60–61 call）
+│ ├─ Init+Parameters…………………………1.6–1.9 ms（Task.Parameters 0.94–1.21 ms）
+│ └─ Setup/ExecuteTasks…………………5.6–6.3 ms
+│ ├─ Task.PreProcess…………………3.0–3.3 ms（11.4k call）
+│ ├─ Task.Post0…………………………0.35–0.45 ms（10k call）
+│ ├─ Task.RenderBegin………………0.23–0.28 ms（180–183 call）
+│ ├─ Task.Render…………………………0.42–0.46 ms（8.4–8.5k call）
+│ ├─ TaskRenderEnd/Dynamic………0.02–0.03 ms
+│ └─ TaskInit/Final/Post1/2………0.2 ms前後
+└─ CommandEmitter.Frame…………………1.8–2.3 ms/frame
+  └─ RenderGraph.Playback……………1.7–2.2 ms
+    ├─ DrawPart…………………………………1.0–1.3 ms（9.0–9.2k call）
+    ├─ ApplyMask………………………………0.12–0.17 ms（1.0–1.6k call）
+    ├─ RenderGraph.Enqueue………………0.06 ms
+    ├─ UploadDeform/Atlas………………0.11 ms
+    ├─ Begin/EndScene………………………0.01–0.04 ms
+    ├─ Begin/End/Content Mask…………0.01 ms
+    └─ その他（SortItems 等）……………0.01–0.03 ms
