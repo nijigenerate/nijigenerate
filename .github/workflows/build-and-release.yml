@@ -67,7 +67,7 @@ jobs:
     - name: "Clone dependencies & set versions"
       run: |
         git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/nijigenerate/nijilive.git -b v0.9.0
+        git clone https://github.com/nijigenerate/nijilive.git
         cd i2d-imgui
         git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
         git submodule update --recursive
