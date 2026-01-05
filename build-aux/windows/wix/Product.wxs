@@ -90,6 +90,14 @@
 				<File Name="freetype.dll" Source="..\..\..\out\freetype.dll" KeyPath="yes" />
 			</Component>
 
+			<Component Id="LibCrypto" Win64="yes" Guid="*">
+				<File Name="libcrypto-3-x64.dll" Source="..\..\..\out\libcrypto-3-x64.dll" KeyPath="yes" />
+			</Component>
+
+			<Component Id="LibSSL" Win64="yes" Guid="*">
+				<File Name="libssl-3-x64.dll" Source="..\..\..\out\libssl-3-x64.dll" KeyPath="yes" />
+			</Component>
+
 		</ComponentGroup>
 
 		<Component Id="FileAssoc" Win64="yes" Guid="*" Directory="INSTALLFOLDER">
