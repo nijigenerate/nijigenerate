@@ -426,7 +426,12 @@ public:
             import mir.ndslice.topology;
             int err;
             auto compensated1D = compensated.reshape([-1], err);
-            fillPoly(compensated1D, texW, texH, bounds, vertices.toArray(), tris, 0, cast(ubyte)0);
+            // Remove area already covered by the current triangulation from the "uncovered" mask.
+            // (fillPoly operates on a single triangle index.)
+            auto verticesArr = vertices.toArray();
+            foreach (i; 0 .. tris.length) {
+                fillPoly(compensated1D, texW, texH, bounds, verticesArr, tris, i, cast(ubyte)0);
+            }
             int stride = texW + 1;
             int[] sat = new int[(texH + 1) * (texW + 1)];
             foreach (y; 0 .. texH) {
@@ -449,7 +454,9 @@ public:
             Vec2Array filteredCandidates;
             float minDist = min_distance * 0.5f;
             float minDistSq = minDist * minDist;
-            int gridSize = cast(int)(minDist > 1.0f ? minDist : 1.0f);
+            int gridSize = cast(int)minDist;
+            if (cast(float)gridSize < minDist) gridSize++;
+            if (gridSize < 1) gridSize = 1;
             int gridW = cast(int)(texW + gridSize - 1) / gridSize;
             int gridH = cast(int)(texH + gridSize - 1) / gridSize;
             size_t gridCount = cast(size_t)gridW * cast(size_t)gridH;
@@ -532,7 +539,10 @@ public:
                 foreach(i, tri; newTriangles) {
                     fillPoly(compensated1D, texW, texH, bounds, newVertices.toArray(), newTriangles, i, cast(ubyte)0);
                 }
-                int remainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
+                int remainingArea = 0;
+                foreach (v; compensated1D) {
+                    if (v != 0) remainingArea++;
+                }
                 if(remainingArea < initialRemainingArea) {
                     outVertices = newVertices;
                     outTris = newTriangles;
