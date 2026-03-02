@@ -51,7 +51,7 @@ jobs:
     - uses: actions/checkout@v3
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
-        compiler: ldc-latest
+        compiler: ldc-1.41.0
     
     - name: "Get build dependencies"
       run: |
@@ -114,7 +114,7 @@ jobs:
     - uses: actions/checkout@v3
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
-        compiler: ldc-latest
+        compiler: ldc-1.41.0
         
     - name: Download translations
       uses: actions/download-artifact@v4
@@ -203,7 +203,7 @@ jobs:
     - uses: actions/checkout@v3
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
-        compiler: ldc-latest
+        compiler: ldc-1.41.0
   
     - name: "Prepare for DMG packing"
       continue-on-error: true
