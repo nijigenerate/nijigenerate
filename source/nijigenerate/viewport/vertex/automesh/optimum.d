@@ -426,8 +426,24 @@ public:
             import mir.ndslice.topology;
             int err;
             auto compensated1D = compensated.reshape([-1], err);
-            fillPoly(compensated1D, texW, texH, bounds, vertices.toArray(), tris, 0, cast(ubyte)0);
-            int initialRemainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
+            // Remove area already covered by the current triangulation from the "uncovered" mask.
+            // (fillPoly operates on a single triangle index.)
+            auto verticesArr = vertices.toArray();
+            foreach (i; 0 .. tris.length) {
+                fillPoly(compensated1D, texW, texH, bounds, verticesArr, tris, i, cast(ubyte)0);
+            }
+            int stride = texW + 1;
+            int[] sat = new int[(texH + 1) * (texW + 1)];
+            foreach (y; 0 .. texH) {
+                int rowSum = 0;
+                foreach (x; 0 .. texW) {
+                    int idx = y * texW + x;
+                    int v = compensated1D[idx] != 0 ? 1 : 0;
+                    rowSum += v;
+                    sat[(y + 1) * stride + (x + 1)] = sat[y * stride + (x + 1)] + rowSum;
+                }
+            }
+            int initialRemainingArea = sat[texH * stride + texW];
             if (initialRemainingArea == 0) { 
                 outVertices = vertices;
                 outTris = tris;
@@ -436,23 +452,48 @@ public:
             
             // Select candidate points that are sufficiently far from existing vertices
             Vec2Array filteredCandidates;
+            float minDist = min_distance * 0.5f;
+            float minDistSq = minDist * minDist;
+            int gridSize = cast(int)minDist;
+            if (cast(float)gridSize < minDist) gridSize++;
+            if (gridSize < 1) gridSize = 1;
+            int gridW = cast(int)(texW + gridSize - 1) / gridSize;
+            int gridH = cast(int)(texH + gridSize - 1) / gridSize;
+            size_t gridCount = cast(size_t)gridW * cast(size_t)gridH;
+            Vec2Array[] grid = new Vec2Array[gridCount];
+            foreach (v; vertices) {
+                int gx = cast(int)floor(v.x / gridSize);
+                int gy = cast(int)floor(v.y / gridSize);
+                if (gx < 0 || gy < 0 || gx >= gridW || gy >= gridH) continue;
+                grid[gy * gridW + gx] ~= v;
+            }
             foreach(p; contourVec) {
                 bool skip = false;
-                if (vertices.length > 0) {
-                    foreach(v; vertices) {
-                        if(distance(v, p) < min_distance * 0.5) {
-                            skip = true;
-                            break;
+                int x = cast(int)round(p.x);
+                int y = cast(int)round(p.y);
+                if (x < 0 || x >= texW || y < 0 || y >= texH) continue;
+                int idx = y * texW + x;
+                if (compensated1D[idx] != 255) continue;
+                int gx = cast(int)floor(p.x / gridSize);
+                int gy = cast(int)floor(p.y / gridSize);
+                if (gx < 0 || gy < 0 || gx >= gridW || gy >= gridH) continue;
+                for (int oy = -1; oy <= 1 && !skip; oy++) {
+                    int ny = gy + oy;
+                    if (ny < 0 || ny >= gridH) continue;
+                    for (int ox = -1; ox <= 1 && !skip; ox++) {
+                        int nx = gx + ox;
+                        if (nx < 0 || nx >= gridW) continue;
+                        foreach (v; grid[ny * gridW + nx]) {
+                            float dx = v.x - p.x;
+                            float dy = v.y - p.y;
+                            if (dx * dx + dy * dy < minDistSq) {
+                                skip = true;
+                                break;
+                            }
                         }
                     }
                 }
-                int x = cast(int)round(p.x);
-                int y = cast(int)round(p.y);
-                if(x >= 0 && x < texW && y >= 0 && y < texH) {
-                    int idx = y * texW + x;
-                    if(compensated1D[idx] == 255 && !skip)
-                        filteredCandidates ~= p;
-                }
+                if (!skip) filteredCandidates ~= p;
             }
             if(filteredCandidates.length == 0) {
                 outVertices = vertices;
@@ -471,14 +512,14 @@ public:
                 int y1 = max(0, y - windowSize);
                 int x2 = min(texW - 1, x + windowSize);
                 int y2 = min(texH - 1, y + windowSize);
-                int score = 0;
-                for (int j = y1; j <= y2; j++) {
-                    for (int i = x1; i <= x2; i++) {
-                        int idx = j * texW + i;
-                        if (compensated1D[idx] == 255)
-                            score++;
-                    }
-                }
+                int ax1 = x1;
+                int ay1 = y1;
+                int ax2 = x2 + 1;
+                int ay2 = y2 + 1;
+                int score = sat[ay2 * stride + ax2]
+                          - sat[ay1 * stride + ax2]
+                          - sat[ay2 * stride + ax1]
+                          + sat[ay1 * stride + ax1];
                 if (score > bestScore) {
                     bestScore = score;
                     bestCandidate = p;
@@ -498,7 +539,10 @@ public:
                 foreach(i, tri; newTriangles) {
                     fillPoly(compensated1D, texW, texH, bounds, newVertices.toArray(), newTriangles, i, cast(ubyte)0);
                 }
-                int remainingArea = compensated1D.map!(x => x != 0 ? 255 : 0).sum;
+                int remainingArea = 0;
+                foreach (v; compensated1D) {
+                    if (v != 0) remainingArea++;
+                }
                 if(remainingArea < initialRemainingArea) {
                     outVertices = newVertices;
                     outTris = newTriangles;

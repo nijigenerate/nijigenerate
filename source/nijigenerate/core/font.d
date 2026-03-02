@@ -107,6 +107,11 @@ void incInitFonts() {
         _incAddFontData("APP\0", NOTO_CJK, 26, (cast(ImWchar[])[
             0x3000, 0x30FF, // CJK Symbols and Punctuations, Hiragana, Katakana
             0x31F0, 0x31FF, // Katakana Phonetic Extensions
+            0x1100, 0x11FF, // Hangul Jamo
+            0x3130, 0x318F, // Hangul Compatibility Jamo
+            0xA960, 0xA97F, // Hangul Jamo Extended-A
+            0xAC00, 0xD7AF, // Hangul Syllables
+            0xD7B0, 0xD7FF, // Hangul Jamo Extended-B
             0xFF00, 0xFFEF, // Half-width characters
             0x4E00, 0x9FAF, // CJK Ideograms
             0]).ptr,

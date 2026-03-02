@@ -1,0 +1,2164 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-05-11 08:40+0900\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Editing armed parameter..."
+msgstr "편집 중인 변형 매개변수..."
+
+msgid "Editing base transform..."
+msgstr "기본 변환 편집 중..."
+
+msgid "Reset selected"
+msgstr "선택 항목 초기화"
+
+msgid "Flip selected from mirror"
+msgstr "선택 항목을 미러에서 반전 복사"
+
+msgid "Deform"
+msgstr "변형"
+
+msgid "Left Mouse"
+msgstr "왼쪽 마우스"
+
+msgid "Snap to X/Y axis"
+msgstr "X/Y 축에 스냅"
+
+msgid "SHIFT"
+msgstr "SHIFT"
+
+msgid "Select vertices"
+msgstr "버텍스 선택"
+
+msgid "ALT"
+msgstr "ALT"
+
+msgid "Drag mode"
+msgstr "드래그 모드"
+
+msgid "Flow mode"
+msgstr "플로우 모드"
+
+msgid "Brush Tool"
+msgstr "브러시 도구"
+
+msgid "Switch Mode"
+msgstr "모드 전환"
+
+msgid "TAB"
+msgstr "TAB"
+
+msgid "Create/Destroy"
+msgstr "생성/삭제"
+
+msgid "Left Mouse (x2)"
+msgstr "왼쪽 마우스 (더블 클릭)"
+
+msgid "Toggle locked point"
+msgstr "잠금된 점 토글"
+
+msgid "Ctrl"
+msgstr "Ctrl"
+
+msgid "Move point along with the path"
+msgstr "경로를 따라 점 이동"
+
+msgid "Shift"
+msgstr "Shift"
+
+msgid "Define paths"
+msgstr "경로 정의"
+
+msgid "Transform path"
+msgstr "경로 변형"
+
+msgid "Set rotation center"
+msgstr "회전 중심 설정"
+
+msgid "Move points along the path"
+msgstr "경로를 따라 점 이동"
+
+msgid "Path Deform Tool"
+msgstr "경로 변형 도구"
+
+msgid "Select"
+msgstr "선택"
+
+msgid "Create"
+msgstr "생성"
+
+msgid "Ctrl+Left Mouse"
+msgstr "Ctrl+왼쪽 클릭"
+
+msgid "Vertex Tool"
+msgstr "버텍스 도구"
+
+msgid "Auto connect vertices"
+msgstr "정점 자동 연결"
+
+msgid "Connect/Disconnect"
+msgstr "연결/연결 해제"
+
+msgid "Connect Multiple"
+msgstr "여러 개 연결"
+
+msgid "Shift+Left Mouse"
+msgstr "Shift+왼쪽 클릭"
+
+msgid "Edge Tool"
+msgstr "에지 도구"
+
+msgid "Mesh deformation"
+msgstr "메시 변형"
+
+msgid "Path deformation"
+msgstr "경로 변형"
+
+msgid "Drag to define 2x2 mesh"
+msgstr "드래그하여 2x2 메시 정의"
+
+msgid "Add/remove key points to axes"
+msgstr "축에 키 포인트 추가/제거"
+
+msgid "Change key point position in the axis"
+msgstr "축에서 키 포인트 위치 변경"
+
+msgid "Grid Vertex Tool"
+msgstr "그리드 버텍스 도구"
+
+msgid "Hide Vertices"
+msgstr "버텍스 숨기기"
+
+msgid "Show Vertices"
+msgstr "버텍스 표시"
+
+msgid "Hide Bounds"
+msgstr "경계 숨기기"
+
+msgid "Show Bounds"
+msgstr "경계 표시"
+
+msgid "Hide Orientation Gizmo"
+msgstr "오리엔테이션 기즈모 숨기기"
+
+msgid "Show Orientation Gizmo"
+msgstr "오리엔테이션 기즈모 표시"
+
+msgid "COLOR"
+msgstr "색상"
+
+msgid "Reset"
+msgstr "초기화"
+
+msgid "Background Color"
+msgstr "배경 색상"
+
+msgid "Gizmos"
+msgstr "기즈모"
+
+msgid " Merge Mesh"
+msgstr " 메시 병합"
+
+msgid " Copy Mesh"
+msgstr " 메시 복사"
+
+msgid " Edit Mesh"
+msgstr " 메시 편집"
+
+msgid "Merge Mesh Data"
+msgstr "메시 데이터 병합"
+
+msgid "Copy Mesh Data"
+msgstr "메시 데이터 복사"
+
+msgid "Edit Mesh"
+msgstr "메시 편집"
+
+msgid "Z-Sort"
+msgstr "Z-정렬"
+
+msgid "Size-Sort"
+msgstr "크기별 정렬"
+
+msgid "Focus Selected"
+msgstr "선택 항목에 집중"
+
+msgid "No parts found"
+msgstr "선택할 수 있는 파츠가 없습니다"
+
+msgid "Toggle mesh visibility"
+msgstr "메시 가시성 전환"
+
+msgid "Flip Horizontally"
+msgstr "수평 반전"
+
+msgid "Flip Vertically"
+msgstr "수직 반전"
+
+msgid "Mirror Horizontally"
+msgstr "수평 미러링"
+
+msgid "Mirror Vertically"
+msgstr "수직 미러링"
+
+msgid "Triangulate vertices"
+msgstr "정점을 연결해 삼각형 생성"
+
+msgid "Bake"
+msgstr "적용"
+
+msgid "Bakes the triangulation, applying it to the mesh."
+msgstr "정점을 연결해 삼각형 메시를 생성합니다."
+
+msgid "Triangulation Options"
+msgstr "삼각형 생성 옵션"
+
+msgid "Bakes the auto mesh."
+msgstr "자동 메시를 굽습니다."
+
+msgid "Auto Meshing Options"
+msgstr "자동 메시 옵션"
+
+msgid " Apply"
+msgstr " 적용"
+
+msgid "Are you sure?"
+msgstr "정말 실행하시겠습니까?"
+
+msgid ""
+"The layout of the mesh has changed, all deformations to this mesh will be "
+"deleted if you continue."
+msgstr "메시의 레이아웃이 변경되어 계속 진행하면 이 메시의 모든 변형이 삭제됩니다."
+
+msgid "Apply"
+msgstr "적용"
+
+msgid " Cancel"
+msgstr " 취소"
+
+msgid "Cancel"
+msgstr "취소"
+
+msgid "Presets"
+msgstr "프리셋"
+
+msgid "Normal parts"
+msgstr "일반 부품"
+
+msgid "Detailed mesh"
+msgstr "세밀한 메시"
+
+msgid "Large parts"
+msgstr "큰 부품"
+
+msgid "Small parts"
+msgstr "작은 부품"
+
+msgid "Thin and minimum parts"
+msgstr "얇고 최소한의 부품"
+
+msgid "Preserve edges"
+msgstr "모서리 유지"
+
+msgid "Details"
+msgstr "세부사항"
+
+msgid "Sampling rate"
+msgstr "샘플링 비율"
+
+msgid "Mask threshold"
+msgstr "마스크 임계값"
+
+msgid "Distance between vertices"
+msgstr "정점 간 거리"
+
+msgid "Minimum"
+msgstr "최소"
+
+msgid "Maximum"
+msgstr "최대"
+
+msgid ""
+"Specifying scaling factor to apply for contours. If multiple scales are "
+"specified, vertices are populated per scale factors."
+msgstr "윤곽선에 적용할 배율을 지정합니다. 여러 배율이 지정된 경우 각 배율에 따라 꼭짓점이 생성됩니다."
+
+msgid "Auto Segmentation"
+msgstr "자동 분할"
+
+msgid "X Segments"
+msgstr "X 축 분할"
+
+msgid "Y Segments"
+msgstr "Y 축 분할"
+
+msgid "Margin"
+msgstr "여백"
+
+msgid "X Scale"
+msgstr "X 배율"
+
+msgid "Y Scale"
+msgstr "Y 배율"
+
+msgid "(Debug Mode)"
+msgstr "(디버그 모드)"
+
+msgid "100% (Locked)"
+msgstr "100% (고정)"
+
+msgid ""
+"Oops! Your settings.json file is corrupted. Nijigenerate will load the "
+"default settings.\n"
+msgstr "앗! settings.json 파일이 손상되었습니다. Nijigenerate가 기본 설정을 불러옵니다.\n"
+
+msgid "The corrupted settings file has been moved to "
+msgstr "손상된 설정 파일은 다음 위치로 이동되었습니다 "
+
+msgid ""
+"If you always see this message, please report this issue to Nijigenerate\n"
+msgstr "이 메시지가 계속 표시된다면, 이 문제를 Nijigenerate에 보고해 주세요\n"
+
+msgid ""
+"\n"
+"Error message: "
+msgstr ""
+"\n"
+"오류 메시지: "
+
+msgid "Error"
+msgstr "오류"
+
+msgid "LANG_NAME"
+msgstr "한국어"
+
+msgid "New Parameter Group"
+msgstr "새 파라미터 그룹"
+
+msgid "Unset"
+msgstr "키 삭제"
+
+msgid "Set to current"
+msgstr "현재 값으로 설정"
+
+msgid "Invert"
+msgstr "반전"
+
+msgid "Mirror"
+msgstr "미러"
+
+msgid "Horizontally"
+msgstr "수평"
+
+msgid "Vertically"
+msgstr "수직"
+
+msgid "Flip Deform"
+msgstr "디포머 좌우 반전"
+
+msgid "Symmetrize Deform"
+msgstr "디포머 좌우 대칭화"
+
+msgid "Set from mirror"
+msgstr "반대 방향에서 복사하여 설정"
+
+msgid "Diagonally"
+msgstr "대각선"
+
+msgid "Copy"
+msgstr "복사"
+
+msgid "Paste"
+msgstr "붙여넣기"
+
+msgid "Remove"
+msgstr "삭제"
+
+msgid "Interpolation Mode"
+msgstr "보간 모드"
+
+msgid "Nearest"
+msgstr "가장 가까운"
+
+msgid "Linear"
+msgstr "선형"
+
+msgid "Cubic"
+msgstr "큐빅"
+
+msgid "Copy to"
+msgstr "복사 대상:"
+
+msgid "Swap with"
+msgstr "교체"
+
+msgid "Bindings"
+msgstr "바인딩"
+
+msgid "Show all nodes"
+msgstr "모든 노드 표시로 전환"
+
+msgid "Show only selected nodes"
+msgstr "선택된 노드만 표시로 전환"
+
+msgid "Edit Properties"
+msgstr "속성 편집..."
+
+msgid "Edit Axes Points"
+msgstr "축 포인트 편집"
+
+msgid "Split"
+msgstr "분할"
+
+msgid "To 2D"
+msgstr "2D로 변환"
+
+msgid "Flip X"
+msgstr "X축 뒤집기"
+
+msgid "Flip Y"
+msgstr "Y축 뒤집기"
+
+msgid "Flip"
+msgstr "뒤집기"
+
+msgid "Mirrored Autofill"
+msgstr "대칭 자동 채우기"
+
+msgid "Paste and Horizontal Flip"
+msgstr "붙여넣기 및 좌우 반전"
+
+msgid "Duplicate"
+msgstr "복제"
+
+msgid "Delete"
+msgstr "삭제"
+
+msgid "X"
+msgstr "X"
+
+msgid "Y"
+msgstr "Y"
+
+msgid "Link X to..."
+msgstr "X 파라미터 연결..."
+
+msgid "Link Y to .."
+msgstr "Y 파라미터 연결..."
+
+msgid "Link parameter to..."
+msgstr "파라미터 연결..."
+
+msgid "Set Starting Position"
+msgstr "시작 위치 설정"
+
+msgid "Arm Parameter"
+msgstr "파라미터 활성화"
+
+msgid "Add Keyframe"
+msgstr "키프레임 추가"
+
+msgid "Rename"
+msgstr "이름 변경"
+
+msgid "Colors"
+msgstr "색상"
+
+msgid "Custom Color"
+msgstr "사용자 지정 색상"
+
+msgid "Add 1D Parameter (0..1)"
+msgstr "1차원 파라미터 추가 (0..1)"
+
+msgid "Add 1D Parameter (-1..1)"
+msgstr "1차원 파라미터 추가 (-1..1)"
+
+msgid "Add 2D Parameter (0..1)"
+msgstr "2차원 파라미터 추가 (0..1)"
+
+msgid "Add 2D Parameter (-1..+1)"
+msgstr "2차원 파라미터 추가 (-1..+1)"
+
+msgid "Add Mouth Shape"
+msgstr "입 모양 추가"
+
+msgid "In vertex edit mode..."
+msgstr "버텍스 편집 모드 중..."
+
+msgid "Filter, search for specific parameters"
+msgstr "특정 파라미터 필터 및 검색"
+
+msgid "Add Parameter"
+msgstr "파라미터 추가"
+
+msgid "Parameters"
+msgstr "파라미터"
+
+msgid "Suffix"
+msgstr "접미사"
+
+msgid "Node"
+msgstr "노드"
+
+msgid "Mask"
+msgstr "마스크"
+
+msgid "Composite"
+msgstr "합성"
+
+msgid "Simple Physics"
+msgstr "간단 물리"
+
+msgid "Mesh Group"
+msgstr "메시 그룹"
+
+msgid "Dynamic Composite"
+msgstr "동적 합성"
+
+msgid "Path Deformer"
+msgstr "패스 디포머"
+
+msgid "Camera"
+msgstr "카메라"
+
+msgid "%s ID: %u"
+msgstr "%s ID: %u"
+
+msgid "%s Layer: %s"
+msgstr "%s 레이어: %s"
+
+msgid "ID: %u"
+msgstr "ID: %u"
+
+msgid "Layer: %s"
+msgstr "레이어: %s"
+
+msgid "Puppet"
+msgstr "퍼펫"
+
+msgid "Nodes"
+msgstr "노드"
+
+msgid "Edit..."
+msgstr "편집..."
+
+msgid "Animation List"
+msgstr "애니메이션 목록"
+
+msgid "New Node"
+msgstr "새 노드"
+
+msgid "New Parameter"
+msgstr "새 매개변수"
+
+msgid "Resources"
+msgstr "리소스"
+
+msgid "No nodes selected..."
+msgstr "선택된 노드가 없습니다..."
+
+msgid "Inspector"
+msgstr "인스펙터"
+
+msgid "nijilive Ver."
+msgstr "nijilive 버전"
+
+msgid "General Info"
+msgstr "기본 정보"
+
+msgid "Part Count"
+msgstr "파츠 수"
+
+msgid "Name"
+msgstr "이름"
+
+msgid "Name of the puppet"
+msgstr "퍼펫의 이름"
+
+msgid "Artist(s)"
+msgstr "아티스트"
+
+msgid "Artists who've drawn the puppet, seperated by comma"
+msgstr "퍼펫을 그린 아티스트 이름(쉼표로 구분)"
+
+msgid "Rigger(s)"
+msgstr "리거"
+
+msgid "Riggers who've rigged the puppet, seperated by comma"
+msgstr "퍼펫을 리깅한 리거들, 쉼표로 구분"
+
+msgid "Contact"
+msgstr "연락처"
+
+msgid "Where to contact the main author of the puppet"
+msgstr "퍼펫 메인 제작자 연락처"
+
+msgid "Licensing"
+msgstr "라이선스"
+
+msgid "License URL"
+msgstr "라이선스 URL"
+
+msgid "Link/URL to license"
+msgstr "라이선스 링크/URL"
+
+msgid "Copyright"
+msgstr "저작권"
+
+msgid "Copyright holder information of the puppet"
+msgstr "퍼펫 저작권 보유자 정보"
+
+msgid "Origin"
+msgstr "출처"
+
+msgid "Where the model comes from on the internet."
+msgstr "모델이 인터넷에서 유래한 곳"
+
+msgid "Physics Globals"
+msgstr "물리 전역 설정"
+
+msgid "Pixels per meter"
+msgstr "미터당 픽셀 수"
+
+msgid "Number of pixels that correspond to 1 meter in the physics engine."
+msgstr "물리 엔진에서 1미터에 해당하는 픽셀 수입니다."
+
+msgid "Gravity"
+msgstr "중력"
+
+msgid "Acceleration due to gravity, in m/s². Earth gravity is 9.8."
+msgstr "중력 가속도(m/s²)입니다. 지구 중력은 9.8입니다."
+
+msgid "%.2f m/s²"
+msgstr "%.2f m/s²"
+
+msgid "Rendering Settings"
+msgstr "렌더링 설정"
+
+msgid "Use Point Filtering"
+msgstr "포인트 필터링 사용"
+
+msgid ""
+"Makes nijilive model use point filtering, removing blur for low-resolution "
+"models."
+msgstr "nijilive 모델이 포인트 필터링을 사용하여 저해상도 모델의 흐림 현상을 제거합니다."
+
+msgid "Size of given texture does not match the Albedo texture."
+msgstr "지정한 텍스처 크기가 알베도 텍스처와 일치하지 않습니다."
+
+msgid "%s is not supported"
+msgstr "%s는 지원되지 않습니다"
+
+msgid "Save to File"
+msgstr "파일로 저장"
+
+msgid "Load from File"
+msgstr "파일에서 불러오기"
+
+msgid "Import..."
+msgstr "가져오기..."
+
+msgid "Make Emissive"
+msgstr "발광으로 설정"
+
+msgid "Part"
+msgstr "부품"
+
+msgid "Cannot inspect an unmeshed part"
+msgstr "메시가 없는 부품은 검사할 수 없습니다"
+
+msgid "Albedo"
+msgstr "색상 정보(Albedo)"
+
+msgid "Emissive"
+msgstr "발광(Emissive)"
+
+msgid "Bumpmap"
+msgstr "범프맵"
+
+msgid "Tint (Multiply)"
+msgstr "틴트 (곱하기)"
+
+msgid "Tint (Screen)"
+msgstr "틴트 (스크린)"
+
+msgid "Emission Strength"
+msgstr "발광 세기"
+
+msgid "Blending"
+msgstr "블렌딩"
+
+msgid "Normal"
+msgstr "일반"
+
+msgid "Multiply"
+msgstr "곱하기"
+
+msgid "Screen"
+msgstr "스크린"
+
+msgid "Overlay"
+msgstr "오버레이"
+
+msgid "Darken"
+msgstr "어둡게"
+
+msgid "Lighten"
+msgstr "밝게"
+
+msgid "Color Dodge"
+msgstr "컬러 닷지"
+
+msgid "Linear Dodge"
+msgstr "선형 닷지"
+
+msgid "Add (Glow)"
+msgstr "더하기 (글로우)"
+
+msgid "Color Burn"
+msgstr "컬러 번"
+
+msgid "Hard Light"
+msgstr "하드 라이트"
+
+msgid "Soft Light"
+msgstr "소프트 라이트"
+
+msgid "Subtract"
+msgstr "빼기"
+
+msgid "Difference"
+msgstr "차이"
+
+msgid "Exclusion"
+msgstr "제외"
+
+msgid "Inverse"
+msgstr "반전"
+
+msgid "Inverts the color by a factor of the overlying color"
+msgstr "겹쳐진 색상에 따라 색상을 반전합니다"
+
+msgid "Destination In"
+msgstr "대상 내부"
+
+msgid "Clip to Lower"
+msgstr "하위 클리핑"
+
+msgid ""
+"Special blending mode that causes (while respecting transparency) the part "
+"to be clipped to everything underneath"
+msgstr "투명도를 고려하여 아래에 있는 모든 부분에 맞춰 해당 부분이 클리핑되는 특수 합성 모드입니다"
+
+msgid "Slice from Lower"
+msgstr "하위에서 자르기"
+
+msgid ""
+"Special blending mode that causes (while respecting transparency) the part to be slice by everything underneath.\n"
+"Basically reverse Clip to Lower."
+msgstr ""
+"투명도를 고려하여 아래에 있는 모든 부분에 맞춰 해당 부분이 잘려 나가는 특수 합성 모드입니다.\n"
+"기본적으로 하위 클리핑의 반대입니다."
+
+msgid "Opacity"
+msgstr "불투명도"
+
+msgid "Masks"
+msgstr "마스크"
+
+msgid "Threshold"
+msgstr "임계값"
+
+msgid "Resize automatically"
+msgstr "자동 크기 조절"
+
+msgid ""
+"Resize size automatically when child nodes are added or removed. Affect "
+"performance severly, not recommended."
+msgstr "자식 노드가 추가되거나 제거될 때 크기를 자동으로 조절합니다. 성능에 심각한 영향을 미치므로 권장하지 않습니다."
+
+msgid "Mask Sources"
+msgstr "마스크 소스"
+
+msgid "(Drag a Part or Mask Here)"
+msgstr "(여기에 파트 또는 마스크를 드래그)"
+
+msgid "Mode"
+msgstr "모드"
+
+msgid "Dodge"
+msgstr "닿게하기"
+
+msgid "%s (Mask)"
+msgstr "%s (마스크)"
+
+msgid "%s (Dodge)"
+msgstr "%s (닿게하기)"
+
+msgid "Welding"
+msgstr "용접"
+
+msgid "(Drag a Part Here)"
+msgstr "(여기에 파트를 드래그)"
+
+msgid "Textures"
+msgstr "텍스처"
+
+msgid "PathDeformer"
+msgstr "패스 변형"
+
+msgid "Auto-Physics"
+msgstr "자동 물리"
+
+msgid ""
+"Enabled / Disabled physics driver for vertices. If enabled, vertices are "
+"moved along with specified physics engine."
+msgstr "정점에 대한 물리 드라이버를 활성화/비활성화합니다. 활성화하면 정점이 지정된 물리 엔진에 따라 이동합니다."
+
+msgid "Bezier"
+msgstr "베지어"
+
+msgid "Spline"
+msgstr "스플라인"
+
+msgid "Physics Type"
+msgstr "물리 엔진 종류"
+
+msgid "Pendulum"
+msgstr "진자"
+
+msgid "SpringPendulum"
+msgstr "스프링 진자"
+
+msgid "Gravity scale"
+msgstr "중력 배율"
+
+msgid "Restore force"
+msgstr "복원력"
+
+msgid ""
+"Force to restore for original position. If this force is weaker than the "
+"gravity, pendulum cannot restore to original position."
+msgstr "원래 위치로 복원하는 힘을 설정합니다. 이 힘이 중력보다 약하면, 진자는 원래 위치로 복원되지 않습니다."
+
+msgid "Damping"
+msgstr "감쇠"
+
+msgid "Input scale"
+msgstr "입력 스케일"
+
+msgid ""
+"Input force is multiplied by this factor. This should be specified when "
+"original position moved too much."
+msgstr "입력 힘에 이 계수를 곱합니다. 원래 위치가 너무 많이 이동했을 때 지정해야 합니다."
+
+msgid "Propagate scale"
+msgstr "전파율"
+
+msgid ""
+"Specify the degree to convey movement of previous pendulum to next one."
+msgstr "이전 진자의 움직임이 다음 진자에 전달되는 정도를 지정합니다."
+
+msgid "Propagate MeshGroup"
+msgstr "메시 그룹 전파"
+
+msgid "Allow ascendant MeshGroup to deform children of Composite"
+msgstr "상위 메시 그룹이 컴포지트의 자식 변형에 영향을 주도록 허용합니다."
+
+msgid "MeshGroup"
+msgstr "메시 그룹"
+
+msgid "Dynamic Deformation (slower)"
+msgstr "동적 변형 (느림)"
+
+msgid ""
+"Whether the MeshGroup should dynamically deform children,\n"
+"this is an expensive operation and should not be overused."
+msgstr ""
+"MeshGroup이 자식들을 동적으로 변형할지 여부입니다.\n"
+"이 작업은 비용이 많이 들기 때문에 과도한 사용을 피해야 합니다."
+
+msgid "Translate origins"
+msgstr "원점 이동"
+
+msgid "Translate origin of child nodes for non-Drawable object."
+msgstr "Drawable이 아닌 자식 노드의 원점도 이동시킵니다."
+
+msgid "Drawable"
+msgstr "Drawable"
+
+msgid "Texture Offset"
+msgstr "텍스처 오프셋"
+
+msgid "SimplePhysics"
+msgstr "간단 물리 연산"
+
+msgid "Unmap"
+msgstr "할당 해제"
+
+msgid "Unassigned"
+msgstr "할당 안 됨"
+
+msgid "Parameter"
+msgstr "파라미터"
+
+msgid "(unassigned)"
+msgstr "(할당 안 됨)"
+
+msgid "Type"
+msgstr "유형"
+
+msgid "Mapping mode"
+msgstr "매핑 모드"
+
+msgid "AngleLength"
+msgstr "각도"
+
+msgid "XY"
+msgstr "X/Y 좌표"
+
+msgid "LengthAngle"
+msgstr "각도 길이"
+
+msgid "YX"
+msgstr "Y/X 좌표"
+
+msgid "Local Transform Lock"
+msgstr "로컬 변환 고정"
+
+msgid ""
+"Whether the physics system only listens to the movement of the physics node "
+"itself"
+msgstr "물리 시스템이 물리 노드 자체의 이동만 감지할지 여부"
+
+msgid "Length"
+msgstr "길이"
+
+msgid "Resonant frequency"
+msgstr "공진 주파수"
+
+msgid "Output scale"
+msgstr "출력 배율"
+
+msgid "Viewport"
+msgstr "뷰포트"
+
+msgid "Transform"
+msgstr "변형"
+
+msgid "Translation"
+msgstr "이동"
+
+msgid "Lock to Root Node"
+msgstr "루트 노드에 고정"
+
+msgid "Pin origin to parent mesh."
+msgstr "원점을 부모 메시로 고정"
+
+msgid ""
+"Makes so that the translation of this node is based off the root node, "
+"making it stay in place even if its parent moves."
+msgstr "이 노드의 이동이 루트 노드를 기준으로 이루어져, 부모가 움직여도 제자리에 머물게 합니다."
+
+msgid "Rotation"
+msgstr "회전"
+
+msgid "Rotation X"
+msgstr "X축 회전"
+
+msgid "Rotation Y"
+msgstr "Y축 회전"
+
+msgid "Rotation Z"
+msgstr "Z축 회전"
+
+msgid "Scale"
+msgstr "스케일"
+
+msgid "Scale X"
+msgstr "X축 스케일"
+
+msgid "Scale Y"
+msgstr "Y축 스케일"
+
+msgid "Snap to Pixel"
+msgstr "픽셀에 스냅"
+
+msgid "Sorting"
+msgstr "정렬"
+
+msgid "Logger"
+msgstr "로그"
+
+msgid "Shell"
+msgstr "셸"
+
+msgid "Armed Parameters"
+msgstr "편집 중인 매개변수"
+
+msgid "Ambient Light"
+msgstr "주변광"
+
+msgid "Scene"
+msgstr "씬"
+
+msgid "Undo History"
+msgstr "실행 취소 기록"
+
+msgid "Clear History"
+msgstr "기록 지우기"
+
+msgid "%d of %d"
+msgstr "%d / %d"
+
+msgid "History"
+msgstr "기록"
+
+msgid "Interpolation"
+msgstr "보간"
+
+msgid "Stepped"
+msgstr "계단식"
+
+msgid "Merge Mode"
+msgstr "병합 모드"
+
+msgid "Additive"
+msgstr "덧셈"
+
+msgid "Multiplicative"
+msgstr "곱셈"
+
+msgid "Forced"
+msgstr "강제 덮어쓰기"
+
+msgid "Lock playback to animation framerate"
+msgstr "애니메이션 프레임레이트에 맞춰 재생 고정"
+
+msgid "Not in Animation Edit mode..."
+msgstr "애니메이션 편집 모드가 아닙니다..."
+
+msgid "Timeline"
+msgstr "타임라인"
+
+msgid "Mirror View"
+msgstr "좌우 반전 뷰"
+
+msgid "Onion slice"
+msgstr "어니언 스라이스"
+
+msgid "Enable physics"
+msgstr "물리 효과 활성화"
+
+msgid "Enable post processing"
+msgstr "포스트 프로세싱 활성화"
+
+msgid "Reset physics"
+msgstr "물리 효과 초기화"
+
+msgid "Reset parameters"
+msgstr "매개변수 초기화"
+
+msgid "Configure Flip Pairings"
+msgstr "좌우 반전 쌍 설정"
+
+msgid "Automesh Batching"
+msgstr "자동 메시 일괄 처리"
+
+msgid "Tool Settings"
+msgstr "도구 설정"
+
+msgid "Import File"
+msgstr "파일 가져오기"
+
+msgid ""
+"Do you want to preserve the folder structure of the imported file? You can "
+"change this in the settings."
+msgstr "가져온 파일의 폴더 구조를 유지하시겠습니까? 설정에서 변경할 수 있습니다."
+
+msgid "%s was imported..."
+msgstr "%s를 가져왔습니다..."
+
+msgid "Import failed..."
+msgstr "가져오기에 실패했습니다..."
+
+msgid ""
+"An error occured during %s import:\n"
+"%s"
+msgstr ""
+"%s 가져오기 중 오류가 발생했습니다:\n"
+"%s"
+
+msgid "Automatic"
+msgstr "자동"
+
+msgid "%s was exported..."
+msgstr "%s를 내보냈습니다..."
+
+msgid "%s failed to export with error (%s)..."
+msgstr "%s 내보내기에 실패했습니다. (오류: %s)..."
+
+msgid "A texture is too big for the atlas."
+msgstr "텍스처가 아틀라스에 비해 너무 큽니다."
+
+msgid "New Project"
+msgstr "새 프로젝트"
+
+msgid ""
+"Please report this file to the developers:\n"
+"\n"
+"%s"
+msgstr ""
+"다음 파일을 개발자에게 보고해 주세요:\n"
+"\n"
+"%s"
+
+msgid "Failed to write crash dump file."
+msgstr "크래시 덤프 파일 작성에 실패했습니다."
+
+msgid "%s opened successfully."
+msgstr "%s를 성공적으로 열었습니다."
+
+msgid "%s saved successfully."
+msgstr "%s를 성공적으로 저장했습니다."
+
+msgid "Failed to save %s"
+msgstr "%s 저장에 실패했습니다."
+
+msgid ""
+"The following errors occured during file loading\n"
+"%s"
+msgstr ""
+"파일 로딩 중 다음 오류가 발생했습니다\n"
+"%s"
+
+msgid "Folder import completed with errors..."
+msgstr "폴더 가져오기가 오류와 함께 완료되었습니다..."
+
+msgid "Folder import completed..."
+msgstr "폴더 가져오기가 완료되었습니다..."
+
+msgid "Mipmap generation completed."
+msgstr "밉맵 생성이 완료되었습니다."
+
+msgid "Texture bleeding completed."
+msgstr "텍스처 블리딩이 완료되었습니다."
+
+msgid ""
+"\n"
+"\n"
+"\n"
+"===   nijigenerate has crashed   ===\n"
+"Please send us the nijigenerate-crashdump.txt file in ~/Library/Logs\n"
+"Attach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"
+msgstr ""
+"\n"
+"\n"
+"\n"
+"===   nijigenerate가 충돌했습니다   ===\n"
+"~/Library/Logs에 있는 nijigenerate-crashdump.txt 파일을 보내주세요\n"
+"https://github.com/nijigenerate/nijigenerate/issues에 git 이슈로 첨부해 주세요"
+
+msgid ""
+"\n"
+"\n"
+"\n"
+"===   nijigenerate has crashed   ===\n"
+"Please send us the nijigenerate-crashdump.txt file in your log directory, XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/nijigenerate.nijigenerate.\n"
+"Attach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"
+msgstr ""
+"\n"
+"\n"
+"\n"
+"===   nijigenerate가 충돌했습니다   ===\n"
+"로그 디렉터리 XDG_STATE_HOME에 있는 nijigenerate-crashdump.txt 파일을 보내주세요. Flatpak의 경우 ~/.var/app/nijigenerate.nijigenerate에 있습니다.\n"
+"https://github.com/nijigenerate/nijigenerate/issues에 git 이슈로 첨부해 주세요"
+
+msgid ""
+"The application has unexpectedly crashed\n"
+"Please send the developers the nijigenerate-crashdump.txt which has been put on your desktop\n"
+"Via https://github.com/nijigenerate/nijigenerate/issues"
+msgstr ""
+"애플리케이션이 예기치 않게 충돌했습니다\n"
+"바탕화면에 생성된 nijigenerate-crashdump.txt 파일을 개발자에게 보내주세요\n"
+"https://github.com/nijigenerate/nijigenerate/issues를 통해 접수 가능합니다"
+
+msgid "nijigenerate Crashdump"
+msgstr "nijigenerate 충돌 덤프"
+
+msgid "%s->Edited deformation of %s."
+msgstr "%s->%s의 변형이 편집되었습니다."
+
+msgid "%s->deformation of %s was edited."
+msgstr "%s->%s의 변형 편집이 취소되었습니다."
+
+msgid "Added binding %s"
+msgstr "바인딩 %s가 추가되었습니다"
+
+msgid "Removed binding %s"
+msgstr "바인딩 %s이(가) 제거되었습니다"
+
+msgid "Binding %s was removed"
+msgstr "바인딩 %s이(가) 제거되었습니다"
+
+msgid "Binding %s was added"
+msgstr "바인딩 %s이(가) 추가되었습니다"
+
+msgid "%s->%s changed"
+msgstr "%s->%s가 변경되었습니다"
+
+msgid "%s->%s change cancelled"
+msgstr "%s->%s 변경이 취소되었습니다"
+
+msgid "Mesh %s change is restored."
+msgstr "메시 %s 변경이 복원되었습니다."
+
+msgid "Mesh %s was edited."
+msgstr "메시 %s가 편집되었습니다."
+
+msgid "%s: vertex was translated."
+msgstr "%s: 버텍스가 이동되었습니다."
+
+msgid "removed"
+msgstr "제거됨"
+
+msgid "inserted"
+msgstr "삽입됨"
+
+msgid "%s: vertex was %s."
+msgstr "%s: 버텍스가 %s였습니다."
+
+msgid "Added parameter %s"
+msgstr "파라미터 %s가 추가되었습니다."
+
+msgid "Removed parameter %s"
+msgstr "파라미터 %s가 제거되었습니다."
+
+msgid "Parameter %s was removed"
+msgstr "파라미터 %s가 다시 제거되었습니다."
+
+msgid "Parameter %s was added"
+msgstr "파라미터 %s가 다시 추가되었습니다."
+
+msgid "%s->%s changed to %s"
+msgstr "%s->%s가 %s로 변경되었습니다."
+
+msgid "%s->%s changed from %s"
+msgstr "%s->%s가 %s에서 원래대로 되돌려졌습니다."
+
+msgid "Changed drawable mesh of %s"
+msgstr "%s 드로어블 메쉬가 변경되었습니다."
+
+msgid "Drawable %s was changed"
+msgstr "드로어블 %s가 변경되었습니다."
+
+msgid "Changed vertices of %s"
+msgstr "%s의 버텍스가 변경되었습니다."
+
+msgid "Vertices of %s was changed"
+msgstr "%s의 버텍스가 변경되었습니다"
+
+msgid "%s can not be reparented in to %s due to a circular dependency."
+msgstr "순환 참조로 인해 %s를 %s의 자식으로 설정할 수 없습니다."
+
+msgid "nodes"
+msgstr "노드"
+
+msgid "Created %s"
+msgstr "%s를 생성했습니다"
+
+msgid "Deleted %s"
+msgstr "%s를 삭제했습니다"
+
+msgid "Moved %s to %s"
+msgstr "%s를 %s로 이동했습니다"
+
+msgid "Moved %s from %s"
+msgstr "%s가 %s에서 이동했습니다"
+
+msgid "Moved %s from origin"
+msgstr "%s를 원점에서 이동했습니다"
+
+msgid "Change type of %s to %s"
+msgstr "%s의 유형을 %s로 변경했습니다"
+
+msgid "Revert type of %s to %s"
+msgstr "%s의 유형을 %s로 되돌렸습니다"
+
+msgid "%s is added to mask of %s"
+msgstr "%s가 %s의 마스크에 추가되었습니다"
+
+msgid "%s is deleted from mask of %s"
+msgstr "%s가 %s의 마스크에서 삭제되었습니다"
+
+msgid "%s is added to welded targets of %s"
+msgstr "%s가 %s의 용접 대상에 추가되었습니다"
+
+msgid "%s is deleted from welded targets of %s"
+msgstr "%s가 %s의 용접 대상에서 삭제되었습니다"
+
+msgid "links of %s and %s are changed."
+msgstr "%s와 %s의 연결이 변경되었습니다."
+
+msgid "links of %s and %s are restored."
+msgstr "%s와 %s의 연결이 복원되었습니다."
+
+msgid "Enabled"
+msgstr "사용"
+
+msgid "Disabled"
+msgstr "사용 안 함"
+
+msgid "%s was %s"
+msgstr "%s가 %s로 변경되었습니다"
+
+msgid "Unnamed "
+msgstr "이름 없음"
+
+msgid "%s locked to root node"
+msgstr "%s가 루트 노드에 고정되었습니다"
+
+msgid "%s unlocked from root node"
+msgstr "%s가 루트 노드에서 고정 해제되었습니다"
+
+msgid "Export Settings"
+msgstr "내보내기 설정"
+
+msgid "Allow Transparency"
+msgstr "투명도 허용"
+
+msgid "Use Post Processing"
+msgstr "후처리 사용"
+
+msgid "Save"
+msgstr "저장"
+
+msgid "Export Image..."
+msgstr "이미지 내보내기..."
+
+msgid "No cameras to export from in Scene, please add a Camera."
+msgstr "씬에 내보낼 카메라가 없습니다. 카메라를 추가하세요."
+
+msgid "Breakpoints"
+msgstr "중단점"
+
+msgid "One or more axes points are overlapping, this is not allowed."
+msgstr "하나 이상의 축 점이 겹쳐져 있습니다. 이는 허용되지 않습니다."
+
+msgid "Parameter Axes Points"
+msgstr "파라미터 축 포인트"
+
+msgid "Texture Viewer"
+msgstr "텍스처 뷰어"
+
+msgid "Rename %s..."
+msgstr "%s 이름 변경..."
+
+msgid "Output"
+msgstr "출력"
+
+msgid "Animation"
+msgstr "애니메이션"
+
+msgid "Loops"
+msgstr "반복"
+
+msgid "How many times the animation should loop"
+msgstr "애니메이션 반복 횟수"
+
+msgid "Framerate"
+msgstr "프레임 속도"
+
+msgid "[AUTO]"
+msgstr "[자동]"
+
+msgid "Framerate of the video file"
+msgstr "비디오 파일의 프레임 속도"
+
+msgid "Lock to Animation Framerate"
+msgstr "애니메이션 프레임레이트에 고정"
+
+msgid "Codec"
+msgstr "코덱"
+
+msgid "Export"
+msgstr "내보내기"
+
+msgid "Close"
+msgstr "닫기"
+
+msgid "Export Video..."
+msgstr "비디오 내보내기..."
+
+msgid "FFMPEG was not found, please install FFMPEG to export video."
+msgstr "FFMPEG를 찾을 수 없습니다. 비디오를 내보내려면 FFMPEG를 설치하세요."
+
+msgid "No animations are defined for this model, please add an animation."
+msgstr "이 모델에는 정의된 애니메이션이 없습니다. 애니메이션을 추가하세요."
+
+msgid "Parameter Name"
+msgstr "파라미터 이름"
+
+msgid "Parameter Constraints"
+msgstr "파라미터 제약"
+
+msgid "Name is already taken"
+msgstr "이 이름은 이미 사용 중입니다."
+
+msgid "Parameter Properties"
+msgstr "파라미터 속성"
+
+msgid " (Split)"
+msgstr " (분할)"
+
+msgid "Split Parameter"
+msgstr "파라미터 분할"
+
+msgid "<< Not assigned >>"
+msgstr "<< 할당 안 됨 >>"
+
+msgid "< Add new row >"
+msgstr "< 새 행 추가 >"
+
+msgid "Pair"
+msgstr "페어"
+
+msgid "Part 1"
+msgstr "파트 1"
+
+msgid "Part 2"
+msgstr "파트 2"
+
+msgid "Flip Pairing"
+msgstr "좌우 반전 페어 편집"
+
+msgid "Run batch"
+msgstr "일괄 실행"
+
+msgid "Quick Setup"
+msgstr "빠른 설정"
+
+msgid "Language"
+msgstr "언어"
+
+msgid "Color Theme"
+msgstr "컬러 테마"
+
+msgid "Dark"
+msgstr "다크"
+
+msgid "Light"
+msgstr "라이트"
+
+msgid "UI Scale"
+msgstr "UI 배율"
+
+msgid "nijigenerate needs to be restarted for some changes to take effect."
+msgstr "일부 변경 사항을 적용하려면 nijigenerate를 재시작해야 합니다."
+
+msgid "Next"
+msgstr "다음"
+
+msgid "Create Project"
+msgstr "프로젝트 생성"
+
+msgid "New..."
+msgstr "새로 만들기..."
+
+msgid "Open..."
+msgstr "열기..."
+
+msgid "Import PSD..."
+msgstr "PSD 가져오기..."
+
+msgid "Import KRA..."
+msgstr "KRA 가져오기..."
+
+msgid "Recent Projects"
+msgstr "최근 프로젝트"
+
+msgid "On the Web"
+msgstr "웹에서"
+
+msgid "Website"
+msgstr "웹사이트"
+
+msgid "Documentation"
+msgstr "문서"
+
+msgid "nijigenerate Start"
+msgstr "nijigenerate 시작"
+
+msgid "nijigenerate closed unexpectedly while editing this file."
+msgstr "이 파일을 편집하는 중에 nijigenerate가 예기치 않게 종료되었습니다."
+
+msgid "Restore data from a backup?"
+msgstr "백업에서 데이터를 복원하시겠습니까?"
+
+msgid "Discard"
+msgstr "버리기"
+
+msgid "Restore"
+msgstr "복원"
+
+msgid "Restore Autosave"
+msgstr "자동 저장에서 복원"
+
+msgid "About"
+msgstr "정보"
+
+msgid "Invalid Name"
+msgstr "잘못된 이름"
+
+msgid "Name can not be empty!"
+msgstr "이름은 비워둘 수 없습니다!"
+
+msgid "%s is already taken! Please chose another animation name."
+msgstr "%s(은)는 이미 사용 중입니다! 다른 애니메이션 이름을 선택하세요."
+
+msgid "Options"
+msgstr "옵션"
+
+msgid "Weight"
+msgstr "가중치"
+
+msgid "Frames"
+msgstr "프레임"
+
+msgid "Lead In"
+msgstr "리드 인"
+
+msgid "Lead Out"
+msgstr "리드 아웃"
+
+msgid "Custom Framerate"
+msgstr "사용자 지정 프레임률"
+
+msgid "%ss %sms"
+msgstr "%ss %sms"
+
+msgid "120 FPS"
+msgstr "120 FPS"
+
+msgid "60 FPS"
+msgstr "60 FPS"
+
+msgid "30 FPS"
+msgstr "30 FPS"
+
+msgid "25 FPS"
+msgstr "25 FPS"
+
+msgid "Custom Framrate"
+msgstr "사용자 지정 프레임률"
+
+msgid "New Animation..."
+msgstr "새 애니메이션..."
+
+msgid "Edit %s..."
+msgstr "%s 편집..."
+
+msgid "Look and Feel"
+msgstr "모양 및 느낌"
+
+msgid "Accessbility"
+msgstr "접근성"
+
+msgid "File Handling"
+msgstr "파일 처리"
+
+msgid "Max Undo History"
+msgstr "최대 실행 취소 기록"
+
+msgid "Linux Tweaks"
+msgstr "리눅스 설정"
+
+msgid "Disable Compositor"
+msgstr "컴포지터 비활성화"
+
+msgid "Accessibility"
+msgstr "접근성"
+
+msgid "Use OpenDyslexic Font"
+msgstr "OpenDyslexic 글꼴 사용"
+
+msgid "Use the OpenDyslexic font for Latin text characters."
+msgstr "라틴 문자에 OpenDyslexic 글꼴을 사용합니다."
+
+msgid "Autosaves"
+msgstr "자동 저장"
+
+msgid "Enable Autosaves"
+msgstr "자동 저장 활성화"
+
+msgid "Save Interval (Minutes)"
+msgstr "저장 간격(분)"
+
+msgid "Maximum Autosaves"
+msgstr "최대 자동 저장 수"
+
+msgid "Preserve Imported File Folder Structure"
+msgstr "가져온 파일 폴더 구조 유지"
+
+msgid "Preserve Folder Structure"
+msgstr "폴더 구조 유지"
+
+msgid "Always Ask"
+msgstr "항상 묻기"
+
+msgid "Preserve"
+msgstr "유지"
+
+msgid "Not Preserve"
+msgstr "유지하지 않음"
+
+msgid "Zoom Mode"
+msgstr "확대 모드"
+
+msgid "To Screen Center"
+msgstr "화면 중앙으로"
+
+msgid "To Mouse Position"
+msgstr "마우스 위치로"
+
+msgid "Zoom Speed"
+msgstr "줌 속도"
+
+msgid "No settings for this category."
+msgstr "이 카테고리에 설정이 없습니다."
+
+msgid "Done"
+msgstr "완료"
+
+msgid "Settings"
+msgstr "설정"
+
+msgid "%s  %s"
+msgstr "%s  %s"
+
+msgid "Ignore"
+msgstr "무시"
+
+msgid "Use"
+msgstr "사용"
+
+msgid "Only show unmapped"
+msgstr "할당되지 않은 항목만 표시"
+
+msgid "Auto-rename"
+msgstr "자동 이름 변경"
+
+msgid ""
+"Renames all mapped nodes to match the names of the PSD layer that was merged"
+" in to them."
+msgstr "맵핑된 모든 노드의 이름을 병합된 PSD 레이어 이름과 일치하도록 변경합니다."
+
+msgid "Re-translate"
+msgstr "재배치"
+
+msgid ""
+"Moves all nodes so that they visually match their position in the canvas."
+msgstr "캔버스 상의 위치와 시각적으로 일치하도록 모든 노드를 이동합니다."
+
+msgid "Merge"
+msgstr "병합"
+
+msgid "PSD Merging"
+msgstr "PSD 병합"
+
+msgid "Atlassing"
+msgstr "아틀라스 생성"
+
+msgid "Decoration"
+msgstr "장식"
+
+msgid "Atlas Settings"
+msgstr "아틀라스 설정"
+
+msgid "Resolution"
+msgstr "해상도"
+
+msgid "Non-linear Scaling"
+msgstr "비선형 스케일링"
+
+msgid ""
+"Whether too large parts should individually be scaled down instead of all "
+"parts being scaled down uniformly."
+msgstr "너무 큰 부품을 모두 균일하게 축소하는 대신 개별적으로 축소할지 여부를 지정합니다."
+
+msgid "Texture Scale"
+msgstr "텍스처 배율"
+
+msgid "Padding"
+msgstr "여백"
+
+msgid "Optimizations"
+msgstr "최적화"
+
+msgid "Prune unused nodes"
+msgstr "사용하지 않는 노드 제거"
+
+msgid "Prune nodes which have been disabled from the export."
+msgstr "비활성화된 노드를 내보낼 때 제거합니다."
+
+msgid "Watermark"
+msgstr "워터마크"
+
+msgid "Load"
+msgstr "불러오기"
+
+msgid "Preview"
+msgstr "미리보기"
+
+msgid ""
+"A texture was too large to fit the texture atlas, the textures have been "
+"scaled down."
+msgstr "텍스처가 너무 커서 텍스처 아틀라스에 맞지 않아 텍스처 크기가 축소되었습니다."
+
+msgid "Export failed..."
+msgstr "내보내기에 실패했습니다..."
+
+msgid "Export Options"
+msgstr "내보내기 옵션"
+
+msgid ""
+"Renames all mapped nodes to match the names of the KRA layer that was merged"
+" in to them."
+msgstr "맵핑된 모든 노드의 이름을 병합된 KRA 레이어 이름과 일치하도록 변경합니다."
+
+msgid "KRA Merging"
+msgstr "KRA 병합"
+
+msgid "Save..."
+msgstr "다른 이름으로 저장..."
+
+msgid "Save As..."
+msgstr "다른 이름으로 저장..."
+
+msgid "File"
+msgstr "파일"
+
+msgid "New"
+msgstr "새로 만들기"
+
+msgid "Open"
+msgstr "열기"
+
+msgid "Recent"
+msgstr "최근"
+
+msgid "Import"
+msgstr "가져오기"
+
+msgid "Photoshop Document"
+msgstr "포토샵 문서"
+
+msgid "Import a standard Photoshop PSD file."
+msgstr "표준 포토샵 PSD 파일 가져오기"
+
+msgid "Krita Document"
+msgstr "크리타 문서"
+
+msgid "Import a standard Krita KRA file."
+msgstr "표준 크리타 KRA 파일 가져오기"
+
+msgid "nijilive Puppet"
+msgstr "nijilive 퍼펫"
+
+msgid "Import existing puppet file, editing options limited"
+msgstr "기존 퍼펫 파일 가져오기, 편집 옵션 제한"
+
+msgid "Image Folder"
+msgstr "이미지 폴더"
+
+msgid "Select a Folder..."
+msgstr "폴더 선택..."
+
+msgid "Supports PNGs, TGAs and JPEGs."
+msgstr "PNG, TGA 및 JPEG 지원"
+
+msgid "Merge layers from Photoshop document"
+msgstr "Photoshop 문서의 레이어 병합"
+
+msgid "Merge layers from Krita document"
+msgstr "Krita 문서의 레이어 병합"
+
+msgid "Image Files"
+msgstr "이미지 파일"
+
+msgid "Merges (adds) selected image files to project"
+msgstr "선택한 이미지 파일을 프로젝트에 병합(추가)"
+
+msgid "nijigenerate Project"
+msgstr "nijigenerate 프로젝트"
+
+msgid "Merge another nijigenerate project in to this one"
+msgstr "다른 nijigenerate 프로젝트를 이 프로젝트에 병합"
+
+msgid "Export..."
+msgstr "내보내기..."
+
+msgid "Image"
+msgstr "이미지"
+
+msgid "PNG (*.png)"
+msgstr "PNG (*.png)"
+
+msgid "JPEG (*.jpeg)"
+msgstr "JPEG (*.jpeg)"
+
+msgid "TARGA (*.tga)"
+msgstr "TARGA (*.tga)"
+
+msgid "Video"
+msgstr "비디오"
+
+msgid "Close Project"
+msgstr "프로젝트 닫기"
+
+msgid "Quit"
+msgstr "종료"
+
+msgid "Edit"
+msgstr "편집"
+
+msgid "Undo"
+msgstr "실행 취소"
+
+msgid "Redo"
+msgstr "다시 실행"
+
+msgid "Cut"
+msgstr "잘라내기"
+
+msgid "ImGui Debugging"
+msgstr "ImGui 디버깅"
+
+msgid "Style Editor"
+msgstr "스타일 편집기"
+
+msgid "ImGui Debugger"
+msgstr "ImGui 디버거"
+
+msgid "ImGui Metrics"
+msgstr "ImGui 메트릭"
+
+msgid "ImGui Stack Tool"
+msgstr "ImGui 스택 도구"
+
+msgid "View"
+msgstr "보기"
+
+msgid "Reset Layout"
+msgstr "레이아웃 초기화"
+
+msgid "Panels"
+msgstr "패널"
+
+msgid "Panel is not visible in current edit mode."
+msgstr "현재 편집 모드에서는 패널이 보이지 않습니다."
+
+msgid "Configuration"
+msgstr "설정"
+
+msgid "Open Configuration Folder"
+msgstr "설정 폴더 열기"
+
+msgid "Extras"
+msgstr "기타"
+
+msgid "Save Screenshot"
+msgstr "스크린샷 저장"
+
+msgid "Save Screenshot..."
+msgstr "스크린샷 저장..."
+
+msgid "Saves screenshot as PNG of the editor framebuffer."
+msgstr "에디터 프레임버퍼의 스크린샷을 PNG로 저장합니다."
+
+msgid "Show Stats for Nerds"
+msgstr "상세 정보 보기"
+
+msgid "Tools"
+msgstr "도구"
+
+msgid "Puppet Data"
+msgstr "퍼펫 데이터"
+
+msgid "Import Inochi Session Data"
+msgstr "Inochi Session 데이터 가져오기"
+
+msgid "Successfully overwrote Inochi Session tracking data..."
+msgstr "Inochi Session 트래킹 데이터를 성공적으로 덮어썼습니다..."
+
+msgid "There was no Inochi Session data to import!"
+msgstr "가져올 Inochi Session 데이터가 없습니다!"
+
+msgid ""
+"Imports tracking data from an exported nijilive model which has been set up "
+"in Inochi Session."
+msgstr "Inochi Session에서 설정한 후 내보낸 nijilive 모델에서 트래킹 데이터를 가져옵니다."
+
+msgid "Puppet Texturing"
+msgstr "퍼펫 텍스처링"
+
+msgid "Premultiply textures"
+msgstr "텍스처를 알파값으로 미리 곱하기"
+
+msgid ""
+"Premultiplies textures by their alpha component.\n"
+"\n"
+"Only use this if your textures look garbled after importing files from an older version of nijigenerate."
+msgstr ""
+"텍스처를 알파 성분으로 미리 곱합니다.\n"
+"\n"
+"이전 버전의 nijigenerate에서 파일을 가져온 후 텍스처가 깨져 보일 때만 사용하세요."
+
+msgid "Bleed textures..."
+msgstr "텍스처 블리드..."
+
+msgid ""
+"Causes color to bleed out in to fully transparent pixels, this solves outlines on straight alpha compositing.\n"
+"\n"
+"Only use this if your game engine can't use premultiplied alpha."
+msgstr ""
+"완전 투명한 픽셀에 색상이 번지도록 하여, 직선 알파 합성 시 경계선 문제를 해결합니다.\n"
+"\n"
+"사용 중인 게임 엔진이 미리 곱해진 알파를 지원하지 않을 때만 사용하세요."
+
+msgid "Generate Mipmaps..."
+msgstr "밉맵 생성..."
+
+msgid "Regenerates the puppet's mipmaps."
+msgstr "퍼펫의 밉맵을 다시 생성합니다."
+
+msgid "Generate fake layer name info..."
+msgstr "가짜 레이어 이름 정보 생성..."
+
+msgid "Generates fake layer info based on node names"
+msgstr "노드 이름을 기반으로 가짜 레이어 정보를 생성합니다."
+
+msgid "Puppet Recovery"
+msgstr "퍼펫 복구"
+
+msgid "Attempt full repair..."
+msgstr "전체 복구 시도 중..."
+
+msgid ""
+"Attempts all the recovery and repair methods below on the currently loaded "
+"model"
+msgstr "현재 로드된 모델에 대해 아래 모든 복구 및 수리 방법을 시도합니다"
+
+msgid "Regenerate Node IDs"
+msgstr "노드 ID 재생성"
+
+msgid "Regenerates all the unique IDs for the model"
+msgstr "모델의 모든 고유 ID를 재생성합니다"
+
+msgid "Verify INP File..."
+msgstr "INP 파일 검증 중..."
+
+msgid "Attempts to verify and repair INP files"
+msgstr "INP 파일 검증 및 수리를 시도합니다"
+
+msgid "Help"
+msgstr "도움말"
+
+msgid "Online Documentation"
+msgstr "온라인 문서"
+
+msgid "nijilive Documentation"
+msgstr "nijilive 문서"
+
+msgid "Report a Bug"
+msgstr "버그 신고"
+
+msgid "Request a Feature"
+msgstr "기능 요청"
+
+msgid "Edit Puppet"
+msgstr "퍼펫 편집"
+
+msgid "Edit Animation"
+msgstr "애니메이션 편집"
+
+msgid "OK"
+msgstr "확인"
+
+msgid "Yes"
+msgstr "예"
+
+msgid "No"
+msgstr "아니요"
+
+msgid ""
+msgstr ""
+
+msgid "Warning!"
+msgstr "경고!"
+
+msgid ""
+"You're running a nightly build of nijigenerate!\n"
+"nijigenerate may crash unexpectedly and you will likely encounter bugs.\n"
+"Make sure to save and back up your work often!"
+msgstr ""
+"nijigenerate 야간 빌드를 실행 중입니다!\n"
+"nijigenerate가 예기치 않게 충돌할 수 있으며 버그가 발생할 가능성이 높습니다.\n"
+"작업 내용을 자주 저장하고 백업하세요!"
+
+#~ msgid "%s Receiver"
+#~ msgstr "%s 수신기"
+
+#~ msgid "%s bound to %s"
+#~ msgstr "%s이(가) %s에 할당됨"
+
+#~ msgid "%s: vertex was removed."
+#~ msgstr "%s: 정점이 제거되었습니다."
+
+#~ msgid "(Unsupported)"
+#~ msgstr "(지원되지 않음)"
+
+#~ msgid "A receiver which uses OpenSeeFace application"
+#~ msgstr "OpenSeeFace 애플리케이션을 사용하는 수신기"
+
+#~ msgid "A reciever which uses the VTubeStudio iOS app"
+#~ msgstr "iOS용 VTubeStudio 앱을 사용하는 수신기"
+
+#~ msgid "A reciever which uses your phone and associated app to track your body"
+#~ msgstr "휴대폰과 연동 앱을 사용하여 신체를 추적하는 수신기"
+
+#~ msgid "Add"
+#~ msgstr "추가"
+
+#~ msgid ""
+#~ "An error occured during KRA import:\n"
+#~ "%s"
+#~ msgstr ""
+#~ "KRA 가져오기 중 오류가 발생했습니다:\n"
+#~ "%s"
+
+#~ msgid "Bind Address"
+#~ msgstr "바인드 주소"
+
+#~ msgid "Bind To"
+#~ msgstr "바인딩 대상"
+
+#~ msgid "Bind Tracking to Parameter"
+#~ msgstr "트래킹을 파라미터에 바인딩"
+
+#~ msgid "Binding Axis"
+#~ msgstr "바인딩 축"
+
+#~ msgid "Bone Input"
+#~ msgstr "본 입력"
+
+#~ msgid "Can only inspect a single node..."
+#~ msgstr "하나의 노드만 검사할 수 있습니다..."
+
+#~ msgid ""
+#~ "Cannot apply invalid mesh\n"
+#~ "At least 3 vertices forming a triangle is needed."
+#~ msgstr ""
+#~ "잘못된 메시를 적용할 수 없습니다\n"
+#~ "삼각형을 형성하는 최소 3개의 정점이 필요합니다."
+
+#~ msgid "Donate"
+#~ msgstr "기부"
+
+#~ msgid "Github Sponsors"
+#~ msgstr "GitHub 후원"
+
+#~ msgid "Hide"
+#~ msgstr "숨기기"
+
+#~ msgid "Join our Discord"
+#~ msgstr "Discord에 참여하기"
+
+#~ msgid "More Info"
+#~ msgstr "자세히 보기"
+
+#~ msgid "No tool selected..."
+#~ msgstr "도구가 선택되지 않았습니다..."
+
+#~ msgid "Not in Test Mode..."
+#~ msgstr "테스트 모드가 아닙니다..."
+
+#~ msgid "OSF Bind Address"
+#~ msgstr "OSF 바인드 주소"
+
+#~ msgid "OSF Listen Port"
+#~ msgstr "OSF 수신 포트"
+
+#~ msgid "Patreon"
+#~ msgstr "Patreon"
+
+#~ msgid "Port"
+#~ msgstr "포트"
+
+#~ msgid "Position (X)"
+#~ msgstr "위치 (X)"
+
+#~ msgid "Position (Y)"
+#~ msgstr "위치 (Y)"
+
+#~ msgid "Position (Z)"
+#~ msgstr "위치 (Z)"
+
+#~ msgid "Recalculate origin"
+#~ msgstr "원점 재계산"
+
+#~ msgid "Refresh Bindable"
+#~ msgstr "바인딩 다시 불러오기"
+
+#~ msgid "Rotation (X)"
+#~ msgstr "회전 (X)"
+
+#~ msgid "Rotation (Y)"
+#~ msgstr "회전 (Y)"
+
+#~ msgid "Rotation (Z)"
+#~ msgstr "회전 (Z)"
+
+#~ msgid "Show"
+#~ msgstr "표시"
+
+#~ msgid "Support development via Patreon"
+#~ msgstr "Patreon을 통한 개발 지원"
+
+#~ msgid "Test Puppet"
+#~ msgstr "퍼펫 테스트"
+
+#~ msgid ""
+#~ "The IP Address of your iPhone,\n"
+#~ "You can find it in the VSeeFace Config panel in VTube Studio"
+#~ msgstr ""
+#~ "iPhone의 IP 주소\n"
+#~ "VTube Studio의 VSeeFace 설정 패널에서 확인할 수 있습니다."
+
+#~ msgid ""
+#~ "The IP address that the VMC binding server should listen on, default 0.0.0.0"
+#~ msgstr "VMC 바인딩 서버가 수신할 IP 주소, 기본값은 0.0.0.0"
+
+#~ msgid "The port that the VMC binding server should listen on, default 39540"
+#~ msgstr "VMC 바인딩 서버가 수신할 포트, 기본값 39540"
+
+#~ msgid "Tracking"
+#~ msgstr "트래킹"
+
+#~ msgid "Tracking Bindings"
+#~ msgstr "트래킹 바인딩"
+
+#~ msgid "iPhone IP"
+#~ msgstr "iPhone IP"
+
+#~ msgid "nijigenerate (Nightly)"
+#~ msgstr "nijigenerate (야간 빌드)"
