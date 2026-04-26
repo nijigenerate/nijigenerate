@@ -3,6 +3,19 @@ description "2D rigging application"
 authors "nijigenerate project"
 copyright "Copyright © 2024, nijigenerate project"
 license "BSD 2-clause"
+subPackage {
+	name "njc"
+	description "Command-line MCP client for controlling a running nijigenerate instance"
+	authors "nijigenerate project"
+	license "BSD 2-clause"
+	targetType "executable"
+	targetName "njc"
+	targetPath "out"
+	workingDirectory "out"
+	sourcePaths "source/njc"
+	importPaths "source"
+	sourceFiles "source/njc/*.d"
+}
 dependency "psd-d" version="~>0.6.1"
 dependency "inmath" version="1.0.6"
 dependency "kra-d" repository="git+https://github.com/inochi2d/kra-d.git" version="6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42"
@@ -16,6 +29,7 @@ dependency "vibe-d:http" version="~>0.10.0"
 
 targetPath "out/"
 workingDirectory "out/"
+excludedSourceFiles "source/njc/*.d"
 dflags "-mscrtlib=msvcrt" platform="windows-ldc"
 lflags "-rpath=$$ORIGIN" platform="linux"
 versions "GL_32" "USE_SDL2" "SDL_2020" "UseUIScaling"
@@ -36,6 +50,7 @@ configuration "linux-full" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
+	versions "HaveMCP"
 }
 
 // macOS build
@@ -44,6 +59,7 @@ configuration "osx-full" {
 	targetType "executable"
 	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
+	versions "HaveMCP"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 
@@ -58,6 +74,7 @@ configuration "win32-full" {
 	platforms "windows"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_staticCRT"
+	versions "HaveMCP"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 }
@@ -69,6 +86,7 @@ configuration "linux-nightly" {
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
 	versions "InNightly"
+	versions "HaveMCP"
 }
 
 // macOS nightly build
@@ -80,6 +98,7 @@ configuration "osx-nightly" {
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 	versions "InNightly"
+	versions "HaveMCP"
 
   // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
   lflags "-L./openssl_3/lib" platform="osx-x86_64"
@@ -95,4 +114,5 @@ configuration "win32-nightly" {
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 	versions "InNightly"
+	versions "HaveMCP"
 }

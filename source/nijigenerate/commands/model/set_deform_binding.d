@@ -21,6 +21,8 @@ import i18n;
     Applies to the first armed Parameter (or ctx.parameters[0] if provided),
     and to selected nodes that already have a deform binding.
 */
+@ShortcutHidden
+@EffectBindingEdit
 class SetDeformBindingCommand : ExCommand!(
     TW!(string,  "bindingName", "Binding name (e.g., 'deform' or value name)"),
     TW!(float[], "values",      "Flattened values: deform=[dx,dy]*, other=[v]")
@@ -37,9 +39,6 @@ class SetDeformBindingCommand : ExCommand!(
         foreach (n; ns) if (cast(Drawable)n || cast(Deformable)n) return true;
         return false;
     }
-
-    // Not available via shortcut (requires external data)
-    override bool shortcutRunnable() { return false; }
 
     override CommandResult run(Context ctx) {
         if (!runnable(ctx)) return CommandResult(false, "No applicable parameters or nodes");

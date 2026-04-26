@@ -38,7 +38,7 @@ import nijigenerate.ext.param : ExParameterGroup;
 import mcp.server;
 import mcp.schema : SchemaBuilder;
 import mcp.prompts : PromptArgument, PromptResponse, PromptMessage; // proper prompt API
-import mcp.resources : ResourceNotifier; // for resource change notifications
+import mcp.resources : ResourceNotifier, ResourceContents; // for resource change notifications
 import nijigenerate.api.mcp.http_transport;
 // Selector + Nodes
 import nijigenerate.core.selector;
@@ -102,7 +102,7 @@ private __gshared HttpTransport gTransport = null;
 // Resource change notifiers (for MCP resources)
 private __gshared ResourceNotifier gNotifyResourcesFind;
 private __gshared ResourceNotifier gNotifyResourceByUuid;
-private __gshared ResourceNotifier gNotifyResourceIndex;
+private __gshared bool gLoadHookRegistered = false;
 
 // Resolve command instance by string id in the form "EnumType.Value"
 private Command _resolveCommandByString(string id) {
@@ -139,11 +139,116 @@ private void _ngMcpStart(string host, ushort port) {
     import nijigenerate.commands : ngInitAllCommands;
     ngInitAllCommands();
 
+    void addConcreteResource(uint uuid, string name, string typeId) {
+        auto uri = "resource://nijigenerate/resources/" ~ to!string(uuid);
+        mcpLog("[MCP] addResource: %s", uri);
+        server.addResource(
+            uri,
+            name,
+            typeId ~ " resource instance.",
+            () {
+                JSONValue result = ngRunInMainThread({
+                    SerializeNodeFlags flags = SerializeNodeFlags.Basics | SerializeNodeFlags.State | SerializeNodeFlags.Geometry | SerializeNodeFlags.Links;
+                    JSONValue[string] map;
+                    auto puppet = incActivePuppet();
+                    if (puppet !is null && uuid != 0) {
+                        if (auto node = puppet.find!(Node)(uuid)) {
+                            map["typeId"] = JSONValue("Node");
+                            map["uuid"] = JSONValue(cast(long)uuid);
+                            map["name"] = JSONValue(node.name);
+                            auto app = appender!(char[]);
+                            auto ser = inCreateSerializer(app);
+                            auto st = ser.structBegin();
+                            node.serializePartial(ser, flags, true);
+                            ser.structEnd(st);
+                            ser.flush();
+                            map["data"] = parseJSON(cast(string)app.data);
+                        } else if (auto param = puppet.find!(Parameter)(uuid)) {
+                            map["typeId"] = JSONValue("Parameter");
+                            map["uuid"] = JSONValue(cast(long)uuid);
+                            map["name"] = JSONValue(param.name);
+                        }
+                    }
+                    JSONValue obj = map.length ? JSONValue(map) : JSONValue(null);
+                    return JSONValue(["item": obj]);
+                });
+                return ResourceContents.makeText("application/json", result.toString());
+            }
+        );
+    }
+
+    void addGuideResource(string uri, string name, string description, string content) {
+        mcpLog("[MCP] addResource: %s", uri);
+        server.addResource(
+            uri,
+            name,
+            description,
+            () {
+                import mcp.resources : ResourceContents;
+                return ResourceContents.makeText("text/markdown", content);
+            }
+        );
+    }
+
+    ResourceContents buildFindResource(string selectorParam) {
+        JSONValue result = ngRunInMainThread({
+            SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
+            Selector sel = new Selector();
+            if (selectorParam.length) sel.build(selectorParam);
+            auto results = sel.run();
+
+            import nijigenerate.core.selector.treestore : TreeStore_, TreeStore;
+            auto ts = new TreeStore_!false();
+            ts.setResources(results);
+
+            JSONValue makeTree(Resource res) {
+                JSONValue[string] map;
+                map["typeId"] = JSONValue(res.typeId);
+                map["uuid"] = JSONValue(cast(long)res.uuid);
+                map["name"] = JSONValue(res.name);
+                map["uri"] = JSONValue("resource://nijigenerate/resources/" ~ to!string(res.uuid));
+
+                auto node = nijigenerate.core.selector.resource.to!Node(res);
+                if (node !is null) {
+                    auto app = appender!(char[]);
+                    auto ser = inCreateSerializer(app);
+                    auto st = ser.structBegin();
+                    node.serializePartial(ser, flags, true);
+                    ser.structEnd(st);
+                    ser.flush();
+                    map["data"] = parseJSON(cast(string)app.data);
+                }
+
+                JSONValue[] childArr;
+                if (res in ts.children) foreach (child; ts.children[res]) childArr ~= makeTree(child);
+                map["children"] = JSONValue(childArr);
+                return JSONValue(map);
+            }
+
+            JSONValue[] rootsOut;
+            foreach (r; ts.roots) rootsOut ~= makeTree(r);
+
+            return JSONValue([
+                "items": JSONValue(rootsOut),
+                "selectorSyntax": JSONValue("nijigenerate.core.selector"),
+                "recommendedDiscoveryUri": JSONValue("resource://nijigenerate/resources/find?selector=*"),
+                "guideUris": JSONValue([
+                    JSONValue("resource://nijigenerate/guides/find"),
+                    JSONValue("resource://nijigenerate/guides/selectors"),
+                    JSONValue("resource://nijigenerate/guides/resources")
+                ])
+            ]);
+        });
+
+        return ResourceContents.makeText("application/json", result.toString());
+    }
+
     // Minimal, robust registration that does not depend on TLS of another thread
     bool[string] registered;
     static foreach (AA; AllCommandMaps) {{
         size_t _aaAdded = 0;
         foreach (k, v; AA) {
+            if (!v.mcpExposed()) continue;
             // Build a spec-compliant tool name: only [a-zA-Z0-9_-]
             string makeSafe(string s) {
                 import std.uni : isAlphaNum;
@@ -155,8 +260,7 @@ private void _ngMcpStart(string host, ushort port) {
             auto toolDesc = v.description();
             auto cmdInst = v; // capture concrete instance for execution
             auto newBaseName = ngCommandIdFromKey(k);
-            auto legacyBaseName = typeof(k).stringof ~ "." ~ to!string(k);
-            string[] baseNames = (legacyBaseName != newBaseName) ? [newBaseName, legacyBaseName] : [newBaseName];
+            string[] baseNames = [newBaseName];
 
             // Build tool input schema (command args only). Context is allowed as an additional property (any type),
             // so that clients may pass null or omit it entirely. The handler will ignore non-object contexts.
@@ -261,7 +365,9 @@ private void _ngMcpStart(string host, ushort port) {
 
                 server.addTool(
                     toolNameLocal,
-                    (toolDesc.length ? toolDesc : ("Run command " ~ toolNameLocal)) ~ "\n\nInput: optional 'context' (null to use active app state).",
+                    "Action: " ~ (toolDesc.length ? toolDesc : ("Run command " ~ toolNameLocal)) ~
+                    "\n\nThis endpoint may mutate app state or perform side effects." ~
+                    "\n\nInput: optional 'context' (null to use active app state).",
                     inputSchema,
                     (JSONValue payload) {
                         // Debug: print incoming JSON for this tool call
@@ -306,79 +412,104 @@ private void _ngMcpStart(string host, ushort port) {
     }}
 
     // Also expose as Resources (for clients expecting MCP resources)
+    enum string GUIDES_RESOURCES =
+        "# Resources Guide\n\n" ~
+        "- Broad discovery: read `resource://nijigenerate/resources/find?selector=*`\n" ~
+        "- Narrow discovery: use `resource://nijigenerate/resources/find?selector=...`\n" ~
+        "- Read one item: use `resource://nijigenerate/resources/{uuid}`\n" ~
+        "- Selector syntax: read `resource://nijigenerate/guides/selectors`\n" ~
+        "- Find endpoint usage: read `resource://nijigenerate/guides/find`\n";
+
+    enum string GUIDES_SELECTORS =
+        "# Selectors Guide\n\n" ~
+        "Used by `resource://nijigenerate/resources/find?selector=...`\n\n" ~
+        "Basics:\n" ~
+        "- `*` any resource\n" ~
+        "- `Node`, `Part`, `Parameter`, `Binding`, `Group`\n" ~
+        "- `.name` match by name\n" ~
+        "- `#123` match by UUID\n" ~
+        "- `[name=\"Eye\"]` attribute match\n" ~
+        "- `A > B` child combinator\n" ~
+        "- `A B` descendant combinator\n" ~
+        "- `A, B` union\n\n" ~
+        "Recommended first query:\n" ~
+        "- `resource://nijigenerate/resources/find?selector=*`\n";
+
+    enum string GUIDES_FIND =
+        "# Find Guide\n\n" ~
+        "Endpoint: `resource://nijigenerate/resources/find?selector=...`\n\n" ~
+        "Recommended first query:\n" ~
+        "- `resource://nijigenerate/resources/find?selector=*`\n\n" ~
+        "Examples:\n" ~
+        "- all nodes: `resource://nijigenerate/resources/find?selector=Node`\n" ~
+        "- direct child parts: `resource://nijigenerate/resources/find?selector=Node%20%3E%20Part`\n" ~
+        "- part named Eye: `resource://nijigenerate/resources/find?selector=Part.%22Eye%22`\n\n" ~
+        "Next step:\n" ~
+        "- follow each item's `uri` with `resources/read`\n";
+
+    addGuideResource(
+        "resource://nijigenerate/guides/resources",
+        "Resources Guide",
+        "Guide for resource discovery and reading.",
+        GUIDES_RESOURCES
+    );
+    addGuideResource(
+        "resource://nijigenerate/guides/selectors",
+        "Selectors Guide",
+        "Selector syntax reference for resources/find.",
+        GUIDES_SELECTORS
+    );
+    addGuideResource(
+        "resource://nijigenerate/guides/find",
+        "Find Guide",
+        "Usage examples for resources/find.",
+        GUIDES_FIND
+    );
+
     // Dynamic resource: resource://nijigenerate/resources/find?selector=...
-    mcpLog("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?");
+    mcpLog("[MCP] addDynamicResource: %s", "resource://nijigenerate/resources/find?selector=");
     gNotifyResourcesFind = server.addDynamicResource(
-        "resource://nijigenerate/resources/find?",
-        "Find Resources",
-        "Find resources by selector. Returns JSON tree with Basics + Children.",
+        "resource://nijigenerate/resources/find?selector=",
+        "Start Here: Explore Entire Model Tree",
+        "Hierarchical resource discovery by selector.",
         (string path) {
-            // path is the query string after '?', e.g. "selector=..." (URL-encoded)
-            mcpLog("[MCP] read resource resources/find?%s", path);
-            string selectorParam;
-            // Minimal query parser (only 'selector' supported)
-            import std.string : split;
-            foreach (pair; path.split('&')) {
-                auto kv = pair.split('=');
-                if (kv.length >= 1 && kv[0] == "selector") {
-                    import std.uri : decodeComponent;
-                    selectorParam = (kv.length >= 2) ? decodeComponent(kv[1]) : "";
-                }
-            }
-
-            // Block until main-thread serialization completes
-            JSONValue result;
-
-            result = ngRunInMainThread({
-                SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
-                Selector sel = new Selector();
-                if (selectorParam.length) sel.build(selectorParam);
-                auto results = sel.run();
-
-                import nijigenerate.core.selector.treestore : TreeStore_, TreeStore;
-                auto ts = new TreeStore_!false();
-                ts.setResources(results);
-
-                JSONValue makeTree(Resource res) {
-                    JSONValue[string] map;
-                    map["typeId"] = JSONValue(res.typeId);
-                    map["uuid"] = JSONValue(cast(long)res.uuid);
-                    map["name"] = JSONValue(res.name);
-
-                    auto node = nijigenerate.core.selector.resource.to!Node(res);
-                    if (node !is null) {
-                        auto app = appender!(char[]);
-                        auto ser = inCreateSerializer(app);
-                        auto st = ser.structBegin();
-                        node.serializePartial(ser, flags, true);
-                        ser.structEnd(st);
-                        ser.flush();
-                        map["data"] = parseJSON(cast(string)app.data);
-                    }
-
-                    JSONValue[] childArr;
-                    if (res in ts.children) foreach (child; ts.children[res]) childArr ~= makeTree(child);
-                    map["children"] = JSONValue(childArr);
-                    return JSONValue(map);
-                }
-
-                JSONValue[] rootsOut;
-                foreach (r; ts.roots) rootsOut ~= makeTree(r);
-
-                return JSONValue(["items": JSONValue(rootsOut)]);
-            });
-
-            import mcp.resources : ResourceContents;
-            return ResourceContents.makeText("application/json", result.toString());
+            // path is the URL-encoded selector after '?selector='.
+            mcpLog("[MCP] read resource resources/find?selector=%s", path);
+            import std.uri : decodeComponent;
+            string selectorParam = decodeComponent(path);
+            return buildFindResource(selectorParam);
         }
     );
+
+    // Register concrete resources so resources/list enumerates the current puppet instances.
+    auto puppetForList = incActivePuppet();
+    if (puppetForList !is null) {
+        bool[uint] seen;
+
+        void addNodeResource(Node n) {
+            if (n is null) return;
+            if (n.uuid in seen) return;
+            seen[n.uuid] = true;
+            addConcreteResource(n.uuid, n.name, n.typeId);
+            foreach (c; n.children) addNodeResource(c);
+        }
+
+        addNodeResource(puppetForList.root);
+
+        foreach (param; puppetForList.parameters) {
+            if (param is null) continue;
+            if (param.uuid in seen) continue;
+            seen[param.uuid] = true;
+            addConcreteResource(param.uuid, param.name, "Parameter");
+        }
+    }
 
     // Template resource: resource://nijigenerate/resources/{uuid}
     mcpLog("[MCP] addTemplate: %s", "resource://nijigenerate/resources/{uuid}");
     gNotifyResourceByUuid = server.addTemplate(
         "resource://nijigenerate/resources/{uuid}",
-        "Get Resource",
-        "Get a single resource by UUID. Returns Basics + State + Geometry + Links for Nodes; basics for Parameters.",
+        "Read Resource Instance By UUID",
+        "Read one resource instance by UUID.",
         "application/json",
         (string[string] params) {
             import std.conv : to;
@@ -425,62 +556,6 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
-    // Static resource: index of all UUID-based resource URIs for current puppet
-    mcpLog("[MCP] addResource: %s", "resource://nijigenerate/resources/index");
-    gNotifyResourceIndex = server.addResource(
-        "resource://nijigenerate/resources/index",
-        "Resource Index",
-        "List of UUID-based resource URIs for current puppet.",
-        () {
-            // Build the index on the main thread to ensure the active puppet is visible.
-            auto payload = ngRunInMainThread({
-                JSONValue[] items;
-
-                auto puppet = incActivePuppet();
-                if (puppet is null) {
-                    return JSONValue(["items": JSONValue(items), "warning": JSONValue("No active puppet")]);
-                }
-
-                bool[uint] seen;
-
-                void addNode(Node n) {
-                    if (n is null) return;
-                    if (n.uuid in seen) return;
-                    seen[n.uuid] = true;
-
-                    auto uri = "resource://nijigenerate/resources/" ~ to!string(n.uuid);
-                    JSONValue[string] m;
-                    m["uri"] = JSONValue(uri);
-                    m["uuid"] = JSONValue(cast(long)n.uuid);
-                    m["typeId"] = JSONValue(n.typeId);
-                    m["name"] = JSONValue(n.name);
-                    items ~= JSONValue(m);
-
-                    foreach (c; n.children) addNode(c);
-                }
-
-                // Always include root so the index is non-empty for a new/empty puppet.
-                addNode(puppet.root);
-
-                foreach (param; puppet.parameters) {
-                    if (param is null) continue;
-                    if (param.uuid in seen) continue;
-                    seen[param.uuid] = true;
-                    auto uri = "resource://nijigenerate/resources/" ~ to!string(param.uuid);
-                    JSONValue[string] m;
-                    m["uri"] = JSONValue(uri);
-                    m["uuid"] = JSONValue(cast(long)param.uuid);
-                    m["typeId"] = JSONValue("Parameter");
-                    m["name"] = JSONValue(param.name);
-                    items ~= JSONValue(m);
-                }
-                return JSONValue(["items": JSONValue(items)]);
-            });
-            import mcp.resources : ResourceContents;
-            return ResourceContents.makeText("application/json", payload.toString());
-        }
-    );
-
     auto t = new Thread({
         mcpLog("[MCP] server thread entering start() ...");
         server.start();
@@ -490,34 +565,47 @@ private void _ngMcpStart(string host, ushort port) {
     t.isDaemon = true;
     t.start();
 
-    // Notify MCP clients that resources have changed when a project is loaded
-    incRegisterLoadFunc((puppet) {
-        if (gNotifyResourcesFind) gNotifyResourcesFind();
-        if (gNotifyResourceByUuid) gNotifyResourceByUuid();
-        if (gNotifyResourceIndex) gNotifyResourceIndex();
-    });
+    // Notify MCP clients that resources have changed when a project is loaded.
+    if (!gLoadHookRegistered) {
+        gLoadHookRegistered = true;
+        incRegisterLoadFunc((puppet) {
+            if (gNotifyResourcesFind) gNotifyResourcesFind();
+            if (gNotifyResourceByUuid) gNotifyResourceByUuid();
+            if (gServerEnabled && gServerStarted) {
+                mcpLog("[MCP] puppet load detected -> restarting server to rebuild resources/list");
+                ngMcpStop();
+                _ngMcpStart(gServerHost, gServerPort);
+            }
+        });
+    }
 
     // Register helpful prompts (best-effort; only if SDK supports prompts)
     enum string RES_FIND_PROMPT =
-        "Tool: resources/find\n" ~
-        "Purpose: Hierarchical exploration ONLY. Use selector to locate resources and their UUIDs. For reading content, use resources/{uuid}. Returns Basics + Children tree.\n\n" ~
+        "Resource Endpoint: resources/find\n" ~
+        "Purpose: Hierarchical exploration ONLY. Use selector to locate resource instances and their UUIDs. For reading content, use resources/{uuid}. Returns Basics + Children tree.\n\n" ~
+        "Recommended first step:\n" ~
+        "- Start broad discovery with resource://nijigenerate/resources/find?selector=*\n\n" ~
+        "Selector syntax guide:\n" ~
+        "- See resource: resource://nijigenerate/guides/selectors\n\n" ~
+        "Workflow guide:\n" ~
+        "- See resource: resource://nijigenerate/guides/resources\n\n" ~
         "Input fields:\n" ~
         "- selector (string): nijigenerate.core.selector query\n\n" ~
         "Examples:\n" ~
         "1) List all nodes (basic info)\n" ~
-        "   selector=Node\n" ~
+        "   resource://nijigenerate/resources/find?selector=Node\n" ~
         "2) By name (Part named \"Eye\")\n" ~
-        "   selector=Part.\"Eye\"\n" ~
+        "   resource://nijigenerate/resources/find?selector=Part.%22Eye%22\n" ~
         "3) Direct children Parts of any Node\n" ~
-        "   selector=Node > Part\n" ~
+        "   resource://nijigenerate/resources/find?selector=Node%20%3E%20Part\n" ~
         "4) Active bindings of selected node\n" ~
-        "   selector=Binding:active\n\n" ~
+        "   resource://nijigenerate/resources/find?selector=Binding%3Aactive\n\n" ~
         "Official read endpoint:\n" ~
         "- resource://nijigenerate/resources/{uuid} (see resources/get)\n";
 
     enum string RESOURCE_PROMPT =
-        "Tool: resources/get\n" ~
-        "Purpose: OFFICIAL read endpoint. Fetch one resource by UUID. Node returns Basics + State + Geometry + Links; Parameter returns Basics.\n\n" ~
+        "Resource Endpoint: resources/get\n" ~
+        "Purpose: OFFICIAL read endpoint. Fetch one resource instance by UUID. Node returns Basics + State + Geometry + Links; Parameter returns Basics.\n\n" ~
         "Input fields:\n" ~
         "- uuid (integer): Numeric UUID of a Node or Parameter.\n\n" ~
         "Examples:\n" ~
@@ -526,6 +614,10 @@ private void _ngMcpStart(string host, ushort port) {
 
     enum string SELECTOR_GUIDE =
         "Selector Syntax (nijigenerate.core.selector)\n\n" ~
+        "Used by:\n" ~
+        "- resource://nijigenerate/resources/find?selector=...\n\n" ~
+        "Recommended discovery query:\n" ~
+        "- resource://nijigenerate/resources/find?selector=*\n\n" ~
         "Overview:\n" ~
         "- Pattern: [TypeId|*] [ .name | #UUID ] [ [attr=value] ] [ :pseudo(args) ] [ combinators ]\n" ~
         "- Combinators: A > B (child), A B (descendant), A, B (union)\n\n" ~
@@ -545,11 +637,16 @@ private void _ngMcpStart(string host, ushort port) {
         "- Node > Part        → direct Part children of any Node.\n" ~
         "- Node Part          → any descendant Part under any Node.\n" ~
         "- Node, Part         → all Nodes and Parts.\n\n" ~
+        "Result shape:\n" ~
+        "- resources/find returns a tree under 'items'.\n" ~
+        "- Each returned node includes 'uri' so clients can follow up with resources/read.\n" ~
+        "- Child combinators and descendant queries preserve hierarchy in the returned tree.\n\n" ~
         "Advanced examples:\n" ~
         "- Part.#123          → Part with UUID 123.\n" ~
         "- Part[name=\"Eye\"] → Part whose name is \"Eye\".\n" ~
         "- Binding:active     → only active bindings for the armed parameter.\n\n" ~
         "Tips:\n" ~
+        "- Start with selector=* when you need the broad current resource tree.\n" ~
         "- Prefer #UUID for precise targeting.\n" ~
         "- Build lists with resources/find, then fetch details by UUID.\n";
 
@@ -558,22 +655,31 @@ private void _ngMcpStart(string host, ushort port) {
         "Policy:\n" ~
         "- Exploration: Use resources/find (hierarchical traversal only).\n" ~
         "- Reading:    Use resources/{uuid} (official endpoint) to fetch content.\n" ~
-        "- Index:      'resource://nijigenerate/resources/index' returns a UUID-based URI list for the current puppet.\n" ~
-        "- Tools:      Use Tool commands to mutate or perform actions.\n\n" ~
+        "- Listing:    'resources/list' returns currently readable resource instance URIs for the active puppet.\n" ~
+        "- Tools:      Use Tool commands only to mutate app state or perform actions.\n\n" ~
         "URIs:\n" ~
         "- resource://nijigenerate/resources/find?selector=... (exploration)\n" ~
-        "- resource://nijigenerate/resources/{uuid} (read)\n" ~
-        "- resource://nijigenerate/resources/index (list UUID-based URIs)\n\n" ~
+        "- resource://nijigenerate/resources/{uuid} (read one resource instance)\n" ~
+        "- resources/list (list current resource instances)\n\n" ~
+        "Prompt links:\n" ~
+        "- resource://nijigenerate/guides/find describes the exploration endpoint and recommends selector=* for first-pass discovery.\n" ~
+        "- resource://nijigenerate/guides/selectors describes selector syntax and returned tree shape.\n" ~
+        "- resource://nijigenerate/guides/resources describes the overall exploration/read workflow.\n\n" ~
         "Typical flow:\n" ~
-        "1) Explore with resources/find to identify targets and get UUIDs.\n" ~
-        "2) Read details via resources/{uuid}.\n" ~
-        "3) Optionally call Tools to modify.\n\n" ~
+        "1) Start broad discovery with resources/find?selector=*.\n" ~
+        "2) Narrow with more specific selectors as needed.\n" ~
+        "3) Read details via resources/{uuid}.\n" ~
+        "4) Optionally call Tools to modify.\n\n" ~
         "Notes:\n" ~
-        "- 'resources/list' lists definitions (like find?* and templates), not instances. Use 'resources/index' or find to enumerate UUIDs.\n" ~
+        "- In nijigenerate, direct resource entries are rebuilt when a puppet is loaded so that 'resources/list' reflects current instances.\n" ~
+        "- 'resources/templates/list' lists parameterized read definitions such as resources/{uuid}.\n" ~
         "- See also: 'selectors/guide' and 'tools/guide'.";
 
     enum string TOOLS_GUIDE =
         "Tools Input & Context\n\n" ~
+        "Role:\n" ~
+        "- Tools are action endpoints. They may mutate app state or perform side effects.\n" ~
+        "- Use resources/list, resources/find, and resources/{uuid} for discovery and reading.\n\n" ~
         "Context (recommended null):\n" ~
         "- Omit or set to null to use the active app state (same as shortcuts).\n" ~
         "- Provide only when needed to override selection.\n\n" ~
@@ -593,7 +699,7 @@ private void _ngMcpStart(string host, ushort port) {
     mcpLog("[MCP] addPrompt: resources/find");
     server.addPrompt(
         "resources/find",
-        "How to use the resources/find tool",
+        "How to use the resources/find resource endpoint",
         cast(PromptArgument[])[],
         (string name, string[string] args){
             return PromptResponse(
@@ -619,7 +725,7 @@ private void _ngMcpStart(string host, ushort port) {
     mcpLog("[MCP] addPrompt: selectors/guide");
     server.addPrompt(
         "selectors/guide",
-        "Selector syntax and examples",
+        "Selector syntax, examples, and returned tree shape for resources/find",
         cast(PromptArgument[])[],
         (string name, string[string] args){
             return PromptResponse(

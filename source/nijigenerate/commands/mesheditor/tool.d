@@ -63,9 +63,10 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
 {
     auto p = mode in selectToolModeCommands;
     if (p) return *p;
-    auto c = cast(Command) new SelectToolModeCommand(mode);
-    selectToolModeCommands[mode] = c;
-    return c;
+    auto cmd = new SelectToolModeCommand(mode);
+    ngRegisterCommandMeta(cmd);
+    selectToolModeCommands[mode] = cmd;
+    return cmd;
 }
 
 // Template-based init for VertexToolMode

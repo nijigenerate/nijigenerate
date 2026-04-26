@@ -12,6 +12,9 @@ import nijigenerate.project;
 import nijigenerate.core.settings;
 
 
+@McpHidden
+@GuiLayout
+@EffectLayoutReset
 class SetDefaultLayoutCommand : ExCommand!() {
     this() { super(_("Reset Layout"), _("Set default layout of panels.")); }
 
@@ -22,6 +25,8 @@ class SetDefaultLayoutCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiDialog
 class ShowSaveScreenshotDialogCommand : ExCommand!() {
     this() { super(_("Save Screenshot"), _("Shows \"Save screenshot\" dialog.")); }
 
@@ -43,6 +48,7 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
     }
 }
 
+@EffectFileWrite
 class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to save screenshot.")) {
     this(string filename) { super(_("Save Screenshot"), _("Save screenshot."), filename); }
 

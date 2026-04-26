@@ -322,44 +322,46 @@ protected:
                         endSection();
                         break;
                     case SettingsPane.Integration:
-                        beginSection(__("MCP Server"));
-                            // Persist only; apply on Done (window close)
-                            bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
-                            if (ngCheckbox(__("Enable MCP HTTP Server"), &mcpEnabled)) {
-                                incSettingsSet("MCP.Enabled", mcpEnabled);
-                            }
-                            if (mcpEnabled) {
-                                string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
-                                int port = incSettingsGet!int("MCP.Port", 8088);
-                                import std.string : toStringz;
-                                // Host input
-                                char[128] hostBuf;
-                                // initialize buffer from current host
-                                if (host.length < hostBuf.length) {
-                                    hostBuf[0 .. host.length] = host[];
-                                    hostBuf[host.length] = '\0';
+                        version(HaveMCP) {
+                            beginSection(__("MCP Server"));
+                                // Persist only; apply on Done (window close)
+                                bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
+                                if (ngCheckbox(__("Enable MCP HTTP Server"), &mcpEnabled)) {
+                                    incSettingsSet("MCP.Enabled", mcpEnabled);
+                                }
+                                if (mcpEnabled) {
+                                    string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+                                    int port = incSettingsGet!int("MCP.Port", 8088);
+                                    import std.string : toStringz;
+                                    // Host input
+                                    char[128] hostBuf;
+                                    // initialize buffer from current host
+                                    if (host.length < hostBuf.length) {
+                                        hostBuf[0 .. host.length] = host[];
+                                        hostBuf[host.length] = '\0';
+                                    } else {
+                                        hostBuf[0] = '\0';
+                                    }
+                                    if (igInputText(__("Host"), hostBuf.ptr, hostBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
+                                        import std.string : fromStringz;
+                                        string newHost = fromStringz(hostBuf.ptr).idup;
+                                        incSettingsSet("MCP.Host", newHost);
+                                    }
+                                    // Port input
+                                    if (igInputInt(__("Port"), &port, 1, 10, ImGuiInputTextFlags.EnterReturnsTrue)) {
+                                        if (port < 1) port = 1; if (port > 65535) port = 65535;
+                                        incSettingsSet("MCP.Port", port);
+                                    }
+                                    incTooltip(_("Changes will apply when you click Done."));
+                                    bool authEnabled = incSettingsGet!bool("MCP.authEnabled", false);
+                                    if (ngCheckbox(__("Enabled authorization."), &authEnabled)) {
+                                        incSettingsSet("MCP.authEnabled", authEnabled);
+                                    }
                                 } else {
-                                    hostBuf[0] = '\0';
+                                    incTooltip(_("Server disabled. Click Done to apply."));
                                 }
-                                if (igInputText(__("Host"), hostBuf.ptr, hostBuf.length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) {
-                                    import std.string : fromStringz;
-                                    string newHost = fromStringz(hostBuf.ptr).idup;
-                                    incSettingsSet("MCP.Host", newHost);
-                                }
-                                // Port input
-                                if (igInputInt(__("Port"), &port, 1, 10, ImGuiInputTextFlags.EnterReturnsTrue)) {
-                                    if (port < 1) port = 1; if (port > 65535) port = 65535;
-                                    incSettingsSet("MCP.Port", port);
-                                }
-                                incTooltip(_("Changes will apply when you click Done."));
-                                bool authEnabled = incSettingsGet!bool("MCP.authEnabled", false);
-                                if (ngCheckbox(__("Enabled authorization."), &authEnabled)) {
-                                    incSettingsSet("MCP.authEnabled", authEnabled);
-                                }
-                            } else {
-                            incTooltip(_("Server disabled. Click Done to apply."));
+                            endSection();
                         }
-                    endSection();
 
                     beginSection(__("Coding Agent (ACP)"));
                         string agentCmd = incSettingsGet!string("ACP.Command", "./out/nijigenerate-agent");
@@ -425,12 +427,14 @@ protected:
         import nijigenerate.core.shortcut.base : ngSaveShortcutsToSettings;
         ngSaveShortcutsToSettings();
         // Apply integration/server settings on confirmation (use current UI values)
-        import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled;
-        bool enabled = incSettingsGet!bool("MCP.Enabled", false);
-        string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
-        ushort port = cast(ushort) incSettingsGet!int("MCP.Port", 8088);
-        ngMcpApplySettings(enabled, host, port);
-        ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled", false));
+        version(HaveMCP) {
+            import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled;
+            bool enabled = incSettingsGet!bool("MCP.Enabled", false);
+            string host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+            ushort port = cast(ushort) incSettingsGet!int("MCP.Port", 8088);
+            ngMcpApplySettings(enabled, host, port);
+            ngMcpAuthEnabled(incSettingsGet!bool("MCP.authEnabled", false));
+        }
         incSettingsSave();
         incIsSettingsOpen = false;
     }

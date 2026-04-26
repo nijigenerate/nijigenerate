@@ -53,6 +53,7 @@ struct ConvertToKey {
     bool opEquals(const ConvertToKey rhs) const @safe nothrow @nogc { return toType == rhs.toType; }
 }
 
+@EffectStructuralEdit
 class ConvertNodeToCommand(bool expose = true) : ExCommand!(
     TW!(string, "toType", "destination node type", !expose)
 ) {
@@ -120,6 +121,7 @@ AddNodeCommandT!(false) ensureAddNodeCommand(string className, string suffix = n
     AddNodeKey key = AddNodeKey(className, suffix);
     if (auto p = key in addNodeCommands) return *p;
     auto cmd = new AddNodeCommandT!(false)(className, suffix);
+    ngRegisterCommandMeta(cmd);
     addNodeCommands[key] = cmd;
     return cmd;
 }
@@ -129,6 +131,7 @@ InsertNodeCommandT!(false) ensureInsertNodeCommand(string className, string suff
     InsertNodeKey key = InsertNodeKey(className, suffix);
     if (auto p = key in insertNodeCommands) return *p;
     auto cmd = new InsertNodeCommandT!(false)(className, suffix);
+    ngRegisterCommandMeta(cmd);
     insertNodeCommands[key] = cmd;
     return cmd;
 }
@@ -158,7 +161,8 @@ void ngInitCommands(T)() if (is(T == ConvertToKey))
             added[to] = to;
             ConvertToKey key = ConvertToKey(to);
             if (auto p = key in convertNodeCommands) continue;
-            auto cmd = cast(Command) new ConvertNodeToCommand!(false)(to);
+            auto cmd = new ConvertNodeToCommand!(false)(to);
+            ngRegisterCommandMeta(cmd);
             convertNodeCommands[key] = cmd;
         }
     }
@@ -175,6 +179,7 @@ ConvertNodeToCommand!(false) ensureConvertToCommand(string toType)
         return *p;
     }
     auto cmd = new ConvertNodeToCommand!(false)(toType);
+    ngRegisterCommandMeta(cmd);
     convertNodeCommands[key] = cmd;
     return cmd;
 }

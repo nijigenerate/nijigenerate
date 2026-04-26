@@ -10,9 +10,10 @@ import nijilive; // vec2, Parameter
 import nijilive.core.param.binding : ValueParameterBinding, ParameterParameterBinding, DeformationParameterBinding;
 
 // Name only
+@ShortcutHidden
+@EffectRename
 class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter name")) {
     this(string newName) { super(_("Set Parameter Name"), newName); }
-    override bool shortcutRunnable() { return false; }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters) return CommandResult(false, "No parameters");
@@ -37,6 +38,8 @@ class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter
 }
 
 // Apply min/max and axis breakpoints (normalized values) together
+@ShortcutHidden
+@EffectStructuralEdit
 class ApplyParameterPropsAxesCommand : ExCommand!(
     TW!(float[2], "min",   "New min (x,y) as [2]"),
     TW!(float[2], "max",   "New max (x,y) as [2]"),
@@ -46,7 +49,6 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
     this(float[2] min, float[2] max, float[] axisX, float[] axisY) {
         super(null, _("Apply Parameter Axes + Props"), min, max, axisX, axisY);
     }
-    override bool shortcutRunnable() { return false; }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters) return CommandResult(false, "No parameters");

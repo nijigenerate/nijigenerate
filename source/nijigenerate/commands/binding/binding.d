@@ -35,6 +35,7 @@ import nijigenerate.commands.binding.base;
 // Command Palette Definition for Key Frame
 //==================================================================================
 
+@EffectKeyframeEdit
 class UnsetKeyFrameCommand : ExCommand!() {
     this() { super(_("Unset Key Frame")); }
     override
@@ -57,6 +58,7 @@ class UnsetKeyFrameCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class SetKeyFrameCommand : ExCommand!() {
     this() { super(_("Set Key Frame")); }
     override
@@ -80,6 +82,7 @@ class SetKeyFrameCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class ResetKeyFrameCommand : ExCommand!() {
     this() { super(_("Reset Key Frame")); }
     override
@@ -103,6 +106,7 @@ class ResetKeyFrameCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class InvertKeyFrameCommand : ExCommand!() {
     this() { super(_("Invert Key Frame")); }
     override
@@ -126,6 +130,7 @@ class InvertKeyFrameCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Horizontally")); }
     override
@@ -149,6 +154,7 @@ class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class MirrorKeyFrameVerticallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Vertically")); }
     override
@@ -172,6 +178,7 @@ class MirrorKeyFrameVerticallyCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class FlipDeformCommand : ExCommand!() {
     this() { super(_("Flip Deform")); }
     override
@@ -199,6 +206,7 @@ class FlipDeformCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class SymmetrizeDeformCommand : ExCommand!() {
     this() { super(_("Symmetrize Deform")); }
     override
@@ -230,6 +238,7 @@ class SymmetrizeDeformCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class SetFromHorizontalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Horizontal Mirror")); }
     override
@@ -258,6 +267,7 @@ class SetFromHorizontalMirrorCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class SetFromVerticalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Vertical Mirror")); }
     override
@@ -288,6 +298,7 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
 }
 
 
+@EffectKeyframeEdit
 class SetFromDiagonalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Diagonal Mirror")); }
     override
@@ -318,6 +329,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
 }
 
 
+@EffectKeyframeEdit
 class SetFrom1DMirrorCommand : ExCommand!() {
     this() { super(_("Set From 1D Mirror")); }
     override
@@ -371,6 +383,7 @@ class CopyBindingCommand : ExCommand!() {
     }
 }
 
+@EffectBindingEdit
 class PasteBindingCommand : ExCommand!() {
     this() { super(_("Paste Bindings")); }
     override
@@ -467,6 +480,7 @@ class PasteBindingCommand : ExCommand!() {
 // Command Palette Definition for Binding
 //==================================================================================
 
+@EffectBindingEdit
 class RemoveBindingCommand : ExCommand!() {
     this() { super(null, _("Remove Bindings")); }
     override
@@ -494,6 +508,7 @@ class RemoveBindingCommand : ExCommand!() {
     }
 }
 
+@EffectBindingEdit
 class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify the new interpolation mode.")) {
     this(InterpolateMode mode) { super(null, "Set Bindings to " ~ mode.stringof, mode); }
     override

@@ -465,32 +465,36 @@ class ACPClient {
     /// Priority: if embedded MCP HTTP server is enabled, use that;
     /// otherwise fall back to user-provided JSON in ACP.McpServers (array).
     JSONValue currentMcpServers() {
-        bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
-        auto host = incSettingsGet!string("MCP.Host", "127.0.0.1");
-        auto port = incSettingsGet!int("MCP.Port", 8088);
-        if (!(mcpEnabled || host.length)) {
+        version(HaveMCP) {
+            bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
+            auto host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+            auto port = incSettingsGet!int("MCP.Port", 8088);
+            if (!(mcpEnabled || host.length)) {
+                return parseJSON("[]");
+            }
+            if (!host.length) host = "127.0.0.1";
+            auto url = format("http://%s:%s/mcp", host, port);
+            // Expected format (union variant http):
+            // {"type":"http","name":"nijigenerate","url":"http://host:port","headers":[{"name":"","value":""},...]}
+            auto name = incSettingsGet!string("MCP.Name", "nijigenerate");
+            string headersRaw = incSettingsGet!string("MCP.Headers", "[]");
+            JSONValue headers;
+            try {
+                headers = parseJSON(headersRaw);
+            } catch (Exception) {
+                headers = parseJSON("[]");
+            }
+            if (headers.type != JSONType.array) headers = parseJSON("[]");
+            auto jsonStr = `[{` ~
+                `"type":"http",` ~
+                `"name":"` ~ escapeJsonString(name) ~ `",` ~
+                `"url":"` ~ escapeJsonString(url) ~ `",` ~
+                `"headers":` ~ headers.toString() ~
+            `}]`;
+            return parseJSON(jsonStr);
+        } else {
             return parseJSON("[]");
         }
-        if (!host.length) host = "127.0.0.1";
-        auto url = format("http://%s:%s/mcp", host, port);
-        // Expected format (union variant http):
-        // {"type":"http","name":"nijigenerate","url":"http://host:port","headers":[{"name":"","value":""},...]}
-        auto name = incSettingsGet!string("MCP.Name", "nijigenerate");
-        string headersRaw = incSettingsGet!string("MCP.Headers", "[]");
-        JSONValue headers;
-        try {
-            headers = parseJSON(headersRaw);
-        } catch (Exception) {
-            headers = parseJSON("[]");
-        }
-        if (headers.type != JSONType.array) headers = parseJSON("[]");
-        auto jsonStr = `[{` ~
-            `"type":"http",` ~
-            `"name":"` ~ escapeJsonString(name) ~ `",` ~
-            `"url":"` ~ escapeJsonString(url) ~ `",` ~
-            `"headers":` ~ headers.toString() ~
-        `}]`;
-        return parseJSON(jsonStr);
     }
 
     /// Send ping (success if no exception).

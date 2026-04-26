@@ -16,6 +16,7 @@ import i18n;
 //                    incPushWindowList(new ParamAxesWindow(param));
 //                    incPushWindowList(new ParamSplitWindow(idx, param));
 
+@EffectStructuralEdit
 class ConvertTo2DParamCommand : ExCommand!() {
     this() { super(_("Convert to 2D")); }
     override
@@ -28,6 +29,7 @@ class ConvertTo2DParamCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class FlipXCommand : ExCommand!() {
     this() { super(_("Flip X")); }
     override
@@ -43,6 +45,7 @@ class FlipXCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class FlipYCommand : ExCommand!() {
     this() { super(_("Flip X")); }
     override
@@ -58,6 +61,7 @@ class FlipYCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class Flip1DCommand : ExCommand!() {
     this() { super(_("Flip")); }
     override
@@ -73,6 +77,7 @@ class Flip1DCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class MirrorHorizontallyCommand : ExCommand!() {
     this() { super(_("Mirror Horizontally")); }
     override
@@ -86,6 +91,7 @@ class MirrorHorizontallyCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class MirrorVerticallyCommand : ExCommand!() {
     this() { super(_("Mirror Vertically")); }
     override
@@ -99,6 +105,7 @@ class MirrorVerticallyCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class MirroredAutoFillDir1Command : ExCommand!() {
     this() { super(_("Mirrored Autofill ")); }
     override
@@ -112,6 +119,7 @@ class MirroredAutoFillDir1Command : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class MirroredAutoFillDir2Command : ExCommand!() {
     this() { super(_("Mirrored Autofill ")); }
     override
@@ -125,6 +133,7 @@ class MirroredAutoFillDir2Command : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class MirroredAutoFillDir3Command : ExCommand!() {
     this() { super(_("Mirrored Autofill ")); }
     override
@@ -138,6 +147,7 @@ class MirroredAutoFillDir3Command : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class MirroredAutoFillDir4Command : ExCommand!() {
     this() { super(_("Mirrored Autofill ")); }
     override
@@ -162,6 +172,7 @@ class CopyParameterCommand : ExCommand!() {
     }
 }
 
+@EffectCreate
 class PasteParameterCommand : ExCommand!() {
     this() { super(_("Paste Parameter")); }
     override
@@ -178,6 +189,7 @@ class PasteParameterCommand : ExCommand!() {
     }
 }
 
+@EffectCreate
 class PasteParameterWithFlipCommand : ExCommand!() {
     this() { super(_("Paste Parameter with Flip")); }
     override
@@ -194,6 +206,7 @@ class PasteParameterWithFlipCommand : ExCommand!() {
     }
 }
 
+@EffectCreate
 class DuplicateParameterCommand : ExCommand!() {
     this() { super(_("Duplicate Parameter")); }
     override
@@ -212,6 +225,7 @@ class DuplicateParameterCommand : ExCommand!() {
     }
 }
 
+@EffectCreate
 class DuplicateParameterWithFlipCommand : ExCommand!() {
     this() { super(_("Duplicate Parameter with Flip")); }
     override
@@ -232,6 +246,7 @@ class DuplicateParameterWithFlipCommand : ExCommand!() {
     }
 }
 
+@EffectDelete
 class DeleteParameterCommand : ExCommand!() {
     this() { super(_("Delete Parameter")); }
     override
@@ -273,6 +288,7 @@ void addBinding(Parameter param, Parameter p, int fromAxis, int toAxis) {
     incActionPush(action);
 }
 
+@EffectStructuralEdit
 class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to copy"), TW!(int, "fromAxis", "axis in source parameter"), TW!(int, "toAxis", "axis in dest parameter")) {
     this(Parameter toParam, int fromAxis, int toAxis) { super(null, _("Link To Parameter"), toParam, fromAxis, toAxis); }
     override
@@ -285,6 +301,7 @@ class LinkToCommand : ExCommand!(TW!(Parameter, "toParam", "Target parameter to 
 }
 
 
+@EffectStructuralEdit
 class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the index of the armed parameter in the parent group.")) {
     this(int index) { super(null, _("Arm/Disarm the selected parameter at index"), index); }
     override
@@ -303,6 +320,7 @@ class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the inde
     }
 }
 
+@EffectKeyframeEdit
 class SetStartingKeyFrameCommand : ExCommand!() {
     this() { super(null, _("Set the current parameter value as starting keyframe")); }
     override

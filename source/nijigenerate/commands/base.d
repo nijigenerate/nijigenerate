@@ -45,10 +45,10 @@ template registerCommand(alias id, Args...) {
     }
     enum string EnumType = typeof(id).stringof;
     static if (Args.length == 0) {
-        enum registerCommand = format(`commands[%s.%s] = new %sCommand();`, EnumType, id.stringof, id.stringof);
+        enum registerCommand = format(`{ auto __cmd = new %3$sCommand(); ngRegisterCommandMeta(__cmd); commands[%1$s.%2$s] = __cmd; }`, EnumType, id.stringof, id.stringof);
     } else {
         enum registerCommand = format(
-            `commands[%s.%s] = new %sCommand(%s);`,
+            `{ auto __cmd = new %3$sCommand(%4$s); ngRegisterCommandMeta(__cmd); commands[%1$s.%2$s] = __cmd; }`,
             EnumType, id.stringof, id.stringof, ArgsToString!Args
         );
     }
@@ -58,6 +58,154 @@ import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
 struct TW(alias T, string fieldName, string fieldDesc, bool hidden = false) {}
+
+enum CommandShortcutPolicy {
+    visible,
+    hidden,
+}
+
+enum CommandMcpExposure {
+    tool,
+    hidden,
+}
+
+enum CommandGuiDisplay {
+    none,
+    window,
+    dialog,
+    modal,
+    popup,
+    confirm,
+    dialogOutput,
+    dialogWindow,
+    layout,
+}
+
+enum CommandIrreversibleEffect {
+    none,
+    fileWrite,
+    importData,
+    projectReset,
+    configEdit,
+    apply,
+    keyframeEdit,
+    bindingEdit,
+    structuralEdit,
+    create,
+    deleteObject,
+    rename,
+    textureRegenerate,
+    repair,
+    layoutReset,
+}
+
+struct ShortcutVisibility {
+    CommandShortcutPolicy value;
+}
+
+struct McpExposureMeta {
+    CommandMcpExposure value;
+}
+
+struct GuiDisplayMeta {
+    CommandGuiDisplay value;
+}
+
+struct IrreversibleEffectMeta {
+    CommandIrreversibleEffect value;
+}
+
+enum ShortcutVisible = ShortcutVisibility(CommandShortcutPolicy.visible);
+enum ShortcutHidden = ShortcutVisibility(CommandShortcutPolicy.hidden);
+enum McpTool = McpExposureMeta(CommandMcpExposure.tool);
+enum McpHidden = McpExposureMeta(CommandMcpExposure.hidden);
+
+enum GuiWindow = GuiDisplayMeta(CommandGuiDisplay.window);
+enum GuiDialog = GuiDisplayMeta(CommandGuiDisplay.dialog);
+enum GuiModal = GuiDisplayMeta(CommandGuiDisplay.modal);
+enum GuiPopup = GuiDisplayMeta(CommandGuiDisplay.popup);
+enum GuiConfirm = GuiDisplayMeta(CommandGuiDisplay.confirm);
+enum GuiDialogOutput = GuiDisplayMeta(CommandGuiDisplay.dialogOutput);
+enum GuiDialogWindow = GuiDisplayMeta(CommandGuiDisplay.dialogWindow);
+enum GuiLayout = GuiDisplayMeta(CommandGuiDisplay.layout);
+
+enum EffectFileWrite = IrreversibleEffectMeta(CommandIrreversibleEffect.fileWrite);
+enum EffectImport = IrreversibleEffectMeta(CommandIrreversibleEffect.importData);
+enum EffectProjectReset = IrreversibleEffectMeta(CommandIrreversibleEffect.projectReset);
+enum EffectConfigEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.configEdit);
+enum EffectApply = IrreversibleEffectMeta(CommandIrreversibleEffect.apply);
+enum EffectKeyframeEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.keyframeEdit);
+enum EffectBindingEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.bindingEdit);
+enum EffectStructuralEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.structuralEdit);
+enum EffectCreate = IrreversibleEffectMeta(CommandIrreversibleEffect.create);
+enum EffectDelete = IrreversibleEffectMeta(CommandIrreversibleEffect.deleteObject);
+enum EffectRename = IrreversibleEffectMeta(CommandIrreversibleEffect.rename);
+enum EffectTextureRegenerate = IrreversibleEffectMeta(CommandIrreversibleEffect.textureRegenerate);
+enum EffectRepair = IrreversibleEffectMeta(CommandIrreversibleEffect.repair);
+enum EffectLayoutReset = IrreversibleEffectMeta(CommandIrreversibleEffect.layoutReset);
+
+struct CommandMetadata {
+    bool shortcutRunnable = true;
+    bool mcpExposed = true;
+    CommandGuiDisplay guiDisplay = CommandGuiDisplay.none;
+    CommandIrreversibleEffect irreversibleEffect = CommandIrreversibleEffect.none;
+}
+
+private __gshared CommandMetadata[string] gCommandMetadataByTypeName;
+
+private CommandShortcutPolicy _shortcutPolicyOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == ShortcutVisibility)) {
+            return attr.value;
+        }
+    }
+    return CommandShortcutPolicy.visible;
+}
+
+private CommandMcpExposure _mcpExposureOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == McpExposureMeta)) {
+            return attr.value;
+        }
+    }
+    return CommandMcpExposure.tool;
+}
+
+private CommandGuiDisplay _guiDisplayOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == GuiDisplayMeta)) {
+            return attr.value;
+        }
+    }
+    return CommandGuiDisplay.none;
+}
+
+private CommandIrreversibleEffect _irreversibleEffectOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == IrreversibleEffectMeta)) {
+            return attr.value;
+        }
+    }
+    return CommandIrreversibleEffect.none;
+}
+
+void ngRegisterCommandMeta(C)(C cmd) if (is(C : Command)) {
+    auto key = typeid(cast(Object)cmd).toString();
+    gCommandMetadataByTypeName[key] = CommandMetadata(
+        _shortcutPolicyOf!C() != CommandShortcutPolicy.hidden,
+        _mcpExposureOf!C() != CommandMcpExposure.hidden,
+        _guiDisplayOf!C(),
+        _irreversibleEffectOf!C()
+    );
+}
+
+private CommandMetadata ngLookupCommandMeta(Command cmd) {
+    auto key = typeid(cast(Object)cmd).toString();
+    if (auto p = key in gCommandMetadataByTypeName) {
+        return *p;
+    }
+    return CommandMetadata.init;
+}
 
 // Append enum choices to description for UI/MCP exposure
 string enrichArgDesc(T)(string baseDesc) {
@@ -223,6 +371,12 @@ interface Command {
     bool runnable(Context context);
     /// Whether this command is eligible to be bound and edited as a shortcut
     bool shortcutRunnable();
+    /// Whether this command should be exposed via MCP tools
+    bool mcpExposed();
+    /// Direct GUI display style triggered by this command
+    CommandGuiDisplay guiDisplay();
+    /// Persistent or one-way side effect category
+    CommandIrreversibleEffect irreversibleEffect();
 }
 
 abstract class ExCommand(T...) : Command {
@@ -290,7 +444,10 @@ abstract class ExCommand(T...) : Command {
     override string label() { return _label.length ? _label : _desc; }
     override string description() { return _desc; }
     override bool runnable(Context context) { return true; }
-    override bool shortcutRunnable() { return true; }
+    override bool shortcutRunnable() { return ngLookupCommandMeta(this).shortcutRunnable; }
+    override bool mcpExposed() { return ngLookupCommandMeta(this).mcpExposed; }
+    override CommandGuiDisplay guiDisplay() { return ngLookupCommandMeta(this).guiDisplay; }
+    override CommandIrreversibleEffect irreversibleEffect() { return ngLookupCommandMeta(this).irreversibleEffect; }
     struct ArgMeta {
         string typeName;
         string fieldName;
@@ -322,9 +479,31 @@ import std.traits : isInstanceOf, BaseClassesTuple, TemplateArgsOf;
 string ngCommandIdFromKey(K)(K k)
 {
     import std.conv : to;
+    import std.string : startsWith;
     static import nodeDynamic = nijigenerate.commands.node.dynamic;
     static import autoMeshDynamic = nijigenerate.commands.automesh.dynamic;
+    static import autoMeshConfig = nijigenerate.commands.automesh.config;
+    static import inspectorApply = nijigenerate.commands.inspector.apply_node;
     static import panelView = nijigenerate.commands.view.panel;
+
+    string stripPrefix(string value, string prefix) {
+        return value.startsWith(prefix) ? value[prefix.length .. $] : value;
+    }
+
+    string stripSuffix(string value, string suffix) {
+        return value.length >= suffix.length && value[$ - suffix.length .. $] == suffix
+            ? value[0 .. $ - suffix.length]
+            : value;
+    }
+
+    string lowerLeading(string value) {
+        import std.ascii : toLower;
+        auto r = value.dup;
+        if (r.length) {
+            r[0] = toLower(r[0]);
+        }
+        return cast(string)r;
+    }
 
     static if (is(K == nodeDynamic.AddNodeKey)) {
         return "Node.Add." ~ to!string(k);
@@ -334,6 +513,33 @@ string ngCommandIdFromKey(K)(K k)
         return "Node.ConvertTo." ~ to!string(k);
     } else static if (is(K == autoMeshDynamic.AutoMeshKey)) {
         return "AutoMesh.Apply." ~ to!string(k);
+    } else static if (is(K == autoMeshConfig.AutoMeshConfigCommand)) {
+        return "AutoMesh." ~ stripPrefix(to!string(k), "AutoMesh");
+    } else static if (is(K == autoMeshConfig.AutoMeshGetConfigKey)) {
+        return "AutoMesh.GetConfig." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetConfigKey)) {
+        return "AutoMesh.SetConfig." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetSimpleKey)) {
+        return "AutoMesh.SetSimple." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetAdvancedKey)) {
+        return "AutoMesh.SetAdvanced." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetPresetKey)) {
+        return "AutoMesh.SetPreset." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshTypedCommand)) {
+        auto name = to!string(k);
+        if (name.startsWith("AutoMeshSetSimple_")) {
+            auto proc = stripPrefix(name, "AutoMeshSetSimple_");
+            return "AutoMesh.SetSimple." ~ lowerLeading(stripSuffix(proc, "AutoMeshProcessor"));
+        } else if (name.startsWith("AutoMeshSetAdvanced_")) {
+            auto proc = stripPrefix(name, "AutoMeshSetAdvanced_");
+            return "AutoMesh.SetAdvanced." ~ lowerLeading(stripSuffix(proc, "AutoMeshProcessor"));
+        } else if (name.startsWith("AutoMeshSetPreset_")) {
+            auto proc = stripPrefix(name, "AutoMeshSetPreset_");
+            return "AutoMesh.SetPreset." ~ lowerLeading(stripSuffix(proc, "AutoMeshProcessor"));
+        }
+        return "AutoMesh." ~ name;
+    } else static if (is(K == inspectorApply.InspectorNodeApplyCommand)) {
+        return "Inspector.Apply." ~ to!string(k);
     } else static if (is(K == panelView.PanelKey)) {
         return "Panel.Toggle." ~ to!string(k);
     } else {

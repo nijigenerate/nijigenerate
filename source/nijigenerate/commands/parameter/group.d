@@ -18,6 +18,7 @@ import std.array : insertInPlace;
 //==================================================================================
 
 
+@EffectStructuralEdit
 class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(int, "index", "")) {
     this(ExParameterGroup group, int index) { super(null, "Move Parameter", group, index);}
     override
@@ -29,6 +30,7 @@ class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(in
     }
 }
 
+@EffectCreate
 class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
     this(int index = 0) { super(null, "Create Parameter Group", index); }
     override
@@ -47,6 +49,7 @@ class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
     }
 }
 
+@EffectStructuralEdit
 class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value for target Parameter Group.")) {
     this(float[3] color = [0f, 0f, 0f]) { super(null, "Change Parameter Group Color", color); }
     override
@@ -59,6 +62,7 @@ class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value f
     }
 }
 
+@EffectDelete
 class DeleteParamGroupCommand : ExCommand!() {
     this() { super(null, "Delete Parameter Group"); }
     override

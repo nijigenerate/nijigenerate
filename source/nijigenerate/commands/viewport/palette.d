@@ -171,6 +171,8 @@ Command[] filterCommands(string query, Command exclude = null)
 }
 
 /// Show a searchable list and execute on Enter.
+@McpHidden
+@GuiPopup
 class ListCommandCommand : ExCommand!()
 {
     this() { super(_("Show Command Palette.")); }

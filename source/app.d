@@ -29,7 +29,7 @@ import nijigenerate.windows.flipconfig;
 import nijilive;
 import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 import nijigenerate;
-import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings;
+version(HaveMCP) import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
 
@@ -106,7 +106,7 @@ int main(string[] args)
         ngLoadShortcutsFromSettings();
 
         // Start/stop MCP HTTP server based on persisted settings (single read)
-        ngMcpLoadSettings();
+        version(HaveMCP) ngMcpLoadSettings();
 
         // Open or create project
         if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
@@ -163,7 +163,7 @@ void incUpdate() {
 
             incHandleShortcuts();
             // Process any queued MCP commands on the main thread
-            ngMcpProcessQueue();
+            version(HaveMCP) ngMcpProcessQueue();
             incMainMenu();
 
             incUpdatePanels();

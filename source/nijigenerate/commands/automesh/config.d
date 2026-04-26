@@ -40,6 +40,8 @@ mixin("enum AutoMeshTypedCommand { " ~ _genTypedEnumMembers() ~ "}");
 Command[AutoMeshTypedCommand] autoMeshTypedCommands;
 
 // Get reflection schema as JSON string for a processor
+@McpHidden
+@GuiDialogOutput
 class AutoMeshGetSchemaCommand : ExCommand!(TW!(string, "processorId", "AutoMesh processor identifier")) {
     this(string id) { super(_("Get AutoMesh Schema"), _("Show AutoMesh reflection schema"), id); }
     override bool runnable(Context ctx) { return true; }
@@ -55,6 +57,8 @@ class AutoMeshGetSchemaCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
 }
 
 // Get values for a level (Simple/Advanced)
+@McpHidden
+@GuiDialogOutput
 class AutoMeshGetValuesCommand : ExCommand!(TW!(string, "processorId", "AutoMesh processor identifier"), TW!(string, "level", "Config level: Simple/Advanced")) {
     this(string id, string level) { super(_("Get AutoMesh Values"), _("Show AutoMesh config values"), id, level); }
     override bool runnable(Context ctx) { return true; }
@@ -68,6 +72,7 @@ class AutoMeshGetValuesCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
 }
 
 // Apply a preset by name
+@EffectConfigEdit
 class AutoMeshSetPresetCommand : ExCommand!(TW!(string, "processorId", "AutoMesh processor identifier"), TW!(string, "preset", "Preset name")) {
     this(string id, string preset) { super(_("Set AutoMesh Preset"), _("Apply AutoMesh preset"), id, preset); }
     override bool runnable(Context ctx) { return true; }
@@ -80,6 +85,7 @@ class AutoMeshSetPresetCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
 }
 
 // Set values (JSON object id->value/array) for a level
+@EffectConfigEdit
 class AutoMeshSetValuesCommand : ExCommand!(TW!(string, "processorId", "AutoMesh processor identifier"), TW!(string, "level", "Config level: Simple/Advanced"), TW!(string, "updates", "JSON object of updates")) {
     this(string id, string level, string updates) { super(_("Set AutoMesh Values"), _("Update AutoMesh config values"), id, level, updates); }
     override bool runnable(Context ctx) { return updates.length > 0; }
@@ -131,6 +137,8 @@ void ngInitCommands(T)() if (is(T == AutoMeshConfigCommand))
 }
 
 // List available AutoMesh processors with ids, icons and reflectable flag
+@McpHidden
+@GuiDialogOutput
 class AutoMeshListProcessorsCommand : ExCommand!() {
     this() { super(_("List AutoMesh Processors"), _("Show available AutoMesh processors")); }
     override bool runnable(Context ctx) { return true; }
@@ -163,6 +171,8 @@ private AutoMeshProcessor _resolveInstance(alias PT)() {
 // GetConfig per-processor
 template GetAutoMeshConfigPT(alias PT)
 {
+@McpHidden
+    @GuiDialogOutput
     class GetAutoMeshConfigPT : ExCommand!(TW!(string, "level", "Config level: Simple/Advanced"))
     {
         this(string level) {
@@ -182,6 +192,7 @@ template GetAutoMeshConfigPT(alias PT)
 // SetConfig per-processor
 template SetAutoMeshConfigPT(alias PT)
 {
+    @EffectConfigEdit
     class SetAutoMeshConfigPT : ExCommand!(TW!(string, "level", "Config level: Simple/Advanced"), TW!(string, "updates", "JSON object of updates"))
     {
         this(string level, string updates) {
@@ -210,7 +221,7 @@ Command ensureGetAutoMeshConfigCommand(string id)
     static foreach (i, PT; AutoMeshProcessorTypes) {{
         enum pid_ = AMProcInfo!(PT).id;
         static if (pid_.length) {
-            if (pid_ == id) { autoMeshGetConfigCommands[key] = cast(Command) new GetAutoMeshConfigPT!PT("Simple"); return autoMeshGetConfigCommands[key]; }
+            if (pid_ == id) { auto cmd = new GetAutoMeshConfigPT!PT("Simple"); ngRegisterCommandMeta(cmd); autoMeshGetConfigCommands[key] = cmd; return autoMeshGetConfigCommands[key]; }
         }
     }}
     return null;
@@ -222,7 +233,7 @@ Command ensureSetAutoMeshConfigCommand(string id)
     static foreach (i, PT; AutoMeshProcessorTypes) {{
         enum pid_ = AMProcInfo!(PT).id;
         static if (pid_.length) {
-            if (pid_ == id) { autoMeshSetConfigCommands[key] = cast(Command) new SetAutoMeshConfigPT!PT("Simple", "{}"); return autoMeshSetConfigCommands[key]; }
+            if (pid_ == id) { auto cmd = new SetAutoMeshConfigPT!PT("Simple", "{}"); ngRegisterCommandMeta(cmd); autoMeshSetConfigCommands[key] = cmd; return autoMeshSetConfigCommands[key]; }
         }
     }}
     return null;
@@ -233,7 +244,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshGetConfigKey))
     static foreach (PT; AutoMeshProcessorTypes) {
         enum pid = AMProcInfo!(PT).id;
         AutoMeshGetConfigKey key = AutoMeshGetConfigKey(pid);
-        autoMeshGetConfigCommands[key] = cast(Command) new GetAutoMeshConfigPT!PT("Simple");
+        auto cmd = new GetAutoMeshConfigPT!PT("Simple");
+        ngRegisterCommandMeta(cmd);
+        autoMeshGetConfigCommands[key] = cmd;
     }
 }
 void ngInitCommands(T)() if (is(T == AutoMeshSetConfigKey))
@@ -241,7 +254,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetConfigKey))
     static foreach (PT; AutoMeshProcessorTypes) {
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetConfigKey key = AutoMeshSetConfigKey(pid);
-        autoMeshSetConfigCommands[key] = cast(Command) new SetAutoMeshConfigPT!PT("Simple", "{}");
+        auto cmd = new SetAutoMeshConfigPT!PT("Simple", "{}");
+        ngRegisterCommandMeta(cmd);
+        autoMeshSetConfigCommands[key] = cmd;
     }
 }
 
@@ -333,7 +348,7 @@ template AutoMeshSetSimpleConfigCommand(alias PT)
 {
     enum string _tw = _genTwListForLevel!(PT, AutoMeshLevel.Simple)();
     enum string _cls = "AutoMeshSetSimple_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
-    mixin(`class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
+    mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
         this() { super("Set Simple (" ~ AMProcInfo!(PT).name ~ ")", "Set simple config"); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Simple)() ~ ` return CommandResult(true); }
@@ -345,7 +360,7 @@ template AutoMeshSetAdvancedConfigCommand(alias PT)
 {
     enum string _tw = _genTwListForLevel!(PT, AutoMeshLevel.Advanced)();
     enum string _cls = "AutoMeshSetAdvanced_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
-    mixin(`class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
+    mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
         this() { super("Set Advanced (" ~ AMProcInfo!(PT).name ~ ")", "Set advanced config"); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Advanced)() ~ ` return CommandResult(true); }
@@ -356,7 +371,7 @@ template AutoMeshSetAdvancedConfigCommand(alias PT)
 template AutoMeshSetPresetTypedCommand(alias PT)
 {
     enum string _cls = "AutoMeshSetPreset_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
-    mixin(`class ` ~ _cls ~ ` : ExCommand!(TW!(string, "preset", "Preset name"))
+    mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(TW!(string, "preset", "Preset name"))
     {
         this() { super("Set Preset (" ~ AMProcInfo!(PT).name ~ ")", "Apply preset"); }
         override bool runnable(Context ctx) { return true; }
@@ -389,7 +404,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetSimpleKey))
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetSimpleKey key = AutoMeshSetSimpleKey(pid);
-        autoMeshSetSimpleCommands[key] = cast(Command) new AutoMeshSetSimpleConfigCommand!PT();
+        auto cmd = new AutoMeshSetSimpleConfigCommand!PT();
+        ngRegisterCommandMeta(cmd);
+        autoMeshSetSimpleCommands[key] = cmd;
     }}
 }
 void ngInitCommands(T)() if (is(T == AutoMeshSetAdvancedKey))
@@ -397,7 +414,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetAdvancedKey))
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetAdvancedKey key = AutoMeshSetAdvancedKey(pid);
-        autoMeshSetAdvancedCommands[key] = cast(Command) new AutoMeshSetAdvancedConfigCommand!PT();
+        auto cmd = new AutoMeshSetAdvancedConfigCommand!PT();
+        ngRegisterCommandMeta(cmd);
+        autoMeshSetAdvancedCommands[key] = cmd;
     }}
 }
 void ngInitCommands(T)() if (is(T == AutoMeshSetPresetKey))
@@ -405,7 +424,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetPresetKey))
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetPresetKey key = AutoMeshSetPresetKey(pid);
-        autoMeshSetPresetCommands[key] = cast(Command) new AutoMeshSetPresetTypedCommand!PT("");
+        auto cmd = new AutoMeshSetPresetTypedCommand!PT("");
+        ngRegisterCommandMeta(cmd);
+        autoMeshSetPresetCommands[key] = cmd;
     }}
 }
 
@@ -449,7 +470,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshTypedCommand))
 //                pragma(msg, "[CT] Register typed command class for enum: " ~ n);
                 alias KS = mixin("AutoMeshTypedCommand."~n);
                 alias C  = mixin(n ~ "Command");
-                autoMeshTypedCommands[KS] = cast(Command) new C();
+                auto cmd = new C();
+                ngRegisterCommandMeta(cmd);
+                autoMeshTypedCommands[KS] = cmd;
             }
         }
     }}
@@ -457,6 +480,8 @@ void ngInitCommands(T)() if (is(T == AutoMeshTypedCommand))
     cmdLog("[CMD] AutoMeshTypedCommand init: before=%s after=%s", before, after);
 }
 // Get currently active AutoMesh processor
+@McpHidden
+@GuiDialogOutput
 class AutoMeshGetActiveCommand : ExCommand!() {
     this() { super(_("Get Active AutoMesh"), _("Show active AutoMesh processor")); }
     override bool runnable(Context ctx) { return true; }
@@ -471,6 +496,7 @@ class AutoMeshGetActiveCommand : ExCommand!() {
 }
 
 // Set active AutoMesh processor by id
+@EffectConfigEdit
 class AutoMeshSetActiveCommand : ExCommand!(TW!(string, "processorId", "AutoMesh processor identifier")) {
     this(string id) { super(_("Set Active AutoMesh"), _("Activate AutoMesh processor"), id); }
     override bool runnable(Context ctx) { return true; }
@@ -482,6 +508,7 @@ class AutoMeshSetActiveCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
 }
 
 // Apply active AutoMesh to current context/selection (reuses robust Apply command)
+@EffectApply
 class AutoMeshApplyActiveCommand : ExCommand!() {
     this() { super(_("Apply Active AutoMesh"), _("Apply active AutoMesh to targets")); }
     override bool runnable(Context ctx) { return true; }

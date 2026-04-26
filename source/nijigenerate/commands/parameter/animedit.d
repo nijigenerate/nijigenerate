@@ -4,6 +4,7 @@ import nijigenerate.commands.base;
 import nijigenerate.commands.parameter.base;
 import nijigenerate.project;
 
+@EffectCreate
 class AddKeyFrameCommand : ExCommand!() {
     this() { super("Add KeyFrame"); }
 

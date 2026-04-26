@@ -208,8 +208,39 @@ private:
             res.statusCode = 204;
             res.writeBody(""); 
         } else { 
+            stripResourceMetadataDescriptions(*responsePtr, msg);
             res.writeBody(responsePtr.toString());
         }
+    }
+
+    private void stripResourceMetadataDescriptions(ref JSONValue response, ref JSONValue request) {
+        if (request.type != JSONType.object || "method" !in request.object) return;
+        if (request["method"].type != JSONType.string) return;
+
+        string listKey;
+        switch (request["method"].str) {
+            case "resources/list":
+                listKey = "resources";
+                break;
+            case "resources/templates/list":
+                listKey = "resourceTemplates";
+                break;
+            default:
+                return;
+        }
+
+        if (response.type != JSONType.object || "result" !in response.object) return;
+        if (response["result"].type != JSONType.object || listKey !in response["result"].object) return;
+        if (response["result"][listKey].type != JSONType.array) return;
+
+        auto entries = response["result"][listKey].array;
+        foreach (ref entry; entries) {
+            if (entry.type != JSONType.object) continue;
+            auto object = entry.object;
+            object.remove("description");
+            entry = JSONValue(object);
+        }
+        response["result"][listKey] = JSONValue(entries);
     }
 
     private void handleEvents(scope HTTPServerRequest req, scope HTTPServerResponse res) {

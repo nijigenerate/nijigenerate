@@ -22,6 +22,8 @@ import nijigenerate.commands.base : toCodeString;
 import std.traits : TemplateArgsOf;
 
 // Generic apply command using NodeInspector; compile-time PropName
+@ShortcutHidden
+@EffectStructuralEdit
 class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixin("(cast(I)(null))."~PropName~".value")), "value", "Value to apply")) {
     // The constructor for ExCommand will be used.
     // It takes (string label, string desc, args...)
@@ -126,8 +128,6 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
         return CommandResult(true);
     }
 
-    // Apply-style inspector commands require specifying values and are not suited for shortcuts
-    override bool shortcutRunnable() { return false; }
 }
 
 class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {

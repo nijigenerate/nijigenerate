@@ -43,6 +43,7 @@ struct AutoMeshKey {
 // Template: Apply AutoMesh command per processor type
 template ApplyAutoMeshPT(alias PT)
 {
+    @EffectApply
     class ApplyAutoMeshPT : ExCommand!()
     {
         this() {

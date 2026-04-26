@@ -17,6 +17,8 @@ import i18n;
     - vertices: flattened [x0,y0, x1,y1, ...]
     - indices:  triangle indices (triplets) into vertex array
 */
+@ShortcutHidden
+@EffectStructuralEdit
 class DefineMeshCommand : ExCommand!(
     TW!(float[],  "vertices", "Flattened [x,y]* vertex coordinates"),
     TW!(ushort[], "indices",  "Triangle indices (groups of 3)")
@@ -30,9 +32,6 @@ class DefineMeshCommand : ExCommand!(
         foreach (n; ns) if (cast(Drawable)n) return true;
         return false;
     }
-
-    // Do not expose as a usable shortcut (args must be provided programmatically)
-    override bool shortcutRunnable() { return false; }
 
     override CommandResult run(Context ctx) {
         if (!runnable(ctx)) return CommandResult(false, "No drawable nodes available");

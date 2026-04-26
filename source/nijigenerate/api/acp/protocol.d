@@ -20,6 +20,10 @@ enum ErrorCode {
 /// Common ACP method names (handled on the Coding Agent side).
 enum string ACP_METHOD_INITIALIZE = "initialize";
 enum string ACP_METHOD_PING       = "ping";
+enum string ACP_METHOD_SESSION_NEW    = "session/new";
+enum string ACP_METHOD_SESSION_PROMPT = "session/prompt";
+enum string ACP_METHOD_SESSION_CANCEL = "session/cancel";
+enum string ACP_METHOD_SESSION_UPDATE = "session/update";
 enum string ACP_METHOD_APPLY_EDIT = "workspace/applyEdit";
 enum string ACP_METHOD_STATUS     = "notifications/status";
 enum string ACP_METHOD_USER_MSG   = "editor/userMessage";

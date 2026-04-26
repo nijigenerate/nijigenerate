@@ -17,6 +17,7 @@ enum NodeWeldingCommand {
 
 Command[NodeWeldingCommand] commands;
 
+@EffectCreate
 class AddWeldingCommand : ExCommand!(
     TW!(Drawable, "target", "Target drawable"),
     TW!(float, "weight", "Welding weight")
@@ -33,6 +34,7 @@ class AddWeldingCommand : ExCommand!(
     }
 }
 
+@EffectDelete
 class RemoveWeldingCommand : ExCommand!(
     TW!(Drawable, "target", "Target drawable")
 ) {
@@ -48,6 +50,7 @@ class RemoveWeldingCommand : ExCommand!(
     }
 }
 
+@EffectStructuralEdit
 class ChangeWeldingWeightCommand : ExCommand!(
     TW!(Drawable, "target", "Target drawable"),
     TW!(float, "weight", "New welding weight")

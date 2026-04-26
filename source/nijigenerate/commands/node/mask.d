@@ -15,6 +15,7 @@ enum NodeMaskCommand {
 
 Command[NodeMaskCommand] commands;
 
+@EffectStructuralEdit
 class AddMaskCommand : ExCommand!(
     TW!(Drawable, "maskSrc", "Mask source drawable"),
     TW!(MaskingMode, "mode", "Masking mode")
@@ -31,6 +32,7 @@ class AddMaskCommand : ExCommand!(
     }
 }
 
+@EffectDelete
 class RemoveMaskCommand : ExCommand!(
     TW!(Drawable, "maskSrc", "Mask source drawable")
 ) {
@@ -49,6 +51,7 @@ class RemoveMaskCommand : ExCommand!(
     }
 }
 
+@EffectStructuralEdit
 class ChangeMaskModeCommand : ExCommand!(
     TW!(Drawable, "maskSrc", "Mask source drawable"),
     TW!(MaskingMode, "mode", "New masking mode")

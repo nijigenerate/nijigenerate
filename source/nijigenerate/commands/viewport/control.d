@@ -58,6 +58,7 @@ class ResetPhysicsCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class ResetParametersCommand : ExCommand!() {
     this() { super(_("Reset parameters to defaults.")); }
     override CommandResult run(Context ctx) {
@@ -69,6 +70,8 @@ class ResetParametersCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiWindow
 class OpenFlipPairWindowCommand : ExCommand!() {
     this() { super(_("Open Flip Pair configuration window.")); }
     override CommandResult run(Context ctx) {
@@ -78,6 +81,8 @@ class OpenFlipPairWindowCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiModal
 class OpenAutomeshBatchingCommand : ExCommand!() {
     this() { super(_("Open Automesh Batching modal.")); }
     override CommandResult run(Context ctx) {
