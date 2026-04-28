@@ -105,6 +105,11 @@ template ApplyAutoMeshPT(alias PT)
                     if (auto n = cast(Node)t) lockTargets ~= n;
                 }
                 auto drawables = enumerateDrawablesForAutoMesh(lockTargets);
+                // The selected target itself may be skipped by traversal rules such as coverOthers().
+                // AutoMesh processors can still read the direct target's texture, so lock it explicitly.
+                foreach (t; targets) {
+                    if (auto d = cast(Drawable)t) drawables ~= d;
+                }
                 foreach (d; drawables) {
                     auto p = cast(Part)d;
                     if (p is null) continue;
