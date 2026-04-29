@@ -1,11 +1,12 @@
 module nijigenerate.api.mcp.helpers;
 
 import std.json;
+import std.conv : to;
 import std.stdio : writefln;
 import std.meta : AliasSeq;
 import std.traits : isInstanceOf, TemplateArgsOf, EnumMembers;
-import inmath : vec2u, vec3;
-import nijigenerate.commands.base : CommandResult, ExCommandResult, TW, BaseExArgsOf, CreateResult, DeleteResult, LoadResult;
+import inmath : vec2, vec2u, vec3;
+import nijigenerate.commands.base : CommandResult, ExCommandResult, ExCommandResultImpl, TW, BaseExArgsOf, CreateResult, DeleteResult, LoadResult;
 import nijigenerate.commands : Context, AllCommandMaps;
 import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.core.selector.resource : Resource, to;
@@ -92,9 +93,9 @@ JSONValue commandResultToJson(RT)(RT res) if (is(RT : CommandResult)) {
     } else static if (is(RT : LoadResult!R, R)) {
         m["result"] = _encodeLoadResult(cast(LoadResult!R)res);
         m["resultType"] = JSONValue("LoadResult!(" ~ R.stringof ~ ")");
-    } else static if (isInstanceOf!(ExCommandResult, RT)) {
+    } else static if (isInstanceOf!(ExCommandResultImpl, RT)) {
         alias T = TemplateArgsOf!RT[0];
-        auto er = cast(ExCommandResult!T) res;
+        auto er = cast(ExCommandResultImpl!T) res;
         m["resultType"] = JSONValue(T.stringof);
         m["result"] = _encodeValue(er.result);
     } else {
@@ -104,6 +105,79 @@ JSONValue commandResultToJson(RT)(RT res) if (is(RT : CommandResult)) {
 }
 
 // Build a Context from default app state plus optional overrides
+private bool _jsonNumber(JSONValue value, out float result) {
+    if (value.type == JSONType.float_) {
+        result = cast(float)value.floating;
+        return true;
+    }
+    if (value.type == JSONType.integer) {
+        result = cast(float)cast(double)value.integer;
+        return true;
+    }
+    return false;
+}
+
+private bool _findExactAxisPoint(Parameter param, uint axis, float value, out uint index) {
+    import std.math : abs;
+    enum float epsilon = 1e-5f;
+    auto offset = param.mapAxis(axis, value);
+    foreach (i, point; param.axisPoints[axis]) {
+        if (abs(point - offset) <= epsilon) {
+            index = cast(uint)i;
+            return true;
+        }
+    }
+    return false;
+}
+
+private string _axisValuesString(Parameter param, uint axis) {
+    import std.algorithm : map;
+    import std.array : join, array;
+    import std.conv : to;
+    return param.axisPoints[axis]
+        .map!(point => param.unmapAxis(axis, point).to!string)
+        .array
+        .join(", ");
+}
+
+private bool _resolveParamValueToKeyPoint(Parameter param, JSONValue value, out vec2u keyPoint, out string message) {
+    if (param is null) {
+        message = "context.parameterValue requires an armed parameter or parameter context";
+        return false;
+    }
+    if (value.type != JSONType.array || value.array.length == 0) {
+        message = "context.parameterValue must be [x] or [x,y]";
+        return false;
+    }
+
+    float x;
+    if (!_jsonNumber(value.array[0], x)) {
+        message = "context.parameterValue[0] must be a number";
+        return false;
+    }
+
+    float y = param.getKeypointValue(vec2u(0, 0)).y;
+    if (value.array.length >= 2 && !_jsonNumber(value.array[1], y)) {
+        message = "context.parameterValue[1] must be a number";
+        return false;
+    }
+
+    uint xi, yi;
+    if (!_findExactAxisPoint(param, 0, x, xi)) {
+        message = "context.parameterValue[0] does not match a key value on parameter '" ~ param.name ~
+            "'. Allowed X values: [" ~ _axisValuesString(param, 0) ~ "]";
+        return false;
+    }
+    if (!_findExactAxisPoint(param, 1, y, yi)) {
+        message = "context.parameterValue[1] does not match a key value on parameter '" ~ param.name ~
+            "'. Allowed Y values: [" ~ _axisValuesString(param, 1) ~ "]";
+        return false;
+    }
+
+    keyPoint = vec2u(xi, yi);
+    return true;
+}
+
 Context buildContextFromPayload(JSONValue payloadCopy) {
     auto ctx = ngBuildExecutionContext();
     if ("context" !in payloadCopy || payloadCopy["context"].type != JSONType.object) return ctx;
@@ -141,13 +215,25 @@ Context buildContextFromPayload(JSONValue payloadCopy) {
             if (nodes.length) ctx.nodes = nodes;
         }
     }
-    if ("keyPoint" in cobj && cobj["keyPoint"].type == JSONType.array && cobj["keyPoint"].array.length >= 2) {
-        auto a = cobj["keyPoint"].array;
-        if ((a[0].type == JSONType.integer || a[0].type == JSONType.float_)
-         && (a[1].type == JSONType.integer || a[1].type == JSONType.float_)) {
-            ctx.keyPoint = vec2u(cast(uint)(a[0].type == JSONType.integer ? a[0].integer : cast(long)a[0].floating),
-                                 cast(uint)(a[1].type == JSONType.integer ? a[1].integer : cast(long)a[1].floating));
-        }
+    if ("keyPoint" in cobj)
+        throw new Exception("context.keyPoint is not supported by MCP. Use context.parameterValue with parameter-axis values.");
+    if ("parameterValue" in cobj && "paramValue" in cobj)
+        throw new Exception("Use only one of context.parameterValue or deprecated context.paramValue.");
+    if ("parameterValue" in cobj || "paramValue" in cobj) {
+        auto value = ("parameterValue" in cobj) ? cobj["parameterValue"] : cobj["paramValue"];
+        Parameter param = null;
+        if (ctx.hasArmedParameters && ctx.armedParameters.length > 0)
+            param = ctx.armedParameters[0];
+        else if (ctx.hasParameters && ctx.parameters.length > 0)
+            param = ctx.parameters[0];
+
+        vec2u resolved;
+        string message;
+        if (!_resolveParamValueToKeyPoint(param, value, resolved, message))
+            throw new Exception(message);
+
+        ctx.keyPoint = resolved;
+        ctx.hasExplicitKeyPoint = true;
     }
     return ctx;
 }
@@ -192,6 +278,15 @@ void applyPayloadToInstance(C)(C inst, JSONValue payloadCopy) {
                     else if (val.type == JSONType.integer) mixin("inst."~fname~" = cast("~TParam.stringof~")cast(double)val.integer;");
                 } else static if (is(TParam == string)) {
                     if (val.type == JSONType.string) mixin("inst."~fname~" = val.str;");
+                } else static if (is(TParam == string[])) {
+                    if (val.type == JSONType.array) {
+                        string[] outv;
+                        foreach (e; val.array) {
+                            if (e.type == JSONType.string)
+                                outv ~= e.str;
+                        }
+                        mixin("inst."~fname~" = outv;");
+                    }
                 } else static if (is(TParam == vec2u)) {
                     if (val.type == JSONType.array && val.array.length >= 2) {
                         auto a = val.array;

@@ -324,6 +324,7 @@ class Context {
         HasInspectors = 32,
         HasArmedParameters = 64,
         HasActiveBindings = 128,
+        HasExplicitKeyPoint = 256,
     }
     ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
@@ -334,6 +335,7 @@ class Context {
     bool hasKeyPoint()  { return (masks & ContextMask.HasKeyPoint)  != 0; }
     bool hasInspectors() { return (masks & ContextMask.HasInspectors) != 0; }
     bool hasActiveBindings() { return (masks & ContextMask.HasActiveBindings) != 0; }
+    bool hasExplicitKeyPoint() { return (masks & ContextMask.HasExplicitKeyPoint) != 0; }
     void hasPuppet(bool value)    { masks = value ? (masks | ContextMask.HasPuppet)    : (masks & ~ContextMask.HasPuppet); }
     void hasNodes(bool value)     { masks = value ? (masks | ContextMask.HasNodes)     : (masks & ~ContextMask.HasNodes); }
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
@@ -342,6 +344,7 @@ class Context {
     void hasKeyPoint(bool value)  { masks = value ? (masks | ContextMask.HasKeyPoint)  : (masks & ~ContextMask.HasKeyPoint); }
     void hasInspectors(bool value) { masks = value ? (masks | ContextMask.HasInspectors)  : (masks & ~ContextMask.HasInspectors); }
     void hasActiveBindings(bool value) { masks = value ? (masks | ContextMask.HasActiveBindings) : (masks & ~ContextMask.HasActiveBindings); }
+    void hasExplicitKeyPoint(bool value) { masks = value ? (masks | ContextMask.HasExplicitKeyPoint) : (masks & ~ContextMask.HasExplicitKeyPoint); }
 
     Puppet puppet() { return _puppet; }
     void puppet(Puppet value) { _puppet = value; hasPuppet = true; }
@@ -548,6 +551,8 @@ string ngCommandIdFromKey(K)(K k)
         return "Inspector.Apply." ~ to!string(k);
     } else static if (is(K == panelView.PanelKey)) {
         return "Panel.Toggle." ~ to!string(k);
+    } else static if (K.stringof == "AnimeditCommand") {
+        return "Animation.Add" ~ stripPrefix(to!string(k), "AddAnimation");
     } else {
         return typeof(k).stringof ~ "." ~ to!string(k);
     }

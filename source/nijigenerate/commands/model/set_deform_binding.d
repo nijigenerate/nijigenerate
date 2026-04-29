@@ -1,18 +1,72 @@
 module nijigenerate.commands.model.set_deform_binding;
 
 import nijigenerate.commands.base;
+import nijigenerate.commands.binding.base : paramPointChanged;
 import nijigenerate.actions.parameter; // ParameterChangeBindingsValueAction
 import nijigenerate.actions;           // GroupAction, ParameterBindingAddAction
 import nijigenerate.core.actionstack : incActionPush;
-import nijigenerate.project : incSelectedNodes, incArmedParameter;
+import nijigenerate.ext.param;
+import nijigenerate.project : EditMode, incActivePuppet, incSelectedNodes, incArmedParameter, incArmParameter, incEditMode, incSetEditMode;
 import nijigenerate.viewport.model.deform : incViewportNodeDeformNotifyParamValueChanged;
 import nijilive; // Parameter, Node, Drawable, Deformable
 import nijilive.math : vec2, vec2u;
 import std.algorithm : map, filter;
+import std.algorithm.searching : countUntil;
 import std.array : array;
 import std.conv : to;
 import std.exception : enforce;
 import i18n;
+
+private bool ngFindSetDeformBindingParameterIndex(Parameter param, out size_t index) {
+    if (param is null) return false;
+
+    if (auto exParam = cast(ExParameter)param) {
+        if (auto parent = exParam.getParent()) {
+            auto found = parent.children.countUntil(param);
+            if (found >= 0) {
+                index = cast(size_t)found;
+                return true;
+            }
+        }
+    }
+
+    auto puppet = incActivePuppet();
+    if (puppet !is null) {
+        auto found = puppet.parameters.countUntil(param);
+        if (found >= 0) {
+            index = cast(size_t)found;
+            return true;
+        }
+    }
+    return false;
+}
+
+private CommandResult ngPrepareSetDeformBindingContext(Context ctx, Parameter param) {
+    if (param is null)
+        return CommandResult(false, "No parameter resolved");
+
+    size_t index;
+    if (!ngFindSetDeformBindingParameterIndex(param, index))
+        return CommandResult(false, "Parameter not found in active puppet");
+
+    if (incEditMode() != EditMode.ModelEdit)
+        incSetEditMode(EditMode.ModelEdit, false);
+
+    if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
+        if (ctx.keyPoint.x >= param.axisPointCount(0) || ctx.keyPoint.y >= param.axisPointCount(1))
+            return CommandResult(false, "keyPoint is out of range for parameter");
+
+        param.value = param.getKeypointValue(ctx.keyPoint);
+    } else {
+        param.value = param.getClosestKeypointValue();
+    }
+
+    paramPointChanged(param);
+    incArmParameter(index, param);
+    incViewportNodeDeformNotifyParamValueChanged();
+
+    return CommandResult(true);
+}
 
 /**
     Set Deformation binding at current keypoint using provided offsets.
@@ -20,15 +74,15 @@ import i18n;
     - values: flattened [dx0,dy0, dx1,dy1, ...]
     Applies to the first armed Parameter (or ctx.parameters[0] if provided),
     and to selected nodes that already have a deform binding.
-*/
+ */
 @ShortcutHidden
 @EffectBindingEdit
 class SetDeformBindingCommand : ExCommand!(
-    TW!(string,  "bindingName", "Binding name (e.g., 'deform' or value name)"),
-    TW!(float[], "values",      "Flattened values: deform=[dx,dy]*, other=[v]")
+    TW!(string,  "bindingName", "Binding name. Must be 'deform'."),
+    TW!(float[], "values",      "Flattened deformation offsets: [dx0,dy0, dx1,dy1, ...]")
 ) {
     this(string bname, float[] vals) {
-        super(_("Set Binding"), _("Set binding value(s) at current keypoint."), bname, vals);
+        super(_("Set Deform Binding"), _("Set deform binding offsets at current keypoint."), bname, vals);
     }
 
     override bool runnable(Context ctx) {
@@ -45,6 +99,8 @@ class SetDeformBindingCommand : ExCommand!(
 
         // No-op if values not provided
         if (values is null || values.length == 0) return CommandResult(false, "No values provided");
+        if (bindingName != "deform") return CommandResult(false, "SetDeformBinding only supports bindingName='deform'");
+        if (values.length < 2 || values.length % 2 != 0) return CommandResult(false, "Deform values must be flattened [dx,dy]* offsets");
 
         // Resolve parameter to operate on
         Parameter[] params;
@@ -52,6 +108,9 @@ class SetDeformBindingCommand : ExCommand!(
         else if (ctx.hasParameters && ctx.parameters.length > 0) params = ctx.parameters;
         else if (auto p = incArmedParameter()) params = [p];
         if (params.length == 0) return CommandResult(false, "No parameters resolved");
+
+        auto contextResult = ngPrepareSetDeformBindingContext(ctx, params[0]);
+        if (!contextResult.succeeded) return contextResult;
 
         // Resolve targets
         Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
@@ -66,19 +125,15 @@ class SetDeformBindingCommand : ExCommand!(
 
             // Prepare sets and track new bindings to add undo/redo entries
             DeformationParameterBinding[] deformBindings;
-            ValueParameterBinding[]       valueBindings;
             ParameterBinding[]            newlyAdded;
 
             // Pre-parse deform offsets if applicable
             Vec2Array offsets;
-            bool hasOffsets = (values.length >= 2) && (values.length % 2 == 0);
-            if (hasOffsets) {
-                offsets.length = values.length / 2;
-                foreach (i; 0 .. offsets.length) offsets[i] = vec2(values[i*2], values[i*2 + 1]);
-            }
+            offsets.length = values.length / 2;
+            foreach (i; 0 .. offsets.length) offsets[i] = vec2(values[i*2], values[i*2 + 1]);
 
-            // Collect or create bindings for each selected node, then dispatch by concrete type
-            bool deformMismatch = false;
+            // Collect or create bindings for each selected node. Skip incompatible
+            // targets instead of dropping all valid updates for the parameter.
             foreach (n; ns) {
                 // Try resolve existing binding first
                 auto existing = param.getBinding(n, bindingName);
@@ -87,58 +142,33 @@ class SetDeformBindingCommand : ExCommand!(
 
                 // Branch by concrete binding type, not by name
                 if (auto db = cast(DeformationParameterBinding)b) {
-                    // Only valid on deformable/drawable nodes and with even-length offsets
-                    if (!hasOffsets) { deformMismatch = true; continue; }
+                    // Only valid on deformable/drawable nodes with matching vertex counts.
                     size_t expected = 0;
                     if (auto d = cast(Drawable)n) expected = d.getMesh().vertices.length;
                     else if (auto df = cast(Deformable)n) expected = df.vertices.length;
-                    else { deformMismatch = true; continue; }
-                    if (expected != offsets.length) { deformMismatch = true; continue; }
+                    else continue;
+                    if (expected != offsets.length) continue;
                     deformBindings ~= db;
                     // existing deform binding case; wasNull is false here
-                } else if (auto vb = cast(ValueParameterBinding)b) {
-                    // Expect single scalar value
-                    if (values.length != 1) continue;
-                    valueBindings ~= vb;
-                    // existing value binding case
                 } else {
-                    // No existing binding; decide if we should create one
-                    if (hasOffsets) {
-                        // Targeting a deform-style update; only create for deformable/drawable with matching counts
-                        size_t expected = 0;
-                        if (auto d = cast(Drawable)n) expected = d.getMesh().vertices.length;
-                        else if (auto df = cast(Deformable)n) expected = df.vertices.length;
-                        else { deformMismatch = true; continue; }
-                        if (expected != offsets.length) { deformMismatch = true; continue; }
+                    // Create only the canonical deform binding for deformable/drawable targets.
+                    size_t expected = 0;
+                    if (auto d = cast(Drawable)n) expected = d.getMesh().vertices.length;
+                    else if (auto df = cast(Deformable)n) expected = df.vertices.length;
+                    else continue;
+                    if (expected != offsets.length) continue;
 
-                        // Create binding and verify type
-                        b = param.getOrAddBinding(n, bindingName);
-                        if (auto ndb = cast(DeformationParameterBinding)b) {
-                            deformBindings ~= ndb;
-                            newlyAdded ~= ndb;
-                        } else {
-                            // created wrong type; treat as mismatch
-                            deformMismatch = true;
-                            continue;
-                        }
-                    } else if (values.length == 1) {
-                        // Value-style; only create if node supports the parameter
-                        auto node = cast(Node)n;
-                        if (!node || !node.hasParam(bindingName)) continue;
-                        b = param.getOrAddBinding(n, bindingName);
-                        if (auto nvb = cast(ValueParameterBinding)b) {
-                            valueBindings ~= nvb;
-                            newlyAdded ~= nvb;
-                        }
+                    b = param.getOrAddBinding(n, "deform");
+                    if (auto ndb = cast(DeformationParameterBinding)b) {
+                        deformBindings ~= ndb;
+                        newlyAdded ~= ndb;
                     } else {
-                        // Neither deform nor valid value input
                         continue;
                     }
                 }
             }
 
-            // If any deform target mismatches, do nothing for this parameter
-            if (deformMismatch) continue;
+            if (deformBindings.length == 0) continue;
 
             // Build grouped action with optional add-binding entries
             auto group = new GroupAction();
@@ -152,15 +182,9 @@ class SetDeformBindingCommand : ExCommand!(
                 action.updateNewState();
                 group.addAction(action);
             }
-            if (valueBindings.length > 0) {
-                auto action = new ParameterChangeBindingsValueAction(_("Set Binding"), param, cast(ParameterBinding[])valueBindings, cast(int)kp.x, cast(int)kp.y);
-                float v = values[0];
-                foreach (b; valueBindings) b.setValue(kp, v);
-                action.updateNewState();
-                group.addAction(action);
-            }
             if (!group.empty()) {
                 incActionPush(group);
+                paramPointChanged(param);
                 anyChanged = true;
             }
         }

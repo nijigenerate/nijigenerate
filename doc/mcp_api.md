@@ -59,6 +59,17 @@ For broad discovery, the recommended first query is `resource://nijigenerate/res
   - Executes an action.
   - Inputs may reference resources by UUID, but the tool remains an action endpoint, not a read endpoint.
 
+## Tool Context
+
+Tool calls may include an optional `context` object. If omitted or `null`, the active app state is used.
+
+- `context.nodes`: Node UUID array.
+- `context.parameters`: Parameter UUID array.
+- `context.armedParameters`: Parameter UUID array used as the armed parameter context.
+- `context.parameterValue`: Parameter-axis values, `[x]` for 1D parameters or `[x, y]` for 2D parameters.
+
+`parameterValue` is resolved against the first armed parameter, or the first parameter if no armed parameter is supplied. Values must exactly match existing key values. MCP clients must not pass key point indexes; `keyPoint` is an internal command-context detail, not part of the MCP input surface. The deprecated `paramValue` spelling is accepted only as a compatibility alias.
+
 ## Naming Rules
 
 - Resource descriptions should start with `Read:` or `Explore:` where practical.

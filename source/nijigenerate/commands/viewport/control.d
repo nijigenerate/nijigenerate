@@ -10,6 +10,8 @@ import nijigenerate.widgets.modal;     // incModalAdd
 import nijigenerate.ext;
 import nijilive;
 import i18n;
+import std.json : JSONValue;
+import std.conv : to;
 
 // Commands for viewport UI actions (buttons/menus)
 
@@ -70,6 +72,54 @@ class ResetParametersCommand : ExCommand!() {
     }
 }
 
+@ShortcutHidden
+class ListFlipPairsCommand : ExCommand!() {
+    this() { super(_("List registered flip pairs.")); }
+    override ExCommandResult!JSONValue run(Context ctx) {
+        if (!ctx.hasPuppet) return ExCommandResult!JSONValue(false, JSONValue.init, "No puppet");
+        return ExCommandResult!JSONValue(true, incListFlipPairsJson());
+    }
+}
+
+@ShortcutHidden
+@EffectConfigEdit
+class AddFlipPairCommand : ExCommand!(
+        TW!(Node, "left", "UUID of the left-side node"),
+        TW!(Node, "right", "UUID of the right-side node")) {
+    this() { super(null, _("Register a flip pair.")); }
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        auto result = incAddFlipPair(left, right);
+        return CommandResult(result.succeeded, result.message);
+    }
+}
+
+@ShortcutHidden
+@EffectConfigEdit
+class AutoAddFlipPairsCommand : ExCommand!(
+        TW!(string, "leftPattern", "Pattern to replace on left-side node names, for example ::L or _l"),
+        TW!(string, "rightPattern", "Replacement pattern for right-side node names, for example ::R or _r")) {
+    this() { super(null, _("Register flip pairs by name pattern.")); }
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false, "No puppet");
+        auto result = incAutoAddFlipPairs(ctx.puppet, leftPattern, rightPattern);
+        return CommandResult(result.succeeded, result.message ~ " (" ~ result.added.to!string ~ " added)");
+    }
+}
+
+@ShortcutHidden
+@EffectConfigEdit
+class RemoveFlipPairCommand : ExCommand!(
+        TW!(Node, "left", "UUID of one side of the flip pair"),
+        TW!(Node, "right", "UUID of the other side of the flip pair")) {
+    this() { super(null, _("Remove a flip pair.")); }
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        auto result = incRemoveFlipPair(left, right);
+        return CommandResult(result.succeeded, result.message);
+    }
+}
+
 @McpHidden
 @GuiWindow
 class OpenFlipPairWindowCommand : ExCommand!() {
@@ -115,6 +165,10 @@ enum ViewportCommand {
     TogglePostProcess,
     ResetPhysics,
     ResetParameters,
+    ListFlipPairs,
+    AddFlipPair,
+    AutoAddFlipPairs,
+    RemoveFlipPair,
     OpenFlipPairWindow,
     OpenAutomeshBatching,
     ResetViewportZoom,

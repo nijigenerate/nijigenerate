@@ -43,6 +43,7 @@ import mcp.transport.stdio;
 import mcp.server;
 import nijigenerate.api.mcp.task;
 import nijigenerate.api.mcp.auth;
+import nijigenerate.api.mcp.resource_listing : rewriteResourcesListResponse;
 
 // ======================= HTTP Transport =======================
 private void httpLog(T...)(T args) {
@@ -208,6 +209,7 @@ private:
             res.statusCode = 204;
             res.writeBody(""); 
         } else { 
+            rewriteResourcesListResponse(*responsePtr, msg);
             stripResourceMetadataDescriptions(*responsePtr, msg);
             res.writeBody(responsePtr.toString());
         }

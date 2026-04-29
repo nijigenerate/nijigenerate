@@ -71,6 +71,10 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
 
 // Template-based init for VertexToolMode
 void ngInitCommands(T)() if (is(T == nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode)) {
+    import std.traits : EnumMembers;
+    static foreach (mode; EnumMembers!VertexToolMode) {
+        ensureSelectToolModeCommand(mode);
+    }
     foreach (info; incGetToolInfo()) {
         ensureSelectToolModeCommand(info.mode());
     }

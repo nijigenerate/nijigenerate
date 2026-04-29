@@ -241,23 +241,23 @@ Command ensureSetAutoMeshConfigCommand(string id)
 
 void ngInitCommands(T)() if (is(T == AutoMeshGetConfigKey))
 {
-    static foreach (PT; AutoMeshProcessorTypes) {
+    static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshGetConfigKey key = AutoMeshGetConfigKey(pid);
         auto cmd = new GetAutoMeshConfigPT!PT("Simple");
         ngRegisterCommandMeta(cmd);
         autoMeshGetConfigCommands[key] = cmd;
-    }
+    }}
 }
 void ngInitCommands(T)() if (is(T == AutoMeshSetConfigKey))
 {
-    static foreach (PT; AutoMeshProcessorTypes) {
+    static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetConfigKey key = AutoMeshSetConfigKey(pid);
         auto cmd = new SetAutoMeshConfigPT!PT("Simple", "{}");
         ngRegisterCommandMeta(cmd);
         autoMeshSetConfigCommands[key] = cmd;
-    }
+    }}
 }
 
 // ===== Strongly-typed level Set commands per processor (Simple/Advanced), and preset =====
@@ -468,7 +468,8 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetSimpleKey))
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetSimpleKey key = AutoMeshSetSimpleKey(pid);
-        auto cmd = new AutoMeshSetSimpleConfigCommand!PT();
+        alias C = mixin("AutoMeshSetSimple_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command");
+        auto cmd = new C();
         ngRegisterCommandMeta(cmd);
         autoMeshSetSimpleCommands[key] = cmd;
     }}
@@ -478,7 +479,8 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetAdvancedKey))
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetAdvancedKey key = AutoMeshSetAdvancedKey(pid);
-        auto cmd = new AutoMeshSetAdvancedConfigCommand!PT();
+        alias C = mixin("AutoMeshSetAdvanced_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command");
+        auto cmd = new C();
         ngRegisterCommandMeta(cmd);
         autoMeshSetAdvancedCommands[key] = cmd;
     }}
@@ -488,7 +490,8 @@ void ngInitCommands(T)() if (is(T == AutoMeshSetPresetKey))
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
         AutoMeshSetPresetKey key = AutoMeshSetPresetKey(pid);
-        auto cmd = new AutoMeshSetPresetTypedCommand!PT("");
+        alias C = mixin("AutoMeshSetPreset_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command");
+        auto cmd = new C();
         ngRegisterCommandMeta(cmd);
         autoMeshSetPresetCommands[key] = cmd;
     }}

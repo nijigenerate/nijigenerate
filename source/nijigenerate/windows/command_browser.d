@@ -923,6 +923,7 @@ protected:
                                 uint x = to!uint(parts[0].strip);
                                 uint y = to!uint(parts[1].strip);
                                 ctx.keyPoint = vec2u(x, y);
+                                ctx.hasExplicitKeyPoint = true;
                             } catch (Exception) {}
                         }
                     }

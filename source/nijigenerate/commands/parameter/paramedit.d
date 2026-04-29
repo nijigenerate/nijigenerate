@@ -10,6 +10,7 @@ import nijigenerate.viewport.model.deform;
 import nijigenerate.ext;
 import nijigenerate.project;
 import i18n;
+import std.algorithm.searching : countUntil;
 
 
 //                    incPushWindowList(new ParamPropWindow(param));
@@ -254,8 +255,11 @@ class DeleteParameterCommand : ExCommand!() {
         if (!(ctx.hasPuppet && ctx.hasParameters) || ctx.parameters.length == 0) return new DeleteResult!Parameter(false, null, "No parameters");
         auto param = ctx.parameters[0];
 
-        if (ctx.puppet == param) {
+        if (incArmedParameter() == param) {
             incDisarmParameter();
+        }
+        if (incParamInSelection(param)) {
+            incRemoveSelectParam(param);
         }
         incActionPush(new ParameterRemoveAction(param));
         ctx.puppet.removeParameter(param);
@@ -320,6 +324,64 @@ class ToggleParameterArmCommand : ExCommand!(TW!(int, "index", "specify the inde
     }
 }
 
+private bool findParameterIndex(Parameter param, out size_t index) {
+    if (param is null) return false;
+
+    if (auto exParam = cast(ExParameter)param) {
+        if (auto parent = exParam.getParent()) {
+            auto found = parent.children.countUntil(param);
+            if (found >= 0) {
+                index = cast(size_t)found;
+                return true;
+            }
+        }
+    }
+
+    if (auto puppet = incActivePuppet()) {
+        auto found = puppet.parameters.countUntil(param);
+        if (found >= 0) {
+            index = cast(size_t)found;
+            return true;
+        }
+    }
+    return false;
+}
+
+@ShortcutHidden
+class SetParameterKeypointCommand : ExCommand!() {
+    this() { super(_("Set Parameter Keypoint"), _("Move the current parameter-edit keypoint from context.parameterValue without changing bindings.")); }
+
+    override
+    CommandResult run(Context ctx) {
+        Parameter param = null;
+        if (ctx.hasArmedParameters && ctx.armedParameters.length > 0)
+            param = ctx.armedParameters[0];
+        else if (ctx.hasParameters && ctx.parameters.length > 0)
+            param = ctx.parameters[0];
+        else
+            param = incArmedParameter();
+
+        if (param is null) return CommandResult(false, "No parameter");
+        if (!ctx.hasKeyPoint || !ctx.hasExplicitKeyPoint)
+            return CommandResult(false, "context.parameterValue is required");
+        if (ctx.keyPoint.x >= param.axisPointCount(0) || ctx.keyPoint.y >= param.axisPointCount(1))
+            return CommandResult(false, "parameterValue resolved keypoint is out of range");
+
+        size_t index;
+        if (!findParameterIndex(param, index))
+            return CommandResult(false, "Parameter not found in active puppet");
+
+        if (incEditMode() != EditMode.ModelEdit)
+            incSetEditMode(EditMode.ModelEdit, false);
+
+        param.value = param.getKeypointValue(ctx.keyPoint);
+        paramPointChanged(param);
+        incArmParameter(index, param);
+        incViewportNodeDeformNotifyParamValueChanged();
+        return CommandResult(true);
+    }
+}
+
 @EffectKeyframeEdit
 class SetStartingKeyFrameCommand : ExCommand!() {
     this() { super(null, _("Set the current parameter value as starting keyframe")); }
@@ -355,6 +417,7 @@ enum ParameditCommand {
     DeleteParameter,
     LinkTo,
     ToggleParameterArm,
+    SetParameterKeypoint,
     SetStartingKeyFrame
 }
 

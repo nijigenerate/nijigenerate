@@ -243,7 +243,6 @@ enum InspectorNodeApplyCommand {
     PixelSnap,
     TogglePixelSnap,
     ZSort,
-    ToggleZSort,
     LockToRoot,
     ToggleLockToRoot,
     PinToMesh,

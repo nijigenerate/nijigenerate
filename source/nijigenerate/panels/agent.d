@@ -290,6 +290,31 @@ private:
         igPopTextWrapPos();
     }
 
+    float measureConversationLines(const(string)[] lines, float wrapWidth,
+            bool prefixFirstOnly = false, string prefix = "") {
+        auto style = igGetStyle();
+        auto padPrefix = prefix.length ? replicate(" ", prefix.length) : "";
+        auto displayLine = (size_t idx) {
+            if (!prefix.length) return lines[idx];
+            if (prefixFirstOnly) {
+                return (idx == 0 ? prefix : padPrefix) ~ lines[idx];
+            }
+            return prefix ~ lines[idx];
+        };
+
+        float totalHeight = 0;
+        foreach (idx, line; lines) {
+            auto disp = displayLine(idx).idup;
+            if (disp.length > kMaxDrawCharsPerLine)
+                disp = disp[0 .. kMaxDrawCharsPerLine] ~ " ... (display truncated)";
+
+            ImVec2 sz;
+            igCalcTextSize(&sz, disp.toStringz(), null, true, wrapWidth);
+            totalHeight += sz.y + style.ItemSpacing.y;
+        }
+        return totalHeight;
+    }
+
     string[] expandLines(const string[] src) {
         auto buf = appender!(string[])();
         foreach (line; src) {
@@ -541,13 +566,46 @@ private:
     void renderYou(ref LogBlock blk, float w, ImVec4 col) {
         auto tv = trimBlankEdges(blk.lines);
         auto view = blk.lines[tv.start .. tv.end];
+        auto style = igGetStyle();
+        const float padX = 10;
+        const float padY = 7;
+        float contentW = w - style.ScrollbarSize - (padX * 2) - style.ItemSpacing.x;
+        if (contentW < 48) contentW = 48;
+        float contentH = measureConversationLines(view, contentW, true, "\ue7fd: ");
+        float bubbleW = contentW + (padX * 2);
+        float bubbleH = contentH + (padY * 2);
+
+        ImVec2 startCursor;
+        igGetCursorPos(&startCursor);
+        ImVec2 screenPos;
+        igGetCursorScreenPos(&screenPos);
+        auto drawList = igGetWindowDrawList();
+        ImVec4 bg = ImVec4(0.12f, 0.32f, 0.17f, 0.38f);
+        ImVec4 border = ImVec4(0.42f, 0.72f, 0.40f, 0.80f);
+        ImDrawList_AddRectFilled(
+            drawList,
+            screenPos,
+            ImVec2(screenPos.x + bubbleW, screenPos.y + bubbleH),
+            igGetColorU32(bg),
+            6.0f
+        );
+        ImDrawList_AddRect(
+            drawList,
+            screenPos,
+            ImVec2(screenPos.x + bubbleW, screenPos.y + bubbleH),
+            igGetColorU32(border),
+            6.0f
+        );
+
+        igSetCursorPos(ImVec2(startCursor.x + padX, startCursor.y + padY));
         if (tv.trimmed) {
             LineHeightCache tmp;
-            renderClippedLines(view, w, blk.ver, tmp, true, "\ue7fd: ", &col);
+            renderClippedLines(view, contentW, blk.ver, tmp, true, "\ue7fd: ", &col);
         } else {
-            renderClippedLines(view, w, blk.ver, blk.cache, true, "\ue7fd: ", &col, blk.dirtyFrom);
+            renderClippedLines(view, contentW, blk.ver, blk.cache, true, "\ue7fd: ", &col, blk.dirtyFrom);
             blk.dirtyFrom = size_t.max;
         }
+        igSetCursorPos(ImVec2(startCursor.x, startCursor.y + bubbleH + style.ItemSpacing.y));
     }
 
     void renderTool(ref LogBlock blk, float w, bool isLast) {

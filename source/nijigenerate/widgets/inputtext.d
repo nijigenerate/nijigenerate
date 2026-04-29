@@ -53,7 +53,7 @@ bool incInputText(string wId, float width, ref string buffer, ImGuiInputTextFlag
 
     // Set desired width
     igPushItemWidth(width);
-    scope(success) igPopItemWidth();
+    scope(exit) igPopItemWidth();
 
     // Create callback data
     TextCallbackUserData cb;
@@ -128,7 +128,7 @@ bool incInputText(string wId, string label, float width, ref string buffer, ImGu
 
     // Set desired width
     igPushItemWidth(width);
-    scope(success) igPopItemWidth();
+    scope(exit) igPopItemWidth();
 
     // Render label
     scope(success) {

@@ -13,7 +13,7 @@ module nijigenerate.api.mcp.server;
  *   - `parameters`: array of uint UUIDs for Parameters
  *   - `armedParameters`: array of uint UUIDs for Parameters to arm
  *   - `nodes`: array of uint UUIDs for Nodes
- *   - `keyPoint`: [uint, uint] for vec2u
+ *   - `parameterValue`: [number] or [number, number] parameter-axis values resolved to an internal key point
  * - Any missing key is treated as "not set" for that value (hasXXX=false in Context).
  */
 
@@ -66,6 +66,27 @@ private bool _mcpValidToolName(string s) {
         if (!(isAlphaNum(ch) || ch == '_' || ch == '-')) return false;
     }
     return true;
+}
+
+private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
+    if (resultJson.type == JSONType.object && "result" in resultJson) {
+        auto direct = resultJson["result"];
+        if (direct.type == JSONType.object && "mcpDirectToolResult" in direct && "content" in direct) {
+            direct.object.remove("mcpDirectToolResult");
+            return direct;
+        }
+    }
+    return resultJson;
+}
+
+private JSONValue _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
+    alias RunType = ReturnType!(typeof(inst.run));
+    auto res = inst.run(ctx);
+    if (!res.succeeded) {
+        mcpLog("[MCP] command failed: %s", res.message);
+    }
+    auto resultJson = commandResultToJson!RunType(res);
+    return _mcpUnwrapDirectToolResult(resultJson);
 }
 
 // === Compile-time diagnostics ===
@@ -262,10 +283,24 @@ private void _ngMcpStart(string host, ushort port) {
             auto newBaseName = ngCommandIdFromKey(k);
             string[] baseNames = [newBaseName];
 
-            // Build tool input schema (command args only). Context is allowed as an additional property (any type),
-            // so that clients may pass null or omit it entirely. The handler will ignore non-object contexts.
+            auto contextSchema = SchemaBuilder.object()
+                .setDescription(
+                    "Optional execution context. Omit this property to use active app state. " ~
+                    "Use parameterValue instead of internal keyPoint indexes.")
+                .addProperty("nodes", SchemaBuilder.array(SchemaBuilder.integer()).optional()
+                    .setDescription("Node UUIDs to use as context.nodes. Obtain UUIDs from resources/find or resources/{uuid}."))
+                .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).optional()
+                    .setDescription("Parameter UUIDs to use as context.parameters."))
+                .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).optional()
+                    .setDescription("Parameter UUIDs to arm before running the command. The first one is used for parameterValue resolution."))
+                .addProperty("parameterValue", SchemaBuilder.array(SchemaBuilder.number()).optional()
+                    .setDescription("Parameter-axis key values, not keypoint indexes. Use [x] for 1D or [x,y] for 2D. Values must exactly match existing parameter key values."))
+                .allowAdditional(true);
+
+            // Build tool input schema (command args plus common context).
             auto inputSchema = SchemaBuilder.object()
-                .setDescription("Input for nijigenerate Command tool. Context is optional (omit or null); other parameters map to command-specific arguments.")
+                .setDescription("Input for nijigenerate Command tool. Omit context to use active app state; other parameters map to command-specific arguments.")
+                .addProperty("context", contextSchema.optional())
                 .allowAdditional(true);
 
             string[] paramLog;
@@ -314,6 +349,9 @@ private void _ngMcpStart(string host, ushort port) {
                                 } else static if (isSomeString!TParam) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.string_().setDescription(desc));
                                     paramLog ~= fname ~ ":string";
+                                } else static if (is(TParam == string[])) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.string_()).setDescription((desc.length?desc~"; ":"")~"string[]"));
+                                    paramLog ~= fname ~ ":string[]";
                                 } else static if (is(TParam == vec2u)) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"vec2u [x,y]"));
                                     paramLog ~= fname ~ ":vec2u";
@@ -380,7 +418,7 @@ private void _ngMcpStart(string host, ushort port) {
                     toolNameLocal,
                     "Action: " ~ (toolDesc.length ? toolDesc : ("Run command " ~ toolNameLocal)) ~
                     "\n\nThis endpoint may mutate app state or perform side effects." ~
-                    "\n\nInput: optional 'context' (null to use active app state).",
+                    "\n\nInput: optional 'context' object. Omit context to use active app state. Use context.parameterValue for parameter-axis key values.",
                     inputSchema,
                     (JSONValue payload) {
                         // Debug: print incoming JSON for this tool call
@@ -406,13 +444,23 @@ private void _ngMcpStart(string host, ushort port) {
 
                             // 3) Run the captured command instance with the prepared context
                             if (cmdInst !is null && cmdInst.runnable(ctx)) {
-                                alias RunType = ReturnType!(typeof(cmdInst.run));
-                                auto resAny = cmdInst.run(ctx);
-                                auto res = cast(RunType) resAny;
-                                if (!res.succeeded) {
-                                    mcpLog("[MCP] command failed: %s", res.message);
-                                }
-                                return commandResultToJson!RunType(res);
+                                JSONValue concreteResult;
+                                bool concreteHandled = false;
+                                static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
+                                    if (k == m) {{
+                                        enum _mName  = __traits(identifier, m);
+                                        enum _typeName = _mName ~ "Command";
+                                        static if (__traits(compiles, mixin(_typeName))) {
+                                            alias C = mixin(_typeName);
+                                            if (auto inst = cast(C) cmdInst) {
+                                                concreteResult = _mcpRunCommandInstance(inst, ctx, toolNameLocal);
+                                                concreteHandled = true;
+                                            }
+                                        }
+                                    }}
+                                }}
+                                if (concreteHandled) return concreteResult;
+                                return _mcpRunCommandInstance(cmdInst, ctx, toolNameLocal);
                             }
                             return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
                         });
@@ -584,11 +632,7 @@ private void _ngMcpStart(string host, ushort port) {
         incRegisterLoadFunc((puppet) {
             if (gNotifyResourcesFind) gNotifyResourcesFind();
             if (gNotifyResourceByUuid) gNotifyResourceByUuid();
-            if (gServerEnabled && gServerStarted) {
-                mcpLog("[MCP] puppet load detected -> restarting server to rebuild resources/list");
-                ngMcpStop();
-                _ngMcpStart(gServerHost, gServerPort);
-            }
+            mcpLog("[MCP] puppet load detected -> resources changed");
         });
     }
 
@@ -694,19 +738,21 @@ private void _ngMcpStart(string host, ushort port) {
         "- Tools are action endpoints. They may mutate app state or perform side effects.\n" ~
         "- Use resources/list, resources/find, and resources/{uuid} for discovery and reading.\n\n" ~
         "Context (recommended null):\n" ~
-        "- Omit or set to null to use the active app state (same as shortcuts).\n" ~
+        "- Omit context to use the active app state (same as shortcuts).\n" ~
         "- Provide only when needed to override selection.\n\n" ~
         "Context keys:\n" ~
         "- parameters: uint[] of Parameter UUIDs.\n" ~
         "- armedParameters: uint[] of Parameter UUIDs to arm.\n" ~
         "- nodes: uint[] of Node UUIDs.\n" ~
-        "- keyPoint: [x,y] (uint,uint).\n\n" ~
+        "- parameterValue: [x] or [x,y] parameter-axis values. Values must exactly match existing key values.\n" ~
+        "- keyPoint is not part of the MCP input surface. Do not pass key point indexes through MCP.\n\n" ~
         "Other parameters:\n" ~
         "- Unless a tool defines additional properties, only 'context' is accepted in this build.\n" ~
         "- UUIDs are numeric (decimal). Obtain them via resources/find or resources/{uuid}.\n\n" ~
         "Examples (JSON args):\n" ~
-        "- Run with default context: {\"context\": null}\n" ~
-        "- Run for specific nodes: {\"context\": {\"nodes\":[123,456]}}\n";
+        "- Run with default context: {}\n" ~
+        "- Run for specific nodes: {\"context\": {\"nodes\":[123,456]}}\n" ~
+        "- Run at parameter value: {\"context\": {\"armedParameters\":[789], \"parameterValue\":[-0.5,0]}}\n";
 
     // Register prompts using the proper API (no static-if fallbacks)
     mcpLog("[MCP] addPrompt: resources/find");

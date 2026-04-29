@@ -496,6 +496,7 @@ protected:
             igPopID();
 
             if(igBeginDragDropTarget()) {
+                scope(exit) igEndDragDropTarget();
                 const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                 if (payload !is null) {
                     Node payloadNode = *cast(Node*)payload.Data;
@@ -506,13 +507,13 @@ protected:
                     cmd!(NodeCommand.MoveNode)(pCtx, n, 0);
                     
                     if (open) igTreePop();
-                    igEndDragDropTarget();
                     return;
                 }
-                igEndDragDropTarget();
             }
 
         if (open) {
+            bool childMoved = false;
+
             // Draw children
             void drawChildren(ref Node child, ulong i) {
                 if (child.uuid !in filterResult)
@@ -527,6 +528,7 @@ protected:
                     igInvisibleButton("###TARGET", ImVec2(128, 4));
 
                     if(igBeginDragDropTarget()) {
+                        scope(exit) igEndDragDropTarget();
                         const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                         if (payload !is null) {
                             Node payloadNode = *cast(Node*)payload.Data;
@@ -536,12 +538,10 @@ protected:
                             pCtx.nodes = [payloadNode];
                             cmd!(NodeCommand.MoveNode)(pCtx, n, i);
                                                         
-                            igEndDragDropTarget();
                             igPopID();
-                            igTreePop();
+                            childMoved = true;
                             return;
                         }
-                        igEndDragDropTarget();
                     }
                 igPopID();
 
@@ -549,13 +549,20 @@ protected:
             }
 
             if (revserseOrder) {
-                foreach_reverse(i, child; n.children)
+                foreach_reverse(i, child; n.children) {
                     drawChildren(child, i);
+                    if (childMoved) break;
+                }
             } else {
-                foreach(i, child; n.children)
+                foreach(i, child; n.children) {
                     drawChildren(child, i);
+                    if (childMoved) break;
+                }
             }
             igTreePop();
+            if (childMoved) {
+                return;
+            }
         }
         
 
@@ -702,6 +709,7 @@ protected:
             incTooltip(_("Follow Selection"));
 
             if(igBeginDragDropTarget()) {
+                scope(exit) igEndDragDropTarget();
                 const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                 if (payload !is null) {
                     Node payloadNode = *cast(Node*)payload.Data;
@@ -718,11 +726,8 @@ protected:
 
                         incDeleteChildWithHistory(payloadNode);
                     }
-                    
-                    igPopFont();
                     return;
                 }
-                igEndDragDropTarget();
             }
         }
 

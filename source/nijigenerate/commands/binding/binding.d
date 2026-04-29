@@ -20,6 +20,7 @@ import nijigenerate.utils.transform;
 import nijigenerate;
 import std.string;
 import std.array;
+import std.exception : enforce;
 import nijilive;
 import i18n;
 import std.uni : toLower;
@@ -277,7 +278,7 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
         
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto cParamPoint = ctx.keyPoint;
         
         incActionPushGroup();
@@ -308,7 +309,7 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
         
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto cParamPoint = ctx.keyPoint;
 
         incActionPushGroup();
@@ -339,7 +340,7 @@ class SetFrom1DMirrorCommand : ExCommand!() {
         
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         auto cParamPoint = ctx.keyPoint;
 
         incActionPushGroup();
@@ -369,7 +370,7 @@ class CopyBindingCommand : ExCommand!() {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return CommandResult(false, "No armed parameter/bindings/keypoint");
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
@@ -391,7 +392,7 @@ class PasteBindingCommand : ExCommand!() {
         if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
             return new CreateResult!ParameterBinding(false, null, "No armed parameter/bindings/keypoint");
         
-        auto param = ctx.parameters[0];
+        auto param = ctx.armedParameters[0];
         bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
         auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
         auto cParamPoint = ctx.keyPoint;
@@ -572,14 +573,55 @@ import nijigenerate.commands.base : registerCommand;
 
 Command[BindingCommand] commands;
 
+private template _bindingCommandRegistrationCompiles(alias id) {
+    enum className = __traits(identifier, id) ~ "Command";
+    static if (!__traits(compiles, mixin(className))) {
+        enum _bindingCommandRegistrationCompiles = false;
+    } else {
+        alias CommandClass = mixin(className);
+        static if (id == BindingCommand.SetInterpolation)
+            enum _bindingCommandRegistrationCompiles = __traits(compiles, new CommandClass(InterpolateMode.Linear));
+        else
+            enum _bindingCommandRegistrationCompiles = __traits(compiles, new CommandClass());
+    }
+}
+
+private template _bindingCommandRegistrationMessage(alias id) {
+    enum _bindingCommandRegistrationMessage = "BindingCommand registration does not compile: " ~ id.stringof;
+}
+
+import std.traits : EnumMembers;
+static foreach (id; EnumMembers!BindingCommand) {
+    static assert(
+        _bindingCommandRegistrationCompiles!id,
+        _bindingCommandRegistrationMessage!id
+    );
+}
+
 void ngInitCommands(T)() if (is(T == BindingCommand))
 {
-    import std.traits : EnumMembers;
-    static foreach (name; EnumMembers!BindingCommand) {
-        static if (__traits(compiles, { mixin(registerCommand!(name)); } ))
-            mixin(registerCommand!(name));
+    mixin(registerCommand!(BindingCommand.UnsetKeyFrame));
+    mixin(registerCommand!(BindingCommand.SetKeyFrame));
+    mixin(registerCommand!(BindingCommand.ResetKeyFrame));
+    mixin(registerCommand!(BindingCommand.InvertKeyFrame));
+    mixin(registerCommand!(BindingCommand.MirrorKeyFrameHorizontally));
+    mixin(registerCommand!(BindingCommand.MirrorKeyFrameVertically));
+    mixin(registerCommand!(BindingCommand.FlipDeform));
+    mixin(registerCommand!(BindingCommand.SymmetrizeDeform));
+    mixin(registerCommand!(BindingCommand.SetFromHorizontalMirror));
+    mixin(registerCommand!(BindingCommand.SetFromVerticalMirror));
+    mixin(registerCommand!(BindingCommand.SetFromDiagonalMirror));
+    mixin(registerCommand!(BindingCommand.SetFrom1DMirror));
+    mixin(registerCommand!(BindingCommand.CopyBinding));
+    mixin(registerCommand!(BindingCommand.PasteBinding));
+    mixin(registerCommand!(BindingCommand.RemoveBinding));
+    auto setInterpolationCommand = new SetInterpolationCommand(InterpolateMode.Linear);
+    ngRegisterCommandMeta(setInterpolationCommand);
+    commands[BindingCommand.SetInterpolation] = setInterpolationCommand;
+
+    static foreach (id; EnumMembers!BindingCommand) {
+        enforce((id in commands) !is null, "BindingCommand was not registered: " ~ id.stringof);
     }
-    mixin(registerCommand!(BindingCommand.SetInterpolation, InterpolateMode.Linear));
 
     // Also ensure providers are registered once this module initializes
     import nijigenerate.commands.binding.base : ngInitBindingProviders;

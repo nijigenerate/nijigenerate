@@ -118,6 +118,44 @@ alias AddNodeCommand = AddNodeCommandT!(true);
 alias InsertNodeCommand = InsertNodeCommandT!(true);
 alias ConvertToCommand = ConvertToCommandT!(true);
 
+@ShortcutHidden
+@EffectRename
+class SetNodeNameCommand : ExCommand!(TW!(string[], "newNames", "New node names. Must have the same length as context.nodes.")) {
+    this(string[] newNames = null) { super(_("Set Node Name"), _("Rename selected nodes."), newNames); }
+
+    override
+    CommandResult run(Context ctx) {
+        if (!ctx.hasNodes || ctx.nodes.length == 0)
+            return CommandResult(false, "No nodes");
+        if (newNames is null || newNames.length == 0)
+            return CommandResult(false, "No node names");
+        if (newNames.length != ctx.nodes.length)
+            return CommandResult(false, "newNames length must match context.nodes length");
+
+        foreach (name; newNames) {
+            if (name.length == 0)
+                return CommandResult(false, "Node name is empty");
+        }
+
+        auto group = new GroupAction();
+        bool changed = false;
+        foreach (i, node; ctx.nodes) {
+            auto newName = newNames[i];
+            if (node.name == newName)
+                continue;
+
+            auto oldName = node.name;
+            node.name = newName;
+            node.notifyChange(node, NotifyReason.AttributeChanged);
+            group.addAction(new NodeValueChangeAction!(Node, string)("name", node, oldName, newName, &node.name_));
+            changed = true;
+        }
+        if (changed)
+            incActionPush(group);
+        return CommandResult(changed, changed ? "" : "No node names changed");
+    }
+}
+
 @EffectDelete
 class DeleteNodeCommand : ExCommand!() {
     this() { super(null, _("Delete Node")); }
@@ -277,6 +315,7 @@ class CentralizeNodeCommand : ExCommand!() {
 enum NodeCommand {
     AddNode,
     InsertNode,
+    SetNodeName,
     DeleteNode,
     MoveNode,
     ConvertTo,

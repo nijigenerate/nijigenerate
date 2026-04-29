@@ -10,28 +10,32 @@
   → [01. 全体像と推奨パラメータ](./02-parameter-definition/01-overview.md)
 - 値域・デフォルト値・キー位置を決めたい  
   → [02. 値域とキー位置](./02-parameter-definition/02-values-and-keys.md)
+- パラメータ編集の基本手順を確認したい
+  → [03. 基本的な設定手順](./02-parameter-definition/03-basic-editing-flow.md)
 - 顔の向きを設定したい  
-  → [03. 顔の向き](./02-parameter-definition/03-face.md)
+  → [04. 顔の向き](./02-parameter-definition/04-face.md)
 - 胴体の向きを設定したい  
-  → [04. 胴体の向き](./02-parameter-definition/04-body.md)
+  → [05. 胴体の向き](./02-parameter-definition/05-body.md)
 - 表情を設定したい  
-  → [05. 表情](./02-parameter-definition/05-expression.md)
+  → [06. 表情](./02-parameter-definition/06-expression.md)
 - 物理系の扱いと最終確認を見たい  
-  → [06. 物理系とチェックポイント](./02-parameter-definition/06-physics-and-checklist.md)
+  → [07. 物理系とチェックポイント](./02-parameter-definition/07-physics-and-checklist.md)
 
 ## 推奨順
 
 1. [01. 全体像と推奨パラメータ](./02-parameter-definition/01-overview.md)
 2. [02. 値域とキー位置](./02-parameter-definition/02-values-and-keys.md)
-3. [03. 顔の向き](./02-parameter-definition/03-face.md)
-4. [04. 胴体の向き](./02-parameter-definition/04-body.md)
-5. [05. 表情](./02-parameter-definition/05-expression.md)
-6. [06. 物理系とチェックポイント](./02-parameter-definition/06-physics-and-checklist.md)
+3. [03. 基本的な設定手順](./02-parameter-definition/03-basic-editing-flow.md)
+4. [04. 顔の向き](./02-parameter-definition/04-face.md)
+5. [05. 胴体の向き](./02-parameter-definition/05-body.md)
+6. [06. 表情](./02-parameter-definition/06-expression.md)
+7. [07. 物理系とチェックポイント](./02-parameter-definition/07-physics-and-checklist.md)
 
 ## この構成で分けた理由
 
 - パラメータ名の設計と、実際の変形設定を分けて参照しやすくする
 - 2 次元パラメータと 1 次元パラメータの役割を混同しないようにする
 - 値域・デフォルト値・キー位置を先に固定し、後の変形設定で迷わないようにする
+- パラメータを編集中にし、キー位置を選び、その位置で変形を設定する基本操作を独立して確認できるようにする
 - 基本パラメータの設定は、顔・胴体・表情で編集対象と注意点が異なるため、作業単位ごとに分ける
 - 物理系は基本パラメータとは別の判断が必要なため、最後に独立して整理する

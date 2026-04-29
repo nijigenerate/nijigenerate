@@ -37,6 +37,13 @@ import nijigenerate.commands.binding.base;
 import nijigenerate.commands.parameter.base;
 
 private {
+    void delegate() pendingParameterUiCommand;
+
+    bool queueParameterUiCommand(void delegate() action) {
+        pendingParameterUiCommand = action;
+        return true;
+    }
+
     void pushColorScheme(vec3 color) {
         float h, s, v;
         igColorConvertRGBtoHSV(color.r, color.g, color.b, &h, &s, &v);
@@ -90,11 +97,19 @@ private {
 
 }
 
+void incRunPendingParameterUiCommand() {
+    if (pendingParameterUiCommand is null) return;
+
+    auto action = pendingParameterUiCommand;
+    pendingParameterUiCommand = null;
+    action();
+}
+
 struct ParamDragDropData {
     Parameter param;
 }
 
-void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, ParameterBinding[] targetBindings) {
+bool incKeypointActions(Parameter param, ParameterBinding[] srcBindings, ParameterBinding[] targetBindings) {
     Context ctx = new Context();
     if (srcBindings !is null)
         ctx.bindings = srcBindings;
@@ -107,60 +122,66 @@ void incKeypointActions(Parameter param, ParameterBinding[] srcBindings, Paramet
     ctx.keyPoint = cParamPoint;
 
     if (igMenuItem(__("Unset"), "", false, true)) {
-        cmd!(BindingCommand.UnsetKeyFrame)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.UnsetKeyFrame)(ctx); });
     }
     if (igMenuItem(__("Set to current"), "", false, true)) {
-        cmd!(BindingCommand.SetKeyFrame)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.SetKeyFrame)(ctx); });
     }
     if (igMenuItem(__("Reset"), "", false, true)) {
-        cmd!(BindingCommand.ResetKeyFrame)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.ResetKeyFrame)(ctx); });
     }
     if (igMenuItem(__("Invert"), "", false, true)) {
-        cmd!(BindingCommand.InvertKeyFrame)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.InvertKeyFrame)(ctx); });
     }
     if (igBeginMenu(__("Mirror"), true)) {
         if (igMenuItem(__("Horizontally"), "", false, true)) {
-            cmd!(BindingCommand.MirrorKeyFrameHorizontally)(ctx);
+            igEndMenu();
+            return queueParameterUiCommand({ cmd!(BindingCommand.MirrorKeyFrameHorizontally)(ctx); });
         }
         if (igMenuItem(__("Vertically"), "", false, true)) {
-            cmd!(BindingCommand.MirrorKeyFrameVertically)(ctx);
+            igEndMenu();
+            return queueParameterUiCommand({ cmd!(BindingCommand.MirrorKeyFrameVertically)(ctx); });
         }
         igEndMenu();
     }
     if (igMenuItem(__("Flip Deform"), "", false, true)) {
-        cmd!(BindingCommand.FlipDeform)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.FlipDeform)(ctx); });
     }
     if (igMenuItem(__("Symmetrize Deform"), "", false, true)) {
-        cmd!(BindingCommand.SymmetrizeDeform)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.SymmetrizeDeform)(ctx); });
     }
 
     if (param.isVec2) {
         if (igBeginMenu(__("Set from mirror"), true)) {
             if (igMenuItem(__("Horizontally"), "", false, true)) {
-                cmd!(BindingCommand.SetFromHorizontalMirror)(ctx);
+                igEndMenu();
+                return queueParameterUiCommand({ cmd!(BindingCommand.SetFromHorizontalMirror)(ctx); });
             }
             if (igMenuItem(__("Vertically"), "", false, true)) {
-                cmd!(BindingCommand.SetFromVerticalMirror)(ctx);
+                igEndMenu();
+                return queueParameterUiCommand({ cmd!(BindingCommand.SetFromVerticalMirror)(ctx); });
             }
             if (igMenuItem(__("Diagonally"), "", false, true)) {
-                cmd!(BindingCommand.SetFromDiagonalMirror)(ctx);
+                igEndMenu();
+                return queueParameterUiCommand({ cmd!(BindingCommand.SetFromDiagonalMirror)(ctx); });
             }
             igEndMenu();
         }
     } else {
         if (igMenuItem(__("Set from mirror"), "", false, true)) {
-            cmd!(BindingCommand.SetFrom1DMirror)(ctx);
+            return queueParameterUiCommand({ cmd!(BindingCommand.SetFrom1DMirror)(ctx); });
         }
     }
 
     if (igMenuItem(__("Copy"), "", false, true)) {
-        cmd!(BindingCommand.CopyBinding)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.CopyBinding)(ctx); });
     }
 
     if (igMenuItem(__("Paste"), "", false,  true)) {
-        cmd!(BindingCommand.PasteBinding)(ctx);
+        return queueParameterUiCommand({ cmd!(BindingCommand.PasteBinding)(ctx); });
     }
 
+    return false;
 }
 
 void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelectedBindings) {
@@ -173,20 +194,21 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
     ctx.keyPoint = cParamPoint;
 
     if (igMenuItem(__("Remove"), "", false, true)) {
-        cmd!(BindingCommand.RemoveBinding)(ctx);
+        queueParameterUiCommand({ cmd!(BindingCommand.RemoveBinding)(ctx); });
     }
 
-    incKeypointActions(param, null, cSelectedBindings.values);
+    if (incKeypointActions(param, null, cSelectedBindings.values))
+        return;
 
     if (igBeginMenu(__("Interpolation Mode"), true)) {
         if (igMenuItem(__("Nearest"), "", false, true)) {
-            cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Nearest);
+            queueParameterUiCommand({ cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Nearest); });
         }
         if (igMenuItem(__("Linear"), "", false, true)) {
-            cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Linear);
+            queueParameterUiCommand({ cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Linear); });
         }
         if (igMenuItem(__("Cubic"), "", false, true)) {
-            cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Cubic);
+            queueParameterUiCommand({ cmd!(BindingCommand.SetInterpolation)(ctx, InterpolateMode.Cubic); });
         }
         igEndMenu();
     }
@@ -196,7 +218,8 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
         foreach(c; cCompatibleNodes) {
             if (Node cNode = cast(Node)c) {
                 if (igMenuItem(cNode.name.toStringz, "", false, true)) {
-                    copySelectionToNode(param, cNode);
+                    auto targetNode = cNode;
+                    queueParameterUiCommand({ copySelectionToNode(param, targetNode); });
                 }
             }
         }
@@ -206,7 +229,8 @@ void incBindingMenuContents(Parameter param, ParameterBinding[BindTarget] cSelec
         foreach(c; cCompatibleNodes) {
             if (Node cNode = cast(Node)c) {
                 if (igMenuItem(cNode.name.toStringz, "", false, true)) {
-                    swapSelectionWithNode(param, cNode);
+                    auto targetNode = cNode;
+                    queueParameterUiCommand({ swapSelectionWithNode(param, targetNode); });
                 }
             }
         }
@@ -375,43 +399,43 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 }
 
                 if (!param.isVec2 && igMenuItem(__("To 2D"), "", false, true)) {
-                    cmd!(ParameditCommand.ConvertTo2DParam)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.ConvertTo2DParam)(ctx); });
                 }
 
                 if (param.isVec2) {
                     if (igMenuItem(__("Flip X"), "", false, true)) {
-                        cmd!(ParameditCommand.FlipX)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.FlipX)(ctx); });
                     }
                     if (igMenuItem(__("Flip Y"), "", false, true)) {
-                        cmd!(ParameditCommand.FlipY)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.FlipY)(ctx); });
                     }
                 } else {
                     if (igMenuItem(__("Flip"), "", false, true)) {
-                        cmd!(ParameditCommand.Flip1D)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.Flip1D)(ctx); });
                     }
                 }
                 if (igBeginMenu(__("Mirror"), true)) {
                     if (igMenuItem(__("Horizontally"), "", false, true)) {
-                        cmd!(ParameditCommand.MirrorHorizontally)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.MirrorHorizontally)(ctx); });
                     }
                     if (igMenuItem(__("Vertically"), "", false, true)) {
-                        cmd!(ParameditCommand.MirrorVertically)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.MirrorVertically)(ctx); });
                     }
                     igEndMenu();
                 }
                 if (igBeginMenu(__("Mirrored Autofill"), true)) {
                     if (igMenuItem("", "", false, true)) {
-                        cmd!(ParameditCommand.MirroredAutoFillDir1)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.MirroredAutoFillDir1)(ctx); });
                     }
                     if (igMenuItem("", "", false, true)) {
-                        cmd!(ParameditCommand.MirroredAutoFillDir2)(ctx);
+                        queueParameterUiCommand({ cmd!(ParameditCommand.MirroredAutoFillDir2)(ctx); });
                     }
                     if (param.isVec2) {
                         if (igMenuItem("", "", false, true)) {
-                            cmd!(ParameditCommand.MirroredAutoFillDir3)(ctx);
+                            queueParameterUiCommand({ cmd!(ParameditCommand.MirroredAutoFillDir3)(ctx); });
                         }
                         if (igMenuItem("", "", false, true)) {
-                            cmd!(ParameditCommand.MirroredAutoFillDir4)(ctx);
+                            queueParameterUiCommand({ cmd!(ParameditCommand.MirroredAutoFillDir4)(ctx); });
                         }
                     }
                     igEndMenu();
@@ -421,25 +445,25 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 igSeparator();
 
                 if (igMenuItem(__("Copy"), "", false, true)) {
-                    cmd!(ParameditCommand.CopyParameter)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.CopyParameter)(ctx); });
                 }
                 if (igMenuItem(__("Paste"), "", false, true)) {
-                    cmd!(ParameditCommand.PasteParameter)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.PasteParameter)(ctx); });
                 }
                 if (igMenuItem(__("Paste and Horizontal Flip"), "", false, true)) {
-                    cmd!(ParameditCommand.PasteParameterWithFlip)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.PasteParameterWithFlip)(ctx); });
                 }
 
                 if (igMenuItem(__("Duplicate"), "", false, true)) {
-                    cmd!(ParameditCommand.DuplicateParameter)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.DuplicateParameter)(ctx); });
                 }
 
                 if (igMenuItem(__("Duplicate and Horizontal Flip"), "", false, true)) {
-                    cmd!(ParameditCommand.DuplicateParameterWithFlip)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.DuplicateParameterWithFlip)(ctx); });
                 }
 
                 if (igMenuItem(__("Delete"), "", false, true)) {
-                    cmd!(ParameditCommand.DeleteParameter)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.DeleteParameter)(ctx); });
                 }
 
                 igNewLine();
@@ -451,15 +475,18 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                         if (p.isVec2) {
                             if (igBeginMenu(p.name.toStringz, true)) {
                                 if (igMenuItem(__("X"))) {
-                                    cmd!(ParameditCommand.LinkTo)(ctx, p, fromAxis, 0);
+                                    auto targetParam = p;
+                                    queueParameterUiCommand({ cmd!(ParameditCommand.LinkTo)(ctx, targetParam, fromAxis, 0); });
                                 }
                                 if (igMenuItem(__("Y"))) {
-                                    cmd!(ParameditCommand.LinkTo)(ctx, p, fromAxis, 1);
+                                    auto targetParam = p;
+                                    queueParameterUiCommand({ cmd!(ParameditCommand.LinkTo)(ctx, targetParam, fromAxis, 1); });
                                 }
                                 igEndMenu();
                             } 
                         } else if (igMenuItem(p.name.toStringz, null, false, true)) {
-                            cmd!(ParameditCommand.LinkTo)(ctx, p, fromAxis, 0);
+                            auto targetParam = p;
+                            queueParameterUiCommand({ cmd!(ParameditCommand.LinkTo)(ctx, targetParam, fromAxis, 0); });
                         }
                     }
                 }
@@ -486,7 +513,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
 
                 // Sets the default value of the param
                 if (igMenuItem(__("Set Starting Position"), "", false, true)) {
-                    cmd!(ParameditCommand.SetStartingKeyFrame)(ctx);
+                    queueParameterUiCommand({ cmd!(ParameditCommand.SetStartingKeyFrame)(ctx); });
                 }
                 igEndPopup();
             }
@@ -515,7 +542,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             }
             igBeginDisabled(incAnimationGet() is null);
                 if (incButtonColored("", ImVec2(24, 24))) {
-                    cmd!(AnimeditCommand.AddKeyFrame)(ctx);
+                    cmd!(AnimeditCommand.AddAnimationKeyFrame)(ctx);
                 }
                 incTooltip(_("Add Keyframe"));
             igEndDisabled();
@@ -678,7 +705,7 @@ bool incParameterGropuMenuContents(ExParameterGroup group) {
     }
 
     if (igMenuItem(__("Delete"))) {
-        cmd!(GroupCommand.DeleteParamGroup)(ctx);
+        queueParameterUiCommand({ cmd!(GroupCommand.DeleteParamGroup)(ctx); });
         // End early.
         result = true;
     }
@@ -691,19 +718,19 @@ void incParameterMenuContents(Parameter[] parameters) {
     ctx.parameters = parameters;
 
     if (igMenuItem(__("Add 1D Parameter (0..1)"), "", false, true)) {
-        cmd!(ParamCommand.Add1DParameter)(ctx, 0, 1);
+        queueParameterUiCommand({ cmd!(ParamCommand.Add1DParameter)(ctx, 0, 1); });
     }
     if (igMenuItem(__("Add 1D Parameter (-1..1)"), "", false, true)) {
-        cmd!(ParamCommand.Add1DParameter)(ctx, -1, 1);
+        queueParameterUiCommand({ cmd!(ParamCommand.Add1DParameter)(ctx, -1, 1); });
     }
     if (igMenuItem(__("Add 2D Parameter (0..1)"), "", false, true)) {
-        cmd!(ParamCommand.Add2DParameter)(ctx, 0, 1);
+        queueParameterUiCommand({ cmd!(ParamCommand.Add2DParameter)(ctx, 0, 1); });
     }
     if (igMenuItem(__("Add 2D Parameter (-1..+1)"), "", false, true)) {
-        cmd!(ParamCommand.Add2DParameter)(ctx, -1, 1);
+        queueParameterUiCommand({ cmd!(ParamCommand.Add2DParameter)(ctx, -1, 1); });
     }
     if (igMenuItem(__("Add Mouth Shape"), "", false, true)) {
-        cmd!(ParamCommand.AddMouthParameter)(ctx);
+        queueParameterUiCommand({ cmd!(ParamCommand.AddMouthParameter)(ctx); });
     }
 }
 
@@ -717,6 +744,8 @@ private:
 protected:
     override
     void onUpdate() {
+        incRunPendingParameterUiCommand();
+
         if (incEditMode == EditMode.VertexEdit) {
             incLabelOver(_("In vertex edit mode..."), ImVec2(0, 0), true);
             return;

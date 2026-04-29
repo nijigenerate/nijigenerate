@@ -10,6 +10,7 @@ import i18n;
 import std.path;
 import nijigenerate.project;
 import nijigenerate.core.settings;
+import std.json : JSONValue;
 
 
 @McpHidden
@@ -48,6 +49,33 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
     }
 }
 
+private bool incCaptureLiveViewport(out int width, out int height, out ubyte[] textureData, out string message) {
+    auto puppet = incActivePuppet();
+    if (puppet is null) {
+        message = "No active puppet";
+        return false;
+    }
+
+    inGetViewport(width, height);
+    if (width <= 0 || height <= 0) {
+        message = "Viewport is empty";
+        return false;
+    }
+
+    inSetClearColor(0, 0, 0, 0);
+    scope(exit) incResetClearColor();
+
+    inBeginScene();
+        puppet.update();
+        puppet.draw();
+    inEndScene();
+
+    textureData = new ubyte[inViewportDataLength()];
+    inDumpViewport(textureData);
+    inTexUnPremuliply(textureData);
+    return true;
+}
+
 @EffectFileWrite
 class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to save screenshot.")) {
     this(string filename) { super(_("Save Screenshot"), _("Save screenshot."), filename); }
@@ -57,29 +85,58 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
         if (filename) {
             string file = filename.setExtension("png");
 
-            // Dump viewport to RGBA byte array
             int width, height;
-            inGetViewport(width, height);
-            Texture outTexture = new Texture(null, width, height);
-
-            // Texture data
-            inSetClearColor(0, 0, 0, 0);
-            inBeginScene();
-                incActivePuppet().update();
-                incActivePuppet().draw();
-            inEndScene();
-            ubyte[] textureData = new ubyte[inViewportDataLength()];
-            inDumpViewport(textureData);
-            inTexUnPremuliply(textureData);
-            incResetClearColor();
+            ubyte[] textureData;
+            string message;
+            if (!incCaptureLiveViewport(width, height, textureData, message))
+                return CommandResult(false, message);
             
-            // Write to texture
+            Texture outTexture = new Texture(null, width, height);
             outTexture.setData(textureData);
-
             outTexture.save(file);
             return CommandResult(true);
         }
         return CommandResult(false, "Filename not set");
+    }
+}
+
+@ShortcutHidden
+class CaptureLiveScreenshotCommand : ExCommand!() {
+    this() { super(_("Capture Live Screenshot"), _("Capture current live viewport and return an MCP image content item with mimeType image/png.")); }
+
+    override
+    ExCommandResult!JSONValue run(Context ctx) {
+        import core.stdc.stdlib : free;
+        import imagefmt : IF_PNG, IF_ERROR, write_image_mem;
+        import std.base64 : Base64;
+        import std.conv : to;
+
+        int width, height;
+        ubyte[] textureData;
+        string message;
+        if (!incCaptureLiveViewport(width, height, textureData, message))
+            return ExCommandResult!JSONValue(false, JSONValue.init, message);
+
+        int error;
+        ubyte[] pngData = write_image_mem(IF_PNG, width, height, textureData, 4, error);
+        if (error)
+            return ExCommandResult!JSONValue(false, JSONValue.init, "PNG encode failed: " ~ IF_ERROR[error].to!string);
+        scope(exit) free(pngData.ptr);
+
+        JSONValue[string] image;
+        image["type"] = JSONValue("image");
+        image["mimeType"] = JSONValue("image/png");
+        image["data"] = JSONValue(Base64.encode(cast(const(ubyte)[])pngData));
+
+        JSONValue[string] meta;
+        meta["width"] = JSONValue(cast(long)width);
+        meta["height"] = JSONValue(cast(long)height);
+
+        JSONValue[string] result;
+        result["mcpDirectToolResult"] = JSONValue(true);
+        result["content"] = JSONValue([JSONValue(image)]);
+        result["_meta"] = JSONValue(meta);
+        return ExCommandResult!JSONValue(true, JSONValue(result));
     }
 }
 
@@ -114,6 +171,7 @@ enum ViewCommand {
     SetDefaultLayout,
     ShowSaveScreenshotDialog,
     SaveScreenshot,
+    CaptureLiveScreenshot,
     ShowStatusForNerds,
     ToggleDifferenceAggregation,
 }
