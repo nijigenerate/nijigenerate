@@ -113,4 +113,4 @@ Node を DynamicComposite に変換した直後は、表示や当たり判定の
 - 作業前の前提を確認する  
   → [03. 準備](./03-preparation.md)
 - 実際の手順に進む  
-  → [04. 手順 1-3](./04-steps-1-3.md)
+  → [04. ステップ 1：Root 直下に大ブロックを作る](./04-step-1-root-blocks.md)
