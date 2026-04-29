@@ -67,8 +67,11 @@ Tool calls may include an optional `context` object. If omitted or `null`, the a
 - `context.parameters`: Parameter UUID array.
 - `context.armedParameters`: Parameter UUID array used as the armed parameter context.
 - `context.parameterValue`: Parameter-axis values, `[x]` for 1D parameters or `[x, y]` for 2D parameters.
+- `context.bindings`: Binding descriptor array. Each item is `{ "target": <Node-or-Parameter UUID>, "name": "<binding name>" }` and requires `context.parameters[0]`.
 
-`parameterValue` is resolved against the first armed parameter, or the first parameter if no armed parameter is supplied. Values must exactly match existing key values. MCP clients must not pass key point indexes; `keyPoint` is an internal command-context detail, not part of the MCP input surface. The deprecated `paramValue` spelling is accepted only as a compatibility alias.
+`parameterValue` is the primary MCP input for parameter key selection. It is stored as a parameter-axis value and each command resolves it against the command's actual target parameter after that parameter is selected. Values must exactly match existing key values. MCP clients must not pass key point indexes; `keyPoint` is an internal command-context detail, not part of the MCP input surface. The deprecated `paramValue` spelling is accepted only as a compatibility alias.
+
+`bindings` identifies parameter bindings structurally instead of using Binding resource pseudo-UUIDs. A Binding is resolved from `context.parameters[0]`, the target resource UUID, and the binding name. This is the stable MCP input form for commands such as `BindingCommand_RemoveBinding` and `BindingCommand_SetInterpolation`.
 
 ## Deform Binding Tools
 
@@ -76,12 +79,21 @@ Tool calls may include an optional `context` object. If omitted or `null`, the a
   - Sets raw `deform` binding offsets for the current parameter key position.
   - `values` is a flattened `[dx0, dy0, dx1, dy1, ...]` array and must match the target vertex count.
 - `ModelCommand_SetTRSBinding`
-  - Sets `deform` binding offsets by applying local translation, rotation, and scale to each target's vertices.
-  - `translation` is `[x, y]` and defaults to `[0, 0]`.
-  - `scale` is `[x, y]` and defaults to `[1, 1]`.
-  - `rotationDegrees` rotates counter-clockwise and defaults to `0`.
-  - `pivot` is optional `[x, y]`; if omitted, each target uses the center of its local vertex bounds.
+  - Sets node transform `ValueParameterBinding`s, not `deform`.
+  - `translation` writes `transform.t.x` and `transform.t.y`.
+  - `scale` writes `transform.s.x` and `transform.s.y`.
+  - `rotationDegrees` writes `transform.r.z` in radians after degree conversion.
+  - `applyRotation=true` is required to write an explicit zero rotation.
   - Use `context.parameterValue` to choose the parameter key position.
+
+## Binding Selection Tools
+
+- `BindingCommand_RemoveBinding`
+  - Removes only the bindings specified by `context.bindings` from `context.parameters[0]`.
+  - Example: `{ "context": { "parameters": [123], "bindings": [{ "target": 456, "name": "deform" }] } }`.
+- `BindingCommand_SetInterpolation`
+  - Changes interpolation only for the bindings specified by `context.bindings`.
+  - Binding resource pseudo-UUIDs are inspection-only and must not be used as tool input.
 
 ## Naming Rules
 

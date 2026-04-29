@@ -313,6 +313,7 @@ class Context {
     ParameterBinding[] _bindings;
     ParameterBinding[] _activeBindings;
     vec2u _keyPoint;
+    vec2 _parameterValue;
     TypedInspector!Node[] _inspectors; // preferred: list of active inspectors
     enum ContextMask {
         None = 0,
@@ -325,6 +326,7 @@ class Context {
         HasArmedParameters = 64,
         HasActiveBindings = 128,
         HasExplicitKeyPoint = 256,
+        HasParameterValue = 512,
     }
     ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
@@ -336,6 +338,7 @@ class Context {
     bool hasInspectors() { return (masks & ContextMask.HasInspectors) != 0; }
     bool hasActiveBindings() { return (masks & ContextMask.HasActiveBindings) != 0; }
     bool hasExplicitKeyPoint() { return (masks & ContextMask.HasExplicitKeyPoint) != 0; }
+    bool hasParameterValue() { return (masks & ContextMask.HasParameterValue) != 0; }
     void hasPuppet(bool value)    { masks = value ? (masks | ContextMask.HasPuppet)    : (masks & ~ContextMask.HasPuppet); }
     void hasNodes(bool value)     { masks = value ? (masks | ContextMask.HasNodes)     : (masks & ~ContextMask.HasNodes); }
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
@@ -345,6 +348,7 @@ class Context {
     void hasInspectors(bool value) { masks = value ? (masks | ContextMask.HasInspectors)  : (masks & ~ContextMask.HasInspectors); }
     void hasActiveBindings(bool value) { masks = value ? (masks | ContextMask.HasActiveBindings) : (masks & ~ContextMask.HasActiveBindings); }
     void hasExplicitKeyPoint(bool value) { masks = value ? (masks | ContextMask.HasExplicitKeyPoint) : (masks & ~ContextMask.HasExplicitKeyPoint); }
+    void hasParameterValue(bool value) { masks = value ? (masks | ContextMask.HasParameterValue) : (masks & ~ContextMask.HasParameterValue); }
 
     Puppet puppet() { return _puppet; }
     void puppet(Puppet value) { _puppet = value; hasPuppet = true; }
@@ -363,6 +367,9 @@ class Context {
 
     vec2u keyPoint() { return _keyPoint; }
     void keyPoint(vec2u value) { _keyPoint = value; hasKeyPoint = true; }
+
+    vec2 parameterValue() { return _parameterValue; }
+    void parameterValue(vec2 value) { _parameterValue = value; hasParameterValue = true; }
 
     // Preferred: list of inspector instances
     TypedInspector!Node[] inspectors() { return _inspectors; }

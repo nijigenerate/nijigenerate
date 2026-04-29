@@ -486,21 +486,25 @@ class RemoveBindingCommand : ExCommand!() {
     this() { super(null, _("Remove Bindings")); }
     override
     DeleteResult!ParameterBinding run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
+        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasActiveBindings || ctx.activeBindings.length == 0)
             return new DeleteResult!ParameterBinding(false, null, "No parameters/bindings");
         
         auto param = ctx.parameters[0];
 
         auto action = new GroupAction();
         ParameterBinding[] removed;
-        foreach(binding; cSelectedBindings.byValue()) {
+        foreach(binding; ctx.activeBindings) {
+            if (param.bindings.countUntil(binding) < 0)
+                continue;
             action.addAction(new ParameterBindingRemoveAction(param, binding));
             param.removeBinding(binding);
+            cSelectedBindings.remove(binding.getTarget());
             if (auto node = cast(Node)binding.getTarget().target)
                 node.notifyChange(node, NotifyReason.StructureChanged);
             removed ~= binding;
         }
-        incActionPush(action);
+        if (removed.length)
+            incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
         if (removed.length) {
             return new DeleteResult!ParameterBinding(true, removed, "Bindings removed");
@@ -514,11 +518,10 @@ class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify
     this(InterpolateMode mode) { super(null, "Set Bindings to " ~ mode.stringof, mode); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasParameters || ctx.parameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings))
+        if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasActiveBindings || ctx.activeBindings.length == 0)
             return CommandResult(false, "No parameters/bindings");
         
-        auto param = ctx.parameters[0];
-        foreach(binding; cSelectedBindings.values) {
+        foreach(binding; ctx.activeBindings) {
             binding.interpolateMode = mode;
         }
         incViewportNodeDeformNotifyParamValueChanged();

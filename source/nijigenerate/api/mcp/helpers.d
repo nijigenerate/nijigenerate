@@ -12,6 +12,7 @@ import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.core.selector.resource : Resource, to;
 import nijigenerate.project : incActivePuppet;
 import nijilive; // Node, Parameter, Puppet
+import nijilive.core.resource : LiveResource = Resource;
 import nijilive.core.nodes : Node;
 import nijilive.core.param : Parameter;
 import nijilive.core.param.binding : ParameterBinding;
@@ -104,6 +105,41 @@ JSONValue commandResultToJson(RT)(RT res) if (is(RT : CommandResult)) {
     return JSONValue(m);
 }
 
+JSONValue commandResultToJsonRuntime(CommandResult res) {
+    JSONValue[string] m;
+    m["status"] = JSONValue(res.succeeded ? "ok" : "error");
+    m["succeeded"] = JSONValue(res.succeeded);
+    if (res.message.length) m["message"] = JSONValue(res.message);
+
+    if (auto er = cast(ExCommandResultImpl!JSONValue)res) {
+        m["resultType"] = JSONValue("JSONValue");
+        m["result"] = er.result;
+        return JSONValue(m);
+    }
+
+    alias ResourceTypes = AliasSeq!(Node, Parameter, ParameterBinding, Puppet, ExParameterGroup);
+    static foreach (R; ResourceTypes) {{
+        if (auto cr = cast(CreateResult!R)res) {
+            m["result"] = _encodeCreateResult(cr);
+            m["resultType"] = JSONValue("CreateResult!(" ~ R.stringof ~ ")");
+            return JSONValue(m);
+        }
+        if (auto dr = cast(DeleteResult!R)res) {
+            m["result"] = _encodeDeleteResult(dr);
+            m["resultType"] = JSONValue("DeleteResult!(" ~ R.stringof ~ ")");
+            return JSONValue(m);
+        }
+        if (auto lr = cast(LoadResult!R)res) {
+            m["result"] = _encodeLoadResult(lr);
+            m["resultType"] = JSONValue("LoadResult!(" ~ R.stringof ~ ")");
+            return JSONValue(m);
+        }
+    }}
+
+    m["resultType"] = JSONValue("CommandResult");
+    return JSONValue(m);
+}
+
 // Build a Context from default app state plus optional overrides
 private bool _jsonNumber(JSONValue value, out float result) {
     if (value.type == JSONType.float_) {
@@ -117,34 +153,7 @@ private bool _jsonNumber(JSONValue value, out float result) {
     return false;
 }
 
-private bool _findExactAxisPoint(Parameter param, uint axis, float value, out uint index) {
-    import std.math : abs;
-    enum float epsilon = 1e-5f;
-    auto offset = param.mapAxis(axis, value);
-    foreach (i, point; param.axisPoints[axis]) {
-        if (abs(point - offset) <= epsilon) {
-            index = cast(uint)i;
-            return true;
-        }
-    }
-    return false;
-}
-
-private string _axisValuesString(Parameter param, uint axis) {
-    import std.algorithm : map;
-    import std.array : join, array;
-    import std.conv : to;
-    return param.axisPoints[axis]
-        .map!(point => param.unmapAxis(axis, point).to!string)
-        .array
-        .join(", ");
-}
-
-private bool _resolveParamValueToKeyPoint(Parameter param, JSONValue value, out vec2u keyPoint, out string message) {
-    if (param is null) {
-        message = "context.parameterValue requires an armed parameter or parameter context";
-        return false;
-    }
+private bool _readParamValue(JSONValue value, out vec2 parameterValue, out string message) {
     if (value.type != JSONType.array || value.array.length == 0) {
         message = "context.parameterValue must be [x] or [x,y]";
         return false;
@@ -156,25 +165,69 @@ private bool _resolveParamValueToKeyPoint(Parameter param, JSONValue value, out 
         return false;
     }
 
-    float y = param.getKeypointValue(vec2u(0, 0)).y;
+    float y = 0;
     if (value.array.length >= 2 && !_jsonNumber(value.array[1], y)) {
         message = "context.parameterValue[1] must be a number";
         return false;
     }
 
-    uint xi, yi;
-    if (!_findExactAxisPoint(param, 0, x, xi)) {
-        message = "context.parameterValue[0] does not match a key value on parameter '" ~ param.name ~
-            "'. Allowed X values: [" ~ _axisValuesString(param, 0) ~ "]";
+    parameterValue = vec2(x, y);
+    return true;
+}
+
+private bool _readBindingDescriptors(JSONValue value, Puppet puppet, Parameter param, out ParameterBinding[] bindings, out string message) {
+    if (value.type != JSONType.array) {
+        message = "context.bindings must be an array of {target, name}";
         return false;
     }
-    if (!_findExactAxisPoint(param, 1, y, yi)) {
-        message = "context.parameterValue[1] does not match a key value on parameter '" ~ param.name ~
-            "'. Allowed Y values: [" ~ _axisValuesString(param, 1) ~ "]";
+    if (param is null) {
+        message = "context.bindings requires context.parameters[0]";
         return false;
     }
 
-    keyPoint = vec2u(xi, yi);
+    foreach (entry; value.array) {
+        if (entry.type != JSONType.object) {
+            message = "context.bindings entries must be objects";
+            return false;
+        }
+
+        auto obj = entry.object;
+        string targetKey = ("target" in obj) ? "target" : (("targetUuid" in obj) ? "targetUuid" : "");
+        string nameKey = ("name" in obj) ? "name" : (("bindingName" in obj) ? "bindingName" : "");
+        if (targetKey.length == 0 || nameKey.length == 0) {
+            message = "context.bindings entries require target and name";
+            return false;
+        }
+        if (obj[targetKey].type != JSONType.integer || obj[targetKey].integer < 0) {
+            message = "context.bindings target must be a non-negative integer UUID";
+            return false;
+        }
+        if (obj[nameKey].type != JSONType.string || obj[nameKey].str.length == 0) {
+            message = "context.bindings name must be a non-empty string";
+            return false;
+        }
+
+        auto targetUuid = cast(uint)obj[targetKey].integer;
+        LiveResource target = puppet.find!(Node)(targetUuid);
+        if (target is null) target = puppet.find!(Parameter)(targetUuid);
+        if (target is null) {
+            message = "context.bindings target UUID was not found: " ~ targetUuid.to!string;
+            return false;
+        }
+
+        auto binding = param.getBinding(target, obj[nameKey].str);
+        if (binding is null) {
+            message = "Binding was not found on parameter '" ~ param.name ~ "': target=" ~
+                targetUuid.to!string ~ ", name=" ~ obj[nameKey].str;
+            return false;
+        }
+        bindings ~= binding;
+    }
+
+    if (bindings.length == 0) {
+        message = "context.bindings must contain at least one binding descriptor";
+        return false;
+    }
     return true;
 }
 
@@ -182,9 +235,11 @@ Context buildContextFromPayload(JSONValue payloadCopy) {
     auto ctx = ngBuildExecutionContext();
     if ("context" !in payloadCopy || payloadCopy["context"].type != JSONType.object) return ctx;
     auto cobj = payloadCopy["context"];
+    bool hasExplicitParameterContext = ("parameters" in cobj) || ("armedParameters" in cobj);
     auto puppet = incActivePuppet();
     if (puppet !is null) {
         if ("parameters" in cobj && cobj["parameters"].type == JSONType.array) {
+            ctx.hasParameters = false;
             Parameter[] params;
             foreach (u; cobj["parameters"].array) {
                 if (u.type == JSONType.integer) {
@@ -195,6 +250,7 @@ Context buildContextFromPayload(JSONValue payloadCopy) {
             if (params.length) ctx.parameters = params;
         }
         if ("armedParameters" in cobj && cobj["armedParameters"].type == JSONType.array) {
+            ctx.hasArmedParameters = false;
             Parameter[] aparams;
             foreach (u; cobj["armedParameters"].array) {
                 if (u.type == JSONType.integer) {
@@ -203,8 +259,12 @@ Context buildContextFromPayload(JSONValue payloadCopy) {
                 }
             }
             if (aparams.length) ctx.armedParameters = aparams;
+        } else if ("parameters" in cobj) {
+            // An explicit parameter context must not inherit the app's armed parameter.
+            ctx.hasArmedParameters = false;
         }
         if ("nodes" in cobj && cobj["nodes"].type == JSONType.array) {
+            ctx.hasNodes = false;
             Node[] nodes;
             foreach (u; cobj["nodes"].array) {
                 if (u.type == JSONType.integer) {
@@ -214,26 +274,35 @@ Context buildContextFromPayload(JSONValue payloadCopy) {
             }
             if (nodes.length) ctx.nodes = nodes;
         }
+        if ("bindings" in cobj || "activeBindings" in cobj) {
+            auto value = ("bindings" in cobj) ? cobj["bindings"] : cobj["activeBindings"];
+            Parameter param = (ctx.hasParameters && ctx.parameters.length > 0) ? ctx.parameters[0] : null;
+            ParameterBinding[] bindings;
+            string message;
+            if (!_readBindingDescriptors(value, puppet, param, bindings, message))
+                throw new Exception(message);
+            ctx.activeBindings = bindings;
+        }
     }
     if ("keyPoint" in cobj)
         throw new Exception("context.keyPoint is not supported by MCP. Use context.parameterValue with parameter-axis values.");
     if ("parameterValue" in cobj && "paramValue" in cobj)
         throw new Exception("Use only one of context.parameterValue or deprecated context.paramValue.");
+    if (hasExplicitParameterContext && !("parameterValue" in cobj) && !("paramValue" in cobj)) {
+        // The key point from the active editor belongs to the previous armed parameter.
+        ctx.hasKeyPoint = false;
+        ctx.hasExplicitKeyPoint = false;
+    }
     if ("parameterValue" in cobj || "paramValue" in cobj) {
         auto value = ("parameterValue" in cobj) ? cobj["parameterValue"] : cobj["paramValue"];
-        Parameter param = null;
-        if (ctx.hasArmedParameters && ctx.armedParameters.length > 0)
-            param = ctx.armedParameters[0];
-        else if (ctx.hasParameters && ctx.parameters.length > 0)
-            param = ctx.parameters[0];
-
-        vec2u resolved;
+        vec2 parameterValue;
         string message;
-        if (!_resolveParamValueToKeyPoint(param, value, resolved, message))
+        if (!_readParamValue(value, parameterValue, message))
             throw new Exception(message);
 
-        ctx.keyPoint = resolved;
-        ctx.hasExplicitKeyPoint = true;
+        ctx.parameterValue = parameterValue;
+        ctx.hasKeyPoint = false;
+        ctx.hasExplicitKeyPoint = false;
     }
     return ctx;
 }

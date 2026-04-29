@@ -294,7 +294,7 @@ public:
 
     override
     void forceResetAction() {
-//        editorAction = null;
+        editorAction = null;
     }
 
     override

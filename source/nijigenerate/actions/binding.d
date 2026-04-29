@@ -18,10 +18,23 @@ import std.array;
 import i18n;
 
 private {
+    T cloneActionValue(T)(T value) {
+        return value;
+    }
+
+    Deformation cloneActionValue(Deformation value) {
+        Deformation cloned;
+        cloned.vertexOffsets = value.vertexOffsets.dup;
+        return cloned;
+    }
+
     T[][] duplicate(T)(ref T[][] source) {
         T[][] target = source.dup;
         foreach (i, s; source) {
             target[i] = s.dup;
+            foreach (j, value; s) {
+                target[i][j] = cloneActionValue(value);
+            }
         }
         return target;
     }
@@ -29,7 +42,7 @@ private {
     void copy(T)(ref T[][] source, ref T[][] target) {
         foreach (sarray, tarray; zip(source, target)) {
             foreach (i, s; sarray) {
-                tarray[i] = s;
+                tarray[i] = cloneActionValue(s);
             }
         }
     }
@@ -219,7 +232,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
         this.self  = self;
         this.pointx = pointx;
         this.pointy = pointy;
-        this.value  = self.values[pointx][pointy];
+        this.value  = cloneActionValue(self.values[pointx][pointy]);
         this.isSet  = self.isSet_[pointx][pointy];
         this.undoable = true;
         this._dirty = false;
@@ -234,7 +247,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
         this.self  = self;
         this.pointx = pointx;
         this.pointy = pointy;
-        this.value  = self.values[pointx][pointy];
+        this.value  = cloneActionValue(self.values[pointx][pointy]);
         this.isSet  = self.isSet_[pointx][pointy];
         this.undoable = true;
         this._dirty = false;
@@ -335,7 +348,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
         this.self  = self;
         this.pointx = pointx;
         this.pointy = pointy;
-        this.value  = self.map!((s)=>s.values[pointx][pointy]).array;
+        this.value  = self.map!((s)=>cloneActionValue(s.values[pointx][pointy])).array;
         this.isSet  = self.map!((s)=>s.isSet_[pointx][pointy]).array;
         this.undoable = true;
         this._dirty = false;

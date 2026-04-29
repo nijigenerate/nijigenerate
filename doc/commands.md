@@ -55,13 +55,13 @@ Column meanings:
 | `SetFrom1DMirrorCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | keyframe-edit | tool | - |
 | `CopyBindingCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | - | tool | - |
 | `PasteBindingCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | binding-edit | tool | - |
-| `RemoveBindingCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | binding-edit | tool | - |
-| `SetInterpolationCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | binding-edit | tool | - |
+| `RemoveBindingCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | binding-edit | tool | MCP uses `context.parameters[0]` plus `context.bindings[]` descriptors |
+| `SetInterpolationCommand` | [binding/binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/binding/binding.d) | no | default | true | - | - | - | binding-edit | tool | MCP uses `context.parameters[0]` plus `context.bindings[]` descriptors |
 | `ApplyInspectorPropCommand<I, Prop>` | [inspector/apply_node.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/inspector/apply_node.d) | yes | default | false | - | - | - | structural-edit | tool | Generated apply family; hidden from shortcut editor |
 | `ToggleInspectorPropCommand<I, Prop>` | [inspector/apply_node.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/inspector/apply_node.d) | yes | default | true | - | - | - | structural-edit | tool | Generated toggle family |
 | `SelectToolModeCommand` | [mesheditor/tool.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/mesheditor/tool.d) | no | custom | true | - | - | - | - | tool | - |
 | `SetDeformBindingCommand` | [model/set_deform_binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/model/set_deform_binding.d) | no | custom | false | - | - | - | binding-edit | tool | Deform-only; `bindingName` must be `deform` |
-| `SetTRSBindingCommand` | [model/set_deform_binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/model/set_deform_binding.d) | no | custom | false | - | - | - | binding-edit | tool | Sets `deform` binding offsets from local translation, rotation, and scale; uses `context.parameterValue` for the key position |
+| `SetTRSBindingCommand` | [model/set_deform_binding.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/model/set_deform_binding.d) | no | custom | false | - | - | - | binding-edit | tool | Sets node transform `ValueParameterBinding`s (`transform.t.*`, `transform.r.z`, `transform.s.*`); uses `context.parameterValue` for the key position |
 | `AddNodeCommand` (`AddNodeCommandT!(true)`) | [node/node.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/node/node.d) | no | default | true | `_suffix`: false, `className`: visible | `exposeClassName=true` | - | create | tool | Public alias form |
 | `InsertNodeCommand` (`InsertNodeCommandT!(true)`) | [node/node.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/node/node.d) | no | default | true | `_suffix`: false, `className`: visible | `exposeClassName=true` | - | create | tool | Public alias form |
 | `ConvertToCommand` (`ConvertToCommandT!(true)`) | [node/node.d](/Users/seagetch/src/nijigenerate/nijigenerate/source/nijigenerate/commands/node/node.d) | no | default | true | `className`: visible | `exposeClassName=true` | - | structural-edit | tool | Public alias form |
@@ -190,5 +190,6 @@ Notes:
 
 - MCP exposure is now controlled by command-level UDA metadata and filtered in MCP tool registration.
 - File import / merge / export commands now include direct path variants that stay hidden from the Shortcuts settings UI while remaining exposed to MCP.
+- MCP binding selection uses stable descriptors: `context.parameters[0]` plus `context.bindings=[{target:<Node-or-Parameter UUID>, name:<binding name>}]`.
 - `TW.hidden` only affects the Command Browser.
 - `shortcutRunnable()` only affects the Shortcuts settings UI.

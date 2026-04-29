@@ -6,7 +6,7 @@ import nijigenerate.actions.parameter; // ParameterChangeBindingsValueAction
 import nijigenerate.actions;           // GroupAction, ParameterBindingAddAction
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.ext.param;
-import nijigenerate.project : EditMode, incActivePuppet, incSelectedNodes, incArmedParameter, incArmParameter, incEditMode, incSetEditMode;
+import nijigenerate.project : EditMode, incActivePuppet, incSelectedNodes, incArmedParameter, incArmedParameterIdx, incArmParameter, incEditMode, incSetEditMode;
 import nijigenerate.viewport.model.deform : incViewportNodeDeformNotifyParamValueChanged;
 import nijilive; // Parameter, Node, Drawable, Deformable
 import nijilive.math : vec2, vec2u;
@@ -15,7 +15,7 @@ import std.algorithm.searching : countUntil;
 import std.array : array;
 import std.conv : to;
 import std.exception : enforce;
-import std.math : PI, cos, sin;
+import std.math : PI;
 import i18n;
 
 private bool ngFindSetDeformBindingParameterIndex(Parameter param, out size_t index) {
@@ -42,35 +42,67 @@ private bool ngFindSetDeformBindingParameterIndex(Parameter param, out size_t in
     return false;
 }
 
-private CommandResult ngPrepareSetDeformBindingContext(Context ctx, Parameter param) {
+private bool ngResolveParameterValueToKeyPoint(Parameter param, vec2 value, out vec2u keyPoint, out string message) {
+    if (param is null) {
+        message = "context.parameterValue requires a parameter";
+        return false;
+    }
+
+    uint x = param.getClosestAxisPointIndex(0, param.mapAxis(0, value.x));
+    uint y = param.getClosestAxisPointIndex(1, param.mapAxis(1, value.y));
+    auto resolved = param.getKeypointValue(vec2u(x, y));
+
+    import std.math : abs;
+    enum float epsilon = 1e-5f;
+    if (abs(resolved.x - value.x) > epsilon || abs(resolved.y - value.y) > epsilon) {
+        message = "context.parameterValue does not match an existing key value";
+        return false;
+    }
+
+    keyPoint = vec2u(x, y);
+    return true;
+}
+
+private CommandResult ngPrepareSetDeformBindingContext(Context ctx, Parameter param, out vec2u keyPoint, out size_t paramIndex) {
     if (param is null)
         return CommandResult(false, "No parameter resolved");
 
-    size_t index;
-    if (!ngFindSetDeformBindingParameterIndex(param, index))
+    if (!ngFindSetDeformBindingParameterIndex(param, paramIndex))
         return CommandResult(false, "Parameter not found in active puppet");
 
     if (incEditMode() != EditMode.ModelEdit)
         incSetEditMode(EditMode.ModelEdit, false);
 
-    if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
+    if (ctx.hasParameterValue) {
+        string message;
+        if (!ngResolveParameterValueToKeyPoint(param, ctx.parameterValue, keyPoint, message))
+            return CommandResult(false, message);
+
+        param.value = param.getKeypointValue(keyPoint);
+    } else if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
         if (ctx.keyPoint.x >= param.axisPointCount(0) || ctx.keyPoint.y >= param.axisPointCount(1))
             return CommandResult(false, "keyPoint is out of range for parameter");
-
-        param.value = param.getKeypointValue(ctx.keyPoint);
+        keyPoint = ctx.keyPoint;
+        param.value = param.getKeypointValue(keyPoint);
     } else {
-        param.value = param.getClosestKeypointValue();
+        keyPoint = param.findClosestKeypoint();
+        param.value = param.getKeypointValue(keyPoint);
     }
-
-    paramPointChanged(param);
-    incArmParameter(index, param);
-    incViewportNodeDeformNotifyParamValueChanged();
 
     return CommandResult(true);
 }
 
-private CommandResult ngResolveSetDeformBindingParameter(Context ctx, out Parameter param) {
+private void ngFinalizeSetDeformBindingContext(Parameter param, size_t paramIndex) {
+    if (param is null) return;
+    paramPointChanged(param);
+    if (incArmedParameter() !is param || incArmedParameterIdx() != paramIndex)
+        incArmParameter(paramIndex, param);
+    incViewportNodeDeformNotifyParamValueChanged();
+}
+
+private CommandResult ngResolveSetDeformBindingParameter(Context ctx, out Parameter param, out vec2u keyPoint, out size_t paramIndex) {
     param = null;
+    paramIndex = 0;
 
     if (ctx.hasArmedParameters && ctx.armedParameters.length > 0) {
         if (ctx.armedParameters.length != 1)
@@ -87,7 +119,7 @@ private CommandResult ngResolveSetDeformBindingParameter(Context ctx, out Parame
     if (param is null)
         return CommandResult(false, "No parameters resolved");
 
-    return ngPrepareSetDeformBindingContext(ctx, param);
+    return ngPrepareSetDeformBindingContext(ctx, param, keyPoint, paramIndex);
 }
 
 private ParameterBinding ngFindBindingByTarget(Parameter param, Resource target, string bindingName) {
@@ -99,38 +131,17 @@ private ParameterBinding ngFindBindingByTarget(Parameter param, Resource target,
     foreach (binding; param.bindings) {
         if (binding is null) continue;
         if (binding.getName() != bindingName) continue;
-        if (binding.getNodeUUID() == target.uuid) {
-            if (binding.getTarget().target !is target)
-                binding.setTarget(target, bindingName);
+        auto bindingTarget = binding.getTarget().target;
+        if (bindingTarget is null && binding.getNodeUUID() == target.uuid) {
+            // Repair deserialized bindings only when the object reference is missing.
+            // Do not retarget a live binding: duplicated UUIDs or cloned nodes would
+            // otherwise make different targets share the same binding instance.
+            binding.setTarget(target, bindingName);
             return binding;
         }
     }
 
     return null;
-}
-
-private bool ngGetDeformBaseVertices(Node node, out Vec2Array vertices) {
-    if (auto drawable = cast(Drawable)node) {
-        vertices = drawable.getMesh().vertices.dup;
-        return vertices.length > 0;
-    }
-    if (auto deformable = cast(Deformable)node) {
-        vertices = deformable.vertices.dup;
-        return vertices.length > 0;
-    }
-    return false;
-}
-
-private vec2 ngVerticesCenter(ref Vec2Array vertices) {
-    vec2 minV = vertices[0];
-    vec2 maxV = vertices[0];
-    foreach (v; vertices) {
-        if (v.x < minV.x) minV.x = v.x;
-        if (v.y < minV.y) minV.y = v.y;
-        if (v.x > maxV.x) maxV.x = v.x;
-        if (v.y > maxV.y) maxV.y = v.y;
-    }
-    return (minV + maxV) / 2;
 }
 
 private bool ngResolveVec2Arg(float[] values, vec2 fallback, out vec2 result, string name, out string error) {
@@ -151,6 +162,38 @@ private bool ngAllOffsetsZero(ref Vec2Array offsets) {
         if (offset.x != 0 || offset.y != 0)
             return false;
     }
+    return true;
+}
+
+private ValueParameterBinding ngGetOrCreateValueBinding(Parameter param, Node node, string bindingName, GroupAction group, ref ParameterBinding[] allCreated) {
+    if (param is null || node is null || !node.hasParam(bindingName)) return null;
+
+    if (auto existing = cast(ValueParameterBinding)ngFindBindingByTarget(param, node, bindingName))
+        return existing;
+
+    auto created = cast(ValueParameterBinding)param.createBinding(node, bindingName);
+    if (created is null) return null;
+
+    param.addBinding(created);
+    group.addAction(new ParameterBindingAddAction(param, created));
+    allCreated ~= created;
+    return created;
+}
+
+private bool ngSetTRSValueBinding(Parameter param, vec2u kp, Node[] nodes, string bindingName, float value, GroupAction group, ref ParameterBinding[] allCreated) {
+    ValueParameterBinding[] bindings;
+    foreach (node; nodes) {
+        if (auto binding = ngGetOrCreateValueBinding(param, node, bindingName, group, allCreated))
+            bindings ~= binding;
+    }
+
+    if (bindings.length == 0) return false;
+
+    auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding[])(bindingName, bindings, cast(int)kp.x, cast(int)kp.y);
+    foreach (binding; bindings)
+        binding.setValue(kp, value);
+    action.updateNewState();
+    group.addAction(action);
     return true;
 }
 
@@ -189,7 +232,9 @@ class SetDeformBindingCommand : ExCommand!(
         if (values.length < 2 || values.length % 2 != 0) return CommandResult(false, "Deform values must be flattened [dx,dy]* offsets");
 
         Parameter param;
-        auto contextResult = ngResolveSetDeformBindingParameter(ctx, param);
+        vec2u kp;
+        size_t paramIndex;
+        auto contextResult = ngResolveSetDeformBindingParameter(ctx, param, kp, paramIndex);
         if (!contextResult.succeeded) return contextResult;
 
         // Resolve targets
@@ -199,9 +244,6 @@ class SetDeformBindingCommand : ExCommand!(
         bool anyChanged = false;
         ParameterBinding[] allCreated;
         {
-            // Determine keypoint
-            vec2u kp = ctx.hasKeyPoint ? ctx.keyPoint : param.findClosestKeypoint();
-
             // Prepare sets and track new bindings to add undo/redo entries
             DeformationParameterBinding[] deformBindings;
             ParameterBinding[]            newlyAdded;
@@ -269,13 +311,12 @@ class SetDeformBindingCommand : ExCommand!(
             }
             if (!group.empty()) {
                 incActionPush(group);
-                paramPointChanged(param);
                 anyChanged = true;
             }
         }
 
         // Refresh deformation viewport/editor state
-        incViewportNodeDeformNotifyParamValueChanged();
+        ngFinalizeSetDeformBindingContext(param, paramIndex);
         if (allCreated.length > 0) {
             return new CreateResult!ParameterBinding(anyChanged, allCreated, anyChanged ? "" : "No bindings updated");
         }
@@ -284,29 +325,28 @@ class SetDeformBindingCommand : ExCommand!(
 }
 
 /**
-    Set deformation binding by applying a local transform to target vertices.
+    Set node transform value bindings at current keypoint.
 
-    - translation: [x,y] local offset in model units; defaults to [0,0].
-    - scale: [x,y] scale around pivot; defaults to [1,1].
-    - rotationDegrees: counter-clockwise rotation around pivot.
-    - pivot: [x,y] local pivot; defaults to each target's vertex bounds center.
+    - translation: [x,y] writes transform.t.x and transform.t.y.
+    - scale: [x,y] writes transform.s.x and transform.s.y.
+    - rotationDegrees: writes transform.r.z in radians after degree conversion.
  */
 @ShortcutHidden
 @EffectBindingEdit
 class SetTRSBindingCommand : ExCommand!(
-    TW!(float[], "translation",     "Local translation [x,y] added to every vertex; default [0,0]."),
-    TW!(float[], "scale",           "Local scale [x,y] around pivot; default [1,1]."),
-    TW!(float,   "rotationDegrees", "Counter-clockwise rotation in degrees around pivot; default 0."),
-    TW!(float[], "pivot",           "Optional local pivot [x,y]. If omitted, each target uses its vertex bounds center.")
+    TW!(float[], "translation",     "Node transform translation binding [x,y]. Omit to leave unchanged."),
+    TW!(float[], "scale",           "Node transform scale binding [x,y]. Omit to leave unchanged."),
+    TW!(float,   "rotationDegrees", "Node transform Z rotation binding in degrees. Set applyRotation=true to write zero."),
+    TW!(bool,    "applyRotation",   "Whether to write rotationDegrees even when it is zero.")
 ) {
-    this(float[] translation = null, float[] scale = null, float rotationDegrees = 0, float[] pivot = null) {
+    this(float[] translation = null, float[] scale = null, float rotationDegrees = 0, bool applyRotation = false) {
         super(
             _("Set TRS Binding"),
-            _("Set deform binding offsets at current keypoint from translation, scale, and rotation."),
+            _("Set node transform translation, rotation, and scale bindings at current keypoint."),
             translation,
             scale,
             rotationDegrees,
-            pivot
+            applyRotation
         );
     }
 
@@ -314,10 +354,7 @@ class SetTRSBindingCommand : ExCommand!(
         bool hasParam = (ctx.hasArmedParameters && ctx.armedParameters.length > 0) || (ctx.hasParameters && ctx.parameters.length > 0) || (incArmedParameter() !is null);
         if (!hasParam) return false;
         Node[] nodes = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
-        foreach (node; nodes) {
-            Vec2Array vertices;
-            if (ngGetDeformBaseVertices(node, vertices)) return true;
-        }
+        foreach (node; nodes) if (node !is null) return true;
         return false;
     }
 
@@ -326,90 +363,50 @@ class SetTRSBindingCommand : ExCommand!(
 
         vec2 translationValue;
         vec2 scaleValue;
-        vec2 pivotValue;
         string error;
-        if (!ngResolveVec2Arg(translation, vec2(0, 0), translationValue, "translation", error)) return CommandResult(false, error);
-        if (!ngResolveVec2Arg(scale, vec2(1, 1), scaleValue, "scale", error)) return CommandResult(false, error);
-        bool hasExplicitPivot = !(pivot is null) && pivot.length > 0;
-        if (!ngResolveVec2Arg(pivot, vec2(0, 0), pivotValue, "pivot", error)) return CommandResult(false, error);
+        bool hasTranslation = !(translation is null) && translation.length > 0;
+        bool hasScale = !(scale is null) && scale.length > 0;
+        bool hasRotation = applyRotation || rotationDegrees != 0;
+
+        if (!hasTranslation && !hasScale && !hasRotation)
+            return CommandResult(false, "No TRS values provided");
+        if (hasTranslation && !ngResolveVec2Arg(translation, vec2(0, 0), translationValue, "translation", error)) return CommandResult(false, error);
+        if (hasScale && !ngResolveVec2Arg(scale, vec2(1, 1), scaleValue, "scale", error)) return CommandResult(false, error);
 
         Parameter param;
-        auto contextResult = ngResolveSetDeformBindingParameter(ctx, param);
+        vec2u kp;
+        size_t paramIndex;
+        auto contextResult = ngResolveSetDeformBindingParameter(ctx, param, kp, paramIndex);
         if (!contextResult.succeeded) return contextResult;
 
         Node[] nodes = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
         if (nodes.length == 0) return CommandResult(false, "No target nodes");
 
-        float radians = rotationDegrees * PI / 180.0f;
-        float c = cos(radians);
-        float s = sin(radians);
-
         bool anyChanged = false;
         ParameterBinding[] allCreated;
+        auto group = new GroupAction();
 
-        {
-            vec2u kp = ctx.hasKeyPoint ? ctx.keyPoint : param.findClosestKeypoint();
-            DeformationParameterBinding[] deformBindings;
-            Vec2Array[] offsetsByBinding;
-            ParameterBinding[] newlyAdded;
-
-            foreach (node; nodes) {
-                Vec2Array baseVertices;
-                if (!ngGetDeformBaseVertices(node, baseVertices)) continue;
-
-                auto binding = ngFindBindingByTarget(param, node, "deform");
-                bool wasCreated = false;
-                vec2 center = hasExplicitPivot ? pivotValue : ngVerticesCenter(baseVertices);
-                Vec2Array offsets;
-                offsets.length = baseVertices.length;
-                foreach (i, v; baseVertices) {
-                    vec2 p = v - center;
-                    p = vec2(p.x * scaleValue.x, p.y * scaleValue.y);
-                    vec2 rotated = vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-                    vec2 transformed = center + rotated + translationValue;
-                    offsets[i] = transformed - v;
-                }
-
-                if (binding is null) {
-                    if (ngAllOffsetsZero(offsets)) continue;
-                    binding = param.getOrAddBinding(node, "deform");
-                    wasCreated = binding !is null;
-                }
-
-                auto deformBinding = cast(DeformationParameterBinding)binding;
-                if (deformBinding is null) continue;
-                if (wasCreated) newlyAdded ~= deformBinding;
-
-                deformBindings ~= deformBinding;
-                offsetsByBinding ~= offsets;
-            }
-
-            if (deformBindings.length == 0)
-                return CommandResult(false, "No bindings updated");
-
-            auto group = new GroupAction();
-            foreach (binding; newlyAdded) {
-                group.addAction(new ParameterBindingAddAction(param, binding));
-                allCreated ~= binding;
-            }
-
-            auto action = new ParameterChangeBindingsValueAction(_("Set TRS Binding"), param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
-            foreach (i, binding; deformBindings) {
-                binding.update(kp, offsetsByBinding[i]);
-                if (auto target = cast(Deformable)binding.getTarget().target)
-                    target.updateDeform();
-            }
-            action.updateNewState();
-            group.addAction(action);
-
-            if (!group.empty()) {
-                incActionPush(group);
-                paramPointChanged(param);
-                anyChanged = true;
-            }
+        if (hasTranslation) {
+            anyChanged = ngSetTRSValueBinding(param, kp, nodes, "transform.t.x", translationValue.x, group, allCreated) || anyChanged;
+            anyChanged = ngSetTRSValueBinding(param, kp, nodes, "transform.t.y", translationValue.y, group, allCreated) || anyChanged;
+        }
+        if (hasScale) {
+            anyChanged = ngSetTRSValueBinding(param, kp, nodes, "transform.s.x", scaleValue.x, group, allCreated) || anyChanged;
+            anyChanged = ngSetTRSValueBinding(param, kp, nodes, "transform.s.y", scaleValue.y, group, allCreated) || anyChanged;
+        }
+        if (hasRotation) {
+            auto radians = rotationDegrees * PI / 180.0f;
+            anyChanged = ngSetTRSValueBinding(param, kp, nodes, "transform.r.z", radians, group, allCreated) || anyChanged;
         }
 
-        incViewportNodeDeformNotifyParamValueChanged();
+        if (!anyChanged)
+            return CommandResult(false, "No bindings updated");
+
+        if (!group.empty()) {
+            incActionPush(group);
+        }
+
+        ngFinalizeSetDeformBindingContext(param, paramIndex);
         if (allCreated.length > 0) {
             return new CreateResult!ParameterBinding(anyChanged, allCreated, anyChanged ? "" : "No bindings updated");
         }

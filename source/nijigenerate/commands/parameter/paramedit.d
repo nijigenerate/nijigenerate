@@ -362,10 +362,27 @@ class SetParameterKeypointCommand : ExCommand!() {
             param = incArmedParameter();
 
         if (param is null) return CommandResult(false, "No parameter");
-        if (!ctx.hasKeyPoint || !ctx.hasExplicitKeyPoint)
+        vec2u keyPoint;
+        vec2 resolved;
+
+        if (ctx.hasParameterValue) {
+            keyPoint = param.findClosestKeypoint(ctx.parameterValue);
+            if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1))
+                return CommandResult(false, "context.parameterValue resolved keypoint is out of range");
+
+            resolved = param.getKeypointValue(keyPoint);
+            import std.math : abs;
+            enum float epsilon = 1e-5f;
+            if (abs(resolved.x - ctx.parameterValue.x) > epsilon || abs(resolved.y - ctx.parameterValue.y) > epsilon)
+                return CommandResult(false, "context.parameterValue does not match an existing key value");
+        } else if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
+            keyPoint = ctx.keyPoint;
+            if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1))
+                return CommandResult(false, "keyPoint is out of range for parameter");
+            resolved = param.getKeypointValue(keyPoint);
+        } else {
             return CommandResult(false, "context.parameterValue is required");
-        if (ctx.keyPoint.x >= param.axisPointCount(0) || ctx.keyPoint.y >= param.axisPointCount(1))
-            return CommandResult(false, "parameterValue resolved keypoint is out of range");
+        }
 
         size_t index;
         if (!findParameterIndex(param, index))
@@ -374,7 +391,7 @@ class SetParameterKeypointCommand : ExCommand!() {
         if (incEditMode() != EditMode.ModelEdit)
             incSetEditMode(EditMode.ModelEdit, false);
 
-        param.value = param.getKeypointValue(ctx.keyPoint);
+        param.value = resolved;
         paramPointChanged(param);
         incArmParameter(index, param);
         incViewportNodeDeformNotifyParamValueChanged();

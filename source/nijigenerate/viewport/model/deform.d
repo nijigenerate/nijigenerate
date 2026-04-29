@@ -77,6 +77,12 @@ public:
                 } else
                     return;
             } else {
+                foreach (node; editor.getTargets()) {
+                    if (auto e = editor.getEditorFor(node)) {
+                        e.pushDeformAction();
+                        e.forceResetAction();
+                    }
+                }
                 editor.setTargets(drawables);
                 editor.resetMesh();
             }
@@ -125,4 +131,3 @@ IncMeshEditor incViewportModelDeformGetEditor() {
         return view.editor;
     return null;
 }
-

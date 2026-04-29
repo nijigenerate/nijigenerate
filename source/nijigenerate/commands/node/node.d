@@ -12,6 +12,7 @@ import nijilive;
 import nijigenerate.widgets;
 import i18n;
 import core.exception;
+import std.conv : to;
 
 
 //==================================================================================
@@ -29,6 +30,8 @@ class AddNodeCommandT(bool exposeClassName = true) : ExCommand!(
 
     override
     CreateResult!Node run(Context ctx) {
+        if (className.length == 0)
+            return new CreateResult!Node(false, null, "Node className is required");
         Node[] created = null;
         try {
             if (ctx.hasNodes) {
@@ -53,6 +56,8 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
 
     override
     CreateResult!Node run(Context ctx) {
+        if (className.length == 0)
+            return new CreateResult!Node(false, null, "Node className is required");
         Node[] created = null;
         try {
             if (ctx.hasNodes) {
@@ -107,10 +112,12 @@ class ConvertToCommandT(bool exposeClassName = true) : ExCommand!(TW!(string, "c
     override
     CreateResult!Node run(Context ctx) {
         if (!ctx.hasNodes) return new CreateResult!Node(false, null, "No nodes");
+        if (className.length == 0)
+            return new CreateResult!Node(false, null, "Destination node className is required");
 
         auto before = ctx.nodes.dup;
         auto converted = ngConvertTo(ctx.nodes, className);
-        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.stringof) : "No nodes converted");
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.to!string) : "No nodes converted");
     }
 }
 

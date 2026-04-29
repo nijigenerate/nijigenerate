@@ -13,7 +13,7 @@ module nijigenerate.api.mcp.server;
  *   - `parameters`: array of uint UUIDs for Parameters
  *   - `armedParameters`: array of uint UUIDs for Parameters to arm
  *   - `nodes`: array of uint UUIDs for Nodes
- *   - `parameterValue`: [number] or [number, number] parameter-axis values resolved to an internal key point
+ *   - `parameterValue`: [number] or [number, number] parameter-axis values resolved by the target command
  * - Any missing key is treated as "not set" for that value (hasXXX=false in Context).
  */
 
@@ -52,7 +52,7 @@ import nijigenerate.core.settings;
 import std.meta : AliasSeq;
 
 // helpers
-import nijigenerate.api.mcp.helpers : commandResultToJson, buildContextFromPayload, applyPayloadToInstance;
+import nijigenerate.api.mcp.helpers : commandResultToJsonRuntime, buildContextFromPayload, applyPayloadToInstance;
 
 // Debug logging (compiled out in non-debug builds)
 private void mcpLog(T...)(T args) {
@@ -80,12 +80,11 @@ private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
 }
 
 private JSONValue _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
-    alias RunType = ReturnType!(typeof(inst.run));
     auto res = inst.run(ctx);
     if (!res.succeeded) {
         mcpLog("[MCP] command failed: %s", res.message);
     }
-    auto resultJson = commandResultToJson!RunType(res);
+    auto resultJson = commandResultToJsonRuntime(res);
     return _mcpUnwrapDirectToolResult(resultJson);
 }
 
@@ -292,9 +291,17 @@ private void _ngMcpStart(string host, ushort port) {
                 .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).optional()
                     .setDescription("Parameter UUIDs to use as context.parameters."))
                 .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).optional()
-                    .setDescription("Parameter UUIDs to arm before running the command. The first one is used for parameterValue resolution."))
+                    .setDescription("Parameter UUIDs to arm before running the command. Commands that edit parameter keys resolve parameterValue against their target parameter."))
                 .addProperty("parameterValue", SchemaBuilder.array(SchemaBuilder.number()).optional()
                     .setDescription("Parameter-axis key values, not keypoint indexes. Use [x] for 1D or [x,y] for 2D. Values must exactly match existing parameter key values."))
+                .addProperty("bindings", SchemaBuilder.array(
+                    SchemaBuilder.object()
+                        .addProperty("target", SchemaBuilder.integer()
+                            .setDescription("UUID of the binding target Node or Parameter."))
+                        .addProperty("name", SchemaBuilder.string_()
+                            .setDescription("Binding name on the target, such as deform or transform.t.x."))
+                ).optional()
+                    .setDescription("Binding descriptors for commands such as RemoveBinding and SetInterpolation. Requires context.parameters[0]. Bindings are resolved by parameter + target UUID + binding name; do not use Binding pseudo-UUIDs."))
                 .allowAdditional(true);
 
             // Build tool input schema (command args plus common context).
@@ -657,6 +664,8 @@ private void _ngMcpStart(string host, ushort port) {
         "   resource://nijigenerate/resources/find?selector=Node%20%3E%20Part\n" ~
         "4) Active bindings of selected node\n" ~
         "   resource://nijigenerate/resources/find?selector=Binding%3Aactive\n\n" ~
+        "MCP command binding input:\n" ~
+        "- Do not pass Binding pseudo-UUIDs to tools. For commands such as RemoveBinding, pass context.parameters[0] plus context.bindings=[{target:<Node-or-Parameter UUID>, name:<binding name>}].\n\n" ~
         "Official read endpoint:\n" ~
         "- resource://nijigenerate/resources/{uuid} (see resources/get)\n";
 
@@ -690,6 +699,8 @@ private void _ngMcpStart(string host, ushort port) {
         "- Escape quotes with \\\": Part.\\\"\"Quoted\"\\\"\n\n" ~
         "Pseudoclasses (examples):\n" ~
         "- Binding:active     → bindings on the currently armed parameter.\n\n" ~
+        "Tool input:\n" ~
+        "- Binding resources are for inspection. MCP tools identify bindings as {target:<UUID>, name:<binding name>} under context.bindings, together with context.parameters[0].\n\n" ~
         "Combinator examples:\n" ~
         "- Node > Part        → direct Part children of any Node.\n" ~
         "- Node Part          → any descendant Part under any Node.\n" ~
