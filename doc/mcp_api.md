@@ -70,6 +70,19 @@ Tool calls may include an optional `context` object. If omitted or `null`, the a
 
 `parameterValue` is resolved against the first armed parameter, or the first parameter if no armed parameter is supplied. Values must exactly match existing key values. MCP clients must not pass key point indexes; `keyPoint` is an internal command-context detail, not part of the MCP input surface. The deprecated `paramValue` spelling is accepted only as a compatibility alias.
 
+## Deform Binding Tools
+
+- `ModelCommand_SetDeformBinding`
+  - Sets raw `deform` binding offsets for the current parameter key position.
+  - `values` is a flattened `[dx0, dy0, dx1, dy1, ...]` array and must match the target vertex count.
+- `ModelCommand_SetTRSBinding`
+  - Sets `deform` binding offsets by applying local translation, rotation, and scale to each target's vertices.
+  - `translation` is `[x, y]` and defaults to `[0, 0]`.
+  - `scale` is `[x, y]` and defaults to `[1, 1]`.
+  - `rotationDegrees` rotates counter-clockwise and defaults to `0`.
+  - `pivot` is optional `[x, y]`; if omitted, each target uses the center of its local vertex bounds.
+  - Use `context.parameterValue` to choose the parameter key position.
+
 ## Naming Rules
 
 - Resource descriptions should start with `Read:` or `Explore:` where practical.
