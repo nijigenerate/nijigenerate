@@ -15,6 +15,18 @@ struct AlphaInput {
     vec2 providerWorldCenter; // valid when fromProvider
 }
 
+private AlphaInput[uint]* gAutoMeshAlphaInputCache;
+
+void setAutoMeshAlphaInputCache(AlphaInput[uint]* cache) {
+    gAutoMeshAlphaInputCache = cache;
+}
+
+void clearAutoMeshAlphaInputCache(AlphaInput[uint]* cache) {
+    if (gAutoMeshAlphaInputCache is cache) {
+        gAutoMeshAlphaInputCache = null;
+    }
+}
+
 AlphaInput alphaInputFromProvider(IAlphaProvider provider) {
     AlphaInput ai;
     ai.w = provider.width();
@@ -38,6 +50,12 @@ AlphaInput alphaInputFromProviderWithImage(IAlphaProvider provider) {
 
 AlphaInput getAlphaInput(Deformable target) {
     AlphaInput ai;
+    if (target !is null && gAutoMeshAlphaInputCache !is null) {
+        if (auto cached = target.uuid in *gAutoMeshAlphaInputCache) {
+            return *cached;
+        }
+        return ai;
+    }
     if (auto part = cast(Part)target) {
         auto tex = part.textures[0];
         if (tex is null) return ai;

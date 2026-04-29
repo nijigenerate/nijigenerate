@@ -353,15 +353,26 @@ class ACPClient {
         sendRawLine(raw);
     }
 
-    /// respond to session/request_permission
-    void sendPermissionResponse(string id, bool granted) {
+    /// Respond to session/request_permission.
+    void sendPermissionResponse(string id, string optionId, bool cancelled = false) {
         if (id.length == 0 || id == "null") {
             throw new Exception("permission response missing request id");
         }
-        // Keep backward compatibility (granted: bool) and also include outcome for newer implementations.
-        auto outcome = granted ? "granted" : "denied";
-        auto raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"granted":` ~ (granted ? "true" : "false") ~ `,"outcome":"` ~ outcome ~ `"}}`;
+        string raw;
+        if (cancelled) {
+            raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"outcome":{"outcome":"cancelled"}}}`;
+        } else {
+            if (optionId.length == 0) {
+                throw new Exception("permission response missing option id");
+            }
+            auto optionEsc = escapeJsonString(optionId);
+            raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"outcome":{"outcome":"selected","optionId":"` ~ optionEsc ~ `"}}}`;
+        }
         sendRawLine(raw);
+    }
+
+    void sendPermissionResponse(string id, bool granted) {
+        sendPermissionResponse(id, granted ? "allow-once" : "", !granted);
     }
 
     /// reader thread drains stdout/stderr and buffers results

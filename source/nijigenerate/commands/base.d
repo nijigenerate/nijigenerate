@@ -20,7 +20,7 @@ string toCodeString(T)(T arg) {
     } else static if (is(T == typeof(null))) {
         return "null";
     } else static if (is(T == enum)) {
-        return T.stringof ~ "." ~ text(arg);
+        return T.stringof ~ "." ~ __traits(identifier, arg);
     } else {
         return text(arg);
     }
@@ -215,7 +215,13 @@ string enrichArgDesc(T)(string baseDesc) {
         foreach (mem; EnumMembers!T) {
             if (!first) s ~= "|";
             first = false;
-            s ~= mem.stringof;
+            s ~= __traits(identifier, mem);
+            static if (__traits(compiles, cast(string)mem)) {
+                enum string memValue = cast(string)mem;
+                static if (memValue != __traits(identifier, mem)) {
+                    s ~= "=" ~ memValue;
+                }
+            }
         }
         auto choices = "(" ~ s ~ ")";
         return baseDesc.length ? (baseDesc ~ " " ~ choices) : choices;

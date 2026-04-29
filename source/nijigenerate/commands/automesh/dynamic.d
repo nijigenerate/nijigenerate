@@ -6,7 +6,7 @@ import nijigenerate.viewport.common.mesh;          // IncMesh, applyMeshToTarget
 import nijigenerate.viewport.vertex.automesh;      // AutoMeshProcessor, AutoMeshProcessorTypes
 import nijigenerate.viewport.vertex.automesh.meta : AMProcInfo; // compile-time ids
 import nijigenerate.project : incSelectedNodes;    // fallback when ctx has no nodes
-import nijigenerate.viewport.vertex.automesh.alpha_provider : enumerateDrawablesForAutoMesh; // unified target discovery
+import nijigenerate.viewport.vertex.automesh.common : AlphaInput, getAlphaInput, setAutoMeshAlphaInputCache, clearAutoMeshAlphaInputCache;
 import nijilive;                                   // Drawable, Node
 import i18n;
 import std.algorithm : map, filter;
@@ -89,37 +89,15 @@ template ApplyAutoMeshPT(alias PT)
             }
             if (targets.length == 0) return CommandResult(false, "No deformable targets");
 
-            // NOTE: AutoMesh alpha acquisition may call Texture.getTextureData().
-            // Ensure any referenced Part textures are locked on the main thread before running the worker.
-            Texture[] toLock;
-            bool[Texture] locked;
-
             auto mtx = new Mutex(); bool canceled = false; size_t total = targets.length; size_t done = 0; string currentName;
             string procName = chosen.displayName(); bool workerFinished = false; ulong popupId = 0;
             auto scheduleTask = delegate(){
                 import bindbc.imgui; import nijigenerate.widgets : incButtonColored;
 
-                // Lock all Part textures that can be referenced by the selected targets and their descendants.
-                Node[] lockTargets;
+                // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.
+                AlphaInput[uint] alphaInputs;
                 foreach (t; targets) {
-                    if (auto n = cast(Node)t) lockTargets ~= n;
-                }
-                auto drawables = enumerateDrawablesForAutoMesh(lockTargets);
-                // The selected target itself may be skipped by traversal rules such as coverOthers().
-                // AutoMesh processors can still read the direct target's texture, so lock it explicitly.
-                foreach (t; targets) {
-                    if (auto d = cast(Drawable)t) drawables ~= d;
-                }
-                foreach (d; drawables) {
-                    auto p = cast(Part)d;
-                    if (p is null) continue;
-                    foreach (tex; p.textures) {
-                        if (tex is null) continue;
-                        if (tex in locked) continue;
-                        tex.lock();
-                        locked[tex] = true;
-                        toLock ~= tex;
-                    }
+                    alphaInputs[t.uuid] = getAlphaInput(t);
                 }
 
                 popupId = NotificationPopup.instance().popup((ImGuiIO* io){
@@ -133,6 +111,7 @@ template ApplyAutoMeshPT(alias PT)
 
                 Thread th = new Thread({
                     IncMesh[uint] results;
+                    string workerError;
                     bool cb(Deformable d, IncMesh mesh) {
                         synchronized(mtx){ currentName = d.name; }
                         if (mesh !is null) { synchronized(mtx){ ++done; } results[d.uuid] = mesh; }
@@ -142,18 +121,33 @@ template ApplyAutoMeshPT(alias PT)
                         Deformable[] bgTargets = targets; IncMesh[] bgMeshes = meshList.dup;
                         chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
                     }
-                    auto fib = new Fiber(&work); while (fib.state != Fiber.State.TERM) fib.call();
+                    try {
+                        setAutoMeshAlphaInputCache(&alphaInputs);
+                        scope(exit) clearAutoMeshAlphaInputCache(&alphaInputs);
+                        auto fib = new Fiber(&work);
+                        while (fib.state != Fiber.State.TERM) fib.call();
+                    } catch (Throwable e) {
+                        workerError = e.msg;
+                    }
                     ngMcpEnqueueAction({
-                        foreach (t; targets) if (auto pm = t.uuid in results) {
-                            auto mesh = *pm;
-                            if (mesh.vertices.length < 3) continue;
-                            if (auto dr = cast(Drawable)t)
-                                applyMeshToTarget(dr, mesh.vertices, &mesh);
-                            else
-                                applyMeshToTarget(t, mesh.vertices, &mesh);
+                        scope(exit) {
+                            workerFinished = true;
+                            NotificationPopup.instance().close(popupId);
                         }
-                        foreach (tex; toLock) if (tex) tex.unlock();
-                        workerFinished = true; NotificationPopup.instance().close(popupId);
+                        if (workerError.length) {
+                            writefln("[AutoMesh] worker failed: %s", workerError);
+                            return;
+                        }
+                        foreach (t; targets) {
+                            if (auto pm = t.uuid in results) {
+                                auto mesh = *pm;
+                                if (mesh.vertices.length < 3) continue;
+                                if (auto dr = cast(Drawable)t)
+                                    applyMeshToTarget(dr, mesh.vertices, &mesh);
+                                else
+                                    applyMeshToTarget(t, mesh.vertices, &mesh);
+                            }
+                        }
                     });
                 });
                 th.start();

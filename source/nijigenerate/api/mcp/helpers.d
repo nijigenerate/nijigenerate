@@ -169,17 +169,21 @@ void applyPayloadToInstance(C)(C inst, JSONValue payloadCopy) {
                 static if (is(TParam == bool)) {
                     if (val.type == JSONType.true_ || val.type == JSONType.false_) mixin("inst."~fname~" = (val.type==JSONType.true_);");
                 } else static if (is(TParam == enum)) {
-                    static if (__traits(compiles, cast(string) TParam.init)) {
-                        if (val.type == JSONType.string) {
-                            static foreach (mem; EnumMembers!TParam) {{
-                                static if (__traits(compiles, cast(string)mem)) {
-                                    enum string memStr = cast(string)mem;
-                                    if (val.str == memStr) { mixin("inst."~fname~" = mem;"); }
-                                }
-                            }}
+                    if (val.type == JSONType.string) {
+                        static foreach (mem; EnumMembers!TParam) {{
+                            enum string memName = __traits(identifier, mem);
+                            static if (__traits(compiles, cast(string)mem)) {
+                                enum string memValue = cast(string)mem;
+                                if (val.str == memName || val.str == memValue) mixin("inst."~fname~" = mem;");
+                            } else {
+                                if (val.str == memName) mixin("inst."~fname~" = mem;");
+                            }
+                        }}
+                    } else if (val.type == JSONType.integer) {
+                        // Backward compatibility for older clients that used numeric enum ordinals.
+                        static if (__traits(compiles, cast(TParam) cast(int) 0)) {
+                            mixin("inst."~fname~" = cast(TParam) cast(int) val.integer;");
                         }
-                    } else {
-                        if (val.type == JSONType.integer) mixin("inst."~fname~" = cast(TParam) cast(int) val.integer;");
                     }
                 } else static if (is(TParam == int) || is(TParam == uint) || is(TParam == long) || is(TParam == ulong)) {
                     if (val.type == JSONType.integer) mixin("inst."~fname~" = cast("~TParam.stringof~")val.integer;");

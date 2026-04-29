@@ -292,7 +292,20 @@ private void _ngMcpStart(string host, ushort port) {
                                 static if (is(TParam == bool)) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.boolean().setDescription(desc));
                                     paramLog ~= fname ~ ":bool";
-                                } else static if (isIntegral!TParam || is(TParam == enum)) {
+                                } else static if (is(TParam == enum)) {
+                                    string[] enumNames;
+                                    static foreach (mem; EnumMembers!TParam) {{
+                                        enumNames ~= __traits(identifier, mem);
+                                        static if (__traits(compiles, cast(string)mem)) {
+                                            enum string memValue = cast(string)mem;
+                                            static if (memValue != __traits(identifier, mem)) {
+                                                enumNames ~= memValue;
+                                            }
+                                        }
+                                    }}
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.enum_(enumNames).setDescription(desc));
+                                    paramLog ~= fname ~ ":enum";
+                                } else static if (isIntegral!TParam) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.integer().setDescription(desc));
                                     paramLog ~= fname ~ ":int";
                                 } else static if (isFloatingPoint!TParam) {

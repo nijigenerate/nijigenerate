@@ -269,22 +269,29 @@ private string _genTwListForLevel(alias PT, AutoMeshLevel levelV)()
     static foreach (mname; __traits(allMembers, PT)) {{
         static if (__traits(compiles, __traits(getMember, PT, mname))) {{
             AMParam p; bool hasParam = false; AMEnum e; bool hasEnum = false;
-            enum bool _isFunctionMember = __traits(compiles, __traits(getOverloads, PT, mname));
-            static if (!_isFunctionMember) {
+            static if (is(typeof(__traits(getMember, PT, mname)) == float)
+                    || is(typeof(__traits(getMember, PT, mname)) == float[])
+                    || is(typeof(__traits(getMember, PT, mname)) == string)) {
                 alias Member = __traits(getMember, PT, mname);
                 foreach (attr; __traits(getAttributes, Member)) {
                     static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
                     static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
                 }
-            }
-            if (hasParam && p.level == levelV) {
-                static if (is(typeof(__traits(getMember, PT, mname)) == float)) {
-                    list ~= `TW!(float, "` ~ p.id ~ `", "` ~ p.label ~ `"),`;
-                } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
-                    list ~= `TW!(float[], "` ~ p.id ~ `", "` ~ p.label ~ ` (array)"),`;
-                } else {
-                    if (hasEnum) static if (is(typeof(__traits(getMember, PT, mname)) == string)) {
-                        list ~= `TW!(int, "` ~ p.id ~ `", "` ~ p.label ~ ` (index)"),`;
+
+                if (hasParam && p.level == levelV) {
+                    static if (is(typeof(__traits(getMember, PT, mname)) == float)) {
+                        list ~= `TW!(float, "` ~ p.id ~ `", "` ~ p.label ~ `"),`;
+                    } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
+                        list ~= `TW!(float[], "` ~ p.id ~ `", "` ~ p.label ~ ` (array)"),`;
+                    } else static if (is(typeof(__traits(getMember, PT, mname)) == string)) {
+                        if (hasEnum) {
+                        string choices;
+                        foreach (i, v; e.values) {
+                            if (i > 0) choices ~= "|";
+                            choices ~= v;
+                        }
+                        list ~= `TW!(string, "` ~ p.id ~ `", "` ~ p.label ~ ` (` ~ choices ~ `)"),`;
+                        }
                     }
                 }
             }
@@ -294,47 +301,102 @@ private string _genTwListForLevel(alias PT, AutoMeshLevel levelV)()
     return list.length ? list : "";
 }
 
+private string _genParamSummaryForLevel(alias PT, AutoMeshLevel levelV)()
+{
+    string summary;
+    static foreach (mname; __traits(allMembers, PT)) {{
+        static if (__traits(compiles, __traits(getMember, PT, mname))) {{
+            AMParam p; bool hasParam = false; AMEnum e; bool hasEnum = false;
+            static if (is(typeof(__traits(getMember, PT, mname)) == float)
+                    || is(typeof(__traits(getMember, PT, mname)) == float[])
+                    || is(typeof(__traits(getMember, PT, mname)) == string)) {
+                alias Member = __traits(getMember, PT, mname);
+                foreach (attr; __traits(getAttributes, Member)) {
+                    static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
+                    static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
+                }
+
+                if (hasParam && p.level == levelV) {
+                    if (summary.length) summary ~= "; ";
+                    summary ~= p.id ~ "=" ~ p.label;
+                    static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
+                        summary ~= " array";
+                    } else static if (is(typeof(__traits(getMember, PT, mname)) == string)) {
+                        if (hasEnum) {
+                            string choices;
+                            foreach (i, v; e.values) {
+                                if (i > 0) choices ~= "|";
+                                choices ~= v;
+                            }
+                            if (choices.length) summary ~= " (" ~ choices ~ ")";
+                        }
+                    }
+                    if (p.desc.length) summary ~= " - " ~ p.desc;
+                }
+            }
+        }}
+    }}
+    return summary.length ? summary : "No configurable parameters for this level.";
+}
+
+private string _levelName(AutoMeshLevel levelV) {
+    final switch (levelV) {
+        case AutoMeshLevel.Preset: return "Preset";
+        case AutoMeshLevel.Simple: return "Simple";
+        case AutoMeshLevel.Advanced: return "Advanced";
+    }
+}
+
+private string _genSetCommandDescription(alias PT, AutoMeshLevel levelV)()
+{
+    return "Set " ~ _levelName(levelV) ~ " AutoMesh configuration for processor '" ~
+        AMProcInfo!(PT).name ~ "' (id: " ~ AMProcInfo!(PT).id ~ "). Parameters: " ~
+        _genParamSummaryForLevel!(PT, levelV)();
+}
+
 private string _genSettersForLevel(alias PT, AutoMeshLevel levelV)()
 {
     string code;
     static foreach (mname; __traits(allMembers, PT)) {{
         static if (__traits(compiles, __traits(getMember, PT, mname))) {{
             AMParam p; bool hasParam = false; AMEnum e; bool hasEnum = false;
-            enum bool _isFunctionMember = __traits(compiles, __traits(getOverloads, PT, mname));
-            static if (!_isFunctionMember) {
+            static if (is(typeof(__traits(getMember, PT, mname)) == float)
+                    || is(typeof(__traits(getMember, PT, mname)) == float[])
+                    || is(typeof(__traits(getMember, PT, mname)) == string)) {
                 alias Member = __traits(getMember, PT, mname);
                 foreach (attr; __traits(getAttributes, Member)) {
                     static if (is(typeof(attr) == AMParam)) { p = attr; hasParam = true; }
                     static if (is(typeof(attr) == AMEnum)) { e = attr; hasEnum = true; }
                 }
-            }
-            if (hasParam && p.level == levelV) {
-                static if (is(typeof(__traits(getMember, PT, mname)) == float)) {
-                    import std.conv : to;
-                    string minClamp, maxClamp;
-                    if (p.min == p.min) { auto minStr = to!string(p.min); minClamp = ` if (v < ` ~ minStr ~ `) v = ` ~ minStr ~ `;`; }
-                    if (p.max == p.max) { auto maxStr = to!string(p.max); maxClamp = ` if (v > ` ~ maxStr ~ `) v = ` ~ maxStr ~ `;`; }
-                    code ~= `{
-                        float v = ` ~ p.id ~ `;` ~ minClamp ~ maxClamp ~ `
-                        (cast(PT)inst).` ~ mname ~ ` = v;
-                        static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
-                    }
-                    `;
-                } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
-                    code ~= `{
-                        (cast(PT)inst).` ~ mname ~ ` = ` ~ p.id ~ `;
-                        static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
-                    }
-                    `;
-                } else {
-                    if (hasEnum) static if (is(typeof(__traits(getMember, PT, mname)) == string)) {
-                        string cases;
-                        foreach (i, v; e.values) cases ~= `case ` ~ i.stringof ~ `: val = "` ~ v ~ `"; break;`;
+
+                if (hasParam && p.level == levelV) {
+                    static if (is(typeof(__traits(getMember, PT, mname)) == float)) {
+                        import std.conv : to;
+                        string minClamp, maxClamp;
+                        if (p.min == p.min) { auto minStr = to!string(p.min); minClamp = ` if (v < ` ~ minStr ~ `) v = ` ~ minStr ~ `;`; }
+                        if (p.max == p.max) { auto maxStr = to!string(p.max); maxClamp = ` if (v > ` ~ maxStr ~ `) v = ` ~ maxStr ~ `;`; }
                         code ~= `{
-                            int idx = ` ~ p.id ~ `; string val; switch(idx){` ~ cases ~ `default: break;} (cast(PT)inst).` ~ mname ~ ` = val;
+                            float v = ` ~ p.id ~ `;` ~ minClamp ~ maxClamp ~ `
+                            (cast(PT)inst).` ~ mname ~ ` = v;
                             static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
                         }
                         `;
+                    } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
+                        code ~= `{
+                            (cast(PT)inst).` ~ mname ~ ` = ` ~ p.id ~ `;
+                            static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
+                        }
+                        `;
+                    } else static if (is(typeof(__traits(getMember, PT, mname)) == string)) {
+                        if (hasEnum) {
+                            string cases;
+                            foreach (v; e.values) cases ~= `case "` ~ v ~ `": val = "` ~ v ~ `"; break;`;
+                            code ~= `{
+                                string choice = ` ~ p.id ~ `; string val; switch(choice){` ~ cases ~ `default: break;} if (val.length) (cast(PT)inst).` ~ mname ~ ` = val;
+                                static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
+                            }
+                            `;
+                        }
                     }
                 }
             }
@@ -348,8 +410,9 @@ template AutoMeshSetSimpleConfigCommand(alias PT)
 {
     enum string _tw = _genTwListForLevel!(PT, AutoMeshLevel.Simple)();
     enum string _cls = "AutoMeshSetSimple_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
+    enum string _desc = _genSetCommandDescription!(PT, AutoMeshLevel.Simple)();
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
-        this() { super("Set Simple (" ~ AMProcInfo!(PT).name ~ ")", "Set simple config"); }
+        this() { super("Set Simple (" ~ AMProcInfo!(PT).name ~ ")", "` ~ _desc ~ `"); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Simple)() ~ ` return CommandResult(true); }
     }`);
@@ -360,8 +423,9 @@ template AutoMeshSetAdvancedConfigCommand(alias PT)
 {
     enum string _tw = _genTwListForLevel!(PT, AutoMeshLevel.Advanced)();
     enum string _cls = "AutoMeshSetAdvanced_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
+    enum string _desc = _genSetCommandDescription!(PT, AutoMeshLevel.Advanced)();
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
-        this() { super("Set Advanced (" ~ AMProcInfo!(PT).name ~ ")", "Set advanced config"); }
+        this() { super("Set Advanced (" ~ AMProcInfo!(PT).name ~ ")", "` ~ _desc ~ `"); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Advanced)() ~ ` return CommandResult(true); }
     }`);

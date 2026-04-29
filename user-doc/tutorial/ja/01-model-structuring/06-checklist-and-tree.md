@@ -8,9 +8,17 @@
 - 腕や（必要なら）翼 / 尻尾 / 背後リボン等は、`Body` や土台 Part 基準でぶら下がっているか
 - 顔は首の子、首は胴の子になっているか
   **いずれも親が Part になっているか** を確認する
+- 右目・左目・口は、それぞれ `DynamicComposite` でまとまっているか
+  すでに `*Eye` や `*Mouth` のようなまとめ用ノードがある場合も、`Node` のままではなく `DynamicComposite` に変換されているかを確認する
+- `DynamicComposite` に変換した目や口で、表示が欠けていないか
+  欠ける場合は、メッシュ範囲が子 Part 全体を覆うように調整する
 - 手足や後ろ髪が「付け根 → 先端」の順で並んでいるか
 - 影パーツが「影を落とす本体」の子になっているか
 - GridDeformer が必要な場所にだけ入っていて、子に正しく Part がぶら下がっているか
+- `Part` には `Optimum`、`GridDeformer` には Grid 用 AutoMesh がそれぞれ適用されているか
+
+顔・胴体・髪などをまとめて動かしたい場合は、Part のメッシュだけでなく、外側の `GridDeformer` も確認しておきます。  
+あとから大きく変形させる予定のある場所ほど、ここでグリッドを用意しておくと調整が楽になります。
 
 ここまでできていれば、基本的なモーションや細かい調整を入れても壊れにくいモデル構成になっています。
 
@@ -22,7 +30,8 @@
   - `Body::G` (GridDeformer) → `Body` (Part)
     - `Neck` (Part) → `Face::Root` (Node)
       - `Face::G` (GridDeformer) → `Face` (Part)
-        - `Eyes` / `Mouth` / `Ear`
+        - `Eye R` / `Eye L` / `Mouth` (DynamicComposite)
+        - `Ear`
         - `FrontHair::G` (GridDeformer) → `FrontHair` (Part)
       - `BackHair::G` (GridDeformer) → `BackHair` (Part)
       - `SideHair::G` (GridDeformer) → `SideHair` (Part)

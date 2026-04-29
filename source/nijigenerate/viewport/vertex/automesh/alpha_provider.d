@@ -304,7 +304,7 @@ package(nijigenerate) Drawable[] enumerateDrawablesForAutoMesh(Node[] targets) {
             return;
         }
         if (auto d = cast(Drawable)n) { list ~= d; foreach (child; n.children) findSubDrawable(child); return; }
-        return;
+        foreach (child; n.children) findSubDrawable(child);
     }
     foreach (t; targets) findSubDrawable(t);
     return list;

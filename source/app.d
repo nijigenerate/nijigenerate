@@ -60,6 +60,7 @@ version(Windows) {
 int main(string[] args)
 {
     try {
+        installNativeCrashDumpHandler();
         // Always stop ACP worker on any exit path (normal close, exception, early return).
         scope(exit) ngAcpStopAll();
         incSettingsLoad();
