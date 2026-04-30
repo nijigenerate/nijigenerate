@@ -1702,7 +1702,12 @@ protected:
         bool awaitingPermission = permQueue.length > 0;
         bool awaitingAgent = promptPending || awaitingPermission;
         auto userTextInputId = format("##acp_user_text_%s", userTextInputSerial);
-        bool submit = incInputText(userTextInputId, textW, userText, ImGuiInputTextFlags.EnterReturnsTrue);
+        bool submit = incInputText(
+            userTextInputId,
+            textW,
+            userText,
+            ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.NoUndoRedo
+        );
         if (submit && userText.length) {
             if (!awaitingAgent) enqueueUserText();
         }
