@@ -51,6 +51,7 @@ private:
     string usageText;
     JSONValue usagePayload;
     string userText;
+    uint userTextInputSerial;
     struct LineHeightCache {
         float wrapW = 0;
         float[] heights;
@@ -1033,7 +1034,7 @@ private:
         if (blk is null && !toolId.length) {
             blk = findToolBlock(role);
         }
-        if (isInitial || blk is null) {
+        if (blk is null) {
             LogBlock nb;
             nb.role = role;
             nb.title = title;
@@ -1052,11 +1053,18 @@ private:
             return;
         }
         // update existing block
+        if (title.length) blk.title = title;
         if (text.length) {
-            if (blk.lines.length == 0)
+            if (blk.lines.length == 0) {
                 blk.lines ~= text;
-            else
+            } else if (isInitial) {
+                // Permission requests can create the visible tool block before
+                // the later tool_call notification arrives. Replace that
+                // placeholder instead of showing the same tool twice.
+                blk.lines[$-1] = text;
+            } else {
                 blk.lines[$-1] ~= text;
+            }
         }
         if (payload.type != JSONType.null_) {
             if (blk.hasPayloadMerged) blk.payloadMerged = mergeJson(blk.payloadMerged, payload);
@@ -1066,6 +1074,27 @@ private:
         if (status.length) blk.status = status;
         blk.ver++;
         convoContentAdded = true;
+    }
+
+    void showPermissionToolCall(JSONValue params, string permissionId, string reason) {
+        if (params.type != JSONType.object || "toolCall" !in params.object)
+            return;
+        auto toolCall = params["toolCall"];
+        if (toolCall.type != JSONType.object)
+            return;
+
+        JSONValue[string] upd = toolCall.object.dup;
+        upd["sessionUpdate"] = JSONValue("tool_call");
+        if ("status" !in upd || upd["status"].type != JSONType.string)
+            upd["status"] = JSONValue("pending");
+        if ("toolCallId" !in upd || upd["toolCallId"].type != JSONType.string || upd["toolCallId"].str.length == 0)
+            upd["toolCallId"] = JSONValue(permissionId.length ? "permission:" ~ permissionId : "permission");
+        if ("title" !in upd || upd["title"].type != JSONType.string || upd["title"].str.length == 0) {
+            string title = reason.length ? reason : _("Permission requested");
+            upd["title"] = JSONValue(title);
+        }
+
+        handleSessionUpdate(JSONValue(upd));
     }
 
     void handlePlanUpdate(string text, JSONValue payload, string status) {
@@ -1116,6 +1145,7 @@ private:
         enqueueCommand("msg:" ~ userText);
         promptPending = true;
         userText = "";
+        ++userTextInputSerial;
     }
     void enqueueCommand(string cmd) {
         qMutex.lock();
@@ -1290,6 +1320,7 @@ private:
                     reason = obj["params"]["reason"].str;
                 }
                 auto params = obj["params"];
+                showPermissionToolCall(params, pid, reason);
                 permQueue ~= PermissionRequest(
                     pid,
                     reason,
@@ -1670,7 +1701,8 @@ protected:
         if (textW < 160) textW = availLog.x * 0.75f;
         bool awaitingPermission = permQueue.length > 0;
         bool awaitingAgent = promptPending || awaitingPermission;
-        bool submit = incInputText("##acp_user_text", textW, userText, ImGuiInputTextFlags.EnterReturnsTrue);
+        auto userTextInputId = format("##acp_user_text_%s", userTextInputSerial);
+        bool submit = incInputText(userTextInputId, textW, userText, ImGuiInputTextFlags.EnterReturnsTrue);
         if (submit && userText.length) {
             if (!awaitingAgent) enqueueUserText();
         }

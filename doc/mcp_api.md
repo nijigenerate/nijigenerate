@@ -32,12 +32,18 @@ For broad discovery, the recommended first query is `resource://nijigenerate/res
 - `resource://nijigenerate/resources/{uuid}`
   - Reads one resource instance by UUID.
   - Nodes include richer serialized state than parameters.
+- `resource://nijigenerate/bindings/get?parameter=<parameter-uuid>&target=<target-uuid>&name=<binding-name>`
+  - Reads one parameter binding by stable descriptor.
+  - Returns the binding target, interpolation mode, set count, and serialized `data`.
+  - `axisValues` maps `data.values[x][y]` indexes to parameter-axis values.
+  - `data.values` contains the binding value grid. For `deform` bindings this is the deformation offset data.
+  - Use Binding URIs returned by `resources/list` or `resources/find`; do not use Binding pseudo-UUIDs as input.
 
 ## Discovery Endpoints
 
 - `resources/list`
   - Lists currently readable resource instances for the active puppet.
-  - Includes concrete UUID-based URIs and the selector exploration endpoint.
+  - Includes concrete UUID-based URIs, Binding descriptor URIs, and the selector exploration endpoint.
 - `resources/templates/list`
   - Lists parameterized read definitions such as `resource://nijigenerate/resources/{uuid}`.
   - This is a capability-discovery endpoint.
@@ -72,6 +78,12 @@ Tool calls may include an optional `context` object. If omitted or `null`, the a
 `parameterValue` is the primary MCP input for parameter key selection. It is stored as a parameter-axis value and each command resolves it against the command's actual target parameter after that parameter is selected. Values must exactly match existing key values. MCP clients must not pass key point indexes; `keyPoint` is an internal command-context detail, not part of the MCP input surface. The deprecated `paramValue` spelling is accepted only as a compatibility alias.
 
 `bindings` identifies parameter bindings structurally instead of using Binding resource pseudo-UUIDs. A Binding is resolved from `context.parameters[0]`, the target resource UUID, and the binding name. This is the stable MCP input form for commands such as `BindingCommand_RemoveBinding` and `BindingCommand_SetInterpolation`.
+
+The same descriptor is used for reading binding data as a resource:
+
+```text
+resource://nijigenerate/bindings/get?parameter=123&target=456&name=deform
+```
 
 ## Deform Binding Tools
 

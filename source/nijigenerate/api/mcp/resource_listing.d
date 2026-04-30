@@ -2,6 +2,7 @@ module nijigenerate.api.mcp.resource_listing;
 
 import std.conv : to;
 import std.json : JSONType, JSONValue;
+import std.uri : encodeComponent;
 
 import nijigenerate.project : incActivePuppet;
 import nijilive;
@@ -59,6 +60,21 @@ JSONValue buildCurrentResourceList() {
                 "resource://nijigenerate/resources/" ~ to!string(param.uuid),
                 param.name
             );
+        }
+
+        foreach (param; puppet.parameters) {
+            if (param is null) continue;
+            foreach (binding; param.bindings) {
+                auto target = binding.getTarget().target;
+                uint targetUuid = target !is null ? target.uuid : binding.getNodeUUID();
+                resources ~= resourceEntry(
+                    "resource://nijigenerate/bindings/get?parameter=" ~ to!string(param.uuid) ~
+                        "&target=" ~ to!string(targetUuid) ~
+                        "&name=" ~ encodeComponent(binding.getTarget().name),
+                    param.name ~ " -> " ~ (target !is null ? target.name : targetUuid.to!string) ~
+                        "." ~ binding.getTarget().name
+                );
+            }
         }
     }
 

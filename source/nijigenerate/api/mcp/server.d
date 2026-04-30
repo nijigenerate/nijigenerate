@@ -19,7 +19,7 @@ module nijigenerate.api.mcp.server;
 
 import core.thread : Thread;
 import std.json;
-import std.array : array, join;
+import std.array : array, join, split;
 import std.conv : to;
 import std.algorithm : canFind;
 import std.traits : isInstanceOf, TemplateArgsOf, isIntegral, isFloatingPoint, isSomeString, BaseClassesTuple, EnumMembers, ReturnType;
@@ -31,7 +31,7 @@ import nijigenerate.commands.base : BaseExArgsOf, enrichArgDesc, ngCommandIdFrom
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
 import nijilive; // Node, Parameter, Puppet
-import nijilive.core.param.binding : ParameterBinding;
+import nijilive.core.param.binding : ParameterBinding, ValueParameterBinding, DeformationParameterBinding, ParameterParameterBinding;
 import nijigenerate.ext.param : ExParameterGroup;
 
 // mcp-d
@@ -122,6 +122,7 @@ private __gshared HttpTransport gTransport = null;
 // Resource change notifiers (for MCP resources)
 private __gshared ResourceNotifier gNotifyResourcesFind;
 private __gshared ResourceNotifier gNotifyResourceByUuid;
+private __gshared ResourceNotifier gNotifyBindingByDescriptor;
 private __gshared bool gLoadHookRegistered = false;
 
 // Resolve command instance by string id in the form "EnumType.Value"
@@ -210,6 +211,132 @@ private void _ngMcpStart(string host, ushort port) {
         );
     }
 
+    string bindingResourceUri(Parameter param, ParameterBinding binding) {
+        import std.uri : encodeComponent;
+        auto target = binding.getTarget().target;
+        uint targetUuid = target !is null ? target.uuid : binding.getNodeUUID();
+        return "resource://nijigenerate/bindings/get?parameter=" ~ to!string(param.uuid) ~
+            "&target=" ~ to!string(targetUuid) ~
+            "&name=" ~ encodeComponent(binding.getTarget().name);
+    }
+
+    bool parseBindingDescriptorPath(string path, out uint parameterUuid, out uint targetUuid, out string bindingName, out string message) {
+        import std.uri : decodeComponent;
+        string[string] query;
+        foreach (part; ("parameter=" ~ path).split("&")) {
+            if (part.length == 0) continue;
+            auto pieces = part.split("=");
+            if (pieces.length < 2) continue;
+            query[decodeComponent(pieces[0])] = decodeComponent(pieces[1 .. $].join("="));
+        }
+        if ("parameter" !in query || "target" !in query || "name" !in query) {
+            message = "Binding read requires parameter, target, and name";
+            return false;
+        }
+        try {
+            parameterUuid = to!uint(query["parameter"]);
+            targetUuid = to!uint(query["target"]);
+            bindingName = query["name"];
+        } catch (Exception e) {
+            message = "Binding read parameter and target must be integer UUIDs";
+            return false;
+        }
+        if (bindingName.length == 0) {
+            message = "Binding read name must not be empty";
+            return false;
+        }
+        return true;
+    }
+
+    JSONValue bindingToJson(Parameter param, ParameterBinding binding) {
+        JSONValue[string] map;
+        auto target = binding.getTarget().target;
+        uint targetUuid = target !is null ? target.uuid : binding.getNodeUUID();
+        string targetTypeId = "";
+        if (auto node = cast(Node)target) targetTypeId = node.typeId;
+        else if (cast(Parameter)target) targetTypeId = "Parameter";
+
+        map["typeId"] = JSONValue("Binding");
+        map["parameter"] = JSONValue([
+            "uuid": JSONValue(cast(long)param.uuid),
+            "name": JSONValue(param.name)
+        ]);
+        map["target"] = JSONValue([
+            "uuid": JSONValue(cast(long)targetUuid),
+            "name": JSONValue(target !is null ? target.name : ""),
+            "typeId": JSONValue(targetTypeId)
+        ]);
+        map["name"] = JSONValue(binding.getTarget().name);
+        map["interpolateMode"] = JSONValue(binding.interpolateMode().to!string);
+        map["setCount"] = JSONValue(cast(long)binding.getSetCount());
+        map["uri"] = JSONValue(bindingResourceUri(param, binding));
+        JSONValue[] axisOffsets;
+        JSONValue[] axisValues;
+        foreach (axis; 0 .. 2) {
+            JSONValue[] offsets;
+            JSONValue[] values;
+            foreach (offset; param.axisPoints[axis]) {
+                offsets ~= JSONValue(cast(double)offset);
+                values ~= JSONValue(cast(double)param.unmapAxis(cast(uint)axis, offset));
+            }
+            axisOffsets ~= JSONValue(offsets);
+            axisValues ~= JSONValue(values);
+        }
+        map["axisOffsets"] = JSONValue(axisOffsets);
+        map["axisValues"] = JSONValue(axisValues);
+
+        auto app = appender!(char[]);
+        auto ser = inCreateSerializer(app);
+        binding.serializeSelf(ser);
+        ser.flush();
+        map["data"] = parseJSON(cast(string)app.data);
+        return JSONValue(map);
+    }
+
+    Parameter bindingOwnerParameter(ParameterBinding binding) {
+        if (auto b = cast(ValueParameterBinding)binding) return b.parameter;
+        if (auto b = cast(DeformationParameterBinding)binding) return b.parameter;
+        if (auto b = cast(ParameterParameterBinding)binding) return b.parameter;
+        return null;
+    }
+
+    JSONValue readBindingByDescriptor(uint parameterUuid, uint targetUuid, string bindingName) {
+        JSONValue[string] result;
+        auto puppet = incActivePuppet();
+        if (puppet is null) {
+            result["item"] = JSONValue(null);
+            result["error"] = JSONValue("No active puppet");
+            return JSONValue(result);
+        }
+
+        auto param = puppet.find!(Parameter)(parameterUuid);
+        if (param is null) {
+            result["item"] = JSONValue(null);
+            result["error"] = JSONValue("Parameter not found: " ~ parameterUuid.to!string);
+            return JSONValue(result);
+        }
+
+        import nijilive.core.resource : LiveResource = Resource;
+        LiveResource target = puppet.find!(Node)(targetUuid);
+        if (target is null) target = puppet.find!(Parameter)(targetUuid);
+        if (target is null) {
+            result["item"] = JSONValue(null);
+            result["error"] = JSONValue("Target not found: " ~ targetUuid.to!string);
+            return JSONValue(result);
+        }
+
+        auto binding = param.getBinding(target, bindingName);
+        if (binding is null) {
+            result["item"] = JSONValue(null);
+            result["error"] = JSONValue("Binding not found: parameter=" ~ parameterUuid.to!string ~
+                ", target=" ~ targetUuid.to!string ~ ", name=" ~ bindingName);
+            return JSONValue(result);
+        }
+
+        result["item"] = bindingToJson(param, binding);
+        return JSONValue(result);
+    }
+
     ResourceContents buildFindResource(string selectorParam) {
         JSONValue result = ngRunInMainThread({
             SerializeNodeFlags flags = SerializeNodeFlags.Basics; // fixed
@@ -237,6 +364,34 @@ private void _ngMcpStart(string host, ushort port) {
                     ser.structEnd(st);
                     ser.flush();
                     map["data"] = parseJSON(cast(string)app.data);
+                }
+                if (auto binding = nijigenerate.core.selector.resource.to!ParameterBinding(res)) {
+                    Parameter param = null;
+                    auto source = res.source;
+                    while (source !is null) {
+                        param = nijigenerate.core.selector.resource.to!Parameter(source);
+                        if (param !is null) break;
+                        source = source.source;
+                    }
+                    if (param is null) param = bindingOwnerParameter(binding);
+                    if (param !is null) {
+                        map["uri"] = JSONValue(bindingResourceUri(param, binding));
+                        map["parameter"] = JSONValue([
+                            "uuid": JSONValue(cast(long)param.uuid),
+                            "name": JSONValue(param.name)
+                        ]);
+                        auto target = binding.getTarget().target;
+                        uint targetUuid = target !is null ? target.uuid : binding.getNodeUUID();
+                        string targetTypeId = "";
+                        if (auto targetNode = cast(Node)target) targetTypeId = targetNode.typeId;
+                        else if (cast(Parameter)target) targetTypeId = "Parameter";
+                        map["target"] = JSONValue([
+                            "uuid": JSONValue(cast(long)targetUuid),
+                            "name": JSONValue(target !is null ? target.name : ""),
+                            "typeId": JSONValue(targetTypeId)
+                        ]);
+                        map["bindingName"] = JSONValue(binding.getTarget().name);
+                    }
                 }
 
                 JSONValue[] childArr;
@@ -549,6 +704,26 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
+    // Dynamic resource: resource://nijigenerate/bindings/get?parameter=...&target=...&name=...
+    mcpLog("[MCP] addDynamicResource: %s", "resource://nijigenerate/bindings/get?parameter=");
+    gNotifyBindingByDescriptor = server.addDynamicResource(
+        "resource://nijigenerate/bindings/get?parameter=",
+        "Read Binding By Descriptor",
+        "Read binding values by parameter UUID, target UUID, and binding name.",
+        (string path) {
+            uint parameterUuid;
+            uint targetUuid;
+            string bindingName;
+            string message;
+            JSONValue result = ngRunInMainThread({
+                if (!parseBindingDescriptorPath(path, parameterUuid, targetUuid, bindingName, message))
+                    return JSONValue(["item": JSONValue(null), "error": JSONValue(message)]);
+                return readBindingByDescriptor(parameterUuid, targetUuid, bindingName);
+            });
+            return ResourceContents.makeText("application/json", result.toString());
+        }
+    );
+
     // Register concrete resources so resources/list enumerates the current puppet instances.
     auto puppetForList = incActivePuppet();
     if (puppetForList !is null) {
@@ -639,6 +814,7 @@ private void _ngMcpStart(string host, ushort port) {
         incRegisterLoadFunc((puppet) {
             if (gNotifyResourcesFind) gNotifyResourcesFind();
             if (gNotifyResourceByUuid) gNotifyResourceByUuid();
+            if (gNotifyBindingByDescriptor) gNotifyBindingByDescriptor();
             mcpLog("[MCP] puppet load detected -> resources changed");
         });
     }
@@ -666,12 +842,16 @@ private void _ngMcpStart(string host, ushort port) {
         "   resource://nijigenerate/resources/find?selector=Binding%3Aactive\n\n" ~
         "MCP command binding input:\n" ~
         "- Do not pass Binding pseudo-UUIDs to tools. For commands such as RemoveBinding, pass context.parameters[0] plus context.bindings=[{target:<Node-or-Parameter UUID>, name:<binding name>}].\n\n" ~
+        "Binding value read endpoint:\n" ~
+        "- resource://nijigenerate/bindings/get?parameter=<parameter UUID>&target=<target UUID>&name=<binding name>\n\n" ~
         "Official read endpoint:\n" ~
         "- resource://nijigenerate/resources/{uuid} (see resources/get)\n";
 
     enum string RESOURCE_PROMPT =
         "Resource Endpoint: resources/get\n" ~
         "Purpose: OFFICIAL read endpoint. Fetch one resource instance by UUID. Node returns Basics + State + Geometry + Links; Parameter returns Basics.\n\n" ~
+        "Binding values use the descriptor endpoint instead of UUID:\n" ~
+        "- resource://nijigenerate/bindings/get?parameter=<parameter UUID>&target=<target UUID>&name=<binding name>\n\n" ~
         "Input fields:\n" ~
         "- uuid (integer): Numeric UUID of a Node or Parameter.\n\n" ~
         "Examples:\n" ~
@@ -701,6 +881,8 @@ private void _ngMcpStart(string host, ushort port) {
         "- Binding:active     → bindings on the currently armed parameter.\n\n" ~
         "Tool input:\n" ~
         "- Binding resources are for inspection. MCP tools identify bindings as {target:<UUID>, name:<binding name>} under context.bindings, together with context.parameters[0].\n\n" ~
+        "Binding value read:\n" ~
+        "- Use the Binding item's URI: resource://nijigenerate/bindings/get?parameter=<parameter UUID>&target=<target UUID>&name=<binding name>\n\n" ~
         "Combinator examples:\n" ~
         "- Node > Part        → direct Part children of any Node.\n" ~
         "- Node Part          → any descendant Part under any Node.\n" ~
@@ -728,6 +910,7 @@ private void _ngMcpStart(string host, ushort port) {
         "URIs:\n" ~
         "- resource://nijigenerate/resources/find?selector=... (exploration)\n" ~
         "- resource://nijigenerate/resources/{uuid} (read one resource instance)\n" ~
+        "- resource://nijigenerate/bindings/get?parameter=...&target=...&name=... (read one binding value grid)\n" ~
         "- resources/list (list current resource instances)\n\n" ~
         "Prompt links:\n" ~
         "- resource://nijigenerate/guides/find describes the exploration endpoint and recommends selector=* for first-pass discovery.\n" ~
@@ -737,7 +920,8 @@ private void _ngMcpStart(string host, ushort port) {
         "1) Start broad discovery with resources/find?selector=*.\n" ~
         "2) Narrow with more specific selectors as needed.\n" ~
         "3) Read details via resources/{uuid}.\n" ~
-        "4) Optionally call Tools to modify.\n\n" ~
+        "4) Read binding values via bindings/get descriptor URIs when needed.\n" ~
+        "5) Optionally call Tools to modify.\n\n" ~
         "Notes:\n" ~
         "- In nijigenerate, direct resource entries are rebuilt when a puppet is loaded so that 'resources/list' reflects current instances.\n" ~
         "- 'resources/templates/list' lists parameterized read definitions such as resources/{uuid}.\n" ~
