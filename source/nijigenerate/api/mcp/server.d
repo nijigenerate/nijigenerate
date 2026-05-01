@@ -514,6 +514,17 @@ private void _ngMcpStart(string host, ushort port) {
                                 } else static if (is(TParam == string[])) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.string_()).setDescription((desc.length?desc~"; ":"")~"string[]"));
                                     paramLog ~= fname ~ ":string[]";
+                                } else static if (is(TParam == JSONValue)) {
+                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(
+                                        SchemaBuilder.object()
+                                            .addProperty("uuid", SchemaBuilder.integer()
+                                                .setDescription("Target Node UUID."))
+                                            .addProperty("overlay", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
+                                                .setDescription("Overlay kind. Use bounds or mesh."))
+                                            .addProperty("type", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
+                                                .setDescription("Alias of overlay."))
+                                    ).optional().setDescription(desc));
+                                    paramLog ~= fname ~ ":json";
                                 } else static if (is(TParam == vec2u)) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"vec2u [x,y]"));
                                     paramLog ~= fname ~ ":vec2u";

@@ -356,6 +356,8 @@ void applyPayloadToInstance(C)(C inst, JSONValue payloadCopy) {
                         }
                         mixin("inst."~fname~" = outv;");
                     }
+                } else static if (is(TParam == JSONValue)) {
+                    mixin("inst."~fname~" = val;");
                 } else static if (is(TParam == vec2u)) {
                     if (val.type == JSONType.array && val.array.length >= 2) {
                         auto a = val.array;
@@ -441,6 +443,8 @@ void applyPayloadToInstance(C)(C inst, JSONValue payloadCopy) {
                         }
                     }
                 }
+            } else static if (is(TParam == JSONValue)) {
+                mixin("inst."~fname~" = JSONValue.init;");
             }
         }}
     }

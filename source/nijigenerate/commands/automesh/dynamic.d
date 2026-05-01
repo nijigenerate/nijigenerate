@@ -141,7 +141,8 @@ template ApplyAutoMeshPT(alias PT)
                         foreach (t; targets) {
                             if (auto pm = t.uuid in results) {
                                 auto mesh = *pm;
-                                if (mesh.vertices.length < 3) continue;
+                                if (mesh.vertices.length == 0) continue;
+                                if (cast(Drawable)t && mesh.vertices.length < 3) continue;
                                 if (auto dr = cast(Drawable)t)
                                     applyMeshToTarget(dr, mesh.vertices, &mesh);
                                 else

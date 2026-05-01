@@ -8,9 +8,11 @@ import tinyfiledialogs;
 import nijigenerate.io;
 import i18n;
 import std.path;
+import std.conv : to;
 import nijigenerate.project;
 import nijigenerate.core.settings;
-import std.json : JSONValue;
+static import std.json;
+import std.json : JSONType, JSONValue;
 
 
 @McpHidden
@@ -49,7 +51,137 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
     }
 }
 
-private bool incCaptureLiveViewport(out int width, out int height, out ubyte[] textureData, out string message) {
+private struct ScreenshotOverlayObject {
+    uint uuid;
+    string kind;
+}
+
+private bool readOverlayUuid(JSONValue value, out uint uuid) {
+    import std.conv : to;
+
+    if (value.type == JSONType.integer && value.integer >= 0) {
+        uuid = cast(uint)value.integer;
+        return true;
+    }
+    if (value.type == JSONType.string) {
+        try {
+            uuid = to!uint(value.str);
+            return true;
+        } catch (Exception) {
+            return false;
+        }
+    }
+    return false;
+}
+
+private bool parseScreenshotOverlayObjects(JSONValue value, out ScreenshotOverlayObject[] overlays, out string message) {
+    if (value.type == JSONType.null_)
+        return true;
+    if (value.type != JSONType.array) {
+        message = "overlayObjects must be an array";
+        return false;
+    }
+
+    foreach (entry; value.array) {
+        if (entry.type != JSONType.object) {
+            message = "overlayObjects entries must be objects";
+            return false;
+        }
+
+        auto obj = entry.object;
+        ScreenshotOverlayObject overlay;
+
+        if ("uuid" in obj) {
+            if (!readOverlayUuid(obj["uuid"], overlay.uuid)) {
+                message = "overlayObjects[].uuid must be a numeric UUID";
+                return false;
+            }
+
+            if ("overlay" in obj && obj["overlay"].type == JSONType.string) {
+                overlay.kind = obj["overlay"].str;
+            } else if ("type" in obj && obj["type"].type == JSONType.string) {
+                overlay.kind = obj["type"].str;
+            } else if ("kind" in obj && obj["kind"].type == JSONType.string) {
+                overlay.kind = obj["kind"].str;
+            } else {
+                message = "overlayObjects[] requires overlay/type/kind as bounds or mesh";
+                return false;
+            }
+        } else {
+            bool found = false;
+            foreach (key, kindValue; obj) {
+                if (kindValue.type != JSONType.string) continue;
+                try {
+                    import std.conv : to;
+                    overlay.uuid = to!uint(key);
+                    overlay.kind = kindValue.str;
+                    found = true;
+                    break;
+                } catch (Exception) {
+                }
+            }
+            if (!found) {
+                message = "overlayObjects[] must be {uuid, overlay} or {\"<uuid>\": \"bounds|mesh\"}";
+                return false;
+            }
+        }
+
+        if (overlay.kind != "bounds" && overlay.kind != "mesh") {
+            message = "overlayObjects[] overlay must be bounds or mesh";
+            return false;
+        }
+        overlays ~= overlay;
+    }
+
+    return true;
+}
+
+private void drawScreenshotBoundsOverlay(Node node) {
+    import nijilive.core.dbg : inDbgDrawLines, inDbgLineWidth, inDbgSetBuffer;
+
+    auto bounds = node.getCombinedBounds!(true)();
+    auto points = Vec3Array([
+        vec3(bounds.x, bounds.y, 0),
+        vec3(bounds.z, bounds.y, 0),
+        vec3(bounds.z, bounds.w, 0),
+        vec3(bounds.x, bounds.w, 0),
+    ]);
+    ushort[] indices = [0, 1, 1, 2, 2, 3, 3, 0];
+    inDbgSetBuffer(points, indices);
+    inDbgLineWidth(3);
+    inDbgDrawLines(vec4(1, 0.85, 0.1, 1));
+    inDbgLineWidth(1);
+}
+
+private bool drawScreenshotOverlays(Puppet puppet, JSONValue overlayObjects, out string message) {
+    ScreenshotOverlayObject[] overlays;
+    if (!parseScreenshotOverlayObjects(overlayObjects, overlays, message))
+        return false;
+
+    foreach (overlay; overlays) {
+        auto node = puppet.find!(Node)(overlay.uuid);
+        if (node is null) {
+            message = "overlayObjects target node not found: " ~ overlay.uuid.to!string;
+            return false;
+        }
+
+        if (overlay.kind == "bounds") {
+            drawScreenshotBoundsOverlay(node);
+        } else if (overlay.kind == "mesh") {
+            auto drawable = cast(Drawable)node;
+            if (drawable is null) {
+                message = "overlayObjects mesh target is not Drawable: " ~ overlay.uuid.to!string;
+                return false;
+            }
+            drawable.drawMeshLines(vec4(0.1, 0.9, 1, 1));
+            drawable.drawMeshPoints();
+        }
+    }
+
+    return true;
+}
+
+private bool incCaptureLiveViewport(out int width, out int height, out ubyte[] textureData, out string message, JSONValue overlayObjects = JSONValue.init) {
     auto puppet = incActivePuppet();
     if (puppet is null) {
         message = "No active puppet";
@@ -65,10 +197,14 @@ private bool incCaptureLiveViewport(out int width, out int height, out ubyte[] t
     inSetClearColor(0, 0, 0, 0);
     scope(exit) incResetClearColor();
 
+    bool overlaysOk = true;
     inBeginScene();
         puppet.update();
         puppet.draw();
+        overlaysOk = drawScreenshotOverlays(puppet, overlayObjects, message);
     inEndScene();
+    if (!overlaysOk)
+        return false;
 
     textureData = new ubyte[inViewportDataLength()];
     inDumpViewport(textureData);
@@ -101,8 +237,13 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
 }
 
 @ShortcutHidden
-class CaptureLiveScreenshotCommand : ExCommand!() {
-    this() { super(_("Capture Live Screenshot"), _("Capture current live viewport and return an MCP image content item with mimeType image/png.")); }
+class CaptureLiveScreenshotCommand : ExCommand!(
+    TW!(JSONValue, "overlayObjects", "Optional overlay objects. Use [{\"uuid\": 123, \"overlay\": \"bounds\"|\"mesh\"}] or [{\"123\": \"bounds\"|\"mesh\"}].")
+) {
+    this() {
+        super(_("Capture Live Screenshot"), _("Capture current live viewport and return an MCP image content item with mimeType image/png."));
+        overlayObjects = JSONValue(JSONType.array);
+    }
 
     override
     ExCommandResult!JSONValue run(Context ctx) {
@@ -114,7 +255,7 @@ class CaptureLiveScreenshotCommand : ExCommand!() {
         int width, height;
         ubyte[] textureData;
         string message;
-        if (!incCaptureLiveViewport(width, height, textureData, message))
+        if (!incCaptureLiveViewport(width, height, textureData, message, overlayObjects))
             return ExCommandResult!JSONValue(false, JSONValue.init, message);
 
         int error;

@@ -98,6 +98,26 @@ resource://nijigenerate/bindings/get?parameter=123&target=456&name=deform
   - `applyRotation=true` is required to write an explicit zero rotation.
   - Use `context.parameterValue` to choose the parameter key position.
 
+## Screenshot Tools
+
+- `ViewCommand_CaptureLiveScreenshot`
+  - Returns the current live viewport as direct MCP `image/png` content.
+  - Optional `overlayObjects` adds debug overlays before capture.
+  - Use `{ "uuid": <Node UUID>, "overlay": "bounds" }` to draw the node's combined bounds.
+  - Use `{ "uuid": <Node UUID>, "overlay": "mesh" }` to draw a drawable node's mesh lines and points.
+  - The compact form `{ "<Node UUID>": "bounds" }` or `{ "<Node UUID>": "mesh" }` is also accepted.
+
+Example:
+
+```json
+{
+  "overlayObjects": [
+    { "uuid": 123456, "overlay": "bounds" },
+    { "uuid": 789012, "overlay": "mesh" }
+  ]
+}
+```
+
 ## Binding Selection Tools
 
 - `BindingCommand_RemoveBinding`

@@ -2,6 +2,7 @@ module nijigenerate.viewport.vertex.automesh.skeletonize;
 
 import i18n;
 import nijigenerate.viewport.vertex.automesh.automesh;
+import nijigenerate.viewport.vertex.automesh.meta;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.widgets;
 import nijilive.core;
@@ -19,6 +20,7 @@ import std.math: abs;
 import std.conv;
 import std.array;
 import std.algorithm.iteration: uniq;
+import std.json : JSONValue, JSONType;
 import nijigenerate.viewport.vertex.automesh.alpha_provider;
 import nijigenerate.core.cv.image;
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput, mapImageCenteredMeshToTargetLocal;
@@ -28,15 +30,22 @@ alias Point = vec2u; // vec2u is (uint x, uint y)
 /// SkeletonExtractor
 /// - Input: image alpha; processes as ubyte grid accessible via img[y][x].
 /// - In autoMesh(): binarize → Zhang-Suen skeletonization → path extraction → RDP-like simplification.
-class SkeletonExtractor : AutoMeshProcessor {
-private:
+@AMProcessor("skeleton", "Skeleton", 300)
+class SkeletonExtractor : AutoMeshProcessor, IAutoMeshReflect {
+public:
+    @AMParam(AutoMeshLevel.Simple, "mask_threshold", "Mask threshold", "Alpha binarize cutoff", "drag", 1, 200, 1)
     float maskThreshold = 15;
-    int targetPointCount = 10;
+    @AMParam(AutoMeshLevel.Simple, "target_point_count", "Target point count", "Target number of path control points", "drag", 2, 128, 1)
+    float targetPointCount = 10;
+private:
     Point[] controlPoints; // Control points after simplification
     // Unified alpha preview state
     private AlphaPreviewState _alphaPreview;
 
 public:
+    mixin AutoMeshClassInfo!();
+    mixin AutoMeshReflection!();
+
     override IncMesh autoMesh(Deformable target, IncMesh mesh,
                               bool mirrorHoriz = false, float axisHoriz = 0,
                               bool mirrorVert = false, float axisVert = 0)
@@ -56,7 +65,7 @@ public:
         // 3) Common: skeletonize → extract path → simplify
         skeletonizeImage(imbin);
         auto path = extractPath(imbin, ai.w, ai.h);
-        controlPoints = simplifyByTargetCount(path, targetPointCount);
+        controlPoints = simplifyByTargetCount(path, cast(int)targetPointCount);
 
         // 4) Common: create vertices relative to image center
         mesh.clear();
@@ -68,15 +77,9 @@ public:
 
         // 5) Common: map to target local
         mapImageCenteredMeshToTargetLocal(mesh, target, ai);
-        return mesh.autoTriangulate();
-    }
-
-    override void configure() {
-        igSeparator();
-        incText(_("Alpha Preview"));
-        igIndent();
-        alphaPreviewWidget(_alphaPreview, ImVec2(192, 192));
-        igUnindent();
+        if (cast(Drawable)target)
+            return mesh.autoTriangulate();
+        return mesh;
     }
 
     /// Get extracted control points

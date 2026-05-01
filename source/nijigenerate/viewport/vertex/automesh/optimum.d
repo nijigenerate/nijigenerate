@@ -560,13 +560,20 @@ public:
             if (!updated) break;
         }
 
-        if (vertices.length < 3) return mesh;
+        if (vertices.length < 1) return mesh;
+        if (cast(Drawable)target && vertices.length < 3) return mesh;
 
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
         auto translated = Vec2Array(vertices.toArray().map!((x){ return x - imgCenter; }).array);
-        newMesh.importVertsAndTris(translated, tris);
+        if (cast(Drawable)target) {
+            newMesh.importVertsAndTris(translated, tris);
+        } else {
+            foreach (v; translated) {
+                newMesh.vertices ~= new MeshVertex(v, []);
+            }
+        }
         mapImageCenteredMeshToTargetLocal(newMesh, target, ai);
         newMesh.refresh();
         return newMesh;

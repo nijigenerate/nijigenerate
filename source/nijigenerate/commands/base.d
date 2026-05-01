@@ -6,6 +6,8 @@ import std.array : join;
 import std.format : format;
 import std.conv : to;
 import std.exception : enforce;
+static import std.json;
+import std.json : JSONValue;
 import nijigenerate.panels.inspector.common;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
 static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
