@@ -242,6 +242,9 @@ class CommandResult {
     static CommandResult opCall(bool succeeded, string message = "") {
         return new CommandResult(succeeded, message);
     }
+    CommandResult waitForCompletion() {
+        return this;
+    }
 }
 
 // If T is already a CommandResult (e.g., CreateResult!R), inherit from it directly.

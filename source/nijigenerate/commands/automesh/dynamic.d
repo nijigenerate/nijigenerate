@@ -13,12 +13,58 @@ import std.algorithm : map, filter;
 import std.array : array;
 import core.thread : Thread;
 import core.thread.fiber : Fiber;
+import core.sync.mutex : Mutex;
+import core.sync.condition : Condition;
+import vibe.core.task : Task;
+import vibe.core.core : vibeYield = yield;
 import std.stdio : writefln;
-import nijigenerate.api.mcp.task : ngRunInMainThread; // scheduling helpers
+import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngRunInMainThread; // scheduling helpers
 import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 
 version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
 else             private void cmdLog(T...)(T args) {}
+
+private class AutoMeshApplyResult : CommandResult {
+    private Mutex lock;
+    private Condition cond;
+    private bool done;
+    private CommandResult finalResult;
+
+    this() {
+        super(true, "AutoMesh queued");
+        lock = new Mutex();
+        cond = new Condition(lock);
+    }
+
+    void complete(CommandResult result) {
+        synchronized (lock) {
+            if (done) return;
+            finalResult = result;
+            if (result !is null) {
+                succeeded = result.succeeded;
+                message = result.message;
+            }
+            done = true;
+            cond.notify();
+        }
+    }
+
+    override CommandResult waitForCompletion() {
+        if (cast(bool)Task.getThis()) {
+            for (;;) {
+                synchronized (lock) {
+                    if (done) break;
+                }
+                vibeYield();
+            }
+        } else {
+            synchronized (lock) {
+                while (!done) cond.wait();
+            }
+        }
+        return finalResult !is null ? finalResult : this;
+    }
+}
 
 // Compile-time presence check for initializer
 static if (__traits(compiles, { void _ct_probe(){ ngInitCommands!(AutoMeshKey)(); } })) {
@@ -100,11 +146,12 @@ template ApplyAutoMeshPT(alias PT)
                 alphaInputs[t.uuid] = getAlphaInput(t);
             }
 
-            IncMesh[uint] results;
-            string workerError;
-            size_t processed = 0;
+            auto asyncResult = new AutoMeshApplyResult();
             Thread th = new Thread({
                 installNativeCrashDumpThreadHandler();
+                IncMesh[uint] results;
+                string workerError;
+                size_t processed = 0;
                 bool cb(Deformable d, IncMesh mesh) {
                     if (mesh !is null) {
                         results[d.uuid] = mesh;
@@ -125,33 +172,37 @@ template ApplyAutoMeshPT(alias PT)
                 } catch (Throwable e) {
                     workerError = e.msg;
                 }
+
+                if (workerError.length) {
+                    writefln("[AutoMesh] worker failed: %s", workerError);
+                    asyncResult.complete(CommandResult(false, workerError));
+                    return;
+                }
+
+                ngMcpEnqueueAction({
+                    size_t applied = 0;
+                    foreach (t; targets) {
+                        if (auto pm = t.uuid in results) {
+                            auto mesh = *pm;
+                            if (mesh.vertices.length == 0) continue;
+                            if (cast(Drawable)t && mesh.vertices.length < 3) continue;
+                            if (auto dr = cast(Drawable)t)
+                                applyMeshToTarget(dr, mesh.vertices, &mesh);
+                            else
+                                applyMeshToTarget(t, mesh.vertices, &mesh);
+                            ++applied;
+                        }
+                    }
+
+                    if (applied == 0) {
+                        asyncResult.complete(CommandResult(false, "AutoMesh generated no applicable meshes"));
+                    } else {
+                        asyncResult.complete(CommandResult(true));
+                    }
+                });
             });
             th.start();
-            th.join();
-
-            if (workerError.length) {
-                writefln("[AutoMesh] worker failed: %s", workerError);
-                return CommandResult(false, workerError);
-            }
-
-            size_t applied = 0;
-            foreach (t; targets) {
-                if (auto pm = t.uuid in results) {
-                    auto mesh = *pm;
-                    if (mesh.vertices.length == 0) continue;
-                    if (cast(Drawable)t && mesh.vertices.length < 3) continue;
-                    if (auto dr = cast(Drawable)t)
-                        applyMeshToTarget(dr, mesh.vertices, &mesh);
-                    else
-                        applyMeshToTarget(t, mesh.vertices, &mesh);
-                    ++applied;
-                }
-            }
-
-            if (applied == 0) {
-                return CommandResult(false, "AutoMesh generated no applicable meshes");
-            }
-            return CommandResult(true);
+            return asyncResult;
         }
     }
 }

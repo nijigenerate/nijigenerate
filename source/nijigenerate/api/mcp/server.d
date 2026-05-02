@@ -27,7 +27,7 @@ import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
-import nijigenerate.commands.base : BaseExArgsOf, enrichArgDesc, ngCommandIdFromKey;
+import nijigenerate.commands.base : BaseExArgsOf, CommandResult, enrichArgDesc, ngCommandIdFromKey;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
 import nijilive; // Node, Parameter, Puppet
@@ -80,8 +80,13 @@ private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
     return resultJson;
 }
 
-private JSONValue _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
+private CommandResult _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
     auto res = inst.run(ctx);
+    return res;
+}
+
+private JSONValue _mcpEncodeCommandResult(CommandResult res, string toolName) {
+    res = res.waitForCompletion();
     if (!res.succeeded) {
         mcpLog("[MCP] command failed: %s", res.message);
     }
@@ -598,7 +603,7 @@ private void _ngMcpStart(string host, ushort port) {
                         // Debug: print incoming JSON for this tool call
                         mcpLog("[MCP] call %s: %s", toolNameLocal, payload.toString());
                         auto payloadCopy = payload;
-                        return ngRunInMainThread({
+                        auto commandResult = ngRunInMainThread!CommandResult({
                             // 1) Build context from payload
                             auto ctx = buildContextFromPayload(payloadCopy);
                             // 2) Apply command-specific parameters (top-level)
@@ -618,7 +623,7 @@ private void _ngMcpStart(string host, ushort port) {
 
                             // 3) Run the captured command instance with the prepared context
                             if (cmdInst !is null && cmdInst.runnable(ctx)) {
-                                JSONValue concreteResult;
+                                CommandResult concreteResult;
                                 bool concreteHandled = false;
                                 static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
                                     if (k == m) {{
@@ -636,8 +641,9 @@ private void _ngMcpStart(string host, ushort port) {
                                 if (concreteHandled) return concreteResult;
                                 return _mcpRunCommandInstance(cmdInst, ctx, toolNameLocal);
                             }
-                            return JSONValue(["status": JSONValue("skipped"), "succeeded": JSONValue(false), "message": JSONValue("Command not runnable")]);
+                            return CommandResult(false, "Command not runnable");
                         });
+                        return _mcpEncodeCommandResult(commandResult, toolNameLocal);
                     }
                 );
             }
