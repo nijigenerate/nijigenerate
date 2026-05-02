@@ -376,15 +376,19 @@ private string _genSettersForLevel(alias PT, AutoMeshLevel levelV)()
                         if (p.min == p.min) { auto minStr = to!string(p.min); minClamp = ` if (v < ` ~ minStr ~ `) v = ` ~ minStr ~ `;`; }
                         if (p.max == p.max) { auto maxStr = to!string(p.max); maxClamp = ` if (v > ` ~ maxStr ~ `) v = ` ~ maxStr ~ `;`; }
                         code ~= `{
-                            float v = ` ~ p.id ~ `;` ~ minClamp ~ maxClamp ~ `
+                            float v = ` ~ p.id ~ `;
+                            if (v != v) goto skip_` ~ p.id ~ `;` ~ minClamp ~ maxClamp ~ `
                             (cast(PT)inst).` ~ mname ~ ` = v;
                             static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
+                            skip_` ~ p.id ~ `:
                         }
                         `;
                     } else static if (is(typeof(__traits(getMember, PT, mname)) == float[])) {
                         code ~= `{
-                            (cast(PT)inst).` ~ mname ~ ` = ` ~ p.id ~ `;
-                            static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
+                            if (` ~ p.id ~ ` !is null) {
+                                (cast(PT)inst).` ~ mname ~ ` = ` ~ p.id ~ `;
+                                static if (__traits(hasMember, PT, "ngPostParamWrite")) (cast(PT)inst).ngPostParamWrite("` ~ p.id ~ `");
+                            }
                         }
                         `;
                     } else static if (is(typeof(__traits(getMember, PT, mname)) == string)) {

@@ -13,10 +13,9 @@ import std.algorithm : map, filter;
 import std.array : array;
 import core.thread : Thread;
 import core.thread.fiber : Fiber;
-import core.sync.mutex : Mutex;
 import std.stdio : writefln;
-import nijigenerate.api.mcp.task : ngRunInMainThread, ngMcpEnqueueAction; // scheduling helpers
-import nijigenerate.widgets.notification : NotificationPopup; // UI progress popup
+import nijigenerate.api.mcp.task : ngRunInMainThread; // scheduling helpers
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 
 version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
 else             private void cmdLog(T...)(T args) {}
@@ -89,73 +88,69 @@ template ApplyAutoMeshPT(alias PT)
             }
             if (targets.length == 0) return CommandResult(false, "No deformable targets");
 
-            auto mtx = new Mutex(); bool canceled = false; size_t total = targets.length; size_t done = 0; string currentName;
-            string procName = chosen.displayName(); bool workerFinished = false; ulong popupId = 0;
-            auto scheduleTask = delegate(){
-                import bindbc.imgui; import nijigenerate.widgets : incButtonColored;
-
-                // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.
-                AlphaInput[uint] alphaInputs;
-                foreach (t; targets) {
-                    alphaInputs[t.uuid] = getAlphaInput(t);
-                }
-
-                popupId = NotificationPopup.instance().popup((ImGuiIO* io){
-                    float prog = 0; string cur; size_t _done, _total; string _proc;
-                    _done = done; _total = total; cur = currentName; _proc = procName;
-                    prog = (_total > 0) ? cast(float)_done / cast(float)_total : 0;
-                    import std.string : toStringz; string title = "AutoMesh: " ~ _proc ~ (cur.length ? (" - " ~ cur) : "");
-                    igText(title.toStringz); igProgressBar(prog, ImVec2(320, 0)); igSameLine(0, 8);
-                    if (incButtonColored("Cancel", ImVec2(96, 24))) canceled = true;
-                }, -1);
-
-                Thread th = new Thread({
-                    IncMesh[uint] results;
-                    string workerError;
-                    bool cb(Deformable d, IncMesh mesh) {
-                        synchronized(mtx){ currentName = d.name; }
-                        if (mesh !is null) { synchronized(mtx){ ++done; } results[d.uuid] = mesh; }
-                        bool stop; synchronized(mtx){ stop = canceled; } return !stop;
-                    }
-                    void work() {
-                        Deformable[] bgTargets = targets; IncMesh[] bgMeshes = meshList.dup;
-                        chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
-                    }
-                    try {
-                        setAutoMeshAlphaInputCache(&alphaInputs);
-                        scope(exit) clearAutoMeshAlphaInputCache(&alphaInputs);
-                        auto fib = new Fiber(&work);
-                        while (fib.state != Fiber.State.TERM) fib.call();
-                    } catch (Throwable e) {
-                        workerError = e.msg;
-                    }
-                    ngMcpEnqueueAction({
-                        scope(exit) {
-                            workerFinished = true;
-                            NotificationPopup.instance().close(popupId);
-                        }
-                        if (workerError.length) {
-                            writefln("[AutoMesh] worker failed: %s", workerError);
-                            return;
-                        }
-                        foreach (t; targets) {
-                            if (auto pm = t.uuid in results) {
-                                auto mesh = *pm;
-                                if (mesh.vertices.length == 0) continue;
-                                if (cast(Drawable)t && mesh.vertices.length < 3) continue;
-                                if (auto dr = cast(Drawable)t)
-                                    applyMeshToTarget(dr, mesh.vertices, &mesh);
-                                else
-                                    applyMeshToTarget(t, mesh.vertices, &mesh);
-                            }
-                        }
-                    });
-                });
-                th.start();
-            };
-
             bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
-            if (onMain) scheduleTask(); else ngMcpEnqueueAction(scheduleTask);
+            if (!onMain) {
+                auto self = this;
+                return ngRunInMainThread!CommandResult({ return self.run(ctx); });
+            }
+
+            // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.
+            AlphaInput[uint] alphaInputs;
+            foreach (t; targets) {
+                alphaInputs[t.uuid] = getAlphaInput(t);
+            }
+
+            IncMesh[uint] results;
+            string workerError;
+            size_t processed = 0;
+            Thread th = new Thread({
+                installNativeCrashDumpThreadHandler();
+                bool cb(Deformable d, IncMesh mesh) {
+                    if (mesh !is null) {
+                        results[d.uuid] = mesh;
+                        ++processed;
+                    }
+                    return true;
+                }
+                void work() {
+                    Deformable[] bgTargets = targets;
+                    IncMesh[] bgMeshes = meshList.dup;
+                    chosen.autoMesh(bgTargets, bgMeshes, false, 0, false, 0, &cb);
+                }
+                try {
+                    setAutoMeshAlphaInputCache(&alphaInputs);
+                    scope(exit) clearAutoMeshAlphaInputCache(&alphaInputs);
+                    auto fib = new Fiber(&work);
+                    while (fib.state != Fiber.State.TERM) fib.call();
+                } catch (Throwable e) {
+                    workerError = e.msg;
+                }
+            });
+            th.start();
+            th.join();
+
+            if (workerError.length) {
+                writefln("[AutoMesh] worker failed: %s", workerError);
+                return CommandResult(false, workerError);
+            }
+
+            size_t applied = 0;
+            foreach (t; targets) {
+                if (auto pm = t.uuid in results) {
+                    auto mesh = *pm;
+                    if (mesh.vertices.length == 0) continue;
+                    if (cast(Drawable)t && mesh.vertices.length < 3) continue;
+                    if (auto dr = cast(Drawable)t)
+                        applyMeshToTarget(dr, mesh.vertices, &mesh);
+                    else
+                        applyMeshToTarget(t, mesh.vertices, &mesh);
+                    ++applied;
+                }
+            }
+
+            if (applied == 0) {
+                return CommandResult(false, "AutoMesh generated no applicable meshes");
+            }
             return CommandResult(true);
         }
     }

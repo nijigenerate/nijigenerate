@@ -34,7 +34,7 @@ import core.atomic : atomicLoad, atomicStore;
 import vibe.http.server;
 import vibe.http.router;
 import vibe.http.client;
-import vibe.core.core : runApplication, exitEventLoop, setTimer, sleep;
+import vibe.core.core : runEventLoop, exitEventLoop, setTimer, sleep, Timer;
 import vibe.core.stream : OutputStream, InputStream;
 import vibe.stream.operations : readAllUTF8;
 import std.uri : decodeComponent;
@@ -65,6 +65,21 @@ class HttpTransport : Transport {
         // Stop listening without touching the event loop state (safe after loop exit)
         private void performStopListening() nothrow @system {
             try { listener.stopListening(); } catch (Exception) {}
+        }
+
+        private void performShutdownOnEventLoop() @system {
+            atomicStore(running, false);
+            synchronized (this) {
+                size_t i = 0;
+                while (i < clients.length) {
+                    auto c = clients[i];
+                    try { c.write("event: shutdown\n\n"); c.flush(); } catch (Exception) {}
+                    ++i;
+                }
+                clients.length = 0;
+            }
+            performStopListening();
+            try exitEventLoop(); catch (Exception) {}
         }
 
         // ===== Authorization (minimal) =====
@@ -466,22 +481,28 @@ public:
         listener = listenHTTP(settings, router);
 
         atomicStore(running, true);
-        scope(exit) performStopListening();
+        scope(exit) {
+            atomicStore(running, false);
+            atomicStore(loopExited, true);
+            performStopListening();
+        }
 
         if (atomicLoad(shouldExit)) {
-            atomicStore(running, false);
+            performShutdownOnEventLoop();
             return; 
         }
 
-        setTimer(100.msecs, { 
+        Timer shutdownTimer;
+        shutdownTimer = setTimer(100.msecs, {
             if (atomicLoad(shouldExit)) {
-                try exitEventLoop(); catch (Exception) {}
+                shutdownTimer.stop();
+                performShutdownOnEventLoop();
             }
         }, true);
+        scope(exit) shutdownTimer.stop();
 
         httpLog("[MCP/HTTP] run(): listening on %s:%s", host, port);
-        runApplication();
-        atomicStore(loopExited, true);
+        runEventLoop();
         httpLog("[MCP/HTTP] run(): event loop exited");
     }
 
@@ -491,18 +512,6 @@ public:
         // Mark for early exit and stop accepting new connections ASAP
         atomicStore(shouldExit, true);
         atomicStore(running, false);
-        // Proactively close any connected SSE clients to release handles
-        synchronized (this) {
-            size_t i = 0;
-            while (i < clients.length) {
-                auto c = clients[i];
-                try { c.write("event: shutdown\n\n"); c.flush(); } catch (Exception) {}
-                ++i;
-            }
-            clients.length = 0;
-        }
-        // Stop listener immediately even if event loop is not running yet
-        performStopListening();
     }
 
     bool hasExited() const @nogc nothrow @safe { 

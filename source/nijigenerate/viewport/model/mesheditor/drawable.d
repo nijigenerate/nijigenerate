@@ -41,8 +41,9 @@ protected:
         auto drawable = cast(Drawable)target;
         transform = drawable.getDynamicMatrix();
         vertices.length = drawable.vertices.length;
+        auto deformCount = drawable.deformation.length;
         foreach (i, vert; drawable.vertices) {
-            vertices[i] = drawable.vertices[i] + drawable.deformation[i]; // FIXME: should handle origin
+            vertices[i] = vert + (i < deformCount ? drawable.deformation[i] : vec2(0, 0)); // FIXME: should handle origin
         }
     }
 

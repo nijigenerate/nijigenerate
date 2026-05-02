@@ -192,17 +192,26 @@ mixin template AutoMeshReflection() {
         bool any = false;
         foreach (ref f; _amFloatFields()) if (((f.level == AutoMeshLevel.Advanced) == adv) && (f.id in u)) {
             auto j = u[f.id];
-            if (j.type == JSONType.integer) { *f.ptr = cast(float)j.integer; any = true; }
-            else if (j.type == JSONType.float_) { *f.ptr = cast(float)j.floating; any = true; }
-            if ((f.minV == f.minV) && *f.ptr < f.minV) *f.ptr = f.minV;
-            if ((f.maxV == f.maxV) && *f.ptr > f.maxV) *f.ptr = f.maxV;
+            float value;
+            bool valid = false;
+            if (j.type == JSONType.integer) { value = cast(float)j.integer; valid = true; }
+            else if (j.type == JSONType.float_) { value = cast(float)j.floating; valid = true; }
+            if (!valid || value != value) continue;
+            if ((f.minV == f.minV) && value < f.minV) value = f.minV;
+            if ((f.maxV == f.maxV) && value > f.maxV) value = f.maxV;
+            *f.ptr = value;
+            any = true;
             static if (__traits(hasMember, This, "ngPostParamWrite")) this.ngPostParamWrite(f.id);
         }
         foreach (ref a; _amArrayFields()) if (((a.level == AutoMeshLevel.Advanced) == adv) && (a.id in u)) {
             auto j = u[a.id]; if (j.type != JSONType.array) continue; (*a.ptr).length = 0;
             foreach (e; j.array) {
-                if (e.type == JSONType.integer) (*a.ptr) ~= cast(float)e.integer;
-                else if (e.type == JSONType.float_) (*a.ptr) ~= cast(float)e.floating;
+                float value;
+                bool valid = false;
+                if (e.type == JSONType.integer) { value = cast(float)e.integer; valid = true; }
+                else if (e.type == JSONType.float_) { value = cast(float)e.floating; valid = true; }
+                if (!valid || value != value) continue;
+                (*a.ptr) ~= value;
             }
             any = true;
             static if (__traits(hasMember, This, "ngPostParamWrite")) this.ngPostParamWrite(a.id);

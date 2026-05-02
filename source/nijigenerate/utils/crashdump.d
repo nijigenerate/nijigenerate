@@ -16,9 +16,10 @@ import i18n;
 
 version(Posix) {
     import core.stdc.signal : raise;
+    import core.stdc.stdlib : malloc;
     import core.sys.posix.fcntl : O_CREAT, O_TRUNC, O_WRONLY, open;
-    import core.sys.posix.signal : SA_RESETHAND, SA_SIGINFO, sigaction, sigaction_t, sigemptyset, siginfo_t,
-        SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV;
+    import core.sys.posix.signal : SA_ONSTACK, SA_RESETHAND, SA_SIGINFO, SIGSEGV, SIGSTKSZ,
+        sigaction, sigaction_t, sigaltstack, sigemptyset, siginfo_t, stack_t;
     import core.sys.posix.sys.types : mode_t;
     import core.sys.posix.unistd : _exit, close, getpid, write;
 
@@ -85,6 +86,7 @@ version(Posix) {
     __gshared char[nativeCrashPathMax] nativeCrashDumpPath;
     __gshared size_t nativeCrashDumpPathLen;
     __gshared int nativeCrashHandlerActive;
+    void* nativeSignalStack;
 
     private void copyNativeCrashDumpPath(string path) {
         auto n = path.length < nativeCrashPathMax - 1 ? path.length : nativeCrashPathMax - 1;
@@ -159,22 +161,33 @@ version(Posix) {
         sigaction_t action = void;
         (cast(ubyte*)&action)[0 .. sigaction_t.sizeof] = 0;
         action.sa_sigaction = &nativeCrashSignalHandler;
-        action.sa_flags = SA_SIGINFO | SA_RESETHAND;
+        action.sa_flags = SA_SIGINFO | SA_RESETHAND | SA_ONSTACK;
         sigemptyset(&action.sa_mask);
         sigaction(sig, &action, null);
+    }
+
+    void installNativeCrashDumpThreadHandler() {
+        if (nativeSignalStack is null) {
+            nativeSignalStack = malloc(SIGSTKSZ);
+            if (nativeSignalStack !is null) {
+                stack_t stack;
+                stack.ss_sp = nativeSignalStack;
+                stack.ss_size = SIGSTKSZ;
+                stack.ss_flags = 0;
+                sigaltstack(&stack, null);
+            }
+        }
     }
 
     void installNativeCrashDumpHandler() {
         mkdirCrashDumpDir();
         copyNativeCrashDumpPath(genCrashDumpPath("nijigenerate-native-crashdump"));
+        installNativeCrashDumpThreadHandler();
         installNativeCrashHandlerFor(SIGSEGV);
-        installNativeCrashHandlerFor(SIGBUS);
-        installNativeCrashHandlerFor(SIGILL);
-        installNativeCrashHandlerFor(SIGFPE);
-        installNativeCrashHandlerFor(SIGABRT);
     }
 } else {
     void installNativeCrashDumpHandler() {}
+    void installNativeCrashDumpThreadHandler() {}
 }
 
 void mkdirCrashDumpDir() {

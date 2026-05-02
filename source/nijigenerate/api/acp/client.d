@@ -22,6 +22,7 @@ import nijigenerate.api.acp.protocol;
 import nijigenerate.api.acp.types;
 import nijigenerate.api.acp.transport.stdio;
 import nijigenerate.core.settings : incSettingsGet;
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 
 /// Minimal client for interacting with the Coding Agent from the editor.
 /// - Pass commands as string[] (not a shell string) to avoid OS-specific behavior.
@@ -380,14 +381,20 @@ class ACPClient {
         inboundMutex = new Mutex();
         inboundCond = new Condition(inboundMutex);
         readerRunning = true;
-        reader = new Thread(&readerLoop);
+        reader = new Thread({
+            installNativeCrashDumpThreadHandler();
+            readerLoop();
+        });
         reader.isDaemon(true);
         reader.start();
     }
 
     void startStderrReader() {
         stderrRunning = true;
-        stderrThread = new Thread(&stderrLoop);
+        stderrThread = new Thread({
+            installNativeCrashDumpThreadHandler();
+            stderrLoop();
+        });
         stderrThread.isDaemon(true);
         stderrThread.start();
     }

@@ -153,6 +153,91 @@ private void drawScreenshotBoundsOverlay(Node node) {
     inDbgLineWidth(1);
 }
 
+private bool drawScreenshotDeformableMeshOverlay(Deformable deformable) {
+    import nijilive.core.dbg : inDbgDrawLines, inDbgDrawPoints, inDbgPointsSize, inDbgSetBuffer;
+    import nijilive.core.nodes.deformer.grid : GridDeformer;
+    import std.algorithm : map, sort;
+    import std.algorithm.iteration : uniq;
+    import std.array : array;
+
+    if (deformable is null || deformable.vertices.length == 0)
+        return false;
+
+    Vec3Array pointBuffer;
+    auto vertices = deformable.vertices;
+    bool haveDeform = deformable.deformation.length == vertices.length;
+
+    if (auto grid = cast(GridDeformer)deformable) {
+        auto baseVertsAoS = vertices.toArray();
+        auto xs = baseVertsAoS.map!(v => v.x).array;
+        auto ys = baseVertsAoS.map!(v => v.y).array;
+        xs.sort();
+        ys.sort();
+        xs = xs.uniq.array;
+        ys = ys.uniq.array;
+        size_t cols = xs.length;
+        size_t rows = ys.length;
+
+        if (cols >= 2 && rows >= 2 && cols * rows == vertices.length) {
+            Vec3Array lines;
+            foreach (y; 0 .. rows) {
+                foreach (x; 0 .. cols) {
+                    size_t idx = y * cols + x;
+                    vec2 startPos = baseVertsAoS[idx];
+                    if (haveDeform) startPos += grid.deformation[idx];
+                    auto start = vec3(startPos, 0);
+                    if (x + 1 < cols) {
+                        size_t nextIdx = idx + 1;
+                        vec2 rightPos = baseVertsAoS[nextIdx];
+                        if (haveDeform) rightPos += grid.deformation[nextIdx];
+                        lines ~= start;
+                        lines ~= vec3(rightPos, 0);
+                    }
+                    if (y + 1 < rows) {
+                        size_t nextIdx = idx + cols;
+                        vec2 downPos = baseVertsAoS[nextIdx];
+                        if (haveDeform) downPos += grid.deformation[nextIdx];
+                        lines ~= start;
+                        lines ~= vec3(downPos, 0);
+                    }
+                }
+            }
+            if (lines.length > 0) {
+                inDbgSetBuffer(lines);
+                inDbgDrawLines(vec4(0.1, 0.9, 1, 1), grid.transform.matrix);
+            }
+        }
+    } else if (vertices.length >= 2) {
+        Vec3Array lines;
+        foreach (i; 1 .. vertices.length) {
+            auto prev = vertices[i - 1];
+            auto next = vertices[i];
+            if (haveDeform) {
+                prev += deformable.deformation[i - 1];
+                next += deformable.deformation[i];
+            }
+            lines ~= vec3(prev, 0);
+            lines ~= vec3(next, 0);
+        }
+        if (lines.length > 0) {
+            inDbgSetBuffer(lines);
+            inDbgDrawLines(vec4(0.1, 0.9, 1, 1), deformable.transform.matrix);
+        }
+    }
+
+    pointBuffer.length = vertices.length;
+    foreach (i, point; vertices) {
+        if (haveDeform) point += deformable.deformation[i];
+        pointBuffer[i] = vec3(point, 0);
+    }
+    inDbgSetBuffer(pointBuffer);
+    inDbgPointsSize(8);
+    inDbgDrawPoints(vec4(0, 0, 0, 1), deformable.transform.matrix);
+    inDbgPointsSize(4);
+    inDbgDrawPoints(vec4(1, 1, 1, 1), deformable.transform.matrix);
+    return true;
+}
+
 private bool drawScreenshotOverlays(Puppet puppet, JSONValue overlayObjects, out string message) {
     ScreenshotOverlayObject[] overlays;
     if (!parseScreenshotOverlayObjects(overlayObjects, overlays, message))
@@ -169,12 +254,13 @@ private bool drawScreenshotOverlays(Puppet puppet, JSONValue overlayObjects, out
             drawScreenshotBoundsOverlay(node);
         } else if (overlay.kind == "mesh") {
             auto drawable = cast(Drawable)node;
-            if (drawable is null) {
-                message = "overlayObjects mesh target is not Drawable: " ~ overlay.uuid.to!string;
+            if (drawable !is null) {
+                drawable.drawMeshLines(vec4(0.1, 0.9, 1, 1));
+                drawable.drawMeshPoints();
+            } else if (!drawScreenshotDeformableMeshOverlay(cast(Deformable)node)) {
+                message = "overlayObjects mesh target is not Drawable or Deformable: " ~ overlay.uuid.to!string;
                 return false;
             }
-            drawable.drawMeshLines(vec4(0.1, 0.9, 1, 1));
-            drawable.drawMeshPoints();
         }
     }
 

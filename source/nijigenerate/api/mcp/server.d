@@ -40,6 +40,7 @@ import mcp.schema : SchemaBuilder;
 import mcp.prompts : PromptArgument, PromptResponse, PromptMessage; // proper prompt API
 import mcp.resources : ResourceNotifier, ResourceContents; // for resource change notifications
 import nijigenerate.api.mcp.http_transport;
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 // Selector + Nodes
 import nijigenerate.core.selector;
 import nijigenerate.core.selector.resource : Resource, to;
@@ -811,6 +812,7 @@ private void _ngMcpStart(string host, ushort port) {
     );
 
     auto t = new Thread({
+        installNativeCrashDumpThreadHandler();
         mcpLog("[MCP] server thread entering start() ...");
         server.start();
         mcpLog("[MCP] server thread exited start()");

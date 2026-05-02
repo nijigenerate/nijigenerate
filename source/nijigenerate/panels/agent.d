@@ -30,6 +30,7 @@ import nijigenerate.panels;
 import nijigenerate.widgets;
 import nijigenerate.api.acp;
 import nijigenerate.core.settings : incSettingsGet, incSettingsSet, incSettingsSave;
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 
 struct ACPResult {
     string kind;   // init, ping, log, error
@@ -1507,7 +1508,10 @@ private:
             workerRunning = true;
             auto cmdCopy = cmd.dup;
             auto wdCopy = workingDir;
-            worker = new Thread(() => workerLoop(cmdCopy, wdCopy));
+            worker = new Thread({
+                installNativeCrashDumpThreadHandler();
+                workerLoop(cmdCopy, wdCopy);
+            });
             worker.isDaemon(true); // allow process exit fallback even if not joined
             worker.start();
             enqueueCommand("init");

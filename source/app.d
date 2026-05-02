@@ -29,7 +29,7 @@ import nijigenerate.windows.flipconfig;
 import nijilive;
 import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 import nijigenerate;
-version(HaveMCP) import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings;
+version(HaveMCP) import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings, ngMcpStop;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
 
@@ -61,8 +61,14 @@ int main(string[] args)
 {
     try {
         installNativeCrashDumpHandler();
-        // Always stop ACP worker on any exit path (normal close, exception, early return).
-        scope(exit) ngAcpStopAll();
+        bool backgroundServicesStopped = false;
+        void stopBackgroundServices() {
+            if (backgroundServicesStopped) return;
+            backgroundServicesStopped = true;
+            version(HaveMCP) ngMcpStop();
+            ngAcpStopAll();
+        }
+        scope(exit) stopBackgroundServices();
         incSettingsLoad();
         incLocaleInit();
         if (incSettingsCanGet("lang")) {
@@ -131,7 +137,7 @@ int main(string[] args)
             incUpdate();
         }
         incSettingsSave();
-        ngAcpStopAll(); // ensure ACP worker stops on exit
+        stopBackgroundServices();
         incFinalize();
     } catch(Throwable ex) {
         debug {
