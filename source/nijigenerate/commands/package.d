@@ -60,10 +60,6 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.automesh.config.commands,
     nijigenerate.commands.automesh.config.autoMeshGetConfigCommands,
     nijigenerate.commands.automesh.config.autoMeshSetConfigCommands,
-    nijigenerate.commands.automesh.config.autoMeshSetSimpleCommands,
-    nijigenerate.commands.automesh.config.autoMeshSetAdvancedCommands,
-    nijigenerate.commands.automesh.config.autoMeshSetPresetCommands,
-    // Prefer typed AutoMesh commands only (per-processor)
     nijigenerate.commands.automesh.config.autoMeshTypedCommands,
     nijigenerate.commands.vertex.define_mesh.commands,
     nijigenerate.commands.model.set_deform_binding.commands,
