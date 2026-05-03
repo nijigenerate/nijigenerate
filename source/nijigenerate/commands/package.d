@@ -19,6 +19,7 @@ public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
 public import nijigenerate.commands.node.mask;
 public import nijigenerate.commands.node.welding;
+public import nijigenerate.commands.node.simplephysics;
 public import nijigenerate.commands.automesh.dynamic;
 public import nijigenerate.commands.automesh.config;
 public import nijigenerate.commands.vertex.define_mesh;
@@ -56,6 +57,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.inspector.apply_node.commands,
     nijigenerate.commands.node.mask.commands,
     nijigenerate.commands.node.welding.commands,
+    nijigenerate.commands.node.simplephysics.commands,
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
     nijigenerate.commands.automesh.config.commands,
     nijigenerate.commands.automesh.config.autoMeshGetConfigCommands,
@@ -195,6 +197,8 @@ private void ngInitCommandMap(alias AA)() {
         nijigenerate.commands.node.mask.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.node.welding.NodeWeldingCommand))
         nijigenerate.commands.node.welding.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.simplephysics.NodeSimplePhysicsCommand))
+        nijigenerate.commands.node.simplephysics.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.automesh.dynamic.AutoMeshKey))
         nijigenerate.commands.automesh.dynamic.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshConfigCommand))
