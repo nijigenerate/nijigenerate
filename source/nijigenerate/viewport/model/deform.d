@@ -70,38 +70,54 @@ public:
         if (parameter) {
             auto drawables = incSelectedNodes();
 
-            if (!editor) {
-                if (drawables && drawables.length > 0) {
-                    editor = new DeformMeshEditor();
-                    editor.setTargets(drawables);
-                } else
-                    return;
-            } else {
-                foreach (node; editor.getTargets()) {
-                    if (auto e = editor.getEditorFor(node)) {
-                        e.pushDeformAction();
-                        e.forceResetAction();
-                    }
-                }
-                editor.setTargets(drawables);
-                editor.resetMesh();
-            }
-
-            foreach (node; editor.getTargets()) {
-                auto e = editor.getEditorFor(node);
-                DeformationParameterBinding deform = null;
-                if (auto deformable = cast(Deformable)node)
-                    deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
-                if (e !is null) {
-                    if (deform !is null) {
-                        auto binding = deform.getValue(parameter.findClosestKeypoint());
-                        e.applyOffsets(binding.vertexOffsets);
-                    }
-                    e.adjustPathTransform();
-                }
-            }
+            syncEditor(parameter, parameter.findClosestKeypoint(), drawables);
         } else {
             editor = null;
+        }
+    }
+
+    void syncEditor(Parameter parameter, Node[] targets) {
+        if (parameter is null) {
+            syncEditor(parameter, vec2u(0, 0), targets);
+        } else {
+            syncEditor(parameter, parameter.findClosestKeypoint(), targets);
+        }
+    }
+
+    void syncEditor(Parameter parameter, vec2u keyPoint, Node[] targets) {
+        this.parameter = parameter;
+        if (parameter is null) {
+            editor = null;
+            return;
+        }
+        if (targets.length == 0) return;
+
+        if (!editor) {
+            editor = new DeformMeshEditor();
+        } else {
+            foreach (node; editor.getTargets()) {
+                if (auto e = editor.getEditorFor(node)) {
+                    e.pushDeformAction();
+                    e.forceResetAction();
+                }
+            }
+        }
+
+        editor.setTargets(targets);
+        editor.resetMesh();
+
+        foreach (node; editor.getTargets()) {
+            auto e = editor.getEditorFor(node);
+            DeformationParameterBinding deform = null;
+            if (auto deformable = cast(Deformable)node)
+                deform = cast(DeformationParameterBinding)parameter.getBinding(deformable, "deform");
+            if (e !is null) {
+                if (deform !is null) {
+                    auto binding = deform.getValue(keyPoint);
+                    e.applyOffsets(binding.vertexOffsets);
+                }
+                e.adjustPathTransform();
+            }
         }
     }
 
@@ -129,5 +145,13 @@ void incViewportNodeDeformNotifyParamValueChanged() {
 IncMeshEditor incViewportModelDeformGetEditor() {
     if (auto view = incDeformationViewport)
         return view.editor;
+    return null;
+}
+
+IncMeshEditor incViewportModelDeformSyncEditor(Parameter parameter, vec2u keyPoint, Node[] targets) {
+    if (auto view = incDeformationViewport) {
+        view.syncEditor(parameter, keyPoint, targets);
+        return view.editor;
+    }
     return null;
 }

@@ -11,6 +11,7 @@ import std.path;
 import std.conv : to;
 import nijigenerate.project;
 import nijigenerate.core.settings;
+import nijilive.math : vec2, vec2u;
 static import std.json;
 import std.json : JSONType, JSONValue;
 
@@ -267,6 +268,75 @@ private bool drawScreenshotOverlays(Puppet puppet, JSONValue overlayObjects, out
     return true;
 }
 
+private bool resolveScreenshotParameter(Context ctx, out Parameter param, out string message) {
+    param = null;
+
+    if (ctx.hasArmedParameters && ctx.armedParameters.length > 0) {
+        if (ctx.armedParameters.length != 1) {
+            message = "context.parameterValue requires exactly one armed parameter";
+            return false;
+        }
+        param = ctx.armedParameters[0];
+    } else if (ctx.hasParameters && ctx.parameters.length > 0) {
+        if (ctx.parameters.length != 1) {
+            message = "context.parameterValue requires exactly one parameter";
+            return false;
+        }
+        param = ctx.parameters[0];
+    } else {
+        param = incArmedParameter();
+    }
+
+    if (param is null) {
+        message = "context.parameterValue requires a parameter";
+        return false;
+    }
+    return true;
+}
+
+private bool resolveScreenshotParameterValue(Parameter param, vec2 value, out vec2 resolved, out string message) {
+    if (param is null) {
+        message = "context.parameterValue requires a parameter";
+        return false;
+    }
+
+    uint x = param.getClosestAxisPointIndex(0, param.mapAxis(0, value.x));
+    uint y = param.getClosestAxisPointIndex(1, param.mapAxis(1, value.y));
+    vec2u keyPoint = vec2u(x, y);
+    if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1)) {
+        message = "context.parameterValue resolved keypoint is out of range";
+        return false;
+    }
+
+    resolved = param.getKeypointValue(keyPoint);
+
+    import std.math : abs;
+    enum float epsilon = 1e-5f;
+    if (abs(resolved.x - value.x) > epsilon || abs(resolved.y - value.y) > epsilon) {
+        message = "context.parameterValue does not match an existing key value";
+        return false;
+    }
+    return true;
+}
+
+private bool applyScreenshotParameterContext(Context ctx, out Parameter param, out vec2 restoreValue, out string message) {
+    param = null;
+    restoreValue = vec2(0, 0);
+    if (!ctx.hasParameterValue)
+        return true;
+
+    if (!resolveScreenshotParameter(ctx, param, message))
+        return false;
+
+    vec2 captureValue;
+    if (!resolveScreenshotParameterValue(param, ctx.parameterValue, captureValue, message))
+        return false;
+
+    restoreValue = param.value;
+    param.value = captureValue;
+    return true;
+}
+
 private bool incCaptureLiveViewport(out int width, out int height, out ubyte[] textureData, out string message, JSONValue overlayObjects = JSONValue.init) {
     auto puppet = incActivePuppet();
     if (puppet is null) {
@@ -341,6 +411,16 @@ class CaptureLiveScreenshotCommand : ExCommand!(
         int width, height;
         ubyte[] textureData;
         string message;
+        Parameter captureParam;
+        vec2 restoreValue;
+        bool restoreCaptureParam = ctx.hasParameterValue;
+        if (!applyScreenshotParameterContext(ctx, captureParam, restoreValue, message))
+            return ExCommandResult!JSONValue(false, JSONValue.init, message);
+        scope(exit) {
+            if (restoreCaptureParam && captureParam !is null)
+                captureParam.value = restoreValue;
+        }
+
         if (!incCaptureLiveViewport(width, height, textureData, message, overlayObjects))
             return ExCommandResult!JSONValue(false, JSONValue.init, message);
 

@@ -6,8 +6,10 @@ import nijigenerate.actions.parameter; // ParameterChangeBindingsValueAction
 import nijigenerate.actions;           // GroupAction, ParameterBindingAddAction
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.ext.param;
-import nijigenerate.project : EditMode, incActivePuppet, incSelectedNodes, incArmedParameter, incArmedParameterIdx, incArmParameter, incEditMode, incSetEditMode;
-import nijigenerate.viewport.model.deform : incViewportNodeDeformNotifyParamValueChanged;
+import nijigenerate.project : incActivePuppet, incSelectedNodes, incArmedParameter;
+import nijigenerate.viewport.common.mesheditor : IncMeshEditor;
+import nijigenerate.viewport.model.deform : incViewportModelDeformGetEditor, incViewportModelDeformSyncEditor, incViewportNodeDeformNotifyParamValueChanged;
+import nijigenerate.viewport.model.mesheditor : DeformMeshEditor;
 import nijilive; // Parameter, Node, Drawable, Deformable
 import nijilive.math : vec2, vec2u;
 import std.algorithm : map, filter;
@@ -70,33 +72,24 @@ private CommandResult ngPrepareSetDeformBindingContext(Context ctx, Parameter pa
     if (!ngFindSetDeformBindingParameterIndex(param, paramIndex))
         return CommandResult(false, "Parameter not found in active puppet");
 
-    if (incEditMode() != EditMode.ModelEdit)
-        incSetEditMode(EditMode.ModelEdit, false);
-
     if (ctx.hasParameterValue) {
         string message;
         if (!ngResolveParameterValueToKeyPoint(param, ctx.parameterValue, keyPoint, message))
             return CommandResult(false, message);
-
-        param.value = param.getKeypointValue(keyPoint);
     } else if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
         if (ctx.keyPoint.x >= param.axisPointCount(0) || ctx.keyPoint.y >= param.axisPointCount(1))
             return CommandResult(false, "keyPoint is out of range for parameter");
         keyPoint = ctx.keyPoint;
-        param.value = param.getKeypointValue(keyPoint);
     } else {
         keyPoint = param.findClosestKeypoint();
-        param.value = param.getKeypointValue(keyPoint);
     }
 
     return CommandResult(true);
 }
 
-private void ngFinalizeSetDeformBindingContext(Parameter param, size_t paramIndex) {
+private void ngFinalizeSetDeformBindingContext(Parameter param) {
     if (param is null) return;
     paramPointChanged(param);
-    if (incArmedParameter() !is param || incArmedParameterIdx() != paramIndex)
-        incArmParameter(paramIndex, param);
     incViewportNodeDeformNotifyParamValueChanged();
 }
 
@@ -161,6 +154,68 @@ private bool ngAllOffsetsZero(ref Vec2Array offsets) {
     foreach (offset; offsets) {
         if (offset.x != 0 || offset.y != 0)
             return false;
+    }
+    return true;
+}
+
+private bool ngNodeAcceptsDeformOffsets(Node node, size_t offsetCount) {
+    if (auto drawable = cast(Drawable)node)
+        return drawable.getMesh().vertices.length == offsetCount;
+    if (auto deformable = cast(Deformable)node)
+        return deformable.vertices.length == offsetCount;
+    return false;
+}
+
+private bool ngSameKeyPoint(vec2u a, vec2u b) {
+    return a.x == b.x && a.y == b.y;
+}
+
+private bool ngCanUseActiveDeformEditor(Parameter param) {
+    auto armed = incArmedParameter();
+    if (armed is null || armed !is param) return false;
+    return incViewportModelDeformGetEditor() !is null;
+}
+
+private void ngFlushActiveDeformEditor() {
+    auto editor = incViewportModelDeformGetEditor();
+    if (editor is null) return;
+
+    foreach (node; editor.getTargets()) {
+        if (auto e = editor.getEditorFor(node)) {
+            e.pushDeformAction();
+            e.forceResetAction();
+        }
+    }
+}
+
+private IncMeshEditor ngPrepareTemporaryDeformEditor(Node[] nodes) {
+    auto editor = new DeformMeshEditor();
+    editor.setTargets(nodes);
+    editor.resetMesh();
+    return editor;
+}
+
+private bool ngNormalizeDeformOffsetsThroughEditor(IncMeshEditor editor, Node node, ref Vec2Array offsets, bool updateEditorView, out Vec2Array normalized, out string message) {
+    if (editor is null) {
+        message = "Deform editor is not available";
+        return false;
+    }
+
+    auto targetEditor = editor.getEditorFor(node);
+    if (targetEditor is null) {
+        message = "Deform editor does not support target node: " ~ node.name;
+        return false;
+    }
+
+    targetEditor.resetMesh();
+    targetEditor.applyOffsets(offsets);
+    normalized = targetEditor.getOffsets();
+    if (updateEditorView)
+        targetEditor.adjustPathTransform();
+
+    if (normalized.length != offsets.length) {
+        message = "Editor-produced deform offset count does not match target vertices";
+        return false;
     }
     return true;
 }
@@ -243,51 +298,81 @@ class SetDeformBindingCommand : ExCommand!(
 
         bool anyChanged = false;
         ParameterBinding[] allCreated;
+        Node[] activeEditorNodes;
+        bool anyActiveEditorUsed = false;
         {
-            // Prepare sets and track new bindings to add undo/redo entries
-            DeformationParameterBinding[] deformBindings;
-            ParameterBinding[]            newlyAdded;
-
             // Pre-parse deform offsets if applicable
             Vec2Array offsets;
             offsets.length = values.length / 2;
             foreach (i; 0 .. offsets.length) offsets[i] = vec2(values[i*2], values[i*2 + 1]);
 
-            // Collect or create bindings for each selected node. Skip incompatible
-            // targets instead of dropping all valid updates for the parameter.
+            Node[] editorNodes;
             foreach (n; ns) {
-                // Try resolve existing binding first
+                if (!ngNodeAcceptsDeformOffsets(n, offsets.length)) continue;
+
                 auto existing = ngFindBindingByTarget(param, n, bindingName);
-                bool wasNull = (existing is null);
-                ParameterBinding b = existing;
+                if (existing !is null && cast(DeformationParameterBinding)existing is null)
+                    continue;
+                if (existing is null && ngAllOffsetsZero(offsets))
+                    continue;
+                editorNodes ~= n;
+            }
 
-                // Branch by concrete binding type, not by name
-                if (auto db = cast(DeformationParameterBinding)b) {
-                    // Only valid on deformable/drawable nodes with matching vertex counts.
-                    size_t expected = 0;
-                    if (auto d = cast(Drawable)n) expected = d.getMesh().vertices.length;
-                    else if (auto df = cast(Deformable)n) expected = df.vertices.length;
-                    else continue;
-                    if (expected != offsets.length) continue;
-                    deformBindings ~= db;
-                    // existing deform binding case; wasNull is false here
-                } else {
-                    // Create only the canonical deform binding for deformable/drawable targets.
-                    size_t expected = 0;
-                    if (auto d = cast(Drawable)n) expected = d.getMesh().vertices.length;
-                    else if (auto df = cast(Deformable)n) expected = df.vertices.length;
-                    else continue;
-                    if (expected != offsets.length) continue;
-                    if (ngAllOffsetsZero(offsets)) continue;
+            if (editorNodes.length == 0)
+                return CommandResult(false, "No bindings updated");
 
-                    b = param.getOrAddBinding(n, "deform");
-                    if (auto ndb = cast(DeformationParameterBinding)b) {
-                        deformBindings ~= ndb;
-                        newlyAdded ~= ndb;
-                    } else {
-                        continue;
-                    }
+            auto activeEditor = ngCanUseActiveDeformEditor(param) ? incViewportModelDeformGetEditor() : null;
+            Node[] temporaryEditorNodes;
+            if (activeEditor !is null) {
+                ngFlushActiveDeformEditor();
+                if (!ngSameKeyPoint(param.findClosestKeypoint(), kp))
+                    param.value = param.getKeypointValue(kp);
+
+                foreach (n; editorNodes) {
+                    if (activeEditor.getEditorFor(n) !is null)
+                        activeEditorNodes ~= n;
+                    else
+                        temporaryEditorNodes ~= n;
                 }
+                if (activeEditorNodes.length > 0) {
+                    incViewportModelDeformSyncEditor(param, kp, activeEditorNodes);
+                    activeEditor = incViewportModelDeformGetEditor();
+                    anyActiveEditorUsed = true;
+                }
+            } else {
+                temporaryEditorNodes = editorNodes;
+            }
+
+            auto temporaryEditor = temporaryEditorNodes.length > 0 ? ngPrepareTemporaryDeformEditor(temporaryEditorNodes) : null;
+            if (temporaryEditorNodes.length > 0 && temporaryEditor is null)
+                return CommandResult(false, "Could not prepare deformation editor");
+
+            // Collect or create bindings through the same editor offset path used
+            // by the GUI mesh editor. Skip incompatible targets instead of
+            // dropping all valid updates for the parameter.
+            DeformationParameterBinding[] deformBindings;
+            Vec2Array[] normalizedOffsets;
+            ParameterBinding[] newlyAdded;
+            foreach (n; editorNodes) {
+                auto existing = ngFindBindingByTarget(param, n, bindingName);
+                auto binding = cast(DeformationParameterBinding)existing;
+                if (binding is null) {
+                    binding = cast(DeformationParameterBinding)param.getOrAddBinding(n, "deform");
+                    if (binding is null) continue;
+                    newlyAdded ~= binding;
+                }
+
+                Vec2Array normalized;
+                string message;
+                auto editor = (activeEditor !is null && activeEditor.getEditorFor(n) !is null) ? activeEditor : temporaryEditor;
+                bool updateEditorView = editor is activeEditor;
+                if (!ngNormalizeDeformOffsetsThroughEditor(editor, n, offsets, updateEditorView, normalized, message)) {
+                    if (message.length > 0)
+                        return CommandResult(false, message);
+                    continue;
+                }
+                deformBindings ~= binding;
+                normalizedOffsets ~= normalized;
             }
 
             if (deformBindings.length == 0)
@@ -301,10 +386,8 @@ class SetDeformBindingCommand : ExCommand!(
             }
             if (deformBindings.length > 0) {
                 auto action = new ParameterChangeBindingsValueAction(_("Set Deform Binding"), param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
-                foreach (b; deformBindings) {
-                    b.update(kp, offsets);
-                    if (auto target = cast(Deformable)b.getTarget().target)
-                        target.updateDeform();
+                foreach (i, b; deformBindings) {
+                    b.update(kp, normalizedOffsets[i]);
                 }
                 action.updateNewState();
                 group.addAction(action);
@@ -315,8 +398,10 @@ class SetDeformBindingCommand : ExCommand!(
             }
         }
 
-        // Refresh deformation viewport/editor state
-        ngFinalizeSetDeformBindingContext(param, paramIndex);
+        paramPointChanged(param);
+        if (anyActiveEditorUsed) {
+            incViewportModelDeformSyncEditor(param, kp, activeEditorNodes);
+        }
         if (allCreated.length > 0) {
             return new CreateResult!ParameterBinding(anyChanged, allCreated, anyChanged ? "" : "No bindings updated");
         }
@@ -406,7 +491,7 @@ class SetTRSBindingCommand : ExCommand!(
             incActionPush(group);
         }
 
-        ngFinalizeSetDeformBindingContext(param, paramIndex);
+        ngFinalizeSetDeformBindingContext(param);
         if (allCreated.length > 0) {
             return new CreateResult!ParameterBinding(anyChanged, allCreated, anyChanged ? "" : "No bindings updated");
         }

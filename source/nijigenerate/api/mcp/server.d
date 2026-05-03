@@ -11,7 +11,7 @@ module nijigenerate.api.mcp.server;
  *   from the current active app state (same as shortcuts).
  * - When provided, `context` supports the following keys:
  *   - `parameters`: array of uint UUIDs for Parameters
- *   - `armedParameters`: array of uint UUIDs for Parameters to arm
+ *   - `armedParameters`: array of uint UUIDs for commands that explicitly operate on armed parameters
  *   - `nodes`: array of uint UUIDs for Nodes
  *   - `parameterValue`: [number] or [number, number] parameter-axis values resolved by the target command
  * - Any missing key is treated as "not set" for that value (hasXXX=false in Context).
@@ -452,7 +452,7 @@ private void _ngMcpStart(string host, ushort port) {
                 .addProperty("parameters", SchemaBuilder.array(SchemaBuilder.integer()).optional()
                     .setDescription("Parameter UUIDs to use as context.parameters."))
                 .addProperty("armedParameters", SchemaBuilder.array(SchemaBuilder.integer()).optional()
-                    .setDescription("Parameter UUIDs to arm before running the command. Commands that edit parameter keys resolve parameterValue against their target parameter."))
+                    .setDescription("Parameter UUIDs for commands that explicitly use armed-parameter context. Only arm-specific commands change the GUI ArmedParameter."))
                 .addProperty("parameterValue", SchemaBuilder.array(SchemaBuilder.number()).optional()
                     .setDescription("Parameter-axis key values, not keypoint indexes. Use [x] for 1D or [x,y] for 2D. Values must exactly match existing parameter key values."))
                 .addProperty("bindings", SchemaBuilder.array(
@@ -956,7 +956,7 @@ private void _ngMcpStart(string host, ushort port) {
         "- Provide only when needed to override selection.\n\n" ~
         "Context keys:\n" ~
         "- parameters: uint[] of Parameter UUIDs.\n" ~
-        "- armedParameters: uint[] of Parameter UUIDs to arm.\n" ~
+        "- armedParameters: uint[] for commands that explicitly use armed-parameter context. Only arm-specific commands change the GUI ArmedParameter.\n" ~
         "- nodes: uint[] of Node UUIDs.\n" ~
         "- parameterValue: [x] or [x,y] parameter-axis values. Values must exactly match existing key values.\n" ~
         "- keyPoint is not part of the MCP input surface. Do not pass key point indexes through MCP.\n\n" ~
@@ -966,7 +966,8 @@ private void _ngMcpStart(string host, ushort port) {
         "Examples (JSON args):\n" ~
         "- Run with default context: {}\n" ~
         "- Run for specific nodes: {\"context\": {\"nodes\":[123,456]}}\n" ~
-        "- Run at parameter value: {\"context\": {\"armedParameters\":[789], \"parameterValue\":[-0.5,0]}}\n";
+        "- Set a parameter key without arming: {\"context\": {\"parameters\":[789], \"parameterValue\":[-0.5,0]}}\n" ~
+        "- Set and arm a parameter key: {\"context\": {\"armedParameters\":[789], \"parameterValue\":[-0.5,0]}}\n";
 
     // Register prompts using the proper API (no static-if fallbacks)
     mcpLog("[MCP] addPrompt: resources/find");

@@ -349,54 +349,95 @@ private bool findParameterIndex(Parameter param, out size_t index) {
 
 @ShortcutHidden
 class SetParameterKeypointCommand : ExCommand!() {
-    this() { super(_("Set Parameter Keypoint"), _("Move the current parameter-edit keypoint from context.parameterValue without changing bindings.")); }
+    this() {
+        super(
+            _("Set Parameter Keypoint"),
+            _("Set context.parameters[0] to context.parameterValue without changing bindings or GUI ArmedParameter. Use SetArmedParameterAndKeypoint when the command should also arm the parameter.")
+        );
+    }
+
+    override
+    CommandResult run(Context ctx) {
+        if (!ctx.hasParameters || ctx.parameters.length == 0)
+            return CommandResult(false, "SetParameterKeypoint requires context.parameters[0]");
+        auto param = ctx.parameters[0];
+
+        vec2u keyPoint;
+        vec2 resolved;
+        auto result = resolveParameterKeypointValue(ctx, param, keyPoint, resolved);
+        if (!result.succeeded) return result;
+
+        return applyParameterKeypoint(param, keyPoint, resolved, false);
+    }
+}
+
+@ShortcutHidden
+class SetArmedParameterAndKeypointCommand : ExCommand!() {
+    this() {
+        super(
+            _("Set Armed Parameter and Keypoint"),
+            _("Set the target parameter to context.parameterValue and make it the GUI ArmedParameter. Prefer context.armedParameters[0]; if omitted, uses the current ArmedParameter. Use SetParameterKeypoint when no GUI ArmedParameter change is desired.")
+        );
+    }
 
     override
     CommandResult run(Context ctx) {
         Parameter param = null;
         if (ctx.hasArmedParameters && ctx.armedParameters.length > 0)
             param = ctx.armedParameters[0];
-        else if (ctx.hasParameters && ctx.parameters.length > 0)
-            param = ctx.parameters[0];
         else
             param = incArmedParameter();
-
         if (param is null) return CommandResult(false, "No parameter");
+
         vec2u keyPoint;
         vec2 resolved;
 
-        if (ctx.hasParameterValue) {
-            keyPoint = param.findClosestKeypoint(ctx.parameterValue);
-            if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1))
-                return CommandResult(false, "context.parameterValue resolved keypoint is out of range");
+        auto result = resolveParameterKeypointValue(ctx, param, keyPoint, resolved);
+        if (!result.succeeded) return result;
 
-            resolved = param.getKeypointValue(keyPoint);
-            import std.math : abs;
-            enum float epsilon = 1e-5f;
-            if (abs(resolved.x - ctx.parameterValue.x) > epsilon || abs(resolved.y - ctx.parameterValue.y) > epsilon)
-                return CommandResult(false, "context.parameterValue does not match an existing key value");
-        } else if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
-            keyPoint = ctx.keyPoint;
-            if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1))
-                return CommandResult(false, "keyPoint is out of range for parameter");
-            resolved = param.getKeypointValue(keyPoint);
-        } else {
-            return CommandResult(false, "context.parameterValue is required");
-        }
-
-        size_t index;
-        if (!findParameterIndex(param, index))
-            return CommandResult(false, "Parameter not found in active puppet");
-
-        if (incEditMode() != EditMode.ModelEdit)
-            incSetEditMode(EditMode.ModelEdit, false);
-
-        param.value = resolved;
-        paramPointChanged(param);
-        incArmParameter(index, param);
-        incViewportNodeDeformNotifyParamValueChanged();
-        return CommandResult(true);
+        return applyParameterKeypoint(param, keyPoint, resolved, true);
     }
+}
+
+private CommandResult resolveParameterKeypointValue(Context ctx, Parameter param, out vec2u keyPoint, out vec2 resolved) {
+    if (param is null) return CommandResult(false, "No parameter");
+
+    if (ctx.hasParameterValue) {
+        keyPoint = param.findClosestKeypoint(ctx.parameterValue);
+        if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1))
+            return CommandResult(false, "context.parameterValue resolved keypoint is out of range");
+
+        resolved = param.getKeypointValue(keyPoint);
+        import std.math : abs;
+        enum float epsilon = 1e-5f;
+        if (abs(resolved.x - ctx.parameterValue.x) > epsilon || abs(resolved.y - ctx.parameterValue.y) > epsilon)
+            return CommandResult(false, "context.parameterValue does not match an existing key value");
+    } else if (ctx.hasKeyPoint && ctx.hasExplicitKeyPoint) {
+        keyPoint = ctx.keyPoint;
+        if (keyPoint.x >= param.axisPointCount(0) || keyPoint.y >= param.axisPointCount(1))
+            return CommandResult(false, "keyPoint is out of range for parameter");
+        resolved = param.getKeypointValue(keyPoint);
+    } else {
+        return CommandResult(false, "context.parameterValue is required");
+    }
+
+    return CommandResult(true);
+}
+
+private CommandResult applyParameterKeypoint(Parameter param, vec2u keyPoint, vec2 resolved, bool armParameter) {
+    size_t index;
+    if (!findParameterIndex(param, index))
+        return CommandResult(false, "Parameter not found in active puppet");
+
+    if (incEditMode() != EditMode.ModelEdit)
+        incSetEditMode(EditMode.ModelEdit, false);
+
+    param.value = resolved;
+    paramPointChanged(param);
+    if (armParameter)
+        incArmParameter(index, param);
+    incViewportNodeDeformNotifyParamValueChanged();
+    return CommandResult(true);
 }
 
 @EffectKeyframeEdit
@@ -435,6 +476,7 @@ enum ParameditCommand {
     LinkTo,
     ToggleParameterArm,
     SetParameterKeypoint,
+    SetArmedParameterAndKeypoint,
     SetStartingKeyFrame
 }
 
