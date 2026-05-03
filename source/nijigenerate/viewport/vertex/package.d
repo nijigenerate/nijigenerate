@@ -534,3 +534,67 @@ IncMeshEditor incVertexViewportGetEditor() {
         return view.editor;
     return null;
 }
+
+private IncMeshEditor ngCreateCommandVertexEditor(Node target) {
+    auto editor = new VertexMeshEditor();
+    editor.setTargets([target]);
+    editor.resetMesh();
+    return editor;
+}
+
+bool ngApplyDrawableMeshFromCommand(Drawable target, IncMesh mesh, out string message) {
+    if (target is null) {
+        message = "No drawable target";
+        return false;
+    }
+    if (mesh is null) {
+        message = "No mesh data";
+        return false;
+    }
+
+    auto editor = incVertexViewportGetEditor();
+    auto targetEditor = editor !is null ? cast(IncMeshEditorOneDrawable)editor.getEditorFor(target) : null;
+    if (targetEditor is null) {
+        editor = ngCreateCommandVertexEditor(target);
+        targetEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(target);
+    }
+    if (targetEditor is null) {
+        message = "Vertex editor does not support drawable target: " ~ target.name;
+        return false;
+    }
+
+    targetEditor.setMesh(mesh);
+    targetEditor.refreshMesh();
+    targetEditor.applyToTarget();
+    target.notifyChange(target, NotifyReason.StructureChanged);
+    return true;
+}
+
+bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions, out string message) {
+    if (target is null) {
+        message = "No deformable target";
+        return false;
+    }
+    if (positions.length == 0) {
+        message = "No vertex data";
+        return false;
+    }
+
+    auto editor = incVertexViewportGetEditor();
+    auto targetEditor = editor !is null ? cast(IncMeshEditorOneDeformable)editor.getEditorFor(target) : null;
+    if (targetEditor is null) {
+        editor = ngCreateCommandVertexEditor(target);
+        targetEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(target);
+    }
+    if (targetEditor is null) {
+        message = "Vertex editor does not support deformable target: " ~ target.name;
+        return false;
+    }
+
+    targetEditor.vertices = ngMeshVerticesFromPositions(positions.toArray());
+    targetEditor.vertexMapDirty = true;
+    targetEditor.refreshMesh();
+    targetEditor.applyToTarget();
+    target.notifyChange(target, NotifyReason.StructureChanged);
+    return true;
+}

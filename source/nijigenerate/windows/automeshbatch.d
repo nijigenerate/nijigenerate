@@ -53,7 +53,8 @@ private:
             auto part = cast(ApplicableClass)node;
             if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
             auto mesh = meshes[node.uuid];
-            applyMeshToTarget(part, mesh.vertices, &mesh);
+            string message;
+            ngApplyDrawableMeshFromCommand(part, mesh, message);
         }
     }
 

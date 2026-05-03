@@ -2,7 +2,8 @@ module nijigenerate.commands.vertex.define_mesh;
 
 import nijigenerate.commands.base;
 import nijigenerate.project : incSelectedNodes;
-import nijigenerate.viewport.common.mesh : IncMesh, applyMeshToTarget, isGrid;
+import nijigenerate.viewport.common.mesh : IncMesh, isGrid;
+import nijigenerate.viewport.vertex : ngApplyDeformableVerticesFromCommand, ngApplyDrawableMeshFromCommand;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive; // Node, Drawable
 import nijilive.math : Vec2Array, vec2, vec3u;
@@ -125,8 +126,9 @@ class DefineMeshCommand : ExCommand!(
             mesh.importVertsAndTris(vtx, tris);
             mesh.refresh();
 
-            // For Drawable targets, applyMeshToTarget will use mesh.export_() for topology
-            applyMeshToTarget(t, mesh.vertices, &mesh);
+            string message;
+            if (!ngApplyDrawableMeshFromCommand(t, mesh, message))
+                return CommandResult(false, message);
         }
         return CommandResult(true);
     }
@@ -171,7 +173,9 @@ class DefineVerticesCommand : ExCommand!(
                 float[][] gridAxes;
                 enforce(isGrid(vtx, gridAxes), "GridDeformer vertices must form a complete rectangular grid");
             }
-            applyMeshToTarget(t, vtx.toArray(), cast(IncMesh*)null);
+            string message;
+            if (!ngApplyDeformableVerticesFromCommand(t, vtx, message))
+                return CommandResult(false, message);
         }
         return CommandResult(true);
     }
@@ -205,7 +209,9 @@ class DefineGridCommand : ExCommand!(
         if (targets.length == 0) return CommandResult(false, "No GridDeformer targets");
 
         foreach (t; targets) {
-            applyMeshToTarget(t, vtx.toArray(), cast(IncMesh*)null);
+            string message;
+            if (!ngApplyDeformableVerticesFromCommand(t, vtx, message))
+                return CommandResult(false, message);
         }
         return CommandResult(true);
     }

@@ -265,10 +265,18 @@ template ApplyAutoMeshPT(alias PT)
                             auto mesh = *pm;
                             if (mesh.vertices.length == 0) continue;
                             if (cast(Drawable)t && mesh.vertices.length < 3) continue;
-                            if (auto dr = cast(Drawable)t)
-                                applyMeshToTarget(dr, mesh.vertices, &mesh);
-                            else
-                                applyMeshToTarget(t, mesh.vertices, &mesh);
+                            string message;
+                            if (auto dr = cast(Drawable)t) {
+                                if (!ngApplyDrawableMeshFromCommand(dr, mesh, message)) {
+                                    asyncResult.complete(CommandResult(false, message));
+                                    return;
+                                }
+                            } else {
+                                if (!ngApplyDeformableVerticesFromCommand(t, ngMeshPositions(mesh), message)) {
+                                    asyncResult.complete(CommandResult(false, message));
+                                    return;
+                                }
+                            }
                             ++applied;
                         }
                     }
