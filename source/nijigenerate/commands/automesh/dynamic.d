@@ -20,6 +20,8 @@ import vibe.core.core : vibeYield = yield;
 import std.stdio : writefln;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngRunInMainThread; // scheduling helpers
 import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
+import nijigenerate.widgets.notification : NotificationPopup;
+import bindbc.imgui : ImGuiIO, ImVec2, igText, igProgressBar, igSameLine;
 
 version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
 else             private void cmdLog(T...)(T args) {}
@@ -63,6 +65,52 @@ private class AutoMeshApplyResult : CommandResult {
             }
         }
         return finalResult !is null ? finalResult : this;
+    }
+}
+
+private class AutoMeshProgressState {
+    private Mutex lock;
+    size_t total;
+    private size_t done_;
+    private string currentName_;
+    private bool canceled_;
+
+    this(size_t total) {
+        lock = new Mutex();
+        this.total = total;
+    }
+
+    void beginTarget(string name) {
+        synchronized (lock) {
+            currentName_ = name;
+        }
+    }
+
+    void completeTarget() {
+        synchronized (lock) {
+            if (done_ < total) ++done_;
+        }
+    }
+
+    void requestCancel() {
+        synchronized (lock) {
+            canceled_ = true;
+        }
+    }
+
+    bool canceled() {
+        synchronized (lock) {
+            return canceled_;
+        }
+    }
+
+    void snapshot(out size_t done, out size_t totalOut, out string currentName, out bool canceledOut) {
+        synchronized (lock) {
+            done = done_;
+            totalOut = total;
+            currentName = currentName_;
+            canceledOut = canceled_;
+        }
     }
 }
 
@@ -147,17 +195,44 @@ template ApplyAutoMeshPT(alias PT)
             }
 
             auto asyncResult = new AutoMeshApplyResult();
+            auto progress = new AutoMeshProgressState(targets.length);
+            string procName = chosen.displayName();
+            ulong popupId = NotificationPopup.instance().popup((ImGuiIO* io) {
+                import nijigenerate.widgets : incButtonColored;
+                import std.string : toStringz;
+
+                size_t done, total;
+                string currentName;
+                bool canceled;
+                progress.snapshot(done, total, currentName, canceled);
+                float ratio = total > 0 ? cast(float)done / cast(float)total : 0;
+                string title = "AutoMesh: " ~ procName ~ (currentName.length ? (" - " ~ currentName) : "");
+                igText(title.toStringz);
+                igProgressBar(ratio, ImVec2(320, 0));
+                igSameLine(0, 8);
+                if (canceled) {
+                    igText("Canceling...");
+                } else if (incButtonColored("Cancel", ImVec2(96, 24))) {
+                    progress.requestCancel();
+                }
+            }, -1);
+
             Thread th = new Thread({
                 installNativeCrashDumpThreadHandler();
                 IncMesh[uint] results;
                 string workerError;
                 size_t processed = 0;
                 bool cb(Deformable d, IncMesh mesh) {
+                    if (mesh is null) {
+                        progress.beginTarget(d.name);
+                        return !progress.canceled();
+                    }
                     if (mesh !is null) {
                         results[d.uuid] = mesh;
                         ++processed;
+                        progress.completeTarget();
                     }
-                    return true;
+                    return !progress.canceled();
                 }
                 void work() {
                     Deformable[] bgTargets = targets;
@@ -175,11 +250,15 @@ template ApplyAutoMeshPT(alias PT)
 
                 if (workerError.length) {
                     writefln("[AutoMesh] worker failed: %s", workerError);
-                    asyncResult.complete(CommandResult(false, workerError));
+                    ngMcpEnqueueAction({
+                        NotificationPopup.instance().close(popupId);
+                        asyncResult.complete(CommandResult(false, workerError));
+                    });
                     return;
                 }
 
                 ngMcpEnqueueAction({
+                    scope(exit) NotificationPopup.instance().close(popupId);
                     size_t applied = 0;
                     foreach (t; targets) {
                         if (auto pm = t.uuid in results) {
@@ -194,7 +273,9 @@ template ApplyAutoMeshPT(alias PT)
                         }
                     }
 
-                    if (applied == 0) {
+                    if (progress.canceled()) {
+                        asyncResult.complete(CommandResult(false, "AutoMesh canceled"));
+                    } else if (applied == 0) {
                         asyncResult.complete(CommandResult(false, "AutoMesh generated no applicable meshes"));
                     } else {
                         asyncResult.complete(CommandResult(true));
