@@ -43,8 +43,8 @@ class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter
 class ApplyParameterPropsAxesCommand : ExCommand!(
     TW!(float[2], "min",   "New min (x,y) as [2]"),
     TW!(float[2], "max",   "New max (x,y) as [2]"),
-    TW!(float[],  "axisX", "Normalized X breakpoints (including endpoints)"),
-    TW!(float[],  "axisY", "Normalized Y breakpoints (including endpoints; empty for 1D)")
+    TW!(float[],  "axisX", "Normalized X breakpoints as ratios in [0, 1], including endpoints 0 and 1"),
+    TW!(float[],  "axisY", "Normalized Y breakpoints as ratios in [0, 1], including endpoints 0 and 1; empty for 1D")
 ) {
     this(float[2] min, float[2] max, float[] axisX, float[] axisY) {
         super(null, _("Apply Parameter Axes + Props"), min, max, axisX, axisY);
@@ -93,13 +93,46 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
         if (param.isVec2 && prevMax.y != param.max.y)
             incActionPush(new ParameterValueChangeAction!float("max Y", param, prevMax.y, param.max.y, &param.max.vector[1]));
 
+        bool normalizeAxis(uint axis, float[] values, out float[] normalized, out string axisMessage) {
+            import std.algorithm : sort;
+            import std.math : abs, isFinite;
+
+            foreach (value; values) {
+                if (!value.isFinite) {
+                    axisMessage = "axis" ~ (axis == 0 ? "X" : "Y") ~ " contains non-finite value";
+                    return false;
+                }
+                if (value < 0 || value > 1) {
+                    axisMessage = "axis" ~ (axis == 0 ? "X" : "Y") ~ " values must be normalized between 0 and 1";
+                    return false;
+                }
+            }
+
+            values.sort();
+            enum float eps = 1e-6f;
+            normalized ~= 0.0f;
+            foreach (value; values) {
+                if (abs(value) <= eps || abs(value - 1.0f) <= eps)
+                    continue;
+                if (value <= 0 || value >= 1)
+                    continue;
+                if (normalized.length == 0 || abs(normalized[$ - 1] - value) > eps)
+                    normalized ~= value;
+            }
+            normalized ~= 1.0f;
+            return true;
+        }
+
         // Helper to rewrite axis points to provided normalized list
-        void applyAxis(uint axis, float[] targetVals) {
+        bool applyAxis(uint axis, float[] targetVals, out string axisMessage) {
             import std.algorithm : sort;
             import std.math : abs;
             // Ensure ascending and presence of endpoints
-            targetVals.sort();
-            if (targetVals.length < 2) return;
+            float[] normalizedTargetVals;
+            if (!normalizeAxis(axis, targetVals, normalizedTargetVals, axisMessage))
+                return false;
+            targetVals = normalizedTargetVals;
+            if (targetVals.length < 2) return true;
 
             // Current points
             float[] curVals;
@@ -150,6 +183,8 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
             // Insert unmatched target mid-points
             for (size_t tj = 1; tj + 1 < tarN; ++tj) {
                 if (!tarMatched[tj]) {
+                    if (targetVals[tj] <= 0 || targetVals[tj] >= 1)
+                        continue;
                     param.insertAxisPoint(axis, targetVals[tj]);
                 }
             }
@@ -161,11 +196,15 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
             for (size_t i = 1; i + 1 < curN && i + 1 < tarN; ++i) {
                 param.axisPoints[axis][i] = targetVals[i];
             }
+            return true;
         }
 
         // Apply breakpoints
-        if (axisX.length >= 2) applyAxis(0, axisX);
-        if (param.isVec2 && axisY.length >= 2) applyAxis(1, axisY);
+        string axisMessage;
+        if (axisX.length >= 2 && !applyAxis(0, axisX, axisMessage))
+            return CommandResult(false, axisMessage);
+        if (param.isVec2 && axisY.length >= 2 && !applyAxis(1, axisY, axisMessage))
+            return CommandResult(false, axisMessage);
 
         // Remap all binding values by nearest neighbor in normalized space
         // Use tolerance based on half of old cell size so that far points become unset
