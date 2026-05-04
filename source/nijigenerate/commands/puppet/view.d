@@ -388,6 +388,18 @@ private JSONValue jsonMat4(mat4 value) {
     return result;
 }
 
+private JSONValue jsonPointMapping(size_t index, vec2 source, vec2 overlay, mat4 overlayToImageMatrix) {
+    auto image = overlayToImageMatrix * vec4(overlay.x, overlay.y, 0, 1);
+    vec2 imagePoint = image.w != 0 ? image.xy / image.w : image.xy;
+
+    JSONValue[string] result;
+    result["index"] = JSONValue(cast(long)index);
+    result["source"] = jsonVec2(source);
+    result["overlay"] = jsonVec2(overlay);
+    result["image"] = jsonVec2(imagePoint);
+    return JSONValue(result);
+}
+
 private vec2 clipToWorldPoint(mat4 clipToWorld, vec2 clip) {
     auto world = clipToWorld * vec4(clip.x, clip.y, 0, 1);
     if (world.w != 0)
@@ -403,8 +415,6 @@ private mat4 clipToImageMatrix(int width, int height) {
 private JSONValue buildScreenshotWorldCaptureMeta(int width, int height) {
     auto worldToClip = inGetCamera().matrix();
     auto clipToWorld = worldToClip.inverse;
-    auto worldToImage = clipToImageMatrix(width, height) * worldToClip;
-    auto imageToWorld = worldToImage.inverse;
 
     vec2 topLeft = clipToWorldPoint(clipToWorld, vec2(-1, 1));
     vec2 topRight = clipToWorldPoint(clipToWorld, vec2(1, 1));
@@ -439,9 +449,6 @@ private JSONValue buildScreenshotWorldCaptureMeta(int width, int height) {
     capture["aabb"] = JSONValue(aabb);
     capture["worldToClipMatrix"] = jsonMat4(worldToClip);
     capture["clipToWorldMatrix"] = jsonMat4(clipToWorld);
-    capture["worldToImageMatrix"] = jsonMat4(worldToImage);
-    capture["imageToWorldMatrix"] = jsonMat4(imageToWorld);
-    capture["pixelToWorld"] = JSONValue("world = imageToWorldMatrix * [pixelX, pixelY, 0, 1]");
     return JSONValue(capture);
 }
 
@@ -451,7 +458,6 @@ private JSONValue buildScreenshotOverlayMappings(Puppet puppet, JSONValue overla
         return JSONValue.init;
 
     auto worldToImage = clipToImageMatrix(width, height) * inGetCamera().matrix();
-    auto imageToWorld = worldToImage.inverse;
 
     JSONValue result = JSONValue.emptyArray;
     foreach (overlay; overlays) {
@@ -461,23 +467,63 @@ private JSONValue buildScreenshotOverlayMappings(Puppet puppet, JSONValue overla
             return JSONValue.init;
         }
 
-        auto targetToWorld = node.transform.matrix;
-        auto worldToTarget = targetToWorld.inverse;
-        auto targetToImage = worldToImage * targetToWorld;
-        auto imageToTarget = targetToImage.inverse;
+        mat4 targetToWorld;
+        JSONValue coordinateSystem;
+        JSONValue overlayPoint;
+        JSONValue overlayPoints = JSONValue.emptyArray;
+
+        if (overlay.kind == "bounds") {
+            // Bounds overlay is drawn from getCombinedBounds(), which already yields world-space points.
+            targetToWorld = mat4.identity;
+            coordinateSystem = JSONValue("nijigenerate-world");
+            overlayPoint = JSONValue("overlay point is a world-space bounds point: [worldX, worldY, 0, 1]");
+        } else if (auto drawable = cast(Drawable)node) {
+            // Drawable mesh overlay draws vertices as vertices - data.origin + deformation,
+            // then applies getDynamicMatrix() and any one-time transform.
+            targetToWorld = drawable.meshOverlayMatrix();
+            coordinateSystem = JSONValue("drawable-overlay-point");
+            overlayPoint = JSONValue("overlay point is the exact point sent to debug draw: [vertexX - data.origin.x + deformationX, vertexY - data.origin.y + deformationY, 0, 1]");
+        } else if (auto deformable = cast(Deformable)node) {
+            // Deformable mesh overlay draws vertices + deformation with the deformer transform.
+            targetToWorld = deformable.transform.matrix;
+            coordinateSystem = JSONValue("deformable-deformed-vertex");
+            overlayPoint = JSONValue("overlay point is [vertexX + deformationX, vertexY + deformationY, 0, 1]");
+        } else {
+            message = "overlayObjects mesh target is not Drawable or Deformable: " ~ overlay.uuid.to!string;
+            return JSONValue.init;
+        }
+
+        auto overlayToImageMatrix = worldToImage * targetToWorld;
+
+        if (overlay.kind == "bounds") {
+            auto bounds = node.getCombinedBounds!(true)();
+            vec2[4] points = [
+                vec2(bounds.x, bounds.y),
+                vec2(bounds.z, bounds.y),
+                vec2(bounds.z, bounds.w),
+                vec2(bounds.x, bounds.w),
+            ];
+            foreach (i, point; points)
+                overlayPoints.array ~= jsonPointMapping(i, point, point, overlayToImageMatrix);
+        } else if (auto drawable = cast(Drawable)node) {
+            auto points = drawable.meshOverlayPoints();
+            foreach (i, point; points)
+                overlayPoints.array ~= jsonPointMapping(i, drawable.vertices[i], point, overlayToImageMatrix);
+        } else if (auto deformable = cast(Deformable)node) {
+            foreach (i, point; deformable.vertices) {
+                vec2 overlayPointValue = point;
+                if (deformable.deformation.length == deformable.vertices.length)
+                    overlayPointValue += deformable.deformation[i];
+                overlayPoints.array ~= jsonPointMapping(i, point, overlayPointValue, overlayToImageMatrix);
+            }
+        }
 
         JSONValue[string] entry;
         entry["uuid"] = JSONValue(cast(long)overlay.uuid);
         entry["overlay"] = JSONValue(overlay.kind);
-        entry["coordinateSystem"] = JSONValue("target-local");
-        entry["targetToWorldMatrix"] = jsonMat4(targetToWorld);
-        entry["worldToTargetMatrix"] = jsonMat4(worldToTarget);
-        entry["worldToImageMatrix"] = jsonMat4(worldToImage);
-        entry["imageToWorldMatrix"] = jsonMat4(imageToWorld);
-        entry["targetToImageMatrix"] = jsonMat4(targetToImage);
-        entry["imageToTargetMatrix"] = jsonMat4(imageToTarget);
-        entry["targetToImage"] = JSONValue("image = targetToImageMatrix * [targetX, targetY, 0, 1]");
-        entry["imageToTarget"] = JSONValue("target = imageToTargetMatrix * [pixelX, pixelY, 0, 1]");
+        entry["coordinateSystem"] = coordinateSystem;
+        entry["overlayPoint"] = overlayPoint;
+        entry["points"] = overlayPoints;
         result.array ~= JSONValue(entry);
     }
     return result;

@@ -291,7 +291,7 @@ protected:
                 }
                 if (incViewportTargetZoom != 1) {
                     igSameLine(0, 8);
-                    if (incButtonColored("", ImVec2(0, 0), ImVec4.init)) {
+                    if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
                         auto ctx = new Context;
                         if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                         cmd!(ViewportCommand.ResetViewportZoom)(ctx);
@@ -305,7 +305,7 @@ protected:
                 incText("x = %.2f y = %.2f".format(incViewportTargetPosition.x, incViewportTargetPosition.y));
                 if (incViewportTargetPosition != vec2(0)) {
                     igSameLine(0, 8);
-                    if (incButtonColored("##2", ImVec2(0, 0), ImVec4.init)) {
+                    if (incButtonColored("##2", ImVec2(32, 0), ImVec4.init)) {
                         auto ctx = new Context;
                         if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                         cmd!(ViewportCommand.ResetViewportPosition)(ctx);
@@ -313,7 +313,7 @@ protected:
                 }
 
                 igSameLine(0, 8);
-                if (incButtonColored("\ue3b4", ImVec2(0, 0), ImVec4.init)) {
+                if (incButtonColored("\ue3b4", ImVec2(32, 0), ImVec4.init)) {
                     auto ctx = new Context;
                     if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                     cmd!(ViewportCommand.FitViewportToModel)(ctx);
