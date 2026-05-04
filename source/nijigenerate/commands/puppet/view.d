@@ -398,7 +398,7 @@ class CaptureLiveScreenshotCommand : ExCommand!(
 ) {
     this() {
         super(_("Capture Live Screenshot"), _("Capture current live viewport and return an MCP image content item with mimeType image/png."));
-        overlayObjects = JSONValue(JSONType.array);
+        overlayObjects = JSONValue.emptyArray;
     }
 
     override

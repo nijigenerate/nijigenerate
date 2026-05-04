@@ -171,7 +171,7 @@ private bool incFlipPairMatches(FlipPair pair, Node a, Node b) {
 }
 
 JSONValue incListFlipPairsJson() {
-    JSONValue items = JSONValue(JSONType.array);
+    JSONValue items = JSONValue.emptyArray;
     foreach (i, pair; incGetFlipPairs()) {
         JSONValue[string] item;
         item["index"] = JSONValue(cast(long)i);

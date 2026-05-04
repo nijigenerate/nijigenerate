@@ -31,7 +31,7 @@ private JSONValue _encodeCreateResult(R)(CreateResult!R rr) {
     JSONValue[string] m;
     m["succeeded"] = JSONValue(rr.succeeded);
     if (rr.message.length) m["message"] = JSONValue(rr.message);
-    JSONValue arrCreated = JSONValue(JSONType.array);
+    JSONValue arrCreated = JSONValue.emptyArray;
     foreach (c; rr.created) arrCreated.array ~= _encodeResource(c);
     m["created"] = arrCreated;
     return JSONValue(m);
@@ -40,7 +40,7 @@ private JSONValue _encodeDeleteResult(R)(DeleteResult!R rr) {
     JSONValue[string] m;
     m["succeeded"] = JSONValue(rr.succeeded);
     if (rr.message.length) m["message"] = JSONValue(rr.message);
-    JSONValue arrDeleted = JSONValue(JSONType.array);
+    JSONValue arrDeleted = JSONValue.emptyArray;
     foreach (d; rr.deleted) arrDeleted.array ~= _encodeResource(d);
     m["deleted"] = arrDeleted;
     return JSONValue(m);
@@ -49,7 +49,7 @@ private JSONValue _encodeLoadResult(R)(LoadResult!R rr) {
     JSONValue[string] m;
     m["succeeded"] = JSONValue(rr.succeeded);
     if (rr.message.length) m["message"] = JSONValue(rr.message);
-    JSONValue arrLoaded = JSONValue(JSONType.array);
+    JSONValue arrLoaded = JSONValue.emptyArray;
     foreach (l; rr.loaded) arrLoaded.array ~= _encodeResource(l);
     m["loaded"] = arrLoaded;
     return JSONValue(m);
@@ -65,11 +65,11 @@ private JSONValue _encodeValue(T)(auto ref T v) {
     else static if (is(T == JSONValue)) return v;
     else static if (is(T : const(JSONValue))) return v;
     else static if (is(T == Parameter[])) {
-        JSONValue arr = JSONValue(JSONType.array);
+        JSONValue arr = JSONValue.emptyArray;
         foreach (p; v) arr.array ~= _encodeResource(p);
         return arr;
     } else static if (is(T == Node[])) {
-        JSONValue arr = JSONValue(JSONType.array);
+        JSONValue arr = JSONValue.emptyArray;
         foreach (n; v) arr.array ~= _encodeResource(n);
         return arr;
     } else {

@@ -144,7 +144,7 @@ class AutoMeshListProcessorsCommand : ExCommand!() {
     override bool runnable(Context ctx) { return true; }
     override CommandResult run(Context ctx) {
         import std.json : JSONValue, JSONType;
-        JSONValue arr = JSONValue(JSONType.array);
+        JSONValue arr = JSONValue.emptyArray;
         static foreach (i, PT; AutoMeshProcessorTypes) {{
             JSONValue obj_;
             obj_["id"] = AMProcInfo!(PT).id;

@@ -219,18 +219,70 @@ template ApplyAutoMeshPT(alias PT)
 
             Thread th = new Thread({
                 installNativeCrashDumpThreadHandler();
-                IncMesh[uint] results;
                 string workerError;
-                size_t processed = 0;
+                auto applyLock = new Mutex();
+                size_t applied = 0;
+                string applyError;
+
+                void recordApplyError(string message) {
+                    synchronized (applyLock) {
+                        if (!applyError.length) applyError = message;
+                    }
+                }
+
+                string currentApplyError() {
+                    synchronized (applyLock) {
+                        return applyError;
+                    }
+                }
+
+                void incrementApplied() {
+                    synchronized (applyLock) {
+                        ++applied;
+                    }
+                }
+
+                size_t appliedCount() {
+                    synchronized (applyLock) {
+                        return applied;
+                    }
+                }
+
                 bool cb(Deformable d, IncMesh mesh) {
                     if (mesh is null) {
                         progress.beginTarget(d.name);
                         return !progress.canceled();
                     }
                     if (mesh !is null) {
-                        results[d.uuid] = mesh;
-                        ++processed;
-                        progress.completeTarget();
+                        auto target = d;
+                        auto resultMesh = mesh;
+                        ngMcpEnqueueAction({
+                            if (currentApplyError().length) return;
+                            scope(exit) progress.completeTarget();
+
+                            if (resultMesh.vertices.length == 0) {
+                                recordApplyError("AutoMesh generated empty mesh for " ~ target.name);
+                                return;
+                            }
+                            if (cast(Drawable)target && resultMesh.vertices.length < 3) {
+                                recordApplyError("AutoMesh generated too few drawable vertices for " ~ target.name);
+                                return;
+                            }
+
+                            string message;
+                            if (auto dr = cast(Drawable)target) {
+                                if (!ngApplyDrawableMeshFromCommand(dr, resultMesh, message)) {
+                                    recordApplyError(message);
+                                    return;
+                                }
+                            } else {
+                                if (!ngApplyDeformableVerticesFromCommand(target, ngMeshPositions(resultMesh), message)) {
+                                    recordApplyError(message);
+                                    return;
+                                }
+                            }
+                            incrementApplied();
+                        });
                     }
                     return !progress.canceled();
                 }
@@ -259,31 +311,13 @@ template ApplyAutoMeshPT(alias PT)
 
                 ngMcpEnqueueAction({
                     scope(exit) NotificationPopup.instance().close(popupId);
-                    size_t applied = 0;
-                    foreach (t; targets) {
-                        if (auto pm = t.uuid in results) {
-                            auto mesh = *pm;
-                            if (mesh.vertices.length == 0) continue;
-                            if (cast(Drawable)t && mesh.vertices.length < 3) continue;
-                            string message;
-                            if (auto dr = cast(Drawable)t) {
-                                if (!ngApplyDrawableMeshFromCommand(dr, mesh, message)) {
-                                    asyncResult.complete(CommandResult(false, message));
-                                    return;
-                                }
-                            } else {
-                                if (!ngApplyDeformableVerticesFromCommand(t, ngMeshPositions(mesh), message)) {
-                                    asyncResult.complete(CommandResult(false, message));
-                                    return;
-                                }
-                            }
-                            ++applied;
-                        }
-                    }
-
-                    if (progress.canceled()) {
+                    auto error = currentApplyError();
+                    auto appliedNow = appliedCount();
+                    if (error.length) {
+                        asyncResult.complete(CommandResult(false, error));
+                    } else if (progress.canceled()) {
                         asyncResult.complete(CommandResult(false, "AutoMesh canceled"));
-                    } else if (applied == 0) {
+                    } else if (appliedNow == 0) {
                         asyncResult.complete(CommandResult(false, "AutoMesh generated no applicable meshes"));
                     } else {
                         asyncResult.complete(CommandResult(true));
