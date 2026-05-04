@@ -212,8 +212,8 @@ private bool drawScreenshotDeformableMeshOverlay(Deformable deformable) {
     } else if (vertices.length >= 2) {
         Vec3Array lines;
         foreach (i; 1 .. vertices.length) {
-            auto prev = vertices[i - 1];
-            auto next = vertices[i];
+            vec2 prev = vertices[i - 1].toVector();
+            vec2 next = vertices[i].toVector();
             if (haveDeform) {
                 prev += deformable.deformation[i - 1];
                 next += deformable.deformation[i];
@@ -229,8 +229,9 @@ private bool drawScreenshotDeformableMeshOverlay(Deformable deformable) {
 
     pointBuffer.length = vertices.length;
     foreach (i, point; vertices) {
-        if (haveDeform) point += deformable.deformation[i];
-        pointBuffer[i] = vec3(point, 0);
+        vec2 pointValue = point.toVector();
+        if (haveDeform) pointValue += deformable.deformation[i];
+        pointBuffer[i] = vec3(pointValue, 0);
     }
     inDbgSetBuffer(pointBuffer);
     inDbgPointsSize(8);
@@ -508,13 +509,14 @@ private JSONValue buildScreenshotOverlayMappings(Puppet puppet, JSONValue overla
         } else if (auto drawable = cast(Drawable)node) {
             auto points = drawable.meshOverlayPoints();
             foreach (i, point; points)
-                overlayPoints.array ~= jsonPointMapping(i, drawable.vertices[i], point, overlayToImageMatrix);
+                overlayPoints.array ~= jsonPointMapping(i, drawable.vertices[i].toVector(), point.toVector(), overlayToImageMatrix);
         } else if (auto deformable = cast(Deformable)node) {
             foreach (i, point; deformable.vertices) {
-                vec2 overlayPointValue = point;
+                vec2 sourcePoint = point.toVector();
+                vec2 overlayPointValue = sourcePoint;
                 if (deformable.deformation.length == deformable.vertices.length)
                     overlayPointValue += deformable.deformation[i];
-                overlayPoints.array ~= jsonPointMapping(i, point, overlayPointValue, overlayToImageMatrix);
+                overlayPoints.array ~= jsonPointMapping(i, sourcePoint, overlayPointValue, overlayToImageMatrix);
             }
         }
 
@@ -575,11 +577,15 @@ class CaptureLiveScreenshotCommand : ExCommand!(
         Parameter captureParam;
         vec2 restoreValue;
         bool restoreCaptureParam = ctx.hasParameterValue;
+        auto capturePuppet = incActivePuppet();
         if (!applyScreenshotParameterContext(ctx, captureParam, restoreValue, message))
             return ExCommandResult!JSONValue(false, JSONValue.init, message);
         scope(exit) {
-            if (restoreCaptureParam && captureParam !is null)
+            if (restoreCaptureParam && captureParam !is null) {
                 captureParam.value = restoreValue;
+                if (capturePuppet !is null)
+                    capturePuppet.update();
+            }
         }
 
         if (!incCaptureLiveViewport(width, height, textureData, message, overlayObjects))
