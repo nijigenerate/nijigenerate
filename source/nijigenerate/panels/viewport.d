@@ -312,6 +312,13 @@ protected:
                     }
                 }
 
+                igSameLine(0, 8);
+                if (incButtonColored("\ue3b4", ImVec2(0, 0), ImVec4.init)) {
+                    auto ctx = new Context;
+                    if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
+                    cmd!(ViewportCommand.FitViewportToModel)(ctx);
+                }
+                incTooltip(_("Fit viewport to model"));
 
             igPopItemWidth();
         }
@@ -413,4 +420,3 @@ public:
 }
 
 mixin incPanel!ViewportPanel;
-

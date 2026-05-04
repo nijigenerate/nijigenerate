@@ -9,6 +9,7 @@ import nijigenerate.io;
 import i18n;
 import std.path;
 import std.conv : to;
+import std.algorithm : max, min;
 import nijigenerate.project;
 import nijigenerate.core.settings;
 import nijilive.math : vec2, vec2u;
@@ -368,6 +369,120 @@ private bool incCaptureLiveViewport(out int width, out int height, out ubyte[] t
     return true;
 }
 
+private JSONValue jsonVec2(vec2 value) {
+    JSONValue result = JSONValue.emptyArray;
+    result.array ~= JSONValue(cast(double)value.x);
+    result.array ~= JSONValue(cast(double)value.y);
+    return result;
+}
+
+private JSONValue jsonMat4(mat4 value) {
+    JSONValue result = JSONValue.emptyArray;
+    foreach (row; 0 .. 4) {
+        JSONValue rowValue = JSONValue.emptyArray;
+        foreach (col; 0 .. 4) {
+            rowValue.array ~= JSONValue(cast(double)value[row][col]);
+        }
+        result.array ~= rowValue;
+    }
+    return result;
+}
+
+private vec2 clipToWorldPoint(mat4 clipToWorld, vec2 clip) {
+    auto world = clipToWorld * vec4(clip.x, clip.y, 0, 1);
+    if (world.w != 0)
+        return (world.xy / world.w);
+    return world.xy;
+}
+
+private mat4 clipToImageMatrix(int width, int height) {
+    return mat4.translation(cast(float)width * 0.5f, cast(float)height * 0.5f, 0) *
+        mat4.scaling(cast(float)width * 0.5f, -(cast(float)height) * 0.5f, 1);
+}
+
+private JSONValue buildScreenshotWorldCaptureMeta(int width, int height) {
+    auto worldToClip = inGetCamera().matrix();
+    auto clipToWorld = worldToClip.inverse;
+    auto worldToImage = clipToImageMatrix(width, height) * worldToClip;
+    auto imageToWorld = worldToImage.inverse;
+
+    vec2 topLeft = clipToWorldPoint(clipToWorld, vec2(-1, 1));
+    vec2 topRight = clipToWorldPoint(clipToWorld, vec2(1, 1));
+    vec2 bottomRight = clipToWorldPoint(clipToWorld, vec2(1, -1));
+    vec2 bottomLeft = clipToWorldPoint(clipToWorld, vec2(-1, -1));
+
+    vec2 minPoint = vec2(
+        min(min(topLeft.x, topRight.x), min(bottomRight.x, bottomLeft.x)),
+        min(min(topLeft.y, topRight.y), min(bottomRight.y, bottomLeft.y))
+    );
+    vec2 maxPoint = vec2(
+        max(max(topLeft.x, topRight.x), max(bottomRight.x, bottomLeft.x)),
+        max(max(topLeft.y, topRight.y), max(bottomRight.y, bottomLeft.y))
+    );
+
+    JSONValue[string] corners;
+    corners["topLeft"] = jsonVec2(topLeft);
+    corners["topRight"] = jsonVec2(topRight);
+    corners["bottomRight"] = jsonVec2(bottomRight);
+    corners["bottomLeft"] = jsonVec2(bottomLeft);
+
+    JSONValue[string] aabb;
+    aabb["min"] = jsonVec2(minPoint);
+    aabb["max"] = jsonVec2(maxPoint);
+
+    JSONValue[string] capture;
+    capture["coordinateSystem"] = JSONValue("nijigenerate-world");
+    capture["pixelOrigin"] = JSONValue("top-left");
+    capture["width"] = JSONValue(cast(long)width);
+    capture["height"] = JSONValue(cast(long)height);
+    capture["corners"] = JSONValue(corners);
+    capture["aabb"] = JSONValue(aabb);
+    capture["worldToClipMatrix"] = jsonMat4(worldToClip);
+    capture["clipToWorldMatrix"] = jsonMat4(clipToWorld);
+    capture["worldToImageMatrix"] = jsonMat4(worldToImage);
+    capture["imageToWorldMatrix"] = jsonMat4(imageToWorld);
+    capture["pixelToWorld"] = JSONValue("world = imageToWorldMatrix * [pixelX, pixelY, 0, 1]");
+    return JSONValue(capture);
+}
+
+private JSONValue buildScreenshotOverlayMappings(Puppet puppet, JSONValue overlayObjects, int width, int height, out string message) {
+    ScreenshotOverlayObject[] overlays;
+    if (!parseScreenshotOverlayObjects(overlayObjects, overlays, message))
+        return JSONValue.init;
+
+    auto worldToImage = clipToImageMatrix(width, height) * inGetCamera().matrix();
+    auto imageToWorld = worldToImage.inverse;
+
+    JSONValue result = JSONValue.emptyArray;
+    foreach (overlay; overlays) {
+        auto node = puppet.find!(Node)(overlay.uuid);
+        if (node is null) {
+            message = "overlayObjects target node not found: " ~ overlay.uuid.to!string;
+            return JSONValue.init;
+        }
+
+        auto targetToWorld = node.transform.matrix;
+        auto worldToTarget = targetToWorld.inverse;
+        auto targetToImage = worldToImage * targetToWorld;
+        auto imageToTarget = targetToImage.inverse;
+
+        JSONValue[string] entry;
+        entry["uuid"] = JSONValue(cast(long)overlay.uuid);
+        entry["overlay"] = JSONValue(overlay.kind);
+        entry["coordinateSystem"] = JSONValue("target-local");
+        entry["targetToWorldMatrix"] = jsonMat4(targetToWorld);
+        entry["worldToTargetMatrix"] = jsonMat4(worldToTarget);
+        entry["worldToImageMatrix"] = jsonMat4(worldToImage);
+        entry["imageToWorldMatrix"] = jsonMat4(imageToWorld);
+        entry["targetToImageMatrix"] = jsonMat4(targetToImage);
+        entry["imageToTargetMatrix"] = jsonMat4(imageToTarget);
+        entry["targetToImage"] = JSONValue("image = targetToImageMatrix * [targetX, targetY, 0, 1]");
+        entry["imageToTarget"] = JSONValue("target = imageToTargetMatrix * [pixelX, pixelY, 0, 1]");
+        result.array ~= JSONValue(entry);
+    }
+    return result;
+}
+
 @EffectFileWrite
 class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to save screenshot.")) {
     this(string filename) { super(_("Save Screenshot"), _("Save screenshot."), filename); }
@@ -438,6 +553,17 @@ class CaptureLiveScreenshotCommand : ExCommand!(
         JSONValue[string] meta;
         meta["width"] = JSONValue(cast(long)width);
         meta["height"] = JSONValue(cast(long)height);
+        meta["worldCapture"] = buildScreenshotWorldCaptureMeta(width, height);
+        if (overlayObjects.type == JSONType.array && overlayObjects.array.length > 0) {
+            auto puppet = incActivePuppet();
+            if (puppet is null)
+                return ExCommandResult!JSONValue(false, JSONValue.init, "No active puppet");
+            message = null;
+            JSONValue overlayMappings = buildScreenshotOverlayMappings(puppet, overlayObjects, width, height, message);
+            if (message.length > 0)
+                return ExCommandResult!JSONValue(false, JSONValue.init, message);
+            meta["overlayMappings"] = overlayMappings;
+        }
 
         JSONValue[string] result;
         result["mcpDirectToolResult"] = JSONValue(true);

@@ -8,10 +8,13 @@ import nijigenerate.windows.automeshbatch;
 import nijigenerate.windows;          // incPushWindow
 import nijigenerate.widgets.modal;     // incModalAdd
 import nijigenerate.ext;
+import nijigenerate.project : incActivePuppet;
 import nijilive;
 import i18n;
 import std.json : JSONValue;
+import std.algorithm : clamp, min;
 import std.conv : to;
+import std.math : isFinite;
 
 // Commands for viewport UI actions (buttons/menus)
 
@@ -158,6 +161,41 @@ class ResetViewportPositionCommand : ExCommand!() {
     }
 }
 
+@ShortcutHidden
+@EffectLayoutReset
+class FitViewportToModelCommand : ExCommand!() {
+    this() { super(_("Fit viewport to model."), _("Reset viewport center and zoom so the current puppet bounds fit inside the viewport.")); }
+    override CommandResult run(Context ctx) {
+        auto puppet = (ctx.hasPuppet && ctx.puppet !is null) ? ctx.puppet : incActivePuppet();
+        if (puppet is null) return CommandResult(false, "No puppet");
+
+        int width, height;
+        inGetViewport(width, height);
+        if (width <= 0 || height <= 0) return CommandResult(false, "Viewport is empty");
+
+        puppet.update();
+        auto bounds = puppet.getCombinedBounds!(true)();
+        float boundsWidth = bounds.z - bounds.x;
+        float boundsHeight = bounds.w - bounds.y;
+        if (!isFinite(boundsWidth) || !isFinite(boundsHeight) || boundsWidth <= 0 || boundsHeight <= 0)
+            return CommandResult(false, "Puppet bounds are empty");
+
+        vec2 center = bounds.xy + ((bounds.zw - bounds.xy) * 0.5f);
+        float zoom = min(cast(float)width / boundsWidth, cast(float)height / boundsHeight);
+        zoom = clamp(zoom, cast(float)incVIEWPORT_ZOOM_MIN, cast(float)incVIEWPORT_ZOOM_MAX);
+        vec2 position = vec2(-center.x, -center.y);
+
+        auto camera = inGetCamera();
+        camera.position = position;
+        camera.scale = vec2(zoom);
+        camera.rotation = 0;
+        incViewportTargetPosition = position;
+        incViewportTargetZoom = zoom;
+        incViewportZoom = zoom;
+        return CommandResult(true);
+    }
+}
+
 enum ViewportCommand {
     ToggleMirrorView,
     ToggleOnionSlice,
@@ -173,6 +211,7 @@ enum ViewportCommand {
     OpenAutomeshBatching,
     ResetViewportZoom,
     ResetViewportPosition,
+    FitViewportToModel,
 }
 
 Command[ViewportCommand] commands;
