@@ -36,18 +36,78 @@ import nijigenerate.commands.binding.base;
 // Command Palette Definition for Key Frame
 //==================================================================================
 
+private bool ngResolveBindingParameterValueToKeyPoint(Parameter param, vec2 value, out vec2u keyPoint, out string message) {
+    if (param is null) {
+        message = "context.parameterValue requires a parameter";
+        return false;
+    }
+
+    uint x = param.getClosestAxisPointIndex(0, param.mapAxis(0, value.x));
+    uint y = param.getClosestAxisPointIndex(1, param.mapAxis(1, value.y));
+    auto resolved = param.getKeypointValue(vec2u(x, y));
+
+    import std.math : abs;
+    enum float epsilon = 1e-5f;
+    if (abs(resolved.x - value.x) > epsilon || abs(resolved.y - value.y) > epsilon) {
+        message = "context.parameterValue does not match an existing key value";
+        return false;
+    }
+
+    keyPoint = vec2u(x, y);
+    return true;
+}
+
+private CommandResult ngResolveBindingKeyContext(Context ctx, out Parameter param, out ParameterBinding[] bindings, out vec2u keyPoint, out bool targetBindingsNull) {
+    param = null;
+    bindings = null;
+    keyPoint = vec2u(0, 0);
+    targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
+
+    if (ctx.hasArmedParameters && ctx.armedParameters.length > 0) {
+        if (ctx.armedParameters.length != 1)
+            return CommandResult(false, "Binding key command requires exactly one armed parameter");
+        param = ctx.armedParameters[0];
+    } else if (ctx.hasParameters && ctx.parameters.length > 0) {
+        if (ctx.parameters.length != 1)
+            return CommandResult(false, "Binding key command requires exactly one parameter");
+        param = ctx.parameters[0];
+    } else {
+        return CommandResult(false, "No armed parameter");
+    }
+
+    if ((!ctx.hasBindings && !ctx.hasActiveBindings) || (!targetBindingsNull && ctx.activeBindings.length == 0))
+        return CommandResult(false, "No bindings");
+
+    bindings = (!targetBindingsNull) ? ctx.activeBindings : ctx.bindings;
+    if (bindings.length == 0)
+        return CommandResult(false, "No bindings");
+
+    if (ctx.hasParameterValue) {
+        string message;
+        if (!ngResolveBindingParameterValueToKeyPoint(param, ctx.parameterValue, keyPoint, message))
+            return CommandResult(false, message);
+    } else if (ctx.hasKeyPoint) {
+        if (ctx.keyPoint.x >= param.axisPointCount(0) || ctx.keyPoint.y >= param.axisPointCount(1))
+            return CommandResult(false, "keyPoint is out of range for parameter");
+        keyPoint = ctx.keyPoint;
+    } else {
+        return CommandResult(false, "No keypoint");
+    }
+
+    return CommandResult(true);
+}
+
 @EffectKeyframeEdit
 class UnsetKeyFrameCommand : ExCommand!() {
     this() { super(_("Unset Key Frame")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         auto action = new ParameterChangeBindingsValueAction("unset", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
             binding.unset(cParamPoint);
@@ -64,13 +124,12 @@ class SetKeyFrameCommand : ExCommand!() {
     this() { super(_("Set Key Frame")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
 
         auto action = new ParameterChangeBindingsValueAction("setCurrent", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -88,13 +147,12 @@ class ResetKeyFrameCommand : ExCommand!() {
     this() { super(_("Reset Key Frame")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         auto action = new ParameterChangeBindingsValueAction("reset", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -112,13 +170,12 @@ class InvertKeyFrameCommand : ExCommand!() {
     this() { super(_("Invert Key Frame")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         auto action = new ParameterChangeBindingsValueAction("invert", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -136,13 +193,12 @@ class MirrorKeyFrameHorizontallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Horizontally")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         auto action = new ParameterChangeBindingsValueAction("mirror Horizontally", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -160,13 +216,12 @@ class MirrorKeyFrameVerticallyCommand : ExCommand!() {
     this() { super(_("Mirror Key Frame Vertically")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         auto action = new ParameterChangeBindingsValueAction("mirror Vertically", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -184,13 +239,12 @@ class FlipDeformCommand : ExCommand!() {
     this() { super(_("Flip Deform")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         auto action = new ParameterChangeBindingsValueAction("Flip Deform", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -212,13 +266,12 @@ class SymmetrizeDeformCommand : ExCommand!() {
     this() { super(_("Symmetrize Deform")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         auto action = new ParameterChangeBindingsValueAction("Symmetrize Deform", param, bindings, cParamPoint.x, cParamPoint.y);
         foreach(binding; bindings) {
@@ -244,12 +297,12 @@ class SetFromHorizontalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Horizontal Mirror")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.armedParameters[0];
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
 
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror (Horizontally)", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -273,13 +326,12 @@ class SetFromVerticalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Vertical Mirror")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.armedParameters[0];
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
         
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror (Vertically)", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -304,13 +356,12 @@ class SetFromDiagonalMirrorCommand : ExCommand!() {
     this() { super(_("Set From Diagonal Mirror")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.armedParameters[0];
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
 
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror (Diagonally)", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -335,13 +386,12 @@ class SetFrom1DMirrorCommand : ExCommand!() {
     this() { super(_("Set From 1D Mirror")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto param = ctx.armedParameters[0];
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
 
         incActionPushGroup();
         auto action = new ParameterChangeBindingsValueAction("set From Mirror", param, bindings, cParamPoint.x, cParamPoint.y);
@@ -367,13 +417,12 @@ class CopyBindingCommand : ExCommand!() {
     this() { super(_("Copy Bindings")); }
     override
     CommandResult run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return CommandResult(false, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded) return resolved;
 
         cClipboardPoint = cParamPoint;
         cClipboardBindings.clear();
@@ -389,13 +438,13 @@ class PasteBindingCommand : ExCommand!() {
     this() { super(_("Paste Bindings")); }
     override
     CreateResult!ParameterBinding run(Context ctx) {
-        if (!ctx.hasArmedParameters || ctx.armedParameters.length == 0 || (!ctx.hasBindings && !ctx.hasActiveBindings) || !ctx.hasKeyPoint)
-            return new CreateResult!ParameterBinding(false, null, "No armed parameter/bindings/keypoint");
-        
-        auto param = ctx.armedParameters[0];
-        bool targetBindingsNull = !ctx.hasActiveBindings || ctx.activeBindings is null;
-        auto bindings = (!targetBindingsNull)? ctx.activeBindings: ctx.bindings;
-        auto cParamPoint = ctx.keyPoint;
+        Parameter param;
+        ParameterBinding[] bindings;
+        vec2u cParamPoint;
+        bool targetBindingsNull;
+        auto resolved = ngResolveBindingKeyContext(ctx, param, bindings, cParamPoint, targetBindingsNull);
+        if (!resolved.succeeded)
+            return new CreateResult!ParameterBinding(false, null, resolved.message);
 
         // Build list of bindings to apply and create missing ones when appropriate
         bool explicitTargets = !targetBindingsNull;
