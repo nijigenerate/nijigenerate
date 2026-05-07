@@ -263,8 +263,8 @@ public:
     string schemaLegacy() {
         JSONValue obj = JSONValue(JSONType.object);
         obj["type"] = "GridAutoMeshProcessor";
-        JSONValue simple = JSONValue(JSONType.array);
-        JSONValue adv = JSONValue(JSONType.array);
+        JSONValue simple = JSONValue.emptyArray;
+        JSONValue adv = JSONValue.emptyArray;
         // Simple
         JSONValue it;
         it["id"] = "mask_threshold"; it["label"] = "Mask threshold"; it["type"] = "float"; simple.array ~= it; it = JSONValue.init;
@@ -276,14 +276,14 @@ public:
         it["id"] = "scale_y"; it["label"] = "Y Scale"; it["type"] = "float[]"; adv.array ~= it;
         obj["Simple"] = simple;
         obj["Advanced"] = adv;
-        obj["presets"] = JSONValue(JSONType.array);
+        obj["presets"] = JSONValue.emptyArray;
         return obj.toString();
     }
     string valuesLegacy(string levelName) {
         JSONValue v = JSONValue(JSONType.object);
         if (levelName == "Advanced") {
-            JSONValue sx = JSONValue(JSONType.array); foreach(x; scaleX) sx.array ~= JSONValue(cast(double)x); v["scale_x"] = sx;
-            JSONValue sy = JSONValue(JSONType.array); foreach(y; scaleY) sy.array ~= JSONValue(cast(double)y); v["scale_y"] = sy;
+            JSONValue sx = JSONValue.emptyArray; foreach(x; scaleX) sx.array ~= JSONValue(cast(double)x); v["scale_x"] = sx;
+            JSONValue sy = JSONValue.emptyArray; foreach(y; scaleY) sy.array ~= JSONValue(cast(double)y); v["scale_y"] = sy;
         } else {
             v["mask_threshold"] = JSONValue(cast(double)maskThreshold);
             v["x_segments"] = JSONValue(cast(double)xSegments);

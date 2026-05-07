@@ -22,6 +22,7 @@ import nijigenerate.api.acp.protocol;
 import nijigenerate.api.acp.types;
 import nijigenerate.api.acp.transport.stdio;
 import nijigenerate.core.settings : incSettingsGet;
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 
 /// Minimal client for interacting with the Coding Agent from the editor.
 /// - Pass commands as string[] (not a shell string) to avoid OS-specific behavior.
@@ -353,15 +354,26 @@ class ACPClient {
         sendRawLine(raw);
     }
 
-    /// respond to session/request_permission
-    void sendPermissionResponse(string id, bool granted) {
+    /// Respond to session/request_permission.
+    void sendPermissionResponse(string id, string optionId, bool cancelled = false) {
         if (id.length == 0 || id == "null") {
             throw new Exception("permission response missing request id");
         }
-        // Keep backward compatibility (granted: bool) and also include outcome for newer implementations.
-        auto outcome = granted ? "granted" : "denied";
-        auto raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"granted":` ~ (granted ? "true" : "false") ~ `,"outcome":"` ~ outcome ~ `"}}`;
+        string raw;
+        if (cancelled) {
+            raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"outcome":{"outcome":"cancelled"}}}`;
+        } else {
+            if (optionId.length == 0) {
+                throw new Exception("permission response missing option id");
+            }
+            auto optionEsc = escapeJsonString(optionId);
+            raw = `{"jsonrpc":"2.0","id":` ~ id ~ `,"result":{"outcome":{"outcome":"selected","optionId":"` ~ optionEsc ~ `"}}}`;
+        }
         sendRawLine(raw);
+    }
+
+    void sendPermissionResponse(string id, bool granted) {
+        sendPermissionResponse(id, granted ? "allow-once" : "", !granted);
     }
 
     /// reader thread drains stdout/stderr and buffers results
@@ -369,14 +381,20 @@ class ACPClient {
         inboundMutex = new Mutex();
         inboundCond = new Condition(inboundMutex);
         readerRunning = true;
-        reader = new Thread(&readerLoop);
+        reader = new Thread({
+            installNativeCrashDumpThreadHandler();
+            readerLoop();
+        });
         reader.isDaemon(true);
         reader.start();
     }
 
     void startStderrReader() {
         stderrRunning = true;
-        stderrThread = new Thread(&stderrLoop);
+        stderrThread = new Thread({
+            installNativeCrashDumpThreadHandler();
+            stderrLoop();
+        });
         stderrThread.isDaemon(true);
         stderrThread.start();
     }
@@ -465,32 +483,36 @@ class ACPClient {
     /// Priority: if embedded MCP HTTP server is enabled, use that;
     /// otherwise fall back to user-provided JSON in ACP.McpServers (array).
     JSONValue currentMcpServers() {
-        bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
-        auto host = incSettingsGet!string("MCP.Host", "127.0.0.1");
-        auto port = incSettingsGet!int("MCP.Port", 8088);
-        if (!(mcpEnabled || host.length)) {
+        version(HaveMCP) {
+            bool mcpEnabled = incSettingsGet!bool("MCP.Enabled", false);
+            auto host = incSettingsGet!string("MCP.Host", "127.0.0.1");
+            auto port = incSettingsGet!int("MCP.Port", 8088);
+            if (!(mcpEnabled || host.length)) {
+                return parseJSON("[]");
+            }
+            if (!host.length) host = "127.0.0.1";
+            auto url = format("http://%s:%s/mcp", host, port);
+            // Expected format (union variant http):
+            // {"type":"http","name":"nijigenerate","url":"http://host:port","headers":[{"name":"","value":""},...]}
+            auto name = incSettingsGet!string("MCP.Name", "nijigenerate");
+            string headersRaw = incSettingsGet!string("MCP.Headers", "[]");
+            JSONValue headers;
+            try {
+                headers = parseJSON(headersRaw);
+            } catch (Exception) {
+                headers = parseJSON("[]");
+            }
+            if (headers.type != JSONType.array) headers = parseJSON("[]");
+            auto jsonStr = `[{` ~
+                `"type":"http",` ~
+                `"name":"` ~ escapeJsonString(name) ~ `",` ~
+                `"url":"` ~ escapeJsonString(url) ~ `",` ~
+                `"headers":` ~ headers.toString() ~
+            `}]`;
+            return parseJSON(jsonStr);
+        } else {
             return parseJSON("[]");
         }
-        if (!host.length) host = "127.0.0.1";
-        auto url = format("http://%s:%s/mcp", host, port);
-        // Expected format (union variant http):
-        // {"type":"http","name":"nijigenerate","url":"http://host:port","headers":[{"name":"","value":""},...]}
-        auto name = incSettingsGet!string("MCP.Name", "nijigenerate");
-        string headersRaw = incSettingsGet!string("MCP.Headers", "[]");
-        JSONValue headers;
-        try {
-            headers = parseJSON(headersRaw);
-        } catch (Exception) {
-            headers = parseJSON("[]");
-        }
-        if (headers.type != JSONType.array) headers = parseJSON("[]");
-        auto jsonStr = `[{` ~
-            `"type":"http",` ~
-            `"name":"` ~ escapeJsonString(name) ~ `",` ~
-            `"url":"` ~ escapeJsonString(url) ~ `",` ~
-            `"headers":` ~ headers.toString() ~
-        `}]`;
-        return parseJSON(jsonStr);
     }
 
     /// Send ping (success if no exception).

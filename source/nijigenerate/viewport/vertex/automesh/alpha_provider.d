@@ -293,7 +293,8 @@ private ProjectionResult projectAlphaExec(Node[] targets, Puppet puppet, Project
     return res;
 }
 
-// Enumerate drawables under nodes respecting coverOthers/propagateMeshGroup rules
+// Enumerate drawable alpha sources for AutoMesh.
+// Plain Node is only a grouping node and must not implicitly contribute child Parts.
 package(nijigenerate) Drawable[] enumerateDrawablesForAutoMesh(Node[] targets) {
     Drawable[] list;
     void findSubDrawable(Node n) {
@@ -303,8 +304,7 @@ package(nijigenerate) Drawable[] enumerateDrawablesForAutoMesh(Node[] targets) {
             if (comp.propagateMeshGroup) { foreach (child; n.children) findSubDrawable(child); }
             return;
         }
-        if (auto d = cast(Drawable)n) { list ~= d; foreach (child; n.children) findSubDrawable(child); return; }
-        return;
+        if (auto d = cast(Drawable)n) { list ~= d; return; }
     }
     foreach (t; targets) findSubDrawable(t);
     return list;
@@ -341,7 +341,7 @@ void alphaPreviewWidget(ref AlphaPreviewState state, ImVec2 size = ImVec2(192, 1
         scope(exit) if (provider) provider.dispose();
         if (nodes.length == 1) {
             if (auto part = cast(Part)nodes[0]) provider = new PartAlphaProvider(part);
-            else provider = new DeformableAlphaProvider(nodes[0]);
+            else if (cast(Deformable)nodes[0] || cast(Composite)nodes[0]) provider = new DeformableAlphaProvider(nodes[0]);
         } else if (nodes.length > 1) {
             provider = new GenericProjectionAlphaProvider(nodes);
         }

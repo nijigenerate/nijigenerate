@@ -14,6 +14,22 @@ import std.traits;
 import std.array;
 import i18n;
 
+version(Posix) {
+    import core.stdc.signal : raise;
+    import core.stdc.stdlib : malloc;
+    import core.sys.posix.fcntl : O_CREAT, O_TRUNC, O_WRONLY, open;
+    import core.sys.posix.signal : SA_ONSTACK, SA_RESETHAND, SA_SIGINFO, SIGSEGV, SIGSTKSZ,
+        sigaction, sigaction_t, sigaltstack, sigemptyset, siginfo_t, stack_t;
+    import core.sys.posix.sys.types : mode_t;
+    import core.sys.posix.unistd : _exit, close, getpid, write;
+
+    version(OSX) {
+        import core.sys.darwin.execinfo : backtrace, backtrace_symbols_fd;
+    } else version(linux) {
+        import core.sys.linux.execinfo : backtrace, backtrace_symbols_fd;
+    }
+}
+
 string genCrashDump(T...)(Throwable t, T state) {
     string[] args;
     static foreach(i; 0 .. state.length) {
@@ -62,6 +78,116 @@ string getCrashDumpDir() {
 string genCrashDumpPath(string filename) {
     import std.datetime;
     return buildPath(getCrashDumpDir(), filename ~ "-" ~ Clock.currTime.toISOString() ~ ".txt");
+}
+
+version(Posix) {
+    enum size_t nativeCrashPathMax = 4096;
+    enum int nativeBacktraceMaxFrames = 128;
+    __gshared char[nativeCrashPathMax] nativeCrashDumpPath;
+    __gshared size_t nativeCrashDumpPathLen;
+    __gshared int nativeCrashHandlerActive;
+    void* nativeSignalStack;
+
+    private void copyNativeCrashDumpPath(string path) {
+        auto n = path.length < nativeCrashPathMax - 1 ? path.length : nativeCrashPathMax - 1;
+        nativeCrashDumpPath[0 .. n] = path[0 .. n];
+        nativeCrashDumpPath[n] = '\0';
+        nativeCrashDumpPathLen = n;
+    }
+
+    private void writeAll(int fd, const(char)[] text) nothrow @nogc {
+        if (fd < 0 || text.length == 0) return;
+        size_t pos;
+        while (pos < text.length) {
+            auto wrote = write(fd, text.ptr + pos, text.length - pos);
+            if (wrote <= 0) return;
+            pos += cast(size_t)wrote;
+        }
+    }
+
+    private void writeInt(int fd, long value) nothrow @nogc {
+        char[32] buf;
+        size_t pos = buf.length;
+        bool neg = value < 0;
+        ulong v = neg ? cast(ulong)(-value) : cast(ulong)value;
+        do {
+            buf[--pos] = cast(char)('0' + (v % 10));
+            v /= 10;
+        } while (v);
+        if (neg) buf[--pos] = '-';
+        writeAll(fd, buf[pos .. $]);
+    }
+
+    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) nothrow @nogc {
+        if (nativeCrashHandlerActive) {
+            _exit(128 + sig);
+        }
+        nativeCrashHandlerActive = 1;
+
+        int fd = -1;
+        if (nativeCrashDumpPathLen > 0) {
+            fd = open(nativeCrashDumpPath.ptr, O_WRONLY | O_CREAT | O_TRUNC, cast(mode_t)384); // 0600
+        }
+        if (fd >= 0) {
+            writeAll(fd, "=== nijigenerate native crashdump ===\n");
+            writeAll(fd, "signal: ");
+            writeInt(fd, sig);
+            writeAll(fd, "\npid: ");
+            writeInt(fd, getpid());
+            writeAll(fd, "\npath: ");
+            writeAll(fd, nativeCrashDumpPath[0 .. nativeCrashDumpPathLen]);
+            writeAll(fd, "\n\n=== Backtrace ===\n");
+
+            static if (__traits(compiles, backtrace((void**).init, int.init))) {
+                void*[nativeBacktraceMaxFrames] frames;
+                auto count = backtrace(frames.ptr, nativeBacktraceMaxFrames);
+                backtrace_symbols_fd(cast(const(void*)*)frames.ptr, count, fd);
+            } else {
+                writeAll(fd, "backtrace unavailable on this platform\n");
+            }
+
+            writeAll(fd, "\n\nSymbolication hint:\n");
+            writeAll(fd, "  atos -o <nijigenerate-binary> -arch arm64 <address>\n");
+            close(fd);
+        }
+
+        // SA_RESETHAND has already restored the default handler; re-raise so
+        // the process still terminates as a native crash and OS reports remain useful.
+        raise(sig);
+        _exit(128 + sig);
+    }
+
+    private void installNativeCrashHandlerFor(int sig) {
+        sigaction_t action = void;
+        (cast(ubyte*)&action)[0 .. sigaction_t.sizeof] = 0;
+        action.sa_sigaction = &nativeCrashSignalHandler;
+        action.sa_flags = SA_SIGINFO | SA_RESETHAND | SA_ONSTACK;
+        sigemptyset(&action.sa_mask);
+        sigaction(sig, &action, null);
+    }
+
+    void installNativeCrashDumpThreadHandler() {
+        if (nativeSignalStack is null) {
+            nativeSignalStack = malloc(SIGSTKSZ);
+            if (nativeSignalStack !is null) {
+                stack_t stack;
+                stack.ss_sp = nativeSignalStack;
+                stack.ss_size = SIGSTKSZ;
+                stack.ss_flags = 0;
+                sigaltstack(&stack, null);
+            }
+        }
+    }
+
+    void installNativeCrashDumpHandler() {
+        mkdirCrashDumpDir();
+        copyNativeCrashDumpPath(genCrashDumpPath("nijigenerate-native-crashdump"));
+        installNativeCrashDumpThreadHandler();
+        installNativeCrashHandlerFor(SIGSEGV);
+    }
+} else {
+    void installNativeCrashDumpHandler() {}
+    void installNativeCrashDumpThreadHandler() {}
 }
 
 void mkdirCrashDumpDir() {

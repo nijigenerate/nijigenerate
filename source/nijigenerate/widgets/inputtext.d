@@ -17,7 +17,19 @@ import core.memory : GC;
 private {
 
     struct TextCallbackUserData {
-        string* str;
+        char[]* buf;
+    }
+
+    char[] inputTextBuffer(string value) {
+        auto buf = value.dup;
+        buf ~= '\0';
+        return buf;
+    }
+
+    void storeInputText(ref string dst, const(char)[] src) {
+        size_t len = 0;
+        while (len < src.length && src[len] != '\0') ++len;
+        dst = src[0 .. len].idup;
     }
 }
 
@@ -34,17 +46,7 @@ bool incInputText(string wId, ref string buffer, ImGuiInputTextFlags flags = ImG
 */
 bool incInputText(string wId, float width, ref string buffer, ImGuiInputTextFlags flags = ImGuiInputTextFlags.None) {
 
-    // NOTE: null strings would result in segfault, make sure it's at least just empty.
-    if (buffer.ptr is null) {
-        buffer = "";
-    }
-    /*
-    if (buffer.ptr[buffer.length] != '\0') {
-        // If buffer.ptr does not end with '\0', recreate string to force '\0' at the end.
-        buffer = buffer.ptr[0..buffer.length]~'\0';
-    }
-    */
-    buffer = buffer.toStringz.fromStringz;
+    auto textBuf = inputTextBuffer(buffer);
 
     // Push ID
     auto id = igGetID(wId.ptr, wId.ptr+wId.length);
@@ -53,17 +55,17 @@ bool incInputText(string wId, float width, ref string buffer, ImGuiInputTextFlag
 
     // Set desired width
     igPushItemWidth(width);
-    scope(success) igPopItemWidth();
+    scope(exit) igPopItemWidth();
 
     // Create callback data
     TextCallbackUserData cb;
-    cb.str = &buffer;
+    cb.buf = &textBuf;
 
     // Call ImGui's input handling
-    if (igInputText(
+    bool changed = igInputText(
         "###INPUT",
-        cast(char*)buffer.ptr, 
-        buffer.length+1,
+        textBuf.ptr,
+        textBuf.length,
         flags | ImGuiInputTextFlags.CallbackResize,
         cast(ImGuiInputTextCallback)(ImGuiInputTextCallbackData* data) {
             TextCallbackUserData* udata = cast(TextCallbackUserData*)data.UserData;
@@ -75,17 +77,18 @@ bool incInputText(string wId, float width, ref string buffer, ImGuiInputTextFlag
                 if (data.BufTextLen < 0) data.BufTextLen = 0;
 
                 // Resize and pass buffer ptr in
-                (*udata.str).length = data.BufTextLen+1;
+                (*udata.buf).length = data.BufTextLen+1;
 
-                // slice out the null terminator
-                data.Buf = cast(char*)(*udata.str).ptr;
+                // Keep the null terminator inside the mutable working buffer.
+                data.Buf = (*udata.buf).ptr;
                 data.Buf[data.BufTextLen] = '\0';
-                (*udata.str) = (*udata.str)[0..$-1];
             }
             return 0;
         },
         &cb
-    )) {
+    );
+    storeInputText(buffer, textBuf);
+    if (changed) {
         return true;
     }
 
@@ -116,10 +119,7 @@ bool incInputText(string wId, string label, ref string buffer, ImGuiInputTextFla
 */
 bool incInputText(string wId, string label, float width, ref string buffer, ImGuiInputTextFlags flags = ImGuiInputTextFlags.None) {
 
-    // NOTE: null strings would result in segfault, make sure it's at least just empty.
-    if (buffer.ptr is null) {
-        buffer = "";
-    }
+    auto textBuf = inputTextBuffer(buffer);
 
     // Push ID
     auto id = igGetID(wId.ptr, wId.ptr+wId.length);
@@ -128,7 +128,7 @@ bool incInputText(string wId, string label, float width, ref string buffer, ImGu
 
     // Set desired width
     igPushItemWidth(width);
-    scope(success) igPopItemWidth();
+    scope(exit) igPopItemWidth();
 
     // Render label
     scope(success) {
@@ -138,13 +138,13 @@ bool incInputText(string wId, string label, float width, ref string buffer, ImGu
 
     // Create callback data
     TextCallbackUserData cb;
-    cb.str = &buffer;
+    cb.buf = &textBuf;
 
     // Call ImGui's input handling
-    if (igInputText(
+    bool changed = igInputText(
         "###INPUT",
-        cast(char*)buffer.ptr, 
-        buffer.length+1,
+        textBuf.ptr,
+        textBuf.length,
         flags | ImGuiInputTextFlags.CallbackResize,
         cast(ImGuiInputTextCallback)(ImGuiInputTextCallbackData* data) {
             TextCallbackUserData* udata = cast(TextCallbackUserData*)data.UserData;
@@ -156,17 +156,18 @@ bool incInputText(string wId, string label, float width, ref string buffer, ImGu
                 if (data.BufTextLen < 0) data.BufTextLen = 0;
             
                 // Resize and pass buffer ptr in
-                (*udata.str).length = data.BufTextLen+1;
+                (*udata.buf).length = data.BufTextLen+1;
 
-                // slice out the null terminator
-                data.Buf = cast(char*)(*udata.str).ptr;
+                // Keep the null terminator inside the mutable working buffer.
+                data.Buf = (*udata.buf).ptr;
                 data.Buf[data.BufTextLen] = '\0';
-                (*udata.str) = (*udata.str)[0..$-1];
             }
             return 0;
         },
         &cb
-    )) {
+    );
+    storeInputText(buffer, textBuf);
+    if (changed) {
         return true;
     }
 
@@ -190,10 +191,7 @@ bool incInputText(string wId, string label, float width, ref string buffer, ImGu
 */
 bool incInputTextMultiline(string wId, ref string buffer, ImVec2 size, ImGuiInputTextFlags flags = ImGuiInputTextFlags.None) {
 
-    // NOTE: null strings would result in segfault, make sure it's at least just empty.
-    if (buffer.ptr is null) {
-        buffer = "";
-    }
+    auto textBuf = inputTextBuffer(buffer);
 /*
     // Push ID
     auto id = igGetID(wId.ptr, wId.ptr+wId.length);
@@ -212,13 +210,13 @@ bool incInputTextMultiline(string wId, ref string buffer, ImVec2 size, ImGuiInpu
 */
     // Create callback data
     TextCallbackUserData cb;
-    cb.str = &buffer;
+    cb.buf = &textBuf;
 
     // Call ImGui's input handling
-    if (igInputTextMultiline(
+    bool changed = igInputTextMultiline(
         "###INPUT",
-        cast(char*)buffer.ptr, 
-        buffer.length+1,
+        textBuf.ptr,
+        textBuf.length,
         size,
         flags | ImGuiInputTextFlags.CallbackResize,
         cast(ImGuiInputTextCallback)(ImGuiInputTextCallbackData* data) {
@@ -231,17 +229,18 @@ bool incInputTextMultiline(string wId, ref string buffer, ImVec2 size, ImGuiInpu
                 if (data.BufTextLen < 0) data.BufTextLen = 0;
             
                 // Resize and pass buffer ptr in
-                (*udata.str).length = data.BufTextLen+1;
+                (*udata.buf).length = data.BufTextLen+1;
 
-                // slice out the null terminator
-                data.Buf = cast(char*)(*udata.str).ptr;
+                // Keep the null terminator inside the mutable working buffer.
+                data.Buf = (*udata.buf).ptr;
                 data.Buf[data.BufTextLen] = '\0';
-                (*udata.str) = (*udata.str)[0..$-1];
             }
             return 0;
         },
         &cb
-    )) {
+    );
+    storeInputText(buffer, textBuf);
+    if (changed) {
         return true;
     }
 

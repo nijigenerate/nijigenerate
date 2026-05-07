@@ -28,6 +28,8 @@ class RedoCommand : ExCommand!() {
     override bool runnable(Context ctx) { return incActionCanRedo(); }
 }
 
+@McpHidden
+@GuiWindow
 class ShowSettingsWindowCommand : ExCommand!() {
     this() { super(_("Settings"), _("Show settings window")); }
     override
@@ -37,6 +39,8 @@ class ShowSettingsWindowCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiWindow
 class ShowCommandBrowserWindowCommand : ExCommand!() {
     this() { super(_("Command Browser"), _("Inspect available commands and their inputs/outputs.")); }
     override

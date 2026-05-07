@@ -43,8 +43,10 @@ protected:
     MeshEditorAction!DeformationAction editorAction = null;
     void updateTarget() {
         transform = deformable.getDynamicMatrix();
+        inputVertices.length = deformable.vertices.length;
+        auto deformCount = deformable.deformation.length;
         foreach (i, vert; deformable.vertices) {
-            inputVertices[i] = vert + deformable.deformation[i]; // FIXME: should handle origin
+            inputVertices[i] = vert + (i < deformCount ? deformable.deformation[i] : vec2(0, 0)); // FIXME: should handle origin
         }
     }
 

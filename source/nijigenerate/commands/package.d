@@ -19,13 +19,15 @@ public import nijigenerate.commands.view.panel;
 public import nijigenerate.commands.inspector.apply_node;
 public import nijigenerate.commands.node.mask;
 public import nijigenerate.commands.node.welding;
+public import nijigenerate.commands.node.simplephysics;
 public import nijigenerate.commands.automesh.dynamic;
 public import nijigenerate.commands.automesh.config;
 public import nijigenerate.commands.vertex.define_mesh;
 public import nijigenerate.commands.model.set_deform_binding;
+static import nijigenerate.viewport.common.mesheditor.tools.enums;
 
 import std.meta : AliasSeq;
-import std.traits : BaseClassesTuple, isInstanceOf, TemplateArgsOf;
+import std.traits : BaseClassesTuple, EnumMembers, isInstanceOf, TemplateArgsOf;
 import std.exception : enforce;
 import std.conv;
 import std.stdio : writefln;
@@ -55,8 +57,11 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.inspector.apply_node.commands,
     nijigenerate.commands.node.mask.commands,
     nijigenerate.commands.node.welding.commands,
+    nijigenerate.commands.node.simplephysics.commands,
     nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands,
-    // Prefer typed AutoMesh commands only (per-processor)
+    nijigenerate.commands.automesh.config.commands,
+    nijigenerate.commands.automesh.config.autoMeshGetConfigCommands,
+    nijigenerate.commands.automesh.config.autoMeshSetConfigCommands,
     nijigenerate.commands.automesh.config.autoMeshTypedCommands,
     nijigenerate.commands.vertex.define_mesh.commands,
     nijigenerate.commands.model.set_deform_binding.commands,
@@ -136,28 +141,98 @@ version (ngAutoMeshInitDiagForce) {
 
 // Explicit initialization to avoid module constructor cycles
 // Discover and initialize commands for each enum key present in AllCommandMaps.
+private void ngValidateCommandMap(alias AA)() {
+    alias K = KeyTypeOfAA!AA;
+    static if (is(K == enum)) {
+        static foreach (id; EnumMembers!K) {
+            enforce((id in AA) !is null, "Command was not registered: " ~ K.stringof ~ "." ~ id.stringof);
+        }
+    } else {
+        enforce(AA.length > 0, "Command map is empty: " ~ K.stringof);
+    }
+}
+
+private void ngInitCommandMap(alias AA)() {
+    alias K = KeyTypeOfAA!AA;
+
+    static if (is(K == nijigenerate.commands.binding.binding.BindingCommand))
+        nijigenerate.commands.binding.binding.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.node.NodeCommand))
+        nijigenerate.commands.node.node.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.parameter.animedit.AnimeditCommand))
+        nijigenerate.commands.parameter.animedit.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.parameter.group.GroupCommand))
+        nijigenerate.commands.parameter.group.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.parameter.param.ParamCommand))
+        nijigenerate.commands.parameter.param.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.parameter.paramedit.ParameditCommand))
+        nijigenerate.commands.parameter.paramedit.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.parameter.prop.ParamPropCommand))
+        nijigenerate.commands.parameter.prop.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.puppet.file.FileCommand))
+        nijigenerate.commands.puppet.file.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.puppet.edit.EditCommand))
+        nijigenerate.commands.puppet.edit.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.puppet.view.ViewCommand))
+        nijigenerate.commands.puppet.view.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.puppet.tool.ToolCommand))
+        nijigenerate.commands.puppet.tool.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.viewport.control.ViewportCommand))
+        nijigenerate.commands.viewport.control.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.viewport.palette.PaletteCommand))
+        nijigenerate.commands.viewport.palette.ngInitCommands!K();
+    else static if (is(K == nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode))
+        nijigenerate.commands.mesheditor.tool.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.view.panel.PanelKey))
+        nijigenerate.commands.view.panel.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.dynamic.AddNodeKey))
+        nijigenerate.commands.node.dynamic.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.dynamic.InsertNodeKey))
+        nijigenerate.commands.node.dynamic.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.dynamic.ConvertToKey))
+        nijigenerate.commands.node.dynamic.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.inspector.apply_node.InspectorNodeApplyCommand))
+        nijigenerate.commands.inspector.apply_node.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.mask.NodeMaskCommand))
+        nijigenerate.commands.node.mask.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.welding.NodeWeldingCommand))
+        nijigenerate.commands.node.welding.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.node.simplephysics.NodeSimplePhysicsCommand))
+        nijigenerate.commands.node.simplephysics.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.dynamic.AutoMeshKey))
+        nijigenerate.commands.automesh.dynamic.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshConfigCommand))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshGetConfigKey))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshSetConfigKey))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshSetSimpleKey))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshSetAdvancedKey))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshSetPresetKey))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.automesh.config.AutoMeshTypedCommand))
+        nijigenerate.commands.automesh.config.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.vertex.define_mesh.VertexCommand))
+        nijigenerate.commands.vertex.define_mesh.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.model.set_deform_binding.ModelCommand))
+        nijigenerate.commands.model.set_deform_binding.ngInitCommands!K();
+    else
+        static assert(0, "No command initializer dispatch for key type: " ~ K.stringof);
+}
+
 void ngInitAllCommands() {
     import std.stdio : writefln;
     static foreach (AA; AllCommandMaps) {{
         alias K = KeyTypeOfAA!(AA);
         cmdLog("[CMD] init begin: AA=%s key=%s", typeof(AA).stringof, K.stringof);
-        import std.traits : fullyQualifiedName;
-        enum fq = fullyQualifiedName!K; // e.g. nijigenerate.commands.binding.binding.BindingCommand
-        enum mod = ({ string s = fq; size_t last = 0; foreach (i, ch; s) { if (ch == '.') last = i; } return s[0 .. last+1]; })(); // module path with trailing dot
-        enum call = mod ~ "ngInitCommands!(" ~ fq ~ ")();";
-        static if (__traits(compiles, mixin(call))) {
-            mixin(call);
-        } else static if (__traits(compiles, { ngInitCommands!K(); })) {
-            ngInitCommands!K();
-        } else {
-            cmdLog("[CMD] init skipped (no ngInitCommands) for key=%s", K.stringof);
-        }
+        ngInitCommandMap!AA();
         size_t cnt = 0; foreach (_k, _v; AA) ++cnt;
+        ngValidateCommandMap!AA();
         cmdLog("[CMD] init end:   AA=%s count=%s", typeof(AA).stringof, cnt);
     }}
-    // Explicit initialization for AutoMesh maps (bypass name resolution issues)
-    nijigenerate.commands.automesh.dynamic.ngInitCommands!(nijigenerate.commands.automesh.dynamic.AutoMeshKey)();
-    nijigenerate.commands.automesh.config.ngInitCommands!(nijigenerate.commands.automesh.config.AutoMeshTypedCommand)();
     /*
     import std.stdio;
     import std.conv;

@@ -888,6 +888,13 @@ void incAnimationUpdate() {
     Adds a keyframe to the current animation
 */
 void incAnimationKeyframeAdd(ref Parameter param, int axis, float value) {
+    if (incAnimationCurrent is null || incAnimationCurrent.animation is null || param is null) {
+        return;
+    }
+    if (axis < 0 || axis >= param.value.vector.length) {
+        return;
+    }
+
     foreach(ref lane; incAnimationCurrent.animation.lanes) {
         if (lane.paramRef.targetParam == param && axis == lane.paramRef.targetAxis) {
 
@@ -934,6 +941,13 @@ void incAnimationKeyframeAdd(ref Parameter param, int axis, float value) {
 */
 bool incAnimationKeyframeRemove(ref Parameter param, int axis) {
     import std.algorithm.mutation : remove;
+    if (incAnimationCurrent is null || incAnimationCurrent.animation is null || param is null) {
+        return false;
+    }
+    if (axis < 0 || axis >= param.value.vector.length) {
+        return false;
+    }
+
     foreach(ref lane; incAnimationCurrent.animation.lanes) {
         if (lane.paramRef.targetParam == param && axis == lane.paramRef.targetAxis) {
 

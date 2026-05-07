@@ -23,6 +23,7 @@ import std.string;
 import std.algorithm.searching : canFind, countUntil;
 import std.algorithm.mutation : remove;
 import std.array : appender, Appender;
+import std.json : JSONValue, JSONType;
 //import std.stdio;
 /**
     Binding between layer and node
@@ -115,6 +116,8 @@ void incDumpFlipConfig(Puppet puppet) {
         serializer.flush();
         puppet.extData[FlipConfigPath] = cast(ubyte[])app.data;
 
+    } else {
+        puppet.extData.remove(FlipConfigPath);
     }
 }
 
@@ -142,6 +145,142 @@ FlipPair incGetFlipPairFor(Node node) {
     return null;
 }
 
+struct FlipPairMutationResult {
+    bool succeeded;
+    string message;
+    size_t index;
+}
+
+struct FlipPairBulkMutationResult {
+    bool succeeded;
+    string message;
+    size_t added;
+}
+
+private bool incFlipPairHasNode(FlipPair pair, Node node) {
+    if (pair is null || node is null) return false;
+    return (pair.parts[0] !is null && pair.parts[0].uuid == node.uuid) ||
+           (pair.parts[1] !is null && pair.parts[1].uuid == node.uuid);
+}
+
+private bool incFlipPairMatches(FlipPair pair, Node a, Node b) {
+    if (pair is null || a is null || b is null) return false;
+    if (pair.parts[0] is null || pair.parts[1] is null) return false;
+    return (pair.parts[0].uuid == a.uuid && pair.parts[1].uuid == b.uuid) ||
+           (pair.parts[0].uuid == b.uuid && pair.parts[1].uuid == a.uuid);
+}
+
+JSONValue incListFlipPairsJson() {
+    JSONValue items = JSONValue.emptyArray;
+    foreach (i, pair; incGetFlipPairs()) {
+        JSONValue[string] item;
+        item["index"] = JSONValue(cast(long)i);
+        if (pair.parts[0] !is null) {
+            item["leftUuid"] = JSONValue(cast(long)pair.parts[0].uuid);
+            item["leftName"] = JSONValue(pair.parts[0].name);
+            item["leftType"] = JSONValue(pair.parts[0].typeId);
+        } else {
+            item["leftUuid"] = JSONValue(cast(long)InInvalidUUID);
+            item["leftName"] = JSONValue("");
+            item["leftType"] = JSONValue("");
+        }
+        if (pair.parts[1] !is null) {
+            item["rightUuid"] = JSONValue(cast(long)pair.parts[1].uuid);
+            item["rightName"] = JSONValue(pair.parts[1].name);
+            item["rightType"] = JSONValue(pair.parts[1].typeId);
+        } else {
+            item["rightUuid"] = JSONValue(cast(long)InInvalidUUID);
+            item["rightName"] = JSONValue("");
+            item["rightType"] = JSONValue("");
+        }
+        items.array ~= JSONValue(item);
+    }
+    return items;
+}
+
+FlipPairMutationResult incReplaceFlipPairs(FlipPair[] pairs) {
+    flipPairs = pairs.remove!(p => p is null || (p.parts[0] is null && p.parts[1] is null));
+    foreach (pair; flipPairs) {
+        if (pair.parts[0] is null) {
+            pair.parts[0] = pair.parts[1];
+            pair.parts[1] = null;
+        }
+        pair.update();
+    }
+    return FlipPairMutationResult(true, "Flip pairs replaced", flipPairs.length);
+}
+
+FlipPairMutationResult incAddFlipPair(Node left, Node right) {
+    if (left is null || right is null)
+        return FlipPairMutationResult(false, "Both left and right nodes are required", size_t.max);
+    if (left.uuid == right.uuid)
+        return FlipPairMutationResult(false, "Cannot pair a node with itself", size_t.max);
+
+    auto pairs = incGetFlipPairs().dup;
+    pairs = pairs.remove!(p => p is null || incFlipPairHasNode(p, left) || incFlipPairHasNode(p, right));
+    pairs ~= new FlipPair([left, right], "");
+    incReplaceFlipPairs(pairs);
+    return FlipPairMutationResult(true, "Flip pair registered", flipPairs.length - 1);
+}
+
+FlipPairMutationResult incRemoveFlipPair(Node left, Node right) {
+    if (left is null || right is null)
+        return FlipPairMutationResult(false, "Both left and right nodes are required", size_t.max);
+
+    auto pairs = incGetFlipPairs().dup;
+    ptrdiff_t removed = -1;
+    foreach (i, pair; pairs) {
+        if (incFlipPairMatches(pair, left, right)) {
+            removed = cast(ptrdiff_t)i;
+            break;
+        }
+    }
+    if (removed < 0)
+        return FlipPairMutationResult(false, "Flip pair not found", size_t.max);
+
+    pairs = pairs.remove(cast(size_t)removed);
+    incReplaceFlipPairs(pairs);
+    return FlipPairMutationResult(true, "Flip pair removed", cast(size_t)removed);
+}
+
+FlipPairBulkMutationResult incAutoAddFlipPairs(Puppet puppet, string leftPattern, string rightPattern) {
+    if (puppet is null)
+        return FlipPairBulkMutationResult(false, "No puppet", 0);
+    if (leftPattern.length == 0 || rightPattern.length == 0)
+        return FlipPairBulkMutationResult(false, "Both leftPattern and rightPattern are required", 0);
+
+    auto nodes = puppet.findNodesType!Node(puppet.root);
+    auto pairs = incGetFlipPairs().dup;
+    ulong[uint] map;
+    foreach (i, pair; pairs) {
+        if (pair is null) continue;
+        if (pair.parts[0] !is null) map[pair.parts[0].uuid] = i;
+        if (pair.parts[1] !is null) map[pair.parts[1].uuid] = i;
+    }
+
+    size_t added = 0;
+    foreach (ref Node node; nodes) {
+        string nodeName = node.name.toStringz.fromStringz;
+        string targetName = nodeName.replace(leftPattern, rightPattern);
+        if (node.uuid in map) continue;
+        if (nodeName.indexOf(leftPattern) < 0) continue;
+
+        foreach (ref Node node2; nodes) {
+            string node2Name = node2.name.toStringz.fromStringz;
+            if (node2Name == targetName && node2.uuid != node.uuid && (node2.uuid !in map)) {
+                pairs ~= new FlipPair([node, node2], "");
+                map[node.uuid] = pairs.length - 1;
+                map[node2.uuid] = pairs.length - 1;
+                ++added;
+                break;
+            }
+        }
+    }
+
+    incReplaceFlipPairs(pairs);
+    return FlipPairBulkMutationResult(true, "Flip pairs registered by pattern", added);
+}
+
 class FlipPairWindow : Window {
 private:
 
@@ -157,26 +296,21 @@ private:
     FlipPair* active = null;
 
     void apply() {
-        flipPairs = pairs;
+        incReplaceFlipPairs(pairs);
     }
 
 
     void autoPair(string part1, string part2) {
-        foreach(i, ref Node node; nodes) {
-            string node1Name = node.name.toStringz.fromStringz;
-            string targetName = node1Name.replace(part1, part2);
-            if (node.uuid in map) continue;
-            foreach (ref Node node2; nodes) {
-                string node2Name = node2.name.toStringz.fromStringz;
-                if (node1Name.indexOf(part1) >= 0 && node2Name == targetName) {
-                    if (node2.uuid != node.uuid) {
-                        pairs ~= new FlipPair([node, node2], "");
-                        map[node.uuid] = pairs.length - 1;
-                        map[node2.uuid] = pairs.length - 1;
-                    }
-                    break;
-                }
-            }
+        auto puppet = incActivePuppet();
+        incReplaceFlipPairs(pairs);
+        incAutoAddFlipPairs(puppet, part1, part2);
+        pairs = incGetFlipPairs().dup;
+        map.clear();
+        foreach (i, pair; pairs) {
+            if (pair.parts[0] !is null)
+                map[pair.parts[0].uuid] = i;
+            if (pair.parts[1] !is null)
+                map[pair.parts[1].uuid] = i;
         }
     }
 

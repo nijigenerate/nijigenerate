@@ -19,6 +19,7 @@ import std.algorithm.iteration;
 import std.algorithm.searching;
 //import std.stdio;
 import nijigenerate.core.dbg;
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 import core.thread.osthread;
 import core.sync.mutex;
 import core.thread.fiber;
@@ -52,7 +53,8 @@ private:
             auto part = cast(ApplicableClass)node;
             if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
             auto mesh = meshes[node.uuid];
-            applyMeshToTarget(part, mesh.vertices, &mesh);
+            string message;
+            ngApplyDrawableMeshFromCommand(part, mesh, message);
         }
     }
 
@@ -357,7 +359,10 @@ protected:
                     auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
                     foreach (part; parts) part.textures[0].lock();
                     activeProcessor = ngActiveAutoMeshProcessor;
-                    processingThread = new Thread(&runBatch);
+                    processingThread = new Thread({
+                        installNativeCrashDumpThreadHandler();
+                        runBatch();
+                    });
                     processingThread.start();
                 } else {
                     synchronized(gcMutex) { canceled = true; }

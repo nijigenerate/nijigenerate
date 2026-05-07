@@ -133,12 +133,12 @@ mixin template AutoMeshReflection() {
         size_t lastDot = 0; bool hasDot = false; foreach (i, ch; tn) if (ch == '.') { lastDot = i; hasDot = true; }
         obj["type"] = hasDot ? tn[lastDot + 1 .. $] : tn;
         // presets
-        JSONValue presets = JSONValue(JSONType.array);
+        JSONValue presets = JSONValue.emptyArray;
         foreach (n; _amPresetNames()) { JSONValue p; p["name"] = n; presets.array ~= p; }
         obj["presets"] = presets;
         // params
-        JSONValue simple = JSONValue(JSONType.array);
-        JSONValue advanced = JSONValue(JSONType.array);
+        JSONValue simple = JSONValue.emptyArray;
+        JSONValue advanced = JSONValue.emptyArray;
         foreach (f; _amFloatFields()) {
             JSONValue it; it["id"] = f.id; it["label"] = f.label; it["type"] = "float";
             if ((f.minV == f.minV)) it["min"] = JSONValue(cast(double)f.minV);
@@ -152,7 +152,7 @@ mixin template AutoMeshReflection() {
         }
         foreach (e; _amEnumFields()) {
             JSONValue it; it["id"] = e.id; it["label"] = e.label; it["type"] = "enum";
-            JSONValue vals = JSONValue(JSONType.array); foreach (v; e.values) { JSONValue sv; sv = v; vals.array ~= sv; } it["values"] = vals;
+            JSONValue vals = JSONValue.emptyArray; foreach (v; e.values) { JSONValue sv; sv = v; vals.array ~= sv; } it["values"] = vals;
             (e.level == AutoMeshLevel.Simple ? simple : advanced).array ~= it;
         }
         obj["Simple"] = simple; obj["Advanced"] = advanced;
@@ -163,7 +163,7 @@ mixin template AutoMeshReflection() {
         JSONValue v = JSONValue(JSONType.object);
         foreach (f; _amFloatFields()) if (((f.level == AutoMeshLevel.Advanced) == adv)) v[f.id] = JSONValue(cast(double)(*f.ptr));
         foreach (a; _amArrayFields()) if (((a.level == AutoMeshLevel.Advanced) == adv)) {
-            JSONValue arr = JSONValue(JSONType.array); foreach (x; *a.ptr) arr.array ~= JSONValue(cast(double)x); v[a.id] = arr;
+            JSONValue arr = JSONValue.emptyArray; foreach (x; *a.ptr) arr.array ~= JSONValue(cast(double)x); v[a.id] = arr;
         }
         foreach (e; _amEnumFields()) if (((e.level == AutoMeshLevel.Advanced) == adv)) {
             v[e.id] = (*e.ptr).length ? (*e.ptr) : "";
@@ -192,17 +192,26 @@ mixin template AutoMeshReflection() {
         bool any = false;
         foreach (ref f; _amFloatFields()) if (((f.level == AutoMeshLevel.Advanced) == adv) && (f.id in u)) {
             auto j = u[f.id];
-            if (j.type == JSONType.integer) { *f.ptr = cast(float)j.integer; any = true; }
-            else if (j.type == JSONType.float_) { *f.ptr = cast(float)j.floating; any = true; }
-            if ((f.minV == f.minV) && *f.ptr < f.minV) *f.ptr = f.minV;
-            if ((f.maxV == f.maxV) && *f.ptr > f.maxV) *f.ptr = f.maxV;
+            float value;
+            bool valid = false;
+            if (j.type == JSONType.integer) { value = cast(float)j.integer; valid = true; }
+            else if (j.type == JSONType.float_) { value = cast(float)j.floating; valid = true; }
+            if (!valid || value != value) continue;
+            if ((f.minV == f.minV) && value < f.minV) value = f.minV;
+            if ((f.maxV == f.maxV) && value > f.maxV) value = f.maxV;
+            *f.ptr = value;
+            any = true;
             static if (__traits(hasMember, This, "ngPostParamWrite")) this.ngPostParamWrite(f.id);
         }
         foreach (ref a; _amArrayFields()) if (((a.level == AutoMeshLevel.Advanced) == adv) && (a.id in u)) {
             auto j = u[a.id]; if (j.type != JSONType.array) continue; (*a.ptr).length = 0;
             foreach (e; j.array) {
-                if (e.type == JSONType.integer) (*a.ptr) ~= cast(float)e.integer;
-                else if (e.type == JSONType.float_) (*a.ptr) ~= cast(float)e.floating;
+                float value;
+                bool valid = false;
+                if (e.type == JSONType.integer) { value = cast(float)e.integer; valid = true; }
+                else if (e.type == JSONType.float_) { value = cast(float)e.floating; valid = true; }
+                if (!valid || value != value) continue;
+                (*a.ptr) ~= value;
             }
             any = true;
             static if (__traits(hasMember, This, "ngPostParamWrite")) this.ngPostParamWrite(a.id);

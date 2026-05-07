@@ -21,6 +21,7 @@ private:
 protected:
     override
     void onUpdate() {
+        incRunPendingParameterUiCommand();
 
         auto parameters = incActivePuppet().parameters;
 

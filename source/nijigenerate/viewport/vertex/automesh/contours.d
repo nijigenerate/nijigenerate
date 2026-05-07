@@ -182,7 +182,7 @@ public:
             }
         }
 
-        auto outMesh = mesh.autoTriangulate();
+        auto outMesh = cast(Drawable)target ? mesh.autoTriangulate() : mesh;
         mapImageCenteredMeshToTargetLocal(outMesh, target, ai);
         return outMesh;
     }

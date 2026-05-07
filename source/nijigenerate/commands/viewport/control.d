@@ -8,8 +8,13 @@ import nijigenerate.windows.automeshbatch;
 import nijigenerate.windows;          // incPushWindow
 import nijigenerate.widgets.modal;     // incModalAdd
 import nijigenerate.ext;
+import nijigenerate.project : incActivePuppet;
 import nijilive;
 import i18n;
+import std.json : JSONValue;
+import std.algorithm : clamp, min;
+import std.conv : to;
+import std.math : isFinite;
 
 // Commands for viewport UI actions (buttons/menus)
 
@@ -58,6 +63,7 @@ class ResetPhysicsCommand : ExCommand!() {
     }
 }
 
+@EffectKeyframeEdit
 class ResetParametersCommand : ExCommand!() {
     this() { super(_("Reset parameters to defaults.")); }
     override CommandResult run(Context ctx) {
@@ -69,6 +75,56 @@ class ResetParametersCommand : ExCommand!() {
     }
 }
 
+@ShortcutHidden
+class ListFlipPairsCommand : ExCommand!() {
+    this() { super(_("List registered flip pairs.")); }
+    override ExCommandResult!JSONValue run(Context ctx) {
+        if (!ctx.hasPuppet) return ExCommandResult!JSONValue(false, JSONValue.init, "No puppet");
+        return ExCommandResult!JSONValue(true, incListFlipPairsJson());
+    }
+}
+
+@ShortcutHidden
+@EffectConfigEdit
+class AddFlipPairCommand : ExCommand!(
+        TW!(Node, "left", "UUID of the left-side node"),
+        TW!(Node, "right", "UUID of the right-side node")) {
+    this() { super(null, _("Register a flip pair.")); }
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        auto result = incAddFlipPair(left, right);
+        return CommandResult(result.succeeded, result.message);
+    }
+}
+
+@ShortcutHidden
+@EffectConfigEdit
+class AutoAddFlipPairsCommand : ExCommand!(
+        TW!(string, "leftPattern", "Pattern to replace on left-side node names, for example ::L or _l"),
+        TW!(string, "rightPattern", "Replacement pattern for right-side node names, for example ::R or _r")) {
+    this() { super(null, _("Register flip pairs by name pattern.")); }
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false, "No puppet");
+        auto result = incAutoAddFlipPairs(ctx.puppet, leftPattern, rightPattern);
+        return CommandResult(result.succeeded, result.message ~ " (" ~ result.added.to!string ~ " added)");
+    }
+}
+
+@ShortcutHidden
+@EffectConfigEdit
+class RemoveFlipPairCommand : ExCommand!(
+        TW!(Node, "left", "UUID of one side of the flip pair"),
+        TW!(Node, "right", "UUID of the other side of the flip pair")) {
+    this() { super(null, _("Remove a flip pair.")); }
+    override CommandResult run(Context ctx) {
+        if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        auto result = incRemoveFlipPair(left, right);
+        return CommandResult(result.succeeded, result.message);
+    }
+}
+
+@McpHidden
+@GuiWindow
 class OpenFlipPairWindowCommand : ExCommand!() {
     this() { super(_("Open Flip Pair configuration window.")); }
     override CommandResult run(Context ctx) {
@@ -78,6 +134,8 @@ class OpenFlipPairWindowCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiModal
 class OpenAutomeshBatchingCommand : ExCommand!() {
     this() { super(_("Open Automesh Batching modal.")); }
     override CommandResult run(Context ctx) {
@@ -103,6 +161,41 @@ class ResetViewportPositionCommand : ExCommand!() {
     }
 }
 
+@ShortcutHidden
+@EffectLayoutReset
+class FitViewportToModelCommand : ExCommand!() {
+    this() { super(_("Fit viewport to model."), _("Reset viewport center and zoom so the current puppet bounds fit inside the viewport.")); }
+    override CommandResult run(Context ctx) {
+        auto puppet = (ctx.hasPuppet && ctx.puppet !is null) ? ctx.puppet : incActivePuppet();
+        if (puppet is null) return CommandResult(false, "No puppet");
+
+        int width, height;
+        inGetViewport(width, height);
+        if (width <= 0 || height <= 0) return CommandResult(false, "Viewport is empty");
+
+        puppet.update();
+        auto bounds = puppet.getCombinedBounds!(true)();
+        float boundsWidth = bounds.z - bounds.x;
+        float boundsHeight = bounds.w - bounds.y;
+        if (!isFinite(boundsWidth) || !isFinite(boundsHeight) || boundsWidth <= 0 || boundsHeight <= 0)
+            return CommandResult(false, "Puppet bounds are empty");
+
+        vec2 center = bounds.xy + ((bounds.zw - bounds.xy) * 0.5f);
+        float zoom = min(cast(float)width / boundsWidth, cast(float)height / boundsHeight);
+        zoom = clamp(zoom, cast(float)incVIEWPORT_ZOOM_MIN, cast(float)incVIEWPORT_ZOOM_MAX);
+        vec2 position = vec2(-center.x, -center.y);
+
+        auto camera = inGetCamera();
+        camera.position = position;
+        camera.scale = vec2(zoom);
+        camera.rotation = 0;
+        incViewportTargetPosition = position;
+        incViewportTargetZoom = zoom;
+        incViewportZoom = zoom;
+        return CommandResult(true);
+    }
+}
+
 enum ViewportCommand {
     ToggleMirrorView,
     ToggleOnionSlice,
@@ -110,10 +203,15 @@ enum ViewportCommand {
     TogglePostProcess,
     ResetPhysics,
     ResetParameters,
+    ListFlipPairs,
+    AddFlipPair,
+    AutoAddFlipPairs,
+    RemoveFlipPair,
     OpenFlipPairWindow,
     OpenAutomeshBatching,
     ResetViewportZoom,
     ResetViewportPosition,
+    FitViewportToModel,
 }
 
 Command[ViewportCommand] commands;

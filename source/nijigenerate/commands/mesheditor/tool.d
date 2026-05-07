@@ -63,13 +63,18 @@ Command ensureSelectToolModeCommand(VertexToolMode mode)
 {
     auto p = mode in selectToolModeCommands;
     if (p) return *p;
-    auto c = cast(Command) new SelectToolModeCommand(mode);
-    selectToolModeCommands[mode] = c;
-    return c;
+    auto cmd = new SelectToolModeCommand(mode);
+    ngRegisterCommandMeta(cmd);
+    selectToolModeCommands[mode] = cmd;
+    return cmd;
 }
 
 // Template-based init for VertexToolMode
 void ngInitCommands(T)() if (is(T == nijigenerate.viewport.common.mesheditor.tools.enums.VertexToolMode)) {
+    import std.traits : EnumMembers;
+    static foreach (mode; EnumMembers!VertexToolMode) {
+        ensureSelectToolModeCommand(mode);
+    }
     foreach (info; incGetToolInfo()) {
         ensureSelectToolModeCommand(info.mode());
     }

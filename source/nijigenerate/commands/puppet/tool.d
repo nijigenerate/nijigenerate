@@ -14,6 +14,8 @@ import nijigenerate.core.tasks;
 import nijigenerate.widgets.dialog;
 import nijigenerate.utils.repair;
 
+@McpHidden
+@GuiDialog
 class ShowImportSessionDataDialogCommand : ExCommand!() {
     this() { super(_("Import Inochi Session Data"), _("Shows \"Import Session Data\" dialog.")); }
 
@@ -34,6 +36,7 @@ class ShowImportSessionDataDialogCommand : ExCommand!() {
     }
 }
 
+@EffectImport
 class ImportSessionDataCommand : ExCommand!(TW!(string, "path", "file path of INP file.")) {
     this(string path) { super(_("Import Inochi Session Data"), _("Import INP Session Data."), path); }
 
@@ -59,6 +62,7 @@ class ImportSessionDataCommand : ExCommand!(TW!(string, "path", "file path of IN
     }
 }
 
+@EffectTextureRegenerate
 class PremultTextureCommand : ExCommand!() {
     this() { super(_("Premultiply textures"), _("Premultiply texture.")); }
 
@@ -71,6 +75,7 @@ class PremultTextureCommand : ExCommand!() {
     }
 }
 
+@EffectTextureRegenerate
 class RebleedTextureCommand : ExCommand!() {
     this() { super(_("Bleed textures..."), _("Bleed texture.")); }
 
@@ -81,6 +86,7 @@ class RebleedTextureCommand : ExCommand!() {
     }
 }
 
+@EffectTextureRegenerate
 class RegenerateMipmapsCommand : ExCommand!() {
     this() { super(_("Generate Mipmaps..."), _("Generate mipmaps.")); }
 
@@ -91,6 +97,7 @@ class RegenerateMipmapsCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class GenerateFakeLayerNameCommand : ExCommand!() {
     this() { super(_("Generate fake layer name info..."), _("Generate fake layer name.")); }
 
@@ -108,6 +115,7 @@ class GenerateFakeLayerNameCommand : ExCommand!() {
     }
 }
 
+@EffectRepair
 class AttemptRepairPuppetCommand : ExCommand!() {
     this() { super(_("Attempt full repair..."), _("Attempt full repair...")); }
 
@@ -119,6 +127,7 @@ class AttemptRepairPuppetCommand : ExCommand!() {
     }
 }
 
+@EffectRepair
 class RegenerateNodeIDsCommand : ExCommand!() {
     this() { super(_("Regenerate Node IDs"), _("Regenerate Node IDs")); }
 

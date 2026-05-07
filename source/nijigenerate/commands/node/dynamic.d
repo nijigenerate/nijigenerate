@@ -5,6 +5,7 @@ import nijigenerate.commands.node.node : AddNodeCommand, InsertNodeCommand, AddN
 import nijigenerate.commands.node.base : conversionMap, ngGetCommonNodeType, ngConvertTo; // known types + helpers
 import nijilive; // inInstantiateNode
 import i18n;
+import std.conv : to;
 
 // Stable key payload for Node-type-based commands (avoids generic string)
 private struct NodeTypeKey {
@@ -53,6 +54,7 @@ struct ConvertToKey {
     bool opEquals(const ConvertToKey rhs) const @safe nothrow @nogc { return toType == rhs.toType; }
 }
 
+@EffectStructuralEdit
 class ConvertNodeToCommand(bool expose = true) : ExCommand!(
     TW!(string, "toType", "destination node type", !expose)
 ) {
@@ -74,7 +76,7 @@ class ConvertNodeToCommand(bool expose = true) : ExCommand!(
         if (!runnable(ctx)) return new CreateResult!Node(false, null, "Context not convertible");
         auto before = ctx.nodes.dup;
         auto converted = ngConvertTo(ctx.nodes, toType);
-        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from "~before.length.stringof) : "No nodes converted");
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from "~before.length.to!string) : "No nodes converted");
     }
 }
 
@@ -120,6 +122,7 @@ AddNodeCommandT!(false) ensureAddNodeCommand(string className, string suffix = n
     AddNodeKey key = AddNodeKey(className, suffix);
     if (auto p = key in addNodeCommands) return *p;
     auto cmd = new AddNodeCommandT!(false)(className, suffix);
+    ngRegisterCommandMeta(cmd);
     addNodeCommands[key] = cmd;
     return cmd;
 }
@@ -129,6 +132,7 @@ InsertNodeCommandT!(false) ensureInsertNodeCommand(string className, string suff
     InsertNodeKey key = InsertNodeKey(className, suffix);
     if (auto p = key in insertNodeCommands) return *p;
     auto cmd = new InsertNodeCommandT!(false)(className, suffix);
+    ngRegisterCommandMeta(cmd);
     insertNodeCommands[key] = cmd;
     return cmd;
 }
@@ -158,7 +162,8 @@ void ngInitCommands(T)() if (is(T == ConvertToKey))
             added[to] = to;
             ConvertToKey key = ConvertToKey(to);
             if (auto p = key in convertNodeCommands) continue;
-            auto cmd = cast(Command) new ConvertNodeToCommand!(false)(to);
+            auto cmd = new ConvertNodeToCommand!(false)(to);
+            ngRegisterCommandMeta(cmd);
             convertNodeCommands[key] = cmd;
         }
     }
@@ -175,6 +180,7 @@ ConvertNodeToCommand!(false) ensureConvertToCommand(string toType)
         return *p;
     }
     auto cmd = new ConvertNodeToCommand!(false)(toType);
+    ngRegisterCommandMeta(cmd);
     convertNodeCommands[key] = cmd;
     return cmd;
 }

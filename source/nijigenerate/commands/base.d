@@ -6,6 +6,8 @@ import std.array : join;
 import std.format : format;
 import std.conv : to;
 import std.exception : enforce;
+static import std.json;
+import std.json : JSONValue;
 import nijigenerate.panels.inspector.common;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
 static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
@@ -20,7 +22,7 @@ string toCodeString(T)(T arg) {
     } else static if (is(T == typeof(null))) {
         return "null";
     } else static if (is(T == enum)) {
-        return T.stringof ~ "." ~ text(arg);
+        return T.stringof ~ "." ~ __traits(identifier, arg);
     } else {
         return text(arg);
     }
@@ -45,10 +47,10 @@ template registerCommand(alias id, Args...) {
     }
     enum string EnumType = typeof(id).stringof;
     static if (Args.length == 0) {
-        enum registerCommand = format(`commands[%s.%s] = new %sCommand();`, EnumType, id.stringof, id.stringof);
+        enum registerCommand = format(`{ auto __cmd = new %3$sCommand(); ngRegisterCommandMeta(__cmd); commands[%1$s.%2$s] = __cmd; }`, EnumType, id.stringof, id.stringof);
     } else {
         enum registerCommand = format(
-            `commands[%s.%s] = new %sCommand(%s);`,
+            `{ auto __cmd = new %3$sCommand(%4$s); ngRegisterCommandMeta(__cmd); commands[%1$s.%2$s] = __cmd; }`,
             EnumType, id.stringof, id.stringof, ArgsToString!Args
         );
     }
@@ -59,6 +61,154 @@ import nijilive;
 import nijigenerate.ext;
 struct TW(alias T, string fieldName, string fieldDesc, bool hidden = false) {}
 
+enum CommandShortcutPolicy {
+    visible,
+    hidden,
+}
+
+enum CommandMcpExposure {
+    tool,
+    hidden,
+}
+
+enum CommandGuiDisplay {
+    none,
+    window,
+    dialog,
+    modal,
+    popup,
+    confirm,
+    dialogOutput,
+    dialogWindow,
+    layout,
+}
+
+enum CommandIrreversibleEffect {
+    none,
+    fileWrite,
+    importData,
+    projectReset,
+    configEdit,
+    apply,
+    keyframeEdit,
+    bindingEdit,
+    structuralEdit,
+    create,
+    deleteObject,
+    rename,
+    textureRegenerate,
+    repair,
+    layoutReset,
+}
+
+struct ShortcutVisibility {
+    CommandShortcutPolicy value;
+}
+
+struct McpExposureMeta {
+    CommandMcpExposure value;
+}
+
+struct GuiDisplayMeta {
+    CommandGuiDisplay value;
+}
+
+struct IrreversibleEffectMeta {
+    CommandIrreversibleEffect value;
+}
+
+enum ShortcutVisible = ShortcutVisibility(CommandShortcutPolicy.visible);
+enum ShortcutHidden = ShortcutVisibility(CommandShortcutPolicy.hidden);
+enum McpTool = McpExposureMeta(CommandMcpExposure.tool);
+enum McpHidden = McpExposureMeta(CommandMcpExposure.hidden);
+
+enum GuiWindow = GuiDisplayMeta(CommandGuiDisplay.window);
+enum GuiDialog = GuiDisplayMeta(CommandGuiDisplay.dialog);
+enum GuiModal = GuiDisplayMeta(CommandGuiDisplay.modal);
+enum GuiPopup = GuiDisplayMeta(CommandGuiDisplay.popup);
+enum GuiConfirm = GuiDisplayMeta(CommandGuiDisplay.confirm);
+enum GuiDialogOutput = GuiDisplayMeta(CommandGuiDisplay.dialogOutput);
+enum GuiDialogWindow = GuiDisplayMeta(CommandGuiDisplay.dialogWindow);
+enum GuiLayout = GuiDisplayMeta(CommandGuiDisplay.layout);
+
+enum EffectFileWrite = IrreversibleEffectMeta(CommandIrreversibleEffect.fileWrite);
+enum EffectImport = IrreversibleEffectMeta(CommandIrreversibleEffect.importData);
+enum EffectProjectReset = IrreversibleEffectMeta(CommandIrreversibleEffect.projectReset);
+enum EffectConfigEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.configEdit);
+enum EffectApply = IrreversibleEffectMeta(CommandIrreversibleEffect.apply);
+enum EffectKeyframeEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.keyframeEdit);
+enum EffectBindingEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.bindingEdit);
+enum EffectStructuralEdit = IrreversibleEffectMeta(CommandIrreversibleEffect.structuralEdit);
+enum EffectCreate = IrreversibleEffectMeta(CommandIrreversibleEffect.create);
+enum EffectDelete = IrreversibleEffectMeta(CommandIrreversibleEffect.deleteObject);
+enum EffectRename = IrreversibleEffectMeta(CommandIrreversibleEffect.rename);
+enum EffectTextureRegenerate = IrreversibleEffectMeta(CommandIrreversibleEffect.textureRegenerate);
+enum EffectRepair = IrreversibleEffectMeta(CommandIrreversibleEffect.repair);
+enum EffectLayoutReset = IrreversibleEffectMeta(CommandIrreversibleEffect.layoutReset);
+
+struct CommandMetadata {
+    bool shortcutRunnable = true;
+    bool mcpExposed = true;
+    CommandGuiDisplay guiDisplay = CommandGuiDisplay.none;
+    CommandIrreversibleEffect irreversibleEffect = CommandIrreversibleEffect.none;
+}
+
+private __gshared CommandMetadata[string] gCommandMetadataByTypeName;
+
+private CommandShortcutPolicy _shortcutPolicyOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == ShortcutVisibility)) {
+            return attr.value;
+        }
+    }
+    return CommandShortcutPolicy.visible;
+}
+
+private CommandMcpExposure _mcpExposureOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == McpExposureMeta)) {
+            return attr.value;
+        }
+    }
+    return CommandMcpExposure.tool;
+}
+
+private CommandGuiDisplay _guiDisplayOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == GuiDisplayMeta)) {
+            return attr.value;
+        }
+    }
+    return CommandGuiDisplay.none;
+}
+
+private CommandIrreversibleEffect _irreversibleEffectOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == IrreversibleEffectMeta)) {
+            return attr.value;
+        }
+    }
+    return CommandIrreversibleEffect.none;
+}
+
+void ngRegisterCommandMeta(C)(C cmd) if (is(C : Command)) {
+    auto key = typeid(cast(Object)cmd).toString();
+    gCommandMetadataByTypeName[key] = CommandMetadata(
+        _shortcutPolicyOf!C() != CommandShortcutPolicy.hidden,
+        _mcpExposureOf!C() != CommandMcpExposure.hidden,
+        _guiDisplayOf!C(),
+        _irreversibleEffectOf!C()
+    );
+}
+
+private CommandMetadata ngLookupCommandMeta(Command cmd) {
+    auto key = typeid(cast(Object)cmd).toString();
+    if (auto p = key in gCommandMetadataByTypeName) {
+        return *p;
+    }
+    return CommandMetadata.init;
+}
+
 // Append enum choices to description for UI/MCP exposure
 string enrichArgDesc(T)(string baseDesc) {
     static if (is(T == enum)) {
@@ -67,7 +217,13 @@ string enrichArgDesc(T)(string baseDesc) {
         foreach (mem; EnumMembers!T) {
             if (!first) s ~= "|";
             first = false;
-            s ~= mem.stringof;
+            s ~= __traits(identifier, mem);
+            static if (__traits(compiles, cast(string)mem)) {
+                enum string memValue = cast(string)mem;
+                static if (memValue != __traits(identifier, mem)) {
+                    s ~= "=" ~ memValue;
+                }
+            }
         }
         auto choices = "(" ~ s ~ ")";
         return baseDesc.length ? (baseDesc ~ " " ~ choices) : choices;
@@ -85,6 +241,9 @@ class CommandResult {
     }
     static CommandResult opCall(bool succeeded, string message = "") {
         return new CommandResult(succeeded, message);
+    }
+    CommandResult waitForCompletion() {
+        return this;
     }
 }
 
@@ -159,6 +318,7 @@ class Context {
     ParameterBinding[] _bindings;
     ParameterBinding[] _activeBindings;
     vec2u _keyPoint;
+    vec2 _parameterValue;
     TypedInspector!Node[] _inspectors; // preferred: list of active inspectors
     enum ContextMask {
         None = 0,
@@ -170,6 +330,8 @@ class Context {
         HasInspectors = 32,
         HasArmedParameters = 64,
         HasActiveBindings = 128,
+        HasExplicitKeyPoint = 256,
+        HasParameterValue = 512,
     }
     ContextMask masks = ContextMask.None;
     bool hasPuppet()    { return (masks & ContextMask.HasPuppet)    != 0; }
@@ -180,6 +342,8 @@ class Context {
     bool hasKeyPoint()  { return (masks & ContextMask.HasKeyPoint)  != 0; }
     bool hasInspectors() { return (masks & ContextMask.HasInspectors) != 0; }
     bool hasActiveBindings() { return (masks & ContextMask.HasActiveBindings) != 0; }
+    bool hasExplicitKeyPoint() { return (masks & ContextMask.HasExplicitKeyPoint) != 0; }
+    bool hasParameterValue() { return (masks & ContextMask.HasParameterValue) != 0; }
     void hasPuppet(bool value)    { masks = value ? (masks | ContextMask.HasPuppet)    : (masks & ~ContextMask.HasPuppet); }
     void hasNodes(bool value)     { masks = value ? (masks | ContextMask.HasNodes)     : (masks & ~ContextMask.HasNodes); }
     void hasParameters(bool value){ masks = value ? (masks | ContextMask.HasParameters): (masks & ~ContextMask.HasParameters); }
@@ -188,6 +352,8 @@ class Context {
     void hasKeyPoint(bool value)  { masks = value ? (masks | ContextMask.HasKeyPoint)  : (masks & ~ContextMask.HasKeyPoint); }
     void hasInspectors(bool value) { masks = value ? (masks | ContextMask.HasInspectors)  : (masks & ~ContextMask.HasInspectors); }
     void hasActiveBindings(bool value) { masks = value ? (masks | ContextMask.HasActiveBindings) : (masks & ~ContextMask.HasActiveBindings); }
+    void hasExplicitKeyPoint(bool value) { masks = value ? (masks | ContextMask.HasExplicitKeyPoint) : (masks & ~ContextMask.HasExplicitKeyPoint); }
+    void hasParameterValue(bool value) { masks = value ? (masks | ContextMask.HasParameterValue) : (masks & ~ContextMask.HasParameterValue); }
 
     Puppet puppet() { return _puppet; }
     void puppet(Puppet value) { _puppet = value; hasPuppet = true; }
@@ -207,6 +373,9 @@ class Context {
     vec2u keyPoint() { return _keyPoint; }
     void keyPoint(vec2u value) { _keyPoint = value; hasKeyPoint = true; }
 
+    vec2 parameterValue() { return _parameterValue; }
+    void parameterValue(vec2 value) { _parameterValue = value; hasParameterValue = true; }
+
     // Preferred: list of inspector instances
     TypedInspector!Node[] inspectors() { return _inspectors; }
     void inspectors(TypedInspector!Node[] value) { _inspectors = value; hasInspectors = true; }
@@ -223,6 +392,12 @@ interface Command {
     bool runnable(Context context);
     /// Whether this command is eligible to be bound and edited as a shortcut
     bool shortcutRunnable();
+    /// Whether this command should be exposed via MCP tools
+    bool mcpExposed();
+    /// Direct GUI display style triggered by this command
+    CommandGuiDisplay guiDisplay();
+    /// Persistent or one-way side effect category
+    CommandIrreversibleEffect irreversibleEffect();
 }
 
 abstract class ExCommand(T...) : Command {
@@ -290,7 +465,10 @@ abstract class ExCommand(T...) : Command {
     override string label() { return _label.length ? _label : _desc; }
     override string description() { return _desc; }
     override bool runnable(Context context) { return true; }
-    override bool shortcutRunnable() { return true; }
+    override bool shortcutRunnable() { return ngLookupCommandMeta(this).shortcutRunnable; }
+    override bool mcpExposed() { return ngLookupCommandMeta(this).mcpExposed; }
+    override CommandGuiDisplay guiDisplay() { return ngLookupCommandMeta(this).guiDisplay; }
+    override CommandIrreversibleEffect irreversibleEffect() { return ngLookupCommandMeta(this).irreversibleEffect; }
     struct ArgMeta {
         string typeName;
         string fieldName;
@@ -322,9 +500,31 @@ import std.traits : isInstanceOf, BaseClassesTuple, TemplateArgsOf;
 string ngCommandIdFromKey(K)(K k)
 {
     import std.conv : to;
+    import std.string : startsWith;
     static import nodeDynamic = nijigenerate.commands.node.dynamic;
     static import autoMeshDynamic = nijigenerate.commands.automesh.dynamic;
+    static import autoMeshConfig = nijigenerate.commands.automesh.config;
+    static import inspectorApply = nijigenerate.commands.inspector.apply_node;
     static import panelView = nijigenerate.commands.view.panel;
+
+    string stripPrefix(string value, string prefix) {
+        return value.startsWith(prefix) ? value[prefix.length .. $] : value;
+    }
+
+    string stripSuffix(string value, string suffix) {
+        return value.length >= suffix.length && value[$ - suffix.length .. $] == suffix
+            ? value[0 .. $ - suffix.length]
+            : value;
+    }
+
+    string lowerLeading(string value) {
+        import std.ascii : toLower;
+        auto r = value.dup;
+        if (r.length) {
+            r[0] = toLower(r[0]);
+        }
+        return cast(string)r;
+    }
 
     static if (is(K == nodeDynamic.AddNodeKey)) {
         return "Node.Add." ~ to!string(k);
@@ -334,8 +534,37 @@ string ngCommandIdFromKey(K)(K k)
         return "Node.ConvertTo." ~ to!string(k);
     } else static if (is(K == autoMeshDynamic.AutoMeshKey)) {
         return "AutoMesh.Apply." ~ to!string(k);
+    } else static if (is(K == autoMeshConfig.AutoMeshConfigCommand)) {
+        return "AutoMesh." ~ stripPrefix(to!string(k), "AutoMesh");
+    } else static if (is(K == autoMeshConfig.AutoMeshGetConfigKey)) {
+        return "AutoMesh.GetConfig." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetConfigKey)) {
+        return "AutoMesh.SetConfig." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetSimpleKey)) {
+        return "AutoMesh.SetSimple." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetAdvancedKey)) {
+        return "AutoMesh.SetAdvanced." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshSetPresetKey)) {
+        return "AutoMesh.SetPreset." ~ k.id;
+    } else static if (is(K == autoMeshConfig.AutoMeshTypedCommand)) {
+        auto name = to!string(k);
+        if (name.startsWith("AutoMeshSetSimple_")) {
+            auto proc = stripPrefix(name, "AutoMeshSetSimple_");
+            return "AutoMesh.SetSimple." ~ lowerLeading(stripSuffix(proc, "AutoMeshProcessor"));
+        } else if (name.startsWith("AutoMeshSetAdvanced_")) {
+            auto proc = stripPrefix(name, "AutoMeshSetAdvanced_");
+            return "AutoMesh.SetAdvanced." ~ lowerLeading(stripSuffix(proc, "AutoMeshProcessor"));
+        } else if (name.startsWith("AutoMeshSetPreset_")) {
+            auto proc = stripPrefix(name, "AutoMeshSetPreset_");
+            return "AutoMesh.SetPreset." ~ lowerLeading(stripSuffix(proc, "AutoMeshProcessor"));
+        }
+        return "AutoMesh." ~ name;
+    } else static if (is(K == inspectorApply.InspectorNodeApplyCommand)) {
+        return "Inspector.Apply." ~ to!string(k);
     } else static if (is(K == panelView.PanelKey)) {
         return "Panel.Toggle." ~ to!string(k);
+    } else static if (K.stringof == "AnimeditCommand") {
+        return "Animation.Add" ~ stripPrefix(to!string(k), "AddAnimation");
     } else {
         return typeof(k).stringof ~ "." ~ to!string(k);
     }

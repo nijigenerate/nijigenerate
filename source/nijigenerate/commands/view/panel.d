@@ -54,10 +54,11 @@ Command ensureTogglePanelCommand(Panel p)
     PanelKey key = PanelKey(p.name());
     auto found = key in togglePanelCommands;
     if (found) return *found;
-    auto c = cast(Command) new TogglePanelVisibilityCommand();
-    (cast(TogglePanelVisibilityCommand)c).panel = p;
-    togglePanelCommands[key] = c;
-    return c;
+    auto cmd = new TogglePanelVisibilityCommand();
+    ngRegisterCommandMeta(cmd);
+    cmd.panel = p;
+    togglePanelCommands[key] = cmd;
+    return cmd;
 }
 
 // Pre-populate panel toggle commands at startup (called via ngInitAllCommands)

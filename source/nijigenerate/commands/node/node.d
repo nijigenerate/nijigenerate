@@ -12,12 +12,14 @@ import nijilive;
 import nijigenerate.widgets;
 import i18n;
 import core.exception;
+import std.conv : to;
 
 
 //==================================================================================
 // Command Palette Definition for Node
 //==================================================================================
 
+@EffectCreate
 class AddNodeCommandT(bool exposeClassName = true) : ExCommand!(
         TW!(string, "className", "class name of new node.", !exposeClassName),
         TW!(string, "_suffix", "suffix pattern for new node", false)) {
@@ -28,6 +30,8 @@ class AddNodeCommandT(bool exposeClassName = true) : ExCommand!(
 
     override
     CreateResult!Node run(Context ctx) {
+        if (className.length == 0)
+            return new CreateResult!Node(false, null, "Node className is required");
         Node[] created = null;
         try {
             if (ctx.hasNodes) {
@@ -42,6 +46,7 @@ class AddNodeCommandT(bool exposeClassName = true) : ExCommand!(
     }
 }
 
+@EffectCreate
 class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
         TW!(string, "className", "class name of new node.", !exposeClassName),
         TW!(string, "_suffix", "suffix pattern for new node", false)) {
@@ -51,6 +56,8 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
 
     override
     CreateResult!Node run(Context ctx) {
+        if (className.length == 0)
+            return new CreateResult!Node(false, null, "Node className is required");
         Node[] created = null;
         try {
             if (ctx.hasNodes) {
@@ -65,6 +72,7 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
     }
 }
 
+@EffectStructuralEdit
 class MoveNodeCommand : ExCommand!(
         TW!(Node, "newParent", "new parent node"), 
         TW!(ulong, "index", "index in new parent node")) {
@@ -95,6 +103,7 @@ class MoveNodeCommand : ExCommand!(
     }
 }
 
+@EffectStructuralEdit
 class ConvertToCommandT(bool exposeClassName = true) : ExCommand!(TW!(string, "className", "new class name for node", !exposeClassName)) {
     this(string className) {
         super(null, "Convert selected nodes to "~className, className);
@@ -103,10 +112,12 @@ class ConvertToCommandT(bool exposeClassName = true) : ExCommand!(TW!(string, "c
     override
     CreateResult!Node run(Context ctx) {
         if (!ctx.hasNodes) return new CreateResult!Node(false, null, "No nodes");
+        if (className.length == 0)
+            return new CreateResult!Node(false, null, "Destination node className is required");
 
         auto before = ctx.nodes.dup;
         auto converted = ngConvertTo(ctx.nodes, className);
-        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.stringof) : "No nodes converted");
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.to!string) : "No nodes converted");
     }
 }
 
@@ -114,6 +125,45 @@ alias AddNodeCommand = AddNodeCommandT!(true);
 alias InsertNodeCommand = InsertNodeCommandT!(true);
 alias ConvertToCommand = ConvertToCommandT!(true);
 
+@ShortcutHidden
+@EffectRename
+class SetNodeNameCommand : ExCommand!(TW!(string[], "newNames", "New node names. Must have the same length as context.nodes.")) {
+    this(string[] newNames = null) { super(_("Set Node Name"), _("Rename selected nodes."), newNames); }
+
+    override
+    CommandResult run(Context ctx) {
+        if (!ctx.hasNodes || ctx.nodes.length == 0)
+            return CommandResult(false, "No nodes");
+        if (newNames is null || newNames.length == 0)
+            return CommandResult(false, "No node names");
+        if (newNames.length != ctx.nodes.length)
+            return CommandResult(false, "newNames length must match context.nodes length");
+
+        foreach (name; newNames) {
+            if (name.length == 0)
+                return CommandResult(false, "Node name is empty");
+        }
+
+        auto group = new GroupAction();
+        bool changed = false;
+        foreach (i, node; ctx.nodes) {
+            auto newName = newNames[i];
+            if (node.name == newName)
+                continue;
+
+            auto oldName = node.name;
+            node.name = newName;
+            node.notifyChange(node, NotifyReason.AttributeChanged);
+            group.addAction(new NodeValueChangeAction!(Node, string)("name", node, oldName, newName, &node.name_));
+            changed = true;
+        }
+        if (changed)
+            incActionPush(group);
+        return CommandResult(changed, changed ? "" : "No node names changed");
+    }
+}
+
+@EffectDelete
 class DeleteNodeCommand : ExCommand!() {
     this() { super(null, _("Delete Node")); }
     override
@@ -142,6 +192,7 @@ class DeleteNodeCommand : ExCommand!() {
     }
 }
 
+@EffectDelete
 class CutNodeCommand : ExCommand!() {
     this() { super(_("Cut"), _("Cut Node")); }
 
@@ -188,6 +239,7 @@ class CopyNodeCommand : ExCommand!() {
     }
 }
 
+@EffectCreate
 class PasteNodeCommand : ExCommand!() {
     this() { super(_("Paste"), _("Paste Node")); }
     override
@@ -208,6 +260,7 @@ class PasteNodeCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class ReloadNodeCommand : ExCommand!() {
     this() { super(_("Reload Node")); }
 
@@ -238,6 +291,7 @@ class VertexModeCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class ToggleVisibilityCommand : ExCommand!() {
     this() { super(_("Toggle Visibility")); }
 
@@ -251,6 +305,7 @@ class ToggleVisibilityCommand : ExCommand!() {
     }
 }
 
+@EffectStructuralEdit
 class CentralizeNodeCommand : ExCommand!() {
     this() { super(_("Centralize Node")); }
     override
@@ -267,6 +322,7 @@ class CentralizeNodeCommand : ExCommand!() {
 enum NodeCommand {
     AddNode,
     InsertNode,
+    SetNodeName,
     DeleteNode,
     MoveNode,
     ConvertTo,

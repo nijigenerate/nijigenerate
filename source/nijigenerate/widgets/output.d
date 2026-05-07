@@ -453,9 +453,10 @@ protected:
             }
         }
         if (igBeginPopup(popupName)) {
-            if (res.uuid in contentsDrawn) return;
-            showContents(res);
-            contentsDrawn[res.uuid] = true;
+            if (res.uuid !in contentsDrawn) {
+                showContents(res);
+                contentsDrawn[res.uuid] = true;
+            }
             igEndPopup();
         }
 
@@ -811,16 +812,17 @@ protected:
                         ImGuiWindowFlags.NoSavedSettings;
             if (igBegin(popupName, null, flags)) {
                 hovered |= popupOpened == res && isWindowHovered();
-                if (res.uuid in contentsDrawn) return;
-                bool invalid = activeInspector is null || activeInspector.getTargets().countUntil(node) < 0;
-                bool selected = node !is null && incNodeInSelection(node);
-                if (!selected || invalid) {
-                    if (!selected)
-                        incSelectNode(node);
-                    activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
+                if (res.uuid !in contentsDrawn) {
+                    bool invalid = activeInspector is null || activeInspector.getTargets().countUntil(node) < 0;
+                    bool selected = node !is null && incNodeInSelection(node);
+                    if (!selected || invalid) {
+                        if (!selected)
+                            incSelectNode(node);
+                        activeInspector = ngNodeInspector(selected? incSelectedNodes: [node]);
+                    }
+                    showContents(res);
+                    contentsDrawn[res.uuid] = true;
                 }
-                showContents(res);
-                contentsDrawn[res.uuid] = true;
 
                 // This code relies on imgui_internal.h, to obtain ImGuiWindow.
                 auto window = igFindWindowByName(popupName);

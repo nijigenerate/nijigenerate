@@ -15,6 +15,7 @@ enum NodeMaskCommand {
 
 Command[NodeMaskCommand] commands;
 
+@EffectStructuralEdit
 class AddMaskCommand : ExCommand!(
     TW!(Drawable, "maskSrc", "Mask source drawable"),
     TW!(MaskingMode, "mode", "Masking mode")
@@ -31,6 +32,7 @@ class AddMaskCommand : ExCommand!(
     }
 }
 
+@EffectDelete
 class RemoveMaskCommand : ExCommand!(
     TW!(Drawable, "maskSrc", "Mask source drawable")
 ) {
@@ -49,6 +51,7 @@ class RemoveMaskCommand : ExCommand!(
     }
 }
 
+@EffectStructuralEdit
 class ChangeMaskModeCommand : ExCommand!(
     TW!(Drawable, "maskSrc", "Mask source drawable"),
     TW!(MaskingMode, "mode", "New masking mode")
@@ -66,27 +69,15 @@ class ChangeMaskModeCommand : ExCommand!(
 }
 
 void ngInitCommands(T)() if (is(T == NodeMaskCommand)) {
-    import std.traits : EnumMembers;
-    // First, try no-arg registration for commands that declare default ctor args.
-    static foreach (name; EnumMembers!NodeMaskCommand) {
-        static if (__traits(compiles, { mixin(registerCommand!(name)); }))
-            mixin(registerCommand!(name));
-    }
-    // Then, explicitly provide defaults for commands that require parameters.
-    static foreach(name; EnumMembers!NodeMaskCommand) {
-        static if (name == NodeMaskCommand.AddMask) {
-            static if (__traits(compiles, { mixin(registerCommand!(name, cast(Drawable)null, MaskingMode.Mask)); }))
-                mixin(registerCommand!(name, cast(Drawable)null, MaskingMode.Mask));
-        } else static if (name == NodeMaskCommand.RemoveMask) {
-            static if (__traits(compiles, { mixin(registerCommand!(name, cast(Drawable)null)); }))
-                mixin(registerCommand!(name, cast(Drawable)null));
-        } else static if (name == NodeMaskCommand.ChangeMaskMode) {
-            static if (__traits(compiles, { mixin(registerCommand!(name, cast(Drawable)null, MaskingMode.Mask)); }))
-                mixin(registerCommand!(name, cast(Drawable)null, MaskingMode.Mask));
-        }
-    }
-    // Explicit registrations mirroring node.d style
-    mixin(registerCommand!(NodeMaskCommand.AddMask, cast(Drawable)null, MaskingMode.Mask));
-    mixin(registerCommand!(NodeMaskCommand.RemoveMask, cast(Drawable)null));
-    mixin(registerCommand!(NodeMaskCommand.ChangeMaskMode, cast(Drawable)null, MaskingMode.Mask));
+    auto addMaskCommand = new AddMaskCommand(null, MaskingMode.Mask);
+    ngRegisterCommandMeta(addMaskCommand);
+    commands[NodeMaskCommand.AddMask] = addMaskCommand;
+
+    auto removeMaskCommand = new RemoveMaskCommand(null);
+    ngRegisterCommandMeta(removeMaskCommand);
+    commands[NodeMaskCommand.RemoveMask] = removeMaskCommand;
+
+    auto changeMaskModeCommand = new ChangeMaskModeCommand(null, MaskingMode.Mask);
+    ngRegisterCommandMeta(changeMaskModeCommand);
+    commands[NodeMaskCommand.ChangeMaskMode] = changeMaskModeCommand;
 }

@@ -24,6 +24,7 @@ alias mirAny = mir.algorithm.iteration.any;
 debug(automesh_opt) import std.stdio;
 import std.array;
 import std.typecons;
+import std.math : isFinite;
 import bindbc.imgui;
 import nijigenerate.core.cv.image;
 import core.exception;
@@ -352,10 +353,6 @@ public:
             sumWidth += validWidth.sum;
             length   += validWidth.length;
         }
-        double avgWidth = sumWidth / length;
-        double ratio = sumWidth / widthMapLength;
-        debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", contourList.length, avgWidth, length, avgWidth / length, ratio); }
-
         debug(automesh_opt) { writefln("contours=%d", contourList.length); }
         auto contourVec = contoursToVec2s(contourList);
         debug(automesh_opt) { writefln("contourVec=%d", contourVec.length); }
@@ -364,8 +361,16 @@ public:
 
         mesh.clear();
 
+        double avgWidth = length > 0 ? sumWidth / length : 0;
+        double ratio = widthMapLength > 0 ? sumWidth / widthMapLength : 0;
+        double widthLengthRatio = length > 0 ? avgWidth / length : double.infinity;
+        if (!avgWidth.isFinite) avgWidth = 0;
+        if (!ratio.isFinite) ratio = 0;
+        if (!widthLengthRatio.isFinite) widthLengthRatio = double.infinity;
+        debug(automesh_opt) { writefln("found=%d: avgW=%0.2f, len=%0.2f, avgW/len=%0.2f, ratio=%0.2f", contourList.length, avgWidth, length, widthLengthRatio, ratio); }
+
         bool sharpFlag = (avgWidth < LARGE_THRESHOLD) &&
-                         ((length < LENGTH_THRESHOLD) || ((avgWidth / length) < RATIO_THRESHOLD));
+                         ((length < LENGTH_THRESHOLD) || (widthLengthRatio < RATIO_THRESHOLD));
 
         // Reduce vertices by resampling (with consideration for flip flag)
         vB1 ~= resampling(contourVec, min_distance, mirrorHoriz, axisHoriz, mirrorVert, axisVert);
@@ -560,13 +565,20 @@ public:
             if (!updated) break;
         }
 
-        if (vertices.length < 3) return mesh;
+        if (vertices.length < 1) return mesh;
+        if (cast(Drawable)target && vertices.length < 3) return mesh;
 
         IncMesh newMesh = new IncMesh(mesh);
         newMesh.changed = true;
         newMesh.vertices.length = 0;
         auto translated = Vec2Array(vertices.toArray().map!((x){ return x - imgCenter; }).array);
-        newMesh.importVertsAndTris(translated, tris);
+        if (cast(Drawable)target) {
+            newMesh.importVertsAndTris(translated, tris);
+        } else {
+            foreach (v; translated) {
+                newMesh.vertices ~= new MeshVertex(v, []);
+            }
+        }
         mapImageCenteredMeshToTargetLocal(newMesh, target, ai);
         newMesh.refresh();
         return newMesh;

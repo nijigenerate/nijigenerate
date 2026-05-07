@@ -30,6 +30,7 @@ import nijigenerate.panels;
 import nijigenerate.widgets;
 import nijigenerate.api.acp;
 import nijigenerate.core.settings : incSettingsGet, incSettingsSet, incSettingsSave;
+import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 
 struct ACPResult {
     string kind;   // init, ping, log, error
@@ -48,7 +49,10 @@ struct PermissionRequest {
 class AgentPanel : Panel {
 private:
     string statusText = "Idle";
+    string usageText;
+    JSONValue usagePayload;
     string userText;
+    uint userTextInputSerial;
     struct LineHeightCache {
         float wrapW = 0;
         float[] heights;
@@ -288,6 +292,31 @@ private:
         igPopTextWrapPos();
     }
 
+    float measureConversationLines(const(string)[] lines, float wrapWidth,
+            bool prefixFirstOnly = false, string prefix = "") {
+        auto style = igGetStyle();
+        auto padPrefix = prefix.length ? replicate(" ", prefix.length) : "";
+        auto displayLine = (size_t idx) {
+            if (!prefix.length) return lines[idx];
+            if (prefixFirstOnly) {
+                return (idx == 0 ? prefix : padPrefix) ~ lines[idx];
+            }
+            return prefix ~ lines[idx];
+        };
+
+        float totalHeight = 0;
+        foreach (idx, line; lines) {
+            auto disp = displayLine(idx).idup;
+            if (disp.length > kMaxDrawCharsPerLine)
+                disp = disp[0 .. kMaxDrawCharsPerLine] ~ " ... (display truncated)";
+
+            ImVec2 sz;
+            igCalcTextSize(&sz, disp.toStringz(), null, true, wrapWidth);
+            totalHeight += sz.y + style.ItemSpacing.y;
+        }
+        return totalHeight;
+    }
+
     string[] expandLines(const string[] src) {
         auto buf = appender!(string[])();
         foreach (line; src) {
@@ -385,8 +414,62 @@ private:
         return upd.toString();
     }
 
+    string jsonScalarText(JSONValue obj, string key) {
+        if (obj.type != JSONType.object || key !in obj.object) return "";
+        auto value = obj[key];
+        final switch (value.type) {
+            case JSONType.string:
+                return value.str;
+            case JSONType.integer:
+            case JSONType.uinteger:
+            case JSONType.float_:
+                return value.toString();
+            case JSONType.true_:
+                return "true";
+            case JSONType.false_:
+                return "false";
+            case JSONType.null_:
+            case JSONType.object:
+            case JSONType.array:
+                return "";
+        }
+    }
+
+    string firstScalar(JSONValue obj, string[] keys) {
+        foreach (key; keys) {
+            auto value = jsonScalarText(obj, key);
+            if (value.length) return value;
+        }
+        return "";
+    }
+
+    void updateUsage(JSONValue upd) {
+        usagePayload = upd;
+        JSONValue src = upd;
+        if (upd.type == JSONType.object && "usage" in upd.object && upd["usage"].type == JSONType.object) {
+            src = upd["usage"];
+        }
+
+        auto input = firstScalar(src, ["inputTokens", "input_tokens", "promptTokens", "prompt_tokens"]);
+        auto output = firstScalar(src, ["outputTokens", "output_tokens", "completionTokens", "completion_tokens"]);
+        auto total = firstScalar(src, ["totalTokens", "total_tokens"]);
+        auto cached = firstScalar(src, ["cachedInputTokens", "cached_input_tokens", "cacheReadInputTokens", "cache_read_input_tokens"]);
+
+        string[] parts;
+        if (input.length) parts ~= "in " ~ input;
+        if (output.length) parts ~= "out " ~ output;
+        if (total.length) parts ~= "total " ~ total;
+        if (cached.length) parts ~= "cached " ~ cached;
+        usageText = parts.length ? parts.join(", ") : upd.toString();
+    }
+
     void handleSessionUpdate(JSONValue upd) {
         string kind = deriveUpdateKind(upd);
+        if (kind == "usage_update") {
+            updateUsage(upd);
+            return;
+        }
+
         string toolId = deriveToolId(upd);
         string role = deriveRoleFromKind(kind, toolId);
 
@@ -485,13 +568,46 @@ private:
     void renderYou(ref LogBlock blk, float w, ImVec4 col) {
         auto tv = trimBlankEdges(blk.lines);
         auto view = blk.lines[tv.start .. tv.end];
+        auto style = igGetStyle();
+        const float padX = 10;
+        const float padY = 7;
+        float contentW = w - style.ScrollbarSize - (padX * 2) - style.ItemSpacing.x;
+        if (contentW < 48) contentW = 48;
+        float contentH = measureConversationLines(view, contentW, true, "\ue7fd: ");
+        float bubbleW = contentW + (padX * 2);
+        float bubbleH = contentH + (padY * 2);
+
+        ImVec2 startCursor;
+        igGetCursorPos(&startCursor);
+        ImVec2 screenPos;
+        igGetCursorScreenPos(&screenPos);
+        auto drawList = igGetWindowDrawList();
+        ImVec4 bg = ImVec4(0.12f, 0.32f, 0.17f, 0.38f);
+        ImVec4 border = ImVec4(0.42f, 0.72f, 0.40f, 0.80f);
+        ImDrawList_AddRectFilled(
+            drawList,
+            screenPos,
+            ImVec2(screenPos.x + bubbleW, screenPos.y + bubbleH),
+            igGetColorU32(bg),
+            6.0f
+        );
+        ImDrawList_AddRect(
+            drawList,
+            screenPos,
+            ImVec2(screenPos.x + bubbleW, screenPos.y + bubbleH),
+            igGetColorU32(border),
+            6.0f
+        );
+
+        igSetCursorPos(ImVec2(startCursor.x + padX, startCursor.y + padY));
         if (tv.trimmed) {
             LineHeightCache tmp;
-            renderClippedLines(view, w, blk.ver, tmp, true, "\ue7fd: ", &col);
+            renderClippedLines(view, contentW, blk.ver, tmp, true, "\ue7fd: ", &col);
         } else {
-            renderClippedLines(view, w, blk.ver, blk.cache, true, "\ue7fd: ", &col, blk.dirtyFrom);
+            renderClippedLines(view, contentW, blk.ver, blk.cache, true, "\ue7fd: ", &col, blk.dirtyFrom);
             blk.dirtyFrom = size_t.max;
         }
+        igSetCursorPos(ImVec2(startCursor.x, startCursor.y + bubbleH + style.ItemSpacing.y));
     }
 
     void renderTool(ref LogBlock blk, float w, bool isLast) {
@@ -542,22 +658,16 @@ private:
         }
     }
 
-    void renderAssistantFinal(ref LogBlock blk, float w, bool isLast) {
-        auto labelId = (blk.role ~ "##blk" ~ (cast(size_t)&blk).to!string()).toStringz();
-        auto catFlags = isLast ? IncCategoryFlags.None : IncCategoryFlags.DefaultClosed;
-        bool opened = incBeginCategory(labelId, catFlags);
-        if (opened) {
-            auto tv = trimBlankEdges(blk.lines);
-            auto view = blk.lines[tv.start .. tv.end];
-            if (tv.trimmed) {
-                LineHeightCache tmp;
-                renderClippedLines(view, w, blk.ver, tmp);
-            } else {
-                renderClippedLines(view, w, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
-                blk.dirtyFrom = size_t.max;
-            }
+    void renderAssistantFinal(ref LogBlock blk, float w) {
+        auto tv = trimBlankEdges(blk.lines);
+        auto view = blk.lines[tv.start .. tv.end];
+        if (tv.trimmed) {
+            LineHeightCache tmp;
+            renderClippedLines(view, w, blk.ver, tmp);
+        } else {
+            renderClippedLines(view, w, blk.ver, blk.cache, false, "", null, blk.dirtyFrom);
+            blk.dirtyFrom = size_t.max;
         }
-        incEndCategory();
     }
 
     void renderError(ref LogBlock blk, float w, bool isLast) {
@@ -925,7 +1035,7 @@ private:
         if (blk is null && !toolId.length) {
             blk = findToolBlock(role);
         }
-        if (isInitial || blk is null) {
+        if (blk is null) {
             LogBlock nb;
             nb.role = role;
             nb.title = title;
@@ -944,11 +1054,18 @@ private:
             return;
         }
         // update existing block
+        if (title.length) blk.title = title;
         if (text.length) {
-            if (blk.lines.length == 0)
+            if (blk.lines.length == 0) {
                 blk.lines ~= text;
-            else
+            } else if (isInitial) {
+                // Permission requests can create the visible tool block before
+                // the later tool_call notification arrives. Replace that
+                // placeholder instead of showing the same tool twice.
+                blk.lines[$-1] = text;
+            } else {
                 blk.lines[$-1] ~= text;
+            }
         }
         if (payload.type != JSONType.null_) {
             if (blk.hasPayloadMerged) blk.payloadMerged = mergeJson(blk.payloadMerged, payload);
@@ -958,6 +1075,27 @@ private:
         if (status.length) blk.status = status;
         blk.ver++;
         convoContentAdded = true;
+    }
+
+    void showPermissionToolCall(JSONValue params, string permissionId, string reason) {
+        if (params.type != JSONType.object || "toolCall" !in params.object)
+            return;
+        auto toolCall = params["toolCall"];
+        if (toolCall.type != JSONType.object)
+            return;
+
+        JSONValue[string] upd = toolCall.object.dup;
+        upd["sessionUpdate"] = JSONValue("tool_call");
+        if ("status" !in upd || upd["status"].type != JSONType.string)
+            upd["status"] = JSONValue("pending");
+        if ("toolCallId" !in upd || upd["toolCallId"].type != JSONType.string || upd["toolCallId"].str.length == 0)
+            upd["toolCallId"] = JSONValue(permissionId.length ? "permission:" ~ permissionId : "permission");
+        if ("title" !in upd || upd["title"].type != JSONType.string || upd["title"].str.length == 0) {
+            string title = reason.length ? reason : _("Permission requested");
+            upd["title"] = JSONValue(title);
+        }
+
+        handleSessionUpdate(JSONValue(upd));
     }
 
     void handlePlanUpdate(string text, JSONValue payload, string status) {
@@ -1008,6 +1146,7 @@ private:
         enqueueCommand("msg:" ~ userText);
         promptPending = true;
         userText = "";
+        ++userTextInputSerial;
     }
     void enqueueCommand(string cmd) {
         qMutex.lock();
@@ -1056,6 +1195,110 @@ private:
         qCond.notifyAll();
     }
 
+    string permissionOptionId(JSONValue option) {
+        if (option.type != JSONType.object) return "";
+        if ("optionId" in option.object && option["optionId"].type == JSONType.string) {
+            return option["optionId"].str;
+        }
+        if ("id" in option.object && option["id"].type == JSONType.string) {
+            return option["id"].str;
+        }
+        return "";
+    }
+
+    string permissionOptionLabel(JSONValue option) {
+        if (option.type != JSONType.object) return "Option";
+        foreach (key; ["name", "label", "title", "kind", "action", "optionId", "id"]) {
+            if (key in option.object && option[key].type == JSONType.string && option[key].str.length) {
+                return option[key].str;
+            }
+        }
+        return "Option";
+    }
+
+    enum size_t permissionOptionLabelMaxChars = 15;
+
+    string ellipsizePermissionOptionLabel(string label) {
+        size_t count;
+        foreach (idx, dchar ch; label) {
+            if (count >= permissionOptionLabelMaxChars) {
+                return label[0 .. idx] ~ "...";
+            }
+            ++count;
+        }
+        return label;
+    }
+
+    void showPermissionOptionTooltip(string label, string displayLabel) {
+        if (label == displayLabel || !igIsItemHovered()) return;
+        igBeginTooltip();
+        igPushTextWrapPos(igGetFontSize() * 45);
+        igTextUnformatted(label.ptr, label.ptr + label.length);
+        igPopTextWrapPos();
+        igEndTooltip();
+    }
+
+    bool permissionOptionButton(string label, string optionId) {
+        auto displayLabel = ellipsizePermissionOptionLabel(label);
+        auto buttonLabel = displayLabel ~ "##permission-option-" ~ optionId;
+        bool clicked = igButton(buttonLabel.toStringz());
+        showPermissionOptionTooltip(label, displayLabel);
+        return clicked;
+    }
+
+    void permissionOptionDisabledText(string label) {
+        auto displayLabel = ellipsizePermissionOptionLabel(label);
+        igTextDisabled(displayLabel.toStringz());
+        showPermissionOptionTooltip(label, displayLabel);
+    }
+
+    JSONValue[] permissionOptions(JSONValue params) {
+        if (params.type != JSONType.object || "options" !in params.object) return null;
+        auto options = params["options"];
+        if (options.type != JSONType.array) return null;
+        return options.array.dup;
+    }
+
+    void renderPermissionRequest() {
+        if (!permQueue.length) return;
+
+        auto rq = permQueue[0];
+        string reason = rq.reason.length ? rq.reason : "(no reason)";
+        auto options = permissionOptions(rq.params);
+        igText(_("Permission requested: %s").format(reason).toStringz());
+        if (rq.id.length == 0) {
+            igTextColored(ImVec4(1, 0.3f, 0.3f, 1), _("Cannot respond: missing request id").toStringz());
+        }
+        if (options.length) {
+            foreach (idx, option; options) {
+                auto optionId = permissionOptionId(option);
+                auto label = permissionOptionLabel(option);
+                if (optionId.length == 0) {
+                    permissionOptionDisabledText(label);
+                    continue;
+                }
+                if (idx > 0) igSameLine();
+                if (permissionOptionButton(label, optionId)) {
+                    enqueueCommand("perm:" ~ rq.id ~ ":" ~ optionId);
+                    permQueue = permQueue[1 .. $];
+                    promptPending = true;
+                }
+            }
+        } else {
+            if (igButton(_("Allow").toStringz())) {
+                enqueueCommand("perm:" ~ rq.id ~ ":allow-once");
+                permQueue = permQueue[1 .. $];
+                promptPending = true;
+            }
+            igSameLine();
+            if (igButton(_("Deny").toStringz())) {
+                enqueueCommand("perm:" ~ rq.id);
+                permQueue = permQueue[1 .. $];
+                promptPending = true;
+            }
+        }
+    }
+
     void handleInbound(JSONValue obj) {
         if (obj.type == JSONType.object && "method" in obj.object) {
             auto m = obj["method"].str;
@@ -1077,7 +1320,15 @@ private:
                     && "reason" in obj["params"].object && obj["params"]["reason"].type == JSONType.string) {
                     reason = obj["params"]["reason"].str;
                 }
-                permQueue ~= PermissionRequest(pid, reason, obj["params"], false, false);
+                auto params = obj["params"];
+                showPermissionToolCall(params, pid, reason);
+                permQueue ~= PermissionRequest(
+                    pid,
+                    reason,
+                    params,
+                    false,
+                    false
+                );
                 permChanged = true;
                 pushResult("log", false, obj.toString());
                 return;
@@ -1158,10 +1409,18 @@ private:
                     auto parts = c.split(':');
                     if (parts.length >= 3) {
                         string pid = parts[1];
-                        bool allow = (parts[2] == "yes");
+                        string optionId = parts[2];
                         try {
-                            localClient.sendPermissionResponse(pid, allow);
-                            pushResult("log", false, "permission " ~ (allow ? "granted" : "denied") ~ " id=" ~ pid);
+                            localClient.sendPermissionResponse(pid, optionId, false);
+                            pushResult("log", false, "permission selected option=" ~ optionId ~ " id=" ~ pid);
+                        } catch (Exception e) {
+                            pushResult("log", true, "permission response failed: "~e.msg);
+                        }
+                    } else if (parts.length >= 2) {
+                        string pid = parts[1];
+                        try {
+                            localClient.sendPermissionResponse(pid, "", true);
+                            pushResult("log", false, "permission cancelled id=" ~ pid);
                         } catch (Exception e) {
                             pushResult("log", true, "permission response failed: "~e.msg);
                         }
@@ -1249,7 +1508,10 @@ private:
             workerRunning = true;
             auto cmdCopy = cmd.dup;
             auto wdCopy = workingDir;
-            worker = new Thread(() => workerLoop(cmdCopy, wdCopy));
+            worker = new Thread({
+                installNativeCrashDumpThreadHandler();
+                workerLoop(cmdCopy, wdCopy);
+            });
             worker.isDaemon(true); // allow process exit fallback even if not joined
             worker.start();
             enqueueCommand("init");
@@ -1331,6 +1593,10 @@ protected:
         // controls (right aligned)
         auto statusLabel = _("Status: %s").format(statusText).toStringz();
         igTextUnformatted(statusLabel);
+        if (usageText.length) {
+            igSameLine();
+            igTextDisabled(("Usage: " ~ usageText).toStringz());
+        }
         igSameLine();
 
         ImVec2 avail = incAvailableSpace();
@@ -1363,52 +1629,6 @@ protected:
 
         igSeparator();
 
-        // Pending permission requests
-        if (permQueue.length) {
-            auto rq = permQueue[0];
-            string reason = rq.reason.length ? rq.reason : "(no reason)";
-            string optSummary;
-            if (rq.params.type == JSONType.object && "options" in rq.params.object) {
-                auto opts = rq.params["options"];
-                if (opts.type == JSONType.array) {
-                    optSummary = opts.array.length.to!string ~ " option(s)";
-                }
-            }
-            igText(_("Permission requested: %s").format(reason).toStringz());
-            if (rq.id.length == 0) {
-                igTextColored(ImVec4(1, 0.3f, 0.3f, 1), _("Cannot respond: missing request id").toStringz());
-            }
-            if (optSummary.length) {
-                igText(_("Options: %s").format(optSummary).toStringz());
-            }
-            if (!rq.responded) {
-                if (igButton(_("Allow").toStringz())) {
-                    enqueueCommand("perm:" ~ rq.id ~ ":yes");
-                    permQueue[0].responded = true;
-                    permQueue[0].granted = true;
-                    promptPending = true;
-                }
-            igSameLine();
-                if (igButton(_("Deny").toStringz())) {
-                    enqueueCommand("perm:" ~ rq.id ~ ":no");
-                    permQueue[0].responded = true;
-                    permQueue[0].granted = false;
-                    promptPending = true;
-                }
-            } else {
-                igTextDisabled((rq.granted ? _("Sent: Allow") : _("Sent: Deny")).toStringz());
-                if (igButton(_("Dismiss").toStringz())) {
-                    permQueue = permQueue[1 .. $];
-                }
-                igSameLine();
-                if (igButton(_("Resend").toStringz())) {
-                    enqueueCommand("perm:" ~ rq.id ~ ":" ~ (rq.granted ? "yes" : "no"));
-                    promptPending = true;
-                }
-            }
-            igSeparator();
-        }
-
         // handle results from worker
         drainResults();
 
@@ -1421,7 +1641,13 @@ protected:
             float lineH = igGetTextLineHeightWithSpacing();
             planAreaH = lineH * planView.lines.length + igGetStyle().ItemSpacing.y * 2;
         }
-        ImVec2 logSize = ImVec2(availLog.x, availLog.y - inputAreaH - planAreaH);
+        float permissionAreaH = 0;
+        if (permQueue.length) {
+            permissionAreaH = igGetTextLineHeightWithSpacing()
+                            + igGetFrameHeightWithSpacing()
+                            + igGetStyle().ItemSpacing.y * 3;
+        }
+        ImVec2 logSize = ImVec2(availLog.x, availLog.y - inputAreaH - planAreaH - permissionAreaH);
         if (logSize.y < 160) logSize.y = availLog.y * 0.65f;
 
         // Conversation view
@@ -1442,7 +1668,7 @@ protected:
                         renderAssistantThinking(blk, logSize.x);
                         break;
                     case RoleKind.AssistantFinal:
-                        renderAssistantFinal(blk, logSize.x, isLast);
+                        renderAssistantFinal(blk, logSize.x);
                         break;
                     case RoleKind.Error:
                         renderError(blk, logSize.x, isLast);
@@ -1471,13 +1697,21 @@ protected:
         }
 
         igSeparator();
+        renderPermissionRequest();
+        if (permQueue.length) igSeparator();
         igText(_("User message:").toStringz());
         float sendBtnW = 80;
         float textW = availLog.x - sendBtnW - igGetStyle().ItemSpacing.x;
         if (textW < 160) textW = availLog.x * 0.75f;
         bool awaitingPermission = permQueue.length > 0;
         bool awaitingAgent = promptPending || awaitingPermission;
-        bool submit = incInputText("##acp_user_text", textW, userText, ImGuiInputTextFlags.EnterReturnsTrue);
+        auto userTextInputId = format("##acp_user_text_%s", userTextInputSerial);
+        bool submit = incInputText(
+            userTextInputId,
+            textW,
+            userText,
+            ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.NoUndoRedo
+        );
         if (submit && userText.length) {
             if (!awaitingAgent) enqueueUserText();
         }

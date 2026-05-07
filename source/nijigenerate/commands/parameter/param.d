@@ -12,6 +12,7 @@ import nijigenerate.actions;
 import i18n;
 import std.format : format;
 
+@EffectCreate
 class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
     this(int min, int max) { super(null, _("Add 1D Parameter (%d..%d)").format(min, max), min, max); }
     override
@@ -34,6 +35,7 @@ class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the P
     }
 }
 
+@EffectCreate
 class Add2DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the Parameter"), TW!(int, "max", "maximum value of the Parameter")) {
     this(int min, int max) { super(null, _("Add 2D Parameter (%d..%d)").format(min, max), min, max); }
     override
@@ -58,6 +60,7 @@ class Add2DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the P
     }
 }
 
+@EffectCreate
 class AddMouthParameterCommand : ExCommand!() {
     this() { super(null, _("Add Mouth Parameter")); }
     override
@@ -84,6 +87,7 @@ class AddMouthParameterCommand : ExCommand!() {
     }
 }
 
+@EffectDelete
 class RemoveParameterCommand : ExCommand!() {
     this() { super(null, _("Remove selected parameters from the active puppet")); }
     override
