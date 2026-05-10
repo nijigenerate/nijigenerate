@@ -14,6 +14,7 @@ public import nijigenerate.actions.drawable;
 public import nijigenerate.actions.mesh;
 public import nijigenerate.actions.deformable;
 public import nijigenerate.actions.vertex;
+public import nijigenerate.actions.depth;
 
 import std.algorithm;
 import std.range;

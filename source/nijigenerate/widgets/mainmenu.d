@@ -364,7 +364,7 @@ void incMainMenu() {
         }
         igSetNextItemWidth (avail.x - tabBarWidth);
         igBeginTabBar("###ModeTab");
-            if(incEditMode != EditMode.VertexEdit) {
+            if(incEditMode != EditMode.VertexEdit && incEditMode != EditMode.DepthEdit) {
                 auto mode = incEditMode; // snapshot for this frame
 
                 // Use a persistent tab selection to avoid per-frame toggling.

@@ -123,9 +123,14 @@ enum EditMode {
     ModelTest = 0x8,
 
     /**
+        Depth editing mode
+    */
+    DepthEdit = 0x10,
+
+    /**
         Not real edit mode, contains all the combined modes
     */
-    ALL = ModelEdit | VertexEdit | AnimEdit | ModelTest,
+    ALL = ModelEdit | VertexEdit | AnimEdit | ModelTest | DepthEdit,
 }
 
 enum ModelEditSubMode {

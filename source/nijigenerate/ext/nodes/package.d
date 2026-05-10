@@ -9,8 +9,11 @@ module nijigenerate.ext.nodes;
 
 public import nijigenerate.ext.nodes.expart;
 public import nijigenerate.ext.nodes.excamera;
+public import nijigenerate.ext.nodes.exdepthmapped;
+public import nijigenerate.ext.nodes.exgriddeformer;
 
 void incInitExtNodes() {
     incRegisterExPart();
     incRegisterExCamera();
+    incRegisterExGridDeformer();
 }

@@ -48,146 +48,182 @@ enum ViewporMenuSortMode {
 
 ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 
-class ModelViewport : DelegationViewport {
+class ModelLayoutViewport : Viewport {
 public:
-
     override
     void draw(Camera camera) { 
-        Parameter param = incArmedParameter();
+        if (incSelectedNodes.length == 0) return;
+
+        foreach(selectedNode; incSelectedNodes) {
+            if (selectedNode is null) continue; 
+            if (incShowOrientation) selectedNode.drawOrientation();
+            if (incShowBounds) selectedNode.drawBounds();
+
+            if (Drawable selectedDraw = cast(Drawable)selectedNode) {
+
+                if (incShowVertices || incEditMode != EditMode.ModelEdit) {
+                    selectedDraw.drawMeshLines();
+                }
+            } else if (auto deformable = cast(PathDeformer)selectedNode) {
+
+                /**
+                    Draws the mesh
+                */
+                void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
+                    if (curve is null || curve.controlPoints.length == 0)
+                        return;
+                    Vec3Array lines;
+                    foreach (i; 1..100) {
+                        lines ~= vec3(curve.point((i - 1) / 100.0), 0);
+                        lines ~= vec3(curve.point(i / 100.0), 0);
+                    }
+                    if (lines.length > 0) {
+                        inDbgSetBuffer(lines);
+                        inDbgDrawLines(color, trans);
+                    }
+                }
+                drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 0.5, 0.5, 1));
+                drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
+                debug(path_deform) {
+                    void drawLines2(Vec2Array[Node] closestPoints, mat4 trans, vec4 color) {
+                        if (closestPoints.length == 0)
+                            return;
+                        Vec3Array lines;
+                        foreach (t2, deformed; closestPoints) {
+                            if (auto deformable2 = cast(Deformable)t2) {
+                                mat4 conv = trans.inverse * deformable2.transform.matrix;
+                                foreach (i, v; deformable2.vertices) {
+                                    lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
+                                    lines ~= vec3(deformed[i], 0);
+                                }
+                            }
+                        }
+                        if (lines.length > 0) {
+                            inDbgSetBuffer(lines);
+                            inDbgDrawLines(color, trans);
+                        }
+                    }
+                    drawLines2(deformable.closestPointsOriginal, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
+                    void drawLines3(Vec2Array[Node] closestPoints, mat4 trans, vec4 color) {
+                        if (closestPoints.length == 0)
+                            return;
+                        Vec3Array lines;
+                        foreach (t, deformed; closestPoints) {
+                            if (auto deformable2 = cast(Deformable)t) {
+                                mat4 conv = trans.inverse * deformable2.transform.matrix;
+                                auto vertCount = deformable2.vertices.length;
+                                auto deformCount = deformable2.deformation.length;
+                                foreach (i; 0 .. vertCount) {
+                                    vec2 v = deformable2.vertices[i].toVector();
+                                    if (i < deformCount) v += deformable2.deformation[i].toVector();
+                                    lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
+                                    lines ~= vec3(deformed[i], 0);
+                                }
+                            }
+                        }
+                        if (lines.length > 0) {
+                            inDbgSetBuffer(lines);
+                            inDbgDrawLines(color, trans);
+                        }
+                    }
+                    drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
+                }
+            } else if (auto grid = cast(GridDeformer)selectedNode) {
+                auto baseVerts = grid.vertices;
+                if (baseVerts.length >= 4) {
+                    auto baseVertsAoS = baseVerts.toArray();
+                    auto xs = baseVertsAoS.map!(v => v.x).array;
+                    auto ys = baseVertsAoS.map!(v => v.y).array;
+                    xs.sort();
+                    ys.sort();
+                    xs = xs.uniq.array;
+                    ys = ys.uniq.array;
+                    size_t cols = xs.length;
+                    size_t rows = ys.length;
+                    bool haveDeform = grid.deformation.length == baseVerts.length;
+                    if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
+                        Vec3Array lines;
+                        foreach (y; 0 .. rows) {
+                            foreach (x; 0 .. cols) {
+                                size_t idx = y * cols + x;
+                                vec2 startPos = baseVertsAoS[idx];
+                                if (haveDeform) startPos += grid.deformation[idx];
+                                auto start = vec3(startPos, 0);
+                                if (x + 1 < cols) {
+                                    size_t nextIdx = idx + 1;
+                                    vec2 rightPos = baseVertsAoS[nextIdx];
+                                    if (haveDeform) rightPos += grid.deformation[nextIdx];
+                                    lines ~= start;
+                                    lines ~= vec3(rightPos, 0);
+                                }
+                                if (y + 1 < rows) {
+                                    size_t nextIdx = idx + cols;
+                                    vec2 downPos = baseVertsAoS[nextIdx];
+                                    if (haveDeform) downPos += grid.deformation[nextIdx];
+                                    lines ~= start;
+                                    lines ~= vec3(downPos, 0);
+                                }
+                            }
+                        }
+                        if (lines.length > 0) {
+                            inDbgSetBuffer(lines);
+                            inDbgDrawLines(vec4(0.5, 0.5, 0.5, 1), grid.transform.matrix);
+                        }
+                    }
+                }
+            }
+            if (Driver selectedDriver = cast(Driver)selectedNode) {
+                selectedDriver.drawDebug();
+            }
+        }
+    };
+}
+
+class ModelViewport : DelegationViewport {
+private:
+    ModelEditSubMode activeSubMode;
+
+    Viewport createSubView(ModelEditSubMode mode) {
+        final switch(mode) {
+        case ModelEditSubMode.Layout: return new ModelLayoutViewport;
+        case ModelEditSubMode.Deform: return new DeformationViewport;
+        }
+    }
+
+    void syncSubView() {
+        auto mode = ngModelEditSubMode();
+        if (_subView !is null && mode == activeSubMode) return;
+
+        _subView = createSubView(mode);
+        activeSubMode = mode;
+        _subView.selectionChanged(incSelectedNodes);
+        _subView.armedParameterChanged(incArmedParameter());
+    }
+
+public:
+
+    this() {
+        activeSubMode = ModelEditSubMode.Layout;
+        _subView = createSubView(activeSubMode);
+    }
+
+    override
+    void draw(Camera camera) {
+        syncSubView();
+
         incActivePuppet.update();
         incActivePuppet.draw();
         auto onion = OnionSlice.singleton();
         onion.draw();
 
-        if (subView) {
-            subView.draw(camera);
-        } else {
-            if (incSelectedNodes.length > 0) {
-                foreach(selectedNode; incSelectedNodes) {
-                    if (selectedNode is null) continue; 
-                    if (incShowOrientation) selectedNode.drawOrientation();
-                    if (incShowBounds) selectedNode.drawBounds();
+        super.draw(camera);
+    }
 
-                    if (Drawable selectedDraw = cast(Drawable)selectedNode) {
-
-                        if (incShowVertices || incEditMode != EditMode.ModelEdit) {
-                            selectedDraw.drawMeshLines();
-                        }
-                    } else if (auto deformable = cast(PathDeformer)selectedNode) {
-
-                        /**
-                            Draws the mesh
-                        */
-                        void drawLines(Curve curve, mat4 trans = mat4.identity, vec4 color = vec4(0.5, 1, 0.5, 1)) {
-                            if (curve is null || curve.controlPoints.length == 0)
-                                return;
-                            Vec3Array lines;
-                            foreach (i; 1..100) {
-                                lines ~= vec3(curve.point((i - 1) / 100.0), 0);
-                                lines ~= vec3(curve.point(i / 100.0), 0);
-                            }
-                            if (lines.length > 0) {
-                                inDbgSetBuffer(lines);
-                                inDbgDrawLines(color, trans);
-                            }
-                        }
-                        drawLines(deformable.prevCurve, deformable.transform.matrix, vec4(0.5, 0.5, 0.5, 1));
-                        drawLines(deformable.deformedCurve, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
-                        debug(path_deform) {
-                            void drawLines2(Vec2Array[Node] closestPoints, mat4 trans, vec4 color) {
-                                if (closestPoints.length == 0)
-                                    return;
-                                Vec3Array lines;
-                                foreach (t2, deformed; closestPoints) {
-                                    if (auto deformable2 = cast(Deformable)t2) {
-                                        mat4 conv = trans.inverse * deformable2.transform.matrix;
-                                        foreach (i, v; deformable2.vertices) {
-                                            lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
-                                            lines ~= vec3(deformed[i], 0);
-                                        }
-                                    }
-                                }
-                                if (lines.length > 0) {
-                                    inDbgSetBuffer(lines);
-                                    inDbgDrawLines(color, trans);
-                                }
-                            }
-                            drawLines2(deformable.closestPointsOriginal, deformable.transform.matrix, vec4(0.5, 1, 1, 1));
-                            void drawLines3(Vec2Array[Node] closestPoints, mat4 trans, vec4 color) {
-                                if (closestPoints.length == 0)
-                                    return;
-                                Vec3Array lines;
-                                foreach (t, deformed; closestPoints) {
-                                    if (auto deformable2 = cast(Deformable)t) {
-                                        mat4 conv = trans.inverse * deformable2.transform.matrix;
-                                        auto vertCount = deformable2.vertices.length;
-                                        auto deformCount = deformable2.deformation.length;
-                                        foreach (i; 0 .. vertCount) {
-                                            vec2 v = deformable2.vertices[i].toVector();
-                                            if (i < deformCount) v += deformable2.deformation[i].toVector();
-                                            lines ~= vec3((conv * vec4(v, 0, 1)).xy, 0);
-                                            lines ~= vec3(deformed[i], 0);
-                                        }
-                                    }
-                                }
-                                if (lines.length > 0) {
-                                    inDbgSetBuffer(lines);
-                                    inDbgDrawLines(color, trans);
-                                }
-                            }
-                            drawLines3(deformable.closestPointsDeformed, deformable.transform.matrix, vec4(0.5, 1, 0.5, 1));
-                        }
-                    } else if (auto grid = cast(GridDeformer)selectedNode) {
-                        auto baseVerts = grid.vertices;
-                        if (baseVerts.length >= 4) {
-                            auto baseVertsAoS = baseVerts.toArray();
-                            auto xs = baseVertsAoS.map!(v => v.x).array;
-                            auto ys = baseVertsAoS.map!(v => v.y).array;
-                            xs.sort();
-                            ys.sort();
-                            xs = xs.uniq.array;
-                            ys = ys.uniq.array;
-                            size_t cols = xs.length;
-                            size_t rows = ys.length;
-                            bool haveDeform = grid.deformation.length == baseVerts.length;
-                            if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
-                                Vec3Array lines;
-                                foreach (y; 0 .. rows) {
-                                    foreach (x; 0 .. cols) {
-                                        size_t idx = y * cols + x;
-                                        vec2 startPos = baseVertsAoS[idx];
-                                        if (haveDeform) startPos += grid.deformation[idx];
-                                        auto start = vec3(startPos, 0);
-                                        if (x + 1 < cols) {
-                                            size_t nextIdx = idx + 1;
-                                            vec2 rightPos = baseVertsAoS[nextIdx];
-                                            if (haveDeform) rightPos += grid.deformation[nextIdx];
-                                            lines ~= start;
-                                            lines ~= vec3(rightPos, 0);
-                                        }
-                                        if (y + 1 < rows) {
-                                            size_t nextIdx = idx + cols;
-                                            vec2 downPos = baseVertsAoS[nextIdx];
-                                            if (haveDeform) downPos += grid.deformation[nextIdx];
-                                            lines ~= start;
-                                            lines ~= vec3(downPos, 0);
-                                        }
-                                    }
-                                }
-                                if (lines.length > 0) {
-                                    inDbgSetBuffer(lines);
-                                    inDbgDrawLines(vec4(0.5, 0.5, 0.5, 1), grid.transform.matrix);
-                                }
-                            }
-                        }
-                    }
-                    if (Driver selectedDriver = cast(Driver)selectedNode) {
-                        selectedDriver.drawDebug();
-                    }
-                }
-            }
-        }
-    };
+    override
+    void drawTools() {
+        syncSubView();
+        super.drawTools();
+    }
     
     override
     void drawOptions() {
@@ -244,18 +280,27 @@ public:
                 incEndDropdownMenu();
             }
             incTooltip(_("Gizmos"));
-        } else {
-            super.drawOptions();
         }
+        super.drawOptions();
     };
  
     override
     void drawConfirmBar() {
 
         // If parameter is armed we should *not* show the edit mesh button
-        if (subView) return;
+        if (ngModelEditSubMode() != ModelEditSubMode.Layout) return;
 
         igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
+            if (auto grid = cast(GridDeformer)incSelectedNode()) {
+                if (incButtonColored(__(" Edit Depth Map"), ImVec2(0, 26))) {
+                    incSetEditMode(EditMode.DepthEdit, false);
+                    incSelectNode(grid);
+                    incFocusCamera(grid, vec2(0, 0));
+                }
+                incTooltip(_("Edit Depth Map"));
+                igSameLine(0, 0);
+            }
+
             if (Deformable node = cast(Deformable)incSelectedNode()) {
                 auto io = igGetIO();
                 const(char)* text = incHasDragDrop("_PUPPETNTREE") ? (io.KeyCtrl ? __(" Merge Mesh"): __(" Copy Mesh")) : __(" Edit Mesh");
@@ -406,13 +451,7 @@ public:
 
     override
     void armedParameterChanged(Parameter parameter) {
-        if (parameter && subView is null) {
-            subView = new DeformationViewport;
-            subView.selectionChanged(incSelectedNodes);
-        } else if (parameter is null && subView) {
-            subView = null;
-        }
-        if (subView)
-            subView.armedParameterChanged(parameter);
+        syncSubView();
+        if (_subView) _subView.armedParameterChanged(parameter);
     }
 }
