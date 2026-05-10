@@ -12,6 +12,7 @@ import nijigenerate;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.input;
 import nijigenerate.ext.nodes.exdepthmapped;
+import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.mesheditor.action;
 import nijigenerate.viewport.depth.camera;
@@ -51,6 +52,36 @@ private:
         return ok;
     }
 
+    void loadOperationsFromTarget(DepthMeshEditorOne editor) {
+        if (editor is null) return;
+        auto operated = cast(DepthOperationMappedNode)editor.getTarget();
+        if (operated is null) return;
+
+        auto saved = operated.copyDepthOps();
+        if (saved.length == 0) return;
+
+        DepthOperation[] loaded;
+        foreach (op; saved) loaded ~= depthOperationFromExDepthOp(op);
+        operations[editor] = loaded;
+
+        // depth-ops are the editable source. Rebuild working depths from the
+        // operation list so saved depths do not get applied a second time.
+        editor.clearBaseDepths();
+        recompute(editor);
+    }
+
+    void saveOperationsToTarget(DepthMeshEditorOne editor) {
+        if (editor is null) return;
+        auto operated = cast(DepthOperationMappedNode)editor.getTarget();
+        if (operated is null) return;
+
+        ExDepthOp[] saved;
+        if (editor in operations) {
+            foreach (op; operations[editor]) saved ~= toExDepthOp(op);
+        }
+        operated.replaceDepthOps(saved);
+    }
+
 public:
     this() {
         renderer = new DepthTextureMeshRenderer();
@@ -84,7 +115,9 @@ public:
             if (grid in editors) {
                 next[grid] = editors[grid];
             } else {
-                next[grid] = new DepthMeshEditorOne(grid);
+                auto editor = new DepthMeshEditorOne(grid);
+                next[grid] = editor;
+                loadOperationsFromTarget(editor);
             }
         }
         foreach (grid, editor; editors) {
@@ -118,12 +151,16 @@ public:
         foreach (editor; editors.byValue) {
             editor.resetFromTarget();
             replaceOperations(editor, null);
+            loadOperationsFromTarget(editor);
         }
     }
 
     void applyToTargets() {
         incActionPushGroup();
-        foreach (editor; editors.byValue) editor.applyToTarget();
+        foreach (editor; editors.byValue) {
+            editor.applyToTarget();
+            saveOperationsToTarget(editor);
+        }
         incActionPopGroup();
     }
 
@@ -375,6 +412,8 @@ public:
                 ring.p1 = vec2(ring.p1.x, p1y);
                 pushSelectedOperationEdit(action);
             }
+            editSelectedFloat("P0 Angle", &ring.p0Angle, 1.0f, -360.0f, 360.0f, "%.0f");
+            editSelectedFloat("P1 Angle", &ring.p1Angle, 1.0f, -360.0f, 360.0f, "%.0f");
             editSelectedFloat("Width", &ring.width, 1.0f, 1.0f, 400.0f, "%.0f");
             editSelectedFloat("Falloff", &ring.hardness, 0.05f, 0.1f, 8.0f);
         } else if (auto plane = cast(DepthPlaneOperation)op) {

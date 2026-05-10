@@ -71,7 +71,7 @@ public:
     override
     void draw(Camera camera, DepthEditViewport viewport) {
         if (activeEditor is null || centerVertex < 0) return;
-        drawDepthEllipse(activeEditor, center(), radiusX, radiusY, viewport.brushSettings().angle, viewport.depthCameraState(), DepthOperationSelectedColor);
+        drawDepthEllipse(activeEditor, center(), radiusX, radiusY, viewport.brushSettings().angle, viewport.brushSettings().amount, viewport.depthCameraState(), DepthOperationSelectedColor);
     }
 
     override

@@ -290,6 +290,21 @@ public:
         return best;
     }
 
+    ptrdiff_t nearestLocalVertexIndex(vec2 point) {
+        auto vertices = getVertices();
+        if (vertices.length == 0) return -1;
+        ptrdiff_t best = 0;
+        auto bestDistance = (point - vertices[0]).length();
+        foreach (i, v; vertices[1 .. $]) {
+            auto distance = (point - v).length();
+            if (distance < bestDistance) {
+                best = cast(ptrdiff_t)i + 1;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
     vec2 projectedVertex(size_t index) {
         return index < projectedPoints.length ? projectedPoints[index] : vec2(0);
     }
@@ -300,11 +315,11 @@ public:
     }
 
     vec2 depthViewToModel(vec2 point, ref DepthCamera3D depthCamera, float depth = 0.0f) {
-        return unprojectDepthPoint(point, depth * depthDisplayScale(), depthCamera);
+        return unprojectDepthPoint(point, -depth * depthDisplayScale(), depthCamera);
     }
 
     vec2 modelToDepthView(vec2 point, float depth, ref DepthCamera3D depthCamera) {
-        return projectDepthPoint(point, depth * depthDisplayScale(), depthCamera);
+        return projectDepthPoint(point, -depth * depthDisplayScale(), depthCamera);
     }
 
     vec2 localToWorld(vec2 point) {
@@ -335,6 +350,12 @@ public:
     }
 
     void resetWorkingDepths() {
+        replaceEditorDepths(baseDepths);
+    }
+
+    void clearBaseDepths() {
+        baseDepths.length = target.vertices.length;
+        baseDepths[] = 0;
         replaceEditorDepths(baseDepths);
     }
 

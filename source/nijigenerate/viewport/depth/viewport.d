@@ -41,7 +41,7 @@ private:
     bool updateDepthCamera(ImGuiIO* io) {
         bool changed = false;
         if (io.MouseDown[1] && !io.KeyShift && incInputIsDragRequested(ImGuiMouseButton.Right)) {
-            depthCamera.yaw += io.MouseDelta.x * 0.01f;
+            depthCamera.yaw -= io.MouseDelta.x * 0.01f;
             depthCamera.pitch = clamp(depthCamera.pitch + io.MouseDelta.y * 0.01f, -1.35f, 1.35f);
             changed = true;
         }

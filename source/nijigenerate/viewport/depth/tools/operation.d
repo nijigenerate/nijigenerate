@@ -8,6 +8,7 @@ module nijigenerate.viewport.depth.tools.operation;
 
 import bindbc.opengl;
 import nijigenerate.core.dbg;
+import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.mesheditor.node;
 import nijilive;
@@ -42,6 +43,8 @@ enum DepthOperationHandle {
     Amount,
     RadiusX,
     RadiusY,
+    P0Angle,
+    P1Angle,
 }
 
 float distanceToSegment(vec2 point, vec2 a, vec2 b) {
@@ -81,21 +84,48 @@ class DepthAttachedPointOperation : DepthOperation {
 
     override void draw(DepthMeshEditorOne editor, ref DepthCamera3D depthCamera, bool selected, DepthOperationHandle hotHandle) {
         auto point = editor.localVertex(index);
+        auto base = editor.projectLocalPoint(point, 0, depthCamera);
         auto projected = editor.projectLocalPoint(point, amount, depthCamera);
-        bool hot = hotHandle == DepthOperationHandle.Amount;
-        drawDepthPoint(projected, (selected || hot) ? DepthOperationAmountColor : DepthOperationColor, hot ? 15 : (selected ? 13 : 9));
+        bool hotAmount = hotHandle == DepthOperationHandle.Amount;
+        bool hotBody = hotHandle == DepthOperationHandle.Body;
+        drawDepthLinePoints(base, projected, DepthOperationHandleColor, hotAmount ? 3.0f : 1.8f);
+        if (selected || hotBody || hotAmount) {
+            drawDepthPoint(base, hotBody ? DepthOperationAmountColor : DepthOperationHandleColor, hotBody ? 13 : 8);
+        }
+        drawDepthPoint(projected, (selected || hotAmount) ? DepthOperationAmountColor : DepthOperationColor, hotAmount ? 15 : (selected ? 13 : 9));
     }
 
     override DepthOperationHandle hit(DepthMeshEditorOne editor, vec2 mouse, ref DepthCamera3D depthCamera, float radius, out float distance) {
-        auto point = editor.projectLocalPoint(editor.localVertex(index), amount, depthCamera);
+        auto local = editor.localVertex(index);
+        auto point = editor.projectLocalPoint(local, amount, depthCamera);
         distance = (mouse - point).length();
+        if (distance <= radius) return DepthOperationHandle.Amount;
+        auto base = editor.projectLocalPoint(local, 0, depthCamera);
+        distance = (mouse - base).length();
+        if (distance <= radius) return DepthOperationHandle.Body;
         return distance <= radius ? DepthOperationHandle.Amount : DepthOperationHandle.None;
     }
 
     override void drag(DepthOperationHandle handle, DepthMeshEditorOne editor, DepthOperation startOperation, vec2 startLocal, vec2 currentLocal, float startMouseY, float currentMouseY, bool snapToGrid) {
         auto start = cast(DepthAttachedPointOperation)startOperation;
         if (start is null) return;
-        amount = start.amount - (currentMouseY - startMouseY) * 0.006f;
+        final switch (handle) {
+            case DepthOperationHandle.Body:
+                auto nearest = editor.nearestLocalVertexIndex(currentLocal);
+                if (nearest >= 0) index = cast(size_t)nearest;
+                break;
+            case DepthOperationHandle.Amount:
+                amount = start.amount - (currentMouseY - startMouseY) * 0.006f;
+                break;
+            case DepthOperationHandle.None:
+            case DepthOperationHandle.P0:
+            case DepthOperationHandle.P1:
+            case DepthOperationHandle.RadiusX:
+            case DepthOperationHandle.RadiusY:
+            case DepthOperationHandle.P0Angle:
+            case DepthOperationHandle.P1Angle:
+                break;
+        }
     }
 
     override string label() {
@@ -145,9 +175,15 @@ class DepthRingOperation : DepthOperation {
         drawDepthRingCurve(editor, this, depthCamera, false, (selected || hotBody) ? DepthOperationSelectedColor : DepthOperationColor, hotBody ? 4.5f : 2.5f);
         drawDepthLinePoints(ringEndpointPoint(editor, this, true, depthCamera), ringEndpointPoint(editor, this, false, depthCamera), vec4(0.55, 0.55, 0.55, 0.55), 1.2f);
         if (selected || hotHandle != DepthOperationHandle.None) {
+            auto p0h = ringAngleHandlePoint(editor, this, true, depthCamera);
+            auto p1h = ringAngleHandlePoint(editor, this, false, depthCamera);
+            drawDepthLinePoints(ringEndpointPoint(editor, this, true, depthCamera), p0h, DepthOperationHandleColor, hotHandle == DepthOperationHandle.P0Angle ? 2.8f : 1.4f);
+            drawDepthLinePoints(ringEndpointPoint(editor, this, false, depthCamera), p1h, DepthOperationHandleColor, hotHandle == DepthOperationHandle.P1Angle ? 2.8f : 1.4f);
             drawDepthPoint(ringEndpointPoint(editor, this, true, depthCamera), hotHandle == DepthOperationHandle.P0 ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P0 ? 13 : 9);
             drawDepthPoint(ringEndpointPoint(editor, this, false, depthCamera), hotHandle == DepthOperationHandle.P1 ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P1 ? 13 : 9);
             drawDepthPoint(ringAmountHandlePoint(editor, this, depthCamera), DepthOperationAmountColor, hotHandle == DepthOperationHandle.Amount ? 14 : 10);
+            drawDepthPoint(p0h, hotHandle == DepthOperationHandle.P0Angle ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P0Angle ? 13 : 8);
+            drawDepthPoint(p1h, hotHandle == DepthOperationHandle.P1Angle ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P1Angle ? 13 : 8);
         }
     }
 
@@ -155,8 +191,14 @@ class DepthRingOperation : DepthOperation {
         auto h0 = ringEndpointPoint(editor, this, true, depthCamera);
         auto h1 = ringEndpointPoint(editor, this, false, depthCamera);
         auto hm = ringAmountHandlePoint(editor, this, depthCamera);
+        auto ha0 = ringAngleHandlePoint(editor, this, true, depthCamera);
+        auto ha1 = ringAngleHandlePoint(editor, this, false, depthCamera);
         distance = (mouse - hm).length();
         if (distance <= radius) return DepthOperationHandle.Amount;
+        distance = (mouse - ha0).length();
+        if (distance <= radius) return DepthOperationHandle.P0Angle;
+        distance = (mouse - ha1).length();
+        if (distance <= radius) return DepthOperationHandle.P1Angle;
         distance = (mouse - h0).length();
         if (distance <= radius) return DepthOperationHandle.P0;
         distance = (mouse - h1).length();
@@ -177,6 +219,12 @@ class DepthRingOperation : DepthOperation {
                 break;
             case DepthOperationHandle.Amount:
                 amount = start.amount - (currentMouseY - startMouseY) * 0.006f;
+                break;
+            case DepthOperationHandle.P0Angle:
+                p0Angle = round(start.p0Angle - (currentMouseY - startMouseY) * 0.7f);
+                break;
+            case DepthOperationHandle.P1Angle:
+                p1Angle = round(start.p1Angle - (currentMouseY - startMouseY) * 0.7f);
                 break;
             case DepthOperationHandle.Body:
                 auto delta = currentLocal - startLocal;
@@ -234,7 +282,7 @@ class DepthPlaneOperation : DepthOperation {
 
     override void draw(DepthMeshEditorOne editor, ref DepthCamera3D depthCamera, bool selected, DepthOperationHandle hotHandle) {
         bool hotBody = hotHandle == DepthOperationHandle.Body;
-        drawDepthEllipse(editor, center, radiusX, radiusY, angle, depthCamera, (selected || hotBody) ? DepthOperationSelectedColor : DepthOperationColor, hotBody ? 4.0f : 2.0f);
+        drawDepthEllipse(editor, center, radiusX, radiusY, angle, targetDepth, depthCamera, (selected || hotBody) ? DepthOperationSelectedColor : DepthOperationColor, hotBody ? 4.0f : 2.0f);
         if (selected || hotHandle != DepthOperationHandle.None) {
             auto angleRad = angle * 3.14159265358979323846f / 180.0f;
             auto ux = vec2(cos(angleRad), sin(angleRad));
@@ -283,6 +331,8 @@ class DepthPlaneOperation : DepthOperation {
             case DepthOperationHandle.None:
             case DepthOperationHandle.P0:
             case DepthOperationHandle.P1:
+            case DepthOperationHandle.P0Angle:
+            case DepthOperationHandle.P1Angle:
                 break;
         }
     }
@@ -293,6 +343,57 @@ class DepthPlaneOperation : DepthOperation {
 
     override string valueLabel() {
         return "%.2f".format(targetDepth);
+    }
+}
+
+ExDepthOp toExDepthOp(DepthOperation operation) {
+    ExDepthOp result;
+    if (auto attached = cast(DepthAttachedPointOperation)operation) {
+        result.type = ExDepthOpType.AttachedPoint;
+        result.index = attached.index;
+        result.amount = attached.amount;
+    } else if (auto ring = cast(DepthRingOperation)operation) {
+        result.type = ExDepthOpType.Ring;
+        result.p0 = ring.p0;
+        result.p1 = ring.p1;
+        result.amount = ring.amount;
+        result.width = ring.width;
+        result.hardness = ring.hardness;
+        result.p0Angle = ring.p0Angle;
+        result.p1Angle = ring.p1Angle;
+    } else if (auto plane = cast(DepthPlaneOperation)operation) {
+        result.type = ExDepthOpType.Plane;
+        result.center = plane.center;
+        result.radiusX = plane.radiusX;
+        result.radiusY = plane.radiusY;
+        result.angle = plane.angle;
+        result.targetDepth = plane.targetDepth;
+        result.flattenStrength = plane.flattenStrength;
+    }
+    return result;
+}
+
+DepthOperation depthOperationFromExDepthOp(ExDepthOp op) {
+    final switch (op.type) {
+        case ExDepthOpType.AttachedPoint:
+            return new DepthAttachedPointOperation(op.index, op.amount);
+
+        case ExDepthOpType.Ring:
+            auto settings = DepthBrushSettings();
+            settings.amount = op.amount;
+            settings.radiusY = op.width;
+            settings.hardness = op.hardness;
+            auto result = new DepthRingOperation(op.p0, op.p1, settings);
+            result.p0Angle = op.p0Angle;
+            result.p1Angle = op.p1Angle;
+            return result;
+
+        case ExDepthOpType.Plane:
+            auto settings = DepthBrushSettings();
+            settings.amount = op.targetDepth;
+            settings.angle = op.angle;
+            settings.flattenStrength = op.flattenStrength;
+            return new DepthPlaneOperation(op.center, op.radiusX, op.radiusY, settings);
     }
 }
 
@@ -498,6 +599,21 @@ vec2 ringAmountHandlePoint(DepthMeshEditorOne editor, DepthRingOperation op, ref
     return editor.projectLocalPoint(point, ringBaseDepthAt(editor, op, 0.5f) + sin(angle) * op.amount, depthCamera);
 }
 
+vec2 ringAngleHandlePoint(DepthMeshEditorOne editor, DepthRingOperation op, bool first, ref DepthCamera3D depthCamera) {
+    auto tangent = op.p1 - op.p0;
+    auto len = max(1.0f, tangent.length());
+    tangent = tangent / len;
+    auto angle = (first ? op.p0Angle : op.p1Angle) * 3.14159265358979323846f / 180.0f;
+    auto base = first ? op.p0 : op.p1;
+    auto localRadius = editor.depthDisplayScale() * (0.17f / DepthDisplayZScale);
+    auto depthRadius = 0.22f / DepthDisplayZScale;
+    return editor.projectLocalPoint(
+        base + tangent * (cos(angle) * localRadius),
+        editor.depthAtLocalPoint(base) + sin(angle) * depthRadius,
+        depthCamera
+    );
+}
+
 float ringCurveDistance(DepthMeshEditorOne editor, DepthRingOperation op, vec2 mouse, ref DepthCamera3D depthCamera) {
     enum segments = 48;
     float best = float.max;
@@ -596,7 +712,7 @@ void drawDepthLinePoints(vec2 p0, vec2 p1, vec4 color, float width = 2.5f) {
     if (depthEnabled) glEnable(GL_DEPTH_TEST);
 }
 
-void drawDepthEllipse(DepthMeshEditorOne editor, vec2 center, float radiusX, float radiusY, float angleDeg, ref DepthCamera3D depthCamera, vec4 color, float width = 2.0f) {
+void drawDepthEllipse(DepthMeshEditorOne editor, vec2 center, float radiusX, float radiusY, float angleDeg, float depth, ref DepthCamera3D depthCamera, vec4 color, float width = 2.0f) {
     GLboolean depthEnabled = glIsEnabled(GL_DEPTH_TEST);
     glDisable(GL_DEPTH_TEST);
     Vec3Array points;
@@ -609,8 +725,8 @@ void drawDepthEllipse(DepthMeshEditorOne editor, vec2 center, float radiusX, flo
         auto a1 = cast(float)(i + 1) / segments * 2.0f * 3.14159265358979323846f;
         auto l0 = center + ux * (cos(a0) * radiusX) + uy * (sin(a0) * radiusY);
         auto l1 = center + ux * (cos(a1) * radiusX) + uy * (sin(a1) * radiusY);
-        auto w0 = editor.projectLocalPoint(l0, 0, depthCamera);
-        auto w1 = editor.projectLocalPoint(l1, 0, depthCamera);
+        auto w0 = editor.projectLocalPoint(l0, depth, depthCamera);
+        auto w1 = editor.projectLocalPoint(l1, depth, depthCamera);
         points ~= vec3(w0.x, w0.y, 0);
         points ~= vec3(w1.x, w1.y, 0);
     }
