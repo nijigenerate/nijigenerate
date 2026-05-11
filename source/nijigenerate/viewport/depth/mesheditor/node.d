@@ -98,10 +98,25 @@ private:
 
         foreach (y; 0 .. ys.length - 1) {
             foreach (x; 0 .. xs.length - 1) {
-                auto i0 = lookup[y * xs.length + x];
-                auto i1 = lookup[y * xs.length + x + 1];
-                auto i2 = lookup[(y + 1) * xs.length + x];
-                auto i3 = lookup[(y + 1) * xs.length + x + 1];
+                auto k0 = y * xs.length + x;
+                auto k1 = y * xs.length + x + 1;
+                auto k2 = (y + 1) * xs.length + x;
+                auto k3 = (y + 1) * xs.length + x + 1;
+                auto p0 = k0 in lookup;
+                auto p1 = k1 in lookup;
+                auto p2 = k2 in lookup;
+                auto p3 = k3 in lookup;
+                if (p0 is null || p1 is null || p2 is null || p3 is null) {
+                    if (!loggedInvalidTopology) {
+                        log("topology skipped cell: missing grid vertex at x=%s y=%s".format(x, y));
+                        loggedInvalidTopology = true;
+                    }
+                    continue;
+                }
+                auto i0 = *p0;
+                auto i1 = *p1;
+                auto i2 = *p2;
+                auto i3 = *p3;
                 indices ~= [i0, i1, i3, i0, i3, i2];
             }
         }
