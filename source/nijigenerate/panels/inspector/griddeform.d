@@ -309,8 +309,11 @@ private:
         binding.sourceBoneUuids = reordered;
         binding.normalizeSourceSettings();
         incActionPush(new DepthBoneSourceListChangeAction("Reorder Depth Bone Source", root, oldBindings, root.bindings));
-        if (parameter !is null) ngMarkDepthBoneDirty(root, parameter, cursor, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
-        ngMarkDepthBoneDirtyForArmedParameter(root, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
+        if (parameter !is null) {
+            ngMarkDepthBoneDirty(root, parameter, cursor, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
+        } else {
+            ngMarkDepthBoneDirtyForArmedParameter(root, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
+        }
     }
 
     static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting, Parameter parameter = null, vec2u cursor = vec2u.init) {
@@ -322,6 +325,5 @@ private:
             bone,
             format(`{"weight":%s,"depthOffset":%s,"depthScale":%s}`, setting.weight, setting.depthOffset, setting.depthScale)
         );
-        if (parameter !is null) ngMarkDepthBoneDirty(root, parameter, cursor, "Depth Bone Source Settings", DepthBoneDirtyScope.AllKeypoints);
     }
 }

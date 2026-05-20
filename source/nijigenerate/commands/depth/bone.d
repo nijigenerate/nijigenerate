@@ -2,6 +2,7 @@ module nijigenerate.commands.depth.bone;
 
 import nijigenerate.commands.base;
 import nijigenerate.actions;
+import nijigenerate.actions.binding : ngDepthBoneBindingValueChangeHook;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.ext.nodes.exdepthbone;
@@ -21,8 +22,16 @@ import std.algorithm.searching : countUntil;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
 import std.math : exp, isFinite, sqrt;
-import std.stdio : writefln;
 import std.conv : to;
+import std.string : startsWith;
+
+private enum EnableDepthBoneDebugLog = false;
+private void depthBoneDebugLog(Args...)(const(char)[] fmt, Args args) {
+    static if (EnableDepthBoneDebugLog) {
+        import std.stdio : writefln;
+        writefln(fmt, args);
+    }
+}
 
 enum DepthBoneCommand {
     CreateDepthRigRoot,
@@ -40,6 +49,10 @@ enum DepthBoneCommand {
     PreviewDepthBoneInfluence,
     PreviewDepthBoneDeform,
     ApplyDepthBoneDeform,
+}
+
+shared static this() {
+    ngDepthBoneBindingValueChangeHook = &ngDepthBoneBindingValueChanged;
 }
 
 Command[DepthBoneCommand] commands;
@@ -265,14 +278,14 @@ private float worldDepthAt(Deformable target, size_t index, ExDepthBoneSourceSet
 private void logDepthBoneDepthInput(Node targetNode, Deformable target) {
     auto mapped = cast(DepthMappedNode)targetNode;
     if (mapped is null) {
-        writefln("[DepthBone] %s: depth input skipped: target is not DepthMappedNode",
+        depthBoneDebugLog("[DepthBone] %s: depth input skipped: target is not DepthMappedNode",
             targetNode is null ? "(null)" : targetNode.name);
         return;
     }
 
     auto depths = mapped.copyDepths();
     if (depths is null) {
-        writefln("[DepthBone] %s: depth input: depths=null vertices=%s",
+        depthBoneDebugLog("[DepthBone] %s: depth input: depths=null vertices=%s",
             targetNode is null ? "(null)" : targetNode.name,
             target is null ? 0 : target.vertices.length);
         return;
@@ -298,7 +311,7 @@ private void logDepthBoneDepthInput(Node targetNode, Deformable target) {
     float scale;
     depthScaleDetails(target, boundsMin, boundsMax, boundsSize, rawScale, scale);
 
-    writefln("[DepthBone] %s: depth input: depths=%s vertices=%s nonZero=%s min=%s max=%s firstNonZero=%s boundsMin=(%s,%s) boundsMax=(%s,%s) boundsSize=(%s,%s) rawScale=%s scale=%s",
+    depthBoneDebugLog("[DepthBone] %s: depth input: depths=%s vertices=%s nonZero=%s min=%s max=%s firstNonZero=%s boundsMin=(%s,%s) boundsMax=(%s,%s) boundsSize=(%s,%s) rawScale=%s scale=%s",
         targetNode is null ? "(null)" : targetNode.name,
         depths.length,
         target is null ? 0 : target.vertices.length,
@@ -325,7 +338,7 @@ private void logDepthBoneDepthInput(Node targetNode, Deformable target) {
             if (sample >= target.vertices.length) continue;
             auto vertex = target.vertices[sample];
             auto depth = sample < depths.length ? depths[sample] : 0.0f;
-            writefln("[DepthBone] %s: depth sample[%s]: vertex=(%s,%s) depth=%s scaledZ=%s",
+            depthBoneDebugLog("[DepthBone] %s: depth sample[%s]: vertex=(%s,%s) depth=%s scaledZ=%s",
                 targetNode is null ? "(null)" : targetNode.name,
                 sample,
                 vertex.x,
@@ -557,14 +570,14 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
 
         if (!loggedInfluenceSample && bones.length > 1 && (rest.z < -0.000001f || rest.z > 0.000001f)) {
             auto targetNode = cast(Node)target;
-            writefln("[DepthBone] %s: influence sample[%s]: radiusFloor=%s maxInfluences=%s candidates=%s",
+            depthBoneDebugLog("[DepthBone] %s: influence sample[%s]: radiusFloor=%s maxInfluences=%s candidates=%s",
                 targetNode is null ? "(null)" : targetNode.name,
                 i,
                 influenceRadiusFloor,
                 maxInfluences,
                 influences.length);
             foreach (influence; influences) {
-                writefln("[DepthBone] %s: influence sample[%s] bone=%s score=%s distance=%s",
+                depthBoneDebugLog("[DepthBone] %s: influence sample[%s] bone=%s score=%s distance=%s",
                     targetNode is null ? "(null)" : targetNode.name,
                     i,
                     influence.bone.name,
@@ -586,13 +599,13 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
 
         if (loggedInfluenceSample && !loggedDepthTransformSample && (rest.z < -0.000001f || rest.z > 0.000001f)) {
             auto targetNode = cast(Node)target;
-            writefln("[DepthBone] %s: normalized influence sample[%s]: total=%s fallback=%s",
+            depthBoneDebugLog("[DepthBone] %s: normalized influence sample[%s]: total=%s fallback=%s",
                 targetNode is null ? "(null)" : targetNode.name,
                 i,
                 total,
                 usedInfluenceFallback);
             foreach (influence; influences) {
-                writefln("[DepthBone] %s: normalized influence sample[%s] bone=%s weight=%s rawScore=%s distance=%s",
+                depthBoneDebugLog("[DepthBone] %s: normalized influence sample[%s] bone=%s weight=%s rawScore=%s distance=%s",
                     targetNode is null ? "(null)" : targetNode.name,
                     i,
                     influence.bone.name,
@@ -612,7 +625,7 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
         auto deformedLocal = transformPoint(rootToTarget, deformed);
         offsets[i] = vec2(deformedLocal.x - vertex.x, deformedLocal.y - vertex.y);
         if (!loggedDepthTransformSample && (rest.z < -0.000001f || rest.z > 0.000001f)) {
-            writefln("[DepthBone] %s: transform sample[%s]: restLocal=(%s,%s,%s) restRoot=(%s,%s,%s) deformedRoot=(%s,%s,%s) deformedLocal=(%s,%s,%s) offset=(%s,%s) totalWeight=%s influences=%s",
+            depthBoneDebugLog("[DepthBone] %s: transform sample[%s]: restLocal=(%s,%s,%s) restRoot=(%s,%s,%s) deformedRoot=(%s,%s,%s) deformedLocal=(%s,%s,%s) offset=(%s,%s) totalWeight=%s influences=%s",
                 targetNode is null ? "(null)" : targetNode.name,
                 i,
                 restLocal.x,
@@ -634,7 +647,7 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
             foreach (influence; influences) {
                 auto runtimeBone = influence.bone.uuid in runtime;
                 if (runtimeBone is null) continue;
-                writefln("[DepthBone] %s: transform sample[%s] influence bone=%s score=%s weight=%s head=(%s,%s,%s) tail=(%s,%s,%s)",
+                depthBoneDebugLog("[DepthBone] %s: transform sample[%s] influence bone=%s score=%s weight=%s head=(%s,%s,%s) tail=(%s,%s,%s)",
                     targetNode is null ? "(null)" : targetNode.name,
                     i,
                     influence.bone.name,
@@ -646,7 +659,7 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
                     (*runtimeBone).worldTail.x,
                     (*runtimeBone).worldTail.y,
                     (*runtimeBone).worldTail.z);
-                writefln("[DepthBone] %s: transform sample[%s] source bone=%s sourceWeight=%s depthOffset=%s depthScale=%s sourceRestRoot=(%s,%s,%s)",
+                depthBoneDebugLog("[DepthBone] %s: transform sample[%s] source bone=%s sourceWeight=%s depthOffset=%s depthScale=%s sourceRestRoot=(%s,%s,%s)",
                     targetNode is null ? "(null)" : targetNode.name,
                     i,
                     influence.bone.name,
@@ -656,7 +669,7 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
                     influence.rest.x,
                     influence.rest.y,
                     influence.rest.z);
-                writefln("[DepthBone] %s: transform sample[%s] bind bone=%s restHead=(%s,%s,%s) restTail=(%s,%s,%s) localRestOffset=(%s,%s,%s) poseTranslation=(%s,%s,%s) poseQuaternion=(%s,%s,%s,%s) worldQuaternion=(%s,%s,%s,%s)",
+                depthBoneDebugLog("[DepthBone] %s: transform sample[%s] bind bone=%s restHead=(%s,%s,%s) restTail=(%s,%s,%s) localRestOffset=(%s,%s,%s) poseTranslation=(%s,%s,%s) poseQuaternion=(%s,%s,%s,%s) worldQuaternion=(%s,%s,%s,%s)",
                     targetNode is null ? "(null)" : targetNode.name,
                     i,
                     influence.bone.name,
@@ -761,7 +774,7 @@ void ngMarkDepthBoneDirty(
         lastDepthBoneDirtyParameter = parameter;
         lastDepthBoneDirtyKeypoint = keypoint;
     }
-    writefln("[DepthBoneRefresh] mark: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
+    depthBoneDebugLog("[DepthBoneRefresh] mark: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
         root.name,
         parameter is null ? "(none)" : parameter.name,
         keypoint.x,
@@ -774,7 +787,7 @@ void ngMarkDepthBoneDirty(
             request.dirtyScope = DepthBoneDirtyScope.AllKeypoints;
             request.keypoint = keypoint;
             if (reason.length > 0) request.reason = reason;
-            writefln("[DepthBoneRefresh] mark merged: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
+            depthBoneDebugLog("[DepthBoneRefresh] mark merged: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
                 root.name,
                 parameter is null ? "(none)" : parameter.name,
                 keypoint.x,
@@ -785,7 +798,7 @@ void ngMarkDepthBoneDirty(
         }
         if (request.keypoint == keypoint) {
             if (reason.length > 0) request.reason = reason;
-            writefln("[DepthBoneRefresh] mark merged: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
+            depthBoneDebugLog("[DepthBoneRefresh] mark merged: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
                 root.name,
                 parameter is null ? "(none)" : parameter.name,
                 keypoint.x,
@@ -848,6 +861,13 @@ bool ngAutoApplyDepthBoneDeform(ExDepthBone changedBone, Parameter param, vec2u 
     return true;
 }
 
+void ngDepthBoneBindingValueChanged(Parameter param, Node target, string bindingName, vec2u kp) {
+    auto bone = cast(ExDepthBone)target;
+    if (bone is null || param is null) return;
+    if (!bindingName.startsWith("transform.t.") && !bindingName.startsWith("transform.r.")) return;
+    ngAutoApplyDepthBoneDeform(bone, param, kp);
+}
+
 private vec2u[] depthBoneKeypoints(Parameter param) {
     vec2u[] result;
     if (param is null) return result;
@@ -892,7 +912,7 @@ private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
 
 private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, vec2u kp, string reason) {
     if (rigRoot is null || incActivePuppet() is null) return false;
-    writefln("[DepthBoneRefresh] refresh start: root=%s param=%s key=(%s,%s) reason=%s bindings=%s",
+    depthBoneDebugLog("[DepthBoneRefresh] refresh start: root=%s param=%s key=(%s,%s) reason=%s bindings=%s",
         rigRoot.name,
         param is null ? "(none)" : param.name,
         kp.x,
@@ -914,7 +934,7 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
         foreach (offset; offsets) {
             if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) nonZero++;
         }
-        writefln("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=%s",
+        depthBoneDebugLog("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=%s",
             targetNode is null ? "(null)" : targetNode.name,
             offsets.length,
             nonZero,
@@ -935,7 +955,7 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
     }
 
     if (param is null) {
-        writefln("[DepthBoneRefresh] refresh done: preview-only root=%s", rigRoot.name);
+        depthBoneDebugLog("[DepthBoneRefresh] refresh done: preview-only root=%s", rigRoot.name);
         return true;
     }
     if (deformBindings.length == 0) return false;
@@ -951,14 +971,14 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
     action.updateNewState();
     group.addAction(action);
     incActionPush(group);
-    writefln("[DepthBoneRefresh] refresh done: root=%s bindings=%s", rigRoot.name, deformBindings.length);
+    depthBoneDebugLog("[DepthBoneRefresh] refresh done: root=%s bindings=%s", rigRoot.name, deformBindings.length);
     return true;
 }
 
 private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parameter param, vec2u currentKeypoint, string reason) {
     if (param is null) {
         auto params = depthBoneAffectedParameters(rigRoot);
-        writefln("[DepthBoneRefresh] resolve parameters: root=%s reason=%s resolved=%s",
+        depthBoneDebugLog("[DepthBoneRefresh] resolve parameters: root=%s reason=%s resolved=%s",
             rigRoot is null ? "(null)" : rigRoot.name,
             reason,
             params.length);
@@ -974,7 +994,7 @@ private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parame
     auto keypoints = depthBoneKeypoints(param);
     if (keypoints.length == 0) return false;
     auto visualKeypoint = param.findClosestKeypoint();
-    writefln("[DepthBoneRefresh] refresh start: root=%s param=%s scope=all-keypoints current=(%s,%s) reason=%s keypoints=%s bindings=%s",
+    depthBoneDebugLog("[DepthBoneRefresh] refresh start: root=%s param=%s scope=all-keypoints current=(%s,%s) reason=%s keypoints=%s bindings=%s",
         rigRoot.name,
         param.name,
         visualKeypoint.x,
@@ -1025,7 +1045,7 @@ private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parame
                 foreach (offset; offsets) {
                     if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) nonZero++;
                 }
-                writefln("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=true scope=all-keypoints visual=true",
+                depthBoneDebugLog("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=true scope=all-keypoints visual=true",
                     targetNodes[i] is null ? "(null)" : targetNodes[i].name,
                     offsets.length,
                     nonZero);
@@ -1041,7 +1061,7 @@ private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parame
     }
 
     incActionPush(group);
-    writefln("[DepthBoneRefresh] refresh done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
+    depthBoneDebugLog("[DepthBoneRefresh] refresh done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
         rigRoot.name,
         deformBindings.length,
         keypoints.length);
@@ -1059,7 +1079,7 @@ void ngFlushDepthBoneDirty() {
     if (depthBoneDirtyRequests.length == 0) return;
     auto requests = depthBoneDirtyRequests;
     depthBoneDirtyRequests.length = 0;
-    writefln("[DepthBoneRefresh] flush: requests=%s", requests.length);
+    depthBoneDebugLog("[DepthBoneRefresh] flush: requests=%s", requests.length);
     DepthBoneDirtyRequest[] processed;
     foreach (request; requests) {
         if (request.dirtyScope == DepthBoneDirtyScope.Keypoint && hasProcessedAllKeypoints(processed, request)) continue;
@@ -1298,7 +1318,7 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
         setting.boneUuid = source.uuid;
         applySourceSettingsJson(setting, settings);
         binding.setSourceSetting(setting);
-        writefln("[DepthBoneRefresh] source settings command: root=%s target=%s bone=%s weight=%s depthOffset=%s depthScale=%s",
+        depthBoneDebugLog("[DepthBoneRefresh] source settings command: root=%s target=%s bone=%s weight=%s depthOffset=%s depthScale=%s",
             rigRoot.name,
             target is null ? "(null)" : target.name,
             source.name,

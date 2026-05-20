@@ -17,6 +17,9 @@ import std.algorithm.mutation;
 import std.array;
 import i18n;
 
+alias DepthBoneBindingValueChangeHook = void function(Parameter parameter, Node target, string bindingName, vec2u keypoint);
+__gshared DepthBoneBindingValueChangeHook ngDepthBoneBindingValueChangeHook;
+
 private {
     T cloneActionValue(T)(T value) {
         return value;
@@ -47,6 +50,14 @@ private {
         }
     }
 
+    void notifyDepthBoneBindingValueChanged(ParameterBinding binding, int pointx, int pointy) {
+        if (ngDepthBoneBindingValueChangeHook is null) return;
+        auto valueBinding = cast(ValueParameterBinding)binding;
+        if (valueBinding is null) return;
+        auto target = cast(Node)valueBinding.getTarget().target;
+        if (target is null) return;
+        ngDepthBoneBindingValueChangeHook(valueBinding.parameter, target, valueBinding.getName(), vec2u(cast(uint)pointx, cast(uint)pointy));
+    }
 }
 
 /**
@@ -260,6 +271,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
     void markAsDirty() { _dirty = true; }
     void updateNewState() {
         (cast(Node)self.getTarget().target).notifyChange(cast(Node)(self.getTarget().target), NotifyReason.AttributeChanged);
+        notifyDepthBoneBindingValueChanged(self, pointx, pointy);
     }
     void clear() { _dirty = false; }
 
@@ -277,6 +289,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             self.reInterpolate();
             undoable = false;
             (cast(Node)self.getTarget().target).notifyChange(cast(Node)(self.getTarget().target), NotifyReason.AttributeChanged);
+            notifyDepthBoneBindingValueChanged(self, pointx, pointy);
         }
     }
 
@@ -290,6 +303,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             self.reInterpolate();
             undoable = true;
             (cast(Node)self.getTarget().target).notifyChange(cast(Node)(self.getTarget().target), NotifyReason.AttributeChanged);
+            notifyDepthBoneBindingValueChanged(self, pointx, pointy);
         }
     }
 
@@ -365,8 +379,10 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
 
     void markAsDirty() { _dirty = true; }
     void updateNewState() {
-        foreach (b; self)
+        foreach (b; self) {
             (cast(Node)b.getTarget().target).notifyChange((cast(Node)b.getTarget().target), NotifyReason.AttributeChanged);
+            notifyDepthBoneBindingValueChanged(b, pointx, pointy);
+        }
     }
     void clear() { _dirty = false; }
 
@@ -385,8 +401,10 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
                 self[i].reInterpolate();
             }
             undoable = false;
-            foreach (b; self)
+            foreach (b; self) {
                 (cast(Node)b.getTarget().target).notifyChange((cast(Node)b.getTarget().target), NotifyReason.AttributeChanged);
+                notifyDepthBoneBindingValueChanged(b, pointx, pointy);
+            }
         }
     }
 
@@ -401,8 +419,10 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
                 self[i].reInterpolate();
             }
             undoable = true;
-            foreach (b; self)
+            foreach (b; self) {
                 (cast(Node)b.getTarget().target).notifyChange((cast(Node)b.getTarget().target), NotifyReason.AttributeChanged);
+                notifyDepthBoneBindingValueChanged(b, pointx, pointy);
+            }
         }
     }
 
