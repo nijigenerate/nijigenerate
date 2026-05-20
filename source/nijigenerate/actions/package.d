@@ -15,6 +15,7 @@ public import nijigenerate.actions.mesh;
 public import nijigenerate.actions.deformable;
 public import nijigenerate.actions.vertex;
 public import nijigenerate.actions.depth;
+public import nijigenerate.actions.depthbone;
 
 import std.algorithm;
 import std.range;

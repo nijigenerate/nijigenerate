@@ -42,6 +42,8 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Deform, Part)();
     ngRegisterInspector!(ModelEditSubMode.Deform, Composite)();
     ngRegisterInspector!(ModelEditSubMode.Deform, SimplePhysics)();
+    ngRegisterInspector!(ModelEditSubMode.Deform, PathDeformer)();
+    ngRegisterInspector!(ModelEditSubMode.Deform, GridDeformer)();
 
     ngRegisterInspector!(ModelEditSubMode.Layout, Node)();
     ngRegisterInspector!(ModelEditSubMode.Layout, ExCamera)();
@@ -52,6 +54,8 @@ void initInspectors() {
     ngRegisterInspector!(ModelEditSubMode.Layout, MeshGroup)();
     ngRegisterInspector!(ModelEditSubMode.Layout, PathDeformer)();
     ngRegisterInspector!(ModelEditSubMode.Layout, GridDeformer)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, ExDepthRigRoot)();
+    ngRegisterInspector!(ModelEditSubMode.Layout, ExDepthBone)();
 
     ngRegisterInspector!(ModelEditSubMode.Layout, Puppet)();
     inspectorsInitialized = true;

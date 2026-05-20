@@ -157,6 +157,7 @@ private {
 bool incShowVertices    = true; /// Show vertices of selected parts
 bool incShowBounds      = true; /// Show bounds of selected parts
 bool incShowOrientation = true; /// Show orientation gizmo of selected parts
+bool incShowDepthBones  = true; /// Show depth bone rig connections
 
 /**
     Current edit mode

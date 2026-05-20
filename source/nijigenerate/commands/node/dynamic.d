@@ -113,6 +113,8 @@ private string[] discoverNodeTypes()
         "DynamicComposite",
         "PathDeformer",
         "GridDeformer",
+        "DepthRigRoot",
+        "DepthBone",
         "Camera",
     ];
 }

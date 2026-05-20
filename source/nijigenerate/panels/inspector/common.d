@@ -2,6 +2,8 @@ module nijigenerate.panels.inspector.common;
 
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.deform;
+import nijigenerate.commands.depth.bone : ngAutoApplyDepthBoneDeform;
+import nijigenerate.ext.nodes.exdepthbone : ExDepthBone;
 import nijigenerate.actions;
 import nijigenerate.core.actionstack;
 import nijigenerate.widgets;
@@ -297,6 +299,12 @@ void incInspectorDeformSetValue(Node node, Parameter param, string paramName, ve
             e.adjustPathTransform();
         }
     }
+
+    if (auto bone = cast(ExDepthBone)node) {
+        if (paramName.startsWith("transform.t.") || paramName.startsWith("transform.r.")) {
+            ngAutoApplyDepthBoneDeform(bone, param, cursor);
+        }
+    }
 }
 
 void incInspectorDeformSetValue(T)(T[] nodes, Parameter param, string paramName, vec2u cursor, float value) {
@@ -327,6 +335,14 @@ void incInspectorDeformSetValue(T)(T[] nodes, Parameter param, string paramName,
         foreach (n; nodes) {
             if (auto e = editor.getEditorFor(n)) {
                 e.adjustPathTransform();
+            }
+        }
+    }
+
+    if (paramName.startsWith("transform.t.") || paramName.startsWith("transform.r.")) {
+        foreach (node; nodes) {
+            if (auto bone = cast(ExDepthBone)node) {
+                ngAutoApplyDepthBoneDeform(bone, param, cursor);
             }
         }
     }

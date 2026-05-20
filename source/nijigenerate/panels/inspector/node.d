@@ -29,6 +29,85 @@ import std.range: enumerate;
 
 /// Model View
 
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRigRoot) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
+    override
+    void run() {
+        if (targets.length == 0) return;
+        auto root = targets[0];
+        if (incBeginCategory(__("Depth Rig"))) {
+            igText(__("Bones: %d"), cast(int)root.depthBones().length);
+            igText(__("Bindings: %d"), cast(int)root.bindings.length);
+            if (igButton(__("Add Bone"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(DepthBoneCommand.AddDepthBone)(ctx, root, "DepthBone", [0.0f, 0.0f, 0.0f], [0.0f, 100.0f, 0.0f], 0.0f);
+            }
+            igSameLine();
+            if (igButton(__("Add Standard Skeleton"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1.0f);
+            }
+        }
+        incEndCategory();
+    }
+}
+
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBone) : BaseInspector!(mode, T) {
+    this(T[] nodes, ModelEditSubMode subMode) {
+        super(nodes, subMode);
+    }
+
+    override
+    void run() {
+        if (targets.length == 0) return;
+        auto bone = targets[0];
+        if (incBeginCategory(__("Depth Bone"))) {
+            igText("%s", bone.boneId.toStringz);
+            if (igButton(__("Add Child Bone"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                auto head = bone.restTail;
+                auto tail = bone.restTail + (bone.restTail - bone.restHead);
+                cmd!(DepthBoneCommand.AddDepthBone)(ctx, bone, bone.boneId.length ? bone.boneId ~ ".Child" : "DepthBone", [head.x, head.y, head.z], [tail.x, tail.y, tail.z], bone.restRoll);
+            }
+            igSameLine();
+            if (igButton(__("Delete Bone"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes([cast(Node)bone]);
+                cmd!(NodeCommand.DeleteNode)(ctx);
+            }
+
+            float[3] head = [bone.restHead.x, bone.restHead.y, bone.restHead.z];
+            float[3] tail = [bone.restTail.x, bone.restTail.y, bone.restTail.z];
+            float roll = bone.restRoll;
+            bool changed = false;
+
+            changed = igDragFloat3("Rest Head", &head, 1.0f) || changed;
+            changed = igDragFloat3("Rest Tail", &tail, 1.0f) || changed;
+            changed = igDragFloat("Rest Roll", &roll, 0.01f) || changed;
+
+            if (changed) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(DepthBoneCommand.SetDepthBoneRest)(ctx, bone, [head[0], head[1], head[2]], [tail[0], tail[1], tail[2]], roll);
+            }
+
+            bool lockRot = bone.lockRotation;
+            bool lockTrans = bone.lockTranslation;
+            if (ngCheckbox(__("Lock Rotation"), &lockRot) || ngCheckbox(__("Lock Translation"), &lockTrans)) {
+                import std.format : format;
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(DepthBoneCommand.SetDepthBoneConstraint)(
+                    ctx,
+                    bone,
+                    `{"lockRotation":` ~ (lockRot ? "true" : "false") ~ `,"lockTranslation":` ~ (lockTrans ? "true" : "false") ~ `}`
+                );
+            }
+        }
+        incEndCategory();
+    }
+}
+
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : BaseInspector!(mode, T) 
     if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer) && !is(T: GridDeformer))
 {

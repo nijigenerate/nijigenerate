@@ -47,8 +47,9 @@ void focusGridOrigin(GridDeformer grid) {
 
     float largestBounds = 1.0f;
     if (grid.vertices.length > 0) {
-        auto minPoint = grid.vertices[0];
-        auto maxPoint = grid.vertices[0];
+        auto first = grid.vertices[0];
+        auto minPoint = vec2(first.x, first.y);
+        auto maxPoint = minPoint;
         foreach (v; grid.vertices) {
             minPoint.x = min(minPoint.x, v.x);
             minPoint.y = min(minPoint.y, v.y);

@@ -111,6 +111,8 @@ void ngAddOrInsertNodeMenu(bool add)() {
         NodeCreateMenu("DynamicComposite", _("Dynamic Composite"));
         NodeCreateMenu("PathDeformer", _("Path Deformer"));
         NodeCreateMenu("GridDeformer", _("Grid Deformer"));
+        NodeCreateMenu("DepthRigRoot", _("Depth Rig Root"));
+        NodeCreateMenu("DepthBone", _("Depth Bone"));
         NodeCreateMenu("Camera", _("Camera"));
     }
 

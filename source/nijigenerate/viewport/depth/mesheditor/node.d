@@ -19,7 +19,7 @@ import nijilive.core.nodes.deformer.grid : GridDeformer;
 import std.algorithm : clamp, max, min, sort, uniq;
 import std.array : array;
 import std.format : format;
-import std.math : ceil, cmp, round;
+import std.math : abs, ceil, cmp, round;
 import std.stdio : writefln;
 
 enum DepthDisplayPlaneSize = 2.9f;
@@ -403,8 +403,24 @@ public:
             log("apply skipped: target is not DepthMappedNode");
             return;
         }
+        size_t nonZero;
+        float minDepth = depths.length ? depths[0] : 0;
+        float maxDepth = depths.length ? depths[0] : 0;
+        ptrdiff_t firstNonZero = -1;
+        foreach (i, value; depths) {
+            if (value < minDepth) minDepth = value;
+            if (value > maxDepth) maxDepth = value;
+            if (abs(value) > 0.000001f) {
+                nonZero++;
+                if (firstNonZero < 0) firstNonZero = cast(ptrdiff_t)i;
+            }
+        }
+        log("apply depths: length=%s vertices=%s nonZero=%s min=%s max=%s firstNonZero=%s".format(
+            depths.length, target.vertices.length, nonZero, minDepth, maxDepth, firstNonZero));
         auto action = new DepthMappedChangeAction(target);
         depthMapped.replaceDepths(depths);
+        auto saved = depthMapped.copyDepths();
+        log("apply replaceDepths done: savedLength=%s".format(saved is null ? -1 : cast(long)saved.length));
         action.updateNewState();
         incActionPush(action);
         target.notifyChange(target, NotifyReason.AttributeChanged);

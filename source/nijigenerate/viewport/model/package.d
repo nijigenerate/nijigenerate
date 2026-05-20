@@ -19,6 +19,7 @@ import nijigenerate.viewport.base;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.model.onionslice;
 import nijigenerate;
+import nijigenerate.ext.nodes.exdepthbone;
 import nijilive;
 import nijilive.core.nodes.drivers; // Driver
 import nijilive.core.nodes.deformer.grid : GridDeformer;
@@ -50,13 +51,106 @@ ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 
 class ModelLayoutViewport : Viewport {
 public:
+    void drawDepthBones(ExDepthRigRoot root, ExDepthBone selectedBone = null) {
+        if (root is null) return;
+
+        Vec3Array lines;
+        Vec3Array selectedLines;
+        Vec3Array points;
+        Vec3Array selectedPoints;
+        auto rootToLocal = root.transform.matrix.inverse;
+
+        vec3 bonePoint(ExDepthBone bone) {
+            auto world = bone.transform.translation;
+            return (rootToLocal * vec4(world.x, world.y, world.z, 1)).xyz;
+        }
+
+        foreach (bone; root.depthBones()) {
+            auto point = bonePoint(bone);
+            if (bone is selectedBone) {
+                selectedPoints ~= point;
+            } else {
+                points ~= point;
+            }
+
+            if (auto parentBone = cast(ExDepthBone)bone.parent) {
+                auto parentPoint = bonePoint(parentBone);
+                if (bone is selectedBone || parentBone is selectedBone) {
+                    selectedLines ~= parentPoint;
+                    selectedLines ~= point;
+                } else {
+                    lines ~= parentPoint;
+                    lines ~= point;
+                }
+            }
+        }
+        if (lines.length > 0) {
+            inDbgSetBuffer(lines);
+            inDbgDrawLines(vec4(0.55, 0.75, 1.0, 1), root.transform.matrix);
+        }
+        if (selectedLines.length > 0) {
+            inDbgSetBuffer(selectedLines);
+            inDbgDrawLines(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
+        }
+        if (points.length > 0) {
+            inDbgPointsSize(4);
+            inDbgSetBuffer(points);
+            inDbgDrawPoints(vec4(0.55, 0.75, 1.0, 1), root.transform.matrix);
+        }
+        if (selectedPoints.length > 0) {
+            inDbgPointsSize(10);
+            inDbgSetBuffer(selectedPoints);
+            inDbgDrawPoints(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
+            inDbgPointsSize(4);
+        }
+    }
+
+    ExDepthRigRoot findDepthRoot(ExDepthBone bone) {
+        Node cursor = bone;
+        while (cursor !is null) {
+            if (auto root = cast(ExDepthRigRoot)cursor) return root;
+            cursor = cursor.parent;
+        }
+        return null;
+    }
+
+    ExDepthRigRoot[] findDepthRoots() {
+        ExDepthRigRoot[] roots;
+        auto puppet = incActivePuppet();
+        if (puppet is null || puppet.root is null) return roots;
+
+        void visit(Node node) {
+            if (node is null) return;
+            if (auto root = cast(ExDepthRigRoot)node) roots ~= root;
+            foreach (child; node.children) visit(child);
+        }
+
+        visit(puppet.root);
+        return roots;
+    }
+
     override
     void draw(Camera camera) { 
+        ExDepthBone selectedDepthBone = null;
+        foreach (selectedNode; incSelectedNodes) {
+            if (auto bone = cast(ExDepthBone)selectedNode) {
+                selectedDepthBone = bone;
+                break;
+            }
+        }
+        if (incShowDepthBones) {
+            foreach (root; findDepthRoots()) {
+                drawDepthBones(root, findDepthRoot(selectedDepthBone) is root ? selectedDepthBone : null);
+            }
+        }
+
         if (incSelectedNodes.length == 0) return;
 
         foreach(selectedNode; incSelectedNodes) {
             if (selectedNode is null) continue; 
-            if (incShowOrientation) selectedNode.drawOrientation();
+            if (incShowOrientation && cast(ExDepthRigRoot)selectedNode is null && cast(ExDepthBone)selectedNode is null) {
+                selectedNode.drawOrientation();
+            }
             if (incShowBounds) selectedNode.drawBounds();
 
             if (Drawable selectedDraw = cast(Drawable)selectedNode) {
@@ -246,6 +340,12 @@ public:
                     incShowOrientation = !incShowOrientation;
                 }
                 incTooltip(incShowOrientation ? _("Hide Orientation Gizmo") : _("Show Orientation Gizmo"));
+
+                igSameLine(0, 4);
+                if (incButtonColored("\ue8ef", ImVec2(0, 0), incShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                    incShowDepthBones = !incShowDepthBones;
+                }
+                incTooltip(incShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
 
                 // DropdownMenu is silly, so
                 igSameLine(0, 0);

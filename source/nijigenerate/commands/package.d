@@ -24,6 +24,7 @@ public import nijigenerate.commands.automesh.dynamic;
 public import nijigenerate.commands.automesh.config;
 public import nijigenerate.commands.vertex.define_mesh;
 public import nijigenerate.commands.model.set_deform_binding;
+public import nijigenerate.commands.depth.bone;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
 
 import std.meta : AliasSeq;
@@ -65,6 +66,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.automesh.config.autoMeshTypedCommands,
     nijigenerate.commands.vertex.define_mesh.commands,
     nijigenerate.commands.model.set_deform_binding.commands,
+    nijigenerate.commands.depth.bone.commands,
 );
 //pragma(msg, "[CT] AllCommandMaps includes typed AutoMesh only");
 
@@ -219,6 +221,8 @@ private void ngInitCommandMap(alias AA)() {
         nijigenerate.commands.vertex.define_mesh.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.model.set_deform_binding.ModelCommand))
         nijigenerate.commands.model.set_deform_binding.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.depth.bone.DepthBoneCommand))
+        nijigenerate.commands.depth.bone.ngInitCommands!K();
     else
         static assert(0, "No command initializer dispatch for key type: " ~ K.stringof);
 }
