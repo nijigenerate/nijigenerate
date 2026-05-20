@@ -247,6 +247,11 @@ private:
                                         previewBone = bone;
                                     }
                                     igSeparator();
+                                    float weight = setting.weight;
+                                    if (igDragFloat(__("Weight"), &weight, 0.01f, 0.0f, 1.0f, "%.3f")) {
+                                        setting.weight = weight;
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                    }
                                     float depthOffset = setting.depthOffset;
                                     if (igDragFloat(__("Depth Offset"), &depthOffset, 0.01f, -10.0f, 10.0f, "%.3f")) {
                                         setting.depthOffset = depthOffset;
@@ -283,14 +288,21 @@ private:
                                 }
 
                                 igSameLine(0, 0);
-                                if (igBeginChild("###DepthBoneSourceWeight", ImVec2(0, 15), false, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.AlwaysAutoResize)) {
-                                    incDummy(ImVec2(-72, 1));
+                                if (igBeginChild("###DepthBoneSourceDepth", ImVec2(0, 17), false, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.AlwaysAutoResize)) {
+                                    incDummy(ImVec2(-144, 1));
                                     igSameLine(0, 0);
-                                    auto weight = setting.weight;
+                                    auto depthOffset = setting.depthOffset;
                                     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
                                     igSetNextItemWidth(72);
-                                    if (igSliderFloat("###weight", &weight, 0, 1f, "%%0.2f")) {
-                                        setting.weight = weight;
+                                    if (igDragFloat("###offset", &depthOffset, 0.01f, -10.0f, 10.0f, "o %.2f")) {
+                                        setting.depthOffset = depthOffset;
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                    }
+                                    igSameLine(0, 0);
+                                    auto depthScale = setting.depthScale;
+                                    igSetNextItemWidth(72);
+                                    if (igDragFloat("###scale", &depthScale, 0.01f, 0.01f, 10.0f, "s %.2f")) {
+                                        setting.depthScale = depthScale;
                                         if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
                                     }
                                     igPopStyleVar();

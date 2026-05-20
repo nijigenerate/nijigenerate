@@ -76,6 +76,7 @@ private JSONValue boneToJson(ExDepthBone bone) {
     obj["restHead"] = JSONValue([bone.restHead.x, bone.restHead.y, bone.restHead.z]);
     obj["restTail"] = JSONValue([bone.restTail.x, bone.restTail.y, bone.restTail.z]);
     obj["restRoll"] = JSONValue(bone.restRoll);
+    obj["allowParentToTargets"] = JSONValue(bone.allowParentToTargets);
     if (bone.parent) obj["parent"] = JSONValue(bone.parent.uuid);
     return JSONValue(obj);
 }
@@ -466,12 +467,12 @@ private RuntimeDepthBone[ulong] buildDepthRigRuntime(ExDepthRigRoot root, Parame
 
     foreach (bone; root.depthBones()) {
         auto rb = runtime[bone.uuid];
-        if (rb.parent !is null) {
+        if (rb.parent !is null && bone.allowParentToTargets) {
             rb.worldHead = rb.parent.worldHead + (rb.parent.worldQuaternion * rb.localRestOffset) + (rb.parent.worldQuaternion * rb.poseTranslation);
             rb.worldQuaternion = rb.parent.worldQuaternion * rb.localRestQuaternion * rb.poseQuaternion;
         } else {
             rb.worldHead = rb.restHead + rb.poseTranslation;
-            rb.worldQuaternion = rb.localRestQuaternion * rb.poseQuaternion;
+            rb.worldQuaternion = rb.restQuaternion * rb.poseQuaternion;
         }
         rb.worldTail = rb.worldHead + (rb.worldQuaternion * vec3(0, rb.restLength, 0));
         rb.skinMatrix = composeMatrix(rb.worldHead, rb.worldQuaternion) * rb.inverseBindMatrix;
@@ -891,6 +892,7 @@ class SetDepthBoneConstraintCommand : ExCommand!(
         if ("constraintType" in json.object) b.constraintType = json["constraintType"].str;
         if ("lockRotation" in json.object) b.lockRotation = json["lockRotation"].boolean;
         if ("lockTranslation" in json.object) b.lockTranslation = json["lockTranslation"].boolean;
+        if ("allowParentToTargets" in json.object) b.allowParentToTargets = json["allowParentToTargets"].boolean;
         if ("maxStepRadians" in json.object) b.maxStepRadians = cast(float)json["maxStepRadians"].floating;
         action.updateNewState();
         incActionPush(action);

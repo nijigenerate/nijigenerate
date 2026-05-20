@@ -94,13 +94,22 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
 
             bool lockRot = bone.lockRotation;
             bool lockTrans = bone.lockTranslation;
-            if (ngCheckbox(__("Lock Rotation"), &lockRot) || ngCheckbox(__("Lock Translation"), &lockTrans)) {
+            bool allowParentToTargets = bone.allowParentToTargets;
+            bool constraintChanged = false;
+            constraintChanged = ngCheckbox(__("Lock Rotation"), &lockRot) || constraintChanged;
+            constraintChanged = ngCheckbox(__("Lock Translation"), &lockTrans) || constraintChanged;
+            constraintChanged = ngCheckbox(__("Allow Parent to Targets"), &allowParentToTargets) || constraintChanged;
+            incTooltip(_("When enabled, parent bone rotation and translation also affect targets bound to this bone."));
+            if (constraintChanged) {
                 import std.format : format;
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(DepthBoneCommand.SetDepthBoneConstraint)(
                     ctx,
                     bone,
-                    `{"lockRotation":` ~ (lockRot ? "true" : "false") ~ `,"lockTranslation":` ~ (lockTrans ? "true" : "false") ~ `}`
+                    `{"lockRotation":` ~ (lockRot ? "true" : "false")
+                    ~ `,"lockTranslation":` ~ (lockTrans ? "true" : "false")
+                    ~ `,"allowParentToTargets":` ~ (allowParentToTargets ? "true" : "false")
+                    ~ `}`
                 );
             }
         }

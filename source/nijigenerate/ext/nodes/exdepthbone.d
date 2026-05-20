@@ -211,6 +211,7 @@ public:
     vec3 hingeAxis = vec3(0, 0, 1);
     bool lockRotation = false;
     bool lockTranslation = false;
+    bool allowParentToTargets = true;
     float[] rotationLimits;
     float maxStepRadians = 0.0f;
 
@@ -248,6 +249,8 @@ protected:
             serializer.serializeValue(lockRotation);
             serializer.putKey("lockTranslation");
             serializer.serializeValue(lockTranslation);
+            serializer.putKey("allowParentToTargets");
+            serializer.serializeValue(allowParentToTargets);
             if (rotationLimits.length > 0) {
                 serializer.putKey("rotationLimits");
                 serializer.serializeValue(rotationLimits);
@@ -280,6 +283,9 @@ protected:
         }
         if (!data["lockTranslation"].isEmpty) {
             if (auto exc = data["lockTranslation"].deserializeValue(lockTranslation)) return exc;
+        }
+        if (!data["allowParentToTargets"].isEmpty) {
+            if (auto exc = data["allowParentToTargets"].deserializeValue(allowParentToTargets)) return exc;
         }
         if (!data["rotationLimits"].isEmpty) {
             if (auto exc = data["rotationLimits"].deserializeValue(rotationLimits)) return exc;

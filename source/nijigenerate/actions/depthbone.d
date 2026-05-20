@@ -84,12 +84,14 @@ class DepthBoneConstraintChangeAction : Action {
     vec3 oldHingeAxis;
     bool oldLockRotation;
     bool oldLockTranslation;
+    bool oldAllowParentToTargets;
     float[] oldRotationLimits;
     float oldMaxStepRadians;
     string newConstraintType;
     vec3 newHingeAxis;
     bool newLockRotation;
     bool newLockTranslation;
+    bool newAllowParentToTargets;
     float[] newRotationLimits;
     float newMaxStepRadians;
 
@@ -103,6 +105,7 @@ class DepthBoneConstraintChangeAction : Action {
         oldHingeAxis = bone.hingeAxis;
         oldLockRotation = bone.lockRotation;
         oldLockTranslation = bone.lockTranslation;
+        oldAllowParentToTargets = bone.allowParentToTargets;
         oldRotationLimits = bone.rotationLimits.dup;
         oldMaxStepRadians = bone.maxStepRadians;
     }
@@ -112,23 +115,25 @@ class DepthBoneConstraintChangeAction : Action {
         newHingeAxis = bone.hingeAxis;
         newLockRotation = bone.lockRotation;
         newLockTranslation = bone.lockTranslation;
+        newAllowParentToTargets = bone.allowParentToTargets;
         newRotationLimits = bone.rotationLimits.dup;
         newMaxStepRadians = bone.maxStepRadians;
         bone.notifyChange(bone, NotifyReason.AttributeChanged);
     }
 
-    void apply(string constraintType, vec3 hingeAxis, bool lockRotation, bool lockTranslation, float[] rotationLimits, float maxStepRadians) {
+    void apply(string constraintType, vec3 hingeAxis, bool lockRotation, bool lockTranslation, bool allowParentToTargets, float[] rotationLimits, float maxStepRadians) {
         bone.constraintType = constraintType;
         bone.hingeAxis = hingeAxis;
         bone.lockRotation = lockRotation;
         bone.lockTranslation = lockTranslation;
+        bone.allowParentToTargets = allowParentToTargets;
         bone.rotationLimits = rotationLimits.dup;
         bone.maxStepRadians = maxStepRadians;
         bone.notifyChange(bone, NotifyReason.AttributeChanged);
     }
 
-    void rollback() { apply(oldConstraintType, oldHingeAxis, oldLockRotation, oldLockTranslation, oldRotationLimits, oldMaxStepRadians); }
-    void redo() { apply(newConstraintType, newHingeAxis, newLockRotation, newLockTranslation, newRotationLimits, newMaxStepRadians); }
+    void rollback() { apply(oldConstraintType, oldHingeAxis, oldLockRotation, oldLockTranslation, oldAllowParentToTargets, oldRotationLimits, oldMaxStepRadians); }
+    void redo() { apply(newConstraintType, newHingeAxis, newLockRotation, newLockTranslation, newAllowParentToTargets, newRotationLimits, newMaxStepRadians); }
     string describe() { return _("Depth bone constraint changed"); }
     string describeUndo() { return _("Depth bone constraint changed"); }
     string getName() { return "DepthBoneConstraintChangeAction"; }
