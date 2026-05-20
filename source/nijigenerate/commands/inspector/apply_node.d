@@ -5,6 +5,7 @@ import nijigenerate;
 import nijigenerate.ext; // ExCamera, ExPart, etc.
 import nijigenerate.actions; // Action interface
 import nijigenerate.core.actionstack; // incActionPush
+import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
 import i18n;
 import nijigenerate.panels.inspector.node;
 import nijigenerate.panels.inspector.drawable;
@@ -120,6 +121,13 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                     }
                 }
                 incActionPush(new _AttrAction!(NodeT, ValT)(ni, nodes, oldVals, this.value));
+                static if (
+                    PropName == "translationX" || PropName == "translationY" || PropName == "translationZ" ||
+                    PropName == "rotationX" || PropName == "rotationY" || PropName == "rotationZ" ||
+                    PropName == "scaleX" || PropName == "scaleY"
+                ) {
+                    foreach (n; nodes) ngMarkDepthBoneDirtyForTarget(n, "Target Transform");
+                }
             }
         }
 

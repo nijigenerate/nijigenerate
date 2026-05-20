@@ -357,6 +357,10 @@ public:
         return depths.dup;
     }
 
+    Node targetNode() {
+        return cast(Node)target;
+    }
+
     void replaceEditorDepths(float[] values) {
         depths = values.dup;
         if (depths.length != target.vertices.length) {

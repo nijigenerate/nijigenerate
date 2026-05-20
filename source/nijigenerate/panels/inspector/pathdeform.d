@@ -7,6 +7,7 @@ import nijigenerate.utils;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.commands; // cmd!, Context
+import nijigenerate.commands.depth.bone : DepthBoneDirtyScope, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForArmedParameter;
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.project : incActivePuppet, incArmedParameter, incSelectedNodes;
@@ -170,7 +171,7 @@ class NodeInspector(ModelEditSubMode inspectorMode, T: PathDeformer) : BaseInspe
         override
         void run(Parameter parameter, vec2u cursor) {
             if (targets.length == 0) return;
-            drawDepthBoneSources(targets[0]);
+            drawDepthBoneSources(targets[0], parameter, cursor);
         }
     }
 
@@ -212,7 +213,7 @@ private:
         return "if (auto x = "~x~") x."~prop~"="~v;
     }
 
-    void drawDepthBoneSources(PathDeformer node) {
+    void drawDepthBoneSources(PathDeformer node, Parameter parameter = null, vec2u cursor = vec2u.init) {
         auto root = findDepthRigRoot();
         if (incBeginCategory(__("Depth Bone Sources"))) {
             if (root is null) {
@@ -250,17 +251,17 @@ private:
                                     float weight = setting.weight;
                                     if (igDragFloat(__("Weight"), &weight, 0.01f, 0.0f, 1.0f, "%.3f")) {
                                         setting.weight = weight;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     float depthOffset = setting.depthOffset;
                                     if (igDragFloat(__("Depth Offset"), &depthOffset, 0.01f, -10.0f, 10.0f, "%.3f")) {
                                         setting.depthOffset = depthOffset;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     float depthScale = setting.depthScale;
                                     if (igDragFloat(__("Depth Scale"), &depthScale, 0.01f, 0.01f, 10.0f, "%.3f")) {
                                         setting.depthScale = depthScale;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     igSeparator();
                                     if (igMenuItem(__("Delete"))) {
@@ -278,7 +279,7 @@ private:
                                     const(ImGuiPayload)* payload = igAcceptDragDropPayload("_DEPTHBONEITEM");
                                     if (payload !is null) {
                                         auto draggedUuid = *cast(ulong*)payload.Data;
-                                        reorderDepthBoneSource(root, node, draggedUuid, uuid);
+                                        reorderDepthBoneSource(root, node, draggedUuid, uuid, parameter, cursor);
                                     }
                                     igEndDragDropTarget();
                                 }
@@ -296,14 +297,14 @@ private:
                                     igSetNextItemWidth(72);
                                     if (igDragFloat("###offset", &depthOffset, 0.01f, -10.0f, 10.0f, "o %.2f")) {
                                         setting.depthOffset = depthOffset;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     igSameLine(0, 0);
                                     auto depthScale = setting.depthScale;
                                     igSetNextItemWidth(72);
                                     if (igDragFloat("###scale", &depthScale, 0.01f, 0.01f, 10.0f, "s %.2f")) {
                                         setting.depthScale = depthScale;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting);
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     igPopStyleVar();
                                 }
@@ -405,7 +406,7 @@ private:
         return null;
     }
 
-    static void reorderDepthBoneSource(ExDepthRigRoot root, Node target, ulong fromUuid, ulong toUuid) {
+    static void reorderDepthBoneSource(ExDepthRigRoot root, Node target, ulong fromUuid, ulong toUuid, Parameter parameter = null, vec2u cursor = vec2u.init) {
         if (root is null || target is null || fromUuid == toUuid) return;
         auto index = root.findBindingIndex(target.uuid);
         if (index < 0) return;
@@ -428,9 +429,11 @@ private:
         binding.sourceBoneUuids = reordered;
         binding.normalizeSourceSettings();
         incActionPush(new DepthBoneSourceListChangeAction("Reorder Depth Bone Source", root, oldBindings, root.bindings));
+        if (parameter !is null) ngMarkDepthBoneDirty(root, parameter, cursor, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
+        ngMarkDepthBoneDirtyForArmedParameter(root, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
     }
 
-    static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting) {
+    static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting, Parameter parameter = null, vec2u cursor = vec2u.init) {
         auto ctx = new Context(); ctx.nodes([target]);
         cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
             ctx,
@@ -439,5 +442,6 @@ private:
             bone,
             format(`{"weight":%s,"depthOffset":%s,"depthScale":%s}`, setting.weight, setting.depthOffset, setting.depthScale)
         );
+        if (parameter !is null) ngMarkDepthBoneDirty(root, parameter, cursor, "Depth Bone Source Settings", DepthBoneDirtyScope.AllKeypoints);
     }
 }

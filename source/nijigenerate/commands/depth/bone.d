@@ -722,31 +722,207 @@ private bool isSameOrDescendantBone(ExDepthBone bone, ExDepthBone ancestor) {
     return false;
 }
 
+enum DepthBoneDirtyScope {
+    Keypoint,
+    AllKeypoints,
+}
+
+private struct DepthBoneDirtyRequest {
+    ExDepthRigRoot root;
+    Parameter parameter;
+    vec2u keypoint;
+    DepthBoneDirtyScope dirtyScope;
+    string reason;
+}
+
+private DepthBoneDirtyRequest[] depthBoneDirtyRequests;
+private ExDepthRigRoot lastDepthBoneDirtyRoot;
+private Parameter lastDepthBoneDirtyParameter;
+private vec2u lastDepthBoneDirtyKeypoint;
+
+private string dirtyScopeName(DepthBoneDirtyScope dirtyScope) {
+    return dirtyScope == DepthBoneDirtyScope.AllKeypoints ? "all-keypoints" : "keypoint";
+}
+
+private bool sameDirtyParameter(DepthBoneDirtyRequest request, ExDepthRigRoot root, Parameter parameter) {
+    return request.root is root && request.parameter is parameter;
+}
+
+void ngMarkDepthBoneDirty(
+    ExDepthRigRoot root,
+    Parameter parameter,
+    vec2u keypoint,
+    string reason,
+    DepthBoneDirtyScope dirtyScope = DepthBoneDirtyScope.Keypoint,
+) {
+    if (root is null) return;
+    if (parameter !is null) {
+        lastDepthBoneDirtyRoot = root;
+        lastDepthBoneDirtyParameter = parameter;
+        lastDepthBoneDirtyKeypoint = keypoint;
+    }
+    writefln("[DepthBoneRefresh] mark: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
+        root.name,
+        parameter is null ? "(none)" : parameter.name,
+        keypoint.x,
+        keypoint.y,
+        dirtyScopeName(dirtyScope),
+        reason);
+    foreach (ref request; depthBoneDirtyRequests) {
+        if (!sameDirtyParameter(request, root, parameter)) continue;
+        if (request.dirtyScope == DepthBoneDirtyScope.AllKeypoints || dirtyScope == DepthBoneDirtyScope.AllKeypoints) {
+            request.dirtyScope = DepthBoneDirtyScope.AllKeypoints;
+            request.keypoint = keypoint;
+            if (reason.length > 0) request.reason = reason;
+            writefln("[DepthBoneRefresh] mark merged: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
+                root.name,
+                parameter is null ? "(none)" : parameter.name,
+                keypoint.x,
+                keypoint.y,
+                dirtyScopeName(request.dirtyScope),
+                request.reason);
+            return;
+        }
+        if (request.keypoint == keypoint) {
+            if (reason.length > 0) request.reason = reason;
+            writefln("[DepthBoneRefresh] mark merged: root=%s param=%s key=(%s,%s) scope=%s reason=%s",
+                root.name,
+                parameter is null ? "(none)" : parameter.name,
+                keypoint.x,
+                keypoint.y,
+                dirtyScopeName(request.dirtyScope),
+                request.reason);
+            return;
+        }
+    }
+    depthBoneDirtyRequests ~= DepthBoneDirtyRequest(root, parameter, keypoint, dirtyScope, reason);
+}
+
+void ngMarkDepthBoneDirtyForArmedParameter(
+    ExDepthRigRoot root,
+    string reason,
+    DepthBoneDirtyScope dirtyScope = DepthBoneDirtyScope.Keypoint,
+) {
+    auto param = incArmedParameter();
+    auto keypoint = param is null ? vec2u.init : param.findClosestKeypoint();
+    if (param is null && lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null) {
+        param = lastDepthBoneDirtyParameter;
+        keypoint = lastDepthBoneDirtyKeypoint;
+    }
+    ngMarkDepthBoneDirty(root, param, keypoint, reason, dirtyScope);
+}
+
+void ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(ExDepthRigRoot root, string reason) {
+    ngMarkDepthBoneDirtyForArmedParameter(root, reason, DepthBoneDirtyScope.AllKeypoints);
+}
+
+void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
+    if (target is null || incActivePuppet() is null) return;
+    auto param = incArmedParameter();
+    auto keypoint = param is null ? vec2u.init : param.findClosestKeypoint();
+
+    void visit(Node node) {
+        if (node is null) return;
+        if (auto root = cast(ExDepthRigRoot)node) {
+            if (root.findBindingIndex(target.uuid) >= 0) {
+                auto actualParam = param;
+                auto actualKeypoint = keypoint;
+                if (actualParam is null && lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null) {
+                    actualParam = lastDepthBoneDirtyParameter;
+                    actualKeypoint = lastDepthBoneDirtyKeypoint;
+                }
+                ngMarkDepthBoneDirty(root, actualParam, actualKeypoint, reason, DepthBoneDirtyScope.AllKeypoints);
+            }
+        }
+        foreach (child; node.children) visit(child);
+    }
+
+    visit(incActivePuppet().root);
+}
+
 bool ngAutoApplyDepthBoneDeform(ExDepthBone changedBone, Parameter param, vec2u kp) {
     if (changedBone is null || param is null) return false;
     auto rigRoot = findDepthRigRoot(changedBone);
+    if (rigRoot is null) return false;
+    ngMarkDepthBoneDirty(rigRoot, param, kp, "Depth Bone Transform");
+    return true;
+}
+
+private vec2u[] depthBoneKeypoints(Parameter param) {
+    vec2u[] result;
+    if (param is null) return result;
+    foreach (x; 0 .. param.axisPointCount(0)) {
+        foreach (y; 0 .. param.axisPointCount(1)) {
+            result ~= vec2u(cast(uint)x, cast(uint)y);
+        }
+    }
+    if (result.length == 0) result ~= param.findClosestKeypoint();
+    return result;
+}
+
+private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
+    Parameter[] result;
+    auto puppet = incActivePuppet();
+    if (rigRoot is null || puppet is null) return result;
+
+    bool hasParam(Parameter param) {
+        foreach (existing; result) if (existing is param) return true;
+        return false;
+    }
+
+    auto armed = incArmedParameter();
+    if (armed !is null) result ~= armed;
+    if (lastDepthBoneDirtyRoot is rigRoot && lastDepthBoneDirtyParameter !is null && !hasParam(lastDepthBoneDirtyParameter)) {
+        result ~= lastDepthBoneDirtyParameter;
+    }
+
+    foreach (param; puppet.parameters) {
+        if (param is null || hasParam(param)) continue;
+        foreach (ref binding; rigRoot.bindings) {
+            auto targetNode = puppet.find!Node(cast(uint)binding.targetUuid);
+            if (targetNode is null) continue;
+            if (param.getBinding(targetNode, "deform") !is null) {
+                result ~= param;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, vec2u kp, string reason) {
     if (rigRoot is null || incActivePuppet() is null) return false;
+    writefln("[DepthBoneRefresh] refresh start: root=%s param=%s key=(%s,%s) reason=%s bindings=%s",
+        rigRoot.name,
+        param is null ? "(none)" : param.name,
+        kp.x,
+        kp.y,
+        reason,
+        rigRoot.bindings.length);
 
     DeformationParameterBinding[] deformBindings;
     Vec2Array[] offsetsList;
     ParameterBinding[] created;
 
     foreach (ref binding; rigRoot.bindings) {
-        bool affected = false;
-        foreach (uuid; binding.sourceBoneUuids) {
-            auto source = findBoneByUuid(rigRoot, uuid);
-            if (source !is null && isSameOrDescendantBone(source, changedBone)) {
-                affected = true;
-                break;
-            }
-        }
-        if (!affected) continue;
-
         auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
         auto deformable = cast(Deformable)targetNode;
         if (deformable is null) continue;
 
         auto offsets = generateDepthBoneOffsets(rigRoot, &binding, deformable, param, kp);
+        size_t nonZero;
+        foreach (offset; offsets) {
+            if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) nonZero++;
+        }
+        writefln("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=%s",
+            targetNode is null ? "(null)" : targetNode.name,
+            offsets.length,
+            nonZero,
+            param !is null);
+        deformable.deformation = offsets;
+        deformable.notifyChange(deformable, NotifyReason.AttributeChanged);
+
+        if (param is null) continue;
         auto existing = param.getBinding(targetNode, "deform");
         auto deformBinding = cast(DeformationParameterBinding)existing;
         if (deformBinding is null) {
@@ -754,10 +930,81 @@ bool ngAutoApplyDepthBoneDeform(ExDepthBone changedBone, Parameter param, vec2u 
             created ~= deformBinding;
         }
         if (deformBinding is null) continue;
-        deformable.deformation = offsets;
-        deformable.notifyChange(deformable, NotifyReason.AttributeChanged);
         deformBindings ~= deformBinding;
         offsetsList ~= offsets;
+    }
+
+    if (param is null) {
+        writefln("[DepthBoneRefresh] refresh done: preview-only root=%s", rigRoot.name);
+        return true;
+    }
+    if (deformBindings.length == 0) return false;
+
+    auto group = new GroupAction();
+    foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
+
+    auto label = reason.length ? "Auto Refresh Depth Bone Deform: " ~ reason : "Auto Refresh Depth Bone Deform";
+    auto action = new ParameterChangeBindingsValueAction(label, param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
+    foreach (i, binding; deformBindings) {
+        binding.update(kp, offsetsList[i]);
+    }
+    action.updateNewState();
+    group.addAction(action);
+    incActionPush(group);
+    writefln("[DepthBoneRefresh] refresh done: root=%s bindings=%s", rigRoot.name, deformBindings.length);
+    return true;
+}
+
+private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parameter param, vec2u currentKeypoint, string reason) {
+    if (param is null) {
+        auto params = depthBoneAffectedParameters(rigRoot);
+        writefln("[DepthBoneRefresh] resolve parameters: root=%s reason=%s resolved=%s",
+            rigRoot is null ? "(null)" : rigRoot.name,
+            reason,
+            params.length);
+        if (params.length == 0) return ngRefreshDepthBoneDeform(rigRoot, param, currentKeypoint, reason);
+        bool changed;
+        foreach (resolvedParam; params) {
+            changed = ngRefreshDepthBoneDeformAllKeypoints(rigRoot, resolvedParam, resolvedParam.findClosestKeypoint(), reason) || changed;
+        }
+        return changed;
+    }
+    if (rigRoot is null || incActivePuppet() is null) return false;
+
+    auto keypoints = depthBoneKeypoints(param);
+    if (keypoints.length == 0) return false;
+    auto visualKeypoint = param.findClosestKeypoint();
+    writefln("[DepthBoneRefresh] refresh start: root=%s param=%s scope=all-keypoints current=(%s,%s) reason=%s keypoints=%s bindings=%s",
+        rigRoot.name,
+        param.name,
+        visualKeypoint.x,
+        visualKeypoint.y,
+        reason,
+        keypoints.length,
+        rigRoot.bindings.length);
+
+    DeformationParameterBinding[] deformBindings;
+    Deformable[] deformables;
+    Node[] targetNodes;
+    ExDepthRigBinding*[] rigBindings;
+    ParameterBinding[] created;
+
+    foreach (ref binding; rigRoot.bindings) {
+        auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
+        auto deformable = cast(Deformable)targetNode;
+        if (deformable is null) continue;
+
+        auto existing = param.getBinding(targetNode, "deform");
+        auto deformBinding = cast(DeformationParameterBinding)existing;
+        if (deformBinding is null) {
+            deformBinding = cast(DeformationParameterBinding)param.getOrAddBinding(targetNode, "deform");
+            created ~= deformBinding;
+        }
+        if (deformBinding is null) continue;
+        deformBindings ~= deformBinding;
+        deformables ~= deformable;
+        targetNodes ~= targetNode;
+        rigBindings ~= &binding;
     }
 
     if (deformBindings.length == 0) return false;
@@ -765,14 +1012,64 @@ bool ngAutoApplyDepthBoneDeform(ExDepthBone changedBone, Parameter param, vec2u 
     auto group = new GroupAction();
     foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
 
-    auto action = new ParameterChangeBindingsValueAction("Auto Apply Depth Bone Deform", param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
-    foreach (i, binding; deformBindings) {
-        binding.update(kp, offsetsList[i]);
+    auto label = reason.length ? "Auto Refresh Depth Bone Deform: " ~ reason : "Auto Refresh Depth Bone Deform";
+    foreach (kp; keypoints) {
+        Vec2Array[] offsetsList;
+        offsetsList.length = deformBindings.length;
+
+        foreach (i, deformable; deformables) {
+            auto offsets = generateDepthBoneOffsets(rigRoot, rigBindings[i], deformable, param, kp);
+            offsetsList[i] = offsets;
+            if (kp == visualKeypoint) {
+                size_t nonZero;
+                foreach (offset; offsets) {
+                    if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) nonZero++;
+                }
+                writefln("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=true scope=all-keypoints visual=true",
+                    targetNodes[i] is null ? "(null)" : targetNodes[i].name,
+                    offsets.length,
+                    nonZero);
+                deformable.deformation = offsets;
+                deformable.notifyChange(deformable, NotifyReason.AttributeChanged);
+            }
+        }
+
+        auto action = new ParameterChangeBindingsValueAction(label, param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
+        foreach (i, binding; deformBindings) binding.update(kp, offsetsList[i]);
+        action.updateNewState();
+        group.addAction(action);
     }
-    action.updateNewState();
-    group.addAction(action);
+
     incActionPush(group);
+    writefln("[DepthBoneRefresh] refresh done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
+        rigRoot.name,
+        deformBindings.length,
+        keypoints.length);
     return true;
+}
+
+private bool hasProcessedAllKeypoints(DepthBoneDirtyRequest[] processed, DepthBoneDirtyRequest request) {
+    foreach (done; processed) {
+        if (done.dirtyScope == DepthBoneDirtyScope.AllKeypoints && sameDirtyParameter(done, request.root, request.parameter)) return true;
+    }
+    return false;
+}
+
+void ngFlushDepthBoneDirty() {
+    if (depthBoneDirtyRequests.length == 0) return;
+    auto requests = depthBoneDirtyRequests;
+    depthBoneDirtyRequests.length = 0;
+    writefln("[DepthBoneRefresh] flush: requests=%s", requests.length);
+    DepthBoneDirtyRequest[] processed;
+    foreach (request; requests) {
+        if (request.dirtyScope == DepthBoneDirtyScope.Keypoint && hasProcessedAllKeypoints(processed, request)) continue;
+        if (request.dirtyScope == DepthBoneDirtyScope.AllKeypoints) {
+            ngRefreshDepthBoneDeformAllKeypoints(request.root, request.parameter, request.keypoint, request.reason);
+        } else {
+            ngRefreshDepthBoneDeform(request.root, request.parameter, request.keypoint, request.reason);
+        }
+        processed ~= request;
+    }
 }
 
 private void applyRuleJson(ref ExDepthInfluenceRule rule, string text) {
@@ -874,6 +1171,7 @@ class SetDepthBoneRestCommand : ExCommand!(
         b.restTail = vec3From(restTail, "restTail");
         b.restRoll = restRoll;
         incActionPush(new DepthBoneRestChangeAction(b, oldHead, oldTail, oldRoll, b.restHead, b.restTail, b.restRoll));
+        if (auto rigRoot = findDepthRigRoot(b)) ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Rest");
         return CommandResult(true);
     }
 }
@@ -896,6 +1194,7 @@ class SetDepthBoneConstraintCommand : ExCommand!(
         if ("maxStepRadians" in json.object) b.maxStepRadians = cast(float)json["maxStepRadians"].floating;
         action.updateNewState();
         incActionPush(action);
+        if (auto rigRoot = findDepthRigRoot(b)) ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Constraint");
         return CommandResult(true);
     }
 }
@@ -928,6 +1227,7 @@ class AddDepthBoneSourceCommand : ExCommand!(
         auto oldBindings = rigRoot.bindings.dup;
         rigRoot.addBoneSource(target, targetKindOf(target), source);
         incActionPush(new DepthBoneSourceListChangeAction("Add Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings));
+        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Add Depth Bone Source");
         return CommandResult(true);
     }
 }
@@ -945,6 +1245,7 @@ class RemoveDepthBoneSourceCommand : ExCommand!(
         auto oldBindings = rigRoot.bindings.dup;
         rigRoot.removeBoneSource(target, requireBone(bone));
         incActionPush(new DepthBoneSourceListChangeAction("Remove Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings));
+        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Remove Depth Bone Source");
         return CommandResult(true);
     }
 }
@@ -997,7 +1298,15 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
         setting.boneUuid = source.uuid;
         applySourceSettingsJson(setting, settings);
         binding.setSourceSetting(setting);
+        writefln("[DepthBoneRefresh] source settings command: root=%s target=%s bone=%s weight=%s depthOffset=%s depthScale=%s",
+            rigRoot.name,
+            target is null ? "(null)" : target.name,
+            source.name,
+            setting.weight,
+            setting.depthOffset,
+            setting.depthScale);
         incActionPush(new DepthBoneSourceListChangeAction("Set Depth Bone Source Settings", rigRoot, oldBindings, rigRoot.bindings));
+        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Source Settings");
         return CommandResult(true);
     }
 }
@@ -1016,6 +1325,7 @@ class SetDepthBoneInfluenceRuleCommand : ExCommand!(
         auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
         applyRuleJson(binding.influenceRule, rule);
         incActionPush(new DepthBoneBindingRuleChangeAction("Set Depth Bone Influence Rule", rigRoot, oldBindings, rigRoot.bindings));
+        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Influence Rule");
         return CommandResult(true);
     }
 }

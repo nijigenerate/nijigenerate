@@ -12,7 +12,7 @@
 
 ## 進捗管理
 
-更新日: 2026-05-19
+更新日: 2026-05-20
 
 この表は `doc/bone.md` を実装するための計画と進捗を管理する。状態は各タスクの完了条件を満たした時だけ更新する。ビルドが通っただけでは、save/load、MCP smoke、UI操作、undo/redo、表示確認を含むタスクを `検証済` にはしない。
 
@@ -50,6 +50,13 @@
 | BONE-18 | 9 | serialization round-tripを確認する | 未着手 | round-trip確認 | UUID解決 |
 | BONE-19 | 9 | MCP smoke testを作る | 未着手 | smoke手順 | 最小ゴール再現 |
 | BONE-20 | 9 | build確認 | 検証済 | build結果 | `dub build -c osx-full` |
+| BONE-21 | 10 | Bone Sourceごとのdepth offset/scaleを追加する | 実装済 | `sourceSettings` | build/UI操作 |
+| BONE-22 | 10 | BoneごとのallowParentToTargetsを追加する | 実装済 | Bone option | build/UI操作 |
+| BONE-23 | 11 | Depth Bone自動更新のDirtyキューを追加する | 実装済 | dirty queue API | 重複排除 |
+| BONE-24 | 11 | Dirty flushを更新ループへ統合する | 実装済 | flush hook | 変更なし時no-op |
+| BONE-25 | 11 | Depth Bone関連変更でdirtyを立てる | 実装済 | command/hook連携 | keypoint/all-keypoints切替 |
+| BONE-26 | 11 | 自動更新のUndo/Redo動作を確認する | 未着手 | refresh action | undo/redo |
+| BONE-27 | 11 | dirty scopeをKeypoint/AllKeypointsに分離する | 実装済 | scoped dirty queue | 全keypoint更新 |
 
 チェックポイント:
 
@@ -61,6 +68,8 @@
 | CP-4: UI/Viewport | BONE-11, BONE-12, BONE-13, BONE-14, BONE-15 | 進行中 | InspectorとViewportから操作できる |
 | CP-5: Deform統合 | BONE-16, BONE-17 | 実装済 | Deform modeとPathDeformer対応 |
 | CP-6: 検証 | BONE-18, BONE-19, BONE-20 | 進行中 | round-trip、MCP smoke、build完了 |
+| CP-7: Source/Bone詳細設定 | BONE-21, BONE-22 | 実装済 | Source深度調整、親影響オプション |
+| CP-8: 自動更新 | BONE-23, BONE-24, BONE-25, BONE-26, BONE-27 | 進行中 | Dirty登録、1回flush、scope別更新、Undo確認 |
 
 運用:
 
@@ -77,6 +86,19 @@
 - Rig runtimeはrest姿勢、local rest、現在pose、inverse bind、skin matrixを構築する形にした。
 - GridDeformer/PathDeformer InspectorにはSource追加/削除、Influence Rule編集、Influence Preview、Deform Preview、Applyを追加した。
 - `dub build -c osx-full` は通っている。
+- Bone Sourceごとの `weight`, `depthOffset`, `depthScale` は保存され、Inspectorから編集できる。
+- `depthOffset` / `depthScale` は `depth * depthScale + depthOffset` の順でSourceごとのZ評価に使う。
+- `ExDepthBone.allowParentToTargets` は保存され、Inspectorから編集できる。
+- `allowParentToTargets=false` のBoneは、ターゲット変形用runtimeで親姿勢を混ぜない。
+- Depth Bone自動更新はDirtyキュー方式で実装済みである。
+- `ngMarkDepthBoneDirty` は `DepthRigRoot + Parameter + scope` を基準に重複排除する。
+- Dirty scopeは `Keypoint` と `AllKeypoints` に分かれる。
+- Deform modeでBone姿勢を編集した場合だけ `Keypoint` とし、現在keypointのみ更新する。
+- depths/depth-ops、target vertices、Depth Bone Source、Source設定、Influence Rule、Bone rest/constraint/allowParentToTargets、target/root transformの変更は `AllKeypoints` とし、Parameterの全keypointを更新する。
+- dirty登録時にParameterが直接取れない場合は、DepthRig対象に既存 `deform` bindingを持つParameterを解決して `AllKeypoints` 更新する。
+- `ngFlushDepthBoneDirty` はアプリ更新ループ終端で呼ばれ、dirtyが空なら即returnする。
+- Dirty発火はDepth Bone Source追加/削除/並び替え、Source設定変更、Influence Rule変更、Bone rest/constraint変更、Bone transform編集hook、Depth Edit Apply、target transform変更、Grid/Path vertices定義変更に接続済みである。
+- 自動更新のUndo/Redo挙動確認は未完了である。
 - ただし、save/load round-trip、MCP smoke、実機UI操作、undo/redo、Deform mode preview確認は未完了である。
 
 未完了として扱う点:
@@ -84,6 +106,11 @@
 - Standard Skeleton生成、Binding変更、Apply DeformがAction経由でundo/redoできることを確認する。
 - GridDeformer/PathDeformerの保存、読み込み、UUID解決をround-tripで確認する。
 - MCPコマンドで最小フローを再現するsmoke testを作る。
+- Depth Bone関連変更時だけdirtyを立て、変更がない更新では再計算しないことを確認する。
+- 同じRoot/Parameter/keypointへの複数dirtyが1回のflushにまとまることを確認する。
+- 同じRoot/ParameterにAllKeypoints dirtyがある場合、同じ組のKeypoint dirtyが吸収されることを確認する。
+- Source設定やdepth Applyの後、現在keypoint以外のdeform bindingも更新されることを確認する。
+- 自動更新で書き込まれるdeform bindingがUndo/Redoで戻ることを確認する。
 
 ## Phase 1: ノードと保存形式
 
@@ -606,6 +633,100 @@ dub build -c osx-full
 
 - buildが通る。
 - DepthEdit既存機能が壊れていない。
+
+## Phase 10: Source/Bone詳細設定
+
+### BONE-21: Bone Sourceごとのdepth offset/scaleを追加する
+
+実装:
+
+- Bone Sourceごとに `weight`, `depthOffset`, `depthScale` を保存する。
+- `depthOffset` / `depthScale` は `depth * depthScale + depthOffset` の順でrest Z評価に使う。
+- UIはSliderではなくDragFloatで編集する。
+
+完了条件:
+
+- save/load後にSource設定が残る。
+- 設定変更後、該当Parameterの全keypointのdeform bindingが更新される。
+
+### BONE-22: BoneごとのallowParentToTargetsを追加する
+
+実装:
+
+- `ExDepthBone.allowParentToTargets` を保存する。
+- Inspectorから切り替えられるようにする。
+- `false` のBoneは、親姿勢で自身が動いて見える場合でも、ターゲット変形には自身の明示的poseだけを使う。
+
+完了条件:
+
+- Headで `false` にしたとき、親Boneの回転だけではHead対象が変形しない。
+- 設定変更後、該当Parameterの全keypointのdeform bindingが更新される。
+
+## Phase 11: 自動更新
+
+### BONE-23: Depth Bone自動更新のDirtyキューを追加する
+
+実装:
+
+- Depth Bone関連変更はその場で直接再計算せず、dirty requestとしてキューへ積む。
+- dirty requestは `DepthRigRoot`, `Parameter`, `keypoint`, `scope`, `reason` を持つ。
+- 同じRoot/Parameter/keypointの重複をまとめる。
+
+完了条件:
+
+- 変更がないフレームでは再計算しない。
+- 同一フレーム内の同種変更は1回にまとまる。
+
+### BONE-24: Dirty flushを更新ループへ統合する
+
+実装:
+
+- アプリ更新ループ終端で `ngFlushDepthBoneDirty` を呼ぶ。
+- dirtyが空なら即returnする。
+
+完了条件:
+
+- UI操作後に1回だけ自動更新される。
+- dirtyがない通常フレームでDepth Bone再計算が走らない。
+
+### BONE-25: Depth Bone関連変更でdirtyを立てる
+
+実装:
+
+- Bone姿勢変更は `Keypoint` dirtyにする。
+- depths/depth-ops Apply、target vertices、Depth Bone Source、Source設定、Influence Rule、Bone rest/constraint/allowParentToTargets、target/root transform変更は `AllKeypoints` dirtyにする。
+
+完了条件:
+
+- Bone姿勢変更は現在keypointだけを書き換える。
+- Source設定やdepth変更は全keypointを書き換える。
+
+### BONE-26: 自動更新のUndo/Redo動作を確認する
+
+確認:
+
+- 自動更新で作られた `DeformationParameterBinding` の変更がundo/redoできる。
+- Source設定変更と、それに伴う全keypoint更新のundo/redoが破綻しない。
+
+完了条件:
+
+- undoで変更前のbinding値に戻る。
+- redoで自動更新後のbinding値に戻る。
+
+### BONE-27: dirty scopeをKeypoint/AllKeypointsに分離する
+
+実装:
+
+- dirty scopeとして `Keypoint` と `AllKeypoints` を定義する。
+- `AllKeypoints` dirtyが同じRoot/Parameterに存在する場合、同じ組の `Keypoint` dirtyを吸収する。
+- `AllKeypoints` flushでは `Parameter.axisPoints` の全組み合わせを列挙して、各keypointのoffsetを更新する。
+- Viewport表示用の `deformable.deformation` は現在keypointのoffsetを使う。
+
+完了条件:
+
+- Source offset/scale変更直後、Boneを再操作しなくても現在表示が更新される。
+- その後、別keypointに移動しても古いSource設定のbindingが残らない。
+- dirty登録時に `param=(none)` でも、既存Depth Bone対象Parameterが解決され、`writeBinding=true` で更新される。
 
 ## 実装順まとめ
 

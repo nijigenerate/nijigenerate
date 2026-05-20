@@ -11,6 +11,7 @@ import i18n;
 import nijigenerate;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.input;
+import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.base;
@@ -160,6 +161,7 @@ public:
         foreach (editor; editors.byValue) {
             editor.applyToTarget();
             saveOperationsToTarget(editor);
+            ngMarkDepthBoneDirtyForTarget(editor.targetNode(), "Depth Map Apply");
         }
         incActionPopGroup();
     }

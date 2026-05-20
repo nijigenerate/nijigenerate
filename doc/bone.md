@@ -337,6 +337,43 @@ offset2D = result2D - vec2(rest3D.x, rest3D.y)
 
 Zはボーン変形計算に参加するための奥行きであり、出力時には保存しない。既存の `DeformationParameterBinding.vertexOffsets` には `offset2D` のみを書き込む。
 
+## 自動更新とdirty scope
+
+Depth Boneの自動更新は、変更検出時に即座に全計算を走らせず、dirty requestを積み、アプリ更新ループ終端で1回だけflushする。
+
+dirtyには2種類のscopeを持たせる。
+
+```text
+Keypoint      : 現在のParameter keypointだけを更新する
+AllKeypoints  : 対象Parameterの全keypointを更新する
+```
+
+`Keypoint` を使うのは、Deform modeでBone自身の姿勢をArmed parameter上で変更した場合に限定する。この変更は「そのParameterのそのkeypointのpose」を作る操作なので、他のkeypointを書き換えてはならない。
+
+`AllKeypoints` を使うのは、変形計算の前提そのものが変わる場合である。以下は全keypointを更新する。
+
+```text
+depths / depth-opsのApply
+GridDeformer / PathDeformerのverticesやmesh定義変更
+Depth Bone Sourceの追加、削除、並び替え
+Depth Bone Sourceごとのweight / depthOffset / depthScale変更
+Influence Rule変更
+Bone rest / constraint / allowParentToTargets変更
+対象ノードまたはDepthRigRoot側の座標変換変更
+```
+
+これらは特定keypointのposeではなく、すべてのkeypointで同じ生成条件として使われる。したがって現在keypointだけを更新すると、次に別keypointへ移動したときに古いdepth、古いsource設定、古いmesh定義が残る。
+
+flush時の挙動:
+
+1. 同じ `DepthRigRoot + Parameter` に対して `AllKeypoints` dirtyがある場合、同じ組の `Keypoint` dirtyは吸収する。
+2. `AllKeypoints` は `Parameter.axisPoints` の全組み合わせを列挙し、それぞれの `DeformationParameterBinding` を更新する。
+3. Viewportへ即時反映する `deformable.deformation` は現在keypointの結果を使う。
+4. `Parameter` が直接取れない場合は、DepthRigの対象に既存の `deform` binding を持つParameterを解決し、それらを `AllKeypoints` 更新する。
+5. 解決できるParameterが1つもない場合だけ、bindingを書き換えずpreview-only更新に留める。
+
+この方式により、変更がないフレームでは再計算せず、変更があったフレームだけ必要scopeで一度だけ更新する。
+
 移植元:
 
 ```text
