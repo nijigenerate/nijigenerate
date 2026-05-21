@@ -41,11 +41,6 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRi
         if (incBeginCategory(__("Depth Rig"))) {
             igText(__("Bones: %d"), cast(int)root.depthBones().length);
             igText(__("Bindings: %d"), cast(int)root.bindings.length);
-            if (igButton(__("Add Bone"))) {
-                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                cmd!(DepthBoneCommand.AddDepthBone)(ctx, root, "DepthBone", [0.0f, 0.0f, 0.0f], [0.0f, 100.0f, 0.0f], 0.0f);
-            }
-            igSameLine();
             if (igButton(__("Add Standard Skeleton"))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1.0f);
@@ -70,18 +65,6 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
         auto bone = targets[0];
         if (incBeginCategory(__("Depth Bone"))) {
             igText("%s", bone.boneId.toStringz);
-            if (igButton(__("Add Child Bone"))) {
-                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
-                auto head = bone.restTail;
-                auto tail = bone.restTail + (bone.restTail - bone.restHead);
-                cmd!(DepthBoneCommand.AddDepthBone)(ctx, bone, bone.boneId.length ? bone.boneId ~ ".Child" : "DepthBone", [head.x, head.y, head.z], [tail.x, tail.y, tail.z], bone.restRoll);
-            }
-            igSameLine();
-            if (igButton(__("Delete Bone"))) {
-                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes([cast(Node)bone]);
-                cmd!(NodeCommand.DeleteNode)(ctx);
-            }
-            igSameLine();
             if (incButtonColored("\ue5d5")) {
                 Node cursor = bone;
                 while (cursor !is null) {

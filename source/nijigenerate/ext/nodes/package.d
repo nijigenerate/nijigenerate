@@ -17,6 +17,6 @@ public import nijigenerate.ext.nodes.exgriddeformer;
 void incInitExtNodes() {
     incRegisterExPart();
     incRegisterExCamera();
-    incRegisterExDepthBoneNodes();
+    ngRegisterExDepthBoneNodes();
     incRegisterExGridDeformer();
 }

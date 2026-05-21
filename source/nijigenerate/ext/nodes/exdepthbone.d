@@ -396,7 +396,7 @@ protected:
     }
 }
 
-ExDepthBone incCreateDepthBone(Node parent, string boneId, vec3 restHead, vec3 restTail, float restRoll = 0.0f) {
+ExDepthBone ngCreateDepthBone(Node parent, string boneId, vec3 restHead, vec3 restTail, float restRoll = 0.0f) {
     auto bone = new ExDepthBone(parent);
     bone.name = boneId;
     bone.boneId = boneId;
@@ -413,7 +413,7 @@ ExDepthBone incCreateDepthBone(Node parent, string boneId, vec3 restHead, vec3 r
     return bone;
 }
 
-void incAddStandardDepthSkeleton(ExDepthRigRoot root, float scale = 1.0f) {
+void ngAddStandardDepthSkeleton(ExDepthRigRoot root, float scale = 1.0f) {
     enforce(root !is null, "Depth rig root is required");
 
     vec4 bounds;
@@ -441,33 +441,35 @@ void incAddStandardDepthSkeleton(ExDepthRigRoot root, float scale = 1.0f) {
         return (rootToLocal * vec4(world.x, world.y, world.z, 1)).xyz;
     }
 
-    auto pelvis = incCreateDepthBone(root, "Pelvis", p(0, 0.58f), p(0, 0.47f));
-    auto spine = incCreateDepthBone(pelvis, "Spine", p(0, 0.47f), p(0, 0.34f));
-    auto chest = incCreateDepthBone(spine, "Chest", p(0, 0.34f), p(0, 0.22f));
-    auto neck = incCreateDepthBone(chest, "Neck", p(0, 0.22f), p(0, 0.16f));
-    auto head = incCreateDepthBone(neck, "Head", p(0, 0.16f), p(0, 0.06f));
+    auto pelvis = ngCreateDepthBone(root, "Pelvis", p(0, 0.58f), p(0, 0.47f));
+    auto spine = ngCreateDepthBone(pelvis, "Spine", p(0, 0.47f), p(0, 0.34f));
+    auto chest = ngCreateDepthBone(spine, "Chest", p(0, 0.34f), p(0, 0.22f));
+    auto neck = ngCreateDepthBone(chest, "Neck", p(0, 0.22f), p(0, 0.16f));
+    auto head = ngCreateDepthBone(neck, "Head", p(0, 0.16f), p(0, 0.06f));
     head.allowParentToTargets = false;
 
-    auto clavicleL = incCreateDepthBone(chest, "Clavicle.L", p(0, 0.25f), p(-0.14f, 0.25f));
-    auto upperArmL = incCreateDepthBone(clavicleL, "UpperArm.L", p(-0.14f, 0.25f), p(-0.26f, 0.42f));
-    auto forearmL = incCreateDepthBone(upperArmL, "Forearm.L", p(-0.26f, 0.42f), p(-0.31f, 0.58f));
-    incCreateDepthBone(forearmL, "Hand.L", p(-0.31f, 0.58f), p(-0.33f, 0.64f));
+    auto clavicleL = ngCreateDepthBone(chest, "Clavicle.L", p(0, 0.25f), p(-0.14f, 0.25f));
+    auto upperArmL = ngCreateDepthBone(clavicleL, "UpperArm.L", p(-0.14f, 0.25f), p(-0.26f, 0.42f));
+    auto forearmL = ngCreateDepthBone(upperArmL, "Forearm.L", p(-0.26f, 0.42f), p(-0.31f, 0.58f));
+    ngCreateDepthBone(forearmL, "Hand.L", p(-0.31f, 0.58f), p(-0.33f, 0.64f));
 
-    auto clavicleR = incCreateDepthBone(chest, "Clavicle.R", p(0, 0.25f), p(0.14f, 0.25f));
-    auto upperArmR = incCreateDepthBone(clavicleR, "UpperArm.R", p(0.14f, 0.25f), p(0.26f, 0.42f));
-    auto forearmR = incCreateDepthBone(upperArmR, "Forearm.R", p(0.26f, 0.42f), p(0.31f, 0.58f));
-    incCreateDepthBone(forearmR, "Hand.R", p(0.31f, 0.58f), p(0.33f, 0.64f));
+    auto clavicleR = ngCreateDepthBone(chest, "Clavicle.R", p(0, 0.25f), p(0.14f, 0.25f));
+    auto upperArmR = ngCreateDepthBone(clavicleR, "UpperArm.R", p(0.14f, 0.25f), p(0.26f, 0.42f));
+    auto forearmR = ngCreateDepthBone(upperArmR, "Forearm.R", p(0.26f, 0.42f), p(0.31f, 0.58f));
+    ngCreateDepthBone(forearmR, "Hand.R", p(0.31f, 0.58f), p(0.33f, 0.64f));
 
-    auto thighL = incCreateDepthBone(pelvis, "Thigh.L", p(-0.08f, 0.58f), p(-0.12f, 0.76f));
-    auto shinL = incCreateDepthBone(thighL, "Shin.L", p(-0.12f, 0.76f), p(-0.12f, 0.94f));
-    incCreateDepthBone(shinL, "Foot.L", p(-0.12f, 0.94f), p(-0.18f, 0.98f));
+    auto thighL = ngCreateDepthBone(pelvis, "Thigh.L", p(-0.08f, 0.58f), p(-0.12f, 0.76f));
+    auto shinL = ngCreateDepthBone(thighL, "Shin.L", p(-0.12f, 0.76f), p(-0.12f, 0.94f));
+    auto footL = ngCreateDepthBone(shinL, "Foot.L", p(-0.12f, 0.94f), p(-0.18f, 0.98f));
+    footL.lockToRoot = true;
 
-    auto thighR = incCreateDepthBone(pelvis, "Thigh.R", p(0.08f, 0.58f), p(0.12f, 0.76f));
-    auto shinR = incCreateDepthBone(thighR, "Shin.R", p(0.12f, 0.76f), p(0.12f, 0.94f));
-    incCreateDepthBone(shinR, "Foot.R", p(0.12f, 0.94f), p(0.18f, 0.98f));
+    auto thighR = ngCreateDepthBone(pelvis, "Thigh.R", p(0.08f, 0.58f), p(0.12f, 0.76f));
+    auto shinR = ngCreateDepthBone(thighR, "Shin.R", p(0.12f, 0.76f), p(0.12f, 0.94f));
+    auto footR = ngCreateDepthBone(shinR, "Foot.R", p(0.12f, 0.94f), p(0.18f, 0.98f));
+    footR.lockToRoot = true;
 }
 
-void incRegisterExDepthBoneNodes() {
+void ngRegisterExDepthBoneNodes() {
     inRegisterNodeType!ExDepthRigRoot();
     inRegisterNodeType!ExDepthBone();
 }

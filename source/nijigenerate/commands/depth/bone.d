@@ -1717,7 +1717,7 @@ class AddDepthBoneCommand : ExCommand!(
     override CreateResult!Node run(Context ctx) {
         enforce(parent !is null, "parent is required");
         enforce(cast(ExDepthRigRoot)parent || cast(ExDepthBone)parent, "parent must be DepthRigRoot or DepthBone");
-        auto bone = incCreateDepthBone(parent, boneId, vec3From(restHead, "restHead"), vec3From(restTail, "restTail"), restRoll);
+        auto bone = ngCreateDepthBone(parent, boneId, vec3From(restHead, "restHead"), vec3From(restTail, "restTail"), restRoll);
         if (parent.puppet) parent.puppet.rescanNodes();
         return new CreateResult!Node(true, [bone]);
     }
@@ -1732,7 +1732,7 @@ class AddStandardDepthSkeletonCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
-        incAddStandardDepthSkeleton(rigRoot, scale == 0 ? 1.0f : scale);
+        ngAddStandardDepthSkeleton(rigRoot, scale == 0 ? 1.0f : scale);
         if (rigRoot.puppet) rigRoot.puppet.rescanNodes();
         return CommandResult(true);
     }
@@ -1793,7 +1793,6 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
             "transform.r.x",
             [
                 StandardDepthBindingValue(vec2(-1, -1), -0.34906584f),
-                StandardDepthBindingValue(vec2(-1,  0),  0.0f),
                 StandardDepthBindingValue(vec2(-1,  1),  0.34906584f),
                 StandardDepthBindingValue(vec2( 0, -1), -0.34906584f),
                 StandardDepthBindingValue(vec2( 0,  0),  0.0f),
@@ -1857,13 +1856,7 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
             "transform.r.y",
             [
                 StandardDepthBindingValue(vec2(-1, -1), 0.0f),
-                StandardDepthBindingValue(vec2(-1,  0), 0.0f),
-                StandardDepthBindingValue(vec2(-1,  1), 0.0f),
-                StandardDepthBindingValue(vec2( 0, -1), 0.0f),
                 StandardDepthBindingValue(vec2( 0,  0), 0.0f),
-                StandardDepthBindingValue(vec2( 0,  1), 0.0f),
-                StandardDepthBindingValue(vec2( 1, -1), 0.0f),
-                StandardDepthBindingValue(vec2( 1,  0), 0.0f),
                 StandardDepthBindingValue(vec2( 1,  1), 0.0f),
             ]
         ),
@@ -1872,15 +1865,53 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
             "Clavicle.L",
             "transform.r.x",
             [
-                StandardDepthBindingValue(vec2(-1, -1), 0.0f),
-                StandardDepthBindingValue(vec2(-1,  0), 0.0f),
                 StandardDepthBindingValue(vec2(-1,  1), 0.0f),
-                StandardDepthBindingValue(vec2( 0, -1), 0.0f),
                 StandardDepthBindingValue(vec2( 0,  0), 0.0f),
-                StandardDepthBindingValue(vec2( 0,  1), 0.0f),
-                StandardDepthBindingValue(vec2( 1, -1), 0.0f),
-                StandardDepthBindingValue(vec2( 1,  0), 0.0f),
-                StandardDepthBindingValue(vec2( 1,  1), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Pelvis",
+            "transform.t.y",
+            [
+                StandardDepthBindingValue(vec2( 0, -1), 26.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Shin.L",
+            "transform.t.y",
+            [
+                StandardDepthBindingValue(vec2( 0, -1), 93.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Shin.R",
+            "transform.t.y",
+            [
+                StandardDepthBindingValue(vec2( 0, -1), 93.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Shin.L",
+            "transform.t.x",
+            [
+                StandardDepthBindingValue(vec2( 0, -1), 68.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Shin.R",
+            "transform.t.x",
+            [
+                StandardDepthBindingValue(vec2( 0, -1), -67.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
             ]
         ),
     ];
@@ -1895,45 +1926,12 @@ private Parameter findDepthParameterByName(string name) {
     return null;
 }
 
-private float lerpDepthBindingValue(float a, float b, float t) {
-    return a + (b - a) * min(1.0f, max(0.0f, t));
-}
-
 private float parameterAxisValue(Parameter param, size_t axis, size_t index) {
     auto minValue = axis == 0 ? param.min.x : param.min.y;
     auto maxValue = axis == 0 ? param.max.x : param.max.y;
     auto span = maxValue - minValue;
     if (abs(span) <= 0.000001f) return minValue;
     return minValue + span * param.axisPoints[axis][index];
-}
-
-private float standardDepthSeedValue(ref StandardDepthBoneBindingSpec spec, float x, float y) {
-    foreach (value; spec.values) {
-        if (abs(value.paramValue.x - x) <= 0.000001f && abs(value.paramValue.y - y) <= 0.000001f) {
-            return value.value;
-        }
-    }
-    enforce(false, "Missing standard depth binding seed");
-    return 0.0f;
-}
-
-private float interpolateStandardDepthBindingValue(Parameter param, ref StandardDepthBoneBindingSpec spec, size_t xIndex, size_t yIndex) {
-    auto paramX = parameterAxisValue(param, 0, xIndex);
-    auto paramY = param.isVec2 ? parameterAxisValue(param, 1, yIndex) : 0.0f;
-
-    float sampleAtY(float y) {
-        auto left = standardDepthSeedValue(spec, -1.0f, y);
-        auto center = standardDepthSeedValue(spec, 0.0f, y);
-        auto right = standardDepthSeedValue(spec, 1.0f, y);
-        if (paramX <= 0.0f) return lerpDepthBindingValue(left, center, paramX + 1.0f);
-        return lerpDepthBindingValue(center, right, paramX);
-    }
-
-    auto bottom = sampleAtY(-1.0f);
-    auto middle = sampleAtY(0.0f);
-    auto top = sampleAtY(1.0f);
-    if (paramY <= 0.0f) return lerpDepthBindingValue(bottom, middle, paramY + 1.0f);
-    return lerpDepthBindingValue(middle, top, paramY);
 }
 
 private bool axisMatches(const float[] actual, const float[] expected) {
@@ -2017,16 +2015,32 @@ class AddStandardDepthParametersCommand : ExCommand!(
             }
             enforce(binding !is null, "Cannot create value binding '" ~ bindingSpec.bindingName ~ "'");
 
-            foreach (x; 0 .. param.axisPoints[0].length) {
-                foreach (y; 0 .. param.axisPoints[1].length) {
-                    auto value = interpolateStandardDepthBindingValue(param, bindingSpec, x, y);
-                    if (binding.isSet_[x][y] && abs(binding.values[x][y] - value) <= 0.000001f) continue;
-                    auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(binding.getName(), binding, cast(uint)x, cast(uint)y);
-                    binding.setValue(vec2u(cast(uint)x, cast(uint)y), value);
-                    action.updateNewState();
-                    group.addAction(action);
-                    changed = true;
+            foreach (valueSpec; bindingSpec.values) {
+                ptrdiff_t xIndex = -1;
+                ptrdiff_t yIndex = -1;
+                foreach (x; 0 .. param.axisPoints[0].length) {
+                    if (abs(parameterAxisValue(param, 0, x) - valueSpec.paramValue.x) <= 0.000001f) {
+                        xIndex = cast(ptrdiff_t)x;
+                        break;
+                    }
                 }
+                foreach (y; 0 .. param.axisPoints[1].length) {
+                    auto axisValue = param.isVec2 ? parameterAxisValue(param, 1, y) : 0.0f;
+                    if (abs(axisValue - valueSpec.paramValue.y) <= 0.000001f) {
+                        yIndex = cast(ptrdiff_t)y;
+                        break;
+                    }
+                }
+                enforce(xIndex >= 0 && yIndex >= 0, "Standard depth binding keypoint is not present in parameter '" ~ bindingSpec.parameterName ~ "'");
+                auto x = cast(size_t)xIndex;
+                auto y = cast(size_t)yIndex;
+                auto value = valueSpec.value;
+                if (binding.isSet_[x][y] && abs(binding.values[x][y] - value) <= 0.000001f) continue;
+                auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(binding.getName(), binding, cast(uint)x, cast(uint)y);
+                binding.setValue(vec2u(cast(uint)x, cast(uint)y), value);
+                action.updateNewState();
+                group.addAction(action);
+                changed = true;
             }
             binding.reInterpolate();
         }
