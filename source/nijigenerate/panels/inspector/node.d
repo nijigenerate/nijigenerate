@@ -50,6 +50,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRi
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1.0f);
             }
+            if (igButton(__("Add Standard Parameters"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                cmd!(DepthBoneCommand.AddStandardDepthParameters)(ctx, root);
+            }
         }
         incEndCategory();
     }

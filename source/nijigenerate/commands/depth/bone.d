@@ -5,6 +5,7 @@ import nijigenerate.actions;
 import nijigenerate.actions.binding : ngDepthBoneBindingValueChangeHook;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.core.actionstack : incActionPush;
+import nijigenerate.ext : ExParameter;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.project : incActivePuppet, incArmedParameter;
@@ -21,9 +22,9 @@ import std.algorithm.sorting : sort;
 import std.algorithm.searching : countUntil;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
-import std.math : exp, isFinite, sqrt;
+import std.math : abs, exp, isFinite, sqrt;
 import std.conv : to;
-import std.string : startsWith;
+import std.string : split, startsWith;
 
 private enum EnableDepthBoneDebugLog = false;
 private void depthBoneDebugLog(Args...)(const(char)[] fmt, Args args) {
@@ -37,6 +38,7 @@ enum DepthBoneCommand {
     CreateDepthRigRoot,
     AddDepthBone,
     AddStandardDepthSkeleton,
+    AddStandardDepthParameters,
     SetDepthBoneRest,
     SetDepthBoneConstraint,
     ListDepthBones,
@@ -717,6 +719,14 @@ private Vec2Array generateInfluencePreviewOffsets(ExDepthRigBinding* binding, Ex
     return offsets;
 }
 
+private bool hasValidDepthBoneSources(ExDepthRigRoot root, ref ExDepthRigBinding binding) {
+    if (root is null || binding.sourceBoneUuids.length == 0) return false;
+    foreach (uuid; binding.sourceBoneUuids) {
+        if (findBoneByUuid(root, uuid) !is null) return true;
+    }
+    return false;
+}
+
 private ExDepthRigRoot findDepthRigRoot(ExDepthBone bone) {
     Node cursor = bone;
     while (cursor !is null) {
@@ -752,6 +762,27 @@ private DepthBoneDirtyRequest[] depthBoneDirtyRequests;
 private ExDepthRigRoot lastDepthBoneDirtyRoot;
 private Parameter lastDepthBoneDirtyParameter;
 private vec2u lastDepthBoneDirtyKeypoint;
+
+private enum size_t DepthBoneAllKeypointsPerFrame = 4;
+
+private struct DepthBoneAllKeypointJob {
+    ExDepthRigRoot root;
+    Parameter parameter;
+    vec2u[] keypoints;
+    bool[string] processed;
+    size_t nextIndex;
+    string reason;
+}
+
+private DepthBoneAllKeypointJob[] depthBoneAllKeypointJobs;
+
+private struct DepthBoneFingerprint {
+    ulong rigHash;
+    ulong[uint] parameterStructureHashes;
+    ulong[string] poseKeyHashes;
+}
+
+private DepthBoneFingerprint[uint] depthBoneFingerprints;
 
 private string dirtyScopeName(DepthBoneDirtyScope dirtyScope) {
     return dirtyScope == DepthBoneDirtyScope.AllKeypoints ? "all-keypoints" : "keypoint";
@@ -861,11 +892,376 @@ bool ngAutoApplyDepthBoneDeform(ExDepthBone changedBone, Parameter param, vec2u 
     return true;
 }
 
+private bool isSameOrAncestorNode(Node ancestor, Node node) {
+    auto cursor = node;
+    while (cursor !is null) {
+        if (cursor is ancestor) return true;
+        cursor = cursor.parent;
+    }
+    return false;
+}
+
+private bool ngMarkDepthBoneDirtyForTransformBindingTarget(Node changedNode, Parameter param, vec2u kp, string reason) {
+    if (changedNode is null || param is null || incActivePuppet() is null) return false;
+    bool marked;
+    foreach (root; depthBoneRoots()) {
+        bool affectsRoot;
+        foreach (ref binding; root.bindings) {
+            auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
+            if (targetNode is null) continue;
+            if (changedNode is targetNode || isSameOrAncestorNode(changedNode, targetNode) || changedNode is root) {
+                affectsRoot = true;
+                break;
+            }
+        }
+        if (!affectsRoot) continue;
+        ngMarkDepthBoneDirty(root, param, kp, reason, DepthBoneDirtyScope.Keypoint);
+        marked = true;
+    }
+    return marked;
+}
+
 void ngDepthBoneBindingValueChanged(Parameter param, Node target, string bindingName, vec2u kp) {
-    auto bone = cast(ExDepthBone)target;
-    if (bone is null || param is null) return;
-    if (!bindingName.startsWith("transform.t.") && !bindingName.startsWith("transform.r.")) return;
-    ngAutoApplyDepthBoneDeform(bone, param, kp);
+    if (target is null || param is null || !isDepthBoneTransformBindingName(bindingName)) return;
+    if (auto bone = cast(ExDepthBone)target) {
+        ngAutoApplyDepthBoneDeform(bone, param, kp);
+        return;
+    }
+    ngMarkDepthBoneDirtyForTransformBindingTarget(target, param, kp, "Depth Bone Target Transform");
+}
+
+private ulong hashMix(ulong seed, ulong value) {
+    seed ^= value + 0x9e3779b97f4a7c15UL + (seed << 6) + (seed >> 2);
+    return seed;
+}
+
+private ulong hashBool(ulong seed, bool value) {
+    return hashMix(seed, value ? 1UL : 0UL);
+}
+
+private ulong hashInt(ulong seed, long value) {
+    return hashMix(seed, cast(ulong)value);
+}
+
+private ulong hashFloat(ulong seed, float value) {
+    if (!value.isFinite) return hashMix(seed, 0x7ff80000UL);
+    return hashInt(seed, cast(long)(value * 1000000.0f));
+}
+
+private ulong hashVec2(ulong seed, vec2 value) {
+    seed = hashFloat(seed, value.x);
+    return hashFloat(seed, value.y);
+}
+
+private ulong hashVec3(ulong seed, vec3 value) {
+    seed = hashFloat(seed, value.x);
+    seed = hashFloat(seed, value.y);
+    return hashFloat(seed, value.z);
+}
+
+private ulong hashMatrix(ulong seed, mat4 matrix) {
+    foreach (x; 0 .. 4) {
+        foreach (y; 0 .. 4) {
+            seed = hashFloat(seed, matrix[x][y]);
+        }
+    }
+    return seed;
+}
+
+private ulong hashStringValue(ulong seed, string value) {
+    foreach (ch; value) seed = hashMix(seed, cast(ulong)ch);
+    return seed;
+}
+
+private bool isDepthBoneTransformBindingName(string bindingName) {
+    return bindingName.startsWith("transform.t.")
+        || bindingName.startsWith("transform.r.")
+        || bindingName.startsWith("transform.s.");
+}
+
+private mat4 localWorldMatrix(Node node) {
+    if (node is null) return mat4.identity;
+    auto local = node.localTransform.matrix;
+    if (node.parent is null) return local;
+    return localWorldMatrix(node.parent) * local;
+}
+
+private mat4 localTargetToRootMatrix(ExDepthRigRoot root, Node target) {
+    if (root is null || target is null) return mat4.identity;
+    return localWorldMatrix(root).inverse * localWorldMatrix(target);
+}
+
+private ulong hashDepthBoneTargetStructure(ulong hash, Node targetNode) {
+    if (targetNode is null) return hashBool(hash, false);
+    hash = hashBool(hash, true);
+    hash = hashStringValue(hash, targetNode.typeId);
+
+    if (auto grid = cast(GridDeformer)targetNode) {
+        hash = hashStringValue(hash, "GridDeformer");
+        size_t cols;
+        size_t rows;
+        float[] xs;
+        float[] ys;
+        foreach (vertex; grid.vertices) {
+            bool hasX;
+            foreach (x; xs) {
+                if (abs(x - vertex.x) <= 0.0001f) {
+                    hasX = true;
+                    break;
+                }
+            }
+            if (!hasX) xs ~= vertex.x;
+            bool hasY;
+            foreach (y; ys) {
+                if (abs(y - vertex.y) <= 0.0001f) {
+                    hasY = true;
+                    break;
+                }
+            }
+            if (!hasY) ys ~= vertex.y;
+        }
+        cols = xs.length;
+        rows = ys.length;
+        hash = hashInt(hash, cast(long)cols);
+        hash = hashInt(hash, cast(long)rows);
+        hash = hashInt(hash, cast(long)grid.gridFormation);
+        hash = hashBool(hash, grid.dynamic);
+        hash = hashBool(hash, grid.translateChildren);
+        return hash;
+    }
+
+    if (auto path = cast(PathDeformer)targetNode) {
+        hash = hashStringValue(hash, "PathDeformer");
+        hash = hashInt(hash, cast(long)path.curveType);
+        hash = hashInt(hash, cast(long)path.physicsType);
+        hash = hashBool(hash, path.dynamic);
+        hash = hashBool(hash, path.physicsOnly);
+        hash = hashBool(hash, path.physicsEnabled);
+        return hash;
+    }
+
+    return hash;
+}
+
+private ExDepthRigRoot[] depthBoneRoots() {
+    ExDepthRigRoot[] result;
+    auto puppet = incActivePuppet();
+    if (puppet is null || puppet.root is null) return result;
+
+    void visit(Node node) {
+        if (node is null) return;
+        if (auto root = cast(ExDepthRigRoot)node) result ~= root;
+        foreach (child; node.children) visit(child);
+    }
+
+    visit(puppet.root);
+    return result;
+}
+
+private bool isLiveDepthRigRoot(ExDepthRigRoot root) {
+    if (root is null) return false;
+    foreach (liveRoot; depthBoneRoots()) {
+        if (liveRoot is root) return true;
+    }
+    return false;
+}
+
+private bool rootContainsBone(ExDepthRigRoot root, ExDepthBone bone) {
+    if (root is null || bone is null) return false;
+    Node cursor = bone;
+    while (cursor !is null) {
+        if (cursor is root) return true;
+        cursor = cursor.parent;
+    }
+    return false;
+}
+
+private string poseKey(uint parameterUuid, uint x, uint y) {
+    return parameterUuid.to!string ~ ":" ~ x.to!string ~ ":" ~ y.to!string;
+}
+
+private string keypointKey(vec2u kp) {
+    return kp.x.to!string ~ ":" ~ kp.y.to!string;
+}
+
+private ulong depthBoneRigStructureHash(ExDepthRigRoot root) {
+    auto puppet = incActivePuppet();
+    ulong hash = 1469598103934665603UL;
+    if (root is null || puppet is null) return hash;
+
+    hash = hashInt(hash, cast(long)root.uuid);
+    hash = hashMatrix(hash, localWorldMatrix(root));
+
+    foreach (bone; root.depthBones()) {
+        hash = hashInt(hash, cast(long)bone.uuid);
+        hash = hashStringValue(hash, bone.boneId);
+        hash = hashVec3(hash, bone.restHead);
+        hash = hashVec3(hash, bone.restTail);
+        hash = hashFloat(hash, bone.restRoll);
+        hash = hashBool(hash, bone.lockRotation);
+        hash = hashBool(hash, bone.lockTranslation);
+        hash = hashBool(hash, bone.allowParentToTargets);
+        hash = hashVec3(hash, bone.localTransform.translation);
+        hash = hashVec3(hash, bone.localTransform.rotation);
+        hash = hashVec2(hash, bone.localTransform.scale);
+        hash = hashInt(hash, bone.parent is null ? 0 : cast(long)bone.parent.uuid);
+    }
+
+    foreach (ref binding; root.bindings) {
+        hash = hashInt(hash, cast(long)binding.targetUuid);
+        hash = hashInt(hash, cast(long)binding.targetKind);
+        hash = hashInt(hash, cast(long)binding.influenceRule.maxInfluences);
+        hash = hashFloat(hash, binding.influenceRule.radiusScale);
+        hash = hashFloat(hash, binding.influenceRule.minimumRadius);
+        hash = hashStringValue(hash, binding.influenceRule.falloff);
+        foreach (uuid; binding.sourceBoneUuids) {
+            hash = hashInt(hash, cast(long)uuid);
+            auto setting = binding.sourceSetting(uuid);
+            hash = hashFloat(hash, setting.weight);
+            hash = hashFloat(hash, setting.depthOffset);
+            hash = hashFloat(hash, setting.depthScale);
+            if (auto multiplier = uuid in binding.influenceRule.multipliersByBoneUuid) hash = hashFloat(hash, *multiplier);
+        }
+
+        auto targetNode = puppet.find!Node(cast(uint)binding.targetUuid);
+        hash = hashBool(hash, targetNode !is null);
+        if (targetNode !is null) {
+            hash = hashMatrix(hash, localTargetToRootMatrix(root, targetNode));
+            hash = hashDepthBoneTargetStructure(hash, targetNode);
+            if (auto deformable = cast(Deformable)targetNode) {
+                hash = hashInt(hash, cast(long)deformable.vertices.length);
+                foreach (vertex; deformable.vertices) hash = hashVec2(hash, vertex);
+            }
+            if (auto depthMapped = cast(DepthMappedNode)targetNode) {
+                auto depths = depthMapped.copyDepths();
+                hash = hashInt(hash, depths is null ? -1 : cast(long)depths.length);
+                if (depths !is null) foreach (depth; depths) hash = hashFloat(hash, depth);
+            } else {
+                hash = hashInt(hash, -2);
+            }
+        }
+    }
+
+    return hash;
+}
+
+private ulong depthBoneParameterStructureHash(ExDepthRigRoot root, Parameter param) {
+    ulong hash = 1099511628211UL;
+    if (root is null || param is null) return hash;
+
+    hash = hashInt(hash, cast(long)param.uuid);
+    hash = hashBool(hash, param.isVec2);
+    hash = hashVec2(hash, param.min);
+    hash = hashVec2(hash, param.max);
+    foreach (axis; 0 .. 2) {
+        hash = hashInt(hash, cast(long)param.axisPoints[axis].length);
+        foreach (point; param.axisPoints[axis]) hash = hashFloat(hash, point);
+    }
+
+    foreach (binding; param.bindings) {
+        auto bone = cast(ExDepthBone)binding.getTarget().node;
+        if (bone is null || !rootContainsBone(root, bone)) continue;
+        if (!isDepthBoneTransformBindingName(binding.getName())) continue;
+        hash = hashInt(hash, cast(long)bone.uuid);
+        hash = hashStringValue(hash, binding.getName());
+    }
+
+    return hash;
+}
+
+private ulong depthBonePoseKeyHash(ExDepthRigRoot root, Parameter param, vec2u kp) {
+    ulong hash = 7809847782465536322UL;
+    if (root is null || param is null) return hash;
+
+    foreach (binding; param.bindings) {
+        auto bone = cast(ExDepthBone)binding.getTarget().node;
+        if (bone is null || !rootContainsBone(root, bone)) continue;
+        if (!isDepthBoneTransformBindingName(binding.getName())) continue;
+        auto valueBinding = cast(ValueParameterBinding)binding;
+        if (valueBinding is null) continue;
+        hash = hashInt(hash, cast(long)bone.uuid);
+        hash = hashStringValue(hash, valueBinding.getName());
+        bool isSet = valueBinding.isSet_[kp.x][kp.y];
+        hash = hashBool(hash, isSet);
+        if (isSet) hash = hashFloat(hash, valueBinding.values[kp.x][kp.y]);
+    }
+
+    return hash;
+}
+
+private DepthBoneFingerprint computeDepthBoneFingerprint(ExDepthRigRoot root) {
+    DepthBoneFingerprint fingerprint;
+    fingerprint.rigHash = depthBoneRigStructureHash(root);
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null) return fingerprint;
+
+    foreach (param; puppet.parameters) {
+        if (param is null) continue;
+        auto paramHash = depthBoneParameterStructureHash(root, param);
+        bool hasDepthBoneBinding;
+        foreach (binding; param.bindings) {
+            auto bone = cast(ExDepthBone)binding.getTarget().node;
+            if (bone is null || !rootContainsBone(root, bone)) continue;
+            if (!isDepthBoneTransformBindingName(binding.getName())) continue;
+            hasDepthBoneBinding = true;
+            break;
+        }
+        if (!hasDepthBoneBinding) continue;
+        fingerprint.parameterStructureHashes[param.uuid] = paramHash;
+        foreach (kp; depthBoneKeypoints(param)) {
+            fingerprint.poseKeyHashes[poseKey(param.uuid, kp.x, kp.y)] = depthBonePoseKeyHash(root, param, kp);
+        }
+    }
+
+    return fingerprint;
+}
+
+private void ngCheckDepthBoneFingerprints() {
+    bool[uint] liveRootUuids;
+    foreach (root; depthBoneRoots()) {
+        liveRootUuids[cast(uint)root.uuid] = true;
+        auto current = computeDepthBoneFingerprint(root);
+        auto oldPtr = cast(uint)root.uuid in depthBoneFingerprints;
+        if (oldPtr is null) {
+            depthBoneFingerprints[cast(uint)root.uuid] = current;
+            continue;
+        }
+        auto old = *oldPtr;
+        if (current.rigHash != old.rigHash) {
+            ngMarkDepthBoneDirty(root, null, vec2u.init, "Depth Bone Dependency", DepthBoneDirtyScope.AllKeypoints);
+        }
+
+        foreach (paramUuid, hash; current.parameterStructureHashes) {
+            auto oldHash = paramUuid in old.parameterStructureHashes;
+            if (oldHash is null || *oldHash != hash) {
+                if (auto param = incActivePuppet().findParameter(paramUuid)) {
+                    ngMarkDepthBoneDirty(root, param, param.findClosestKeypoint(), "Depth Bone Parameter Structure", DepthBoneDirtyScope.AllKeypoints);
+                }
+            }
+        }
+
+        foreach (key, hash; current.poseKeyHashes) {
+            auto oldHash = key in old.poseKeyHashes;
+            if (oldHash is null || *oldHash != hash) {
+                auto parts = key.split(":");
+                if (parts.length == 3) {
+                    auto paramUuid = parts[0].to!uint;
+                    if (auto param = incActivePuppet().findParameter(paramUuid)) {
+                        auto kp = vec2u(parts[1].to!uint, parts[2].to!uint);
+                        ngMarkDepthBoneDirty(root, param, kp, "Depth Bone Pose", DepthBoneDirtyScope.Keypoint);
+                    }
+                }
+            }
+        }
+
+        depthBoneFingerprints[cast(uint)root.uuid] = current;
+    }
+
+    uint[] staleRootUuids;
+    foreach (rootUuid; depthBoneFingerprints.byKey) {
+        if (rootUuid !in liveRootUuids) staleRootUuids ~= rootUuid;
+    }
+    foreach (rootUuid; staleRootUuids) depthBoneFingerprints.remove(rootUuid);
 }
 
 private vec2u[] depthBoneKeypoints(Parameter param) {
@@ -890,6 +1286,15 @@ private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
         return false;
     }
 
+    bool hasDepthBonePoseBinding(Parameter param) {
+        foreach (binding; param.bindings) {
+            auto bone = cast(ExDepthBone)binding.getTarget().node;
+            if (bone is null || !rootContainsBone(rigRoot, bone)) continue;
+            if (isDepthBoneTransformBindingName(binding.getName())) return true;
+        }
+        return false;
+    }
+
     auto armed = incArmedParameter();
     if (armed !is null) result ~= armed;
     if (lastDepthBoneDirtyRoot is rigRoot && lastDepthBoneDirtyParameter !is null && !hasParam(lastDepthBoneDirtyParameter)) {
@@ -898,6 +1303,10 @@ private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
 
     foreach (param; puppet.parameters) {
         if (param is null || hasParam(param)) continue;
+        if (hasDepthBonePoseBinding(param)) {
+            result ~= param;
+            continue;
+        }
         foreach (ref binding; rigRoot.bindings) {
             auto targetNode = puppet.find!Node(cast(uint)binding.targetUuid);
             if (targetNode is null) continue;
@@ -911,6 +1320,7 @@ private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
 }
 
 private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, vec2u kp, string reason) {
+    if (!isLiveDepthRigRoot(rigRoot)) return false;
     if (rigRoot is null || incActivePuppet() is null) return false;
     depthBoneDebugLog("[DepthBoneRefresh] refresh start: root=%s param=%s key=(%s,%s) reason=%s bindings=%s",
         rigRoot.name,
@@ -925,6 +1335,7 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
     ParameterBinding[] created;
 
     foreach (ref binding; rigRoot.bindings) {
+        if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
         auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
         auto deformable = cast(Deformable)targetNode;
         if (deformable is null) continue;
@@ -975,25 +1386,10 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
     return true;
 }
 
-private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parameter param, vec2u currentKeypoint, string reason) {
-    if (param is null) {
-        auto params = depthBoneAffectedParameters(rigRoot);
-        depthBoneDebugLog("[DepthBoneRefresh] resolve parameters: root=%s reason=%s resolved=%s",
-            rigRoot is null ? "(null)" : rigRoot.name,
-            reason,
-            params.length);
-        if (params.length == 0) return ngRefreshDepthBoneDeform(rigRoot, param, currentKeypoint, reason);
-        bool changed;
-        foreach (resolvedParam; params) {
-            changed = ngRefreshDepthBoneDeformAllKeypoints(rigRoot, resolvedParam, resolvedParam.findClosestKeypoint(), reason) || changed;
-        }
-        return changed;
-    }
+private bool ngRefreshDepthBoneDeformKeypoints(ExDepthRigRoot rigRoot, Parameter param, vec2u[] keypoints, vec2u visualKeypoint, string reason) {
+    if (!isLiveDepthRigRoot(rigRoot)) return false;
     if (rigRoot is null || incActivePuppet() is null) return false;
-
-    auto keypoints = depthBoneKeypoints(param);
-    if (keypoints.length == 0) return false;
-    auto visualKeypoint = param.findClosestKeypoint();
+    if (param is null || keypoints.length == 0) return false;
     depthBoneDebugLog("[DepthBoneRefresh] refresh start: root=%s param=%s scope=all-keypoints current=(%s,%s) reason=%s keypoints=%s bindings=%s",
         rigRoot.name,
         param.name,
@@ -1010,6 +1406,7 @@ private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parame
     ParameterBinding[] created;
 
     foreach (ref binding; rigRoot.bindings) {
+        if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
         auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
         auto deformable = cast(Deformable)targetNode;
         if (deformable is null) continue;
@@ -1061,35 +1458,143 @@ private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parame
     }
 
     incActionPush(group);
-    depthBoneDebugLog("[DepthBoneRefresh] refresh done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
+    depthBoneDebugLog("[DepthBoneRefresh] refresh chunk done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
         rigRoot.name,
         deformBindings.length,
         keypoints.length);
     return true;
 }
 
+private bool enqueueDepthBoneAllKeypoints(ExDepthRigRoot rigRoot, Parameter param, string reason) {
+    if (!isLiveDepthRigRoot(rigRoot)) return false;
+    if (rigRoot is null || param is null) return false;
+    auto keypoints = depthBoneKeypoints(param);
+    if (keypoints.length == 0) return false;
+
+    foreach (ref job; depthBoneAllKeypointJobs) {
+        if (job.root is rigRoot && job.parameter is param) {
+            job.keypoints = keypoints;
+            job.processed.clear();
+            job.nextIndex = 0;
+            job.reason = reason;
+            return true;
+        }
+    }
+
+    DepthBoneAllKeypointJob job;
+    job.root = rigRoot;
+    job.parameter = param;
+    job.keypoints = keypoints;
+    job.reason = reason;
+    depthBoneAllKeypointJobs ~= job;
+    return true;
+}
+
+private bool ngRefreshDepthBoneDeformAllKeypoints(ExDepthRigRoot rigRoot, Parameter param, vec2u currentKeypoint, string reason) {
+    if (!isLiveDepthRigRoot(rigRoot)) return false;
+    if (param is null) {
+        auto params = depthBoneAffectedParameters(rigRoot);
+        depthBoneDebugLog("[DepthBoneRefresh] resolve parameters: root=%s reason=%s resolved=%s",
+            rigRoot is null ? "(null)" : rigRoot.name,
+            reason,
+            params.length);
+        if (params.length == 0) return false;
+        bool queued;
+        foreach (resolvedParam; params) {
+            queued = enqueueDepthBoneAllKeypoints(rigRoot, resolvedParam, reason) || queued;
+        }
+        return queued;
+    }
+    return enqueueDepthBoneAllKeypoints(rigRoot, param, reason);
+}
+
+private bool processDepthBoneAllKeypointJobs() {
+    if (depthBoneAllKeypointJobs.length == 0) return false;
+
+    size_t remaining = DepthBoneAllKeypointsPerFrame;
+    bool changed;
+    size_t i;
+    while (i < depthBoneAllKeypointJobs.length) {
+        auto job = &depthBoneAllKeypointJobs[i];
+        if (job.root is null || !isLiveDepthRigRoot(job.root) || job.parameter is null || incActivePuppet() is null) {
+            depthBoneAllKeypointJobs = depthBoneAllKeypointJobs[0 .. i] ~ depthBoneAllKeypointJobs[i + 1 .. $];
+            continue;
+        }
+
+        vec2u[] chunk;
+        auto visual = job.parameter.findClosestKeypoint();
+        size_t neededCount = job.parameter.isVec2 ? 4 : 2;
+        foreach (kp; job.keypoints) {
+            if (neededCount == 0) break;
+            if (kp.x < visual.x || kp.x > visual.x + 1 || kp.y < visual.y || kp.y > visual.y + 1) continue;
+            auto key = keypointKey(kp);
+            if (key in job.processed) continue;
+            chunk ~= kp;
+            job.processed[key] = true;
+            neededCount--;
+        }
+
+        while (remaining > 0 && job.nextIndex < job.keypoints.length) {
+            auto kp = job.keypoints[job.nextIndex++];
+            auto key = keypointKey(kp);
+            if (key in job.processed) continue;
+            chunk ~= kp;
+            job.processed[key] = true;
+            remaining--;
+        }
+
+        if (chunk.length > 0) {
+            changed = ngRefreshDepthBoneDeformKeypoints(job.root, job.parameter, chunk, visual, job.reason) || changed;
+        }
+
+        if (job.processed.length >= job.keypoints.length) {
+            depthBoneAllKeypointJobs = depthBoneAllKeypointJobs[0 .. i] ~ depthBoneAllKeypointJobs[i + 1 .. $];
+            continue;
+        }
+
+        i++;
+        if (remaining == 0) break;
+    }
+
+    return changed;
+}
+
 private bool hasProcessedAllKeypoints(DepthBoneDirtyRequest[] processed, DepthBoneDirtyRequest request) {
     foreach (done; processed) {
-        if (done.dirtyScope == DepthBoneDirtyScope.AllKeypoints && sameDirtyParameter(done, request.root, request.parameter)) return true;
+        if (done.dirtyScope != DepthBoneDirtyScope.AllKeypoints || done.root !is request.root) continue;
+        if (done.parameter is null || done.parameter is request.parameter) return true;
+    }
+    return false;
+}
+
+private bool hasRootAllKeypointsRequest(DepthBoneDirtyRequest[] requests, DepthBoneDirtyRequest request) {
+    if (request.parameter is null) return false;
+    foreach (candidate; requests) {
+        if (candidate.root is request.root && candidate.parameter is null && candidate.dirtyScope == DepthBoneDirtyScope.AllKeypoints) return true;
     }
     return false;
 }
 
 void ngFlushDepthBoneDirty() {
-    if (depthBoneDirtyRequests.length == 0) return;
-    auto requests = depthBoneDirtyRequests;
-    depthBoneDirtyRequests.length = 0;
-    depthBoneDebugLog("[DepthBoneRefresh] flush: requests=%s", requests.length);
-    DepthBoneDirtyRequest[] processed;
-    foreach (request; requests) {
-        if (request.dirtyScope == DepthBoneDirtyScope.Keypoint && hasProcessedAllKeypoints(processed, request)) continue;
-        if (request.dirtyScope == DepthBoneDirtyScope.AllKeypoints) {
-            ngRefreshDepthBoneDeformAllKeypoints(request.root, request.parameter, request.keypoint, request.reason);
-        } else {
-            ngRefreshDepthBoneDeform(request.root, request.parameter, request.keypoint, request.reason);
+    ngCheckDepthBoneFingerprints();
+    if (depthBoneDirtyRequests.length > 0) {
+        auto requests = depthBoneDirtyRequests;
+        depthBoneDirtyRequests.length = 0;
+        depthBoneDebugLog("[DepthBoneRefresh] flush: requests=%s", requests.length);
+        DepthBoneDirtyRequest[] processed;
+        foreach (request; requests) {
+            if (!isLiveDepthRigRoot(request.root)) continue;
+            if (hasRootAllKeypointsRequest(requests, request)) continue;
+            if (request.dirtyScope == DepthBoneDirtyScope.Keypoint && hasProcessedAllKeypoints(processed, request)) continue;
+            if (request.dirtyScope == DepthBoneDirtyScope.AllKeypoints) {
+                ngRefreshDepthBoneDeformAllKeypoints(request.root, request.parameter, request.keypoint, request.reason);
+            } else {
+                ngRefreshDepthBoneDeform(request.root, request.parameter, request.keypoint, request.reason);
+            }
+            processed ~= request;
         }
-        processed ~= request;
     }
+    processDepthBoneAllKeypointJobs();
 }
 
 private void applyRuleJson(ref ExDepthInfluenceRule rule, string text) {
@@ -1168,6 +1673,306 @@ class AddStandardDepthSkeletonCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         incAddStandardDepthSkeleton(rigRoot, scale == 0 ? 1.0f : scale);
+        if (rigRoot.puppet) rigRoot.puppet.rescanNodes();
+        return CommandResult(true);
+    }
+}
+
+private struct StandardDepthParameterSpec {
+    string name;
+    bool isVec2;
+    vec2 minValue;
+    vec2 maxValue;
+    float[] axisX;
+    float[] axisY;
+}
+
+private struct StandardDepthBindingValue {
+    vec2 paramValue;
+    float value;
+}
+
+private struct StandardDepthBoneBindingSpec {
+    string parameterName;
+    string boneId;
+    string bindingName;
+    StandardDepthBindingValue[] values;
+}
+
+private StandardDepthParameterSpec[] standardDepthParameterSpecs() {
+    auto axis5 = [0.0f, 0.25f, 0.5f, 0.75f, 1.0f];
+    return [
+        StandardDepthParameterSpec("Face::Yaw-Pitch", true, vec2(-1.0f, -1.0f), vec2(1.0f, 1.0f), axis5.dup, axis5.dup),
+        StandardDepthParameterSpec("Face::Roll", false, vec2(-1.0f, 0.0f), vec2(1.0f, 0.0f), axis5.dup, [0.0f]),
+        StandardDepthParameterSpec("Body::Yaw-Pitch", true, vec2(-1.0f, -1.0f), vec2(1.0f, 1.0f), axis5.dup, axis5.dup),
+        StandardDepthParameterSpec("Body::Roll", false, vec2(-1.0f, 0.0f), vec2(1.0f, 0.0f), axis5.dup, [0.0f]),
+    ];
+}
+
+private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
+    return [
+        StandardDepthBoneBindingSpec(
+            "Face::Yaw-Pitch",
+            "Head",
+            "transform.r.y",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), -0.5235988f),
+                StandardDepthBindingValue(vec2(-1,  0), -0.5235988f),
+                StandardDepthBindingValue(vec2(-1,  1), -0.5235988f),
+                StandardDepthBindingValue(vec2( 0, -1),  0.0f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 0,  1),  0.0f),
+                StandardDepthBindingValue(vec2( 1, -1),  0.5235988f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.5235988f),
+                StandardDepthBindingValue(vec2( 1,  1),  0.5235988f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Face::Yaw-Pitch",
+            "Head",
+            "transform.r.x",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), -0.34906584f),
+                StandardDepthBindingValue(vec2(-1,  0),  0.0f),
+                StandardDepthBindingValue(vec2(-1,  1),  0.34906584f),
+                StandardDepthBindingValue(vec2( 0, -1), -0.34906584f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 0,  1),  0.34906584f),
+                StandardDepthBindingValue(vec2( 1, -1), -0.34906584f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  1),  0.34906584f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Spine",
+            "transform.r.y",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), -0.5235988f),
+                StandardDepthBindingValue(vec2(-1,  0), -0.5235988f),
+                StandardDepthBindingValue(vec2(-1,  1), -0.5235988f),
+                StandardDepthBindingValue(vec2( 0, -1),  0.0f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 0,  1),  0.0f),
+                StandardDepthBindingValue(vec2( 1, -1),  0.5235988f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.5235988f),
+                StandardDepthBindingValue(vec2( 1,  1),  0.5235988f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Spine",
+            "transform.r.x",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), -0.5235988f),
+                StandardDepthBindingValue(vec2(-1,  0),  0.0f),
+                StandardDepthBindingValue(vec2(-1,  1),  0.17453292f),
+                StandardDepthBindingValue(vec2( 0, -1), -0.5235988f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 0,  1),  0.17453292f),
+                StandardDepthBindingValue(vec2( 1, -1), -0.5235988f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  1),  0.17453292f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Chest",
+            "transform.r.x",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), 0.2617994f),
+                StandardDepthBindingValue(vec2(-1,  0), 0.0f),
+                StandardDepthBindingValue(vec2(-1,  1), 0.34906584f),
+                StandardDepthBindingValue(vec2( 0, -1), 0.2617994f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+                StandardDepthBindingValue(vec2( 0,  1), 0.34906584f),
+                StandardDepthBindingValue(vec2( 1, -1), 0.2617994f),
+                StandardDepthBindingValue(vec2( 1,  0), 0.0f),
+                StandardDepthBindingValue(vec2( 1,  1), 0.34906584f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Chest",
+            "transform.r.y",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), 0.0f),
+                StandardDepthBindingValue(vec2(-1,  0), 0.0f),
+                StandardDepthBindingValue(vec2(-1,  1), 0.0f),
+                StandardDepthBindingValue(vec2( 0, -1), 0.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+                StandardDepthBindingValue(vec2( 0,  1), 0.0f),
+                StandardDepthBindingValue(vec2( 1, -1), 0.0f),
+                StandardDepthBindingValue(vec2( 1,  0), 0.0f),
+                StandardDepthBindingValue(vec2( 1,  1), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Yaw-Pitch",
+            "Clavicle.L",
+            "transform.r.x",
+            [
+                StandardDepthBindingValue(vec2(-1, -1), 0.0f),
+                StandardDepthBindingValue(vec2(-1,  0), 0.0f),
+                StandardDepthBindingValue(vec2(-1,  1), 0.0f),
+                StandardDepthBindingValue(vec2( 0, -1), 0.0f),
+                StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+                StandardDepthBindingValue(vec2( 0,  1), 0.0f),
+                StandardDepthBindingValue(vec2( 1, -1), 0.0f),
+                StandardDepthBindingValue(vec2( 1,  0), 0.0f),
+                StandardDepthBindingValue(vec2( 1,  1), 0.0f),
+            ]
+        ),
+    ];
+}
+
+private Parameter findDepthParameterByName(string name) {
+    auto puppet = incActivePuppet();
+    if (puppet is null) return null;
+    foreach (param; puppet.parameters) {
+        if (param.name == name) return param;
+    }
+    return null;
+}
+
+private float lerpDepthBindingValue(float a, float b, float t) {
+    return a + (b - a) * min(1.0f, max(0.0f, t));
+}
+
+private float parameterAxisValue(Parameter param, size_t axis, size_t index) {
+    auto minValue = axis == 0 ? param.min.x : param.min.y;
+    auto maxValue = axis == 0 ? param.max.x : param.max.y;
+    auto span = maxValue - minValue;
+    if (abs(span) <= 0.000001f) return minValue;
+    return minValue + span * param.axisPoints[axis][index];
+}
+
+private float standardDepthSeedValue(ref StandardDepthBoneBindingSpec spec, float x, float y) {
+    foreach (value; spec.values) {
+        if (abs(value.paramValue.x - x) <= 0.000001f && abs(value.paramValue.y - y) <= 0.000001f) {
+            return value.value;
+        }
+    }
+    enforce(false, "Missing standard depth binding seed");
+    return 0.0f;
+}
+
+private float interpolateStandardDepthBindingValue(Parameter param, ref StandardDepthBoneBindingSpec spec, size_t xIndex, size_t yIndex) {
+    auto paramX = parameterAxisValue(param, 0, xIndex);
+    auto paramY = param.isVec2 ? parameterAxisValue(param, 1, yIndex) : 0.0f;
+
+    float sampleAtY(float y) {
+        auto left = standardDepthSeedValue(spec, -1.0f, y);
+        auto center = standardDepthSeedValue(spec, 0.0f, y);
+        auto right = standardDepthSeedValue(spec, 1.0f, y);
+        if (paramX <= 0.0f) return lerpDepthBindingValue(left, center, paramX + 1.0f);
+        return lerpDepthBindingValue(center, right, paramX);
+    }
+
+    auto bottom = sampleAtY(-1.0f);
+    auto middle = sampleAtY(0.0f);
+    auto top = sampleAtY(1.0f);
+    if (paramY <= 0.0f) return lerpDepthBindingValue(bottom, middle, paramY + 1.0f);
+    return lerpDepthBindingValue(middle, top, paramY);
+}
+
+private bool axisMatches(const float[] actual, const float[] expected) {
+    if (actual.length != expected.length) return false;
+    foreach (i, value; actual) {
+        if (abs(value - expected[i]) > 0.000001f) return false;
+    }
+    return true;
+}
+
+private bool parameterMatchesSpec(Parameter param, ref StandardDepthParameterSpec spec) {
+    if (param is null) return false;
+    if (param.isVec2 != spec.isVec2) return false;
+    if (abs(param.min.x - spec.minValue.x) > 0.000001f || abs(param.max.x - spec.maxValue.x) > 0.000001f) return false;
+    if (spec.isVec2 && (abs(param.min.y - spec.minValue.y) > 0.000001f || abs(param.max.y - spec.maxValue.y) > 0.000001f)) return false;
+    return axisMatches(param.axisPoints[0], spec.axisX) && axisMatches(param.axisPoints[1], spec.axisY);
+}
+
+private ExDepthBone findStandardDepthBone(ExDepthRigRoot root, string boneId) {
+    foreach (bone; root.depthBones()) {
+        if (bone.boneId == boneId || bone.name == boneId) return bone;
+    }
+    return null;
+}
+
+@EffectBindingEdit
+class AddStandardDepthParametersCommand : ExCommand!(
+    TW!(Node, "root", "DepthRigRoot node")
+) {
+    this() { super("Add Standard Depth Parameters", "Create standard face/body parameters and depth bone bindings"); }
+
+    override CommandResult run(Context ctx) {
+        auto rigRoot = requireRoot(root);
+        auto puppet = incActivePuppet();
+        enforce(puppet !is null, "No active puppet");
+
+        auto bindingSpecs = standardDepthBoneBindingSpecs();
+        ExDepthBone[string] bonesById;
+        foreach (bindingSpec; bindingSpecs) {
+            if (bindingSpec.boneId in bonesById) continue;
+            auto bone = findStandardDepthBone(rigRoot, bindingSpec.boneId);
+            enforce(bone !is null, "Missing depth bone '" ~ bindingSpec.boneId ~ "'");
+            bonesById[bindingSpec.boneId] = bone;
+        }
+
+        auto group = new GroupAction();
+        Parameter[string] paramsByName;
+        bool changed = false;
+
+        foreach (spec; standardDepthParameterSpecs()) {
+            auto param = findDepthParameterByName(spec.name);
+            if (param is null) {
+                auto created = new ExParameter(spec.name, spec.isVec2);
+                created.min = spec.minValue;
+                created.max = spec.maxValue;
+                created.defaults = vec2(0.0f, 0.0f);
+                created.value = created.defaults;
+                created.axisPoints[0] = spec.axisX.dup;
+                created.axisPoints[1] = spec.axisY.dup;
+                puppet.parameters ~= created;
+                group.addAction(new ParameterAddAction(created, &puppet.parameters));
+                param = created;
+                changed = true;
+            } else {
+                enforce(parameterMatchesSpec(param, spec), "Existing parameter '" ~ spec.name ~ "' has incompatible keypoints");
+            }
+            paramsByName[spec.name] = param;
+        }
+
+        foreach (bindingSpec; bindingSpecs) {
+            auto param = paramsByName.get(bindingSpec.parameterName, null);
+            enforce(param !is null, "Missing parameter '" ~ bindingSpec.parameterName ~ "'");
+            auto bone = bonesById[bindingSpec.boneId];
+
+            ValueParameterBinding binding = cast(ValueParameterBinding)param.getBinding(bone, bindingSpec.bindingName);
+            if (binding is null) {
+                binding = cast(ValueParameterBinding)param.createBinding(bone, bindingSpec.bindingName);
+                param.addBinding(binding);
+                group.addAction(new ParameterBindingAddAction(param, binding));
+                changed = true;
+            }
+            enforce(binding !is null, "Cannot create value binding '" ~ bindingSpec.bindingName ~ "'");
+
+            foreach (x; 0 .. param.axisPoints[0].length) {
+                foreach (y; 0 .. param.axisPoints[1].length) {
+                    auto value = interpolateStandardDepthBindingValue(param, bindingSpec, x, y);
+                    if (binding.isSet_[x][y] && abs(binding.values[x][y] - value) <= 0.000001f) continue;
+                    auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(binding.getName(), binding, cast(uint)x, cast(uint)y);
+                    binding.setValue(vec2u(cast(uint)x, cast(uint)y), value);
+                    action.updateNewState();
+                    group.addAction(action);
+                    changed = true;
+                }
+            }
+            binding.reInterpolate();
+        }
+
+        if (!changed) return CommandResult(false, "Standard depth parameters already exist");
+        incActionPush(group);
         if (rigRoot.puppet) rigRoot.puppet.rescanNodes();
         return CommandResult(true);
     }
@@ -1489,6 +2294,10 @@ void ngInitCommands(T)() if (is(T == DepthBoneCommand)) {
     auto addStandard = new AddStandardDepthSkeletonCommand();
     ngRegisterCommandMeta(addStandard);
     commands[DepthBoneCommand.AddStandardDepthSkeleton] = addStandard;
+
+    auto addStandardParams = new AddStandardDepthParametersCommand();
+    ngRegisterCommandMeta(addStandardParams);
+    commands[DepthBoneCommand.AddStandardDepthParameters] = addStandardParams;
 
     auto setRest = new SetDepthBoneRestCommand();
     ngRegisterCommandMeta(setRest);

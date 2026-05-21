@@ -728,6 +728,103 @@ dub build -c osx-full
 - その後、別keypointに移動しても古いSource設定のbindingが残らない。
 - dirty登録時に `param=(none)` でも、既存Depth Bone対象Parameterが解決され、`writeBinding=true` で更新される。
 
+## Phase 12: 標準パラメータ追加
+
+### BONE-28: 標準Depth Boneパラメータ追加コマンドを追加する
+
+状況: 完了
+
+実装:
+
+- `Face::Yaw-Pitch`, `Face::Roll`, `Body::Yaw-Pitch`, `Body::Roll` が存在するか確認する。
+- 存在しないパラメータはMidori-bone.inxと同じmin/max/keypointで作成する。
+- 既存パラメータがある場合は、標準keypointと互換か確認する。
+- `Face::Yaw-Pitch` と `Body::Yaw-Pitch` には、Midori-bone.inxと同じDepthBone transform bindingを追加する。
+- すべての変更はActionとして積み、undo/redoできるようにする。
+
+完了条件:
+
+- DepthRigRootを選択してコマンドを実行すると、標準4パラメータが揃う。
+- 標準Skeletonがある場合、Head/Spine/Chest/Clavicle.Lへの標準bindingが追加される。
+
+### BONE-29: Inspectorから標準Depth Boneパラメータ追加を実行できるようにする
+
+状況: 完了
+
+実装:
+
+- DepthRigRoot Inspectorに標準パラメータ追加ボタンを追加する。
+- ボタンから `AddStandardDepthParameters` コマンドを実行する。
+
+完了条件:
+
+- UIから標準パラメータ追加を実行できる。
+
+### BONE-30: DepthBone削除時にBone Source参照を掃除する
+
+状況: 完了
+
+実装:
+
+- DepthBoneまたはDepthBoneを含むサブツリー削除時に、削除対象Bone UUIDを収集する。
+- 同じDepthRigRootの全 `bindings[].sourceBoneUuids` から削除対象UUIDを除去する。
+- `sourceSettings` も `sourceBoneUuids` に合わせて正規化する。
+- 削除Actionと同じGroupActionに積み、undo/redoでBone Source参照も戻るようにする。
+
+完了条件:
+
+- Bone削除後、GridDeformer/PathDeformerのBone Source一覧に削除済みBoneが残らない。
+- undoでBoneとBone Source参照が戻る。
+
+### BONE-31: Depth Bone依存状態fingerprintでdirty scopeを決める
+
+状況: 完了
+
+実装:
+
+- DepthRigRootごとに前回の依存状態fingerprintを保持する。
+- Rig構造層には、DepthRig binding、Source設定、Influence Rule、Bone rest/constraint、target vertices/depths、target/root間の基準transformを含める。
+- Parameter構造層には、関連Parameterのaxis/keypointとDepthBone transform bindingの存在を含める。
+- Pose key層には、関連Parameterの各keypointにおけるDepthBone transform binding値を含める。
+- flush前にfingerprintを比較し、Rig構造差分は全keypoint、Parameter構造差分は該当Parameterの全keypoint、Pose key差分は該当Parameter/keypointだけdirtyにする。
+- 初回は基準値を保存するだけで、不要な再計算は行わない。
+
+完了条件:
+
+- 親Nodeの基準transformやtarget vertices/depths変更は全keypoint更新になる。
+- Bone poseの特定keypoint変更はそのkeypointだけ更新になる。
+- 変更がないフレームではdeform binding再計算を行わない。
+
+### BONE-32: target種別固有の構造差分をfingerprintへ含める
+
+状況: 完了
+
+実装:
+
+- GridDeformer targetでは、格子寸法、formation、dynamic、translateChildrenをfingerprintへ含める。
+- PathDeformer targetでは、curveType、physicsType、dynamic、physicsOnly、physics有効状態をfingerprintへ含める。
+- target固有構造差分はRig構造差分として扱い、該当DepthRigRootの全keypoint更新にする。
+
+完了条件:
+
+- GridDeformer / PathDeformer固有設定が変わった場合、verticesだけに依存せず再計算対象になる。
+
+### BONE-33: 全keypoint更新を複数フレームに分割する
+
+状況: 完了
+
+実装:
+
+- 全keypoint更新は即時に全件処理せず、DepthRigRoot/Parameterごとのpending jobとして保持する。
+- 各flushで一定数ずつkeypointを処理する。
+- 現在表示に必要なkeypointがpending job内に残っている場合は、通常チャンク枠とは別に優先処理する。
+- 表示に必要なkeypoint判定は軸から再計算せず、pending keypoint列をスキャンして現在closest keypoint周辺の未処理keyを拾う。
+
+完了条件:
+
+- 多数keypointの更新でUIが1フレーム固まりにくくなる。
+- パラメータ操作中に現在表示へ必要なkeypointが未処理なら、そのフレームで優先して処理される。
+
 ## 実装順まとめ
 
 1. `ExDepthRigRoot` / `ExDepthBone`

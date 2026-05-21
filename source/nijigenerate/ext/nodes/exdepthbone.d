@@ -363,6 +363,10 @@ public:
             binding.sourceBoneUuids = binding.sourceBoneUuids.remove(cast(size_t)sourceIndex);
         }
         binding.normalizeSourceSettings();
+        if (binding.sourceBoneUuids.length == 0) {
+            import std.algorithm.mutation : remove;
+            bindings = bindings.remove(cast(size_t)index);
+        }
     }
 
 protected:
@@ -441,7 +445,8 @@ void incAddStandardDepthSkeleton(ExDepthRigRoot root, float scale = 1.0f) {
     auto spine = incCreateDepthBone(pelvis, "Spine", p(0, 0.47f), p(0, 0.34f));
     auto chest = incCreateDepthBone(spine, "Chest", p(0, 0.34f), p(0, 0.22f));
     auto neck = incCreateDepthBone(chest, "Neck", p(0, 0.22f), p(0, 0.16f));
-    incCreateDepthBone(neck, "Head", p(0, 0.16f), p(0, 0.06f));
+    auto head = incCreateDepthBone(neck, "Head", p(0, 0.16f), p(0, 0.06f));
+    head.allowParentToTargets = false;
 
     auto clavicleL = incCreateDepthBone(chest, "Clavicle.L", p(0, 0.25f), p(-0.14f, 0.25f));
     auto upperArmL = incCreateDepthBone(clavicleL, "UpperArm.L", p(-0.14f, 0.25f), p(-0.26f, 0.42f));
