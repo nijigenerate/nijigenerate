@@ -81,6 +81,18 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes([cast(Node)bone]);
                 cmd!(NodeCommand.DeleteNode)(ctx);
             }
+            igSameLine();
+            if (incButtonColored("\ue5d5")) {
+                Node cursor = bone;
+                while (cursor !is null) {
+                    if (auto root = cast(ExDepthRigRoot)cursor) {
+                        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(root, "Force Depth Bone Refresh");
+                        break;
+                    }
+                    cursor = cursor.parent;
+                }
+            }
+            incTooltip(_("Force refresh all Depth Bone target keypoints"));
 
             float[3] head = [bone.restHead.x, bone.restHead.y, bone.restHead.z];
             float[3] tail = [bone.restTail.x, bone.restTail.y, bone.restTail.z];

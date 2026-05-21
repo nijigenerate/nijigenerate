@@ -150,6 +150,14 @@ private float distanceSqPointSegment(vec3 p, vec3 a, vec3 b) {
     return d.x * d.x + d.y * d.y + d.z * d.z;
 }
 
+private float pointSegmentProjection(vec3 p, vec3 a, vec3 b) {
+    auto ab = b - a;
+    auto ap = p - a;
+    auto lenSq = dotVec(ab, ab);
+    if (lenSq <= 1e-8f) return 0.0f;
+    return dotVec(ap, ab) / lenSq;
+}
+
 private float segmentLength(vec3 a, vec3 b) {
     auto d = b - a;
     return cast(float)sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
@@ -163,6 +171,13 @@ private vec3 normalizeVec(vec3 value, vec3 fallback = vec3(0, 1, 0)) {
 
 private float dotVec(vec3 a, vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+private bool isTerminalDepthBoneSource(ExDepthBone bone, ExDepthBone[] sources) {
+    foreach (candidate; sources) {
+        if (candidate.parent is bone) return false;
+    }
+    return true;
 }
 
 private quat quatFromUnitVectors(vec3 from, vec3 to) {
@@ -360,6 +375,7 @@ private vec3 depthBoneNodeRestPosition(ExDepthRigRoot root, Node node) {
     Node cursor = node;
     while (cursor !is null && cursor !is root) {
         result += cursor.localTransform.translation;
+        if (cursor.lockToRoot) break;
         cursor = cursor.parent;
     }
     return result;
@@ -482,7 +498,7 @@ private RuntimeDepthBone[ulong] buildDepthRigRuntime(ExDepthRigRoot root, Parame
 
     foreach (bone; root.depthBones()) {
         auto rb = runtime[bone.uuid];
-        if (rb.parent !is null && bone.allowParentToTargets) {
+        if (rb.parent !is null && bone.allowParentToTargets && !bone.lockToRoot) {
             rb.worldHead = rb.parent.worldHead + (rb.parent.worldQuaternion * rb.localRestOffset) + (rb.parent.worldQuaternion * rb.poseTranslation);
             rb.worldQuaternion = rb.parent.worldQuaternion * rb.localRestQuaternion * rb.poseQuaternion;
         } else {
@@ -514,6 +530,10 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
         vec3 rest;
         float score;
         float distanceSq;
+        float projection;
+        float radiusSq;
+        float terminalDistanceSq;
+        float terminalProjection;
     }
 
     auto maxInfluences = binding.influenceRule.maxInfluences == 0 ? 1 : binding.influenceRule.maxInfluences;
@@ -544,12 +564,18 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
             auto sourceRest = transformPoint(targetToRoot, sourceRestLocal);
             auto score = multiplier;
             float distanceSq;
+            float projection;
+            float radiusSq = float.max;
+            float terminalDistanceSq = float.max;
+            float terminalProjection;
             if (bones.length > 1) {
                 auto radius = max(
                     (*restRuntimeBone).restLength * 0.85f * binding.influenceRule.radiusScale,
                     influenceRadiusFloor
                 );
                 if (radius <= 1e-6f) radius = 1.0f;
+                radiusSq = radius * radius;
+                projection = pointSegmentProjection(sourceRest, (*restRuntimeBone).restHead, (*restRuntimeBone).restTail);
                 distanceSq = distanceSqPointSegment(sourceRest, (*restRuntimeBone).restHead, (*restRuntimeBone).restTail);
                 if (binding.influenceRule.falloff == "linear") {
                     auto distance = cast(float)sqrt(distanceSq);
@@ -557,14 +583,42 @@ private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBindin
                 } else {
                     score *= cast(float)exp(-distanceSq / (radius * radius));
                 }
+                if (isTerminalDepthBoneSource(bone, bones) && (*restRuntimeBone).parent !is null) {
+                    terminalProjection = pointSegmentProjection(sourceRest, (*restRuntimeBone).parent.restHead, (*restRuntimeBone).restHead);
+                    terminalDistanceSq = distanceSqPointSegment(sourceRest, (*restRuntimeBone).parent.restHead, (*restRuntimeBone).restHead);
+                }
             }
             if (!score.isFinite) continue;
-            influences ~= Influence(bone, setting, sourceRest, score, distanceSq);
+            influences ~= Influence(bone, setting, sourceRest, score, distanceSq, projection, radiusSq, terminalDistanceSq, terminalProjection);
         }
 
         if (influences.length == 0) {
             offsets[i] = vec2(0, 0);
             continue;
+        }
+
+        if (bones.length > 1) {
+            ptrdiff_t lockedTerminalIndex = -1;
+            foreach (j, influence; influences) {
+                if (!influence.bone.lockToRoot) continue;
+                if (!isTerminalDepthBoneSource(influence.bone, bones)) continue;
+                if (influence.terminalProjection <= 1.0f) continue;
+                if (influence.terminalDistanceSq > influence.radiusSq) continue;
+                if (lockedTerminalIndex < 0) {
+                    lockedTerminalIndex = cast(ptrdiff_t)j;
+                    continue;
+                }
+                auto current = influences[cast(size_t)lockedTerminalIndex];
+                if (influence.score > current.score || (influence.score == current.score && influence.terminalDistanceSq < current.terminalDistanceSq)) {
+                    lockedTerminalIndex = cast(ptrdiff_t)j;
+                }
+            }
+            if (lockedTerminalIndex >= 0) {
+                auto terminal = influences[cast(size_t)lockedTerminalIndex];
+                terminal.score = 1.0f;
+                terminal.distanceSq = 0.0f;
+                influences = [terminal];
+            }
         }
 
         sort!((a, b) => a.score == b.score ? a.distanceSq < b.distanceSq : a.score > b.score)(influences);
@@ -865,6 +919,23 @@ void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
     auto param = incArmedParameter();
     auto keypoint = param is null ? vec2u.init : param.findClosestKeypoint();
 
+    if (auto bone = cast(ExDepthBone)target) {
+        if (auto root = findDepthRigRoot(bone)) {
+            auto actualParam = param;
+            auto actualKeypoint = keypoint;
+            if (actualParam is null && lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null) {
+                actualParam = lastDepthBoneDirtyParameter;
+                actualKeypoint = lastDepthBoneDirtyKeypoint;
+            }
+            if (actualParam is null) {
+                ngMarkDepthBoneDirty(root, null, actualKeypoint, reason, DepthBoneDirtyScope.AllKeypoints);
+            } else {
+                ngMarkDepthBoneDirty(root, actualParam, actualKeypoint, reason, DepthBoneDirtyScope.Keypoint);
+            }
+        }
+        return;
+    }
+
     void visit(Node node) {
         if (node is null) return;
         if (auto root = cast(ExDepthRigRoot)node) {
@@ -979,18 +1050,6 @@ private bool isDepthBoneTransformBindingName(string bindingName) {
         || bindingName.startsWith("transform.s.");
 }
 
-private mat4 localWorldMatrix(Node node) {
-    if (node is null) return mat4.identity;
-    auto local = node.localTransform.matrix;
-    if (node.parent is null) return local;
-    return localWorldMatrix(node.parent) * local;
-}
-
-private mat4 localTargetToRootMatrix(ExDepthRigRoot root, Node target) {
-    if (root is null || target is null) return mat4.identity;
-    return localWorldMatrix(root).inverse * localWorldMatrix(target);
-}
-
 private ulong hashDepthBoneTargetStructure(ulong hash, Node targetNode) {
     if (targetNode is null) return hashBool(hash, false);
     hash = hashBool(hash, true);
@@ -1090,7 +1149,7 @@ private ulong depthBoneRigStructureHash(ExDepthRigRoot root) {
     if (root is null || puppet is null) return hash;
 
     hash = hashInt(hash, cast(long)root.uuid);
-    hash = hashMatrix(hash, localWorldMatrix(root));
+    hash = hashMatrix(hash, root.transform.matrix);
 
     foreach (bone; root.depthBones()) {
         hash = hashInt(hash, cast(long)bone.uuid);
@@ -1100,6 +1159,7 @@ private ulong depthBoneRigStructureHash(ExDepthRigRoot root) {
         hash = hashFloat(hash, bone.restRoll);
         hash = hashBool(hash, bone.lockRotation);
         hash = hashBool(hash, bone.lockTranslation);
+        hash = hashBool(hash, bone.lockToRoot);
         hash = hashBool(hash, bone.allowParentToTargets);
         hash = hashVec3(hash, bone.localTransform.translation);
         hash = hashVec3(hash, bone.localTransform.rotation);
@@ -1126,7 +1186,8 @@ private ulong depthBoneRigStructureHash(ExDepthRigRoot root) {
         auto targetNode = puppet.find!Node(cast(uint)binding.targetUuid);
         hash = hashBool(hash, targetNode !is null);
         if (targetNode !is null) {
-            hash = hashMatrix(hash, localTargetToRootMatrix(root, targetNode));
+            hash = hashBool(hash, targetNode.lockToRoot);
+            hash = hashMatrix(hash, targetToRootMatrix(root, targetNode));
             hash = hashDepthBoneTargetStructure(hash, targetNode);
             if (auto deformable = cast(Deformable)targetNode) {
                 hash = hashInt(hash, cast(long)deformable.vertices.length);
@@ -1576,7 +1637,6 @@ private bool hasRootAllKeypointsRequest(DepthBoneDirtyRequest[] requests, DepthB
 }
 
 void ngFlushDepthBoneDirty() {
-    ngCheckDepthBoneFingerprints();
     if (depthBoneDirtyRequests.length > 0) {
         auto requests = depthBoneDirtyRequests;
         depthBoneDirtyRequests.length = 0;

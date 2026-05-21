@@ -15,8 +15,8 @@ string incTypeIdToIcon(string typeId) {
         case "DynamicComposite": return "";
         case "PathDeformer": return "";
         case "GridDeformer": return "\ue3ec";
-        case "DepthRigRoot": return "\ue8ef";
-        case "DepthBone": return "\ue8ef";
+        case "DepthRigRoot": return "\ue536";
+        case "DepthBone": return "\ueaf5";
         case "Parameter": return "";
         case "Binding": return "";
         default: return "\ue97a"; 

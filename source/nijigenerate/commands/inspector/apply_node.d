@@ -124,7 +124,8 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                 static if (
                     PropName == "translationX" || PropName == "translationY" || PropName == "translationZ" ||
                     PropName == "rotationX" || PropName == "rotationY" || PropName == "rotationZ" ||
-                    PropName == "scaleX" || PropName == "scaleY"
+                    PropName == "scaleX" || PropName == "scaleY" ||
+                    PropName == "lockToRoot"
                 ) {
                     foreach (n; nodes) ngMarkDepthBoneDirtyForTarget(n, "Target Transform");
                 }
