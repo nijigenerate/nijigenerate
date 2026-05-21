@@ -391,16 +391,6 @@ public:
         if (ngModelEditSubMode() != ModelEditSubMode.Layout) return;
 
         igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-            if (auto grid = cast(GridDeformer)incSelectedNode()) {
-                if (incButtonColored(__(" Edit Depth Map"), ImVec2(0, 26))) {
-                    incSetEditMode(EditMode.DepthEdit, false);
-                    incSelectNode(grid);
-                    incFocusCamera(grid, vec2(0, 0));
-                }
-                incTooltip(_("Edit Depth Map"));
-                igSameLine(0, 0);
-            }
-
             if (Deformable node = cast(Deformable)incSelectedNode()) {
                 auto io = igGetIO();
                 const(char)* text = incHasDragDrop("_PUPPETNTREE") ? (io.KeyCtrl ? __(" Merge Mesh"): __(" Copy Mesh")) : __(" Edit Mesh");
@@ -437,6 +427,16 @@ public:
                     // and selects the mesh that you had selected previously
                     // in Model Edit mode.
                     incTooltip(_("Edit Mesh"));
+                }
+
+                if (auto grid = cast(GridDeformer)node) {
+                    igSameLine(0, 0);
+                    if (incButtonColored(__(" Edit Depth Map"), ImVec2(0, 26))) {
+                        incSetEditMode(EditMode.DepthEdit, false);
+                        incSelectNode(grid);
+                        incFocusCamera(grid, vec2(0, 0));
+                    }
+                    incTooltip(_("Edit Depth Map"));
                 }
             }
         igPopStyleVar();        
