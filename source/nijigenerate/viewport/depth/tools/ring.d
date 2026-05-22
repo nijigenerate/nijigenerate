@@ -67,7 +67,7 @@ public:
             auto angle = settings.angle * 3.14159265358979323846f / 180.0f;
             p1 = p0 + vec2(cos(angle), sin(angle)) * settings.radiusX;
         }
-        drawDepthLine(activeEditor, p0, p1, viewport.depthCameraState(), DepthOperationSelectedColor);
+        drawDepthLine(activeEditor, p0, p1, viewport.depthCameraState(), depthOperationColor(viewport.brushSettings().amount, true));
     }
 
     override

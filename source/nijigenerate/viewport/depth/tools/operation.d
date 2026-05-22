@@ -18,11 +18,21 @@ import std.math : abs, cos, exp, pow, round, sin, sqrt;
 
 enum vec4 DepthOperationColor = vec4(0.1, 0.4, 0.9, 0.9);
 enum vec4 DepthOperationSelectedColor = vec4(0.1, 0.4, 0.9, 1.0);
+enum vec4 DepthOperationPositiveColor = vec4(0.05, 0.62, 1.0, 0.92);
+enum vec4 DepthOperationPositiveSelectedColor = vec4(0.0, 0.8, 1.0, 1.0);
+enum vec4 DepthOperationNegativeColor = vec4(1.0, 0.32, 0.18, 0.92);
+enum vec4 DepthOperationNegativeSelectedColor = vec4(1.0, 0.48, 0.22, 1.0);
 enum vec4 DepthOperationHandleColor = vec4(0.1, 0.65, 1.0, 1.0);
 enum vec4 DepthOperationAmountColor = vec4(1.0, 0.9, 0.2, 1.0);
 
 float depthToolRound(float value) {
     return cast(float)(round(value * 1000.0f) / 1000.0f);
+}
+
+vec4 depthOperationColor(float depth, bool selected = false) {
+    if (depth > 0.000001f) return selected ? DepthOperationPositiveSelectedColor : DepthOperationPositiveColor;
+    if (depth < -0.000001f) return selected ? DepthOperationNegativeSelectedColor : DepthOperationNegativeColor;
+    return selected ? DepthOperationSelectedColor : DepthOperationColor;
 }
 
 abstract class DepthOperation {
@@ -88,11 +98,12 @@ class DepthAttachedPointOperation : DepthOperation {
         auto projected = editor.projectLocalPoint(point, amount, depthCamera);
         bool hotAmount = hotHandle == DepthOperationHandle.Amount;
         bool hotBody = hotHandle == DepthOperationHandle.Body;
-        drawDepthLinePoints(base, projected, DepthOperationHandleColor, hotAmount ? 3.0f : 1.8f);
+        auto color = depthOperationColor(amount, selected || hotAmount);
+        drawDepthLinePoints(base, projected, color, hotAmount ? 3.0f : 1.8f);
         if (selected || hotBody || hotAmount) {
             drawDepthPoint(base, hotBody ? DepthOperationAmountColor : DepthOperationHandleColor, hotBody ? 13 : 8);
         }
-        drawDepthPoint(projected, (selected || hotAmount) ? DepthOperationAmountColor : DepthOperationColor, hotAmount ? 15 : (selected ? 13 : 9));
+        drawDepthPoint(projected, hotAmount ? DepthOperationAmountColor : color, hotAmount ? 15 : (selected ? 13 : 9));
     }
 
     override DepthOperationHandle hit(DepthMeshEditorOne editor, vec2 mouse, ref DepthCamera3D depthCamera, float radius, out float distance) {
@@ -171,8 +182,8 @@ class DepthRingOperation : DepthOperation {
 
     override void draw(DepthMeshEditorOne editor, ref DepthCamera3D depthCamera, bool selected, DepthOperationHandle hotHandle) {
         bool hotBody = hotHandle == DepthOperationHandle.Body;
-        drawDepthRingCurve(editor, this, depthCamera, true, vec4(0.08, 0.18, 0.42, 0.65), hotBody ? 3.5f : 1.8f);
-        drawDepthRingCurve(editor, this, depthCamera, false, (selected || hotBody) ? DepthOperationSelectedColor : DepthOperationColor, hotBody ? 4.5f : 2.5f);
+        auto color = depthOperationColor(amount, selected || hotBody);
+        drawDepthRingCurve(editor, this, depthCamera, false, color, hotBody ? 4.5f : 2.5f);
         drawDepthLinePoints(ringEndpointPoint(editor, this, true, depthCamera), ringEndpointPoint(editor, this, false, depthCamera), vec4(0.55, 0.55, 0.55, 0.55), 1.2f);
         if (selected || hotHandle != DepthOperationHandle.None) {
             auto p0h = ringAngleHandlePoint(editor, this, true, depthCamera);
@@ -181,7 +192,7 @@ class DepthRingOperation : DepthOperation {
             drawDepthLinePoints(ringEndpointPoint(editor, this, false, depthCamera), p1h, DepthOperationHandleColor, hotHandle == DepthOperationHandle.P1Angle ? 2.8f : 1.4f);
             drawDepthPoint(ringEndpointPoint(editor, this, true, depthCamera), hotHandle == DepthOperationHandle.P0 ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P0 ? 13 : 9);
             drawDepthPoint(ringEndpointPoint(editor, this, false, depthCamera), hotHandle == DepthOperationHandle.P1 ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P1 ? 13 : 9);
-            drawDepthPoint(ringAmountHandlePoint(editor, this, depthCamera), DepthOperationAmountColor, hotHandle == DepthOperationHandle.Amount ? 14 : 10);
+            drawDepthPoint(ringAmountHandlePoint(editor, this, depthCamera), hotHandle == DepthOperationHandle.Amount ? DepthOperationAmountColor : color, hotHandle == DepthOperationHandle.Amount ? 14 : 10);
             drawDepthPoint(p0h, hotHandle == DepthOperationHandle.P0Angle ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P0Angle ? 13 : 8);
             drawDepthPoint(p1h, hotHandle == DepthOperationHandle.P1Angle ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.P1Angle ? 13 : 8);
         }
@@ -282,12 +293,13 @@ class DepthPlaneOperation : DepthOperation {
 
     override void draw(DepthMeshEditorOne editor, ref DepthCamera3D depthCamera, bool selected, DepthOperationHandle hotHandle) {
         bool hotBody = hotHandle == DepthOperationHandle.Body;
-        drawDepthEllipse(editor, center, radiusX, radiusY, angle, targetDepth, depthCamera, (selected || hotBody) ? DepthOperationSelectedColor : DepthOperationColor, hotBody ? 4.0f : 2.0f);
+        auto color = depthOperationColor(targetDepth, selected || hotBody);
+        drawDepthEllipse(editor, center, radiusX, radiusY, angle, targetDepth, depthCamera, color, hotBody ? 4.0f : 2.0f);
         if (selected || hotHandle != DepthOperationHandle.None) {
             auto angleRad = angle * 3.14159265358979323846f / 180.0f;
             auto ux = vec2(cos(angleRad), sin(angleRad));
             auto uy = vec2(-sin(angleRad), cos(angleRad));
-            drawDepthPoint(editor.projectLocalPoint(center, targetDepth, depthCamera), DepthOperationAmountColor, hotHandle == DepthOperationHandle.Amount ? 14 : 10);
+            drawDepthPoint(editor.projectLocalPoint(center, targetDepth, depthCamera), hotHandle == DepthOperationHandle.Amount ? DepthOperationAmountColor : color, hotHandle == DepthOperationHandle.Amount ? 14 : 10);
             drawDepthPoint(editor.projectLocalPoint(center + ux * radiusX, targetDepth, depthCamera), hotHandle == DepthOperationHandle.RadiusX ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.RadiusX ? 13 : 9);
             drawDepthPoint(editor.projectLocalPoint(center + uy * radiusY, targetDepth, depthCamera), hotHandle == DepthOperationHandle.RadiusY ? DepthOperationAmountColor : DepthOperationHandleColor, hotHandle == DepthOperationHandle.RadiusY ? 13 : 9);
         }
