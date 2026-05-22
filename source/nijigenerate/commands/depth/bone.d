@@ -1803,6 +1803,16 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
             ]
         ),
         StandardDepthBoneBindingSpec(
+            "Face::Roll",
+            "Neck",
+            "transform.r.z",
+            [
+                StandardDepthBindingValue(vec2(-1,  0), -0.41800633f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.41887903f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
             "Body::Yaw-Pitch",
             "Spine",
             "transform.r.y",
@@ -1912,6 +1922,66 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
             [
                 StandardDepthBindingValue(vec2( 0, -1), -67.0f),
                 StandardDepthBindingValue(vec2( 0,  0), 0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Roll",
+            "Pelvis",
+            "transform.t.x",
+            [
+                StandardDepthBindingValue(vec2(-1,  0),  30.0f),
+                StandardDepthBindingValue(vec2( 0,  0),   0.0f),
+                StandardDepthBindingValue(vec2( 1,  0), -30.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Roll",
+            "Pelvis",
+            "transform.t.y",
+            [
+                StandardDepthBindingValue(vec2(-1,  0), -28.0f),
+                StandardDepthBindingValue(vec2( 0,  0),   0.0f),
+                StandardDepthBindingValue(vec2( 1,  0), -28.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Roll",
+            "Pelvis",
+            "transform.r.z",
+            [
+                StandardDepthBindingValue(vec2(-1,  0), -0.049741887f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.049741887f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Roll",
+            "Spine",
+            "transform.r.z",
+            [
+                StandardDepthBindingValue(vec2(-1,  0), -0.15271631f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.15271631f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Roll",
+            "Chest",
+            "transform.r.y",
+            [
+                StandardDepthBindingValue(vec2(-1,  0), -0.0f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.0f),
+            ]
+        ),
+        StandardDepthBoneBindingSpec(
+            "Body::Roll",
+            "Chest",
+            "transform.r.z",
+            [
+                StandardDepthBindingValue(vec2(-1,  0), -0.123918384f),
+                StandardDepthBindingValue(vec2( 0,  0),  0.0f),
+                StandardDepthBindingValue(vec2( 1,  0),  0.123918384f),
             ]
         ),
     ];
