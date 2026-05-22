@@ -2205,7 +2205,12 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
             setting.depthOffset,
             setting.depthScale);
         incActionPush(new DepthBoneSourceListChangeAction("Set Depth Bone Source Settings", rigRoot, oldBindings, rigRoot.bindings));
-        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Source Settings");
+        auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : null;
+        if (param !is null) {
+            ngMarkDepthBoneDirty(rigRoot, param, param.findClosestKeypoint(), "Depth Bone Source Settings", DepthBoneDirtyScope.AllKeypoints);
+        } else {
+            ngMarkDepthBoneDirty(rigRoot, null, vec2u.init, "Depth Bone Source Settings", DepthBoneDirtyScope.AllKeypoints);
+        }
         return CommandResult(true);
     }
 }

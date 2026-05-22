@@ -318,6 +318,7 @@ private:
 
     static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting, Parameter parameter = null, vec2u cursor = vec2u.init) {
         auto ctx = new Context(); ctx.nodes([target]);
+        if (parameter !is null) ctx.armedParameters = [parameter];
         cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
             ctx,
             root,
