@@ -20,6 +20,7 @@ public import nijigenerate.panels.inspector.meshgroup;
 public import nijigenerate.panels.inspector.camera;
 public import nijigenerate.panels.inspector.pathdeform;
 public import nijigenerate.panels.inspector.griddeform;
+public import nijigenerate.panels.inspector.depthbone;
 import nijigenerate.ext;
 import nijigenerate.widgets;
 import nijigenerate.utils;
