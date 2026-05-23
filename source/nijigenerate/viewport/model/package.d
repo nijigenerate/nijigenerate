@@ -138,7 +138,7 @@ public:
                 break;
             }
         }
-        if (incShowDepthBones) {
+        if (ngShowDepthBones) {
             foreach (root; findDepthRoots()) {
                 drawDepthBones(root, findDepthRoot(selectedDepthBone) is root ? selectedDepthBone : null);
             }
@@ -342,10 +342,10 @@ public:
                 incTooltip(incShowOrientation ? _("Hide Orientation Gizmo") : _("Show Orientation Gizmo"));
 
                 igSameLine(0, 4);
-                if (incButtonColored("\ue8ef", ImVec2(0, 0), incShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
-                    incShowDepthBones = !incShowDepthBones;
+                if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                    ngShowDepthBones = !ngShowDepthBones;
                 }
-                incTooltip(incShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
+                incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
 
                 // DropdownMenu is silly, so
                 igSameLine(0, 0);

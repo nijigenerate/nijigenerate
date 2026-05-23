@@ -18,5 +18,5 @@ void incInitExtNodes() {
     incRegisterExPart();
     incRegisterExCamera();
     ngRegisterExDepthBoneNodes();
-    incRegisterExGridDeformer();
+    ngRegisterExGridDeformer();
 }

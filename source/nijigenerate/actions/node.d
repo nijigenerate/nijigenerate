@@ -904,7 +904,7 @@ GroupAction incDeleteWeldedLinksOfNode(Node n, GroupAction group = null) {
     return group;
 }
 
-GroupAction incDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
+GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
     if (n is null || incActivePuppet() is null) return group;
 
     ExDepthBone[] removedBones;
@@ -970,7 +970,7 @@ GroupAction incDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
 void incDeleteChildWithHistory(Node n) {
     auto group = incDeleteMaskOfNode(n);
     group = incDeleteWeldedLinksOfNode(n, group);
-    group = incDeleteDepthBoneSourcesOfNode(n, group);
+    group = ngDeleteDepthBoneSourcesOfNode(n, group);
     if (group !is null) {
         group.addAction(new NodeMoveAction(
             [n],
@@ -996,7 +996,7 @@ void incDeleteChildrenWithHistory(Node[] ns) {
     foreach (n; ns) {
         group = incDeleteMaskOfNode(n, group);
         group = incDeleteWeldedLinksOfNode(n, group);
-        group = incDeleteDepthBoneSourcesOfNode(n, group);
+        group = ngDeleteDepthBoneSourcesOfNode(n, group);
     }
     if (group !is null) {
         // Push action to stack

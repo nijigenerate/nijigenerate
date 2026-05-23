@@ -68,11 +68,11 @@ private {
         return rscale;
     }
 
-    bool incINPExportShouldExcludeNode(Node node) {
+    bool ngINPExportShouldExcludeNode(Node node) {
         return cast(ExDepthRigRoot)node !is null || cast(ExDepthBone)node !is null;
     }
 
-    void incINPExportPruneDepthRigNodes(Puppet puppet) {
+    void ngINPExportPruneDepthRigNodes(Puppet puppet) {
         bool[uint] removedNodeUuids;
 
         void collectRemoved(Node node) {
@@ -84,7 +84,7 @@ private {
 
         void pruneNode(ref Node node) {
             foreach(child; node.children.dup) {
-                if (incINPExportShouldExcludeNode(child)) {
+                if (ngINPExportShouldExcludeNode(child)) {
                     collectRemoved(child);
                     child.parent = null;
                 } else {
@@ -217,7 +217,7 @@ Puppet incINPExportGenPuppet(Puppet puppet, IncINPExportSettings settings, bool 
     // an identical deep clone with a reference to the same textures.
     Puppet p = inLoadINPPuppet(inWriteINPPuppetMemory(puppet));
 
-    incINPExportPruneDepthRigNodes(p);
+    ngINPExportPruneDepthRigNodes(p);
 
     if (optimize) {
 

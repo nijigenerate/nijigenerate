@@ -17,26 +17,26 @@ public import nijigenerate.viewport.depth.tools.select;
 
 private DepthEditTool[] depthTools;
 
-void incRegisterDepthEditTool(DepthEditTool tool) {
+void ngRegisterDepthEditTool(DepthEditTool tool) {
     foreach (registered; depthTools) {
         if (registered.mode == tool.mode) return;
     }
     depthTools ~= tool;
 }
 
-DepthEditTool[] incDepthEditTools() {
+DepthEditTool[] ngDepthEditTools() {
     if (depthTools.length == 0) {
-        incRegisterDepthEditTool(new DepthSelectTool);
-        incRegisterDepthEditTool(new DepthLandmarkTool);
-        incRegisterDepthEditTool(new DepthRingTool);
-        incRegisterDepthEditTool(new DepthAttachedPointTool);
-        incRegisterDepthEditTool(new DepthPlaneTool);
+        ngRegisterDepthEditTool(new DepthSelectTool);
+        ngRegisterDepthEditTool(new DepthLandmarkTool);
+        ngRegisterDepthEditTool(new DepthRingTool);
+        ngRegisterDepthEditTool(new DepthAttachedPointTool);
+        ngRegisterDepthEditTool(new DepthPlaneTool);
     }
     return depthTools;
 }
 
-DepthEditTool incDepthEditTool(DepthToolMode mode) {
-    foreach (tool; incDepthEditTools()) {
+DepthEditTool ngDepthEditTool(DepthToolMode mode) {
+    foreach (tool; ngDepthEditTools()) {
         if (tool.mode == mode) return tool;
     }
     return null;

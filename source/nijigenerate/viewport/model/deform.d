@@ -28,7 +28,7 @@ public:
         if (editor)
             editor.draw(camera);
 
-        if (incShowDepthBones) {
+        if (ngShowDepthBones) {
             ExDepthBone selectedDepthBone = null;
             foreach (node; incSelectedNodes()) {
                 if (auto bone = cast(ExDepthBone)node) {
@@ -129,10 +129,10 @@ public:
     override
     void drawOptions() {
         if(incBeginDropdownMenu("GIZMOS", "")) {
-            if (incButtonColored("\ue8ef", ImVec2(0, 0), incShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
-                incShowDepthBones = !incShowDepthBones;
+            if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                ngShowDepthBones = !ngShowDepthBones;
             }
-            incTooltip(incShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
+            incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
             incEndDropdownMenu();
         }
 

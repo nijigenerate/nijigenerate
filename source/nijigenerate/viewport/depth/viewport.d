@@ -81,7 +81,7 @@ public:
     }
 
     DepthEditTool activeTool() {
-        return incDepthEditTool(toolMode);
+        return ngDepthEditTool(toolMode);
     }
 
     void setToolMode(DepthToolMode mode) {
@@ -129,7 +129,7 @@ public:
         igSetWindowFontScale(1.30);
             igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(1, 1));
             igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(8, 10));
-                foreach (tool; incDepthEditTools()) {
+                foreach (tool; ngDepthEditTools()) {
                     if (tool.drawToolButton(toolMode)) {
                         setToolMode(tool.mode);
                     }

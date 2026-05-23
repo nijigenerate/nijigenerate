@@ -53,6 +53,6 @@ public:
     }
 }
 
-void incRegisterExGridDeformer() {
+void ngRegisterExGridDeformer() {
     inRegisterNodeType!ExGridDeformer();
 }
