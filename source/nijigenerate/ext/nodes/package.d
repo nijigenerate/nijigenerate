@@ -9,8 +9,14 @@ module nijigenerate.ext.nodes;
 
 public import nijigenerate.ext.nodes.expart;
 public import nijigenerate.ext.nodes.excamera;
+public import nijigenerate.ext.nodes.exdepthmapped;
+public import nijigenerate.ext.nodes.exdepthops;
+public import nijigenerate.ext.nodes.exdepthbone;
+public import nijigenerate.ext.nodes.exgriddeformer;
 
 void incInitExtNodes() {
     incRegisterExPart();
     incRegisterExCamera();
+    ngRegisterExDepthBoneNodes();
+    ngRegisterExGridDeformer();
 }

@@ -29,8 +29,8 @@ import std.range: enumerate;
 
 /// Model View
 
-class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : BaseInspector!(mode, T) 
-    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer) && !is(T: GridDeformer))
+class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Node) : BaseInspector!(mode, T)
+    if (!is(T: Composite) && !is(T: MeshGroup) && !is(T: Drawable) && !is(T: SimplePhysics) && !is(T: ExCamera) && !is(T: PathDeformer) && !is(T: GridDeformer) && !is(T: ExDepthRigRoot) && !is(T: ExDepthBone))
 {
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);

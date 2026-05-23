@@ -1,6 +1,7 @@
 module nijigenerate.commands.vertex.define_mesh;
 
 import nijigenerate.commands.base;
+import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.project : incSelectedNodes;
 import nijigenerate.viewport.common.mesh : IncMesh, isGrid;
 import nijigenerate.viewport.vertex : ngApplyDeformableVerticesFromCommand, ngApplyDrawableMeshFromCommand;
@@ -176,6 +177,7 @@ class DefineVerticesCommand : ExCommand!(
             string message;
             if (!ngApplyDeformableVerticesFromCommand(t, vtx, message))
                 return CommandResult(false, message);
+            ngMarkDepthBoneDirtyForTarget(cast(Node)t, "Target Vertices");
         }
         return CommandResult(true);
     }
@@ -212,6 +214,7 @@ class DefineGridCommand : ExCommand!(
             string message;
             if (!ngApplyDeformableVerticesFromCommand(t, vtx, message))
                 return CommandResult(false, message);
+            ngMarkDepthBoneDirtyForTarget(cast(Node)t, "Target Vertices");
         }
         return CommandResult(true);
     }

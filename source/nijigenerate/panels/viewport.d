@@ -207,7 +207,7 @@ protected:
                 incBeginViewportToolArea("ConfirmArea", ImGuiDir.Left, ImGuiDir.Down, false);
                     viewport.drawConfirmBar();
                 incEndViewportToolArea();
-                if (incEditMode == EditMode.ModelEdit)
+                if (incEditMode == EditMode.ModelEdit && ngModelEditSubMode() == ModelEditSubMode.Layout)
                     incViewportTransformHandle();
             //igPopStyleVar();
 

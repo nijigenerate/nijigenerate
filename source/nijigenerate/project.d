@@ -123,9 +123,14 @@ enum EditMode {
     ModelTest = 0x8,
 
     /**
+        Depth editing mode
+    */
+    DepthEdit = 0x10,
+
+    /**
         Not real edit mode, contains all the combined modes
     */
-    ALL = ModelEdit | VertexEdit | AnimEdit | ModelTest,
+    ALL = ModelEdit | VertexEdit | AnimEdit | ModelTest | DepthEdit,
 }
 
 enum ModelEditSubMode {
@@ -152,6 +157,7 @@ private {
 bool incShowVertices    = true; /// Show vertices of selected parts
 bool incShowBounds      = true; /// Show bounds of selected parts
 bool incShowOrientation = true; /// Show orientation gizmo of selected parts
+bool ngShowDepthBones  = true; /// Show depth bone rig connections
 
 /**
     Current edit mode

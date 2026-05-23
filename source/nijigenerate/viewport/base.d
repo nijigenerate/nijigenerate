@@ -15,6 +15,7 @@ import nijigenerate.core.window :
     ngDifferenceAggregationResultValid,
     ngDifferenceAggregationResultSerial;
 import nijigenerate.viewport.model;
+import nijigenerate.viewport.depth;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.anim;
@@ -232,6 +233,9 @@ class MainViewport : DelegationViewport {
         break;
         case EditMode.AnimEdit:
             subView = new AnimationViewport;
+        break;
+        case EditMode.DepthEdit:
+            subView = new DepthEditViewport;
         break;
         default:
         }
@@ -472,18 +476,75 @@ void incViewportTransformHandle() {
     Parameter param = incArmedParameter();
     if (incSelectedNodes.length == 0)
         return;
-        
-    vec4 totalBounds = incSelectedNodes[0].getCombinedBounds();
-    if (auto part = cast(Part)incSelectedNodes[0]) {
-        totalBounds = part.bounds;
+
+    void unionBounds(ref vec4 target, vec4 candidate) {
+        target = vec4(
+            min(target.x, candidate.x),
+            min(target.y, candidate.y),
+            max(target.z, candidate.z),
+            max(target.w, candidate.w)
+        );
     }
-    foreach(selectedNode; incSelectedNodes) {
-        auto obounds = selectedNode.getCombinedBounds();
-        if (auto part = cast(Part)selectedNode) {
-            obounds = part.bounds;
+
+    bool selfMeshBounds(Node node, out vec4 result) {
+        if (auto drawable = cast(Drawable)node) {
+            if (drawable.vertices.length == 0) return false;
+
+            auto matrix = drawable.meshOverlayMatrix();
+            auto points = drawable.meshOverlayPoints();
+            if (points.length == 0) return false;
+
+            vec2 first = (matrix * vec4(points[0], 0, 1)).xy;
+            result = vec4(first.xyxy);
+            foreach (i; 1 .. points.length) {
+                vec2 point = (matrix * vec4(points[i], 0, 1)).xy;
+                result.x = min(result.x, point.x);
+                result.y = min(result.y, point.y);
+                result.z = max(result.z, point.x);
+                result.w = max(result.w, point.y);
+            }
+            return true;
         }
-        totalBounds = vec4(min(totalBounds.x, obounds.x), min(totalBounds.y, obounds.y),
-                            max(totalBounds.z, obounds.z), max(totalBounds.w, obounds.w));
+
+        if (auto deformable = cast(Deformable)node) {
+            auto vertices = deformable.vertices;
+            if (vertices.length == 0) return false;
+
+            auto matrix = deformable.getDynamicMatrix();
+            auto deformCount = deformable.deformation.length;
+            vec2 first = vertices[0].toVector();
+            if (deformCount > 0) first += deformable.deformation[0].toVector();
+            first = (matrix * vec4(first, 0, 1)).xy;
+            result = vec4(first.xyxy);
+
+            foreach (i; 1 .. vertices.length) {
+                vec2 point = vertices[i].toVector();
+                if (i < deformCount) point += deformable.deformation[i].toVector();
+                point = (matrix * vec4(point, 0, 1)).xy;
+                result.x = min(result.x, point.x);
+                result.y = min(result.y, point.y);
+                result.z = max(result.z, point.x);
+                result.w = max(result.w, point.y);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    vec4 handleBounds(Node node) {
+        vec4 result = node.getCombinedBounds();
+        vec4 ownBounds;
+        if (selfMeshBounds(node, ownBounds)) {
+            unionBounds(result, ownBounds);
+        }
+        return result;
+    }
+        
+    vec4 totalBounds = handleBounds(incSelectedNodes[0]);
+    foreach(selectedNode; incSelectedNodes) {
+        auto obounds = handleBounds(selectedNode);
+        unionBounds(totalBounds, obounds);
     }
     auto bounds = vec4(WorldToViewport(totalBounds.x, totalBounds.y), WorldToViewport(totalBounds.z, totalBounds.w));
 
@@ -936,7 +997,8 @@ private {
         float uiScale = incGetUIScale();
         
         // HANDLE MOVE VIEWPORT
-        if (!isMovingViewport && io.MouseDown[1] && incInputIsDragRequested()) {
+        bool canMoveViewport = incEditMode != EditMode.DepthEdit || io.KeyShift;
+        if (!isMovingViewport && canMoveViewport && io.MouseDown[1] && incInputIsDragRequested()) {
             isMovingViewport = true;
             sx = io.MousePos.x;
             sy = io.MousePos.y;

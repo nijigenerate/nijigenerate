@@ -67,6 +67,59 @@ private {
 
         return rscale;
     }
+
+    bool ngINPExportShouldExcludeNode(Node node) {
+        return cast(ExDepthRigRoot)node !is null || cast(ExDepthBone)node !is null;
+    }
+
+    void ngINPExportPruneDepthRigNodes(Puppet puppet) {
+        bool[uint] removedNodeUuids;
+
+        void collectRemoved(Node node) {
+            removedNodeUuids[node.uuid] = true;
+            foreach(child; node.children) {
+                collectRemoved(child);
+            }
+        }
+
+        void pruneNode(ref Node node) {
+            foreach(child; node.children.dup) {
+                if (ngINPExportShouldExcludeNode(child)) {
+                    collectRemoved(child);
+                    child.parent = null;
+                } else {
+                    pruneNode(child);
+                }
+            }
+        }
+
+        void pruneParameter(Parameter parameter) {
+            ParameterBinding[] bindings;
+            foreach(binding; parameter.bindings) {
+                auto targetNode = cast(Node)binding.getTarget.target;
+                if (targetNode !is null && targetNode.uuid in removedNodeUuids) {
+                    continue;
+                }
+                bindings ~= binding;
+            }
+            parameter.bindings = bindings;
+        }
+
+        pruneNode(puppet.root);
+        if (removedNodeUuids.length == 0) return;
+
+        foreach(parameter; puppet.parameters) {
+            if (auto group = cast(ExParameterGroup)parameter) {
+                foreach(child; group.children) {
+                    pruneParameter(child);
+                }
+            } else {
+                pruneParameter(parameter);
+            }
+        }
+
+        puppet.rescanNodes();
+    }
 }
 
 
@@ -163,6 +216,8 @@ Puppet incINPExportGenPuppet(Puppet puppet, IncINPExportSettings settings, bool 
     // A clone() function should be added to Puppet, which creates
     // an identical deep clone with a reference to the same textures.
     Puppet p = inLoadINPPuppet(inWriteINPPuppetMemory(puppet));
+
+    ngINPExportPruneDepthRigNodes(p);
 
     if (optimize) {
 
