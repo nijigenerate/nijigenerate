@@ -426,14 +426,14 @@ private {
             case SubToolMode.Vertex:
                 vertImpl.vertexColor = vec4(0, 1, 1, 1);
                 vertImpl.edgeColor   = vec4(0, 1, 1, 1);
-                defImpl.vertexColor = vec4(0, 0.5, 0, 1);
-                defImpl.edgeColor   = vec4(0, 0.5, 0, 0.5);
+                defImpl.vertexColor = vec4(0, 0.6, 0, 1);
+                defImpl.edgeColor   = vec4(0, 0.6, 0, 1);
                 resetCurrentTool(vertImpl);
                 vertImpl.getCleanDeformAction();
                 break;
             case SubToolMode.Deform:
-                vertImpl.vertexColor = vec4(0, 0.5, 0.5, 1);
-                vertImpl.edgeColor   = vec4(0, 0.5, 0.5, 0.5);
+                vertImpl.vertexColor = vec4(0, 0.6, 0.6, 1);
+                vertImpl.edgeColor   = vec4(0, 0.6, 0.6, 1);
                 defImpl.vertexColor = vec4(0, 1, 0, 1);
                 defImpl.edgeColor   = vec4(0, 1, 0, 1);
                 resetCurrentTool(defImpl);
@@ -1050,8 +1050,8 @@ public:
         if (acquired) {
             auto session = ngOneTimeDeformScope();
             if (mode == SubToolMode.Vertex) {
-//                session.defImpl.draw(camera);
-//                session.defImpl.getTool().draw(camera, session.defImpl);
+                session.defImpl.draw(camera);
+                session.defImpl.getTool().draw(camera, session.defImpl);
                 session.vertImpl.draw(camera);
                 session.vertImpl.getTool().draw(camera, session.vertImpl);
             } else {

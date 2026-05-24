@@ -459,7 +459,7 @@ private:
             return;
 
         Vec3Array lines;
-        vec4 color = vec4(0.2, 0.9, 0.9, 1);
+        vec4 color = impl.edgeColor;
 
         if (currentAction == GridActionID.Create) {
             vec4 bounds = vec4(min(dragOrigin.x, dragEnd.x), min(dragOrigin.y, dragEnd.y),
