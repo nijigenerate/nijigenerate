@@ -41,7 +41,7 @@ private:
     float dragStartMouseY;
     bool draggingOperation;
     DepthTextureMeshRenderer renderer;
-    bool stackPushed;
+    ActionStackScope actionScope;
 
     bool editable(Node node) {
         auto ok = cast(GridDeformer)node !is null;
@@ -86,8 +86,7 @@ private:
 public:
     this() {
         renderer = new DepthTextureMeshRenderer();
-        incActionPushStack();
-        stackPushed = true;
+        actionScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
     }
 
     ~this() {
@@ -95,15 +94,16 @@ public:
     }
 
     void dispose() {
+        closeStack();
         foreach (editor; editors.byValue) editor.dispose();
         editors.clear();
         operations.clear();
     }
 
     void closeStack() {
-        if (stackPushed) {
-            incActionPopStack();
-            stackPushed = false;
+        if (actionScope) {
+            actionScope.close();
+            actionScope = null;
         }
     }
 

@@ -11,6 +11,7 @@ import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
+import nijigenerate.core.math.mesh : applyMeshToTarget;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
@@ -20,7 +21,6 @@ import nijigenerate.core.dbg;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.opengl;
 import bindbc.imgui;
-//import std.stdio;
 import std.array;
 import std.algorithm.searching: countUntil;
 import std.algorithm.mutation;
@@ -34,6 +34,11 @@ private:
     }
 
     VirtualMeshContext[IncMeshEditorOneDeformable] deformableMeshes;
+
+    IncMesh createEmptyMesh() {
+        MeshData meshData;
+        return new IncMesh(meshData);
+    }
 
     IncMesh getMesh(IncMeshEditorOne impl, out bool isVirtual) {
         if (auto drawable = cast(IncMeshEditorOneDrawable)impl) {
@@ -62,6 +67,17 @@ private:
 
     public:
 
+    void resetVirtualMeshAsEmpty(IncMeshEditorOne impl) {
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            auto mesh = createEmptyMesh();
+            deformableMeshes[deformable] = VirtualMeshContext(mesh);
+            deformable.vertices = null;
+            deformable.vertexMapDirty = false;
+            deformable.deselectAll();
+            deformable.refreshMesh();
+        }
+    }
+
     void refreshMeshView(IncMeshEditorOne impl, IncMesh mesh) {
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
             auto positions = ngMeshPositions(mesh);
@@ -77,6 +93,23 @@ private:
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
             deformable.vertexMapDirty = true;
         }
+    }
+
+    bool applyVirtualMeshToTarget(IncMeshEditorOne impl) {
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (!isVirtual || mesh is null)
+            return false;
+        if (mesh.vertices.length == 0 && mesh.axes.length < 2)
+            return false;
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            if (auto target = cast(GridDeformer)deformable.getTarget()) {
+                applyMeshToTarget(target, mesh.vertices, &mesh);
+                deformable.vertexMapDirty = false;
+                return true;
+            }
+        }
+        return false;
     }
 
     GridActionID currentAction;
@@ -228,6 +261,7 @@ private:
             meshData.regenerateGrid();
             mesh.copyFromMeshData(meshData);
             refreshMeshView(impl, mesh);
+            markChanged(impl);
             currentAction = GridActionID.End;
             return true;
         }
@@ -396,11 +430,11 @@ private:
     override void draw (Camera camera, IncMeshEditorOne impl) {
         bool isVirtual = false;
         auto mesh = getMesh(impl, isVirtual);
-        if (mesh is null || mesh.axes.length != 2)
+        if (mesh is null)
             return;
 
         Vec3Array lines;
-        vec4 color = vec4(0.2, 0.9, 0.9, 1);
+        vec4 color = impl.edgeColor;
 
         if (currentAction == GridActionID.Create) {
             vec4 bounds = vec4(min(dragOrigin.x, dragEnd.x), min(dragOrigin.y, dragEnd.y),
@@ -415,6 +449,8 @@ private:
                 lines ~= [vec3(offx, bounds.y, 0), vec3(offx, bounds.w, 0)];
             }
         } else {
+            if (mesh.axes.length != 2)
+                return;
             float minX = mesh.axes[1][0];
             float maxX = mesh.axes[1][$ - 1];
             float minY = mesh.axes[0][0];

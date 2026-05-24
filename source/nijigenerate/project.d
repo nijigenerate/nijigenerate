@@ -83,6 +83,7 @@ package(nijigenerate) {
 
     void function(Puppet)[] loadCallbacks;
     void function(Puppet)[] saveCallbacks;
+    void function(Puppet)[] postSaveCallbacks;
 }
 
 
@@ -92,6 +93,10 @@ void incRegisterLoadFunc(void function(Puppet) func) {
 
 void incRegisterSaveFunc(void function(Puppet) func) {
     saveCallbacks ~= func;
+}
+
+void ngRegisterPostSaveFunc(void function(Puppet) func) {
+    postSaveCallbacks ~= func;
 }
 
 void ngRegisterProjectCallback(void function(Project) func) {
@@ -361,6 +366,10 @@ void incSaveProject(string path, string autosaveStamp = "") {
 
         // Remember to populate texture slots otherwise things will break real bad!
         incActivePuppet().populateTextureSlots();
+        scope(exit) {
+            foreach (func; postSaveCallbacks)
+                func(incActivePuppet());
+        }
         foreach (func; saveCallbacks)
             func(incActivePuppet());
 
@@ -774,6 +783,21 @@ ModelEditSubMode ngModelEditSubMode() {
 void incSetEditMode(EditMode editMode, bool unselect = true) {
     if (activeProject) activeProject.EditModeChanging.emit(editMode_);
 //    incViewportWithdrawMode(editMode_);
+
+    final switch (editMode) {
+    case EditMode.VertexEdit:
+        ngGuardActionStackScopes([ActionStackScopeUnit.VertexEdit]);
+        break;
+    case EditMode.DepthEdit:
+        ngGuardActionStackScopes([ActionStackScopeUnit.DepthEdit]);
+        break;
+    case EditMode.ModelEdit:
+    case EditMode.AnimEdit:
+    case EditMode.ModelTest:
+    case EditMode.ALL:
+        ngGuardActionStackScopes();
+        break;
+    }
 
     if (armedParam) {
         armedParam.value = armedParam.getClosestKeypointValue(armedParam.value);

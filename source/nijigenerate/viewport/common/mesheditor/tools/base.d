@@ -27,6 +27,7 @@ class Tool {
     abstract void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl);
     abstract void draw(Camera camera, IncMeshEditorOne impl);
     abstract void finalizeToolMode(IncMeshEditorOne impl);
+    void abortToolMode(IncMeshEditorOne impl) { }
 
     MeshEditorAction!DeformationAction editorAction(Node target, DeformationAction action) {
         return new MeshEditorAction!(DeformationAction)(target, action);

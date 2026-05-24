@@ -30,8 +30,8 @@ ToolInfo[] incGetToolInfo() {
         infoList ~= new ToolInfoImpl!(LassoTool);
         infoList ~= new ToolInfoImpl!(EdgeCutterTool);
         infoList ~= new ToolInfoImpl!(BezierDeformTool);
-//        infoList ~= new ToolInfoImpl!(OneTimeDeform!MeshGroup); // Disabled tool temporary
-//        infoList ~= new ToolInfoImpl!(OneTimeDeform!PathDeformer); // Disabled tool temporary
+        infoList ~= new ToolInfoImpl!(OneTimeDeform!GridDeformer);
+        infoList ~= new ToolInfoImpl!(OneTimeDeform!PathDeformer);
     }
     return infoList;
 }

@@ -7,7 +7,7 @@ enum VertexToolMode {
     Grid,
     Brush,
     BezierDeform,
-    AltMeshGroup,
+    AltGridDeform,
     AltBezierDeform,
     LassoSelection,
     EdgeCutter,

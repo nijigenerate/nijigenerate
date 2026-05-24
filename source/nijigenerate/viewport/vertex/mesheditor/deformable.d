@@ -328,7 +328,7 @@ public:
                 auto curve = deformable.createCurve(Vec2Array(vertsAoS));
                 drawLines(curve, trans, edgeColor);
             } else if (auto grid = cast(GridDeformer)target) {
-                auto baseVerts = grid.vertices;
+                auto baseVerts = Vec2Array(vertices.map!(v => v.position).array);
                 if (baseVerts.length >= 4) {
                     auto baseVertsAoS = baseVerts.toArray();
                     auto xs = baseVertsAoS.map!(v => v.x).array;
@@ -341,24 +341,20 @@ public:
                     size_t rows = ys.length;
                     if (cols >= 2 && rows >= 2 && cols * rows == baseVerts.length) {
                         Vec3Array lines;
-                        bool haveDeform = grid.deformation.length == baseVerts.length;
                         foreach (y; 0 .. rows) {
                             foreach (x; 0 .. cols) {
                                 size_t idx = y * cols + x;
                                 vec2 startPos = baseVertsAoS[idx];
-                                if (haveDeform) startPos += grid.deformation[idx];
                                 auto start = vec3(startPos, 0);
                                 if (x + 1 < cols) {
                                     size_t nextIdx = idx + 1;
                                     vec2 rightPos = baseVertsAoS[nextIdx];
-                                    if (haveDeform) rightPos += grid.deformation[nextIdx];
                                     lines ~= start;
                                     lines ~= vec3(rightPos, 0);
                                 }
                                 if (y + 1 < rows) {
                                     size_t nextIdx = idx + cols;
                                     vec2 downPos = baseVertsAoS[nextIdx];
-                                    if (haveDeform) downPos += grid.deformation[nextIdx];
                                     lines ~= start;
                                     lines ~= vec3(downPos, 0);
                                 }
