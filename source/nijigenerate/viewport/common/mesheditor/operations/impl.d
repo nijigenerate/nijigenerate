@@ -108,6 +108,7 @@ public:
         if (this.toolMode == toolMode) return;
 
         if (toolMode in tools) {
+            abortToolMode();
             this.toolMode = toolMode;
             tools[toolMode].setToolMode(toolMode, this);
         }
@@ -116,9 +117,14 @@ public:
     override
     void finalizeToolMode() {
         if (toolMode in tools) {
-            import std.stdio;
-            writefln("finalize %s, %s", toolMode, target.name);
             tools[toolMode].finalizeToolMode(this);
+        }
+    }
+
+    override
+    void abortToolMode() {
+        if (toolMode in tools) {
+            tools[toolMode].abortToolMode(this);
         }
     }
 

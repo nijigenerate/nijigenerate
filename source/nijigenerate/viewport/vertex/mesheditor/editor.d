@@ -31,6 +31,8 @@ import std.string;
 
 class VertexMeshEditor : IncMeshEditor {
 private:
+    ActionStackScope actionScope;
+
     void adjustToolModeForSelection() {
         bool anyGrid = false;
         bool anyPath = false;
@@ -72,6 +74,18 @@ private:
 public:
     this() {
         super(false);
+        actionScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+    }
+
+    ~this() {
+        closeScope();
+    }
+
+    void closeScope() {
+        if (actionScope) {
+            actionScope.close();
+            actionScope = null;
+        }
     }
 
     override
@@ -81,7 +95,6 @@ public:
         IncMeshEditorOne subEditor;
 
         if (auto drawable = cast(Drawable)target) {
-            incActionPushStack();
             subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
             float[][] axes;
             if (drawable.getMesh().vertices.isGrid(axes)) {
@@ -89,7 +102,6 @@ public:
                 toolMode           = VertexToolMode.Grid;
             }
         } else if (auto deformable = cast(Deformable)target) {
-            incActionPushStack();
             subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.VertexEdit)();
             if (cast(PathDeformer)deformable) {
                 subEditor.toolMode = VertexToolMode.BezierDeform;
@@ -115,10 +127,8 @@ public:
             } else {
                 IncMeshEditorOne subEditor = null;
                 if (auto drawable = cast(Drawable)t) {
-                    incActionPushStack();
                     subEditor = new IncMeshEditorOneFor!(Drawable, EditMode.VertexEdit)();
                 } else if (auto deformable = cast(Deformable)t) {
-                    incActionPushStack();
                     subEditor = new IncMeshEditorOneFor!(Deformable, EditMode.VertexEdit)();
                     if (cast(GridDeformer)deformable) {
                         subEditor.toolMode = VertexToolMode.Grid;
@@ -127,7 +137,6 @@ public:
                         subEditor.toolMode = VertexToolMode.BezierDeform;
                     }
                 } else {
-                    incActionPushStack();
                     subEditor = new IncMeshEditorOneFor!Node(deformOnly);
                 }
                 subEditor.setTarget(t);
@@ -135,6 +144,11 @@ public:
                 subEditor.mirrorVert  = mirrorVert;
                 subEditor.previewTriangulate = previewTriangulate;
                 newEditors[t] = subEditor;
+            }
+        }
+        foreach (node, editor; editors) {
+            if (node !in newEditors) {
+                editor.abortToolMode();
             }
         }
         editors = newEditors;

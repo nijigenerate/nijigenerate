@@ -67,8 +67,10 @@ public:
     abstract void setTargets(Node[] targets);
 
     void removeTarget(Node target) {
-        if (target in editors)
+        if (target in editors) {
+            editors[target].abortToolMode();
             editors.remove(target);
+        }
     }
 
     Node[] getTargets() {
@@ -78,6 +80,12 @@ public:
     void refreshMesh() {
         foreach (drawing, editor; editors) {
             editor.refreshMesh();
+        }
+    }
+
+    void abortActiveTools() {
+        foreach (editor; editors.byValue) {
+            editor.abortToolMode();
         }
     }
 

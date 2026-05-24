@@ -329,7 +329,8 @@ public:
                 } else {
                     incMeshEditClear();
                 }
-                incActionPopStack();
+                if (auto vertexEditor = cast(VertexMeshEditor)editor)
+                    vertexEditor.closeScope();
                 incSetEditMode(EditMode.ModelEdit);
                 foreach (d; target) {
                     incAddSelectNode(d);
@@ -346,7 +347,9 @@ public:
     }
 
     override
-    void withdraw() { 
+    void withdraw() {
+        if (auto vertexEditor = cast(VertexMeshEditor)editor)
+            vertexEditor.closeScope();
         editor = null;
     };
 
@@ -409,7 +412,8 @@ public:
             }
         }
 
-        incActionPopStack();
+        if (auto vertexEditor = cast(VertexMeshEditor)editor)
+            vertexEditor.closeScope();
         // Apply to target
         editor.applyToTarget();
 

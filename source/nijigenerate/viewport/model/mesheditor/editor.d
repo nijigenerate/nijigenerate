@@ -123,6 +123,11 @@ public:
                 newEditors[t] = subEditor;
             }
         }
+        foreach (node, editor; editors) {
+            if (node !in newEditors) {
+                editor.abortToolMode();
+            }
+        }
         editors = newEditors;
 //        adjustToolModeForSelection();
     }

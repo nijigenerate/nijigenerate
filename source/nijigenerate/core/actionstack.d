@@ -10,6 +10,13 @@ import nijigenerate.core.settings;
 import nijigenerate.actions;
 import nijilive;
 
+enum ActionStackScopeUnit {
+    Manual,
+    VertexEdit,
+    DepthEdit,
+    OneTimeDeform
+}
+
 private {
     Action[][] actions;
     size_t currentLevel = 0;
@@ -20,6 +27,56 @@ private {
     // Tracks the action index last marked as "saved" per level
     size_t[] savedIndex;
     size_t maxUndoHistory;
+    ActionStackScope[ActionStackScopeUnit] activeScopes;
+    void function(ActionStackScopeUnit)[ActionStackScopeUnit] scopeCloseHandlers;
+}
+
+final class ActionStackScope {
+private:
+    bool active;
+    size_t level;
+    ActionStackScopeUnit unit;
+
+public:
+    this(ActionStackScopeUnit unit = ActionStackScopeUnit.Manual) {
+        this.unit = unit;
+        incActionPushStack();
+        level = currentLevel;
+        active = true;
+    }
+
+    void close() {
+        if (!active) return;
+
+        auto closeUnit = unit;
+        if (unit != ActionStackScopeUnit.Manual) {
+            ActionStackScopeUnit[] staleUnits;
+            foreach (activeUnit, activeScope; activeScopes) {
+                if (activeScope.level >= level) {
+                    activeScope.active = false;
+                    staleUnits ~= activeUnit;
+                }
+            }
+            foreach (activeUnit; staleUnits)
+                activeScopes.remove(activeUnit);
+        }
+
+        while (currentLevel >= level && currentLevel > 0) {
+            incActionPopStack();
+        }
+        active = false;
+
+        if (auto handler = closeUnit in scopeCloseHandlers)
+            (*handler)(closeUnit);
+    }
+
+    bool isActive() {
+        return active;
+    }
+
+    ~this() {
+        close();
+    }
 }
 
 enum ActionStackClear {
@@ -205,6 +262,9 @@ void incActionSetIndex(size_t index) {
 void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
     switch (target) {
     case ActionStackClear.All:
+        foreach (activeScope; activeScopes.byValue)
+            activeScope.active = false;
+        activeScopes.clear();
         currentLevel = 0;
         actions.length = currentLevel + 1;
         actionPointer.length = currentLevel + 1;
@@ -219,6 +279,15 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         savedIndex[currentLevel] = 0;
         break;
     case ActionStackClear.CurrentLevel:
+        ActionStackScopeUnit[] staleUnits;
+        foreach (activeUnit, activeScope; activeScopes) {
+            if (activeScope.level >= currentLevel) {
+                activeScope.active = false;
+                staleUnits ~= activeUnit;
+            }
+        }
+        foreach (activeUnit; staleUnits)
+            activeScopes.remove(activeUnit);
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
@@ -257,6 +326,58 @@ void incActionPushStack() {
     groupCount.length = currentLevel + 1;
     savedIndex.length = currentLevel + 1;
     savedIndex[currentLevel] = 0;
+}
+
+ActionStackScope ngOpenActionStackScope(ActionStackScopeUnit unit = ActionStackScopeUnit.Manual) {
+    if (unit != ActionStackScopeUnit.Manual) {
+        if (auto found = unit in activeScopes) {
+            if ((*found).isActive())
+                return *found;
+            activeScopes.remove(unit);
+        }
+    }
+
+    auto created = new ActionStackScope(unit);
+    if (unit != ActionStackScopeUnit.Manual)
+        activeScopes[unit] = created;
+    return created;
+}
+
+void ngCloseActionStackScope(ActionStackScopeUnit unit) {
+    if (auto found = unit in activeScopes)
+        (*found).close();
+}
+
+void ngRegisterActionStackScopeCloseHandler(ActionStackScopeUnit unit, void function(ActionStackScopeUnit) handler) {
+    scopeCloseHandlers[unit] = handler;
+}
+
+void ngGuardActionStackScopes(scope const(ActionStackScopeUnit)[] allowedUnits = null) {
+    bool isAllowed(ActionStackScopeUnit unit) {
+        foreach (allowed; allowedUnits) {
+            if (allowed == unit)
+                return true;
+        }
+        return false;
+    }
+
+    ActionStackScope[] scopesToClose;
+    foreach (unit, activeScope; activeScopes) {
+        if (!isAllowed(unit))
+            scopesToClose ~= activeScope;
+    }
+    foreach (activeScope; scopesToClose)
+        activeScope.close();
+}
+
+bool ngActionStackScopeActive(ActionStackScopeUnit unit) {
+    if (auto found = unit in activeScopes)
+        return (*found).isActive();
+    return false;
+}
+
+size_t ngActionStackLevel() {
+    return currentLevel;
 }
 
 void incActionPopStack() {
