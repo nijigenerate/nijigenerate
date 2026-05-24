@@ -11,6 +11,7 @@ import nijigenerate.viewport.common;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.core.input;
 import nijigenerate.core.actionstack;
+import nijigenerate.core.math.mesh : applyMeshToTarget;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.widgets;
@@ -20,7 +21,7 @@ import nijigenerate.core.dbg;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.opengl;
 import bindbc.imgui;
-//import std.stdio;
+import std.stdio : writefln;
 import std.array;
 import std.algorithm.searching: countUntil;
 import std.algorithm.mutation;
@@ -29,11 +30,20 @@ import std.algorithm.searching : all;
 
 class GridTool : NodeSelect {
 private:
+    void oneTimeGridLog(Args...)(string fmt, Args args) {
+        writefln("[OneTimeDeform/Grid] " ~ fmt, args);
+    }
+
     struct VirtualMeshContext {
         IncMesh mesh;
     }
 
     VirtualMeshContext[IncMeshEditorOneDeformable] deformableMeshes;
+
+    IncMesh createEmptyMesh() {
+        MeshData meshData;
+        return new IncMesh(meshData);
+    }
 
     IncMesh getMesh(IncMeshEditorOne impl, out bool isVirtual) {
         if (auto drawable = cast(IncMeshEditorOneDrawable)impl) {
@@ -62,6 +72,17 @@ private:
 
     public:
 
+    void resetVirtualMeshAsEmpty(IncMeshEditorOne impl) {
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            auto mesh = createEmptyMesh();
+            deformableMeshes[deformable] = VirtualMeshContext(mesh);
+            deformable.vertices = null;
+            deformable.vertexMapDirty = false;
+            deformable.deselectAll();
+            deformable.refreshMesh();
+        }
+    }
+
     void refreshMeshView(IncMeshEditorOne impl, IncMesh mesh) {
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
             auto positions = ngMeshPositions(mesh);
@@ -76,7 +97,38 @@ private:
     void markChanged(IncMeshEditorOne impl) {
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
             deformable.vertexMapDirty = true;
+            oneTimeGridLog("markChanged: target=%s vertices=%s selected=%s tool=%s",
+                deformable.getTarget() ? deformable.getTarget().name : "(null)",
+                deformable.vertices.length,
+                deformable.selected.length,
+                impl.getToolMode());
         }
+    }
+
+    bool applyVirtualMeshToTarget(IncMeshEditorOne impl) {
+        bool isVirtual = false;
+        auto mesh = getMesh(impl, isVirtual);
+        if (!isVirtual || mesh is null)
+            return false;
+        if (mesh.vertices.length == 0 && mesh.axes.length < 2)
+            return false;
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            if (auto target = cast(GridDeformer)deformable.getTarget()) {
+                auto dirtyBefore = deformable.vertexMapDirty;
+                if (dirtyBefore) {
+                    oneTimeGridLog("applyVirtualMeshToTarget: target=%s virtualVertices=%s axes=%s dirtyBefore=%s",
+                        target.name, mesh.vertices.length, mesh.axes.length, dirtyBefore);
+                }
+                applyMeshToTarget(target, mesh.vertices, &mesh);
+                deformable.vertexMapDirty = false;
+                if (dirtyBefore) {
+                    oneTimeGridLog("applyVirtualMeshToTarget: applied targetVertices=%s deformation=%s dirtyAfter=%s",
+                        target.vertices.length, target.deformation.length, deformable.vertexMapDirty);
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     GridActionID currentAction;
@@ -228,6 +280,13 @@ private:
             meshData.regenerateGrid();
             mesh.copyFromMeshData(meshData);
             refreshMeshView(impl, mesh);
+            markChanged(impl);
+            oneTimeGridLog("create end: target=%s bounds=(%s,%s,%s,%s) vertices=%s axes=%sx%s",
+                impl.getTarget() ? impl.getTarget().name : "(null)",
+                bounds.x, bounds.y, bounds.z, bounds.w,
+                mesh.vertices.length,
+                mesh.axes.length > 0 ? mesh.axes[0].length : 0,
+                mesh.axes.length > 1 ? mesh.axes[1].length : 0);
             currentAction = GridActionID.End;
             return true;
         }
@@ -396,7 +455,7 @@ private:
     override void draw (Camera camera, IncMeshEditorOne impl) {
         bool isVirtual = false;
         auto mesh = getMesh(impl, isVirtual);
-        if (mesh is null || mesh.axes.length != 2)
+        if (mesh is null)
             return;
 
         Vec3Array lines;
@@ -415,6 +474,8 @@ private:
                 lines ~= [vec3(offx, bounds.y, 0), vec3(offx, bounds.w, 0)];
             }
         } else {
+            if (mesh.axes.length != 2)
+                return;
             float minX = mesh.axes[1][0];
             float maxX = mesh.axes[1][$ - 1];
             float minY = mesh.axes[0][0];

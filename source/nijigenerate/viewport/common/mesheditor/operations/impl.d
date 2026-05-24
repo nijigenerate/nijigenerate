@@ -202,9 +202,10 @@ void resize(T:MeshVertex*)(ref T[] array, ulong size) {
     if (size <= array.length) {
         array.length = size;
     } else {
-        while (size != 0) {
+        auto missing = size - array.length;
+        while (missing != 0) {
             array ~= new MeshVertex;
-            size --;
+            missing--;
         }
     }
 }
