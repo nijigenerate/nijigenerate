@@ -176,7 +176,7 @@ template GetAutoMeshConfigPT(alias PT)
     class GetAutoMeshConfigPT : ExCommand!(TW!(string, "level", "Config level: Simple/Advanced"))
     {
         this(string level) {
-            super("Get Config (" ~ AMProcInfo!(PT).name ~ ")", "Get AutoMesh config (per processor)", level);
+            super(_("Get Config (%s)").format(AMProcInfo!(PT).name), _("Get AutoMesh config (per processor)"), level);
         }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) {
@@ -196,7 +196,7 @@ template SetAutoMeshConfigPT(alias PT)
     class SetAutoMeshConfigPT : ExCommand!(TW!(string, "level", "Config level: Simple/Advanced"), TW!(string, "updates", "JSON object of updates"))
     {
         this(string level, string updates) {
-            super("Set Config (" ~ AMProcInfo!(PT).name ~ ")", "Set AutoMesh config (per processor)", level, updates);
+            super(_("Set Config (%s)").format(AMProcInfo!(PT).name), _("Set AutoMesh config (per processor)"), level, updates);
         }
         override bool runnable(Context ctx) { return updates.length > 0; }
         override CommandResult run(Context ctx) {
@@ -416,7 +416,7 @@ template AutoMeshSetSimpleConfigCommand(alias PT)
     enum string _cls = "AutoMeshSetSimple_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
     enum string _desc = _genSetCommandDescription!(PT, AutoMeshLevel.Simple)();
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
-        this() { super("Set Simple (" ~ AMProcInfo!(PT).name ~ ")", "` ~ _desc ~ `"); }
+        this() { super(_("Set Simple (%s)").format(AMProcInfo!(PT).name), _("` ~ _desc ~ `")); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Simple)() ~ ` return CommandResult(true); }
     }`);
@@ -429,7 +429,7 @@ template AutoMeshSetAdvancedConfigCommand(alias PT)
     enum string _cls = "AutoMeshSetAdvanced_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
     enum string _desc = _genSetCommandDescription!(PT, AutoMeshLevel.Advanced)();
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
-        this() { super("Set Advanced (" ~ AMProcInfo!(PT).name ~ ")", "` ~ _desc ~ `"); }
+        this() { super(_("Set Advanced (%s)").format(AMProcInfo!(PT).name), _("` ~ _desc ~ `")); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Advanced)() ~ ` return CommandResult(true); }
     }`);
@@ -441,7 +441,7 @@ template AutoMeshSetPresetTypedCommand(alias PT)
     enum string _cls = "AutoMeshSetPreset_" ~ _sanitizeId(__traits(identifier, PT)) ~ "Command";
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(TW!(string, "preset", "Preset name"))
     {
-        this() { super("Set Preset (" ~ AMProcInfo!(PT).name ~ ")", "Apply preset"); }
+        this() { super(_("Set Preset (%s)").format(AMProcInfo!(PT).name), _("Apply preset")); }
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) {
             auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found");

@@ -16,6 +16,7 @@ import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.nodes.deformer.path : PathDeformer;
 import nijilive.core.param.binding : DeformationParameterBinding, ParameterBinding, ValueParameterBinding;
 import nijilive.math;
+import i18n;
 
 import std.algorithm.comparison : max, min;
 import std.algorithm.sorting : sort;
@@ -24,7 +25,7 @@ import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
 import std.math : abs, exp, isFinite, sqrt;
 import std.conv : to;
-import std.string : split, startsWith;
+import std.string : format, split, startsWith;
 
 private enum EnableDepthBoneDebugLog = false;
 private void depthBoneDebugLog(Args...)(const(char)[] fmt, Args args) {
@@ -60,7 +61,7 @@ shared static this() {
 Command[DepthBoneCommand] commands;
 
 private vec3 vec3From(float[] values, string name) {
-    enforce(values.length == 3, name ~ " must be [x, y, z]");
+    enforce(values.length == 3, _("%s must be [x, y, z]").format(name));
     return vec3(values[0], values[1], values[2]);
 }
 
@@ -1435,7 +1436,7 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
     auto group = new GroupAction();
     foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
 
-    auto label = reason.length ? "Auto Refresh Depth Bone Deform: " ~ reason : "Auto Refresh Depth Bone Deform";
+    auto label = reason.length ? _("Auto Refresh Depth Bone Deform: %s").format(reason) : _("Auto Refresh Depth Bone Deform");
     auto action = new ParameterChangeBindingsValueAction(label, param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
     foreach (i, binding; deformBindings) {
         binding.update(kp, offsetsList[i]);
@@ -1490,7 +1491,7 @@ private bool ngRefreshDepthBoneDeformKeypoints(ExDepthRigRoot rigRoot, Parameter
     auto group = new GroupAction();
     foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
 
-    auto label = reason.length ? "Auto Refresh Depth Bone Deform: " ~ reason : "Auto Refresh Depth Bone Deform";
+    auto label = reason.length ? _("Auto Refresh Depth Bone Deform: %s").format(reason) : _("Auto Refresh Depth Bone Deform");
     foreach (kp; keypoints) {
         Vec2Array[] offsetsList;
         offsetsList.length = deformBindings.length;
@@ -1689,7 +1690,7 @@ class CreateDepthRigRootCommand : ExCommand!(
     TW!(Node, "parent", "Parent node"),
     TW!(string, "name", "Depth rig root name")
 ) {
-    this() { super("Create Depth Rig Root", "Create DepthRigRoot node"); }
+    this() { super(_("Create Depth Rig Root"), _("Create DepthRigRoot node")); }
 
     override CreateResult!Node run(Context ctx) {
         auto actualParent = parent;
@@ -1712,7 +1713,7 @@ class AddDepthBoneCommand : ExCommand!(
     TW!(float[], "restTail", "Rest tail [x,y,z]"),
     TW!(float, "restRoll", "Rest roll")
 ) {
-    this() { super("Add Depth Bone", "Create DepthBone node"); }
+    this() { super(_("Add Depth Bone"), _("Create DepthBone node")); }
 
     override CreateResult!Node run(Context ctx) {
         enforce(parent !is null, "parent is required");
@@ -1728,7 +1729,7 @@ class AddStandardDepthSkeletonCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node"),
     TW!(float, "scale", "Template scale")
 ) {
-    this() { super("Add Standard Depth Skeleton", "Create standard depth bone hierarchy"); }
+    this() { super(_("Add Standard Depth Skeleton"), _("Create standard depth bone hierarchy")); }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2031,7 +2032,7 @@ private ExDepthBone findStandardDepthBone(ExDepthRigRoot root, string boneId) {
 class AddStandardDepthParametersCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node")
 ) {
-    this() { super("Add Standard Depth Parameters", "Create standard face/body parameters and depth bone bindings"); }
+    this() { super(_("Add Standard Depth Parameters"), _("Create standard face/body parameters and depth bone bindings")); }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2043,7 +2044,7 @@ class AddStandardDepthParametersCommand : ExCommand!(
         foreach (bindingSpec; bindingSpecs) {
             if (bindingSpec.boneId in bonesById) continue;
             auto bone = findStandardDepthBone(rigRoot, bindingSpec.boneId);
-            enforce(bone !is null, "Missing depth bone '" ~ bindingSpec.boneId ~ "'");
+            enforce(bone !is null, _("Missing depth bone '%s'").format(bindingSpec.boneId));
             bonesById[bindingSpec.boneId] = bone;
         }
 
@@ -2066,14 +2067,14 @@ class AddStandardDepthParametersCommand : ExCommand!(
                 param = created;
                 changed = true;
             } else {
-                enforce(parameterMatchesSpec(param, spec), "Existing parameter '" ~ spec.name ~ "' has incompatible keypoints");
+                enforce(parameterMatchesSpec(param, spec), _("Existing parameter '%s' has incompatible keypoints").format(spec.name));
             }
             paramsByName[spec.name] = param;
         }
 
         foreach (bindingSpec; bindingSpecs) {
             auto param = paramsByName.get(bindingSpec.parameterName, null);
-            enforce(param !is null, "Missing parameter '" ~ bindingSpec.parameterName ~ "'");
+            enforce(param !is null, _("Missing parameter '%s'").format(bindingSpec.parameterName));
             auto bone = bonesById[bindingSpec.boneId];
 
             ValueParameterBinding binding = cast(ValueParameterBinding)param.getBinding(bone, bindingSpec.bindingName);
@@ -2083,7 +2084,7 @@ class AddStandardDepthParametersCommand : ExCommand!(
                 group.addAction(new ParameterBindingAddAction(param, binding));
                 changed = true;
             }
-            enforce(binding !is null, "Cannot create value binding '" ~ bindingSpec.bindingName ~ "'");
+            enforce(binding !is null, _("Cannot create value binding '%s'").format(bindingSpec.bindingName));
 
             foreach (valueSpec; bindingSpec.values) {
                 ptrdiff_t xIndex = -1;
@@ -2101,7 +2102,7 @@ class AddStandardDepthParametersCommand : ExCommand!(
                         break;
                     }
                 }
-                enforce(xIndex >= 0 && yIndex >= 0, "Standard depth binding keypoint is not present in parameter '" ~ bindingSpec.parameterName ~ "'");
+                enforce(xIndex >= 0 && yIndex >= 0, _("Standard depth binding keypoint is not present in parameter '%s'").format(bindingSpec.parameterName));
                 auto x = cast(size_t)xIndex;
                 auto y = cast(size_t)yIndex;
                 auto value = valueSpec.value;
@@ -2129,7 +2130,7 @@ class SetDepthBoneRestCommand : ExCommand!(
     TW!(float[], "restTail", "Rest tail [x,y,z]"),
     TW!(float, "restRoll", "Rest roll")
 ) {
-    this() { super("Set Depth Bone Rest", "Set rest pose for a depth bone"); }
+    this() { super(_("Set Depth Bone Rest"), _("Set rest pose for a depth bone")); }
 
     override CommandResult run(Context ctx) {
         auto b = requireBone(bone);
@@ -2150,7 +2151,7 @@ class SetDepthBoneConstraintCommand : ExCommand!(
     TW!(Node, "bone", "DepthBone node"),
     TW!(string, "constraint", "Constraint JSON")
 ) {
-    this() { super("Set Depth Bone Constraint", "Set depth bone constraint"); }
+    this() { super(_("Set Depth Bone Constraint"), _("Set depth bone constraint")); }
 
     override CommandResult run(Context ctx) {
         auto b = requireBone(bone);
@@ -2170,7 +2171,7 @@ class SetDepthBoneConstraintCommand : ExCommand!(
 
 @ShortcutHidden
 class ListDepthBonesCommand : ExCommand!(TW!(Node, "root", "DepthRigRoot node")) {
-    this() { super("List Depth Bones", "List depth bones under root"); }
+    this() { super(_("List Depth Bones"), _("List depth bones under root")); }
 
     override ExCommandResult!JSONValue run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2188,7 +2189,7 @@ class AddDepthBoneSourceCommand : ExCommand!(
     TW!(Node, "target", "GridDeformer or PathDeformer target"),
     TW!(Node, "bone", "DepthBone source")
 ) {
-    this() { super("Add Depth Bone Source", "Add depth bone source to target binding"); }
+    this() { super(_("Add Depth Bone Source"), _("Add depth bone source to target binding")); }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2207,7 +2208,7 @@ class RemoveDepthBoneSourceCommand : ExCommand!(
     TW!(Node, "target", "GridDeformer or PathDeformer target"),
     TW!(Node, "bone", "DepthBone source")
 ) {
-    this() { super("Remove Depth Bone Source", "Remove depth bone source from target binding"); }
+    this() { super(_("Remove Depth Bone Source"), _("Remove depth bone source from target binding")); }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2224,7 +2225,7 @@ class ListDepthBoneSourcesCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node"),
     TW!(Node, "target", "GridDeformer or PathDeformer target")
 ) {
-    this() { super("List Depth Bone Sources", "List depth bone source UUIDs for target"); }
+    this() { super(_("List Depth Bone Sources"), _("List depth bone source UUIDs for target")); }
 
     override ExCommandResult!JSONValue run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2256,7 +2257,7 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
     TW!(Node, "bone", "DepthBone source"),
     TW!(string, "settings", "Source settings JSON")
 ) {
-    this() { super("Set Depth Bone Source Settings", "Set per-source depth bone settings"); }
+    this() { super(_("Set Depth Bone Source Settings"), _("Set per-source depth bone settings")); }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2291,7 +2292,7 @@ class SetDepthBoneInfluenceRuleCommand : ExCommand!(
     TW!(Node, "target", "GridDeformer or PathDeformer target"),
     TW!(string, "rule", "Influence rule JSON")
 ) {
-    this() { super("Set Depth Bone Influence Rule", "Set depth bone influence rule"); }
+    this() { super(_("Set Depth Bone Influence Rule"), _("Set depth bone influence rule")); }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2309,7 +2310,7 @@ class GetDepthBoneInfluenceRuleCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node"),
     TW!(Node, "target", "GridDeformer or PathDeformer target")
 ) {
-    this() { super("Get Depth Bone Influence Rule", "Get depth bone influence rule"); }
+    this() { super(_("Get Depth Bone Influence Rule"), _("Get depth bone influence rule")); }
 
     override ExCommandResult!JSONValue run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -2323,7 +2324,7 @@ class PreviewDepthBoneInfluenceCommand : ExCommand!(
     TW!(Node, "target", "GridDeformer or PathDeformer target"),
     TW!(Node, "bone", "DepthBone source")
 ) {
-    this() { super("Preview Depth Bone Influence", "Preview depth bone influence"); }
+    this() { super(_("Preview Depth Bone Influence"), _("Preview depth bone influence")); }
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         targetKindOf(target);
@@ -2341,7 +2342,7 @@ class PreviewDepthBoneDeformCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node"),
     TW!(Node[], "targets", "GridDeformer or PathDeformer targets")
 ) {
-    this() { super("Preview Depth Bone Deform", "Preview depth bone deformation"); }
+    this() { super(_("Preview Depth Bone Deform"), _("Preview depth bone deformation")); }
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : incArmedParameter();
@@ -2376,7 +2377,7 @@ class ApplyDepthBoneDeformCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node"),
     TW!(Node[], "targets", "GridDeformer or PathDeformer targets")
 ) {
-    this() { super("Apply Depth Bone Deform", "Apply depth bone deformation to current key"); }
+    this() { super(_("Apply Depth Bone Deform"), _("Apply depth bone deformation to current key")); }
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : incArmedParameter();

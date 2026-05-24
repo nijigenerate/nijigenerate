@@ -15,6 +15,7 @@ import nijilive;
 import std.algorithm : clamp, max, min, sort;
 import std.format : format;
 import std.math : abs, cos, exp, pow, round, sin, sqrt;
+import i18n;
 
 enum vec4 DepthOperationColor = vec4(0.1, 0.4, 0.9, 0.9);
 enum vec4 DepthOperationSelectedColor = vec4(0.1, 0.4, 0.9, 1.0);
@@ -140,7 +141,7 @@ class DepthAttachedPointOperation : DepthOperation {
     }
 
     override string label() {
-        return "attached point %s".format(index);
+        return _("attached point %s").format(index);
     }
 
     override string valueLabel() {
@@ -254,7 +255,7 @@ class DepthRingOperation : DepthOperation {
     }
 
     override string label() {
-        return "ring %.0f,%.0f".format(p0.x, p0.y);
+        return _("ring %.0f,%.0f").format(p0.x, p0.y);
     }
 
     override string valueLabel() {
@@ -350,7 +351,7 @@ class DepthPlaneOperation : DepthOperation {
     }
 
     override string label() {
-        return "plane %.0f,%.0f".format(center.x, center.y);
+        return _("plane %.0f,%.0f").format(center.x, center.y);
     }
 
     override string valueLabel() {

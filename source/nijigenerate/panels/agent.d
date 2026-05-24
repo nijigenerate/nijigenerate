@@ -366,15 +366,15 @@ private:
     }
 
     string deriveRoleFromKind(string kind, string toolId) {
-        if (kind == "agent_message_chunk") return "Assistant";
-        if (kind == "agent_thought_chunk") return "Assistant (thinking)";
-        if (kind == "user_message_chunk") return "You (echo)";
-        if (kind == "plan") return "Plan";
-        if (kind == "error") return "Error";
+        if (kind == "agent_message_chunk") return _("Assistant");
+        if (kind == "agent_thought_chunk") return _("Assistant (thinking)");
+        if (kind == "user_message_chunk") return _("You (echo)");
+        if (kind == "plan") return _("Plan");
+        if (kind == "error") return _("Error");
         if (kind == "tool_call" || kind == "tool_call_update")
-            return toolId.length ? "Tool#" ~ toolId : "Tool";
-        if (kind == "available_commands_update") return "Command list";
-        if (kind == "current_mode_update") return "Mode";
+            return toolId.length ? _("Tool#%s").format(toolId) : _("Tool");
+        if (kind == "available_commands_update") return _("Command list");
+        if (kind == "current_mode_update") return _("Mode");
         return kind;
     }
 

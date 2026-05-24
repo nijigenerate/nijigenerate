@@ -6,6 +6,7 @@ import nijigenerate.commands.node.base : conversionMap, ngGetCommonNodeType, ngC
 import nijilive; // inInstantiateNode
 import i18n;
 import std.conv : to;
+import std.string : format;
 
 // Stable key payload for Node-type-based commands (avoids generic string)
 private struct NodeTypeKey {
@@ -59,7 +60,7 @@ class ConvertNodeToCommand(bool expose = true) : ExCommand!(
     TW!(string, "toType", "destination node type", !expose)
 ) {
     this(string toType) {
-        super("Convert To " ~ toType, "Convert selected nodes to " ~ toType, toType);
+        super(_("Convert To %s").format(toType), _("Convert selected nodes to %s").format(toType), toType);
     }
     override bool runnable(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0) return false;
@@ -74,7 +75,7 @@ class ConvertNodeToCommand(bool expose = true) : ExCommand!(
         if (!runnable(ctx)) return new CreateResult!Node(false, null, "Context not convertible");
         auto before = ctx.nodes.dup;
         auto converted = ngConvertTo(ctx.nodes, toType);
-        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from "~before.length.to!string) : "No nodes converted");
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? _("Nodes converted from %s").format(before.length) : _("No nodes converted"));
     }
 }
 

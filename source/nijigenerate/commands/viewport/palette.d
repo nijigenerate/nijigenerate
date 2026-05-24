@@ -8,6 +8,7 @@ import nijigenerate.commands; // AllCommandMaps
 import nijigenerate.widgets.dummy; // incAvailableSpace
 import i18n;
 import std.string : toStringz, toLower;
+import std.format : format;
 import std.algorithm.searching : canFind, countUntil;
 import std.algorithm.comparison : min;
 import std.ascii : isUpper, isLower, isAlphaNum;
@@ -79,37 +80,37 @@ string getParentCategory(Command c)
 
     import nijigenerate.commands;
     // ===== Main menu =====
-    if (inAA!(nijigenerate.commands.puppet.file.commands)(c)) return "File";
-    if (inAA!(nijigenerate.commands.puppet.edit.commands)(c)) return "Edit";
-    if (inAA!(nijigenerate.commands.puppet.view.commands)(c)) return "View";
-    if (inAA!(nijigenerate.commands.view.panel.togglePanelCommands)(c)) return "View/Panels";
-    if (inAA!(nijigenerate.commands.puppet.tool.commands)(c)) return "Tools";
+    if (inAA!(nijigenerate.commands.puppet.file.commands)(c)) return _("File");
+    if (inAA!(nijigenerate.commands.puppet.edit.commands)(c)) return _("Edit");
+    if (inAA!(nijigenerate.commands.puppet.view.commands)(c)) return _("View");
+    if (inAA!(nijigenerate.commands.view.panel.togglePanelCommands)(c)) return _("View/Panels");
+    if (inAA!(nijigenerate.commands.puppet.tool.commands)(c)) return _("Tools");
     // ===== Viewport =====
-    if (inAA!(nijigenerate.commands.viewport.control.commands)(c)) return "Viewport";
-    if (inAA!(nijigenerate.commands.viewport.palette.commands)(c)) return "Palette";
-    if (inAA!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(c)) return "Mesh Editor Tools";
-    if (inAA!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)(c)) return "AutoMesh";
+    if (inAA!(nijigenerate.commands.viewport.control.commands)(c)) return _("Viewport");
+    if (inAA!(nijigenerate.commands.viewport.palette.commands)(c)) return _("Palette");
+    if (inAA!(nijigenerate.commands.mesheditor.tool.selectToolModeCommands)(c)) return _("Mesh Editor Tools");
+    if (inAA!(nijigenerate.commands.automesh.dynamic.autoMeshApplyCommands)(c)) return _("AutoMesh");
     // Legacy JSON config maps kept for compatibility
-    if (inAA!(nijigenerate.commands.automesh.config.autoMeshGetConfigCommands)(c)) return "AutoMesh/Config";
-    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetConfigCommands)(c)) return "AutoMesh/Config";
-    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetSimpleCommands)(c)) return "AutoMesh/Set Simple";
-    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetAdvancedCommands)(c)) return "AutoMesh/Set Advanced";
-    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetPresetCommands)(c)) return "AutoMesh/Presets";
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshGetConfigCommands)(c)) return _("AutoMesh/Config");
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetConfigCommands)(c)) return _("AutoMesh/Config");
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetSimpleCommands)(c)) return _("AutoMesh/Set Simple");
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetAdvancedCommands)(c)) return _("AutoMesh/Set Advanced");
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshSetPresetCommands)(c)) return _("AutoMesh/Presets");
     // New typed per-processor AutoMesh commands
-    if (inAA!(nijigenerate.commands.automesh.config.autoMeshTypedCommands)(c)) return "AutoMesh/Typed";
+    if (inAA!(nijigenerate.commands.automesh.config.autoMeshTypedCommands)(c)) return _("AutoMesh/Typed");
     // ===== Node Popup =====
-    if (inAA!(nijigenerate.commands.node.node.commands)(c)) return "Nodes";
-    if (inAA!(nijigenerate.commands.node.dynamic.addNodeCommands)(c)) return "Add Node";
-    if (inAA!(nijigenerate.commands.node.dynamic.insertNodeCommands)(c)) return "Insert Node";
-    if (inAA!(nijigenerate.commands.node.dynamic.convertNodeCommands)(c)) return "Convert Node";
+    if (inAA!(nijigenerate.commands.node.node.commands)(c)) return _("Nodes");
+    if (inAA!(nijigenerate.commands.node.dynamic.addNodeCommands)(c)) return _("Add Node");
+    if (inAA!(nijigenerate.commands.node.dynamic.insertNodeCommands)(c)) return _("Insert Node");
+    if (inAA!(nijigenerate.commands.node.dynamic.convertNodeCommands)(c)) return _("Convert Node");
     // Inspector Panel
-    if (inAA!(nijigenerate.commands.inspector.apply_node.commands)(c)) return "Panel/Inspector";
+    if (inAA!(nijigenerate.commands.inspector.apply_node.commands)(c)) return _("Panel/Inspector");
     // ===== Parameters =====
-    if (inAA!(nijigenerate.commands.parameter.param.commands)(c)) return "Parameter";
-    if (inAA!(nijigenerate.commands.parameter.paramedit.commands)(c)) return "Parameter Edit";
-    if (inAA!(nijigenerate.commands.binding.binding.commands)(c)) return "Binding";
-    if (inAA!(nijigenerate.commands.parameter.group.commands)(c)) return "Parameter Group";
-    if (inAA!(nijigenerate.commands.parameter.animedit.commands)(c)) return "Animation Edit";
+    if (inAA!(nijigenerate.commands.parameter.param.commands)(c)) return _("Parameter");
+    if (inAA!(nijigenerate.commands.parameter.paramedit.commands)(c)) return _("Parameter Edit");
+    if (inAA!(nijigenerate.commands.binding.binding.commands)(c)) return _("Binding");
+    if (inAA!(nijigenerate.commands.parameter.group.commands)(c)) return _("Parameter Group");
+    if (inAA!(nijigenerate.commands.parameter.animedit.commands)(c)) return _("Animation Edit");
     return "";
 }
 
@@ -156,12 +157,7 @@ Command[] filterCommands(string query, Command exclude = null)
         auto eng = deriveEnglishToken(c);
         auto parentEn = getParentCategory(c);
         auto parentLc = parentEn.toLower;
-        // Also match localized parent name
-        string parentLocLc;
-        if (parentEn.length) {
-            import std.string : fromStringz;
-            parentLocLc = fromStringz(__(parentEn)).idup.toLower;
-        }
+        string parentLocLc = parentLc;
         if (q.length == 0 || canFind(lbl.toLower, q) || canFind(eng, q) ||
             (parentLc.length && canFind(parentLc, q)) || (parentLocLc.length && canFind(parentLocLc, q))) {
             filtered ~= c;
@@ -235,9 +231,7 @@ class ListCommandCommand : ExCommand!()
                     // Compose display: [Parent] Label (localize parent)
                     string display;
                     if (parentEn.length) {
-                        import std.string : fromStringz;
-                        string parentLoc = fromStringz(__(parentEn)).idup;
-                        display = "[" ~ parentLoc ~ "] " ~ lbl;
+                        display = "[%s] %s".format(parentEn, lbl);
                     } else {
                         display = lbl;
                     }

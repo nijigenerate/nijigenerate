@@ -85,7 +85,7 @@ protected:
             igEndChild();
             
             igSpacing();
-            incText("Credits");
+            incText(_("Credits"));
             igSeparator();
         }
         igEndChild();

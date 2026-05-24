@@ -13,6 +13,7 @@ import nijigenerate.widgets;
 import i18n;
 import core.exception;
 import std.conv : to;
+import std.string : format;
 
 
 //==================================================================================
@@ -25,7 +26,7 @@ class AddNodeCommandT(bool exposeClassName = true) : ExCommand!(
         TW!(string, "_suffix", "suffix pattern for new node", false)) {
     this(string className, string _suffix = null) {
         // Dynamic label; keep as-is for now (static part is translatable elsewhere)
-        super(null, "Add Node " ~ className ~ " under selection or root", className, _suffix);
+        super(null, _("Add Node %s under selection or root").format(className), className, _suffix);
     }
 
     override
@@ -51,7 +52,7 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
         TW!(string, "className", "class name of new node.", !exposeClassName),
         TW!(string, "_suffix", "suffix pattern for new node", false)) {
     this(string className, string _suffix = null) {
-        super(null, "Insert Node " ~ className ~ " under parent of selection", className, _suffix);
+        super(null, _("Insert Node %s under parent of selection").format(className), className, _suffix);
     }
 
     override
@@ -106,7 +107,7 @@ class MoveNodeCommand : ExCommand!(
 @EffectStructuralEdit
 class ConvertToCommandT(bool exposeClassName = true) : ExCommand!(TW!(string, "className", "new class name for node", !exposeClassName)) {
     this(string className) {
-        super(null, "Convert selected nodes to "~className, className);
+        super(null, _("Convert selected nodes to %s").format(className), className);
     }
 
     override
@@ -117,7 +118,7 @@ class ConvertToCommandT(bool exposeClassName = true) : ExCommand!(TW!(string, "c
 
         auto before = ctx.nodes.dup;
         auto converted = ngConvertTo(ctx.nodes, className);
-        return new CreateResult!Node(converted.length > 0, converted, converted.length ? ("Nodes converted from " ~ before.length.to!string) : "No nodes converted");
+        return new CreateResult!Node(converted.length > 0, converted, converted.length ? _("Nodes converted from %s").format(before.length) : _("No nodes converted"));
     }
 }
 

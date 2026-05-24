@@ -158,7 +158,7 @@ protected:
 
                 if (!vctx.checkState) {
                     // Only reached for genuine early failures (before completion)
-                    incDialog("ENCODE_ERROR", __("Error"), "FFMPEG Encoding Error:\n"~vctx.errors());
+                    incDialog("ENCODE_ERROR", __("Error"), _("FFMPEG Encoding Error:\n%s").format(vctx.errors()));
                     vctx.end();
                     vctx = null;
                 }

@@ -90,7 +90,7 @@ protected:
 
             foreach_reverse (i, c; history) {
                 igText("[%d] %s".format(i, c.command).toStringz);
-                if (incBeginCategory("Output [%d]".format(i).toStringz, IncCategoryFlags.DefaultClosed)) {
+                if (incBeginCategory(_("Output [%d]").format(i).toStringz, IncCategoryFlags.DefaultClosed)) {
                     c.output.onUpdate();
                 }
                 incEndCategory();
@@ -124,4 +124,3 @@ public:
     Generate logger frame
 */
 mixin incPanel!ShellPanel;
-

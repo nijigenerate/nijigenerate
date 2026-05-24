@@ -11,6 +11,7 @@ import nijilive;                                   // Drawable, Node
 import i18n;
 import std.algorithm : map, filter;
 import std.array : array;
+import std.string : format;
 import core.thread : Thread;
 import core.thread.fiber : Fiber;
 import core.sync.mutex : Mutex;
@@ -33,7 +34,7 @@ private class AutoMeshApplyResult : CommandResult {
     private CommandResult finalResult;
 
     this() {
-        super(true, "AutoMesh queued");
+        super(true, _("AutoMesh queued"));
         lock = new Mutex();
         cond = new Condition(lock);
     }
@@ -140,7 +141,7 @@ template ApplyAutoMeshPT(alias PT)
     class ApplyAutoMeshPT : ExCommand!()
     {
         this() {
-            super("Apply AutoMesh (" ~ AMProcInfo!(PT).name ~ ")", "Apply AutoMesh to selected nodes");
+            super(_("Apply AutoMesh (%s)").format(AMProcInfo!(PT).name), _("Apply AutoMesh to selected nodes"));
         }
         override bool runnable(Context ctx) {
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
@@ -204,13 +205,15 @@ template ApplyAutoMeshPT(alias PT)
                 bool canceled;
                 progress.snapshot(done, total, currentName, canceled);
                 float ratio = total > 0 ? cast(float)done / cast(float)total : 0;
-                string title = "AutoMesh: " ~ procName ~ (currentName.length ? (" - " ~ currentName) : "");
+                string title = currentName.length
+                    ? _("AutoMesh: %s - %s").format(procName, currentName)
+                    : _("AutoMesh: %s").format(procName);
                 igText(title.toStringz);
                 igProgressBar(ratio, ImVec2(320, 0));
                 igSameLine(0, 8);
                 if (canceled) {
-                    igText("Canceling...");
-                } else if (incButtonColored("Cancel", ImVec2(96, 24))) {
+                    igText(__("Canceling..."));
+                } else if (incButtonColored(__("Cancel"), ImVec2(96, 24))) {
                     progress.requestCancel();
                 }
             }, -1);
@@ -259,11 +262,11 @@ template ApplyAutoMeshPT(alias PT)
                             scope(exit) progress.completeTarget();
 
                             if (resultMesh.vertices.length == 0) {
-                                recordApplyError("AutoMesh generated empty mesh for " ~ target.name);
+                                recordApplyError(_("AutoMesh generated empty mesh for %s").format(target.name));
                                 return;
                             }
                             if (cast(Drawable)target && resultMesh.vertices.length < 3) {
-                                recordApplyError("AutoMesh generated too few drawable vertices for " ~ target.name);
+                                recordApplyError(_("AutoMesh generated too few drawable vertices for %s").format(target.name));
                                 return;
                             }
 

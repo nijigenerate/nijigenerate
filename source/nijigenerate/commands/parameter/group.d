@@ -20,7 +20,7 @@ import std.array : insertInPlace;
 
 @EffectStructuralEdit
 class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(int, "index", "")) {
-    this(ExParameterGroup group, int index) { super(null, "Move Parameter", group, index);}
+    this(ExParameterGroup group, int index) { super(null, _("Move Parameter"), group, index);}
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0) return CommandResult(false, "No parameters");
@@ -32,7 +32,7 @@ class MoveParameterCommand : ExCommand!(TW!(ExParameterGroup,"group",""), TW!(in
 
 @EffectCreate
 class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
-    this(int index = 0) { super(null, "Create Parameter Group", index); }
+    this(int index = 0) { super(null, _("Create Parameter Group"), index); }
     override
     CreateResult!ExParameterGroup run(Context ctx) {
 
@@ -51,7 +51,7 @@ class CreateParamGroupCommand : ExCommand!(TW!(int, "index", "")) {
 
 @EffectStructuralEdit
 class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value for target Parameter Group.")) {
-    this(float[3] color = [0f, 0f, 0f]) { super(null, "Change Parameter Group Color", color); }
+    this(float[3] color = [0f, 0f, 0f]) { super(null, _("Change Parameter Group Color"), color); }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)
@@ -64,7 +64,7 @@ class ChangeGroupColorCommand : ExCommand!(TW!(float[3], "color", "color value f
 
 @EffectDelete
 class DeleteParamGroupCommand : ExCommand!() {
-    this() { super(null, "Delete Parameter Group"); }
+    this() { super(null, _("Delete Parameter Group")); }
     override
     DeleteResult!ExParameterGroup run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length < 1 || (cast(ExParameterGroup)ctx.parameters[0]) is null)

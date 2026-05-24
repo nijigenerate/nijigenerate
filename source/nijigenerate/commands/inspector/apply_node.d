@@ -21,6 +21,7 @@ import nijilive; // Node, Drawable
 import nijilive.core.nodes.drivers; // SimplePhysics
 import nijigenerate.commands.base : toCodeString;
 import std.traits : TemplateArgsOf;
+import std.string : format;
 
 // Generic apply command using NodeInspector; compile-time PropName
 @ShortcutHidden
@@ -33,10 +34,10 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
     this(ValT value) {
         alias NodeT = TemplateArgsOf!I[1];
         static if (is(NodeT == Node)) {
-            super(null, "Apply " ~ PropName, value);
+            super(null, _("Apply %s").format(PropName), value);
         } else {
             enum string targetName = NodeT.stringof;
-            super(null, "Apply " ~ PropName ~ " (" ~ targetName ~ ")", value);
+            super(null, _("Apply %s (%s)").format(PropName, targetName), value);
         }
     }
 
@@ -99,8 +100,8 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                             n.notifyChange(n, NotifyReason.AttributeChanged);
                         }
                     }
-                    override string describe() { return "Changed " ~PropName; }
-                    override string describeUndo() { return "Undo change " ~PropName; }
+                    override string describe() { return _("Changed %s").format(PropName); }
+                    override string describeUndo() { return _("Undo change %s").format(PropName); }
                     override string getName() { return this.stringof; }
                     
                     override bool canMerge(Action other) {
@@ -143,10 +144,10 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
     this() {
         alias NodeT = TemplateArgsOf!I[1];
         static if (is(NodeT == Node)) {
-            super("Toggle " ~ PropName, "Toggles the value of " ~ PropName);
+            super(_("Toggle %s").format(PropName), _("Toggles the value of %s").format(PropName));
         } else {
             enum string targetName = NodeT.stringof;
-            super("Toggle " ~ PropName ~ " (" ~ targetName ~ ")", "Toggles the value of " ~ PropName ~ " for " ~ targetName);
+            super(_("Toggle %s (%s)").format(PropName, targetName), _("Toggles the value of %s for %s").format(PropName, targetName));
         }
     }
 
@@ -223,8 +224,8 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
                     }
                 }
 
-                override string describe() { return "Toggled " ~ PropName; }
-                override string describeUndo() { return "Undo toggle " ~ PropName; }
+                override string describe() { return _("Toggled %s").format(PropName); }
+                override string describeUndo() { return _("Undo toggle %s").format(PropName); }
                 override string getName() { return this.stringof; }
                 
                 override bool canMerge(Action other) { return false; } // Toggle actions shouldn't merge

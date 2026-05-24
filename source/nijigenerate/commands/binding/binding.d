@@ -564,7 +564,7 @@ class RemoveBindingCommand : ExCommand!() {
 
 @EffectBindingEdit
 class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify the new interpolation mode.")) {
-    this(InterpolateMode mode) { super(null, "Set Bindings to " ~ mode.stringof, mode); }
+    this(InterpolateMode mode) { super(null, _("Set Bindings to %s").format(mode.stringof), mode); }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasActiveBindings || ctx.activeBindings.length == 0)

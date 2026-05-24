@@ -351,7 +351,7 @@ mixin template MultiEdit() {
         if (!varName.isShared) {
             // **If varName.isShared is false, show a ComboBox instead of an edit box**
             igSetNextItemWidth(width);
-            if (igBeginCombo(("##combo_" ~ __traits(identifier, varName)).toStringz, "Select Value")) {
+            if (igBeginCombo(("##combo_" ~ __traits(identifier, varName)).toStringz, __("Select Value"))) {
                 foreach (t; targets) {
                     typeof(varName.value) value = varName.get(t);
 
@@ -417,7 +417,7 @@ mixin template MultiEdit() {
             }
 
             igSetNextItemWidth(igCalcItemWidth());
-            if (igBeginCombo("###COLOR_COMBO", "Select Color")) {
+            if (igBeginCombo("###COLOR_COMBO", __("Select Color"))) {
                 foreach (t; targets) {
                     float[3] rgb = [varR.get(t), varG.get(t), varB.get(t)];
 
