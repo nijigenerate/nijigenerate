@@ -344,14 +344,17 @@ bool incGLBackendCheckShader(GLuint handle, const (char)* desc) {
     GLint status = 0, log_length = 0;
     glGetShaderiv(handle, GL_COMPILE_STATUS, &status);
     glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &log_length);
-    if (cast(GLboolean)status == GL_FALSE)
-        fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to compile %s!\n", desc);
-    if (log_length > 1)
-    {
-        char[] buf;
-        buf.length = log_length + 1;
-        glGetShaderInfoLog(handle, log_length, null, cast(GLchar*)buf.ptr);
-        fprintf(stderr, "%s\n", buf.ptr);
+    version (Windows) {
+    } else {
+        if (cast(GLboolean)status == GL_FALSE)
+            fprintf(stderr, "ERROR: ImGui_ImplOpenGL3_CreateDeviceObjects: failed to compile %s!\n", desc);
+        if (log_length > 1)
+        {
+            char[] buf;
+            buf.length = log_length + 1;
+            glGetShaderInfoLog(handle, log_length, null, cast(GLchar*)buf.ptr);
+            fprintf(stderr, "%s\n", buf.ptr);
+        }
     }
     return cast(GLboolean)status == GL_TRUE;
 }
@@ -361,14 +364,17 @@ bool incGLBackendCheckProgram(GLuint handle, const char* desc) {
     GLint status = 0, log_length = 0;
     glGetProgramiv(handle, GL_LINK_STATUS, &status);
     glGetProgramiv(handle, GL_INFO_LOG_LENGTH, &log_length);
-    if (cast(GLboolean)status == GL_FALSE)
-        fprintf(stderr, "ERROR: create_device_objects: failed to link %s! (with GLSL '%s')\n", desc, g_GlslVersionString.ptr);
-    if (log_length > 1)
-    {
-        char[] buf;
-        buf.length = log_length + 1;
-        glGetProgramInfoLog(handle, log_length, null, cast(GLchar*)buf.ptr);
-        fprintf(stderr, "%s\n", buf.ptr);
+    version (Windows) {
+    } else {
+        if (cast(GLboolean)status == GL_FALSE)
+            fprintf(stderr, "ERROR: create_device_objects: failed to link %s! (with GLSL '%s')\n", desc, g_GlslVersionString.ptr);
+        if (log_length > 1)
+        {
+            char[] buf;
+            buf.length = log_length + 1;
+            glGetProgramInfoLog(handle, log_length, null, cast(GLchar*)buf.ptr);
+            fprintf(stderr, "%s\n", buf.ptr);
+        }
     }
     return cast(GLboolean)status == GL_TRUE;
 }

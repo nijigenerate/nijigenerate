@@ -60,8 +60,6 @@ class ConvertNodeToCommand(bool expose = true) : ExCommand!(
 ) {
     this(string toType) {
         super("Convert To " ~ toType, "Convert selected nodes to " ~ toType, toType);
-        import std.stdio;
-        writefln("New class Convert to : %s", this.toType);
     }
     override bool runnable(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0) return false;

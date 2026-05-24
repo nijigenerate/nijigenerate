@@ -8,7 +8,6 @@ module nijigenerate.viewport.depth.renderer;
 
 import bindbc.opengl;
 import nijilive;
-import std.stdio : writefln;
 
 class DepthTextureMeshRenderer {
 private:
@@ -54,21 +53,13 @@ void main() {
         );
         mvpUniform = shader.getUniformLocation("mvp");
         textureUniform = shader.getUniformLocation("tex");
-        if (!loggedEnsure) {
-            writefln("[DepthEdit] renderer ready: vao=%s vbo=%s ibo=%s mvpUniform=%s textureUniform=%s",
-                vao, vbo, ibo, mvpUniform, textureUniform);
-            loggedEnsure = true;
-        }
+        loggedEnsure = true;
     }
 
 public:
     void draw(Texture texture, vec2[] positions, vec2[] uvs, ushort[] indices, Camera viewportCamera) {
         if (texture is null || positions.length == 0 || positions.length != uvs.length || indices.length == 0) {
-            if (!loggedDrawSkip) {
-                writefln("[DepthEdit] renderer skipped: texture=%s positions=%s uvs=%s indices=%s",
-                    texture !is null, positions.length, uvs.length, indices.length);
-                loggedDrawSkip = true;
-            }
+            loggedDrawSkip = true;
             return;
         }
 
@@ -110,12 +101,8 @@ public:
         glDrawElements(GL_TRIANGLES, cast(int)indices.length, GL_UNSIGNED_SHORT, null);
         auto glError = glGetError();
         if (glError != GL_NO_ERROR && !loggedGlError) {
-            writefln("[DepthEdit] renderer GL error after glDrawElements: error=%s textureId=%s positions=%s indices=%s",
-                glError, texture.getTextureId(), positions.length, indices.length);
             loggedGlError = true;
         } else if (glError == GL_NO_ERROR && !loggedDrawSuccess) {
-            writefln("[DepthEdit] renderer draw issued: textureId=%s positions=%s triangles=%s",
-                texture.getTextureId(), positions.length, indices.length / 3);
             loggedDrawSuccess = true;
         }
         glDisableVertexAttribArray(0);

@@ -20,7 +20,6 @@ import std.algorithm : clamp, max, min, sort, uniq;
 import std.array : array;
 import std.format : format;
 import std.math : abs, ceil, cmp, round;
-import std.stdio : writefln;
 
 enum DepthDisplayPlaneSize = 2.9f;
 enum DepthDisplayZScale = 0.42f;
@@ -47,7 +46,6 @@ private:
     bool loggedOffscreenDraw;
 
     void log(string message) {
-        writefln("[DepthEdit] %s: %s", target is null ? "(null)" : target.name, message);
     }
 
     float roundDepth(float value) {

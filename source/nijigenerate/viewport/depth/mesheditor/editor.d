@@ -25,7 +25,6 @@ import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import std.format : format;
 import std.algorithm : max;
-import std.stdio : writefln;
 import std.string : toStringz;
 
 class DepthMeshEditor {
@@ -45,11 +44,6 @@ private:
 
     bool editable(Node node) {
         auto ok = cast(GridDeformer)node !is null;
-        writefln("[DepthEdit] editable: node=%s type=%s grid=%s depthMapped=%s",
-            node is null ? "(null)" : node.name,
-            node is null ? "(null)" : typeid(node).toString(),
-            ok,
-            node !is null && cast(DepthMappedNode)node !is null);
         return ok;
     }
 
@@ -108,7 +102,6 @@ public:
     }
 
     void setTargets(Node[] targets) {
-        writefln("[DepthEdit] setTargets: input=%s", targets.length);
         DepthMeshEditorOne[GridDeformer] next;
         foreach (node; targets) {
             if (!editable(node)) continue;
@@ -132,7 +125,6 @@ public:
             }
         }
         editors = next;
-        writefln("[DepthEdit] setTargets: editors=%s", editors.length);
     }
 
     GridDeformer[] getTargets() {

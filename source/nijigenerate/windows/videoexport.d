@@ -143,16 +143,12 @@ protected:
             bool send_stdin_finished = (vctx.progress >= 1);
             
             if (send_stdin_finished) {
-                import std.stdio : writeln;
-
                 // Finalize once all frames were produced. Non-blocking: poll until ffmpeg terminates.
                 if (!finalizing) {
-                    writeln("ffmpeg closing stdin and waiting for termination");
                     vctx.end();
                     finalizing = true;
                 }
                 if (vctx.hasTerminated) {
-                    writeln("ffmpeg terminated");
                     incEndExportVideo();
                     done = true;
                 }

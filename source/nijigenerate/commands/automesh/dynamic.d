@@ -159,8 +159,6 @@ template ApplyAutoMeshPT(alias PT)
                 }
             }
             if (!chosen) {
-                import std.stdio;
-                writefln("[BUG] No appropriate AutoMeshProcessor exists!");
                 return CommandResult(false, "AutoMesh processor missing");
             }
 
@@ -301,7 +299,6 @@ template ApplyAutoMeshPT(alias PT)
                 }
 
                 if (workerError.length) {
-                    writefln("[AutoMesh] worker failed: %s", workerError);
                     ngMcpEnqueueAction({
                         NotificationPopup.instance().close(popupId);
                         asyncResult.complete(CommandResult(false, workerError));
