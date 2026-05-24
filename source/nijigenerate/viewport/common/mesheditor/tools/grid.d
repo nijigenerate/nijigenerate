@@ -21,7 +21,6 @@ import nijigenerate.core.dbg;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import bindbc.opengl;
 import bindbc.imgui;
-import std.stdio : writefln;
 import std.array;
 import std.algorithm.searching: countUntil;
 import std.algorithm.mutation;
@@ -30,10 +29,6 @@ import std.algorithm.searching : all;
 
 class GridTool : NodeSelect {
 private:
-    void oneTimeGridLog(Args...)(string fmt, Args args) {
-        writefln("[OneTimeDeform/Grid] " ~ fmt, args);
-    }
-
     struct VirtualMeshContext {
         IncMesh mesh;
     }
@@ -97,11 +92,6 @@ private:
     void markChanged(IncMeshEditorOne impl) {
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
             deformable.vertexMapDirty = true;
-            oneTimeGridLog("markChanged: target=%s vertices=%s selected=%s tool=%s",
-                deformable.getTarget() ? deformable.getTarget().name : "(null)",
-                deformable.vertices.length,
-                deformable.selected.length,
-                impl.getToolMode());
         }
     }
 
@@ -114,17 +104,8 @@ private:
             return false;
         if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
             if (auto target = cast(GridDeformer)deformable.getTarget()) {
-                auto dirtyBefore = deformable.vertexMapDirty;
-                if (dirtyBefore) {
-                    oneTimeGridLog("applyVirtualMeshToTarget: target=%s virtualVertices=%s axes=%s dirtyBefore=%s",
-                        target.name, mesh.vertices.length, mesh.axes.length, dirtyBefore);
-                }
                 applyMeshToTarget(target, mesh.vertices, &mesh);
                 deformable.vertexMapDirty = false;
-                if (dirtyBefore) {
-                    oneTimeGridLog("applyVirtualMeshToTarget: applied targetVertices=%s deformation=%s dirtyAfter=%s",
-                        target.vertices.length, target.deformation.length, deformable.vertexMapDirty);
-                }
                 return true;
             }
         }
@@ -281,12 +262,6 @@ private:
             mesh.copyFromMeshData(meshData);
             refreshMeshView(impl, mesh);
             markChanged(impl);
-            oneTimeGridLog("create end: target=%s bounds=(%s,%s,%s,%s) vertices=%s axes=%sx%s",
-                impl.getTarget() ? impl.getTarget().name : "(null)",
-                bounds.x, bounds.y, bounds.z, bounds.w,
-                mesh.vertices.length,
-                mesh.axes.length > 0 ? mesh.axes[0].length : 0,
-                mesh.axes.length > 1 ? mesh.axes[1].length : 0);
             currentAction = GridActionID.End;
             return true;
         }

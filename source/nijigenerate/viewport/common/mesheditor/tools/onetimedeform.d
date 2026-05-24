@@ -23,7 +23,6 @@ import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijigenerate.core.dbg;
 import bindbc.opengl;
 import bindbc.imgui;
-import std.stdio : writefln;
 import std.algorithm;
 import std.array;
 import std.math : isFinite;
@@ -35,10 +34,6 @@ enum SubToolMode {
 }
 
 private {
-    void oneTimeDeformLog(Args...)(string fmt, Args args) {
-        writefln("[OneTimeDeform] " ~ fmt, args);
-    }
-
     // Map active NodeFilter -> its deform editor to resolve editors during Undo/Redo reliably
     IncMeshEditorOne[NodeFilter] gFilterEditors;
 
@@ -167,11 +162,6 @@ private {
             if (auto gridTool = cast(GridTool)vertImpl.getTool())
                 gridTool.resetVirtualMeshAsEmpty(vertImpl);
             defImpl.setToolMode(VertexToolMode.Points);
-            oneTimeDeformLog("setup GridDeformer: filter=%s vertTool=%s defTool=%s vertVertices=%s defOffsets=%s",
-                filterNode() ? filterNode().name : "(null)",
-                vertImpl.getToolMode(), defImpl.getToolMode(),
-                (cast(IncMeshEditorOneDeformable)vertImpl) ? (cast(IncMeshEditorOneDeformable)vertImpl).vertices.length : 0,
-                defImpl.getOffsets().length);
         }
 
         void setup(T: PathDeformer)() {
@@ -259,15 +249,7 @@ private {
 
             bool applied = false;
             if (auto gridTool = cast(GridTool)vertImpl.getTool()) {
-                oneTimeDeformLog("applyVertexToolToFilter: before target=%s dirty=%s vertices=%s",
-                    vertImpl.getTarget() ? vertImpl.getTarget().name : "(null)",
-                    vertImpl.vertexMapDirty,
-                    (cast(IncMeshEditorOneDeformable)vertImpl) ? (cast(IncMeshEditorOneDeformable)vertImpl).vertices.length : 0);
                 applied = gridTool.applyVirtualMeshToTarget(vertImpl);
-                oneTimeDeformLog("applyVertexToolToFilter: grid applied=%s targetVertices=%s targetDeformation=%s",
-                    applied,
-                    (cast(Deformable)vertImpl.getTarget()) ? (cast(Deformable)vertImpl.getTarget()).vertices.length : 0,
-                    (cast(Deformable)vertImpl.getTarget()) ? (cast(Deformable)vertImpl.getTarget()).deformation.length : 0);
                 if (!applied)
                     return false;
             } else {
@@ -412,12 +394,6 @@ private {
 
         void enterSubTool(T)(SubToolMode next) {
             if (!active()) return;
-            oneTimeDeformLog("enterSubTool: %s -> %s filter=%s filterVertices=%s filterDeformation=%s defOffsetsBefore=%s",
-                currentMode, next,
-                filterNode() ? filterNode().name : "(null)",
-                (cast(Deformable)filter) ? (cast(Deformable)filter).vertices.length : 0,
-                (cast(Deformable)filter) ? (cast(Deformable)filter).deformation.length : 0,
-                defImpl ? defImpl.getOffsets().length : 0);
             currentMode = next;
             invalidatePeekCache();
             final switch (next) {
@@ -440,11 +416,6 @@ private {
                 defImpl.setTarget(cast(T)filter);
                 defImpl.getCleanDeformAction();
                 seedViewFromBinding();
-                oneTimeDeformLog("enterSubTool Deform ready: defTarget=%s offsets=%s selected=%s vtxAtMouse=%s",
-                    defImpl.getTarget() ? defImpl.getTarget().name : "(null)",
-                    defImpl.getOffsets().length,
-                    defImpl.selected.length,
-                    defImpl.vtxAtMouse);
                 break;
             }
         }
@@ -921,11 +892,6 @@ public:
             if (sessionForAction.switchModeConsumed)
                 return false;
             sessionForAction.switchModeConsumed = true;
-            oneTimeDeformLog("switch action start: outerTarget=%s mode=%s currentMode=%s acquired=%s",
-                impl.getTarget() ? impl.getTarget().name : "(null)",
-                mode,
-                sessionForAction.currentMode,
-                acquired);
             // Group persistence + mode change into one undo step
             incActionPushGroup();
             // Capture per-target old/new modes to keep UI mode flips in history.
@@ -961,11 +927,6 @@ public:
                 break;
             }
             switchSubTool(nextMode);
-            oneTimeDeformLog("switch action applied: nextMode=%s currentMode=%s filterVertices=%s defOffsets=%s",
-                nextMode,
-                session.currentMode,
-                (cast(Deformable)session.filter) ? (cast(Deformable)session.filter).vertices.length : 0,
-                session.defImpl ? session.defImpl.getOffsets().length : 0);
             if (targets && targets.length > 0 && newModes.length == targets.length) {
                 foreach (i, t; targets) {
                     auto ed = ngGetEditorFor(t);
@@ -1008,18 +969,6 @@ public:
                 bool result = updateSharedSubTool(session, mode, action, (out bool localChanged) {
                     return session.defImpl.getTool().update(io, session.defImpl, action, localChanged);
                 }, changed);
-                if (action != SelectActionID.None || changed) {
-                    oneTimeDeformLog("update Deform: target=%s action=%s changed=%s result=%s defOffsets=%s selected=%s vtxAtMouse=%s mouse=(%s,%s)",
-                        impl.getTarget() ? impl.getTarget().name : "(null)",
-                        action,
-                        changed,
-                        result,
-                        session.defImpl ? session.defImpl.getOffsets().length : 0,
-                        session.defImpl ? session.defImpl.selected.length : 0,
-                        session.defImpl ? session.defImpl.vtxAtMouse : ulong.max,
-                        session.defImpl ? session.defImpl.mousePos.x : 0,
-                        session.defImpl ? session.defImpl.mousePos.y : 0);
-                }
                 if (changed) {
                     auto parameter = incArmedParameter();
                     if (parameter) {
@@ -1074,7 +1023,7 @@ class ToolInfoImpl(T: OneTimeDeform!GridDeformer) : ToolInfoBase!(T) {
     }
     override bool canUse(bool deformOnly, Node[] targets) { return deformOnly; }
     override VertexToolMode mode() { return VertexToolMode.AltGridDeform; };
-    override string icon() { return "";}
+    override string icon() { return "";}
     override string description() { return _("Grid deformation");}
 }
 
@@ -1087,7 +1036,7 @@ class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
     }
     override bool canUse(bool deformOnly, Node[] targets) { return deformOnly; }
     override VertexToolMode mode() { return VertexToolMode.AltBezierDeform; };
-    override string icon() { return "";}
+    override string icon() { return "";}
     override string description() { return _("Path deformation");}
 }
 

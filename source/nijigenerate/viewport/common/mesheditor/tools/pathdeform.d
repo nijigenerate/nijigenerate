@@ -393,9 +393,9 @@ class ToolInfoImpl(T: PathDeformTool) : ToolInfoBase!(T) {
 
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
-        if (deformOnly && editors.keys.all!((k) => cast(Drawable)k !is null || cast(Deformable)k is null )) {
-            return super.viewportTools(deformOnly, toolMode, editors);
-        }
+        // Hidden while keeping the tool registered for existing editor state.
+        // Removing it from ToolInfo breaks mode lookup when an existing editor
+        // is still in PathDeform mode.
         return false;
     }
     override bool canUse(bool deformOnly, Node[] targets) {
