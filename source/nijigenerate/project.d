@@ -8,6 +8,7 @@ import nijigenerate.core.settings;
 import nijigenerate.core.tasks;
 import nijigenerate.core.window;
 import nijigenerate.core.actionstack;
+import nijigenerate.actions : Action;
 import nijigenerate.windows.base;
 import nijigenerate.windows.autosave;
 import nijigenerate.atlas;
@@ -893,6 +894,8 @@ void incAnimationUpdate() {
         }
 
         if (igIsKeyPressed(ImGuiKey.N, false) || igIsKeyPressed(ImGuiKey.Insert, false)) {
+            incActionPushGroup();
+            scope(exit) incActionPopGroup();
             foreach(ref lane; incAnimationCurrent.animation.lanes) {
                 auto param = lane.paramRef.targetParam;
                 auto axis = lane.paramRef.targetAxis;
@@ -903,10 +906,11 @@ void incAnimationUpdate() {
         }
 
         if (igIsKeyPressed(ImGuiKey.R, false) || igIsKeyPressed(ImGuiKey.Delete, false)) {
+            incActionPushGroup();
+            scope(exit) incActionPopGroup();
             foreach(ref lane; incAnimationCurrent.animation.lanes) {
                 auto param = lane.paramRef.targetParam;
                 auto axis = lane.paramRef.targetAxis;
-                auto value = param.value.vector[axis];
 
                 incAnimationKeyframeRemove(param, axis);
             }
@@ -925,34 +929,117 @@ void incAnimationKeyframeAdd(ref Parameter param, int axis, float value) {
         return;
     }
 
-    foreach(ref lane; incAnimationCurrent.animation.lanes) {
+    auto animation = incAnimationCurrent.animation;
+    auto oldLanes = ngCloneAnimationLanes(animation.lanes);
+    auto newLanes = ngCloneAnimationLanes(oldLanes);
+    if (!ngAnimationKeyframeAddRaw(newLanes, param, axis, value, incAnimationCurrent.frame))
+        return;
+    auto action = new AnimationKeyframeChangeAction(incAnimationCurrent, animation, oldLanes, newLanes);
+    action.redo();
+    incActionPush(action);
+}
+
+private AnimationLane[] ngCloneAnimationLanes(AnimationLane[] lanes) {
+    auto result = lanes.dup;
+    foreach (i; 0 .. result.length) {
+        result[i].frames = lanes[i].frames.dup;
+    }
+    return result;
+}
+
+private void ngRestoreAnimationLanes(Animation* animation, AnimationLane[] lanes) {
+    animation.lanes = ngCloneAnimationLanes(lanes);
+    foreach (ref lane; animation.lanes)
+        lane.updateFrames();
+}
+
+private class AnimationKeyframeChangeAction : Action {
+    AnimationPlaybackRef playback;
+    Animation* animation;
+    AnimationLane[] oldLanes;
+    AnimationLane[] newLanes;
+    bool applied = false;
+
+    this(AnimationPlaybackRef playback, Animation* animation, AnimationLane[] oldLanes, AnimationLane[] newLanes) {
+        this.playback = playback;
+        this.animation = animation;
+        this.oldLanes = ngCloneAnimationLanes(oldLanes);
+        this.newLanes = ngCloneAnimationLanes(newLanes);
+    }
+
+    override void rollback() {
+        if (!applied) return;
+        ngRestoreAnimationLanes(animation, oldLanes);
+        notify();
+        applied = false;
+    }
+
+    override void redo() {
+        if (applied) return;
+        ngRestoreAnimationLanes(animation, newLanes);
+        notify();
+        applied = true;
+    }
+
+    override string describe() {
+        return _("Animation keyframe was edited");
+    }
+
+    override string describeUndo() {
+        return _("Undo animation keyframe edit");
+    }
+
+    override string getName() {
+        return "AnimationKeyframeChange";
+    }
+
+    override bool merge(Action other) {
+        return false;
+    }
+
+    override bool canMerge(Action other) {
+        return false;
+    }
+
+private:
+    void notify() {
+        if (playback !is null)
+            activeProject.AnimationChanged.emit(playback);
+    }
+}
+
+private bool ngAnimationKeyframeAddRaw(ref AnimationLane[] lanes, ref Parameter param, int axis, float value, int frameNo) {
+
+    foreach(ref lane; lanes) {
         if (lane.paramRef.targetParam == param && axis == lane.paramRef.targetAxis) {
 
             // Try editing current frame
             foreach(ref frame; lane.frames) {
-                if (frame.frame == incAnimationCurrent.frame) {
+                if (frame.frame == frameNo) {
+                    if (frame.value == value)
+                        return false;
                     frame.value = value;
-                    return;
+                    return true;
                 }
             }
 
             // Try adding a new keyframe
             lane.frames ~= Keyframe(
-                incAnimationCurrent.frame,
+                frameNo,
                 value,
                 0.5
             );
             lane.updateFrames();
-            return;
+            return true;
         }
     }
 
-    incAnimationCurrent.animation.lanes ~= AnimationLane(
+    lanes ~= AnimationLane(
         param.uuid,
         new AnimationParameterRef(param, axis),
         [
             Keyframe(
-                incAnimationCurrent.frame,
+                frameNo,
                 value,
                 0.5
             ),
@@ -962,7 +1049,7 @@ void incAnimationKeyframeAdd(ref Parameter param, int axis, float value) {
     
 //    import nijigenerate.panels.timeline : incAnimationTimelineUpdate;
 //    incAnimationTimelineUpdate(*incAnimationCurrent.animation);
-    activeProject.AnimationChanged.emit(incAnimationCurrent);
+    return true;
 
 }
 
@@ -970,7 +1057,6 @@ void incAnimationKeyframeAdd(ref Parameter param, int axis, float value) {
     Removes a keyframe to the current animation
 */
 bool incAnimationKeyframeRemove(ref Parameter param, int axis) {
-    import std.algorithm.mutation : remove;
     if (incAnimationCurrent is null || incAnimationCurrent.animation is null || param is null) {
         return false;
     }
@@ -978,12 +1064,26 @@ bool incAnimationKeyframeRemove(ref Parameter param, int axis) {
         return false;
     }
 
-    foreach(ref lane; incAnimationCurrent.animation.lanes) {
+    auto animation = incAnimationCurrent.animation;
+    auto oldLanes = ngCloneAnimationLanes(animation.lanes);
+    auto newLanes = ngCloneAnimationLanes(oldLanes);
+    if (!ngAnimationKeyframeRemoveRaw(newLanes, param, axis, incAnimationCurrent.frame))
+        return false;
+    auto action = new AnimationKeyframeChangeAction(incAnimationCurrent, animation, oldLanes, newLanes);
+    action.redo();
+    incActionPush(action);
+    return true;
+}
+
+private bool ngAnimationKeyframeRemoveRaw(ref AnimationLane[] lanes, ref Parameter param, int axis, int frameNo) {
+    import std.algorithm.mutation : remove;
+
+    foreach(ref lane; lanes) {
         if (lane.paramRef.targetParam == param && axis == lane.paramRef.targetAxis) {
 
             // Try editing current frame
             foreach(i; 0..lane.frames.length) {
-                if (lane.frames[i].frame == incAnimationCurrent.frame) {
+                if (lane.frames[i].frame == frameNo) {
                     lane.frames = lane.frames.remove(i);
                     return true;
                 }

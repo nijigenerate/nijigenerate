@@ -5,6 +5,7 @@ import nijigenerate.viewport.common.mesh;
 import nijigenerate.viewport.vertex;
 import nijigenerate.core.math.mesh;
 import nijigenerate.core;
+import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.widgets;
 import nijigenerate.ext;
 import nijigenerate.utils;
@@ -49,11 +50,20 @@ private:
     ToggleAction toggleAction = ToggleAction.NoAction;
 
     void apply() {
+        bool grouped = false;
+        scope(exit) {
+            if (grouped)
+                incActionPopGroup();
+        }
         foreach (node; nodes) {
             auto part = cast(ApplicableClass)node;
             if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
             auto mesh = meshes[node.uuid];
             string message;
+            if (!grouped) {
+                incActionPushGroup();
+                grouped = true;
+            }
             ngApplyDrawableMeshFromCommand(part, mesh, message);
         }
     }

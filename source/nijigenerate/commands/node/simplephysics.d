@@ -171,6 +171,8 @@ class SimplePhysicsValueChangeAction(T, alias Getter, alias Setter, bool rescan 
     }
 
     override bool canMerge(Action other) {
+        static if (is(T == Parameter))
+            return false;
         auto o = cast(SimplePhysicsValueChangeAction!(T, Getter, Setter, rescan))other;
         if (o is null) return false;
         if (o.propName != propName) return false;
@@ -189,6 +191,16 @@ class SimplePhysicsValueChangeAction(T, alias Getter, alias Setter, bool rescan 
     }
 }
 
+private bool simplePhysicsValueWouldChange(T, alias Getter)(SimplePhysics[] nodes, T newValue) {
+    if (nodes.length == 0)
+        return false;
+    foreach (node; nodes) {
+        if (Getter(node) != newValue)
+            return true;
+    }
+    return false;
+}
+
 @ShortcutHidden
 @EffectStructuralEdit
 class SetSimplePhysicsParameterCommand : ExCommand!(
@@ -199,9 +211,12 @@ class SetSimplePhysicsParameterCommand : ExCommand!(
     }
 
     override CommandResult run(Context ctx) {
+        auto targets = simplePhysicsTargets(ctx);
+        if (!simplePhysicsValueWouldChange!(Parameter, getPhysicsParam)(targets, parameter))
+            return CommandResult(false, "SimplePhysics parameter is unchanged");
         incActionPush(new SimplePhysicsValueChangeAction!(Parameter, getPhysicsParam, setPhysicsParam, true)(
             "parameter",
-            simplePhysicsTargets(ctx),
+            targets,
             parameter
         ));
         return CommandResult(true);
@@ -216,9 +231,12 @@ class ClearSimplePhysicsParameterCommand : ExCommand!() {
     }
 
     override CommandResult run(Context ctx) {
+        auto targets = simplePhysicsTargets(ctx);
+        if (!simplePhysicsValueWouldChange!(Parameter, getPhysicsParam)(targets, null))
+            return CommandResult(false, "SimplePhysics parameter is unchanged");
         incActionPush(new SimplePhysicsValueChangeAction!(Parameter, getPhysicsParam, setPhysicsParam, true)(
             "parameter",
-            simplePhysicsTargets(ctx),
+            targets,
             null
         ));
         return CommandResult(true);

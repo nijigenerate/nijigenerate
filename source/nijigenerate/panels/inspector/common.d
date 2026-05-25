@@ -190,10 +190,17 @@ void incModelModeHeader(Node node) {
     igPushID(node.uuid);
         string typeString = "%s".format(incTypeIdToIcon(node.typeId()));
         auto len = incMeasureString(typeString);
-        if (incInputText("###MODEL_NODE_HEADER", incAvailableSpace().x-24, node.name_)) {
+        string oldName = node.name;
+        string newName = oldName;
+        if (incInputText("###MODEL_NODE_HEADER", incAvailableSpace().x-24, newName)) {
             try {
-                node.name_ = node.name.toStringz.fromStringz;
+                newName = newName.toStringz.fromStringz;
             } catch (std.utf.UTFException e) {}
+            if (oldName != newName) {
+                auto action = new NodeValueChangeAction!(Node, string)("name", node, oldName, newName, &node.name_);
+                action.redo();
+                incActionPush(action);
+            }
         }
         igSameLine(0, 0);
         incDummy(ImVec2(-len.x, len.y));

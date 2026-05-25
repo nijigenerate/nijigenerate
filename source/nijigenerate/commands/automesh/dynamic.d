@@ -1,6 +1,7 @@
 module nijigenerate.commands.automesh.dynamic;
 
 import nijigenerate.commands.base;
+import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.viewport.vertex;                // ngAutoMeshProcessors, ngActiveAutoMeshProcessor
 import nijigenerate.viewport.common.mesh;          // IncMesh, applyMeshToTarget
 import nijigenerate.viewport.vertex.automesh;      // AutoMeshProcessor, AutoMeshProcessorTypes
@@ -224,6 +225,7 @@ template ApplyAutoMeshPT(alias PT)
                 auto applyLock = new Mutex();
                 size_t applied = 0;
                 string applyError;
+                bool actionGroupOpen = false;
 
                 void recordApplyError(string message) {
                     synchronized (applyLock) {
@@ -249,6 +251,24 @@ template ApplyAutoMeshPT(alias PT)
                     }
                 }
 
+                void ensureActionGroupOpen() {
+                    synchronized (applyLock) {
+                        if (!actionGroupOpen) {
+                            incActionPushGroup();
+                            actionGroupOpen = true;
+                        }
+                    }
+                }
+
+                void closeActionGroup() {
+                    synchronized (applyLock) {
+                        if (actionGroupOpen) {
+                            incActionPopGroup();
+                            actionGroupOpen = false;
+                        }
+                    }
+                }
+
                 bool cb(Deformable d, IncMesh mesh) {
                     if (mesh is null) {
                         progress.beginTarget(d.name);
@@ -271,6 +291,7 @@ template ApplyAutoMeshPT(alias PT)
                             }
 
                             string message;
+                            ensureActionGroupOpen();
                             if (auto dr = cast(Drawable)target) {
                                 if (!ngApplyDrawableMeshFromCommand(dr, resultMesh, message)) {
                                     recordApplyError(message);
@@ -311,6 +332,7 @@ template ApplyAutoMeshPT(alias PT)
 
                 ngMcpEnqueueAction({
                     scope(exit) NotificationPopup.instance().close(popupId);
+                    scope(exit) closeActionGroup();
                     auto error = currentApplyError();
                     auto appliedNow = appliedCount();
                     if (error.length) {

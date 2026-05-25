@@ -3,6 +3,7 @@ module nijigenerate.commands.parameter.animedit;
 import nijigenerate.commands.base;
 import nijigenerate.commands.parameter.base;
 import nijigenerate.project;
+import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import i18n;
 
 @EffectKeyframeEdit
@@ -42,6 +43,8 @@ class AddAnimationKeyFrameCommand : ExCommand!() {
                 }
 
                 if (param.isVec2) {
+                    incActionPushGroup();
+                    scope(exit) incActionPopGroup();
                     incAnimationKeyframeAdd(param, 0, param.value.vector[0]);
                     incAnimationKeyframeAdd(param, 1, param.value.vector[1]);
                 } else {

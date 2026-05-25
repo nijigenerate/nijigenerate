@@ -223,7 +223,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 
             incText(_("Emission Strength"));
             float strengthPerc = emissionStrength.value*100;
-            if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%%.0f%%"))) {
+            if (_shared!emissionStrength(()=>igDragFloat("###S_EMISSION", &strengthPerc, 0.1, 0, float.max, "%.0f%%"))) {
                 emissionStrength.value = strengthPerc*0.01;
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartEmissionStrength)(ctx, emissionStrength.value);
@@ -329,7 +329,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
             // Threshold slider name for adjusting how transparent a pixel can be
             // before it gets discarded.
             incText(_("Threshold"));
-            if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%%.2f"))) {
+            if (_shared!maskAlphaThreshold(()=>igSliderFloat("###Threshold", &maskAlphaThreshold.value, 0.0, 1.0, "%.2f"))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(InspectorNodeApplyCommand.PartMaskAlphaThreshold)(ctx, maskAlphaThreshold.value);
             }
@@ -397,13 +397,17 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                     if (MaskBinding* binding = cast(MaskBinding*)payload.Data) {
                                         ptrdiff_t maskIdx = node.getMaskIdx(binding.maskSrcUUID);
                                         if (maskIdx >= 0) {
-                                            import std.algorithm.mutation : remove;
-
-                                            node.masks = node.masks.remove(maskIdx);
-                                            if (i == 0) node.masks = *binding ~ node.masks;
-                                            else if (i+1 >= node.masks.length) node.masks ~= *binding;
-                                            else node.masks = node.masks[0..i] ~ *binding ~ node.masks[i+1..$];
-                                            node.notifyChange(node, NotifyReason.StructureChanged);
+                                            auto oldMasks = node.masks.dup;
+                                            auto moving = oldMasks[maskIdx];
+                                            auto newMasks = oldMasks[0..maskIdx] ~ oldMasks[maskIdx+1..$];
+                                            auto insertIndex = cast(size_t)i;
+                                            if (maskIdx < cast(ptrdiff_t)insertIndex && insertIndex > 0)
+                                                --insertIndex;
+                                            if (insertIndex > newMasks.length)
+                                                insertIndex = newMasks.length;
+                                            newMasks = newMasks[0..insertIndex] ~ moving ~ newMasks[insertIndex..$];
+                                            if (oldMasks != newMasks)
+                                                incActionPush(new PartMaskListChangeAction(_("Reorder Mask Source"), node, oldMasks, newMasks));
                                         }
                                     }
                                 }

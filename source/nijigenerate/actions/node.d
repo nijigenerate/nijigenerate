@@ -583,6 +583,47 @@ public:
     override bool merge(Action other) { return false; }
     override bool canMerge(Action other) { return false; }
 }
+
+class PartMaskListChangeAction : Action {
+public:
+    Part target;
+    MaskBinding[] oldMasks;
+    MaskBinding[] newMasks;
+    string label;
+
+    this(string label, Part target, MaskBinding[] oldMasks, MaskBinding[] newMasks) {
+        this.label = label;
+        this.target = target;
+        this.oldMasks = oldMasks.dup;
+        this.newMasks = newMasks.dup;
+        redo();
+    }
+
+    override void rollback() {
+        target.masks = oldMasks.dup;
+        target.notifyChange(target, NotifyReason.StructureChanged);
+        incActivePuppet().rescanNodes();
+    }
+
+    override void redo() {
+        target.masks = newMasks.dup;
+        target.notifyChange(target, NotifyReason.StructureChanged);
+        incActivePuppet().rescanNodes();
+    }
+
+    override string describe() {
+        return label;
+    }
+
+    override string describeUndo() {
+        return label;
+    }
+
+    override string getName() { return this.stringof; }
+    override bool merge(Action other) { return false; }
+    override bool canMerge(Action other) { return false; }
+}
+
 /**
     An action that happens when a node is changed
 */
@@ -1090,7 +1131,11 @@ public:
     */
     bool canMerge(Action other) {
         TSelf otherChange = cast(TSelf) other;
-        return (otherChange !is null && otherChange.getName() == this.getName());
+        return (
+            otherChange !is null &&
+            otherChange.node.uuid == this.node.uuid &&
+            otherChange.getName() == this.getName()
+        );
     }
 }
 

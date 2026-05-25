@@ -289,6 +289,7 @@ enum InspectorNodeApplyCommand {
     TogglePathDeformDynamic,
     PathDeformPhysicsEnabled,
     TogglePathDeformPhysicsEnabled,
+    PathDeformCurveType,
     PathDeformGravity,
     PathDeformRestoreConstant,
     PathDeformDamping,
@@ -380,6 +381,7 @@ mixin(DefApply!("GridDeformDynamic",          NIGrid, "dynamic"));
 // PathDeformer
 mixin(DefApply!("PathDeformDynamic",         NIPath, "dynamic"));
 mixin(DefApply!("PathDeformPhysicsEnabled",  NIPath, "physicsEnabled"));
+mixin(DefApply!("PathDeformCurveType",       NIPath, "curveType"));
 mixin(DefApply!("PathDeformGravity",         NIPath, "gravity"));
 mixin(DefApply!("PathDeformRestoreConstant", NIPath, "restoreConstant"));
 mixin(DefApply!("PathDeformDamping",         NIPath, "damping"));

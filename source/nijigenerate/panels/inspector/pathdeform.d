@@ -55,21 +55,21 @@ class NodeInspector(ModelEditSubMode inspectorMode, T: PathDeformer) : BaseInspe
 
             string curveTypeText = curveType.value == CurveType.Bezier ? "Bezier" : curveType.value == CurveType.Spline? "Spline" : "Invalid";
             if (igBeginCombo("###PhysType", __(curveTypeText))) {
+                bool curveTypeChanged = false;
 
                 if (igSelectable(__("Bezier"), curveType.value == CurveType.Bezier)) {
-                    foreach (n; targets) {
-                        n.curveType = CurveType.Bezier;
-                        n.rebuffer(n.vertices);
-                        n.notifyChange(n, NotifyReason.AttributeChanged);
-                    }
+                    curveType.value = CurveType.Bezier;
+                    curveTypeChanged = true;
                 }
 
                 if (igSelectable(__("Spline"), curveType.value == CurveType.Spline)) {
-                    foreach (n; targets) {
-                        n.curveType = CurveType.Spline;
-                        n.rebuffer(n.vertices);
-                        n.notifyChange(n, NotifyReason.AttributeChanged);
-                    }
+                    curveType.value = CurveType.Spline;
+                    curveTypeChanged = true;
+                }
+
+                if (curveTypeChanged) {
+                    auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                    cmd!(InspectorNodeApplyCommand.PathDeformCurveType)(ctx, curveType.value);
                 }
 
                 igEndCombo();
@@ -178,7 +178,7 @@ class NodeInspector(ModelEditSubMode inspectorMode, T: PathDeformer) : BaseInspe
     mixin MultiEdit;
     mixin(attribute!(bool, "dynamic",   (x)=>x~".dynamic", (x, v)=>x~".switchDynamic("~v~")"));
     mixin(attribute!(bool, "physicsEnabled",   (x   )=>x~".physicsEnabled", (x, v)=>x~".physicsEnabled = "~v));
-    mixin(attribute!(CurveType, "curveType",   (x)=>x~".curveType", (x, v)=>x~".curveType = "~v));
+    mixin(attribute!(CurveType, "curveType",   (x)=>x~".curveType", (x, v)=>x~".curveType = "~v~"; "~x~".rebuffer("~x~".vertices)"));
     mixin(attribute!(float, "gravity",         (x   )=>get_prop!float(_pendulum(x), "gravity"), 
                                                (x, v)=>set_prop!float(_pendulum(x), "gravity", "v") ));
     mixin(attribute!(float, "restoreConstant", (x   )=>get_prop!float(_pendulum(x), "restoreConstant"), 

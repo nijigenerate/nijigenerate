@@ -153,13 +153,13 @@ class SetNodeNameCommand : ExCommand!(TW!(string[], "newNames", "New node names.
                 continue;
 
             auto oldName = node.name;
-            node.name = newName;
-            node.notifyChange(node, NotifyReason.AttributeChanged);
             group.addAction(new NodeValueChangeAction!(Node, string)("name", node, oldName, newName, &node.name_));
             changed = true;
         }
-        if (changed)
+        if (changed) {
+            group.redo();
             incActionPush(group);
+        }
         return CommandResult(changed, changed ? "" : "No node names changed");
     }
 }

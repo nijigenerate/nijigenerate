@@ -40,8 +40,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
                     if (igBeginPopup("TPARAM")) {
                         if (node.param) {
                             if (igMenuItem(__("Unmap"))) {
-                                node.param = null;
-                                incActivePuppet().rescanNodes();
+                                auto ctx = new Context();
+                                ctx.nodes([cast(Node)node]);
+                                cmd!(NodeSimplePhysicsCommand.ClearSimplePhysicsParameter)(ctx);
                             }
                         } else {
                             incDummyLabel(_("Unassigned"), ImVec2(128, 16));
@@ -60,8 +61,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: SimplePhy
                         const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PARAMETER");
                         if (payload !is null) {
                             ParamDragDropData* payloadParam = *cast(ParamDragDropData**)payload.Data;
-                            node.param = payloadParam.param;
-                            incActivePuppet().rescanNodes();
+                            auto ctx = new Context();
+                            ctx.nodes([cast(Node)node]);
+                            cmd!(NodeSimplePhysicsCommand.SetSimplePhysicsParameter)(ctx, payloadParam.param);
                         }
 
                         igEndDragDropTarget();

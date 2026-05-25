@@ -9,6 +9,7 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.commands; // cmd!, Context
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
+import nijigenerate.commands.node.mask : NodeMaskCommand;
 import nijilive;
 import std.format;
 import std.utf;
@@ -157,15 +158,20 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
                     igPushID(cast(int)i);
                         if (igBeginPopup("###MaskSettings")) {
                             if (igBeginMenu(__("Mode"))) {
-                                if (igMenuItem(__("Mask"), null, masker.mode == MaskingMode.Mask)) masker.mode = MaskingMode.Mask;
-                                if (igMenuItem(__("Dodge"), null, masker.mode == MaskingMode.DodgeMask)) masker.mode = MaskingMode.DodgeMask;
+                                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                if (igMenuItem(__("Mask"), null, masker.mode == MaskingMode.Mask)) {
+                                    cmd!(NodeMaskCommand.ChangeMaskMode)(ctx, masker.maskSrc, MaskingMode.Mask);
+                                }
+                                if (igMenuItem(__("Dodge"), null, masker.mode == MaskingMode.DodgeMask)) {
+                                    cmd!(NodeMaskCommand.ChangeMaskMode)(ctx, masker.maskSrc, MaskingMode.DodgeMask);
+                                }
                                 
                                 igEndMenu();
                             }
 
                             if (igMenuItem(__("Delete"))) {
-                                import std.algorithm.mutation : remove;
-                                node.masks = node.masks.remove(i);
+                                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                                cmd!(NodeMaskCommand.RemoveMask)(ctx, node.masks[i].maskSrc);
                                 igEndPopup();
                                 igPopID();
                                 igEndListBox();
@@ -186,12 +192,17 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
                                 if (MaskBinding* binding = cast(MaskBinding*)payload.Data) {
                                     ptrdiff_t maskIdx = node.getMaskIdx(binding.maskSrcUUID);
                                     if (maskIdx >= 0) {
-                                        import std.algorithm.mutation : remove;
-
-                                        node.masks = node.masks.remove(maskIdx);
-                                        if (i == 0) node.masks = *binding ~ node.masks;
-                                        else if (i+1 >= node.masks.length) node.masks ~= *binding;
-                                        else node.masks = node.masks[0..i] ~ *binding ~ node.masks[i+1..$];
+                                        auto oldMasks = node.masks.dup;
+                                        auto moving = oldMasks[maskIdx];
+                                        auto newMasks = oldMasks[0..maskIdx] ~ oldMasks[maskIdx+1..$];
+                                        auto insertIndex = cast(size_t)i;
+                                        if (maskIdx < cast(ptrdiff_t)insertIndex && insertIndex > 0)
+                                            --insertIndex;
+                                        if (insertIndex > newMasks.length)
+                                            insertIndex = newMasks.length;
+                                        newMasks = newMasks[0..insertIndex] ~ moving ~ newMasks[insertIndex..$];
+                                        if (oldMasks != newMasks)
+                                            incActionPush(new PartMaskListChangeAction(_("Reorder Mask Source"), node, oldMasks, newMasks));
                                     }
                                 }
                             }
@@ -221,7 +232,8 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Composite
 
                         // Make sure we don't mask against ourselves as well as don't double mask
                         if (payloadDrawable != node && !node.isMaskedBy(payloadDrawable)) {
-                            node.masks ~= MaskBinding(payloadDrawable.uuid, MaskingMode.Mask, payloadDrawable);
+                            auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                            cmd!(NodeMaskCommand.AddMask)(ctx, payloadDrawable, MaskingMode.Mask);
                         }
                     }
                 }

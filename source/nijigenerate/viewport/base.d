@@ -966,8 +966,12 @@ private {
 
         void commitActions() {
             if (actions.length == 1) {
-                foreach (action; actions)
+                foreach (action; actions) {
+                    LazyBoundAction laction = cast(LazyBoundAction)action;
+                    if (laction)
+                        laction.updateNewState();
                     incActionPush(action);
+                }
             } else if (actions.length > 0) {
                 GroupAction groupAction = null;
                 foreach (key; sort(actions.keys)) {
