@@ -36,7 +36,7 @@ protected:
                             incPushWindow(new EditAnimationWindow(anim, name));
                         }
                         if (igMenuItem(__("Delete"))) {
-                            incActivePuppet().getAnimations().remove(name);
+                            ngAnimationDelete(name);
                             igEndPopup();
                             igPopID();
                             igEndChild();
@@ -80,5 +80,4 @@ public:
     Generate logger frame
 */
 mixin incPanel!AnimListPanel;
-
 

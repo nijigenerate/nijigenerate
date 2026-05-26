@@ -266,7 +266,7 @@ protected:
                                     }
                                 }
                             } else {
-                                incTextShadowed("No recent projects...");
+                                incTextShadowed(_("No recent projects..."));
                             }
                         igUnindent();
                     }

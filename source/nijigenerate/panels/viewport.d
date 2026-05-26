@@ -302,7 +302,7 @@ protected:
                 igSeparatorEx(ImGuiSeparatorFlags.Vertical);
 
                 igSameLine(0, 8);
-                incText("x = %.2f y = %.2f".format(incViewportTargetPosition.x, incViewportTargetPosition.y));
+                incText(_("x = %.2f y = %.2f").format(incViewportTargetPosition.x, incViewportTargetPosition.y));
                 if (incViewportTargetPosition != vec2(0)) {
                     igSameLine(0, 8);
                     if (incButtonColored("##2", ImVec2(32, 0), ImVec4.init)) {

@@ -43,6 +43,23 @@ configuration "meta" {
 	preGenerateCommands "rc.exe /v build-aux\\windows\\nijigenerate.rc" platform="windows"
 }
 
+configuration "regression-tests" {
+	targetType "executable"
+	targetName "nijigenerate-regression-tests"
+	targetPath "out"
+	workingDirectory "out"
+	mainSourceFile "source/nijigenerate_tests/regression.d"
+	sourcePaths "source"
+	importPaths "source"
+	excludedSourceFiles "source/app.d" "source/njc/*.d"
+	subConfiguration "nijilive" "queue-backend"
+	subConfiguration "i2d-imgui" "dynamic_dynamicCRT" platform="osx"
+	versions "HaveMCP"
+	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/." platform="osx"
+	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
+	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
+}
+
 // Linux build
 configuration "linux-full" {
 

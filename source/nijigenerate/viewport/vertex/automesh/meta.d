@@ -127,7 +127,8 @@ mixin template AutoMeshReflection() {
 
     // IAutoMeshReflect
     string schema() {
-        JSONValue obj = JSONValue(JSONType.object);
+        JSONValue[string] objData;
+        JSONValue obj = JSONValue(objData);
         // type name after last dot
         auto tn = typeid(cast(Object)this).toString();
         size_t lastDot = 0; bool hasDot = false; foreach (i, ch; tn) if (ch == '.') { lastDot = i; hasDot = true; }
@@ -160,7 +161,8 @@ mixin template AutoMeshReflection() {
     }
     string values(string levelName) {
         bool adv = levelName == "Advanced";
-        JSONValue v = JSONValue(JSONType.object);
+        JSONValue[string] valueData;
+        JSONValue v = JSONValue(valueData);
         foreach (f; _amFloatFields()) if (((f.level == AutoMeshLevel.Advanced) == adv)) v[f.id] = JSONValue(cast(double)(*f.ptr));
         foreach (a; _amArrayFields()) if (((a.level == AutoMeshLevel.Advanced) == adv)) {
             JSONValue arr = JSONValue.emptyArray; foreach (x; *a.ptr) arr.array ~= JSONValue(cast(double)x); v[a.id] = arr;

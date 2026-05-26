@@ -56,11 +56,7 @@ private:
         else newAnim.timestep = 1.0/fpsOptionsFR[frameRateOption];
     
 
-        if (!isNew && originalName != name) {
-            incActivePuppet().getAnimations().remove(originalName);
-        }
-        incActivePuppet().getAnimations()[name] = newAnim;
-        incAnimationChange(name);
+        ngAnimationCreateOrUpdate(name, newAnim, isNew ? "" : originalName);
         this.close();
     }
 

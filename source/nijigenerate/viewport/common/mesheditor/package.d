@@ -102,9 +102,11 @@ public:
     }
 
     void applyToTarget() {
+        incActionPushGroup();
         foreach (drawing, editor; editors) {
             editor.applyToTarget();
         }
+        incActionPopGroup();
     }
 
     bool update(ImGuiIO* io, Camera camera) {

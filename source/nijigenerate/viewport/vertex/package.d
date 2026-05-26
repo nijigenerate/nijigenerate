@@ -559,12 +559,9 @@ bool ngApplyDrawableMeshFromCommand(Drawable target, IncMesh mesh, out string me
     auto editor = incVertexViewportGetEditor();
     auto targetEditor = editor !is null ? cast(IncMeshEditorOneDrawable)editor.getEditorFor(target) : null;
     if (targetEditor is null) {
-        editor = ngCreateCommandVertexEditor(target);
-        targetEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(target);
-    }
-    if (targetEditor is null) {
-        message = "Vertex editor does not support drawable target: " ~ target.name;
-        return false;
+        applyMeshToTarget(target, mesh.vertices, &mesh);
+        target.notifyChange(target, NotifyReason.StructureChanged);
+        return true;
     }
 
     targetEditor.setMesh(mesh);
@@ -584,21 +581,10 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         return false;
     }
 
-    auto editor = incVertexViewportGetEditor();
-    auto targetEditor = editor !is null ? cast(IncMeshEditorOneDeformable)editor.getEditorFor(target) : null;
-    if (targetEditor is null) {
-        editor = ngCreateCommandVertexEditor(target);
-        targetEditor = cast(IncMeshEditorOneDeformable)editor.getEditorFor(target);
-    }
-    if (targetEditor is null) {
-        message = "Vertex editor does not support deformable target: " ~ target.name;
-        return false;
-    }
-
-    targetEditor.vertices = ngMeshVerticesFromPositions(positions.toArray());
-    targetEditor.vertexMapDirty = true;
-    targetEditor.refreshMesh();
-    targetEditor.applyToTarget();
+    auto action = new DeformableChangeAction("Define Vertices", target);
+    target.rebuffer(positions);
+    action.updateNewState();
+    incActionPush(action);
     target.notifyChange(target, NotifyReason.StructureChanged);
     return true;
 }

@@ -24,6 +24,7 @@ import nijigenerate.core.colorbleed;
 import std.path;
 import std.format;
 import std.file : rename;
+import std.string : strip;
 import i18n;
 import std.algorithm.searching;
 import std.signals;
@@ -174,6 +175,9 @@ EditMode editMode_;
     Clears the imgui data
 */
 void incClearImguiData() {
+    if (!isImGuiLoaded())
+        return;
+
     auto ctx = igGetCurrentContext();
     if (ctx) {
         foreach(ImGuiWindow* window; ctx.Windows.Data[0..ctx.Windows.Size]) {
@@ -373,6 +377,7 @@ void incSaveProject(string path, string autosaveStamp = "") {
         }
         foreach (func; saveCallbacks)
             func(incActivePuppet());
+        ngPruneInvalidAnimationLanes(incActivePuppet());
 
         // Write the puppet to file, using swp prevent file corruption
         string swapPath = finalPath ~ ".swp";
@@ -385,7 +390,8 @@ void incSaveProject(string path, string autosaveStamp = "") {
         }
 
         if (!isAutosave) incReleaseLockfile();
-        incActivePuppet().resetDrivers();
+        if (incActivePuppet().getDrivers().length)
+            incActivePuppet().resetDrivers();
 
         incSetStatus(_("%s saved successfully.").format(activeProject.path));
         incSetWindowTitle(activeProject.path.baseName);
@@ -526,6 +532,18 @@ Project incActiveProject() {
     return activeProject;
 }
 
+Project ngCreateHeadlessRegressionProject() {
+    activeProject = new Project;
+    activeProject.puppet = new ExPuppet;
+    incInitAnimationPlayer(activeProject.puppet);
+    selectedNodes.length = 0;
+    selectedParams.length = 0;
+    armedParam = null;
+    armedParamIdx = 0;
+    editMode_ = EditMode.ModelEdit;
+    return activeProject;
+}
+
 /**
     Gets the currently armed parameter
 */
@@ -582,8 +600,10 @@ void incArmParameter(size_t i, ref Parameter param) {
     armedParam = param;
     armedParamIdx = i;
     activeProject.ArmedParameterChanged.emit(armedParam);
-    incActivePuppet.enableDrivers = false;
-    incActivePuppet.resetDrivers();
+    auto puppet = incActivePuppet();
+    puppet.enableDrivers = false;
+    if (puppet.getDrivers().length > 0)
+        puppet.resetDrivers();
 }
 
 /**
@@ -593,8 +613,10 @@ void incDisarmParameter() {
     armedParam = null;
     armedParamIdx = 0;
     activeProject.ArmedParameterChanged.emit(armedParam);
-    incActivePuppet.enableDrivers = true;
-    incActivePuppet.resetDrivers();
+    auto puppet = incActivePuppet();
+    puppet.enableDrivers = true;
+    if (puppet.getDrivers().length > 0)
+        puppet.resetDrivers();
 }
 
 /**
@@ -829,6 +851,153 @@ void incAnimationChange(string name) {
 //    import nijigenerate.panels.timeline : incAnimationTimelineUpdate;
 //    incAnimationTimelineUpdate(*incAnimationCurrent.animation);
     activeProject.AnimationChanged.emit(incAnimationCurrent);
+}
+
+private Animation ngCloneAnimation(Animation animation) {
+    animation.lanes = ngCloneAnimationLanes(animation.lanes);
+    return animation;
+}
+
+private Animation[string] ngCloneAnimations(Animation[string] animations) {
+    Animation[string] result;
+    foreach (name, animation; animations)
+        result[name] = ngCloneAnimation(animation);
+    return result;
+}
+
+private bool ngAnimationLaneTargetIsValid(Puppet puppet, ref AnimationLane lane) {
+    if (lane.paramRef is null || lane.paramRef.targetParam is null)
+        return false;
+    auto param = lane.paramRef.targetParam;
+    return puppet.findParameter(param.uuid) is param;
+}
+
+private void ngPruneInvalidAnimationLanes(Puppet puppet) {
+    foreach (name, ref animation; puppet.getAnimations()) {
+        AnimationLane[] validLanes;
+        foreach (ref lane; animation.lanes) {
+            if (ngAnimationLaneTargetIsValid(puppet, lane))
+                validLanes ~= lane;
+        }
+        animation.lanes = validLanes;
+    }
+}
+
+private void ngRestoreAnimations(Puppet puppet, Animation[string] animations, string currentName) {
+    puppet.getAnimations() = ngCloneAnimations(animations);
+    incInitAnimationPlayer(puppet);
+    if (currentName.length && currentName in puppet.getAnimations())
+        incAnimationChange(currentName);
+    else
+        activeProject.AnimationChanged.emit(null);
+}
+
+private string ngCurrentAnimationName() {
+    if (incAnimationCurrent is null)
+        return "";
+    return cast(string)incAnimationCurrent.name.dup;
+}
+
+private class AnimationListChangeAction : Action {
+    Puppet puppet;
+    Animation[string] oldAnimations;
+    Animation[string] newAnimations;
+    string oldCurrentName;
+    string newCurrentName;
+    string label;
+    bool applied;
+
+    this(Puppet puppet, Animation[string] oldAnimations, Animation[string] newAnimations, string oldCurrentName, string newCurrentName, string label) {
+        this.puppet = puppet;
+        this.oldAnimations = ngCloneAnimations(oldAnimations);
+        this.newAnimations = ngCloneAnimations(newAnimations);
+        this.oldCurrentName = oldCurrentName.dup;
+        this.newCurrentName = newCurrentName.dup;
+        this.label = label.dup;
+    }
+
+    override void rollback() {
+        if (!applied) return;
+        ngRestoreAnimations(puppet, oldAnimations, oldCurrentName);
+        applied = false;
+    }
+
+    override void redo() {
+        if (applied) return;
+        ngRestoreAnimations(puppet, newAnimations, newCurrentName);
+        applied = true;
+    }
+
+    override string describe() {
+        return label;
+    }
+
+    override string describeUndo() {
+        return _("Undo %s").format(label);
+    }
+
+    override string getName() {
+        return "AnimationListChange";
+    }
+
+    override bool merge(Action other) {
+        return false;
+    }
+
+    override bool canMerge(Action other) {
+        return false;
+    }
+}
+
+bool ngAnimationCreateOrUpdate(string name, Animation animation, string originalName = "") {
+    name = name.strip();
+    originalName = originalName.strip();
+    if (name.length == 0)
+        return false;
+
+    auto puppet = incActivePuppet();
+    auto oldAnimations = ngCloneAnimations(puppet.getAnimations());
+    auto newAnimations = ngCloneAnimations(oldAnimations);
+    if (originalName.length && originalName != name)
+        newAnimations.remove(originalName);
+    newAnimations[name] = ngCloneAnimation(animation);
+
+    auto oldCurrentName = ngCurrentAnimationName();
+    auto action = new AnimationListChangeAction(
+        puppet,
+        oldAnimations,
+        newAnimations,
+        oldCurrentName,
+        name,
+        originalName.length && originalName != name ? _("Rename Animation") : _("Save Animation")
+    );
+    action.redo();
+    incActionPush(action);
+    return true;
+}
+
+bool ngAnimationDelete(string name) {
+    if (name !in incActivePuppet().getAnimations())
+        return false;
+
+    auto puppet = incActivePuppet();
+    auto oldAnimations = ngCloneAnimations(puppet.getAnimations());
+    auto newAnimations = ngCloneAnimations(oldAnimations);
+    newAnimations.remove(name);
+
+    auto oldCurrentName = ngCurrentAnimationName();
+    auto newCurrentName = oldCurrentName == name ? "" : oldCurrentName;
+    auto action = new AnimationListChangeAction(
+        puppet,
+        oldAnimations,
+        newAnimations,
+        oldCurrentName,
+        newCurrentName,
+        _("Delete Animation")
+    );
+    action.redo();
+    incActionPush(action);
+    return true;
 }
 
 /**

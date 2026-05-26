@@ -129,7 +129,7 @@ package {
             cast(uint)incSettingsGet!int("WinH", 800), 
             flags
         );
-        if (w) SDL_SetWindowMinimumSize(window, 960, 720);
+        if (w) SDL_SetWindowMinimumSize(w, 960, 720);
         return w;
     }
 
@@ -250,6 +250,8 @@ void incOpenWindow() {
     else string WIN_TITLE = "nijigenerate "~INC_VERSION;
     
     window = tryCreateWindow(WIN_TITLE, flags);
+    enforce(window !is null, "Failed to create SDL window!");
+    SDL_ShowWindow(window);
     
     // On Linux we want to check whether the window was created under wayland or x11
     version(linux) {
@@ -382,6 +384,9 @@ SDL_Window* incGetWindowPtr() {
 
 void incRefreshWindowTitle() {
     import std.string : toStringz;
+    if (!isSDLLoaded() || window is null)
+        return;
+
     if (windowSubtitle.length > 0) {
         string mark = incIsProjectModified() ? " *" : "";
         SDL_SetWindowTitle(window, ("nijigenerate - " ~ windowSubtitle ~ mark).toStringz);
@@ -969,4 +974,3 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
-

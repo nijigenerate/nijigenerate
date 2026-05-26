@@ -261,7 +261,8 @@ public:
 
     // Legacy reflection impl (kept for reference; not used)
     string schemaLegacy() {
-        JSONValue obj = JSONValue(JSONType.object);
+        JSONValue[string] objData;
+        JSONValue obj = JSONValue(objData);
         obj["type"] = "GridAutoMeshProcessor";
         JSONValue simple = JSONValue.emptyArray;
         JSONValue adv = JSONValue.emptyArray;
@@ -280,7 +281,8 @@ public:
         return obj.toString();
     }
     string valuesLegacy(string levelName) {
-        JSONValue v = JSONValue(JSONType.object);
+        JSONValue[string] valueData;
+        JSONValue v = JSONValue(valueData);
         if (levelName == "Advanced") {
             JSONValue sx = JSONValue.emptyArray; foreach(x; scaleX) sx.array ~= JSONValue(cast(double)x); v["scale_x"] = sx;
             JSONValue sy = JSONValue.emptyArray; foreach(y; scaleY) sy.array ~= JSONValue(cast(double)y); v["scale_y"] = sy;
