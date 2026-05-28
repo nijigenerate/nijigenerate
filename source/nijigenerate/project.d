@@ -175,8 +175,10 @@ EditMode editMode_;
     Clears the imgui data
 */
 void incClearImguiData() {
-    if (!isImGuiLoaded())
-        return;
+    version(BindImGui_Dynamic) {
+        if (!isImGuiLoaded())
+            return;
+    }
 
     auto ctx = igGetCurrentContext();
     if (ctx) {
