@@ -86,6 +86,21 @@ configuration "osx-full" {
   lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
 }
 
+configuration "osx-regression-smoke" {
+	platforms "osx"
+	targetType "executable"
+	targetPath "out/nijigenerate.app/Contents/MacOS"
+	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
+	versions "HaveMCP" "RegressionSmoke"
+	dflags "-force-dwarf-frame-section=false"
+	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
+
+  // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
+  lflags "-L./openssl_3/lib" platform="osx-x86_64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
+}
+
 // Windows build
 configuration "win32-full" {
 	platforms "windows"
