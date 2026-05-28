@@ -10,6 +10,7 @@ import nijigenerate.core.dpi;
 import bindbc.opengl;
 import bindbc.imgui;
 import core.stdc.stdio;
+import core.stdc.stdlib : getenv;
 import inmath;
 import bindbc.sdl;
 import nijilive : inGetRenderImage;
@@ -25,6 +26,11 @@ private {
     GLint g_AttribLocationTex = 0, g_AttribLocationProjMtx = 0;                                // Uniforms location
     GLuint g_AttribLocationVtxPos = 0, g_AttribLocationVtxUV = 0, g_AttribLocationVtxColor = 0; // Vertex attributes location
     uint g_VboHandle = 0, g_ElementsHandle = 0;
+
+    bool g_HasEventMousePos = false;
+    ImVec2 g_EventMousePos;
+    bool g_DebugComputerUseMouse = false;
+    bool g_DebugComputerUseMouseInitialized = false;
 }
 
 // Functions
@@ -63,6 +69,39 @@ void incGLBackendShutdown() {
 
 void incGLBackendNewFrame() {
     if (!g_ShaderHandle) incGLBackendCreateDeviceObjects();
+}
+
+private ImVec2 incGLBackendScaleMousePos(int x, int y) {
+    version (UseUIScaling) {
+        version (OSX) {
+            return ImVec2(cast(float)x, cast(float)y);
+        } else {
+            float uiScale = incGetUIScale();
+            return ImVec2(cast(float)x / uiScale, cast(float)y / uiScale);
+        }
+    } else {
+        return ImVec2(cast(float)x, cast(float)y);
+    }
+}
+
+private void incGLBackendRememberEventMousePos(int x, int y) {
+    g_EventMousePos = incGLBackendScaleMousePos(x, y);
+    g_HasEventMousePos = true;
+}
+
+private bool incGLBackendDebugComputerUseMouse() {
+    if (!g_DebugComputerUseMouseInitialized) {
+        g_DebugComputerUseMouse = getenv("NIJIGENERATE_DEBUG_CUA_MOUSE") !is null;
+        g_DebugComputerUseMouseInitialized = true;
+    }
+    return g_DebugComputerUseMouse;
+}
+
+void incGLBackendApplyEventMousePosition() {
+    if (!g_HasEventMousePos) return;
+
+    auto io = igGetIO();
+    io.MousePos = g_EventMousePos;
 }
 
 void incGLBackendBeginRender() {
@@ -105,6 +144,26 @@ void incGLBackendBeginRender() {
 }
 
 bool incGLBackendProcessEvent(const(SDL_Event)* event) {
+    switch(event.type) {
+        case SDL_EventType.SDL_MOUSEMOTION:
+            incGLBackendRememberEventMousePos(event.motion.x, event.motion.y);
+            if (incGLBackendDebugComputerUseMouse()) {
+                fprintf(stderr, "[CUAMouse] motion x=%d y=%d state=%u\n", event.motion.x, event.motion.y, event.motion.state);
+            }
+            break;
+
+        case SDL_EventType.SDL_MOUSEBUTTONDOWN:
+        case SDL_EventType.SDL_MOUSEBUTTONUP:
+            incGLBackendRememberEventMousePos(event.button.x, event.button.y);
+            if (incGLBackendDebugComputerUseMouse()) {
+                fprintf(stderr, "[CUAMouse] button type=%u button=%u state=%u x=%d y=%d\n", event.type, event.button.button, event.button.state, event.button.x, event.button.y);
+            }
+            break;
+
+        default:
+            break;
+    }
+
     version (UseUIScaling) {
         version (OSX) {
             

@@ -23,6 +23,7 @@ import nijigenerate.io.autosave;
 import nijigenerate.io.save;
 import i18n;
 import std.stdio : writefln;
+import core.stdc.stdlib : getenv;
 
 version(OSX) {
     enum const(char)*[] SDL_VERSIONS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
@@ -706,6 +707,7 @@ void incBeginLoopNoEv() {
     // Start the Dear ImGui frame
     incGLBackendNewFrame();
     ImGui_ImplSDL2_NewFrame();
+    incGLBackendApplyEventMousePosition();
 
     // Do our DPI pre-processing
     igNewFrame();
@@ -799,8 +801,17 @@ void incSetDefaultLayout() {
 */
 void incBeginLoop() {
     SDL_Event event;
+    static bool stepSyntheticMouseInitialized;
+    static bool stepSyntheticMouse;
+
+    if (!stepSyntheticMouseInitialized) {
+        stepSyntheticMouse = getenv("NIJIGENERATE_STEP_CUA_MOUSE") !is null;
+        stepSyntheticMouseInitialized = true;
+    }
 
     while(SDL_PollEvent(&event)) {
+        bool stepAfterEvent = false;
+
         switch(event.type) {
             case SDL_QUIT:
                 incExitSaveAsk();
@@ -813,8 +824,16 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
+                if (stepSyntheticMouse) {
+                    stepAfterEvent =
+                        event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
+                        event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
+                        event.type == SDL_EventType.SDL_MOUSEMOTION;
+                }
                 break;
         }
+
+        if (stepAfterEvent) break;
     }
 
     incTaskUpdate();
