@@ -261,14 +261,14 @@ public:
     float[] depths;
     float[] baseDepths;
 
-    this(GridDeformer target) {
+    this(GridDeformer target, bool buildRenderResources = true) {
         this.target = target;
         this.depthMapped = cast(DepthMappedNode)target;
         log("editor created: type=%s depthMapped=%s vertices=%s deformation=%s".format(
             typeid(target).toString(), depthMapped !is null, target.vertices.length, target.deformation.length));
         resetFromTarget();
         rebuildTopology();
-        rebuildTexture();
+        if (buildRenderResources) rebuildTexture();
     }
 
     ~this() {

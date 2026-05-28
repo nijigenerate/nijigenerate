@@ -8,7 +8,8 @@ module nijigenerate.viewport.depth.tools.ring;
 
 import bindbc.imgui;
 import i18n;
-import nijigenerate.core.actionstack;
+import nijigenerate.commands : Context, cmd;
+import nijigenerate.commands.depth.editor : DepthEditorOperationCommand;
 import nijigenerate.core.input;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.camera;
@@ -96,10 +97,8 @@ public:
             }
             auto editorSet = viewport.getEditor();
             if (auto op = buildOperation(viewport)) {
-                auto action = new DepthOperationListChangeAction(editorSet, activeEditor);
-                editorSet.appendOperation(activeEditor, op);
-                action.updateNewState();
-                incActionPush(action);
+                auto ctx = new Context();
+                cmd!(DepthEditorOperationCommand.AddEditorDepthOp)(ctx, editorSet, activeEditor, op, -1);
             }
             activeEditor = null;
             startVertex = -1;

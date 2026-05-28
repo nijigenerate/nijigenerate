@@ -10,6 +10,9 @@ static import std.json;
 import std.json : JSONValue;
 import nijigenerate.panels.inspector.common;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
+static import nijigenerate.viewport.depth.mesheditor.editor;
+static import nijigenerate.viewport.depth.mesheditor.node;
+static import nijigenerate.viewport.depth.tools.operation;
 static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
 static import nijilive.core.nodes.drivers.simplephysics;
 

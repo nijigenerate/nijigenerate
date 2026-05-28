@@ -51,6 +51,7 @@ import meshNodeOps = nijigenerate.viewport.common.mesheditor.operations.node;
 import meshDeformableOps = nijigenerate.viewport.vertex.mesheditor.deformable;
 import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
+import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
@@ -274,6 +275,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depth.exdepthmapped", "Depth Edit", "DepthMapped node serialization, depth array resize, and depth operation helpers", automated, "Covers ExGridDeformer depth array copying, resize-on-rebuffer, depth operation copy, and native INX round-trip."),
     Scenario("depth.camera", "Depth Edit", "Depth camera projection, viewport transform, hit testing, and depth edit view state", automated, "Covers depth camera projection/unprojection math and pan/zoom/yaw/pitch/depth effects; UI viewport smoke remains in viewport.depth-mode."),
     Scenario("depth.operation-helpers", "Depth Edit", "Depth operation helpers apply, cancel, copy, resize, and interpolate depth arrays", automated, "Covers DepthMapped/DepthOperation copy, replace, resize, clone, and basic geometry helper contracts."),
+    Scenario("depth.commands", "Depth Edit", "Depth map and individual depth operation commands", automated, "Covers Set/List/Clear Depths and Add/Update/Move/Remove/Clear/Apply depth-ops commands with undo/redo."),
 
     Scenario("depthbone.template-bones", "Depth Bone", "Standard DepthBone skeleton template creation", automated, "Covers standard skeleton creation, hierarchy, Head parent-to-target default, and Foot lock-to-root defaults."),
     Scenario("depthbone.template-parameters", "Depth Bone", "Standard DepthBone parameter template creation from param values", automated, "Covers standard DepthBone parameter and binding template command on a generated skeleton."),
@@ -419,6 +421,16 @@ private void resetCase() {
 
 private void require(bool condition, string message) {
     enforce(condition, message);
+}
+
+private void configureRegressionConfigDir() {
+    import nijigenerate.core.path : ENV_CONFIG_PATH;
+    import std.process : environment;
+
+    auto configDir = buildPath("/private/tmp", "nijigenerate-regression-config");
+    if (!exists(configDir))
+        mkdirRecurse(configDir);
+    environment[ENV_CONFIG_PATH] = configDir;
 }
 
 private uint[] maskOrder(Part part) {
@@ -2518,6 +2530,108 @@ private void testDepthOperationHelperContracts() {
         "distanceToSegment should measure perpendicular distance within segment");
     require(near(distanceToSegment(vec2(15, 0), vec2(0, 0), vec2(10, 0)), 5.0f),
         "distanceToSegment should clamp beyond segment endpoint");
+}
+
+private JSONValue depthCommandOp(string type, JSONValue[string] fields) {
+    fields["type"] = JSONValue(type);
+    return JSONValue(fields);
+}
+
+private JSONValue jsonVec2Value(float x, float y) {
+    JSONValue value = JSONValue.emptyArray;
+    value.array ~= JSONValue(cast(double)x);
+    value.array ~= JSONValue(cast(double)y);
+    return value;
+}
+
+private void testDepthMapCommandsUndoRedo() {
+    resetCase();
+    ensureRegressionNodeTypesRegistered();
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "depth-command-grid";
+    grid.rebuffer(Vec2Array([
+        vec2(0, 0),
+        vec2(10, 0),
+        vec2(0, 10),
+        vec2(10, 10),
+    ]));
+
+    auto ctx = new Context();
+    require(cmd!(DepthMapCommand.SetDepths)(ctx, grid, [0.0f, 0.25f, -0.5f, 1.0f]).succeeded,
+        "SetDepths command should succeed");
+    require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "SetDepths should apply depths");
+    incActionUndo();
+    require(grid.copyDepths() is null, "undo SetDepths should restore null depths");
+    incActionRedo();
+    require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "redo SetDepths should restore depths");
+    auto listedDepths = cast(ExCommandResult!JSONValue)cmd!(DepthMapCommand.ListDepths)(ctx, grid);
+    require(listedDepths !is null && listedDepths.succeeded, "ListDepths command should return JSON");
+    require(listedDepths.result["count"].integer == 4, "ListDepths should report depth count");
+
+    JSONValue[string] attachedFields;
+    attachedFields["index"] = JSONValue(1);
+    attachedFields["amount"] = JSONValue(0.4);
+    require(cmd!(DepthMapCommand.AddDepthOp)(ctx, grid, depthCommandOp("attached-point", attachedFields), -1).succeeded,
+        "AddDepthOp should add an attached-point op");
+    require(grid.copyDepthOps().length == 1 && grid.copyDepthOps()[0].type == ExDepthOpType.AttachedPoint,
+        "AddDepthOp should store attached-point op");
+    JSONValue[string] ringFields;
+    ringFields["p0"] = jsonVec2Value(0, 0);
+    ringFields["p1"] = jsonVec2Value(10, 0);
+    ringFields["amount"] = JSONValue(0.75);
+    ringFields["width"] = JSONValue(8.0);
+    ringFields["hardness"] = JSONValue(0.5);
+    ringFields["p0Angle"] = JSONValue(45.0);
+    ringFields["p1Angle"] = JSONValue(135.0);
+    require(cmd!(DepthMapCommand.AddDepthOp)(ctx, grid, depthCommandOp("ring", ringFields), -1).succeeded,
+        "AddDepthOp should add a ring op");
+    require(grid.copyDepthOps().length == 2 && grid.copyDepthOps()[1].type == ExDepthOpType.Ring,
+        "AddDepthOp should append ring op");
+
+    ringFields["amount"] = JSONValue(-0.25);
+    require(cmd!(DepthMapCommand.UpdateDepthOp)(ctx, grid, 1, depthCommandOp("ring", ringFields)).succeeded,
+        "UpdateDepthOp should replace one op");
+    require(near(grid.copyDepthOps()[1].amount, -0.25f), "UpdateDepthOp should update ring amount");
+    incActionUndo();
+    require(near(grid.copyDepthOps()[1].amount, 0.75f), "undo UpdateDepthOp should restore previous op");
+    incActionRedo();
+    require(near(grid.copyDepthOps()[1].amount, -0.25f), "redo UpdateDepthOp should restore updated op");
+    require(cmd!(DepthMapCommand.MoveDepthOp)(ctx, grid, 1, 0).succeeded, "MoveDepthOp should succeed");
+    require(grid.copyDepthOps()[0].type == ExDepthOpType.Ring, "MoveDepthOp should reorder ops");
+    require(cmd!(DepthMapCommand.RemoveDepthOp)(ctx, grid, 1).succeeded, "RemoveDepthOp should succeed");
+    require(grid.copyDepthOps().length == 1, "RemoveDepthOp should remove one op");
+    incActionUndo();
+    require(grid.copyDepthOps().length == 2, "undo RemoveDepthOp should restore removed op");
+    require(cmd!(DepthMapCommand.ApplyDepthOps)(ctx, grid).succeeded, "ApplyDepthOps should succeed");
+    auto appliedDepths = grid.copyDepths();
+    require(appliedDepths !is null && appliedDepths.length == grid.vertices.length, "ApplyDepthOps should bake depths to vertex count");
+    auto listedOps = cast(ExCommandResult!JSONValue)cmd!(DepthMapCommand.ListDepthOps)(ctx, grid);
+    require(listedOps !is null && listedOps.succeeded, "ListDepthOps command should return JSON");
+    require(listedOps.result["count"].integer == 2, "ListDepthOps should report operation count");
+    require(cmd!(DepthMapCommand.ClearDepthOps)(ctx, grid).succeeded, "ClearDepthOps should succeed");
+    require(grid.copyDepthOps().length == 0, "ClearDepthOps should remove all ops");
+    incActionUndo();
+    require(grid.copyDepthOps().length == 2, "undo ClearDepthOps should restore ops");
+    require(cmd!(DepthMapCommand.ClearDepths)(ctx, grid).succeeded, "ClearDepths should succeed");
+    require(grid.copyDepths() is null, "ClearDepths should clear depth array");
+
+    auto editor = new DepthMeshEditor(false);
+    scope(exit) editor.dispose();
+    editor.setTargets([cast(Node)grid]);
+    auto editorOne = editor.getEditorFor(grid);
+    require(editor.commitOperationAdd(editorOne, new DepthAttachedPointOperation(2, 0.3f)),
+        "DepthMeshEditor should commit added depth op through command");
+    require(editor.copyOperations(editorOne).length == 3, "editor should show command-added operation");
+    require(grid.copyDepthOps().length == 2, "editor operation edits should stay local until Apply");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded, "Undo command should run for editor-added depth op");
+    editor.update(null, Camera.init);
+    require(editor.copyOperations(editorOne).length == 2, "editor should resync operation list after undo");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded, "Redo command should run for editor-added depth op");
+    editor.update(null, Camera.init);
+    require(editor.copyOperations(editorOne).length == 3, "editor should resync operation list after redo");
+    editor.closeStack();
+    editor.applyToTargets();
+    require(grid.copyDepthOps().length == 3, "editor Apply should save local operation edits through depth-op command");
 }
 
 private void testSimplePhysicsParameterUndoRedo() {
@@ -7514,6 +7628,9 @@ private bool runAutomatedScenario(string id) {
         case "depth.operation-helpers":
             runCase("depth-operation-helper-contracts", &testDepthOperationHelperContracts);
             return true;
+        case "depth.commands":
+            runCase("depth-map-commands-undo-redo", &testDepthMapCommandsUndoRedo);
+            return true;
         case "mesh.vertex-scope":
         case "depth.edit-scope":
         case "deform.onetime-scope":
@@ -7815,6 +7932,7 @@ private int usage() {
 }
 
 int main(string[] args) {
+    configureRegressionConfigDir();
     inSetTimingFunc(&regressionNow);
     incSettingsLoad();
     incActionInit();

@@ -11,12 +11,14 @@ import i18n;
 import nijigenerate;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.input;
-import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
+import nijigenerate.commands : Context, cmd;
+import nijigenerate.commands.depth.editor : DepthEditorOperationCommand;
+import nijigenerate.commands.depth.map : DepthMapCommand, ngDepthOpToJson;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.base;
-import nijigenerate.viewport.depth.mesheditor.action;
 import nijigenerate.viewport.depth.camera;
+import nijigenerate.viewport.depth.mesheditor.action;
 import nijigenerate.viewport.depth.mesheditor.node;
 import nijigenerate.viewport.depth.renderer;
 import nijigenerate.viewport.depth.tools.operation;
@@ -25,6 +27,7 @@ import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import std.format : format;
 import std.algorithm : max;
+import std.json : JSONValue;
 import std.string : toStringz;
 
 class DepthMeshEditor {
@@ -41,6 +44,7 @@ private:
     bool draggingOperation;
     DepthTextureMeshRenderer renderer;
     ActionStackScope actionScope;
+    bool buildRenderResources;
 
     bool editable(Node node) {
         auto ok = cast(GridDeformer)node !is null;
@@ -65,21 +69,43 @@ private:
         recompute(editor);
     }
 
-    void saveOperationsToTarget(DepthMeshEditorOne editor) {
+    void syncOperationsFromTarget(DepthMeshEditorOne editor) {
         if (editor is null) return;
-        auto operated = cast(DepthOperationMappedNode)editor.getTarget();
-        if (operated is null) return;
+        operations.remove(editor);
+        loadOperationsFromTarget(editor);
+    }
 
-        ExDepthOp[] saved;
+    JSONValue operationsToJson(DepthMeshEditorOne editor) {
+        JSONValue saved = JSONValue.emptyArray;
         if (editor in operations) {
-            foreach (op; operations[editor]) saved ~= toExDepthOp(op);
+            foreach (op; operations[editor]) {
+                saved.array ~= ngDepthOpToJson(toExDepthOp(op));
+            }
         }
-        operated.replaceDepthOps(saved);
+        return saved;
     }
 
 public:
-    this() {
-        renderer = new DepthTextureMeshRenderer();
+    bool commitOperationAdd(DepthMeshEditorOne editor, DepthOperation operation, int index = -1) {
+        auto ctx = new Context();
+        return cmd!(DepthEditorOperationCommand.AddEditorDepthOp)(ctx, this, editor, operation, index).succeeded;
+    }
+
+    bool commitOperationUpdate(DepthMeshEditorOne editor, ptrdiff_t index, DepthOperation operation) {
+        auto ctx = new Context();
+        return cmd!(DepthEditorOperationCommand.UpdateEditorDepthOp)(ctx, this, editor, cast(int)index, operation).succeeded;
+    }
+
+    bool commitOperationRemove(DepthMeshEditorOne editor, ptrdiff_t index) {
+        auto ctx = new Context();
+        return cmd!(DepthEditorOperationCommand.RemoveEditorDepthOp)(ctx, this, editor, cast(int)index).succeeded;
+    }
+
+public:
+    this(bool buildRenderResources = true) {
+        this.buildRenderResources = buildRenderResources;
+        if (buildRenderResources)
+            renderer = new DepthTextureMeshRenderer();
         actionScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
     }
 
@@ -109,7 +135,7 @@ public:
             if (grid in editors) {
                 next[grid] = editors[grid];
             } else {
-                auto editor = new DepthMeshEditorOne(grid);
+                auto editor = new DepthMeshEditorOne(grid, buildRenderResources);
                 next[grid] = editor;
                 loadOperationsFromTarget(editor);
             }
@@ -151,9 +177,10 @@ public:
     void applyToTargets() {
         incActionPushGroup();
         foreach (editor; editors.byValue) {
-            editor.applyToTarget();
-            saveOperationsToTarget(editor);
-            ngMarkDepthBoneDirtyForTarget(editor.targetNode(), "Depth Map Apply");
+            auto ctx = new Context();
+            cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), operationsToJson(editor));
+            cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+            editor.resetFromTarget();
         }
         incActionPopGroup();
     }
@@ -165,7 +192,8 @@ public:
         findOperationHit(-incInputGetMousePosition(), depthCamera, hotEditor, hotIndex, hotHandle);
 
         foreach (editor; editors.byValue) {
-            editor.draw(viewportCamera, depthCamera, renderer);
+            if (renderer !is null)
+                editor.draw(viewportCamera, depthCamera, renderer);
             if (editor in operations) {
                 foreach (i, op; operations[editor]) {
                     auto index = cast(ptrdiff_t)i;
@@ -211,6 +239,19 @@ public:
             foreach (op; operations[editor]) result ~= op.clone();
         }
         return result;
+    }
+
+    ptrdiff_t indexOfOperationInstance(DepthMeshEditorOne editor, DepthOperation operation) {
+        if (editor is null || operation is null || !(editor in operations)) return -1;
+        foreach (i, op; operations[editor]) {
+            if (op is operation) return cast(ptrdiff_t)i;
+        }
+        return -1;
+    }
+
+    void selectOperation(DepthMeshEditorOne editor, ptrdiff_t index) {
+        selectedOperationEditor = editor;
+        selectedOperationIndex = index;
     }
 
     void replaceOperations(DepthMeshEditorOne editor, DepthOperation[] nextOperations) {
@@ -324,28 +365,13 @@ public:
     void duplicateSelectedOperation() {
         auto op = selectedOperation();
         if (op is null) return;
-        auto action = new DepthOperationListChangeAction(this, selectedOperationEditor);
-        operations[selectedOperationEditor] ~= op.clone();
-        selectedOperationIndex = cast(ptrdiff_t)operations[selectedOperationEditor].length - 1;
-        recompute(selectedOperationEditor);
-        action.updateNewState();
-        incActionPush(action);
+        commitOperationAdd(selectedOperationEditor, op.clone());
     }
 
     void deleteSelectedOperation() {
         auto op = selectedOperation();
         if (op is null) return;
-        auto action = new DepthOperationListChangeAction(this, selectedOperationEditor);
-        auto list = operations[selectedOperationEditor];
-        list = list[0 .. selectedOperationIndex] ~ list[selectedOperationIndex + 1 .. $];
-        replaceOperations(selectedOperationEditor, list);
-        if (selectedOperationEditor in operations) {
-            selectedOperationIndex = cast(ptrdiff_t)operations[selectedOperationEditor].length - 1;
-        } else {
-            selectedOperationIndex = -1;
-        }
-        action.updateNewState();
-        incActionPush(action);
+        commitOperationRemove(selectedOperationEditor, selectedOperationIndex);
     }
 
     void editSelectedFloat(string id, float* value, float speed, float minValue, float maxValue, string fmt = "%.2f") {
@@ -364,6 +390,8 @@ public:
     }
 
     void pushSelectedOperationEdit(DepthOperationListChangeAction action) {
+        auto op = selectedOperation();
+        if (op is null) return;
         recompute(selectedOperationEditor);
         action.updateNewState();
         incActionPush(action);
