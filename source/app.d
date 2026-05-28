@@ -7,6 +7,10 @@
 */
 //import std.stdio;
 import std.string;
+version(RegressionSmoke) {
+import core.thread : Thread;
+import core.time : msecs;
+}
 import nijigenerate.core;
 import nijigenerate.core.settings;
 import nijigenerate.utils.crashdump;
@@ -30,6 +34,7 @@ import nijigenerate.windows.flipconfig;
 import nijilive;
 import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 import nijigenerate;
+version(RegressionSmoke) import nijigenerate.regression_smoke : ngParseRegressionSmokeOptions, ngSetupRegressionSmokeScenario;
 version(HaveMCP) import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings, ngMcpStop;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
@@ -61,6 +66,12 @@ version(Windows) {
 int main(string[] args)
 {
     try {
+        version(RegressionSmoke) {
+            auto regressionSmoke = ngParseRegressionSmokeOptions(args);
+        } else {
+            enum regressionSmoke = false;
+        }
+
         installNativeCrashDumpHandler();
         bool backgroundServicesStopped = false;
         void stopBackgroundServices() {
@@ -86,6 +97,8 @@ int main(string[] args)
         incInitPanels();
         incActionInit();
         incOpenWindow();
+        version(RegressionSmoke) if (regressionSmoke.enabled)
+            SDL_GL_SetSwapInterval(0);
         bool tripleBufferFallback = incSettingsGet!bool("TripleBufferFallback", nlIsTripleBufferFallbackEnabled());
         nlSetTripleBufferFallback(tripleBufferFallback);
         nlApplyBlendingCapabilities();
@@ -114,10 +127,28 @@ int main(string[] args)
         ngLoadShortcutsFromSettings();
 
         // Start/stop MCP HTTP server based on persisted settings (single read)
-        version(HaveMCP) ngMcpLoadSettings();
+        version(HaveMCP) {
+            version(RegressionSmoke) {
+                if (!regressionSmoke.enabled)
+                    ngMcpLoadSettings();
+            } else {
+                ngMcpLoadSettings();
+            }
+        }
 
         // Open or create project
-        if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
+        version(RegressionSmoke) {
+            if (regressionSmoke.enabled) {
+                incNewProject();
+                ngSetupRegressionSmokeScenario(regressionSmoke.scenario);
+            } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
+            else {
+                incNewProject();
+
+                // TODO: Replace with first-time welcome screen
+                incPushWindow(new WelcomeWindow());
+            }
+        } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
         else {
             incNewProject();
 
@@ -134,8 +165,24 @@ int main(string[] args)
         );
         
         // Update loop
+        version(RegressionSmoke) int regressionFrame;
         while(!incIsCloseRequested()) {
-            incUpdate();
+            version(RegressionSmoke) {
+                if (regressionSmoke.enabled && !regressionSmoke.computerUse)
+                    incUpdateNoEv();
+                else
+                    incUpdate();
+                if (regressionSmoke.enabled && ++regressionFrame >= regressionSmoke.frames)
+                    break;
+                if (regressionSmoke.enabled && regressionSmoke.frameDelayMs > 0)
+                    Thread.sleep(regressionSmoke.frameDelayMs.msecs);
+            } else {
+                incUpdate();
+            }
+        }
+        version(RegressionSmoke) if (regressionSmoke.enabled) {
+            stopBackgroundServices();
+            return 0;
         }
         incSettingsSave();
         stopBackgroundServices();

@@ -120,6 +120,89 @@ private {
 
         puppet.rescanNodes();
     }
+
+    ubyte[] ngINPExportWritePuppetMemoryWithoutDepthRigNodes(Puppet puppet) {
+        struct DetachedNode {
+            Node node;
+            Node parent;
+            ptrdiff_t index;
+        }
+        struct BindingSnapshot {
+            Parameter parameter;
+            ParameterBinding[] bindings;
+        }
+
+        DetachedNode[] detachedNodes;
+        BindingSnapshot[] bindingSnapshots;
+        bool[uint] removedNodeUuids;
+
+        void collectRemoved(Node node) {
+            removedNodeUuids[node.uuid] = true;
+            foreach(child; node.children)
+                collectRemoved(child);
+        }
+
+        void collectDetached(Node parent) {
+            foreach (i, child; parent.children) {
+                if (ngINPExportShouldExcludeNode(child)) {
+                    detachedNodes ~= DetachedNode(child, parent, cast(ptrdiff_t)i);
+                    collectRemoved(child);
+                } else {
+                    collectDetached(child);
+                }
+            }
+        }
+
+        void pruneParameterBindings(Parameter parameter) {
+            ParameterBinding[] bindings;
+            bool changed = false;
+            foreach(binding; parameter.bindings) {
+                auto targetNode = cast(Node)binding.getTarget.target;
+                if (targetNode !is null && targetNode.uuid in removedNodeUuids) {
+                    changed = true;
+                    continue;
+                }
+                bindings ~= binding;
+            }
+            if (changed) {
+                bindingSnapshots ~= BindingSnapshot(parameter, parameter.bindings);
+                parameter.bindings = bindings;
+            }
+        }
+
+        void restore() {
+            foreach (snapshot; bindingSnapshots)
+                snapshot.parameter.bindings = snapshot.bindings;
+            foreach (detached; detachedNodes)
+                detached.node.reparent(detached.parent, cast(ulong)detached.index, true);
+            puppet.rescanNodes();
+        }
+
+        collectDetached(puppet.root);
+        if (detachedNodes.length == 0)
+            return inWriteINPPuppetMemory(puppet);
+
+        foreach (detached; detachedNodes)
+            detached.node.reparent(null, 0, true);
+
+        foreach(parameter; puppet.parameters) {
+            if (auto group = cast(ExParameterGroup)parameter) {
+                foreach(child; group.children)
+                    pruneParameterBindings(child);
+            } else {
+                pruneParameterBindings(parameter);
+            }
+        }
+
+        scope(exit) restore();
+        puppet.rescanNodes();
+        puppet.populateTextureSlots();
+        return inWriteINPPuppetMemory(puppet);
+    }
+}
+
+void ngINPExportPruneEditorOnlyNodes(Puppet puppet) {
+    ngINPExportPruneDepthRigNodes(puppet);
 }
 
 
@@ -215,9 +298,7 @@ Puppet incINPExportGenPuppet(Puppet puppet, IncINPExportSettings settings, bool 
     // TODO: Don't do this encode-decode shenannigans
     // A clone() function should be added to Puppet, which creates
     // an identical deep clone with a reference to the same textures.
-    Puppet p = inLoadINPPuppet(inWriteINPPuppetMemory(puppet));
-
-    ngINPExportPruneDepthRigNodes(p);
+    Puppet p = inLoadINPPuppet(ngINPExportWritePuppetMemoryWithoutDepthRigNodes(puppet));
 
     if (optimize) {
 

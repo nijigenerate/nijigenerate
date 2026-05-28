@@ -14,6 +14,18 @@ import std.traits;
 import std.array;
 import i18n;
 
+private string serializeCrashDumpState(T)(auto ref T value) {
+    import std.conv : text;
+    import std.string : replace;
+    static if (is(T == string) || is(T == immutable(char)[]) || is(T == const(char)[])) {
+        return `"` ~ text(value).replace(`\`, `\\`).replace(`"`, `\"`) ~ `"`;
+    } else static if (is(T == typeof(null))) {
+        return "null";
+    } else {
+        return text(value);
+    }
+}
+
 version(Posix) {
     import core.stdc.signal : raise;
     import core.stdc.stdlib : malloc;
@@ -33,7 +45,7 @@ version(Posix) {
 string genCrashDump(T...)(Throwable t, T state) {
     string[] args;
     static foreach(i; 0 .. state.length) {
-        args ~= serializeToPrettyJson(state[i]);
+        args ~= serializeCrashDumpState(state[i]);
     }
     Appender!string str;
     str.put("=== Args State ===\n");

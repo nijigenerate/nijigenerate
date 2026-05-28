@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-25 08:10+0900\n"
+"POT-Creation-Date: 2026-05-26 11:14+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -91,9 +91,9 @@ msgstr ""
 #: source/nijigenerate/panels/animlist.d:38
 #: source/nijigenerate/panels/inspector/griddeform.d:147
 #: source/nijigenerate/panels/inspector/part.d:377
-#: source/nijigenerate/panels/inspector/part.d:465
+#: source/nijigenerate/panels/inspector/part.d:469
 #: source/nijigenerate/panels/inspector/pathdeform.d:267
-#: source/nijigenerate/panels/inspector/composite.d:166
+#: source/nijigenerate/panels/inspector/composite.d:172
 #: source/nijigenerate/panels/timeline.d:120
 msgid "Delete"
 msgstr ""
@@ -145,12 +145,12 @@ msgstr ""
 #.
 #: source/nijigenerate/viewport/depth/viewport.d:175
 #: source/nijigenerate/viewport/vertex/package.d:340
-#: source/nijigenerate/commands/automesh/dynamic.d:216
+#: source/nijigenerate/commands/automesh/dynamic.d:217
 #: source/nijigenerate/windows/parameditor.d:267
 #: source/nijigenerate/windows/videoexport.d:286
 #: source/nijigenerate/windows/flipconfig.d:627
-#: source/nijigenerate/windows/automeshbatch.d:357
-#: source/nijigenerate/windows/automeshbatch.d:396
+#: source/nijigenerate/windows/automeshbatch.d:367
+#: source/nijigenerate/windows/automeshbatch.d:406
 #: source/nijigenerate/windows/settings.d:576
 #: source/nijigenerate/widgets/dialog.d:116
 msgid "Cancel"
@@ -310,7 +310,7 @@ msgstr ""
 
 #. Done button
 #: source/nijigenerate/viewport/common/mesheditor/tools/point.d:103
-#: source/nijigenerate/windows/editanim.d:125
+#: source/nijigenerate/windows/editanim.d:121
 msgid "Create"
 msgstr ""
 
@@ -576,19 +576,19 @@ msgid ""
 "deleted if you continue."
 msgstr ""
 
-#: source/nijigenerate/viewport/vertex/automesh/meta.d:243
+#: source/nijigenerate/viewport/vertex/automesh/meta.d:245
 msgid "Presets"
 msgstr ""
 
-#: source/nijigenerate/viewport/vertex/automesh/meta.d:274
+#: source/nijigenerate/viewport/vertex/automesh/meta.d:276
 msgid "Simple"
 msgstr ""
 
-#: source/nijigenerate/viewport/vertex/automesh/meta.d:307
+#: source/nijigenerate/viewport/vertex/automesh/meta.d:309
 msgid "Advanced"
 msgstr ""
 
-#: source/nijigenerate/viewport/vertex/automesh/meta.d:373
+#: source/nijigenerate/viewport/vertex/automesh/meta.d:375
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:251
 msgid "Alpha Preview"
 msgstr ""
@@ -669,19 +669,19 @@ msgstr ""
 #: source/nijigenerate/panels/inspector/part.d:88
 #: source/nijigenerate/panels/viewport.d:262
 #: source/nijigenerate/io/package.d:200 source/nijigenerate/io/package.d:201
-#: source/nijigenerate/io/inimport.d:266 source/nijigenerate/project.d:310
-#: source/nijigenerate/project.d:325 source/nijigenerate/project.d:393
-#: source/nijigenerate/project.d:458
-#: source/nijigenerate/commands/automesh/config.d:52
-#: source/nijigenerate/commands/automesh/config.d:67
-#: source/nijigenerate/commands/automesh/config.d:81
-#: source/nijigenerate/commands/automesh/config.d:82
-#: source/nijigenerate/commands/automesh/config.d:94
-#: source/nijigenerate/commands/automesh/config.d:95
-#: source/nijigenerate/commands/automesh/config.d:184
-#: source/nijigenerate/commands/automesh/config.d:204
-#: source/nijigenerate/commands/automesh/config.d:205
-#: source/nijigenerate/commands/automesh/config.d:576
+#: source/nijigenerate/io/inimport.d:266 source/nijigenerate/project.d:315
+#: source/nijigenerate/project.d:330 source/nijigenerate/project.d:399
+#: source/nijigenerate/project.d:464
+#: source/nijigenerate/commands/automesh/config.d:126
+#: source/nijigenerate/commands/automesh/config.d:141
+#: source/nijigenerate/commands/automesh/config.d:155
+#: source/nijigenerate/commands/automesh/config.d:157
+#: source/nijigenerate/commands/automesh/config.d:170
+#: source/nijigenerate/commands/automesh/config.d:172
+#: source/nijigenerate/commands/automesh/config.d:262
+#: source/nijigenerate/commands/automesh/config.d:282
+#: source/nijigenerate/commands/automesh/config.d:284
+#: source/nijigenerate/commands/automesh/config.d:658
 #: source/nijigenerate/commands/node/node.d:100
 #: source/nijigenerate/commands/puppet/tool.d:55
 #: source/nijigenerate/commands/puppet/file.d:770
@@ -977,7 +977,7 @@ msgstr ""
 
 #: source/nijigenerate/panels/agent.d:377
 #: source/nijigenerate/panels/inspector/part.d:366
-#: source/nijigenerate/panels/inspector/composite.d:159
+#: source/nijigenerate/panels/inspector/composite.d:160
 msgid "Mode"
 msgstr ""
 
@@ -1040,18 +1040,18 @@ msgstr ""
 
 #: source/nijigenerate/panels/nodes.d:107
 #: source/nijigenerate/panels/inspector/part.d:368
-#: source/nijigenerate/panels/inspector/composite.d:160
+#: source/nijigenerate/panels/inspector/composite.d:162
 msgid "Mask"
 msgstr ""
 
 #: source/nijigenerate/panels/nodes.d:108
-#: source/nijigenerate/panels/inspector/composite.d:32
-#: source/nijigenerate/panels/inspector/composite.d:281
+#: source/nijigenerate/panels/inspector/composite.d:33
+#: source/nijigenerate/panels/inspector/composite.d:293
 msgid "Composite"
 msgstr ""
 
 #: source/nijigenerate/panels/nodes.d:109
-#: source/nijigenerate/panels/inspector/simplephysics.d:256
+#: source/nijigenerate/panels/inspector/simplephysics.d:258
 msgid "Simple Physics"
 msgstr ""
 
@@ -1164,11 +1164,11 @@ msgstr ""
 msgid "Resources"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/common.d:354
+#: source/nijigenerate/panels/inspector/common.d:361
 msgid "Select Value"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/common.d:420
+#: source/nijigenerate/panels/inspector/common.d:427
 msgid "Select Color"
 msgstr ""
 
@@ -1348,7 +1348,7 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector/griddeform.d:123
 #: source/nijigenerate/panels/inspector/part.d:362
-#: source/nijigenerate/panels/inspector/part.d:460
+#: source/nijigenerate/panels/inspector/part.d:464
 #: source/nijigenerate/panels/inspector/pathdeform.d:243
 msgid "Focus"
 msgstr ""
@@ -1361,7 +1361,7 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector/griddeform.d:132
 #: source/nijigenerate/panels/inspector/pathdeform.d:252
-#: source/nijigenerate/windows/editanim.d:92
+#: source/nijigenerate/windows/editanim.d:88
 msgid "Weight"
 msgstr ""
 
@@ -1377,13 +1377,13 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector/griddeform.d:234
 #: source/nijigenerate/panels/inspector/pathdeform.d:354
-#: source/nijigenerate/commands/depth/bone.d:2345
+#: source/nijigenerate/commands/depth/bone.d:2354
 msgid "Preview Depth Bone Deform"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/griddeform.d:240
 #: source/nijigenerate/panels/inspector/pathdeform.d:360
-#: source/nijigenerate/commands/depth/bone.d:2380
+#: source/nijigenerate/commands/depth/bone.d:2389
 msgid "Apply Depth Bone Deform"
 msgstr ""
 
@@ -1433,7 +1433,7 @@ msgid "Make Emissive"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:184
-#: source/nijigenerate/panels/inspector/part.d:611
+#: source/nijigenerate/panels/inspector/part.d:615
 msgid "Part"
 msgstr ""
 
@@ -1454,27 +1454,27 @@ msgid "Bumpmap"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:212
-#: source/nijigenerate/panels/inspector/part.d:618
-#: source/nijigenerate/panels/inspector/composite.d:42
-#: source/nijigenerate/panels/inspector/composite.d:288
+#: source/nijigenerate/panels/inspector/part.d:622
+#: source/nijigenerate/panels/inspector/composite.d:43
+#: source/nijigenerate/panels/inspector/composite.d:300
 msgid "Tint (Multiply)"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:218
-#: source/nijigenerate/panels/inspector/part.d:623
-#: source/nijigenerate/panels/inspector/composite.d:48
-#: source/nijigenerate/panels/inspector/composite.d:293
+#: source/nijigenerate/panels/inspector/part.d:627
+#: source/nijigenerate/panels/inspector/composite.d:49
+#: source/nijigenerate/panels/inspector/composite.d:305
 msgid "Tint (Screen)"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:224
-#: source/nijigenerate/panels/inspector/part.d:627
+#: source/nijigenerate/panels/inspector/part.d:631
 msgid "Emission Strength"
 msgstr ""
 
 #. Header for the Blending options for Parts
 #: source/nijigenerate/panels/inspector/part.d:238
-#: source/nijigenerate/panels/inspector/composite.d:55
+#: source/nijigenerate/panels/inspector/composite.d:56
 #: source/nijigenerate/windows/inpexport.d:263
 msgid "Blending"
 msgstr ""
@@ -1482,7 +1482,7 @@ msgstr ""
 #. Normal blending mode as used in Photoshop, generally
 #. the default blending mode photoshop starts a layer out as.
 #: source/nijigenerate/panels/inspector/part.d:245
-#: source/nijigenerate/panels/inspector/composite.d:62
+#: source/nijigenerate/panels/inspector/composite.d:63
 #: source/nijigenerate/windows/inpexport.d:271
 msgid "Normal"
 msgstr ""
@@ -1490,118 +1490,118 @@ msgstr ""
 #. Multiply blending mode, in which this texture's color data
 #. will be multiplied with the color data already in the framebuffer.
 #: source/nijigenerate/panels/inspector/part.d:249
-#: source/nijigenerate/panels/inspector/composite.d:66
+#: source/nijigenerate/panels/inspector/composite.d:67
 #: source/nijigenerate/windows/inpexport.d:275
 msgid "Multiply"
 msgstr ""
 
 #. Screen blending mode
 #: source/nijigenerate/panels/inspector/part.d:252
-#: source/nijigenerate/panels/inspector/composite.d:69
+#: source/nijigenerate/panels/inspector/composite.d:70
 #: source/nijigenerate/windows/inpexport.d:278
 msgid "Screen"
 msgstr ""
 
 #. Overlay blending mode
 #: source/nijigenerate/panels/inspector/part.d:255
-#: source/nijigenerate/panels/inspector/composite.d:72
+#: source/nijigenerate/panels/inspector/composite.d:73
 #: source/nijigenerate/windows/inpexport.d:281
 msgid "Overlay"
 msgstr ""
 
 #. Darken blending mode
 #: source/nijigenerate/panels/inspector/part.d:258
-#: source/nijigenerate/panels/inspector/composite.d:75
+#: source/nijigenerate/panels/inspector/composite.d:76
 #: source/nijigenerate/windows/inpexport.d:284
 msgid "Darken"
 msgstr ""
 
 #. Lighten blending mode
 #: source/nijigenerate/panels/inspector/part.d:261
-#: source/nijigenerate/panels/inspector/composite.d:78
+#: source/nijigenerate/panels/inspector/composite.d:79
 #: source/nijigenerate/windows/inpexport.d:287
 msgid "Lighten"
 msgstr ""
 
 #. Color Dodge blending mode
 #: source/nijigenerate/panels/inspector/part.d:264
-#: source/nijigenerate/panels/inspector/composite.d:81
+#: source/nijigenerate/panels/inspector/composite.d:82
 #: source/nijigenerate/windows/inpexport.d:290
 msgid "Color Dodge"
 msgstr ""
 
 #. Linear Dodge blending mode
 #: source/nijigenerate/panels/inspector/part.d:267
-#: source/nijigenerate/panels/inspector/composite.d:84
+#: source/nijigenerate/panels/inspector/composite.d:85
 #: source/nijigenerate/windows/inpexport.d:293
 msgid "Linear Dodge"
 msgstr ""
 
 #. Add (Glow) blending mode
 #: source/nijigenerate/panels/inspector/part.d:270
-#: source/nijigenerate/panels/inspector/composite.d:87
+#: source/nijigenerate/panels/inspector/composite.d:88
 #: source/nijigenerate/windows/inpexport.d:296
 msgid "Add (Glow)"
 msgstr ""
 
 #. Color Burn blending mode
 #: source/nijigenerate/panels/inspector/part.d:273
-#: source/nijigenerate/panels/inspector/composite.d:90
+#: source/nijigenerate/panels/inspector/composite.d:91
 #: source/nijigenerate/windows/inpexport.d:299
 msgid "Color Burn"
 msgstr ""
 
 #. Hard Light blending mode
 #: source/nijigenerate/panels/inspector/part.d:276
-#: source/nijigenerate/panels/inspector/composite.d:93
+#: source/nijigenerate/panels/inspector/composite.d:94
 #: source/nijigenerate/windows/inpexport.d:302
 msgid "Hard Light"
 msgstr ""
 
 #. Soft Light blending mode
 #: source/nijigenerate/panels/inspector/part.d:279
-#: source/nijigenerate/panels/inspector/composite.d:96
+#: source/nijigenerate/panels/inspector/composite.d:97
 #: source/nijigenerate/windows/inpexport.d:305
 msgid "Soft Light"
 msgstr ""
 
 #. Subtract blending mode
 #: source/nijigenerate/panels/inspector/part.d:282
-#: source/nijigenerate/panels/inspector/composite.d:99
+#: source/nijigenerate/panels/inspector/composite.d:100
 #: source/nijigenerate/windows/inpexport.d:308
 msgid "Subtract"
 msgstr ""
 
 #. Difference blending mode
 #: source/nijigenerate/panels/inspector/part.d:285
-#: source/nijigenerate/panels/inspector/composite.d:102
+#: source/nijigenerate/panels/inspector/composite.d:103
 #: source/nijigenerate/windows/inpexport.d:311
 msgid "Difference"
 msgstr ""
 
 #. Exclusion blending mode
 #: source/nijigenerate/panels/inspector/part.d:288
-#: source/nijigenerate/panels/inspector/composite.d:105
+#: source/nijigenerate/panels/inspector/composite.d:106
 #: source/nijigenerate/windows/inpexport.d:314
 msgid "Exclusion"
 msgstr ""
 
 #. Inverse blending mode
 #: source/nijigenerate/panels/inspector/part.d:291
-#: source/nijigenerate/panels/inspector/composite.d:108
+#: source/nijigenerate/panels/inspector/composite.d:109
 #: source/nijigenerate/windows/inpexport.d:317
 msgid "Inverse"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:292
-#: source/nijigenerate/panels/inspector/composite.d:109
+#: source/nijigenerate/panels/inspector/composite.d:110
 #: source/nijigenerate/windows/inpexport.d:318
 msgid "Inverts the color by a factor of the overlying color"
 msgstr ""
 
 #. Destination In blending mode
 #: source/nijigenerate/panels/inspector/part.d:295
-#: source/nijigenerate/panels/inspector/composite.d:112
+#: source/nijigenerate/panels/inspector/composite.d:113
 #: source/nijigenerate/windows/inpexport.d:321
 msgid "Destination In"
 msgstr ""
@@ -1632,23 +1632,23 @@ msgid ""
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:318
-#: source/nijigenerate/panels/inspector/part.d:643
-#: source/nijigenerate/panels/inspector/composite.d:125
-#: source/nijigenerate/panels/inspector/composite.d:307
+#: source/nijigenerate/panels/inspector/part.d:647
+#: source/nijigenerate/panels/inspector/composite.d:126
+#: source/nijigenerate/panels/inspector/composite.d:319
 #: source/nijigenerate/windows/inpexport.d:336
 msgid "Opacity"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:326
-#: source/nijigenerate/panels/inspector/composite.d:133
+#: source/nijigenerate/panels/inspector/composite.d:134
 msgid "Masks"
 msgstr ""
 
 #. Threshold slider name for adjusting how transparent a pixel can be
 #. before it gets discarded.
 #: source/nijigenerate/panels/inspector/part.d:331
-#: source/nijigenerate/panels/inspector/part.d:650
-#: source/nijigenerate/panels/inspector/composite.d:138
+#: source/nijigenerate/panels/inspector/part.d:654
+#: source/nijigenerate/panels/inspector/composite.d:139
 msgid "Threshold"
 msgstr ""
 
@@ -1666,46 +1666,51 @@ msgstr ""
 #. either the sources will cut out things that don't overlap, or cut out
 #. things that do.
 #: source/nijigenerate/panels/inspector/part.d:352
-#: source/nijigenerate/panels/inspector/composite.d:149
+#: source/nijigenerate/panels/inspector/composite.d:150
 msgid "Mask Sources"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:355
-#: source/nijigenerate/panels/inspector/composite.d:152
+#: source/nijigenerate/panels/inspector/composite.d:153
 msgid "(Drag a Part or Mask Here)"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:371
-#: source/nijigenerate/panels/inspector/composite.d:161
+#: source/nijigenerate/panels/inspector/composite.d:165
 msgid "Dodge"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:390
-#: source/nijigenerate/panels/inspector/composite.d:179
+#: source/nijigenerate/panels/inspector/composite.d:185
 #, c-format, d-format
 msgid "%s (Mask)"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/part.d:391
-#: source/nijigenerate/panels/inspector/composite.d:180
+#: source/nijigenerate/panels/inspector/composite.d:186
 #, c-format, d-format
 msgid "%s (Dodge)"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/part.d:410
+#: source/nijigenerate/panels/inspector/composite.d:205
+msgid "Reorder Mask Source"
 msgstr ""
 
 #. The sources that the part gets masked by. Depending on the masking mode
 #. either the sources will cut out things that don't overlap, or cut out
 #. things that do.
-#: source/nijigenerate/panels/inspector/part.d:450
+#: source/nijigenerate/panels/inspector/part.d:454
 msgid "Welding"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/part.d:453
+#: source/nijigenerate/panels/inspector/part.d:457
 msgid "(Drag a Part Here)"
 msgstr ""
 
 #. Header for texture options
-#: source/nijigenerate/panels/inspector/part.d:615
-#: source/nijigenerate/panels/inspector/composite.d:285
+#: source/nijigenerate/panels/inspector/part.d:619
+#: source/nijigenerate/panels/inspector/composite.d:297
 msgid "Textures"
 msgstr ""
 
@@ -1735,11 +1740,11 @@ msgid ""
 "moved along with specified physics engine."
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/pathdeform.d:59
+#: source/nijigenerate/panels/inspector/pathdeform.d:60
 msgid "Bezier"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/pathdeform.d:67
+#: source/nijigenerate/panels/inspector/pathdeform.d:65
 msgid "Spline"
 msgstr ""
 
@@ -1748,18 +1753,18 @@ msgid "Physics Type"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/pathdeform.d:85
-#: source/nijigenerate/panels/inspector/simplephysics.d:77
+#: source/nijigenerate/panels/inspector/simplephysics.d:79
 msgid "Pendulum"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/pathdeform.d:92
-#: source/nijigenerate/panels/inspector/simplephysics.d:82
+#: source/nijigenerate/panels/inspector/simplephysics.d:84
 msgid "SpringPendulum"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/pathdeform.d:108
-#: source/nijigenerate/panels/inspector/simplephysics.d:143
-#: source/nijigenerate/panels/inspector/simplephysics.d:261
+#: source/nijigenerate/panels/inspector/simplephysics.d:145
+#: source/nijigenerate/panels/inspector/simplephysics.d:263
 msgid "Gravity scale"
 msgstr ""
 
@@ -1774,8 +1779,8 @@ msgid ""
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/pathdeform.d:129
-#: source/nijigenerate/panels/inspector/simplephysics.d:173
-#: source/nijigenerate/panels/inspector/simplephysics.d:282
+#: source/nijigenerate/panels/inspector/simplephysics.d:175
+#: source/nijigenerate/panels/inspector/simplephysics.d:284
 msgid "Damping"
 msgstr ""
 
@@ -1797,11 +1802,11 @@ msgstr ""
 msgid "Specify the degree to convey movement of previous pendulum to next one."
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/composite.d:233
+#: source/nijigenerate/panels/inspector/composite.d:245
 msgid "Propagate MeshGroup"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/composite.d:239
+#: source/nijigenerate/panels/inspector/composite.d:251
 msgid "Allow ascendant MeshGroup to deform children of Composite"
 msgstr ""
 
@@ -1842,70 +1847,70 @@ msgstr ""
 msgid "Unmap"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:47
+#: source/nijigenerate/panels/inspector/simplephysics.d:48
 msgid "Unassigned"
 msgstr ""
 
 #. ===== Parameters =====
-#: source/nijigenerate/panels/inspector/simplephysics.d:53
+#: source/nijigenerate/panels/inspector/simplephysics.d:54
 #: source/nijigenerate/commands/viewport/palette.d:109
 #: source/nijigenerate/windows/settings.d:692
 msgid "Parameter"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:54
+#: source/nijigenerate/panels/inspector/simplephysics.d:55
 msgid "(unassigned)"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:73
+#: source/nijigenerate/panels/inspector/simplephysics.d:75
 #: source/nijigenerate/windows/command_browser.d:504
 #: source/nijigenerate/windows/command_browser.d:651
 #: source/nijigenerate/windows/command_browser.d:707
 msgid "Type"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:97
+#: source/nijigenerate/panels/inspector/simplephysics.d:99
 msgid "Mapping mode"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:101
+#: source/nijigenerate/panels/inspector/simplephysics.d:103
 msgid "AngleLength"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:106
+#: source/nijigenerate/panels/inspector/simplephysics.d:108
 msgid "XY"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:111
+#: source/nijigenerate/panels/inspector/simplephysics.d:113
 msgid "LengthAngle"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:116
+#: source/nijigenerate/panels/inspector/simplephysics.d:118
 msgid "YX"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:133
+#: source/nijigenerate/panels/inspector/simplephysics.d:135
 msgid "Local Transform Lock"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:137
+#: source/nijigenerate/panels/inspector/simplephysics.d:139
 msgid ""
 "Whether the physics system only listens to the movement of the physics node "
 "itself"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:153
-#: source/nijigenerate/panels/inspector/simplephysics.d:268
+#: source/nijigenerate/panels/inspector/simplephysics.d:155
+#: source/nijigenerate/panels/inspector/simplephysics.d:270
 msgid "Length"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:163
-#: source/nijigenerate/panels/inspector/simplephysics.d:275
+#: source/nijigenerate/panels/inspector/simplephysics.d:165
+#: source/nijigenerate/panels/inspector/simplephysics.d:277
 msgid "Resonant frequency"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/simplephysics.d:190
-#: source/nijigenerate/panels/inspector/simplephysics.d:293
+#: source/nijigenerate/panels/inspector/simplephysics.d:192
+#: source/nijigenerate/panels/inspector/simplephysics.d:295
 msgid "Output scale"
 msgstr ""
 
@@ -2077,7 +2082,7 @@ msgid "Merge Mode"
 msgstr ""
 
 #: source/nijigenerate/panels/timeline.d:106
-#: source/nijigenerate/windows/editanim.d:91
+#: source/nijigenerate/windows/editanim.d:87
 msgid "Additive"
 msgstr ""
 
@@ -2099,6 +2104,11 @@ msgstr ""
 
 #: source/nijigenerate/panels/timeline.d:301
 msgid "Timeline"
+msgstr ""
+
+#: source/nijigenerate/panels/viewport.d:305
+#, c-format, d-format
+msgid "x = %.2f y = %.2f"
 msgstr ""
 
 #: source/nijigenerate/panels/viewport.d:321
@@ -2135,7 +2145,7 @@ msgstr ""
 
 #. Removing unused pairs (happens when target nodes are removed.)
 #: source/nijigenerate/panels/viewport.d:403
-#: source/nijigenerate/windows/automeshbatch.d:437
+#: source/nijigenerate/windows/automeshbatch.d:447
 msgid "Automesh Batching"
 msgstr ""
 
@@ -2154,7 +2164,7 @@ msgid ""
 "You can change the default behaviour in the settings."
 msgstr ""
 
-#: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:459
+#: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:465
 msgid "Import failed..."
 msgstr ""
 
@@ -2170,7 +2180,7 @@ msgid "Automatic"
 msgstr ""
 
 #. If this is executed it's a bug, using enforce here to prevent infinite loop.
-#: source/nijigenerate/io/inpexport.d:333
+#: source/nijigenerate/io/inpexport.d:414
 msgid "A texture is too big for the atlas."
 msgstr ""
 
@@ -2207,11 +2217,11 @@ msgid ""
 msgstr ""
 
 #. incViewportPresentMode(editMode_);
-#: source/nijigenerate/project.d:262
+#: source/nijigenerate/project.d:267
 msgid "New Project"
 msgstr ""
 
-#: source/nijigenerate/project.d:320
+#: source/nijigenerate/project.d:325
 #, c-format, d-format
 msgid ""
 "Please report this file to the developers:\n"
@@ -2219,45 +2229,70 @@ msgid ""
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:347
+#: source/nijigenerate/project.d:352
 #, c-format, d-format
 msgid "%s opened successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:389
+#: source/nijigenerate/project.d:395
 #, c-format, d-format
 msgid "%s saved successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:392
+#: source/nijigenerate/project.d:398
 #, c-format, d-format
 msgid "Failed to save %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:428
+#: source/nijigenerate/project.d:434
 #, c-format, d-format
 msgid ""
 "The following errors occured during file loading\n"
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:438
+#: source/nijigenerate/project.d:444
 msgid "Folder import completed with errors..."
 msgstr ""
 
-#: source/nijigenerate/project.d:439
+#: source/nijigenerate/project.d:445
 msgid "Folder import completed..."
 msgstr ""
 
-#: source/nijigenerate/project.d:487
+#: source/nijigenerate/project.d:493
 msgid "Mipmap generation completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:502
+#: source/nijigenerate/project.d:508
 msgid "Texture bleeding completed."
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:231
+#: source/nijigenerate/project.d:917
+#, c-format, d-format
+msgid "Undo %s"
+msgstr ""
+
+#: source/nijigenerate/project.d:953
+msgid "Rename Animation"
+msgstr ""
+
+#: source/nijigenerate/project.d:953
+msgid "Save Animation"
+msgstr ""
+
+#: source/nijigenerate/project.d:977
+msgid "Delete Animation"
+msgstr ""
+
+#: source/nijigenerate/project.d:1135
+msgid "Animation keyframe was edited"
+msgstr ""
+
+#: source/nijigenerate/project.d:1139
+msgid "Undo animation keyframe edit"
+msgstr ""
+
+#: source/nijigenerate/utils/crashdump.d:243
 msgid ""
 "\n"
 "\n"
@@ -2268,7 +2303,7 @@ msgid ""
 "nijigenerate/issues"
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:235
+#: source/nijigenerate/utils/crashdump.d:247
 msgid ""
 "\n"
 "\n"
@@ -2281,7 +2316,7 @@ msgid ""
 "nijigenerate/issues"
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:238
+#: source/nijigenerate/utils/crashdump.d:250
 msgid ""
 "The application has unexpectedly crashed\n"
 "Please send the developers the nijigenerate-crashdump.txt which has been put "
@@ -2289,7 +2324,7 @@ msgid ""
 "Via https://github.com/nijigenerate/nijigenerate/issues"
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:239
+#: source/nijigenerate/utils/crashdump.d:251
 msgid "nijigenerate Crashdump"
 msgstr ""
 
@@ -2334,8 +2369,9 @@ msgstr ""
 #: source/nijigenerate/actions/binding.d:190
 #: source/nijigenerate/actions/binding.d:314
 #: source/nijigenerate/actions/binding.d:433
-#: source/nijigenerate/actions/parameter.d:207
-#: source/nijigenerate/actions/parameter.d:286
+#: source/nijigenerate/actions/parameter.d:208
+#: source/nijigenerate/actions/parameter.d:449
+#: source/nijigenerate/actions/parameter.d:574
 #, c-format, d-format
 msgid "%s->%s changed"
 msgstr ""
@@ -2343,8 +2379,9 @@ msgstr ""
 #: source/nijigenerate/actions/binding.d:197
 #: source/nijigenerate/actions/binding.d:321
 #: source/nijigenerate/actions/binding.d:440
-#: source/nijigenerate/actions/parameter.d:217
-#: source/nijigenerate/actions/parameter.d:294
+#: source/nijigenerate/actions/parameter.d:218
+#: source/nijigenerate/actions/parameter.d:453
+#: source/nijigenerate/actions/parameter.d:582
 #, c-format, d-format
 msgid "%s->%s change cancelled"
 msgstr ""
@@ -2397,36 +2434,66 @@ msgstr ""
 msgid "%s: vertex was %s."
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:121
+#: source/nijigenerate/actions/parameter.d:122
 #, c-format, d-format
 msgid "Added parameter %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:123
+#: source/nijigenerate/actions/parameter.d:124
 #, c-format, d-format
 msgid "Removed parameter %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:131
+#: source/nijigenerate/actions/parameter.d:132
 #, c-format, d-format
 msgid "Parameter %s was removed"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:133
+#: source/nijigenerate/actions/parameter.d:134
 #, c-format, d-format
 msgid "Parameter %s was added"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:209
-#: source/nijigenerate/actions/node.d:1060
+#: source/nijigenerate/actions/parameter.d:210
+#: source/nijigenerate/actions/node.d:1165
 #, c-format, d-format
 msgid "%s->%s changed to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:219
-#: source/nijigenerate/actions/node.d:1067
+#: source/nijigenerate/actions/parameter.d:220
+#: source/nijigenerate/actions/node.d:1172
 #, c-format, d-format
 msgid "%s->%s changed from %s"
+msgstr ""
+
+#: source/nijigenerate/actions/parameter.d:333
+#, c-format, d-format
+msgid "Added parameter group %s"
+msgstr ""
+
+#: source/nijigenerate/actions/parameter.d:335
+#, c-format, d-format
+msgid "Removed parameter group %s"
+msgstr ""
+
+#: source/nijigenerate/actions/parameter.d:340
+#, c-format, d-format
+msgid "Parameter group %s was removed"
+msgstr ""
+
+#: source/nijigenerate/actions/parameter.d:342
+#, c-format, d-format
+msgid "Parameter group %s was added"
+msgstr ""
+
+#: source/nijigenerate/actions/parameter.d:379
+#, c-format, d-format
+msgid "%s moved"
+msgstr ""
+
+#: source/nijigenerate/actions/parameter.d:383
+#, c-format, d-format
+msgid "%s move cancelled"
 msgstr ""
 
 #: source/nijigenerate/actions/drawable.d:89
@@ -2495,87 +2562,97 @@ msgstr ""
 msgid "Moved %s from origin"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:419
+#: source/nijigenerate/actions/node.d:241
+#, c-format, d-format
+msgid "Centralized %s"
+msgstr ""
+
+#: source/nijigenerate/actions/node.d:245
+#, c-format, d-format
+msgid "Uncentralized %s"
+msgstr ""
+
+#: source/nijigenerate/actions/node.d:478
 #, c-format, d-format
 msgid "Change type of %s to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:426
+#: source/nijigenerate/actions/node.d:485
 #, c-format, d-format
 msgid "Revert type of %s to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:510
-#: source/nijigenerate/actions/node.d:519
+#: source/nijigenerate/actions/node.d:569
+#: source/nijigenerate/actions/node.d:578
 #, c-format, d-format
 msgid "%s is added to mask of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:511
-#: source/nijigenerate/actions/node.d:518
+#: source/nijigenerate/actions/node.d:570
+#: source/nijigenerate/actions/node.d:577
 #, c-format, d-format
 msgid "%s is deleted from mask of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:575
+#: source/nijigenerate/actions/node.d:634
 #, c-format, d-format
 msgid "%s mask mode changed"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:579
+#: source/nijigenerate/actions/node.d:638
 #, c-format, d-format
 msgid "%s mask mode restored"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:664
-#: source/nijigenerate/actions/node.d:673
+#: source/nijigenerate/actions/node.d:764
+#: source/nijigenerate/actions/node.d:773
 #, c-format, d-format
 msgid "%s is added to welded targets of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:665
-#: source/nijigenerate/actions/node.d:672
+#: source/nijigenerate/actions/node.d:765
+#: source/nijigenerate/actions/node.d:772
 #, c-format, d-format
 msgid "%s is deleted from welded targets of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:770
+#: source/nijigenerate/actions/node.d:870
 #, c-format, d-format
 msgid "links of %s and %s are changed."
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:777
+#: source/nijigenerate/actions/node.d:877
 #, c-format, d-format
 msgid "links of %s and %s are restored."
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:817
-#: source/nijigenerate/actions/node.d:824
+#: source/nijigenerate/actions/node.d:922
+#: source/nijigenerate/actions/node.d:929
 msgid "Enabled"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:817
-#: source/nijigenerate/actions/node.d:824
+#: source/nijigenerate/actions/node.d:922
+#: source/nijigenerate/actions/node.d:929
 msgid "Disabled"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:824
+#: source/nijigenerate/actions/node.d:929
 #, c-format, d-format
 msgid "%s was %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:871
+#: source/nijigenerate/actions/node.d:976
 msgid "Unnamed "
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:1213
-#: source/nijigenerate/actions/node.d:1221
+#: source/nijigenerate/actions/node.d:1322
+#: source/nijigenerate/actions/node.d:1330
 #, c-format, d-format
 msgid "%s locked to root node"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:1214
-#: source/nijigenerate/actions/node.d:1222
+#: source/nijigenerate/actions/node.d:1323
+#: source/nijigenerate/actions/node.d:1331
 #, c-format, d-format
 msgid "%s unlocked from root node"
 msgstr ""
@@ -2633,6 +2710,7 @@ msgid "Mesh Editor Tools"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:92
+#: source/nijigenerate/commands/automesh/config.d:54
 #: source/nijigenerate/windows/settings.d:671
 msgid "AutoMesh"
 msgstr ""
@@ -2861,75 +2939,75 @@ msgstr ""
 msgid "Set depth bone constraint"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2174
+#: source/nijigenerate/commands/depth/bone.d:2183
 msgid "List Depth Bones"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2174
+#: source/nijigenerate/commands/depth/bone.d:2183
 msgid "List depth bones under root"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2192
+#: source/nijigenerate/commands/depth/bone.d:2201
 msgid "Add Depth Bone Source"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2192
+#: source/nijigenerate/commands/depth/bone.d:2201
 msgid "Add depth bone source to target binding"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2211
+#: source/nijigenerate/commands/depth/bone.d:2220
 msgid "Remove Depth Bone Source"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2211
+#: source/nijigenerate/commands/depth/bone.d:2220
 msgid "Remove depth bone source from target binding"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2228
+#: source/nijigenerate/commands/depth/bone.d:2237
 msgid "List Depth Bone Sources"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2228
+#: source/nijigenerate/commands/depth/bone.d:2237
 msgid "List depth bone source UUIDs for target"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2260
+#: source/nijigenerate/commands/depth/bone.d:2269
 msgid "Set Depth Bone Source Settings"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2260
+#: source/nijigenerate/commands/depth/bone.d:2269
 msgid "Set per-source depth bone settings"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2295
+#: source/nijigenerate/commands/depth/bone.d:2304
 msgid "Set Depth Bone Influence Rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2295
+#: source/nijigenerate/commands/depth/bone.d:2304
 msgid "Set depth bone influence rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2313
+#: source/nijigenerate/commands/depth/bone.d:2322
 msgid "Get Depth Bone Influence Rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2313
+#: source/nijigenerate/commands/depth/bone.d:2322
 msgid "Get depth bone influence rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2327
+#: source/nijigenerate/commands/depth/bone.d:2336
 msgid "Preview Depth Bone Influence"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2327
+#: source/nijigenerate/commands/depth/bone.d:2336
 msgid "Preview depth bone influence"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2345
+#: source/nijigenerate/commands/depth/bone.d:2354
 msgid "Preview depth bone deformation"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2380
+#: source/nijigenerate/commands/depth/bone.d:2389
 msgid "Apply depth bone deformation to current key"
 msgstr ""
 
@@ -2983,138 +3061,162 @@ msgstr ""
 msgid "Undo toggle %s"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:46
+#: source/nijigenerate/commands/automesh/config.d:68
+#, c-format, d-format
+msgid "Changed AutoMesh configuration: %s"
+msgstr ""
+
+#: source/nijigenerate/commands/automesh/config.d:72
+#, c-format, d-format
+msgid "Reverted AutoMesh configuration: %s"
+msgstr ""
+
+#: source/nijigenerate/commands/automesh/config.d:120
 msgid "Get AutoMesh Schema"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:46
+#: source/nijigenerate/commands/automesh/config.d:120
 msgid "Show AutoMesh reflection schema"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:54
+#: source/nijigenerate/commands/automesh/config.d:126
+#: source/nijigenerate/commands/automesh/config.d:141
+#: source/nijigenerate/commands/automesh/config.d:155
+#: source/nijigenerate/commands/automesh/config.d:170
+#: source/nijigenerate/commands/automesh/config.d:262
+#: source/nijigenerate/commands/automesh/config.d:282
+msgid "Processor not reflectable"
+msgstr ""
+
+#: source/nijigenerate/commands/automesh/config.d:128
 msgid "Schema"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:63
+#: source/nijigenerate/commands/automesh/config.d:137
 msgid "Get AutoMesh Values"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:63
+#: source/nijigenerate/commands/automesh/config.d:137
 msgid "Show AutoMesh config values"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:69
-#: source/nijigenerate/commands/automesh/config.d:186
+#: source/nijigenerate/commands/automesh/config.d:143
+#: source/nijigenerate/commands/automesh/config.d:264
 msgid "Values"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:77
+#: source/nijigenerate/commands/automesh/config.d:151
 msgid "Set AutoMesh Preset"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:77
+#: source/nijigenerate/commands/automesh/config.d:151
 msgid "Apply AutoMesh preset"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:90
+#: source/nijigenerate/commands/automesh/config.d:166
 msgid "Set AutoMesh Values"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:90
+#: source/nijigenerate/commands/automesh/config.d:166
 msgid "Update AutoMesh config values"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:143
+#: source/nijigenerate/commands/automesh/config.d:172
+#: source/nijigenerate/commands/automesh/config.d:284
+msgid "No values applied"
+msgstr ""
+
+#: source/nijigenerate/commands/automesh/config.d:221
 msgid "List AutoMesh Processors"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:143
+#: source/nijigenerate/commands/automesh/config.d:221
 msgid "Show available AutoMesh processors"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:158
+#: source/nijigenerate/commands/automesh/config.d:236
 msgid "AutoMesh Processors"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:179
+#: source/nijigenerate/commands/automesh/config.d:257
 #, c-format, d-format
 msgid "Get Config (%s)"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:179
+#: source/nijigenerate/commands/automesh/config.d:257
 msgid "Get AutoMesh config (per processor)"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:199
+#: source/nijigenerate/commands/automesh/config.d:277
 #, c-format, d-format
 msgid "Set Config (%s)"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:199
+#: source/nijigenerate/commands/automesh/config.d:277
 msgid "Set AutoMesh config (per processor)"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:557
+#: source/nijigenerate/commands/automesh/config.d:639
 msgid "Get Active AutoMesh"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:557
+#: source/nijigenerate/commands/automesh/config.d:639
 msgid "Show active AutoMesh processor"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:564
+#: source/nijigenerate/commands/automesh/config.d:646
 msgid "Active AutoMesh"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:572
+#: source/nijigenerate/commands/automesh/config.d:654
 msgid "Set Active AutoMesh"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:572
+#: source/nijigenerate/commands/automesh/config.d:654
 msgid "Activate AutoMesh processor"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:584
+#: source/nijigenerate/commands/automesh/config.d:666
 msgid "Apply Active AutoMesh"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/config.d:584
+#: source/nijigenerate/commands/automesh/config.d:666
 msgid "Apply active AutoMesh to targets"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/dynamic.d:37
+#: source/nijigenerate/commands/automesh/dynamic.d:38
 msgid "AutoMesh queued"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/dynamic.d:144
+#: source/nijigenerate/commands/automesh/dynamic.d:145
 #, c-format, d-format
 msgid "Apply AutoMesh (%s)"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/dynamic.d:144
+#: source/nijigenerate/commands/automesh/dynamic.d:145
 msgid "Apply AutoMesh to selected nodes"
-msgstr ""
-
-#: source/nijigenerate/commands/automesh/dynamic.d:209
-#, c-format, d-format
-msgid "AutoMesh: %s - %s"
 msgstr ""
 
 #: source/nijigenerate/commands/automesh/dynamic.d:210
 #, c-format, d-format
+msgid "AutoMesh: %s - %s"
+msgstr ""
+
+#: source/nijigenerate/commands/automesh/dynamic.d:211
+#, c-format, d-format
 msgid "AutoMesh: %s"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/dynamic.d:215
+#: source/nijigenerate/commands/automesh/dynamic.d:216
 msgid "Canceling..."
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/dynamic.d:265
+#: source/nijigenerate/commands/automesh/dynamic.d:285
 #, c-format, d-format
 msgid "AutoMesh generated empty mesh for %s"
 msgstr ""
 
-#: source/nijigenerate/commands/automesh/dynamic.d:269
+#: source/nijigenerate/commands/automesh/dynamic.d:289
 #, c-format, d-format
 msgid "AutoMesh generated too few drawable vertices for %s"
 msgstr ""
@@ -3208,28 +3310,28 @@ msgstr ""
 msgid "Toggle visibility of panel '%s'"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/group.d:23
+#: source/nijigenerate/commands/parameter/group.d:24
 msgid "Move Parameter"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/group.d:35
+#: source/nijigenerate/commands/parameter/group.d:41
 msgid "Create Parameter Group"
 msgstr ""
 
 #. if (index < 0) index = 0;
 #. else if (index > ctx.puppet.parameters.length)
 #. index = cast(int)ctx.puppet.parameters.length-1;
-#: source/nijigenerate/commands/parameter/group.d:45
+#: source/nijigenerate/commands/parameter/group.d:51
 #: source/nijigenerate/commands/parameter/base.d:202
 #: source/nijigenerate/widgets/output.d:342
 msgid "New Parameter Group"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/group.d:54
+#: source/nijigenerate/commands/parameter/group.d:62
 msgid "Change Parameter Group Color"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/group.d:67
+#: source/nijigenerate/commands/parameter/group.d:77
 msgid "Delete Parameter Group"
 msgstr ""
 
@@ -3338,11 +3440,11 @@ msgstr ""
 msgid "Set the current parameter value as starting keyframe"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/animedit.d:12
+#: source/nijigenerate/commands/parameter/animedit.d:13
 msgid "Animation: Add Keyframe"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/animedit.d:13
+#: source/nijigenerate/commands/parameter/animedit.d:14
 msgid ""
 "Add a keyframe for the selected parameter in the active animation. Requires "
 "Animation Edit mode and an active animation."
@@ -3433,43 +3535,43 @@ msgstr ""
 msgid "Undo SimplePhysics %s change"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:198
+#: source/nijigenerate/commands/node/simplephysics.d:210
 msgid "Set SimplePhysics Parameter"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:198
+#: source/nijigenerate/commands/node/simplephysics.d:210
 msgid "Assign the parameter driven by the target SimplePhysics node"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:215
+#: source/nijigenerate/commands/node/simplephysics.d:230
 msgid "Clear SimplePhysics Parameter"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:215
+#: source/nijigenerate/commands/node/simplephysics.d:230
 msgid "Unassign the parameter driven by the target SimplePhysics node"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:234
+#: source/nijigenerate/commands/node/simplephysics.d:252
 msgid "Set SimplePhysics Model Type"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:234
+#: source/nijigenerate/commands/node/simplephysics.d:252
 msgid "Set SimplePhysics model type"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:253
+#: source/nijigenerate/commands/node/simplephysics.d:271
 msgid "Set SimplePhysics Map Mode"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:253
+#: source/nijigenerate/commands/node/simplephysics.d:271
 msgid "Set SimplePhysics parameter mapping mode"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:272
+#: source/nijigenerate/commands/node/simplephysics.d:290
 msgid "Set SimplePhysics Local Only"
 msgstr ""
 
-#: source/nijigenerate/commands/node/simplephysics.d:272
+#: source/nijigenerate/commands/node/simplephysics.d:290
 msgid "Set whether SimplePhysics listens only to local transform"
 msgstr ""
 
@@ -3545,7 +3647,7 @@ msgstr ""
 msgid "Toggle Visibility"
 msgstr ""
 
-#: source/nijigenerate/commands/node/node.d:311
+#: source/nijigenerate/commands/node/node.d:313
 msgid "Centralize Node"
 msgstr ""
 
@@ -3698,8 +3800,8 @@ msgstr ""
 #: source/nijigenerate/windows/imgexport.d:123
 #: source/nijigenerate/windows/parameditor.d:271
 #: source/nijigenerate/windows/flipconfig.d:634
-#: source/nijigenerate/windows/automeshbatch.d:404
-#: source/nijigenerate/windows/editanim.d:125
+#: source/nijigenerate/windows/automeshbatch.d:414
+#: source/nijigenerate/windows/editanim.d:121
 msgid "Save"
 msgstr ""
 
@@ -4078,7 +4180,7 @@ msgid "How many times the animation should loop"
 msgstr ""
 
 #: source/nijigenerate/windows/videoexport.d:209
-#: source/nijigenerate/windows/editanim.d:101
+#: source/nijigenerate/windows/editanim.d:97
 msgid "Framerate"
 msgstr ""
 
@@ -4305,7 +4407,7 @@ msgstr ""
 msgid "Output (last run)"
 msgstr ""
 
-#: source/nijigenerate/windows/automeshbatch.d:357
+#: source/nijigenerate/windows/automeshbatch.d:367
 msgid "Run batch"
 msgstr ""
 
@@ -4371,6 +4473,10 @@ msgstr ""
 msgid "Recent Projects"
 msgstr ""
 
+#: source/nijigenerate/windows/welcome.d:269
+msgid "No recent projects..."
+msgstr ""
+
 #: source/nijigenerate/windows/welcome.d:279
 msgid "On the Web"
 msgstr ""
@@ -4430,56 +4536,56 @@ msgstr ""
 msgid "%s is already taken! Please chose another animation name."
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:90
+#: source/nijigenerate/windows/editanim.d:86
 msgid "Options"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:94
+#: source/nijigenerate/windows/editanim.d:90
 msgid "Frames"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:97
+#: source/nijigenerate/windows/editanim.d:93
 msgid "Lead In"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:98
+#: source/nijigenerate/windows/editanim.d:94
 msgid "Lead Out"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:113
+#: source/nijigenerate/windows/editanim.d:109
 msgid "Custom Framerate"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:120
+#: source/nijigenerate/windows/editanim.d:116
 #, c-format, d-format
 msgid "%ss %sms"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:140
+#: source/nijigenerate/windows/editanim.d:136
 msgid "120 FPS"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:141
+#: source/nijigenerate/windows/editanim.d:137
 msgid "60 FPS"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:142
+#: source/nijigenerate/windows/editanim.d:138
 msgid "30 FPS"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:143
+#: source/nijigenerate/windows/editanim.d:139
 msgid "25 FPS"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:144
+#: source/nijigenerate/windows/editanim.d:140
 msgid "Custom Framrate"
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:158
+#: source/nijigenerate/windows/editanim.d:154
 msgid "New Animation..."
 msgstr ""
 
-#: source/nijigenerate/windows/editanim.d:171
+#: source/nijigenerate/windows/editanim.d:167
 #, c-format, d-format
 msgid "Edit %s..."
 msgstr ""

@@ -30,7 +30,7 @@ class ContourAutoMeshProcessor : AutoMeshProcessor, IAutoMeshReflect {
     float maskThreshold = 15;
     @AMParam(AutoMeshLevel.Advanced, "min_distance", "Minimum distance", "Minimum distance between vertices", "drag", 1, 200, 1)
     float MIN_DISTANCE = 16;
-    @AMParam(AutoMeshLevel.Advanced, "max_distance", "Maximum distance", "Maximum distance between vertices", "drag", 1, 200, 1)
+    @AMParam(AutoMeshLevel.Advanced, "max_distance", "Maximum distance", "Maximum distance between vertices", "drag", -1, 200, 1)
     float MAX_DISTANCE = -1;
     @AMParam(AutoMeshLevel.Advanced, "scales", "Scales", "Contour scales", "array")
     @AMArray(0, 2, 0.01)

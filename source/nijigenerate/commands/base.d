@@ -10,6 +10,9 @@ static import std.json;
 import std.json : JSONValue;
 import nijigenerate.panels.inspector.common;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
+static import nijigenerate.viewport.depth.mesheditor.editor;
+static import nijigenerate.viewport.depth.mesheditor.node;
+static import nijigenerate.viewport.depth.tools.operation;
 static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
 static import nijilive.core.nodes.drivers.simplephysics;
 
@@ -247,16 +250,6 @@ class CommandResult {
     }
 }
 
-// If T is already a CommandResult (e.g., CreateResult!R), inherit from it directly.
-static if (is(T : CommandResult))
-class ExCommandResult(T) : T {
-    this(Args...)(Args args) if (__traits(compiles, { super(args); })) { super(args); }
-    static ExCommandResult!T opCall(Args...)(Args args) if (__traits(compiles, { return new ExCommandResult!T(args); })) {
-        return new ExCommandResult!T(args);
-    }
-}
-else
-// General ExCommandResult: if T is already a CommandResult, just alias to T.
 template ExCommandResult(T) {
     static if (is(T : CommandResult)) {
         alias ExCommandResult = T;

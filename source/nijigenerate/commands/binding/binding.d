@@ -570,9 +570,15 @@ class SetInterpolationCommand : ExCommand!(TW!(InterpolateMode, "mode", "specify
         if (!ctx.hasParameters || ctx.parameters.length == 0 || !ctx.hasActiveBindings || ctx.activeBindings.length == 0)
             return CommandResult(false, "No parameters/bindings");
         
+        auto action = new GroupAction();
         foreach(binding; ctx.activeBindings) {
+            if (binding.interpolateMode == mode)
+                continue;
+            action.addAction(new ParameterBindingInterpolationChangeAction(binding, binding.interpolateMode, mode));
             binding.interpolateMode = mode;
         }
+        if (action.actions.length > 0)
+            incActionPush(action);
         incViewportNodeDeformNotifyParamValueChanged();
         return CommandResult(true);
     }

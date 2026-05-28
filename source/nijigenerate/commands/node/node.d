@@ -301,7 +301,9 @@ class ToggleVisibilityCommand : ExCommand!() {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
             return CommandResult(false, "No nodes");
         auto n = ctx.nodes[0];
-        n.setEnabled(!n.getEnabled());
+        auto newState = !n.getEnabled();
+        n.setEnabled(newState);
+        incActionPush(new NodeActiveAction(n, newState));
         return CommandResult(true);
     }
 }
@@ -315,7 +317,7 @@ class CentralizeNodeCommand : ExCommand!() {
             return CommandResult(false, "No nodes");
 
         auto n = ctx.nodes[0];
-        n.centralize();
+        incActionPush(new NodeCentralizeAction(n));
         return CommandResult(true);
     }
 }

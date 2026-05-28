@@ -9,7 +9,8 @@ module nijigenerate.viewport.depth.tools.attachedpoint;
 import bindbc.imgui;
 import i18n;
 import nijigenerate;
-import nijigenerate.core.actionstack;
+import nijigenerate.commands : Context, cmd;
+import nijigenerate.commands.depth.editor : DepthEditorOperationCommand;
 import nijigenerate.core.input;
 import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.base;
@@ -26,7 +27,6 @@ private:
     ptrdiff_t activeVertex = -1;
     float dragOriginY;
     DepthAttachedPointOperation operation;
-    DepthOperationListChangeAction action;
 
     bool beginDrag(ImGuiIO* io, Camera camera, DepthEditViewport viewport) {
         auto editorSet = viewport.getEditor();
@@ -39,7 +39,6 @@ private:
         activeEditor = editor;
         activeVertex = index;
         dragOriginY = io.MousePos.y;
-        action = new DepthOperationListChangeAction(editorSet, editor);
         operation = new DepthAttachedPointOperation(cast(size_t)index, 0);
         editorSet.appendOperation(editor, operation);
         editor.selectVertex(index);
@@ -52,15 +51,14 @@ private:
         viewport.getEditor().recompute(activeEditor);
     }
 
-    void endDrag() {
-        if (action !is null) {
-            action.updateNewState();
-            incActionPush(action);
+    void endDrag(DepthEditViewport viewport) {
+        if (operation !is null && activeEditor !is null) {
+            auto ctx = new Context();
+            cmd!(DepthEditorOperationCommand.AddEditorDepthOp)(ctx, viewport.getEditor(), activeEditor, operation, -1);
         }
         activeEditor = null;
         activeVertex = -1;
         operation = null;
-        action = null;
     }
 
 public:
@@ -75,7 +73,7 @@ public:
                 updateDrag(io, viewport);
                 return true;
             }
-            endDrag();
+            endDrag(viewport);
             return true;
         }
 

@@ -43,6 +43,23 @@ configuration "meta" {
 	preGenerateCommands "rc.exe /v build-aux\\windows\\nijigenerate.rc" platform="windows"
 }
 
+configuration "regression-tests" {
+	targetType "executable"
+	targetName "nijigenerate-regression-tests"
+	targetPath "out"
+	workingDirectory "out"
+	mainSourceFile "source/nijigenerate_tests/regression.d"
+	sourcePaths "source"
+	importPaths "source"
+	excludedSourceFiles "source/app.d" "source/njc/*.d"
+	subConfiguration "nijilive" "queue-backend"
+	subConfiguration "i2d-imgui" "dynamic_dynamicCRT" platform="osx"
+	versions "HaveMCP"
+	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/." platform="osx"
+	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
+	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
+}
+
 // Linux build
 configuration "linux-full" {
 
@@ -60,6 +77,21 @@ configuration "osx-full" {
 	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
 	versions "HaveMCP"
+	dflags "-force-dwarf-frame-section=false"
+	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
+
+  // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
+  lflags "-L./openssl_3/lib" platform="osx-x86_64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
+  lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
+}
+
+configuration "osx-regression-smoke" {
+	platforms "osx"
+	targetType "executable"
+	targetPath "out/nijigenerate.app/Contents/MacOS"
+	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
+	versions "HaveMCP" "RegressionSmoke"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 

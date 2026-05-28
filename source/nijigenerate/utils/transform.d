@@ -69,8 +69,8 @@ ParameterBinding incBindingGetPairFor(Parameter param, Node target, FlipPair pai
     *   axis = 0: flip horizontally, 1: flip vertically, -1: flip diagonally, 2: not flipped
     *   extrapolation = specifying source index is selected in mirroered position or not.
     */
-void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, vec2u index, uint axis, bool extrapolation = true, ulong[]* selected = null) {
-    T extrapolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, uint axis) {
+void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, vec2u index, int axis, bool extrapolation = true, ulong[]* selected = null) {
+    T extrapolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, int axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
 
         switch (axis) {
@@ -87,7 +87,7 @@ void incBindingAutoFlip(ParameterBinding binding, ParameterBinding srcBinding, v
 
         return binding.interpolate(srcIndex, subOffset);            
     }
-    T interpolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, uint axis) {
+    T interpolateValueAt(T)(ParameterBindingImpl!(T) binding, vec2u index, int axis) {
         vec2 offset = binding.parameter.getKeypointOffset(index);
         vec2u srcIndex;
         vec2 subOffset;

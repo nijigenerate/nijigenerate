@@ -490,7 +490,7 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
                                 auto weight = welded.weight;
                                 igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
                                 igSetNextItemWidth(64);
-                                if (igSliderFloat("###weight", &weight, 0, 1f, "%%0.2f")) {
+                                if (igSliderFloat("###weight", &weight, 0, 1f, "%.2f")) {
                                     auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                                     cmd!(NodeWeldingCommand.ChangeWeldingWeight)(ctx, welded.target, weight);
                                 }

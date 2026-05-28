@@ -23,6 +23,7 @@ import nijigenerate.io.autosave;
 import nijigenerate.io.save;
 import i18n;
 import std.stdio : writefln;
+import core.stdc.stdlib : getenv;
 
 version(OSX) {
     enum const(char)*[] SDL_VERSIONS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
@@ -129,7 +130,7 @@ package {
             cast(uint)incSettingsGet!int("WinH", 800), 
             flags
         );
-        if (w) SDL_SetWindowMinimumSize(window, 960, 720);
+        if (w) SDL_SetWindowMinimumSize(w, 960, 720);
         return w;
     }
 
@@ -250,6 +251,8 @@ void incOpenWindow() {
     else string WIN_TITLE = "nijigenerate "~INC_VERSION;
     
     window = tryCreateWindow(WIN_TITLE, flags);
+    enforce(window !is null, "Failed to create SDL window!");
+    SDL_ShowWindow(window);
     
     // On Linux we want to check whether the window was created under wayland or x11
     version(linux) {
@@ -382,6 +385,9 @@ SDL_Window* incGetWindowPtr() {
 
 void incRefreshWindowTitle() {
     import std.string : toStringz;
+    if (!isSDLLoaded() || window is null)
+        return;
+
     if (windowSubtitle.length > 0) {
         string mark = incIsProjectModified() ? " *" : "";
         SDL_SetWindowTitle(window, ("nijigenerate - " ~ windowSubtitle ~ mark).toStringz);
@@ -701,6 +707,7 @@ void incBeginLoopNoEv() {
     // Start the Dear ImGui frame
     incGLBackendNewFrame();
     ImGui_ImplSDL2_NewFrame();
+    incGLBackendApplyEventMousePosition();
 
     // Do our DPI pre-processing
     igNewFrame();
@@ -794,8 +801,17 @@ void incSetDefaultLayout() {
 */
 void incBeginLoop() {
     SDL_Event event;
+    static bool stepSyntheticMouseInitialized;
+    static bool stepSyntheticMouse;
+
+    if (!stepSyntheticMouseInitialized) {
+        stepSyntheticMouse = getenv("NIJIGENERATE_STEP_CUA_MOUSE") !is null;
+        stepSyntheticMouseInitialized = true;
+    }
 
     while(SDL_PollEvent(&event)) {
+        bool stepAfterEvent = false;
+
         switch(event.type) {
             case SDL_QUIT:
                 incExitSaveAsk();
@@ -808,8 +824,16 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
+                if (stepSyntheticMouse) {
+                    stepAfterEvent =
+                        event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
+                        event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
+                        event.type == SDL_EventType.SDL_MOUSEMOTION;
+                }
                 break;
         }
+
+        if (stepAfterEvent) break;
     }
 
     incTaskUpdate();
@@ -969,4 +993,3 @@ void incExit() {
     incSettingsSet!bool("WinMax", (flags & SDL_WINDOW_MAXIMIZED) > 0);
     incReleaseLockfile();
 }
-

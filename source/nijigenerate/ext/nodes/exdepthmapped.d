@@ -35,14 +35,24 @@ public:
     }
 
     void resizeDepthsToVertices(size_t vertexCount) {
-        if (depths !is null) depths.length = vertexCount;
+        if (depths is null) return;
+
+        auto oldLength = depths.length;
+        depths.length = vertexCount;
+        foreach (i; oldLength .. depths.length)
+            depths[i] = 0.0f;
     }
 
     void serializeDepths(ref InochiSerializer serializer) {
         if (depths is null) return;
 
         serializer.putKey("depths");
-        serializer.serializeValue(depths);
+        auto state = serializer.listBegin();
+        foreach (depth; depths) {
+            serializer.elemBegin();
+            serializer.serializeValue(depth);
+        }
+        serializer.listEnd(state);
     }
 
     SerdeException deserializeDepths(Fghj data, size_t vertexCount) {
@@ -53,7 +63,12 @@ public:
             return null;
         }
 
-        if (auto exc = data["depths"].deserializeValue(depths)) return exc;
+        depths.length = 0;
+        foreach (entry; data["depths"].byElement) {
+            float depth;
+            if (auto exc = entry.deserializeValue(depth)) return exc;
+            depths ~= depth;
+        }
         if (depths.length != vertexCount) {
             return new SerdeException("depths length must match vertices length");
         }

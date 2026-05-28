@@ -9,6 +9,8 @@ import nijigenerate.windows;          // incPushWindow
 import nijigenerate.widgets.modal;     // incModalAdd
 import nijigenerate.ext;
 import nijigenerate.project : incActivePuppet;
+import nijigenerate.actions : Action;
+import nijigenerate.core.actionstack : incActionPush;
 import nijilive;
 import i18n;
 import std.json : JSONValue;
@@ -17,6 +19,60 @@ import std.conv : to;
 import std.math : isFinite;
 
 // Commands for viewport UI actions (buttons/menus)
+
+private class FlipPairListChangeAction : Action {
+private:
+    FlipPair[] oldPairs;
+    FlipPair[] newPairs;
+
+public:
+    this(FlipPair[] oldPairs, FlipPair[] newPairs) {
+        this.oldPairs = oldPairs.dup;
+        this.newPairs = newPairs.dup;
+    }
+
+    void rollback() {
+        incReplaceFlipPairs(oldPairs.dup);
+    }
+
+    void redo() {
+        incReplaceFlipPairs(newPairs.dup);
+    }
+
+    string describe() {
+        return _("Changed flip pairs");
+    }
+
+    string describeUndo() {
+        return _("Reverted flip pairs");
+    }
+
+    string getName() {
+        return "FlipPairListChangeAction";
+    }
+
+    bool merge(Action other) {
+        return false;
+    }
+
+    bool canMerge(Action other) {
+        return false;
+    }
+}
+
+private void pushFlipPairActionIfChanged(FlipPair[] oldPairs) {
+    auto newPairs = incGetFlipPairs().dup;
+    if (oldPairs.length != newPairs.length) {
+        incActionPush(new FlipPairListChangeAction(oldPairs, newPairs));
+        return;
+    }
+    foreach (i, pair; oldPairs) {
+        if (pair !is newPairs[i]) {
+            incActionPush(new FlipPairListChangeAction(oldPairs, newPairs));
+            return;
+        }
+    }
+}
 
 class ToggleMirrorViewCommand : ExCommand!() {
     this() { super(_("Toggle mirror view.")); }
@@ -92,7 +148,10 @@ class AddFlipPairCommand : ExCommand!(
     this() { super(null, _("Register a flip pair.")); }
     override CommandResult run(Context ctx) {
         if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        auto oldPairs = incGetFlipPairs().dup;
         auto result = incAddFlipPair(left, right);
+        if (result.succeeded)
+            pushFlipPairActionIfChanged(oldPairs);
         return CommandResult(result.succeeded, result.message);
     }
 }
@@ -105,7 +164,10 @@ class AutoAddFlipPairsCommand : ExCommand!(
     this() { super(null, _("Register flip pairs by name pattern.")); }
     override CommandResult run(Context ctx) {
         if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false, "No puppet");
+        auto oldPairs = incGetFlipPairs().dup;
         auto result = incAutoAddFlipPairs(ctx.puppet, leftPattern, rightPattern);
+        if (result.succeeded && result.added > 0)
+            pushFlipPairActionIfChanged(oldPairs);
         return CommandResult(result.succeeded, result.message ~ " (" ~ result.added.to!string ~ " added)");
     }
 }
@@ -118,7 +180,10 @@ class RemoveFlipPairCommand : ExCommand!(
     this() { super(null, _("Remove a flip pair.")); }
     override CommandResult run(Context ctx) {
         if (!ctx.hasPuppet) return CommandResult(false, "No puppet");
+        auto oldPairs = incGetFlipPairs().dup;
         auto result = incRemoveFlipPair(left, right);
+        if (result.succeeded)
+            pushFlipPairActionIfChanged(oldPairs);
         return CommandResult(result.succeeded, result.message);
     }
 }

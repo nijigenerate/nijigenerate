@@ -2161,7 +2161,16 @@ class SetDepthBoneConstraintCommand : ExCommand!(
         if ("lockRotation" in json.object) b.lockRotation = json["lockRotation"].boolean;
         if ("lockTranslation" in json.object) b.lockTranslation = json["lockTranslation"].boolean;
         if ("allowParentToTargets" in json.object) b.allowParentToTargets = json["allowParentToTargets"].boolean;
-        if ("maxStepRadians" in json.object) b.maxStepRadians = cast(float)json["maxStepRadians"].floating;
+        if ("hingeAxis" in json.object) {
+            auto values = json["hingeAxis"].array;
+            enforce(values.length == 3, "hingeAxis must be [x,y,z]");
+            b.hingeAxis = vec3(jsonNumber(values[0], b.hingeAxis.x), jsonNumber(values[1], b.hingeAxis.y), jsonNumber(values[2], b.hingeAxis.z));
+        }
+        if ("rotationLimits" in json.object) {
+            b.rotationLimits.length = 0;
+            foreach (value; json["rotationLimits"].array) b.rotationLimits ~= jsonNumber(value, 0);
+        }
+        if ("maxStepRadians" in json.object) b.maxStepRadians = jsonNumber(json["maxStepRadians"], b.maxStepRadians);
         action.updateNewState();
         incActionPush(action);
         if (auto rigRoot = findDepthRigRoot(b)) ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Constraint");

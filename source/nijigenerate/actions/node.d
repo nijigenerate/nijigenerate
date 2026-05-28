@@ -194,6 +194,65 @@ public:
     bool canMerge(Action other) { return false; }
 }
 
+class NodeCentralizeAction : Action {
+public:
+    Node root;
+    Node[] affectedNodes;
+    Transform[uint] oldTransforms;
+    Transform[uint] newTransforms;
+
+    this(Node root) {
+        this.root = root;
+        collect(root);
+        foreach (node; affectedNodes)
+            oldTransforms[node.uuid] = node.localTransform;
+
+        root.centralize();
+
+        foreach (node; affectedNodes)
+            newTransforms[node.uuid] = node.localTransform;
+    }
+
+    private void collect(Node node) {
+        affectedNodes ~= node;
+        foreach (child; node.children)
+            collect(child);
+    }
+
+    private void applyTransforms(Transform[uint] transforms) {
+        foreach (node; affectedNodes) {
+            if (auto transform = node.uuid in transforms) {
+                node.localTransform = *transform;
+                node.transformChanged();
+                node.notifyChange(node, NotifyReason.Transformed);
+            }
+        }
+    }
+
+    void rollback() {
+        applyTransforms(oldTransforms);
+    }
+
+    void redo() {
+        applyTransforms(newTransforms);
+    }
+
+    string describe() {
+        return _("Centralized %s").format(root.name);
+    }
+
+    string describeUndo() {
+        return _("Uncentralized %s").format(root.name);
+    }
+
+    string getName() {
+        return "centralize";
+    }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
 /**
     An action that happens when a node is replaced
 */
@@ -836,6 +895,11 @@ class NodeActiveAction : Action {
 public:
     Node self;
     bool newState;
+
+    this(Node self, bool newState) {
+        this.self = self;
+        this.newState = newState;
+    }
 
     /**
         Rollback

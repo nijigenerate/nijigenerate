@@ -13,7 +13,7 @@ import nijilive.core.param.binding : ValueParameterBinding, ParameterParameterBi
 @ShortcutHidden
 @EffectRename
 class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter name")) {
-    this(string newName) { super(_("Set Parameter Name"), newName); }
+    this(string newName) { super(null, _("Set Parameter Name"), newName); }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters) return CommandResult(false, "No parameters");
@@ -29,10 +29,10 @@ class SetParameterNameCommand : ExCommand!(TW!(string, "newName", "New parameter
             }
         }
 
-        // Push name change as action
-        // No action push for name (pointer to property not supported); follow existing behavior
+        auto oldName = param.name;
         param.name = newName;
         param.makeIndexable();
+        incActionPush(new ParameterNameChangeAction(param, oldName, newName));
         return CommandResult(true);
     }
 }
@@ -53,6 +53,7 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
     CommandResult run(Context ctx) {
         if (!ctx.hasParameters) return CommandResult(false, "No parameters");
         auto param = ctx.parameters[0];
+        auto changeAction = new ParameterShapeChangeAction("axes", param);
 
         // Convert to vec2 for internal use
         vec2 vmin = vec2(min[0], min[1]);
@@ -81,17 +82,8 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
             }
         }
 
-        // Apply min/max via actions per component for proper undo/redo
-        auto prevMin = param.min; auto prevMax = param.max;
+        // Apply min/max with axis and binding remap as one undoable structural action.
         param.min = vmin; param.max = vmax;
-        if (prevMin.x != param.min.x)
-            incActionPush(new ParameterValueChangeAction!float("min X", param, prevMin.x, param.min.x, &param.min.vector[0]));
-        if (param.isVec2 && prevMin.y != param.min.y)
-            incActionPush(new ParameterValueChangeAction!float("min Y", param, prevMin.y, param.min.y, &param.min.vector[1]));
-        if (prevMax.x != param.max.x)
-            incActionPush(new ParameterValueChangeAction!float("max X", param, prevMax.x, param.max.x, &param.max.vector[0]));
-        if (param.isVec2 && prevMax.y != param.max.y)
-            incActionPush(new ParameterValueChangeAction!float("max Y", param, prevMax.y, param.max.y, &param.max.vector[1]));
 
         bool normalizeAxis(uint axis, float[] values, out float[] normalized, out string axisMessage) {
             import std.algorithm : sort;
@@ -303,6 +295,9 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
         foreach (i, ref s; snapsF) assignMatchesF(s);
         foreach (i, ref s; snapsP) assignMatchesP(s);
         foreach (i, ref s; snapsD) assignMatchesD(s);
+
+        changeAction.updateNewState();
+        incActionPush(changeAction);
 
         // Notify after remap
         incViewportNodeDeformNotifyParamValueChanged();

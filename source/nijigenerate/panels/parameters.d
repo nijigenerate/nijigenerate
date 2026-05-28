@@ -545,6 +545,14 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                     cmd!(AnimeditCommand.AddAnimationKeyFrame)(ctx);
                 }
                 incTooltip(_("Add Keyframe"));
+                if (incButtonColored("", ImVec2(24, 24))) {
+                    cmd!(AnimeditCommand.CopyAnimationKeyFrame)(ctx);
+                }
+                incTooltip(_("Copy Keyframe"));
+                if (incButtonColored("", ImVec2(24, 24))) {
+                    cmd!(AnimeditCommand.PasteAnimationKeyFrame)(ctx);
+                }
+                incTooltip(_("Paste Keyframe"));
             igEndDisabled();
             
         }

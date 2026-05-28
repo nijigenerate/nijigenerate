@@ -12,10 +12,13 @@ import nijigenerate.widgets.dummy;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.button;
 import nijigenerate;
+import nijigenerate.actions;
+import nijigenerate.core.actionstack;
 import std.string;
 import nijigenerate.utils.link;
 import nijilive;
 import i18n;
+import std.algorithm.searching : canFind, countUntil;
 import std.array : insertInPlace;
 
 struct ParamMapping {
@@ -23,6 +26,99 @@ struct ParamMapping {
     ParameterBinding[] bindings;
     nijilive.core.Resource node;
     bool take;
+}
+
+private uint ngBindingNodeUUID(ParameterBinding binding) {
+    auto node = binding.getNode();
+    if (node !is null)
+        return node.uuid;
+    return binding.getNodeUUID();
+}
+
+private class ParameterSplitBindingsAction : Action {
+private:
+    size_t idx;
+    Parameter param;
+    Parameter newParam;
+    ParameterBinding[] originalBindings;
+    ParameterBinding[] oldParamBindings;
+    ParameterBinding[] newParamBindings;
+
+    bool hasNewParam() {
+        return incActivePuppet().parameters.countUntil(newParam) >= 0;
+    }
+
+    void insertNewParam() {
+        if (hasNewParam()) return;
+
+        auto insertIndex = idx + 1;
+        if (insertIndex > incActivePuppet().parameters.length)
+            insertIndex = incActivePuppet().parameters.length;
+        incActivePuppet().parameters.insertInPlace(insertIndex, newParam);
+    }
+
+public:
+    this(size_t idx, Parameter param, Parameter newParam, ParameterBinding[] originalBindings, ParameterBinding[] oldParamBindings, ParameterBinding[] newParamBindings) {
+        this.idx = idx;
+        this.param = param;
+        this.newParam = newParam;
+        this.originalBindings = originalBindings;
+        this.oldParamBindings = oldParamBindings;
+        this.newParamBindings = newParamBindings;
+    }
+
+    void rollback() {
+        incActivePuppet().removeParameter(newParam);
+        param.bindings = originalBindings;
+        newParam.bindings = [];
+    }
+
+    void redo() {
+        param.bindings = oldParamBindings;
+        newParam.bindings = newParamBindings;
+        insertNewParam();
+    }
+
+    string describe() {
+        return _("Split parameter %s").format(param.name);
+    }
+
+    string describeUndo() {
+        return _("Parameter %s split was cancelled").format(param.name);
+    }
+
+    string getName() {
+        return this.stringof;
+    }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
+Parameter ngSplitParameterBindings(size_t idx, Parameter param, uint[] takeNodeUUIDs, bool pushAction = true) {
+    Parameter newParam = new Parameter(param.name~_(" (Split)"), param.isVec2);
+    foreach(axis; 0..param.axisPoints.length) {
+        newParam.axisPoints[axis] = param.axisPoints[axis].dup;
+    }
+
+    ParameterBinding[] oldParamBindings;
+    ParameterBinding[] newParamBindings;
+    foreach(binding; param.bindings) {
+        if (takeNodeUUIDs.canFind(ngBindingNodeUUID(binding)))
+            newParamBindings ~= binding;
+        else
+            oldParamBindings ~= binding;
+    }
+
+    if (newParamBindings.length == 0)
+        return null;
+
+    auto originalBindings = param.bindings.dup;
+    auto action = new ParameterSplitBindingsAction(idx, param, newParam, originalBindings, oldParamBindings, newParamBindings);
+    action.redo();
+    if (pushAction)
+        incActionPush(action);
+    return newParam;
 }
 
 class ParamSplitWindow : Window {
@@ -33,38 +129,26 @@ private:
 
     void buildMapping() {
         foreach(i, ref binding; param.bindings) {
-            if (binding.getNodeUUID() !in mappings) {
-                mappings[binding.getNodeUUID()] = ParamMapping(
+            auto nodeUuid = ngBindingNodeUUID(binding);
+            if (nodeUuid !in mappings) {
+                mappings[nodeUuid] = ParamMapping(
                     i,
                     [],
                     binding.getNode(),
                     false
                 );
             }
-            mappings[binding.getNodeUUID()].bindings ~= binding;
+            mappings[nodeUuid].bindings ~= binding;
         }
     }
 
     void apply() {
-        Parameter newParam = new Parameter(param.name~_(" (Split)"), param.isVec2);
-        foreach(axis; 0..param.axisPoints.length) {
-            newParam.axisPoints[axis] = param.axisPoints[axis].dup;
+        uint[] takeNodeUUIDs;
+        foreach(nodeUuid, ref mappingNode; mappings) {
+            if (mappingNode.take)
+                takeNodeUUIDs ~= nodeUuid;
         }
-        
-
-        // TODO: remap
-        ParameterBinding[] oldParamBindings;
-        ParameterBinding[] newParamBindings;
-        foreach(ref mappingNode; mappings) {
-            if (!mappingNode.take) oldParamBindings ~= mappingNode.bindings;
-            else newParamBindings ~= mappingNode.bindings;
-        }
-
-        if (newParamBindings.length > 0) {
-            param.bindings = oldParamBindings;
-            newParam.bindings = newParamBindings;
-            incActivePuppet().parameters.insertInPlace(idx+1, newParam);
-        }
+        ngSplitParameterBindings(idx, param, takeNodeUUIDs);
 
         this.close();
     }
@@ -183,4 +267,3 @@ public:
         super(_("Split Parameter"));
     }
 }
-

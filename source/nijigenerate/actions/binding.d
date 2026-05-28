@@ -135,6 +135,42 @@ public:
 alias ParameterBindingAddAction    = ParameterBindingAddRemoveAction!(true);
 alias ParameterBindingRemoveAction = ParameterBindingAddRemoveAction!(false);
 
+class ParameterBindingInterpolationChangeAction : Action {
+public:
+    ParameterBinding self;
+    InterpolateMode oldMode;
+    InterpolateMode newMode;
+
+    this(ParameterBinding self, InterpolateMode oldMode, InterpolateMode newMode) {
+        this.self = self;
+        this.oldMode = oldMode;
+        this.newMode = newMode;
+    }
+
+    void rollback() {
+        self.interpolateMode = oldMode;
+    }
+
+    void redo() {
+        self.interpolateMode = newMode;
+    }
+
+    string describe() {
+        return _("Changed binding interpolation");
+    }
+
+    string describeUndo() {
+        return _("Binding interpolation change cancelled");
+    }
+
+    string getName() {
+        return this.stringof;
+    }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
 /**
     Action for change of all of binding values (and isSet value) at once
 */

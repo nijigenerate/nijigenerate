@@ -7,6 +7,8 @@ import nijigenerate.viewport.vertex.automesh.meta : AMProcInfo, AMParam, AMEnum;
 import nijigenerate.commands.automesh.dynamic : ensureApplyAutoMeshCommand; // reuse robust apply
 import nijigenerate.viewport.vertex.automesh.meta; // IAutoMeshReflect
 import nijigenerate.widgets : incDialog;
+import nijigenerate.actions : Action;
+import nijigenerate.core.actionstack : incActionPush;
 import std.algorithm : find, map, filter;
 import std.array : array;
 import std.string : format;
@@ -16,6 +18,78 @@ import std.stdio : writefln;
 
 version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
 else             private void cmdLog(T...)(T args) {}
+
+private struct AutoMeshConfigSnapshot {
+    string simple;
+    string advanced;
+}
+
+private AutoMeshConfigSnapshot _autoMeshConfigSnapshot(IAutoMeshReflect reflect) {
+    return AutoMeshConfigSnapshot(reflect.values("Simple"), reflect.values("Advanced"));
+}
+
+private bool _sameAutoMeshConfig(AutoMeshConfigSnapshot a, AutoMeshConfigSnapshot b) {
+    return a.simple == b.simple && a.advanced == b.advanced;
+}
+
+private void _restoreAutoMeshConfig(AutoMeshProcessor processor, AutoMeshConfigSnapshot snapshot) {
+    auto reflect = cast(IAutoMeshReflect)processor;
+    if (!reflect)
+        return;
+
+    reflect.writeValues("Simple", snapshot.simple);
+    reflect.writeValues("Advanced", snapshot.advanced);
+}
+
+class AutoMeshConfigChangeAction : Action {
+private:
+    AutoMeshProcessor processor;
+    string processorName;
+    AutoMeshConfigSnapshot oldState;
+    AutoMeshConfigSnapshot newState;
+
+public:
+    this(AutoMeshProcessor processor, AutoMeshConfigSnapshot oldState, AutoMeshConfigSnapshot newState) {
+        this.processor = processor;
+        this.processorName = processor ? processor.displayName() : _("AutoMesh");
+        this.oldState = oldState;
+        this.newState = newState;
+    }
+
+    void rollback() {
+        _restoreAutoMeshConfig(processor, oldState);
+    }
+
+    void redo() {
+        _restoreAutoMeshConfig(processor, newState);
+    }
+
+    string describe() {
+        return _("Changed AutoMesh configuration: %s").format(processorName);
+    }
+
+    string describeUndo() {
+        return _("Reverted AutoMesh configuration: %s").format(processorName);
+    }
+
+    string getName() {
+        return "AutoMeshConfigChangeAction";
+    }
+
+    bool merge(Action other) {
+        return false;
+    }
+
+    bool canMerge(Action other) {
+        return false;
+    }
+}
+
+private void _pushAutoMeshConfigAction(AutoMeshProcessor processor, IAutoMeshReflect reflect, AutoMeshConfigSnapshot oldState) {
+    auto newState = _autoMeshConfigSnapshot(reflect);
+    if (!_sameAutoMeshConfig(oldState, newState))
+        incActionPush(new AutoMeshConfigChangeAction(processor, oldState, newState));
+}
 
 // ===== Typed per-processor enum and map (for MCP tool discovery) =====
 private string _sanitizeId(string s) {
@@ -49,7 +123,7 @@ class AutoMeshGetSchemaCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
         auto p = _resolve(processorId);
         if (!p) return CommandResult(false, "Processor not found");
         auto r = cast(IAutoMeshReflect)p;
-        if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
+        if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
         auto schema = r.schema();
         incDialog(__("Schema"), schema);
         return CommandResult(true);
@@ -64,7 +138,7 @@ class AutoMeshGetValuesCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
     override bool runnable(Context ctx) { return true; }
     override CommandResult run(Context ctx) {
         auto p = _resolve(processorId); if (!p) return CommandResult(false, "Processor not found");
-        auto r = cast(IAutoMeshReflect)p; if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
+        auto r = cast(IAutoMeshReflect)p; if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
         auto vals = r.values(level.length ? level : "Simple");
         incDialog(__("Values"), vals);
         return CommandResult(true);
@@ -78,8 +152,10 @@ class AutoMeshSetPresetCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
     override bool runnable(Context ctx) { return true; }
     override CommandResult run(Context ctx) {
         auto p = _resolve(processorId); if (!p) return CommandResult(false, "Processor not found");
-        auto r = cast(IAutoMeshReflect)p; if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
+        auto r = cast(IAutoMeshReflect)p; if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
+        auto oldState = _autoMeshConfigSnapshot(r);
         if (!r.applyPreset(preset)) { incDialog(__("Error"), ("Preset not found: %s").format(preset)); return CommandResult(false, "Preset not found"); }
+        _pushAutoMeshConfigAction(p, r, oldState);
         return CommandResult(true);
     }
 }
@@ -91,8 +167,10 @@ class AutoMeshSetValuesCommand : ExCommand!(TW!(string, "processorId", "AutoMesh
     override bool runnable(Context ctx) { return updates.length > 0; }
     override CommandResult run(Context ctx) {
         auto p = _resolve(processorId); if (!p) return CommandResult(false, "Processor not found");
-        auto r = cast(IAutoMeshReflect)p; if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
-        if (!r.writeValues(level.length ? level : "Simple", updates)) { incDialog(__("Error"), "No values applied"); return CommandResult(false, "No values applied"); }
+        auto r = cast(IAutoMeshReflect)p; if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
+        auto oldState = _autoMeshConfigSnapshot(r);
+        if (!r.writeValues(level.length ? level : "Simple", updates)) { incDialog(__("Error"), _("No values applied")); return CommandResult(false, "No values applied"); }
+        _pushAutoMeshConfigAction(p, r, oldState);
         return CommandResult(true);
     }
 }
@@ -181,7 +259,7 @@ template GetAutoMeshConfigPT(alias PT)
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) {
             auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found");
-            auto r = cast(IAutoMeshReflect)inst; if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
+            auto r = cast(IAutoMeshReflect)inst; if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
             auto vals = r.values(level.length ? level : "Simple");
             incDialog(__("Values"), vals);
             return CommandResult(true);
@@ -201,8 +279,10 @@ template SetAutoMeshConfigPT(alias PT)
         override bool runnable(Context ctx) { return updates.length > 0; }
         override CommandResult run(Context ctx) {
             auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found");
-            auto r = cast(IAutoMeshReflect)inst; if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
-            if (!r.writeValues(level.length ? level : "Simple", updates)) { incDialog(__("Error"), "No values applied"); return CommandResult(false, "No values applied"); }
+            auto r = cast(IAutoMeshReflect)inst; if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
+            auto oldState = _autoMeshConfigSnapshot(r);
+            if (!r.writeValues(level.length ? level : "Simple", updates)) { incDialog(__("Error"), _("No values applied")); return CommandResult(false, "No values applied"); }
+            _pushAutoMeshConfigAction(inst, r, oldState);
             return CommandResult(true);
         }
     }
@@ -418,7 +498,7 @@ template AutoMeshSetSimpleConfigCommand(alias PT)
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
         this() { super(_("Set Simple (%s)").format(AMProcInfo!(PT).name), _("` ~ _desc ~ `")); }
         override bool runnable(Context ctx) { return true; }
-        override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Simple)() ~ ` return CommandResult(true); }
+        override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); auto r = cast(IAutoMeshReflect)inst; auto oldState = r ? _autoMeshConfigSnapshot(r) : AutoMeshConfigSnapshot.init; ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Simple)() ~ ` if (r) _pushAutoMeshConfigAction(inst, r, oldState); return CommandResult(true); }
     }`);
 }
 
@@ -431,7 +511,7 @@ template AutoMeshSetAdvancedConfigCommand(alias PT)
     mixin(`@EffectConfigEdit class ` ~ _cls ~ ` : ExCommand!(` ~ (_tw.length ? _tw : "") ~ `) {
         this() { super(_("Set Advanced (%s)").format(AMProcInfo!(PT).name), _("` ~ _desc ~ `")); }
         override bool runnable(Context ctx) { return true; }
-        override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Advanced)() ~ ` return CommandResult(true); }
+        override CommandResult run(Context ctx) { auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found"); auto r = cast(IAutoMeshReflect)inst; auto oldState = r ? _autoMeshConfigSnapshot(r) : AutoMeshConfigSnapshot.init; ` ~ _genSettersForLevel!(PT, AutoMeshLevel.Advanced)() ~ ` if (r) _pushAutoMeshConfigAction(inst, r, oldState); return CommandResult(true); }
     }`);
 }
 
@@ -445,8 +525,10 @@ template AutoMeshSetPresetTypedCommand(alias PT)
         override bool runnable(Context ctx) { return true; }
         override CommandResult run(Context ctx) {
             auto inst = _resolveInstance!PT(); if (!inst) return CommandResult(false, "Processor not found");
-            auto r = cast(IAutoMeshReflect)inst; if (!r) { incDialog(__("Error"), "Processor not reflectable"); return CommandResult(false, "Not reflectable"); }
+            auto r = cast(IAutoMeshReflect)inst; if (!r) { incDialog(__("Error"), _("Processor not reflectable")); return CommandResult(false, "Not reflectable"); }
+            auto oldState = _autoMeshConfigSnapshot(r);
             if (!r.applyPreset(preset)) { incDialog(__("Error"), ("Preset not found: %s").format(preset)); return CommandResult(false, "Preset not found"); }
+            _pushAutoMeshConfigAction(inst, r, oldState);
             return CommandResult(true);
         }
     }`);

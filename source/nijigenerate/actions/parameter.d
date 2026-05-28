@@ -15,6 +15,7 @@ import nijilive.core.nodes.drivers; // Driver
 import std.format;
 import i18n;
 import std.algorithm.searching: countUntil;
+import std.algorithm.mutation : remove;
 
 /**
     Action to add parameter to active puppet.
@@ -243,6 +244,293 @@ public:
     bool canMerge(Action other) {
         TSelf otherChange = cast(TSelf) other;
         return (otherChange !is null && this.name == otherChange.name);
+    }
+}
+
+class ParameterNameChangeAction : ParameterValueChangeAction!string {
+public:
+    alias TSelf = typeof(this);
+
+    this(Parameter self, string oldValue, string newValue) {
+        super("name", self, oldValue, newValue, &self.name_);
+    }
+
+    override
+    void rollback() {
+        super.rollback();
+        self.makeIndexable();
+    }
+
+    override
+    void redo() {
+        super.redo();
+        self.makeIndexable();
+    }
+
+    override
+    bool canMerge(Action other) {
+        auto otherChange = cast(TSelf)other;
+        return otherChange !is null && self is otherChange.self;
+    }
+}
+
+class ParameterGroupAddRemoveAction(bool added = true) : Action {
+public:
+    ExPuppet puppet;
+    ExParameterGroup group;
+    size_t index;
+    ExParameter[] children;
+
+    this(ExPuppet puppet, ExParameterGroup group, size_t index = size_t.max) {
+        this.puppet = puppet;
+        this.group = group;
+        this.index = index == size_t.max ? puppet.groups.countUntil(group) : index;
+        if (this.index == size_t.max)
+            this.index = puppet.groups.length;
+        foreach (child; group.children) {
+            if (auto exChild = cast(ExParameter)child)
+                children ~= exChild;
+        }
+    }
+
+    private
+    void insertGroup() {
+        if (puppet.groups.countUntil(group) >= 0)
+            return;
+        auto insertIndex = index > puppet.groups.length ? puppet.groups.length : index;
+        puppet.groups = puppet.groups[0 .. insertIndex] ~ group ~ puppet.groups[insertIndex .. $];
+        foreach (child; children)
+            child.setParent(group);
+    }
+
+    private
+    void removeGroup() {
+        foreach (child; group.children.dup) {
+            if (auto exChild = cast(ExParameter)child)
+                exChild.setParent(null);
+        }
+        auto currentIndex = puppet.groups.countUntil(group);
+        if (currentIndex >= 0)
+            puppet.groups = puppet.groups.remove(currentIndex);
+    }
+
+    void rollback() {
+        static if (added)
+            removeGroup();
+        else
+            insertGroup();
+    }
+
+    void redo() {
+        static if (added)
+            insertGroup();
+        else
+            removeGroup();
+    }
+
+    string describe() {
+        static if (added)
+            return _("Added parameter group %s").format(group.name);
+        else
+            return _("Removed parameter group %s").format(group.name);
+    }
+
+    string describeUndo() {
+        static if (added)
+            return _("Parameter group %s was removed").format(group.name);
+        else
+            return _("Parameter group %s was added").format(group.name);
+    }
+
+    string getName() {
+        return this.stringof;
+    }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
+alias ParameterGroupAddAction = ParameterGroupAddRemoveAction!true;
+alias ParameterGroupRemoveAction = ParameterGroupAddRemoveAction!false;
+
+class ParameterMoveAction : Action {
+public:
+    ExParameter param;
+    ExParameterGroup oldParent;
+    ExParameterGroup newParent;
+
+    this(Parameter param, ExParameterGroup oldParent, ExParameterGroup newParent) {
+        this.param = cast(ExParameter)param;
+        this.oldParent = oldParent;
+        this.newParent = newParent;
+    }
+
+    void rollback() {
+        if (param !is null)
+            param.setParent(oldParent);
+    }
+
+    void redo() {
+        if (param !is null)
+            param.setParent(newParent);
+    }
+
+    string describe() {
+        return _("%s moved").format(param !is null ? param.name : "");
+    }
+
+    string describeUndo() {
+        return _("%s move cancelled").format(param !is null ? param.name : "");
+    }
+
+    string getName() {
+        return this.stringof;
+    }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
+
+class ParameterShapeChangeAction : LazyBoundAction {
+public:
+    struct ValueBindingState {
+        ValueParameterBinding binding;
+        float[][] values;
+        bool[][] isSet;
+    }
+
+    struct ParameterBindingState {
+        ParameterParameterBinding binding;
+        float[][] values;
+        bool[][] isSet;
+    }
+
+    struct DeformationBindingState {
+        DeformationParameterBinding binding;
+        Deformation[][] values;
+        bool[][] isSet;
+    }
+
+    struct State {
+        vec2 min;
+        vec2 max;
+        float[][] axisPoints;
+        ValueBindingState[] valueBindings;
+        ParameterBindingState[] parameterBindings;
+        DeformationBindingState[] deformationBindings;
+    }
+
+    string name;
+    Parameter self;
+    State oldState;
+    State newState;
+
+    this(string name, Parameter self) {
+        this.name = name;
+        this.self = self;
+        oldState = captureState();
+    }
+
+    void updateNewState() {
+        newState = captureState();
+    }
+
+    void clear() { }
+
+    void rollback() {
+        applyState(oldState);
+    }
+
+    void redo() {
+        applyState(newState);
+    }
+
+    string describe() {
+        return _("%s->%s changed").format(self.name, name);
+    }
+
+    string describeUndo() {
+        return _("%s->%s change cancelled").format(self.name, name);
+    }
+
+    string getName() {
+        return name;
+    }
+
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+
+private:
+    static float[][] dupFloatMatrix(float[][] source) {
+        float[][] result;
+        result.length = source.length;
+        foreach (i, row; source)
+            result[i] = row.dup;
+        return result;
+    }
+
+    static bool[][] dupBoolMatrix(bool[][] source) {
+        bool[][] result;
+        result.length = source.length;
+        foreach (i, row; source)
+            result[i] = row.dup;
+        return result;
+    }
+
+    static Deformation dupDeformation(Deformation source) {
+        auto result = source;
+        result.vertexOffsets = source.vertexOffsets.dup;
+        return result;
+    }
+
+    static Deformation[][] dupDeformationMatrix(Deformation[][] source) {
+        Deformation[][] result;
+        result.length = source.length;
+        foreach (i, row; source) {
+            result[i].length = row.length;
+            foreach (j, value; row)
+                result[i][j] = dupDeformation(value);
+        }
+        return result;
+    }
+
+    State captureState() {
+        State state;
+        state.min = self.min;
+        state.max = self.max;
+        state.axisPoints = dupFloatMatrix(self.axisPoints);
+        foreach (binding; self.bindings) {
+            if (auto valueBinding = cast(ValueParameterBinding)binding) {
+                state.valueBindings ~= ValueBindingState(valueBinding, dupFloatMatrix(valueBinding.values), dupBoolMatrix(valueBinding.isSet_));
+            } else if (auto parameterBinding = cast(ParameterParameterBinding)binding) {
+                state.parameterBindings ~= ParameterBindingState(parameterBinding, dupFloatMatrix(parameterBinding.values), dupBoolMatrix(parameterBinding.isSet_));
+            } else if (auto deformationBinding = cast(DeformationParameterBinding)binding) {
+                state.deformationBindings ~= DeformationBindingState(deformationBinding, dupDeformationMatrix(deformationBinding.values), dupBoolMatrix(deformationBinding.isSet_));
+            }
+        }
+        return state;
+    }
+
+    void applyState(ref State state) {
+        self.min = state.min;
+        self.max = state.max;
+        self.axisPoints = dupFloatMatrix(state.axisPoints);
+
+        foreach (bindingState; state.valueBindings) {
+            bindingState.binding.values = dupFloatMatrix(bindingState.values);
+            bindingState.binding.isSet_ = dupBoolMatrix(bindingState.isSet);
+            bindingState.binding.reInterpolate();
+        }
+        foreach (bindingState; state.parameterBindings) {
+            bindingState.binding.values = dupFloatMatrix(bindingState.values);
+            bindingState.binding.isSet_ = dupBoolMatrix(bindingState.isSet);
+            bindingState.binding.reInterpolate();
+        }
+        foreach (bindingState; state.deformationBindings) {
+            bindingState.binding.values = dupDeformationMatrix(bindingState.values);
+            bindingState.binding.isSet_ = dupBoolMatrix(bindingState.isSet);
+            bindingState.binding.reInterpolate();
+        }
     }
 }
 
