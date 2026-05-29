@@ -581,6 +581,19 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         return false;
     }
 
+    auto editor = incVertexViewportGetEditor();
+    auto targetEditor = editor !is null ? cast(IncMeshEditorOneDeformable)editor.getEditorFor(cast(Node)target) : null;
+    if (targetEditor !is null) {
+        targetEditor.abortToolMode();
+        targetEditor.forceResetAction();
+        targetEditor.vertices = ngMeshVerticesFromPositions(positions);
+        targetEditor.refreshMesh();
+        targetEditor.applyToTarget();
+        targetEditor.vertexMapDirty = false;
+        target.notifyChange(target, NotifyReason.StructureChanged);
+        return true;
+    }
+
     if (auto grid = cast(GridDeformer)target) {
         auto mesh = ngCreateIncMesh(positions);
         applyMeshToTarget(grid, mesh.vertices, &mesh);
