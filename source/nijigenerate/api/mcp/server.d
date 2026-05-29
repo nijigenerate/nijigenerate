@@ -54,6 +54,7 @@ import std.meta : AliasSeq;
 
 // helpers
 import nijigenerate.api.mcp.helpers : commandResultToJsonRuntime, buildContextFromPayload, applyPayloadToInstance;
+import nijigenerate.core.actionstack : ngGuardActionStackScopes;
 
 // Debug logging (compiled out in non-debug builds)
 private void mcpLog(T...)(T args) {
@@ -81,8 +82,17 @@ private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
 }
 
 private CommandResult _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
+    if (_mcpRunsOnRootActionStack(toolName))
+        ngGuardActionStackScopes();
     auto res = inst.run(ctx);
     return res;
+}
+
+private bool _mcpRunsOnRootActionStack(string toolName) {
+    import std.string : startsWith;
+    return toolName.startsWith("VertexCommand_") ||
+        toolName == "EditCommand_Undo" ||
+        toolName == "EditCommand_Redo";
 }
 
 private JSONValue _mcpEncodeCommandResult(CommandResult res, string toolName) {

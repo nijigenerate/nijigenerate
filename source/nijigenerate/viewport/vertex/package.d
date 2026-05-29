@@ -38,11 +38,6 @@ private {
     bool isSubPartsMeshVisible = false;
 }
 
-private void ngExitVertexEditAfterCommandApply() {
-    if (incEditMode() == EditMode.VertexEdit)
-        incSetEditMode(EditMode.ModelEdit, false);
-}
-
 class VertexViewport : Viewport {
 protected:
     IncMeshEditor editor;
@@ -568,7 +563,6 @@ bool ngApplyDrawableMeshFromCommand(Drawable target, IncMesh mesh, out string me
     if (targetEditor is null) {
         applyMeshToTarget(target, mesh.vertices, &mesh);
         target.notifyChange(target, NotifyReason.StructureChanged);
-        ngExitVertexEditAfterCommandApply();
         return true;
     }
 
@@ -576,7 +570,6 @@ bool ngApplyDrawableMeshFromCommand(Drawable target, IncMesh mesh, out string me
     targetEditor.refreshMesh();
     targetEditor.applyToTarget();
     target.notifyChange(target, NotifyReason.StructureChanged);
-    ngExitVertexEditAfterCommandApply();
     return true;
 }
 
@@ -599,7 +592,6 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         applyMeshToTarget(target, positions.toArray(), cast(IncMesh*)null);
     }
     ngRefreshDeformableCommandEditors(target);
-    ngExitVertexEditAfterCommandApply();
     return true;
 }
 
