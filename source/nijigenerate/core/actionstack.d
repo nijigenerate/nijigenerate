@@ -62,6 +62,7 @@ public:
         }
 
         while (currentLevel >= level && currentLevel > 0) {
+            ngFlushActionStackGroups();
             incActionPopStack();
         }
         active = false;
@@ -314,6 +315,16 @@ void incActionPopGroup() {
         currentGroup[currentLevel] = null;
         if (group !is null && !group.empty())
             incActionPush(group);
+    }
+}
+
+size_t ngActionStackGroupDepth() {
+    return groupCount[currentLevel] > 0 ? cast(size_t)groupCount[currentLevel] : 0;
+}
+
+void ngFlushActionStackGroups() {
+    while (currentLevel < groupCount.length && groupCount[currentLevel] > 0) {
+        incActionPopGroup();
     }
 }
 

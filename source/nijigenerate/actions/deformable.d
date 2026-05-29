@@ -3,6 +3,7 @@ module nijigenerate.actions.deformable;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate;
+import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijilive;
 import nijilive.math : Vec2Array;
 import std.format;
@@ -22,6 +23,8 @@ private:
 public:
     struct DeformableState {
         vec2[] vertices;
+        float[] depths;
+        bool hasDepths;
     }
 
     Deformable self;
@@ -107,11 +110,21 @@ private:
     DeformableState captureState() {
         DeformableState result;
         result.vertices = self.vertices.toArray();
+        if (auto depthMapped = cast(DepthMappedNode)self) {
+            result.depths = depthMapped.copyDepths();
+            result.hasDepths = true;
+        }
         return result;
     }
 
     void applyState(ref DeformableState st) {
         self.rebuffer(Vec2Array(st.vertices));
+        if (st.hasDepths) {
+            if (auto depthMapped = cast(DepthMappedNode)self)
+                depthMapped.replaceDepths(st.depths);
+        }
         self.clearCache();
+        import nijigenerate.viewport.vertex : ngRefreshDeformableCommandEditors;
+        ngRefreshDeformableCommandEditors(self);
     }
 }

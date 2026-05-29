@@ -581,6 +581,13 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         return false;
     }
 
+    if (auto grid = cast(GridDeformer)target) {
+        auto mesh = ngCreateIncMesh(positions);
+        applyMeshToTarget(grid, mesh.vertices, &mesh);
+        ngRefreshDeformableCommandEditors(target);
+        return true;
+    }
+
     auto editor = incVertexViewportGetEditor();
     auto targetEditor = editor !is null ? cast(IncMeshEditorOneDeformable)editor.getEditorFor(cast(Node)target) : null;
     if (targetEditor !is null) {
@@ -592,11 +599,6 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         targetEditor.vertexMapDirty = false;
         target.notifyChange(target, NotifyReason.StructureChanged);
         return true;
-    }
-
-    if (auto grid = cast(GridDeformer)target) {
-        auto mesh = ngCreateIncMesh(positions);
-        applyMeshToTarget(grid, mesh.vertices, &mesh);
     } else {
         applyMeshToTarget(target, positions.toArray(), cast(IncMesh*)null);
     }
@@ -604,7 +606,7 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
     return true;
 }
 
-private void ngRefreshDeformableCommandEditors(Deformable target) {
+void ngRefreshDeformableCommandEditors(Deformable target) {
     void refreshEditor(IncMeshEditor editor) {
         if (editor is null) return;
 

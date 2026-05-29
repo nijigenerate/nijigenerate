@@ -7,7 +7,7 @@ import nijigenerate.api.mcp.helpers : buildContextFromPayload, commandResultToJs
 import nijigenerate.api.mcp.auth : ApprovalRequest;
 import nijigenerate.api.mcp.http_transport : createHttpTransport;
 import nijigenerate.api.mcp.resource_listing : buildCurrentResourceList, rewriteResourcesListResponse;
-import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpStop;
+import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpFinishActionBoundary, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProcessQueue, ngRunInMainThread;
 import nijigenerate.commands;
 import nijigenerate.commands.binding.binding;
@@ -4525,6 +4525,74 @@ private void testDefineGridCommandUndoRedo() {
     incActionUndo();
     require(grid.vertices == scopedVertices, "undo DefineGridCommand from VertexEdit scope should restore previous grid");
     vertexScope.close();
+
+    void runMcpModeCase(EditMode mode, string toolName, ActionStackScopeUnit scopeUnit, bool scoped) {
+        resetCase();
+
+        auto modeGrid = new GridDeformer(incActivePuppet().root);
+        modeGrid.name = "grid-" ~ toolName;
+        auto modeCtx = new Context();
+        modeCtx.nodes = [cast(Node)modeGrid];
+
+        float[] startX = [-10f, 10f];
+        float[] startY = [-20f, 20f];
+        float[] nextX = [-12f, -4f, 4f, 12f];
+        float[] nextY = [-30f, -10f, 10f, 30f];
+        auto startVertices = Vec2Array([
+            vec2(-10, -20), vec2(10, -20),
+            vec2(-10, 20), vec2(10, 20)
+        ]);
+        auto nextVertices = Vec2Array([
+            vec2(-12, -30), vec2(-4, -30), vec2(4, -30), vec2(12, -30),
+            vec2(-12, -10), vec2(-4, -10), vec2(4, -10), vec2(12, -10),
+            vec2(-12, 10), vec2(-4, 10), vec2(4, 10), vec2(12, 10),
+            vec2(-12, 30), vec2(-4, 30), vec2(4, 30), vec2(12, 30)
+        ]);
+
+        require((new DefineGridCommand(startX, startY)).run(modeCtx).succeeded,
+            toolName ~ " setup should define the initial grid");
+        incActionClearHistory();
+
+        incSetEditMode(mode, false);
+        ActionStackScope editScope = scoped ? ngOpenActionStackScope(scopeUnit) : null;
+        if (scoped)
+            require(ngActionStackScopeActive(scopeUnit), toolName ~ " setup should keep its action scope active");
+
+        incActionPushGroup();
+        ngMcpPrepareActionScopeForCurrentMode("VertexCommand_DefineGrid");
+        require((new DefineGridCommand(nextX, nextY)).run(modeCtx).succeeded,
+            toolName ~ " MCP DefineGrid should succeed");
+        ngMcpFinishActionBoundary();
+        require(modeGrid.vertices == nextVertices, toolName ~ " MCP DefineGrid should apply the new grid");
+
+        ActionStackScope staleScope = scoped ? null : ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+        if (!scoped)
+            require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit),
+                toolName ~ " setup should simulate a stale edit scope before MCP Undo");
+
+        ngMcpPrepareActionScopeForCurrentMode("EditCommand_Undo");
+        if (!scoped)
+            require(!ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit),
+                toolName ~ " MCP Undo should close stale edit scopes before selecting history level");
+        require((new UndoCommand()).run(modeCtx).succeeded, toolName ~ " MCP Undo command should succeed");
+        ngMcpFinishActionBoundary();
+        require(modeGrid.vertices == startVertices, toolName ~ " MCP Undo should restore the previous grid");
+
+        ngMcpPrepareActionScopeForCurrentMode("EditCommand_Redo");
+        require((new RedoCommand()).run(modeCtx).succeeded, toolName ~ " MCP Redo command should succeed");
+        ngMcpFinishActionBoundary();
+        require(modeGrid.vertices == nextVertices, toolName ~ " MCP Redo should restore the new grid");
+
+        if (scoped) {
+            require(ngActionStackScopeActive(scopeUnit), toolName ~ " MCP Undo/Redo should not close the active edit scope");
+            editScope.close();
+        }
+    }
+
+    runMcpModeCase(EditMode.ModelEdit, "ModelEdit", ActionStackScopeUnit.Manual, false);
+    runMcpModeCase(EditMode.AnimEdit, "AnimEdit", ActionStackScopeUnit.Manual, false);
+    runMcpModeCase(EditMode.VertexEdit, "VertexEdit", ActionStackScopeUnit.VertexEdit, true);
+    runMcpModeCase(EditMode.DepthEdit, "DepthEdit", ActionStackScopeUnit.DepthEdit, true);
 }
 
 private void testDefineMeshAndVerticesCommandsUndoRedo() {

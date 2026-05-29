@@ -30,7 +30,7 @@ import nijigenerate.commands; // AllCommandMaps, Command, Context
 import nijigenerate.commands.base : BaseExArgsOf, CommandResult, enrichArgDesc, ngCommandIdFromKey;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.project : EditMode, incActivePuppet, incEditMode, incRegisterLoadFunc;
-import nijigenerate.core.actionstack : ActionStackScopeUnit, ngGuardActionStackScopes;
+import nijigenerate.core.actionstack : ActionStackScopeUnit, ngFlushActionStackGroups, ngGuardActionStackScopes;
 import nijilive; // Node, Parameter, Puppet
 import nijilive.core.param.binding : ParameterBinding, ValueParameterBinding, DeformationParameterBinding, ParameterParameterBinding;
 import nijigenerate.ext.param : ExParameterGroup;
@@ -92,9 +92,11 @@ private bool _mcpNeedsActionScopeForCurrentMode(string toolName) {
         toolName == "EditCommand_Redo";
 }
 
-private void _mcpPrepareActionScopeForCurrentMode(string toolName) {
+void ngMcpPrepareActionScopeForCurrentMode(string toolName) {
     if (!_mcpNeedsActionScopeForCurrentMode(toolName))
         return;
+
+    ngFlushActionStackGroups();
 
     final switch (incEditMode()) {
     case EditMode.VertexEdit:
@@ -110,6 +112,12 @@ private void _mcpPrepareActionScopeForCurrentMode(string toolName) {
         ngGuardActionStackScopes();
         break;
     }
+
+    ngFlushActionStackGroups();
+}
+
+void ngMcpFinishActionBoundary() {
+    ngFlushActionStackGroups();
 }
 
 private JSONValue _mcpEncodeCommandResult(CommandResult res, string toolName) {
@@ -649,7 +657,8 @@ private void _ngMcpStart(string host, ushort port) {
                             }}
 
                             // 3) Run the captured command instance with the prepared context
-                            _mcpPrepareActionScopeForCurrentMode(toolNameLocal);
+                            ngMcpPrepareActionScopeForCurrentMode(toolNameLocal);
+                            scope(exit) ngMcpFinishActionBoundary();
                             if (cmdInst !is null && cmdInst.runnable(ctx)) {
                                 CommandResult concreteResult;
                                 bool concreteHandled = false;
