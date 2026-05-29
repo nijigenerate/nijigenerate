@@ -4467,6 +4467,31 @@ private void testDefineGridCommandUndoRedo() {
 
     incActionRedo();
     require(grid.vertices.length == 9, "redo DefineGridCommand should restore 3x3 grid vertices");
+
+    auto param = new ExParameter("GridDeformParam", true);
+    incActivePuppet().parameters ~= param;
+    auto binding = cast(DeformationParameterBinding)param.getOrAddBinding(grid, "deform");
+    foreach (x; 0 .. binding.values.length) {
+        foreach (y; 0 .. binding.values[x].length) {
+            binding.values[x][y].vertexOffsets.length = grid.vertices.length;
+            binding.values[x][y].vertexOffsets[] = vec2(1, 1);
+            binding.isSet_[x][y] = true;
+        }
+    }
+
+    require((new DefineGridCommand([-0.5f, 0.5f], [-0.5f, 0.5f])).run(ctx).succeeded, "DefineGridCommand should shrink to 2x2 grid");
+    require(grid.vertices.length == 4, "DefineGridCommand should apply 2x2 grid vertices");
+    foreach (x; 0 .. binding.values.length)
+        foreach (y; 0 .. binding.values[x].length)
+            require(binding.values[x][y].vertexOffsets.length == grid.vertices.length, "DefineGridCommand should resize deformation bindings after topology change");
+    param.update();
+
+    incActionUndo();
+    require(grid.vertices.length == 9, "undo shrinking DefineGridCommand should restore 3x3 grid vertices");
+    foreach (x; 0 .. binding.values.length)
+        foreach (y; 0 .. binding.values[x].length)
+            require(binding.values[x][y].vertexOffsets.length == grid.vertices.length, "undo DefineGridCommand should resize deformation bindings after topology restore");
+    param.update();
 }
 
 private void testDefineMeshAndVerticesCommandsUndoRedo() {

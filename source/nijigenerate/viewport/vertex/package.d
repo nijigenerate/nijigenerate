@@ -581,12 +581,8 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         return false;
     }
 
-    auto action = new DeformableChangeAction("Define Vertices", target);
-    target.rebuffer(positions);
-    action.updateNewState();
-    incActionPush(action);
+    applyMeshToTarget(target, positions.toArray(), cast(IncMesh*)null);
     ngRefreshDeformableCommandEditors(target);
-    target.notifyChange(target, NotifyReason.StructureChanged);
     return true;
 }
 

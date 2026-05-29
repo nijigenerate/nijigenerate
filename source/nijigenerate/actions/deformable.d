@@ -39,9 +39,7 @@ public:
     }
 
     override
-    void updateNewState() {
-        state = captureState();
-    }
+    void updateNewState() {}
 
     override
     void clear() {}
