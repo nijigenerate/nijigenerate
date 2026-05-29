@@ -97,6 +97,16 @@ private bool incGLBackendDebugComputerUseMouse() {
     return g_DebugComputerUseMouse;
 }
 
+private void incGLBackendLog(string message) {
+    version (Windows) {
+        import core.sys.windows.winbase : OutputDebugStringA;
+        import std.string : toStringz;
+        OutputDebugStringA(message.toStringz);
+    } else {
+        fprintf(stderr, "%.*s", cast(int)message.length, message.ptr);
+    }
+}
+
 void incGLBackendApplyEventMousePosition() {
     if (!g_HasEventMousePos) return;
 
@@ -148,7 +158,8 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
         case SDL_EventType.SDL_MOUSEMOTION:
             incGLBackendRememberEventMousePos(event.motion.x, event.motion.y);
             if (incGLBackendDebugComputerUseMouse()) {
-                fprintf(stderr, "[CUAMouse] motion x=%d y=%d state=%u\n", event.motion.x, event.motion.y, event.motion.state);
+                import std.string : format;
+                incGLBackendLog("[CUAMouse] motion x=%d y=%d state=%u\n".format(event.motion.x, event.motion.y, event.motion.state));
             }
             break;
 
@@ -156,7 +167,8 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
         case SDL_EventType.SDL_MOUSEBUTTONUP:
             incGLBackendRememberEventMousePos(event.button.x, event.button.y);
             if (incGLBackendDebugComputerUseMouse()) {
-                fprintf(stderr, "[CUAMouse] button type=%u button=%u state=%u x=%d y=%d\n", event.type, event.button.button, event.button.state, event.button.x, event.button.y);
+                import std.string : format;
+                incGLBackendLog("[CUAMouse] button type=%u button=%u state=%u x=%d y=%d\n".format(event.type, event.button.button, event.button.state, event.button.x, event.button.y));
             }
             break;
 

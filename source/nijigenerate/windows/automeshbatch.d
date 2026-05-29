@@ -43,11 +43,53 @@ private:
 
     Thread processingThread;
     shared Mutex gcMutex = null;
+    shared Mutex batchMutex = null;
     shared bool canceled = false;
+    bool closeAfterProcessing = false;
     AutoMeshProcessor activeProcessor = null;
+    ApplicableClass[] lockedParts;
     bool selectAll = false;
     enum ToggleAction { NoAction, None, All }
     ToggleAction toggleAction = ToggleAction.NoAction;
+
+    bool isProcessing() {
+        return processingThread !is null;
+    }
+
+    void setStatus(uint uuid, Status value) {
+        synchronized(batchMutex) {
+            status[uuid] = value;
+        }
+    }
+
+    bool getStatus(uint uuid, out Status value) {
+        synchronized(batchMutex) {
+            if (auto ptr = uuid in status) {
+                value = *ptr;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void setMesh(uint uuid, IncMesh mesh) {
+        synchronized(batchMutex) {
+            meshes[uuid] = mesh;
+        }
+    }
+
+    IncMesh getMesh(uint uuid) {
+        synchronized(batchMutex) {
+            if (auto ptr = uuid in meshes) return *ptr;
+        }
+        return null;
+    }
+
+    void clearStatuses() {
+        synchronized(batchMutex) {
+            status.clear();
+        }
+    }
 
     void apply() {
         bool grouped = false;
@@ -57,8 +99,9 @@ private:
         }
         foreach (node; nodes) {
             auto part = cast(ApplicableClass)node;
-            if (!isApplicable(node) || node.uuid !in meshes || node.uuid !in status || status[node.uuid] != Status.Succeeded) continue;
-            auto mesh = meshes[node.uuid];
+            Status nodeStatus;
+            auto mesh = getMesh(node.uuid);
+            if (!isApplicable(node) || mesh is null || !getStatus(node.uuid, nodeStatus) || nodeStatus != Status.Succeeded) continue;
             string message;
             if (!grouped) {
                 incActionPushGroup();
@@ -180,8 +223,9 @@ private:
             } else {
                 igSameLine(30, 0);
             }
-            if (node.uuid in status) {
-                switch (status[node.uuid]) {
+            Status nodeStatus;
+            if (getStatus(node.uuid, nodeStatus)) {
+                switch (nodeStatus) {
                 case Status.Waiting:
                     igTextColored(ImVec4(0.8, 0.4, 0, 1), "\uef4a");
                     break;
@@ -239,26 +283,22 @@ private:
 
 protected:
 
-    void runBatch() {
-        auto targets = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid]).map!(n=>cast(Deformable)n).filter!(d=>d !is null).array;
-        auto meshList = targets.map!(t=>new IncMesh(meshes[t.uuid])).array;
-        status.clear();
-        foreach (t; targets) status[t.uuid] = Status.Waiting;
+    void runBatch(Deformable[] targets, IncMesh[] meshList, AutoMeshProcessor processor) {
         Deformable currentTarget = null;
         bool callback(Deformable deformable, IncMesh mesh) {
             currentTarget = deformable;
             if (mesh is null) {
-                status[deformable.uuid] = Status.Running;
+                setStatus(deformable.uuid, Status.Running);
             } else {
                 if (mesh.vertices.length >= 3) {
                     if (auto dr = cast(Drawable)deformable) {
-                        status[deformable.uuid] = Status.Succeeded;
-                        meshes[dr.uuid] = mesh;
+                        setStatus(deformable.uuid, Status.Succeeded);
+                        setMesh(dr.uuid, mesh);
                     } else {
-                        status[deformable.uuid] = Status.Failed;
+                        setStatus(deformable.uuid, Status.Failed);
                     }
                 } else {
-                    status[deformable.uuid] = Status.Failed;
+                    setStatus(deformable.uuid, Status.Failed);
                 }
             }
             bool result = false;
@@ -266,7 +306,7 @@ protected:
             return !result;
         }
         void work() {
-            activeProcessor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
+            processor.autoMesh(targets, meshList, false, 0, false, 0, &callback);
         }
         auto fib = new Fiber(&work, core.memory.pageSize * Fiber.defaultStackPages * 4);
         while (fib.state != Fiber.State.TERM) {
@@ -275,13 +315,11 @@ protected:
             synchronized(gcMutex) { result = canceled; }
             if (result) {
                 if (currentTarget) {
-                    status[currentTarget.uuid] = Status.Failed;
+                    setStatus(currentTarget.uuid, Status.Failed);
                 }
                 break;
             }
         }
-        auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
-        foreach (part; parts) part.textures[0].unlock();
         import core.memory;
         GC.collect();
     }
@@ -355,23 +393,33 @@ protected:
                 if (!processingThread.isRunning()) {
                     processingThread.join();
                     processingThread = null;
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
-                    foreach (part; parts) part.textures[0].unlock();
+                    foreach (part; lockedParts) part.textures[0].unlock();
+                    lockedParts.length = 0;
                     canceled = false;
                     import core.memory;
                     GC.collect();
+                    if (closeAfterProcessing) {
+                        closeAfterProcessing = false;
+                        this.close();
+                        return;
+                    }
                 }
             }
 
             igBeginChild("###Actions", ImVec2(childWidth, 40));
             if (incButtonColored(processingThread? __("Cancel") : __("Run batch"))) {
                 if (!processingThread) {
-                    auto parts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n);
-                    foreach (part; parts) part.textures[0].lock();
-                    activeProcessor = ngActiveAutoMeshProcessor;
+                    lockedParts = nodes.filter!((n)=>n.uuid in selected && selected[n.uuid] && isApplicable(n)).map!(n=>cast(ApplicableClass)n).array;
+                    foreach (part; lockedParts) part.textures[0].lock();
+                    auto targets = lockedParts.map!(p=>cast(Deformable)p).filter!(d=>d !is null).array;
+                    auto meshList = targets.map!(t=>new IncMesh(getMesh(t.uuid))).array;
+                    auto processor = ngActiveAutoMeshProcessor;
+                    clearStatuses();
+                    foreach (t; targets) setStatus(t.uuid, Status.Waiting);
+                    activeProcessor = processor;
                     processingThread = new Thread({
                         installNativeCrashDumpThreadHandler();
-                        runBatch();
+                        runBatch(targets, meshList, processor);
                     });
                     processingThread.start();
                 } else {
@@ -389,7 +437,7 @@ protected:
                 vec4 bounds;
                 if (active !is null) {
                     if (auto part = cast(Part)active)
-                        bounds = previewImage(part, ImVec2(previewSize / 2, previewSize / 2), previewSize - gapspace * 2, ImVec2(0,0), ImVec2(1,1), ImVec4(1,1,1,1), meshes[part.uuid]);
+                        bounds = previewImage(part, ImVec2(previewSize / 2, previewSize / 2), previewSize - gapspace * 2, ImVec2(0,0), ImVec2(1,1), ImVec4(1,1,1,1), getMesh(part.uuid));
                 }
 
             }
@@ -404,14 +452,22 @@ protected:
             igSameLine(0, 0);
             // 
             if (incButtonColored(__("Cancel"), ImVec2(96, 24))) {
-                canceled = true;
-                this.close();
+                if (isProcessing()) {
+                    synchronized(gcMutex) { canceled = true; }
+                    closeAfterProcessing = true;
+                } else {
+                    canceled = true;
+                    this.close();
+                }
                 
                 igEndGroup();
                 return;
             }
             igSameLine(0, 0);
-            if (incButtonColored(__("Save"), ImVec2(96, 24))) {
+            igBeginDisabled(isProcessing());
+            bool saveClicked = incButtonColored(__("Save"), ImVec2(96, 24));
+            igEndDisabled();
+            if (saveClicked) {
                 apply();
                 canceled = true;
                 this.close();
@@ -424,7 +480,9 @@ protected:
 
     void close() {
         if (processingThread !is null) {
-            // TBD: kill thread
+            synchronized(gcMutex) { canceled = true; }
+            closeAfterProcessing = true;
+            return;
         }
         incModalCloseTop();
     }
@@ -447,5 +505,6 @@ public:
         super(_("Automesh Batching"), true);
         flags |= ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
         gcMutex = cast(shared)new Mutex;
+        batchMutex = cast(shared)new Mutex;
     }
 }
