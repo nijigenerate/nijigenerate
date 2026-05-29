@@ -556,8 +556,6 @@ bool ngApplyDrawableMeshFromCommand(Drawable target, IncMesh mesh, out string me
         return false;
     }
 
-    ngGuardActionStackScopes();
-
     auto editor = incVertexViewportGetEditor();
     auto targetEditor = editor !is null ? cast(IncMeshEditorOneDrawable)editor.getEditorFor(target) : null;
     if (targetEditor is null) {
@@ -582,8 +580,6 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         message = "No vertex data";
         return false;
     }
-
-    ngGuardActionStackScopes();
 
     if (auto grid = cast(GridDeformer)target) {
         auto mesh = ngCreateIncMesh(positions);
