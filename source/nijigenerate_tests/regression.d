@@ -4514,11 +4514,13 @@ private void testDefineGridCommandUndoRedo() {
     require(grid.vertices.length == 36, "redo 5x5 cell DefineGridCommand should restore 6x6 point grid");
 
     auto scopedVertices = grid.vertices.dup;
+    incSetEditMode(EditMode.VertexEdit, false);
     auto vertexScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
     require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "test setup should open VertexEdit action scope");
     require((new DefineGridCommand([0f, 5f, 10f], [0f, 5f, 10f])).run(ctx).succeeded,
         "DefineGridCommand should apply while VertexEdit action scope is open");
     require(!ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "DefineGridCommand should close VertexEdit action scope before applying");
+    require(incEditMode() == EditMode.ModelEdit, "DefineGridCommand should leave VertexEdit mode after command apply");
     require(ngActionStackLevel() == 0, "DefineGridCommand action should be recorded on root action stack");
     require(grid.vertices.length == 9, "DefineGridCommand in VertexEdit scope should apply 3x3 point grid");
 
