@@ -9,7 +9,6 @@ import nijigenerate.core.math.triangle;
 import nijigenerate.viewport.common.mesheditor.operations.impl;
 import nijilive.math;
 import nijilive;
-import nijilive.core.nodes.deformer.grid : GridDeformer;
 
 private {
     struct Applier(T: Drawable) {
@@ -39,19 +38,6 @@ private {
         }
     }
 
-    struct Applier(T: GridDeformer) {
-        static auto changeAction(T target)  { return new GridDeformerChangeAction(target.name, target); }
-        static void postApply(T target) { }
-        static void rebuffer(M)(T target, Vec2Array vertices, M* data = null) {
-            target.rebuffer(vertices);
-        }
-        static void rebuffer(M)(T target, Vector!(float, 2)[] vertices, M* data = null) {
-            target.rebuffer(Vec2Array(vertices));
-        }
-        static void rebuffer(M)(T target, MeshVertex*[] vertices, M* data = null) {
-            target.rebuffer(vertices.toVertices);
-        }
-    }
 }
 
 struct MeshVertex {

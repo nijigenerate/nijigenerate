@@ -581,10 +581,12 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         return false;
     }
 
-    if (auto grid = cast(GridDeformer)target)
-        applyMeshToTarget(grid, positions.toArray(), cast(IncMesh*)null);
-    else
+    if (auto grid = cast(GridDeformer)target) {
+        auto mesh = ngCreateIncMesh(positions);
+        applyMeshToTarget(grid, mesh.vertices, &mesh);
+    } else {
         applyMeshToTarget(target, positions.toArray(), cast(IncMesh*)null);
+    }
     ngRefreshDeformableCommandEditors(target);
     return true;
 }
