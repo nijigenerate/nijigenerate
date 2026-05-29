@@ -4496,6 +4496,35 @@ private void testDefineGridCommandUndoRedo() {
         foreach (y; 0 .. binding.values[x].length)
             require(binding.values[x][y].vertexOffsets.length == grid.vertices.length, "undo DefineGridCommand should resize deformation bindings after topology restore");
     param.update();
+
+    float[] elevenAxis = [0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f];
+    require((new DefineGridCommand(elevenAxis, elevenAxis)).run(ctx).succeeded, "DefineGridCommand should apply 11x11 point grid");
+    auto elevenVertices = grid.vertices.dup;
+    require(elevenVertices.length == 121, "11x11 point grid should have 121 vertices");
+
+    float[] fiveCellAxis = [0f, 2f, 4f, 6f, 8f, 10f];
+    require((new DefineGridCommand(fiveCellAxis, fiveCellAxis)).run(ctx).succeeded, "DefineGridCommand should apply 5x5 cell grid");
+    require(grid.vertices.length == 36, "5x5 cell grid should have 6x6 points");
+
+    incActionUndo();
+    require(grid.vertices.length == 121, "undo 5x5 cell DefineGridCommand should restore 11x11 point grid");
+    require(grid.vertices == elevenVertices, "undo 5x5 cell DefineGridCommand should restore exact 11x11 grid positions");
+
+    incActionRedo();
+    require(grid.vertices.length == 36, "redo 5x5 cell DefineGridCommand should restore 6x6 point grid");
+
+    auto scopedVertices = grid.vertices.dup;
+    auto vertexScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+    require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "test setup should open VertexEdit action scope");
+    require((new DefineGridCommand([0f, 5f, 10f], [0f, 5f, 10f])).run(ctx).succeeded,
+        "DefineGridCommand should apply while VertexEdit action scope is open");
+    require(!ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "DefineGridCommand should close VertexEdit action scope before applying");
+    require(ngActionStackLevel() == 0, "DefineGridCommand action should be recorded on root action stack");
+    require(grid.vertices.length == 9, "DefineGridCommand in VertexEdit scope should apply 3x3 point grid");
+
+    incActionUndo();
+    require(grid.vertices == scopedVertices, "undo DefineGridCommand from VertexEdit scope should restore previous grid");
+    vertexScope.close();
 }
 
 private void testDefineMeshAndVerticesCommandsUndoRedo() {
