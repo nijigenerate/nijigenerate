@@ -4464,9 +4464,13 @@ private void testDefineGridCommandUndoRedo() {
     incActionUndo();
     require(grid.vertices.length == oldVertices.length, "undo DefineGridCommand should restore previous vertex count");
     require(grid.vertices == oldVertices, "undo DefineGridCommand should restore previous vertices");
+    require(grid.gridAxisX == [-0.5f, 0.5f], "undo DefineGridCommand should restore previous X axis");
+    require(grid.gridAxisY == [-0.5f, 0.5f], "undo DefineGridCommand should restore previous Y axis");
 
     incActionRedo();
     require(grid.vertices.length == 9, "redo DefineGridCommand should restore 3x3 grid vertices");
+    require(grid.gridAxisX == [0f, 10f, 20f], "redo DefineGridCommand should restore 3x3 X axis");
+    require(grid.gridAxisY == [0f, 5f, 10f], "redo DefineGridCommand should restore 3x3 Y axis");
 
     auto param = new ExParameter("GridDeformParam", true);
     incActivePuppet().parameters ~= param;
@@ -4488,6 +4492,8 @@ private void testDefineGridCommandUndoRedo() {
 
     incActionUndo();
     require(grid.vertices.length == 9, "undo shrinking DefineGridCommand should restore 3x3 grid vertices");
+    require(grid.gridAxisX == [0f, 10f, 20f], "undo shrinking DefineGridCommand should restore 3x3 X axis");
+    require(grid.gridAxisY == [0f, 5f, 10f], "undo shrinking DefineGridCommand should restore 3x3 Y axis");
     foreach (x; 0 .. binding.values.length)
         foreach (y; 0 .. binding.values[x].length)
             require(binding.values[x][y].vertexOffsets.length == grid.vertices.length, "undo DefineGridCommand should resize deformation bindings after topology restore");
