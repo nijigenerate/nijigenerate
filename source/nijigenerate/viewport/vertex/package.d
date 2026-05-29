@@ -585,6 +585,26 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
     target.rebuffer(positions);
     action.updateNewState();
     incActionPush(action);
+    ngRefreshDeformableCommandEditors(target);
     target.notifyChange(target, NotifyReason.StructureChanged);
     return true;
+}
+
+private void ngRefreshDeformableCommandEditors(Deformable target) {
+    void refreshEditor(IncMeshEditor editor) {
+        if (editor is null) return;
+
+        auto targetEditor = editor.getEditorFor(cast(Node)target);
+        if (targetEditor is null) return;
+
+        targetEditor.abortToolMode();
+        targetEditor.forceResetAction();
+        targetEditor.resetMesh();
+        targetEditor.refreshMesh();
+    }
+
+    refreshEditor(incVertexViewportGetEditor());
+
+    import nijigenerate.viewport.model.deform : incViewportModelDeformGetEditor;
+    refreshEditor(incViewportModelDeformGetEditor());
 }
