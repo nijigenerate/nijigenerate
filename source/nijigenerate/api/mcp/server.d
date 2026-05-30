@@ -29,7 +29,8 @@ import std.stdio : writefln;
 import nijigenerate.commands; // AllCommandMaps, Command, Context
 import nijigenerate.commands.base : BaseExArgsOf, CommandResult, enrichArgDesc, ngCommandIdFromKey;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
-import nijigenerate.project : incActivePuppet, incRegisterLoadFunc;
+import nijigenerate.project : EditMode, incActivePuppet, incEditMode, incRegisterLoadFunc;
+import nijigenerate.core.actionstack : ActionStackScopeUnit, ngFlushActionStackGroups, ngGuardActionStackScopes;
 import nijilive; // Node, Parameter, Puppet
 import nijilive.core.param.binding : ParameterBinding, ValueParameterBinding, DeformationParameterBinding, ParameterParameterBinding;
 import nijigenerate.ext.param : ExParameterGroup;
@@ -81,8 +82,42 @@ private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
 }
 
 private CommandResult _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
-    auto res = inst.run(ctx);
-    return res;
+    return inst.run(ctx);
+}
+
+private bool _mcpNeedsActionScopeForCurrentMode(string toolName) {
+    import std.string : startsWith;
+    return toolName.startsWith("VertexCommand_") ||
+        toolName == "EditCommand_Undo" ||
+        toolName == "EditCommand_Redo";
+}
+
+void ngMcpPrepareActionScopeForCurrentMode(string toolName) {
+    if (!_mcpNeedsActionScopeForCurrentMode(toolName))
+        return;
+
+    ngFlushActionStackGroups();
+
+    final switch (incEditMode()) {
+    case EditMode.VertexEdit:
+        ngGuardActionStackScopes([ActionStackScopeUnit.VertexEdit]);
+        break;
+    case EditMode.DepthEdit:
+        ngGuardActionStackScopes([ActionStackScopeUnit.DepthEdit]);
+        break;
+    case EditMode.ModelEdit:
+    case EditMode.AnimEdit:
+    case EditMode.ModelTest:
+    case EditMode.ALL:
+        ngGuardActionStackScopes();
+        break;
+    }
+
+    ngFlushActionStackGroups();
+}
+
+void ngMcpFinishActionBoundary() {
+    ngFlushActionStackGroups();
 }
 
 private JSONValue _mcpEncodeCommandResult(CommandResult res, string toolName) {
@@ -622,6 +657,8 @@ private void _ngMcpStart(string host, ushort port) {
                             }}
 
                             // 3) Run the captured command instance with the prepared context
+                            ngMcpPrepareActionScopeForCurrentMode(toolNameLocal);
+                            scope(exit) ngMcpFinishActionBoundary();
                             if (cmdInst !is null && cmdInst.runnable(ctx)) {
                                 CommandResult concreteResult;
                                 bool concreteHandled = false;

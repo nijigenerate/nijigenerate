@@ -7,7 +7,7 @@ import nijigenerate.api.mcp.helpers : buildContextFromPayload, commandResultToJs
 import nijigenerate.api.mcp.auth : ApprovalRequest;
 import nijigenerate.api.mcp.http_transport : createHttpTransport;
 import nijigenerate.api.mcp.resource_listing : buildCurrentResourceList, rewriteResourcesListResponse;
-import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpStop;
+import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpFinishActionBoundary, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProcessQueue, ngRunInMainThread;
 import nijigenerate.commands;
 import nijigenerate.commands.binding.binding;
@@ -4467,6 +4467,135 @@ private void testDefineGridCommandUndoRedo() {
 
     incActionRedo();
     require(grid.vertices.length == 9, "redo DefineGridCommand should restore 3x3 grid vertices");
+    require(grid.vertices == Vec2Array([vec2(0, 0), vec2(10, 0), vec2(20, 0), vec2(0, 5), vec2(10, 5), vec2(20, 5), vec2(0, 10), vec2(10, 10), vec2(20, 10)]),
+        "redo DefineGridCommand should restore 3x3 grid positions");
+
+    auto param = new ExParameter("GridDeformParam", true);
+    incActivePuppet().parameters ~= param;
+    auto binding = cast(DeformationParameterBinding)param.getOrAddBinding(grid, "deform");
+    foreach (x; 0 .. binding.values.length) {
+        foreach (y; 0 .. binding.values[x].length) {
+            binding.values[x][y].vertexOffsets.length = grid.vertices.length;
+            binding.values[x][y].vertexOffsets[] = vec2(1, 1);
+            binding.isSet_[x][y] = true;
+        }
+    }
+
+    require((new DefineGridCommand([-0.5f, 0.5f], [-0.5f, 0.5f])).run(ctx).succeeded, "DefineGridCommand should shrink to 2x2 grid");
+    require(grid.vertices.length == 4, "DefineGridCommand should apply 2x2 grid vertices");
+    foreach (x; 0 .. binding.values.length)
+        foreach (y; 0 .. binding.values[x].length)
+            require(binding.values[x][y].vertexOffsets.length == grid.vertices.length, "DefineGridCommand should resize deformation bindings after topology change");
+    param.update();
+
+    incActionUndo();
+    require(grid.vertices.length == 9, "undo shrinking DefineGridCommand should restore 3x3 grid vertices");
+    require(grid.vertices == Vec2Array([vec2(0, 0), vec2(10, 0), vec2(20, 0), vec2(0, 5), vec2(10, 5), vec2(20, 5), vec2(0, 10), vec2(10, 10), vec2(20, 10)]),
+        "undo shrinking DefineGridCommand should restore 3x3 grid positions");
+    foreach (x; 0 .. binding.values.length)
+        foreach (y; 0 .. binding.values[x].length)
+            require(binding.values[x][y].vertexOffsets.length == grid.vertices.length, "undo DefineGridCommand should resize deformation bindings after topology restore");
+    param.update();
+
+    float[] elevenAxis = [0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f];
+    require((new DefineGridCommand(elevenAxis, elevenAxis)).run(ctx).succeeded, "DefineGridCommand should apply 11x11 point grid");
+    auto elevenVertices = grid.vertices.dup;
+    require(elevenVertices.length == 121, "11x11 point grid should have 121 vertices");
+
+    float[] fiveCellAxis = [0f, 2f, 4f, 6f, 8f, 10f];
+    require((new DefineGridCommand(fiveCellAxis, fiveCellAxis)).run(ctx).succeeded, "DefineGridCommand should apply 5x5 cell grid");
+    require(grid.vertices.length == 36, "5x5 cell grid should have 6x6 points");
+
+    incActionUndo();
+    require(grid.vertices.length == 121, "undo 5x5 cell DefineGridCommand should restore 11x11 point grid");
+    require(grid.vertices == elevenVertices, "undo 5x5 cell DefineGridCommand should restore exact 11x11 grid positions");
+
+    incActionRedo();
+    require(grid.vertices.length == 36, "redo 5x5 cell DefineGridCommand should restore 6x6 point grid");
+
+    auto scopedVertices = grid.vertices.dup;
+    incSetEditMode(EditMode.VertexEdit, false);
+    auto vertexScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+    require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "test setup should open VertexEdit action scope");
+    require((new DefineGridCommand([0f, 5f, 10f], [0f, 5f, 10f])).run(ctx).succeeded,
+        "DefineGridCommand should apply while VertexEdit action scope is open");
+    require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "DefineGridCommand should keep VertexEdit action scope open");
+    require(grid.vertices.length == 9, "DefineGridCommand in VertexEdit scope should apply 3x3 point grid");
+
+    incActionUndo();
+    require(grid.vertices == scopedVertices, "undo DefineGridCommand from VertexEdit scope should restore previous grid");
+    vertexScope.close();
+
+    void runMcpModeCase(EditMode mode, string toolName, ActionStackScopeUnit scopeUnit, bool scoped) {
+        resetCase();
+
+        auto modeGrid = new GridDeformer(incActivePuppet().root);
+        modeGrid.name = "grid-" ~ toolName;
+        auto modeCtx = new Context();
+        modeCtx.nodes = [cast(Node)modeGrid];
+
+        float[] startX = [-10f, 10f];
+        float[] startY = [-20f, 20f];
+        float[] nextX = [-12f, -4f, 4f, 12f];
+        float[] nextY = [-30f, -10f, 10f, 30f];
+        auto startVertices = Vec2Array([
+            vec2(-10, -20), vec2(10, -20),
+            vec2(-10, 20), vec2(10, 20)
+        ]);
+        auto nextVertices = Vec2Array([
+            vec2(-12, -30), vec2(-4, -30), vec2(4, -30), vec2(12, -30),
+            vec2(-12, -10), vec2(-4, -10), vec2(4, -10), vec2(12, -10),
+            vec2(-12, 10), vec2(-4, 10), vec2(4, 10), vec2(12, 10),
+            vec2(-12, 30), vec2(-4, 30), vec2(4, 30), vec2(12, 30)
+        ]);
+
+        require((new DefineGridCommand(startX, startY)).run(modeCtx).succeeded,
+            toolName ~ " setup should define the initial grid");
+        incActionClearHistory();
+
+        incSetEditMode(mode, false);
+        ActionStackScope editScope = scoped ? ngOpenActionStackScope(scopeUnit) : null;
+        if (scoped)
+            require(ngActionStackScopeActive(scopeUnit), toolName ~ " setup should keep its action scope active");
+
+        incActionPushGroup();
+        ngMcpPrepareActionScopeForCurrentMode("VertexCommand_DefineGrid");
+        require((new DefineGridCommand(nextX, nextY)).run(modeCtx).succeeded,
+            toolName ~ " MCP DefineGrid should succeed");
+        ngMcpFinishActionBoundary();
+        require(modeGrid.vertices == nextVertices, toolName ~ " MCP DefineGrid should apply the new grid");
+        require(modeGrid.vertices.length == 16, toolName ~ " MCP DefineGrid should apply a 4x4 point mesh");
+
+        ActionStackScope staleScope = scoped ? null : ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+        if (!scoped)
+            require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit),
+                toolName ~ " setup should simulate a stale edit scope before MCP Undo");
+
+        ngMcpPrepareActionScopeForCurrentMode("EditCommand_Undo");
+        if (!scoped)
+            require(!ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit),
+                toolName ~ " MCP Undo should close stale edit scopes before selecting history level");
+        require((new UndoCommand()).run(modeCtx).succeeded, toolName ~ " MCP Undo command should succeed");
+        ngMcpFinishActionBoundary();
+        require(modeGrid.vertices == startVertices, toolName ~ " MCP Undo should restore the previous grid");
+        require(modeGrid.vertices.length == 4, toolName ~ " MCP Undo should restore a 2x2 point mesh");
+
+        ngMcpPrepareActionScopeForCurrentMode("EditCommand_Redo");
+        require((new RedoCommand()).run(modeCtx).succeeded, toolName ~ " MCP Redo command should succeed");
+        ngMcpFinishActionBoundary();
+        require(modeGrid.vertices == nextVertices, toolName ~ " MCP Redo should restore the new grid");
+        require(modeGrid.vertices.length == 16, toolName ~ " MCP Redo should restore a 4x4 point mesh");
+
+        if (scoped) {
+            require(ngActionStackScopeActive(scopeUnit), toolName ~ " MCP Undo/Redo should not close the active edit scope");
+            editScope.close();
+        }
+    }
+
+    runMcpModeCase(EditMode.ModelEdit, "ModelEdit", ActionStackScopeUnit.Manual, false);
+    runMcpModeCase(EditMode.AnimEdit, "AnimEdit", ActionStackScopeUnit.Manual, false);
+    runMcpModeCase(EditMode.VertexEdit, "VertexEdit", ActionStackScopeUnit.VertexEdit, true);
+    runMcpModeCase(EditMode.DepthEdit, "DepthEdit", ActionStackScopeUnit.DepthEdit, true);
 }
 
 private void testDefineMeshAndVerticesCommandsUndoRedo() {

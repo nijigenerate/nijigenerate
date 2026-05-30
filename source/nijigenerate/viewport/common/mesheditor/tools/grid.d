@@ -172,6 +172,15 @@ private:
         impl.deselectAll();
     }
 
+    override
+    void abortToolMode(IncMeshEditorOne impl) {
+        if (auto deformable = cast(IncMeshEditorOneDeformable)impl) {
+            deformableMeshes.remove(deformable);
+        }
+        isDragging = false;
+        currentAction = GridActionID.End;
+    }
+
     override bool onDragStart(vec2 mousePos, IncMeshEditorOne impl) {
         bool isVirtual = false;
         auto mesh = getMesh(impl, isVirtual);

@@ -37,6 +37,7 @@ private {
             target.rebuffer(vertices.toVertices);
         }
     }
+
 }
 
 struct MeshVertex {

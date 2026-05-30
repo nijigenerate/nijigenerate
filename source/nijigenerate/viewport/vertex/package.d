@@ -581,10 +581,49 @@ bool ngApplyDeformableVerticesFromCommand(Deformable target, Vec2Array positions
         return false;
     }
 
-    auto action = new DeformableChangeAction("Define Vertices", target);
-    target.rebuffer(positions);
-    action.updateNewState();
-    incActionPush(action);
-    target.notifyChange(target, NotifyReason.StructureChanged);
+    if (auto grid = cast(GridDeformer)target) {
+        auto mesh = ngCreateIncMesh(positions);
+        auto action = new GridDeformerDefineAction(grid.name, grid);
+        applyMeshToTargetNoRecord(grid, mesh.vertices, &mesh);
+        action.updateNewState();
+        incActionPush(action);
+        ngRefreshDeformableCommandEditors(target);
+        return true;
+    }
+
+    auto editor = incVertexViewportGetEditor();
+    auto targetEditor = editor !is null ? cast(IncMeshEditorOneDeformable)editor.getEditorFor(cast(Node)target) : null;
+    if (targetEditor !is null) {
+        targetEditor.abortToolMode();
+        targetEditor.forceResetAction();
+        targetEditor.vertices = ngMeshVerticesFromPositions(positions);
+        targetEditor.refreshMesh();
+        targetEditor.applyToTarget();
+        targetEditor.vertexMapDirty = false;
+        target.notifyChange(target, NotifyReason.StructureChanged);
+        return true;
+    } else {
+        applyMeshToTarget(target, positions.toArray(), cast(IncMesh*)null);
+    }
+    ngRefreshDeformableCommandEditors(target);
     return true;
+}
+
+void ngRefreshDeformableCommandEditors(Deformable target) {
+    void refreshEditor(IncMeshEditor editor) {
+        if (editor is null) return;
+
+        auto targetEditor = editor.getEditorFor(cast(Node)target);
+        if (targetEditor is null) return;
+
+        targetEditor.abortToolMode();
+        targetEditor.forceResetAction();
+        targetEditor.resetMesh();
+        targetEditor.refreshMesh();
+    }
+
+    refreshEditor(incVertexViewportGetEditor());
+
+    import nijigenerate.viewport.model.deform : incViewportModelDeformGetEditor;
+    refreshEditor(incViewportModelDeformGetEditor());
 }
