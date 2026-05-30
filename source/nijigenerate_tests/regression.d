@@ -4564,6 +4564,7 @@ private void testDefineGridCommandUndoRedo() {
             toolName ~ " MCP DefineGrid should succeed");
         ngMcpFinishActionBoundary();
         require(modeGrid.vertices == nextVertices, toolName ~ " MCP DefineGrid should apply the new grid");
+        require(modeGrid.vertices.length == 16, toolName ~ " MCP DefineGrid should apply a 4x4 point mesh");
 
         ActionStackScope staleScope = scoped ? null : ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
         if (!scoped)
@@ -4577,11 +4578,13 @@ private void testDefineGridCommandUndoRedo() {
         require((new UndoCommand()).run(modeCtx).succeeded, toolName ~ " MCP Undo command should succeed");
         ngMcpFinishActionBoundary();
         require(modeGrid.vertices == startVertices, toolName ~ " MCP Undo should restore the previous grid");
+        require(modeGrid.vertices.length == 4, toolName ~ " MCP Undo should restore a 2x2 point mesh");
 
         ngMcpPrepareActionScopeForCurrentMode("EditCommand_Redo");
         require((new RedoCommand()).run(modeCtx).succeeded, toolName ~ " MCP Redo command should succeed");
         ngMcpFinishActionBoundary();
         require(modeGrid.vertices == nextVertices, toolName ~ " MCP Redo should restore the new grid");
+        require(modeGrid.vertices.length == 16, toolName ~ " MCP Redo should restore a 4x4 point mesh");
 
         if (scoped) {
             require(ngActionStackScopeActive(scopeUnit), toolName ~ " MCP Undo/Redo should not close the active edit scope");
