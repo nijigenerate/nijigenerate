@@ -107,21 +107,10 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
         import std.conv : to;
         try {
             auto id = to!uint(raw);
-            auto p = incActivePuppet();
-            if (p is null) return false;
-            foreach (param; p.parameters) {
-                foreach (b; param.bindings) {
-                    static uint ensureBindingId(ParameterBinding b) {
-                        if (auto idp = b in gBindingIds) return *idp;
-                        auto nid = gBindingNextId++;
-                        gBindingIds[b] = nid;
-                        gBindingById[nid] = b;
-                        return nid;
-                    }
-                    if (ensureBindingId(b) == id) { outVal = b; return true; }
-                }
-            }
-            return false;
+            auto found = findBindingByCommandBrowserId(id);
+            if (found is null) return false;
+            outVal = found;
+            return true;
         } catch(Exception) { return false; }
     } else static if (is(T == Node[])) {
         import std.algorithm : splitter;
@@ -160,8 +149,8 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
             foreach (part; raw.splitter([','])) {
                 auto s = part.strip;
                 if (!s.length) continue;
-                if (auto found = to!uint(s) in gBindingById)
-                    result ~= *found;
+                auto found = findBindingByCommandBrowserId(to!uint(s));
+                if (found !is null) result ~= found;
             }
             outVal = result;
             return true;
@@ -1083,13 +1072,27 @@ protected:
         igEndChild();
     }
 }
-uint ensureBindingId(ParameterBinding b) {
+private uint ensureCommandBrowserBindingId(ParameterBinding b) {
     if (auto idp = b in gBindingIds) return *idp;
     auto id = gBindingNextId++;
     gBindingIds[b] = id;
     gBindingById[id] = b;
     return id;
 }
+
+private ParameterBinding findBindingByCommandBrowserId(uint id) {
+    auto puppet = incActivePuppet();
+    if (puppet is null) return null;
+
+    foreach (param; puppet.parameters) {
+        foreach (binding; param.bindings) {
+            if (ensureCommandBrowserBindingId(binding) == id)
+                return binding;
+        }
+    }
+    return null;
+}
+
 void renderNodeTree(Node n, ref Node chosen) {
     if (n is null) return;
     ImGuiTreeNodeFlags flags = n.children.length == 0 ? cast(ImGuiTreeNodeFlags)(ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen) : ImGuiTreeNodeFlags.None;
@@ -1125,7 +1128,7 @@ void renderBindingTree(Puppet p, ref ParameterBinding chosen) {
         string pIcon = incTypeIdToIcon("Parameter");
         if (igTreeNodeEx(toStringz(format("%s %s##param_binding_%s", pIcon, param.name, param.uuid)), flags)) {
             foreach (b; param.bindings) {
-                uint id = ensureBindingId(b);
+                uint id = ensureCommandBrowserBindingId(b);
                 string bIcon = incTypeIdToIcon("Binding");
                 if (igTreeNodeEx(toStringz(format("%s %s##binding_%s", bIcon, b.getName(), id)), cast(ImGuiTreeNodeFlags)(ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen))) {
                     if (igIsItemClicked()) chosen = b;
@@ -1146,10 +1149,219 @@ string resourceSelectionIds(T)(T[] selected) {
         static if (is(T == Node) || is(T == Parameter)) {
             ids ~= to!string(item.uuid);
         } else static if (is(T == ParameterBinding)) {
-            ids ~= to!string(ensureBindingId(item));
+            ids ~= to!string(ensureCommandBrowserBindingId(item));
         }
     }
     return ids.join(",");
+}
+
+version(CommandBrowserDifferential) {
+private void cbDiffCollectNodes(Node node, ref Node[] nodes) {
+    if (node is null) return;
+    nodes ~= node;
+    foreach (child; node.children)
+        cbDiffCollectNodes(child, nodes);
+}
+
+private string cbDiffJoinValues(string[] values) {
+    return "[" ~ values.join(",") ~ "]";
+}
+
+private string cbDiffValue(T)(T value) {
+    static if (is(T == Node)) {
+        return value is null ? "null" : "Node:" ~ value.uuid.to!string;
+    } else static if (is(T == Parameter)) {
+        return value is null ? "null" : "Parameter:" ~ value.uuid.to!string;
+    } else static if (is(T == ParameterBinding)) {
+        return value is null ? "null" : "ParameterBinding:" ~ value.getName();
+    } else static if (is(T == Node[])) {
+        string[] values;
+        foreach (item; value) values ~= cbDiffValue!Node(item);
+        return cbDiffJoinValues(values);
+    } else static if (is(T == Parameter[])) {
+        string[] values;
+        foreach (item; value) values ~= cbDiffValue!Parameter(item);
+        return cbDiffJoinValues(values);
+    } else static if (is(T == ParameterBinding[])) {
+        string[] values;
+        foreach (item; value) values ~= cbDiffValue!ParameterBinding(item);
+        return cbDiffJoinValues(values);
+    } else {
+        return value.to!string;
+    }
+}
+
+private bool cbDiffRawValue(T)(ref string raw, Node[] nodes, Parameter[] params, ParameterBinding[] bindings) {
+    static if (is(T == string)) {
+        raw = "command-browser-differential";
+        return true;
+    } else static if (is(T == enum)) {
+        foreach (member; EnumMembers!T) {
+            raw = member.stringof;
+            return true;
+        }
+        return false;
+    } else static if (is(T == bool)) {
+        raw = "true";
+        return true;
+    } else static if (isIntegral!T) {
+        raw = "7";
+        return true;
+    } else static if (isFloatingPoint!T) {
+        raw = "1.25";
+        return true;
+    } else static if (is(T == Node)) {
+        if (nodes.length == 0) return false;
+        raw = nodes[0].uuid.to!string;
+        return true;
+    } else static if (is(T == Node[])) {
+        if (nodes.length == 0) return false;
+        string[] ids;
+        foreach (node; nodes[0 .. nodes.length < 2 ? nodes.length : 2])
+            ids ~= node.uuid.to!string;
+        raw = ids.join(",");
+        return true;
+    } else static if (is(T == Parameter)) {
+        if (params.length == 0) return false;
+        raw = params[0].uuid.to!string;
+        return true;
+    } else static if (is(T == Parameter[])) {
+        if (params.length == 0) return false;
+        string[] ids;
+        foreach (param; params[0 .. params.length < 2 ? params.length : 2])
+            ids ~= param.uuid.to!string;
+        raw = ids.join(",");
+        return true;
+    } else static if (is(T == ParameterBinding)) {
+        if (bindings.length == 0) return false;
+        raw = ensureCommandBrowserBindingId(bindings[0]).to!string;
+        return true;
+    } else static if (is(T == ParameterBinding[])) {
+        if (bindings.length == 0) return false;
+        string[] ids;
+        foreach (binding; bindings[0 .. bindings.length < 2 ? bindings.length : 2])
+            ids ~= ensureCommandBrowserBindingId(binding).to!string;
+        raw = ids.join(",");
+        return true;
+    } else {
+        return false;
+    }
+}
+
+private string cbDiffCapture(C)(C inst) {
+    string[] fields;
+    static if (__traits(compiles, BaseExArgsOf!C) && !is(BaseExArgsOf!C == void)) {
+        alias Declared = BaseExArgsOf!C;
+        static foreach (i, Param; Declared) {{
+            static if (isInstanceOf!(TW, Param)) {
+                alias TParam = TemplateArgsOf!Param[0];
+                enum fname = TemplateArgsOf!Param[1];
+            } else {
+                alias TParam = Param;
+                enum fname = "arg" ~ i.to!string;
+            }
+            try {
+                auto value = mixin("inst." ~ fname);
+                fields ~= fname ~ "=" ~ cbDiffValue!TParam(value);
+            } catch (Exception e) {
+                fields ~= fname ~ "=<exception:" ~ e.msg ~ ">";
+            }
+        }}
+    }
+    return fields.join(";");
+}
+
+private void cbDiffAppendCommand(C)(ref string[] lines, string id, Command cmd, CommandInfo info,
+    Node[] nodes, Parameter[] params, ParameterBinding[] bindings) {
+    auto inst = cast(C)cmd;
+    if (inst is null) {
+        lines ~= id ~ "\tcast-failed";
+        return;
+    }
+
+    string[string] values;
+    string[] unsupported;
+    static if (__traits(compiles, BaseExArgsOf!C) && !is(BaseExArgsOf!C == void)) {
+        alias Declared = BaseExArgsOf!C;
+        static foreach (i, Param; Declared) {{
+            static if (isInstanceOf!(TW, Param)) {
+                alias TParam = TemplateArgsOf!Param[0];
+                enum fname = TemplateArgsOf!Param[1];
+                enum hidden = TemplateArgsOf!Param.length >= 4 ? TemplateArgsOf!Param[3] : false;
+            } else {
+                alias TParam = Param;
+                enum fname = "arg" ~ i.to!string;
+                enum hidden = false;
+            }
+            static if (!hidden) {
+                string raw;
+                if (cbDiffRawValue!TParam(raw, nodes, params, bindings))
+                    values[fname] = raw;
+                else
+                    unsupported ~= fname ~ ":" ~ TParam.stringof;
+            }
+        }}
+    }
+
+    auto before = cbDiffCapture!C(inst);
+    if (info.applyArgs !is null)
+        info.applyArgs(cmd, values);
+    auto after = cbDiffCapture!C(inst);
+
+    string[] pairs;
+    foreach (key, value; values)
+        pairs ~= key ~ "=" ~ value;
+    sort(pairs);
+    sort(unsupported);
+    lines ~= id ~ "\targs=" ~ pairs.join(";") ~ "\tunsupported=" ~ unsupported.join(";") ~ "\tbefore=" ~ before ~ "\tafter=" ~ after;
+}
+
+string ngCommandBrowserDifferentialReport() {
+    rebuildCommandInfos();
+
+    auto puppet = incActivePuppet();
+    Node[] nodes;
+    Parameter[] params;
+    ParameterBinding[] bindings;
+    if (puppet !is null) {
+        cbDiffCollectNodes(puppet.root, nodes);
+        params = puppet.parameters.dup;
+        foreach (param; puppet.parameters)
+            foreach (binding; param.bindings)
+                bindings ~= binding;
+    }
+
+    string[] lines;
+    static foreach (AA; AllCommandMaps) {{
+        alias K = _KeyTypeOfAA!AA;
+        alias V = _ValueTypeOfAA!AA;
+        foreach (key, cmd; AA) {
+            auto infoPtr = cmd in gCommandInfosByCmd;
+            if (infoPtr is null)
+                continue;
+            auto id = ngCommandIdFromKey(key);
+            static if (is(K == enum)) {
+                static foreach (member; EnumMembers!K) {{
+                    if (key == member) {{
+                        enum memberName = __traits(identifier, member);
+                        enum typeName = memberName ~ "Command";
+                        static if (__traits(compiles, mixin(typeName))) {
+                            alias C = mixin(typeName);
+                            cbDiffAppendCommand!C(lines, id, cmd, *infoPtr, nodes, params, bindings);
+                        } else {
+                            lines ~= id ~ "\tno-concrete-type";
+                        }
+                    }}
+                }}
+            } else static if (!is(V == void)) {
+                alias C = V;
+                cbDiffAppendCommand!C(lines, id, cmd, *infoPtr, nodes, params, bindings);
+            }
+        }
+    }}
+    sort(lines);
+    return lines.join("\n");
+}
 }
 
 bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet) {

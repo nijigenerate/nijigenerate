@@ -54,7 +54,7 @@ configuration "regression-tests" {
 	excludedSourceFiles "source/app.d" "source/njc/*.d"
 	subConfiguration "nijilive" "queue-backend"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT" platform="osx"
-	versions "HaveMCP"
+	versions "HaveMCP" "CommandBrowserDifferential"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/." platform="osx"
 	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-arm64"
 	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
