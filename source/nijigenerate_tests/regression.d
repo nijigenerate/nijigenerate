@@ -8830,6 +8830,20 @@ private void testCommandBrowserResourcePickerSelectionsAreInitialized() {
     }
     require(!source.canFind("!is(TParam : Node) && !is(TParam : Parameter))"),
         "Command Browser applyArgs should not skip Node/Parameter resource arguments");
+    require(source.canFind("clearResourceArgValue!TParam(v);") &&
+        source.canFind(`mixin("inst."~fname~" = v;")`),
+        "Command Browser applyArgs should clear resource fields to valid empty selections when an empty picker value cannot be parsed");
+    require(source.canFind("renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet(), arg.acceptsNodeResource);") &&
+        source.canFind("renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet());") &&
+        source.canFind("renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet());"),
+        "Command Browser should synchronize resource-array arg values every frame, including empty selections");
+    require(source.canFind("if (contextDirty)") &&
+        source.canFind("ctx.parameters = paramsOverride;") &&
+        source.canFind("ctx.armedParameters = armedOverride;") &&
+        source.canFind("ctx.nodes = nodesOverride;") &&
+        source.canFind("ctx.bindings = bindingsOverride;") &&
+        source.canFind("ctx.activeBindings = bindingsOverride;"),
+        "Command Browser should explicitly apply manual context picker overrides, including empty selections");
 }
 
 private void testCommandBrowserResourceArgumentParsingResolvesLiveResources() {
@@ -8862,11 +8876,17 @@ private void testCommandBrowserResourceArgumentParsingResolvesLiveResources() {
         source.canFind("info.isNodeResourceArray = isNodeResourceArray!TParam;") &&
         source.canFind("info.acceptsNodeResource = (Node n) { return cast(NR)n !is null; };"),
         "Command Browser metadata should classify and filter scalar and array Node-derived resource arguments");
+    require(source.canFind("ctxBindingsSel = ctx.hasActiveBindings ? ctx.activeBindings : ctx.hasBindings ? ctx.bindings : [];"),
+        "Command Browser should capture the active binding context before falling back to all parameter bindings");
 
     require(source.canFind("if (auto pv = fname in vals)") &&
         source.canFind("if (parseArgValue!TParam(*pv, v))") &&
         source.canFind(`mixin("inst."~fname~" = v;")`),
         "Command Browser applyArgs should parse and assign command arguments before run");
+    require(source.canFind("} else static if (isResourceArgument!TParam)") &&
+        source.canFind("clearResourceArgValue!TParam(v);") &&
+        source.canFind(`mixin("inst."~fname~" = v;")`),
+        "Command Browser applyArgs should reset stale resource arguments to valid empty selections when the UI passes an empty value");
 
     require(source.canFind("if (info.applyArgs !is null && selectedCmd !is null)") &&
         source.canFind("info.applyArgs(selectedCmd, argValues);") &&

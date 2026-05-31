@@ -91,6 +91,22 @@ private template NodeResourceElement(T) {
         alias NodeResourceElement = T;
 }
 
+private template isResourceArgument(T) {
+    enum isResourceArgument = isNodeResource!T || isNodeResourceArray!T ||
+        is(T == Parameter) || is(T == Parameter[]) ||
+        is(T == ParameterBinding) || is(T == ParameterBinding[]);
+}
+
+private void clearResourceArgValue(T)(ref T value) {
+    static if (isNodeResourceArray!T || is(T == Parameter[]) || is(T == ParameterBinding[])) {
+        value = [];
+    } else static if (isResourceArgument!T) {
+        value = null;
+    } else {
+        static assert(0, T.stringof ~ " is not a Command Browser resource argument");
+    }
+}
+
 // Best-effort parser for common scalar types
 private bool parseArgValue(T)(string raw, ref T outVal) {
     import std.conv : to;
@@ -262,6 +278,9 @@ private void rebuildCommandInfos() {
                                             TParam v;
                                             if (parseArgValue!TParam(*pv, v)) {
                                                 mixin("inst."~fname~" = v;");
+                                            } else static if (isResourceArgument!TParam) {
+                                                clearResourceArgValue!TParam(v);
+                                                mixin("inst."~fname~" = v;");
                                             }
                                         }
                                     }
@@ -391,6 +410,9 @@ private void rebuildCommandInfos() {
                                 if (auto pv = fname in vals) {
                                     TParam v;
                                     if (parseArgValue!TParam(*pv, v)) {
+                                        mixin("inst."~fname~" = v;");
+                                    } else static if (isResourceArgument!TParam) {
+                                        clearResourceArgValue!TParam(v);
                                         mixin("inst."~fname~" = v;");
                                     }
                                 }
@@ -562,7 +584,7 @@ private:
         ctxNodesSel = ctx.hasNodes ? ctx.nodes : [];
         ctxParamsSel = ctx.hasParameters ? ctx.parameters : [];
         ctxArmedSel = ctx.hasArmedParameters ? ctx.armedParameters : [];
-        ctxBindingsSel = ctx.hasBindings ? ctx.bindings : [];
+        ctxBindingsSel = ctx.hasActiveBindings ? ctx.activeBindings : ctx.hasBindings ? ctx.bindings : [];
         if (ctx.hasKeyPoint) {
             ctxKeyPoint = format("%s,%s", ctx.keyPoint.x, ctx.keyPoint.y);
         } else {
@@ -632,18 +654,18 @@ private:
                 } else if (arg.isNodeResourceArray) {
                     if (argNodeSelections is null || arg.name !in argNodeSelections)
                         argNodeSelections[arg.name] = [];
-                    if (renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet(), arg.acceptsNodeResource))
-                        argValues[arg.name] = resourceSelectionIds(argNodeSelections[arg.name]);
+                    renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet(), arg.acceptsNodeResource);
+                    argValues[arg.name] = resourceSelectionIds(argNodeSelections[arg.name]);
                 } else if (arg.typeName == "Parameter[]") {
                     if (argParamSelections is null || arg.name !in argParamSelections)
                         argParamSelections[arg.name] = [];
-                    if (renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet()))
-                        argValues[arg.name] = resourceSelectionIds(argParamSelections[arg.name]);
+                    renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet());
+                    argValues[arg.name] = resourceSelectionIds(argParamSelections[arg.name]);
                 } else if (arg.typeName == "ParameterBinding[]") {
                     if (argBindingSelections is null || arg.name !in argBindingSelections)
                         argBindingSelections[arg.name] = [];
-                    if (renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet()))
-                        argValues[arg.name] = resourceSelectionIds(argBindingSelections[arg.name]);
+                    renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet());
+                    argValues[arg.name] = resourceSelectionIds(argBindingSelections[arg.name]);
                 } else if (arg.isNodeResource) {
                     auto sel = argNodeSelections.get(arg.name, cast(Node[])null);
                     if (sel is null) sel = [];
@@ -1012,10 +1034,21 @@ protected:
                     if (ctxBindingsSel.length) {
                         bindingsOverride = ctxBindingsSel;
                     }
-                    if (paramsOverride.length) ctx.parameters = paramsOverride;
-                    if (armedOverride.length) ctx.armedParameters = armedOverride;
-                    if (nodesOverride.length) ctx.nodes = nodesOverride;
-                    if (bindingsOverride.length) ctx.bindings = bindingsOverride;
+                    if (contextDirty) {
+                        ctx.parameters = paramsOverride;
+                        ctx.armedParameters = armedOverride;
+                        ctx.nodes = nodesOverride;
+                        ctx.bindings = bindingsOverride;
+                        ctx.activeBindings = bindingsOverride;
+                    } else {
+                        if (paramsOverride.length) ctx.parameters = paramsOverride;
+                        if (armedOverride.length) ctx.armedParameters = armedOverride;
+                        if (nodesOverride.length) ctx.nodes = nodesOverride;
+                        if (bindingsOverride.length) {
+                            ctx.bindings = bindingsOverride;
+                            ctx.activeBindings = bindingsOverride;
+                        }
+                    }
                     if (ctxKeyPoint.length) {
                         import std.algorithm : splitter;
                         auto parts = ctxKeyPoint.splitter([',']).array;
@@ -1358,13 +1391,21 @@ private void cbDiffAppendCommand(C)(ref string[] lines, string id, Command cmd, 
     if (info.applyArgs !is null)
         info.applyArgs(cmd, values);
     auto after = cbDiffCapture!C(inst);
+    string cleared;
+    if (info.applyArgs !is null && values.length) {
+        string[string] emptyValues;
+        foreach (key, _; values)
+            emptyValues[key] = "";
+        info.applyArgs(cmd, emptyValues);
+        cleared = cbDiffCapture!C(inst);
+    }
 
     string[] pairs;
     foreach (key, value; values)
         pairs ~= key ~ "=" ~ value;
     sort(pairs);
     sort(unsupported);
-    lines ~= id ~ "\targs=" ~ pairs.join(";") ~ "\tunsupported=" ~ unsupported.join(";") ~ "\tbefore=" ~ before ~ "\tafter=" ~ after;
+    lines ~= id ~ "\targs=" ~ pairs.join(";") ~ "\tunsupported=" ~ unsupported.join(";") ~ "\tbefore=" ~ before ~ "\tafter=" ~ after ~ "\tcleared=" ~ cleared;
 }
 
 string ngCommandBrowserDifferentialReport() {
