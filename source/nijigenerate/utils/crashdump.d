@@ -144,12 +144,7 @@ version(Posix) {
         writeAll(fd, buf[pos .. $]);
     }
 
-    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) {
-        if (nativeCrashHandlerActive) {
-            _exit(128 + sig);
-        }
-        nativeCrashHandlerActive = 1;
-
+    private void writeNativeCrashDumpFromSignal(int sig) nothrow @nogc {
         int fd = -1;
         if (nativeCrashDumpPathLen > 0) {
             fd = open(nativeCrashDumpPath.ptr, O_WRONLY | O_CREAT | O_TRUNC, cast(mode_t)384); // 0600
@@ -176,7 +171,9 @@ version(Posix) {
             writeAll(fd, "  atos -o <nijigenerate-binary> -arch arm64 <address>\n");
             close(fd);
         }
+    }
 
+    private void notifyNativeCrashUserAfterSignal() {
         // crashdump() is not reached on SIGSEGV; fork a child to notify the user.
         auto pid = fork();
         if (pid == 0) {
@@ -187,6 +184,17 @@ version(Posix) {
             } catch (Throwable) {}
             _exit(0);
         }
+    }
+
+    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) {
+        if (nativeCrashHandlerActive) {
+            _exit(128 + sig);
+        }
+        nativeCrashHandlerActive = 1;
+
+        // Keep the crashdump write path nogc before running the best-effort UI notifier.
+        writeNativeCrashDumpFromSignal(sig);
+        notifyNativeCrashUserAfterSignal();
 
         // SA_RESETHAND has already restored the default handler; re-raise so
         // the process still terminates as a native crash and OS reports remain useful.
