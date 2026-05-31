@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.utils.crashdump;
-import std.file : write;
+import std.file : write, thisExePath;
 //import std.stdio;
 import std.path;
 import std.process : environment;
@@ -33,7 +33,7 @@ version(Posix) {
     import core.sys.posix.signal : SA_ONSTACK, SA_RESETHAND, SA_SIGINFO, SIGSEGV, SIGSTKSZ,
         sigaction, sigaction_t, sigaltstack, sigemptyset, siginfo_t, stack_t;
     import core.sys.posix.sys.types : mode_t;
-    import core.sys.posix.unistd : _exit, close, getpid, write;
+    import core.sys.posix.unistd : _exit, close, execv, fork, getpid, write;
 
     version(OSX) {
         import core.sys.darwin.execinfo : backtrace, backtrace_symbols_fd;
@@ -75,6 +75,20 @@ version(Windows) {
     }
 }
 
+version(Posix) {
+    private void ShowMessageBox(string dumpPath) {
+        import tinyfiledialogs;
+        import std.format : format;
+        import std.string : toStringz;
+        import std.stdio : writeln;
+        auto title = __("nijigenerate Crashdump");
+        auto message = _("The application has unexpectedly crashed.\n\nIf autosave is enabled, open File → Recent → Autosaves to recover your work.\n\nA crash report was written to:\n%s\n\nPlease attach it when filing an issue:\nhttps://github.com/nijigenerate/nijigenerate/issues").format(
+            dumpPath.length ? dumpPath : getCrashDumpDir());
+
+        tinyfd_messageBox(title, message.toStringz, "ok", "error", 1);
+    }
+}
+
 string linuxStateHome() {
     // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html#variables
     return environment.get("XDG_STATE_HOME", buildPath(environment["HOME"], ".local", "state"));
@@ -97,6 +111,8 @@ version(Posix) {
     enum int nativeBacktraceMaxFrames = 128;
     __gshared char[nativeCrashPathMax] nativeCrashDumpPath;
     __gshared size_t nativeCrashDumpPathLen;
+    __gshared char[nativeCrashPathMax] nativeCrashExePath;
+    __gshared size_t nativeCrashExePathLen;
     __gshared int nativeCrashHandlerActive;
     void* nativeSignalStack;
 
@@ -130,12 +146,7 @@ version(Posix) {
         writeAll(fd, buf[pos .. $]);
     }
 
-    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) nothrow @nogc {
-        if (nativeCrashHandlerActive) {
-            _exit(128 + sig);
-        }
-        nativeCrashHandlerActive = 1;
-
+    private void writeNativeCrashDumpFromSignal(int sig) nothrow @nogc {
         int fd = -1;
         if (nativeCrashDumpPathLen > 0) {
             fd = open(nativeCrashDumpPath.ptr, O_WRONLY | O_CREAT | O_TRUNC, cast(mode_t)384); // 0600
@@ -162,6 +173,26 @@ version(Posix) {
             writeAll(fd, "  atos -o <nijigenerate-binary> -arch arm64 <address>\n");
             close(fd);
         }
+    }
+
+    private void notifyNativeCrashUserAfterSignal() nothrow @nogc {
+        if (nativeCrashExePathLen == 0) return;
+        if (fork() != 0) return;
+        const(char)*[4] argv = [
+            nativeCrashExePath.ptr, "--crash-notify", nativeCrashDumpPath.ptr, null,
+        ];
+        execv(nativeCrashExePath.ptr, cast(char**)argv.ptr);
+        _exit(127);
+    }
+
+    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) nothrow @nogc {
+        if (nativeCrashHandlerActive) {
+            _exit(128 + sig);
+        }
+        nativeCrashHandlerActive = 1;
+
+        writeNativeCrashDumpFromSignal(sig);
+        notifyNativeCrashUserAfterSignal();
 
         // SA_RESETHAND has already restored the default handler; re-raise so
         // the process still terminates as a native crash and OS reports remain useful.
@@ -192,6 +223,9 @@ version(Posix) {
     }
 
     void installNativeCrashDumpHandler() {
+        copyNativeCrashDumpPath(thisExePath());
+        nativeCrashExePath = nativeCrashDumpPath;
+        nativeCrashExePathLen = nativeCrashDumpPathLen;
         mkdirCrashDumpDir();
         copyNativeCrashDumpPath(genCrashDumpPath("nijigenerate-native-crashdump"));
         installNativeCrashDumpThreadHandler();
@@ -227,8 +261,9 @@ string writeCrashDump(T...)(string filename, Throwable throwable, T state) {
 
 void crashdump(T...)(Throwable throwable, T state) {
     // Write crash dump to disk
+    string dumpPath;
     try {
-        writeCrashDump("nijigenerate-crashdump", throwable, state);
+        dumpPath = writeCrashDump("nijigenerate-crashdump", throwable, state);
     } catch (Exception ex) {
         version (Windows) {
         } else{
@@ -238,13 +273,19 @@ void crashdump(T...)(Throwable throwable, T state) {
     }
 
     // Use appropriate system method to notify user where crash dump is.
+    notifyCrashUser(dumpPath);
+}
+
+void notifyCrashUser(string dumpPath) {
     version(OSX) {
         import std.stdio;
         writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in ~/Library/Logs\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
+        ShowMessageBox(dumpPath);
     }
     else version(linux) {
         import std.stdio;
         writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in your log directory, XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/nijigenerate.nijigenerate.\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
+        ShowMessageBox(dumpPath);
     }
     else version(Windows) ShowMessageBox(
         _("The application has unexpectedly crashed\nPlease send the developers the nijigenerate-crashdump.txt which has been put on your desktop\nVia https://github.com/nijigenerate/nijigenerate/issues"),

@@ -106,6 +106,16 @@ void incLocaleInit() {
     markDups(localeFiles);
 }
 
+void incLocaleInitFromSettings() {
+    incLocaleInit();
+    if (incSettingsCanGet("lang")) {
+        string lang = incSettingsGet!string("lang");
+        auto entry = incLocaleGetEntryFor(lang);
+        if (entry !is null)
+            i18nLoadLanguage(entry.file);
+    }
+}
+
 bool compareEntries(TLEntry a, TLEntry b) {
     int cmp = icmp(a.humanName, b.humanName);
     if (cmp == 0) {
