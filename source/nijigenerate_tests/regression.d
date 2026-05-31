@@ -8807,12 +8807,24 @@ private void testCommandBrowserResourcePickerSelectionsAreInitialized() {
             "Command Browser should initialize " ~ typeName ~ "[] resource picker selection before indexed AA access");
         require(source.canFind("argValues[arg.name] = resourceSelectionIds(" ~ selectionName ~ "[arg.name]);"),
             "Command Browser should serialize selected " ~ typeName ~ "[] resources back into argument values");
-        require(source.canFind("} else if (arg.typeName == \"" ~ typeName ~ "\")") &&
-            source.canFind("renderResourcePicker!" ~ typeName ~ "(arg.name, sel, incActivePuppet())") &&
-            source.canFind("argValues[arg.name] = resourceSelectionIds(sel);"),
-            "Command Browser should use a single-resource picker for " ~ typeName ~ " arguments and serialize it");
+        static if (true) {
+            if (typeName == "Node") {
+                require(source.canFind("} else if (arg.isNodeResource)") &&
+                    source.canFind("renderResourcePicker!Node(arg.name, sel, incActivePuppet(), arg.acceptsNodeResource)") &&
+                    source.canFind("argValues[arg.name] = resourceSelectionIds(sel);"),
+                    "Command Browser should use a filtered single-resource picker for Node-derived arguments and serialize it");
+            } else {
+                require(source.canFind("} else if (arg.typeName == \"" ~ typeName ~ "\")") &&
+                    source.canFind("renderResourcePicker!" ~ typeName ~ "(arg.name, sel, incActivePuppet())") &&
+                    source.canFind("argValues[arg.name] = resourceSelectionIds(sel);"),
+                    "Command Browser should use a single-resource picker for " ~ typeName ~ " arguments and serialize it");
+            }
+        }
     }
-    foreach (resourceType; ["Node", "Parameter", "ParameterBinding", "Node[]", "Parameter[]", "ParameterBinding[]"]) {
+    require(source.canFind("} else static if (isNodeResource!T)") &&
+        source.canFind("} else static if (isNodeResourceArray!T)"),
+        "Command Browser should parse Node and all Node-derived resource argument values for command execution");
+    foreach (resourceType; ["Parameter", "ParameterBinding", "Parameter[]", "ParameterBinding[]"]) {
         require(source.canFind("} else static if (is(T == " ~ resourceType ~ "))"),
             "Command Browser should parse " ~ resourceType ~ " argument values for command execution");
     }
@@ -8823,14 +8835,17 @@ private void testCommandBrowserResourcePickerSelectionsAreInitialized() {
 private void testCommandBrowserResourceArgumentParsingResolvesLiveResources() {
     auto source = readText(regressionSourceRoot("windows/command_browser.d"));
 
-    foreach (resourceType; ["Node", "Parameter", "ParameterBinding", "Node[]", "Parameter[]", "ParameterBinding[]"]) {
+    require(source.canFind("} else static if (isNodeResource!T)") &&
+        source.canFind("} else static if (isNodeResourceArray!T)"),
+        "Command Browser should keep parseArgValue support for Node and all Node-derived resource types");
+    foreach (resourceType; ["Parameter", "ParameterBinding", "Parameter[]", "ParameterBinding[]"]) {
         require(source.canFind("} else static if (is(T == " ~ resourceType ~ "))"),
             "Command Browser should keep parseArgValue support for " ~ resourceType);
     }
 
-    require(source.canFind("auto found = p.find!(Node)(id);") &&
+    require(source.canFind("auto found = cast(T)p.find!(Node)(id);") &&
         source.canFind("auto found = p.find!(Parameter)(id);"),
-        "Command Browser should resolve Node and Parameter arguments from the active puppet by UUID");
+        "Command Browser should resolve Node-derived and Parameter arguments from the active puppet by UUID");
 
     require(source.canFind("findBindingByCommandBrowserId") &&
         source.canFind("foreach (param; puppet.parameters)") &&
@@ -8838,14 +8853,15 @@ private void testCommandBrowserResourceArgumentParsingResolvesLiveResources() {
         source.canFind("ensureCommandBrowserBindingId(binding) == id"),
         "Command Browser should resolve ParameterBinding ids through active-puppet bindings, not stale cached links");
 
-    require(source.canFind("Node[] result;") &&
+    require(source.canFind("E[] result;") &&
         source.canFind("Parameter[] result;") &&
         source.canFind("ParameterBinding[] result;"),
         "Command Browser should keep array resource parsing for all resource argument families");
 
-    require(source.canFind("is(TParam == Node) || is(TParam == Parameter) || is(TParam == ParameterBinding)") &&
-        source.canFind("is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])"),
-        "Command Browser metadata should classify scalar and array resource arguments");
+    require(source.canFind("info.isNodeResource = isNodeResource!TParam;") &&
+        source.canFind("info.isNodeResourceArray = isNodeResourceArray!TParam;") &&
+        source.canFind("info.acceptsNodeResource = (Node n) { return cast(NR)n !is null; };"),
+        "Command Browser metadata should classify and filter scalar and array Node-derived resource arguments");
 
     require(source.canFind("if (auto pv = fname in vals)") &&
         source.canFind("if (parseArgValue!TParam(*pv, v))") &&
@@ -8921,6 +8937,8 @@ private void testCommandBrowserDifferentialReportMatchesBaseline() {
     resetCase();
 
     auto root = incActivePuppet().root;
+    auto part = new Part(root);
+    part.name = "DiffPart";
     auto nodeA = new Node(root);
     nodeA.name = "DiffNodeA";
     auto nodeB = new Node(root);

@@ -221,9 +221,9 @@ NodeCommand.ReloadNode	args=	unsupported=	before=	after=
 NodeCommand.SetNodeName	args=	unsupported=newNames:string[]	before=newNames=[]	after=newNames=[]
 NodeCommand.ToggleVisibility	args=	unsupported=	before=	after=
 NodeCommand.VertexMode	args=	unsupported=	before=	after=
-NodeMaskCommand.AddMask	args=mode=MaskingMode.Mask	unsupported=maskSrc:Drawable	before=maskSrc=null;mode=Mask	after=maskSrc=null;mode=Mask
-NodeMaskCommand.ChangeMaskMode	args=mode=MaskingMode.Mask	unsupported=maskSrc:Drawable	before=maskSrc=null;mode=Mask	after=maskSrc=null;mode=Mask
-NodeMaskCommand.RemoveMask	args=	unsupported=maskSrc:Drawable	before=maskSrc=null	after=maskSrc=null
+NodeMaskCommand.AddMask	args=maskSrc=UUID;mode=MaskingMode.Mask	unsupported=	before=maskSrc=null;mode=Mask	after=maskSrc=Node:UUID;mode=Mask
+NodeMaskCommand.ChangeMaskMode	args=maskSrc=UUID;mode=MaskingMode.Mask	unsupported=	before=maskSrc=null;mode=Mask	after=maskSrc=Node:UUID;mode=Mask
+NodeMaskCommand.RemoveMask	args=maskSrc=UUID	unsupported=	before=maskSrc=null	after=maskSrc=Node:UUID
 NodeSimplePhysicsCommand.ClearSimplePhysicsParameter	args=	unsupported=	before=	after=
 NodeSimplePhysicsCommand.SetSimplePhysicsAngleDamping	args=value=1.25	unsupported=	before=value=0.5	after=value=1.25
 NodeSimplePhysicsCommand.SetSimplePhysicsFrequency	args=value=1.25	unsupported=	before=value=1	after=value=1.25
@@ -236,9 +236,9 @@ NodeSimplePhysicsCommand.SetSimplePhysicsModelType	args=modelType="pendulum"	uns
 NodeSimplePhysicsCommand.SetSimplePhysicsOutputScaleX	args=value=1.25	unsupported=	before=value=1	after=value=1.25
 NodeSimplePhysicsCommand.SetSimplePhysicsOutputScaleY	args=value=1.25	unsupported=	before=value=1	after=value=1.25
 NodeSimplePhysicsCommand.SetSimplePhysicsParameter	args=parameter=UUID	unsupported=	before=parameter=null	after=parameter=Parameter:UUID
-NodeWeldingCommand.AddWelding	args=weight=1.25	unsupported=target:Drawable	before=target=null;weight=0.5	after=target=null;weight=1.25
-NodeWeldingCommand.ChangeWeldingWeight	args=weight=1.25	unsupported=target:Drawable	before=target=null;weight=0.5	after=target=null;weight=1.25
-NodeWeldingCommand.RemoveWelding	args=	unsupported=target:Drawable	before=target=null	after=target=null
+NodeWeldingCommand.AddWelding	args=target=UUID;weight=1.25	unsupported=	before=target=null;weight=0.5	after=target=Node:UUID;weight=1.25
+NodeWeldingCommand.ChangeWeldingWeight	args=target=UUID;weight=1.25	unsupported=	before=target=null;weight=0.5	after=target=Node:UUID;weight=1.25
+NodeWeldingCommand.RemoveWelding	args=target=UUID	unsupported=	before=target=null	after=target=Node:UUID
 PaletteCommand.ListCommand	args=	unsupported=	before=	after=
 Panel.Toggle.Agent	args=	unsupported=	before=	after=
 Panel.Toggle.Animation List	args=	unsupported=	before=	after=

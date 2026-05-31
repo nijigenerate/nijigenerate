@@ -14,6 +14,7 @@ import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.project : incActivePuppet;
 import nijilive.core.puppet : Puppet;
 import nijilive.core.nodes : Node;
+import nijilive.core.nodes.drawable : Drawable;
 import nijilive.core.param : Parameter;
 import nijilive.core.param.binding : ParameterBinding;
 import inmath : vec2u;
@@ -48,6 +49,9 @@ private struct CommandArgInfo {
     bool isIntegral;
     bool isFloat;
     bool isBool;
+    bool isNodeResource;
+    bool isNodeResourceArray;
+    bool function(Node) acceptsNodeResource;
 }
 
 private struct CommandInfo {
@@ -68,6 +72,24 @@ private struct CommandInfo {
 
 private __gshared CommandInfo[] gCommandInfos;
 private __gshared CommandInfo[Command] gCommandInfosByCmd;
+
+private template isNodeResource(T) {
+    enum isNodeResource = is(T : Node);
+}
+
+private template isNodeResourceArray(T) {
+    static if (is(T == E[], E))
+        enum isNodeResourceArray = is(E : Node);
+    else
+        enum isNodeResourceArray = false;
+}
+
+private template NodeResourceElement(T) {
+    static if (is(T == E[], E))
+        alias NodeResourceElement = E;
+    else
+        alias NodeResourceElement = T;
+}
 
 // Best-effort parser for common scalar types
 private bool parseArgValue(T)(string raw, ref T outVal) {
@@ -92,13 +114,13 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
             outVal = found;
             return true;
         } catch(Exception) { return false; }
-    } else static if (is(T == Node)) {
+    } else static if (isNodeResource!T) {
         import std.conv : to;
         try {
             auto id = to!uint(raw);
             auto p = incActivePuppet();
             if (p is null) return false;
-            auto found = p.find!(Node)(id);
+            auto found = cast(T)p.find!(Node)(id);
             if (found is null) return false;
             outVal = found;
             return true;
@@ -112,16 +134,17 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
             outVal = found;
             return true;
         } catch(Exception) { return false; }
-    } else static if (is(T == Node[])) {
+    } else static if (isNodeResourceArray!T) {
         import std.algorithm : splitter;
         try {
+            alias E = NodeResourceElement!T;
             auto p = incActivePuppet();
             if (p is null) return false;
-            Node[] result;
+            E[] result;
             foreach (part; raw.splitter([','])) {
                 auto s = part.strip;
                 if (!s.length) continue;
-                auto found = p.find!(Node)(to!uint(s));
+                auto found = cast(E)p.find!(Node)(to!uint(s));
                 if (found !is null) result ~= found;
             }
             outVal = result;
@@ -263,8 +286,14 @@ private void rebuildCommandInfos() {
                                     info.isBool = is(TParam == bool);
                                     static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                                     info.hidden = hidden;
-                                    static if (is(TParam == Node) || is(TParam == Parameter) || is(TParam == ParameterBinding) ||
-                                        is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
+                                    info.isNodeResource = isNodeResource!TParam;
+                                    info.isNodeResourceArray = isNodeResourceArray!TParam;
+                                    static if (isNodeResource!TParam || isNodeResourceArray!TParam) {
+                                        alias NR = NodeResourceElement!TParam;
+                                        info.acceptsNodeResource = (Node n) { return cast(NR)n !is null; };
+                                    }
+                                    static if (isNodeResource!TParam || is(TParam == Parameter) || is(TParam == ParameterBinding) ||
+                                        isNodeResourceArray!TParam || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
                                         resourceArgs ~= fname;
                                     }
                                 } else {
@@ -380,10 +409,19 @@ private void rebuildCommandInfos() {
                             info.name = fname;
                             info.typeName = TParam.stringof;
                             info.desc = enrichArgDesc!TParam(fdesc);
+                            info.isIntegral = isIntegral!TParam;
+                            info.isFloat = isFloatingPoint!TParam;
+                            info.isBool = is(TParam == bool);
                             static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                             info.hidden = hidden;
-                            static if (is(TParam == Node) || is(TParam == Parameter) || is(TParam == ParameterBinding) ||
-                                is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
+                            info.isNodeResource = isNodeResource!TParam;
+                            info.isNodeResourceArray = isNodeResourceArray!TParam;
+                            static if (isNodeResource!TParam || isNodeResourceArray!TParam) {
+                                alias NR = NodeResourceElement!TParam;
+                                info.acceptsNodeResource = (Node n) { return cast(NR)n !is null; };
+                            }
+                            static if (isNodeResource!TParam || is(TParam == Parameter) || is(TParam == ParameterBinding) ||
+                                isNodeResourceArray!TParam || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
                                 resourceArgs ~= fname;
                             }
                         } else {
@@ -591,10 +629,10 @@ private:
                     if (igInputInt(label, &v)) {
                         argValues[arg.name] = to!string(v);
                     }
-                } else if (arg.typeName == "Node[]") {
+                } else if (arg.isNodeResourceArray) {
                     if (argNodeSelections is null || arg.name !in argNodeSelections)
                         argNodeSelections[arg.name] = [];
-                    if (renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet()))
+                    if (renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet(), arg.acceptsNodeResource))
                         argValues[arg.name] = resourceSelectionIds(argNodeSelections[arg.name]);
                 } else if (arg.typeName == "Parameter[]") {
                     if (argParamSelections is null || arg.name !in argParamSelections)
@@ -606,11 +644,11 @@ private:
                         argBindingSelections[arg.name] = [];
                     if (renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet()))
                         argValues[arg.name] = resourceSelectionIds(argBindingSelections[arg.name]);
-                } else if (arg.typeName == "Node") {
+                } else if (arg.isNodeResource) {
                     auto sel = argNodeSelections.get(arg.name, cast(Node[])null);
                     if (sel is null) sel = [];
                     if (sel.length > 1) sel = sel[0 .. 1];
-                    if (renderResourcePicker!Node(arg.name, sel, incActivePuppet())) {
+                    if (renderResourcePicker!Node(arg.name, sel, incActivePuppet(), arg.acceptsNodeResource)) {
                         if (sel.length > 1) sel = sel[0 .. 1];
                         argNodeSelections[arg.name] = sel;
                     }
@@ -1093,15 +1131,16 @@ private ParameterBinding findBindingByCommandBrowserId(uint id) {
     return null;
 }
 
-void renderNodeTree(Node n, ref Node chosen) {
+void renderNodeTree(Node n, ref Node chosen, bool function(Node) accepts = null) {
     if (n is null) return;
+    bool selectable = accepts is null || accepts(n);
     ImGuiTreeNodeFlags flags = n.children.length == 0 ? cast(ImGuiTreeNodeFlags)(ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen) : ImGuiTreeNodeFlags.None;
     flags |= ImGuiTreeNodeFlags.DefaultOpen;
     string icon = incTypeIdToIcon(n.typeId);
     if (igTreeNodeEx(toStringz(format("%s %s##node_%s", icon, n.name, n.uuid)), flags)) {
-        if (igIsItemClicked()) chosen = n;
+        if (selectable && igIsItemClicked()) chosen = n;
         if ((flags & ImGuiTreeNodeFlags.NoTreePushOnOpen) == 0) {
-            foreach (c; n.children) renderNodeTree(c, chosen);
+            foreach (c; n.children) renderNodeTree(c, chosen, accepts);
             igTreePop();
         }
     }
@@ -1168,15 +1207,16 @@ private string cbDiffJoinValues(string[] values) {
 }
 
 private string cbDiffValue(T)(T value) {
-    static if (is(T == Node)) {
+    static if (isNodeResource!T) {
         return value is null ? "null" : "Node:" ~ value.uuid.to!string;
     } else static if (is(T == Parameter)) {
         return value is null ? "null" : "Parameter:" ~ value.uuid.to!string;
     } else static if (is(T == ParameterBinding)) {
         return value is null ? "null" : "ParameterBinding:" ~ value.getName();
-    } else static if (is(T == Node[])) {
+    } else static if (isNodeResourceArray!T) {
+        alias E = NodeResourceElement!T;
         string[] values;
-        foreach (item; value) values ~= cbDiffValue!Node(item);
+        foreach (item; value) values ~= cbDiffValue!E(item);
         return cbDiffJoinValues(values);
     } else static if (is(T == Parameter[])) {
         string[] values;
@@ -1210,15 +1250,26 @@ private bool cbDiffRawValue(T)(ref string raw, Node[] nodes, Parameter[] params,
     } else static if (isFloatingPoint!T) {
         raw = "1.25";
         return true;
-    } else static if (is(T == Node)) {
-        if (nodes.length == 0) return false;
-        raw = nodes[0].uuid.to!string;
+    } else static if (isNodeResource!T) {
+        T found;
+        foreach (node; nodes) {
+            if (auto casted = cast(T)node) {
+                found = casted;
+                break;
+            }
+        }
+        if (found is null) return false;
+        raw = found.uuid.to!string;
         return true;
-    } else static if (is(T == Node[])) {
-        if (nodes.length == 0) return false;
+    } else static if (isNodeResourceArray!T) {
+        alias E = NodeResourceElement!T;
         string[] ids;
-        foreach (node; nodes[0 .. nodes.length < 2 ? nodes.length : 2])
-            ids ~= node.uuid.to!string;
+        foreach (node; nodes) {
+            if (auto casted = cast(E)node)
+                ids ~= casted.uuid.to!string;
+            if (ids.length >= 2) break;
+        }
+        if (ids.length == 0) return false;
         raw = ids.join(",");
         return true;
     } else static if (is(T == Parameter)) {
@@ -1364,7 +1415,7 @@ string ngCommandBrowserDifferentialReport() {
 }
 }
 
-bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet) {
+bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet, bool function(Node) acceptsNode = null) {
     bool changed = false;
     if (selected is null) selected = [];
     igPushID(toStringz(id));
@@ -1389,7 +1440,7 @@ bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet) {
             igPushStyleVar(ImGuiStyleVar.IndentSpacing, style.IndentSpacing * 0.25f);
             T chosen = sel;
             static if (is(T == Node)) {
-                if (puppet !is null && puppet.root !is null) renderNodeTree(puppet.root, chosen);
+                if (puppet !is null && puppet.root !is null) renderNodeTree(puppet.root, chosen, acceptsNode);
             } else static if (is(T == Parameter)) {
                 renderParameterTree(puppet, chosen);
             } else static if (is(T == ParameterBinding)) {
