@@ -189,8 +189,8 @@ int main(string[] args)
         incFinalize();
     } catch(Throwable ex) {
         debug {
+            crashdump(ex);
             version(Windows) {
-                crashdump(ex);
             } else {
                 throw ex;
             }

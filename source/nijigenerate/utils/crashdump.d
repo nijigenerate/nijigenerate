@@ -33,7 +33,7 @@ version(Posix) {
     import core.sys.posix.signal : SA_ONSTACK, SA_RESETHAND, SA_SIGINFO, SIGSEGV, SIGSTKSZ,
         sigaction, sigaction_t, sigaltstack, sigemptyset, siginfo_t, stack_t;
     import core.sys.posix.sys.types : mode_t;
-    import core.sys.posix.unistd : _exit, close, getpid, write;
+    import core.sys.posix.unistd : _exit, close, fork, getpid, write;
 
     version(OSX) {
         import core.sys.darwin.execinfo : backtrace, backtrace_symbols_fd;
@@ -72,6 +72,28 @@ version(Windows) {
 
     private void ShowMessageBox(string message, string title) {
         MessageBoxW(null, toUTF16z(message), toUTF16z(title), 0);
+    }
+}
+
+version(Posix) {
+    private void ShowMessageBox(string message, string title) {
+        import tinyfiledialogs;
+        import std.string : toStringz;
+        import std.stdio : writeln;
+        // Native dialog (Cocoa / GTK / Zenity). Do not use SDL/ImGui here; the GL
+        // frame may be broken after an exception and SDL message boxes often fail silently.
+        tinyfd_messageBox(toStringz(title), toStringz(message), "ok", "error", 1);
+        writeln(title);
+        writeln(message);
+    }
+
+    private void ShowMessageBox(string dumpPath) {
+        import std.format : format;
+        ShowMessageBox(
+            _("The application has unexpectedly crashed.\n\nIf autosave is enabled, open File → Recent → Autosaves to recover your work.\n\nA crash report was written to:\n%s\n\nPlease attach it when filing an issue:\nhttps://github.com/nijigenerate/nijigenerate/issues").format(
+                dumpPath.length ? dumpPath : getCrashDumpDir()),
+            _("nijigenerate Crashdump")
+        );
     }
 }
 
@@ -130,7 +152,7 @@ version(Posix) {
         writeAll(fd, buf[pos .. $]);
     }
 
-    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) nothrow @nogc {
+    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) {
         if (nativeCrashHandlerActive) {
             _exit(128 + sig);
         }
@@ -161,6 +183,17 @@ version(Posix) {
             writeAll(fd, "\n\nSymbolication hint:\n");
             writeAll(fd, "  atos -o <nijigenerate-binary> -arch arm64 <address>\n");
             close(fd);
+        }
+
+        // crashdump() is not reached on SIGSEGV; fork a child to notify the user.
+        auto pid = fork();
+        if (pid == 0) {
+            try {
+                string dumpPath = nativeCrashDumpPathLen > 0
+                    ? nativeCrashDumpPath[0 .. nativeCrashDumpPathLen].idup : "";
+                notifyCrashUser(dumpPath);
+            } catch (Throwable) {}
+            _exit(0);
         }
 
         // SA_RESETHAND has already restored the default handler; re-raise so
@@ -227,8 +260,9 @@ string writeCrashDump(T...)(string filename, Throwable throwable, T state) {
 
 void crashdump(T...)(Throwable throwable, T state) {
     // Write crash dump to disk
+    string dumpPath;
     try {
-        writeCrashDump("nijigenerate-crashdump", throwable, state);
+        dumpPath = writeCrashDump("nijigenerate-crashdump", throwable, state);
     } catch (Exception ex) {
         version (Windows) {
         } else{
@@ -238,13 +272,19 @@ void crashdump(T...)(Throwable throwable, T state) {
     }
 
     // Use appropriate system method to notify user where crash dump is.
+    notifyCrashUser(dumpPath);
+}
+
+void notifyCrashUser(string dumpPath) {
     version(OSX) {
         import std.stdio;
         writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in ~/Library/Logs\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
+        ShowMessageBox(dumpPath);
     }
     else version(linux) {
         import std.stdio;
         writeln(_("\n\n\n===   nijigenerate has crashed   ===\nPlease send us the nijigenerate-crashdump.txt file in your log directory, XDG_STATE_HOME. For Flatpak, this is in ~/.var/app/nijigenerate.nijigenerate.\nAttach the file as a git issue @ https://github.com/nijigenerate/nijigenerate/issues"));
+        ShowMessageBox(dumpPath);
     }
     else version(Windows) ShowMessageBox(
         _("The application has unexpectedly crashed\nPlease send the developers the nijigenerate-crashdump.txt which has been put on your desktop\nVia https://github.com/nijigenerate/nijigenerate/issues"),
