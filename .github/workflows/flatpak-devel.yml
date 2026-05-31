@@ -21,7 +21,7 @@ jobs:
   build-flatpak:
     runs-on: ubuntu-latest
     container:
-      image: bilelmoussaoui/flatpak-github-actions:freedesktop-22.08
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-23.08
       options: --privileged
 
     steps:
@@ -97,4 +97,3 @@ jobs:
         files: |
           ${{ env.FLATPAK_BUNDLE }}.flatpak
           ${{ env.FLATPAK_BUNDLE }}.debug.flatpak
-
