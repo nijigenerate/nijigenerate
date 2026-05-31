@@ -76,24 +76,16 @@ version(Windows) {
 }
 
 version(Posix) {
-    private void ShowMessageBox(string message, string title) {
+    private void ShowMessageBox(string dumpPath) {
         import tinyfiledialogs;
+        import std.format : format;
         import std.string : toStringz;
         import std.stdio : writeln;
-        // Native dialog (Cocoa / GTK / Zenity). Do not use SDL/ImGui here; the GL
-        // frame may be broken after an exception and SDL message boxes often fail silently.
-        tinyfd_messageBox(toStringz(title), toStringz(message), "ok", "error", 1);
-        writeln(title);
-        writeln(message);
-    }
+        auto title = __("nijigenerate Crashdump");
+        auto message = _("The application has unexpectedly crashed.\n\nIf autosave is enabled, open File → Recent → Autosaves to recover your work.\n\nA crash report was written to:\n%s\n\nPlease attach it when filing an issue:\nhttps://github.com/nijigenerate/nijigenerate/issues").format(
+            dumpPath.length ? dumpPath : getCrashDumpDir());
 
-    private void ShowMessageBox(string dumpPath) {
-        import std.format : format;
-        ShowMessageBox(
-            _("The application has unexpectedly crashed.\n\nIf autosave is enabled, open File → Recent → Autosaves to recover your work.\n\nA crash report was written to:\n%s\n\nPlease attach it when filing an issue:\nhttps://github.com/nijigenerate/nijigenerate/issues").format(
-                dumpPath.length ? dumpPath : getCrashDumpDir()),
-            _("nijigenerate Crashdump")
-        );
+        tinyfd_messageBox(title, message.toStringz, "ok", "error", 1);
     }
 }
 
