@@ -65,6 +65,13 @@ version(Windows) {
 
 int main(string[] args)
 {
+    if (args.length >= 3 && args[1] == "--crash-notify") {
+        incSettingsLoad();
+        incLocaleInitFromSettings();
+        notifyCrashUser(args[2]);
+        return 0;
+    }
+
     try {
         version(RegressionSmoke) {
             auto regressionSmoke = ngParseRegressionSmokeOptions(args);
@@ -82,14 +89,7 @@ int main(string[] args)
         }
         scope(exit) stopBackgroundServices();
         incSettingsLoad();
-        incLocaleInit();
-        if (incSettingsCanGet("lang")) {
-            string lang = incSettingsGet!string("lang");
-            auto entry = incLocaleGetEntryFor(lang);
-            if (entry !is null) {
-                i18nLoadLanguage(entry.file);
-            }
-        }
+        incLocaleInitFromSettings();
 
         inSetUpdateBounds(true);
 

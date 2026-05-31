@@ -6,7 +6,7 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.utils.crashdump;
-import std.file : write;
+import std.file : write, thisExePath;
 //import std.stdio;
 import std.path;
 import std.process : environment;
@@ -33,7 +33,7 @@ version(Posix) {
     import core.sys.posix.signal : SA_ONSTACK, SA_RESETHAND, SA_SIGINFO, SIGSEGV, SIGSTKSZ,
         sigaction, sigaction_t, sigaltstack, sigemptyset, siginfo_t, stack_t;
     import core.sys.posix.sys.types : mode_t;
-    import core.sys.posix.unistd : _exit, close, fork, getpid, write;
+    import core.sys.posix.unistd : _exit, close, execv, fork, getpid, write;
 
     version(OSX) {
         import core.sys.darwin.execinfo : backtrace, backtrace_symbols_fd;
@@ -111,6 +111,8 @@ version(Posix) {
     enum int nativeBacktraceMaxFrames = 128;
     __gshared char[nativeCrashPathMax] nativeCrashDumpPath;
     __gshared size_t nativeCrashDumpPathLen;
+    __gshared char[nativeCrashPathMax] nativeCrashExePath;
+    __gshared size_t nativeCrashExePathLen;
     __gshared int nativeCrashHandlerActive;
     void* nativeSignalStack;
 
@@ -173,26 +175,22 @@ version(Posix) {
         }
     }
 
-    private void notifyNativeCrashUserAfterSignal() {
-        // crashdump() is not reached on SIGSEGV; fork a child to notify the user.
-        auto pid = fork();
-        if (pid == 0) {
-            try {
-                string dumpPath = nativeCrashDumpPathLen > 0
-                    ? nativeCrashDumpPath[0 .. nativeCrashDumpPathLen].idup : "";
-                notifyCrashUser(dumpPath);
-            } catch (Throwable) {}
-            _exit(0);
-        }
+    private void notifyNativeCrashUserAfterSignal() nothrow @nogc {
+        if (nativeCrashExePathLen == 0) return;
+        if (fork() != 0) return;
+        const(char)*[4] argv = [
+            nativeCrashExePath.ptr, "--crash-notify", nativeCrashDumpPath.ptr, null,
+        ];
+        execv(nativeCrashExePath.ptr, cast(char**)argv.ptr);
+        _exit(127);
     }
 
-    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) {
+    extern(C) private void nativeCrashSignalHandler(int sig, siginfo_t* info, void* context) nothrow @nogc {
         if (nativeCrashHandlerActive) {
             _exit(128 + sig);
         }
         nativeCrashHandlerActive = 1;
 
-        // Keep the crashdump write path nogc before running the best-effort UI notifier.
         writeNativeCrashDumpFromSignal(sig);
         notifyNativeCrashUserAfterSignal();
 
@@ -225,6 +223,9 @@ version(Posix) {
     }
 
     void installNativeCrashDumpHandler() {
+        copyNativeCrashDumpPath(thisExePath());
+        nativeCrashExePath = nativeCrashDumpPath;
+        nativeCrashExePathLen = nativeCrashDumpPathLen;
         mkdirCrashDumpDir();
         copyNativeCrashDumpPath(genCrashDumpPath("nijigenerate-native-crashdump"));
         installNativeCrashDumpThreadHandler();
