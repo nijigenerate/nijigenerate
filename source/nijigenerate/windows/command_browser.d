@@ -123,6 +123,49 @@ private bool parseArgValue(T)(string raw, ref T outVal) {
             }
             return false;
         } catch(Exception) { return false; }
+    } else static if (is(T == Node[])) {
+        import std.algorithm : splitter;
+        try {
+            auto p = incActivePuppet();
+            if (p is null) return false;
+            Node[] result;
+            foreach (part; raw.splitter([','])) {
+                auto s = part.strip;
+                if (!s.length) continue;
+                auto found = p.find!(Node)(to!uint(s));
+                if (found !is null) result ~= found;
+            }
+            outVal = result;
+            return true;
+        } catch(Exception) { return false; }
+    } else static if (is(T == Parameter[])) {
+        import std.algorithm : splitter;
+        try {
+            auto p = incActivePuppet();
+            if (p is null) return false;
+            Parameter[] result;
+            foreach (part; raw.splitter([','])) {
+                auto s = part.strip;
+                if (!s.length) continue;
+                auto found = p.find!(Parameter)(to!uint(s));
+                if (found !is null) result ~= found;
+            }
+            outVal = result;
+            return true;
+        } catch(Exception) { return false; }
+    } else static if (is(T == ParameterBinding[])) {
+        import std.algorithm : splitter;
+        try {
+            ParameterBinding[] result;
+            foreach (part; raw.splitter([','])) {
+                auto s = part.strip;
+                if (!s.length) continue;
+                if (auto found = to!uint(s) in gBindingById)
+                    result ~= *found;
+            }
+            outVal = result;
+            return true;
+        } catch(Exception) { return false; }
     } else static if (isIntegral!T) {
         try { outVal = to!T(raw); return true; } catch(Exception) { return false; }
     } else static if (isFloatingPoint!T) {
@@ -202,7 +245,7 @@ private void rebuildCommandInfos() {
                                         alias TParam = Param;
                                         enum fname = "arg" ~ i.to!string;
                                     }
-                                    static if (!hidden && !is(TParam : Node) && !is(TParam : Parameter)) {
+                                    static if (!hidden) {
                                         if (auto pv = fname in vals) {
                                             TParam v;
                                             if (parseArgValue!TParam(*pv, v)) {
@@ -231,7 +274,8 @@ private void rebuildCommandInfos() {
                                     info.isBool = is(TParam == bool);
                                     static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                                     info.hidden = hidden;
-                                    static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
+                                    static if (is(TParam == Node) || is(TParam == Parameter) || is(TParam == ParameterBinding) ||
+                                        is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
                                         resourceArgs ~= fname;
                                     }
                                 } else {
@@ -293,7 +337,8 @@ private void rebuildCommandInfos() {
                                         enum fname = "arg" ~ i.to!string;
                                         enum hidden = false;
                                     }
-                                    static if (!hidden && !is(TParam : Node[]) && !is(TParam : Parameter[]) && !is(TParam : ParameterBinding[])) {
+                                    static if (!hidden && !is(TParam : Node) && !is(TParam : Parameter) && !is(TParam : ParameterBinding) &&
+                                        !is(TParam : Node[]) && !is(TParam : Parameter[]) && !is(TParam : ParameterBinding[])) {
                                         try {
                                             auto v = mixin("inst."~fname);
                                             // Truncate at first NUL for display, keep simple string conversion
@@ -324,7 +369,7 @@ private void rebuildCommandInfos() {
                                 enum fname = "arg" ~ i.to!string;
                                 enum hidden = false;
                             }
-                            static if (!hidden && !is(TParam : Node) && !is(TParam : Parameter)) {
+                            static if (!hidden) {
                                 if (auto pv = fname in vals) {
                                     TParam v;
                                     if (parseArgValue!TParam(*pv, v)) {
@@ -348,7 +393,8 @@ private void rebuildCommandInfos() {
                             info.desc = enrichArgDesc!TParam(fdesc);
                             static if (isEnum) { foreach (o; EnumMembers!TParam) info.enumValues ~= o.stringof; }
                             info.hidden = hidden;
-                            static if (is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
+                            static if (is(TParam == Node) || is(TParam == Parameter) || is(TParam == ParameterBinding) ||
+                                is(TParam == Node[]) || is(TParam == Parameter[]) || is(TParam == ParameterBinding[])) {
                                 resourceArgs ~= fname;
                             }
                         } else {
@@ -406,7 +452,8 @@ private void rebuildCommandInfos() {
                                 alias TParam = Param;
                                 enum fname = "arg" ~ i.to!string;
                             }
-                            static if (!is(TParam : Node) && !is(TParam : Parameter) && !is(TParam : ParameterBinding)) {
+                            static if (!is(TParam : Node) && !is(TParam : Parameter) && !is(TParam : ParameterBinding) &&
+                                !is(TParam : Node[]) && !is(TParam : Parameter[]) && !is(TParam : ParameterBinding[])) {
                                 try {
                                     auto v = mixin("inst."~fname);
                                     vals[fname] = trimAtNul(to!string(v));
@@ -556,11 +603,29 @@ private:
                         argValues[arg.name] = to!string(v);
                     }
                 } else if (arg.typeName == "Node[]") {
-                    renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet());
+                    if (argNodeSelections is null || arg.name !in argNodeSelections)
+                        argNodeSelections[arg.name] = [];
+                    if (renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet()))
+                        argValues[arg.name] = resourceSelectionIds(argNodeSelections[arg.name]);
                 } else if (arg.typeName == "Parameter[]") {
-                    renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet());
+                    if (argParamSelections is null || arg.name !in argParamSelections)
+                        argParamSelections[arg.name] = [];
+                    if (renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet()))
+                        argValues[arg.name] = resourceSelectionIds(argParamSelections[arg.name]);
                 } else if (arg.typeName == "ParameterBinding[]") {
-                    renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet());
+                    if (argBindingSelections is null || arg.name !in argBindingSelections)
+                        argBindingSelections[arg.name] = [];
+                    if (renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet()))
+                        argValues[arg.name] = resourceSelectionIds(argBindingSelections[arg.name]);
+                } else if (arg.typeName == "Node") {
+                    auto sel = argNodeSelections.get(arg.name, cast(Node[])null);
+                    if (sel is null) sel = [];
+                    if (sel.length > 1) sel = sel[0 .. 1];
+                    if (renderResourcePicker!Node(arg.name, sel, incActivePuppet())) {
+                        if (sel.length > 1) sel = sel[0 .. 1];
+                        argNodeSelections[arg.name] = sel;
+                    }
+                    argValues[arg.name] = resourceSelectionIds(sel);
                 } else if (arg.typeName == "Parameter") {
                     auto sel = argParamSelections.get(arg.name, cast(Parameter[])null);
                     if (sel is null) sel = [];
@@ -575,6 +640,15 @@ private:
                     } else {
                         argValues[arg.name] = "";
                     }
+                } else if (arg.typeName == "ParameterBinding") {
+                    auto sel = argBindingSelections.get(arg.name, cast(ParameterBinding[])null);
+                    if (sel is null) sel = [];
+                    if (sel.length > 1) sel = sel[0 .. 1];
+                    if (renderResourcePicker!ParameterBinding(arg.name, sel, incActivePuppet())) {
+                        if (sel.length > 1) sel = sel[0 .. 1];
+                        argBindingSelections[arg.name] = sel;
+                    }
+                    argValues[arg.name] = resourceSelectionIds(sel);
                 } else {
                     if (argValues is null || arg.name !in argValues) argValues[arg.name] = "";
                     auto key = format("arg_%s", arg.name);
@@ -1064,6 +1138,19 @@ void renderBindingTree(Puppet p, ref ParameterBinding chosen) {
 string labelFor(Node n) { return n is null ? to!string(__("- (none) -")) : n.name; }
 string labelFor(Parameter p) { return p is null ? to!string(__("- (none) -")) : p.name; }
 string labelFor(ParameterBinding b) { return b is null ? to!string(__("- (none) -")) : b.getName(); }
+
+string resourceSelectionIds(T)(T[] selected) {
+    string[] ids;
+    foreach (item; selected) {
+        if (item is null) continue;
+        static if (is(T == Node) || is(T == Parameter)) {
+            ids ~= to!string(item.uuid);
+        } else static if (is(T == ParameterBinding)) {
+            ids ~= to!string(ensureBindingId(item));
+        }
+    }
+    return ids.join(",");
+}
 
 bool renderResourcePicker(T)(string id, ref T[] selected, Puppet puppet) {
     bool changed = false;
