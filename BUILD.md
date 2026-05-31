@@ -51,14 +51,26 @@ sudo dnf -y install \
 ### macos
 ```bash
 brew update
-brew install create-dmg gettext ldc
+brew install create-dmg gettext
 
 # for mcp server
 brew install openssl@3 
+
+# LDC v1.42 has a dynamic-cast bug; use v1.41.0 instead [ldc#5079](https://github.com/ldc-developers/ldc/issues/5079)
+curl -fsS https://dlang.org/install.sh | bash -s install ldc-1.41.0
+source ~/dlang/ldc-1.41.0/activate
 ```
 For other dependencies, refer to Linux and use brew commands instead.
 
 For `x86_64` builds you need to install the `x86_64` version of brew, then install openssl@3
+
+### macOS troubleshooting
+
+For arm64-only builds, in `i2d-imgui/deps/CMakeLists.txt` set:
+```
+set(CMAKE_OSX_ARCHITECTURES "arm64")
+```
+instead of `"arm64;x86_64"`.
 
 ## Build nijilive Project
 First, we need to clone the four projects under nijigenerate and add them to `dub add-local`.
@@ -73,10 +85,13 @@ git clone https://github.com/nijigenerate/nijiexpose
 dub add-local ./nijiexpose 0.0.1
 ```
 
-dub package `i2d-imgui` will use the `Master` branch by default when building SDL2,
-but the upstream branch has been changed to `main`. We need to fix it with the following instructions.
+nijigenerate uses an older version of `i2d-imgui`; pin the same commit as CI:
 ```bash
 git clone --recurse-submodules https://github.com/Inochi2D/i2d-imgui
+cd i2d-imgui
+git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
+git submodule update --recursive
+cd ..
 dub add-local i2d-imgui 0.8.0
 ```
 
