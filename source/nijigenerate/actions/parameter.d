@@ -23,16 +23,21 @@ import std.algorithm.mutation : remove;
 class ParameterAddRemoveAction(bool added = true) : Action {
 public:
     Parameter self;
+    Puppet puppet;
     Driver[] drivers;
 //    Parameter[]* parentList;
     ExParameterGroup originalParent;
     long indexInGroup;
 
     this(Parameter self, Parameter[]* parentList) {
-        this(self);
+        this(self, incActivePuppet());
     }
     this(Parameter self) {
+        this(self, incActivePuppet());
+    }
+    this(Parameter self, Puppet puppet) {
         this.self = self;
+        this.puppet = puppet;
 //        this.parentList = parentList;
 
         auto exParam = cast(ExParameter)self;
@@ -40,7 +45,7 @@ public:
         indexInGroup = -1;
 
         // Find drivers
-        foreach(ref driver; incActivePuppet().getDrivers()) {
+        foreach(ref driver; puppet.getDrivers()) {
             if (SimplePhysics sf = cast(SimplePhysics)driver) {
                 if (sf.param !is null && sf.param.uuid == self.uuid) {
                     drivers ~= driver;
@@ -54,7 +59,7 @@ public:
                 sf.param = null;
             }
         }
-        incActivePuppet().root.notifyChange(incActivePuppet().root, NotifyReason.StructureChanged);
+        notifyParameterResourceChanged();
     }
 
     /**
@@ -69,12 +74,12 @@ public:
             indexInGroup = originalParent? originalParent.children.countUntil(exParam): -1;
         }
         if (!added) {
-            incActivePuppet().parameters ~= self;
+            puppet.parameters ~= self;
             if (exParam !is null)
                 exParam.setParent(newParent);
         } else {
 
-            incActivePuppet().removeParameter(self);
+            puppet.removeParameter(self);
         }
             
         // Re-apply drivers
@@ -83,7 +88,7 @@ public:
                 sf.param = self;
             }
         }
-        incActivePuppet().root.notifyChange(incActivePuppet().root, NotifyReason.StructureChanged);
+        notifyParameterResourceChanged();
     }
 
     /**
@@ -98,11 +103,11 @@ public:
             indexInGroup = originalParent? originalParent.children.countUntil(exParam): -1;
         }
         if (added) {
-            incActivePuppet().parameters ~= self;
+            puppet.parameters ~= self;
             if (exParam !is null)
                 exParam.setParent(newParent);
         } else {
-            incActivePuppet().removeParameter(self);
+            puppet.removeParameter(self);
         }
             
         // Empty drivers
@@ -111,7 +116,7 @@ public:
                 sf.param = null;
             }
         }
-        incActivePuppet().root.notifyChange(incActivePuppet().root, NotifyReason.StructureChanged);
+        notifyParameterResourceChanged();
     }
 
     /**
@@ -143,6 +148,12 @@ public:
     
     bool merge(Action other) { return false; }
     bool canMerge(Action other) { return false; }
+
+private:
+    void notifyParameterResourceChanged() {
+        if (puppet !is null && puppet.root !is null)
+            puppet.root.notifyChange(puppet.root, NotifyReason.StructureChanged);
+    }
 }
 
 alias ParameterAddAction = ParameterAddRemoveAction!true;

@@ -4079,6 +4079,12 @@ private void testParameterCreatePresets() {
     auto onePositiveResult = (new Add1DParameterCommand(0, 1)).run(ctx);
     require(onePositiveResult.succeeded, "Add1DParameterCommand 0..1 should succeed");
     require(resourceStructureNotified, "Add1DParameterCommand should notify resource views after creating a parameter");
+    resourceStructureNotified = false;
+    incActionUndo();
+    require(resourceStructureNotified, "undo Add1DParameterCommand should notify resource views after removing a parameter");
+    resourceStructureNotified = false;
+    incActionRedo();
+    require(resourceStructureNotified, "redo Add1DParameterCommand should notify resource views after restoring a parameter");
     auto onePositive = onePositiveResult.created[0];
     require(!onePositive.isVec2, "0..1 preset should create 1D parameter");
     require(near(onePositive.min.x, 0) && near(onePositive.max.x, 1), "0..1 preset should set range");
