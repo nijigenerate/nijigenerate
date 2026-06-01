@@ -56,6 +56,7 @@ import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
+import nijigenerate.windows.command_browser : ngCommandBrowserDifferentialReport;
 import nijigenerate.windows.paramsplit : ngSplitParameterBindings;
 import nijilive;
 import nijilive.core.nodes.deformer.grid;
@@ -75,8 +76,10 @@ import std.file : SpanMode, dirEntries, exists, isFile, mkdirRecurse, read, read
 import std.format : format;
 import std.path : buildPath, relativePath, setExtension;
 import std.json : JSONType, JSONValue;
+import std.regex : regex, replaceAll;
 import std.stdio : stderr, writeln;
-import std.string : split, splitLines, stripLeft;
+import std.string : split, splitLines, strip, stripLeft;
+import std.typecons : tuple;
 
 private struct Scenario {
     string id;
@@ -99,8 +102,18 @@ private immutable Scenario[] scenarios = [
     Scenario("coverage.command-base", "Coverage Audit", "Base command contracts, command metadata, categories, shortcut labels, and command result behavior", automated, "Covers base CommandResult payloads, Context masks, ExCommand labels/args, and command metadata reflection."),
     Scenario("coverage.full-feature-scenario-inventory", "Coverage Audit", "Every command, window, panel, inspector, mesh tool, and depth tool class has a regression scenario owner", automated, "Builds a source-derived feature inventory so newly added user-facing feature entrypoints cannot remain uncataloged."),
     Scenario("coverage.source-module-scenario-inventory", "Coverage Audit", "Every source module is assigned to a regression scenario family", automated, "Builds a module-to-scenario map for the whole source tree; this is the baseline scenario catalog before individual behavioral tests are filled in."),
+    Scenario("coverage.composite-workflow-inventory", "Coverage Audit", "Major feature families have cross-boundary regression scenarios for command, mode, history, serialization, and MCP interactions", automated, "Requires representative composite workflow owners so command-only tests cannot be mistaken for end-to-end coverage."),
+    Scenario("coverage.composite-case-matrix", "Coverage Audit", "Composite workflows execute a broad table-driven matrix instead of only hand-picked examples", automated, "Runs mode, node type, parameter, depth, physics, and AutoMesh combinations and fails when the executed matrix is too small."),
+    Scenario("mesh.composite-grid-mode-matrix", "Mesh/Vertex Editor", "DefineGrid runs across ModelEdit, AnimEdit, VertexEdit, DepthEdit and multiple grid shapes", automated, "Expands the matrix into a direct scenario for mode-specific grid/history behavior."),
+    Scenario("node.composite-type-matrix", "Node Hierarchy", "Every registered node menu type can be created, renamed, undone, and redone", automated, "Expands the matrix into a direct scenario for node type command coverage."),
+    Scenario("parameter.composite-preset-matrix", "Parameters", "1D and 2D parameter presets across ranges preserve bindings through rename undo/redo", automated, "Expands the matrix into a direct scenario for parameter preset and binding combinations."),
+    Scenario("depth.composite-operation-matrix", "Depth Edit", "Attached-point, ring, and plane depth operations are undoable after depth initialization", automated, "Expands the matrix into a direct scenario for depth operation combinations."),
+    Scenario("automesh.composite-processor-matrix-scenario", "AutoMesh", "Grid, contour, skeleton, and optimum AutoMesh processors produce valid meshes", automated, "Expands the matrix into a direct scenario for all standard AutoMesh processors."),
+    Scenario("simplephysics.composite-settings-matrix", "SimplePhysics", "SimplePhysics model, map, local, gravity, length, frequency, and damping settings undo/redo", automated, "Expands the matrix into a direct scenario for SimplePhysics setting combinations."),
 
     Scenario("project.new-open-save", "Project/File", "New, open, save, save-as, close, dirty state, and recent-file behavior", automated, "Covers headless-safe save/open command paths, file creation, dirty-state clearing, and model round-trip."),
+    Scenario("project.composite-command-roundtrip", "Project/File", "Command-created nodes, parameters, bindings, mesh/deformer state, save, reopen, and resource-visible type preservation", automated, "Covers a cross-feature command workflow persisted through native INX and reloaded through OpenFileCommand."),
+    Scenario("project.composite-image-merge-export", "Project/File", "Generated image import, merge, INP export/import, and native reopen preserve parts and parameters", automated, "Covers image-backed project creation followed by merge/export/reimport transitions."),
     Scenario("project.file-dialogs", "Project/File", "Open, save, save-as, import, merge, and export dialog command entrypoints", computerUse, "Needs UI dialog smoke with cancellable and accepted paths."),
     Scenario("project.close-dirty-prompts", "Project/File", "Close project, unsaved-change prompts, cancel, save, and discard paths", computerUse, "Needs UI prompt smoke."),
     Scenario("project.recent-files", "Project/File", "Recent-file insertion, duplicate removal, missing-file cleanup, and menu display", automated, "Covers settings-backed recent project insertion, duplicate promotion, and list length pruning."),
@@ -123,6 +136,7 @@ private immutable Scenario[] scenarios = [
     Scenario("project.texture-maintenance", "Project/File", "Premultiply texture, rebleed texture, regenerate mipmaps, and atlas maintenance commands", automated, "Covers texture maintenance commands on a generated texture-backed part and drains rebleed task queue."),
     Scenario("project.repair-maintenance", "Project/File", "Attempt repair, regenerate node IDs, fake layer names, and corrupted-project recovery commands", automated, "Covers repair command entrypoints, fake layer-path generation, and UUID regeneration on a generated puppet."),
     Scenario("io.serialization-inx", "Project/File", "Native INX save/load serialization of nodes, parameters, bindings, mesh, and metadata", automated, "Covers generated native INX round-trip for node transforms, mesh data, parameters, and value bindings."),
+    Scenario("io.composite-import-export-roundtrip", "Project/File", "Image import, native save, INP export/import, and binding reconnection in one workflow", automated, "Covers cross-format IO workflow instead of isolated codec checks."),
     Scenario("io.serialization-textures", "Project/File", "Native project texture file paths, texture slots, atlas references, and missing-texture recovery", automated, "Covers generated texture-backed INX save/load and restored Part texture slot dimensions."),
     Scenario("io.serialization-inp", "Project/File", "INP import/export serialization including external compatibility and editor-only pruning", automated, "Covered in part by project.import-inp and project.export-inp."),
     Scenario("io.save-native", "Project/File", "Native save path, backup overwrite, dirty-state reset, and format compatibility", automated, "Covers native save extension handling, overwrite, swap cleanup, project path state, dirty reset, and reload."),
@@ -148,11 +162,13 @@ private immutable Scenario[] scenarios = [
     Scenario("node.convert-reload", "Node Hierarchy", "Reload texture and convert node operations", automated, "ConvertToCommand is covered with undo/redo; reload side effects still need deeper fixture coverage."),
     Scenario("node.centralize", "Node Hierarchy", "Centralize selected node pivots and undo/redo the resulting transform changes", automated, "Covers CentralizeNodeCommand with undo/redo for parent and child local transforms."),
     Scenario("node.type-conversion", "Node Hierarchy", "Convert node type between compatible registered node classes", automated, "Covers every conversionMap pair through ConvertToCommand with undo/redo and type preservation."),
+    Scenario("node.composite-hierarchy-binding-roundtrip", "Node Hierarchy", "Create, rename, move, bind, undo/redo, save, reopen, and keep hierarchy/binding identity", automated, "Covers node hierarchy edits chained with parameter binding and persistence."),
     Scenario("node.resource-selector", "Node Hierarchy", "Selector parser, query, tree store, and resource selector integration", automated, "Covers selector query evaluation for nodes, parameters, bindings, direct children, and tree-store hierarchy."),
     Scenario("core.selector-parser", "Node Hierarchy", "Selector tokenizer, parser, query evaluation, and tree-store resource lookup", automated, "Covers selector grammar through query fixtures and Resource TreeStore construction."),
     Scenario("core.node-registry", "Node Hierarchy", "Node class registration, menu descriptors, icons, and dynamic construction", automated, "Covers menu-visible node type registration, dynamic command creation, stable command ids, and construction."),
 
     Scenario("inspectors.node-types", "Inspectors", "Puppet, Node, Part, Drawable, Composite, DynamicComposite, Camera inspectors", automated, "Covers Node, Part, Drawable, Composite, and Camera inspector command properties with undo/redo; Puppet and DynamicComposite render/UI smoke still need deeper coverage."),
+    Scenario("inspectors.composite-node-part-mesh", "Inspectors", "Node, Part, and mesh deformer inspector changes interleaved with undo/redo", automated, "Covers inspector command composition across node, drawable, and deformer targets."),
     Scenario("inspectors.puppet", "Inspectors", "Puppet metadata, canvas, texture atlas, and project-level inspector controls", automated, "Covers puppet metadata, physics globals, preserve-pixels render setting, texture slot population, and native save/load round-trip."),
     Scenario("inspectors.node", "Inspectors", "Node transform, visibility, lock, lockToRoot, pinToParent, and sort controls", automated, "Covered in part by node.transform-inspector."),
     Scenario("inspectors.part", "Inspectors", "Part texture, tint, screen tint, emission, opacity, blend, clipping, masks, and welding controls", automated, "Covered in part by part.texture, part.mask-*, and part.welding."),
@@ -166,6 +182,7 @@ private immutable Scenario[] scenarios = [
     Scenario("inspectors.commit-boundaries", "Inspectors", "Inspector text inputs, drags, toggles, color edits, and drag-drop commit undo actions once per edit", computerUse, "Needs computer-use UI commit-boundary fixture."),
 
     Scenario("part.texture", "Part Properties", "Texture load, reload, UV, opacity, tint multiply/screen, emission, blend mode", automated, "Covers Part inspector command state changes for tint, screen tint, emission, opacity, and blend mode with undo/redo; texture reload and UV still need fixture coverage."),
+    Scenario("part.composite-inspector-mesh-roundtrip", "Part Properties", "Part inspector edits, mesh topology, deformation binding, save, and reopen", automated, "Covers part property and topology edits chained with binding persistence."),
     Scenario("part.texture-reload", "Part Properties", "Reload texture from source path, texture slot update, and missing-source handling", automated, "Covers file-backed texture replacement on Part texture slots, post-load texture slot repopulation, and missing file rejection with generated PNG fixtures."),
     Scenario("part.uv-mesh-coherence", "Part Properties", "Texture UVs, mesh vertices, indices, and deformation array lengths stay coherent", automated, "Covers DefineMesh/DefineVertices keeping mesh, UV, and deformation array lengths coherent through undo/redo."),
     Scenario("part.clipping-mask", "Part Properties", "Clipping and mask threshold behavior", automated, "Covers Clip/Slice blend modes and mask threshold state changes with undo/redo; pixel render output still needs snapshot coverage."),
@@ -191,10 +208,12 @@ private immutable Scenario[] scenarios = [
     Scenario("parameter.binding-deform", "Parameters", "DeformationParameterBinding value length, interpolation, mirror, flip, and symmetrize behavior", automated, "Covers SetDeformBinding command creation, value length, undo/redo, and binding restoration."),
     Scenario("parameter.binding-trs", "Parameters", "TRS binding creation, value setting, interpolation, and target cleanup", automated, "Covers SetTRSBinding command creation, translation/scale/rotation values, and undo/redo."),
     Scenario("parameter.binding-model", "Parameters", "SetDeformBinding and SetTRSBinding model commands wire targets and undo/redo correctly", automated, "Covers model binding commands against generated Part fixtures."),
+    Scenario("parameter.mesh-binding-composite", "Parameters", "Mesh topology commands and deformation bindings remain coherent across undo/redo", automated, "Covers DefineMesh plus SetDeformBinding on the same target, with topology and binding length restored across history operations."),
     Scenario("parameter.axes-props", "Parameters", "Parameter min/max, axis breakpoint, and binding remap undo/redo", automated, "Covers ApplyParameterPropsAxesCommand with bound values."),
     Scenario("parameter.template-depth-bone", "Parameters", "DepthBone standard parameter template creation and key values", automated, "Covers standard DepthBone face/body parameter template creation, binding values, and undo/redo."),
     Scenario("parameter.controller-widget", "Parameters", "Parameter controller widget drag, snap, armed keypoint update, and view synchronization", computerUse, "Needs parameter panel input smoke."),
     Scenario("parameter.binding-cleanup", "Parameters", "Deleting parameters, nodes, and targets removes stale bindings without dangling references", automated, "Covers command-level binding removal and parameter deletion undo/redo without dangling active bindings."),
+    Scenario("parameter.composite-lifecycle-binding", "Parameters", "Create, rename, group, bind, resize axes, duplicate, delete, undo, and redo", automated, "Covers parameter lifecycle and binding migration across multiple command families."),
 
     Scenario("animation.lifecycle", "Animation", "Create, rename, delete animations and tracks", automated, "Covers animation create/update/rename/delete action paths with undo/redo and lane preservation."),
     Scenario("animation.properties", "Animation", "Animation name, length, lead-in/out, additive, weight, fps/timestep, and metadata editing", automated, "Covers animation property create/update/rename undo/redo through animation action paths."),
@@ -203,9 +222,11 @@ private immutable Scenario[] scenarios = [
     Scenario("animation.playback", "Animation", "Playback, scrubbing, loop, fps, and preview state", computerUse, "Needs UI timing smoke."),
     Scenario("animation.keyframe-copy-paste", "Animation", "Animation keyframe clipboard copy, paste, replace, and undo grouping", computerUse, "Needs computer-use timeline fixture."),
     Scenario("animation.track-binding-cleanup", "Animation", "Animation tracks survive node/parameter rename and clean up deleted targets", automated, "Covers parameter rename stability and deleted target behavior across native save/load."),
+    Scenario("animation.composite-keyframe-history", "Animation", "Animation creation, 2D keyframes, parameter rename, undo/redo order, and lane references", automated, "Covers a chained animation workflow so keyframe groups, parameter edits, and redo order stay coherent."),
 
     Scenario("api.external-control", "API/Agent", "External API, MCP task queue, command execution, and agent panel integration", automated, "Covers command result JSON, context payload overrides, resource listing, and queued main-thread dispatch; agent panel UI remains computer-use."),
     Scenario("api.acp-protocol", "API/Agent", "ACP protocol transport, echo agent, message parsing, cancellation, and error reporting", automated, "Covers ACP protocol constants, typed payload structs, and JSON-RPC error serialization; process transport remains in ACP stdio/client scenarios."),
+    Scenario("api.mcp-mode-history", "API/Agent", "MCP command execution across ModelEdit, VertexEdit, DepthEdit, and undo/redo history boundaries", automated, "Covers MCP prepare/finish boundaries with pre-existing root history, active edit scopes, and type-preserving undo/redo."),
     Scenario("api.mcp-server", "API/Agent", "MCP auth, HTTP transport, resource listing, command execution, and queued task dispatch", automated, "Covers disabled settings application, auth toggle behavior, resource listing, and queued command dispatch; live HTTP request smoke remains separate."),
     Scenario("api.mcp-auth", "API/Agent", "MCP auth token generation, validation, rejection, and settings persistence", automated, "Covers approval request data contract and auth UI source contract without blocking headless tests."),
     Scenario("api.mcp-http-transport", "API/Agent", "MCP HTTP transport request parsing, response streaming, errors, and shutdown", automated, "Covers transport construction, auth toggles, handler dispatch, close path, and registered route/source contract."),
@@ -231,6 +252,7 @@ private immutable Scenario[] scenarios = [
     Scenario("mesh.define-mesh-command", "Mesh/Vertex Editor", "Define Mesh and Define Vertices commands update mesh topology and undo/redo", automated, "Covers DefineMeshCommand and DefineVerticesCommand on drawable and deformable targets with undo/redo."),
     Scenario("mesh.operations-node", "Mesh/Vertex Editor", "Node, Drawable, and Deformable mesh editor operations update the correct targets", automated, "Covers operation-level fixtures for Node hit testing plus Drawable and Deformable target updates through applyToTarget."),
     Scenario("mesh.multi-object", "Mesh/Vertex Editor", "Edit multiple objects at once", automated, "Covers multi-target mesh editor apply grouping and one-step undo/redo."),
+    Scenario("mesh.composite-topology-scope", "Mesh/Vertex Editor", "Topology edits across Part, GridDeformer, PathDeformer, scopes, undo, and redo", automated, "Covers mixed target topology edits under scoped history boundaries."),
     Scenario("mesh.mirror-symmetry", "Mesh/Vertex Editor", "Mirror, symmetry, snap, apply, cancel", automated, "Covers mirror counterpart lookup, mirrored delta application, reset-before-apply cancellation, and undo/redo."),
     Scenario("core.math-mesh", "Mesh/Vertex Editor", "Mesh math, triangulation, vertex operations, path math, and spline helpers", automated, "Covers mesh vertex connection invariants, triangulation invariants, and path extraction fixtures."),
     Scenario("core.math-triangle", "Mesh/Vertex Editor", "Triangle predicates, triangulation invariants, winding, and degenerate geometry handling", automated, "Covers deterministic triangulation bounds, triangle index invariants, and fillPoly rasterization."),
@@ -256,6 +278,7 @@ private immutable Scenario[] scenarios = [
     Scenario("deform.meshgroup-compat", "Deformation Tools", "Legacy MeshGroup compatibility and migration behavior", automated, "Covers GridDeformer-to-MeshGroup migration copy, grid mesh reconstruction, deformation preservation, and conversion map ownership."),
     Scenario("deform.bezier-tool", "Deformation Tools", "Bezier deformation tool handles, interpolation, apply, and undo/redo", computerUse, "Needs UI input simulation."),
     Scenario("deform.onetime-scope", "Deformation Tools", "OneTimeDeform Vertex/Deform subtool scope and escape prevention", automated, "Covers common ActionStackScope guard semantics used by tool subscopes; input transition smoke remains manual."),
+    Scenario("deform.composite-grid-path-binding", "Deformation Tools", "Grid and Path deformer topology changes with parameter bindings and runtime update", automated, "Covers deformer command composition beyond a single grid tool path."),
     Scenario("deform.onetime-vertex-subtool", "Deformation Tools", "OneTimeDeform Vertex subtool with PathDeformer and GridDeformer filter creation/editing", computerUse, "Needs input simulation."),
     Scenario("deform.onetime-deform-subtool", "Deformation Tools", "OneTimeDeform Deform subtool point/grid movement and visual preview", computerUse, "Needs input simulation."),
     Scenario("deform.onetime-apply", "Deformation Tools", "OneTimeDeform Apply preserves final visual result as much as possible", computerUse, "Needs computer-use golden deformation comparison."),
@@ -276,6 +299,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depth.camera", "Depth Edit", "Depth camera projection, viewport transform, hit testing, and depth edit view state", automated, "Covers depth camera projection/unprojection math and pan/zoom/yaw/pitch/depth effects; UI viewport smoke remains in viewport.depth-mode."),
     Scenario("depth.operation-helpers", "Depth Edit", "Depth operation helpers apply, cancel, copy, resize, and interpolate depth arrays", automated, "Covers DepthMapped/DepthOperation copy, replace, resize, clone, and basic geometry helper contracts."),
     Scenario("depth.commands", "Depth Edit", "Depth map and individual depth operation commands", automated, "Covers Set/List/Clear Depths and Add/Update/Move/Remove/Clear/Apply depth-ops commands with undo/redo."),
+    Scenario("depth.composite-map-ops", "Depth Edit", "Define grid, edit depths, add operations, apply, undo, redo, and preserve vertex/depth lengths", automated, "Covers chained topology and depth-operation edits on the same target."),
 
     Scenario("depthbone.template-bones", "Depth Bone", "Standard DepthBone skeleton template creation", automated, "Covers standard skeleton creation, hierarchy, Head parent-to-target default, and Foot lock-to-root defaults."),
     Scenario("depthbone.template-parameters", "Depth Bone", "Standard DepthBone parameter template creation from param values", automated, "Covers standard DepthBone parameter and binding template command on a generated skeleton."),
@@ -289,6 +313,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.cleanup", "Depth Bone", "Deleting bones or target structures cleans stale source/binding references", automated, "Covers DeleteNodeCommand cleanup of DepthBone source references with undo/redo."),
     Scenario("depthbone.skinning", "Depth Bone", "Skinning influence, terminal bone rule, lockToRoot, and parent-to-target options", automated, "Covers a golden two-bone fixture where terminal lockToRoot prevents parent translation from moving vertices beyond the locked terminal bone."),
     Scenario("depthbone.serialization", "Depth Bone", "DepthRigRoot, DepthBone, binding, source, influence, and template serialization round-trip", automated, "Covers native INX round-trip of root, bones, constraints, bindings, source settings, and influence rule."),
+    Scenario("depthbone.composite-source-preview", "Depth Bone", "DepthBone source binding, influence settings, preview apply, undo, redo, and binding cleanup", automated, "Covers chained DepthBone source/rule/apply workflow against a GridDeformer target."),
     Scenario("depthbone.export-pruning", "Depth Bone", "INP export removes editor-only DepthRigRoot and DepthBone nodes and related bindings", automated, "Covered by project.export-inp."),
 
     Scenario("automesh.grid-processor", "AutoMesh", "Grid AutoMesh processor for Part and GridDeformer targets", automated, "Covers deterministic alpha fixtures for Part targets and cached non-Part input."),
@@ -299,6 +324,7 @@ private immutable Scenario[] scenarios = [
     Scenario("automesh.non-part-targets", "AutoMesh", "AutoMesh for GridDeformer, PathDeformer, MeshGroup, and non-Part nodes", automated, "Covers GridDeformer AutoMesh through cached alpha input without render backend dependency."),
     Scenario("automesh.schema-values", "AutoMesh", "AutoMesh schema, get values, set values, presets, active processor, and derived config", automated, "Covers reflected AutoMesh schemas, values, preset application, active processor switching, and config undo/redo."),
     Scenario("automesh.batch-undo", "AutoMesh", "Batch AutoMesh settings apply as one undo/redo operation", automated, "Covers reflectable AutoMesh config changes, derived advanced values, and single-entry undo/redo."),
+    Scenario("automesh.composite-processor-matrix", "AutoMesh", "AutoMesh processor configuration and generated mesh outputs across standard processors", automated, "Covers processor config changes plus generated mesh sanity for grid, contour, skeleton, and optimum processors in one matrix."),
     Scenario("automesh.async-shortcut", "AutoMesh", "Async AutoMesh calls and shortcut-triggered execution", computerUse, "Needs UI/async smoke."),
     Scenario("automesh.processor-common", "AutoMesh", "AutoMesh common helpers, processor registration, reflected options, and error reporting", automated, "Covers processor registry, schema/value reflection, preset application, active processor switching, and config undo/redo."),
 
@@ -307,6 +333,7 @@ private immutable Scenario[] scenarios = [
     Scenario("simplephysics.mapping", "SimplePhysics", "Model type, map mode, local-only, curve type, and parameter unmap behavior", automated, "Covers model type, map mode, local-only, parameter assignment, and parameter clear through SimplePhysics commands."),
     Scenario("simplephysics.runtime", "SimplePhysics", "Physics preview, reset, and runtime parameter output", computerUse, "Needs simulation fixture."),
     Scenario("simplephysics.serialization", "SimplePhysics", "SimplePhysics node serialization of mappings, curve type, parameter, and runtime settings", automated, "Covers native INX round-trip of parameter reference, model type, map mode, local-only, and numeric runtime settings."),
+    Scenario("simplephysics.composite-roundtrip", "SimplePhysics", "SimplePhysics parameter assignment, settings edits, undo/redo, save, reopen, and parameter reference restoration", automated, "Covers a chained SimplePhysics command workflow persisted through native INX."),
 
     Scenario("viewport.navigation", "Viewport/UI", "Zoom, pan, focus, reset, fit model, reset position, reset zoom, mirror, and background controls", computerUse, "Needs UI smoke."),
     Scenario("viewport.model-mode", "Viewport/UI", "Model viewport layout/deform mode switching and selected editor delegation", computerUse, "Needs UI smoke."),
@@ -318,16 +345,19 @@ private immutable Scenario[] scenarios = [
     Scenario("viewport.panels", "Viewport/UI", "Panel show/hide, docking layout, tree panel, parameter panel, inspector panel", computerUse, "Needs UI smoke."),
     Scenario("viewport.main-menu-toolbar-status", "Viewport/UI", "Main menu, toolbar, status bar, and viewport bottom controls", computerUse, "Needs UI smoke."),
     Scenario("viewport.action-history", "Viewport/UI", "Action history panel undo/redo index and clear behavior", automated, "Covers ActionStack index traversal, saved-state tracking, and clear behavior behind the history panel."),
+    Scenario("viewport.settings-command-composite", "Viewport/UI", "Shortcut settings and flip-pair viewport commands remain independent across undo/redo", automated, "Covers settings-backed shortcut persistence interleaved with viewport flip-pair commands and history operations."),
 
     Scenario("render.backend-gl-sdl", "Rendering", "OpenGL and SDL backend initialization, resize, frame lifecycle, and shutdown", computerUse, "Needs computer-use app/backend smoke."),
     Scenario("render.atlas-packer", "Rendering", "Atlas packing, texture upload, texture slot population, and atlas invalidation", automated, "Covers packer allocation/reuse plus Puppet texture slot population, dedupe, replacement, and invalidation; GL upload smoke remains in render.backend-gl-sdl."),
     Scenario("render.blend-modes", "Rendering", "Normal, clip, slice, masks, advanced blend modes, opacity, tint, screen tint, and emission", computerUse, "Needs computer-use render snapshot fixtures."),
     Scenario("render.postprocess", "Rendering", "Postprocess toggle, difference aggregation, onion/slice, and live screenshot rendering", computerUse, "Needs computer-use render snapshot fixtures."),
     Scenario("render.camera", "Rendering", "Camera projection, viewport crop, and camera-driven export", automated, "Covers camera node projection plus PNG/TGA export command paths and output dimensions; JPEG and pixel golden coverage remain in project.export-jpeg/render.blend-modes/postprocess."),
+    Scenario("render.composite-camera-texture-export", "Rendering", "Texture-backed part, camera export, texture slot rebuild, and native save/reopen", automated, "Covers render-adjacent asset lifecycle composed with camera export."),
     Scenario("render.onion-slice", "Rendering", "Onion skin, slice visualization, and model viewport postprocess flags", computerUse, "Needs computer-use render snapshot fixture."),
     Scenario("render.texture-lifecycle", "Rendering", "Texture upload, reload, disposal, atlas slot reuse, and missing texture fallbacks", automated, "Covers headless texture replacement, slot rebuild, missing-source rejection, and explicit disposal; backend upload smoke remains in render.backend-gl-sdl."),
 
     Scenario("settings.shortcuts", "Settings/Shortcuts", "Shortcut create, update, clear, conflict, save/load", automated, "Covers command registry shortcut conflict handling and settings-backed save/load."),
+    Scenario("settings.composite-shortcuts-recent", "Settings/Shortcuts", "Shortcut conflict, save/load, recent files, and project open state remain independent", automated, "Covers settings interactions chained with project-level state."),
     Scenario("settings.default-shortcuts", "Settings/Shortcuts", "Default shortcut registration, command metadata, and reset-to-default behavior", automated, "Covers default shortcut registration against command instances."),
     Scenario("settings.ui", "Settings/Shortcuts", "Language, UI scale, theme, file handling, autosave, viewport settings", automated, "Covers typed settings store for UI/file/viewport settings; visual application still needs UI smoke."),
     Scenario("settings.window", "Settings/Shortcuts", "Settings window tabs, editing, validation, persistence, and cancel/apply behavior", computerUse, "Needs UI smoke."),
@@ -345,6 +375,7 @@ private immutable Scenario[] scenarios = [
     Scenario("panels.action-history", "Panels", "Action history panel displays groups, undo/redo cursor, saved state, and clear behavior", automated, "Covered by viewport.action-history."),
 
     Scenario("tools.command-browser", "Tools/Windows", "Command browser search, execution, shortcut display", computerUse, "Needs UI smoke."),
+    Scenario("tools.command-browser-resource-pickers", "Tools/Windows", "Command browser resource-array arguments initialize picker selections before drawing", automated, "Covers #173-style Node[]/Parameter[]/ParameterBinding[] picker AA initialization before render."),
     Scenario("tools.shell", "Tools/Windows", "Shell panel execution and output behavior", computerUse, "Needs UI smoke."),
     Scenario("tools.texture-viewer", "Tools/Windows", "Texture viewer and texture operations", computerUse, "Needs UI smoke."),
     Scenario("tools.export-dialogs", "Tools/Windows", "Image, video, INP, and merge/export dialog workflows", computerUse, "Needs UI smoke."),
@@ -392,7 +423,116 @@ private immutable Scenario[] scenarios = [
     Scenario("undo.direct-mutation-audit", "Undo/Redo", "Model, parameter, deformer, mesh, and inspector mutations go through actions", automated, "Covers a source-level guard for direct model/parameter/deformation writes in command, panel, window, and viewport layers; targeted fixtures remain in related scenarios."),
     Scenario("undo.scope-guards", "Undo/Redo", "Mode, editor, subtool, and nested scopes close automatically at defined guard boundaries", automated, "Covered by mesh/depth/onetime scope guard fixtures."),
     Scenario("undo.action-merge", "Undo/Redo", "Text edit and drag actions merge within one edit session and split across sessions", automated, "Covers core action-stack merge semantics for same-target edits, non-merge splits, undo truncation, and redo of merged final values; UI commit boundaries remain in undo.ui-commit-boundaries."),
+    Scenario("undo.composite-workflows", "Undo/Redo", "Composite command workflows do not consume unrelated root history or corrupt node types across modes", automated, "Covers MCP-like mode/history sequences with root actions present, edit scopes active, and resource-visible type invariants after undo/redo."),
+    Scenario("undo.composite-cross-family-stack", "Undo/Redo", "Node, parameter, mesh, inspector, and binding commands undo/redo in exact stack order", automated, "Covers a deliberately mixed command stack across major mutable domains."),
 ];
+
+private string scenarioSlug(string value) {
+    string result;
+    bool lastDash;
+    foreach (dchar ch; value) {
+        char outc;
+        if (ch >= 'A' && ch <= 'Z')
+            outc = cast(char)(ch + ('a' - 'A'));
+        else if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))
+            outc = cast(char)ch;
+        else
+            outc = '-';
+        if (outc == '-') {
+            if (!lastDash && result.length)
+                result ~= outc;
+            lastDash = true;
+        } else {
+            result ~= outc;
+            lastDash = false;
+        }
+    }
+    if (result.length && result[$ - 1] == '-')
+        result.length = result.length - 1;
+    return result.length ? result : "case";
+}
+
+private Scenario[] generatedCompositeCaseScenarios() {
+    Scenario[] result;
+
+    foreach (mode; ["Model Edit", "Anim Edit", "Vertex Edit", "Depth Edit"]) {
+        foreach (shape; ["2x2 cells", "3x2 cells", "4x4 cells", "wide face", "5x5 cells", "tall body"]) {
+            result ~= Scenario(
+                "mesh.composite-grid-mode-matrix." ~ scenarioSlug(mode) ~ "." ~ scenarioSlug(shape),
+                "Mesh/Vertex Editor",
+                "DefineGrid " ~ mode ~ " " ~ shape,
+                automated,
+                "Generated case-level scenario for DefineGrid mode/grid matrix."
+            );
+        }
+    }
+
+    foreach (className; regressionNodeMenuTypes) {
+        result ~= Scenario(
+            "node.composite-type-matrix." ~ scenarioSlug(className),
+            "Node Hierarchy",
+            "Create/rename/undo/redo " ~ className,
+            automated,
+            "Generated case-level scenario for registered node type command coverage."
+        );
+    }
+
+    foreach (dim; ["1d", "2d"]) {
+        foreach (range; ["0-1", "minus-1-1", "minus-2-2", "0-2", "minus-5-5"]) {
+            result ~= Scenario(
+                "parameter.composite-preset-matrix." ~ dim ~ "." ~ range,
+                "Parameters",
+                "Parameter preset " ~ dim ~ " " ~ range,
+                automated,
+                "Generated case-level scenario for parameter preset and binding matrix."
+            );
+        }
+    }
+
+    foreach (opType; ["attached-point", "ring", "plane"]) {
+        result ~= Scenario(
+            "depth.composite-operation-matrix." ~ opType,
+            "Depth Edit",
+            "Depth operation " ~ opType,
+            automated,
+            "Generated case-level scenario for depth operation undo/redo matrix."
+        );
+    }
+
+    foreach (processorId; ["grid", "contour", "skeleton", "optimum"]) {
+        result ~= Scenario(
+            "automesh.composite-processor-matrix-scenario." ~ processorId,
+            "AutoMesh",
+            "AutoMesh processor " ~ processorId,
+            automated,
+            "Generated case-level scenario for AutoMesh processor matrix."
+        );
+    }
+
+    foreach (setting; [
+        "gravity-0-5", "gravity-2-0", "gravity-4-0",
+        "length-50", "length-125", "length-300",
+        "frequency-0-25", "frequency-1-5", "frequency-5-0",
+        "angle-damping-0-1", "angle-damping-0-5", "angle-damping-0-9",
+        "length-damping-0-1", "length-damping-0-5", "length-damping-0-9",
+    ]) {
+        result ~= Scenario(
+            "simplephysics.composite-settings-matrix." ~ setting,
+            "SimplePhysics",
+            "SimplePhysics setting " ~ setting,
+            automated,
+            "Generated case-level scenario for SimplePhysics setting matrix."
+        );
+    }
+
+    return result;
+}
+
+private Scenario[] allScenarios() {
+    auto result = scenarios.dup;
+    result ~= generatedCompositeCaseScenarios();
+    return result;
+}
 
 @ShortcutHidden @McpHidden @GuiDialog @EffectConfigEdit
 private class RegressionMetaCommand : ExCommand!() {
@@ -409,6 +549,11 @@ private class RegressionArgCommand : ExCommand!(TW!(string, "name", "Name"), int
 }
 
 private void runCase(string name, void function() test) {
+    stderr.writeln("running ", name);
+    test();
+}
+
+private void runCase(string name, scope void delegate() test) {
     stderr.writeln("running ", name);
     test();
 }
@@ -1523,6 +1668,63 @@ private void testProjectINXSerializationRoundTrip() {
     auto importedBinding = cast(ValueParameterBinding)importedParam.bindings[0];
     require(importedBinding !is null, "INX round-trip should preserve ValueParameterBinding type");
     require(near(importedBinding.getValue(vec2u(1, 0)), 18.0f), "INX round-trip should restore binding key value");
+}
+
+private void testProjectCompositeCommandRoundTrip() {
+    resetCase();
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-composite-roundtrip");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+
+    auto saveBase = buildPath(fixtureDir, "composite");
+    auto savePath = saveBase ~ ".inx";
+
+    auto node = new Node(incActivePuppet().root);
+    node.name = "Composite Grid";
+    auto nodeCtx = new Context();
+    nodeCtx.nodes = [node];
+    auto convertResult = (new ConvertToCommand("GridDeformer")).run(nodeCtx);
+    require(convertResult.succeeded && convertResult.created.length == 1, "composite round-trip should convert node to GridDeformer");
+    auto grid = cast(GridDeformer)convertResult.created[0];
+    require(grid !is null, "composite round-trip converted target should be GridDeformer");
+
+    auto gridCtx = new Context();
+    gridCtx.nodes = [cast(Node)grid];
+    float[] axisX = [-64f, 0f, 64f];
+    float[] axisY = [-32f, 0f, 32f];
+    require((new DefineGridCommand(axisX, axisY)).run(gridCtx).succeeded, "composite round-trip should define GridDeformer topology");
+
+    auto param = new2DParameter("Composite Param");
+    auto bindCtx = new Context();
+    bindCtx.puppet = incActivePuppet();
+    bindCtx.parameters = [param];
+    bindCtx.nodes = [cast(Node)grid];
+    bindCtx.keyPoint = vec2u(2, 2);
+    bindCtx.hasExplicitKeyPoint = true;
+    require((new SetTRSBindingCommand([11.0f, -7.0f], [1.5f, 0.75f], 15.0f, true)).run(bindCtx).succeeded,
+        "composite round-trip should create TRS bindings on converted GridDeformer");
+
+    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded, "composite round-trip should save native INX");
+    incNewProject();
+    require(findNodeRecursive(incActivePuppet().root, "Composite Grid") is null, "new project should clear composite fixture");
+    require((new OpenFileCommand(savePath)).run(new Context()).succeeded, "composite round-trip should reopen native INX");
+
+    auto loadedGrid = cast(GridDeformer)findNodeRecursive(incActivePuppet().root, "Composite Grid");
+    require(loadedGrid !is null, "composite round-trip should preserve GridDeformer type after reload");
+    require(loadedGrid.vertices.length == 9, "composite round-trip should preserve GridDeformer topology");
+    require(loadedGrid.vertices == gridVerticesFromAxes(axisX, axisY), "composite round-trip should preserve GridDeformer vertices");
+    auto loadedParam = findParameter(incActivePuppet(), "Composite Param");
+    require(loadedParam !is null, "composite round-trip should preserve parameter");
+    auto tx = cast(ValueParameterBinding)loadedParam.getBinding(loadedGrid, "transform.t.x");
+    auto rz = cast(ValueParameterBinding)loadedParam.getBinding(loadedGrid, "transform.r.z");
+    require(tx !is null && near(tx.getValue(vec2u(2, 2)), 11.0f), "composite round-trip should reconnect TRS binding target");
+    require(rz !is null, "composite round-trip should preserve rotation binding");
 }
 
 private void testProjectAutosaveRecoveryRecords() {
@@ -2771,6 +2973,994 @@ private void testSimplePhysicsSerializationRoundTrip() {
     require(near(loaded.outputScale.x, 1.25f) && near(loaded.outputScale.y, 1.75f), "SimplePhysics output scale should round-trip");
 }
 
+private void testAnimationCompositeKeyframeHistory() {
+    resetCase();
+
+    Animation animation;
+    animation.length = 48;
+    require(ngAnimationCreateOrUpdate("composite", animation), "composite animation should be created");
+    incSetEditMode(EditMode.AnimEdit, false);
+    incAnimationChange("composite");
+
+    auto param = new2DParameter("AnimCompositeParam");
+    param.value = vec2(0.25f, -0.5f);
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.parameters = [param];
+
+    incActionClearHistory();
+    require((new AddAnimationKeyFrameCommand()).run(ctx).succeeded, "composite animation should add grouped 2D keyframes");
+    require(incAnimationGet().animation.lanes.length == 2, "composite animation should create X/Y lanes");
+    require(incActionHistory().length == 1, "composite 2D keyframe should be one undo entry");
+
+    require((new SetParameterNameCommand("AnimCompositeRenamed")).run(ctx).succeeded, "composite animation should rename keyframed parameter");
+    require(incAnimationGet().animation.lanes[0].paramRef.targetParam is param, "animation lane should keep parameter reference after rename");
+    require(incAnimationGet().animation.lanes[0].paramRef.targetParam.name == "AnimCompositeRenamed", "animation lane should expose renamed parameter");
+
+    incActionUndo();
+    require(param.name == "AnimCompositeParam", "undo rename should restore parameter name without removing keyframes");
+    require(incAnimationGet().animation.lanes.length == 2, "undo rename should keep grouped keyframes");
+
+    incActionUndo();
+    require(incAnimationGet().animation.lanes.length == 0, "undo keyframe group should remove both 2D lanes");
+
+    incActionRedo();
+    require(incAnimationGet().animation.lanes.length == 2, "redo keyframe group should restore both 2D lanes");
+    incActionRedo();
+    require(param.name == "AnimCompositeRenamed", "redo rename should restore renamed parameter after keyframes are redone");
+    require(incAnimationGet().animation.lanes[0].paramRef.targetParam is param, "redo chain should preserve lane target identity");
+}
+
+private void testDepthCompositeMapOpsWorkflow() {
+    resetCase();
+
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "depth-composite-grid";
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+
+    float[] axisX = [-20f, 0f, 20f];
+    float[] axisY = [-10f, 0f, 10f];
+    require((new DefineGridCommand(axisX, axisY)).run(ctx).succeeded, "depth composite should define a 3x3 grid first");
+    require(grid.vertices.length == 9, "depth composite grid should have nine vertices");
+
+    float[] depths = [0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f];
+    require(cmd!(DepthMapCommand.SetDepths)(ctx, grid, depths).succeeded, "depth composite should set depths matching topology");
+    require(grid.copyDepths().length == grid.vertices.length, "depth composite depths should match vertex count");
+
+    JSONValue[string] attachedFields;
+    attachedFields["index"] = JSONValue(4);
+    attachedFields["amount"] = JSONValue(0.75);
+    require(cmd!(DepthMapCommand.AddDepthOp)(ctx, grid, depthCommandOp("attached-point", attachedFields), -1).succeeded,
+        "depth composite should add an attached-point operation");
+
+    JSONValue[string] planeFields;
+    planeFields["p0"] = jsonVec2Value(-20, -10);
+    planeFields["p1"] = jsonVec2Value(20, -10);
+    planeFields["p2"] = jsonVec2Value(0, 10);
+    planeFields["z0"] = JSONValue(0.0);
+    planeFields["z1"] = JSONValue(0.5);
+    planeFields["z2"] = JSONValue(-0.25);
+    require(cmd!(DepthMapCommand.AddDepthOp)(ctx, grid, depthCommandOp("plane", planeFields), -1).succeeded,
+        "depth composite should add a plane operation");
+    require(grid.copyDepthOps().length == 2, "depth composite should keep both operations");
+
+    auto beforeApply = grid.copyDepths().dup;
+    require(cmd!(DepthMapCommand.ApplyDepthOps)(ctx, grid).succeeded, "depth composite should apply operations to depths");
+    require(grid.copyDepths().length == grid.vertices.length, "applied depths should still match vertex count");
+    require(grid.copyDepths() != beforeApply, "depth composite apply should change depth values");
+
+    incActionUndo();
+    require(grid.copyDepths() == beforeApply, "undo apply should restore previous depth values while keeping topology");
+    require(grid.vertices.length == 9, "undo apply should not undo the grid topology");
+    incActionRedo();
+    require(grid.copyDepths().length == grid.vertices.length && grid.copyDepths() != beforeApply,
+        "redo apply should restore baked depths with coherent length");
+}
+
+private void testDepthBoneCompositeSourcePreviewWorkflow() {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "depthbone-composite-root";
+    auto target = new GridDeformer(incActivePuppet().root);
+    target.name = "depthbone-composite-target";
+    auto bone = new ExDepthBone(root);
+    bone.name = "depthbone-composite-bone";
+    bone.boneId = "CompositeBone";
+    incActivePuppet().rescanNodes();
+
+    auto param = new ExParameter("DepthBoneCompositeParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto tx = newValueBinding(param, bone, "transform.t.x");
+    tx.setValue(vec2u(1, 0), 6.0f);
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.armedParameters = [param];
+
+    require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded, "depthbone composite should add source");
+    require(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
+        ctx,
+        root,
+        target,
+        `{"maxInfluences":1,"radiusScale":1.0,"minimumRadius":1.0,"falloff":"constant"}`
+    ).succeeded, "depthbone composite should set influence rule");
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx,
+        root,
+        target,
+        bone,
+        `{"weight":1.0,"depthOffset":0.5,"depthScale":1.25}`
+    ).succeeded, "depthbone composite should set source settings");
+
+    require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
+        "depthbone composite should preview posed deform");
+    foreach (offset; target.deformation)
+        require(near(offset.x, 6.0f), "depthbone preview should apply keyed bone translation");
+
+    incActionClearHistory();
+    require(cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
+        "depthbone composite should apply preview to binding");
+    auto deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+    require(deformBinding !is null, "depthbone composite apply should create deform binding");
+    require(deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
+        "depthbone composite binding should match target topology");
+
+    incActionUndo();
+    require(param.getBinding(target, "deform") is null, "undo depthbone composite apply should remove created binding");
+    incActionRedo();
+    deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+    require(deformBinding !is null && deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
+        "redo depthbone composite apply should restore coherent binding");
+}
+
+private void testAutoMeshCompositeProcessorMatrix() {
+    resetCase();
+
+    auto processor = findAutoMeshProcessor("grid");
+    require(processor !is null, "AutoMesh composite grid processor should exist");
+    auto reflect = cast(IAutoMeshReflect)processor;
+    require(reflect !is null, "AutoMesh composite grid processor should be reflectable");
+    auto oldSimple = reflect.values("Simple");
+
+    require((new AutoMeshSetValuesCommand("grid", "Simple", `{"x_segments":3,"y_segments":2,"margin":0}`)).run(new Context()).succeeded,
+        "AutoMesh composite should edit grid config through command");
+    require(reflect.values("Simple") != oldSimple, "AutoMesh composite config should change");
+    incActionUndo();
+    require(jsonEquivalent(reflect.values("Simple"), oldSimple), "AutoMesh composite undo should restore grid config");
+    incActionRedo();
+
+    auto gridMesh = runAutoMeshOnAlphaPart("grid");
+    requireAutoMeshOutput("grid-composite", gridMesh, 12);
+    require(gridMesh.axes.length == 2 && gridMesh.axes[0].length >= 3 && gridMesh.axes[1].length >= 3,
+        "AutoMesh composite grid output should expose coherent grid axes");
+
+    foreach (id; ["contour", "skeleton", "optimum"]) {
+        auto mesh = runAutoMeshOnAlphaPart(id);
+        requireAutoMeshOutput("composite-" ~ id, mesh, id == "skeleton" ? 2 : 3);
+    }
+}
+
+private void testSimplePhysicsCompositeRoundTripWorkflow() {
+    resetCase();
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-simplephysics-composite");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+
+    auto physics = new SimplePhysics(incActivePuppet().root);
+    physics.name = "simplephysics-composite";
+    auto param = new Parameter("SimplePhysicsCompositeParam", false);
+    incActivePuppet().parameters ~= param;
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)physics];
+
+    require((new SetSimplePhysicsParameterCommand(param)).run(ctx).succeeded, "simplephysics composite should assign parameter");
+    require((new SetSimplePhysicsModelTypeCommand(PhysicsModel.SpringPendulum)).run(ctx).succeeded, "simplephysics composite should set model type");
+    require((new SetSimplePhysicsMapModeCommand(ParamMapMode.XY)).run(ctx).succeeded, "simplephysics composite should set map mode");
+    require((new SetSimplePhysicsLocalOnlyCommand(true)).run(ctx).succeeded, "simplephysics composite should set localOnly");
+    require((new SetSimplePhysicsGravityCommand(2.5f)).run(ctx).succeeded, "simplephysics composite should set gravity");
+    incActionUndo();
+    require(near(physics.gravity, 1.0f), "simplephysics composite undo should restore previous gravity without undoing earlier settings");
+    incActionRedo();
+    require(near(physics.gravity, 2.5f), "simplephysics composite redo should restore gravity");
+
+    auto saveBase = buildPath(fixtureDir, "simplephysics-composite");
+    auto savePath = saveBase ~ ".inx";
+    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded, "simplephysics composite should save");
+    incNewProject();
+    require((new OpenFileCommand(savePath)).run(new Context()).succeeded, "simplephysics composite should reopen");
+    auto loaded = cast(SimplePhysics)findNodeRecursive(incActivePuppet().root, "simplephysics-composite");
+    require(loaded !is null, "simplephysics composite should preserve node type");
+    require(loaded.param !is null && loaded.param.name == "SimplePhysicsCompositeParam", "simplephysics composite should reconnect parameter");
+    require(loaded.modelType == PhysicsModel.SpringPendulum && loaded.mapMode == ParamMapMode.XY && loaded.localOnly,
+        "simplephysics composite should preserve command-edited modes");
+    require(near(loaded.gravity, 2.5f), "simplephysics composite should preserve redone gravity");
+}
+
+private void testViewportSettingsCommandCompositeWorkflow() {
+    resetCase();
+    clearAllShortcuts();
+
+    auto addNodeCommand = nijigenerate.commands.node.node.commands[NodeCommand.AddNode];
+    require(addNodeCommand !is null, "viewport/settings composite requires AddNode command");
+    ngRegisterShortcut("Ctrl+Alt+Shift+N", addNodeCommand);
+    ngSaveShortcutsToSettings();
+
+    auto puppet = incActivePuppet();
+    auto left = new Node(puppet.root);
+    auto right = new Node(puppet.root);
+    left.name = "CompositeHand.L";
+    right.name = "CompositeHand.R";
+    auto ctx = new Context();
+    ctx.puppet = puppet;
+
+    auto add = new AddFlipPairCommand();
+    add.left = left;
+    add.right = right;
+    require(add.run(ctx).succeeded, "viewport/settings composite should add flip pair");
+    require((new ListFlipPairsCommand()).run(ctx).result.toString().canFind(left.uuid.to!string),
+        "viewport/settings composite should list added flip pair");
+
+    incActionUndo();
+    require(!(new ListFlipPairsCommand()).run(ctx).result.toString().canFind(left.uuid.to!string),
+        "undo viewport/settings composite should remove flip pair");
+    require(ngShortcutFor(addNodeCommand) == "Ctrl+Alt+Shift+N",
+        "undo viewport command should not disturb persisted shortcut setting");
+
+    incActionRedo();
+    require((new ListFlipPairsCommand()).run(ctx).result.toString().canFind(left.uuid.to!string),
+        "redo viewport/settings composite should restore flip pair");
+    clearAllShortcuts();
+    ngLoadShortcutsFromSettings();
+    require(ngShortcutFor(addNodeCommand) == "Ctrl+Alt+Shift+N",
+        "viewport/settings composite should reload shortcut after viewport history operations");
+    clearAllShortcuts();
+}
+
+private void testNodeCompositeHierarchyBindingRoundTrip() {
+    resetCase();
+
+    auto parentA = new Node(incActivePuppet().root);
+    auto parentB = new Node(incActivePuppet().root);
+    auto child = new Node(parentA);
+    parentA.name = "CompositeParentA";
+    parentB.name = "CompositeParentB";
+    child.name = "CompositeChild";
+
+    auto param = new2DParameter("NodeCompositeParam");
+    auto binding = newValueBinding(param, child, "transform.t.x");
+    binding.setValue(vec2u(2, 2), 33.0f);
+
+    auto ctx = new Context();
+    ctx.nodes = [child];
+    require((new SetNodeNameCommand(["CompositeChildRenamed"])).run(ctx).succeeded,
+        "node composite should rename child");
+    require((new MoveNodeCommand(parentB, 0)).run(ctx).succeeded,
+        "node composite should move child to second parent");
+    require(child.parent is parentB, "node composite move should apply");
+
+    incActionUndo();
+    require(child.parent is parentA, "node composite undo should restore original parent without undoing rename");
+    require(child.name == "CompositeChildRenamed", "node composite undo move should preserve previous rename");
+    incActionRedo();
+    require(child.parent is parentB, "node composite redo should restore moved parent");
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-node-composite");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+    auto saveBase = buildPath(fixtureDir, "node-composite");
+    auto savePath = saveBase ~ ".inx";
+    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded, "node composite should save");
+    incNewProject();
+    require((new OpenFileCommand(savePath)).run(new Context()).succeeded, "node composite should reopen");
+
+    auto loadedParentB = findNodeRecursive(incActivePuppet().root, "CompositeParentB");
+    auto loadedChild = findNodeRecursive(incActivePuppet().root, "CompositeChildRenamed");
+    require(loadedParentB !is null && loadedChild !is null && loadedChild.parent is loadedParentB,
+        "node composite should preserve moved hierarchy after reload");
+    auto loadedParam = findParameter(incActivePuppet(), "NodeCompositeParam");
+    auto loadedBinding = cast(ValueParameterBinding)loadedParam.getBinding(loadedChild, "transform.t.x");
+    require(loadedBinding !is null && near(loadedBinding.getValue(vec2u(2, 2)), 33.0f),
+        "node composite should reconnect binding to renamed moved child");
+}
+
+private void testPartCompositeInspectorMeshRoundTrip() {
+    resetCase();
+
+    auto part = newMeshPart("part-composite-target");
+    auto inspector = new NIPart([part], ModelEditSubMode.Layout);
+    auto ctx = new Context();
+    ctx.nodes = [part];
+    ctx.inspectors = [inspector];
+    require((new ApplyInspectorPropCommand!(NIPart, "tint")(vec3(0.2f, 0.4f, 0.6f))).run(ctx).succeeded,
+        "part composite should apply tint");
+    require((new ApplyInspectorPropCommand!(NIPart, "opacity")(0.55f)).run(ctx).succeeded,
+        "part composite should apply opacity");
+
+    require((new DefineMeshCommand(
+        [
+            -10f, -10f,
+            10f, -10f,
+            10f, 10f,
+            -10f, 10f,
+        ],
+        cast(ushort[])[0, 1, 2, 0, 2, 3]
+    )).run(ctx).succeeded, "part composite should replace mesh topology");
+
+    auto param = new2DParameter("PartCompositeParam");
+    auto bindCtx = new Context();
+    bindCtx.puppet = incActivePuppet();
+    bindCtx.parameters = [param];
+    bindCtx.nodes = [cast(Node)part];
+    bindCtx.keyPoint = vec2u(2, 2);
+    bindCtx.hasExplicitKeyPoint = true;
+    require((new SetDeformBindingCommand("deform", [
+        1.0f, 0.0f,
+        2.0f, 0.0f,
+        3.0f, 0.0f,
+        4.0f, 0.0f,
+    ])).run(bindCtx).succeeded, "part composite should bind deformation after mesh change");
+
+    incActionUndo();
+    require(param.getBinding(part, "deform") is null, "part composite undo binding should keep prior mesh/property edits");
+    require(part.getMesh().vertices.length == 4 && near(part.opacity, 0.55f), "part composite undo binding should preserve previous commands");
+    incActionRedo();
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-part-composite");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+    auto saveBase = buildPath(fixtureDir, "part-composite");
+    auto savePath = saveBase ~ ".inx";
+    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded, "part composite should save");
+    incNewProject();
+    require((new OpenFileCommand(savePath)).run(new Context()).succeeded, "part composite should reopen");
+
+    auto loaded = cast(Part)findNodeRecursive(incActivePuppet().root, "part-composite-target");
+    require(loaded !is null && loaded.getMesh().vertices.length > 0, "part composite should preserve mesh target");
+    require(nearVec3(loaded.tint, vec3(0.2f, 0.4f, 0.6f)) && near(loaded.opacity, 0.55f),
+        "part composite should preserve inspector properties");
+    auto loadedParam = findParameter(incActivePuppet(), "PartCompositeParam");
+    auto loadedBinding = cast(DeformationParameterBinding)loadedParam.getBinding(loaded, "deform");
+    require(loadedBinding !is null && loadedBinding.getValue(vec2u(2, 2)).vertexOffsets.length == loaded.getMesh().vertices.length,
+        "part composite should preserve deformation binding length");
+}
+
+private void testParameterCompositeLifecycleBindingWorkflow() {
+    resetCase();
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    auto add = (new Add2DParameterCommand(-1, 1)).run(ctx);
+    require(add.succeeded, "parameter composite should create parameter");
+    auto param = add.created[0];
+    auto node = new Node(incActivePuppet().root);
+    node.name = "parameter-composite-node";
+    ctx.parameters = [param];
+    require((new SetParameterNameCommand("ParameterCompositeRenamed")).run(ctx).succeeded,
+        "parameter composite should rename parameter");
+    auto groupResult = (new CreateParamGroupCommand()).run(ctx);
+    require(groupResult.succeeded, "parameter composite should create group");
+    auto group = groupResult.created[0];
+    require((new MoveParameterCommand(group, 0)).run(ctx).succeeded,
+        "parameter composite should move parameter into group");
+
+    auto binding = newValueBinding(param, node, "transform.t.x");
+    binding.setValue(vec2u(1, 1), 12.0f);
+    require((new ApplyParameterPropsAxesCommand(
+        [-2.0f, -2.0f],
+        [2.0f, 2.0f],
+        [0.0f, 0.25f, 0.5f, 0.75f, 1.0f],
+        [0.0f, 0.5f, 1.0f]
+    )).run(ctx).succeeded, "parameter composite should resize axes and remap binding");
+    require(binding.isSet(vec2u(2, 1)) && near(binding.getValue(vec2u(2, 1)), 12.0f),
+        "parameter composite should remap bound keypoint");
+
+    auto dup = (new DuplicateParameterCommand()).run(ctx);
+    require(dup.succeeded, "parameter composite should duplicate parameter after axes resize");
+    require(incActivePuppet().parameters.length == 2, "parameter composite duplicate should be inserted");
+    incActionUndo();
+    require(incActivePuppet().parameters.length == 1, "parameter composite undo duplicate should restore parameter count");
+    incActionUndo();
+    require(param.axisPoints[0].length == 3 && binding.isSet(vec2u(1, 1)),
+        "parameter composite undo axes should restore original axis grid and binding key");
+    incActionRedo();
+    require(param.axisPoints[0].length == 5 && binding.isSet(vec2u(2, 1)),
+        "parameter composite redo axes should restore remapped binding");
+}
+
+private void testProjectImageMergeExportCompositeWorkflow() {
+    resetCase();
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-image-merge-export-composite");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+
+    auto baseImage = buildPath(fixtureDir, "base-layer.png");
+    auto mergeImage = buildPath(fixtureDir, "merge-layer.png");
+    writeRegressionPng(baseImage, 200, 50, 50, 3, 3);
+    writeRegressionPng(mergeImage, 50, 200, 50, 4, 2);
+    require((new ImportImageFolderCommand(fixtureDir)).run(new Context()).succeeded,
+        "project image composite should import image folder");
+    require(findDirectPart(incActivePuppet(), "base-layer") !is null, "project image composite should import base layer");
+
+    require((new MergeImageFilesCommand(mergeImage)).run(new Context()).succeeded,
+        "project image composite should merge explicit image");
+    auto merged = findDirectPart(incActivePuppet(), "merge-layer.png");
+    require(merged !is null, "project image composite should add merged image layer");
+
+    auto param = new ExParameter("ImageMergeParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto binding = newValueBinding(param, merged, "transform.t.x");
+    binding.setValue(vec2u(1, 0), 21.0f);
+
+    auto inpPath = buildPath(fixtureDir, "image-composite.inp");
+    inWriteINPPuppet(incActivePuppet(), inpPath);
+    resetCase();
+    require((new ImportINPCommand(inpPath)).run(new Context()).succeeded,
+        "project image composite should import exported INP");
+    auto loadedMerged = findDirectPart(incActivePuppet(), "merge-layer.png");
+    auto loadedParam = findParameter(incActivePuppet(), "ImageMergeParam");
+    require(loadedMerged !is null && loadedParam !is null, "project image composite should restore merged layer and parameter from INP");
+    require(loadedParam.bindings.length == 1 && loadedParam.bindings[0].getTarget.target is loadedMerged,
+        "project image composite should reconnect imported binding target");
+}
+
+private void testInspectorCompositeNodePartMeshWorkflow() {
+    resetCase();
+
+    auto node = new Node(incActivePuppet().root);
+    node.name = "inspector-composite-node";
+    auto nodeInspector = new NINode([node], ModelEditSubMode.Layout);
+    auto nodeCtx = new Context();
+    nodeCtx.nodes = [node];
+    nodeCtx.inspectors = [nodeInspector];
+    require((new ApplyInspectorPropCommand!(NINode, "translationX")(15.0f)).run(nodeCtx).succeeded,
+        "inspector composite should apply node translation");
+
+    auto part = newMeshPart("inspector-composite-part");
+    auto partInspector = new NIPart([part], ModelEditSubMode.Layout);
+    auto partCtx = new Context();
+    partCtx.nodes = [part];
+    partCtx.inspectors = [partInspector];
+    require((new ApplyInspectorPropCommand!(NIPart, "opacity")(0.35f)).run(partCtx).succeeded,
+        "inspector composite should apply part opacity");
+
+    auto grid = new GridDeformer(incActivePuppet().root);
+    grid.name = "inspector-composite-grid";
+    auto gridInspector = new NIGrid([grid], ModelEditSubMode.Layout);
+    auto gridCtx = new Context();
+    gridCtx.nodes = [grid];
+    gridCtx.inspectors = [gridInspector];
+    require((new ApplyInspectorPropCommand!(NIGrid, "dynamic")(true)).run(gridCtx).succeeded,
+        "inspector composite should apply grid dynamic");
+
+    incActionUndo();
+    require(!grid.dynamic && near(part.opacity, 0.35f) && near(node.localTransform.translation.vector[0], 15.0f),
+        "inspector composite undo should affect only latest inspector command");
+    incActionRedo();
+    require(grid.dynamic, "inspector composite redo should restore latest inspector command");
+}
+
+private void testMeshCompositeTopologyScopeWorkflow() {
+    resetCase();
+
+    auto editScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+    scope(exit) if (editScope.isActive()) editScope.close();
+    require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "mesh composite should open VertexEdit scope");
+
+    auto part = newMeshPart("mesh-composite-part");
+    auto grid = new GridDeformer(incActivePuppet().root);
+    grid.name = "mesh-composite-grid";
+    auto path = new PathDeformer(incActivePuppet().root);
+    path.name = "mesh-composite-path";
+
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)part];
+    require((new DefineMeshCommand([
+        0f, 0f,
+        30f, 0f,
+        30f, 30f,
+        0f, 30f,
+    ], cast(ushort[])[0, 1, 2, 0, 2, 3])).run(ctx).succeeded, "mesh composite should define Part mesh");
+    ctx.nodes = [cast(Node)grid];
+    require((new DefineGridCommand([-20f, 0f, 20f], [-10f, 10f])).run(ctx).succeeded,
+        "mesh composite should define GridDeformer grid");
+    ctx.nodes = [cast(Node)path];
+    require((new DefineVerticesCommand([-10f, 0f, 0f, 10f, 10f, 0f])).run(ctx).succeeded,
+        "mesh composite should define PathDeformer vertices");
+
+    incActionUndo();
+    require(path.vertices.length != 3, "mesh composite undo should restore previous path topology only");
+    require(grid.vertices.length == 6 && part.getMesh().vertices.length == 4,
+        "mesh composite undo path should preserve prior grid and part topology");
+    incActionRedo();
+    require(path.vertices.length == 3, "mesh composite redo should restore path topology");
+    require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), "mesh composite undo/redo should keep edit scope active");
+}
+
+private void testDeformCompositeGridPathBindingWorkflow() {
+    resetCase();
+
+    auto grid = new GridDeformer(incActivePuppet().root);
+    grid.name = "deform-composite-grid";
+    auto path = new PathDeformer(incActivePuppet().root);
+    path.name = "deform-composite-path";
+
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+    require((new DefineGridCommand([-30f, 0f, 30f], [-20f, 0f, 20f])).run(ctx).succeeded,
+        "deform composite should define grid topology");
+    ctx.nodes = [cast(Node)path];
+    require((new DefineVerticesCommand([-15f, 0f, 0f, 15f, 15f, 0f])).run(ctx).succeeded,
+        "deform composite should define path topology");
+
+    auto param = new2DParameter("DeformCompositeParam");
+    auto gridCtx = new Context();
+    gridCtx.puppet = incActivePuppet();
+    gridCtx.parameters = [param];
+    gridCtx.nodes = [cast(Node)grid];
+    gridCtx.keyPoint = vec2u(2, 2);
+    gridCtx.hasExplicitKeyPoint = true;
+    float[] offsets;
+    foreach (_; 0 .. grid.vertices.length) {
+        offsets ~= 2.0f;
+        offsets ~= -1.0f;
+    }
+    require((new SetDeformBindingCommand("deform", offsets)).run(gridCtx).succeeded,
+        "deform composite should bind grid deformation after topology change");
+    auto binding = cast(DeformationParameterBinding)param.getBinding(grid, "deform");
+    require(binding !is null && binding.getValue(vec2u(2, 2)).vertexOffsets.length == grid.vertices.length,
+        "deform composite binding should match grid topology");
+
+    incActionUndo();
+    require(param.getBinding(grid, "deform") is null, "deform composite undo should remove binding only");
+    require(grid.vertices.length == 9 && path.vertices.length == 3, "deform composite undo binding should preserve both topology changes");
+    incActionRedo();
+    require(param.getBinding(grid, "deform") !is null, "deform composite redo should restore grid deformation binding");
+}
+
+private void testRenderCameraTextureCompositeWorkflow() {
+    resetCase();
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-render-composite");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+
+    auto part = newMeshPart("render-composite-part");
+    part.tint = vec3(0.8f, 0.7f, 0.6f);
+    incActivePuppet().populateTextureSlots();
+    require(incActivePuppet().textureSlots.length == 1, "render composite should populate texture slot");
+
+    auto camera = new ExCamera(incActivePuppet().root);
+    camera.name = "render-composite-camera";
+    camera.setViewport(vec2(10, 8));
+    incActivePuppet().root.build();
+    auto exportBase = buildPath(fixtureDir, "render-composite");
+    require((new ExportPNGCommand(exportBase, "render-composite-camera", true, false)).run(new Context()).succeeded,
+        "render composite should export camera PNG");
+    auto exported = ShallowTexture(exportBase ~ ".png", 4);
+    require(exported.width == 10 && exported.height == 8, "render composite export should use camera viewport");
+
+    auto saveBase = buildPath(fixtureDir, "render-composite-model");
+    auto savePath = saveBase ~ ".inx";
+    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded, "render composite should save model");
+    incNewProject();
+    require((new OpenFileCommand(savePath)).run(new Context()).succeeded, "render composite should reopen model");
+    require(findNodeRecursive(incActivePuppet().root, "render-composite-camera") !is null,
+        "render composite should preserve camera after reload");
+    require(findNodeRecursive(incActivePuppet().root, "render-composite-part") !is null,
+        "render composite should preserve texture-backed part after reload");
+}
+
+private void testSettingsCompositeShortcutsRecentWorkflow() {
+    resetCase();
+    incSettingsLoad();
+    clearAllShortcuts();
+
+    auto oldProjects = incGetPrevProjects();
+    scope(exit) {
+        incSettingsSet("prev_projects", oldProjects);
+        clearAllShortcuts();
+    }
+    incSettingsSet("prev_projects", cast(string[])[]);
+
+    auto addCommand = nijigenerate.commands.node.node.commands[NodeCommand.AddNode];
+    auto deleteCommand = nijigenerate.commands.node.node.commands[NodeCommand.DeleteNode];
+    require(addCommand !is null && deleteCommand !is null, "settings composite requires node commands");
+    ngRegisterShortcut("Ctrl+Alt+M", addCommand);
+    ngRegisterShortcut("Ctrl+Alt+M", deleteCommand);
+    require(ngShortcutFor(addCommand).length == 0 && ngShortcutFor(deleteCommand) == "Ctrl+Alt+M",
+        "settings composite shortcut conflict should move binding");
+    ngSaveShortcutsToSettings();
+
+    incAddPrevProject("/tmp/settings-composite-a.inx");
+    incAddPrevProject("/tmp/settings-composite-b.inx");
+    incAddPrevProject("/tmp/settings-composite-a.inx");
+    auto projects = incGetPrevProjects();
+    require(projects.length == 2 && projects[0].endsWith("settings-composite-a.inx"),
+        "settings composite recent files should promote duplicate");
+
+    clearAllShortcuts();
+    ngLoadShortcutsFromSettings();
+    require(ngShortcutFor(deleteCommand) == "Ctrl+Alt+M",
+        "settings composite shortcut reload should survive recent-file mutations");
+}
+
+private void testUndoCompositeCrossFamilyStackWorkflow() {
+    resetCase();
+
+    auto nodeCtx = new Context();
+    nodeCtx.puppet = incActivePuppet();
+    auto node = (new AddNodeCommand("Node")).run(nodeCtx).created[0];
+    nodeCtx.nodes = [node];
+    require((new SetNodeNameCommand(["UndoCompositeNode"])).run(nodeCtx).succeeded,
+        "undo composite should rename node");
+
+    auto param = new2DParameter("UndoCompositeParam");
+    auto binding = newValueBinding(param, node, "transform.t.x");
+    binding.setValue(vec2u(1, 1), 4.0f);
+
+    auto part = newMeshPart("undo-composite-part");
+    auto meshCtx = new Context();
+    meshCtx.nodes = [cast(Node)part];
+    require((new DefineMeshCommand([
+        0f, 0f,
+        10f, 0f,
+        10f, 10f,
+        0f, 10f,
+    ], cast(ushort[])[0, 1, 2, 0, 2, 3])).run(meshCtx).succeeded,
+        "undo composite should define mesh");
+
+    auto inspector = new NIPart([part], ModelEditSubMode.Layout);
+    meshCtx.inspectors = [inspector];
+    require((new ApplyInspectorPropCommand!(NIPart, "opacity")(0.25f)).run(meshCtx).succeeded,
+        "undo composite should apply inspector property");
+
+    incActionUndo();
+    require(near(part.opacity, 1.0f) && part.getMesh().vertices.length == 4,
+        "undo composite first undo should revert inspector only");
+    incActionUndo();
+    require(part.getMesh().vertices.length == 3 && binding.isSet(vec2u(1, 1)),
+        "undo composite second undo should revert mesh only and keep parameter binding");
+    incActionRedo();
+    require(part.getMesh().vertices.length == 4, "undo composite redo should restore mesh");
+    incActionRedo();
+    require(near(part.opacity, 0.25f), "undo composite redo should restore inspector property");
+}
+
+private struct CompositeGridCase {
+    string label;
+    float[] axisX;
+    float[] axisY;
+}
+
+private size_t runCompositeMatrixGridModes(string onlyId = null) {
+    size_t executed;
+    immutable modeLabels = ["Model Edit", "Anim Edit", "Vertex Edit", "Depth Edit"];
+    immutable modes = [EditMode.ModelEdit, EditMode.AnimEdit, EditMode.VertexEdit, EditMode.DepthEdit];
+    auto gridCases = [
+        CompositeGridCase("2x2 cells", [-40f, 0f, 40f], [-30f, 0f, 30f]),
+        CompositeGridCase("3x2 cells", [-60f, -20f, 20f, 60f], [-20f, 0f, 20f]),
+        CompositeGridCase("4x4 cells", [-80f, -40f, 0f, 40f, 80f], [-80f, -40f, 0f, 40f, 80f]),
+        CompositeGridCase("wide face", [-120f, -60f, 0f, 60f, 120f], [-70f, -20f, 20f, 70f]),
+        CompositeGridCase("5x5 cells", [-100f, -60f, -20f, 20f, 60f, 100f], [-100f, -60f, -20f, 20f, 60f, 100f]),
+        CompositeGridCase("tall body", [-45f, -15f, 15f, 45f], [-140f, -80f, -20f, 40f, 100f, 160f]),
+    ];
+
+    foreach (modeIndex, mode; modes) {
+        foreach (gridCase; gridCases) {
+            auto caseId = "mesh.composite-grid-mode-matrix." ~ scenarioSlug(modeLabels[modeIndex]) ~ "." ~ scenarioSlug(gridCase.label);
+            if (onlyId.length && onlyId != caseId)
+                continue;
+            resetCase();
+            auto grid = new GridDeformer(incActivePuppet().root);
+            grid.name = "matrix-grid-" ~ modeLabels[modeIndex] ~ "-" ~ gridCase.label;
+            auto before = grid.vertices.dup;
+            auto expected = gridVerticesFromAxes(gridCase.axisX, gridCase.axisY);
+            auto ctx = new Context();
+            ctx.nodes = [cast(Node)grid];
+            incSetEditMode(mode, false);
+
+            ActionStackScope editScope;
+            if (mode == EditMode.VertexEdit)
+                editScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+            else if (mode == EditMode.DepthEdit)
+                editScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
+            scope(exit) if (editScope !is null && editScope.isActive()) editScope.close();
+
+            ngMcpPrepareActionScopeForCurrentMode("VertexCommand_DefineGrid");
+            require((new DefineGridCommand(gridCase.axisX, gridCase.axisY)).run(ctx).succeeded,
+                "matrix DefineGrid should succeed for " ~ modeLabels[modeIndex] ~ " " ~ gridCase.label);
+            ngMcpFinishActionBoundary();
+            require(grid.vertices == expected, "matrix DefineGrid should apply expected vertices");
+            ngMcpPrepareActionScopeForCurrentMode("EditCommand_Undo");
+            require((new UndoCommand()).run(ctx).succeeded, "matrix undo should succeed");
+            ngMcpFinishActionBoundary();
+            require(grid.vertices == before, "matrix undo should restore original grid");
+            ngMcpPrepareActionScopeForCurrentMode("EditCommand_Redo");
+            require((new RedoCommand()).run(ctx).succeeded, "matrix redo should succeed");
+            ngMcpFinishActionBoundary();
+            require(grid.vertices == expected, "matrix redo should restore grid");
+            executed++;
+        }
+    }
+    immutable expected = onlyId.length ? 1 : 24;
+    require(executed == expected, "grid/mode composite scenario should execute exactly " ~ expected.to!string ~ " cases, got " ~ executed.to!string);
+    return executed;
+}
+
+private size_t runCompositeMatrixNodeTypes(string onlyId = null) {
+    ensureRegressionNodeTypesRegistered();
+    size_t executed;
+    foreach (className; regressionNodeMenuTypes) {
+        auto caseId = "node.composite-type-matrix." ~ scenarioSlug(className);
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        resetCase();
+        auto ctx = new Context();
+        ctx.puppet = incActivePuppet();
+        auto addResult = ensureAddNodeCommand(className).run(ctx);
+        require(addResult.succeeded && addResult.created.length == 1, "matrix AddNode should create " ~ className);
+        auto node = addResult.created[0];
+        ctx.nodes = [node];
+        require((new SetNodeNameCommand(["Matrix " ~ className])).run(ctx).succeeded, "matrix node rename should succeed");
+        incActionUndo();
+        require(node.name != "Matrix " ~ className, "matrix undo rename should restore " ~ className);
+        incActionRedo();
+        require(node.name == "Matrix " ~ className, "matrix redo rename should restore " ~ className);
+        executed++;
+    }
+    auto expected = onlyId.length ? 1 : regressionNodeMenuTypes.length;
+    require(executed == expected,
+        "node-type composite scenario should execute exactly " ~ expected.to!string ~ " node menu types, got " ~ executed.to!string);
+    return executed;
+}
+
+private size_t runCompositeMatrixParameterPresets(string onlyId = null) {
+    size_t executed;
+    struct ParamRangeCase {
+        int min;
+        int max;
+        string slug;
+    }
+    auto rangeCases = [
+        ParamRangeCase(0, 1, "0-1"),
+        ParamRangeCase(-1, 1, "minus-1-1"),
+        ParamRangeCase(-2, 2, "minus-2-2"),
+        ParamRangeCase(0, 2, "0-2"),
+        ParamRangeCase(-5, 5, "minus-5-5"),
+    ];
+    foreach (is2D; [false, true]) {
+        foreach (range; rangeCases) {
+            auto dim = is2D ? "2d" : "1d";
+            auto caseId = "parameter.composite-preset-matrix." ~ dim ~ "." ~ range.slug;
+            if (onlyId.length && onlyId != caseId)
+                continue;
+            resetCase();
+            auto ctx = new Context();
+            ctx.puppet = incActivePuppet();
+            auto result = is2D
+                ? (new Add2DParameterCommand(range.min, range.max)).run(ctx)
+                : (new Add1DParameterCommand(range.min, range.max)).run(ctx);
+            require(result.succeeded && result.created.length == 1, "matrix parameter preset should create parameter");
+            auto param = result.created[0];
+            auto node = new Node(incActivePuppet().root);
+            auto binding = newValueBinding(param, node, "transform.t.x");
+            auto key = is2D
+                ? vec2u(cast(uint)(param.axisPoints[0].length - 1), cast(uint)(param.axisPoints[1].length - 1))
+                : vec2u(cast(uint)(param.axisPoints[0].length - 1), 0);
+            binding.setValue(key, 9.0f);
+            ctx.parameters = [param];
+            require((new SetParameterNameCommand("MatrixParam")).run(ctx).succeeded, "matrix parameter rename should succeed");
+            incActionUndo();
+            require(param.name != "MatrixParam" && binding.isSet(key), "matrix undo parameter rename should preserve binding");
+            incActionRedo();
+            require(param.name == "MatrixParam" && binding.isSet(key), "matrix redo parameter rename should preserve binding");
+            executed++;
+        }
+    }
+    immutable expected = onlyId.length ? 1 : 10;
+    require(executed == expected, "parameter composite scenario should execute exactly " ~ expected.to!string ~ " preset cases, got " ~ executed.to!string);
+    return executed;
+}
+
+private size_t runCompositeMatrixDepthOps(string onlyId = null) {
+    size_t executed;
+    foreach (opType; ["attached-point", "ring", "plane"]) {
+        auto caseId = "depth.composite-operation-matrix." ~ opType;
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        resetCase();
+        auto grid = new ExGridDeformer(incActivePuppet().root);
+        grid.name = "matrix-depth-" ~ opType;
+        grid.rebuffer(Vec2Array([vec2(0, 0), vec2(10, 0), vec2(0, 10), vec2(10, 10)]));
+        auto ctx = new Context();
+        require(cmd!(DepthMapCommand.SetDepths)(ctx, grid, [0.0f, 0.1f, 0.2f, 0.3f]).succeeded,
+            "matrix depth should set depths");
+        JSONValue[string] fields;
+        if (opType == "attached-point") {
+            fields["index"] = JSONValue(1);
+            fields["amount"] = JSONValue(0.4);
+        } else if (opType == "ring") {
+            fields["p0"] = jsonVec2Value(0, 0);
+            fields["p1"] = jsonVec2Value(10, 0);
+            fields["amount"] = JSONValue(0.5);
+            fields["width"] = JSONValue(5.0);
+            fields["hardness"] = JSONValue(0.25);
+        } else {
+            fields["p0"] = jsonVec2Value(0, 0);
+            fields["p1"] = jsonVec2Value(10, 0);
+            fields["p2"] = jsonVec2Value(0, 10);
+            fields["z0"] = JSONValue(0.0);
+            fields["z1"] = JSONValue(0.25);
+            fields["z2"] = JSONValue(-0.25);
+        }
+        require(cmd!(DepthMapCommand.AddDepthOp)(ctx, grid, depthCommandOp(opType, fields), -1).succeeded,
+            "matrix depth should add op " ~ opType);
+        require(grid.copyDepthOps().length == 1, "matrix depth should store one op");
+        incActionUndo();
+        require(grid.copyDepthOps().length == 0, "matrix depth undo should remove op");
+        incActionRedo();
+        require(grid.copyDepthOps().length == 1, "matrix depth redo should restore op");
+        executed++;
+    }
+    immutable expected = onlyId.length ? 1 : 3;
+    require(executed == expected, "depth-op composite scenario should execute exactly " ~ expected.to!string ~ " depth operation cases, got " ~ executed.to!string);
+    return executed;
+}
+
+private size_t runCompositeMatrixAutoMeshProcessors(string onlyId = null) {
+    size_t executed;
+    foreach (processorId; ["grid", "contour", "skeleton", "optimum"]) {
+        auto caseId = "automesh.composite-processor-matrix-scenario." ~ processorId;
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        resetCase();
+        auto mesh = runAutoMeshOnAlphaPart(processorId);
+        requireAutoMeshOutput("matrix-" ~ processorId, mesh, processorId == "skeleton" ? 2 : 3);
+        executed++;
+    }
+    immutable expected = onlyId.length ? 1 : 4;
+    require(executed == expected, "automesh composite scenario should execute exactly " ~ expected.to!string ~ " processor cases, got " ~ executed.to!string);
+    return executed;
+}
+
+private size_t runCompositeMatrixSimplePhysicsSettings(string onlyId = null) {
+    size_t executed;
+    resetCase();
+    auto physics = new SimplePhysics(incActivePuppet().root);
+    auto physicsCtx = new Context();
+    physicsCtx.nodes = [cast(Node)physics];
+    require((new SetSimplePhysicsModelTypeCommand(PhysicsModel.SpringPendulum)).run(physicsCtx).succeeded, "matrix physics model should apply");
+    require((new SetSimplePhysicsMapModeCommand(ParamMapMode.XY)).run(physicsCtx).succeeded, "matrix physics map should apply");
+    require((new SetSimplePhysicsLocalOnlyCommand(true)).run(physicsCtx).succeeded, "matrix physics localOnly should apply");
+    foreach (value; [0.5f, 2.0f, 4.0f]) {
+        auto caseId = "simplephysics.composite-settings-matrix.gravity-" ~ scenarioSlug("%.1f".format(value));
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        require((new SetSimplePhysicsGravityCommand(value)).run(physicsCtx).succeeded, "matrix physics gravity should apply");
+        incActionUndo();
+        incActionRedo();
+        require(near(physics.gravity, value), "matrix physics gravity redo should restore value");
+        executed++;
+    }
+    foreach (value; [50.0f, 125.0f, 300.0f]) {
+        auto caseId = "simplephysics.composite-settings-matrix.length-" ~ scenarioSlug("%.0f".format(value));
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        require((new SetSimplePhysicsLengthCommand(value)).run(physicsCtx).succeeded, "matrix physics length should apply");
+        incActionUndo();
+        incActionRedo();
+        require(near(physics.length, value), "matrix physics length redo should restore value");
+        executed++;
+    }
+    foreach (value; [0.25f, 1.5f, 5.0f]) {
+        auto caseId = "simplephysics.composite-settings-matrix.frequency-" ~ scenarioSlug(value == 0.25f ? "0-25" : "%.1f".format(value));
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        require((new SetSimplePhysicsFrequencyCommand(value)).run(physicsCtx).succeeded, "matrix physics frequency should apply");
+        incActionUndo();
+        incActionRedo();
+        require(near(physics.frequency, value), "matrix physics frequency redo should restore value");
+        executed++;
+    }
+    foreach (value; [0.1f, 0.5f, 0.9f]) {
+        auto caseId = "simplephysics.composite-settings-matrix.angle-damping-" ~ scenarioSlug("%.1f".format(value));
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        require((new SetSimplePhysicsAngleDampingCommand(value)).run(physicsCtx).succeeded, "matrix physics angle damping should apply");
+        incActionUndo();
+        incActionRedo();
+        require(near(physics.angleDamping, value), "matrix physics angle damping redo should restore value");
+        executed++;
+    }
+    foreach (value; [0.1f, 0.5f, 0.9f]) {
+        auto caseId = "simplephysics.composite-settings-matrix.length-damping-" ~ scenarioSlug("%.1f".format(value));
+        if (onlyId.length && onlyId != caseId)
+            continue;
+        require((new SetSimplePhysicsLengthDampingCommand(value)).run(physicsCtx).succeeded, "matrix physics length damping should apply");
+        incActionUndo();
+        incActionRedo();
+        require(near(physics.lengthDamping, value), "matrix physics length damping redo should restore value");
+        executed++;
+    }
+    immutable expected = onlyId.length ? 1 : 15;
+    require(executed == expected, "simplephysics composite scenario should execute exactly " ~ expected.to!string ~ " setting cases, got " ~ executed.to!string);
+    return executed;
+}
+
+private void testCompositeMatrixGridModesScenario() {
+    runCompositeMatrixGridModes();
+}
+
+private void testCompositeMatrixNodeTypesScenario() {
+    runCompositeMatrixNodeTypes();
+}
+
+private void testCompositeMatrixParameterPresetsScenario() {
+    runCompositeMatrixParameterPresets();
+}
+
+private void testCompositeMatrixDepthOpsScenario() {
+    runCompositeMatrixDepthOps();
+}
+
+private void testCompositeMatrixAutoMeshProcessorsScenario() {
+    runCompositeMatrixAutoMeshProcessors();
+}
+
+private void testCompositeMatrixSimplePhysicsSettingsScenario() {
+    runCompositeMatrixSimplePhysicsSettings();
+}
+
+private void testCompositeCaseMatrixBreadth() {
+    ensureRegressionNodeTypesRegistered();
+    size_t executed;
+    executed += runCompositeMatrixGridModes();
+    executed += runCompositeMatrixNodeTypes();
+    executed += runCompositeMatrixParameterPresets();
+    executed += runCompositeMatrixDepthOps();
+    executed += runCompositeMatrixAutoMeshProcessors();
+    executed += runCompositeMatrixSimplePhysicsSettings();
+
+    auto expected = 24 + regressionNodeMenuTypes.length + 10 + 3 + 4 + 15;
+    require(executed == expected, "composite matrix should execute exact generated case count " ~ expected.to!string ~ ", got " ~ executed.to!string);
+    require(generatedCompositeCaseScenarios().length == expected,
+        "generated composite scenario catalog should match executable matrix count");
+}
+
 private bool hasParameter(Parameter param) {
     foreach (candidate; incActivePuppet().parameters) {
         if (candidate is param)
@@ -3771,6 +4961,61 @@ private void testParameterDeformBindingModelCommandUndoRedo() {
     require(binding.getValue(vec2u(2, 2)).vertexOffsets.length == part.vertices.length, "redo SetDeformBindingCommand should restore offset length");
 }
 
+private void testParameterMeshBindingCompositeWorkflow() {
+    resetCase();
+
+    auto part = newMeshPart("mesh-binding-composite-target");
+    auto meshCtx = new Context();
+    meshCtx.nodes = [cast(Node)part];
+    require((new DefineMeshCommand(
+        [
+            0f, 0f,
+            20f, 0f,
+            20f, 20f,
+            0f, 20f,
+        ],
+        cast(ushort[])[0, 1, 2, 0, 2, 3]
+    )).run(meshCtx).succeeded, "composite mesh-binding should define a four-vertex mesh");
+    require(part.getMesh().vertices.length == 4, "composite mesh-binding mesh should have four vertices");
+    require(part.deformation.length == 4, "composite mesh-binding deformation should follow mesh topology");
+
+    auto param = new2DParameter("MeshBindingComposite");
+    auto bindCtx = new Context();
+    bindCtx.puppet = incActivePuppet();
+    bindCtx.parameters = [param];
+    bindCtx.nodes = [cast(Node)part];
+    bindCtx.keyPoint = vec2u(2, 2);
+    bindCtx.hasExplicitKeyPoint = true;
+    require((new SetDeformBindingCommand("deform", [
+        1.0f, 2.0f,
+        3.0f, 4.0f,
+        5.0f, 6.0f,
+        7.0f, 8.0f,
+    ])).run(bindCtx).succeeded, "composite mesh-binding should create deformation binding after topology change");
+    auto binding = cast(DeformationParameterBinding)param.getBinding(part, "deform");
+    require(binding !is null, "composite mesh-binding should have deformation binding");
+    require(binding.getValue(vec2u(2, 2)).vertexOffsets.length == part.vertices.length,
+        "composite mesh-binding offsets should match current topology");
+
+    incActionUndo();
+    require(param.getBinding(part, "deform") is null, "undo binding should not undo prior mesh topology");
+    require(part.getMesh().vertices.length == 4, "undo binding should keep four-vertex mesh");
+
+    incActionUndo();
+    require(part.getMesh().vertices.length == 3, "undo mesh should restore original topology");
+    require(part.deformation.length == 3, "undo mesh should restore deformation length");
+
+    incActionRedo();
+    require(part.getMesh().vertices.length == 4, "redo mesh should restore topology before binding redo");
+    require(part.deformation.length == 4, "redo mesh should restore deformation length");
+
+    incActionRedo();
+    binding = cast(DeformationParameterBinding)param.getBinding(part, "deform");
+    require(binding !is null, "redo binding should restore deformation binding");
+    require(binding.getValue(vec2u(2, 2)).vertexOffsets.length == part.getMesh().vertices.length,
+        "redo binding should restore offsets matching redone topology");
+}
+
 private void testParameterAxesPropsCommandUndoRedo() {
     resetCase();
 
@@ -4596,6 +5841,75 @@ private void testDefineGridCommandUndoRedo() {
     runMcpModeCase(EditMode.AnimEdit, "AnimEdit", ActionStackScopeUnit.Manual, false);
     runMcpModeCase(EditMode.VertexEdit, "VertexEdit", ActionStackScopeUnit.VertexEdit, true);
     runMcpModeCase(EditMode.DepthEdit, "DepthEdit", ActionStackScopeUnit.DepthEdit, true);
+}
+
+private Vec2Array gridVerticesFromAxes(float[] axisX, float[] axisY) {
+    Vec2Array result;
+    foreach (y; axisY)
+        foreach (x; axisX)
+            result ~= vec2(x, y);
+    return result;
+}
+
+private void testMcpModeHistoryCompositeWorkflows() {
+    void runCaseForMode(EditMode mode, string label, bool scoped) {
+        resetCase();
+
+        auto node = new Node(incActivePuppet().root);
+        node.name = "composite-" ~ label;
+        auto convertCtx = new Context();
+        convertCtx.nodes = [node];
+        auto convertResult = (new ConvertToCommand("GridDeformer")).run(convertCtx);
+        require(convertResult.succeeded, label ~ " setup ConvertToCommand should succeed");
+        require(convertResult.created.length == 1, label ~ " setup should create one converted node");
+        auto grid = cast(GridDeformer)convertResult.created[0];
+        require(grid !is null, label ~ " setup should produce a GridDeformer");
+        require(incActionCanUndo(), label ~ " setup should leave root conversion history present");
+
+        auto modeCtx = new Context();
+        modeCtx.nodes = [cast(Node)grid];
+        auto startVertices = grid.vertices.dup;
+        auto nextX = [-120f, -40f, 40f, 120f];
+        auto nextY = [-90f, -30f, 30f, 90f];
+        auto nextVertices = gridVerticesFromAxes(nextX, nextY);
+        GridDeformer currentGrid() {
+            return cast(GridDeformer)findNodeRecursive(incActivePuppet().root, "composite-" ~ label);
+        }
+
+        incSetEditMode(mode, false);
+        ActionStackScope editScope = scoped ? ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit) : null;
+        if (scoped)
+            require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit), label ~ " setup should have active VertexEdit scope");
+
+        ngMcpPrepareActionScopeForCurrentMode("VertexCommand_DefineGrid");
+        require((new DefineGridCommand(nextX, nextY)).run(modeCtx).succeeded,
+            label ~ " MCP DefineGrid should succeed with pre-existing root history");
+        ngMcpFinishActionBoundary();
+        require(currentGrid() !is null, label ~ " DefineGrid should preserve resource-visible GridDeformer type");
+        require(grid.vertices == nextVertices, label ~ " DefineGrid should apply new vertices");
+
+        ngMcpPrepareActionScopeForCurrentMode("EditCommand_Undo");
+        require((new UndoCommand()).run(modeCtx).succeeded, label ~ " MCP Undo should succeed");
+        ngMcpFinishActionBoundary();
+        require(currentGrid() !is null, label ~ " Undo should not consume root ConvertTo history");
+        require(grid.vertices == startVertices, label ~ " Undo should restore only the grid vertices");
+
+        ngMcpPrepareActionScopeForCurrentMode("EditCommand_Redo");
+        require((new RedoCommand()).run(modeCtx).succeeded, label ~ " MCP Redo should succeed");
+        ngMcpFinishActionBoundary();
+        require(currentGrid() !is null, label ~ " Redo should preserve resource-visible GridDeformer type");
+        require(grid.vertices == nextVertices, label ~ " Redo should restore the grid vertices");
+
+        if (scoped) {
+            require(ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit),
+                label ~ " MCP undo/redo should remain inside VertexEdit scope");
+            editScope.close();
+            require(incActionCanUndo(), label ~ " closing VertexEdit should leave root history available");
+        }
+    }
+
+    runCaseForMode(EditMode.ModelEdit, "ModelEdit", false);
+    runCaseForMode(EditMode.VertexEdit, "VertexEdit", true);
 }
 
 private void testDefineMeshAndVerticesCommandsUndoRedo() {
@@ -6257,8 +7571,16 @@ private string regressionRepoRoot() {
 
 private bool hasScenarioPrefix(string prefix) {
     auto expected = prefix ~ ".";
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.id == prefix || scenario.id.startsWith(expected))
+            return true;
+    }
+    return false;
+}
+
+private bool hasScenarioId(string id) {
+    foreach (scenario; allScenarios()) {
+        if (scenario.id == id)
             return true;
     }
     return false;
@@ -6439,6 +7761,97 @@ private void testCoverageFullFeatureScenarioInventory() {
     require(failures.length == 0, "feature scenario inventory failures:\n" ~ failures.join("\n"));
 }
 
+private void testCoverageCompositeWorkflowInventory() {
+    string[] failures;
+    immutable string[] requiredCompositeScenarios = [
+        "coverage.composite-case-matrix",
+        "mesh.composite-grid-mode-matrix",
+        "node.composite-type-matrix",
+        "parameter.composite-preset-matrix",
+        "depth.composite-operation-matrix",
+        "automesh.composite-processor-matrix-scenario",
+        "simplephysics.composite-settings-matrix",
+        "project.new-open-save",
+        "project.composite-command-roundtrip",
+        "project.composite-image-merge-export",
+        "project.autosave-recovery",
+        "project.import-inp",
+        "project.merge-psd",
+        "io.serialization-inx",
+        "io.composite-import-export-roundtrip",
+        "io.save-native",
+        "node.composite-hierarchy-binding-roundtrip",
+        "node.composite-type-matrix",
+        "node.type-conversion",
+        "node.cut-copy-paste-duplicate",
+        "inspectors.composite-node-part-mesh",
+        "part.composite-inspector-mesh-roundtrip",
+        "parameter.composite-lifecycle-binding",
+        "parameter.composite-preset-matrix",
+        "parameter.binding-cleanup",
+        "parameter.mesh-binding-composite",
+        "parameter.keyframe-basic",
+        "animation.composite-keyframe-history",
+        "animation.track-binding-cleanup",
+        "api.external-control",
+        "api.mcp-mode-history",
+        "api.mcp-resources",
+        "mesh.define-grid-command",
+        "mesh.define-mesh-command",
+        "mesh.composite-grid-mode-matrix",
+        "mesh.composite-topology-scope",
+        "mesh.multi-object",
+        "deform.composite-grid-path-binding",
+        "deform.grid-tool",
+        "deform.onetime-scope",
+        "depth.composite-map-ops",
+        "depth.composite-operation-matrix",
+        "depth.commands",
+        "depth.persistence",
+        "depthbone.composite-source-preview",
+        "depthbone.preview-commands",
+        "depthbone.serialization",
+        "automesh.composite-processor-matrix",
+        "automesh.composite-processor-matrix-scenario",
+        "automesh.non-part-targets",
+        "automesh.batch-undo",
+        "simplephysics.composite-roundtrip",
+        "simplephysics.composite-settings-matrix",
+        "simplephysics.serialization",
+        "render.composite-camera-texture-export",
+        "viewport.settings-command-composite",
+        "viewport.action-history",
+        "settings.composite-shortcuts-recent",
+        "undo.composite-workflows",
+        "undo.composite-cross-family-stack",
+        "undo.scope-guards",
+        "render.texture-lifecycle",
+        "settings.shortcuts",
+    ];
+
+    foreach (id; requiredCompositeScenarios) {
+        if (!hasScenarioId(id))
+            failures ~= "missing composite workflow scenario: " ~ id;
+    }
+
+    string[][string] familyHits;
+    foreach (id; requiredCompositeScenarios) {
+        auto dot = id.countUntil(".");
+        if (dot > 0)
+            familyHits[id[0 .. dot]] ~= id;
+    }
+    immutable requiredFamilies = [
+        "api", "automesh", "deform", "depth", "depthbone", "io", "mesh", "node",
+        "parameter", "project", "render", "settings", "simplephysics", "undo", "viewport"
+    ];
+    foreach (family; requiredFamilies) {
+        if ((family !in familyHits) || familyHits[family].length == 0)
+            failures ~= "composite workflow inventory missing family: " ~ family;
+    }
+
+    require(failures.length == 0, "composite workflow inventory failures:\n" ~ failures.join("\n"));
+}
+
 private string normalizeRegressionSourcePath(string path, string root) {
     auto rel = relativePath(path, root);
     auto sourcePrefix = "source/nijigenerate/";
@@ -6499,6 +7912,8 @@ private string scenarioPrefixForSourceModule(string rel) {
         return "project";
     if (rel == "config.d")
         return "settings";
+    if (rel == "regression_smoke.d")
+        return "platform";
     if (rel.startsWith("actions/depthbone.d"))
         return "depthbone";
     if (rel.startsWith("actions/depth.d"))
@@ -6726,7 +8141,7 @@ private void testCoverageSourceCommandInventory() {
             failures ~= "missing scenario family: " ~ prefix;
     }
 
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.status == "manual")
             failures ~= "manual status is not allowed; use computer-use or automated: " ~ scenario.id;
         if (scenario.status == pending)
@@ -6735,7 +8150,7 @@ private void testCoverageSourceCommandInventory() {
 
     foreach (id; requiredSourceScenarioIds) {
         bool found;
-        foreach (scenario; scenarios) {
+        foreach (scenario; allScenarios()) {
             if (scenario.id == id) {
                 found = true;
                 break;
@@ -6822,6 +8237,7 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "viewport/vertex/mesheditor/drawable.d|mesh.vertices = indexedVerts",
         "viewport/vertex/package.d|part.deformation = originalDeform",
         "viewport/vertex/package.d|deformEditor.vertices = ngMeshVerticesFromPositions",
+        "viewport/vertex/package.d|targetEditor.vertices = ngMeshVerticesFromPositions",
         "viewport/vertex/package.d|mesh.vertices = source.vertices",
         "windows/command_browser.d|info.name =",
         "windows/command_browser.d|ctx.parameters = paramsOverride",
@@ -7376,7 +8792,221 @@ private void testInspectorFormatStringsDoNotEscapeNumericFormats() {
     require(failures.length == 0, "escaped inspector numeric format strings:\n" ~ failures.join("\n"));
 }
 
+private void testCommandBrowserResourcePickerSelectionsAreInitialized() {
+    auto source = readText(regressionSourceRoot("windows/command_browser.d"));
+    foreach (entry; [
+        tuple("Node", "argNodeSelections"),
+        tuple("Parameter", "argParamSelections"),
+        tuple("ParameterBinding", "argBindingSelections"),
+    ]) {
+        auto typeName = entry[0];
+        auto selectionName = entry[1];
+        require(source.canFind("if (" ~ selectionName ~ " is null || arg.name !in " ~ selectionName ~ ")") &&
+            source.canFind(selectionName ~ "[arg.name] = [];") &&
+            source.canFind("renderResourcePicker!" ~ typeName ~ "(arg.name, " ~ selectionName ~ "[arg.name]"),
+            "Command Browser should initialize " ~ typeName ~ "[] resource picker selection before indexed AA access");
+        require(source.canFind("argValues[arg.name] = resourceSelectionIds(" ~ selectionName ~ "[arg.name]);"),
+            "Command Browser should serialize selected " ~ typeName ~ "[] resources back into argument values");
+        static if (true) {
+            if (typeName == "Node") {
+                require(source.canFind("} else if (arg.isNodeResource)") &&
+                    source.canFind("renderResourcePicker!Node(arg.name, sel, incActivePuppet(), arg.acceptsNodeResource)") &&
+                    source.canFind("argValues[arg.name] = resourceSelectionIds(sel);"),
+                    "Command Browser should use a filtered single-resource picker for Node-derived arguments and serialize it");
+            } else {
+                require(source.canFind("} else if (arg.typeName == \"" ~ typeName ~ "\")") &&
+                    source.canFind("renderResourcePicker!" ~ typeName ~ "(arg.name, sel, incActivePuppet())") &&
+                    source.canFind("argValues[arg.name] = resourceSelectionIds(sel);"),
+                    "Command Browser should use a single-resource picker for " ~ typeName ~ " arguments and serialize it");
+            }
+        }
+    }
+    require(source.canFind("} else static if (isNodeResource!T)") &&
+        source.canFind("} else static if (isNodeResourceArray!T)"),
+        "Command Browser should parse Node and all Node-derived resource argument values for command execution");
+    foreach (resourceType; ["Parameter", "ParameterBinding", "Parameter[]", "ParameterBinding[]"]) {
+        require(source.canFind("} else static if (is(T == " ~ resourceType ~ "))"),
+            "Command Browser should parse " ~ resourceType ~ " argument values for command execution");
+    }
+    require(!source.canFind("!is(TParam : Node) && !is(TParam : Parameter))"),
+        "Command Browser applyArgs should not skip Node/Parameter resource arguments");
+    require(source.canFind("clearResourceArgValue!TParam(v);") &&
+        source.canFind(`mixin("inst."~fname~" = v;")`),
+        "Command Browser applyArgs should clear resource fields to valid empty selections when an empty picker value cannot be parsed");
+    require(source.canFind("renderResourcePicker!Node(arg.name, argNodeSelections[arg.name], incActivePuppet(), arg.acceptsNodeResource);") &&
+        source.canFind("renderResourcePicker!Parameter(arg.name, argParamSelections[arg.name], incActivePuppet());") &&
+        source.canFind("renderResourcePicker!ParameterBinding(arg.name, argBindingSelections[arg.name], incActivePuppet());"),
+        "Command Browser should synchronize resource-array arg values every frame, including empty selections");
+    require(source.canFind("if (contextDirty)") &&
+        source.canFind("ctx.parameters = paramsOverride;") &&
+        source.canFind("ctx.armedParameters = armedOverride;") &&
+        source.canFind("ctx.nodes = nodesOverride;") &&
+        source.canFind("ctx.bindings = bindingsOverride;") &&
+        source.canFind("ctx.activeBindings = bindingsOverride;"),
+        "Command Browser should explicitly apply manual context picker overrides, including empty selections");
+}
+
+private void testCommandBrowserResourceArgumentParsingResolvesLiveResources() {
+    auto source = readText(regressionSourceRoot("windows/command_browser.d"));
+
+    require(source.canFind("} else static if (isNodeResource!T)") &&
+        source.canFind("} else static if (isNodeResourceArray!T)"),
+        "Command Browser should keep parseArgValue support for Node and all Node-derived resource types");
+    foreach (resourceType; ["Parameter", "ParameterBinding", "Parameter[]", "ParameterBinding[]"]) {
+        require(source.canFind("} else static if (is(T == " ~ resourceType ~ "))"),
+            "Command Browser should keep parseArgValue support for " ~ resourceType);
+    }
+
+    require(source.canFind("auto found = cast(T)p.find!(Node)(id);") &&
+        source.canFind("auto found = p.find!(Parameter)(id);"),
+        "Command Browser should resolve Node-derived and Parameter arguments from the active puppet by UUID");
+
+    require(source.canFind("findBindingByCommandBrowserId") &&
+        source.canFind("foreach (param; puppet.parameters)") &&
+        source.canFind("foreach (binding; param.bindings)") &&
+        source.canFind("ensureCommandBrowserBindingId(binding) == id"),
+        "Command Browser should resolve ParameterBinding ids through active-puppet bindings, not stale cached links");
+
+    require(source.canFind("E[] result;") &&
+        source.canFind("Parameter[] result;") &&
+        source.canFind("ParameterBinding[] result;"),
+        "Command Browser should keep array resource parsing for all resource argument families");
+
+    require(source.canFind("info.isNodeResource = isNodeResource!TParam;") &&
+        source.canFind("info.isNodeResourceArray = isNodeResourceArray!TParam;") &&
+        source.canFind("info.acceptsNodeResource = (Node n) { return cast(NR)n !is null; };"),
+        "Command Browser metadata should classify and filter scalar and array Node-derived resource arguments");
+    require(source.canFind("ctxBindingsSel = ctx.hasActiveBindings ? ctx.activeBindings : ctx.hasBindings ? ctx.bindings : [];"),
+        "Command Browser should capture the active binding context before falling back to all parameter bindings");
+
+    require(source.canFind("if (auto pv = fname in vals)") &&
+        source.canFind("if (parseArgValue!TParam(*pv, v))") &&
+        source.canFind(`mixin("inst."~fname~" = v;")`),
+        "Command Browser applyArgs should parse and assign command arguments before run");
+    require(source.canFind("} else static if (isResourceArgument!TParam)") &&
+        source.canFind("clearResourceArgValue!TParam(v);") &&
+        source.canFind(`mixin("inst."~fname~" = v;")`),
+        "Command Browser applyArgs should reset stale resource arguments to valid empty selections when the UI passes an empty value");
+
+    require(source.canFind("if (info.applyArgs !is null && selectedCmd !is null)") &&
+        source.canFind("info.applyArgs(selectedCmd, argValues);") &&
+        source.canFind("res = selectedCmd.run(ctx);"),
+        "Command Browser should apply parsed arguments before running the selected command");
+
+    auto firstApplier = source.countUntil("applier = (Command c, string[string] vals)");
+    auto firstCapture = source.countUntil("defCapturer = (Command c, ref string[string] vals)");
+    require(firstApplier >= 0 && firstCapture > firstApplier,
+        "Command Browser should generate an argument applier before default capture logic");
+    auto firstApplierBody = source[firstApplier .. firstCapture];
+    require(firstApplierBody.canFind("static if (!hidden)") &&
+        !firstApplierBody.canFind("!is(TParam : Node)") &&
+        !firstApplierBody.canFind("!is(TParam : Parameter)") &&
+        !firstApplierBody.canFind("!is(TParam : ParameterBinding)"),
+        "Command Browser applyArgs must not filter out Node, Parameter, or ParameterBinding resource arguments");
+
+    resetCase();
+    auto puppet = incActivePuppet();
+    auto left = new Node(puppet.root);
+    left.name = "command-browser-left";
+    auto right = new Node(puppet.root);
+    right.name = "command-browser-right";
+    auto flipCtx = new Context();
+    flipCtx.puppet = puppet;
+    auto addFlip = new AddFlipPairCommand();
+    addFlip.left = left;
+    addFlip.right = right;
+    require(addFlip.run(flipCtx).succeeded,
+        "AddFlipPairCommand should still run with live Node resource references");
+    require((new ListFlipPairsCommand()).run(flipCtx).result.toString().canFind(left.uuid.to!string),
+        "AddFlipPairCommand should preserve flip-pair result semantics");
+
+    resetCase();
+    auto physics = new SimplePhysics(incActivePuppet().root);
+    physics.name = "command-browser-physics";
+    auto physicsParam = new2DParameter("CommandBrowserPhysicsParam");
+    auto physicsCtx = new Context();
+    physicsCtx.nodes = [cast(Node)physics];
+    auto setPhysicsParam = new SetSimplePhysicsParameterCommand(physicsParam);
+    require(setPhysicsParam.run(physicsCtx).succeeded,
+        "SetSimplePhysicsParameterCommand should still run with live Parameter resource references");
+    require(physics.param is physicsParam,
+        "SetSimplePhysicsParameterCommand should preserve parameter assignment semantics");
+
+    resetCase();
+    auto rigRoot = new ExDepthRigRoot(incActivePuppet().root);
+    rigRoot.name = "command-browser-depth-root";
+    auto targetA = new GridDeformer(incActivePuppet().root);
+    targetA.name = "command-browser-target-a";
+    auto targetB = new PathDeformer(incActivePuppet().root);
+    targetB.name = "command-browser-target-b";
+    auto preview = new PreviewDepthBoneDeformCommand();
+    preview.root = rigRoot;
+    preview.targets = [cast(Node)targetA, cast(Node)targetB];
+    require(preview.root is rigRoot,
+        "PreviewDepthBoneDeformCommand should keep scalar Node resource assignment semantics");
+    require(preview.targets.length == 2 && preview.targets[0] is targetA && preview.targets[1] is targetB,
+        "PreviewDepthBoneDeformCommand should keep Node[] resource assignment semantics");
+}
+
+private string normalizeCommandBrowserDifferentialReport(string report) {
+    return replaceAll(report, regex(`\b\d{6,10}\b`), "UUID");
+}
+
+private void testCommandBrowserDifferentialReportMatchesBaseline() {
+    ngInitAllCommands();
+    resetCase();
+
+    auto root = incActivePuppet().root;
+    auto part = new Part(root);
+    part.name = "DiffPart";
+    auto nodeA = new Node(root);
+    nodeA.name = "DiffNodeA";
+    auto nodeB = new Node(root);
+    nodeB.name = "DiffNodeB";
+    auto paramA = new2DParameter("DiffParamA");
+    auto paramB = new2DParameter("DiffParamB");
+    newValueBinding(paramA, nodeA, "transform.t.x");
+    newValueBinding(paramB, nodeB, "transform.t.y");
+
+    auto actual = normalizeCommandBrowserDifferentialReport(ngCommandBrowserDifferentialReport());
+    auto expectedPath = buildPath(regressionRepoRoot(), "source", "nijigenerate_tests", "fixtures", "command_browser_differential_expected.txt");
+    auto expected = readText(expectedPath).strip;
+    require(actual.strip == expected,
+        "Command Browser applyArgs differential report changed from the 2959c149 baseline");
+}
+
+private bool runGeneratedCompositeCaseScenario(string id) {
+    if (id.startsWith("mesh.composite-grid-mode-matrix.")) {
+        runCase(id, { require(runCompositeMatrixGridModes(id) == 1, "generated grid/mode scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
+    if (id.startsWith("node.composite-type-matrix.")) {
+        runCase(id, { require(runCompositeMatrixNodeTypes(id) == 1, "generated node-type scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
+    if (id.startsWith("parameter.composite-preset-matrix.")) {
+        runCase(id, { require(runCompositeMatrixParameterPresets(id) == 1, "generated parameter preset scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
+    if (id.startsWith("depth.composite-operation-matrix.")) {
+        runCase(id, { require(runCompositeMatrixDepthOps(id) == 1, "generated depth operation scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
+    if (id.startsWith("automesh.composite-processor-matrix-scenario.")) {
+        runCase(id, { require(runCompositeMatrixAutoMeshProcessors(id) == 1, "generated automesh processor scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
+    if (id.startsWith("simplephysics.composite-settings-matrix.")) {
+        runCase(id, { require(runCompositeMatrixSimplePhysicsSettings(id) == 1, "generated simplephysics setting scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
+    return false;
+}
+
 private bool runAutomatedScenario(string id) {
+    if (runGeneratedCompositeCaseScenario(id))
+        return true;
+
     switch (id) {
         case "coverage.source-command-inventory":
             runCase("coverage-source-command-inventory", &testCoverageSourceCommandInventory);
@@ -7387,11 +9017,42 @@ private bool runAutomatedScenario(string id) {
         case "coverage.full-feature-scenario-inventory":
             runCase("coverage-full-feature-scenario-inventory", &testCoverageFullFeatureScenarioInventory);
             return true;
+        case "coverage.composite-workflow-inventory":
+            runCase("coverage-composite-workflow-inventory", &testCoverageCompositeWorkflowInventory);
+            return true;
+        case "coverage.composite-case-matrix":
+            runCase("coverage-composite-case-matrix", &testCompositeCaseMatrixBreadth);
+            return true;
+        case "mesh.composite-grid-mode-matrix":
+            runCase("mesh-composite-grid-mode-matrix", &testCompositeMatrixGridModesScenario);
+            return true;
+        case "node.composite-type-matrix":
+            runCase("node-composite-type-matrix", &testCompositeMatrixNodeTypesScenario);
+            return true;
+        case "parameter.composite-preset-matrix":
+            runCase("parameter-composite-preset-matrix", &testCompositeMatrixParameterPresetsScenario);
+            return true;
+        case "depth.composite-operation-matrix":
+            runCase("depth-composite-operation-matrix", &testCompositeMatrixDepthOpsScenario);
+            return true;
+        case "automesh.composite-processor-matrix-scenario":
+            runCase("automesh-composite-processor-matrix-scenario", &testCompositeMatrixAutoMeshProcessorsScenario);
+            return true;
+        case "simplephysics.composite-settings-matrix":
+            runCase("simplephysics-composite-settings-matrix", &testCompositeMatrixSimplePhysicsSettingsScenario);
+            return true;
         case "coverage.source-module-scenario-inventory":
             runCase("coverage-source-module-scenario-inventory", &testCoverageSourceModuleScenarioInventory);
             return true;
         case "project.new-open-save":
             runCase("project-new-save-open-command-paths", &testProjectNewSaveOpenCommandPaths);
+            return true;
+        case "project.composite-command-roundtrip":
+            runCase("project-composite-command-roundtrip", &testProjectCompositeCommandRoundTrip);
+            return true;
+        case "project.composite-image-merge-export":
+        case "io.composite-import-export-roundtrip":
+            runCase("project-image-merge-export-composite", &testProjectImageMergeExportCompositeWorkflow);
             return true;
         case "io.serialization-inx":
         case "io.serialization-textures":
@@ -7496,12 +9157,22 @@ private bool runAutomatedScenario(string id) {
         case "node.type-conversion":
             runCase("node-type-conversion-map-undo-redo", &testNodeTypeConversionMapUndoRedo);
             return true;
+        case "node.composite-hierarchy-binding-roundtrip":
+            runCase("node-composite-hierarchy-binding-roundtrip", &testNodeCompositeHierarchyBindingRoundTrip);
+            return true;
         case "mesh.define-grid-command":
             runCase("define-grid-command-undo-redo", &testDefineGridCommandUndoRedo);
+            return true;
+        case "api.mcp-mode-history":
+        case "undo.composite-workflows":
+            runCase("mcp-mode-history-composite-workflows", &testMcpModeHistoryCompositeWorkflows);
             return true;
         case "mesh.define-mesh-command":
         case "part.uv-mesh-coherence":
             runCase("define-mesh-and-vertices-commands-undo-redo", &testDefineMeshAndVerticesCommandsUndoRedo);
+            return true;
+        case "mesh.composite-topology-scope":
+            runCase("mesh-composite-topology-scope", &testMeshCompositeTopologyScopeWorkflow);
             return true;
         case "mesh.common-operations":
             runCase("mesh-common-vertex-connections", &testMeshCommonVertexConnections);
@@ -7526,6 +9197,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "deform.meshgroup-compat":
             runCase("meshgroup-griddeformer-compatibility", &testMeshGroupGridDeformerCompatibility);
+            return true;
+        case "deform.composite-grid-path-binding":
+            runCase("deform-composite-grid-path-binding", &testDeformCompositeGridPathBindingWorkflow);
             return true;
         case "deform.griddeformer-runtime":
             runCase("griddeformer-runtime-interpolation-contracts", &testGridDeformerRuntimeInterpolationContracts);
@@ -7556,6 +9230,9 @@ private bool runAutomatedScenario(string id) {
         case "automesh.batch-undo":
             runCase("automesh-batch-config-undo-redo", &testAutoMeshBatchConfigUndoRedo);
             return true;
+        case "automesh.composite-processor-matrix":
+            runCase("automesh-composite-processor-matrix", &testAutoMeshCompositeProcessorMatrix);
+            return true;
         case "automesh.grid-processor":
             runCase("automesh-grid-processor-deterministic-output", &testAutoMeshGridProcessorDeterministicOutput);
             return true;
@@ -7580,6 +9257,9 @@ private bool runAutomatedScenario(string id) {
         case "part.texture":
         case "inspectors.part":
             runCase("part-inspector-properties-undo-redo", &testPartInspectorPropertiesUndoRedo);
+            return true;
+        case "part.composite-inspector-mesh-roundtrip":
+            runCase("part-composite-inspector-mesh-roundtrip", &testPartCompositeInspectorMeshRoundTrip);
             return true;
         case "part.texture-reload":
             runCase("part-texture-reload-fixture", &testPartTextureReloadFixture);
@@ -7606,6 +9286,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "inspectors.mesh-deformers":
             runCase("mesh-deformer-inspector-commands-undo-redo", &testMeshDeformerInspectorCommandsUndoRedo);
+            return true;
+        case "inspectors.composite-node-part-mesh":
+            runCase("inspector-composite-node-part-mesh", &testInspectorCompositeNodePartMeshWorkflow);
             return true;
         case "depthbone.binding-create":
             runCase("depthbone-source-commands-undo-redo", &testDepthBoneSourceCommandsUndoRedo);
@@ -7690,6 +9373,12 @@ private bool runAutomatedScenario(string id) {
             runCase("parameter-trs-binding-model-command-undo-redo", &testParameterTRSBindingModelCommandUndoRedo);
             runCase("parameter-deform-binding-model-command-undo-redo", &testParameterDeformBindingModelCommandUndoRedo);
             return true;
+        case "parameter.mesh-binding-composite":
+            runCase("parameter-mesh-binding-composite-workflow", &testParameterMeshBindingCompositeWorkflow);
+            return true;
+        case "parameter.composite-lifecycle-binding":
+            runCase("parameter-composite-lifecycle-binding", &testParameterCompositeLifecycleBindingWorkflow);
+            return true;
         case "parameter.axes-props":
             runCase("parameter-axes-props-command-undo-redo", &testParameterAxesPropsCommandUndoRedo);
             return true;
@@ -7702,6 +9391,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "animation.track-binding-cleanup":
             runCase("animation-track-binding-cleanup", &testAnimationTrackBindingCleanup);
+            return true;
+        case "animation.composite-keyframe-history":
+            runCase("animation-composite-keyframe-history", &testAnimationCompositeKeyframeHistory);
             return true;
         case "animation.keyframes":
             runCase("animation-keyframes-undo-redo", &testAnimationKeyframesUndoRedo);
@@ -7722,6 +9414,9 @@ private bool runAutomatedScenario(string id) {
         case "simplephysics.serialization":
             runCase("simplephysics-serialization-roundtrip", &testSimplePhysicsSerializationRoundTrip);
             return true;
+        case "simplephysics.composite-roundtrip":
+            runCase("simplephysics-composite-roundtrip", &testSimplePhysicsCompositeRoundTripWorkflow);
+            return true;
         case "undo.grouped-actions":
             runCase("action-group-undo-redo", &testActionGroupUndoRedo);
             return true;
@@ -7731,6 +9426,9 @@ private bool runAutomatedScenario(string id) {
         case "viewport.action-history":
         case "panels.action-history":
             runCase("action-history-index-modified-state", &testActionHistoryIndexAndModifiedState);
+            return true;
+        case "viewport.settings-command-composite":
+            runCase("viewport-settings-command-composite", &testViewportSettingsCommandCompositeWorkflow);
             return true;
         case "viewport.flip-pairs":
             runCase("viewport-flip-pair-commands", &testViewportFlipPairCommands);
@@ -7754,11 +9452,20 @@ private bool runAutomatedScenario(string id) {
         case "render.camera":
             runCase("render-camera-export-commands", &testRenderCameraExportCommands);
             return true;
+        case "render.composite-camera-texture-export":
+            runCase("render-camera-texture-composite", &testRenderCameraTextureCompositeWorkflow);
+            return true;
         case "depth.operation-helpers":
             runCase("depth-operation-helper-contracts", &testDepthOperationHelperContracts);
             return true;
         case "depth.commands":
             runCase("depth-map-commands-undo-redo", &testDepthMapCommandsUndoRedo);
+            return true;
+        case "depth.composite-map-ops":
+            runCase("depth-composite-map-ops", &testDepthCompositeMapOpsWorkflow);
+            return true;
+        case "depthbone.composite-source-preview":
+            runCase("depthbone-composite-source-preview", &testDepthBoneCompositeSourcePreviewWorkflow);
             return true;
         case "mesh.vertex-scope":
         case "depth.edit-scope":
@@ -7773,8 +9480,14 @@ private bool runAutomatedScenario(string id) {
         case "undo.command-actions":
             runCase("undo-command-actions-audit", &testUndoCommandActionsAudit);
             return true;
+        case "undo.composite-cross-family-stack":
+            runCase("undo-composite-cross-family-stack", &testUndoCompositeCrossFamilyStackWorkflow);
+            return true;
         case "settings.shortcuts":
             runCase("shortcut-settings-conflict-reload", &testShortcutSettingsConflictAndReload);
+            return true;
+        case "settings.composite-shortcuts-recent":
+            runCase("settings-composite-shortcuts-recent", &testSettingsCompositeShortcutsRecentWorkflow);
             return true;
         case "settings.default-shortcuts":
             runCase("default-shortcut-registration", &testDefaultShortcutRegistration);
@@ -7839,6 +9552,11 @@ private bool runAutomatedScenario(string id) {
         case "inspectors.format-strings":
             runCase("inspector-format-strings", &testInspectorFormatStringsDoNotEscapeNumericFormats);
             return true;
+        case "tools.command-browser-resource-pickers":
+            runCase("command-browser-resource-picker-initialization", &testCommandBrowserResourcePickerSelectionsAreInitialized);
+            runCase("command-browser-resource-argument-semantics", &testCommandBrowserResourceArgumentParsingResolvesLiveResources);
+            runCase("command-browser-differential-baseline", &testCommandBrowserDifferentialReportMatchesBaseline);
+            return true;
         default:
             return false;
     }
@@ -7861,12 +9579,12 @@ private JSONValue scenarioToJson(Scenario scenario) {
 }
 
 private void printList() {
-    foreach (scenario; scenarios)
+    foreach (scenario; allScenarios())
         printScenario(scenario);
 }
 
 private void printComputerUseManifest() {
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.status == computerUse)
             writeln(scenarioToJson(scenario).toString());
     }
@@ -7930,7 +9648,7 @@ private int printCoverage(bool requireAll) {
     size_t computerUseCount;
     size_t pendingCount;
 
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.status == automated)
             automatedCount++;
         else if (scenario.status == computerUse)
@@ -7940,7 +9658,7 @@ private int printCoverage(bool requireAll) {
     }
 
     writeln("coverage:");
-    writeln("  total: ", scenarios.length);
+    writeln("  total: ", allScenarios().length);
     writeln("  automated: ", automatedCount);
     writeln("  computer-use: ", computerUseCount);
     writeln("  pending: ", pendingCount);
@@ -7957,7 +9675,7 @@ private int printCoverage(bool requireAll) {
 }
 
 private int runOnly(string id) {
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.id != id)
             continue;
         if (scenario.status != automated) {
@@ -7965,7 +9683,10 @@ private int runOnly(string id) {
             printScenario(scenario);
             return 2;
         }
-        runAutomatedScenario(id);
+        if (!runAutomatedScenario(id)) {
+            stderr.writeln("automated scenario has no runner: ", id);
+            return 1;
+        }
         writeln("regression-tests: OK");
         return 0;
     }
@@ -7975,7 +9696,7 @@ private int runOnly(string id) {
 }
 
 private int runAutomatedScenarios() {
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.status == automated)
             require(runAutomatedScenario(scenario.id), "automated scenario has no runner: " ~ scenario.id);
     }
@@ -7994,7 +9715,7 @@ private int runComputerUseScenarios(string driverCommand) {
     }
 
     size_t executed;
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.status != computerUse)
             continue;
         executed++;
@@ -8020,7 +9741,7 @@ private int runComputerUseScenario(string id, string driverCommand) {
         return 2;
     }
 
-    foreach (scenario; scenarios) {
+    foreach (scenario; allScenarios()) {
         if (scenario.id != id)
             continue;
         if (scenario.status != computerUse) {
