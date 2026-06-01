@@ -3,7 +3,7 @@ module nijigenerate.commands.depth.bone;
 import nijigenerate.commands.base;
 import nijigenerate.actions;
 import nijigenerate.actions.binding : ngDepthBoneBindingValueChangeHook;
-import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
+import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction, ParameterShapeChangeAction;
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.ext : ExParameter;
 import nijigenerate.ext.nodes.exdepthbone;
@@ -1988,11 +1988,11 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
     ];
 }
 
-private Parameter findDepthParameterByName(string name) {
+private Parameter findDepthParameterByName(string name, bool isVec2) {
     auto puppet = incActivePuppet();
     if (puppet is null) return null;
     foreach (param; puppet.parameters) {
-        if (param.name == name) return param;
+        if (param.name == name && param.isVec2 == isVec2) return param;
     }
     return null;
 }
@@ -2005,20 +2005,79 @@ private float parameterAxisValue(Parameter param, size_t axis, size_t index) {
     return minValue + span * param.axisPoints[axis][index];
 }
 
-private bool axisMatches(const float[] actual, const float[] expected) {
-    if (actual.length != expected.length) return false;
-    foreach (i, value; actual) {
-        if (abs(value - expected[i]) > 0.000001f) return false;
-    }
-    return true;
-}
-
-private bool parameterMatchesSpec(Parameter param, ref StandardDepthParameterSpec spec) {
+private bool parameterStructureMatchesSpec(Parameter param, ref StandardDepthParameterSpec spec) {
     if (param is null) return false;
     if (param.isVec2 != spec.isVec2) return false;
     if (abs(param.min.x - spec.minValue.x) > 0.000001f || abs(param.max.x - spec.maxValue.x) > 0.000001f) return false;
     if (spec.isVec2 && (abs(param.min.y - spec.minValue.y) > 0.000001f || abs(param.max.y - spec.maxValue.y) > 0.000001f)) return false;
-    return axisMatches(param.axisPoints[0], spec.axisX) && axisMatches(param.axisPoints[1], spec.axisY);
+    return true;
+}
+
+private bool parameterHasAxisValue(Parameter param, uint axis, float value) {
+    enum float eps = 0.000001f;
+    if (!param.isVec2 && axis == 1)
+        return abs(value) <= eps;
+    foreach (i; 0 .. param.axisPoints[axis].length) {
+        if (abs(parameterAxisValue(param, axis, i) - value) <= eps)
+            return true;
+    }
+    return false;
+}
+
+private void ensureParameterAxisValue(Parameter param, uint axis, float value) {
+    enum float eps = 0.000001f;
+    if (!param.isVec2 && axis == 1) return;
+    if (parameterHasAxisValue(param, axis, value)) return;
+
+    auto minValue = axis == 0 ? param.min.x : param.min.y;
+    auto maxValue = axis == 0 ? param.max.x : param.max.y;
+    auto span = maxValue - minValue;
+    if (abs(span) <= eps) return;
+    auto offset = (value - minValue) / span;
+    if (offset > eps && offset < 1.0f - eps)
+        param.insertAxisPoint(axis, offset);
+}
+
+private bool standardDepthParameterHasRequiredKeys(Parameter param, StandardDepthBoneBindingSpec[] bindingSpecs) {
+    foreach (bindingSpec; bindingSpecs) {
+        foreach (valueSpec; bindingSpec.values) {
+            if (!parameterHasAxisValue(param, 0, valueSpec.paramValue.x)) return false;
+            if (!parameterHasAxisValue(param, 1, valueSpec.paramValue.y)) return false;
+        }
+    }
+    return true;
+}
+
+private void ensureStandardDepthParameterKeys(Parameter param, StandardDepthBoneBindingSpec[] bindingSpecs) {
+    foreach (bindingSpec; bindingSpecs) {
+        foreach (valueSpec; bindingSpec.values) {
+            ensureParameterAxisValue(param, 0, valueSpec.paramValue.x);
+            ensureParameterAxisValue(param, 1, valueSpec.paramValue.y);
+        }
+    }
+}
+
+private bool conformStandardDepthParameter(Parameter param, ref StandardDepthParameterSpec spec, StandardDepthBoneBindingSpec[] bindingSpecs, GroupAction group, out bool changed, out string message) {
+    changed = false;
+    if (param.isVec2 != spec.isVec2) {
+        message = _("Existing parameter '%s' is %s but the standard depth template requires %s").format(
+            spec.name,
+            param.isVec2 ? "2D" : "1D",
+            spec.isVec2 ? "2D" : "1D"
+        );
+        return false;
+    }
+    if (parameterStructureMatchesSpec(param, spec) && standardDepthParameterHasRequiredKeys(param, bindingSpecs))
+        return true;
+
+    auto action = new ParameterShapeChangeAction("standard depth parameter axes", param);
+    param.min = spec.minValue;
+    param.max = spec.maxValue;
+    ensureStandardDepthParameterKeys(param, bindingSpecs);
+    action.updateNewState();
+    group.addAction(action);
+    changed = true;
+    return true;
 }
 
 private ExDepthBone findStandardDepthBone(ExDepthRigRoot root, string boneId) {
@@ -2050,10 +2109,13 @@ class AddStandardDepthParametersCommand : ExCommand!(
 
         auto group = new GroupAction();
         Parameter[string] paramsByName;
+        StandardDepthBoneBindingSpec[][string] bindingSpecsByParameter;
+        foreach (bindingSpec; bindingSpecs)
+            bindingSpecsByParameter[bindingSpec.parameterName] ~= bindingSpec;
         bool changed = false;
 
         foreach (spec; standardDepthParameterSpecs()) {
-            auto param = findDepthParameterByName(spec.name);
+            auto param = findDepthParameterByName(spec.name, spec.isVec2);
             if (param is null) {
                 auto created = new ExParameter(spec.name, spec.isVec2);
                 created.min = spec.minValue;
@@ -2067,7 +2129,11 @@ class AddStandardDepthParametersCommand : ExCommand!(
                 param = created;
                 changed = true;
             } else {
-                enforce(parameterMatchesSpec(param, spec), _("Existing parameter '%s' has incompatible keypoints").format(spec.name));
+                string message;
+                bool parameterChanged;
+                if (!conformStandardDepthParameter(param, spec, bindingSpecsByParameter.get(spec.name, null), group, parameterChanged, message))
+                    return CommandResult(false, message);
+                changed = changed || parameterChanged;
             }
             paramsByName[spec.name] = param;
         }
