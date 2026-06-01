@@ -28,8 +28,10 @@ class Add1DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the P
         param.max.x = max;
         if (min + max == 0)
         param.insertAxisPoint(0, 0.5);
-        incActivePuppet().parameters ~= param;
-        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+        ctx.puppet.parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &ctx.puppet.parameters));
+        if (ctx.puppet.root)
+            ctx.puppet.root.notifyChange(ctx.puppet.root, NotifyReason.StructureChanged);
         auto res = new CreateResult!Parameter(true, [param], "Parameter created");
         return res;
     }
@@ -53,8 +55,10 @@ class Add2DParameterCommand : ExCommand!(TW!(int, "min", "minimum value of the P
             param.insertAxisPoint(0, 0.5);
             param.insertAxisPoint(1, 0.5);
         }
-        incActivePuppet().parameters ~= param;
-        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+        ctx.puppet.parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &ctx.puppet.parameters));
+        if (ctx.puppet.root)
+            ctx.puppet.root.notifyChange(ctx.puppet.root, NotifyReason.StructureChanged);
         auto res = new CreateResult!Parameter(true, [param], "Parameter created");
         return res;
     }
@@ -80,8 +84,10 @@ class AddMouthParameterCommand : ExCommand!() {
         param.insertAxisPoint(1, 0.3);
         param.insertAxisPoint(1, 0.5);
         param.insertAxisPoint(1, 0.6);
-        incActivePuppet().parameters ~= param;
-        incActionPush(new ParameterAddAction(param, &incActivePuppet().parameters));
+        ctx.puppet.parameters ~= param;
+        incActionPush(new ParameterAddAction(param, &ctx.puppet.parameters));
+        if (ctx.puppet.root)
+            ctx.puppet.root.notifyChange(ctx.puppet.root, NotifyReason.StructureChanged);
         auto res = new CreateResult!Parameter(true, [param], "Parameter created");
         return res;
     }
@@ -95,6 +101,8 @@ class RemoveParameterCommand : ExCommand!() {
         if (!ctx.hasParameters) return new DeleteResult!Parameter(false, null, "No parameters");
         foreach (param; ctx.parameters)
             removeParameter(param);
+        if (ctx.hasPuppet && ctx.puppet.root)
+            ctx.puppet.root.notifyChange(ctx.puppet.root, NotifyReason.StructureChanged);
         auto res = new DeleteResult!Parameter(true, ctx.parameters.dup, "Parameters removed");
         return res;
     }

@@ -172,6 +172,8 @@ protected:
 
     override
     void onUpdate() {
+        incRunPendingParameterUiCommand();
+
         if (incActivePuppet() != activePuppet) {
             activePuppet = incActivePuppet();
             if (activePuppet) {
@@ -294,4 +296,3 @@ public:
     Generate logger frame
 */
 //mixin incPanel!ResourcePanel;
-

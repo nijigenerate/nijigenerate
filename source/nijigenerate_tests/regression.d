@@ -4064,11 +4064,21 @@ private void assertAxisPoints(Parameter param, int axis, scope const(float)[] ex
 private void testParameterCreatePresets() {
     resetCase();
 
+    auto resourcePanelSource = readText(regressionSourceRoot("panels/resource.d"));
+    require(resourcePanelSource.canFind("incRunPendingParameterUiCommand();"),
+        "ResourcePanel should execute queued parameter menu commands from its Add Resource and right-click menus");
+
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
+    bool resourceStructureNotified;
+    incActivePuppet().root.addNotifyListener((Node target, NotifyReason reason) {
+        if (target is incActivePuppet().root && reason == NotifyReason.StructureChanged)
+            resourceStructureNotified = true;
+    });
 
     auto onePositiveResult = (new Add1DParameterCommand(0, 1)).run(ctx);
     require(onePositiveResult.succeeded, "Add1DParameterCommand 0..1 should succeed");
+    require(resourceStructureNotified, "Add1DParameterCommand should notify resource views after creating a parameter");
     auto onePositive = onePositiveResult.created[0];
     require(!onePositive.isVec2, "0..1 preset should create 1D parameter");
     require(near(onePositive.min.x, 0) && near(onePositive.max.x, 1), "0..1 preset should set range");
@@ -5450,6 +5460,115 @@ private void testDepthBoneStandardParameterTemplate() {
 
     incActionRedo();
     require(findParameter(incActivePuppet(), "Face::Yaw-Pitch") !is null, "redo standard depth parameters should restore created parameters");
+
+    resetCase();
+
+    auto conflictRoot = new ExDepthRigRoot(incActivePuppet().root);
+    conflictRoot.name = "template-depth-param-conflict-root";
+    ngAddStandardDepthSkeleton(conflictRoot, 1000.0f);
+
+    auto existingFaceRoll = new ExParameter("Face::Roll", false);
+    existingFaceRoll.min = vec2(-30.0f, 0.0f);
+    existingFaceRoll.max = vec2(30.0f, 0.0f);
+    existingFaceRoll.insertAxisPoint(0, 0.5f);
+    incActivePuppet().parameters ~= existingFaceRoll;
+    require(existingFaceRoll.axisPoints[0].length == 3, "test fixture Face::Roll should start with a non-template but sufficient 3-key axis");
+
+    auto conflictCommand = new AddStandardDepthParametersCommand();
+    conflictCommand.root = conflictRoot;
+    auto conflictResult = conflictCommand.run(new Context());
+    require(conflictResult.succeeded, "AddStandardDepthParametersCommand should reuse compatible existing standard parameters instead of throwing");
+    require(findParameter(incActivePuppet(), "Face::Roll") is existingFaceRoll, "standard depth parameter setup should reuse the existing Face::Roll");
+    require(existingFaceRoll.axisPoints[0].length == 3 && existingFaceRoll.axisPoints[1].length == 1,
+        "standard depth parameter setup should not force Face::Roll to the template grid when required paramValue keys already exist");
+    require(near(existingFaceRoll.min.x, -1.0f) && near(existingFaceRoll.max.x, 1.0f),
+        "standard depth parameter setup should normalize Face::Roll range");
+
+    auto neck = findDepthBoneById(conflictRoot, "Neck");
+    auto neckRoll = cast(ValueParameterBinding)existingFaceRoll.getBinding(neck, "transform.r.z");
+    require(neckRoll !is null, "standard depth parameter setup should bind existing Face::Roll to Neck transform.r.z");
+
+    incActionUndo();
+    require(findParameter(incActivePuppet(), "Face::Roll") is existingFaceRoll,
+        "undo standard depth parameter setup should keep pre-existing Face::Roll");
+    require(existingFaceRoll.axisPoints[0].length == 3 && near(existingFaceRoll.min.x, -30.0f) && near(existingFaceRoll.max.x, 30.0f),
+        "undo standard depth parameter setup should restore Face::Roll range without requiring template axis count");
+
+    incActionRedo();
+    require(existingFaceRoll.axisPoints[0].length == 3 && near(existingFaceRoll.min.x, -1.0f) && near(existingFaceRoll.max.x, 1.0f),
+        "redo standard depth parameter setup should preserve sufficient Face::Roll keypoints");
+
+    resetCase();
+
+    auto missingKeyRoot = new ExDepthRigRoot(incActivePuppet().root);
+    missingKeyRoot.name = "template-depth-param-missing-key-root";
+    ngAddStandardDepthSkeleton(missingKeyRoot, 1000.0f);
+
+    auto missingKeyFaceRoll = new ExParameter("Face::Roll", false);
+    missingKeyFaceRoll.min = vec2(-1.0f, 0.0f);
+    missingKeyFaceRoll.max = vec2(1.0f, 0.0f);
+    missingKeyFaceRoll.insertAxisPoint(0, 0.25f);
+    incActivePuppet().parameters ~= missingKeyFaceRoll;
+    require(missingKeyFaceRoll.axisPoints[0].length == 3, "test fixture Face::Roll should miss the 0 standard paramValue key");
+
+    auto missingKeyCommand = new AddStandardDepthParametersCommand();
+    missingKeyCommand.root = missingKeyRoot;
+    require(missingKeyCommand.run(new Context()).succeeded,
+        "AddStandardDepthParametersCommand should add only missing paramValue keypoints for existing parameters");
+    require(missingKeyFaceRoll.axisPoints[0].length == 4,
+        "standard depth parameter setup should add only the missing interior paramValue key");
+    auto missingKeyNeck = findDepthBoneById(missingKeyRoot, "Neck");
+    auto missingKeyNeckRoll = cast(ValueParameterBinding)missingKeyFaceRoll.getBinding(missingKeyNeck, "transform.r.z");
+    require(missingKeyNeckRoll !is null && near(missingKeyNeckRoll.getValue(vec2u(3, 0)), 0.41887903f),
+        "standard depth parameter setup should set binding values at required endpoint paramValue keys");
+
+    incActionUndo();
+    require(missingKeyFaceRoll.getBinding(missingKeyNeck, "transform.r.z") is null,
+        "undo missing-key standard depth parameter setup should remove created binding");
+
+    incActionRedo();
+    require(missingKeyFaceRoll.getBinding(missingKeyNeck, "transform.r.z") !is null,
+        "redo missing-key standard depth parameter setup should restore created binding");
+
+    resetCase();
+
+    auto typeConflictRoot = new ExDepthRigRoot(incActivePuppet().root);
+    typeConflictRoot.name = "template-depth-param-type-conflict-root";
+    ngAddStandardDepthSkeleton(typeConflictRoot, 1000.0f);
+
+    auto wrongTypeFaceRoll = new ExParameter("Face::Roll", true);
+    incActivePuppet().parameters ~= wrongTypeFaceRoll;
+    auto typeConflictCommand = new AddStandardDepthParametersCommand();
+    typeConflictCommand.root = typeConflictRoot;
+    require(typeConflictCommand.run(new Context()).succeeded,
+        "AddStandardDepthParametersCommand should create standard parameters even when a same-name incompatible parameter exists");
+    auto standardFaceRollCount = 0;
+    Parameter standardFaceRoll;
+    foreach (param; incActivePuppet().parameters) {
+        if (param.name == "Face::Roll" && !param.isVec2) {
+            standardFaceRollCount++;
+            standardFaceRoll = param;
+        }
+    }
+    require(standardFaceRollCount == 1 && standardFaceRoll !is null,
+        "same-name incompatible Face::Roll should not block creation of a standard 1D Face::Roll");
+    require(wrongTypeFaceRoll.isVec2, "same-name incompatible Face::Roll should not be mutated into a standard parameter");
+
+    incActionUndo();
+    standardFaceRollCount = 0;
+    foreach (param; incActivePuppet().parameters)
+        if (param.name == "Face::Roll" && !param.isVec2)
+            standardFaceRollCount++;
+    require(standardFaceRollCount == 0 && incActivePuppet().parameters.canFind(wrongTypeFaceRoll),
+        "undo type-conflict standard depth setup should remove created standard Face::Roll and keep the pre-existing incompatible one");
+
+    incActionRedo();
+    standardFaceRollCount = 0;
+    foreach (param; incActivePuppet().parameters)
+        if (param.name == "Face::Roll" && !param.isVec2)
+            standardFaceRollCount++;
+    require(standardFaceRollCount == 1,
+        "redo type-conflict standard depth setup should recreate the standard Face::Roll");
 }
 
 private void testDepthBoneInfluenceRuleCommandUndoRedo() {
