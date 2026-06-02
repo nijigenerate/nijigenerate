@@ -1925,6 +1925,58 @@ private void testNodeCommandMoveUndoRedo() {
     require(isChildOf(parentB, child), "redo MoveNodeCommand should restore new child list");
 }
 
+private vec3 nodeWorldTranslation(Node node) {
+    auto mat = node.transformNoLock().matrix;
+    return vec3(mat.matrix[0][3], mat.matrix[1][3], mat.matrix[2][3]);
+}
+
+private void testNodeCommandMovePreservesWorldTransform() {
+    resetCase();
+
+    auto parentA = new Node(incActivePuppet().root);
+    auto parentB = new Node(incActivePuppet().root);
+    auto child = new Node(parentA);
+    parentA.name = "transform-parent-a";
+    parentB.name = "transform-parent-b";
+    child.name = "transform-child";
+
+    parentA.localTransform = Transform(
+        vec3(15, -6, 2),
+        vec3(0, 0, 0.35f),
+        vec2(1.4f, 0.8f)
+    );
+    parentB.localTransform = Transform(
+        vec3(-8, 20, -3),
+        vec3(0, 0, -0.5f),
+        vec2(0.6f, 1.7f)
+    );
+    child.localTransform = Transform(
+        vec3(4, 7, 1),
+        vec3(0, 0, 0.2f),
+        vec2(1.2f, 0.9f)
+    );
+    parentA.transformChanged();
+    parentB.transformChanged();
+    child.transformChanged();
+
+    auto before = nodeWorldTranslation(child);
+
+    auto ctx = new Context();
+    ctx.nodes = [child];
+
+    require((new MoveNodeCommand(parentB, 0)).run(ctx).succeeded, "MoveNodeCommand should move transformed child");
+    require(child.parent is parentB, "MoveNodeCommand should reparent transformed child");
+    require(nearVec3(nodeWorldTranslation(child), before), "MoveNodeCommand should preserve child world translation");
+
+    incActionUndo();
+    require(child.parent is parentA, "undo MoveNodeCommand should restore transformed child's parent");
+    require(nearVec3(nodeWorldTranslation(child), before), "undo MoveNodeCommand should restore child world translation");
+
+    incActionRedo();
+    require(child.parent is parentB, "redo MoveNodeCommand should reparent transformed child again");
+    require(nearVec3(nodeWorldTranslation(child), before), "redo MoveNodeCommand should preserve child world translation again");
+}
+
 private void testNodeCentralizeCommandUndoRedo() {
     resetCase();
 
@@ -9259,6 +9311,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "node.reparent-order":
             runCase("node-command-move-undo-redo", &testNodeCommandMoveUndoRedo);
+            runCase("node-command-move-preserves-world-transform", &testNodeCommandMovePreservesWorldTransform);
             return true;
         case "node.centralize":
             runCase("node-centralize-command-undo-redo", &testNodeCentralizeCommandUndoRedo);

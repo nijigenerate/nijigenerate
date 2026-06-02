@@ -86,7 +86,7 @@ public:
         // Reparent
         foreach(ref sn; nodes) {
 
-            auto tmpTransform = sn.transform;
+            auto tmpTransform = sn.transformNoLock;
             
             // Store ref to prev parent
             if (sn.parent) {
@@ -102,7 +102,13 @@ public:
                 if (sn.uuid in zSort) {
                     sn.zSort = zSort[sn.uuid] - new_.zSort();
                 }
-                sn.localTransform.translation = (new_.transform.matrix.inverse * vec4(tmpTransform.translation, 1)).xyz;
+                if (!sn.lockToRoot()) {
+                    sn.localTransform.translation = Node.getRelativePosition(
+                        new_.transformNoLock.matrix,
+                        tmpTransform.matrix
+                    );
+                    sn.localTransform.update();
+                }
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
             } else sn.parent = null;
