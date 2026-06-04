@@ -1975,6 +1975,32 @@ private void testNodeCommandMovePreservesWorldTransform() {
     incActionRedo();
     require(child.parent is parentB, "redo MoveNodeCommand should reparent transformed child again");
     require(nearVec3(nodeWorldTranslation(child), before), "redo MoveNodeCommand should preserve child world translation again");
+
+    auto dynamicParent = new DynamicComposite(incActivePuppet().root);
+    dynamicParent.name = "transform-dynamic-parent";
+    dynamicParent.localTransform = Transform(
+        vec3(30, -12, 0),
+        vec3(0, 0, 0.45f),
+        vec2(2.0f, 0.5f)
+    );
+    dynamicParent.transformChanged();
+
+    auto dynamicBefore = nodeWorldTranslation(child);
+    foreach (i; 0 .. 5) {
+        ctx.nodes = [child];
+        require((new MoveNodeCommand(dynamicParent, 0)).run(ctx).succeeded,
+            "MoveNodeCommand should move child into DynamicComposite on iteration " ~ i.to!string);
+        require(child.parent is dynamicParent, "MoveNodeCommand should parent child under DynamicComposite");
+        require(nearVec3(nodeWorldTranslation(child), dynamicBefore),
+            "MoveNodeCommand should preserve world translation inside DynamicComposite on iteration " ~ i.to!string);
+
+        ctx.nodes = [child];
+        require((new MoveNodeCommand(parentA, 0)).run(ctx).succeeded,
+            "MoveNodeCommand should move child out of DynamicComposite on iteration " ~ i.to!string);
+        require(child.parent is parentA, "MoveNodeCommand should restore child under normal parent");
+        require(nearVec3(nodeWorldTranslation(child), dynamicBefore),
+            "MoveNodeCommand should not accumulate DynamicComposite drift on iteration " ~ i.to!string);
+    }
 }
 
 private void testNodeCentralizeCommandUndoRedo() {
