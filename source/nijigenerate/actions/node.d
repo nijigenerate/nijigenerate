@@ -104,7 +104,7 @@ public:
                 }
                 if (!sn.lockToRoot()) {
                     sn.localTransform.translation = Node.getRelativePosition(
-                        new_.transformNoLock.matrix,
+                        new_.transform.matrix,
                         tmpTransform.matrix
                     );
                     sn.localTransform.update();
