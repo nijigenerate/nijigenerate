@@ -105,6 +105,14 @@ void incRunPendingParameterUiCommand() {
     action();
 }
 
+bool ngRegressionHasPendingParameterUiCommand() {
+    return pendingParameterUiCommand !is null;
+}
+
+void ngRegressionQueueParameterUiCommand(void delegate() action) {
+    queueParameterUiCommand(action);
+}
+
 struct ParamDragDropData {
     Parameter param;
 }

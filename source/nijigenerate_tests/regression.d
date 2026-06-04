@@ -98,15 +98,18 @@ private double regressionNow() {
 }
 
 private immutable Scenario[] scenarios = [
-    Scenario("coverage.source-command-inventory", "Coverage Audit", "Source modules, major subsystems, and command entrypoints are represented in the regression catalog", automated, "This is an accounting guard, not behavioral coverage; it fails when a source subsystem or command family has no catalog owner."),
-    Scenario("coverage.command-base", "Coverage Audit", "Base command contracts, command metadata, categories, shortcut labels, and command result behavior", automated, "Covers base CommandResult payloads, Context masks, ExCommand labels/args, and command metadata reflection."),
-    Scenario("coverage.full-feature-scenario-inventory", "Coverage Audit", "Every command, window, panel, inspector, mesh tool, and depth tool class has a regression scenario owner", automated, "Builds a source-derived feature inventory so newly added user-facing feature entrypoints cannot remain uncataloged."),
-    Scenario("coverage.source-module-scenario-inventory", "Coverage Audit", "Every source module is assigned to a regression scenario family", automated, "Builds a module-to-scenario map for the whole source tree; this is the baseline scenario catalog before individual behavioral tests are filled in."),
-    Scenario("coverage.composite-workflow-inventory", "Coverage Audit", "Major feature families have cross-boundary regression scenarios for command, mode, history, serialization, and MCP interactions", automated, "Requires representative composite workflow owners so command-only tests cannot be mistaken for end-to-end coverage."),
-    Scenario("coverage.composite-case-matrix", "Coverage Audit", "Composite workflows execute a broad table-driven matrix instead of only hand-picked examples", automated, "Runs mode, node type, parameter, depth, physics, and AutoMesh combinations and fails when the executed matrix is too small."),
+    Scenario("audit.source-command-inventory", "Regression Audit", "Source modules, major subsystems, and command entrypoints are represented in the regression catalog", automated, "This is an accounting guard, not branch coverage; it fails when a source subsystem or command family has no catalog owner."),
+    Scenario("audit.command-base", "Regression Audit", "Base command contracts, command metadata, categories, shortcut labels, and command result behavior", automated, "Covers base CommandResult payloads, Context masks, ExCommand labels/args, and command metadata reflection."),
+    Scenario("audit.full-feature-scenario-inventory", "Regression Audit", "Every command, window, panel, inspector, mesh tool, and depth tool class has a regression scenario owner", automated, "Builds a source-derived feature inventory so newly added user-facing feature entrypoints cannot remain uncataloged."),
+    Scenario("audit.source-module-scenario-inventory", "Regression Audit", "Every source module is assigned to a regression scenario family", automated, "Builds a module-to-scenario map for the whole source tree; this is the baseline scenario catalog before individual behavioral tests are filled in."),
+    Scenario("audit.composite-workflow-inventory", "Regression Audit", "Major feature families have cross-boundary regression scenarios for command, mode, history, serialization, and MCP interactions", automated, "Requires representative composite workflow owners so command-only tests cannot be mistaken for end-to-end audit."),
+    Scenario("audit.composite-case-matrix", "Regression Audit", "Composite workflows execute a broad table-driven matrix instead of only hand-picked examples", automated, "Runs mode, node type, parameter, depth, physics, and AutoMesh combinations and fails when the executed matrix is too small."),
+    Scenario("audit.closed-pr-regression-obligations", "Regression Audit", "Every reviewed closed GitHub PR has an explicit regression owner or a documented non-regression rationale", automated, "Covers the reviewed closed PR snapshot from GitHub so fixed incidents cannot silently lose regression ownership."),
+    Scenario("audit.hierarchy-parameter-mode-matrix", "Regression Audit", "Hierarchy, node target, parameter shape, edit mode, undo/redo, and persistence combinations execute as regression cases", automated, "Runs hierarchy-sensitive parameter binding cases across node targets, parameter dimensions, and edit modes."),
     Scenario("mesh.composite-grid-mode-matrix", "Mesh/Vertex Editor", "DefineGrid runs across ModelEdit, AnimEdit, VertexEdit, DepthEdit and multiple grid shapes", automated, "Expands the matrix into a direct scenario for mode-specific grid/history behavior."),
-    Scenario("node.composite-type-matrix", "Node Hierarchy", "Every registered node menu type can be created, renamed, undone, and redone", automated, "Expands the matrix into a direct scenario for node type command coverage."),
+    Scenario("node.composite-type-matrix", "Node Hierarchy", "Every registered node menu type can be created, renamed, undone, and redone", automated, "Expands the matrix into a direct scenario for node type command audit."),
     Scenario("parameter.composite-preset-matrix", "Parameters", "1D and 2D parameter presets across ranges preserve bindings through rename undo/redo", automated, "Expands the matrix into a direct scenario for parameter preset and binding combinations."),
+    Scenario("parameter.hierarchy-binding-mode-matrix", "Parameters", "Parameter TRS bindings survive hierarchy placement, node target type, edit mode, undo/redo, save, and reload", automated, "Executes the hierarchy/target/parameter/mode case matrix with command-created bindings and native persistence."),
     Scenario("depth.composite-operation-matrix", "Depth Edit", "Attached-point, ring, and plane depth operations are undoable after depth initialization", automated, "Expands the matrix into a direct scenario for depth operation combinations."),
     Scenario("automesh.composite-processor-matrix-scenario", "AutoMesh", "Grid, contour, skeleton, and optimum AutoMesh processors produce valid meshes", automated, "Expands the matrix into a direct scenario for all standard AutoMesh processors."),
     Scenario("simplephysics.composite-settings-matrix", "SimplePhysics", "SimplePhysics model, map, local, gravity, length, frequency, and damping settings undo/redo", automated, "Expands the matrix into a direct scenario for SimplePhysics setting combinations."),
@@ -151,15 +154,15 @@ private immutable Scenario[] scenarios = [
     Scenario("atlas.pack", "Project/File", "Atlas packer rectangle placement, texture upload metadata, invalidation, and repack stability", automated, "Covers headless max-rect texture packer placement, non-overlap, removal, and clear behavior; GL atlas rendering remains render.atlas-packer."),
     Scenario("atlas.color-bleed", "Project/File", "Color bleed and rebleed operations preserve alpha edges and atlas consistency", automated, "Covers generated transparent-edge texture color bleeding and alpha preservation."),
 
-    Scenario("node.create-delete-undo", "Node Hierarchy", "Create, delete, undo, redo, copy, cut, paste, duplicate", automated, "Create/delete/toggle through commands are covered; copy/cut/paste/duplicate still need deeper fixture coverage."),
+    Scenario("node.create-delete-undo", "Node Hierarchy", "Create, delete, undo, redo, copy, cut, paste, duplicate", automated, "Create/delete/toggle through commands are covered; copy/cut/paste/duplicate still need deeper fixture audit."),
     Scenario("node.add-types", "Node Hierarchy", "Add Node, Part, Composite, DynamicComposite, MeshGroup, GridDeformer, PathDeformer, Camera, SimplePhysics, DepthRigRoot, and DepthBone nodes", automated, "Covers dynamic AddNode command creation for every registered node-menu type with undo/redo."),
     Scenario("node.insert-types", "Node Hierarchy", "Insert supported node types before, after, and inside selected nodes", automated, "Covers dynamic InsertNode command creation for every registered node-menu type with undo/redo."),
     Scenario("node.cut-copy-paste-duplicate", "Node Hierarchy", "Cut, copy, paste, duplicate, UUID regeneration, texture references, and binding references", automated, "Covers node clipboard copy/paste, duplicate UUID regeneration, undo/redo, and Cut remaining disabled until implemented."),
-    Scenario("node.reparent-order", "Node Hierarchy", "Move, reorder, reparent, and preserve transforms", automated, "Move/reparent through command is covered; transform preservation needs deeper fixture coverage."),
+    Scenario("node.reparent-order", "Node Hierarchy", "Move, reorder, reparent, and preserve transforms", automated, "Move/reparent through command is covered; transform preservation needs deeper fixture audit."),
     Scenario("node.rename-undo-merge", "Node Hierarchy", "Node name edit merges per text-edit session and remains undoable", automated, "Covered by node-name-undo-merge."),
     Scenario("node.transform-inspector", "Node Hierarchy", "Translation, rotation, scale, sort, lock-to-root, pin-to-parent, snapping", automated, "Covers inspector apply commands for translation, rotation, scale, z-sort, and lock-to-root with undo/redo."),
     Scenario("node.visibility-lock", "Node Hierarchy", "Visibility, lock, selection, multi-selection, and tree filtering", computerUse, "Needs UI interaction smoke."),
-    Scenario("node.convert-reload", "Node Hierarchy", "Reload texture and convert node operations", automated, "ConvertToCommand is covered with undo/redo; reload side effects still need deeper fixture coverage."),
+    Scenario("node.convert-reload", "Node Hierarchy", "Reload texture and convert node operations", automated, "ConvertToCommand is covered with undo/redo; reload side effects still need deeper fixture audit."),
     Scenario("node.centralize", "Node Hierarchy", "Centralize selected node pivots and undo/redo the resulting transform changes", automated, "Covers CentralizeNodeCommand with undo/redo for parent and child local transforms."),
     Scenario("node.type-conversion", "Node Hierarchy", "Convert node type between compatible registered node classes", automated, "Covers every conversionMap pair through ConvertToCommand with undo/redo and type preservation."),
     Scenario("node.composite-hierarchy-binding-roundtrip", "Node Hierarchy", "Create, rename, move, bind, undo/redo, save, reopen, and keep hierarchy/binding identity", automated, "Covers node hierarchy edits chained with parameter binding and persistence."),
@@ -167,7 +170,7 @@ private immutable Scenario[] scenarios = [
     Scenario("core.selector-parser", "Node Hierarchy", "Selector tokenizer, parser, query evaluation, and tree-store resource lookup", automated, "Covers selector grammar through query fixtures and Resource TreeStore construction."),
     Scenario("core.node-registry", "Node Hierarchy", "Node class registration, menu descriptors, icons, and dynamic construction", automated, "Covers menu-visible node type registration, dynamic command creation, stable command ids, and construction."),
 
-    Scenario("inspectors.node-types", "Inspectors", "Puppet, Node, Part, Drawable, Composite, DynamicComposite, Camera inspectors", automated, "Covers Node, Part, Drawable, Composite, and Camera inspector command properties with undo/redo; Puppet and DynamicComposite render/UI smoke still need deeper coverage."),
+    Scenario("inspectors.node-types", "Inspectors", "Puppet, Node, Part, Drawable, Composite, DynamicComposite, Camera inspectors", automated, "Covers Node, Part, Drawable, Composite, and Camera inspector command properties with undo/redo; Puppet and DynamicComposite render/UI smoke still need deeper audit."),
     Scenario("inspectors.composite-node-part-mesh", "Inspectors", "Node, Part, and mesh deformer inspector changes interleaved with undo/redo", automated, "Covers inspector command composition across node, drawable, and deformer targets."),
     Scenario("inspectors.puppet", "Inspectors", "Puppet metadata, canvas, texture atlas, and project-level inspector controls", automated, "Covers puppet metadata, physics globals, preserve-pixels render setting, texture slot population, and native save/load round-trip."),
     Scenario("inspectors.node", "Inspectors", "Node transform, visibility, lock, lockToRoot, pinToParent, and sort controls", automated, "Covered in part by node.transform-inspector."),
@@ -181,18 +184,18 @@ private immutable Scenario[] scenarios = [
     Scenario("inspectors.format-strings", "Inspectors", "Formatted labels substitute values and do not show raw %.0f%% tokens", automated, "Covers source-level ImGui format string mistakes that render raw percent patterns such as %%0.2f."),
     Scenario("inspectors.commit-boundaries", "Inspectors", "Inspector text inputs, drags, toggles, color edits, and drag-drop commit undo actions once per edit", computerUse, "Needs computer-use UI commit-boundary fixture."),
 
-    Scenario("part.texture", "Part Properties", "Texture load, reload, UV, opacity, tint multiply/screen, emission, blend mode", automated, "Covers Part inspector command state changes for tint, screen tint, emission, opacity, and blend mode with undo/redo; texture reload and UV still need fixture coverage."),
+    Scenario("part.texture", "Part Properties", "Texture load, reload, UV, opacity, tint multiply/screen, emission, blend mode", automated, "Covers Part inspector command state changes for tint, screen tint, emission, opacity, and blend mode with undo/redo; texture reload and UV still need fixture audit."),
     Scenario("part.composite-inspector-mesh-roundtrip", "Part Properties", "Part inspector edits, mesh topology, deformation binding, save, and reopen", automated, "Covers part property and topology edits chained with binding persistence."),
     Scenario("part.texture-reload", "Part Properties", "Reload texture from source path, texture slot update, and missing-source handling", automated, "Covers file-backed texture replacement on Part texture slots, post-load texture slot repopulation, and missing file rejection with generated PNG fixtures."),
     Scenario("part.uv-mesh-coherence", "Part Properties", "Texture UVs, mesh vertices, indices, and deformation array lengths stay coherent", automated, "Covers DefineMesh/DefineVertices keeping mesh, UV, and deformation array lengths coherent through undo/redo."),
-    Scenario("part.clipping-mask", "Part Properties", "Clipping and mask threshold behavior", automated, "Covers Clip/Slice blend modes and mask threshold state changes with undo/redo; pixel render output still needs snapshot coverage."),
+    Scenario("part.clipping-mask", "Part Properties", "Clipping and mask threshold behavior", automated, "Covers Clip/Slice blend modes and mask threshold state changes with undo/redo; pixel render output still needs snapshot audit."),
     Scenario("part.mask-add-remove", "Part Properties", "Mask Source add/remove undo/redo", automated, "Covered by mask-source-add-undo-redo."),
     Scenario("part.mask-reorder", "Part Properties", "Mask Source reorder preserves exact bindings through undo/redo", automated, "Covered by mask-source-reorder-undo-redo."),
     Scenario("part.mask-mode", "Part Properties", "Mask Source mode changes are undoable", automated, "Covered by mask-source-mode-undo-redo."),
     Scenario("part.welding", "Part Properties", "Welding add/remove/edit undo/redo", automated, "Covered by welding-undo-redo."),
     Scenario("part.welding-runtime", "Part Properties", "Welding deformation follows source part and preserves inverse/counter weights", automated, "Covers welded Drawable post-process deformation blending, counter-link index generation, weights, and filter removal."),
 
-    Scenario("parameter.lifecycle", "Parameters", "Create, delete, duplicate, rename, move, group, split, range, defaults", automated, "Create/duplicate/delete/rename/group/move/color/delete through commands are covered; split/range/defaults still need deeper fixture coverage."),
+    Scenario("parameter.lifecycle", "Parameters", "Create, delete, duplicate, rename, move, group, split, range, defaults", automated, "Create/duplicate/delete/rename/group/move/color/delete through commands are covered; split/range/defaults still need deeper fixture audit."),
     Scenario("parameter.create-presets", "Parameters", "Create 1D, 2D, mouth, and template parameters with correct ranges and default keypoints", automated, "Covers command-created 1D, 2D, and mouth parameter presets with ranges and axis points."),
     Scenario("parameter.groups", "Parameters", "Create, delete, move, recolor, and reorder parameter groups", automated, "Covered in part by parameter.lifecycle."),
     Scenario("parameter.split-window", "Parameters", "Parameter split dialog, axis split, and binding migration", automated, "Covers the shared split implementation used by the dialog, including axis-copy, binding migration, and undo/redo."),
@@ -217,7 +220,7 @@ private immutable Scenario[] scenarios = [
 
     Scenario("animation.lifecycle", "Animation", "Create, rename, delete animations and tracks", automated, "Covers animation create/update/rename/delete action paths with undo/redo and lane preservation."),
     Scenario("animation.properties", "Animation", "Animation name, length, lead-in/out, additive, weight, fps/timestep, and metadata editing", automated, "Covers animation property create/update/rename undo/redo through animation action paths."),
-    Scenario("animation.keyframes", "Animation", "Add, edit, remove, copy, paste animation keyframes", automated, "Covers 1D and 2D add/edit/remove keyframe action paths with undo/redo; copy/paste still needs timeline UI/input coverage."),
+    Scenario("animation.keyframes", "Animation", "Add, edit, remove, copy, paste animation keyframes", automated, "Covers 1D and 2D add/edit/remove keyframe action paths with undo/redo; copy/paste still needs timeline UI/input audit."),
     Scenario("animation.timeline-ui", "Animation", "Timeline track selection, lane expansion, scrub, drag, and keyframe selection", computerUse, "Needs timeline input smoke."),
     Scenario("animation.playback", "Animation", "Playback, scrubbing, loop, fps, and preview state", computerUse, "Needs UI timing smoke."),
     Scenario("animation.keyframe-copy-paste", "Animation", "Animation keyframe clipboard copy, paste, replace, and undo grouping", computerUse, "Needs computer-use timeline fixture."),
@@ -306,7 +309,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.root-node", "Depth Bone", "DepthRigRoot creation, icon/type registration, serialization, and export exclusion", automated, "Covers node registration, DepthRigRoot round-trip, and INP export pruning."),
     Scenario("depthbone.bone-node", "Depth Bone", "DepthBone creation, parent/child hierarchy, rest transforms, constraints, and serialization", automated, "Covers DepthBone node round-trip of rest pose and constraints."),
     Scenario("depthbone.binding-create", "Depth Bone", "Binding creation, update, removal, and target validation", automated, "Covers command-level DepthBone source binding creation, settings update, removal, and undo/redo."),
-    Scenario("depthbone.sources", "Depth Bone", "Bone Source add/remove/reorder/offset/scale/weight undo and refresh", automated, "Covers source list actions and command-level add/remove/settings undo/redo; generated refresh still needs golden fixture coverage."),
+    Scenario("depthbone.sources", "Depth Bone", "Bone Source add/remove/reorder/offset/scale/weight undo and refresh", automated, "Covers source list actions and command-level add/remove/settings undo/redo; generated refresh still needs golden fixture audit."),
     Scenario("depthbone.influence-rule", "Depth Bone", "Influence rule get/set, terminal bone selection, max influence, and radius behavior", automated, "Covers command-level influence rule set/get with undo/redo and serialization."),
     Scenario("depthbone.preview-commands", "Depth Bone", "List, preview influence, preview deform, and apply deform commands", automated, "Covers reduced command fixture for listing bones/sources, influence preview deformation, posed deform preview, apply-to-binding, undo, and redo."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
@@ -407,7 +410,7 @@ private immutable Scenario[] scenarios = [
     Scenario("widgets.texture-viewport-shadow", "Widgets", "Texture preview, viewport widget, shadow, dummy, and modal helper drawing", computerUse, "Needs computer-use widget-level render fixture."),
 
     Scenario("i18n.wrapped-strings", "I18N", "UI strings are wrapped by _() or __() where appropriate", automated, "Covers common visible UI text call sites with a source scan for direct English string literals."),
-    Scenario("i18n.pot", "I18N", "POT update includes new UI text", automated, "Covers template.pot presence and simple single-line _()/__() source msgid coverage."),
+    Scenario("i18n.pot", "I18N", "POT update includes new UI text", automated, "Covers template.pot presence and simple single-line _()/__() source msgid audit."),
     Scenario("platform.windows-write", "Platform/Crash", "Windows release build does not crash on console write paths", automated, "Covers release-sensitive console write calls with a source scan; file/socket writes and debug/version/unittest writes are allowed."),
     Scenario("platform.paths-dpi-fonts", "Platform/Crash", "Platform paths, DPI scaling, font loading, logo resources, and config paths", automated, "Covers config/font/locale path creation and DPI scale persistence in a headless platform fixture."),
     Scenario("platform.crashdump", "Platform/Crash", "Crash dump setup, exception logging, and release crash paths", automated, "Covers crash dump text generation, path generation, and file writing without triggering a native crash."),
@@ -473,7 +476,7 @@ private Scenario[] generatedCompositeCaseScenarios() {
             "Node Hierarchy",
             "Create/rename/undo/redo " ~ className,
             automated,
-            "Generated case-level scenario for registered node type command coverage."
+            "Generated case-level scenario for registered node type command audit."
         );
     }
 
@@ -486,6 +489,22 @@ private Scenario[] generatedCompositeCaseScenarios() {
                 automated,
                 "Generated case-level scenario for parameter preset and binding matrix."
             );
+        }
+    }
+
+    foreach (hierarchy; ["root", "parent-child", "nested-deformer"]) {
+        foreach (targetType; ["node", "part", "grid-deformer"]) {
+            foreach (dim; ["1d", "2d"]) {
+                foreach (mode; ["model-edit", "vertex-edit"]) {
+                    result ~= Scenario(
+                        "parameter.hierarchy-binding-mode-matrix." ~ hierarchy ~ "." ~ targetType ~ "." ~ dim ~ "." ~ mode,
+                        "Parameters",
+                        "Hierarchy binding " ~ hierarchy ~ " " ~ targetType ~ " " ~ dim ~ " " ~ mode,
+                        automated,
+                        "Generated case-level scenario for hierarchy, target, parameter shape, mode, undo/redo, and persistence audit."
+                    );
+                }
+            }
         }
     }
 
@@ -532,6 +551,344 @@ private Scenario[] allScenarios() {
     auto result = scenarios.dup;
     result ~= generatedCompositeCaseScenarios();
     return result;
+}
+
+private struct ClosedPrRegressionObligation {
+    int number;
+    bool regressionRequired;
+    string rationale;
+    string[] scenarioIds;
+}
+
+private struct CrossFeaturePropagationObligation {
+    string inputClass;
+    int[] prNumbers;
+    string[] scenarioIds;
+}
+
+private immutable int[] closedPrSnapshotNumbers = [
+    181, 178, 176, 174, 171, 170, 167, 165, 163, 162, 161, 160, 159, 154, 152, 151,
+    150, 149, 148, 147, 146, 144, 143, 141, 140, 139, 138, 137, 136, 135, 134, 132,
+    131, 130, 129, 126, 125, 124, 123, 122, 121, 120, 119, 116, 114, 113, 109, 106,
+    105, 104, 102, 100, 99, 97, 96, 95, 93, 92, 91, 90, 89, 88, 86, 85, 83, 82, 81,
+    80, 79, 78, 77, 76, 75, 74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61,
+    60, 59, 58, 57, 55, 54, 53, 52, 51, 50, 46, 44, 43, 40, 38, 37, 36, 35, 34, 33,
+    31, 30, 29, 28, 27, 26, 25, 24, 22, 20, 19, 18, 17, 16, 15, 14, 13, 12, 10, 7,
+    6, 5, 4, 3, 2, 1,
+];
+
+private immutable ClosedPrRegressionObligation[] closedPrRegressionObligations = [
+    ClosedPrRegressionObligation(181, true, "node reparent world-transform preservation generalizes to hierarchy-sensitive binding and persistence paths", ["node.reparent-order", "parameter.hierarchy-binding-mode-matrix"]),
+    ClosedPrRegressionObligation(178, true, "standard depth parameter reuse, missing keypoint fill, same-name conflict, and queued resource-panel parameter creation", ["parameter.template-depth-bone", "parameter.create-presets", "panels.parameter-list"]),
+    ClosedPrRegressionObligation(176, true, "Command Browser resource arguments must cover scalar/array resources, Node subclasses, ParameterBinding, stale IDs, and typed filtering", ["tools.command-browser-resource-pickers", "tools.command-browser"]),
+    ClosedPrRegressionObligation(174, true, "fatal error notification and crashdump path must remain wired across crashdump and startup paths", ["platform.crashdump", "platform.startup-shutdown"]),
+    ClosedPrRegressionObligation(171, false, "documentation-only macOS build instruction change", []),
+    ClosedPrRegressionObligation(170, true, "grid command race and editor cache state apply across modes and grid shapes", ["mesh.composite-grid-mode-matrix", "api.mcp-mode-history", "automesh.batch-undo"]),
+    ClosedPrRegressionObligation(167, true, "depth command operations, UI smoke hooks, config isolation, and undoable depth session behavior", ["audit.composite-case-matrix", "depth.commands", "depth.composite-operation-matrix", "depth.composite-map-ops"]),
+    ClosedPrRegressionObligation(165, true, "OneTimeDeform scope, preview/apply parity, copied-model save, and tool switching state", ["deform.onetime-scope", "deform.undo-redo-group", "mesh.composite-topology-scope"]),
+    ClosedPrRegressionObligation(163, true, "DepthEdit, depth maps, DepthBone sources/templates/skinning/export pruning", ["depth.persistence", "depthbone.template-bones", "depthbone.preview-commands", "depthbone.serialization"]),
+    ClosedPrRegressionObligation(162, true, "MCP/ACP resources, command policies, parameter axes validation, mesh/grid external command state, and AutoMesh streaming", ["api.mcp-resources", "api.mcp-mode-history", "audit.command-base", "parameter.axes-props", "automesh.processor-common"]),
+    ClosedPrRegressionObligation(161, true, "AutoMesh optimum error regression", ["automesh.optimum-processor", "automesh.composite-processor-matrix"]),
+    ClosedPrRegressionObligation(160, true, "AutoMesh optimum candidate filtering must preserve valid output", ["automesh.optimum-processor", "automesh.composite-processor-matrix"]),
+    ClosedPrRegressionObligation(159, true, "font/i18n visible text support", ["i18n.wrapped-strings", "i18n.pot"]),
+    ClosedPrRegressionObligation(154, false, "packaging target policy change", []),
+    ClosedPrRegressionObligation(152, true, "nijilive rendering snapshot adjustment", ["render.texture-lifecycle", "render.composite-camera-texture-export"]),
+    ClosedPrRegressionObligation(151, true, "Action behavior logging must not affect history semantics", ["viewport.action-history", "undo.composite-workflows"]),
+    ClosedPrRegressionObligation(150, true, "ACP protocol error/logging behavior", ["api.acp-protocol", "api.acp-client"]),
+    ClosedPrRegressionObligation(149, true, "Agent panel and external control behavior", ["api.external-control", "api.agent-panel"]),
+    ClosedPrRegressionObligation(148, true, "rendering pipeline compatibility", ["render.texture-lifecycle", "render.composite-camera-texture-export"]),
+    ClosedPrRegressionObligation(147, true, "AutoMesh non-drawable target support", ["automesh.non-part-targets", "automesh.composite-processor-matrix"]),
+    ClosedPrRegressionObligation(146, true, "GridDeformer editor behavior", ["deform.grid-tool", "mesh.composite-grid-mode-matrix"]),
+    ClosedPrRegressionObligation(144, true, "blend fallback configuration window", ["settings.ui", "render.blend-modes"]),
+    ClosedPrRegressionObligation(143, true, "teacher-image auto-fit option for deformation/brush workflows", ["deform.grid-tool", "mesh.brush-tools"]),
+    ClosedPrRegressionObligation(141, true, "PSD/KRA LayerGroup replacement node configuration", ["project.import-psd", "project.import-kra", "project.merge-psd", "project.merge-kra"]),
+    ClosedPrRegressionObligation(140, true, "DefineMesh and SetDeformBinding command behavior", ["mesh.define-mesh-command", "parameter.binding-deform", "parameter.mesh-binding-composite"]),
+    ClosedPrRegressionObligation(139, true, "AutoMesh configuration commands and schema", ["automesh.schema-values", "automesh.batch-undo"]),
+    ClosedPrRegressionObligation(138, false, "icon-only refactor", []),
+    ClosedPrRegressionObligation(137, true, "threaded AutoMesh command application across drawables", ["automesh.processor-common", "automesh.batch-undo"]),
+    ClosedPrRegressionObligation(136, false, "closed unmerged refactor PR", []),
+    ClosedPrRegressionObligation(135, true, "saved-state dirty marker", ["project.new-open-save", "viewport.action-history"]),
+    ClosedPrRegressionObligation(134, true, "AutoMesh apply command notifications and stacked results", ["automesh.processor-common", "automesh.batch-undo"]),
+    ClosedPrRegressionObligation(132, false, "revert of unkept HTTPS transport change", []),
+    ClosedPrRegressionObligation(131, false, "reverted HTTPS transport change", []),
+    ClosedPrRegressionObligation(130, true, "MCP authentication", ["api.mcp-auth", "api.mcp-server"]),
+    ClosedPrRegressionObligation(129, true, "node panel follow-selection UI", ["panels.node-tree", "node.resource-selector"]),
+    ClosedPrRegressionObligation(126, false, "macOS build/linking packaging fix", []),
+    ClosedPrRegressionObligation(125, true, "MeshGroup/Mask alpha input and AutoMesh mapping", ["automesh.alpha-provider", "automesh.non-part-targets"]),
+    ClosedPrRegressionObligation(124, true, "MCP security warning for non-local host", ["api.mcp-server", "settings.ai-mcp"]),
+    ClosedPrRegressionObligation(123, false, "platform TLS policy change", []),
+    ClosedPrRegressionObligation(122, true, "ParametersPanel armed parameter rendering", ["panels.parameter-list", "panels.armed-parameter"]),
+    ClosedPrRegressionObligation(121, true, "MCP server interface", ["api.mcp-server", "api.mcp-resources", "api.mcp-task-queue"]),
+    ClosedPrRegressionObligation(120, true, "BezierDeform type safety", ["mesh.bezier-deform-tool", "mesh.operation-deformable"]),
+    ClosedPrRegressionObligation(119, true, "Edge Cutter tool", ["mesh.edge-cutter", "mesh.common-operations"]),
+    ClosedPrRegressionObligation(116, true, "lasso crash", ["mesh.lasso-tool", "mesh.select-tool"]),
+    ClosedPrRegressionObligation(114, true, "NodeInspector focus for MaskSettings/WeldedLink", ["inspectors.node-types", "part.mask-add-remove", "part.welding"]),
+    ClosedPrRegressionObligation(113, true, "Parameter Usage menu on node actions", ["parameter.binding-cleanup", "panels.node-tree"]),
+    ClosedPrRegressionObligation(109, true, "ffmpeg/video export finalization", ["io.video-export", "project.export-video"]),
+    ClosedPrRegressionObligation(106, true, "camera size validation and video export pipe close", ["render.camera", "io.video-export"]),
+    ClosedPrRegressionObligation(105, false, "closed unmerged lasso crash PR; merged coverage is represented by PR 116", []),
+    ClosedPrRegressionObligation(104, true, "automesh batch keyboard navigation", ["automesh.processor-common", "windows.settings"]),
+    ClosedPrRegressionObligation(102, true, "command palette behavior", ["viewport.palette-command-list", "tools.command-browser"]),
+    ClosedPrRegressionObligation(100, true, "nodes pane porting", ["panels.node-tree", "node.add-types"]),
+    ClosedPrRegressionObligation(99, true, "autoConnect feature", ["mesh.common-operations", "mesh.connect-tool"]),
+    ClosedPrRegressionObligation(97, true, "lasso selection applies the same pointer-selection input class as select tools", ["mesh.lasso-tool", "mesh.select-tool"]),
+    ClosedPrRegressionObligation(96, true, "parameter property commands preserve bindings across axis edits", ["parameter.axes-props", "parameter.hierarchy-binding-mode-matrix"]),
+    ClosedPrRegressionObligation(95, true, "shortcut pane filtering applies to shortcut persistence and settings-window filter input", ["settings.shortcuts", "settings.window"]),
+    ClosedPrRegressionObligation(93, true, "unified parameter editor", ["parameter.lifecycle", "parameter.composite-lifecycle-binding"]),
+    ClosedPrRegressionObligation(92, true, "command palette enhancements apply to palette discovery and Command Browser command input", ["viewport.palette-command-list", "tools.command-browser"]),
+    ClosedPrRegressionObligation(91, true, "shortcut and UI refactor", ["settings.shortcuts", "settings.window"]),
+    ClosedPrRegressionObligation(90, false, "misc update without specific regression signal", []),
+    ClosedPrRegressionObligation(89, true, "hide non-runnable commands from shortcut editor", ["settings.shortcuts", "audit.command-base"]),
+    ClosedPrRegressionObligation(88, true, "SetFromXXXMirror automatic parameter calculation", ["parameter.keyframe-mirror-fill", "parameter.binding-interp"]),
+    ClosedPrRegressionObligation(86, false, "CI build-flow fix", []),
+    ClosedPrRegressionObligation(85, false, "bulk upstream update covered by feature-specific later PRs", []),
+    ClosedPrRegressionObligation(83, true, "OneTimeDeform implementation", ["deform.onetime-scope", "deform.undo-redo-group"]),
+    ClosedPrRegressionObligation(82, true, "multi parameter edit", ["parameter.composite-lifecycle-binding", "parameter.groups"]),
+    ClosedPrRegressionObligation(81, true, "command palette command discovery shares command-surface inputs with Command Browser", ["viewport.palette-command-list", "tools.command-browser"]),
+    ClosedPrRegressionObligation(80, true, "additional command coverage must apply to command metadata and executable command browser surfaces", ["audit.command-base", "tools.command-browser"]),
+    ClosedPrRegressionObligation(79, true, "mode-setting command and UI", ["api.mcp-mode-history", "viewport.settings-command-composite"]),
+    ClosedPrRegressionObligation(78, true, "command enablement, mesh tool canUse, i18n, shortcuts persistence", ["audit.command-base", "mesh.select-tool", "i18n.pot", "settings.shortcuts"]),
+    ClosedPrRegressionObligation(77, true, "side filter input applies to flip-pair and viewport navigation state", ["viewport.flip-pairs", "viewport.navigation"]),
+    ClosedPrRegressionObligation(76, true, "side filter implementation applies to flip-pair and viewport navigation state", ["viewport.flip-pairs", "viewport.navigation"]),
+    ClosedPrRegressionObligation(75, true, "AutoMesh cancellation via Fiber", ["automesh.processor-common", "platform.tasks"]),
+    ClosedPrRegressionObligation(74, true, "contours and distance transform", ["core.math-skeletonize", "automesh.contour-processor"]),
+    ClosedPrRegressionObligation(73, true, "PathDeformer editor", ["deform.path-tool", "deform.pathdeformer-runtime"]),
+    ClosedPrRegressionObligation(72, false, "runtime performance policy; no stable headless assertion", []),
+    ClosedPrRegressionObligation(71, true, "AutoMesh batching window", ["automesh.batch-undo", "automesh.processor-common"]),
+    ClosedPrRegressionObligation(70, true, "optimum AutoMesh algorithm shares processor output invariants with the processor matrix", ["automesh.optimum-processor", "automesh.composite-processor-matrix"]),
+    ClosedPrRegressionObligation(69, true, "skeleton AutoMesh algorithm shares processor output invariants with the processor matrix", ["automesh.skeleton-processor", "automesh.composite-processor-matrix"]),
+    ClosedPrRegressionObligation(68, true, "multi-node ConvertTo and Deformable inspector crash", ["node.type-conversion", "inspectors.mesh-deformers"]),
+    ClosedPrRegressionObligation(67, true, "node folding state uses the same hierarchy inputs as node selectors", ["panels.node-tree", "node.resource-selector"]),
+    ClosedPrRegressionObligation(66, true, "clipboard cleared before adding objects", ["node.cut-copy-paste-duplicate", "node.add-types"]),
+    ClosedPrRegressionObligation(65, true, "ConvertTo correctness applies to direct conversion and generated node type matrix inputs", ["node.type-conversion", "node.composite-type-matrix"]),
+    ClosedPrRegressionObligation(64, true, "resource panel drag scrolling applies to resource and node-tree drag surfaces", ["panels.scene-resource", "panels.node-tree"]),
+    ClosedPrRegressionObligation(63, true, "resource panel layout persistence", ["io.serialization-inx", "panels.scene-resource"]),
+    ClosedPrRegressionObligation(62, true, "multi-node inspector edit operation applies to typed inspector routing", ["inspectors.composite-node-part-mesh", "inspectors.node-types"]),
+    ClosedPrRegressionObligation(61, true, "add/insert multiple nodes", ["node.add-types", "node.insert-types"]),
+    ClosedPrRegressionObligation(60, true, "PathDeformer add crash", ["node.add-types", "deform.pathdeformer-runtime"]),
+    ClosedPrRegressionObligation(59, true, "Deformable deformation vertex handling", ["mesh.operation-deformable", "deform.griddeformer-runtime"]),
+    ClosedPrRegressionObligation(58, true, "PathDeformer debug and vertex undo", ["deform.path-tool", "mesh.operation-deformable"]),
+    ClosedPrRegressionObligation(57, true, "PathDeformer deformation editor and add-vertex undo", ["deform.path-tool", "deform.pathdeformer-runtime"]),
+    ClosedPrRegressionObligation(55, true, "PathDeformer inspector UI shares inputs with path tool/runtime deformers", ["inspectors.mesh-deformers", "deform.path-tool"]),
+    ClosedPrRegressionObligation(54, true, "curve drawing previous curve state", ["deform.path-tool", "core.math-path"]),
+    ClosedPrRegressionObligation(53, false, "UI class refactor", []),
+    ClosedPrRegressionObligation(52, true, "BezierDeform feature shares deformation operation inputs with deformable operations", ["mesh.bezier-deform-tool", "mesh.operation-deformable"]),
+    ClosedPrRegressionObligation(51, true, "non-existent crashdump path applies to crashdump and startup error paths", ["platform.crashdump", "platform.startup-shutdown"]),
+    ClosedPrRegressionObligation(50, true, "exception catch logic applies to crashdump and startup error paths", ["platform.crashdump", "platform.startup-shutdown"]),
+    ClosedPrRegressionObligation(46, true, "autoConnect feature", ["mesh.connect-tool", "mesh.common-operations"]),
+    ClosedPrRegressionObligation(44, true, "nagscreen/popup freezing", ["windows.settings", "platform.input-window"]),
+    ClosedPrRegressionObligation(43, true, "corrupted settings file error dialog", ["settings.ui", "settings.paths"]),
+    ClosedPrRegressionObligation(40, true, "dialog return value reference reuse", ["widgets.inputtext", "windows.rename"]),
+    ClosedPrRegressionObligation(38, false, "release information metadata", []),
+    ClosedPrRegressionObligation(37, false, "contributor documentation", []),
+    ClosedPrRegressionObligation(36, false, "copyright notice", []),
+    ClosedPrRegressionObligation(35, true, "memmove prevents overlapping draw-list copy", ["render.postprocess", "viewport.main-menu-toolbar-status"]),
+    ClosedPrRegressionObligation(34, true, "missing recent file must not crash open", ["project.recent-files", "project.new-open-save"]),
+    ClosedPrRegressionObligation(33, false, "closed unmerged keybinding PR; shortcut behavior covered by merged shortcut PRs", []),
+    ClosedPrRegressionObligation(31, true, "viewport size sort selection uses same target picking input class as mesh select tools", ["viewport.model-mode", "mesh.select-tool"]),
+    ClosedPrRegressionObligation(30, true, "import logic cleanup", ["project.import-psd", "project.import-kra"]),
+    ClosedPrRegressionObligation(29, true, "unified PSD/KRA import logic", ["project.import-psd", "project.import-kra", "io.psd-reader", "io.kra-reader"]),
+    ClosedPrRegressionObligation(28, true, "KRA import dependency", ["project.import-kra", "io.kra-reader"]),
+    ClosedPrRegressionObligation(27, true, "save-to-temp prevents corruption", ["io.save-native", "project.new-open-save"]),
+    ClosedPrRegressionObligation(26, true, "animation create after PSD/KRA import", ["project.import-psd", "project.import-kra", "animation.lifecycle"]),
+    ClosedPrRegressionObligation(25, true, "Mirror View and Flip Pairings ImGui label collision", ["viewport.flip-pairs", "viewport.navigation"]),
+    ClosedPrRegressionObligation(24, false, "build documentation", []),
+    ClosedPrRegressionObligation(22, true, "mirror viewport applies to navigation and flip-pair mirrored state", ["viewport.navigation", "viewport.flip-pairs"]),
+    ClosedPrRegressionObligation(20, false, "workflow scheduling", []),
+    ClosedPrRegressionObligation(19, true, "zoom display consistency, preserve folder structure, import dialog handling", ["settings.ui", "project.import-psd", "viewport.navigation"]),
+    ClosedPrRegressionObligation(18, false, "workflow artifact generation", []),
+    ClosedPrRegressionObligation(17, false, "flatpak workflow packaging", []),
+    ClosedPrRegressionObligation(16, true, "rotated mesh cursor calculation", ["mesh.select-tool", "mesh.operation-deformable"]),
+    ClosedPrRegressionObligation(15, true, "drag KRA into main window", ["project.import-kra", "platform.input-window"]),
+    ClosedPrRegressionObligation(14, true, "cursor visibility on rotated deformation mesh", ["mesh.select-tool", "mesh.operation-deformable"]),
+    ClosedPrRegressionObligation(13, false, "upstream cleanup and removed disabled features", []),
+    ClosedPrRegressionObligation(12, false, "closed unmerged build metadata PR", []),
+    ClosedPrRegressionObligation(10, true, "viewport zooming control and settings", ["viewport.navigation", "settings.ui"]),
+    ClosedPrRegressionObligation(7, false, "build documentation", []),
+    ClosedPrRegressionObligation(6, false, "branding cleanup", []),
+    ClosedPrRegressionObligation(5, true, "pin-to-mesh manipulation", ["mesh.operation-node", "inspectors.node-types"]),
+    ClosedPrRegressionObligation(4, true, "parameter link behavior", ["parameter.link", "parameter.binding-interp"]),
+    ClosedPrRegressionObligation(3, true, "category callback order", ["widgets.inputtext", "panels.inspector"]),
+    ClosedPrRegressionObligation(2, true, "stats display on viewport/menu shares visible panel status inputs", ["viewport.main-menu-toolbar-status", "panels.action-history"]),
+    ClosedPrRegressionObligation(1, true, "bootstrap UI surface", ["panels.node-tree", "panels.parameter-list", "panels.inspector", "viewport.main-menu-toolbar-status"]),
+];
+
+private immutable CrossFeaturePropagationObligation[] crossFeaturePropagationObligations = [
+    CrossFeaturePropagationObligation("hierarchy, transform, node type, inspector target, and binding identity inputs", [
+        181, 114, 100, 68, 66, 65, 62, 61, 60, 5,
+    ], [
+        "node.reparent-order", "node.type-conversion", "node.composite-type-matrix",
+        "node.composite-hierarchy-binding-roundtrip", "node.cut-copy-paste-duplicate",
+        "node.add-types", "node.insert-types", "node.resource-selector",
+        "parameter.hierarchy-binding-mode-matrix", "inspectors.node-types",
+        "inspectors.composite-node-part-mesh", "inspectors.mesh-deformers",
+        "mesh.operation-node", "part.composite-inspector-mesh-roundtrip",
+    ]),
+    CrossFeaturePropagationObligation("parameter shape, keypoint, axis, binding, group, and panel command inputs", [
+        178, 122, 113, 96, 93, 88, 82, 4,
+    ], [
+        "parameter.lifecycle", "parameter.create-presets", "parameter.groups",
+        "parameter.split-window", "parameter.link", "parameter.arm-select",
+        "parameter.keyframe-basic", "parameter.keyframe-mirror-fill",
+        "parameter.keyframe-copy-paste", "parameter.binding-interp",
+        "parameter.binding-deform", "parameter.binding-trs", "parameter.binding-model",
+        "parameter.mesh-binding-composite", "parameter.axes-props",
+        "parameter.template-depth-bone", "parameter.binding-cleanup",
+        "parameter.composite-lifecycle-binding", "parameter.hierarchy-binding-mode-matrix",
+        "panels.parameter-list", "panels.armed-parameter",
+    ]),
+    CrossFeaturePropagationObligation("command metadata, resource argument, selector, MCP, ACP, and command palette inputs", [
+        176, 162, 150, 149, 130, 124, 121, 102, 92, 89, 81, 80, 79, 78,
+    ], [
+        "audit.command-base", "tools.command-browser-resource-pickers",
+        "tools.command-browser", "viewport.palette-command-list",
+        "api.external-control", "api.acp-protocol", "api.acp-client",
+        "api.mcp-mode-history", "api.mcp-server", "api.mcp-auth",
+        "api.mcp-http-transport", "api.mcp-resources", "api.mcp-task-queue",
+        "settings.ai-mcp", "settings.shortcuts", "viewport.settings-command-composite",
+        "node.resource-selector",
+    ]),
+    CrossFeaturePropagationObligation("mesh editor topology, pointer, selection, deformable, scope, and tool-state inputs", [
+        170, 165, 146, 143, 140, 120, 119, 116, 99, 97, 83, 73, 59, 58, 57, 55, 54, 52, 46, 31, 16, 14,
+    ], [
+        "mesh.define-grid-command", "mesh.define-mesh-command",
+        "mesh.composite-grid-mode-matrix", "mesh.composite-topology-scope",
+        "mesh.multi-object", "mesh.common-operations", "mesh.select-tool",
+        "mesh.lasso-tool", "mesh.edge-cutter", "mesh.bezier-deform-tool",
+        "mesh.operation-node", "mesh.operation-drawable", "mesh.operation-deformable",
+        "mesh.mirror-symmetry", "deform.grid-tool", "deform.path-tool",
+        "deform.griddeformer-runtime", "deform.pathdeformer-runtime",
+        "deform.composite-grid-path-binding", "deform.onetime-scope",
+        "deform.undo-redo-group", "viewport.model-mode",
+    ]),
+    CrossFeaturePropagationObligation("AutoMesh processor, alpha source, target type, batch, cancellation, and generated output inputs", [
+        170, 162, 161, 160, 147, 143, 139, 137, 134, 125, 104, 75, 74, 71, 70, 69,
+    ], [
+        "automesh.processor-common", "automesh.grid-processor",
+        "automesh.skeleton-processor", "automesh.optimum-processor",
+        "automesh.contour-processor", "automesh.alpha-provider",
+        "automesh.non-part-targets", "automesh.schema-values",
+        "automesh.batch-undo", "automesh.composite-processor-matrix",
+        "automesh.processor-common", "automesh.composite-processor-matrix-scenario",
+        "platform.tasks", "mesh.composite-grid-mode-matrix",
+    ]),
+    CrossFeaturePropagationObligation("DepthEdit, depth operation, depth map, depth bone template, source, skinning, and export-pruning inputs", [
+        167, 163,
+    ], [
+        "depth.commands", "depth.composite-operation-matrix", "depth.operation-helpers",
+        "depth.persistence", "depth.camera", "depth.sign-colors",
+        "depth.composite-map-ops", "depth.composite-operation-matrix",
+        "depthbone.template-bones", "depthbone.template-parameters",
+        "depthbone.binding-create", "depthbone.sources", "depthbone.influence-rule",
+        "depthbone.preview-commands", "depthbone.cleanup", "depthbone.skinning",
+        "depthbone.serialization", "depthbone.composite-source-preview",
+        "project.export-inp",
+    ]),
+    CrossFeaturePropagationObligation("project path, native save, recent file, import, merge, format reader, animation-after-import, and export inputs", [
+        141, 135, 34, 30, 29, 28, 27, 26, 19, 15,
+    ], [
+        "project.new-open-save", "project.composite-command-roundtrip",
+        "project.composite-image-merge-export", "project.recent-files",
+        "project.autosave-recovery", "project.import-psd", "project.import-kra",
+        "project.import-inp", "project.import-images", "project.merge-psd",
+        "project.merge-kra", "project.merge-inp", "project.merge-images",
+        "project.export-inp", "project.session-import", "io.serialization-inx",
+        "io.composite-import-export-roundtrip", "io.serialization-textures",
+        "io.serialization-inp", "io.save-native", "io.inimport-model",
+        "io.inpexport-model", "io.psd-reader", "io.kra-reader",
+        "io.image-codecs", "animation.lifecycle",
+    ]),
+    CrossFeaturePropagationObligation("render, viewport, panel, window, status, setting, visible UI, and input-window state inputs", [
+        152, 148, 144, 129, 104, 95, 91, 77, 76, 67, 64, 63, 44, 40, 35, 25, 22, 10, 3, 2, 1,
+    ], [
+        "render.texture-lifecycle", "render.camera",
+        "render.composite-camera-texture-export", "render.backend-gl-sdl",
+        "render.blend-modes", "render.postprocess", "viewport.navigation",
+        "viewport.model-mode", "viewport.animation-mode", "viewport.depth-mode",
+        "viewport.driver-postprocess", "viewport.flip-pairs",
+        "viewport.palette-command-list", "viewport.panels",
+        "viewport.main-menu-toolbar-status", "viewport.action-history",
+        "viewport.settings-command-composite", "settings.shortcuts",
+        "settings.ui", "settings.window", "settings.paths",
+        "panels.node-tree", "panels.parameter-list", "panels.inspector",
+        "panels.timeline", "panels.scene-resource", "panels.logger",
+        "panels.armed-parameter", "panels.action-history",
+        "widgets.inputtext", "widgets.dragdrop", "windows.rename",
+        "windows.settings", "platform.input-window",
+    ]),
+    CrossFeaturePropagationObligation("platform crash, startup, settings resilience, i18n, dirty-state, history, and diagnostic text inputs", [
+        174, 159, 151, 51, 50, 43,
+    ], [
+        "platform.crashdump", "platform.startup-shutdown",
+        "platform.version", "platform.paths-dpi-fonts",
+        "platform.debug-logging", "settings.ui", "settings.paths",
+        "i18n.wrapped-strings", "i18n.pot", "viewport.action-history",
+        "panels.action-history", "undo.composite-workflows",
+    ]),
+    CrossFeaturePropagationObligation("video, image export, camera validation, encoder finalization, and render output inputs", [
+        109, 106,
+    ], [
+        "project.export-png", "project.export-jpeg", "project.export-tga",
+        "project.export-screenshot", "project.export-video",
+        "io.image-export", "io.video-export", "io.video-codecs",
+        "render.camera", "render.composite-camera-texture-export",
+        "render.postprocess",
+    ]),
+];
+
+private void testClosedPrRegressionObligations() {
+    string[] failures;
+    bool[int] seen;
+    bool[int] propagatedPrs;
+
+    foreach (propagation; crossFeaturePropagationObligations) {
+        if (propagation.inputClass.length == 0)
+            failures ~= "cross-feature propagation obligation is missing an input class";
+        if (propagation.prNumbers.length == 0)
+            failures ~= "cross-feature propagation obligation has no closed PR owners: " ~ propagation.inputClass;
+        if (propagation.scenarioIds.length == 0)
+            failures ~= "cross-feature propagation obligation has no exhaustive scenario target list: " ~ propagation.inputClass;
+        foreach (id; propagation.scenarioIds) {
+            if (!hasScenarioId(id))
+                failures ~= "cross-feature propagation " ~ propagation.inputClass ~ " references missing scenario: " ~ id;
+        }
+        foreach (number; propagation.prNumbers) {
+            propagatedPrs[number] = true;
+        }
+    }
+
+    foreach (obligation; closedPrRegressionObligations) {
+        if (obligation.number in seen)
+            failures ~= "duplicate closed PR obligation: #" ~ obligation.number.to!string;
+        seen[obligation.number] = true;
+        if (obligation.rationale.length == 0)
+            failures ~= "closed PR obligation must explain inclusion/exclusion: #" ~ obligation.number.to!string;
+        if (obligation.regressionRequired && obligation.scenarioIds.length == 0)
+            failures ~= "closed PR requiring regression has no scenario owner: #" ~ obligation.number.to!string;
+        if (obligation.regressionRequired && !(obligation.number in propagatedPrs))
+            failures ~= "closed PR #" ~ obligation.number.to!string ~
+                " must be assigned to an exhaustive cross-feature propagation input class";
+        foreach (id; obligation.scenarioIds) {
+            if (!hasScenarioId(id))
+                failures ~= "closed PR #" ~ obligation.number.to!string ~ " references missing scenario: " ~ id;
+        }
+    }
+    foreach (number; closedPrSnapshotNumbers) {
+        if (number !in seen)
+            failures ~= "closed PR snapshot is missing an obligation entry: #" ~ number.to!string;
+    }
+    foreach (number, _; seen) {
+        bool inSnapshot;
+        foreach (snapshot; closedPrSnapshotNumbers) {
+            if (snapshot == number) {
+                inSnapshot = true;
+                break;
+            }
+        }
+        if (!inSnapshot)
+            failures ~= "closed PR obligation is not in the reviewed snapshot: #" ~ number.to!string;
+    }
+    require(failures.length == 0, "closed PR regression obligation failures:\n" ~ failures.join("\n"));
 }
 
 @ShortcutHidden @McpHidden @GuiDialog @EffectConfigEdit
@@ -3973,6 +4330,125 @@ private size_t runCompositeMatrixSimplePhysicsSettings(string onlyId = null) {
     return executed;
 }
 
+private struct HierarchyParameterModeCase {
+    string hierarchy;
+    string targetType;
+    bool is2D;
+    EditMode mode;
+    string modeSlug;
+}
+
+private Node createHierarchyParameterModeTarget(HierarchyParameterModeCase testCase, out string targetName) {
+    targetName = "hpm-" ~ testCase.hierarchy ~ "-" ~ testCase.targetType ~ "-" ~ (testCase.is2D ? "2d" : "1d") ~ "-" ~ testCase.modeSlug;
+    Node parent = incActivePuppet().root;
+    if (testCase.hierarchy == "parent-child") {
+        parent = new Node(incActivePuppet().root);
+        parent.name = targetName ~ "-parent";
+        parent.transform.translation.vector = [25f, -10f, 0f];
+        parent.transform.rotation.vector = [0f, 0f, 12f];
+        parent.transform.scale.vector = [1.2f, 0.8f];
+    } else if (testCase.hierarchy == "nested-deformer") {
+        auto gridParent = new GridDeformer(incActivePuppet().root);
+        gridParent.name = targetName ~ "-grid-parent";
+        gridParent.transform.translation.vector = [-18f, 14f, 0f];
+        parent = gridParent;
+    }
+
+    if (testCase.targetType == "node") {
+        auto node = new Node(parent);
+        node.name = targetName;
+        return node;
+    }
+    if (testCase.targetType == "part") {
+        auto part = newMeshPart(targetName);
+        if (parent !is incActivePuppet().root)
+            parent.addChild(part);
+        return part;
+    }
+    auto grid = new GridDeformer(parent);
+    grid.name = targetName;
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+    require((new DefineGridCommand([-12f, 0f, 12f], [-8f, 8f])).run(ctx).succeeded,
+        "hierarchy matrix should define GridDeformer topology");
+    return grid;
+}
+
+private ExParameter createHierarchyParameterModeParam(HierarchyParameterModeCase testCase, string targetName) {
+    if (testCase.is2D)
+        return new2DParameter("param-" ~ targetName);
+    auto param = new ExParameter("param-" ~ targetName, false);
+    param.min = vec2(-1, 0);
+    param.max = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    return param;
+}
+
+private size_t runHierarchyParameterModeMatrix(string onlyId = null) {
+    size_t executed;
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-hierarchy-parameter-mode");
+    if (!onlyId.length && exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    if (!exists(fixtureDir))
+        mkdirRecurse(fixtureDir);
+
+    foreach (hierarchy; ["root", "parent-child", "nested-deformer"]) {
+        foreach (targetType; ["node", "part", "grid-deformer"]) {
+            foreach (is2D; [false, true]) {
+                foreach (modePair; [tuple(EditMode.ModelEdit, "model-edit"), tuple(EditMode.VertexEdit, "vertex-edit")]) {
+                    auto caseId = "parameter.hierarchy-binding-mode-matrix." ~ hierarchy ~ "." ~ targetType ~ "." ~ (is2D ? "2d" : "1d") ~ "." ~ modePair[1];
+                    if (onlyId.length && onlyId != caseId)
+                        continue;
+                    resetCase();
+                    auto testCase = HierarchyParameterModeCase(hierarchy, targetType, is2D, modePair[0], modePair[1]);
+                    string targetName;
+                    auto target = createHierarchyParameterModeTarget(testCase, targetName);
+                    auto param = createHierarchyParameterModeParam(testCase, targetName);
+                    auto ctx = new Context();
+                    ctx.puppet = incActivePuppet();
+                    ctx.parameters = [param];
+                    ctx.nodes = [target];
+                    ctx.keyPoint = is2D ? vec2u(2, 2) : vec2u(1, 0);
+                    ctx.hasExplicitKeyPoint = true;
+
+                    incSetEditMode(testCase.mode, false);
+                    ActionStackScope editScope;
+                    if (testCase.mode == EditMode.VertexEdit)
+                        editScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+                    scope(exit) if (editScope !is null && editScope.isActive()) editScope.close();
+
+                    auto result = (new SetTRSBindingCommand([7.0f, -3.0f], [1.25f, 0.75f], 22.0f, true)).run(ctx);
+                    require(result.succeeded, "hierarchy parameter matrix should create TRS binding for " ~ caseId);
+                    auto tx = cast(ValueParameterBinding)param.getBinding(target, "transform.t.x");
+                    require(tx !is null && near(tx.getValue(ctx.keyPoint), 7.0f), "hierarchy parameter matrix should set tx for " ~ caseId);
+                    incActionUndo();
+                    require(param.getBinding(target, "transform.t.x") is null, "hierarchy parameter matrix undo should remove tx binding for " ~ caseId);
+                    incActionRedo();
+                    tx = cast(ValueParameterBinding)param.getBinding(target, "transform.t.x");
+                    require(tx !is null && near(tx.getValue(ctx.keyPoint), 7.0f), "hierarchy parameter matrix redo should restore tx binding for " ~ caseId);
+
+                    auto saveBase = buildPath(fixtureDir, "case-" ~ scenarioSlug(caseId));
+                    auto savePath = saveBase ~ ".inx";
+                    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded, "hierarchy parameter matrix should save " ~ caseId);
+                    incNewProject();
+                    require((new OpenFileCommand(savePath)).run(new Context()).succeeded, "hierarchy parameter matrix should reload " ~ caseId);
+                    auto loadedTarget = findNodeRecursive(incActivePuppet().root, targetName);
+                    auto loadedParam = findParameter(incActivePuppet(), "param-" ~ targetName);
+                    require(loadedTarget !is null, "hierarchy parameter matrix should restore target " ~ caseId);
+                    require(loadedParam !is null, "hierarchy parameter matrix should restore parameter " ~ caseId);
+                    auto loadedTx = cast(ValueParameterBinding)loadedParam.getBinding(loadedTarget, "transform.t.x");
+                    require(loadedTx !is null && near(loadedTx.getValue(ctx.keyPoint), 7.0f),
+                        "hierarchy parameter matrix should persist tx binding for " ~ caseId);
+                    executed++;
+                }
+            }
+        }
+    }
+    immutable expected = onlyId.length ? 1 : 36;
+    require(executed == expected, "hierarchy parameter mode matrix should execute exactly " ~ expected.to!string ~ " cases, got " ~ executed.to!string);
+    return executed;
+}
+
 private void testCompositeMatrixGridModesScenario() {
     runCompositeMatrixGridModes();
 }
@@ -3997,17 +4473,22 @@ private void testCompositeMatrixSimplePhysicsSettingsScenario() {
     runCompositeMatrixSimplePhysicsSettings();
 }
 
+private void testHierarchyParameterModeMatrixScenario() {
+    runHierarchyParameterModeMatrix();
+}
+
 private void testCompositeCaseMatrixBreadth() {
     ensureRegressionNodeTypesRegistered();
     size_t executed;
     executed += runCompositeMatrixGridModes();
     executed += runCompositeMatrixNodeTypes();
     executed += runCompositeMatrixParameterPresets();
+    executed += runHierarchyParameterModeMatrix();
     executed += runCompositeMatrixDepthOps();
     executed += runCompositeMatrixAutoMeshProcessors();
     executed += runCompositeMatrixSimplePhysicsSettings();
 
-    auto expected = 24 + regressionNodeMenuTypes.length + 10 + 3 + 4 + 15;
+    auto expected = 24 + regressionNodeMenuTypes.length + 10 + 36 + 3 + 4 + 15;
     require(executed == expected, "composite matrix should execute exact generated case count " ~ expected.to!string ~ ", got " ~ executed.to!string);
     require(generatedCompositeCaseScenarios().length == expected,
         "generated composite scenario catalog should match executable matrix count");
@@ -7941,10 +8422,13 @@ private void testCoverageFullFeatureScenarioInventory() {
 private void testCoverageCompositeWorkflowInventory() {
     string[] failures;
     immutable string[] requiredCompositeScenarios = [
-        "coverage.composite-case-matrix",
+        "audit.composite-case-matrix",
+        "audit.closed-pr-regression-obligations",
+        "audit.hierarchy-parameter-mode-matrix",
         "mesh.composite-grid-mode-matrix",
         "node.composite-type-matrix",
         "parameter.composite-preset-matrix",
+        "parameter.hierarchy-binding-mode-matrix",
         "depth.composite-operation-matrix",
         "automesh.composite-processor-matrix-scenario",
         "simplephysics.composite-settings-matrix",
@@ -7965,6 +8449,7 @@ private void testCoverageCompositeWorkflowInventory() {
         "part.composite-inspector-mesh-roundtrip",
         "parameter.composite-lifecycle-binding",
         "parameter.composite-preset-matrix",
+        "parameter.hierarchy-binding-mode-matrix",
         "parameter.binding-cleanup",
         "parameter.mesh-binding-composite",
         "parameter.keyframe-basic",
@@ -8082,7 +8567,7 @@ private string scenarioPrefixForCommandModule(string rel) {
 
 private string scenarioPrefixForSourceModule(string rel) {
     if (rel == "package.d" || rel.endsWith("/package.d"))
-        return "coverage";
+        return "audit";
     if (rel == "ver.d")
         return "platform";
     if (rel == "project.d")
@@ -8112,7 +8597,7 @@ private string scenarioPrefixForSourceModule(string rel) {
     if (rel.startsWith("backend/"))
         return "render";
     if (rel == "commands/base.d" || (rel.startsWith("commands/") && rel.endsWith("/base.d")))
-        return "coverage";
+        return "audit";
     if (rel.startsWith("commands/"))
         return scenarioPrefixForCommandModule(rel);
     if (rel.startsWith("core/actionstack.d"))
@@ -8286,7 +8771,7 @@ private void testCoverageSourceCommandInventory() {
     }
 
     immutable string[] requiredScenarioPrefixes = [
-        "coverage",
+        "audit",
         "project",
         "io",
         "node",
@@ -8353,13 +8838,13 @@ private void testCoverageSourceCommandInventory() {
             continue;
         auto prefix = scenarioPrefixForCommandModule(rel);
         if (prefix.length == 0)
-            failures ~= "command module has no coverage owner: " ~ rel;
+            failures ~= "command module has no regression owner: " ~ rel;
         else if (!hasScenarioPrefix(prefix))
             failures ~= "command module owner has no scenario family: " ~ rel ~ " -> " ~ prefix;
     }
 
     require(sourceFiles.length >= 265, "source inventory should include all nijigenerate modules");
-    require(failures.length == 0, "coverage inventory failures:\n" ~ failures.join("\n"));
+    require(failures.length == 0, "regression inventory failures:\n" ~ failures.join("\n"));
 }
 
 private bool containsDirectMutationNeedle(string line) {
@@ -9165,6 +9650,10 @@ private bool runGeneratedCompositeCaseScenario(string id) {
         runCase(id, { require(runCompositeMatrixParameterPresets(id) == 1, "generated parameter preset scenario should execute exactly one case: " ~ id); });
         return true;
     }
+    if (id.startsWith("parameter.hierarchy-binding-mode-matrix.")) {
+        runCase(id, { require(runHierarchyParameterModeMatrix(id) == 1, "generated hierarchy parameter scenario should execute exactly one case: " ~ id); });
+        return true;
+    }
     if (id.startsWith("depth.composite-operation-matrix.")) {
         runCase(id, { require(runCompositeMatrixDepthOps(id) == 1, "generated depth operation scenario should execute exactly one case: " ~ id); });
         return true;
@@ -9185,20 +9674,26 @@ private bool runAutomatedScenario(string id) {
         return true;
 
     switch (id) {
-        case "coverage.source-command-inventory":
-            runCase("coverage-source-command-inventory", &testCoverageSourceCommandInventory);
+        case "audit.source-command-inventory":
+            runCase("audit-source-command-inventory", &testCoverageSourceCommandInventory);
             return true;
-        case "coverage.command-base":
+        case "audit.command-base":
             runCase("command-base-contracts", &testCommandBaseContracts);
             return true;
-        case "coverage.full-feature-scenario-inventory":
-            runCase("coverage-full-feature-scenario-inventory", &testCoverageFullFeatureScenarioInventory);
+        case "audit.full-feature-scenario-inventory":
+            runCase("audit-full-feature-scenario-inventory", &testCoverageFullFeatureScenarioInventory);
             return true;
-        case "coverage.composite-workflow-inventory":
-            runCase("coverage-composite-workflow-inventory", &testCoverageCompositeWorkflowInventory);
+        case "audit.composite-workflow-inventory":
+            runCase("audit-composite-workflow-inventory", &testCoverageCompositeWorkflowInventory);
             return true;
-        case "coverage.composite-case-matrix":
-            runCase("coverage-composite-case-matrix", &testCompositeCaseMatrixBreadth);
+        case "audit.composite-case-matrix":
+            runCase("audit-composite-case-matrix", &testCompositeCaseMatrixBreadth);
+            return true;
+        case "audit.closed-pr-regression-obligations":
+            runCase("audit-closed-pr-regression-obligations", &testClosedPrRegressionObligations);
+            return true;
+        case "audit.hierarchy-parameter-mode-matrix":
+            runCase("audit-hierarchy-parameter-mode-matrix", &testHierarchyParameterModeMatrixScenario);
             return true;
         case "mesh.composite-grid-mode-matrix":
             runCase("mesh-composite-grid-mode-matrix", &testCompositeMatrixGridModesScenario);
@@ -9209,6 +9704,9 @@ private bool runAutomatedScenario(string id) {
         case "parameter.composite-preset-matrix":
             runCase("parameter-composite-preset-matrix", &testCompositeMatrixParameterPresetsScenario);
             return true;
+        case "parameter.hierarchy-binding-mode-matrix":
+            runCase("parameter-hierarchy-binding-mode-matrix", &testHierarchyParameterModeMatrixScenario);
+            return true;
         case "depth.composite-operation-matrix":
             runCase("depth-composite-operation-matrix", &testCompositeMatrixDepthOpsScenario);
             return true;
@@ -9218,8 +9716,8 @@ private bool runAutomatedScenario(string id) {
         case "simplephysics.composite-settings-matrix":
             runCase("simplephysics-composite-settings-matrix", &testCompositeMatrixSimplePhysicsSettingsScenario);
             return true;
-        case "coverage.source-module-scenario-inventory":
-            runCase("coverage-source-module-scenario-inventory", &testCoverageSourceModuleScenarioInventory);
+        case "audit.source-module-scenario-inventory":
+            runCase("audit-source-module-scenario-inventory", &testCoverageSourceModuleScenarioInventory);
             return true;
         case "project.new-open-save":
             runCase("project-new-save-open-command-paths", &testProjectNewSaveOpenCommandPaths);
@@ -9821,7 +10319,7 @@ private void printSourceModuleScenarioInventory() {
     }
 }
 
-private int printCoverage(bool requireAll) {
+private int printScenarioSummary(bool requireAll) {
     size_t automatedCount;
     size_t computerUseCount;
     size_t pendingCount;
@@ -9835,7 +10333,8 @@ private int printCoverage(bool requireAll) {
             pendingCount++;
     }
 
-    writeln("coverage:");
+    writeln("scenario-summary:");
+    writeln("  note: this is not branch coverage");
     writeln("  total: ", allScenarios().length);
     writeln("  automated: ", automatedCount);
     writeln("  computer-use: ", computerUseCount);
@@ -9850,6 +10349,14 @@ private int printCoverage(bool requireAll) {
         return 1;
     }
     return 0;
+}
+
+private int printBranchCoverageUnsupported() {
+    stderr.writeln("branch coverage is not a scenario summary");
+    stderr.writeln("Run real branch/basic-block counter coverage with:");
+    stderr.writeln("  python3 tools/regression/branch_coverage.py");
+    stderr.writeln("The branch coverage gate builds regression-branch-coverage and fails when any instrumented function or block counter remains zero.");
+    return 1;
 }
 
 private int runOnly(string id) {
@@ -9880,7 +10387,7 @@ private int runAutomatedScenarios() {
     }
 
     writeln("regression-tests: OK");
-    printCoverage(false);
+    printScenarioSummary(false);
     return 0;
 }
 
@@ -9951,7 +10458,10 @@ private int usage() {
     writeln("  nijigenerate-regression-tests --feature-inventory");
     writeln("  nijigenerate-regression-tests --module-inventory");
     writeln("  nijigenerate-regression-tests --computer-use-manifest");
-    writeln("  nijigenerate-regression-tests --coverage");
+    writeln("  nijigenerate-regression-tests --scenario-summary");
+    writeln("  nijigenerate-regression-tests --coverage  # errors; use tools/regression/branch_coverage.py");
+    writeln("  nijigenerate-regression-tests --branch-coverage  # errors; use tools/regression/branch_coverage.py");
+    writeln("  python3 tools/regression/branch_coverage.py");
     writeln("  nijigenerate-regression-tests --require-all");
     writeln("  nijigenerate-regression-tests --only <scenario-id>");
     writeln("  nijigenerate-regression-tests --computer-use-only <scenario-id> <driver-command> [args...]");
@@ -9992,10 +10502,14 @@ int main(string[] args) {
         printComputerUseManifest();
         return 0;
     }
+    if (args.length == 2 && args[1] == "--scenario-summary")
+        return printScenarioSummary(false);
     if (args.length == 2 && args[1] == "--coverage")
-        return printCoverage(false);
+        return printBranchCoverageUnsupported();
+    if (args.length == 2 && args[1] == "--branch-coverage")
+        return printBranchCoverageUnsupported();
     if (args.length == 2 && args[1] == "--require-all")
-        return printCoverage(true);
+        return printScenarioSummary(true);
     if (args.length == 3 && args[1] == "--only")
         return runOnly(args[2]);
     if (args.length >= 4 && args[1] == "--computer-use-only")
