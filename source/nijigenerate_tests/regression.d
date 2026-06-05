@@ -1930,6 +1930,11 @@ private vec3 nodeWorldTranslation(Node node) {
     return vec3(mat.matrix[0][3], mat.matrix[1][3], mat.matrix[2][3]);
 }
 
+private vec3 nodeRenderedWorldTranslation(Node node) {
+    auto mat = node.transform().matrix;
+    return vec3(mat.matrix[0][3], mat.matrix[1][3], mat.matrix[2][3]);
+}
+
 private void testNodeCommandMovePreservesWorldTransform() {
     resetCase();
 
@@ -2650,6 +2655,128 @@ private void testNodeTypeConversionPreservesChildWorldTransform() {
                 "redo conversion should preserve child world rotation for %s -> %s".format(fromType, toType));
             require(nearVec2(child.transform().scale, before.scale),
                 "redo conversion should preserve child world scale for %s -> %s".format(fromType, toType));
+        }
+    }
+}
+
+private void testNodeTypeConversionPreservesLockedAndOffsetChildBaseTransform() {
+    foreach (fromType, toTypes; conversionMap()) {
+        foreach (toType; toTypes) {
+            if (fromType == "DynamicComposite" && (toType == "MeshGroup" || toType == "Part"))
+                continue;
+
+            resetCase();
+            auto node = inInstantiateNode(fromType, incActivePuppet().root);
+            require(node !is null, "conversion source type should instantiate for lockToRoot fixture: " ~ fromType);
+            node.name = fromType ~ "-to-" ~ toType ~ "-locked-source";
+            node.localTransform = Transform(
+                vec3(30, -12, 0),
+                vec3(0, 0, 0.45f),
+                vec2(2.0f, 0.5f)
+            );
+            node.transformChanged();
+
+            auto lockedChild = new Node(node);
+            lockedChild.name = fromType ~ "-to-" ~ toType ~ "-locked-child";
+            lockedChild.localTransform = Transform(
+                vec3(40, -15, 1),
+                vec3(0, 0, 0.2f),
+                vec2(1.2f, 0.9f)
+            );
+            lockedChild.transformChanged();
+            lockedChild.lockToRoot = true;
+            lockedChild.transformChanged();
+
+            auto lockedLocalBefore = lockedChild.localTransform;
+            auto lockedWorldBefore = lockedChild.transform();
+            auto lockedWorldTranslationBefore = nodeRenderedWorldTranslation(lockedChild);
+
+            auto lockedCtx = new Context();
+            lockedCtx.nodes = [node];
+            auto lockedCommand = new ConvertToCommand(toType);
+            require(lockedCommand.run(lockedCtx).succeeded,
+                "ConvertToCommand should convert %s to %s with a lockToRoot child".format(fromType, toType));
+            require(nearVec3(lockedChild.localTransform.translation, lockedLocalBefore.translation),
+                "conversion should not rewrite lockToRoot child local translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(nodeRenderedWorldTranslation(lockedChild), lockedWorldTranslationBefore),
+                "conversion should preserve lockToRoot child world translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(lockedChild.transform().rotation, lockedWorldBefore.rotation),
+                "conversion should preserve lockToRoot child world rotation for %s -> %s".format(fromType, toType));
+            require(nearVec2(lockedChild.transform().scale, lockedWorldBefore.scale),
+                "conversion should preserve lockToRoot child world scale for %s -> %s".format(fromType, toType));
+
+            incActionUndo();
+            require(nearVec3(lockedChild.localTransform.translation, lockedLocalBefore.translation),
+                "undo conversion should not rewrite lockToRoot child local translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(nodeRenderedWorldTranslation(lockedChild), lockedWorldTranslationBefore),
+                "undo conversion should preserve lockToRoot child world translation for %s -> %s".format(fromType, toType));
+
+            incActionRedo();
+            require(nearVec3(lockedChild.localTransform.translation, lockedLocalBefore.translation),
+                "redo conversion should not rewrite lockToRoot child local translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(nodeRenderedWorldTranslation(lockedChild), lockedWorldTranslationBefore),
+                "redo conversion should preserve lockToRoot child world translation for %s -> %s".format(fromType, toType));
+
+            resetCase();
+            node = inInstantiateNode(fromType, incActivePuppet().root);
+            require(node !is null, "conversion source type should instantiate for offset fixture: " ~ fromType);
+            node.name = fromType ~ "-to-" ~ toType ~ "-offset-source";
+            node.localTransform = Transform(
+                vec3(30, -12, 0),
+                vec3(0, 0, 0.45f),
+                vec2(2.0f, 0.5f)
+            );
+            node.transformChanged();
+
+            auto offsetChild = new Node(node);
+            offsetChild.name = fromType ~ "-to-" ~ toType ~ "-offset-child";
+            offsetChild.localTransform = Transform(
+                vec3(40, -15, 1),
+                vec3(0, 0, 0.2f),
+                vec2(1.2f, 0.9f)
+            );
+            require(offsetChild.setValue("transform.t.x", 6.0f), "offset child should accept active X translation offset");
+            require(offsetChild.setValue("transform.t.y", -4.0f), "offset child should accept active Y translation offset");
+            require(offsetChild.setValue("transform.r.z", 0.15f), "offset child should accept active Z rotation offset");
+            require(offsetChild.setValue("transform.s.x", 1.1f), "offset child should accept active X scale offset");
+            require(offsetChild.setValue("transform.s.y", 0.8f), "offset child should accept active Y scale offset");
+
+            auto offsetAppliedBefore = offsetChild.transform();
+            auto offsetAppliedTranslationBefore = nodeRenderedWorldTranslation(offsetChild);
+
+            auto offsetCtx = new Context();
+            offsetCtx.nodes = [node];
+            auto offsetCommand = new ConvertToCommand(toType);
+            require(offsetCommand.run(offsetCtx).succeeded,
+                "ConvertToCommand should convert %s to %s with an offset child".format(fromType, toType));
+            require(nearVec3(nodeRenderedWorldTranslation(offsetChild), offsetAppliedTranslationBefore),
+                "conversion should preserve offset-applied child world translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(offsetChild.transform().rotation, offsetAppliedBefore.rotation),
+                "conversion should preserve offset-applied child world rotation for %s -> %s".format(fromType, toType));
+            require(nearVec2(offsetChild.transform().scale, offsetAppliedBefore.scale),
+                "conversion should preserve offset-applied child world scale for %s -> %s".format(fromType, toType));
+            require(near(offsetChild.getValue("transform.t.x"), 6.0f) &&
+                    near(offsetChild.getValue("transform.t.y"), -4.0f) &&
+                    near(offsetChild.getValue("transform.r.z"), 0.15f) &&
+                    near(offsetChild.getValue("transform.s.x"), 1.1f) &&
+                    near(offsetChild.getValue("transform.s.y"), 0.8f),
+                "conversion should preserve active child transform offset values for %s -> %s".format(fromType, toType));
+
+            incActionUndo();
+            require(nearVec3(nodeRenderedWorldTranslation(offsetChild), offsetAppliedTranslationBefore),
+                "undo conversion should preserve offset-applied child world translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(offsetChild.transform().rotation, offsetAppliedBefore.rotation),
+                "undo conversion should preserve offset-applied child world rotation for %s -> %s".format(fromType, toType));
+            require(nearVec2(offsetChild.transform().scale, offsetAppliedBefore.scale),
+                "undo conversion should preserve offset-applied child world scale for %s -> %s".format(fromType, toType));
+
+            incActionRedo();
+            require(nearVec3(nodeRenderedWorldTranslation(offsetChild), offsetAppliedTranslationBefore),
+                "redo conversion should preserve offset-applied child world translation for %s -> %s".format(fromType, toType));
+            require(nearVec3(offsetChild.transform().rotation, offsetAppliedBefore.rotation),
+                "redo conversion should preserve offset-applied child world rotation for %s -> %s".format(fromType, toType));
+            require(nearVec2(offsetChild.transform().scale, offsetAppliedBefore.scale),
+                "redo conversion should preserve offset-applied child world scale for %s -> %s".format(fromType, toType));
         }
     }
 }
@@ -9480,6 +9607,7 @@ private bool runAutomatedScenario(string id) {
         case "node.type-conversion":
             runCase("node-type-conversion-map-undo-redo", &testNodeTypeConversionMapUndoRedo);
             runCase("node-type-conversion-preserves-child-world-transform", &testNodeTypeConversionPreservesChildWorldTransform);
+            runCase("node-type-conversion-preserves-locked-offset-child-base-transform", &testNodeTypeConversionPreservesLockedAndOffsetChildBaseTransform);
             return true;
         case "node.composite-hierarchy-binding-roundtrip":
             runCase("node-composite-hierarchy-binding-roundtrip", &testNodeCompositeHierarchyBindingRoundTrip);

@@ -384,14 +384,38 @@ public:
         return abs(value) < 0.0001f ? 1.0f : value;
     }
 
-    private static void restoreWorldTransformUnder(Node child, Node parent, Transform worldTransform) {
-        Transform parentTransform = parent is null ? Transform(vec3(0, 0, 0)) : parent.transform();
+    private static Transform rootTransformFor() {
+        auto puppet = incActivePuppet();
+        if (puppet !is null && puppet.root !is null)
+            return puppet.root.localTransform;
+        return Transform(vec3(0, 0, 0));
+    }
 
-        child.localTransform.translation = Node.getRelativePosition(parentTransform.matrix, worldTransform.matrix);
-        child.localTransform.rotation = worldTransform.rotation - parentTransform.rotation;
-        child.localTransform.scale = vec2(
+    private static void restoreWorldTransformUnder(Node child, Node parent, Transform worldTransform) {
+        Transform parentTransform = child.lockToRoot()
+            ? rootTransformFor()
+            : (parent is null ? Transform(vec3(0, 0, 0)) : parent.transform());
+
+        auto localWithOffsetTranslation = Node.getRelativePosition(parentTransform.matrix, worldTransform.matrix);
+        auto localWithOffsetRotation = worldTransform.rotation - parentTransform.rotation;
+        auto localWithOffsetScale = vec2(
             worldTransform.scale.x / nonZeroScale(parentTransform.scale.x),
             worldTransform.scale.y / nonZeroScale(parentTransform.scale.y)
+        );
+
+        child.localTransform.translation = localWithOffsetTranslation - vec3(
+            child.getValue("transform.t.x"),
+            child.getValue("transform.t.y"),
+            child.getValue("transform.t.z")
+        );
+        child.localTransform.rotation = localWithOffsetRotation - vec3(
+            child.getValue("transform.r.x"),
+            child.getValue("transform.r.y"),
+            child.getValue("transform.r.z")
+        );
+        child.localTransform.scale = vec2(
+            localWithOffsetScale.x / nonZeroScale(child.getValue("transform.s.x")),
+            localWithOffsetScale.y / nonZeroScale(child.getValue("transform.s.y"))
         );
         child.localTransform.update();
         child.transformChanged();
