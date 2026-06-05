@@ -29,6 +29,7 @@ import std.algorithm.searching;
 import std.algorithm;
 import std.range:zip;
 import std.array;
+import std.math : abs;
 /**
     An action that happens when a node is changed
 */
@@ -379,6 +380,23 @@ public:
     bool deepCopy;
     ParameterChangeBindingsValueAction[] bindingReorderActions;
 
+    private static float nonZeroScale(float value) {
+        return abs(value) < 0.0001f ? 1.0f : value;
+    }
+
+    private static void restoreWorldTransformUnder(Node child, Node parent, Transform worldTransform) {
+        Transform parentTransform = parent is null ? Transform(vec3(0, 0, 0)) : parent.transform();
+
+        child.localTransform.translation = Node.getRelativePosition(parentTransform.matrix, worldTransform.matrix);
+        child.localTransform.rotation = worldTransform.rotation - parentTransform.rotation;
+        child.localTransform.scale = vec2(
+            worldTransform.scale.x / nonZeroScale(parentTransform.scale.x),
+            worldTransform.scale.y / nonZeroScale(parentTransform.scale.y)
+        );
+        child.localTransform.update();
+        child.transformChanged();
+    }
+
     private void applyReorderOps(bool forward) {
         foreach (action; bindingReorderActions) {
             if (forward)
@@ -401,10 +419,8 @@ public:
             deepCopy = false;
         }
         this.deepCopy = deepCopy;
-        if (deepCopy) {
-            if (srcNode.children.length > 0)
-                children = srcNode.children.dup;
-        }
+        if (srcNode.children.length > 0)
+            children = srcNode.children.dup;
 
         // Set visual name
         descrName = src.name;
@@ -423,7 +439,7 @@ public:
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(toNode);
         Transform tmpTransform = toNode.localTransform;
-        auto childTransforms   = children? children.map!((c)=>c.localTransform).array: null;
+        auto childWorldTransforms = children? children.map!((c)=>c.transform()).array: null;
         toNode.reparent(null, 0);
         srcNode.reparent(parent, pOffset, true);
         srcNode.localTransform = tmpTransform;
@@ -433,10 +449,15 @@ public:
         if (deepCopy && children) {
             foreach (i, child; children) {
                 child.reparent(srcNode, i, true);
-                child.localTransform = childTransforms[i];
-                child.transformChanged();
+                restoreWorldTransformUnder(child, srcNode, childWorldTransforms[i]);
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
+        } else if (children) {
+            foreach (i, child; children) {
+                restoreWorldTransformUnder(child, child.parent, childWorldTransforms[i]);
+                child.notifyChange(child, NotifyReason.StructureChanged);
+            }
+            srcNode.notifyChange(srcNode, NotifyReason.StructureChanged);
         } else
             srcNode.notifyChange(srcNode, NotifyReason.StructureChanged);
     
@@ -454,7 +475,7 @@ public:
         assert(parent !is null);
         ulong pOffset = parent.children.countUntil(srcNode);
         Transform tmpTransform = srcNode.localTransform;
-        auto childTransforms   = children? children.map!((c)=>c.localTransform).array: null;
+        auto childWorldTransforms = children? children.map!((c)=>c.transform()).array: null;
         srcNode.reparent(null, 0);
         toNode.reparent(parent, pOffset, true);
         toNode.localTransform = tmpTransform;
@@ -464,10 +485,15 @@ public:
         if (deepCopy && children) {
             foreach (i, child; children) {
                 child.reparent(toNode, i, true);
-                child.localTransform = childTransforms[i];
-                child.transformChanged();
+                restoreWorldTransformUnder(child, toNode, childWorldTransforms[i]);
                 child.notifyChange(child, NotifyReason.StructureChanged);
             }
+        } else if (children) {
+            foreach (i, child; children) {
+                restoreWorldTransformUnder(child, child.parent, childWorldTransforms[i]);
+                child.notifyChange(child, NotifyReason.StructureChanged);
+            }
+            toNode.notifyChange(toNode, NotifyReason.StructureChanged);
         } else
             toNode.notifyChange(toNode, NotifyReason.StructureChanged);
 
