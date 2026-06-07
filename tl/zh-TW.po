@@ -627,7 +627,7 @@ msgstr "縮放"
 
 #: source/nijigenerate/viewport/vertex/mesheditor/tools/edgecutter.d:76
 msgid "Cut edges intersecting the line"
-msgstr "剪切与线相交的边"
+msgstr "剪切與直線相交的邊"
 
 #: source/nijigenerate/viewport/vertex/mesheditor/tools/edgecutter.d:76
 msgid "Drag Left Mouse"
@@ -1397,7 +1397,7 @@ msgstr "材質比例"
 #: source/nijigenerate/panels/inspector/pathdeform.d:354
 #: source/nijigenerate/commands/depth/bone.d:2420
 msgid "Preview Depth Bone Deform"
-msgstr "预览深度骨骼變形"
+msgstr "預覽深度骨骼變形"
 
 #: source/nijigenerate/panels/inspector/griddeform.d:240
 #: source/nijigenerate/panels/inspector/pathdeform.d:360
@@ -1785,7 +1785,7 @@ msgstr "分割"
 
 #: source/nijigenerate/panels/inspector/pathdeform.d:81
 msgid "Physics Type"
-msgstr "物理类型"
+msgstr "物理類型"
 
 #: source/nijigenerate/panels/inspector/pathdeform.d:85
 #: source/nijigenerate/panels/inspector/simplephysics.d:79
@@ -1995,7 +1995,7 @@ msgstr "移動"
 
 #: source/nijigenerate/panels/inspector/depthbone.d:84
 msgid "Allow Parent to Targets"
-msgstr "允许父级影响目標"
+msgstr "允許父層影響目標"
 
 #: source/nijigenerate/panels/inspector/depthbone.d:85
 msgid ""
@@ -2923,7 +2923,7 @@ msgstr "設定"
 
 #: source/nijigenerate/commands/viewport/control.d:47
 msgid "Reverted flip pairs"
-msgstr "已還原翻转配对"
+msgstr "已還原翻轉配對"
 
 #: source/nijigenerate/commands/viewport/control.d:78
 msgid "Toggle mirror view."
@@ -2955,7 +2955,7 @@ msgstr "列出已註冊的翻轉配對。"
 
 #: source/nijigenerate/commands/viewport/control.d:148
 msgid "Register a flip pair."
-msgstr "注册一个翻转配对。"
+msgstr "註冊翻轉配對。"
 
 #: source/nijigenerate/commands/viewport/control.d:164
 msgid "Register flip pairs by name pattern."
@@ -3024,12 +3024,12 @@ msgstr "%s 必須為 [x, y, z]"
 #: source/nijigenerate/commands/depth/bone.d:1494
 #, c-format, d-format
 msgid "Auto Refresh Depth Bone Deform: %s"
-msgstr "自动刷新深度骨骼變形：%s"
+msgstr "自動刷新深度骨骼變形：%s"
 
 #: source/nijigenerate/commands/depth/bone.d:1439
 #: source/nijigenerate/commands/depth/bone.d:1494
 msgid "Auto Refresh Depth Bone Deform"
-msgstr "自动刷新深度骨骼變形"
+msgstr "自動刷新深度骨骼變形"
 
 #: source/nijigenerate/commands/depth/bone.d:1693
 msgid "Create Depth Rig Root"
@@ -3159,7 +3159,7 @@ msgstr "取得深度骨骼影響規則"
 
 #: source/nijigenerate/commands/depth/bone.d:2388
 msgid "Get depth bone influence rule"
-msgstr "获取深度骨骼影响规则"
+msgstr "取得深度骨骼影響規則"
 
 #: source/nijigenerate/commands/depth/bone.d:2402
 msgid "Preview Depth Bone Influence"
@@ -3167,15 +3167,15 @@ msgstr "預覽深度骨骼影響"
 
 #: source/nijigenerate/commands/depth/bone.d:2402
 msgid "Preview depth bone influence"
-msgstr "预览深度骨骼影响"
+msgstr "預覽深度骨骼影響"
 
 #: source/nijigenerate/commands/depth/bone.d:2420
 msgid "Preview depth bone deformation"
-msgstr "预览深度骨骼變形"
+msgstr "預覽深度骨骼變形"
 
 #: source/nijigenerate/commands/depth/bone.d:2455
 msgid "Apply depth bone deformation to current key"
-msgstr "将深度骨骼變形套用到目前关键点"
+msgstr "將深度骨骼變形套用到目前關鍵點"
 
 #: source/nijigenerate/commands/depth/map.d:256
 msgid "List Depths"
@@ -3243,11 +3243,11 @@ msgstr "移除一個已儲存的深度操作"
 
 #: source/nijigenerate/commands/depth/map.d:385
 msgid "Move Depth Operation"
-msgstr "移动深度操作"
+msgstr "移動深度操作"
 
 #: source/nijigenerate/commands/depth/map.d:385
 msgid "Move one saved depth operation"
-msgstr "移动一个已儲存的深度操作"
+msgstr "移動一個已儲存的深度操作"
 
 #: source/nijigenerate/commands/depth/map.d:404
 msgid "Clear Depth Operations"
@@ -3348,7 +3348,7 @@ msgstr "Schema"
 
 #: source/nijigenerate/commands/automesh/config.d:137
 msgid "Get AutoMesh Values"
-msgstr "获取 AutoMesh 值"
+msgstr "取得 AutoMesh 值"
 
 #: source/nijigenerate/commands/automesh/config.d:137
 msgid "Show AutoMesh config values"
@@ -3412,7 +3412,7 @@ msgstr "設定 AutoMesh 設定（按處理器）"
 
 #: source/nijigenerate/commands/automesh/config.d:639
 msgid "Get Active AutoMesh"
-msgstr "获取目前 AutoMesh"
+msgstr "取得目前 AutoMesh"
 
 #: source/nijigenerate/commands/automesh/config.d:639
 msgid "Show active AutoMesh processor"
@@ -3436,7 +3436,7 @@ msgstr "套用目前 AutoMesh"
 
 #: source/nijigenerate/commands/automesh/config.d:666
 msgid "Apply active AutoMesh to targets"
-msgstr "将目前 AutoMesh 套用到目標"
+msgstr "將目前 AutoMesh 套用到目標"
 
 #: source/nijigenerate/commands/automesh/dynamic.d:38
 msgid "AutoMesh queued"
@@ -3468,7 +3468,7 @@ msgstr "正在取消..."
 #: source/nijigenerate/commands/automesh/dynamic.d:285
 #, c-format, d-format
 msgid "AutoMesh generated empty mesh for %s"
-msgstr "AutoMesh 为 %s 生成了空網格"
+msgstr "AutoMesh 為 %s 生成了空網格"
 
 #: source/nijigenerate/commands/automesh/dynamic.d:289
 #, c-format, d-format
@@ -4572,7 +4572,7 @@ msgstr "選取 綁定s (選用)"
 
 #: source/nijigenerate/windows/command_browser.d:718
 msgid "Key point (pick via controller), optional"
-msgstr "关键点（通过控制器选取，可选）"
+msgstr "關鍵點（透過控制器選取，可選）"
 
 #. Current label
 #: source/nijigenerate/windows/command_browser.d:727
@@ -4588,7 +4588,7 @@ msgstr "未選擇工具…"
 
 #: source/nijigenerate/windows/command_browser.d:763
 msgid "Click on controller to pick keypoint."
-msgstr "点击控制器以选取关键点。"
+msgstr "點擊控制器以選取關鍵點。"
 
 #: source/nijigenerate/windows/command_browser.d:773
 msgid "Field"
@@ -4608,7 +4608,7 @@ msgstr "成功為 true，失敗為 false。"
 
 #: source/nijigenerate/windows/command_browser.d:780
 msgid "Optional user-facing message."
-msgstr "可选的用户可见訊息。"
+msgstr "可選的使用者可見訊息。"
 
 #: source/nijigenerate/windows/command_browser.d:782
 msgid "Resource element type"
