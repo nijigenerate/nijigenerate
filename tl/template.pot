@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-06 02:32+0900\n"
+"POT-Creation-Date: 2026-06-07 14:46+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -151,7 +151,7 @@ msgstr ""
 #: source/nijigenerate/windows/flipconfig.d:627
 #: source/nijigenerate/windows/automeshbatch.d:410
 #: source/nijigenerate/windows/automeshbatch.d:454
-#: source/nijigenerate/windows/settings.d:591
+#: source/nijigenerate/windows/settings.d:592
 #: source/nijigenerate/widgets/dialog.d:116
 msgid "Cancel"
 msgstr ""
@@ -700,6 +700,10 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
+#: source/nijigenerate/core/i18n.d:16
+msgid "LANG_NAME"
+msgstr ""
+
 #: source/nijigenerate/core/window.d:250
 msgid "(Debug Mode)"
 msgstr ""
@@ -815,8 +819,8 @@ msgstr ""
 
 #: source/nijigenerate/panels/parameters.d:393
 #: source/nijigenerate/commands/viewport/palette.d:84
-#: source/nijigenerate/windows/settings.d:512
-#: source/nijigenerate/windows/settings.d:672
+#: source/nijigenerate/windows/settings.d:513
+#: source/nijigenerate/windows/settings.d:673
 #: source/nijigenerate/widgets/mainmenu.d:152
 msgid "Edit"
 msgstr ""
@@ -1041,8 +1045,8 @@ msgid "Suffix"
 msgstr ""
 
 #: source/nijigenerate/panels/nodes.d:106
-#: source/nijigenerate/windows/settings.d:264
-#: source/nijigenerate/windows/settings.d:271
+#: source/nijigenerate/windows/settings.d:265
+#: source/nijigenerate/windows/settings.d:272
 msgid "Node"
 msgstr ""
 
@@ -1147,8 +1151,8 @@ msgstr ""
 #. ===== Node Popup =====
 #: source/nijigenerate/panels/nodes.d:741
 #: source/nijigenerate/commands/viewport/palette.d:102
-#: source/nijigenerate/windows/settings.d:695
 #: source/nijigenerate/windows/settings.d:696
+#: source/nijigenerate/windows/settings.d:697
 msgid "Nodes"
 msgstr ""
 
@@ -1400,6 +1404,21 @@ msgstr ""
 msgid "Influence Rule"
 msgstr ""
 
+#: source/nijigenerate/panels/inspector/griddeform.d:251
+#: source/nijigenerate/panels/inspector/pathdeform.d:371
+msgid "Max Influencing Bones"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/griddeform.d:252
+#: source/nijigenerate/panels/inspector/pathdeform.d:372
+msgid "Influence Radius Scale"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/griddeform.d:253
+#: source/nijigenerate/panels/inspector/pathdeform.d:373
+msgid "Minimum Influence Radius"
+msgstr ""
+
 #: source/nijigenerate/panels/inspector/part.d:57
 msgid "Size of given texture does not match the Albedo texture."
 msgstr ""
@@ -1429,7 +1448,7 @@ msgstr ""
 #: source/nijigenerate/commands/puppet/file.d:680
 #: source/nijigenerate/commands/puppet/file.d:721
 #: source/nijigenerate/commands/puppet/file.d:764
-#: source/nijigenerate/windows/welcome.d:231
+#: source/nijigenerate/windows/welcome.d:232
 #: source/nijigenerate/windows/inpexport.d:209
 msgid "Import..."
 msgstr ""
@@ -1819,7 +1838,7 @@ msgid "Allow ascendant MeshGroup to deform children of Composite"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/meshgroup.d:28
-#: source/nijigenerate/windows/settings.d:265
+#: source/nijigenerate/windows/settings.d:266
 msgid "MeshGroup"
 msgstr ""
 
@@ -1862,7 +1881,7 @@ msgstr ""
 #. ===== Parameters =====
 #: source/nijigenerate/panels/inspector/simplephysics.d:54
 #: source/nijigenerate/commands/viewport/palette.d:109
-#: source/nijigenerate/windows/settings.d:707
+#: source/nijigenerate/windows/settings.d:708
 msgid "Parameter"
 msgstr ""
 
@@ -1944,19 +1963,31 @@ msgstr ""
 msgid "Force refresh all Depth Bone target keypoints"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/depthbone.d:80
-msgid "Lock Rotation"
+#: source/nijigenerate/panels/inspector/depthbone.d:68
+msgid "Rest Head Position"
 msgstr ""
 
-#: source/nijigenerate/panels/inspector/depthbone.d:81
-msgid "Lock Translation"
+#: source/nijigenerate/panels/inspector/depthbone.d:69
+msgid "Rest Tail Position"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:70
+msgid "Rest Roll Angle"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/depthbone.d:82
-msgid "Allow Parent to Targets"
+msgid "Lock Rotation"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/depthbone.d:83
+msgid "Lock Translation"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:84
+msgid "Allow Parent to Targets"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:85
 msgid ""
 "When enabled, parent bone rotation and translation also affect targets bound "
 "to this bone."
@@ -1967,8 +1998,8 @@ msgstr ""
 #: source/nijigenerate/panels/viewport.d:416
 #: source/nijigenerate/commands/viewport/palette.d:89
 #: source/nijigenerate/windows/settings.d:107
-#: source/nijigenerate/windows/settings.d:304
-#: source/nijigenerate/windows/settings.d:678
+#: source/nijigenerate/windows/settings.d:305
+#: source/nijigenerate/windows/settings.d:679
 msgid "Viewport"
 msgstr ""
 
@@ -2059,7 +2090,7 @@ msgid "Scene"
 msgstr ""
 
 #: source/nijigenerate/panels/actionhistory.d:27
-#: source/nijigenerate/windows/settings.d:181
+#: source/nijigenerate/windows/settings.d:182
 msgid "Undo History"
 msgstr ""
 
@@ -2192,7 +2223,7 @@ msgstr ""
 msgid "A texture is too big for the atlas."
 msgstr ""
 
-#: source/nijigenerate/io/save.d:32 source/nijigenerate/windows/welcome.d:225
+#: source/nijigenerate/io/save.d:32 source/nijigenerate/windows/welcome.d:226
 msgid "Open..."
 msgstr ""
 
@@ -2205,7 +2236,7 @@ msgstr ""
 msgid "Save As..."
 msgstr ""
 
-#: source/nijigenerate/io/save.d:89 source/nijigenerate/windows/settings.d:242
+#: source/nijigenerate/io/save.d:89 source/nijigenerate/windows/settings.d:243
 msgid "Always ask"
 msgstr ""
 
@@ -2728,42 +2759,42 @@ msgstr ""
 #. ===== Main menu =====
 #. File → Edit → View → View/Panels → Tools
 #: source/nijigenerate/commands/viewport/palette.d:83
-#: source/nijigenerate/windows/settings.d:671
+#: source/nijigenerate/windows/settings.d:672
 #: source/nijigenerate/widgets/mainmenu.d:64
 msgid "File"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:85
-#: source/nijigenerate/windows/settings.d:673
+#: source/nijigenerate/windows/settings.d:674
 #: source/nijigenerate/widgets/mainmenu.d:181
 msgid "View"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:86
-#: source/nijigenerate/windows/settings.d:674
+#: source/nijigenerate/windows/settings.d:675
 msgid "View/Panels"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:87
-#: source/nijigenerate/windows/settings.d:675
+#: source/nijigenerate/windows/settings.d:676
 #: source/nijigenerate/widgets/mainmenu.d:238
 msgid "Tools"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:90
-#: source/nijigenerate/windows/settings.d:679
+#: source/nijigenerate/windows/settings.d:680
 msgid "Palette"
 msgstr ""
 
 #. Mesh editor tool modes (dynamically generated per mode)
 #: source/nijigenerate/commands/viewport/palette.d:91
-#: source/nijigenerate/windows/settings.d:681
+#: source/nijigenerate/windows/settings.d:682
 msgid "Mesh Editor Tools"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:92
 #: source/nijigenerate/commands/automesh/config.d:54
-#: source/nijigenerate/windows/settings.d:686
+#: source/nijigenerate/windows/settings.d:687
 msgid "AutoMesh"
 msgstr ""
 
@@ -2792,43 +2823,43 @@ msgstr ""
 
 #. Add / Insert / Convert Nodes...
 #: source/nijigenerate/commands/viewport/palette.d:103
-#: source/nijigenerate/windows/settings.d:698
+#: source/nijigenerate/windows/settings.d:699
 msgid "Add Node"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:104
-#: source/nijigenerate/windows/settings.d:699
+#: source/nijigenerate/windows/settings.d:700
 msgid "Insert Node"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:105
-#: source/nijigenerate/windows/settings.d:700
+#: source/nijigenerate/windows/settings.d:701
 msgid "Convert Node"
 msgstr ""
 
 #. Inspector Panel
 #: source/nijigenerate/commands/viewport/palette.d:107
-#: source/nijigenerate/windows/settings.d:704
+#: source/nijigenerate/windows/settings.d:705
 msgid "Panel/Inspector"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:110
-#: source/nijigenerate/windows/settings.d:708
+#: source/nijigenerate/windows/settings.d:709
 msgid "Parameter Edit"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:111
-#: source/nijigenerate/windows/settings.d:709
+#: source/nijigenerate/windows/settings.d:710
 msgid "Binding"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:112
-#: source/nijigenerate/windows/settings.d:710
+#: source/nijigenerate/windows/settings.d:711
 msgid "Parameter Group"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:113
-#: source/nijigenerate/windows/settings.d:711
+#: source/nijigenerate/windows/settings.d:712
 msgid "Animation Edit"
 msgstr ""
 
@@ -3946,7 +3977,7 @@ msgid "Redo previously undone action"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/edit.d:34
-#: source/nijigenerate/windows/settings.d:459
+#: source/nijigenerate/windows/settings.d:460
 msgid "Settings"
 msgstr ""
 
@@ -4621,76 +4652,76 @@ msgstr ""
 msgid "Language"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:168
+#: source/nijigenerate/windows/welcome.d:169
 #: source/nijigenerate/windows/settings.d:146
 msgid "Color Theme"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:168
 #: source/nijigenerate/windows/welcome.d:169
+#: source/nijigenerate/windows/welcome.d:170
 #: source/nijigenerate/windows/settings.d:146
 #: source/nijigenerate/windows/settings.d:147
 msgid "Dark"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:168
-#: source/nijigenerate/windows/welcome.d:170
+#: source/nijigenerate/windows/welcome.d:169
+#: source/nijigenerate/windows/welcome.d:171
 #: source/nijigenerate/windows/settings.d:146
 #: source/nijigenerate/windows/settings.d:148
 msgid "Light"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:180
-#: source/nijigenerate/windows/settings.d:173
+#: source/nijigenerate/windows/welcome.d:181
+#: source/nijigenerate/windows/settings.d:174
 msgid "UI Scale"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:192
-#: source/nijigenerate/windows/settings.d:424
+#: source/nijigenerate/windows/welcome.d:193
+#: source/nijigenerate/windows/settings.d:425
 msgid "nijigenerate needs to be restarted for some changes to take effect."
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:205
+#: source/nijigenerate/windows/welcome.d:206
 msgid "Next"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:217
+#: source/nijigenerate/windows/welcome.d:218
 msgid "Create Project"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:220
+#: source/nijigenerate/windows/welcome.d:221
 msgid "New..."
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:236
+#: source/nijigenerate/windows/welcome.d:237
 msgid "Import PSD..."
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:242
+#: source/nijigenerate/windows/welcome.d:243
 msgid "Import KRA..."
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:254
+#: source/nijigenerate/windows/welcome.d:255
 msgid "Recent Projects"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:269
+#: source/nijigenerate/windows/welcome.d:270
 msgid "No recent projects..."
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:279
+#: source/nijigenerate/windows/welcome.d:280
 msgid "On the Web"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:284
+#: source/nijigenerate/windows/welcome.d:285
 msgid "Website"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:290
+#: source/nijigenerate/windows/welcome.d:291
 msgid "Documentation"
 msgstr ""
 
-#: source/nijigenerate/windows/welcome.d:326
+#: source/nijigenerate/windows/welcome.d:327
 msgid "nijigenerate Start"
 msgstr ""
 
@@ -4801,7 +4832,7 @@ msgid "Accessbility"
 msgstr ""
 
 #: source/nijigenerate/windows/settings.d:115
-#: source/nijigenerate/windows/settings.d:211
+#: source/nijigenerate/windows/settings.d:212
 msgid "Rendering"
 msgstr ""
 
@@ -4810,7 +4841,7 @@ msgid "File Handling"
 msgstr ""
 
 #: source/nijigenerate/windows/settings.d:123
-#: source/nijigenerate/windows/settings.d:642
+#: source/nijigenerate/windows/settings.d:643
 msgid "Shortcuts"
 msgstr ""
 
@@ -4818,220 +4849,220 @@ msgstr ""
 msgid "Integration"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:183
+#: source/nijigenerate/windows/settings.d:184
 msgid "Max Undo History"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:189
+#: source/nijigenerate/windows/settings.d:190
 msgid "Linux Tweaks"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:191
+#: source/nijigenerate/windows/settings.d:192
 msgid "Disable Compositor"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:201
+#: source/nijigenerate/windows/settings.d:202
 msgid "Accessibility"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:203
+#: source/nijigenerate/windows/settings.d:204
 msgid "Use OpenDyslexic Font"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:207
+#: source/nijigenerate/windows/settings.d:208
 msgid "Use the OpenDyslexic font for Latin text characters."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:213
+#: source/nijigenerate/windows/settings.d:214
 msgid "Enable triple buffer fallback"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:218
+#: source/nijigenerate/windows/settings.d:219
 msgid "Fallback to double buffering when triple buffering is unstable."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:223
+#: source/nijigenerate/windows/settings.d:224
 #: source/nijigenerate/widgets/mainmenu.d:73
 msgid "Autosaves"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:225
+#: source/nijigenerate/windows/settings.d:226
 msgid "Enable Autosaves"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:230
+#: source/nijigenerate/windows/settings.d:231
 msgid "Save Interval (Minutes)"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:235
+#: source/nijigenerate/windows/settings.d:236
 msgid "Maximum Autosaves"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:240
+#: source/nijigenerate/windows/settings.d:241
 msgid "Import behaviour"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:243
+#: source/nijigenerate/windows/settings.d:244
 msgid "Preserve"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:244
+#: source/nijigenerate/windows/settings.d:245
 msgid "Don't preserve"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:250
+#: source/nijigenerate/windows/settings.d:251
 msgid "Preserve structure"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:261
+#: source/nijigenerate/windows/settings.d:262
 msgid "Layer group replacement"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:266
+#: source/nijigenerate/windows/settings.d:267
 msgid "DynamicComposite"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:274
+#: source/nijigenerate/windows/settings.d:275
 msgid "Replace LayerGroup with"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:283
+#: source/nijigenerate/windows/settings.d:284
 msgid ""
 "Node type to create for imported layer groups when preserving structure."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:287
+#: source/nijigenerate/windows/settings.d:288
 msgid "On close project"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:291
+#: source/nijigenerate/windows/settings.d:292
 msgid "Save project"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:299
+#: source/nijigenerate/windows/settings.d:300
 msgid "Should changes be saved automatically when closing a project?"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:311
+#: source/nijigenerate/windows/settings.d:312
 msgid "Zoom Mode"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:312
+#: source/nijigenerate/windows/settings.d:313
 msgid "To Screen Center"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:313
+#: source/nijigenerate/windows/settings.d:314
 msgid "To Mouse Position"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:319
+#: source/nijigenerate/windows/settings.d:320
 msgid "Zoom Speed"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:326
+#: source/nijigenerate/windows/settings.d:327
 msgid "MCP Server"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:329
+#: source/nijigenerate/windows/settings.d:330
 msgid "Enable MCP HTTP Server"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:345
+#: source/nijigenerate/windows/settings.d:346
 msgid "Host"
 msgstr ""
 
 #. Port input
-#: source/nijigenerate/windows/settings.d:351
+#: source/nijigenerate/windows/settings.d:352
 msgid "Port"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:365
+#: source/nijigenerate/windows/settings.d:366
 msgid ""
 "Warning: MCP server host is not local. Others may connect to your "
 "nijigenerate. Use only on a trusted network and ensure proper firewall/"
 "network protections."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:370
+#: source/nijigenerate/windows/settings.d:371
 msgid "Changes will apply when you click Done."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:372
+#: source/nijigenerate/windows/settings.d:373
 msgid "Enabled authorization."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:376
+#: source/nijigenerate/windows/settings.d:377
 msgid "Server disabled. Click Done to apply."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:381
+#: source/nijigenerate/windows/settings.d:382
 msgid "Coding Agent (ACP)"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:390
+#: source/nijigenerate/windows/settings.d:391
 msgid "Command"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:402
+#: source/nijigenerate/windows/settings.d:403
 msgid "Working Dir (optional)"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:407
+#: source/nijigenerate/windows/settings.d:408
 msgid "Command line is saved immediately."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:411
+#: source/nijigenerate/windows/settings.d:412
 #: source/nijigenerate/windows/inpexport.d:344
 msgid "No settings for this category."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:432
+#: source/nijigenerate/windows/settings.d:433
 msgid "Done"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:510
+#: source/nijigenerate/windows/settings.d:511
 msgid "Action"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:511
+#: source/nijigenerate/windows/settings.d:512
 msgid "Shortcut"
 msgstr ""
 
 #. Live preview while capturing
-#: source/nijigenerate/windows/settings.d:539
+#: source/nijigenerate/windows/settings.d:540
 msgid "Press keys..."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:541
+#: source/nijigenerate/windows/settings.d:542
 msgid "<none>"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:585
+#: source/nijigenerate/windows/settings.d:586
 msgid "Capturing shortcut..."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:587
+#: source/nijigenerate/windows/settings.d:588
 msgid "Repeat"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:643
+#: source/nijigenerate/windows/settings.d:644
 msgid ""
 "Assign shortcuts to commands. Click Set and press keys. Use Clear to remove "
 "a binding."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:648
+#: source/nijigenerate/windows/settings.d:649
 msgid "Swap Command and Control"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:652
+#: source/nijigenerate/windows/settings.d:653
 msgid ""
 "When enabled, Command () and Control () are treated as swapped for "
 "shortcuts."
 msgstr ""
 
 #. Filter input
-#: source/nijigenerate/windows/settings.d:663
+#: source/nijigenerate/windows/settings.d:664
 msgid "Filter actions by name:"
 msgstr ""
 
