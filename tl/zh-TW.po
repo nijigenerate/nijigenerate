@@ -3,21 +3,23 @@
 # This file is distributed under the same license as the PACKAGE package.
 # choushin <thect@protonmail.com>, 2022.
 # LovelyA72 <a72@luotianyi.pro>, 2022.
+# Richardn <rniu5@jh.edu>, 2024.
+# r888800009 <r888800009@gmail.com>, 2026.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-06-07 14:46+0900\n"
-"PO-Revision-Date: 2022-10-10 21:14+0800\n"
-"Last-Translator: LovelyA72 <a72@luotianyi.pro>\n"
+"PO-Revision-Date: 2026-06-07 16:58+0900\n"
+"Last-Translator: r888800009 <r888800009@gmail.com>\n"
 "Language-Team: Language zh-tw\n"
 "Language: zh_TW\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Poedit 3.1.1\n"
+"Generated-By: Babel 2.16.0\n"
 
 #: source/nijigenerate/viewport/depth/tools/landmark.d:21
 msgid "󰓹"
@@ -160,11 +162,11 @@ msgstr "取消"
 
 #: source/nijigenerate/viewport/base.d:704
 msgid "Editing armed parameter..."
-msgstr "正在編輯已啟用參數..."
+msgstr "正在編輯開始錄製的參數"
 
 #: source/nijigenerate/viewport/base.d:704
 msgid "Editing base transform..."
-msgstr "正在編輯基礎變換..."
+msgstr "編輯位置"
 
 #: source/nijigenerate/viewport/common/mesheditor/package.d:287
 msgid "Reset selected"
@@ -200,7 +202,7 @@ msgstr "對齊像素"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:276
 msgid "SHIFT"
-msgstr "SHIFT"
+msgstr "Shift 鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:277
 msgid "Select vertices"
@@ -208,7 +210,7 @@ msgstr "隱藏 頂點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:277
 msgid "ALT"
-msgstr "ALT"
+msgstr "Alt 鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:905
 msgid "Drag mode"
@@ -216,11 +218,11 @@ msgstr "映射模式"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:915
 msgid "Flow mode"
-msgstr "流動模式"
+msgstr "流動模式"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:945
 msgid "Brush Tool"
-msgstr "筆刷工具"
+msgstr "筆刷工具"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/brush.d:964
 msgid "Teacher"
@@ -258,7 +260,7 @@ msgstr "左鍵（x2）"
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:405
 msgid "Toggle locked point"
-msgstr "切換鎖定點"
+msgstr "鎖定/解鎖點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:222
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:306
@@ -266,24 +268,24 @@ msgstr "切換鎖定點"
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:155
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:156
 msgid "Ctrl"
-msgstr "Ctrl"
+msgstr "Ctrl 鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:406
 msgid "Move point along with the path"
-msgstr "沿路徑移動點"
+msgstr "沿著路徑移動點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:223
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:307
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:406
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:154
 msgid "Shift"
-msgstr "Shift"
+msgstr "Shift 鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:419
 msgid "Define paths"
-msgstr "定義路徑"
+msgstr "定義路徑"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:430
 msgid "Transform path"
@@ -297,7 +299,7 @@ msgstr "訂為當前值"
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:456
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:592
 msgid "Move points along the path"
-msgstr "沿路徑移動點"
+msgstr "沿著路徑移動頂點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/pathdeform.d:463
 #: source/nijigenerate/viewport/common/mesheditor/tools/bezierdeform.d:599
@@ -318,15 +320,15 @@ msgstr "新增"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/point.d:103
 msgid "Ctrl+Left Mouse"
-msgstr "Ctrl+滑鼠左鍵"
+msgstr "Ctrl+左鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/point.d:490
 msgid "Vertex Tool"
-msgstr "點工具"
+msgstr "頂點工具"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/point.d:506
 msgid "Auto connect vertices"
-msgstr "隱藏 頂點"
+msgstr "自動連接頂點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:44
 msgid "Poly Lasso Selection Mode"
@@ -338,39 +340,39 @@ msgstr "一般套索選取模式"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:153
 msgid "Add Lasso Point"
-msgstr "新增套索点"
+msgstr "為不規則選擇加入頂點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:154
 msgid "Additive Selection"
-msgstr "追加選取"
+msgstr "擴充選擇"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:155
 msgid "Inverse Selection"
-msgstr "反向選取"
+msgstr "反轉選取"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:156
 msgid "Remove Selection"
-msgstr "移除選取"
+msgstr "移除選取"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:157
 msgid "Delete Last Lasso Point"
-msgstr "刪除最后一个套索点"
+msgstr "刪除最後一個不規則選擇點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:157
 msgid "Right Mouse"
-msgstr "左鍵"
+msgstr "右鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:158
 msgid "Clear All Lasso Points"
-msgstr "清除所有套索點"
+msgstr "清除所有不規則選擇點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:158
 msgid "ESC"
-msgstr "ESC"
+msgstr "Esc 鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:253
 msgid "Lasso Selection"
-msgstr "套索選取"
+msgstr "套索選取"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
 msgid "Connect/Disconnect"
@@ -382,11 +384,11 @@ msgstr "連接多個"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:38
 msgid "Shift+Left Mouse"
-msgstr "Shift+滑鼠左鍵"
+msgstr "Shift+左鍵"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:128
 msgid "Edge Tool"
-msgstr "邊緣工具"
+msgstr "邊緣工具"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/onetimedeform.d:759
 msgid "apply deform"
@@ -402,19 +404,19 @@ msgstr "路徑變形工具"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:344
 msgid "Drag to define 2x2 mesh"
-msgstr "拖曳以定義 2x2 網格"
+msgstr "拖曳來定義一個 2x2 網格"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:345
 msgid "Add/remove key points to axes"
-msgstr "在軸上新增/移除關鍵點"
+msgstr "在軸上加入/刪除關鍵點"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:346
 msgid "Change key point position in the axis"
-msgstr "Change key point position in axis"
+msgstr "改變關鍵點在軸上的位置"
 
 #: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:513
 msgid "Grid Vertex Tool"
-msgstr "點工具"
+msgstr "網格頂點工具"
 
 #: source/nijigenerate/viewport/model/deform.d:135
 #: source/nijigenerate/viewport/model/package.d:348
@@ -453,7 +455,7 @@ msgstr "顯示 定向工具"
 #. Set clear color
 #: source/nijigenerate/viewport/model/package.d:363
 msgid "COLOR"
-msgstr "COLOR"
+msgstr "顏色"
 
 #: source/nijigenerate/viewport/model/package.d:374
 #: source/nijigenerate/panels/parameters.d:130
@@ -462,11 +464,11 @@ msgstr "重設"
 
 #: source/nijigenerate/viewport/model/package.d:378
 msgid "Background Color"
-msgstr "背景顏色"
+msgstr "背景顏色"
 
 #: source/nijigenerate/viewport/model/package.d:382
 msgid "Gizmos"
-msgstr "Gizmos"
+msgstr "工具"
 
 #: source/nijigenerate/viewport/model/package.d:396
 msgid " Merge Mesh"
@@ -474,11 +476,11 @@ msgstr "合併"
 
 #: source/nijigenerate/viewport/model/package.d:396
 msgid " Copy Mesh"
-msgstr "複製網格資料"
+msgstr " 複製網格"
 
 #: source/nijigenerate/viewport/model/package.d:396
 msgid " Edit Mesh"
-msgstr "編輯網格"
+msgstr " 編輯網格"
 
 #: source/nijigenerate/viewport/model/package.d:405
 msgid "Merge Mesh Data"
@@ -505,11 +507,11 @@ msgstr "編輯網格"
 
 #: source/nijigenerate/viewport/model/package.d:449
 msgid "Z-Sort"
-msgstr "排列中"
+msgstr "Z 排序"
 
 #: source/nijigenerate/viewport/model/package.d:449
 msgid "Size-Sort"
-msgstr "依大小排序"
+msgstr "依大小排序"
 
 #: source/nijigenerate/viewport/model/package.d:459
 msgid "Focus Selected"
@@ -550,11 +552,11 @@ msgstr "三角定位點"
 #: source/nijigenerate/viewport/vertex/package.d:208
 #: source/nijigenerate/viewport/vertex/package.d:279
 msgid "Bake"
-msgstr "Bake"
+msgstr "生成"
 
 #: source/nijigenerate/viewport/vertex/package.d:215
 msgid "Bakes the triangulation, applying it to the mesh."
-msgstr "烘焙三角化並套用到網格。"
+msgstr "生成三角形分割策略，將其應用到網格上"
 
 #: source/nijigenerate/viewport/vertex/package.d:219
 msgid "Triangulation Options"
@@ -562,11 +564,11 @@ msgstr "三角定位選項"
 
 #: source/nijigenerate/viewport/vertex/package.d:285
 msgid "Bakes the auto mesh."
-msgstr "烘焙自動網格。"
+msgstr "烘焙自動網格"
 
 #: source/nijigenerate/viewport/vertex/package.d:289
 msgid "Auto Meshing Options"
-msgstr "自動網格選項"
+msgstr "自動網格選項"
 
 #: source/nijigenerate/viewport/vertex/package.d:309
 msgid "Are you sure?"
@@ -597,7 +599,7 @@ msgstr "Alpha 預覽"
 
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:186
 msgid "Auto Segmentation"
-msgstr "文檔"
+msgstr "自動分割網格"
 
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:187
 msgid "Mask threshold"
@@ -605,15 +607,15 @@ msgstr "閥值"
 
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:200
 msgid "X Segments"
-msgstr "X Segments"
+msgstr "X 軸格點數"
 
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:213
 msgid "Y Segments"
-msgstr "Y Segments"
+msgstr "Y 軸格點數"
 
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:226
 msgid "Margin"
-msgstr "邊距"
+msgstr "邊距"
 
 #: source/nijigenerate/viewport/vertex/automesh/grid.d:241
 msgid "X Scale"
@@ -647,7 +649,7 @@ msgstr "settings.json 檔案已損毀。Nijigenerate 將載入預設設定。
 
 #: source/nijigenerate/core/settings.d:34
 msgid "The corrupted settings file has been moved to "
-msgstr "損毀的設定檔已移動到 "
+msgstr "損壞的設定檔已被儲存至 "
 
 #: source/nijigenerate/core/settings.d:35
 msgid ""
@@ -660,7 +662,7 @@ msgid ""
 "Error message: "
 msgstr ""
 "\n"
-"錯誤訊息："
+"錯誤訊息： "
 
 #. Also handle NFS or I/O errors
 #. Only reached for genuine early failures (before completion)
@@ -714,7 +716,7 @@ msgstr "(除錯模式)"
 
 #: source/nijigenerate/ext/nodes/excamera.d:132
 msgid "Warning: Camera size must be divisible by 2"
-msgstr "警告：攝影機尺寸必須能被 2 整除"
+msgstr "警告：相機長寬必須是 2 的倍數"
 
 #: source/nijigenerate/panels/parameters.d:124
 msgid "Unset"
@@ -799,7 +801,7 @@ msgstr "線性"
 #: source/nijigenerate/panels/parameters.d:210
 #: source/nijigenerate/panels/timeline.d:96
 msgid "Cubic"
-msgstr "Cubic"
+msgstr "立方"
 
 #: source/nijigenerate/panels/parameters.d:217
 msgid "Copy to"
@@ -815,7 +817,7 @@ msgstr "綁定"
 
 #: source/nijigenerate/panels/parameters.d:252
 msgid "Show all nodes"
-msgstr "顯示 邊界"
+msgstr "顯示所有節點"
 
 #: source/nijigenerate/panels/parameters.d:252
 msgid "Show only selected nodes"
@@ -835,7 +837,7 @@ msgstr "分割"
 
 #: source/nijigenerate/panels/parameters.d:401
 msgid "To 2D"
-msgstr "To 2D"
+msgstr "轉為二維參數"
 
 #: source/nijigenerate/panels/parameters.d:406
 #: source/nijigenerate/commands/parameter/paramedit.d:35
@@ -858,7 +860,7 @@ msgstr "鏡像自動填入"
 
 #: source/nijigenerate/panels/parameters.d:453
 msgid "Paste and Horizontal Flip"
-msgstr "貼上並水平翻轉"
+msgstr "貼上並水平翻轉"
 
 #: source/nijigenerate/panels/parameters.d:461
 msgid "Duplicate and Horizontal Flip"
@@ -896,7 +898,7 @@ msgstr "手臂參數"
 
 #: source/nijigenerate/panels/parameters.d:547
 msgid "Add Keyframe"
-msgstr "新增參數"
+msgstr "新增關鍵影格"
 
 #: source/nijigenerate/panels/parameters.d:551
 msgid "Copy Keyframe"
@@ -1138,7 +1140,7 @@ msgstr "模型"
 
 #: source/nijigenerate/panels/nodes.d:654
 msgid "Filter, search for specific nodes"
-msgstr "過濾、搜尋特定參數"
+msgstr "過濾、搜尋特定節點"
 
 #: source/nijigenerate/panels/nodes.d:699
 msgid "Delete selected nodes"
@@ -1162,11 +1164,11 @@ msgstr "節點"
 
 #: source/nijigenerate/panels/animlist.d:35
 msgid "Edit..."
-msgstr "編輯"
+msgstr "編輯..."
 
 #: source/nijigenerate/panels/animlist.d:74
 msgid "Animation List"
-msgstr "編輯動畫"
+msgstr "動畫列表"
 
 #: source/nijigenerate/panels/resource.d:247
 msgid "New Node"
@@ -1199,7 +1201,7 @@ msgstr "一般資訊"
 
 #: source/nijigenerate/panels/inspector/puppet.d:72
 msgid "Part Count"
-msgstr "Part Count"
+msgstr "組件計數"
 
 #: source/nijigenerate/panels/inspector/puppet.d:78
 #: source/nijigenerate/windows/command_browser.d:599
@@ -1308,7 +1310,7 @@ msgstr "變形"
 #: source/nijigenerate/panels/inspector/griddeform.d:39
 #: source/nijigenerate/panels/inspector/meshgroup.d:33
 msgid "Dynamic Deformation (slower)"
-msgstr "動態變形（較慢）"
+msgstr "動態變形（速度較慢）"
 
 #: source/nijigenerate/panels/inspector/griddeform.d:43
 msgid ""
@@ -1373,7 +1375,7 @@ msgstr "聚焦"
 #: source/nijigenerate/panels/inspector/pathdeform.d:247
 #: source/nijigenerate/windows/inpexport.d:258
 msgid "Preview"
-msgstr "預覽"
+msgstr "預覽"
 
 #: source/nijigenerate/panels/inspector/griddeform.d:132
 #: source/nijigenerate/panels/inspector/pathdeform.d:252
@@ -1443,7 +1445,7 @@ msgstr "儲存至檔案"
 #. Allow saving texture to file
 #: source/nijigenerate/panels/inspector/part.d:113
 msgid "Load from File"
-msgstr "儲存至檔案"
+msgstr "從檔案載入"
 
 #: source/nijigenerate/panels/inspector/part.d:120
 #: source/nijigenerate/io/psd.d:39 source/nijigenerate/io/kra.d:35
@@ -1501,7 +1503,7 @@ msgstr "色調（螢幕）"
 #: source/nijigenerate/panels/inspector/part.d:224
 #: source/nijigenerate/panels/inspector/part.d:631
 msgid "Emission Strength"
-msgstr "發光強度"
+msgstr "發光強度"
 
 #. Header for the Blending options for Parts
 #: source/nijigenerate/panels/inspector/part.d:238
@@ -1538,7 +1540,7 @@ msgstr "螢幕"
 #: source/nijigenerate/panels/inspector/composite.d:73
 #: source/nijigenerate/windows/inpexport.d:281
 msgid "Overlay"
-msgstr "Overlay"
+msgstr "疊加"
 
 #. Darken blending mode
 #: source/nijigenerate/panels/inspector/part.d:258
@@ -1573,7 +1575,7 @@ msgstr "線性加亮"
 #: source/nijigenerate/panels/inspector/composite.d:88
 #: source/nijigenerate/windows/inpexport.d:296
 msgid "Add (Glow)"
-msgstr "新增（發光）"
+msgstr "增亮"
 
 #. Color Burn blending mode
 #: source/nijigenerate/panels/inspector/part.d:273
@@ -1601,21 +1603,21 @@ msgstr "亮色主題"
 #: source/nijigenerate/panels/inspector/composite.d:100
 #: source/nijigenerate/windows/inpexport.d:308
 msgid "Subtract"
-msgstr "Subtract"
+msgstr "減去"
 
 #. Difference blending mode
 #: source/nijigenerate/panels/inspector/part.d:285
 #: source/nijigenerate/panels/inspector/composite.d:103
 #: source/nijigenerate/windows/inpexport.d:311
 msgid "Difference"
-msgstr "Difference"
+msgstr "差值"
 
 #. Exclusion blending mode
 #: source/nijigenerate/panels/inspector/part.d:288
 #: source/nijigenerate/panels/inspector/composite.d:106
 #: source/nijigenerate/windows/inpexport.d:314
 msgid "Exclusion"
-msgstr "Exclusion"
+msgstr "排除"
 
 #. Inverse blending mode
 #: source/nijigenerate/panels/inspector/part.d:291
@@ -1628,14 +1630,14 @@ msgstr "反轉"
 #: source/nijigenerate/panels/inspector/composite.d:110
 #: source/nijigenerate/windows/inpexport.d:318
 msgid "Inverts the color by a factor of the overlying color"
-msgstr "Inverts color a factor overlying color"
+msgstr "用上層顏色的一個係數來反轉顏色"
 
 #. Destination In blending mode
 #: source/nijigenerate/panels/inspector/part.d:295
 #: source/nijigenerate/panels/inspector/composite.d:113
 #: source/nijigenerate/windows/inpexport.d:321
 msgid "Destination In"
-msgstr "Destination In"
+msgstr "保留重疊部分的下層內容"
 
 #. Clip to Lower blending mode
 #: source/nijigenerate/panels/inspector/part.d:298
@@ -1837,24 +1839,24 @@ msgstr "指定將前一個擺錘的運動傳遞給下一個擺錘的程度。
 
 #: source/nijigenerate/panels/inspector/composite.d:245
 msgid "Propagate MeshGroup"
-msgstr "傳播 MeshGroup"
+msgstr "傳遞網格組"
 
 #: source/nijigenerate/panels/inspector/composite.d:251
 msgid "Allow ascendant MeshGroup to deform children of Composite"
-msgstr "允许上级 MeshGroup 變形 Composite 的子節點"
+msgstr "使位於父節點的網格組對合成節點的子節點進行變形"
 
 #: source/nijigenerate/panels/inspector/meshgroup.d:28
 #: source/nijigenerate/windows/settings.d:266
 msgid "MeshGroup"
-msgstr "MeshGroup"
+msgstr "網格組"
 
 #: source/nijigenerate/panels/inspector/meshgroup.d:37
 msgid ""
 "Whether the MeshGroup should dynamically deform children,\n"
 "this is an expensive operation and should not be overused."
 msgstr ""
-"MeshGroup 是否要動態變形子節點，\n"
-"這是成本較高的操作，不應過度使用。"
+"是否令該網格組對子節點進行動態變形\n"
+"這是一個對性能需求大的操作，不應被過度使用"
 
 #: source/nijigenerate/panels/inspector/meshgroup.d:39
 msgid "Translate origins"
@@ -1862,7 +1864,7 @@ msgstr "移動"
 
 #: source/nijigenerate/panels/inspector/meshgroup.d:43
 msgid "Translate origin of child nodes for non-Drawable object."
-msgstr "平移非 Drawable 物件子節點的原點。"
+msgstr "平移非繪製物件的子節點的原點"
 
 #: source/nijigenerate/panels/inspector/drawable.d:30
 msgid "Drawable"
@@ -1884,7 +1886,7 @@ msgstr "取消映射"
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:48
 msgid "Unassigned"
-msgstr "（未指派）"
+msgstr "（未指派）"
 
 #. ===== Parameters =====
 #: source/nijigenerate/panels/inspector/simplephysics.d:54
@@ -1895,7 +1897,7 @@ msgstr "參數"
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:55
 msgid "(unassigned)"
-msgstr "（未指派）"
+msgstr "（未指派）"
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:75
 #: source/nijigenerate/windows/command_browser.d:600
@@ -1922,7 +1924,7 @@ msgstr "長度"
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:118
 msgid "YX"
-msgstr "YX"
+msgstr "YX"
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:135
 msgid "Local Transform Lock"
@@ -1932,7 +1934,7 @@ msgstr "變形"
 msgid ""
 "Whether the physics system only listens to the movement of the physics node "
 "itself"
-msgstr "物理系統是否只監聽物理節點本身的移動"
+msgstr "物理系統是否只監聽物理節點本身的移動"
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:155
 #: source/nijigenerate/panels/inspector/simplephysics.d:270
@@ -2070,7 +2072,7 @@ msgstr "對齊像素"
 #: source/nijigenerate/panels/inspector/node.d:226
 #: source/nijigenerate/panels/inspector/node.d:391
 msgid "Sorting"
-msgstr "排列中"
+msgstr "排列"
 
 #: source/nijigenerate/panels/logger.d:26
 msgid "Logger"
@@ -2122,7 +2124,7 @@ msgstr "插值模式"
 
 #: source/nijigenerate/panels/timeline.d:90
 msgid "Stepped"
-msgstr "Stepped"
+msgstr "階梯"
 
 #: source/nijigenerate/panels/timeline.d:102
 msgid "Merge Mode"
@@ -2131,7 +2133,7 @@ msgstr "合併"
 #: source/nijigenerate/panels/timeline.d:106
 #: source/nijigenerate/windows/editanim.d:87
 msgid "Additive"
-msgstr "Additive"
+msgstr "疊加"
 
 #: source/nijigenerate/panels/timeline.d:109
 msgid "Multiplicative"
@@ -2139,15 +2141,15 @@ msgstr "複製"
 
 #: source/nijigenerate/panels/timeline.d:114
 msgid "Forced"
-msgstr "Forced"
+msgstr "強制"
 
 #: source/nijigenerate/panels/timeline.d:224
 msgid "Lock playback to animation framerate"
-msgstr "Lock playback animation framerate"
+msgstr "鎖播放影格率到動畫影格率"
 
 #: source/nijigenerate/panels/timeline.d:294
 msgid "Not in Animation Edit mode..."
-msgstr "未開啟測試模式…"
+msgstr "未開啟動畫編輯模式…"
 
 #: source/nijigenerate/panels/timeline.d:301
 msgid "Timeline"
@@ -2164,7 +2166,7 @@ msgstr "使視圖符合模型"
 
 #: source/nijigenerate/panels/viewport.d:340
 msgid "Mirror View"
-msgstr "鏡像"
+msgstr "鏡像顯示"
 
 #: source/nijigenerate/panels/viewport.d:349
 msgid "Onion slice"
@@ -2184,11 +2186,11 @@ msgstr "重設物理"
 
 #: source/nijigenerate/panels/viewport.d:385
 msgid "Reset parameters"
-msgstr "重設參數"
+msgstr "重設參數"
 
 #: source/nijigenerate/panels/viewport.d:394
 msgid "Configure Flip Pairings"
-msgstr "設定"
+msgstr "設定翻轉配對"
 
 #. Removing unused pairs (happens when target nodes are removed.)
 #: source/nijigenerate/panels/viewport.d:403
@@ -2210,9 +2212,9 @@ msgid ""
 "\n"
 "You can change the default behaviour in the settings."
 msgstr ""
-"是否保留匯入檔案的資料夾結構？\n"
+"您希望同時匯入檔案中的圖層結構嗎？\n"
 "\n"
-"你可以在設定中變更預設行為。"
+"您可以在設定中更改預設的匯入選項。"
 
 #: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:468
 msgid "Import failed..."
@@ -2234,7 +2236,7 @@ msgstr "自動選取"
 #. If this is executed it's a bug, using enforce here to prevent infinite loop.
 #: source/nijigenerate/io/inpexport.d:414
 msgid "A texture is too big for the atlas."
-msgstr "A texture is too big atlas."
+msgstr "有一個過大的紋理無法被放入圖集。"
 
 #: source/nijigenerate/io/save.d:32 source/nijigenerate/windows/welcome.d:226
 msgid "Open..."
@@ -2251,7 +2253,7 @@ msgstr "另存新檔…"
 
 #: source/nijigenerate/io/save.d:89 source/nijigenerate/windows/settings.d:243
 msgid "Always ask"
-msgstr "一律詢問"
+msgstr "一律詢問"
 
 #: source/nijigenerate/io/save.d:90
 msgid "Don't save"
@@ -2274,7 +2276,7 @@ msgstr ""
 #. incViewportPresentMode(editMode_);
 #: source/nijigenerate/project.d:269
 msgid "New Project"
-msgstr "關閉 專案"
+msgstr "建立新專案"
 
 #: source/nijigenerate/project.d:327
 #, c-format, d-format
@@ -2283,7 +2285,7 @@ msgid ""
 "\n"
 "%s"
 msgstr ""
-"請將此檔案回報給開發者：\n"
+"請向開發人員回報此檔案：\n"
 "\n"
 "%s"
 
@@ -2521,13 +2523,13 @@ msgstr "%s 的深度操作已變更"
 #: source/nijigenerate/actions/mesh.d:71
 #, c-format, d-format
 msgid "Mesh %s change is restored."
-msgstr "網格 %s 的變更已還原。"
+msgstr "網格 %s 的變更已還原。"
 
 #: source/nijigenerate/actions/vertex.d:97
 #: source/nijigenerate/actions/mesh.d:78
 #, c-format, d-format
 msgid "Mesh %s was edited."
-msgstr "已輸出 %s ..."
+msgstr "網格 %s 已編輯"
 
 #: source/nijigenerate/actions/vertex.d:183
 #: source/nijigenerate/actions/vertex.d:191
@@ -2539,7 +2541,7 @@ msgstr "已輸出 %s ..."
 #: source/nijigenerate/actions/mesh.d:277
 #, c-format, d-format
 msgid "%s: vertex was translated."
-msgstr "%s：頂點已平移。"
+msgstr "%s: 頂點已被移動"
 
 #: source/nijigenerate/actions/vertex.d:348
 msgid "removed"
@@ -2625,7 +2627,7 @@ msgstr "已更改 %s 的可繪製網格"
 #: source/nijigenerate/actions/drawable.d:97
 #, c-format, d-format
 msgid "Drawable %s was changed"
-msgstr "已變更可繪製 %s"
+msgstr "可繪製 %s 已修改"
 
 #: source/nijigenerate/actions/deformable.d:88
 #, c-format, d-format
@@ -2717,13 +2719,13 @@ msgstr "將 %s 的類型還原為 %s"
 #: source/nijigenerate/actions/node.d:634
 #, c-format, d-format
 msgid "%s is added to mask of %s"
-msgstr "已將 %s 新增到 %s 的遮罩"
+msgstr "已將 %s 新增到 %s 的遮罩"
 
 #: source/nijigenerate/actions/node.d:626
 #: source/nijigenerate/actions/node.d:633
 #, c-format, d-format
 msgid "%s is deleted from mask of %s"
-msgstr "已從 %s 的遮罩中刪除 %s"
+msgstr "已從 %s 的遮罩中刪除 %s"
 
 #: source/nijigenerate/actions/node.d:690
 #, c-format, d-format
@@ -3934,7 +3936,7 @@ msgstr "Convert To %s"
 #: source/nijigenerate/commands/puppet/tool.d:20
 #: source/nijigenerate/commands/puppet/tool.d:41
 msgid "Import Inochi Session Data"
-msgstr "匯入 Inochi Session 資料"
+msgstr "匯入 Inochi Session 資料"
 
 #: source/nijigenerate/commands/puppet/tool.d:20
 msgid "Shows \"Import Session Data\" dialog."
@@ -3946,11 +3948,11 @@ msgstr "匯入 INP Session 資料。"
 
 #: source/nijigenerate/commands/puppet/tool.d:51
 msgid "Successfully overwrote Inochi Session tracking data..."
-msgstr "已成功覆寫 Inochi Session 追蹤資料..."
+msgstr "成功覆蓋 Inochi Session 追蹤資料"
 
 #: source/nijigenerate/commands/puppet/tool.d:55
 msgid "There was no Inochi Session data to import!"
-msgstr "There was no Inochi Session data import!"
+msgstr "沒有可匯入的 Inochi Session 資料"
 
 #: source/nijigenerate/commands/puppet/tool.d:67
 msgid "Premultiply textures"
@@ -3970,7 +3972,7 @@ msgstr "材質滲透..."
 
 #: source/nijigenerate/commands/puppet/tool.d:91
 msgid "Generate Mipmaps..."
-msgstr "生成 Mipmap..."
+msgstr "生成 Mipmaps..."
 
 #: source/nijigenerate/commands/puppet/tool.d:91
 msgid "Generate mipmaps."
@@ -4242,7 +4244,7 @@ msgstr "顯示「匯出到 nijilive 模型」對話框。"
 #: source/nijigenerate/commands/puppet/file.d:982
 #: source/nijigenerate/commands/puppet/file.d:1029
 msgid "Export..."
-msgstr "輸出…"
+msgstr "匯出…"
 
 #: source/nijigenerate/commands/puppet/file.d:863
 msgid "Export nijilive puppet to file path"
@@ -4302,7 +4304,7 @@ msgstr "不顯示對話框匯出 TGA 影像。"
 
 #: source/nijigenerate/commands/puppet/file.d:1018
 msgid "Export Video"
-msgstr "輸出失敗…"
+msgstr "匯出影片"
 
 #: source/nijigenerate/commands/puppet/file.d:1018
 msgid "Show \"Export to video\" dialog."
@@ -4310,7 +4312,7 @@ msgstr "顯示「匯出影片」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:1054
 msgid "Export Video to file path"
-msgstr "輸出失敗…"
+msgstr "匯出影片到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:1054
 msgid "Export a video without showing a dialog."
@@ -4326,7 +4328,7 @@ msgstr "关闭目前模型專案。"
 
 #: source/nijigenerate/commands/puppet/view.d:24
 msgid "Reset Layout"
-msgstr "重設界面"
+msgstr "重設佈局"
 
 #: source/nijigenerate/commands/puppet/view.d:24
 msgid "Set default layout of panels."
@@ -4378,7 +4380,7 @@ msgstr "切換所選節點的 GPU 差异聚合。"
 #: source/nijigenerate/windows/imgexport.d:94
 #: source/nijigenerate/windows/videoexport.d:171
 msgid "Export Settings"
-msgstr "輸出設定"
+msgstr "匯出設定"
 
 #: source/nijigenerate/windows/imgexport.d:111
 #: source/nijigenerate/windows/videoexport.d:188
@@ -4392,12 +4394,12 @@ msgstr "啟用後期處理"
 
 #: source/nijigenerate/windows/imgexport.d:138
 msgid "Export Image..."
-msgstr "輸出圖像…"
+msgstr "匯出圖像…"
 
 #: source/nijigenerate/windows/imgexport.d:145
 #: source/nijigenerate/windows/videoexport.d:316
 msgid "No cameras to export from in Scene, please add a Camera."
-msgstr "場景中沒有可匯出的攝影機，請新增攝影機。"
+msgstr "場景中沒有可匯出的攝影機，請新增攝影機。"
 
 #. Properties (inline)
 #: source/nijigenerate/windows/parameditor.d:170
@@ -4445,60 +4447,60 @@ msgstr "輸出比例"
 
 #: source/nijigenerate/windows/videoexport.d:194
 msgid "Animation"
-msgstr "編輯動畫"
+msgstr "動畫"
 
 #: source/nijigenerate/windows/videoexport.d:206
 #: source/nijigenerate/windows/inpexport.d:331
 msgid "Loops"
-msgstr "Loops"
+msgstr "循環次數"
 
 #: source/nijigenerate/windows/videoexport.d:207
 msgid "How many times the animation should loop"
-msgstr "動畫應循環的次數"
+msgstr "動畫應該循環的次數"
 
 #: source/nijigenerate/windows/videoexport.d:209
 #: source/nijigenerate/windows/editanim.d:97
 msgid "Framerate"
-msgstr "相機"
+msgstr "影格率"
 
 #: source/nijigenerate/windows/videoexport.d:212
 msgid "[AUTO]"
-msgstr "[AUTO]"
+msgstr "[ 自動 ]"
 
 #: source/nijigenerate/windows/videoexport.d:214
 msgid "Framerate of the video file"
-msgstr "影片檔案的影格率"
+msgstr "影片的影格率"
 
 #: source/nijigenerate/windows/videoexport.d:216
 msgid "Lock to Animation Framerate"
-msgstr "鎖定到動畫影格率"
+msgstr "鎖定影格率到動畫影格率"
 
 #: source/nijigenerate/windows/videoexport.d:218
 msgid "Codec"
-msgstr "Codec"
+msgstr "編碼"
 
 #: source/nijigenerate/windows/videoexport.d:248
 #: source/nijigenerate/windows/inpexport.d:366
 #: source/nijigenerate/widgets/mainmenu.d:129
 msgid "Export"
-msgstr "輸出"
+msgstr "匯出"
 
 #: source/nijigenerate/windows/videoexport.d:292
 #: source/nijigenerate/widgets/modal/nagscreen.d:118
 msgid "Close"
-msgstr "關閉"
+msgstr "關閉"
 
 #: source/nijigenerate/windows/videoexport.d:303
 msgid "Export Video..."
-msgstr "輸出失敗…"
+msgstr "匯出影片…"
 
 #: source/nijigenerate/windows/videoexport.d:306
 msgid "FFMPEG was not found, please install FFMPEG to export video."
-msgstr "找不到 FFMPEG，請安裝 FFMPEG 以匯出影片。"
+msgstr "沒有找到 FFMPEG，請安裝 FFMPEG 來匯出影片。"
 
 #: source/nijigenerate/windows/videoexport.d:324
 msgid "No animations are defined for this model, please add an animation."
-msgstr "此模型尚未定義動畫，請新增動畫。"
+msgstr "這個模型沒有動畫，請加入一個動畫。"
 
 #: source/nijigenerate/windows/paramsplit.d:83
 #, c-format, d-format
@@ -4520,27 +4522,27 @@ msgstr "分割參數"
 
 #: source/nijigenerate/windows/flipconfig.d:442
 msgid "<< Not assigned >>"
-msgstr "<< 未指派 >>"
+msgstr "<< 未指派 >>"
 
 #: source/nijigenerate/windows/flipconfig.d:504
 msgid "< Add new row >"
-msgstr "< 新增列 >"
+msgstr "< 加入新列 >"
 
 #: source/nijigenerate/windows/flipconfig.d:582
 msgid "Pair"
-msgstr "Pair"
+msgstr "配對"
 
 #: source/nijigenerate/windows/flipconfig.d:590
 msgid "Part 1"
-msgstr "組件"
+msgstr "組件 1"
 
 #: source/nijigenerate/windows/flipconfig.d:591
 msgid "Part 2"
-msgstr "組件"
+msgstr "組件 2"
 
 #: source/nijigenerate/windows/flipconfig.d:667
 msgid "Flip Pairing"
-msgstr "Flip Pairing"
+msgstr "對稱配對"
 
 #: source/nijigenerate/windows/command_browser.d:601
 msgid "Description"
@@ -4754,7 +4756,7 @@ msgstr "匯入 PSD…"
 
 #: source/nijigenerate/windows/welcome.d:243
 msgid "Import KRA..."
-msgstr "匯入…"
+msgstr "匯入 KRA…"
 
 #: source/nijigenerate/windows/welcome.d:255
 msgid "Recent Projects"
@@ -4774,7 +4776,7 @@ msgstr "官網"
 
 #: source/nijigenerate/windows/welcome.d:291
 msgid "Documentation"
-msgstr "文檔"
+msgstr "文件"
 
 #: source/nijigenerate/windows/welcome.d:327
 msgid "nijigenerate Start"
@@ -4786,19 +4788,19 @@ msgstr "編輯此檔案時 nijigenerate 意外關閉。"
 
 #: source/nijigenerate/windows/autosave.d:47
 msgid "Restore data from a backup?"
-msgstr "要從備份還原資料嗎？"
+msgstr "從備份中還原資料？"
 
 #: source/nijigenerate/windows/autosave.d:56
 msgid "Discard"
-msgstr "Discard"
+msgstr "丟棄"
 
 #: source/nijigenerate/windows/autosave.d:62
 msgid "Restore"
-msgstr "還原"
+msgstr "復原"
 
 #: source/nijigenerate/windows/autosave.d:73
 msgid "Restore Autosave"
-msgstr "還原自動儲存"
+msgstr "復原自動存檔"
 
 #: source/nijigenerate/windows/about.d:88
 msgid "Credits"
@@ -4812,36 +4814,36 @@ msgstr "關於"
 #: source/nijigenerate/windows/editanim.d:37
 #: source/nijigenerate/windows/editanim.d:47
 msgid "Invalid Name"
-msgstr "無效名稱"
+msgstr "無效名稱"
 
 #: source/nijigenerate/windows/editanim.d:38
 msgid "Name can not be empty!"
-msgstr "名稱不可為空！"
+msgstr "名稱不可為空！"
 
 #: source/nijigenerate/windows/editanim.d:48
 #, c-format, d-format
 msgid "%s is already taken! Please chose another animation name."
-msgstr "%s 已被使用！請選擇其他動畫名稱。"
+msgstr "%s 已存在。請選擇一個不同的動畫名稱。"
 
 #: source/nijigenerate/windows/editanim.d:86
 msgid "Options"
-msgstr "輸出選項"
+msgstr "選項"
 
 #: source/nijigenerate/windows/editanim.d:90
 msgid "Frames"
-msgstr "參數"
+msgstr "影格數"
 
 #: source/nijigenerate/windows/editanim.d:93
 msgid "Lead In"
-msgstr "Lead In"
+msgstr "循環前影格數"
 
 #: source/nijigenerate/windows/editanim.d:94
 msgid "Lead Out"
-msgstr "Lead Out"
+msgstr "循環後影格數"
 
 #: source/nijigenerate/windows/editanim.d:109
 msgid "Custom Framerate"
-msgstr "自訂影格率"
+msgstr "自訂影格率"
 
 #: source/nijigenerate/windows/editanim.d:116
 #, c-format, d-format
@@ -4850,32 +4852,32 @@ msgstr "%s 原先是 %s"
 
 #: source/nijigenerate/windows/editanim.d:136
 msgid "120 FPS"
-msgstr "120 FPS"
+msgstr "120 FPS"
 
 #: source/nijigenerate/windows/editanim.d:137
 msgid "60 FPS"
-msgstr "60 FPS"
+msgstr "60 FPS"
 
 #: source/nijigenerate/windows/editanim.d:138
 msgid "30 FPS"
-msgstr "30 FPS"
+msgstr "30 FPS"
 
 #: source/nijigenerate/windows/editanim.d:139
 msgid "25 FPS"
-msgstr "25 FPS"
+msgstr "25 FPS"
 
 #: source/nijigenerate/windows/editanim.d:140
 msgid "Custom Framrate"
-msgstr "Custom Framrate"
+msgstr "自訂影格率"
 
 #: source/nijigenerate/windows/editanim.d:154
 msgid "New Animation..."
-msgstr "編輯動畫"
+msgstr "新增動畫"
 
 #: source/nijigenerate/windows/editanim.d:167
 #, c-format, d-format
 msgid "Edit %s..."
-msgstr "編輯網格 %s"
+msgstr "編輯 %s..."
 
 #: source/nijigenerate/windows/settings.d:103
 #: source/nijigenerate/windows/settings.d:145
@@ -4893,7 +4895,7 @@ msgstr "渲染設定"
 
 #: source/nijigenerate/windows/settings.d:119
 msgid "File Handling"
-msgstr "File Handling"
+msgstr "檔案儲存與匯入"
 
 #: source/nijigenerate/windows/settings.d:123
 #: source/nijigenerate/windows/settings.d:643
@@ -4926,7 +4928,7 @@ msgstr "使用 OpenDyslexic 字體"
 
 #: source/nijigenerate/windows/settings.d:208
 msgid "Use the OpenDyslexic font for Latin text characters."
-msgstr "Use OpenDyslexic font Latin text characters."
+msgstr "使用 OpenDyslexic 字體來顯示拉丁文字"
 
 #: source/nijigenerate/windows/settings.d:214
 msgid "Enable triple buffer fallback"
@@ -4939,35 +4941,35 @@ msgstr "當三重緩衝不穩定時回退到雙重緩衝。"
 #: source/nijigenerate/windows/settings.d:224
 #: source/nijigenerate/widgets/mainmenu.d:73
 msgid "Autosaves"
-msgstr "自動重新取名"
+msgstr "自動儲存"
 
 #: source/nijigenerate/windows/settings.d:226
 msgid "Enable Autosaves"
-msgstr "啟用自動儲存"
+msgstr "啟用自動儲存"
 
 #: source/nijigenerate/windows/settings.d:231
 msgid "Save Interval (Minutes)"
-msgstr "儲存間隔（分鐘）"
+msgstr "自動儲存間隔（分鐘）"
 
 #: source/nijigenerate/windows/settings.d:236
 msgid "Maximum Autosaves"
-msgstr "最大自動儲存數"
+msgstr "最大自動儲存檔案數"
 
 #: source/nijigenerate/windows/settings.d:241
 msgid "Import behaviour"
-msgstr "匯入行為"
+msgstr "匯入行為"
 
 #: source/nijigenerate/windows/settings.d:244
 msgid "Preserve"
-msgstr "重設"
+msgstr "保留"
 
 #: source/nijigenerate/windows/settings.d:245
 msgid "Don't preserve"
-msgstr "不保留"
+msgstr "不保留"
 
 #: source/nijigenerate/windows/settings.d:251
 msgid "Preserve structure"
-msgstr "保留結構"
+msgstr "是否保留圖層結構"
 
 #: source/nijigenerate/windows/settings.d:262
 msgid "Layer group replacement"
@@ -5000,7 +5002,7 @@ msgstr "關閉專案時是否自動儲存變更？"
 
 #: source/nijigenerate/windows/settings.d:312
 msgid "Zoom Mode"
-msgstr "縮放模式"
+msgstr "縮放模式"
 
 #: source/nijigenerate/windows/settings.d:313
 msgid "To Screen Center"
@@ -5012,7 +5014,7 @@ msgstr "基準姿勢頭部位置"
 
 #: source/nijigenerate/windows/settings.d:320
 msgid "Zoom Speed"
-msgstr "Zoom Speed"
+msgstr "縮放速度"
 
 #: source/nijigenerate/windows/settings.d:327
 msgid "MCP Server"
@@ -5029,7 +5031,7 @@ msgstr "Host"
 #. Port input
 #: source/nijigenerate/windows/settings.d:352
 msgid "Port"
-msgstr "端口"
+msgstr "連接埠"
 
 #: source/nijigenerate/windows/settings.d:366
 msgid ""
@@ -5179,7 +5181,7 @@ msgstr "PSD 合併"
 
 #: source/nijigenerate/windows/inpexport.d:108
 msgid "Atlassing"
-msgstr "Atlassing"
+msgstr "紋理圖集化"
 
 #: source/nijigenerate/windows/inpexport.d:112
 msgid "Decoration"
@@ -5187,7 +5189,7 @@ msgstr "旋轉"
 
 #: source/nijigenerate/windows/inpexport.d:142
 msgid "Atlas Settings"
-msgstr "工具設定"
+msgstr "紋理圖集設定"
 
 #: source/nijigenerate/windows/inpexport.d:144
 msgid "Resolution"
@@ -5195,13 +5197,13 @@ msgstr "解析度"
 
 #: source/nijigenerate/windows/inpexport.d:160
 msgid "Non-linear Scaling"
-msgstr "非線性縮放"
+msgstr "非線性縮放"
 
 #: source/nijigenerate/windows/inpexport.d:161
 msgid ""
 "Whether too large parts should individually be scaled down instead of all "
 "parts being scaled down uniformly."
-msgstr "過大的部件是否應個別縮小，而不是將所有部件等比例縮小。"
+msgstr "是否單獨縮小太大的組件（而非統一縮小全部組件）"
 
 #: source/nijigenerate/windows/inpexport.d:164
 msgid "Texture Scale"
@@ -5209,28 +5211,28 @@ msgstr "材質比例"
 
 #: source/nijigenerate/windows/inpexport.d:170
 msgid "Padding"
-msgstr "Padding"
+msgstr "填充"
 
 #: source/nijigenerate/windows/inpexport.d:176
 msgid "Optimizations"
-msgstr "Optimizations"
+msgstr "最佳化"
 
 #: source/nijigenerate/windows/inpexport.d:178
 msgid "Prune unused nodes"
-msgstr "修剪未使用的節點"
+msgstr "清除未使用的節點"
 
 #: source/nijigenerate/windows/inpexport.d:179
 msgid "Prune nodes which have been disabled from the export."
-msgstr "修剪已從匯出停用的節點。"
+msgstr "清除已從匯出中禁用的節點"
 
 #: source/nijigenerate/windows/inpexport.d:195
 msgid "Watermark"
-msgstr "Watermark"
+msgstr "浮水印"
 
 #. Allow saving texture to file
 #: source/nijigenerate/windows/inpexport.d:202
 msgid "Load"
-msgstr "Load"
+msgstr "載入"
 
 #: source/nijigenerate/windows/inpexport.d:358
 msgid ""
@@ -5240,21 +5242,21 @@ msgstr "材質過大無法放入材質圖集，材質比例已被調降。"
 
 #: source/nijigenerate/windows/inpexport.d:377
 msgid "Export failed..."
-msgstr "輸出失敗…"
+msgstr "匯出失敗…"
 
 #: source/nijigenerate/windows/inpexport.d:386
 msgid "Export Options"
-msgstr "輸出選項"
+msgstr "匯出選項"
 
 #: source/nijigenerate/windows/kramerge.d:449
 msgid ""
 "Renames all mapped nodes to match the names of the KRA layer that was merged "
 "in to them."
-msgstr "重新命名所有以映射的節點已對應 PSD 圖層。"
+msgstr "重新命名所有以映射的節點已對應 KRA 圖層。"
 
 #: source/nijigenerate/windows/kramerge.d:496
 msgid "KRA Merging"
-msgstr "PSD 合併"
+msgstr "KRA 合併"
 
 #: source/nijigenerate/widgets/mainmenu.d:71
 msgid "Recent"
@@ -5270,7 +5272,7 @@ msgstr "匯入標準 Photoshop PSD 檔案。"
 
 #: source/nijigenerate/widgets/mainmenu.d:104
 msgid "Import a standard Krita KRA file."
-msgstr "匯入標準 Krita KRA 檔案。"
+msgstr "匯入標準 Krita KRA 檔案。"
 
 #: source/nijigenerate/widgets/mainmenu.d:107
 msgid "Import existing puppet file, editing options limited"
@@ -5286,11 +5288,11 @@ msgstr "合併 Photoshop 檔案圖層"
 
 #: source/nijigenerate/widgets/mainmenu.d:118
 msgid "Merge layers from Krita document"
-msgstr "合併 Krita 文件的圖層"
+msgstr "合併 Krita 檔案圖層"
 
 #: source/nijigenerate/widgets/mainmenu.d:121
 msgid "Merges (adds) selected image files to project"
-msgstr "將所選影像檔案合併（新增）到專案"
+msgstr "選擇圖片合併（加入）到專案中"
 
 #: source/nijigenerate/widgets/mainmenu.d:124
 msgid "Merge another nijigenerate project in to this one"
@@ -5323,7 +5325,7 @@ msgstr "ImGui 數據"
 
 #: source/nijigenerate/widgets/mainmenu.d:176
 msgid "ImGui Stack Tool"
-msgstr "ImGui 堆疊工具"
+msgstr "ImGui Stack 工具"
 
 #: source/nijigenerate/widgets/mainmenu.d:189
 msgid "Panels"
@@ -5331,7 +5333,7 @@ msgstr "面板"
 
 #: source/nijigenerate/widgets/mainmenu.d:207
 msgid "Panel is not visible in current edit mode."
-msgstr "面板在目前編輯模式中不可見。"
+msgstr "面板在目前編輯模式中不可見。"
 
 #: source/nijigenerate/widgets/mainmenu.d:215
 msgid "Configuration"
@@ -5382,13 +5384,13 @@ msgid ""
 "\n"
 "Only use this if your game engine can't use premultiplied alpha."
 msgstr ""
-"讓顏色延伸到完全透明的像素，以解決直通 Alpha 合成時的輪廓問題。\n"
+"使色彩滲出到透明像素上，以消除直通 alpha 渲染的白邊.\n"
 "\n"
-"僅在遊戲引擎無法使用預乘 Alpha 時使用。"
+"僅適用於不支援預乘 alpha 的遊戲引擎."
 
 #: source/nijigenerate/widgets/mainmenu.d:260
 msgid "Regenerates the puppet's mipmaps."
-msgstr "重新生成模型 Mipmap。"
+msgstr "重新生成模型 Mipmaps。"
 
 #: source/nijigenerate/widgets/mainmenu.d:263
 msgid "Generates fake layer info based on node names"
@@ -5450,7 +5452,7 @@ msgstr ""
 
 #: source/app.d:161
 msgid "Warning!"
-msgstr "警告！"
+msgstr "警告！"
 
 #: source/app.d:162
 msgid ""
