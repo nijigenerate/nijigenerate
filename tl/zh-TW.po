@@ -1148,7 +1148,7 @@ msgstr "未選擇工具…"
 
 #: source/nijigenerate/panels/nodes.d:705
 msgid "Reverse Node Order"
-msgstr "反转節點顺序"
+msgstr "反轉節點順序"
 
 #: source/nijigenerate/panels/nodes.d:711
 msgid "Follow Selection"
@@ -1357,7 +1357,7 @@ msgstr "沒有 DepthRigRoot。"
 #: source/nijigenerate/panels/inspector/pathdeform.d:226
 #: source/nijigenerate/panels/inspector/depthbone.d:26
 msgid "Add Standard Skeleton"
-msgstr "新增标准骨架"
+msgstr "新增標準骨架"
 
 #: source/nijigenerate/panels/inspector/griddeform.d:112
 #: source/nijigenerate/panels/inspector/pathdeform.d:232
@@ -2885,7 +2885,7 @@ msgstr "插入節點"
 #: source/nijigenerate/commands/viewport/palette.d:105
 #: source/nijigenerate/windows/settings.d:701
 msgid "Convert Node"
-msgstr "转换節點"
+msgstr "轉換節點"
 
 #. Inspector Panel
 #: source/nijigenerate/commands/viewport/palette.d:107
@@ -2935,7 +2935,7 @@ msgstr "切換洋蔥皮叠加顯示。"
 
 #: source/nijigenerate/commands/viewport/control.d:96
 msgid "Toggle physics drivers."
-msgstr "切換物理驱动。"
+msgstr "切換物理驅動。"
 
 #: source/nijigenerate/commands/viewport/control.d:105
 msgid "Toggle post processing."
@@ -2971,7 +2971,7 @@ msgstr "開啟設定資料夾"
 
 #: source/nijigenerate/commands/viewport/control.d:205
 msgid "Open Automesh Batching modal."
-msgstr "開啟 AutoMesh 批处理對話框。"
+msgstr "開啟 AutoMesh 批次處理對話框。"
 
 #: source/nijigenerate/commands/viewport/control.d:214
 msgid "Reset viewport zoom to 1.0."
@@ -2997,7 +2997,7 @@ msgstr "新增編輯器深度操作"
 
 #: source/nijigenerate/commands/depth/editor.d:42
 msgid "Add one in-progress depth operation"
-msgstr "新增一个进行中的深度操作"
+msgstr "新增一個進行中的深度操作"
 
 #: source/nijigenerate/commands/depth/editor.d:76
 msgid "Update Editor Depth Operation"
@@ -3049,11 +3049,11 @@ msgstr "建立 DepthBone 節點"
 
 #: source/nijigenerate/commands/depth/bone.d:1732
 msgid "Add Standard Depth Skeleton"
-msgstr "新增标准深度骨架"
+msgstr "新增標準深度骨架"
 
 #: source/nijigenerate/commands/depth/bone.d:1732
 msgid "Create standard depth bone hierarchy"
-msgstr "建立标准深度骨骼层级"
+msgstr "建立標準深度骨骼層級"
 
 #: source/nijigenerate/commands/depth/bone.d:2063
 #, c-format, d-format
@@ -3067,7 +3067,7 @@ msgstr "新增標準深度參數"
 
 #: source/nijigenerate/commands/depth/bone.d:2094
 msgid "Create standard face/body parameters and depth bone bindings"
-msgstr "建立标准面部/身体參數和深度骨骼綁定"
+msgstr "建立標準面部/身體參數和深度骨骼綁定"
 
 #: source/nijigenerate/commands/depth/bone.d:2106
 #, c-format, d-format
@@ -3095,7 +3095,7 @@ msgstr "設定深度骨骼靜止姿態"
 
 #: source/nijigenerate/commands/depth/bone.d:2199
 msgid "Set rest pose for a depth bone"
-msgstr "設定深度骨骼的静止姿态"
+msgstr "設定深度骨骼的靜止姿態"
 
 #: source/nijigenerate/commands/depth/bone.d:2220
 msgid "Set Depth Bone Constraint"
@@ -3223,7 +3223,7 @@ msgstr "新增深度操作"
 
 #: source/nijigenerate/commands/depth/map.d:326
 msgid "Add one saved depth operation"
-msgstr "新增一个已儲存的深度操作"
+msgstr "新增一個已儲存的深度操作"
 
 #: source/nijigenerate/commands/depth/map.d:349
 msgid "Update Depth Operation"
@@ -3428,7 +3428,7 @@ msgstr "設定目前 AutoMesh"
 
 #: source/nijigenerate/commands/automesh/config.d:654
 msgid "Activate AutoMesh processor"
-msgstr "激活 AutoMesh 處理器"
+msgstr "啟用 AutoMesh 處理器"
 
 #: source/nijigenerate/commands/automesh/config.d:666
 msgid "Apply Active AutoMesh"
@@ -3473,7 +3473,7 @@ msgstr "AutoMesh 為 %s 生成了空網格"
 #: source/nijigenerate/commands/automesh/dynamic.d:289
 #, c-format, d-format
 msgid "AutoMesh generated too few drawable vertices for %s"
-msgstr "AutoMesh 为 %s 生成的可繪製頂點过少"
+msgstr "AutoMesh 為 %s 生成的可繪製頂點過少"
 
 #: source/nijigenerate/commands/binding/binding.d:102
 msgid "Unset Key Frame"
@@ -3543,7 +3543,7 @@ msgstr "設定變形綁定"
 
 #: source/nijigenerate/commands/model/set_deform_binding.d:269
 msgid "Set deform binding offsets at current keypoint."
-msgstr "設定目前关键点的變形綁定偏移。"
+msgstr "設定目前關鍵點的變形綁定偏移。"
 
 #: source/nijigenerate/commands/model/set_deform_binding.d:429
 msgid "Set TRS Binding"
@@ -3553,7 +3553,7 @@ msgstr "綁定"
 msgid ""
 "Set node transform translation, rotation, and scale bindings at current "
 "keypoint."
-msgstr "設定目前关键点的節點變換平移、旋轉和縮放綁定。"
+msgstr "設定目前關鍵點的節點變換平移、旋轉和縮放綁定。"
 
 #: source/nijigenerate/commands/view/panel.d:10
 msgid "Toggle visibility of the specified panel"
@@ -3682,7 +3682,7 @@ msgstr ""
 
 #: source/nijigenerate/commands/parameter/paramedit.d:378
 msgid "Set Armed Parameter and Keypoint"
-msgstr "設定已啟用參數和关键点"
+msgstr "設定已啟用參數和關鍵點"
 
 #: source/nijigenerate/commands/parameter/paramedit.d:379
 msgid ""
@@ -3697,7 +3697,7 @@ msgstr ""
 
 #: source/nijigenerate/commands/parameter/paramedit.d:445
 msgid "Set the current parameter value as starting keyframe"
-msgstr "将目前參數值設定为起始關鍵影格"
+msgstr "將目前參數值設定為起始關鍵影格"
 
 #: source/nijigenerate/commands/parameter/animedit.d:60
 msgid "Animation: Add Keyframe"
@@ -3707,15 +3707,15 @@ msgstr "新增參數"
 msgid ""
 "Add a keyframe for the selected parameter in the active animation. Requires "
 "Animation Edit mode and an active animation."
-msgstr "为目前動畫中的所選參數新增關鍵影格。需要動畫編輯模式和目前動畫。"
+msgstr "為目前動畫中的所選參數新增關鍵影格。需要動畫編輯模式和目前動畫。"
 
 #: source/nijigenerate/commands/parameter/animedit.d:111
 msgid "Animation: Copy Keyframe"
-msgstr "動畫：复制關鍵影格"
+msgstr "動畫：複製關鍵影格"
 
 #: source/nijigenerate/commands/parameter/animedit.d:112
 msgid "Copy the selected parameter's keyframe at the current animation frame."
-msgstr "复制目前動畫影格中所選參數的關鍵影格。"
+msgstr "複製目前動畫影格中所選參數的關鍵影格。"
 
 #: source/nijigenerate/commands/parameter/animedit.d:137
 msgid "Animation: Paste Keyframe"
@@ -3725,7 +3725,7 @@ msgstr "編輯動畫"
 msgid ""
 "Paste copied animation keyframe values to the selected parameter at the "
 "current animation frame."
-msgstr "将复制的動畫關鍵影格值粘贴到目前動畫影格的所選參數。"
+msgstr "將複製的動畫關鍵影格值貼上到目前動畫影格的所選參數。"
 
 #: source/nijigenerate/commands/vertex/define_mesh.d:79
 msgid "Define Mesh"
@@ -3733,7 +3733,7 @@ msgstr "編輯網格"
 
 #: source/nijigenerate/commands/vertex/define_mesh.d:79
 msgid "Apply a mesh defined by vertices and indices to selected nodes."
-msgstr "将由頂點和索引定义的網格套用到所選節點。"
+msgstr "將由頂點和索引定義的網格套用到所選節點。"
 
 #: source/nijigenerate/commands/vertex/define_mesh.d:151
 msgid "Define Vertices"
@@ -3743,7 +3743,7 @@ msgstr "隱藏 頂點"
 msgid ""
 "Apply control vertices to selected Deformable nodes. Does not define "
 "triangle topology."
-msgstr "将控制頂點套用到所選可變形節點。不定义三角形拓扑。"
+msgstr "將控制頂點套用到所選可變形節點。不定義三角形拓撲。"
 
 #: source/nijigenerate/commands/vertex/define_mesh.d:197
 msgid "Define Grid"
@@ -3752,7 +3752,7 @@ msgstr "Define Grid"
 #: source/nijigenerate/commands/vertex/define_mesh.d:197
 msgid ""
 "Apply a rectangular grid defined by X/Y axes to selected GridDeformer nodes."
-msgstr "将由 X/Y 轴定义的矩形網格套用到所選 GridDeformer 節點。"
+msgstr "將由 X/Y 軸定義的矩形網格套用到所選 GridDeformer 節點。"
 
 #: source/nijigenerate/commands/node/welding.d:26
 msgid "Add Welding"
@@ -3818,7 +3818,7 @@ msgstr "分割參數"
 
 #: source/nijigenerate/commands/node/simplephysics.d:210
 msgid "Assign the parameter driven by the target SimplePhysics node"
-msgstr "分配由目標 SimplePhysics 節點驱动的參數"
+msgstr "分配由目標 SimplePhysics 節點驅動的參數"
 
 #: source/nijigenerate/commands/node/simplephysics.d:230
 msgid "Clear SimplePhysics Parameter"
@@ -3826,7 +3826,7 @@ msgstr "分割參數"
 
 #: source/nijigenerate/commands/node/simplephysics.d:230
 msgid "Unassign the parameter driven by the target SimplePhysics node"
-msgstr "取消分配由目標 SimplePhysics 節點驱动的參數"
+msgstr "取消分配由目標 SimplePhysics 節點驅動的參數"
 
 #: source/nijigenerate/commands/node/simplephysics.d:252
 msgid "Set SimplePhysics Model Type"
@@ -3856,12 +3856,12 @@ msgstr "設定 SimplePhysics 是否仅监听區域變換"
 #: source/nijigenerate/commands/node/node.d:29
 #, c-format, d-format
 msgid "Add Node %s under selection or root"
-msgstr "在所選项或根節點下新增節點 %s"
+msgstr "在所選項或根節點下新增節點 %s"
 
 #: source/nijigenerate/commands/node/node.d:55
 #, c-format, d-format
 msgid "Insert Node %s under parent of selection"
-msgstr "在所選项的父级下插入節點 %s"
+msgstr "在所選項的父層下插入節點 %s"
 
 #: source/nijigenerate/commands/node/node.d:81
 msgid "Move Node "
@@ -3877,7 +3877,7 @@ msgstr "未選擇工具… %s"
 #: source/nijigenerate/commands/node/dynamic.d:78
 #, c-format, d-format
 msgid "Nodes converted from %s"
-msgstr "已从 %s 转换節點"
+msgstr "已從 %s 轉換節點"
 
 #: source/nijigenerate/commands/node/node.d:121
 #: source/nijigenerate/commands/node/dynamic.d:78
@@ -4071,7 +4071,7 @@ msgstr "從檔案路徑開啟"
 
 #: source/nijigenerate/commands/puppet/file.d:477
 msgid "Open puppet from specified file."
-msgstr "从指定檔案開啟模型。"
+msgstr "從指定檔案開啟模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:494
 #: source/nijigenerate/windows/imgexport.d:123
@@ -4092,7 +4092,7 @@ msgstr "儲存至檔案"
 
 #: source/nijigenerate/commands/puppet/file.d:506
 msgid "Save puppet to specified file."
-msgstr "将模型儲存到指定檔案。"
+msgstr "將模型儲存到指定檔案。"
 
 #: source/nijigenerate/commands/puppet/file.d:519
 msgid "Show \"Save as\" dialog."
@@ -4116,15 +4116,15 @@ msgstr "不顯示對話框匯入 PSD 檔案。"
 
 #: source/nijigenerate/commands/puppet/file.d:568
 msgid "Import Krita Document"
-msgstr "匯入 Krita 文档"
+msgstr "匯入 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:568
 msgid "Show \"Import Krita Document\" dialog."
-msgstr "顯示「匯入 Krita 文档」對話框。"
+msgstr "顯示「匯入 Krita 文件」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:586
 msgid "Import Krita Document from file path"
-msgstr "从檔案路徑匯入 Krita 文档"
+msgstr "從檔案路徑匯入 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:586
 msgid "Import a KRA file without showing a dialog."
@@ -4140,7 +4140,7 @@ msgstr "顯示「匯入 nijilive 模型檔案」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:627
 msgid "Import nijilive puppet from file path"
-msgstr "从檔案路徑匯入 nijilive 模型"
+msgstr "從檔案路徑匯入 nijilive 模型"
 
 #: source/nijigenerate/commands/puppet/file.d:627
 msgid "Import an INP file without showing a dialog."
@@ -4152,7 +4152,7 @@ msgstr "圖片檔案夾"
 
 #: source/nijigenerate/commands/puppet/file.d:643
 msgid "Show \"Import Image Folder\" dialog."
-msgstr "顯示「匯入影像檔案夹」對話框。"
+msgstr "顯示「匯入影像檔案夾」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:647
 msgid "Select a Folder..."
@@ -4160,11 +4160,11 @@ msgstr "選擇檔案夾…"
 
 #: source/nijigenerate/commands/puppet/file.d:659
 msgid "Import Image Folder from file path"
-msgstr "从檔案路徑匯入影像檔案夹"
+msgstr "從檔案路徑匯入影像檔案夾"
 
 #: source/nijigenerate/commands/puppet/file.d:659
 msgid "Import a folder of image files without showing a dialog."
-msgstr "不顯示對話框匯入影像檔案夹。"
+msgstr "不顯示對話框匯入影像檔案夾。"
 
 #: source/nijigenerate/commands/puppet/file.d:672
 msgid "Merge Photoshop Document"
@@ -4180,23 +4180,23 @@ msgstr "從檔案路徑合併 Photoshop 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:698
 msgid "Merge a PSD file into the current puppet using default mapping."
-msgstr "使用預設對應将 PSD 檔案合併到目前模型。"
+msgstr "使用預設對應將 PSD 檔案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:713
 msgid "Merge Krita Document"
-msgstr "合併 Krita 文档"
+msgstr "合併 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:713
 msgid "Show \"Merge Krita Document\" dialog."
-msgstr "顯示「合併 Krita 文档」對話框。"
+msgstr "顯示「合併 Krita 文件」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:739
 msgid "Merge Krita Document from file path"
-msgstr "从檔案路徑合併 Krita 文档"
+msgstr "從檔案路徑合併 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:739
 msgid "Merge a KRA file into the current puppet using default mapping."
-msgstr "使用預設對應将 KRA 檔案合併到目前模型。"
+msgstr "使用預設對應將 KRA 檔案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:754
 msgid "Merge Image Files"
@@ -4208,11 +4208,11 @@ msgstr "顯示「合併影像檔案」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:781
 msgid "Merge Image Files from file paths"
-msgstr "从檔案路徑合併影像檔案"
+msgstr "從檔案路徑合併影像檔案"
 
 #: source/nijigenerate/commands/puppet/file.d:781
 msgid "Merge image files into the current puppet without showing a dialog."
-msgstr "不顯示對話框将影像檔案合併到目前模型。"
+msgstr "不顯示對話框將影像檔案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:797
 msgid "Merge nijigenerate project"
@@ -4228,7 +4228,7 @@ msgstr "合併其他 nijigenerate 專案"
 
 #: source/nijigenerate/commands/puppet/file.d:822
 msgid "Merge an INP project into the current puppet without showing a dialog."
-msgstr "不顯示對話框将 INP 專案合併到目前模型。"
+msgstr "不顯示對話框將 INP 專案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:838
 msgid "Export nijilive puppet"
@@ -4248,7 +4248,7 @@ msgstr "匯出…"
 
 #: source/nijigenerate/commands/puppet/file.d:863
 msgid "Export nijilive puppet to file path"
-msgstr "将 nijilive 模型匯出到檔案路徑"
+msgstr "將 nijilive 模型匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:863
 msgid "Export an INP file without showing a dialog."
@@ -4260,11 +4260,11 @@ msgstr "匯出 PNG（*.png）"
 
 #: source/nijigenerate/commands/puppet/file.d:886
 msgid "Show \"Export to png image\" dialog."
-msgstr "顯示「匯出为 PNG 影像」對話框。"
+msgstr "顯示「匯出為 PNG 影像」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:909
 msgid "Export PNG to file path"
-msgstr "将 PNG 匯出到檔案路徑"
+msgstr "將 PNG 匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:909
 msgid "Export a PNG image without showing a dialog."
@@ -4276,11 +4276,11 @@ msgstr "匯出 JPEG（*.jpeg）"
 
 #: source/nijigenerate/commands/puppet/file.d:930
 msgid "Show \"Export to jpeg image\" dialog."
-msgstr "顯示「匯出为 JPEG 影像」對話框。"
+msgstr "顯示「匯出為 JPEG 影像」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:953
 msgid "Export JPEG to file path"
-msgstr "将 JPEG 匯出到檔案路徑"
+msgstr "將 JPEG 匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:953
 msgid "Export a JPEG image without showing a dialog."
@@ -4292,11 +4292,11 @@ msgstr "匯出 TARGA（*.tga）"
 
 #: source/nijigenerate/commands/puppet/file.d:974
 msgid "Show \"Export to TGA image\" dialog."
-msgstr "顯示「匯出为 TGA 影像」對話框。"
+msgstr "顯示「匯出為 TGA 影像」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:997
 msgid "Export TGA to file path"
-msgstr "将 TGA 匯出到檔案路徑"
+msgstr "將 TGA 匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:997
 msgid "Export a TGA image without showing a dialog."
@@ -4324,7 +4324,7 @@ msgstr "關閉 專案"
 
 #: source/nijigenerate/commands/puppet/file.d:1180
 msgid "Close active puppet project."
-msgstr "关闭目前模型專案。"
+msgstr "關閉目前模型專案。"
 
 #: source/nijigenerate/commands/puppet/view.d:24
 msgid "Reset Layout"
@@ -4332,7 +4332,7 @@ msgstr "重設佈局"
 
 #: source/nijigenerate/commands/puppet/view.d:24
 msgid "Set default layout of panels."
-msgstr "設定面板預設布局。"
+msgstr "設定面板預設佈局。"
 
 #: source/nijigenerate/commands/puppet/view.d:36
 #: source/nijigenerate/commands/puppet/view.d:536
@@ -4564,7 +4564,7 @@ msgstr "選取參數（選用）"
 
 #: source/nijigenerate/windows/command_browser.d:714
 msgid "Select armed parameters (optional)"
-msgstr "選取已啟用參數（可选）"
+msgstr "選取已啟用參數（可選）"
 
 #: source/nijigenerate/windows/command_browser.d:716
 msgid "Select bindings (optional)"
@@ -4612,7 +4612,7 @@ msgstr "可選的使用者可見訊息。"
 
 #: source/nijigenerate/windows/command_browser.d:782
 msgid "Resource element type"
-msgstr "資源元素类型"
+msgstr "資源元素類型"
 
 #: source/nijigenerate/windows/command_browser.d:784
 msgid "Created/Deleted/Loaded (hint)"
@@ -5223,7 +5223,7 @@ msgstr "清除未使用的節點"
 
 #: source/nijigenerate/windows/inpexport.d:179
 msgid "Prune nodes which have been disabled from the export."
-msgstr "清除已從匯出中禁用的節點"
+msgstr "清除已從匯出中停用的節點"
 
 #: source/nijigenerate/windows/inpexport.d:195
 msgid "Watermark"
