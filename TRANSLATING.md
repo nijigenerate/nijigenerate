@@ -44,6 +44,28 @@ python translation-validator.py -a
 &nbsp;
 &nbsp;
 
+## Importing Translations from Another .po File
+`po_import.py` merges translations from a source `.po` into a target `.po` **without touching the target's formatting, comments, or whitespace**.
+
+```sh
+# Fill in only empty msgstr entries (safe, non-destructive)
+python3 po_import.py SOURCE.po tl/<langcode>.po
+
+# Write result to a new file instead of modifying the target in-place
+python3 po_import.py SOURCE.po tl/<langcode>.po --out output.po
+
+# Also overwrite non-empty msgstr entries that differ from the source
+python3 po_import.py SOURCE.po tl/<langcode>.po --overwrite
+
+# Include fuzzy entries from the source
+python3 po_import.py SOURCE.po tl/<langcode>.po --use-fuzzy
+```
+
+> **Note:** Fuzzy source entries are skipped by default. The script never modifies comments, `#:` references, flags, or blank lines in the target file.
+
+&nbsp;
+&nbsp;
+
 ## I need to reorder format parameters
 To specify which format parameter you're indexing, use the `<index>$` operator.  
 Eg. `%2$s` will index the second entry of the format string.
