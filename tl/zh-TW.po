@@ -11,7 +11,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-06-07 14:46+0900\n"
-"PO-Revision-Date: 2026-06-07 16:58+0900\n"
+"PO-Revision-Date: 2026-06-07 17:32+0800\n"
 "Last-Translator: r888800009 <r888800009@gmail.com>\n"
 "Language-Team: Language zh-tw\n"
 "Language: zh_TW\n"
@@ -969,7 +969,7 @@ msgstr "助理"
 
 #: source/nijigenerate/panels/agent.d:370
 msgid "Assistant (thinking)"
-msgstr "助理（思考中）"
+msgstr "助理（啟用思考）"
 
 #: source/nijigenerate/panels/agent.d:371
 msgid "You (echo)"
@@ -983,11 +983,11 @@ msgstr "計畫"
 #: source/nijigenerate/panels/agent.d:375
 #, c-format, d-format
 msgid "Tool#%s"
-msgstr "工具 %s"
+msgstr "工具 %s"
 
 #: source/nijigenerate/panels/agent.d:375
 msgid "Tool"
-msgstr "工具"
+msgstr "工具"
 
 #: source/nijigenerate/panels/agent.d:376
 msgid "Command list"
@@ -1022,7 +1022,7 @@ msgstr "Deny"
 
 #: source/nijigenerate/panels/agent.d:1571
 msgid "Agent"
-msgstr "Agent"
+msgstr "代理式AI"
 
 #. controls (right aligned)
 #: source/nijigenerate/panels/agent.d:1594
@@ -1032,11 +1032,11 @@ msgstr "Status: %s"
 
 #: source/nijigenerate/panels/agent.d:1617
 msgid "New session"
-msgstr "New session"
+msgstr "新對話"
 
 #: source/nijigenerate/panels/agent.d:1702
 msgid "User message:"
-msgstr "使用者訊息："
+msgstr "使用者訊息："
 
 #: source/nijigenerate/panels/agent.d:1720
 msgid ""
@@ -1180,7 +1180,7 @@ msgstr "參數"
 
 #: source/nijigenerate/panels/resource.d:272
 msgid "Resources"
-msgstr "遮罩來源"
+msgstr "資源"
 
 #: source/nijigenerate/panels/inspector/common.d:361
 msgid "Select Value"
@@ -3944,7 +3944,7 @@ msgstr "顯示「匯入 Session 資料」對話框。"
 
 #: source/nijigenerate/commands/puppet/tool.d:41
 msgid "Import INP Session Data."
-msgstr "匯入 INP Session 資料。"
+msgstr "匯入 INP Session 資料。"
 
 #: source/nijigenerate/commands/puppet/tool.d:51
 msgid "Successfully overwrote Inochi Session tracking data..."
@@ -4055,7 +4055,7 @@ msgstr "新增"
 
 #: source/nijigenerate/commands/puppet/file.d:453
 msgid "Create new project."
-msgstr "新增專案"
+msgstr "新增專案"
 
 #: source/nijigenerate/commands/puppet/file.d:465
 msgid "Open"
@@ -4084,15 +4084,15 @@ msgstr "儲存"
 
 #: source/nijigenerate/commands/puppet/file.d:494
 msgid "Show \"Save\" dialog."
-msgstr "顯示「儲存」對話框。"
+msgstr "顯示「儲存」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:506
 msgid "Save to file path"
-msgstr "儲存至檔案"
+msgstr "儲存至檔案"
 
 #: source/nijigenerate/commands/puppet/file.d:506
 msgid "Save puppet to specified file."
-msgstr "將模型儲存到指定檔案。"
+msgstr "將模型儲存到指定檔案。"
 
 #: source/nijigenerate/commands/puppet/file.d:519
 msgid "Show \"Save as\" dialog."
@@ -4100,31 +4100,31 @@ msgstr "顯示「儲存 as」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:531
 msgid "Import Photoshop Document"
-msgstr "匯入 Photoshop 文件"
+msgstr "匯入 Photoshop 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:531
 msgid "Show \"Import Photoshop Document\" dialog."
-msgstr "顯示「匯入 Photoshop 文件」對話框。"
+msgstr "顯示「匯入 Photoshop 文件」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:549
 msgid "Import Photoshop Document from file path"
-msgstr "從檔案路徑匯入 Photoshop 文件"
+msgstr "從檔案路徑匯入 Photoshop 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:549
 msgid "Import a PSD file without showing a dialog."
-msgstr "不顯示對話框匯入 PSD 檔案。"
+msgstr "不顯示對話框匯入 PSD 檔案。"
 
 #: source/nijigenerate/commands/puppet/file.d:568
 msgid "Import Krita Document"
-msgstr "匯入 Krita 文件"
+msgstr "匯入 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:568
 msgid "Show \"Import Krita Document\" dialog."
-msgstr "顯示「匯入 Krita 文件」對話框。"
+msgstr "顯示「匯入 Krita 文件」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:586
 msgid "Import Krita Document from file path"
-msgstr "從檔案路徑匯入 Krita 文件"
+msgstr "從檔案路徑匯入 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:586
 msgid "Import a KRA file without showing a dialog."
@@ -4168,35 +4168,35 @@ msgstr "不顯示對話框匯入影像檔案夾。"
 
 #: source/nijigenerate/commands/puppet/file.d:672
 msgid "Merge Photoshop Document"
-msgstr "合併 Photoshop 文件"
+msgstr "合併 Photoshop 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:672
 msgid "Show \"Merge Photoshop Document\" dialog."
-msgstr "顯示「合併 Photoshop 文件」對話框。"
+msgstr "顯示「合併 Photoshop 文件」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:698
 msgid "Merge Photoshop Document from file path"
-msgstr "從檔案路徑合併 Photoshop 文件"
+msgstr "從檔案路徑合併 Photoshop 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:698
 msgid "Merge a PSD file into the current puppet using default mapping."
-msgstr "使用預設對應將 PSD 檔案合併到目前模型。"
+msgstr "使用預設對應將 PSD 檔案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:713
 msgid "Merge Krita Document"
-msgstr "合併 Krita 文件"
+msgstr "合併 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:713
 msgid "Show \"Merge Krita Document\" dialog."
-msgstr "顯示「合併 Krita 文件」對話框。"
+msgstr "顯示「合併 Krita 文件」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:739
 msgid "Merge Krita Document from file path"
-msgstr "從檔案路徑合併 Krita 文件"
+msgstr "從檔案路徑合併 Krita 文件"
 
 #: source/nijigenerate/commands/puppet/file.d:739
 msgid "Merge a KRA file into the current puppet using default mapping."
-msgstr "使用預設對應將 KRA 檔案合併到目前模型。"
+msgstr "使用預設對應將 KRA 檔案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:754
 msgid "Merge Image Files"
@@ -4204,35 +4204,35 @@ msgstr "圖片檔案夾"
 
 #: source/nijigenerate/commands/puppet/file.d:754
 msgid "Show \"Merge image files\" dialog."
-msgstr "顯示「合併影像檔案」對話框。"
+msgstr "顯示「合併影像檔案」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:781
 msgid "Merge Image Files from file paths"
-msgstr "從檔案路徑合併影像檔案"
+msgstr "從檔案路徑合併影像檔案"
 
 #: source/nijigenerate/commands/puppet/file.d:781
 msgid "Merge image files into the current puppet without showing a dialog."
-msgstr "不顯示對話框將影像檔案合併到目前模型。"
+msgstr "不顯示對話框將影像檔案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:797
 msgid "Merge nijigenerate project"
-msgstr "nijigenerate 專案"
+msgstr "合併 nijigenerate 專案"
 
 #: source/nijigenerate/commands/puppet/file.d:797
 msgid "Show \"Merge nijilive puppet file\" dialog."
-msgstr "顯示「合併 nijilive 模型檔案」對話框。"
+msgstr "顯示「合併 nijilive 模型檔案」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:822
 msgid "Merge nijigenerate project from file path"
-msgstr "合併其他 nijigenerate 專案"
+msgstr "合併其他 nijigenerate 專案"
 
 #: source/nijigenerate/commands/puppet/file.d:822
 msgid "Merge an INP project into the current puppet without showing a dialog."
-msgstr "不顯示對話框將 INP 專案合併到目前模型。"
+msgstr "不顯示對話框將 INP 專案合併到目前模型。"
 
 #: source/nijigenerate/commands/puppet/file.d:838
 msgid "Export nijilive puppet"
-msgstr "匯出 nijilive 模型"
+msgstr "匯出 nijilive 模型"
 
 #: source/nijigenerate/commands/puppet/file.d:838
 msgid "Show \"Export to nijilive puppet\" dialog."
@@ -4248,59 +4248,59 @@ msgstr "匯出…"
 
 #: source/nijigenerate/commands/puppet/file.d:863
 msgid "Export nijilive puppet to file path"
-msgstr "將 nijilive 模型匯出到檔案路徑"
+msgstr "將 nijilive 模型匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:863
 msgid "Export an INP file without showing a dialog."
-msgstr "不顯示對話框匯出 INP 檔案。"
+msgstr "不顯示對話框匯出 INP 檔案。"
 
 #: source/nijigenerate/commands/puppet/file.d:886
 msgid "Export PNG (*.png)"
-msgstr "匯出 PNG（*.png）"
+msgstr "匯出 PNG（*.png）"
 
 #: source/nijigenerate/commands/puppet/file.d:886
 msgid "Show \"Export to png image\" dialog."
-msgstr "顯示「匯出為 PNG 影像」對話框。"
+msgstr "顯示「匯出為 PNG 影像」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:909
 msgid "Export PNG to file path"
-msgstr "將 PNG 匯出到檔案路徑"
+msgstr "將 PNG 匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:909
 msgid "Export a PNG image without showing a dialog."
-msgstr "不顯示對話框匯出 PNG 影像。"
+msgstr "不顯示對話框匯出 PNG 影像。"
 
 #: source/nijigenerate/commands/puppet/file.d:930
 msgid "Export JPEG (*.jpeg)"
-msgstr "匯出 JPEG（*.jpeg）"
+msgstr "匯出 JPEG（*.jpeg）"
 
 #: source/nijigenerate/commands/puppet/file.d:930
 msgid "Show \"Export to jpeg image\" dialog."
-msgstr "顯示「匯出為 JPEG 影像」對話框。"
+msgstr "顯示「匯出為 JPEG 影像」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:953
 msgid "Export JPEG to file path"
-msgstr "將 JPEG 匯出到檔案路徑"
+msgstr "將 JPEG 匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:953
 msgid "Export a JPEG image without showing a dialog."
-msgstr "不顯示對話框匯出 JPEG 影像。"
+msgstr "不顯示對話框匯出 JPEG 影像。"
 
 #: source/nijigenerate/commands/puppet/file.d:974
 msgid "Export TARGA (*.tga)"
-msgstr "匯出 TARGA（*.tga）"
+msgstr "匯出 TARGA（*.tga）"
 
 #: source/nijigenerate/commands/puppet/file.d:974
 msgid "Show \"Export to TGA image\" dialog."
-msgstr "顯示「匯出為 TGA 影像」對話框。"
+msgstr "顯示「匯出為 TGA 影像」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:997
 msgid "Export TGA to file path"
-msgstr "將 TGA 匯出到檔案路徑"
+msgstr "將 TGA 匯出到檔案路徑"
 
 #: source/nijigenerate/commands/puppet/file.d:997
 msgid "Export a TGA image without showing a dialog."
-msgstr "不顯示對話框匯出 TGA 影像。"
+msgstr "不顯示對話框匯出 TGA 影像。"
 
 #: source/nijigenerate/commands/puppet/file.d:1018
 msgid "Export Video"
@@ -4308,7 +4308,7 @@ msgstr "匯出影片"
 
 #: source/nijigenerate/commands/puppet/file.d:1018
 msgid "Show \"Export to video\" dialog."
-msgstr "顯示「匯出影片」對話框。"
+msgstr "顯示「匯出影片」對話框。"
 
 #: source/nijigenerate/commands/puppet/file.d:1054
 msgid "Export Video to file path"
@@ -5056,7 +5056,7 @@ msgstr "伺服器已停用。按下完成以套用。"
 
 #: source/nijigenerate/windows/settings.d:382
 msgid "Coding Agent (ACP)"
-msgstr "編碼代理(ACP)"
+msgstr "程式碼代理(ACP)"
 
 #: source/nijigenerate/windows/settings.d:391
 msgid "Command"
