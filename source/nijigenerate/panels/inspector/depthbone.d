@@ -64,9 +64,11 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
             float roll = bone.restRoll;
             bool changed = false;
 
-            changed = igDragFloat3("Rest Head", &head, 1.0f) || changed;
-            changed = igDragFloat3("Rest Tail", &tail, 1.0f) || changed;
-            changed = igDragFloat("Rest Roll", &roll, 0.01f) || changed;
+            igPushItemWidth(160);
+            changed = igDragFloat3(__("Rest Head Position"), &head, 1.0f) || changed;
+            changed = igDragFloat3(__("Rest Tail Position"), &tail, 1.0f) || changed;
+            changed = igDragFloat(__("Rest Roll Angle"), &roll, 0.01f) || changed;
+            igPopItemWidth();
 
             if (changed) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);

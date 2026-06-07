@@ -157,7 +157,8 @@ protected:
                                     changesRequiresRestart = true;
                                 }
                                 foreach(entry; incLocaleGetEntries()) {
-                                    if (igSelectable(entry.humanNameC)) {
+                                    auto label = entry.humanName ~ "##" ~ entry.code;
+                                    if (igSelectable(label.toStringz)) {
                                         incLocaleSet(entry.code);
                                         changesRequiresRestart = true;
                                     }

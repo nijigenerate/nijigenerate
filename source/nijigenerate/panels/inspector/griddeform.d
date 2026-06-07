@@ -247,9 +247,11 @@ private:
                 bool ruleChanged = false;
                 igSpacing();
                 igTextColored(CategoryTextColor, __("Influence Rule"));
-                ruleChanged = igDragInt("Max Influences", &maxInfluences, 0.1f, 1, 16) || ruleChanged;
-                ruleChanged = igDragFloat("Radius Scale", &radiusScale, 0.01f, 0.01f, 100.0f, "%.3f") || ruleChanged;
-                ruleChanged = igDragFloat("Minimum Radius", &minimumRadius, 0.1f, 0.0f, 100000.0f, "%.2f") || ruleChanged;
+                igPushItemWidth(120);
+                ruleChanged = igDragInt(__("Max Influencing Bones"), &maxInfluences, 0.1f, 1, 16) || ruleChanged;
+                ruleChanged = igDragFloat(__("Influence Radius Scale"), &radiusScale, 0.01f, 0.01f, 100.0f, "%.3f") || ruleChanged;
+                ruleChanged = igDragFloat(__("Minimum Influence Radius"), &minimumRadius, 0.1f, 0.0f, 100000.0f, "%.2f") || ruleChanged;
+                igPopItemWidth();
                 if (ruleChanged) {
                     if (maxInfluences < 1) maxInfluences = 1;
                     auto ctx = new Context(); ctx.nodes([cast(Node)node]);

@@ -9,14 +9,12 @@ import std.string;
 import std.algorithm : sort;
 import std.uni : icmp;
 
-/+
-    HACK: This little comment tricks genpot to generate our LANG_NAME entry.
-
-    // The name of the language this translation is a translation to
-    // in the native script of the language (for the region)
-    // Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
-    _("LANG_NAME")
-+/
+// The name of the language this translation is a translation to
+// in the native script of the language (for the region).
+// Eg. this would be "Dansk" for Danish and "日本語" for Japanese.
+private string incLocaleLanguageNameMarker() {
+    return _("LANG_NAME");
+}
 
 private {
     TLEntry[] localeFiles;
@@ -55,6 +53,15 @@ private {
 
             string langName = i18nGetLanguageName(entry.name);
             if (langName == "<UNKNOWN LANGUAGE>") langName = incGetCultureExpression(langcode);
+
+            bool exists;
+            foreach(locale; localeFiles) {
+                if (locale.code == langcode) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (exists) continue;
             
             // Add locale
             localeFiles ~= TLEntry(
@@ -142,7 +149,7 @@ void markDups(TLEntry[] entries) {
         // If prevEntry has same humanName as entry before prevEntry, or as this entry,
         // disambiguate with the source folder
         if (prevIsDup || entryIsDup) {
-            prevEntry.humanName ~= " (" ~ prevEntry.path ~ ")";
+            prevEntry.humanName ~= " (" ~ prevEntry.code ~ ")";
             prevEntry.humanNameC = prevEntry.humanName.toStringz;
         }
         prevIsDup = entryIsDup;
@@ -150,7 +157,7 @@ void markDups(TLEntry[] entries) {
     }
 
     if (prevIsDup) {
-        prevEntry.humanName ~= " (" ~ prevEntry.path ~ ")";
+        prevEntry.humanName ~= " (" ~ prevEntry.code ~ ")";
         prevEntry.humanNameC = prevEntry.humanName.toStringz;
     }
 }
