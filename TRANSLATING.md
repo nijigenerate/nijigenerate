@@ -30,6 +30,54 @@ Check if the merges make sense, if so replace `<langcode>.po` with `<langcode>_m
 &nbsp;
 &nbsp;
 
+## Validate Your Translation
+Our project uses material icons and includes fmtstr to avoid crashes when loading po or missing icon symbols. Please use the following tools to check
+```sh
+# install dependencies
+pip install babel
+# validate
+python translation-validator.py -f tl/<langcode>.po
+# or validate all
+python translation-validator.py -a
+```
+
+### Check zh-TW locale consistency (zh-TW only)
+Uses OpenCC to flag entries that may not follow zh-TW conventions.
+```sh
+# additional dependency for this check only
+pip install opencc-python-reimplemented
+
+python translation-validator.py -t -f tl/zh-TW.po
+
+# Stricter threshold (only show near-zero change entries)
+python translation-validator.py -t -f tl/zh-TW.po --trad-threshold 0.05
+```
+
+&nbsp;
+&nbsp;
+
+## Importing Translations from Another .po File
+`po_import.py` merges translations from a source `.po` into a target `.po` **without touching the target's formatting, comments, or whitespace**.
+
+```sh
+# Fill in only empty msgstr entries (safe, non-destructive)
+python3 po_import.py SOURCE.po tl/<langcode>.po
+
+# Write result to a new file instead of modifying the target in-place
+python3 po_import.py SOURCE.po tl/<langcode>.po --out output.po
+
+# Also overwrite non-empty msgstr entries that differ from the source
+python3 po_import.py SOURCE.po tl/<langcode>.po --overwrite
+
+# Include fuzzy entries from the source
+python3 po_import.py SOURCE.po tl/<langcode>.po --use-fuzzy
+```
+
+> **Note:** Fuzzy source entries are skipped by default. The script never modifies comments, `#:` references, flags, or blank lines in the target file.
+
+&nbsp;
+&nbsp;
+
 ## I need to reorder format parameters
 To specify which format parameter you're indexing, use the `<index>$` operator.  
 Eg. `%2$s` will index the second entry of the format string.
