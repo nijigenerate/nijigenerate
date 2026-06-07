@@ -41,6 +41,18 @@ python translation-validator.py -f tl/<langcode>.po
 python translation-validator.py -a
 ```
 
+### Check zh-TW locale consistency (zh-TW only)
+Uses OpenCC to flag entries that may not follow zh-TW conventions.
+```sh
+# additional dependency for this check only
+pip install opencc-python-reimplemented
+
+python translation-validator.py -t -f tl/zh-TW.po
+
+# Stricter threshold (only show near-zero change entries)
+python translation-validator.py -t -f tl/zh-TW.po --trad-threshold 0.05
+```
+
 &nbsp;
 &nbsp;
 
