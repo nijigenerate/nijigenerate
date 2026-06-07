@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-26 11:14+0900\n"
+"POT-Creation-Date: 2026-06-06 02:32+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -40,11 +40,11 @@ msgstr ""
 msgid "plane %.0f,%.0f"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/tools/attachedpoint.d:68
+#: source/nijigenerate/viewport/depth/tools/attachedpoint.d:66
 msgid ""
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/tools/attachedpoint.d:69
+#: source/nijigenerate/viewport/depth/tools/attachedpoint.d:67
 msgid "Edit Attached Depth Point"
 msgstr ""
 
@@ -56,11 +56,11 @@ msgstr ""
 msgid "Select Depth Vertices"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/tools/ring.d:57
+#: source/nijigenerate/viewport/depth/tools/ring.d:58
 msgid ""
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/tools/ring.d:58
+#: source/nijigenerate/viewport/depth/tools/ring.d:59
 msgid "Create Depth Ring"
 msgstr ""
 
@@ -72,22 +72,22 @@ msgstr ""
 msgid "Flatten Depth Plane"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/mesheditor/editor.d:374
+#: source/nijigenerate/viewport/depth/mesheditor/editor.d:402
 msgid "Selected Deformer"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/mesheditor/editor.d:376
+#: source/nijigenerate/viewport/depth/mesheditor/editor.d:404
 msgid "No operation selected."
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/mesheditor/editor.d:433
+#: source/nijigenerate/viewport/depth/mesheditor/editor.d:461
 #: source/nijigenerate/panels/parameters.d:457
 msgid "Duplicate"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/mesheditor/editor.d:435
+#: source/nijigenerate/viewport/depth/mesheditor/editor.d:463
 #: source/nijigenerate/panels/parameters.d:465
-#: source/nijigenerate/panels/parameters.d:707
+#: source/nijigenerate/panels/parameters.d:715
 #: source/nijigenerate/panels/animlist.d:38
 #: source/nijigenerate/panels/inspector/griddeform.d:147
 #: source/nijigenerate/panels/inspector/part.d:377
@@ -98,11 +98,11 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/mesheditor/editor.d:439
+#: source/nijigenerate/viewport/depth/mesheditor/editor.d:467
 msgid "Depth Deformers"
 msgstr ""
 
-#: source/nijigenerate/viewport/depth/mesheditor/editor.d:457
+#: source/nijigenerate/viewport/depth/mesheditor/editor.d:485
 msgid "No depth deformers."
 msgstr ""
 
@@ -133,7 +133,7 @@ msgstr ""
 
 #: source/nijigenerate/viewport/depth/viewport.d:164
 #: source/nijigenerate/viewport/vertex/package.d:322
-#: source/nijigenerate/windows/paramsplit.d:172
+#: source/nijigenerate/windows/paramsplit.d:256
 msgid "Apply"
 msgstr ""
 
@@ -149,9 +149,9 @@ msgstr ""
 #: source/nijigenerate/windows/parameditor.d:267
 #: source/nijigenerate/windows/videoexport.d:286
 #: source/nijigenerate/windows/flipconfig.d:627
-#: source/nijigenerate/windows/automeshbatch.d:367
-#: source/nijigenerate/windows/automeshbatch.d:406
-#: source/nijigenerate/windows/settings.d:576
+#: source/nijigenerate/windows/automeshbatch.d:410
+#: source/nijigenerate/windows/automeshbatch.d:454
+#: source/nijigenerate/windows/settings.d:591
 #: source/nijigenerate/widgets/dialog.d:116
 msgid "Cancel"
 msgstr ""
@@ -164,11 +164,11 @@ msgstr ""
 msgid "Editing base transform..."
 msgstr ""
 
-#: source/nijigenerate/viewport/common/mesheditor/package.d:285
+#: source/nijigenerate/viewport/common/mesheditor/package.d:287
 msgid "Reset selected"
 msgstr ""
 
-#: source/nijigenerate/viewport/common/mesheditor/package.d:288
+#: source/nijigenerate/viewport/common/mesheditor/package.d:290
 msgid "Flip selected from mirror"
 msgstr ""
 
@@ -186,9 +186,9 @@ msgstr ""
 #: source/nijigenerate/viewport/common/mesheditor/tools/lasso.d:153
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:35
 #: source/nijigenerate/viewport/common/mesheditor/tools/connect.d:37
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:335
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:336
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:337
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:344
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:345
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:346
 msgid "Left Mouse"
 msgstr ""
 
@@ -398,19 +398,19 @@ msgstr ""
 msgid "Path deformation"
 msgstr ""
 
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:335
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:344
 msgid "Drag to define 2x2 mesh"
 msgstr ""
 
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:336
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:345
 msgid "Add/remove key points to axes"
 msgstr ""
 
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:337
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:346
 msgid "Change key point position in the axis"
 msgstr ""
 
-#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:504
+#: source/nijigenerate/viewport/common/mesheditor/tools/grid.d:513
 msgid "Grid Vertex Tool"
 msgstr ""
 
@@ -669,9 +669,9 @@ msgstr ""
 #: source/nijigenerate/panels/inspector/part.d:88
 #: source/nijigenerate/panels/viewport.d:262
 #: source/nijigenerate/io/package.d:200 source/nijigenerate/io/package.d:201
-#: source/nijigenerate/io/inimport.d:266 source/nijigenerate/project.d:315
-#: source/nijigenerate/project.d:330 source/nijigenerate/project.d:399
-#: source/nijigenerate/project.d:464
+#: source/nijigenerate/io/inimport.d:266 source/nijigenerate/project.d:317
+#: source/nijigenerate/project.d:332 source/nijigenerate/project.d:402
+#: source/nijigenerate/project.d:467
 #: source/nijigenerate/commands/automesh/config.d:126
 #: source/nijigenerate/commands/automesh/config.d:141
 #: source/nijigenerate/commands/automesh/config.d:155
@@ -700,7 +700,7 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: source/nijigenerate/core/window.d:249
+#: source/nijigenerate/core/window.d:250
 msgid "(Debug Mode)"
 msgstr ""
 
@@ -815,8 +815,8 @@ msgstr ""
 
 #: source/nijigenerate/panels/parameters.d:393
 #: source/nijigenerate/commands/viewport/palette.d:84
-#: source/nijigenerate/windows/settings.d:497
-#: source/nijigenerate/windows/settings.d:657
+#: source/nijigenerate/windows/settings.d:512
+#: source/nijigenerate/windows/settings.d:672
 #: source/nijigenerate/widgets/mainmenu.d:152
 msgid "Edit"
 msgstr ""
@@ -890,58 +890,66 @@ msgstr ""
 msgid "Add Keyframe"
 msgstr ""
 
+#: source/nijigenerate/panels/parameters.d:551
+msgid "Copy Keyframe"
+msgstr ""
+
+#: source/nijigenerate/panels/parameters.d:555
+msgid "Paste Keyframe"
+msgstr ""
+
 #. Textbox
-#: source/nijigenerate/panels/parameters.d:674
+#: source/nijigenerate/panels/parameters.d:682
 #: source/nijigenerate/windows/rename.d:43
 #: source/nijigenerate/windows/rename.d:58
 msgid "Rename"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:678
+#: source/nijigenerate/panels/parameters.d:686
 msgid "Colors"
 msgstr ""
 
 #. CUSTOM COLOR PICKER
 #. Allows user to select a custom color for parameter group.
-#: source/nijigenerate/panels/parameters.d:703
+#: source/nijigenerate/panels/parameters.d:711
 msgid "Custom Color"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:720
+#: source/nijigenerate/panels/parameters.d:728
 msgid "Add 1D Parameter (0..1)"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:723
+#: source/nijigenerate/panels/parameters.d:731
 msgid "Add 1D Parameter (-1..1)"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:726
+#: source/nijigenerate/panels/parameters.d:734
 msgid "Add 2D Parameter (0..1)"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:729
+#: source/nijigenerate/panels/parameters.d:737
 msgid "Add 2D Parameter (-1..+1)"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:732
+#: source/nijigenerate/panels/parameters.d:740
 msgid "Add Mouth Shape"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:750
+#: source/nijigenerate/panels/parameters.d:758
 #: source/nijigenerate/panels/nodes.d:602
 #: source/nijigenerate/panels/inspector/base.d:134
 msgid "In vertex edit mode..."
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:766
+#: source/nijigenerate/panels/parameters.d:774
 msgid "Filter, search for specific parameters"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:862
+#: source/nijigenerate/panels/parameters.d:870
 msgid "Add Parameter"
 msgstr ""
 
-#: source/nijigenerate/panels/parameters.d:867
+#: source/nijigenerate/panels/parameters.d:875
 msgid "Parameters"
 msgstr ""
 
@@ -1139,8 +1147,8 @@ msgstr ""
 #. ===== Node Popup =====
 #: source/nijigenerate/panels/nodes.d:741
 #: source/nijigenerate/commands/viewport/palette.d:102
-#: source/nijigenerate/windows/settings.d:680
-#: source/nijigenerate/windows/settings.d:681
+#: source/nijigenerate/windows/settings.d:695
+#: source/nijigenerate/windows/settings.d:696
 msgid "Nodes"
 msgstr ""
 
@@ -1152,15 +1160,15 @@ msgstr ""
 msgid "Animation List"
 msgstr ""
 
-#: source/nijigenerate/panels/resource.d:245
+#: source/nijigenerate/panels/resource.d:247
 msgid "New Node"
 msgstr ""
 
-#: source/nijigenerate/panels/resource.d:249
+#: source/nijigenerate/panels/resource.d:251
 msgid "New Parameter"
 msgstr ""
 
-#: source/nijigenerate/panels/resource.d:270
+#: source/nijigenerate/panels/resource.d:272
 msgid "Resources"
 msgstr ""
 
@@ -1186,7 +1194,7 @@ msgid "Part Count"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/puppet.d:78
-#: source/nijigenerate/windows/command_browser.d:503
+#: source/nijigenerate/windows/command_browser.d:599
 msgid "Name"
 msgstr ""
 
@@ -1377,13 +1385,13 @@ msgstr ""
 
 #: source/nijigenerate/panels/inspector/griddeform.d:234
 #: source/nijigenerate/panels/inspector/pathdeform.d:354
-#: source/nijigenerate/commands/depth/bone.d:2354
+#: source/nijigenerate/commands/depth/bone.d:2420
 msgid "Preview Depth Bone Deform"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/griddeform.d:240
 #: source/nijigenerate/panels/inspector/pathdeform.d:360
-#: source/nijigenerate/commands/depth/bone.d:2389
+#: source/nijigenerate/commands/depth/bone.d:2455
 msgid "Apply Depth Bone Deform"
 msgstr ""
 
@@ -1854,7 +1862,7 @@ msgstr ""
 #. ===== Parameters =====
 #: source/nijigenerate/panels/inspector/simplephysics.d:54
 #: source/nijigenerate/commands/viewport/palette.d:109
-#: source/nijigenerate/windows/settings.d:692
+#: source/nijigenerate/windows/settings.d:707
 msgid "Parameter"
 msgstr ""
 
@@ -1863,9 +1871,9 @@ msgid "(unassigned)"
 msgstr ""
 
 #: source/nijigenerate/panels/inspector/simplephysics.d:75
-#: source/nijigenerate/windows/command_browser.d:504
-#: source/nijigenerate/windows/command_browser.d:651
-#: source/nijigenerate/windows/command_browser.d:707
+#: source/nijigenerate/windows/command_browser.d:600
+#: source/nijigenerate/windows/command_browser.d:774
+#: source/nijigenerate/windows/command_browser.d:830
 msgid "Type"
 msgstr ""
 
@@ -1960,7 +1968,7 @@ msgstr ""
 #: source/nijigenerate/commands/viewport/palette.d:89
 #: source/nijigenerate/windows/settings.d:107
 #: source/nijigenerate/windows/settings.d:304
-#: source/nijigenerate/windows/settings.d:663
+#: source/nijigenerate/windows/settings.d:678
 msgid "Viewport"
 msgstr ""
 
@@ -2145,7 +2153,7 @@ msgstr ""
 
 #. Removing unused pairs (happens when target nodes are removed.)
 #: source/nijigenerate/panels/viewport.d:403
-#: source/nijigenerate/windows/automeshbatch.d:447
+#: source/nijigenerate/windows/automeshbatch.d:505
 msgid "Automesh Batching"
 msgstr ""
 
@@ -2164,7 +2172,7 @@ msgid ""
 "You can change the default behaviour in the settings."
 msgstr ""
 
-#: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:465
+#: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:468
 msgid "Import failed..."
 msgstr ""
 
@@ -2217,11 +2225,11 @@ msgid ""
 msgstr ""
 
 #. incViewportPresentMode(editMode_);
-#: source/nijigenerate/project.d:267
+#: source/nijigenerate/project.d:269
 msgid "New Project"
 msgstr ""
 
-#: source/nijigenerate/project.d:325
+#: source/nijigenerate/project.d:327
 #, c-format, d-format
 msgid ""
 "Please report this file to the developers:\n"
@@ -2229,70 +2237,90 @@ msgid ""
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:352
+#: source/nijigenerate/project.d:354
 #, c-format, d-format
 msgid "%s opened successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:395
+#: source/nijigenerate/project.d:398
 #, c-format, d-format
 msgid "%s saved successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:398
+#: source/nijigenerate/project.d:401
 #, c-format, d-format
 msgid "Failed to save %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:434
+#: source/nijigenerate/project.d:437
 #, c-format, d-format
 msgid ""
 "The following errors occured during file loading\n"
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:444
+#: source/nijigenerate/project.d:447
 msgid "Folder import completed with errors..."
 msgstr ""
 
-#: source/nijigenerate/project.d:445
+#: source/nijigenerate/project.d:448
 msgid "Folder import completed..."
 msgstr ""
 
-#: source/nijigenerate/project.d:493
+#: source/nijigenerate/project.d:496
 msgid "Mipmap generation completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:508
+#: source/nijigenerate/project.d:511
 msgid "Texture bleeding completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:917
+#: source/nijigenerate/project.d:938
 #, c-format, d-format
 msgid "Undo %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:953
+#: source/nijigenerate/project.d:974
 msgid "Rename Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:953
+#: source/nijigenerate/project.d:974
 msgid "Save Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:977
+#: source/nijigenerate/project.d:998
 msgid "Delete Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:1135
+#: source/nijigenerate/project.d:1156
 msgid "Animation keyframe was edited"
 msgstr ""
 
-#: source/nijigenerate/project.d:1139
+#: source/nijigenerate/project.d:1160
 msgid "Undo animation keyframe edit"
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:243
+#: source/nijigenerate/utils/crashdump.d:84
+#: source/nijigenerate/utils/crashdump.d:292
+msgid "nijigenerate Crashdump"
+msgstr ""
+
+#: source/nijigenerate/utils/crashdump.d:85
+#, c-format, d-format
+msgid ""
+"The application has unexpectedly crashed.\n"
+"\n"
+"If autosave is enabled, open File → Recent → Autosaves to recover your "
+"work.\n"
+"\n"
+"A crash report was written to:\n"
+"%s\n"
+"\n"
+"Please attach it when filing an issue:\n"
+"https://github.com/nijigenerate/nijigenerate/issues"
+msgstr ""
+
+#: source/nijigenerate/utils/crashdump.d:282
 msgid ""
 "\n"
 "\n"
@@ -2303,7 +2331,7 @@ msgid ""
 "nijigenerate/issues"
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:247
+#: source/nijigenerate/utils/crashdump.d:287
 msgid ""
 "\n"
 "\n"
@@ -2316,16 +2344,12 @@ msgid ""
 "nijigenerate/issues"
 msgstr ""
 
-#: source/nijigenerate/utils/crashdump.d:250
+#: source/nijigenerate/utils/crashdump.d:291
 msgid ""
 "The application has unexpectedly crashed\n"
 "Please send the developers the nijigenerate-crashdump.txt which has been put "
 "on your desktop\n"
 "Via https://github.com/nijigenerate/nijigenerate/issues"
-msgstr ""
-
-#: source/nijigenerate/utils/crashdump.d:251
-msgid "nijigenerate Crashdump"
 msgstr ""
 
 #: source/nijigenerate/actions/mesheditor.d:200
@@ -2366,34 +2390,52 @@ msgstr ""
 msgid "Binding %s was added"
 msgstr ""
 
-#: source/nijigenerate/actions/binding.d:190
-#: source/nijigenerate/actions/binding.d:314
-#: source/nijigenerate/actions/binding.d:433
-#: source/nijigenerate/actions/parameter.d:208
-#: source/nijigenerate/actions/parameter.d:449
-#: source/nijigenerate/actions/parameter.d:574
+#: source/nijigenerate/actions/binding.d:159
+msgid "Changed binding interpolation"
+msgstr ""
+
+#: source/nijigenerate/actions/binding.d:163
+msgid "Binding interpolation change cancelled"
+msgstr ""
+
+#: source/nijigenerate/actions/binding.d:226
+#: source/nijigenerate/actions/binding.d:350
+#: source/nijigenerate/actions/binding.d:469
+#: source/nijigenerate/actions/parameter.d:219
+#: source/nijigenerate/actions/parameter.d:460
+#: source/nijigenerate/actions/parameter.d:585
 #, c-format, d-format
 msgid "%s->%s changed"
 msgstr ""
 
-#: source/nijigenerate/actions/binding.d:197
-#: source/nijigenerate/actions/binding.d:321
-#: source/nijigenerate/actions/binding.d:440
-#: source/nijigenerate/actions/parameter.d:218
-#: source/nijigenerate/actions/parameter.d:453
-#: source/nijigenerate/actions/parameter.d:582
+#: source/nijigenerate/actions/binding.d:233
+#: source/nijigenerate/actions/binding.d:357
+#: source/nijigenerate/actions/binding.d:476
+#: source/nijigenerate/actions/parameter.d:229
+#: source/nijigenerate/actions/parameter.d:464
+#: source/nijigenerate/actions/parameter.d:593
 #, c-format, d-format
 msgid "%s->%s change cancelled"
 msgstr ""
 
-#: source/nijigenerate/actions/depth.d:59
+#: source/nijigenerate/actions/depth.d:60
 #, c-format, d-format
 msgid "Changed depth map of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/depth.d:64
+#: source/nijigenerate/actions/depth.d:65
 #, c-format, d-format
 msgid "Depth map of %s was changed"
+msgstr ""
+
+#: source/nijigenerate/actions/depth.d:121
+#, c-format, d-format
+msgid "Changed depth operations of %s"
+msgstr ""
+
+#: source/nijigenerate/actions/depth.d:126
+#, c-format, d-format
+msgid "Depth operations of %s were changed"
 msgstr ""
 
 #: source/nijigenerate/actions/vertex.d:90
@@ -2434,64 +2476,64 @@ msgstr ""
 msgid "%s: vertex was %s."
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:122
+#: source/nijigenerate/actions/parameter.d:127
 #, c-format, d-format
 msgid "Added parameter %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:124
+#: source/nijigenerate/actions/parameter.d:129
 #, c-format, d-format
 msgid "Removed parameter %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:132
+#: source/nijigenerate/actions/parameter.d:137
 #, c-format, d-format
 msgid "Parameter %s was removed"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:134
+#: source/nijigenerate/actions/parameter.d:139
 #, c-format, d-format
 msgid "Parameter %s was added"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:210
-#: source/nijigenerate/actions/node.d:1165
+#: source/nijigenerate/actions/parameter.d:221
+#: source/nijigenerate/actions/node.d:1221
 #, c-format, d-format
 msgid "%s->%s changed to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:220
-#: source/nijigenerate/actions/node.d:1172
+#: source/nijigenerate/actions/parameter.d:231
+#: source/nijigenerate/actions/node.d:1228
 #, c-format, d-format
 msgid "%s->%s changed from %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:333
+#: source/nijigenerate/actions/parameter.d:344
 #, c-format, d-format
 msgid "Added parameter group %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:335
+#: source/nijigenerate/actions/parameter.d:346
 #, c-format, d-format
 msgid "Removed parameter group %s"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:340
+#: source/nijigenerate/actions/parameter.d:351
 #, c-format, d-format
 msgid "Parameter group %s was removed"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:342
+#: source/nijigenerate/actions/parameter.d:353
 #, c-format, d-format
 msgid "Parameter group %s was added"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:379
+#: source/nijigenerate/actions/parameter.d:390
 #, c-format, d-format
 msgid "%s moved"
 msgstr ""
 
-#: source/nijigenerate/actions/parameter.d:383
+#: source/nijigenerate/actions/parameter.d:394
 #, c-format, d-format
 msgid "%s move cancelled"
 msgstr ""
@@ -2506,14 +2548,24 @@ msgstr ""
 msgid "Drawable %s was changed"
 msgstr ""
 
-#: source/nijigenerate/actions/deformable.d:84
+#: source/nijigenerate/actions/deformable.d:88
 #, c-format, d-format
 msgid "Changed vertices of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/deformable.d:92
+#: source/nijigenerate/actions/deformable.d:96
 #, c-format, d-format
 msgid "Vertices of %s was changed"
+msgstr ""
+
+#: source/nijigenerate/actions/deformable.d:247
+#, c-format, d-format
+msgid "Changed grid of %s"
+msgstr ""
+
+#: source/nijigenerate/actions/deformable.d:252
+#, c-format, d-format
+msgid "Grid of %s was changed"
 msgstr ""
 
 #: source/nijigenerate/actions/depthbone.d:74
@@ -2527,132 +2579,132 @@ msgid "Depth bone constraint changed"
 msgstr ""
 
 #. Enforce reparenting rules
-#: source/nijigenerate/actions/node.d:84
+#: source/nijigenerate/actions/node.d:85
 #, c-format, d-format
 msgid "%s can not be reparented in to %s due to a circular dependency."
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:116
+#: source/nijigenerate/actions/node.d:123
 msgid "nodes"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:172
-#: source/nijigenerate/actions/node.d:181
+#: source/nijigenerate/actions/node.d:179
+#: source/nijigenerate/actions/node.d:188
 #, c-format, d-format
 msgid "Created %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:173
+#: source/nijigenerate/actions/node.d:180
 #, c-format, d-format
 msgid "Deleted %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:174
+#: source/nijigenerate/actions/node.d:181
 #, c-format, d-format
 msgid "Moved %s to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:182
+#: source/nijigenerate/actions/node.d:189
 #, c-format, d-format
 msgid "Moved %s from %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:183
+#: source/nijigenerate/actions/node.d:190
 #, c-format, d-format
 msgid "Moved %s from origin"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:241
+#: source/nijigenerate/actions/node.d:248
 #, c-format, d-format
 msgid "Centralized %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:245
+#: source/nijigenerate/actions/node.d:252
 #, c-format, d-format
 msgid "Uncentralized %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:478
+#: source/nijigenerate/actions/node.d:534
 #, c-format, d-format
 msgid "Change type of %s to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:485
+#: source/nijigenerate/actions/node.d:541
 #, c-format, d-format
 msgid "Revert type of %s to %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:569
-#: source/nijigenerate/actions/node.d:578
+#: source/nijigenerate/actions/node.d:625
+#: source/nijigenerate/actions/node.d:634
 #, c-format, d-format
 msgid "%s is added to mask of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:570
-#: source/nijigenerate/actions/node.d:577
+#: source/nijigenerate/actions/node.d:626
+#: source/nijigenerate/actions/node.d:633
 #, c-format, d-format
 msgid "%s is deleted from mask of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:634
+#: source/nijigenerate/actions/node.d:690
 #, c-format, d-format
 msgid "%s mask mode changed"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:638
+#: source/nijigenerate/actions/node.d:694
 #, c-format, d-format
 msgid "%s mask mode restored"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:764
-#: source/nijigenerate/actions/node.d:773
+#: source/nijigenerate/actions/node.d:820
+#: source/nijigenerate/actions/node.d:829
 #, c-format, d-format
 msgid "%s is added to welded targets of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:765
-#: source/nijigenerate/actions/node.d:772
+#: source/nijigenerate/actions/node.d:821
+#: source/nijigenerate/actions/node.d:828
 #, c-format, d-format
 msgid "%s is deleted from welded targets of %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:870
+#: source/nijigenerate/actions/node.d:926
 #, c-format, d-format
 msgid "links of %s and %s are changed."
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:877
+#: source/nijigenerate/actions/node.d:933
 #, c-format, d-format
 msgid "links of %s and %s are restored."
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:922
-#: source/nijigenerate/actions/node.d:929
+#: source/nijigenerate/actions/node.d:978
+#: source/nijigenerate/actions/node.d:985
 msgid "Enabled"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:922
-#: source/nijigenerate/actions/node.d:929
+#: source/nijigenerate/actions/node.d:978
+#: source/nijigenerate/actions/node.d:985
 msgid "Disabled"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:929
+#: source/nijigenerate/actions/node.d:985
 #, c-format, d-format
 msgid "%s was %s"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:976
+#: source/nijigenerate/actions/node.d:1032
 msgid "Unnamed "
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:1322
-#: source/nijigenerate/actions/node.d:1330
+#: source/nijigenerate/actions/node.d:1378
+#: source/nijigenerate/actions/node.d:1386
 #, c-format, d-format
 msgid "%s locked to root node"
 msgstr ""
 
-#: source/nijigenerate/actions/node.d:1323
-#: source/nijigenerate/actions/node.d:1331
+#: source/nijigenerate/actions/node.d:1379
+#: source/nijigenerate/actions/node.d:1387
 #, c-format, d-format
 msgid "%s unlocked from root node"
 msgstr ""
@@ -2676,42 +2728,42 @@ msgstr ""
 #. ===== Main menu =====
 #. File → Edit → View → View/Panels → Tools
 #: source/nijigenerate/commands/viewport/palette.d:83
-#: source/nijigenerate/windows/settings.d:656
+#: source/nijigenerate/windows/settings.d:671
 #: source/nijigenerate/widgets/mainmenu.d:64
 msgid "File"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:85
-#: source/nijigenerate/windows/settings.d:658
+#: source/nijigenerate/windows/settings.d:673
 #: source/nijigenerate/widgets/mainmenu.d:181
 msgid "View"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:86
-#: source/nijigenerate/windows/settings.d:659
+#: source/nijigenerate/windows/settings.d:674
 msgid "View/Panels"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:87
-#: source/nijigenerate/windows/settings.d:660
+#: source/nijigenerate/windows/settings.d:675
 #: source/nijigenerate/widgets/mainmenu.d:238
 msgid "Tools"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:90
-#: source/nijigenerate/windows/settings.d:664
+#: source/nijigenerate/windows/settings.d:679
 msgid "Palette"
 msgstr ""
 
 #. Mesh editor tool modes (dynamically generated per mode)
 #: source/nijigenerate/commands/viewport/palette.d:91
-#: source/nijigenerate/windows/settings.d:666
+#: source/nijigenerate/windows/settings.d:681
 msgid "Mesh Editor Tools"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:92
 #: source/nijigenerate/commands/automesh/config.d:54
-#: source/nijigenerate/windows/settings.d:671
+#: source/nijigenerate/windows/settings.d:686
 msgid "AutoMesh"
 msgstr ""
 
@@ -2740,43 +2792,43 @@ msgstr ""
 
 #. Add / Insert / Convert Nodes...
 #: source/nijigenerate/commands/viewport/palette.d:103
-#: source/nijigenerate/windows/settings.d:683
+#: source/nijigenerate/windows/settings.d:698
 msgid "Add Node"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:104
-#: source/nijigenerate/windows/settings.d:684
+#: source/nijigenerate/windows/settings.d:699
 msgid "Insert Node"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:105
-#: source/nijigenerate/windows/settings.d:685
+#: source/nijigenerate/windows/settings.d:700
 msgid "Convert Node"
 msgstr ""
 
 #. Inspector Panel
 #: source/nijigenerate/commands/viewport/palette.d:107
-#: source/nijigenerate/windows/settings.d:689
+#: source/nijigenerate/windows/settings.d:704
 msgid "Panel/Inspector"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:110
-#: source/nijigenerate/windows/settings.d:693
+#: source/nijigenerate/windows/settings.d:708
 msgid "Parameter Edit"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:111
-#: source/nijigenerate/windows/settings.d:694
+#: source/nijigenerate/windows/settings.d:709
 msgid "Binding"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:112
-#: source/nijigenerate/windows/settings.d:695
+#: source/nijigenerate/windows/settings.d:710
 msgid "Parameter Group"
 msgstr ""
 
 #: source/nijigenerate/commands/viewport/palette.d:113
-#: source/nijigenerate/windows/settings.d:696
+#: source/nijigenerate/windows/settings.d:711
 msgid "Animation Edit"
 msgstr ""
 
@@ -2784,70 +2836,102 @@ msgstr ""
 msgid "Show Command Palette."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:22
+#: source/nijigenerate/commands/viewport/control.d:43
+msgid "Changed flip pairs"
+msgstr ""
+
+#: source/nijigenerate/commands/viewport/control.d:47
+msgid "Reverted flip pairs"
+msgstr ""
+
+#: source/nijigenerate/commands/viewport/control.d:78
 msgid "Toggle mirror view."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:31
+#: source/nijigenerate/commands/viewport/control.d:87
 msgid "Toggle onion slice overlay."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:40
+#: source/nijigenerate/commands/viewport/control.d:96
 msgid "Toggle physics drivers."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:49
+#: source/nijigenerate/commands/viewport/control.d:105
 msgid "Toggle post processing."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:58
+#: source/nijigenerate/commands/viewport/control.d:114
 msgid "Reset physics."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:68
+#: source/nijigenerate/commands/viewport/control.d:124
 msgid "Reset parameters to defaults."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:80
+#: source/nijigenerate/commands/viewport/control.d:136
 msgid "List registered flip pairs."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:92
+#: source/nijigenerate/commands/viewport/control.d:148
 msgid "Register a flip pair."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:105
+#: source/nijigenerate/commands/viewport/control.d:164
 msgid "Register flip pairs by name pattern."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:118
+#: source/nijigenerate/commands/viewport/control.d:180
 msgid "Remove a flip pair."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:129
+#: source/nijigenerate/commands/viewport/control.d:194
 msgid "Open Flip Pair configuration window."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:140
+#: source/nijigenerate/commands/viewport/control.d:205
 msgid "Open Automesh Batching modal."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:149
+#: source/nijigenerate/commands/viewport/control.d:214
 msgid "Reset viewport zoom to 1.0."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:157
+#: source/nijigenerate/commands/viewport/control.d:222
 msgid "Reset viewport position to origin."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:167
+#: source/nijigenerate/commands/viewport/control.d:232
 msgid "Fit viewport to model."
 msgstr ""
 
-#: source/nijigenerate/commands/viewport/control.d:167
+#: source/nijigenerate/commands/viewport/control.d:232
 msgid ""
 "Reset viewport center and zoom so the current puppet bounds fit inside the "
 "viewport."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/editor.d:42
+msgid "Add Editor Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/editor.d:42
+msgid "Add one in-progress depth operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/editor.d:76
+msgid "Update Editor Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/editor.d:76
+msgid "Replace one in-progress depth operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/editor.d:93
+msgid "Remove Editor Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/editor.d:93
+msgid "Remove one in-progress depth operation"
 msgstr ""
 
 #: source/nijigenerate/commands/depth/bone.d:64
@@ -2890,125 +2974,214 @@ msgstr ""
 msgid "Create standard depth bone hierarchy"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2035
+#: source/nijigenerate/commands/depth/bone.d:2063
+#, c-format, d-format
+msgid ""
+"Existing parameter '%s' is %s but the standard depth template requires %s"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:2094
 msgid "Add Standard Depth Parameters"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2035
+#: source/nijigenerate/commands/depth/bone.d:2094
 msgid "Create standard face/body parameters and depth bone bindings"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2047
+#: source/nijigenerate/commands/depth/bone.d:2106
 #, c-format, d-format
 msgid "Missing depth bone '%s'"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2070
-#, c-format, d-format
-msgid "Existing parameter '%s' has incompatible keypoints"
-msgstr ""
-
-#: source/nijigenerate/commands/depth/bone.d:2077
+#: source/nijigenerate/commands/depth/bone.d:2143
 #, c-format, d-format
 msgid "Missing parameter '%s'"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2087
+#: source/nijigenerate/commands/depth/bone.d:2153
 #, c-format, d-format
 msgid "Cannot create value binding '%s'"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2105
+#: source/nijigenerate/commands/depth/bone.d:2171
 #, c-format, d-format
 msgid "Standard depth binding keypoint is not present in parameter '%s'"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2133
+#: source/nijigenerate/commands/depth/bone.d:2199
 msgid "Set Depth Bone Rest"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2133
+#: source/nijigenerate/commands/depth/bone.d:2199
 msgid "Set rest pose for a depth bone"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2154
+#: source/nijigenerate/commands/depth/bone.d:2220
 msgid "Set Depth Bone Constraint"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2154
+#: source/nijigenerate/commands/depth/bone.d:2220
 msgid "Set depth bone constraint"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2183
+#: source/nijigenerate/commands/depth/bone.d:2249
 msgid "List Depth Bones"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2183
+#: source/nijigenerate/commands/depth/bone.d:2249
 msgid "List depth bones under root"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2201
+#: source/nijigenerate/commands/depth/bone.d:2267
 msgid "Add Depth Bone Source"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2201
+#: source/nijigenerate/commands/depth/bone.d:2267
 msgid "Add depth bone source to target binding"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2220
+#: source/nijigenerate/commands/depth/bone.d:2286
 msgid "Remove Depth Bone Source"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2220
+#: source/nijigenerate/commands/depth/bone.d:2286
 msgid "Remove depth bone source from target binding"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2237
+#: source/nijigenerate/commands/depth/bone.d:2303
 msgid "List Depth Bone Sources"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2237
+#: source/nijigenerate/commands/depth/bone.d:2303
 msgid "List depth bone source UUIDs for target"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2269
+#: source/nijigenerate/commands/depth/bone.d:2335
 msgid "Set Depth Bone Source Settings"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2269
+#: source/nijigenerate/commands/depth/bone.d:2335
 msgid "Set per-source depth bone settings"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2304
+#: source/nijigenerate/commands/depth/bone.d:2370
 msgid "Set Depth Bone Influence Rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2304
+#: source/nijigenerate/commands/depth/bone.d:2370
 msgid "Set depth bone influence rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2322
+#: source/nijigenerate/commands/depth/bone.d:2388
 msgid "Get Depth Bone Influence Rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2322
+#: source/nijigenerate/commands/depth/bone.d:2388
 msgid "Get depth bone influence rule"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2336
+#: source/nijigenerate/commands/depth/bone.d:2402
 msgid "Preview Depth Bone Influence"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2336
+#: source/nijigenerate/commands/depth/bone.d:2402
 msgid "Preview depth bone influence"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2354
+#: source/nijigenerate/commands/depth/bone.d:2420
 msgid "Preview depth bone deformation"
 msgstr ""
 
-#: source/nijigenerate/commands/depth/bone.d:2389
+#: source/nijigenerate/commands/depth/bone.d:2455
 msgid "Apply depth bone deformation to current key"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:256
+msgid "List Depths"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:256
+msgid "List per-vertex depth values"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:273
+msgid "Set Depths"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:273
+msgid "Set per-vertex depth values"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:285
+msgid "Clear Depths"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:285
+msgid "Clear per-vertex depth values"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:295
+msgid "List Depth Operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:295
+msgid "List saved depth operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:312
+msgid "Set Depth Operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:312
+msgid "Replace saved depth operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:326
+msgid "Add Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:326
+msgid "Add one saved depth operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:349
+msgid "Update Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:349
+msgid "Replace one saved depth operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:366
+msgid "Remove Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:366
+msgid "Remove one saved depth operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:385
+msgid "Move Depth Operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:385
+msgid "Move one saved depth operation"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:404
+msgid "Clear Depth Operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:404
+msgid "Clear saved depth operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:414
+msgid "Apply Depth Operations"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:414
+msgid "Bake saved depth operations into per-vertex depths"
 msgstr ""
 
 #: source/nijigenerate/commands/inspector/apply_node.d:37
@@ -3440,39 +3613,57 @@ msgstr ""
 msgid "Set the current parameter value as starting keyframe"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/animedit.d:13
+#: source/nijigenerate/commands/parameter/animedit.d:60
 msgid "Animation: Add Keyframe"
 msgstr ""
 
-#: source/nijigenerate/commands/parameter/animedit.d:14
+#: source/nijigenerate/commands/parameter/animedit.d:61
 msgid ""
 "Add a keyframe for the selected parameter in the active animation. Requires "
 "Animation Edit mode and an active animation."
 msgstr ""
 
-#: source/nijigenerate/commands/vertex/define_mesh.d:78
+#: source/nijigenerate/commands/parameter/animedit.d:111
+msgid "Animation: Copy Keyframe"
+msgstr ""
+
+#: source/nijigenerate/commands/parameter/animedit.d:112
+msgid "Copy the selected parameter's keyframe at the current animation frame."
+msgstr ""
+
+#: source/nijigenerate/commands/parameter/animedit.d:137
+msgid "Animation: Paste Keyframe"
+msgstr ""
+
+#: source/nijigenerate/commands/parameter/animedit.d:138
+msgid ""
+"Paste copied animation keyframe values to the selected parameter at the "
+"current animation frame."
+msgstr ""
+
+#: source/nijigenerate/commands/vertex/define_mesh.d:79
 msgid "Define Mesh"
 msgstr ""
 
-#: source/nijigenerate/commands/vertex/define_mesh.d:78
+#: source/nijigenerate/commands/vertex/define_mesh.d:79
 msgid "Apply a mesh defined by vertices and indices to selected nodes."
 msgstr ""
 
-#: source/nijigenerate/commands/vertex/define_mesh.d:150
+#: source/nijigenerate/commands/vertex/define_mesh.d:151
 msgid "Define Vertices"
 msgstr ""
 
-#: source/nijigenerate/commands/vertex/define_mesh.d:150
+#: source/nijigenerate/commands/vertex/define_mesh.d:151
 msgid ""
 "Apply control vertices to selected Deformable nodes. Does not define "
 "triangle topology."
 msgstr ""
 
-#: source/nijigenerate/commands/vertex/define_mesh.d:196
+#: source/nijigenerate/commands/vertex/define_mesh.d:197
 msgid "Define Grid"
 msgstr ""
 
-#: source/nijigenerate/commands/vertex/define_mesh.d:196
+#: source/nijigenerate/commands/vertex/define_mesh.d:197
 msgid ""
 "Apply a rectangular grid defined by X/Y axes to selected GridDeformer nodes."
 msgstr ""
@@ -3755,7 +3946,7 @@ msgid "Redo previously undone action"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/edit.d:34
-#: source/nijigenerate/windows/settings.d:444
+#: source/nijigenerate/windows/settings.d:459
 msgid "Settings"
 msgstr ""
 
@@ -3764,7 +3955,7 @@ msgid "Show settings window"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/edit.d:45
-#: source/nijigenerate/windows/command_browser.d:737
+#: source/nijigenerate/windows/command_browser.d:860
 msgid "Command Browser"
 msgstr ""
 
@@ -3800,7 +3991,7 @@ msgstr ""
 #: source/nijigenerate/windows/imgexport.d:123
 #: source/nijigenerate/windows/parameditor.d:271
 #: source/nijigenerate/windows/flipconfig.d:634
-#: source/nijigenerate/windows/automeshbatch.d:414
+#: source/nijigenerate/windows/automeshbatch.d:468
 #: source/nijigenerate/windows/editanim.d:121
 msgid "Save"
 msgstr ""
@@ -4223,11 +4414,21 @@ msgstr ""
 msgid "No animations are defined for this model, please add an animation."
 msgstr ""
 
-#: source/nijigenerate/windows/paramsplit.d:49
+#: source/nijigenerate/windows/paramsplit.d:83
+#, c-format, d-format
+msgid "Split parameter %s"
+msgstr ""
+
+#: source/nijigenerate/windows/paramsplit.d:87
+#, c-format, d-format
+msgid "Parameter %s split was cancelled"
+msgstr ""
+
+#: source/nijigenerate/windows/paramsplit.d:99
 msgid " (Split)"
 msgstr ""
 
-#: source/nijigenerate/windows/paramsplit.d:183
+#: source/nijigenerate/windows/paramsplit.d:267
 msgid "Split Parameter"
 msgstr ""
 
@@ -4255,159 +4456,159 @@ msgstr ""
 msgid "Flip Pairing"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:505
+#: source/nijigenerate/windows/command_browser.d:601
 msgid "Description"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:506
-#: source/nijigenerate/windows/command_browser.d:653
+#: source/nijigenerate/windows/command_browser.d:602
+#: source/nijigenerate/windows/command_browser.d:776
 msgid "Value"
 msgstr ""
 
 #. Context override rows (inline with inputs)
-#: source/nijigenerate/windows/command_browser.d:587
+#: source/nijigenerate/windows/command_browser.d:710
 msgid "Select nodes (optional)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:589
+#: source/nijigenerate/windows/command_browser.d:712
 msgid "Select parameters (optional)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:591
+#: source/nijigenerate/windows/command_browser.d:714
 msgid "Select armed parameters (optional)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:593
+#: source/nijigenerate/windows/command_browser.d:716
 msgid "Select bindings (optional)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:595
+#: source/nijigenerate/windows/command_browser.d:718
 msgid "Key point (pick via controller), optional"
 msgstr ""
 
 #. Current label
-#: source/nijigenerate/windows/command_browser.d:604
-#: source/nijigenerate/windows/command_browser.d:1064
-#: source/nijigenerate/windows/command_browser.d:1065
-#: source/nijigenerate/windows/command_browser.d:1066
+#: source/nijigenerate/windows/command_browser.d:727
+#: source/nijigenerate/windows/command_browser.d:1213
+#: source/nijigenerate/windows/command_browser.d:1214
+#: source/nijigenerate/windows/command_browser.d:1215
 msgid "- (none) -"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:611
+#: source/nijigenerate/windows/command_browser.d:734
 msgid "No Parameter selected"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:640
+#: source/nijigenerate/windows/command_browser.d:763
 msgid "Click on controller to pick keypoint."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:650
+#: source/nijigenerate/windows/command_browser.d:773
 msgid "Field"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:652
+#: source/nijigenerate/windows/command_browser.d:775
 msgid "Meaning"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:655
+#: source/nijigenerate/windows/command_browser.d:778
 msgid "Declared return type"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:656
+#: source/nijigenerate/windows/command_browser.d:779
 msgid "True on success, false on failure."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:657
+#: source/nijigenerate/windows/command_browser.d:780
 msgid "Optional user-facing message."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:659
+#: source/nijigenerate/windows/command_browser.d:782
 msgid "Resource element type"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:661
+#: source/nijigenerate/windows/command_browser.d:784
 msgid "Created/Deleted/Loaded (hint)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:669
+#: source/nijigenerate/windows/command_browser.d:792
 msgid "Resources created (may be empty)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:679
+#: source/nijigenerate/windows/command_browser.d:802
 msgid "Resources deleted (may be empty)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:689
+#: source/nijigenerate/windows/command_browser.d:812
 msgid "Resources loaded (may be empty)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:698
+#: source/nijigenerate/windows/command_browser.d:821
 msgid "Wrapped ExCommand result type"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:706
+#: source/nijigenerate/windows/command_browser.d:829
 msgid "Context key"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:708
+#: source/nijigenerate/windows/command_browser.d:831
 msgid "Notes"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:713
+#: source/nijigenerate/windows/command_browser.d:836
 msgid "Optional. Parameter UUIDs. Used by many commands."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:717
+#: source/nijigenerate/windows/command_browser.d:840
 msgid "Optional. Parameters to arm before execution."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:721
+#: source/nijigenerate/windows/command_browser.d:844
 msgid "Optional. Node UUIDs. Used by inspector/node commands."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:725
+#: source/nijigenerate/windows/command_browser.d:848
 msgid "Optional. Key point index (x,y)."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:728
+#: source/nijigenerate/windows/command_browser.d:851
 msgid "(per-command)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:729
+#: source/nijigenerate/windows/command_browser.d:852
 msgid ""
 "Requirements depend on each command's runnable/context check; not declared "
 "statically."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:800
+#: source/nijigenerate/windows/command_browser.d:923
 msgid "Search"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:804
+#: source/nijigenerate/windows/command_browser.d:927
 msgid "Refresh"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:852
+#: source/nijigenerate/windows/command_browser.d:975
 msgid "No commands match the filter."
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:861
+#: source/nijigenerate/windows/command_browser.d:984
 msgid "Inputs (arguments + optional context)"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:864
+#: source/nijigenerate/windows/command_browser.d:987
 msgid "Run"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:865
+#: source/nijigenerate/windows/command_browser.d:988
 msgid "Run Command"
 msgstr ""
 
-#: source/nijigenerate/windows/command_browser.d:1005
+#: source/nijigenerate/windows/command_browser.d:1139
 msgid "Output (last run)"
 msgstr ""
 
-#: source/nijigenerate/windows/automeshbatch.d:367
+#: source/nijigenerate/windows/automeshbatch.d:410
 msgid "Run batch"
 msgstr ""
 
@@ -4445,7 +4646,7 @@ msgid "UI Scale"
 msgstr ""
 
 #: source/nijigenerate/windows/welcome.d:192
-#: source/nijigenerate/windows/settings.d:409
+#: source/nijigenerate/windows/settings.d:424
 msgid "nijigenerate needs to be restarted for some changes to take effect."
 msgstr ""
 
@@ -4609,7 +4810,7 @@ msgid "File Handling"
 msgstr ""
 
 #: source/nijigenerate/windows/settings.d:123
-#: source/nijigenerate/windows/settings.d:627
+#: source/nijigenerate/windows/settings.d:642
 msgid "Shortcuts"
 msgstr ""
 
@@ -4744,86 +4945,93 @@ msgstr ""
 msgid "Port"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:355
+#: source/nijigenerate/windows/settings.d:365
+msgid ""
+"Warning: MCP server host is not local. Others may connect to your "
+"nijigenerate. Use only on a trusted network and ensure proper firewall/"
+"network protections."
+msgstr ""
+
+#: source/nijigenerate/windows/settings.d:370
 msgid "Changes will apply when you click Done."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:357
+#: source/nijigenerate/windows/settings.d:372
 msgid "Enabled authorization."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:361
+#: source/nijigenerate/windows/settings.d:376
 msgid "Server disabled. Click Done to apply."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:366
+#: source/nijigenerate/windows/settings.d:381
 msgid "Coding Agent (ACP)"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:375
+#: source/nijigenerate/windows/settings.d:390
 msgid "Command"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:387
+#: source/nijigenerate/windows/settings.d:402
 msgid "Working Dir (optional)"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:392
+#: source/nijigenerate/windows/settings.d:407
 msgid "Command line is saved immediately."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:396
+#: source/nijigenerate/windows/settings.d:411
 #: source/nijigenerate/windows/inpexport.d:344
 msgid "No settings for this category."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:417
+#: source/nijigenerate/windows/settings.d:432
 msgid "Done"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:495
+#: source/nijigenerate/windows/settings.d:510
 msgid "Action"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:496
+#: source/nijigenerate/windows/settings.d:511
 msgid "Shortcut"
 msgstr ""
 
 #. Live preview while capturing
-#: source/nijigenerate/windows/settings.d:524
+#: source/nijigenerate/windows/settings.d:539
 msgid "Press keys..."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:526
+#: source/nijigenerate/windows/settings.d:541
 msgid "<none>"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:570
+#: source/nijigenerate/windows/settings.d:585
 msgid "Capturing shortcut..."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:572
+#: source/nijigenerate/windows/settings.d:587
 msgid "Repeat"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:628
+#: source/nijigenerate/windows/settings.d:643
 msgid ""
 "Assign shortcuts to commands. Click Set and press keys. Use Clear to remove "
 "a binding."
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:633
+#: source/nijigenerate/windows/settings.d:648
 msgid "Swap Command and Control"
 msgstr ""
 
-#: source/nijigenerate/windows/settings.d:637
+#: source/nijigenerate/windows/settings.d:652
 msgid ""
 "When enabled, Command () and Control () are treated as swapped for "
 "shortcuts."
 msgstr ""
 
 #. Filter input
-#: source/nijigenerate/windows/settings.d:648
+#: source/nijigenerate/windows/settings.d:663
 msgid "Filter actions by name:"
 msgstr ""
 
@@ -5146,11 +5354,11 @@ msgstr ""
 msgid ""
 msgstr ""
 
-#: source/app.d:130
+#: source/app.d:161
 msgid "Warning!"
 msgstr ""
 
-#: source/app.d:131
+#: source/app.d:162
 msgid ""
 "You're running a nightly build of nijigenerate!\n"
 "nijigenerate may crash unexpectedly and you will likely encounter bugs.\n"
