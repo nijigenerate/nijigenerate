@@ -59,7 +59,6 @@ version(Windows) {
     pragma(lib, "user32.lib");
     pragma(lib, "shell32.lib");
     pragma(lib, "dbghelp.lib");
-    import core.sys.windows.winuser : MessageBoxW;
     import std.utf : toUTF16z, toUTF8;
     import std.string : fromStringz;
 
@@ -86,6 +85,8 @@ version(Windows) {
     private enum DWORD FILE_SHARE_READ = 0x00000001;
     private enum DWORD CREATE_ALWAYS = 2;
     private enum DWORD FILE_ATTRIBUTE_NORMAL = 0x00000080;
+    private enum uint MB_OK = 0x00000000;
+    private enum uint MB_ICONERROR = 0x00000010;
     private enum BOOL FALSE = 0;
     private enum LONG EXCEPTION_EXECUTE_HANDLER = 1;
 
@@ -131,6 +132,7 @@ version(Windows) {
         BOOL MiniDumpWriteDump(HANDLE hProcess, DWORD processId, HANDLE hFile, MINIDUMP_TYPE dumpType,
             MINIDUMP_EXCEPTION_INFORMATION* exceptionParam, void* userStreamParam,
             void* callbackParam) nothrow @nogc;
+        int MessageBoxW(void* hWnd, const(wchar)* lpText, const(wchar)* lpCaption, uint uType) nothrow @nogc;
     }
 
     __gshared wchar[nativeCrashPathMax] nativeCrashDumpPathW;
@@ -192,6 +194,15 @@ version(Windows) {
             FILE_ATTRIBUTE_NORMAL, null);
     }
 
+    private void notifyNativeCrashUser() nothrow @nogc {
+        enum title = "nijigenerate Crashdump"w;
+        enum message =
+            "The application has unexpectedly crashed.\n\n"w ~
+            "Crash dump files were written to your desktop.\n"w ~
+            "Please attach both the nijigenerate-native-crashdump text file and the .dmp file when filing an issue."w;
+        MessageBoxW(null, message.ptr, title.ptr, MB_OK | MB_ICONERROR);
+    }
+
     private extern(Windows) LONG nativeCrashExceptionHandler(EXCEPTION_POINTERS* exceptionInfo) nothrow @nogc {
         if (nativeCrashHandlerActive)
             return EXCEPTION_EXECUTE_HANDLER;
@@ -241,6 +252,7 @@ version(Windows) {
 
         if (validNativeHandle(dumpFile)) CloseHandle(dumpFile);
         if (validNativeHandle(textFile)) CloseHandle(textFile);
+        notifyNativeCrashUser();
         return EXCEPTION_EXECUTE_HANDLER;
     }
 }
