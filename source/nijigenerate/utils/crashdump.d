@@ -273,7 +273,12 @@ string getCrashDumpDir() {
 
 string genCrashDumpPath(string filename) {
     import std.datetime;
-    return buildPath(getCrashDumpDir(), filename ~ "-" ~ Clock.currTime.toISOString() ~ ".txt");
+    auto timestamp = Clock.currTime.toISOString();
+    version(Windows) {
+        import std.string : tr;
+        timestamp = timestamp.tr(`<>:"/\|?*`, "---------");
+    }
+    return buildPath(getCrashDumpDir(), filename ~ "-" ~ timestamp ~ ".txt");
 }
 
 version(Posix) {
