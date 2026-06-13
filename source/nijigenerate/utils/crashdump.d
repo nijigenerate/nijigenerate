@@ -58,13 +58,13 @@ string genCrashDump(T...)(Throwable t, T state) {
 version(Windows) {
     pragma(lib, "user32.lib");
     pragma(lib, "shell32.lib");
-    import core.sys.windows.winuser : MessageBoxW;
+    pragma(lib, "dbghelp.lib");
     import std.utf : toUTF16z, toUTF8;
     import std.string : fromStringz;
 
     private string getDesktopDir() {
-        import core.sys.windows.windows;
-        import core.sys.windows.shlobj;
+        import core.sys.windows.windows : HWND_DESKTOP, MAX_PATH;
+        import core.sys.windows.shlobj : CSIDL_DESKTOP, SHGetSpecialFolderPath;
         wstring desktopDir = new wstring(MAX_PATH);
         SHGetSpecialFolderPath(HWND_DESKTOP, cast(wchar*)desktopDir.ptr, CSIDL_DESKTOP, FALSE);
         return (cast(wstring)fromStringz!wchar(desktopDir.ptr)).toUTF8;
@@ -72,6 +72,188 @@ version(Windows) {
 
     private void ShowMessageBox(string message, string title) {
         MessageBoxW(null, toUTF16z(message), toUTF16z(title), 0);
+    }
+
+    private enum size_t nativeCrashPathMax = 4096;
+    private alias DWORD = uint;
+    private alias BOOL = int;
+    private alias LONG = int;
+    private alias HANDLE = void*;
+    private alias MINIDUMP_TYPE = int;
+
+    private enum DWORD GENERIC_WRITE = 0x40000000;
+    private enum DWORD FILE_SHARE_READ = 0x00000001;
+    private enum DWORD CREATE_ALWAYS = 2;
+    private enum DWORD FILE_ATTRIBUTE_NORMAL = 0x00000080;
+    private enum uint MB_OK = 0x00000000;
+    private enum uint MB_ICONERROR = 0x00000010;
+    private enum BOOL FALSE = 0;
+    private enum LONG EXCEPTION_EXECUTE_HANDLER = 1;
+
+    private struct EXCEPTION_RECORD {
+        DWORD ExceptionCode;
+        DWORD ExceptionFlags;
+        EXCEPTION_RECORD* ExceptionRecord;
+        void* ExceptionAddress;
+        DWORD NumberParameters;
+        size_t[15] ExceptionInformation;
+    }
+
+    private struct EXCEPTION_POINTERS {
+        EXCEPTION_RECORD* ExceptionRecord;
+        void* ContextRecord;
+    }
+
+    private enum MINIDUMP_TYPE MiniDumpNormal = 0x00000000;
+    private enum MINIDUMP_TYPE MiniDumpWithDataSegs = 0x00000001;
+    private enum MINIDUMP_TYPE MiniDumpWithHandleData = 0x00000004;
+    private enum MINIDUMP_TYPE MiniDumpWithIndirectlyReferencedMemory = 0x00000040;
+    private enum MINIDUMP_TYPE MiniDumpWithThreadInfo = 0x00001000;
+
+    private struct MINIDUMP_EXCEPTION_INFORMATION {
+        DWORD ThreadId;
+        EXCEPTION_POINTERS* ExceptionPointers;
+        BOOL ClientPointers;
+    }
+
+    private alias TopLevelExceptionFilter = extern(Windows) LONG function(EXCEPTION_POINTERS*) nothrow @nogc;
+
+    private extern(Windows) {
+        HANDLE CreateFileW(const(wchar)* lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode,
+            void* lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes,
+            HANDLE hTemplateFile) nothrow @nogc;
+        BOOL WriteFile(HANDLE hFile, const(void)* lpBuffer, DWORD nNumberOfBytesToWrite,
+            DWORD* lpNumberOfBytesWritten, void* lpOverlapped) nothrow @nogc;
+        BOOL CloseHandle(HANDLE hObject) nothrow @nogc;
+        HANDLE GetCurrentProcess() nothrow @nogc;
+        DWORD GetCurrentProcessId() nothrow @nogc;
+        DWORD GetCurrentThreadId() nothrow @nogc;
+        TopLevelExceptionFilter SetUnhandledExceptionFilter(TopLevelExceptionFilter lpTopLevelExceptionFilter) nothrow @nogc;
+        BOOL MiniDumpWriteDump(HANDLE hProcess, DWORD processId, HANDLE hFile, MINIDUMP_TYPE dumpType,
+            MINIDUMP_EXCEPTION_INFORMATION* exceptionParam, void* userStreamParam,
+            void* callbackParam) nothrow @nogc;
+        int MessageBoxW(void* hWnd, const(wchar)* lpText, const(wchar)* lpCaption, uint uType) nothrow @nogc;
+    }
+
+    __gshared wchar[nativeCrashPathMax] nativeCrashDumpPathW;
+    __gshared size_t nativeCrashDumpPathWLen;
+    __gshared wchar[nativeCrashPathMax] nativeCrashMiniDumpPathW;
+    __gshared size_t nativeCrashMiniDumpPathWLen;
+    __gshared int nativeCrashHandlerActive;
+
+    private void copyNativeCrashPath(ref wchar[nativeCrashPathMax] target, ref size_t targetLen, string path) {
+        import std.utf : toUTF16;
+        auto encoded = path.toUTF16;
+        auto n = encoded.length < nativeCrashPathMax - 1 ? encoded.length : nativeCrashPathMax - 1;
+        target[0 .. n] = encoded[0 .. n];
+        target[n] = 0;
+        targetLen = n;
+    }
+
+    private bool validNativeHandle(HANDLE handle) nothrow @nogc {
+        return handle !is null && handle != cast(HANDLE)size_t.max;
+    }
+
+    private void writeAll(HANDLE file, const(char)[] text) nothrow @nogc {
+        if (!validNativeHandle(file) || text.length == 0) return;
+        size_t pos;
+        while (pos < text.length) {
+            auto remaining = text.length - pos;
+            auto chunk = remaining < uint.max ? cast(DWORD)remaining : uint.max;
+            DWORD written;
+            if (!WriteFile(file, text.ptr + pos, chunk, &written, null) || written == 0)
+                return;
+            pos += written;
+        }
+    }
+
+    private void writeInt(HANDLE file, ulong value) nothrow @nogc {
+        char[32] buf;
+        size_t pos = buf.length;
+        do {
+            buf[--pos] = cast(char)('0' + (value % 10));
+            value /= 10;
+        } while (value);
+        writeAll(file, buf[pos .. $]);
+    }
+
+    private void writeHex(HANDLE file, size_t value) nothrow @nogc {
+        enum digits = "0123456789ABCDEF";
+        char[2 + size_t.sizeof * 2] buf;
+        buf[0] = '0';
+        buf[1] = 'x';
+        foreach (i; 0 .. size_t.sizeof * 2) {
+            auto shift = cast(uint)((size_t.sizeof * 2 - 1 - i) * 4);
+            buf[2 + i] = digits[(value >> shift) & 0xF];
+        }
+        writeAll(file, buf[]);
+    }
+
+    private HANDLE createCrashFile(const(wchar)* path) nothrow @nogc {
+        return CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, null, CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL, null);
+    }
+
+    private void notifyNativeCrashUser() nothrow @nogc {
+        enum title = "nijigenerate Crashdump"w;
+        enum message =
+            "The application has unexpectedly crashed.\n\n"w ~
+            "Crash dump files were written to your desktop.\n"w ~
+            "Please attach both the nijigenerate-native-crashdump text file and the .dmp file when filing an issue."w;
+        MessageBoxW(null, message.ptr, title.ptr, MB_OK | MB_ICONERROR);
+    }
+
+    private extern(Windows) LONG nativeCrashExceptionHandler(EXCEPTION_POINTERS* exceptionInfo) nothrow @nogc {
+        if (nativeCrashHandlerActive)
+            return EXCEPTION_EXECUTE_HANDLER;
+        nativeCrashHandlerActive = 1;
+
+        HANDLE textFile = nativeCrashDumpPathWLen > 0 ? createCrashFile(nativeCrashDumpPathW.ptr) : null;
+        HANDLE dumpFile = nativeCrashMiniDumpPathWLen > 0 ? createCrashFile(nativeCrashMiniDumpPathW.ptr) : null;
+
+        if (validNativeHandle(textFile)) {
+            writeAll(textFile, "=== nijigenerate native crashdump ===\r\n");
+            writeAll(textFile, "pid: ");
+            writeInt(textFile, GetCurrentProcessId());
+            writeAll(textFile, "\r\nthread: ");
+            writeInt(textFile, GetCurrentThreadId());
+            if (exceptionInfo !is null && exceptionInfo.ExceptionRecord !is null) {
+                writeAll(textFile, "\r\nexception code: ");
+                writeHex(textFile, exceptionInfo.ExceptionRecord.ExceptionCode);
+                writeAll(textFile, "\r\nexception address: ");
+                writeHex(textFile, cast(size_t)exceptionInfo.ExceptionRecord.ExceptionAddress);
+            }
+            writeAll(textFile, "\r\nminidump: ");
+            if (nativeCrashMiniDumpPathWLen > 0) {
+                foreach (ch; nativeCrashMiniDumpPathW[0 .. nativeCrashMiniDumpPathWLen]) {
+                    char c = ch < 128 ? cast(char)ch : '?';
+                    writeAll(textFile, (&c)[0 .. 1]);
+                }
+            } else {
+                writeAll(textFile, "(unavailable)");
+            }
+            writeAll(textFile, "\r\n\r\nAttach both this text file and the .dmp file when filing an issue.\r\n");
+        }
+
+        if (validNativeHandle(dumpFile)) {
+            MINIDUMP_EXCEPTION_INFORMATION dumpException;
+            dumpException.ThreadId = GetCurrentThreadId();
+            dumpException.ExceptionPointers = exceptionInfo;
+            dumpException.ClientPointers = FALSE;
+            auto dumpType = cast(MINIDUMP_TYPE)(
+                MiniDumpNormal |
+                MiniDumpWithDataSegs |
+                MiniDumpWithHandleData |
+                MiniDumpWithIndirectlyReferencedMemory |
+                MiniDumpWithThreadInfo);
+            MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dumpFile, dumpType,
+                &dumpException, null, null);
+        }
+
+        if (validNativeHandle(dumpFile)) CloseHandle(dumpFile);
+        if (validNativeHandle(textFile)) CloseHandle(textFile);
+        notifyNativeCrashUser();
+        return EXCEPTION_EXECUTE_HANDLER;
     }
 }
 
@@ -103,7 +285,12 @@ string getCrashDumpDir() {
 
 string genCrashDumpPath(string filename) {
     import std.datetime;
-    return buildPath(getCrashDumpDir(), filename ~ "-" ~ Clock.currTime.toISOString() ~ ".txt");
+    auto timestamp = Clock.currTime.toISOString();
+    version(Windows) {
+        import std.string : tr;
+        timestamp = timestamp.tr(`<>:"/\|?*`, "---------");
+    }
+    return buildPath(getCrashDumpDir(), filename ~ "-" ~ timestamp ~ ".txt");
 }
 
 version(Posix) {
@@ -231,6 +418,17 @@ version(Posix) {
         installNativeCrashDumpThreadHandler();
         installNativeCrashHandlerFor(SIGSEGV);
     }
+} else version(Windows) {
+    void installNativeCrashDumpHandler() {
+        mkdirCrashDumpDir();
+        auto textPath = genCrashDumpPath("nijigenerate-native-crashdump");
+        auto dumpPath = textPath.setExtension("dmp");
+        copyNativeCrashPath(nativeCrashDumpPathW, nativeCrashDumpPathWLen, textPath);
+        copyNativeCrashPath(nativeCrashMiniDumpPathW, nativeCrashMiniDumpPathWLen, dumpPath);
+        SetUnhandledExceptionFilter(&nativeCrashExceptionHandler);
+    }
+
+    void installNativeCrashDumpThreadHandler() {}
 } else {
     void installNativeCrashDumpHandler() {}
     void installNativeCrashDumpThreadHandler() {}
