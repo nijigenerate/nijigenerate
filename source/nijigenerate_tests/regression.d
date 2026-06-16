@@ -136,6 +136,7 @@ private immutable Scenario[] scenarios = [
     Scenario("project.texture-maintenance", "Project/File", "Premultiply texture, rebleed texture, regenerate mipmaps, and atlas maintenance commands", automated, "Covers texture maintenance commands on a generated texture-backed part and drains rebleed task queue."),
     Scenario("project.repair-maintenance", "Project/File", "Attempt repair, regenerate node IDs, fake layer names, and corrupted-project recovery commands", automated, "Covers repair command entrypoints, fake layer-path generation, and UUID regeneration on a generated puppet."),
     Scenario("io.serialization-inx", "Project/File", "Native INX save/load serialization of nodes, parameters, bindings, mesh, and metadata", automated, "Covers generated native INX round-trip for node transforms, mesh data, parameters, and value bindings."),
+    Scenario("io.camera-viewport-roundtrip", "Project/File", "Camera viewport survives native INX save/load", automated, "Covers Camera viewport persistence through child-node save hooks."),
     Scenario("io.composite-import-export-roundtrip", "Project/File", "Image import, native save, INP export/import, and binding reconnection in one workflow", automated, "Covers cross-format IO workflow instead of isolated codec checks."),
     Scenario("io.serialization-textures", "Project/File", "Native project texture file paths, texture slots, atlas references, and missing-texture recovery", automated, "Covers generated texture-backed INX save/load and restored Part texture slot dimensions."),
     Scenario("io.serialization-inp", "Project/File", "INP import/export serialization including external compatibility and editor-only pruning", automated, "Covered in part by project.import-inp and project.export-inp."),
@@ -1604,6 +1605,39 @@ private void testNativeSavePathOverwriteAndReload() {
     require((new OpenFileCommand(savePath)).run(ctx).succeeded, "reload overwritten native save should succeed");
     require(findDirectNode(incActivePuppet(), "first-saved-node") !is null, "reload should preserve first saved node");
     require(findDirectNode(incActivePuppet(), "second-saved-node") !is null, "reload should include overwritten second node");
+}
+
+private void testProjectCameraViewportRoundTrip() {
+    resetCase();
+
+    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-camera-viewport");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+
+    auto saveBase = buildPath(fixtureDir, "camera-viewport");
+    auto savePath = saveBase ~ ".inx";
+
+    auto camera = new ExCamera(incActivePuppet().root);
+    camera.name = "camera-viewport-roundtrip";
+    camera.setViewport(vec2(1280, 720));
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    require((new SaveFileCommand(saveBase)).run(ctx).succeeded, "SaveFileCommand should save camera viewport fixture");
+    require(exists(savePath) && isFile(savePath), "camera viewport fixture should exist");
+
+    incNewProject();
+    require(findNodeRecursive(incActivePuppet().root, "camera-viewport-roundtrip") is null, "new project should clear camera viewport fixture");
+
+    require((new OpenFileCommand(savePath)).run(ctx).succeeded, "OpenFileCommand should load camera viewport fixture");
+    auto loadedCamera = cast(ExCamera)findNodeRecursive(incActivePuppet().root, "camera-viewport-roundtrip");
+    require(loadedCamera !is null, "INX round-trip should restore Camera node");
+    require(nearVec2(loadedCamera.getViewport(), vec2(1280, 720)), "INX round-trip should restore Camera viewport");
 }
 
 private void testProjectINXSerializationRoundTrip() {
@@ -9506,6 +9540,9 @@ private bool runAutomatedScenario(string id) {
         case "io.serialization-inx":
         case "io.serialization-textures":
             runCase("project-inx-serialization-roundtrip", &testProjectINXSerializationRoundTrip);
+            return true;
+        case "io.camera-viewport-roundtrip":
+            runCase("project-camera-viewport-roundtrip", &testProjectCameraViewportRoundTrip);
             return true;
         case "io.save-native":
             runCase("native-save-path-overwrite-reload", &testNativeSavePathOverwriteAndReload);
