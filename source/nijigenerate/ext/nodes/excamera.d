@@ -23,10 +23,12 @@ protected:
     vec2 viewport = vec2(1920, 1080);
 
     override
-    void serializeSelf(ref InochiSerializer serializer) {
-        super.serializeSelf(serializer);
-        serializer.putKey("viewport");
-        serializer.serializeValue(viewport.vector);
+    void serializeSelfImpl(ref InochiSerializer serializer, bool recursive = true, SerializeNodeFlags flags = SerializeNodeFlags.All) {
+        super.serializeSelfImpl(serializer, recursive, flags);
+        if (flags & SerializeNodeFlags.State) {
+            serializer.putKey("viewport");
+            serializer.serializeValue(viewport.vector);
+        }
     }
 
     override
