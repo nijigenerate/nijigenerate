@@ -79,7 +79,7 @@ import std.path : buildPath, relativePath, setExtension;
 import std.json : JSONType, JSONValue;
 import std.regex : regex, replaceAll;
 import std.stdio : stderr, writeln;
-import std.string : split, splitLines, strip, stripLeft;
+import std.string : replace, split, splitLines, strip, stripLeft;
 import std.typecons : tuple;
 
 private struct Scenario {
@@ -8416,6 +8416,7 @@ private void testCoverageCompositeWorkflowInventory() {
 
 private string normalizeRegressionSourcePath(string path, string root) {
     auto rel = relativePath(path, root);
+    rel = rel.replace("\\", "/");
     auto sourcePrefix = "source/nijigenerate/";
     auto sourcePrefixIndex = rel.countUntil(sourcePrefix);
     if (sourcePrefixIndex >= 0)
@@ -8558,6 +8559,8 @@ private string scenarioPrefixForSourceModule(string rel) {
         return "mesh";
     if (rel.startsWith("viewport/common/mesh.d") || rel.startsWith("viewport/common/spline.d"))
         return "mesh";
+    if (rel.startsWith("viewport/common/transformhandle.d"))
+        return "viewport";
     if (rel.startsWith("viewport/model/onionslice.d"))
         return "render";
     if (rel.startsWith("viewport/model/") || rel.startsWith("viewport/anim/") || rel.startsWith("viewport/base.d") ||
@@ -8788,6 +8791,11 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "panels/parameters.d|ctx.parameters =",
         "panels/viewport.d|camera.scale =",
         "viewport/base.d|camera.scale = vec2(incViewportZoom)",
+        "viewport/common/transformhandle.d|node.localTransform.scale = scale",
+        "viewport/common/transformhandle.d|camera.localTransform.scale = vec2",
+        "viewport/common/transformhandle.d|child.localTransform.translation =",
+        "viewport/common/transformhandle.d|child.localTransform.rotation =",
+        "viewport/common/transformhandle.d|child.localTransform.scale =",
         "viewport/common/mesh.d|data.vertices = positions.dup",
         "viewport/common/mesheditor/operations/impl.d|deform.vertices = value",
         "viewport/common/mesheditor/operations/impl.d|node.transform.translation =",
