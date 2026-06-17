@@ -123,15 +123,18 @@ public:
         ensureActive(camera);
 
         auto oldScale = oldTransform.scale;
-        auto factor = vec2(
+        auto ratio = vec2(
             scale.x / nonZeroScale(oldScale.x),
             scale.y / nonZeroScale(oldScale.y)
         );
 
         camera.localTransform = oldTransform;
-        camera.localTransform.scale = vec2(scaleSign(scale.x), scaleSign(scale.y));
+        camera.localTransform.scale = vec2(
+            scaleSign(scale.x) * abs(oldScale.x),
+            scaleSign(scale.y) * abs(oldScale.y)
+        );
         camera.localTransform.update();
-        camera.setViewport(vec2(oldViewport.x * abs(factor.x), oldViewport.y * abs(factor.y)));
+        camera.setViewport(vec2(oldViewport.x * abs(ratio.x), oldViewport.y * abs(ratio.y)));
         camera.transformChanged();
 
         foreach (child; children) {

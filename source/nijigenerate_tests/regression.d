@@ -53,6 +53,7 @@ import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
 import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
+import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
@@ -2441,6 +2442,24 @@ private void testNodeTypeInspectorCommandsUndoRedo() {
     require(nearVec3(child.transform().translation, childWorldBefore.translation), "redo Camera resize should preserve child world translation");
     require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "redo Camera resize should preserve child world rotation");
     require(nearVec2(child.transform().scale, childWorldBefore.scale), "redo Camera resize should preserve child world scale");
+
+    camera.setViewport(vec2(320, 200));
+    camera.localTransform.scale = vec2(2, 0.5f);
+    camera.localTransform.update();
+    camera.transformChanged();
+    childWorldBefore = child.transform();
+
+    auto adapter = ngViewportTransformHandleAdapter(camera);
+    adapter.beginScale(camera);
+    adapter.applyScale(camera, vec2(2, 0.5f));
+    require(nearVec2(camera.getViewport(), vec2(320, 200)), "Camera handle resize should not change viewport without effective drag");
+    require(nearVec2(camera.localTransform.scale, vec2(2, 0.5f)), "Camera handle resize should preserve existing scale magnitude");
+    adapter.applyScale(camera, vec2(4, 1));
+    require(nearVec2(camera.getViewport(), vec2(640, 400)), "Camera handle resize should apply drag ratio to viewport");
+    require(nearVec2(camera.localTransform.scale, vec2(2, 0.5f)), "Camera handle resize should keep existing scale after viewport resize");
+    require(nearVec3(child.transform().translation, childWorldBefore.translation), "Camera handle resize should preserve child world translation");
+    require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "Camera handle resize should preserve child world rotation");
+    require(nearVec2(child.transform().scale, childWorldBefore.scale), "Camera handle resize should preserve child world scale");
 }
 
 private void testPartClippingMaskPropertiesUndoRedo() {
