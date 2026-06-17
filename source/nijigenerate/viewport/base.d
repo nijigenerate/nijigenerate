@@ -19,7 +19,7 @@ import nijigenerate.viewport.depth;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.anim;
-import nijigenerate.ext : ExCamera;
+import nijigenerate.viewport.common.transformhandle;
 import nijigenerate.viewport.common.mesheditor.brushstate;
 import nijigenerate.widgets.viewport;
 import nijigenerate.widgets.label;
@@ -487,59 +487,8 @@ void incViewportTransformHandle() {
         );
     }
 
-    bool selfMeshBounds(Node node, out vec4 result) {
-        if (auto drawable = cast(Drawable)node) {
-            if (drawable.vertices.length == 0) return false;
-
-            auto matrix = drawable.meshOverlayMatrix();
-            auto points = drawable.meshOverlayPoints();
-            if (points.length == 0) return false;
-
-            vec2 first = (matrix * vec4(points[0], 0, 1)).xy;
-            result = vec4(first.xyxy);
-            foreach (i; 1 .. points.length) {
-                vec2 point = (matrix * vec4(points[i], 0, 1)).xy;
-                result.x = min(result.x, point.x);
-                result.y = min(result.y, point.y);
-                result.z = max(result.z, point.x);
-                result.w = max(result.w, point.y);
-            }
-            return true;
-        }
-
-        if (auto deformable = cast(Deformable)node) {
-            auto vertices = deformable.vertices;
-            if (vertices.length == 0) return false;
-
-            auto matrix = deformable.getDynamicMatrix();
-            auto deformCount = deformable.deformation.length;
-            vec2 first = vertices[0].toVector();
-            if (deformCount > 0) first += deformable.deformation[0].toVector();
-            first = (matrix * vec4(first, 0, 1)).xy;
-            result = vec4(first.xyxy);
-
-            foreach (i; 1 .. vertices.length) {
-                vec2 point = vertices[i].toVector();
-                if (i < deformCount) point += deformable.deformation[i].toVector();
-                point = (matrix * vec4(point, 0, 1)).xy;
-                result.x = min(result.x, point.x);
-                result.y = min(result.y, point.y);
-                result.z = max(result.z, point.x);
-                result.w = max(result.w, point.y);
-            }
-            return true;
-        }
-
-        return false;
-    }
-
     vec4 handleBounds(Node node) {
-        vec4 result = node.getCombinedBounds();
-        vec4 ownBounds;
-        if (selfMeshBounds(node, ownBounds)) {
-            unionBounds(result, ownBounds);
-        }
-        return result;
+        return ngViewportTransformHandleAdapter(node).bounds(node);
     }
         
     vec4 totalBounds = handleBounds(incSelectedNodes[0]);
@@ -767,40 +716,11 @@ void incViewportTransformHandle() {
                     changeParameter(selectedNode, armedParam, "transform.s.y", index, newValueY);
                     selectedNode.notifyChange(selectedNode, NotifyReason.AttributeChanged);
                 } else {
-                    selectedNode.localTransform.scale.vector[0] = newValueX;
-                    selectedNode.localTransform.scale.vector[1] = newValueY;
-                    selectedNode.notifyChange(selectedNode, NotifyReason.AttributeChanged);
+                    ngViewportTransformHandleAdapter(selectedNode).applyScale(selectedNode, vec2(newValueX, newValueY));
                 }
             } else {
                 if (!armedParam) {
-                    if (auto cameraNode = cast(ExCamera)selectedNode) {
-                        if (cameraNode.localTransform.scale != prevValue) {
-                            Transform oldTransform = cameraNode.localTransform;
-                            oldTransform.scale = prevValue;
-                            oldTransform.update();
-                            vec2 oldViewport = cameraNode.getViewport();
-
-                            cameraNode.foldScaleIntoViewport();
-                            status.actions["CameraResize"] = new CameraResizeAction(
-                                cameraNode,
-                                oldTransform,
-                                oldViewport,
-                                cameraNode.localTransform,
-                                cameraNode.getViewport()
-                            );
-                        }
-                    } else {
-                        if (selectedNode.localTransform.scale.vector[0] != prevValue.x) {
-                            status.actions["X"] =
-                                new NodeValueChangeAction!(Node, float)("X", selectedNode, prevValue.x,
-                                    selectedNode.localTransform.scale.vector[0], &selectedNode.localTransform.scale.vector[0]);
-                        }
-                        if (selectedNode.localTransform.scale.vector[1] != prevValue.y) {
-                            status.actions["Y"] =
-                                new NodeValueChangeAction!(Node, float)("Y", selectedNode, prevValue.y,
-                                    selectedNode.localTransform.scale.vector[1], &selectedNode.localTransform.scale.vector[1]);
-                        }
-                    }
+                    ngViewportTransformHandleAdapter(selectedNode).endScale(selectedNode, prevValue, status.actions);
                     selectedNode.notifyChange(selectedNode, NotifyReason.AttributeChanged);
                 } 
                 if (incSelectedNodes.length > 1 && !groupingAction) {
@@ -839,8 +759,11 @@ void incViewportTransformHandle() {
                         b = cast(ValueParameterBinding)param.getBinding(selectedNode, "transform.s.y");
                         auto origY = (b !is null)? b.getValue(index) : 1;
                         incBeginDragOnHandle(btn, name, vec2(origX, origY));
-                    } else
-                        incBeginDragOnHandle(btn, name, vec2(selectedNode.localTransform.scale.vector[0], selectedNode.localTransform.scale.vector[1]));
+                    } else {
+                        auto adapter = ngViewportTransformHandleAdapter(selectedNode);
+                        adapter.beginScale(selectedNode);
+                        incBeginDragOnHandle(btn, name, adapter.scaleHandleValue(selectedNode));
+                    }
                 }
             }
         }

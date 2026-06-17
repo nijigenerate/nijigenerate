@@ -2391,21 +2391,56 @@ private void testNodeTypeInspectorCommandsUndoRedo() {
     require(nearVec2(camera.getViewport(), vec2(1280, 722)), "redo odd Camera viewport normalization should restore normalized even viewport");
 
     incActionClearHistory();
+    auto child = new Node(camera);
+    child.name = "camera-child-transform-target";
+    child.localTransform = Transform(vec3(10, -20, 0), vec3(0, 0, 0.1f), vec2(1.5f, 0.75f));
+    child.localTransform.update();
+    camera.transformChanged();
+    auto childWorldBefore = child.transform();
+    auto oldChildTransform = child.localTransform;
+
     auto oldTransform = camera.localTransform;
     auto oldViewport = camera.getViewport();
-    camera.localTransform.scale = vec2(0.501f, 2);
+    camera.localTransform.scale = vec2(-0.501f, 2);
     camera.localTransform.update();
+    auto cameraChildren = camera.children.dup;
+    Transform[uint] oldChildTransforms;
+    foreach (cameraChild; cameraChildren) {
+        oldChildTransforms[cameraChild.uuid] = cameraChild.localTransform;
+    }
     camera.foldScaleIntoViewport();
-    incActionPush(new CameraResizeAction(camera, oldTransform, oldViewport, camera.localTransform, camera.getViewport()));
+    Transform[uint] newChildTransforms;
+    foreach (cameraChild; cameraChildren) {
+        newChildTransforms[cameraChild.uuid] = cameraChild.localTransform;
+    }
+    incActionPush(new CameraResizeAction(
+        camera,
+        oldTransform,
+        oldViewport,
+        camera.localTransform,
+        camera.getViewport(),
+        cameraChildren,
+        oldChildTransforms,
+        newChildTransforms
+    ));
 
     require(nearVec2(camera.getViewport(), vec2(642, 1444)), "Camera resize should fold scale into viewport and normalize to even dimensions");
-    require(nearVec2(camera.localTransform.scale, vec2(1, 1)), "Camera resize should reset scale after folding into viewport");
+    require(nearVec2(camera.localTransform.scale, vec2(-1, 1)), "Camera resize should preserve scale sign after folding into viewport");
+    require(nearVec3(child.transform().translation, childWorldBefore.translation), "Camera resize should preserve child world translation");
+    require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "Camera resize should preserve child world rotation");
+    require(nearVec2(child.transform().scale, childWorldBefore.scale), "Camera resize should preserve child world scale");
     incActionUndo();
     require(nearVec2(camera.getViewport(), vec2(1280, 722)), "undo Camera resize should restore viewport");
     require(nearVec2(camera.localTransform.scale, oldTransform.scale), "undo Camera resize should restore transform scale");
+    require(nearVec3(child.localTransform.translation, oldChildTransform.translation), "undo Camera resize should restore child local translation");
+    require(nearVec3(child.localTransform.rotation, oldChildTransform.rotation), "undo Camera resize should restore child local rotation");
+    require(nearVec2(child.localTransform.scale, oldChildTransform.scale), "undo Camera resize should restore child local scale");
     incActionRedo();
     require(nearVec2(camera.getViewport(), vec2(642, 1444)), "redo Camera resize should restore folded even viewport");
-    require(nearVec2(camera.localTransform.scale, vec2(1, 1)), "redo Camera resize should restore normalized scale");
+    require(nearVec2(camera.localTransform.scale, vec2(-1, 1)), "redo Camera resize should restore folded scale sign");
+    require(nearVec3(child.transform().translation, childWorldBefore.translation), "redo Camera resize should preserve child world translation");
+    require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "redo Camera resize should preserve child world rotation");
+    require(nearVec2(child.transform().scale, childWorldBefore.scale), "redo Camera resize should preserve child world scale");
 }
 
 private void testPartClippingMaskPropertiesUndoRedo() {

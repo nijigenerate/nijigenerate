@@ -127,10 +127,12 @@ public:
         auto scale = localTransform.scale;
         if (scale.x == 1 && scale.y == 1) return;
 
-        setViewport(vec2(viewport.x * scale.x, viewport.y * scale.y));
-        localTransform.scale = vec2(1, 1);
+        auto childWorldTransforms = captureChildWorldTransforms();
+        setViewport(vec2(viewport.x * abs(scale.x), viewport.y * abs(scale.y)));
+        localTransform.scale = vec2(scaleSign(scale.x), scaleSign(scale.y));
         localTransform.update();
         transformChanged();
+        restoreChildWorldTransforms(childWorldTransforms);
     }
 
     private static vec2 normalizeViewport(vec2 value) {
@@ -145,6 +147,69 @@ public:
         if (rounded < 2) return 2;
         if (rounded % 2 != 0) rounded++;
         return cast(float)rounded;
+    }
+
+    private static float scaleSign(float value) {
+        return value < 0 ? -1.0f : 1.0f;
+    }
+
+    private Transform[uint] captureChildWorldTransforms() {
+        Transform[uint] result;
+        foreach (child; children) {
+            result[child.uuid] = child.transform();
+        }
+        return result;
+    }
+
+    private void restoreChildWorldTransforms(Transform[uint] childWorldTransforms) {
+        foreach (child; children) {
+            if (auto worldTransform = child.uuid in childWorldTransforms) {
+                restoreWorldTransformUnder(child, this, *worldTransform);
+                child.notifyChange(child, NotifyReason.AttributeChanged);
+                child.notifyChange(child, NotifyReason.Transformed);
+            }
+        }
+    }
+
+    private static float nonZeroScale(float value) {
+        return abs(value) < 0.0001f ? 1.0f : value;
+    }
+
+    private static Transform rootTransformFor(Node child) {
+        auto puppet = child.puppet();
+        if (puppet !is null && puppet.root !is null)
+            return puppet.root.localTransform;
+        return Transform(vec3(0, 0, 0));
+    }
+
+    private static void restoreWorldTransformUnder(Node child, Node parent, Transform worldTransform) {
+        Transform parentTransform = child.lockToRoot()
+            ? rootTransformFor(child)
+            : (parent is null ? Transform(vec3(0, 0, 0)) : parent.transform());
+
+        auto localWithOffsetTranslation = Node.getRelativePosition(parentTransform.matrix, worldTransform.matrix);
+        auto localWithOffsetRotation = worldTransform.rotation - parentTransform.rotation;
+        auto localWithOffsetScale = vec2(
+            worldTransform.scale.x / nonZeroScale(parentTransform.scale.x),
+            worldTransform.scale.y / nonZeroScale(parentTransform.scale.y)
+        );
+
+        child.localTransform.translation = localWithOffsetTranslation - vec3(
+            child.getValue("transform.t.x"),
+            child.getValue("transform.t.y"),
+            child.getValue("transform.t.z")
+        );
+        child.localTransform.rotation = localWithOffsetRotation - vec3(
+            child.getValue("transform.r.x"),
+            child.getValue("transform.r.y"),
+            child.getValue("transform.r.z")
+        );
+        child.localTransform.scale = vec2(
+            localWithOffsetScale.x / nonZeroScale(child.getValue("transform.s.x")),
+            localWithOffsetScale.y / nonZeroScale(child.getValue("transform.s.y"))
+        );
+        child.localTransform.update();
+        child.transformChanged();
     }
 
 }
