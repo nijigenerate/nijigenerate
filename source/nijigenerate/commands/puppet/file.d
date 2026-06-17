@@ -1068,7 +1068,7 @@ class ExportVideoCommand : ExCommand!(
         auto selectedCamera = ngResolveExportCamera(cameraName, cameraError);
         if (!selectedCamera) return CommandResult(false, cameraError);
         if ((cast(int)selectedCamera.getViewport().x) % 2 != 0 || (cast(int)selectedCamera.getViewport().y) % 2 != 0) {
-            return CommandResult(false, "Video export requires camera size to be divisible by 2");
+            return CommandResult(false, "Camera size must be divisible by 2");
         }
 
         auto animations = incActivePuppet().getAnimations();
