@@ -19,6 +19,7 @@ import nijigenerate.viewport.depth;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
 import nijigenerate.viewport.anim;
+import nijigenerate.ext : ExCamera;
 import nijigenerate.viewport.common.mesheditor.brushstate;
 import nijigenerate.widgets.viewport;
 import nijigenerate.widgets.label;
@@ -772,15 +773,33 @@ void incViewportTransformHandle() {
                 }
             } else {
                 if (!armedParam) {
-                    if (selectedNode.localTransform.scale.vector[0] != prevValue.x) {
-                        status.actions["X"] =
-                            new NodeValueChangeAction!(Node, float)("X", selectedNode, prevValue.x,
-                                selectedNode.localTransform.scale.vector[0], &selectedNode.localTransform.scale.vector[0]);
-                    }
-                    if (selectedNode.localTransform.scale.vector[1] != prevValue.y) {
-                        status.actions["Y"] = 
-                            new NodeValueChangeAction!(Node, float)("Y", selectedNode, prevValue.y,
-                                selectedNode.localTransform.scale.vector[1], &selectedNode.localTransform.scale.vector[1]);
+                    if (auto cameraNode = cast(ExCamera)selectedNode) {
+                        if (cameraNode.localTransform.scale != prevValue) {
+                            Transform oldTransform = cameraNode.localTransform;
+                            oldTransform.scale = prevValue;
+                            oldTransform.update();
+                            vec2 oldViewport = cameraNode.getViewport();
+
+                            cameraNode.foldScaleIntoViewport();
+                            status.actions["CameraResize"] = new CameraResizeAction(
+                                cameraNode,
+                                oldTransform,
+                                oldViewport,
+                                cameraNode.localTransform,
+                                cameraNode.getViewport()
+                            );
+                        }
+                    } else {
+                        if (selectedNode.localTransform.scale.vector[0] != prevValue.x) {
+                            status.actions["X"] =
+                                new NodeValueChangeAction!(Node, float)("X", selectedNode, prevValue.x,
+                                    selectedNode.localTransform.scale.vector[0], &selectedNode.localTransform.scale.vector[0]);
+                        }
+                        if (selectedNode.localTransform.scale.vector[1] != prevValue.y) {
+                            status.actions["Y"] =
+                                new NodeValueChangeAction!(Node, float)("Y", selectedNode, prevValue.y,
+                                    selectedNode.localTransform.scale.vector[1], &selectedNode.localTransform.scale.vector[1]);
+                        }
                     }
                     selectedNode.notifyChange(selectedNode, NotifyReason.AttributeChanged);
                 } 

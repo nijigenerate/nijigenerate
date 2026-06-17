@@ -16,6 +16,7 @@ import nijilive.fmt.serialize;
 //import std.stdio : writeln;
 import nijilive.math;
 import nijigenerate.core.dbg;
+import std.math : abs, isFinite, round;
 
 @TypeId("Camera")
 class ExCamera : Node {
@@ -37,6 +38,7 @@ protected:
         if (err) return err;
 
         if (!data["viewport"].isEmpty) data["viewport"].deserializeValue(viewport.vector);
+        viewport = normalizeViewport(viewport);
         return null;
     }
 
@@ -94,7 +96,7 @@ public:
     this(Node parent) { super(parent); }
     this(vec2 viewport) { 
         super();
-        this.viewport = viewport;
+        this.viewport = normalizeViewport(viewport);
     }
 
     /**
@@ -118,7 +120,31 @@ public:
     }
 
     void setViewport(vec2 value) {
-        viewport = value;
+        viewport = normalizeViewport(value);
+    }
+
+    void foldScaleIntoViewport() {
+        auto scale = localTransform.scale;
+        if (scale.x == 1 && scale.y == 1) return;
+
+        setViewport(vec2(viewport.x * scale.x, viewport.y * scale.y));
+        localTransform.scale = vec2(1, 1);
+        localTransform.update();
+        transformChanged();
+    }
+
+    private static vec2 normalizeViewport(vec2 value) {
+        return vec2(evenDimension(value.x), evenDimension(value.y));
+    }
+
+    private static float evenDimension(float value) {
+        float size = abs(value);
+        if (!isFinite(size)) return 2;
+
+        int rounded = cast(int)round(size);
+        if (rounded < 2) return 2;
+        if (rounded % 2 != 0) rounded++;
+        return cast(float)rounded;
     }
 
 }
@@ -131,7 +157,7 @@ bool incVerifyCameraSizeShowWarning(ref ExCamera selectedCamera) {
     import nijigenerate.widgets;
     import i18n;
     if (selectedCamera.getViewport().x % 2 != 0 || selectedCamera.getViewport().y % 2 != 0) {
-        incTextColored(ImVec4(1, 0, 0, 1), _("Warning: Camera size must be divisible by 2"));
+        incTextColored(ImVec4(1, 0, 0, 1), _("Warning: Video export requires camera size to be divisible by 2"));
         return true;
     }
     return false;

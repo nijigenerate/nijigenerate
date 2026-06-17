@@ -2381,6 +2381,31 @@ private void testNodeTypeInspectorCommandsUndoRedo() {
     require(nearVec2(camera.getViewport(), vec2(1920, 1080)), "undo Camera viewport should restore default");
     incActionRedo();
     require(nearVec2(camera.getViewport(), vec2(1280, 720)), "redo Camera viewport should restore new value");
+
+    incActionClearHistory();
+    require((new ApplyInspectorPropCommand!(NICam, "viewportOrigin")(vec2(1279, 721))).run(cameraCtx).succeeded, "Camera viewport inspector command should accept odd input");
+    require(nearVec2(camera.getViewport(), vec2(1280, 722)), "Camera viewport should normalize odd input to even dimensions");
+    incActionUndo();
+    require(nearVec2(camera.getViewport(), vec2(1280, 720)), "undo odd Camera viewport normalization should restore previous even viewport");
+    incActionRedo();
+    require(nearVec2(camera.getViewport(), vec2(1280, 722)), "redo odd Camera viewport normalization should restore normalized even viewport");
+
+    incActionClearHistory();
+    auto oldTransform = camera.localTransform;
+    auto oldViewport = camera.getViewport();
+    camera.localTransform.scale = vec2(0.501f, 2);
+    camera.localTransform.update();
+    camera.foldScaleIntoViewport();
+    incActionPush(new CameraResizeAction(camera, oldTransform, oldViewport, camera.localTransform, camera.getViewport()));
+
+    require(nearVec2(camera.getViewport(), vec2(642, 1444)), "Camera resize should fold scale into viewport and normalize to even dimensions");
+    require(nearVec2(camera.localTransform.scale, vec2(1, 1)), "Camera resize should reset scale after folding into viewport");
+    incActionUndo();
+    require(nearVec2(camera.getViewport(), vec2(1280, 722)), "undo Camera resize should restore viewport");
+    require(nearVec2(camera.localTransform.scale, oldTransform.scale), "undo Camera resize should restore transform scale");
+    incActionRedo();
+    require(nearVec2(camera.getViewport(), vec2(642, 1444)), "redo Camera resize should restore folded even viewport");
+    require(nearVec2(camera.localTransform.scale, vec2(1, 1)), "redo Camera resize should restore normalized scale");
 }
 
 private void testPartClippingMaskPropertiesUndoRedo() {
