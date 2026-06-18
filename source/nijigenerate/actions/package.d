@@ -7,6 +7,7 @@
 */
 module nijigenerate.actions;
 public import nijigenerate.actions.node;
+public import nijigenerate.actions.camera;
 public import nijigenerate.actions.parameter;
 public import nijigenerate.actions.binding;
 public import nijigenerate.actions.mesheditor;

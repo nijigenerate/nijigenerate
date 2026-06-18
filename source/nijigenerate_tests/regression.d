@@ -53,6 +53,7 @@ import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
 import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
+import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
@@ -78,7 +79,7 @@ import std.path : buildPath, relativePath, setExtension;
 import std.json : JSONType, JSONValue;
 import std.regex : regex, replaceAll;
 import std.stdio : stderr, writeln;
-import std.string : split, splitLines, strip, stripLeft;
+import std.string : replace, split, splitLines, strip, stripLeft;
 import std.typecons : tuple;
 
 private struct Scenario {
@@ -2381,6 +2382,84 @@ private void testNodeTypeInspectorCommandsUndoRedo() {
     require(nearVec2(camera.getViewport(), vec2(1920, 1080)), "undo Camera viewport should restore default");
     incActionRedo();
     require(nearVec2(camera.getViewport(), vec2(1280, 720)), "redo Camera viewport should restore new value");
+
+    incActionClearHistory();
+    require((new ApplyInspectorPropCommand!(NICam, "viewportOrigin")(vec2(1279, 721))).run(cameraCtx).succeeded, "Camera viewport inspector command should accept odd input");
+    require(nearVec2(camera.getViewport(), vec2(1280, 722)), "Camera viewport should normalize odd input to even dimensions");
+    incActionUndo();
+    require(nearVec2(camera.getViewport(), vec2(1280, 720)), "undo odd Camera viewport normalization should restore previous even viewport");
+    incActionRedo();
+    require(nearVec2(camera.getViewport(), vec2(1280, 722)), "redo odd Camera viewport normalization should restore normalized even viewport");
+
+    incActionClearHistory();
+    auto child = new Node(camera);
+    child.name = "camera-child-transform-target";
+    child.localTransform = Transform(vec3(10, -20, 0), vec3(0, 0, 0.1f), vec2(1.5f, 0.75f));
+    child.localTransform.update();
+    camera.transformChanged();
+    auto childWorldBefore = child.transform();
+    auto oldChildTransform = child.localTransform;
+
+    auto oldTransform = camera.localTransform;
+    auto oldViewport = camera.getViewport();
+    camera.localTransform.scale = vec2(-0.501f, 2);
+    camera.localTransform.update();
+    auto cameraChildren = camera.children.dup;
+    Transform[uint] oldChildTransforms;
+    foreach (cameraChild; cameraChildren) {
+        oldChildTransforms[cameraChild.uuid] = cameraChild.localTransform;
+    }
+    camera.foldScaleIntoViewport();
+    Transform[uint] newChildTransforms;
+    foreach (cameraChild; cameraChildren) {
+        newChildTransforms[cameraChild.uuid] = cameraChild.localTransform;
+    }
+    incActionPush(new CameraResizeAction(
+        camera,
+        oldTransform,
+        oldViewport,
+        camera.localTransform,
+        camera.getViewport(),
+        cameraChildren,
+        oldChildTransforms,
+        newChildTransforms
+    ));
+
+    require(nearVec2(camera.getViewport(), vec2(642, 1444)), "Camera resize should fold scale into viewport and normalize to even dimensions");
+    require(nearVec2(camera.localTransform.scale, vec2(-1, 1)), "Camera resize should preserve scale sign after folding into viewport");
+    require(nearVec3(child.transform().translation, childWorldBefore.translation), "Camera resize should preserve child world translation");
+    require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "Camera resize should preserve child world rotation");
+    require(nearVec2(child.transform().scale, childWorldBefore.scale), "Camera resize should preserve child world scale");
+    incActionUndo();
+    require(nearVec2(camera.getViewport(), vec2(1280, 722)), "undo Camera resize should restore viewport");
+    require(nearVec2(camera.localTransform.scale, oldTransform.scale), "undo Camera resize should restore transform scale");
+    require(nearVec3(child.localTransform.translation, oldChildTransform.translation), "undo Camera resize should restore child local translation");
+    require(nearVec3(child.localTransform.rotation, oldChildTransform.rotation), "undo Camera resize should restore child local rotation");
+    require(nearVec2(child.localTransform.scale, oldChildTransform.scale), "undo Camera resize should restore child local scale");
+    incActionRedo();
+    require(nearVec2(camera.getViewport(), vec2(642, 1444)), "redo Camera resize should restore folded even viewport");
+    require(nearVec2(camera.localTransform.scale, vec2(-1, 1)), "redo Camera resize should restore folded scale sign");
+    require(nearVec3(child.transform().translation, childWorldBefore.translation), "redo Camera resize should preserve child world translation");
+    require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "redo Camera resize should preserve child world rotation");
+    require(nearVec2(child.transform().scale, childWorldBefore.scale), "redo Camera resize should preserve child world scale");
+
+    camera.setViewport(vec2(320, 200));
+    camera.localTransform.scale = vec2(2, 0.5f);
+    camera.localTransform.update();
+    camera.transformChanged();
+    childWorldBefore = child.transform();
+
+    auto adapter = ngViewportTransformHandleAdapter(camera);
+    adapter.beginScale(camera);
+    adapter.applyScale(camera, vec2(2, 0.5f));
+    require(nearVec2(camera.getViewport(), vec2(320, 200)), "Camera handle resize should not change viewport without effective drag");
+    require(nearVec2(camera.localTransform.scale, vec2(2, 0.5f)), "Camera handle resize should preserve existing scale magnitude");
+    adapter.applyScale(camera, vec2(4, 1));
+    require(nearVec2(camera.getViewport(), vec2(640, 400)), "Camera handle resize should apply drag ratio to viewport");
+    require(nearVec2(camera.localTransform.scale, vec2(2, 0.5f)), "Camera handle resize should keep existing scale after viewport resize");
+    require(nearVec3(child.transform().translation, childWorldBefore.translation), "Camera handle resize should preserve child world translation");
+    require(nearVec3(child.transform().rotation, childWorldBefore.rotation), "Camera handle resize should preserve child world rotation");
+    require(nearVec2(child.transform().scale, childWorldBefore.scale), "Camera handle resize should preserve child world scale");
 }
 
 private void testPartClippingMaskPropertiesUndoRedo() {
@@ -8337,6 +8416,7 @@ private void testCoverageCompositeWorkflowInventory() {
 
 private string normalizeRegressionSourcePath(string path, string root) {
     auto rel = relativePath(path, root);
+    rel = rel.replace("\\", "/");
     auto sourcePrefix = "source/nijigenerate/";
     auto sourcePrefixIndex = rel.countUntil(sourcePrefix);
     if (sourcePrefixIndex >= 0)
@@ -8479,6 +8559,8 @@ private string scenarioPrefixForSourceModule(string rel) {
         return "mesh";
     if (rel.startsWith("viewport/common/mesh.d") || rel.startsWith("viewport/common/spline.d"))
         return "mesh";
+    if (rel.startsWith("viewport/common/transformhandle.d"))
+        return "viewport";
     if (rel.startsWith("viewport/model/onionslice.d"))
         return "render";
     if (rel.startsWith("viewport/model/") || rel.startsWith("viewport/anim/") || rel.startsWith("viewport/base.d") ||
@@ -8709,6 +8791,11 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "panels/parameters.d|ctx.parameters =",
         "panels/viewport.d|camera.scale =",
         "viewport/base.d|camera.scale = vec2(incViewportZoom)",
+        "viewport/common/transformhandle.d|node.localTransform.scale = scale",
+        "viewport/common/transformhandle.d|camera.localTransform.scale = vec2",
+        "viewport/common/transformhandle.d|child.localTransform.translation =",
+        "viewport/common/transformhandle.d|child.localTransform.rotation =",
+        "viewport/common/transformhandle.d|child.localTransform.scale =",
         "viewport/common/mesh.d|data.vertices = positions.dup",
         "viewport/common/mesheditor/operations/impl.d|deform.vertices = value",
         "viewport/common/mesheditor/operations/impl.d|node.transform.translation =",
