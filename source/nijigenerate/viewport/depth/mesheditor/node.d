@@ -16,7 +16,8 @@ import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.renderer;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import std.algorithm : clamp, max, min, sort, uniq;
+import std.algorithm : canFind, clamp, countUntil, max, min, sort, uniq;
+import std.algorithm.mutation : remove;
 import std.array : array;
 import std.format : format;
 import std.math : abs, ceil, cmp, round;
@@ -36,6 +37,7 @@ private:
     vec2 maxPoint = vec2(1);
     ushort[] indices;
     package(nijigenerate.viewport.depth) vec2[] projectedPoints;
+    ptrdiff_t[] selectedVertices;
     ptrdiff_t selectedVertex = -1;
     bool loggedEmptyVertices;
     bool loggedInvalidTopology;
@@ -469,8 +471,62 @@ public:
         return best;
     }
 
-    void selectVertex(ptrdiff_t index) {
+    bool isVertexSelected(ptrdiff_t index) {
+        return selectedVertices.canFind(index);
+    }
+
+    ptrdiff_t[] selectedVertexIndices() {
+        return selectedVertices.dup;
+    }
+
+    void clearVertexSelection() {
+        selectedVertices.length = 0;
+        selectedVertex = -1;
+    }
+
+    void selectOneVertex(ptrdiff_t index) {
+        if (index < 0) {
+            clearVertexSelection();
+            return;
+        }
+        selectedVertices = [index];
         selectedVertex = index;
+    }
+
+    void selectVertex(ptrdiff_t index) {
+        selectOneVertex(index);
+    }
+
+    void addVertexSelection(ptrdiff_t index) {
+        if (index < 0 || selectedVertices.canFind(index)) return;
+        selectedVertices ~= index;
+        selectedVertex = index;
+    }
+
+    void deselectVertex(ptrdiff_t index) {
+        auto existing = selectedVertices.countUntil(index);
+        if (existing >= 0) selectedVertices = selectedVertices.remove(existing);
+        selectedVertex = selectedVertices.length > 0 ? selectedVertices[$ - 1] : -1;
+    }
+
+    void toggleVertexSelection(ptrdiff_t index) {
+        if (isVertexSelected(index)) {
+            deselectVertex(index);
+        } else {
+            addVertexSelection(index);
+        }
+    }
+
+    ptrdiff_t[] projectedVerticesInRect(vec2 p0, vec2 p1) {
+        ptrdiff_t[] result;
+        auto minPoint = vec2(min(p0.x, p1.x), min(p0.y, p1.y));
+        auto maxPoint = vec2(max(p0.x, p1.x), max(p0.y, p1.y));
+        foreach (i, projected; projectedPoints) {
+            if (projected.x < minPoint.x || projected.x > maxPoint.x) continue;
+            if (projected.y < minPoint.y || projected.y > maxPoint.y) continue;
+            result ~= cast(ptrdiff_t)i;
+        }
+        return result;
     }
 
     void draw(Camera viewportCamera, ref DepthCamera3D depthCamera, DepthTextureMeshRenderer renderer) {
