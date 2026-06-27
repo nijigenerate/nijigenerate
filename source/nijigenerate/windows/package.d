@@ -15,6 +15,7 @@ public import nijigenerate.windows.texviewer;
 public import nijigenerate.windows.parameditor;
 public import nijigenerate.windows.paramsplit;
 public import nijigenerate.windows.psdmerge;
+public import nijigenerate.windows.psddepthmap;
 public import nijigenerate.windows.kramerge;
 public import nijigenerate.windows.welcome;
 public import nijigenerate.windows.rename;

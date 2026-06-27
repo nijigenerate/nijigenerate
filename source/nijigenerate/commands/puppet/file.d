@@ -538,6 +538,26 @@ class ShowImportPSDDialogCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiDialog
+class ShowImportPSDDepthMapDialogCommand : ExCommand!() {
+    this() { super(_("Import PSD Depth Map"), _("Show \"Import PSD Depth Map\" dialog.")); }
+
+    override
+    CommandResult run(Context ctx) {
+        const TFD_Filter[] filters = [
+            { ["*.psd"], "Photoshop Document (*.psd)" }
+        ];
+
+        string path = incShowImportDialog(filters, _("Import PSD Depth Map..."));
+        if (path.length) {
+            incPushWindow(new PSDDepthMapWindow(path));
+            return CommandResult(true);
+        }
+        return CommandResult(false, "Import canceled");
+    }
+}
+
 @ShortcutHidden
 @EffectImport
 class ImportPSDCommand : ExCommand!(
@@ -1194,6 +1214,7 @@ enum FileCommand {
     SaveFile,
     ShowSaveFileAsDialog,
     ShowImportPSDDialog,
+    ShowImportPSDDepthMapDialog,
     ImportPSD,
     ShowImportKRADialog,
     ImportKRA,

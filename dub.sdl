@@ -16,7 +16,7 @@ subPackage {
 	importPaths "source"
 	sourceFiles "source/njc/*.d"
 }
-dependency "psd-d" version="~>0.6.1"
+dependency "psd-d" path="vendor/psd-d"
 dependency "inmath" version="1.0.6"
 dependency "kra-d" repository="git+https://github.com/inochi2d/kra-d.git" version="6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42"
 dependency "tinyfiledialogs" version="~>0.10.1"

@@ -16,6 +16,7 @@ import std.math : abs, cos, sin;
 
 enum DepthToolMode {
     Select,
+    DirectDepth,
     Landmark,
     Ring,
     AttachedPoint,

@@ -44,6 +44,7 @@ import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.ext.nodes.exgriddeformer;
 import nijigenerate.ext.param;
 import nijigenerate.io.autosave;
+import nijigenerate.io.depthmap_psd;
 import nijigenerate.io.inpexport;
 import nijigenerate.project;
 import nijigenerate.viewport.common.mesh : IncMesh;
@@ -120,6 +121,7 @@ private immutable Scenario[] scenarios = [
     Scenario("project.recent-files", "Project/File", "Recent-file insertion, duplicate removal, missing-file cleanup, and menu display", automated, "Covers settings-backed recent project insertion, duplicate promotion, and list length pruning."),
     Scenario("project.autosave-recovery", "Project/File", "Autosave, recovery, lockfile, recovery rejection, and stale-record cleanup paths", automated, "Covers autosave file creation, lockfile state, recovery record creation, and stale-record pruning; restart dialog rejection uses computer-use."),
     Scenario("project.import-psd", "Project/File", "PSD import, layer grouping, node-type mapping, clipping, opacity, blend, and texture placement", automated, "Covers generated PSD fixture reader and import command path; rich layered PSD golden coverage remains asset-dependent."),
+    Scenario("project.import-psd-depth-map", "Project/File", "PSD depth map import maps grayscale layer depth to GridDeformer depth arrays", automated, "Covers PSD depth sampling helpers, target GridDeformer resolution, and command registration; full layered PSD golden coverage remains asset-dependent."),
     Scenario("project.import-kra", "Project/File", "KRA import, layer grouping, node-type mapping, clipping, opacity, blend, and texture placement", automated, "Covers generated KRA fixture reader and import command path; rich layered KRA golden coverage remains asset-dependent."),
     Scenario("project.import-inp", "Project/File", "INP import and compatibility with exported files", automated, "Covers command-level import and merge of generated INP fixtures with nodes, parameters, and bindings."),
     Scenario("project.import-images", "Project/File", "Image and image-folder import into Parts", automated, "Covers generated PNG fixtures through image-folder import and merge-image-files command paths."),
@@ -301,6 +303,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depth.camera", "Depth Edit", "Depth camera projection, viewport transform, hit testing, and depth edit view state", automated, "Covers depth camera projection/unprojection math and pan/zoom/yaw/pitch/depth effects; UI viewport smoke remains in viewport.depth-mode."),
     Scenario("depth.operation-helpers", "Depth Edit", "Depth operation helpers apply, cancel, copy, resize, and interpolate depth arrays", automated, "Covers DepthMapped/DepthOperation copy, replace, resize, clone, and basic geometry helper contracts."),
     Scenario("depth.commands", "Depth Edit", "Depth map and individual depth operation commands", automated, "Covers Set/List/Clear Depths and Add/Update/Move/Remove/Clear/Apply depth-ops commands with undo/redo."),
+    Scenario("depth.psd-map-import", "Depth Edit", "PSD depth map import conversion, convolution, frontmost compositing, and target resolution", automated, "Covers deterministic PSD depth helper behavior used by the import command."),
     Scenario("depth.composite-map-ops", "Depth Edit", "Define grid, edit depths, add operations, apply, undo, redo, and preserve vertex/depth lengths", automated, "Covers chained topology and depth-operation edits on the same target."),
 
     Scenario("depthbone.template-bones", "Depth Bone", "Standard DepthBone skeleton template creation", automated, "Covers standard skeleton creation, hierarchy, Head parent-to-target default, and Foot lock-to-root defaults."),
@@ -385,6 +388,7 @@ private immutable Scenario[] scenarios = [
     Scenario("windows.welcome-about", "Tools/Windows", "Welcome window, about window, nag screen, and default layout behavior", computerUse, "Needs UI smoke."),
     Scenario("windows.automesh-batch", "Tools/Windows", "AutoMesh batching window selection, per-target config, apply, and undo grouping", computerUse, "Needs UI smoke."),
     Scenario("windows.export-import", "Tools/Windows", "PSD/KRA merge, image export, video export, INP export, and texture viewer windows", computerUse, "Needs UI smoke."),
+    Scenario("windows.psd-depth-map", "Tools/Windows", "PSD depth map import window mapping review and options", computerUse, "Needs UI smoke; command and IO helper behavior are automated."),
     Scenario("windows.parameter-editors", "Tools/Windows", "Parameter editor, split parameter, rename, flip config, and edit animation windows", computerUse, "Needs UI smoke."),
     Scenario("windows.settings", "Tools/Windows", "Settings window tabs, validation, apply/cancel, and persistent values", computerUse, "Needs UI smoke."),
     Scenario("windows.autosave", "Tools/Windows", "Autosave recovery window accepts, rejects, deletes, and opens records", computerUse, "Needs UI smoke."),
@@ -3493,6 +3497,117 @@ private void testDepthCompositeMapOpsWorkflow() {
     incActionRedo();
     require(grid.copyDepths().length == grid.vertices.length && grid.copyDepths() != beforeApply,
         "redo apply should restore baked depths with coherent length");
+}
+
+private void testPsdDepthMapImportHelpers() {
+    resetCase();
+
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "psd-depth-grid";
+    auto child = new Node(grid);
+    child.name = "psd-depth-child";
+    require(ngPsdDepthContainingGrid(child) is grid, "PSD depth helper should resolve parent GridDeformer");
+    require(ngPsdDepthContainingGrid(grid) is grid, "PSD depth helper should resolve direct GridDeformer targets");
+
+    grid.localTransform.translation = vec3(10, -5, 0);
+    grid.localTransform.update();
+    incActivePuppet().root.build();
+    auto docPoint = ngPsdDepthGridVertexDocumentPosition(grid, vec2(2, 3), 100, 80);
+    require(near(docPoint.x, 62.0f) && near(docPoint.y, 38.0f),
+        "PSD depth helper should map transformed grid vertices into document coordinates");
+
+    ubyte[] pixels;
+    void add(ubyte r, ubyte g, ubyte b, ubyte a) {
+        pixels ~= [r, g, b, a];
+    }
+
+    add(255, 255, 255, 255); add(255, 255, 255, 255); add(255, 255, 255, 255);
+    add(255, 255, 255, 255); add(0, 0, 0, 255);       add(255, 255, 255, 255);
+    add(255, 255, 255, 255); add(255, 255, 255, 255); add(255, 255, 255, 255);
+
+    PsdDepthImportSettings settings;
+    settings.backDepth = -1.0f;
+    settings.frontDepth = 1.0f;
+    settings.alphaThreshold = 0.01f;
+
+    settings.convolution = PsdDepthConvolution.Nearest;
+    auto nearest = ngPsdDepthSamplePixels(pixels, 3, 3, 1, 1, settings);
+    require(nearest.valid && near(nearest.value, -1.0f), "PSD depth nearest sampling should read black as back by default");
+
+    settings.invert = true;
+    auto inverted = ngPsdDepthSamplePixels(pixels, 3, 3, 0, 0, settings);
+    require(inverted.valid && near(inverted.value, -1.0f), "PSD depth invert should make white back");
+
+    settings.invert = false;
+    ubyte[] channelPixels = [255, 0, 0, 255];
+    settings.convolution = PsdDepthConvolution.Nearest;
+    settings.channel = PsdDepthChannel.AverageRGB;
+    auto averageRed = ngPsdDepthSamplePixels(channelPixels, 1, 1, 0, 0, settings);
+    require(averageRed.valid && near(averageRed.value, -1.0f / 3.0f),
+        "PSD depth AverageRGB channel should average color components");
+    settings.channel = PsdDepthChannel.R;
+    auto redChannel = ngPsdDepthSamplePixels(channelPixels, 1, 1, 0, 0, settings);
+    require(redChannel.valid && near(redChannel.value, 1.0f), "PSD depth R channel should use red only");
+    settings.channel = PsdDepthChannel.G;
+    auto greenChannel = ngPsdDepthSamplePixels(channelPixels, 1, 1, 0, 0, settings);
+    require(greenChannel.valid && near(greenChannel.value, -1.0f), "PSD depth G channel should use green only");
+    settings.channel = PsdDepthChannel.Luminance;
+    auto luminanceChannel = ngPsdDepthSamplePixels(channelPixels, 1, 1, 0, 0, settings);
+    require(luminanceChannel.valid && near(luminanceChannel.value, -0.5748f),
+        "PSD depth Luminance channel should use perceptual weights");
+    settings.channel = PsdDepthChannel.AverageRGB;
+
+    settings.convolution = PsdDepthConvolution.Gaussian3x3;
+    auto gaussian = ngPsdDepthSamplePixels(pixels, 3, 3, 1, 1, settings);
+    require(gaussian.valid && gaussian.value > 0.0f && gaussian.value < 1.0f,
+        "PSD depth Gaussian3x3 should smooth toward valid weighted neighbors; value=" ~ gaussian.value.to!string);
+
+    settings.convolution = PsdDepthConvolution.Frontmost3x3;
+    auto front = ngPsdDepthSamplePixels(pixels, 3, 3, 1, 1, settings);
+    require(front.valid && near(front.value, 1.0f), "PSD depth Frontmost3x3 should choose the closest value");
+
+    settings.convolution = PsdDepthConvolution.Backmost3x3;
+    auto back = ngPsdDepthSamplePixels(pixels, 3, 3, 1, 1, settings);
+    require(back.valid && near(back.value, -1.0f), "PSD depth Backmost3x3 should choose the farthest value");
+
+    ubyte[] transparentNeighbors;
+    void addTransparent(ubyte r, ubyte g, ubyte b, ubyte a) {
+        transparentNeighbors ~= [r, g, b, a];
+    }
+    addTransparent(255, 255, 255, 0); addTransparent(255, 255, 255, 0); addTransparent(255, 255, 255, 0);
+    addTransparent(255, 255, 255, 0); addTransparent(0, 0, 0, 255);     addTransparent(255, 255, 255, 0);
+    addTransparent(255, 255, 255, 0); addTransparent(255, 255, 255, 0); addTransparent(255, 255, 255, 0);
+    settings.convolution = PsdDepthConvolution.Box3x3;
+    auto alphaFiltered = ngPsdDepthSamplePixels(transparentNeighbors, 3, 3, 1, 1, settings);
+    require(alphaFiltered.valid && near(alphaFiltered.value, -1.0f),
+        "PSD depth convolution should ignore transparent pixels instead of treating them as black");
+
+    ubyte[] customRadiusPixels;
+    foreach (y; 0 .. 5) {
+        foreach (x; 0 .. 5) {
+            if (x == 2 && y == 2) {
+                customRadiusPixels ~= [0, 0, 0, 255];
+            } else if ((x == 0 || x == 4) && (y == 0 || y == 4)) {
+                customRadiusPixels ~= [255, 255, 255, 255];
+            } else {
+                customRadiusPixels ~= [0, 0, 0, 0];
+            }
+        }
+    }
+    settings.convolution = PsdDepthConvolution.BoxCustom;
+    settings.customRadius = 1;
+    auto customRadius1 = ngPsdDepthSamplePixels(customRadiusPixels, 5, 5, 2, 2, settings);
+    settings.customRadius = 2;
+    auto customRadius2 = ngPsdDepthSamplePixels(customRadiusPixels, 5, 5, 2, 2, settings);
+    require(customRadius1.valid && customRadius2.valid && customRadius2.value > customRadius1.value,
+        "PSD depth custom radius should include farther valid pixels when radius grows");
+
+    auto composed = ngPsdDepthFrontmost([
+        PsdDepthSampleResult(false, -1.0f),
+        PsdDepthSampleResult(true, 0.25f),
+        PsdDepthSampleResult(true, 0.75f),
+    ]);
+    require(composed.valid && near(composed.value, 0.75f), "PSD depth layer compositing should choose frontmost depth");
 }
 
 private void testDepthBoneCompositeSourcePreviewWorkflow() {
@@ -9663,6 +9778,9 @@ private bool runAutomatedScenario(string id) {
         case "project.merge-images":
             runCase("project-import-images-command-paths", &testProjectImportImagesCommandPaths);
             return true;
+        case "project.import-psd-depth-map":
+            runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
+            return true;
         case "project.import-psd":
         case "project.import-kra":
         case "project.merge-psd":
@@ -10036,6 +10154,10 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depth.commands":
             runCase("depth-map-commands-undo-redo", &testDepthMapCommandsUndoRedo);
+            runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
+            return true;
+        case "depth.psd-map-import":
+            runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
             return true;
         case "depth.composite-map-ops":
             runCase("depth-composite-map-ops", &testDepthCompositeMapOpsWorkflow);

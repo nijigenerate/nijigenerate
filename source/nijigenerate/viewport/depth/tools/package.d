@@ -9,6 +9,7 @@ module nijigenerate.viewport.depth.tools;
 public import nijigenerate.viewport.depth.tools.attachedpoint;
 public import nijigenerate.viewport.depth.tools.base;
 public import nijigenerate.viewport.depth.camera;
+public import nijigenerate.viewport.depth.tools.directdepth;
 public import nijigenerate.viewport.depth.tools.landmark;
 public import nijigenerate.viewport.depth.tools.operation;
 public import nijigenerate.viewport.depth.tools.plane;
@@ -27,6 +28,7 @@ void ngRegisterDepthEditTool(DepthEditTool tool) {
 DepthEditTool[] ngDepthEditTools() {
     if (depthTools.length == 0) {
         ngRegisterDepthEditTool(new DepthSelectTool);
+        ngRegisterDepthEditTool(new DepthDirectDepthTool);
         ngRegisterDepthEditTool(new DepthLandmarkTool);
         ngRegisterDepthEditTool(new DepthRingTool);
         ngRegisterDepthEditTool(new DepthAttachedPointTool);

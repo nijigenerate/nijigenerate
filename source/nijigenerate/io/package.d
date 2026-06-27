@@ -7,6 +7,7 @@
 */
 module nijigenerate.io;
 public import nijigenerate.io.psd;
+public import nijigenerate.io.depthmap_psd;
 public import nijigenerate.io.kra;
 public import nijigenerate.io.inpexport;
 public import nijigenerate.io.videoexport;

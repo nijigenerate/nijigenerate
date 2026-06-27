@@ -100,6 +100,8 @@ void incMainMenu() {
                     if (igBeginMenu(__("Import"), true)) {
                         ngMenuItemFor!(FileCommand.ShowImportPSDDialog)(ctx);
                         incTooltip(_("Import a standard Photoshop PSD file."));
+                        ngMenuItemFor!(FileCommand.ShowImportPSDDepthMapDialog)(ctx);
+                        incTooltip(_("Import grayscale PSD layers as GridDeformer depth maps."));
                         ngMenuItemFor!(FileCommand.ShowImportKRADialog)(ctx);
                         incTooltip(_("Import a standard Krita KRA file."));
 

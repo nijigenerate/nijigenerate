@@ -42,6 +42,7 @@ private:
     vec2 dragStartLocal;
     float dragStartMouseY;
     bool draggingOperation;
+    bool[DepthMeshEditorOne] directDepthDirty;
     DepthTextureMeshRenderer renderer;
     ActionStackScope actionScope;
     bool buildRenderResources;
@@ -143,6 +144,7 @@ public:
         foreach (grid, editor; editors) {
             if (!(grid in next)) {
                 operations.remove(editor);
+                directDepthDirty.remove(editor);
                 if (selectedOperationEditor is editor) {
                     selectedOperationEditor = null;
                     selectedOperationIndex = -1;
@@ -170,6 +172,7 @@ public:
         foreach (editor; editors.byValue) {
             editor.resetFromTarget();
             replaceOperations(editor, null);
+            directDepthDirty.remove(editor);
             loadOperationsFromTarget(editor);
         }
     }
@@ -178,8 +181,13 @@ public:
         incActionPushGroup();
         foreach (editor; editors.byValue) {
             auto ctx = new Context();
-            cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), operationsToJson(editor));
-            cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+            if (editor in directDepthDirty) {
+                cmd!(DepthMapCommand.SetDepths)(ctx, editor.targetNode(), editor.copyEditorDepths());
+                directDepthDirty.remove(editor);
+            } else {
+                cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), operationsToJson(editor));
+                cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+            }
             editor.resetFromTarget();
         }
         incActionPopGroup();
@@ -264,6 +272,44 @@ public:
             operations[editor] = copied;
         }
         recompute(editor);
+    }
+
+    void markDirectDepthDirty(DepthMeshEditorOne editor) {
+        if (editor is null) return;
+        directDepthDirty[editor] = true;
+    }
+
+    bool isDirectDepthDirty(DepthMeshEditorOne editor) {
+        return editor !is null && (editor in directDepthDirty) !is null;
+    }
+
+    void replaceDirectDepths(DepthMeshEditorOne editor, float[] nextDepths) {
+        if (editor is null) return;
+        editor.replaceEditorDepths(nextDepths);
+        markDirectDepthDirty(editor);
+    }
+
+    void beginDirectDepthEdit(DepthMeshEditorOne editor) {
+        if (editor is null) return;
+        markDirectDepthDirty(editor);
+    }
+
+    void replaceDepthState(
+        DepthMeshEditorOne editor,
+        float[] depths,
+        float[] baseDepths,
+        DepthOperation[] nextOperations,
+        bool dirty
+    ) {
+        if (editor is null) return;
+        editor.baseDepths = baseDepths.dup;
+        replaceOperations(editor, nextOperations);
+        editor.replaceEditorDepths(depths);
+        if (dirty) {
+            directDepthDirty[editor] = true;
+        } else {
+            directDepthDirty.remove(editor);
+        }
     }
 
     void appendOperation(DepthMeshEditorOne editor, DepthOperation operation) {

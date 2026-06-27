@@ -3,9 +3,11 @@ module nijigenerate.commands.depth.map;
 import nijigenerate.actions.depth;
 import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
-import nijigenerate.core.actionstack : incActionPush;
+import nijigenerate.core.actionstack : incActionPopGroup, incActionPush, incActionPushGroup;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
+import nijigenerate.io.depthmap_psd;
+import nijigenerate.project : incActivePuppet;
 import nijigenerate.viewport.depth.mesheditor.node : DepthMeshEditorOne;
 import nijigenerate.viewport.depth.tools.operation : applyRingNormalSurfaces, depthOperationFromExDepthOp, toExDepthOp;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthPlaneOperation, DepthRingOperation;
@@ -30,6 +32,7 @@ enum DepthMapCommand {
     MoveDepthOp,
     ClearDepthOps,
     ApplyDepthOps,
+    ImportPSDDepths,
 }
 
 Command[DepthMapCommand] commands;
@@ -215,6 +218,55 @@ private void replaceDepthsWithUndo(Node target, float[] nextDepths, string reaso
     action.updateNewState();
     incActionPush(action);
     ngMarkDepthBoneDirtyForTarget(target, reason);
+}
+
+JSONValue ngPsdDepthImportSummaryToJson(PsdDepthImportResult imported, size_t changedGrids) {
+    JSONValue[string] obj;
+    obj["changedGrids"] = JSONValue(cast(long)changedGrids);
+    obj["matchedLayers"] = JSONValue(cast(long)imported.matchedLayers);
+    obj["unmatchedLayers"] = JSONValue(cast(long)imported.unmatchedLayers);
+    obj["ambiguousLayers"] = JSONValue(cast(long)imported.ambiguousLayers);
+    obj["skippedGrids"] = JSONValue(cast(long)imported.skippedGrids);
+
+    JSONValue mappings = JSONValue.emptyArray;
+    foreach (mapping; imported.mappings) {
+        JSONValue[string] entry;
+        entry["layerPath"] = JSONValue(mapping.layerPath);
+        entry["layerName"] = JSONValue(mapping.layerName);
+        entry["matchedNodeName"] = JSONValue(mapping.matchedNodeName);
+        entry["targetGridName"] = JSONValue(mapping.targetGridName);
+        entry["matched"] = JSONValue(mapping.matched);
+        entry["ambiguous"] = JSONValue(mapping.ambiguous);
+        entry["ignored"] = JSONValue(mapping.ignored);
+        entry["manual"] = JSONValue(mapping.manual);
+        entry["status"] = JSONValue(mapping.status);
+        mappings.array ~= JSONValue(entry);
+    }
+    obj["mappings"] = mappings;
+
+    return JSONValue(obj);
+}
+
+ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult imported) {
+    size_t changedGrids;
+
+    if (imported.grids.length > 0) {
+        incActionPushGroup();
+        scope(exit) incActionPopGroup();
+        foreach (gridResult; imported.grids) {
+            if (gridResult.skipped) continue;
+            if (gridResult.grid is null) continue;
+            enforce(gridResult.depths.length == gridResult.grid.vertices.length, "imported depths length must match target vertices");
+            replaceDepthsWithUndo(gridResult.grid, gridResult.depths, "Import PSD Depth Map");
+            changedGrids++;
+        }
+    }
+
+    return ExCommandResult!JSONValue(
+        true,
+        ngPsdDepthImportSummaryToJson(imported, changedGrids),
+        "PSD depth map imported"
+    );
 }
 
 private void replaceDepthOpsWithUndo(Node target, ExDepthOp[] nextOps, string reason) {
@@ -421,6 +473,73 @@ class ApplyDepthOpsCommand : ExCommand!(TW!(Node, "target", "Depth operation tar
     }
 }
 
+@EffectApply
+class ImportPSDDepthsCommand : ExCommand!(
+    TW!(string, "path", "Path to PSD depth map file"),
+    TW!(bool, "invert", "Invert depth values; default is white as front"),
+    TW!(float, "backDepth", "Depth value for black/back"),
+    TW!(float, "frontDepth", "Depth value for white/front"),
+    TW!(float, "depthScale", "Multiplier applied to imported depth values"),
+    TW!(string, "convolution", "Sampling convolution mode"),
+    TW!(string, "channel", "Depth channel"),
+    TW!(int, "customRadius", "Custom convolution radius"),
+    TW!(float, "alphaThreshold", "Minimum alpha for valid depth pixels"),
+    TW!(string, "missingPolicy", "Policy for vertices with no sampled depth"),
+    TW!(bool, "matchDirectGridName", "Allow direct PSD layer name to GridDeformer name matching")
+) {
+    this(
+        string path,
+        bool invert = false,
+        float backDepth = -1.0f,
+        float frontDepth = 1.0f,
+        float depthScale = 1.0f,
+        string convolution = "Gaussian3x3",
+        string channel = "AverageRGB",
+        int customRadius = 3,
+        float alphaThreshold = 0.01f,
+        string missingPolicy = "KeepExisting",
+        bool matchDirectGridName = true
+    ) {
+        super(
+            _("Import PSD Depth Map"),
+            _("Import per-layer PSD grayscale depth data into mapped GridDeformers."),
+            path,
+            invert,
+            backDepth,
+            frontDepth,
+            depthScale,
+            convolution,
+            channel,
+            customRadius,
+            alphaThreshold,
+            missingPolicy,
+            matchDirectGridName
+        );
+    }
+
+    override
+    ExCommandResult!JSONValue run(Context ctx) {
+        auto puppet = incActivePuppet();
+        if (puppet is null) return ExCommandResult!JSONValue(false, JSONValue(null), "No active puppet");
+        if (!path.length) return ExCommandResult!JSONValue(false, JSONValue(null), "Path not provided");
+
+        PsdDepthImportSettings settings;
+        settings.invert = invert;
+        settings.backDepth = backDepth;
+        settings.frontDepth = frontDepth;
+        settings.depthScale = depthScale;
+        settings.alphaThreshold = alphaThreshold;
+        settings.convolution = ngPsdDepthConvolutionFromString(convolution);
+        settings.channel = ngPsdDepthChannelFromString(channel);
+        settings.customRadius = customRadius;
+        settings.missingPolicy = ngPsdDepthMissingPolicyFromString(missingPolicy);
+        settings.matchDirectGridName = matchDirectGridName;
+
+        auto imported = ngBuildPsdDepthsFromPSD(puppet, path, settings);
+        return ngApplyPsdDepthImportResult(imported);
+    }
+}
+
 void ngInitCommands(T)() if (is(T == DepthMapCommand)) {
     auto listDepths = new ListDepthsCommand();
     ngRegisterCommandMeta(listDepths);
@@ -465,4 +584,10 @@ void ngInitCommands(T)() if (is(T == DepthMapCommand)) {
     auto applyOps = new ApplyDepthOpsCommand();
     ngRegisterCommandMeta(applyOps);
     commands[DepthMapCommand.ApplyDepthOps] = applyOps;
+
+    auto importPsdDepths = new ImportPSDDepthsCommand(
+        "", false, -1.0f, 1.0f, 1.0f, "Gaussian3x3", "AverageRGB", 3, 0.01f, "KeepExisting", true
+    );
+    ngRegisterCommandMeta(importPsdDepths);
+    commands[DepthMapCommand.ImportPSDDepths] = importPsdDepths;
 }

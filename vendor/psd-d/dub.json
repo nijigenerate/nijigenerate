@@ -1,0 +1,23 @@
+{
+	"authors": [
+		"Luna Nielsen"
+	],
+	"configurations": [
+		{
+			"name": "library",
+			"targetType": "library"
+		}
+	],
+	"copyright": "Copyright © 2021, Luna Nielsen",
+	"description": "D PSD parsing library",
+	"importPaths": [
+		"source/"
+	],
+	"license": "BSD 2-clause",
+	"name": "psd-d",
+	"sourcePaths": [
+		"source/"
+	],
+	"targetPath": "out/",
+	"version": "0.6.3"
+}

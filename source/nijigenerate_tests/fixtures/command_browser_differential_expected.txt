@@ -72,6 +72,7 @@ DepthMapCommand.AddDepthOp	args=index=7;target=UUID	unsupported=operation:JSONVa
 DepthMapCommand.ApplyDepthOps	args=target=UUID	unsupported=	before=target=null	after=target=Node:UUID	cleared=target=null
 DepthMapCommand.ClearDepthOps	args=target=UUID	unsupported=	before=target=null	after=target=Node:UUID	cleared=target=null
 DepthMapCommand.ClearDepths	args=target=UUID	unsupported=	before=target=null	after=target=Node:UUID	cleared=target=null
+DepthMapCommand.ImportPSDDepths	args=alphaThreshold=1.25;backDepth=1.25;channel=command-browser-differential;convolution=command-browser-differential;customRadius=7;frontDepth=1.25;invert=true;matchDirectGridName=true;missingPolicy=command-browser-differential;path=command-browser-differential	unsupported=	before=path=;invert=false;backDepth=-1;frontDepth=1;convolution=Gaussian3x3;channel=AverageRGB;customRadius=3;alphaThreshold=0.01;missingPolicy=KeepExisting;matchDirectGridName=true	after=path=command-browser-differential;invert=true;backDepth=1.25;frontDepth=1.25;convolution=command-browser-differential;channel=command-browser-differential;customRadius=7;alphaThreshold=1.25;missingPolicy=command-browser-differential;matchDirectGridName=true	cleared=path=;invert=true;backDepth=1.25;frontDepth=1.25;convolution=;channel=;customRadius=7;alphaThreshold=1.25;missingPolicy=;matchDirectGridName=true
 DepthMapCommand.ListDepthOps	args=target=UUID	unsupported=	before=target=null	after=target=Node:UUID	cleared=target=null
 DepthMapCommand.ListDepths	args=target=UUID	unsupported=	before=target=null	after=target=Node:UUID	cleared=target=null
 DepthMapCommand.MoveDepthOp	args=fromIndex=7;target=UUID;toIndex=7	unsupported=	before=target=null;fromIndex=0;toIndex=0	after=target=Node:UUID;fromIndex=7;toIndex=7	cleared=target=null;fromIndex=7;toIndex=7
@@ -108,6 +109,7 @@ FileCommand.ShowExportToVideoDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowImportINPDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowImportImageFolderDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowImportKRADialog	args=	unsupported=	before=	after=	cleared=
+FileCommand.ShowImportPSDDepthMapDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowImportPSDDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowMergeINPDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowMergeImageFileDialog	args=	unsupported=	before=	after=	cleared=
