@@ -202,17 +202,6 @@ private:
     }
 
     void drawEditorSelection(DepthMeshEditorOne editor, ptrdiff_t hotIndex, ptrdiff_t[] candidateIndices = null) {
-        if (editor.projectedPoints.length > 0) {
-            Vec3Array points;
-            foreach (point; editor.projectedPoints) {
-                points ~= vec3(point, 0);
-            }
-            inDbgSetBuffer(points);
-            inDbgPointsSize(10);
-            inDbgDrawPoints(vec4(0, 0, 0, 1));
-            inDbgPointsSize(6);
-            inDbgDrawPoints(vec4(1, 1, 1, 1));
-        }
         foreach (index; editor.selectedVertexIndices()) {
             if (index < 0 || index >= editor.projectedPoints.length) continue;
             auto color = selecting && !selectAdd && !selectRemove ? vec4(0.6f, 0, 0, 1) : vec4(1, 0, 0, 1);
@@ -230,7 +219,7 @@ private:
 
 public:
     override DepthToolMode mode() { return DepthToolMode.DirectDepth; }
-    override const(char)* icon() { return "\uE8D5"; }
+    override const(char)* icon() { return "\uF71F"; } // drag_click
     override string tooltip() { return _("Adjust Vertex Depth"); }
 
     override

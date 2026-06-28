@@ -11,6 +11,8 @@ import nijigenerate.core.settings;
 import bindbc.imgui;
 import core.stdc.stdlib : malloc;
 import core.stdc.string : memcpy;
+import std.file : exists, getcwd, read, thisExePath;
+import std.path : buildPath, dirName;
 import std.string;
 import std.array;
 
@@ -44,6 +46,26 @@ private {
     ubyte[] NOTO = cast(ubyte[])import("NotoSans-Regular.ttf");
     ubyte[] NOTO_CJK = cast(ubyte[])import("NotoSansCJK-Regular.ttc");
     ubyte[] ICONS = cast(ubyte[])import("MaterialIcons.ttf");
+    ubyte[] SYMBOLS;
+
+    ubyte[] _incMaterialSymbolsFontData() {
+        if (SYMBOLS.length > 0) return SYMBOLS;
+
+        string[] candidates;
+        auto exeDir = thisExePath().dirName();
+        candidates ~= buildPath(exeDir, "MaterialSymbolsOutlined.ttf");
+        candidates ~= buildPath(exeDir, "..", "res", "MaterialSymbolsOutlined.ttf");
+        candidates ~= buildPath(getcwd(), "MaterialSymbolsOutlined.ttf");
+        candidates ~= buildPath(getcwd(), "..", "res", "MaterialSymbolsOutlined.ttf");
+        candidates ~= buildPath(getcwd(), "res", "MaterialSymbolsOutlined.ttf");
+
+        foreach (candidate; candidates) {
+            if (!exists(candidate)) continue;
+            SYMBOLS = cast(ubyte[])read(candidate);
+            break;
+        }
+        return SYMBOLS;
+    }
 }
 
 /**
@@ -128,6 +150,21 @@ void incInitFonts() {
             ].ptr, 
             ImVec2(0, 2)
         );
+
+        auto symbols = _incMaterialSymbolsFontData();
+        if (symbols.length > 0) {
+            _incAddFontData(
+                "Material Symbols",
+                symbols,
+                32,
+                [
+                    cast(ImWchar)0xF400,
+                    cast(ImWchar)0xF8FF,
+                    cast(ImWchar)0
+                ].ptr,
+                ImVec2(0, 2)
+            );
+        }
     ImFontAtlas_Build(atlas);
 
     // Half size because the extra size is for scaling

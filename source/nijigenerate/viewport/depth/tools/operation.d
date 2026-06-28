@@ -101,9 +101,7 @@ class DepthAttachedPointOperation : DepthOperation {
         bool hotBody = hotHandle == DepthOperationHandle.Body;
         auto color = depthOperationColor(amount, selected || hotAmount);
         drawDepthLinePoints(base, projected, color, hotAmount ? 3.0f : 1.8f);
-        if (selected || hotBody || hotAmount) {
-            drawDepthPoint(base, hotBody ? DepthOperationAmountColor : DepthOperationHandleColor, hotBody ? 13 : 8);
-        }
+        drawDepthPoint(base, hotBody ? DepthOperationAmountColor : DepthOperationHandleColor, hotBody ? 13 : 8);
         drawDepthPoint(projected, hotAmount ? DepthOperationAmountColor : color, hotAmount ? 15 : (selected ? 13 : 9));
     }
 

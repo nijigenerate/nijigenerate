@@ -349,7 +349,14 @@ public:
         return list[selectedOperationIndex];
     }
 
-    bool findOperationHit(vec2 mouse, ref DepthCamera3D depthCamera, out DepthMeshEditorOne hitEditor, out ptrdiff_t hitIndex, out DepthOperationHandle hitHandle) {
+    bool findOperationHit(
+        vec2 mouse,
+        ref DepthCamera3D depthCamera,
+        out DepthMeshEditorOne hitEditor,
+        out ptrdiff_t hitIndex,
+        out DepthOperationHandle hitHandle,
+        bool delegate(DepthOperation) filter = null
+    ) {
         float bestDistance = float.max;
         hitEditor = null;
         hitIndex = -1;
@@ -357,6 +364,7 @@ public:
         foreach (editor; editors.byValue) {
             if (!(editor in operations)) continue;
             foreach (i, op; operations[editor]) {
+                if (filter !is null && !filter(op)) continue;
                 float distance;
                 auto handle = op.hit(editor, mouse, depthCamera, 14.0f / max(0.01f, incViewportZoom), distance);
                 if (handle == DepthOperationHandle.None || distance >= bestDistance) continue;
@@ -369,11 +377,16 @@ public:
         return hitEditor !is null;
     }
 
-    bool beginOperationDrag(vec2 mouse, float mouseY, ref DepthCamera3D depthCamera) {
+    bool beginOperationDrag(
+        vec2 mouse,
+        float mouseY,
+        ref DepthCamera3D depthCamera,
+        bool delegate(DepthOperation) filter = null
+    ) {
         DepthMeshEditorOne hitEditor;
         ptrdiff_t hitIndex;
         DepthOperationHandle hitHandle;
-        if (!findOperationHit(mouse, depthCamera, hitEditor, hitIndex, hitHandle)) return false;
+        if (!findOperationHit(mouse, depthCamera, hitEditor, hitIndex, hitHandle, filter)) return false;
 
         selectedOperationEditor = hitEditor;
         selectedOperationIndex = hitIndex;

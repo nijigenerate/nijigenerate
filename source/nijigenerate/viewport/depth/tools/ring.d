@@ -17,18 +17,45 @@ import nijigenerate.viewport.depth.mesheditor;
 import nijigenerate.viewport.depth.tools.base;
 import nijigenerate.viewport.depth.tools.operation;
 import nijigenerate.viewport.depth.viewport : DepthEditViewport;
-import nijigenerate.widgets.drag;
+import nijigenerate.widgets.button;
+import nijigenerate.widgets.tooltip;
 import nijilive;
 import std.algorithm : max;
 import std.math : cos, sin;
 
 class DepthRingTool : DepthEditTool {
 private:
+    enum RingToolMode {
+        Create,
+        Edit,
+    }
+
     DepthMeshEditorOne activeEditor;
     ptrdiff_t startVertex = -1;
     ptrdiff_t currentVertex = -1;
     vec2 startPoint;
     vec2 currentPoint;
+    RingToolMode toolMode = RingToolMode.Create;
+
+    bool isRingOperation(DepthOperation operation) {
+        return cast(DepthRingOperation)operation !is null;
+    }
+
+    void resetCreateDrag() {
+        activeEditor = null;
+        startVertex = -1;
+        currentVertex = -1;
+    }
+
+    void setMode(RingToolMode mode) {
+        if (toolMode == mode) return;
+        toolMode = mode;
+        resetCreateDrag();
+    }
+
+    void toggleMode() {
+        setMode(toolMode == RingToolMode.Create ? RingToolMode.Edit : RingToolMode.Create);
+    }
 
     bool nearest(ImGuiIO* io, Camera camera, DepthEditViewport viewport, out DepthMeshEditorOne editor, out ptrdiff_t index) {
         editor = nearestVertexFromScreenMouse(io, camera, viewport, index);
@@ -55,8 +82,8 @@ private:
 
 public:
     override DepthToolMode mode() { return DepthToolMode.Ring; }
-    override const(char)* icon() { return __(""); }
-    override string tooltip() { return _("Create Depth Ring"); }
+    override const(char)* icon() { return "\uF71A"; } // input_circle
+    override string tooltip() { return _("Edit Depth Ring"); }
 
     override
     void draw(Camera camera, DepthEditViewport viewport) {
@@ -73,16 +100,57 @@ public:
 
     override
     void drawOptions(DepthEditViewport viewport) {
+        igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
+            if (incButtonColored(__("Create"), ImVec2(0, 0), toolMode == RingToolMode.Create ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                setMode(RingToolMode.Create);
+            }
+            incTooltip(_("Create depth rings"));
+            igSameLine(0, 0);
+            if (incButtonColored(__("Edit"), ImVec2(0, 0), toolMode == RingToolMode.Edit ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                setMode(RingToolMode.Edit);
+            }
+            incTooltip(_("Edit existing depth rings"));
+        igPopStyleVar();
+        igSameLine(0, 6);
+
         auto settings = &viewport.brushSettings();
-        incDragFloat("Amount", &settings.amount, 0.01f, -2.0f, 2.0f, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Length", &settings.radiusX, 1.0f, 1.0f, 1000.0f, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Width", &settings.radiusY, 1.0f, 1.0f, 400.0f, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Angle", &settings.angle, 1.0f, -180.0f, 180.0f, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Falloff", &settings.hardness, 0.05f, 0.1f, 8.0f, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+        drawOptionDrag("Amount", &settings.amount, 0.01f, -2.0f, 2.0f, "%.2f");
+        drawOptionDrag("Length", &settings.radiusX, 1.0f, 1.0f, 1000.0f, "%.0f");
+        drawOptionDrag("Width", &settings.radiusY, 1.0f, 1.0f, 400.0f, "%.0f");
+        drawOptionDrag("Angle", &settings.angle, 1.0f, -180.0f, 180.0f, "%.0f");
+        drawOptionDrag("Falloff", &settings.hardness, 0.05f, 0.1f, 8.0f, "%.2f", false);
     }
 
     override
     bool update(ImGuiIO* io, Camera camera, DepthEditViewport viewport) {
+        if (incInputIsKeyPressed(ImGuiKey.Tab)) {
+            toggleMode();
+            return true;
+        }
+
+        if (toolMode == RingToolMode.Edit) {
+            auto editorSet = viewport.getEditor();
+            if (editorSet is null) return false;
+            if (io.MouseDown[0] && editorSet.updateOperationDrag(
+                screenMouseToView(io, camera),
+                io.MousePos.y,
+                viewport.depthCameraState(),
+                viewport.brushSettings().snapToGrid
+            )) {
+                return true;
+            }
+            if (!io.MouseDown[0] && editorSet.endOperationDrag()) {
+                return true;
+            }
+            if (!incInputIsMouseClicked(ImGuiMouseButton.Left)) return false;
+            return editorSet.beginOperationDrag(
+                screenMouseToView(io, camera),
+                io.MousePos.y,
+                viewport.depthCameraState(),
+                &isRingOperation
+            );
+        }
+
         if (activeEditor !is null) {
             if (io.MouseDown[0]) {
                 DepthMeshEditorOne editor;
@@ -100,9 +168,7 @@ public:
                 auto ctx = new Context();
                 cmd!(DepthEditorOperationCommand.AddEditorDepthOp)(ctx, editorSet, activeEditor, op, -1);
             }
-            activeEditor = null;
-            startVertex = -1;
-            currentVertex = -1;
+            resetCreateDrag();
             return true;
         }
 

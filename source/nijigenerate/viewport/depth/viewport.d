@@ -23,7 +23,7 @@ import std.algorithm : clamp, max;
 class DepthEditViewport : Viewport {
 private:
     Node[] selection;
-    DepthToolMode toolMode = DepthToolMode.Select;
+    DepthToolMode toolMode = DepthToolMode.DirectDepth;
     DepthMeshEditor editor;
     DepthCamera3D depthCamera;
     DepthBrushSettings brush;
@@ -103,6 +103,15 @@ public:
         return depthCamera;
     }
 
+    void drawDepthOperationOptions() {
+        if (editor is null) return;
+        if (incBeginDropdownMenu("DEPTH_DEFORMERS", "Depth", ImVec2(280, 0), ImVec2(360, float.max))) {
+            editor.drawOperationOptions();
+            incEndDropdownMenu();
+        }
+        incTooltip(_("Depth Deformers"));
+    }
+
     void drawDepthOptions() {
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
         if (incButtonColored(__(" Snap"), ImVec2(0, 0), brush.snapToGrid ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
@@ -142,13 +151,11 @@ public:
     void drawOptions() {
         drawDepthOptions();
         if (auto tool = activeTool()) {
-            igSeparator();
+            igSameLine(0, 6);
             tool.drawOptions(this);
         }
-        if (editor !is null) {
-            igSeparator();
-            editor.drawOperationOptions();
-        }
+        igSameLine(0, 6);
+        drawDepthOperationOptions();
     }
 
     override

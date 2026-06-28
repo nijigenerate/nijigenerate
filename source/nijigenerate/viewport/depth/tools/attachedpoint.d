@@ -63,7 +63,7 @@ private:
 
 public:
     override DepthToolMode mode() { return DepthToolMode.AttachedPoint; }
-    override const(char)* icon() { return __(""); }
+    override const(char)* icon() { return "\uEB35"; } // swipe_up_alt
     override string tooltip() { return _("Edit Attached Depth Point"); }
 
     override
