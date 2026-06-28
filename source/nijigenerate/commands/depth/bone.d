@@ -811,6 +811,7 @@ private struct DepthBoneDirtyRequest {
     vec2u keypoint;
     DepthBoneDirtyScope dirtyScope;
     string reason;
+    GroupAction actionSink;
 }
 
 private DepthBoneDirtyRequest[] depthBoneDirtyRequests;
@@ -828,6 +829,7 @@ private struct DepthBoneAllKeypointJob {
     bool[string] processed;
     size_t nextIndex;
     string reason;
+    GroupAction actionSink;
 }
 
 private DepthBoneAllKeypointJob[] depthBoneAllKeypointJobs;
@@ -857,12 +859,19 @@ private void pushDepthBoneRefreshAction(GroupAction group) {
     }
 }
 
+private bool runWithDepthBoneRefreshActionSink(GroupAction sink, bool delegate() callback) {
+    auto previous = depthBoneRefreshActionSink;
+    depthBoneRefreshActionSink = sink;
+    scope(exit) depthBoneRefreshActionSink = previous;
+    return callback();
+}
+
 private string dirtyScopeName(DepthBoneDirtyScope dirtyScope) {
     return dirtyScope == DepthBoneDirtyScope.AllKeypoints ? "all-keypoints" : "keypoint";
 }
 
 private bool sameDirtyParameter(DepthBoneDirtyRequest request, ExDepthRigRoot root, Parameter parameter) {
-    return request.root is root && request.parameter is parameter;
+    return request.root is root && request.parameter is parameter && request.actionSink is depthBoneRefreshActionSink;
 }
 
 void ngMarkDepthBoneDirty(
@@ -912,7 +921,7 @@ void ngMarkDepthBoneDirty(
             return;
         }
     }
-    depthBoneDirtyRequests ~= DepthBoneDirtyRequest(root, parameter, keypoint, dirtyScope, reason);
+    depthBoneDirtyRequests ~= DepthBoneDirtyRequest(root, parameter, keypoint, dirtyScope, reason, depthBoneRefreshActionSink);
 }
 
 void ngMarkDepthBoneDirtyForArmedParameter(
@@ -1552,7 +1561,7 @@ private bool enqueueDepthBoneAllKeypoints(ExDepthRigRoot rigRoot, Parameter para
     if (keypoints.length == 0) return false;
 
     foreach (ref job; depthBoneAllKeypointJobs) {
-        if (job.root is rigRoot && job.parameter is param) {
+        if (job.root is rigRoot && job.parameter is param && job.actionSink is depthBoneRefreshActionSink) {
             job.keypoints = keypoints;
             job.processed.clear();
             job.nextIndex = 0;
@@ -1566,6 +1575,7 @@ private bool enqueueDepthBoneAllKeypoints(ExDepthRigRoot rigRoot, Parameter para
     job.parameter = param;
     job.keypoints = keypoints;
     job.reason = reason;
+    job.actionSink = depthBoneRefreshActionSink;
     depthBoneAllKeypointJobs ~= job;
     return true;
 }
@@ -1624,7 +1634,9 @@ private bool processDepthBoneAllKeypointJobs() {
         }
 
         if (chunk.length > 0) {
-            changed = ngRefreshDepthBoneDeformKeypoints(job.root, job.parameter, chunk, visual, job.reason) || changed;
+            changed = runWithDepthBoneRefreshActionSink(job.actionSink, {
+                return ngRefreshDepthBoneDeformKeypoints(job.root, job.parameter, chunk, visual, job.reason);
+            }) || changed;
         }
 
         if (job.processed.length >= job.keypoints.length) {
@@ -1642,6 +1654,7 @@ private bool processDepthBoneAllKeypointJobs() {
 private bool hasProcessedAllKeypoints(DepthBoneDirtyRequest[] processed, DepthBoneDirtyRequest request) {
     foreach (done; processed) {
         if (done.dirtyScope != DepthBoneDirtyScope.AllKeypoints || done.root !is request.root) continue;
+        if (done.actionSink !is request.actionSink) continue;
         if (done.parameter is null || done.parameter is request.parameter) return true;
     }
     return false;
@@ -1650,6 +1663,7 @@ private bool hasProcessedAllKeypoints(DepthBoneDirtyRequest[] processed, DepthBo
 private bool hasRootAllKeypointsRequest(DepthBoneDirtyRequest[] requests, DepthBoneDirtyRequest request) {
     if (request.parameter is null) return false;
     foreach (candidate; requests) {
+        if (candidate.actionSink !is request.actionSink) continue;
         if (candidate.root is request.root && candidate.parameter is null && candidate.dirtyScope == DepthBoneDirtyScope.AllKeypoints) return true;
     }
     return false;
@@ -1665,11 +1679,13 @@ void ngFlushDepthBoneDirty() {
             if (!isLiveDepthRigRoot(request.root)) continue;
             if (hasRootAllKeypointsRequest(requests, request)) continue;
             if (request.dirtyScope == DepthBoneDirtyScope.Keypoint && hasProcessedAllKeypoints(processed, request)) continue;
-            if (request.dirtyScope == DepthBoneDirtyScope.AllKeypoints) {
-                ngRefreshDepthBoneDeformAllKeypoints(request.root, request.parameter, request.keypoint, request.reason);
-            } else {
-                ngRefreshDepthBoneDeform(request.root, request.parameter, request.keypoint, request.reason);
-            }
+            runWithDepthBoneRefreshActionSink(request.actionSink, {
+                if (request.dirtyScope == DepthBoneDirtyScope.AllKeypoints) {
+                    return ngRefreshDepthBoneDeformAllKeypoints(request.root, request.parameter, request.keypoint, request.reason);
+                } else {
+                    return ngRefreshDepthBoneDeform(request.root, request.parameter, request.keypoint, request.reason);
+                }
+            });
             processed ~= request;
         }
     }
@@ -1678,6 +1694,28 @@ void ngFlushDepthBoneDirty() {
 
 bool ngHasPendingDepthBoneRefresh() {
     return depthBoneDirtyRequests.length > 0 || depthBoneAllKeypointJobs.length > 0;
+}
+
+bool ngHasPendingDepthBoneRefreshForSink(GroupAction sink) {
+    foreach (request; depthBoneDirtyRequests) {
+        if (request.actionSink is sink) return true;
+    }
+    foreach (job; depthBoneAllKeypointJobs) {
+        if (job.actionSink is sink) return true;
+    }
+    return false;
+}
+
+size_t ngPendingDepthBoneRefreshWorkForSink(GroupAction sink) {
+    size_t result;
+    foreach (request; depthBoneDirtyRequests) {
+        if (request.actionSink is sink) result++;
+    }
+    foreach (job; depthBoneAllKeypointJobs) {
+        if (job.actionSink !is sink) continue;
+        result += job.keypoints.length > job.processed.length ? job.keypoints.length - job.processed.length : 1;
+    }
+    return result;
 }
 
 void ngFlushDepthBoneDirtyImmediate() {

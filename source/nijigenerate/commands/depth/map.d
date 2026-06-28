@@ -2,9 +2,11 @@ module nijigenerate.commands.depth.map;
 
 import nijigenerate.actions.depth;
 import nijigenerate.actions : GroupAction;
+import nijigenerate.api.mcp.task : ngMcpEnqueueAction;
 import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngEndDepthBoneRefreshActionSink,
-    ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirtyForTarget;
+    ngFlushDepthBoneDirty, ngHasPendingDepthBoneRefreshForSink, ngMarkDepthBoneDirtyForTarget,
+    ngPendingDepthBoneRefreshWorkForSink;
 import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
@@ -20,6 +22,8 @@ import std.exception : enforce;
 import std.json : JSONType, JSONValue;
 import std.math : isFinite;
 import std.string : format;
+import nijigenerate.widgets.notification : NotificationPopup;
+import bindbc.imgui : ImGuiIO, ImVec2, igProgressBar, igText;
 import i18n;
 
 enum DepthMapCommand {
@@ -58,6 +62,85 @@ private class PsdDepthImportChangeAction : GroupAction {
         return this.stringof;
     }
 }
+
+private class PsdDepthImportRefreshJob {
+    private GroupAction group;
+    private size_t changedGrids;
+    private size_t completedWork;
+    private size_t totalWork;
+    private bool finished;
+    private ulong popupId;
+
+    this(GroupAction group, size_t changedGrids) {
+        this.group = group;
+        this.changedGrids = changedGrids;
+        auto pending = ngPendingDepthBoneRefreshWorkForSink(group);
+        totalWork = max(cast(size_t)1, pending);
+    }
+
+    void start() {
+        import std.string : toStringz;
+
+        auto self = this;
+        popupId = NotificationPopup.instance().popup((ImGuiIO* io) {
+            size_t done, total, remaining;
+            self.snapshot(done, total, remaining);
+            float ratio = total > 0 ? cast(float)done / cast(float)total : 1.0f;
+            igText(_("Finalizing PSD depth import...").toStringz);
+            igProgressBar(ratio, ImVec2(320, 0));
+        }, -1);
+        scheduleNext();
+    }
+
+    private void snapshot(out size_t done, out size_t total, out size_t remaining) {
+        remaining = ngPendingDepthBoneRefreshWorkForSink(group);
+        total = max(totalWork, completedWork + remaining);
+        done = total > remaining ? total - remaining : completedWork;
+    }
+
+    private void scheduleNext() {
+        auto self = this;
+        ngMcpEnqueueAction({
+            self.step();
+        });
+    }
+
+    private void step() {
+        if (finished) return;
+        auto before = ngPendingDepthBoneRefreshWorkForSink(group);
+        if (before == 0) {
+            complete();
+            return;
+        }
+
+        ngFlushDepthBoneDirty();
+
+        auto after = ngPendingDepthBoneRefreshWorkForSink(group);
+        if (after < before) {
+            completedWork += before - after;
+        } else {
+            completedWork++;
+        }
+        totalWork = max(totalWork, completedWork + after);
+
+        if (after == 0) {
+            complete();
+        } else {
+            scheduleNext();
+        }
+    }
+
+    private void complete() {
+        if (finished) return;
+        finished = true;
+        NotificationPopup.instance().close(popupId);
+        if (!group.empty()) incActionPush(group);
+        if (activePsdDepthImportRefreshJob is this) activePsdDepthImportRefreshJob = null;
+        NotificationPopup.instance().popup(_("PSD depth map imported"), 3);
+    }
+}
+
+private PsdDepthImportRefreshJob activePsdDepthImportRefreshJob;
 
 private DepthOperationMappedNode requireDepthOperated(Node node) {
     auto operated = cast(DepthOperationMappedNode)node;
@@ -271,8 +354,14 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult impor
     size_t changedGrids;
 
     if (imported.grids.length > 0) {
+        if (activePsdDepthImportRefreshJob !is null) {
+            return ExCommandResult!JSONValue(
+                false,
+                ngPsdDepthImportSummaryToJson(imported, changedGrids),
+                "PSD depth map import is still finalizing"
+            );
+        }
         ngGuardActionStackScopes();
-        ngFlushDepthBoneDirtyImmediate();
         auto group = new PsdDepthImportChangeAction();
         ngBeginDepthBoneRefreshActionSink(group);
         scope(exit) ngEndDepthBoneRefreshActionSink(group);
@@ -283,8 +372,12 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult impor
             group.addAction(applyDepthsChangeAction(gridResult.grid, gridResult.depths, "Import PSD Depth Map"));
             changedGrids++;
         }
-        ngFlushDepthBoneDirtyImmediate();
-        if (!group.empty()) incActionPush(group);
+        if (ngHasPendingDepthBoneRefreshForSink(group)) {
+            activePsdDepthImportRefreshJob = new PsdDepthImportRefreshJob(group, changedGrids);
+            activePsdDepthImportRefreshJob.start();
+        } else if (!group.empty()) {
+            incActionPush(group);
+        }
     }
 
     return ExCommandResult!JSONValue(
