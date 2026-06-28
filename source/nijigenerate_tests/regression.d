@@ -3207,6 +3207,66 @@ private void testDepthMapCommandsUndoRedo() {
     require(grid.copyDepths() is null, "undo SetDepths should restore null depths");
     incActionRedo();
     require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "redo SetDepths should restore depths");
+
+    PsdDepthImportResult psdImport;
+    PsdDepthGridResult psdGridResult;
+    psdGridResult.grid = grid;
+    psdGridResult.depths = [1.0f, 0.5f, 0.0f, -0.5f];
+    psdImport.grids ~= psdGridResult;
+    require(ngApplyPsdDepthImportResult(psdImport).succeeded, "PSD depth import apply should succeed");
+    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f], "PSD depth import should apply depths");
+    incActionUndo();
+    require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "undo PSD depth import should restore previous depths");
+    incActionRedo();
+    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f], "redo PSD depth import should restore imported depths");
+
+    auto depthScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
+    psdImport.grids[0].depths = [-1.0f, -0.25f, 0.25f, 1.0f];
+    require(ngApplyPsdDepthImportResult(psdImport).succeeded,
+        "PSD depth import apply should close edit action scopes before pushing undo history");
+    require(!depthScope.isActive(), "PSD depth import apply should close the active DepthEdit action scope");
+    require(grid.copyDepths() == [-1.0f, -0.25f, 0.25f, 1.0f], "PSD depth import from DepthEdit scope should apply depths");
+    require(incActionCanUndo(), "PSD depth import from DepthEdit scope should be undoable from the main action stack");
+    incActionUndo();
+    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f],
+        "undo PSD depth import from DepthEdit scope should restore previous imported depths");
+
+    auto secondGrid = new ExGridDeformer(incActivePuppet().root);
+    secondGrid.name = "depth-command-second-grid";
+    secondGrid.rebuffer(Vec2Array([
+        vec2(0, 0),
+        vec2(8, 0),
+        vec2(0, 8),
+        vec2(8, 8),
+    ]));
+    secondGrid.replaceDepths([0.1f, 0.2f, 0.3f, 0.4f]);
+    psdImport.grids.length = 0;
+    PsdDepthGridResult firstDialogGridResult;
+    firstDialogGridResult.grid = grid;
+    firstDialogGridResult.depths = [0.0f, 0.1f, 0.2f, 0.3f];
+    psdImport.grids ~= firstDialogGridResult;
+    PsdDepthGridResult secondDialogGridResult;
+    secondDialogGridResult.grid = secondGrid;
+    secondDialogGridResult.depths = [1.0f, 1.1f, 1.2f, 1.3f];
+    psdImport.grids ~= secondDialogGridResult;
+    require(ngApplyPsdDepthImportResult(psdImport).succeeded,
+        "PSD depth import dialog apply should update multiple GridDeformers");
+    auto groupedImport = cast(GroupAction)incActionTop();
+    require(groupedImport !is null && groupedImport.actions.length == 2,
+        "PSD depth import dialog apply should push one GroupAction for all GridDeformer updates");
+    require(grid.copyDepths() == [0.0f, 0.1f, 0.2f, 0.3f], "PSD depth import group should apply first grid depths");
+    require(secondGrid.copyDepths() == [1.0f, 1.1f, 1.2f, 1.3f], "PSD depth import group should apply second grid depths");
+    incActionUndo();
+    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f],
+        "one undo should restore first grid from grouped PSD depth import");
+    require(secondGrid.copyDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
+        "one undo should restore second grid from grouped PSD depth import");
+    incActionRedo();
+    require(grid.copyDepths() == [0.0f, 0.1f, 0.2f, 0.3f],
+        "one redo should reapply first grid from grouped PSD depth import");
+    require(secondGrid.copyDepths() == [1.0f, 1.1f, 1.2f, 1.3f],
+        "one redo should reapply second grid from grouped PSD depth import");
+
     auto listedDepths = cast(ExCommandResult!JSONValue)cmd!(DepthMapCommand.ListDepths)(ctx, grid);
     require(listedDepths !is null && listedDepths.succeeded, "ListDepths command should return JSON");
     require(listedDepths.result["count"].integer == 4, "ListDepths should report depth count");
@@ -3608,6 +3668,30 @@ private void testPsdDepthMapImportHelpers() {
         PsdDepthSampleResult(true, 0.75f),
     ]);
     require(composed.valid && near(composed.value, 0.75f), "PSD depth layer compositing should choose frontmost depth");
+
+    auto layerPath = "/Depth/front";
+    auto otherLayerPath = "/Depth/back";
+    require(ngPsdDepthGridEnabled(settings, grid.uuid),
+        "PSD depth GridDeformer import switch should default to enabled");
+    require(ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath),
+        "PSD depth per-grid layer switch should default to enabled");
+
+    settings.disabledGridUuids[grid.uuid.to!string] = true;
+    require(!ngPsdDepthGridEnabled(settings, grid.uuid),
+        "PSD depth GridDeformer import switch should disable a matching grid");
+
+    auto otherGrid = new ExGridDeformer(incActivePuppet().root);
+    otherGrid.name = "psd-depth-other-grid";
+    require(ngPsdDepthGridEnabled(settings, otherGrid.uuid),
+        "PSD depth GridDeformer import switch should not disable other grids");
+
+    settings.disabledGridLayerKeys[ngPsdDepthGridLayerKey(grid.uuid, layerPath)] = true;
+    require(!ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath),
+        "PSD depth per-grid layer switch should disable only the targeted layer");
+    require(ngPsdDepthGridLayerEnabled(settings, grid.uuid, otherLayerPath),
+        "PSD depth per-grid layer switch should leave other layers enabled");
+    require(ngPsdDepthGridLayerEnabled(settings, otherGrid.uuid, layerPath),
+        "PSD depth per-grid layer switch should be scoped by GridDeformer");
 }
 
 private void testDepthBoneCompositeSourcePreviewWorkflow() {

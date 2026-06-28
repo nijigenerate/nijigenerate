@@ -5,12 +5,13 @@ import i18n;
 import nijigenerate;
 import nijigenerate.commands;
 import nijigenerate.commands.depth.map : ngApplyPsdDepthImportResult;
+import nijigenerate.ext.nodes.expart;
 import nijigenerate.io.depthmap_psd;
 import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import std.algorithm.comparison : min;
+import std.algorithm.comparison : max, min;
 import std.conv : to;
 import std.exception : collectException;
 import std.format : format;
@@ -24,8 +25,10 @@ private:
     string errorMessage;
     bool previewDirty = true;
     bool onlyProblemLayers;
+    ptrdiff_t selectedGridIndex;
     Texture[string] originalPreviewTextures;
     Texture[string] depthMaskPreviewTextures;
+    Texture[string] compositePreviewTextures;
 
     enum PreviewSize = 160f;
 
@@ -84,8 +87,12 @@ private:
         foreach (key, texture; depthMaskPreviewTextures) {
             if (texture !is null) texture.dispose();
         }
+        foreach (key, texture; compositePreviewTextures) {
+            if (texture !is null) texture.dispose();
+        }
         originalPreviewTextures = null;
         depthMaskPreviewTextures = null;
+        compositePreviewTextures = null;
     }
 
     PsdDepthLayerPreview* findLayerPreview(string layerPath) {
@@ -93,6 +100,24 @@ private:
             if (layerPreview.layerPath == layerPath) return &layerPreview;
         }
         return null;
+    }
+
+    PsdDepthLayerMapping* findMapping(string layerPath) {
+        foreach (ref mapping; preview.mappings) {
+            if (mapping.layerPath == layerPath) return &mapping;
+        }
+        return null;
+    }
+
+    bool hasOtherMappings() {
+        foreach (ref mapping; preview.mappings) {
+            if (!mapping.matched || mapping.targetGridUuid == 0) return true;
+        }
+        return false;
+    }
+
+    bool isOthersSelected() {
+        return selectedGridIndex == cast(ptrdiff_t)preview.grids.length;
     }
 
     Texture layerPreviewTexture(string layerPath, bool depthMask) {
@@ -106,6 +131,20 @@ private:
         auto texture = new Texture(rgba, layerPreview.width, layerPreview.height);
         if (depthMask) depthMaskPreviewTextures[layerPath] = texture;
         else originalPreviewTextures[layerPath] = texture;
+        return texture;
+    }
+
+    Texture compositePreviewTexture(ref PsdDepthGridResult gridResult) {
+        if (gridResult.grid is null || gridResult.compositePreviewRgba.length == 0 ||
+            gridResult.previewWidth <= 0 || gridResult.previewHeight <= 0) return null;
+
+        auto key = gridResult.grid.uuid.to!string;
+        if (auto existing = key in compositePreviewTextures) return *existing;
+
+        auto rgba = gridResult.compositePreviewRgba.dup;
+        inTexPremultiply(rgba);
+        auto texture = new Texture(rgba, gridResult.previewWidth, gridResult.previewHeight);
+        compositePreviewTextures[key] = texture;
         return texture;
     }
 
@@ -136,6 +175,43 @@ private:
     void drawLayerPreviewHoverLabel(string label, string layerPath, bool depthMask) {
         incText(label);
         if (igIsItemHovered()) drawLayerPreviewTooltip(layerPath, depthMask);
+    }
+
+    void drawLayerPreviewHoverText(string label, string layerPath, bool depthMask) {
+        incText(label.length ? label : "-");
+        if (igIsItemHovered()) drawLayerPreviewTooltip(layerPath, depthMask);
+    }
+
+    ExPart matchedPart(ref PsdDepthLayerMapping mapping) {
+        if (mapping.matchedNodeUuid == 0) return null;
+        auto puppet = incActivePuppet();
+        if (puppet is null || puppet.root is null) return null;
+        foreach (part; puppet.findNodesType!ExPart(puppet.root)) {
+            if (part.uuid == mapping.matchedNodeUuid) return part;
+        }
+        return null;
+    }
+
+    void drawMatchedNodeTooltip(ref PsdDepthLayerMapping mapping) {
+        auto part = matchedPart(mapping);
+        if (part is null || part.textures.length == 0 || part.textures[0] is null) return;
+
+        auto texture = part.textures[0];
+        igBeginTooltip();
+        incText(_("Matched Node Preview"));
+        incText(mapping.matchedNodeName);
+        auto maxDimension = cast(float)max(texture.width, texture.height);
+        auto scale = maxDimension > 0 ? min(PreviewSize / maxDimension, 1.0f) : 1.0f;
+        igImage(
+            cast(void*)texture.getTextureId(),
+            ImVec2(cast(float)texture.width * scale, cast(float)texture.height * scale)
+        );
+        igEndTooltip();
+    }
+
+    void drawMatchedNodeText(ref PsdDepthLayerMapping mapping) {
+        incText(mapping.matchedNodeName.length ? mapping.matchedNodeName : "-");
+        if (igIsItemHovered()) drawMatchedNodeTooltip(mapping);
     }
 
     bool drawEnumCombo(string label, ref PsdDepthConvolution value) {
@@ -281,90 +357,192 @@ private:
         if (changed) previewDirty = true;
     }
 
-    void drawMappings(float height) {
-        if (igBeginTable("###PsdDepthMappings", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, ImVec2(0, height))) {
-            igTableSetupColumn(__("PSD Layer"));
-            igTableSetupColumn(__("Preview"));
-            igTableSetupColumn(__("Matched Node"));
+    void drawCompositePreviewTooltip(ref PsdDepthGridResult gridResult) {
+        auto texture = compositePreviewTexture(gridResult);
+        if (texture is null) return;
+
+        igBeginTooltip();
+        incText(_("Composite Depth Preview"));
+        incText("%s  %dx%d  (%d, %d)".format(
+            gridResult.grid !is null ? gridResult.grid.name : "-",
+            gridResult.previewWidth,
+            gridResult.previewHeight,
+            gridResult.previewLeft,
+            gridResult.previewTop
+        ));
+        auto maxDimension = cast(float)max(gridResult.previewWidth, gridResult.previewHeight);
+        auto scale = maxDimension > 0 ? min(PreviewSize / maxDimension, 1.0f) : 1.0f;
+        igImage(
+            cast(void*)texture.getTextureId(),
+            ImVec2(cast(float)gridResult.previewWidth * scale, cast(float)gridResult.previewHeight * scale)
+        );
+        igEndTooltip();
+    }
+
+    void ensureSelectedGridIndex() {
+        auto other = hasOtherMappings();
+        if (preview.grids.length == 0 && !other) {
+            selectedGridIndex = -1;
+            return;
+        }
+        auto maxIndex = cast(ptrdiff_t)preview.grids.length + (other ? 1 : 0);
+        if (selectedGridIndex < 0 || selectedGridIndex >= maxIndex) {
+            selectedGridIndex = 0;
+        }
+    }
+
+    void drawGridList(float height) {
+        ensureSelectedGridIndex();
+        if (selectedGridIndex < 0) return;
+        if (igBeginTable("###PsdDepthGridPreview", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, ImVec2(0, height))) {
+            igTableSetupColumn(__("Use"), ImGuiTableColumnFlags.WidthFixed, 46);
+            igTableSetupColumn(__("Preview"), ImGuiTableColumnFlags.WidthFixed, 116);
             igTableSetupColumn(__("GridDeformer"));
-            igTableSetupColumn(__("Remap"));
-            igTableSetupColumn(__("Status"));
             igTableHeadersRow();
-            foreach (ref mapping; preview.mappings) {
-                bool problem = !mapping.matched || mapping.ambiguous;
-                if (onlyProblemLayers && !problem) continue;
+            foreach (i, ref gridResult; preview.grids) {
                 igTableNextRow();
                 igTableNextColumn();
-                incText(mapping.layerPath);
+                drawGridEnabledCheckbox(gridResult.grid);
                 igTableNextColumn();
-                drawLayerPreviewHoverLabel(_("Layer"), mapping.layerPath, false);
-                igSameLine(0, 8);
-                drawLayerPreviewHoverLabel(_("Mask"), mapping.layerPath, true);
+                auto texture = compositePreviewTexture(gridResult);
+                auto selected = selectedGridIndex == cast(ptrdiff_t)i;
+                incTextureSlotUntitled(("###gridPreview" ~ i.to!string), texture, ImVec2(104, 104), 24, ImGuiWindowFlags.NoInputs, selected);
+                if (igIsItemHovered()) drawCompositePreviewTooltip(gridResult);
                 igTableNextColumn();
-                incText(mapping.matchedNodeName.length ? mapping.matchedNodeName : "-");
+                auto label = "%s\n%s: %d  %s: %d\n%s: %.3f  %s: %.3f\n%s".format(
+                    gridResult.grid !is null ? gridResult.grid.name : "-",
+                    _("Sampled"),
+                    cast(int)gridResult.sampledVertices,
+                    _("Missing"),
+                    cast(int)gridResult.missingVertices,
+                    _("Min"),
+                    gridResult.minDepth,
+                    _("Max"),
+                    gridResult.maxDepth,
+                    gridResult.skipped ? _("Skipped") : _("Will Apply")
+                );
+                if (igSelectable((label ~ "###gridRow" ~ i.to!string).toStringz, selected, ImGuiSelectableFlags.SpanAllColumns, ImVec2(0, 104))) {
+                    selectedGridIndex = cast(ptrdiff_t)i;
+                }
+            }
+            if (hasOtherMappings()) {
+                igTableNextRow();
                 igTableNextColumn();
-                incText(mapping.targetGridName.length ? mapping.targetGridName : "-");
+                incText("-");
                 igTableNextColumn();
-                if (drawManualMappingCombo(mapping)) previewDirty = true;
+                auto selected = isOthersSelected();
+                incTextureSlotUntitled("###gridPreviewOthers", null, ImVec2(104, 104), 24, ImGuiWindowFlags.NoInputs, selected);
                 igTableNextColumn();
-                incText(mapping.status);
+                if (igSelectable((_("Others") ~ "\n" ~ _("Unmapped or ignored layers") ~ "###gridRowOthers").toStringz,
+                    selected, ImGuiSelectableFlags.SpanAllColumns, ImVec2(0, 104))) {
+                    selectedGridIndex = cast(ptrdiff_t)preview.grids.length;
+                }
             }
             igEndTable();
         }
     }
 
-    void drawGridPreview() {
-        if (preview.grids.length == 0) return;
-        if (igBeginTable("###PsdDepthGridPreview", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg)) {
-            igTableSetupColumn(__("GridDeformer"));
-            igTableSetupColumn(__("Sampled"));
-            igTableSetupColumn(__("Missing"));
-            igTableSetupColumn(__("Min"));
-            igTableSetupColumn(__("Max"));
+    void drawGridEnabledCheckbox(GridDeformer grid) {
+        if (grid is null) {
+            incText("-");
+            return;
+        }
+
+        auto key = grid.uuid.to!string;
+        bool enabled = ngPsdDepthGridEnabled(settings, grid.uuid);
+        if (ngCheckbox(("###useGrid" ~ key).toStringz, &enabled)) {
+            if (enabled) {
+                settings.disabledGridUuids.remove(key);
+            } else {
+                settings.disabledGridUuids[key] = true;
+            }
+            previewDirty = true;
+        }
+    }
+
+    void drawGridLayerEnabledCheckbox(GridDeformer grid, string layerPath) {
+        if (grid is null) {
+            incText("-");
+            return;
+        }
+
+        auto key = ngPsdDepthGridLayerKey(grid.uuid, layerPath);
+        bool enabled = ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath);
+        if (ngCheckbox(("###useGridLayer" ~ key).toStringz, &enabled)) {
+            if (enabled) {
+                settings.disabledGridLayerKeys.remove(key);
+            } else {
+                settings.disabledGridLayerKeys[key] = true;
+            }
+            previewDirty = true;
+        }
+    }
+
+    void drawMappingLayerRow(ref PsdDepthLayerMapping mapping, GridDeformer grid = null) {
+        bool problem = !mapping.matched || mapping.ambiguous || mapping.ignored;
+        if (onlyProblemLayers && !problem) return;
+        igTableNextRow();
+        igTableNextColumn();
+        drawGridLayerEnabledCheckbox(grid, mapping.layerPath);
+        igTableNextColumn();
+        drawLayerPreviewHoverText(mapping.layerPath, mapping.layerPath, false);
+        igTableNextColumn();
+        drawLayerPreviewHoverText(mapping.layerName, mapping.layerPath, true);
+        igTableNextColumn();
+        drawMatchedNodeText(mapping);
+        igTableNextColumn();
+        if (drawManualMappingCombo(mapping)) previewDirty = true;
+        igTableNextColumn();
+        incText(mapping.status);
+    }
+
+    void drawSelectedGridLayers(float height) {
+        ensureSelectedGridIndex();
+        if (selectedGridIndex < 0) return;
+
+        if (isOthersSelected()) {
+            incText(_("GridDeformer: Others"));
+        } else {
+            auto gridResult = preview.grids[selectedGridIndex];
+            incText(_("GridDeformer: %s").format(gridResult.grid !is null ? gridResult.grid.name : "-"));
+        }
+
+        if (igBeginTable("###PsdDepthGridMasks", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, ImVec2(0, height))) {
+            igTableSetupColumn(__("Use"), ImGuiTableColumnFlags.WidthFixed, 46);
+            igTableSetupColumn(__("Path"));
+            igTableSetupColumn(__("Depth PSD Layer"));
+            igTableSetupColumn(__("Matched Node"));
+            igTableSetupColumn(__("Remap"));
             igTableSetupColumn(__("Status"));
             igTableHeadersRow();
-            foreach (gridResult; preview.grids) {
-                igTableNextRow();
-                igTableNextColumn();
-                incText(gridResult.grid !is null ? gridResult.grid.name : "-");
-                igTableNextColumn();
-                incText("%d".format(cast(int)gridResult.sampledVertices));
-                igTableNextColumn();
-                incText("%d".format(cast(int)gridResult.missingVertices));
-                igTableNextColumn();
-                incText("%.3f".format(gridResult.minDepth));
-                igTableNextColumn();
-                incText("%.3f".format(gridResult.maxDepth));
-                igTableNextColumn();
-                incText(gridResult.skipped ? _("Skipped") : _("Will Apply"));
+            if (isOthersSelected()) {
+                foreach (ref mapping; preview.mappings) {
+                    if (mapping.matched && mapping.targetGridUuid != 0) continue;
+                    drawMappingLayerRow(mapping);
+                }
+            } else {
+                auto gridResult = preview.grids[selectedGridIndex];
+                foreach (layerMask; gridResult.layerMasks) {
+                    auto mapping = findMapping(layerMask.layerPath);
+                    if (mapping is null) continue;
+                    drawMappingLayerRow(*mapping, gridResult.grid);
+                }
             }
             igEndTable();
         }
+    }
 
-        if (igBeginTable("###PsdDepthGridMasks", 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg)) {
-            igTableSetupColumn(__("GridDeformer"));
-            igTableSetupColumn(__("Depth Layer"));
-            igTableSetupColumn(__("Preview"));
-            igTableSetupColumn(__("Sampled Vertices"));
-            igTableSetupColumn(__("Selected Vertices"));
-            igTableHeadersRow();
-            foreach (gridResult; preview.grids) {
-                foreach (layerMask; gridResult.layerMasks) {
-                    igTableNextRow();
-                    igTableNextColumn();
-                    incText(gridResult.grid !is null ? gridResult.grid.name : "-");
-                    igTableNextColumn();
-                    incText(layerMask.layerPath);
-                    igTableNextColumn();
-                    drawLayerPreviewHoverLabel(_("Layer"), layerMask.layerPath, false);
-                    igSameLine(0, 8);
-                    drawLayerPreviewHoverLabel(_("Mask"), layerMask.layerPath, true);
-                    igTableNextColumn();
-                    incText("%d".format(cast(int)layerMask.sampledVertices));
-                    igTableNextColumn();
-                    incText("%d".format(cast(int)layerMask.selectedVertices));
-                }
-            }
+    void drawGridPreview(float height) {
+        if (preview.grids.length == 0 && !hasOtherMappings()) return;
+        auto leftWidth = max(260.0f, incAvailableSpace().x * 0.38f);
+        if (igBeginTable("###PsdDepthGridReviewLayout", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp, ImVec2(0, height))) {
+            igTableSetupColumn(__("GridDeformers"), ImGuiTableColumnFlags.WidthFixed, leftWidth);
+            igTableSetupColumn(__("Depth Layers"));
+            igTableNextRow();
+            igTableNextColumn();
+            drawGridList(height);
+            igTableNextColumn();
+            drawSelectedGridLayers(height);
             igEndTable();
         }
     }
@@ -405,19 +583,13 @@ protected:
 
         auto space = incAvailableSpace();
         float footerHeight = 220;
-        float mappingHeight = space.y - footerHeight;
-        if (mappingHeight < 80) mappingHeight = 80;
+        float reviewHeight = space.y - footerHeight;
+        if (reviewHeight < 120) reviewHeight = 120;
 
         if (errorMessage.length) {
             incText(errorMessage);
         } else {
-            incText(_("Matched Layers: %d  Unmatched: %d  Ambiguous: %d  Target GridDeformers: %d").format(
-                cast(int)preview.matchedLayers,
-                cast(int)preview.unmatchedLayers,
-                cast(int)preview.ambiguousLayers,
-                cast(int)preview.grids.length));
-            drawMappings(mappingHeight);
-            drawGridPreview();
+            drawGridPreview(reviewHeight);
         }
 
         igSeparator();

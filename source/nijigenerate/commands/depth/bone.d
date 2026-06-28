@@ -817,6 +817,7 @@ private DepthBoneDirtyRequest[] depthBoneDirtyRequests;
 private ExDepthRigRoot lastDepthBoneDirtyRoot;
 private Parameter lastDepthBoneDirtyParameter;
 private vec2u lastDepthBoneDirtyKeypoint;
+private GroupAction depthBoneRefreshActionSink;
 
 private enum size_t DepthBoneAllKeypointsPerFrame = 4;
 
@@ -838,6 +839,23 @@ private struct DepthBoneFingerprint {
 }
 
 private DepthBoneFingerprint[uint] depthBoneFingerprints;
+
+void ngBeginDepthBoneRefreshActionSink(GroupAction sink) {
+    depthBoneRefreshActionSink = sink;
+}
+
+void ngEndDepthBoneRefreshActionSink(GroupAction sink) {
+    if (depthBoneRefreshActionSink is sink) depthBoneRefreshActionSink = null;
+}
+
+private void pushDepthBoneRefreshAction(GroupAction group) {
+    if (group is null || group.empty()) return;
+    if (depthBoneRefreshActionSink !is null) {
+        depthBoneRefreshActionSink.addAction(group);
+    } else {
+        incActionPush(group);
+    }
+}
 
 private string dirtyScopeName(DepthBoneDirtyScope dirtyScope) {
     return dirtyScope == DepthBoneDirtyScope.AllKeypoints ? "all-keypoints" : "keypoint";
@@ -1443,7 +1461,7 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
     }
     action.updateNewState();
     group.addAction(action);
-    incActionPush(group);
+    pushDepthBoneRefreshAction(group);
     depthBoneDebugLog("[DepthBoneRefresh] refresh done: root=%s bindings=%s", rigRoot.name, deformBindings.length);
     return true;
 }
@@ -1519,7 +1537,7 @@ private bool ngRefreshDepthBoneDeformKeypoints(ExDepthRigRoot rigRoot, Parameter
         group.addAction(action);
     }
 
-    incActionPush(group);
+    pushDepthBoneRefreshAction(group);
     depthBoneDebugLog("[DepthBoneRefresh] refresh chunk done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
         rigRoot.name,
         deformBindings.length,
@@ -1656,6 +1674,19 @@ void ngFlushDepthBoneDirty() {
         }
     }
     processDepthBoneAllKeypointJobs();
+}
+
+bool ngHasPendingDepthBoneRefresh() {
+    return depthBoneDirtyRequests.length > 0 || depthBoneAllKeypointJobs.length > 0;
+}
+
+void ngFlushDepthBoneDirtyImmediate() {
+    size_t guard;
+    while (ngHasPendingDepthBoneRefresh()) {
+        ngFlushDepthBoneDirty();
+        guard++;
+        enforce(guard < 10000, "Depth bone refresh queue did not drain");
+    }
 }
 
 private void applyRuleJson(ref ExDepthInfluenceRule rule, string text) {

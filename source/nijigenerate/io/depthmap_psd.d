@@ -6,7 +6,7 @@ import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import psd;
 import std.algorithm : sort;
-import std.algorithm.comparison : max;
+import std.algorithm.comparison : max, min;
 import std.array : array;
 import std.conv : to;
 import std.exception : enforce;
@@ -59,6 +59,8 @@ struct PsdDepthImportSettings {
     PsdDepthMissingPolicy missingPolicy = PsdDepthMissingPolicy.KeepExisting;
     string[string] layerTargetGridUuidOverrides;
     bool[string] ignoredLayerPaths;
+    bool[string] disabledGridUuids;
+    bool[string] disabledGridLayerKeys;
 }
 
 struct PsdDepthLayerMapping {
@@ -79,6 +81,11 @@ struct PsdDepthGridResult {
     GridDeformer grid;
     float[] depths;
     PsdDepthGridLayerMask[] layerMasks;
+    int previewLeft;
+    int previewTop;
+    int previewWidth;
+    int previewHeight;
+    ubyte[] compositePreviewRgba;
     size_t sampledVertices;
     size_t missingVertices;
     float minDepth;
@@ -484,6 +491,22 @@ private size_t findLayerMask(ref GridAccum accum, string layerPath, string layer
     return accum.layerMasks.length - 1;
 }
 
+string ngPsdDepthGridLayerKey(ulong gridUuid, string layerPath) {
+    return "%s\n%s".format(gridUuid, layerPath);
+}
+
+bool ngPsdDepthGridEnabled(ref PsdDepthImportSettings settings, ulong gridUuid) {
+    auto key = gridUuid.to!string;
+    if (auto disabled = key in settings.disabledGridUuids) return !*disabled;
+    return true;
+}
+
+bool ngPsdDepthGridLayerEnabled(ref PsdDepthImportSettings settings, ulong gridUuid, string layerPath) {
+    auto key = ngPsdDepthGridLayerKey(gridUuid, layerPath);
+    if (auto disabled = key in settings.disabledGridLayerKeys) return !*disabled;
+    return true;
+}
+
 private GridDeformer findGridByUuid(Puppet puppet, string uuid) {
     auto grids = puppet.findNodesType!GridDeformer(puppet.root);
     foreach (grid; grids) {
@@ -543,6 +566,11 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
     result.grid = accum.grid;
     result.depths.length = accum.best.length;
     result.layerMasks = accum.layerMasks.dup;
+    if (!ngPsdDepthGridEnabled(settings, accum.grid.uuid)) {
+        result.depths = existing;
+        result.skipped = true;
+        return;
+    }
     foreach (winnerLayerPath; accum.winnerLayerPaths) {
         if (winnerLayerPath.length == 0) continue;
         foreach (ref mask; result.layerMasks) {
@@ -582,6 +610,101 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
     if (!hasMinMax) {
         result.minDepth = 0.0f;
         result.maxDepth = 0.0f;
+    }
+}
+
+private void buildCompositePreview(
+    ref PsdDepthGridResult result,
+    DepthLayerImage[] layers,
+    GridDeformer grid,
+    ref PsdDepthImportSettings settings
+) {
+    enum int MaxPreviewSize = 192;
+
+    bool hasBounds;
+    int left;
+    int top;
+    int right;
+    int bottom;
+    foreach (ref layer; layers) {
+        if (layer.grid !is grid || layer.width <= 0 || layer.height <= 0) continue;
+        auto layerRight = layer.left + layer.width;
+        auto layerBottom = layer.top + layer.height;
+        if (!hasBounds) {
+            left = layer.left;
+            top = layer.top;
+            right = layerRight;
+            bottom = layerBottom;
+            hasBounds = true;
+        } else {
+            left = min(left, layer.left);
+            top = min(top, layer.top);
+            right = max(right, layerRight);
+            bottom = max(bottom, layerBottom);
+        }
+    }
+    if (!hasBounds || right <= left || bottom <= top) return;
+
+    auto sourceWidth = right - left;
+    auto sourceHeight = bottom - top;
+    auto scale = min(
+        cast(float)MaxPreviewSize / cast(float)sourceWidth,
+        cast(float)MaxPreviewSize / cast(float)sourceHeight
+    );
+    if (scale > 1.0f) scale = 1.0f;
+    if (scale <= 0.0f) scale = 1.0f;
+
+    auto width = max(1, cast(int)round(cast(float)sourceWidth * scale));
+    auto height = max(1, cast(int)round(cast(float)sourceHeight * scale));
+    result.previewLeft = left;
+    result.previewTop = top;
+    result.previewWidth = width;
+    result.previewHeight = height;
+    result.compositePreviewRgba.length = cast(size_t)width * cast(size_t)height * 4;
+
+    foreach (py; 0 .. height) {
+        foreach (px; 0 .. width) {
+            auto documentX = cast(float)left + (cast(float)px + 0.5f) / scale;
+            auto documentY = cast(float)top + (cast(float)py + 0.5f) / scale;
+            bool hasSample;
+            float bestDepth = 0.0f;
+            float bestGray = 0.0f;
+            ubyte bestAlpha = 0;
+
+            foreach (ref layer; layers) {
+                if (layer.grid !is grid) continue;
+                if (!ngPsdDepthGridLayerEnabled(settings, grid.uuid, layer.layerPath)) continue;
+                auto layerX = cast(int)round(documentX - cast(float)layer.left);
+                auto layerY = cast(int)round(documentY - cast(float)layer.top);
+                if (layerX < 0 || layerY < 0 || layerX >= layer.width || layerY >= layer.height) continue;
+                auto layerIndex = (cast(size_t)layerY * cast(size_t)layer.width + cast(size_t)layerX) * 4;
+                if (layerIndex + 3 >= layer.data.length) continue;
+                auto alpha = cast(float)layer.data[layerIndex + 3] / 255.0f;
+                if (alpha <= settings.alphaThreshold) continue;
+
+                auto depth = pixelDepth(layer.data, layerIndex, settings);
+                if (!hasSample || depth > bestDepth) {
+                    hasSample = true;
+                    bestDepth = depth;
+                    bestGray = pixelDepth01(layer.data, layerIndex, settings);
+                    bestAlpha = layer.data[layerIndex + 3];
+                }
+            }
+
+            auto outIndex = (cast(size_t)py * cast(size_t)width + cast(size_t)px) * 4;
+            if (!hasSample) {
+                result.compositePreviewRgba[outIndex + 0] = 0;
+                result.compositePreviewRgba[outIndex + 1] = 0;
+                result.compositePreviewRgba[outIndex + 2] = 0;
+                result.compositePreviewRgba[outIndex + 3] = 0;
+            } else {
+                auto gray = cast(ubyte)round(bestGray * 255.0f);
+                result.compositePreviewRgba[outIndex + 0] = gray;
+                result.compositePreviewRgba[outIndex + 1] = gray;
+                result.compositePreviewRgba[outIndex + 2] = gray;
+                result.compositePreviewRgba[outIndex + 3] = bestAlpha;
+            }
+        }
     }
 }
 
@@ -713,6 +836,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     foreach (ref layer; layers) {
         auto accumIndex = findAccum(accums, layer.grid);
         auto layerMaskIndex = findLayerMask(accums[accumIndex], layer.layerPath, layer.layerName);
+        if (!ngPsdDepthGridEnabled(settings, layer.grid.uuid)) continue;
+        if (!ngPsdDepthGridLayerEnabled(settings, layer.grid.uuid, layer.layerPath)) continue;
         auto vertices = layer.grid.vertices;
         foreach (i; 0 .. vertices.length) {
             auto documentPoint = gridVertexDocumentPosition(layer.grid, vertices[i], document.width, document.height);
@@ -732,6 +857,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     foreach (ref accum; accums) {
         PsdDepthGridResult gridResult;
         finalizeGridResult(gridResult, accum, settings);
+        buildCompositePreview(gridResult, layers, accum.grid, settings);
         if (gridResult.skipped) result.skippedGrids++;
         result.grids ~= gridResult;
     }

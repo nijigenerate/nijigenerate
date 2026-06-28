@@ -1,9 +1,11 @@
 module nijigenerate.commands.depth.map;
 
 import nijigenerate.actions.depth;
+import nijigenerate.actions : GroupAction;
 import nijigenerate.commands.base;
-import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
-import nijigenerate.core.actionstack : incActionPopGroup, incActionPush, incActionPushGroup;
+import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngEndDepthBoneRefreshActionSink,
+    ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirtyForTarget;
+import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.io.depthmap_psd;
@@ -41,6 +43,20 @@ private DepthMappedNode requireDepthMapped(Node node) {
     auto mapped = cast(DepthMappedNode)node;
     enforce(mapped !is null, "target must support depth maps");
     return mapped;
+}
+
+private class PsdDepthImportChangeAction : GroupAction {
+    override string describe() {
+        return _("Imported PSD depth map");
+    }
+
+    override string describeUndo() {
+        return _("PSD depth map import was reverted");
+    }
+
+    override string getName() {
+        return this.stringof;
+    }
 }
 
 private DepthOperationMappedNode requireDepthOperated(Node node) {
@@ -211,13 +227,17 @@ private JSONValue depthsToJson(float[] depths) {
     return result;
 }
 
-private void replaceDepthsWithUndo(Node target, float[] nextDepths, string reason) {
+private DepthMappedChangeAction applyDepthsChangeAction(Node target, float[] nextDepths, string reason) {
     auto mapped = requireDepthMapped(target);
     auto action = new DepthMappedChangeAction(target);
     mapped.replaceDepths(nextDepths);
     action.updateNewState();
-    incActionPush(action);
     ngMarkDepthBoneDirtyForTarget(target, reason);
+    return action;
+}
+
+private void replaceDepthsWithUndo(Node target, float[] nextDepths, string reason) {
+    incActionPush(applyDepthsChangeAction(target, nextDepths, reason));
 }
 
 JSONValue ngPsdDepthImportSummaryToJson(PsdDepthImportResult imported, size_t changedGrids) {
@@ -251,15 +271,20 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult impor
     size_t changedGrids;
 
     if (imported.grids.length > 0) {
-        incActionPushGroup();
-        scope(exit) incActionPopGroup();
+        ngGuardActionStackScopes();
+        ngFlushDepthBoneDirtyImmediate();
+        auto group = new PsdDepthImportChangeAction();
+        ngBeginDepthBoneRefreshActionSink(group);
+        scope(exit) ngEndDepthBoneRefreshActionSink(group);
         foreach (gridResult; imported.grids) {
             if (gridResult.skipped) continue;
             if (gridResult.grid is null) continue;
             enforce(gridResult.depths.length == gridResult.grid.vertices.length, "imported depths length must match target vertices");
-            replaceDepthsWithUndo(gridResult.grid, gridResult.depths, "Import PSD Depth Map");
+            group.addAction(applyDepthsChangeAction(gridResult.grid, gridResult.depths, "Import PSD Depth Map"));
             changedGrids++;
         }
+        ngFlushDepthBoneDirtyImmediate();
+        if (!group.empty()) incActionPush(group);
     }
 
     return ExCommandResult!JSONValue(
