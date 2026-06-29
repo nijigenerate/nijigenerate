@@ -9,6 +9,7 @@ import nijigenerate.ext : ExParameter;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.project : incActivePuppet, incArmedParameter;
+import nijigenerate.core.tasks : incSetStatus;
 import nijigenerate.viewport.depth.mesheditor.node : DepthDisplayPlaneSize, DepthDisplayZScale;
 import nijilive;
 import nijilive.core.nodes.deformable : Deformable;
@@ -217,6 +218,21 @@ private ExDepthBone findBoneByUuid(ExDepthRigRoot root, ulong uuid) {
     return null;
 }
 
+private Node findNodeByUuid(Node root, ulong uuid) {
+    if (root is null) return null;
+    if (root.uuid == uuid) return root;
+    foreach (child; root.children) {
+        if (auto found = findNodeByUuid(child, uuid)) return found;
+    }
+    return null;
+}
+
+private Node findActiveNodeByUuid(ulong uuid) {
+    auto puppet = incActivePuppet();
+    if (puppet is null || puppet.root is null) return null;
+    return findNodeByUuid(puppet.root, uuid);
+}
+
 private float depthAt(Node target, size_t index) {
     if (auto mapped = cast(DepthMappedNode)target) {
         auto depths = mapped.copyDepths();
@@ -242,7 +258,9 @@ private float depthScaleFor(Deformable target) {
         maxPoint.y = max(maxPoint.y, vertex.y);
     }
     auto size = maxPoint - minPoint;
-    return max(1.0f, max(size.x, size.y) * (DepthDisplayZScale / DepthDisplayPlaneSize));
+    auto scale = max(size.x, size.y) * (DepthDisplayZScale / DepthDisplayPlaneSize);
+    if (!scale.isFinite) return 1.0f;
+    return max(1.0f, scale);
 }
 
 private float targetBoundsSize(Deformable target) {
@@ -285,12 +303,292 @@ private void depthScaleDetails(Deformable target, out vec2 minPoint, out vec2 ma
 }
 
 private float worldDepthAt(Deformable target, size_t index) {
-    return -depthAt(target, index) * depthScaleFor(target);
+    return depthAt(target, index) * depthScaleFor(target);
 }
 
 private float worldDepthAt(Deformable target, size_t index, ExDepthBoneSourceSettings setting) {
     auto adjustedDepth = depthAt(target, index) * setting.depthScale + setting.depthOffset;
-    return -adjustedDepth * depthScaleFor(target);
+    return adjustedDepth * depthScaleFor(target);
+}
+
+private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bone, vec2 worldPoint, out float worldDepth) {
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null) {
+        depthBoneDebugLog("[FitZ] no root or puppet root=%s puppet=%s", root is null, puppet is null);
+        return false;
+    }
+
+    size_t sampleCount = 0;
+    float totalDepth = 0.0f;
+    depthBoneDebugLog("[FitZ] start root=%s bone=%s bindings=%s", root.name, bone is null ? "(fallback)" : bone.name, root.bindings.length);
+    foreach (ref binding; root.bindings) {
+        ExDepthBoneSourceSettings setting;
+        if (bone !is null) {
+            if (binding.sourceBoneUuids.countUntil(bone.uuid) < 0) {
+                depthBoneDebugLog("[FitZ] skip binding target=%s bone uuid=%s not in sources", binding.targetUuid, bone.uuid);
+                continue;
+            }
+            setting = binding.sourceSetting(bone.uuid);
+        }
+
+        auto targetNode = findNodeByUuid(puppet.root, binding.targetUuid);
+        auto target = cast(Deformable)targetNode;
+        auto mapped = cast(DepthMappedNode)targetNode;
+        if (targetNode is null || target is null || mapped is null) {
+            depthBoneDebugLog("[FitZ] skip target=%s nodeNull=%s deformableNull=%s mappedNull=%s",
+                binding.targetUuid, targetNode is null, target is null, mapped is null);
+            continue;
+        }
+
+        auto depths = mapped.copyDepths();
+        if (depths is null || depths.length == 0) {
+            depthBoneDebugLog("[FitZ] skip target=%s depths=%s", targetNode.name, depths is null ? -1 : cast(int)depths.length);
+            continue;
+        }
+        depthBoneDebugLog("[FitZ] target=%s vertices=%s depths=%s", targetNode.name, target.vertices.length, depths.length);
+
+        auto targetToWorld = targetNode.transform.matrix;
+        bool foundTargetSample = false;
+        float bestDistanceSq = float.max;
+        float bestDepth = 0.0f;
+        if (target.vertices.length > 0) {
+            foreach (i, vertex; target.vertices) {
+                if (i >= depths.length) break;
+                auto adjustedDepth = bone is null
+                    ? depths[i]
+                    : depths[i] * setting.depthScale + setting.depthOffset;
+                auto depth = adjustedDepth * depthScaleFor(target);
+                if (!depth.isFinite) continue;
+                auto sample = transformPoint(targetToWorld, vec3(vertex.x, vertex.y, depth));
+                if (!sample.x.isFinite || !sample.y.isFinite || !sample.z.isFinite) {
+                    sample = vec3(vertex.x, vertex.y, depth);
+                }
+                auto dx = sample.x - worldPoint.x;
+                auto dy = sample.y - worldPoint.y;
+                auto distanceSq = dx * dx + dy * dy;
+                if (!foundTargetSample || distanceSq < bestDistanceSq) {
+                    foundTargetSample = true;
+                    bestDistanceSq = distanceSq;
+                    bestDepth = sample.z;
+                }
+            }
+            depthBoneDebugLog("[FitZ] scanned vertices found=%s bestDepth=%s bestDistanceSq=%s", foundTargetSample, bestDepth, bestDistanceSq);
+        } else {
+            float totalTargetDepth = 0.0f;
+            size_t targetDepthCount = 0;
+            foreach (i, value; depths) {
+                auto adjustedDepth = bone is null
+                    ? value
+                    : value * setting.depthScale + setting.depthOffset;
+                auto depth = adjustedDepth * depthScaleFor(target);
+                if (!depth.isFinite) continue;
+                totalTargetDepth += depth;
+                targetDepthCount++;
+            }
+            if (targetDepthCount > 0) {
+                auto depth = totalTargetDepth / cast(float)targetDepthCount;
+                auto sample = transformPoint(targetToWorld, vec3(0, 0, depth));
+                if (!sample.z.isFinite) sample = vec3(worldPoint.x, worldPoint.y, depth);
+                foundTargetSample = true;
+                bestDepth = sample.z;
+            }
+        }
+
+        if (foundTargetSample) {
+            totalDepth += bestDepth;
+            sampleCount++;
+            depthBoneDebugLog("[FitZ] accepted target=%s bestDepth=%s sampleCount=%s", targetNode.name, bestDepth, sampleCount);
+        }
+    }
+
+    if (sampleCount == 0) {
+        depthBoneDebugLog("[FitZ] no accepted samples");
+        return false;
+    }
+    worldDepth = totalDepth / cast(float)sampleCount;
+    return true;
+}
+
+bool ngDepthRigNodeCurrentScaledDepth(Node node, out float localTranslationZ, out float rootDepth) {
+    if (auto root = cast(ExDepthRigRoot)node) {
+        foreach (bone; root.depthBones()) {
+            if (ngDepthRigNodeCurrentScaledDepth(bone, localTranslationZ, rootDepth)) return true;
+        }
+        return false;
+    }
+
+    auto bone = cast(ExDepthBone)node;
+    if (bone is null) return false;
+    auto root = findDepthRigRoot(bone);
+    if (root is null) return false;
+
+    auto worldPoint = bone.transform.translation.xy;
+    if (!nearestScaledWorldDepthAtPoint(root, bone, worldPoint, rootDepth)
+        && !nearestScaledWorldDepthAtPoint(root, null, worldPoint, rootDepth)) {
+        return false;
+    }
+    if (!rootDepth.isFinite) {
+        depthBoneDebugLog("[FitZ] rootDepth not finite bone=%s rootDepth=%s", bone.name, rootDepth);
+        return false;
+    }
+    auto currentWorldZ = bone.transform.translation.vector[2];
+    if (!currentWorldZ.isFinite) {
+        depthBoneDebugLog("[FitZ] currentWorldZ not finite bone=%s currentWorldZ=%s", bone.name, currentWorldZ);
+        return false;
+    }
+    auto currentLocalZ = bone.localTransform.translation.vector[2];
+    localTranslationZ = currentLocalZ + (rootDepth - currentWorldZ);
+    if (!localTranslationZ.isFinite) {
+        depthBoneDebugLog("[FitZ] localTranslationZ not finite bone=%s local=%s localZRead=%s rootDepth=%s currentWorldZ=%s",
+            bone.name, localTranslationZ, currentLocalZ, rootDepth, currentWorldZ);
+        return false;
+    }
+    return true;
+}
+
+size_t ngDepthRigRootFittableDepthBoneCount(ExDepthRigRoot root) {
+    if (root is null) return 0;
+    size_t result;
+    foreach (bone; root.depthBones()) {
+        float localTranslationZ;
+        float rootDepth;
+        if (ngDepthRigNodeCurrentScaledDepth(bone, localTranslationZ, rootDepth)) result++;
+    }
+    return result;
+}
+
+private bool fitDepthBoneTranslationZToCurrentDepth(ExDepthRigRoot root, ExDepthBone bone, GroupAction group, ref bool changed) {
+    if (root is null || bone is null) return false;
+
+    float localTranslationZ;
+    float rootDepth;
+    if (!ngDepthRigNodeCurrentScaledDepth(bone, localTranslationZ, rootDepth)) {
+        depthBoneDebugLog("[FitZ] current scaled depth failed bone=%s", bone.name);
+        return false;
+    }
+    depthBoneDebugLog("[FitZ] fit translation bone=%s localZ=%s rootDepth=%s", bone.name, localTranslationZ, rootDepth);
+    return fitDepthBoneTranslationZ(root, bone, localTranslationZ, group, changed);
+}
+
+private bool fitDepthBoneTranslationZ(ExDepthRigRoot root, ExDepthBone bone, float localTranslationZ, GroupAction group, ref bool changed) {
+    if (root is null || bone is null || !localTranslationZ.isFinite) return false;
+
+    auto oldValue = bone.localTransform.translation.vector[2];
+    depthBoneDebugLog("[FitZ] apply translation bone=%s old=%s new=%s", bone.name, oldValue, localTranslationZ);
+    if (abs(oldValue - localTranslationZ) <= 0.00001f) return true;
+    bone.localTransform.translation.vector[2] = localTranslationZ;
+    bone.localTransform.update();
+    bone.transformChanged();
+
+    auto action = new NodeValueChangeAction!(Node, float)(
+        "translationZ",
+        bone,
+        oldValue,
+        localTranslationZ,
+        &bone.localTransform.translation.vector[2]
+    );
+    if (group !is null) group.addAction(action);
+    else incActionPush(action);
+    changed = true;
+    return true;
+}
+
+private Parameter depthFitParameter(ExDepthRigRoot root) {
+    auto param = incArmedParameter();
+    if (param !is null) return param;
+    if (lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null)
+        return lastDepthBoneDirtyParameter;
+    return null;
+}
+
+private bool fitDepthBoneBindingZToCurrentDepth(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+    Parameter param,
+    vec2u kp,
+    GroupAction group,
+    ref bool changed,
+) {
+    if (root is null || bone is null || param is null) return false;
+
+    float bindingZ;
+    float worldDepth;
+    auto worldPoint = bone.transform.translation.xy;
+    if (!nearestScaledWorldDepthAtPoint(root, bone, worldPoint, worldDepth)
+        && !nearestScaledWorldDepthAtPoint(root, null, worldPoint, worldDepth)) {
+        return false;
+    }
+    if (!worldDepth.isFinite || !bone.transform.translation.vector[2].isFinite) return false;
+    bindingZ = worldDepth - bone.transform.translation.vector[2];
+    if (!bindingZ.isFinite) return false;
+
+    auto binding = cast(ValueParameterBinding)param.getBinding(bone, "transform.t.z");
+    if (binding is null) {
+        binding = cast(ValueParameterBinding)param.createBinding(bone, "transform.t.z");
+        if (binding is null) return false;
+        if (group !is null) group.addAction(new ParameterBindingAddAction(param, binding));
+    }
+
+    auto oldValue = binding.getValue(kp);
+    if (abs(oldValue - bindingZ) <= 0.00001f) return true;
+
+    auto action = new ParameterBindingValueChangeAction!(float, ValueParameterBinding)(binding.getName(), binding, kp.x, kp.y);
+    binding.setValue(kp, bindingZ);
+    action.updateNewState();
+    if (group !is null) group.addAction(action);
+    else incActionPush(action);
+    changed = true;
+    return true;
+}
+
+private bool fitOneDepthBoneZToDepth(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+    GroupAction group,
+    ref bool changed,
+) {
+    return fitDepthBoneTranslationZToCurrentDepth(root, bone, group, changed);
+}
+
+bool ngFitDepthRigNodeTranslationZToCurrentDepth(Node node) {
+    if (auto root = cast(ExDepthRigRoot)node) {
+        auto group = new GroupAction();
+        bool changed;
+        bool fitted;
+        foreach (bone; root.depthBones()) {
+            fitted = fitOneDepthBoneZToDepth(root, bone, group, changed) || fitted;
+        }
+        if (!fitted) {
+            incSetStatus(_("Fit Z to Depth failed: no usable depth samples were found."));
+            return false;
+        }
+        if (changed) {
+            incActionPush(group);
+        }
+        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(root, "Fit Depth Rig Bones Z to Depth");
+        incSetStatus(changed
+            ? _("Fit Z to Depth updated descendant DepthBone translation.t.z values.")
+            : _("Fit Z to Depth completed; descendant DepthBone translation.t.z values were already aligned."));
+        return true;
+    }
+
+    if (auto bone = cast(ExDepthBone)node) {
+        auto root = findDepthRigRoot(bone);
+        if (root is null) return false;
+        auto group = new GroupAction();
+        bool changed;
+        if (!fitOneDepthBoneZToDepth(root, bone, group, changed)) {
+            incSetStatus(_("Fit Z to Depth failed: no usable depth sample was found for the DepthBone."));
+            return false;
+        }
+        if (changed) incActionPush(group);
+        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(root, "Fit Depth Bone Z to Depth");
+        incSetStatus(changed
+            ? _("Fit Z to Depth updated the DepthBone translation.t.z value.")
+            : _("Fit Z to Depth completed; the DepthBone translation.t.z value was already aligned."));
+        return true;
+    }
+    return false;
 }
 
 private void logDepthBoneDepthInput(Node targetNode, Deformable target) {

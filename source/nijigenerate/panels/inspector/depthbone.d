@@ -2,7 +2,8 @@ module nijigenerate.panels.inspector.depthbone;
 
 import nijigenerate;
 import nijigenerate.commands;
-import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyAllKeypointsForArmedParameter;
+import nijigenerate.commands.depth.bone : ngDepthRigNodeCurrentScaledDepth,
+    ngFitDepthRigNodeTranslationZToCurrentDepth, ngMarkDepthBoneDirtyAllKeypointsForArmedParameter;
 import nijigenerate.ext;
 import nijigenerate.panels.inspector.common;
 import nijigenerate.widgets;
@@ -23,6 +24,10 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRi
         if (incBeginCategory(__("Depth Rig"))) {
             igText(__("Bones: %d"), cast(int)root.depthBones().length);
             igText(__("Bindings: %d"), cast(int)root.bindings.length);
+            if (igButton(__("Fit Z to Depth"))) {
+                foreach (target; targets) ngFitDepthRigNodeTranslationZToCurrentDepth(target);
+            }
+            incTooltip(_("Set descendant DepthBone translation.t.z values to the scaled depth values used by Depth Bone deformation."));
             if (igButton(__("Add Standard Skeleton"))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1.0f);
@@ -58,6 +63,18 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
                 }
             }
             incTooltip(_("Force refresh all Depth Bone target keypoints"));
+
+            float localDepthZ;
+            float rootDepthZ;
+            auto hasDepth = ngDepthRigNodeCurrentScaledDepth(bone, localDepthZ, rootDepthZ);
+            if (hasDepth) {
+                igText(__("Current Depth: %.2f"), localDepthZ);
+                igText(__("Root Depth: %.2f"), rootDepthZ);
+            }
+            if (igButton(__("Fit Z to Depth"))) {
+                foreach (target; targets) ngFitDepthRigNodeTranslationZToCurrentDepth(target);
+            }
+            incTooltip(_("Set translation.t.z to the scaled depth value used by Depth Bone deformation."));
 
             float[3] head = [bone.restHead.x, bone.restHead.y, bone.restHead.z];
             float[3] tail = [bone.restTail.x, bone.restTail.y, bone.restTail.z];

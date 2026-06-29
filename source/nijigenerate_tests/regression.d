@@ -12,6 +12,7 @@ import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProce
 import nijigenerate.commands;
 import nijigenerate.commands.binding.binding;
 import nijigenerate.commands.base;
+import nijigenerate.commands.depth.bone : ngFitDepthRigNodeTranslationZToCurrentDepth;
 import nijigenerate.commands.inspector.apply_node;
 import nijigenerate.commands.model.set_deform_binding;
 import nijigenerate.commands.node.base : clipboardNodes, conversionMap;
@@ -312,6 +313,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.bone-node", "Depth Bone", "DepthBone creation, parent/child hierarchy, rest transforms, constraints, and serialization", automated, "Covers DepthBone node round-trip of rest pose and constraints."),
     Scenario("depthbone.binding-create", "Depth Bone", "Binding creation, update, removal, and target validation", automated, "Covers command-level DepthBone source binding creation, settings update, removal, and undo/redo."),
     Scenario("depthbone.sources", "Depth Bone", "Bone Source add/remove/reorder/offset/scale/weight undo and refresh", automated, "Covers source list actions and command-level add/remove/settings undo/redo; generated refresh still needs golden fixture coverage."),
+    Scenario("depthbone.fit-z", "Depth Bone", "Fit Z to Depth updates descendant DepthBone Z from mapped GridDeformer depth", automated, "Covers DepthRigRoot Fit Z to Depth using per-DepthBone depth samples from DepthMapped GridDeformer targets."),
     Scenario("depthbone.influence-rule", "Depth Bone", "Influence rule get/set, terminal bone selection, max influence, and radius behavior", automated, "Covers command-level influence rule set/get with undo/redo and serialization."),
     Scenario("depthbone.preview-commands", "Depth Bone", "List, preview influence, preview deform, and apply deform commands", automated, "Covers reduced command fixture for listing bones/sources, influence preview deformation, posed deform preview, apply-to-binding, undo, and redo."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
@@ -5903,6 +5905,56 @@ private void testDepthBoneSourceCommandsUndoRedo() {
     require(root.bindings.length == 0, "redo RemoveDepthBoneSource should remove binding");
 }
 
+private void testDepthRigRootFitZToDepth() {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "fit-depth-root";
+    auto target = new ExGridDeformer(incActivePuppet().root);
+    target.name = "fit-depth-grid";
+    target.rebuffer(Vec2Array([
+        vec2(-10, -10),
+        vec2(10, -10),
+        vec2(-10, 10),
+        vec2(10, 10),
+    ]));
+    target.replaceDepths([0.5f, 0.5f, 0.5f, 0.5f]);
+
+    auto bone = ngCreateDepthBone(root, "FitBone", vec3(-10, -10, 0), vec3(-10, 90, 0));
+    incActivePuppet().rescanNodes();
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded,
+        "fit fixture should add a depth bone source");
+    require(root.depthBones().length == 1, "fit fixture should expose one descendant DepthBone");
+    require(root.bindings.length == 1, "fit fixture should keep one DepthRig binding");
+    require(root.bindings[0].targetUuid == target.uuid, "fit fixture binding should point to the depth grid target");
+    require(root.bindings[0].sourceBoneUuids == [cast(ulong)bone.uuid], "fit fixture binding should point to the source DepthBone");
+    require(target.copyDepths().length == target.vertices.length, "fit fixture depths should match grid vertices");
+
+    auto originalLocalZ = bone.localTransform.translation.vector[2];
+
+    incActionClearHistory();
+    auto fitResult = ngFitDepthRigNodeTranslationZToCurrentDepth(root);
+    require(fitResult, "DepthRigRoot Fit Z to Depth returned false");
+    require(!near(bone.localTransform.translation.vector[2], originalLocalZ),
+        "DepthRigRoot Fit Z to Depth should update descendant DepthBone local Z; got "
+        ~ bone.localTransform.translation.vector[2].to!string);
+    require(bone.localTransform.translation.vector[2] > originalLocalZ,
+        "positive depth should fit descendant DepthBone local Z to the positive side; got "
+        ~ bone.localTransform.translation.vector[2].to!string);
+    require(incActionHistory().length == 1, "DepthRigRoot Fit Z to Depth should push one undo action");
+    auto fittedLocalZ = bone.localTransform.translation.vector[2];
+
+    incActionUndo();
+    require(near(bone.localTransform.translation.vector[2], originalLocalZ),
+        "undo DepthRigRoot Fit Z to Depth should restore the previous DepthBone local Z");
+    incActionRedo();
+    require(near(bone.localTransform.translation.vector[2], fittedLocalZ),
+        "redo DepthRigRoot Fit Z to Depth should restore the fitted DepthBone local Z");
+}
+
 private void testDepthBonePreviewApplyCommands() {
     resetCase();
 
@@ -10058,6 +10110,9 @@ private bool runAutomatedScenario(string id) {
         case "depthbone.sources":
             runCase("depthbone-actions-undo-redo", &testDepthBoneActionsUndoRedo);
             runCase("depthbone-source-commands-undo-redo", &testDepthBoneSourceCommandsUndoRedo);
+            return true;
+        case "depthbone.fit-z":
+            runCase("depthrigroot-fit-z-to-depth", &testDepthRigRootFitZToDepth);
             return true;
         case "inspectors.depth-bone":
             runCase("depthbone-inspector-commands-undo-redo", &testDepthBoneInspectorCommandsUndoRedo);
