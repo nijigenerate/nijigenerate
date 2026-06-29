@@ -687,22 +687,34 @@ private ExDepthBone firstDepthBoneChild(ExDepthBone bone) {
     return null;
 }
 
+private vec3 depthBonePlanarDirection(vec3 direction) {
+    direction.z = 0;
+    if (segmentLength(vec3(0, 0, 0), direction) > 1e-4f) return direction;
+    return vec3(0, 0, 0);
+}
+
 private void effectiveDepthBoneRest(ExDepthRigRoot root, ExDepthBone bone, out vec3 head, out vec3 tail) {
     head = depthBoneNodeRestPosition(root, bone);
     if (auto childBone = firstDepthBoneChild(bone)) {
-        tail = depthBoneNodeRestPosition(root, childBone);
+        auto direction = depthBonePlanarDirection(depthBoneNodeRestPosition(root, childBone) - head);
+        if (segmentLength(vec3(0, 0, 0), direction) <= 1e-4f)
+            direction = depthBonePlanarDirection(bone.restTail - bone.restHead);
+        if (segmentLength(vec3(0, 0, 0), direction) <= 1e-4f)
+            direction = vec3(0, 100, 0);
+        tail = head + direction;
         return;
     }
     if (auto parentBone = cast(ExDepthBone)bone.parent) {
         auto parentPoint = depthBoneNodeRestPosition(root, parentBone);
-        auto direction = head - parentPoint;
-        if (segmentLength(vec3(0, 0, 0), direction) <= 1e-4f) direction = bone.restTail - bone.restHead;
+        auto direction = depthBonePlanarDirection(head - parentPoint);
+        if (segmentLength(vec3(0, 0, 0), direction) <= 1e-4f)
+            direction = depthBonePlanarDirection(bone.restTail - bone.restHead);
         if (segmentLength(vec3(0, 0, 0), direction) <= 1e-4f) direction = vec3(0, 100, 0);
         tail = head + direction;
         return;
     }
 
-    auto fallback = bone.restTail - bone.restHead;
+    auto fallback = depthBonePlanarDirection(bone.restTail - bone.restHead);
     if (segmentLength(vec3(0, 0, 0), fallback) <= 1e-4f) fallback = vec3(0, 100, 0);
     tail = head + fallback;
 }

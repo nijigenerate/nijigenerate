@@ -5955,6 +5955,65 @@ private void testDepthRigRootFitZToDepth() {
         "redo DepthRigRoot Fit Z to Depth should restore the fitted DepthBone local Z");
 }
 
+private Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "z-axis-depth-root";
+    auto parent = ngCreateDepthBone(root, "Parent", vec3(0, 0, 0), vec3(0, 100, 0));
+    auto child = ngCreateDepthBone(parent, "Child", vec3(0, 100, 0), vec3(0, 200, 0));
+    child.localTransform.translation.vector[2] = childZ;
+    child.localTransform.update();
+    child.transformChanged();
+
+    auto target = new GridDeformer(incActivePuppet().root);
+    target.name = "z-axis-target-grid";
+    target.rebuffer(Vec2Array([
+        vec2(30, 40),
+        vec2(50, 40),
+        vec2(30, 70),
+        vec2(50, 70),
+    ]));
+
+    ExDepthRigBinding binding;
+    binding.targetUuid = target.uuid;
+    binding.targetKind = ExDepthTargetKind.Grid;
+    binding.sourceBoneUuids = [cast(ulong)parent.uuid];
+    binding.influenceRule.maxInfluences = 1;
+    root.bindings = [binding];
+
+    auto param = new ExParameter("DepthZAxisParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto yaw = newValueBinding(param, parent, "transform.r.y");
+    yaw.setValue(vec2u(1, 0), 0.45f);
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.armedParameters = [param];
+    require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
+        "z-axis fixture should preview DepthBone deformation");
+    return target.deformation.dup;
+}
+
+private void testDepthBonePlanarRestAxisIgnoresChildZ() {
+    auto flat = depthBoneYawOffsetsWithChildZ(0.0f);
+    auto raised = depthBoneYawOffsetsWithChildZ(80.0f);
+    require(flat.length == raised.length && flat.length > 0, "z-axis fixture should produce comparable offsets");
+
+    bool hasMotion;
+    foreach (i, offset; flat) {
+        if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) {
+            hasMotion = true;
+        }
+        require(nearVec2(offset, raised[i]),
+            "DepthBone child Z should not change the planar rest rotation axis for zero-depth targets");
+    }
+    require(hasMotion, "z-axis fixture should exercise a non-zero yaw deformation");
+}
+
 private void testDepthBonePreviewApplyCommands() {
     resetCase();
 
@@ -10113,6 +10172,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.fit-z":
             runCase("depthrigroot-fit-z-to-depth", &testDepthRigRootFitZToDepth);
+            runCase("depthbone-planar-rest-axis-ignores-child-z", &testDepthBonePlanarRestAxisIgnoresChildZ);
             return true;
         case "inspectors.depth-bone":
             runCase("depthbone-inspector-commands-undo-redo", &testDepthBoneInspectorCommandsUndoRedo);
