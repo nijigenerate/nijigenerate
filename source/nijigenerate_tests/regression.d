@@ -5941,8 +5941,8 @@ private void testDepthRigRootFitZToDepth() {
     require(!near(bone.localTransform.translation.vector[2], originalLocalZ),
         "DepthRigRoot Fit Z to Depth should update descendant DepthBone local Z; got "
         ~ bone.localTransform.translation.vector[2].to!string);
-    require(bone.localTransform.translation.vector[2] > originalLocalZ,
-        "positive depth should fit descendant DepthBone local Z to the positive side; got "
+    require(bone.localTransform.translation.vector[2] < originalLocalZ,
+        "positive stored depth should fit descendant DepthBone local Z to the negative deformation Z side; got "
         ~ bone.localTransform.translation.vector[2].to!string);
     require(incActionHistory().length == 1, "DepthRigRoot Fit Z to Depth should push one undo action");
     auto fittedLocalZ = bone.localTransform.translation.vector[2];
@@ -6012,6 +6012,49 @@ private void testDepthBonePlanarRestAxisIgnoresChildZ() {
             "DepthBone child Z should not change the planar rest rotation axis for zero-depth targets");
     }
     require(hasMotion, "z-axis fixture should exercise a non-zero yaw deformation");
+}
+
+private void testDepthBonePositiveDepthYawDirection() {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "depth-sign-yaw-root";
+    auto bone = ngCreateDepthBone(root, "YawBone", vec3(0, 0, 0), vec3(0, 100, 0));
+
+    auto target = new ExGridDeformer(incActivePuppet().root);
+    target.name = "depth-sign-yaw-grid";
+    target.rebuffer(Vec2Array([
+        vec2(0, 40),
+        vec2(20, 40),
+        vec2(0, 60),
+        vec2(20, 60),
+    ]));
+    target.replaceDepths([1.0f, 1.0f, 1.0f, 1.0f]);
+
+    ExDepthRigBinding binding;
+    binding.targetUuid = target.uuid;
+    binding.targetKind = ExDepthTargetKind.Grid;
+    binding.sourceBoneUuids = [cast(ulong)bone.uuid];
+    binding.influenceRule.maxInfluences = 1;
+    root.bindings = [binding];
+
+    auto param = new ExParameter("DepthSignYawParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto yaw = newValueBinding(param, bone, "transform.r.y");
+    yaw.setValue(vec2u(1, 0), 0.35f);
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.armedParameters = [param];
+    require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
+        "positive-depth yaw fixture should preview DepthBone deformation");
+    foreach (offset; target.deformation) {
+        require(offset.x < -0.0001f,
+            "positive stored depth should use negative deformation Z so positive yaw keeps the established direction");
+    }
 }
 
 private void testDepthBonePreviewApplyCommands() {
@@ -10173,6 +10216,7 @@ private bool runAutomatedScenario(string id) {
         case "depthbone.fit-z":
             runCase("depthrigroot-fit-z-to-depth", &testDepthRigRootFitZToDepth);
             runCase("depthbone-planar-rest-axis-ignores-child-z", &testDepthBonePlanarRestAxisIgnoresChildZ);
+            runCase("depthbone-positive-depth-yaw-direction", &testDepthBonePositiveDepthYawDirection);
             return true;
         case "inspectors.depth-bone":
             runCase("depthbone-inspector-commands-undo-redo", &testDepthBoneInspectorCommandsUndoRedo);

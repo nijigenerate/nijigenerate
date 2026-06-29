@@ -303,12 +303,12 @@ private void depthScaleDetails(Deformable target, out vec2 minPoint, out vec2 ma
 }
 
 private float worldDepthAt(Deformable target, size_t index) {
-    return depthAt(target, index) * depthScaleFor(target);
+    return -depthAt(target, index) * depthScaleFor(target);
 }
 
 private float worldDepthAt(Deformable target, size_t index, ExDepthBoneSourceSettings setting) {
     auto adjustedDepth = depthAt(target, index) * setting.depthScale + setting.depthOffset;
-    return adjustedDepth * depthScaleFor(target);
+    return -adjustedDepth * depthScaleFor(target);
 }
 
 private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bone, vec2 worldPoint, out float worldDepth) {
@@ -357,7 +357,7 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
                 auto adjustedDepth = bone is null
                     ? depths[i]
                     : depths[i] * setting.depthScale + setting.depthOffset;
-                auto depth = adjustedDepth * depthScaleFor(target);
+                auto depth = -adjustedDepth * depthScaleFor(target);
                 if (!depth.isFinite) continue;
                 auto sample = transformPoint(targetToWorld, vec3(vertex.x, vertex.y, depth));
                 if (!sample.x.isFinite || !sample.y.isFinite || !sample.z.isFinite) {
@@ -380,7 +380,7 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
                 auto adjustedDepth = bone is null
                     ? value
                     : value * setting.depthScale + setting.depthOffset;
-                auto depth = adjustedDepth * depthScaleFor(target);
+                auto depth = -adjustedDepth * depthScaleFor(target);
                 if (!depth.isFinite) continue;
                 totalTargetDepth += depth;
                 targetDepthCount++;
