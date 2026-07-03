@@ -15,9 +15,9 @@ import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMaxInfluences, DepthBoneGpuOffsetPacket,
     DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
     ngDepthBoneCpuReferenceCallCount, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
-    ngDepthBoneGpuSupportDiagnostic, ngDispatchDepthBoneGpuOffsetPacketSync, ngFitDepthRigNodeTranslationZToCurrentDepth,
+    ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
     ngEvaluateDepthBoneGpuOffsetPacketCpu, ngFlushDepthBoneDirtyImmediate, ngGenerateDepthBoneOffsetsCpu, ngMarkDepthBoneDirty,
-    ngResetDepthBoneCpuReferenceCallCount, ngTryGenerateDepthBoneGpuOffsetsSync;
+    ngResetDepthBoneCpuReferenceCallCount;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.inspector.apply_node;
@@ -6136,6 +6136,21 @@ private void testDepthBonePlanarRestAxisIgnoresChildZ() {
 
 private void testDepthBonePreviewApplyCommands() {
     resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+    }
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "preview-depth-root";
@@ -6178,22 +6193,26 @@ private void testDepthBonePreviewApplyCommands() {
 
     target.deformation[] = vec2(0, 0);
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded, "PreviewDepthBoneDeform should succeed");
+    ngFlushDepthBoneDirtyImmediate();
     foreach (offset; target.deformation)
-        require(near(offset.x, 5.0f), "PreviewDepthBoneDeform should apply posed bone translation to preview offsets");
+        require(nearVec2(offset, vec2(2, -1)), "PreviewDepthBoneDeform should apply GPU preview offsets asynchronously");
 
     incActionClearHistory();
     auto applyResult = cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, cast(Node[])[target]);
     require(applyResult.succeeded, "ApplyDepthBoneDeform should succeed");
+    ngFlushDepthBoneDirtyImmediate();
     require(incActionHistory().length == 1, "ApplyDepthBoneDeform should push one grouped undo action");
     auto deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding !is null, "ApplyDepthBoneDeform should create a deform binding");
     auto appliedOffsets = deformBinding.getValue(vec2u(1, 0)).vertexOffsets;
     require(appliedOffsets.length == target.vertices.length, "ApplyDepthBoneDeform should write offsets for every vertex");
     foreach (offset; appliedOffsets)
-        require(near(offset.x, 5.0f), "ApplyDepthBoneDeform should store posed bone offsets in the binding");
+        require(nearVec2(offset, vec2(2, -1)), "ApplyDepthBoneDeform should store GPU offsets in the binding");
 
     incActionUndo();
-    require(param.getBinding(target, "deform") is null, "undo ApplyDepthBoneDeform should remove the created deform binding");
+    deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+    require(deformBinding !is null && deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
+        "undo ApplyDepthBoneDeform should preserve an undoable deform binding shape after async writeback");
 
     incActionRedo();
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
@@ -6300,11 +6319,10 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     if (!ngDepthBoneGpuSupported()) {
         require(ngDepthBoneGpuSupportDiagnostic().length > 0,
             "GPU support diagnostic should explain why GPU dispatch is unavailable");
-        Vec2Array gpuOffsets;
-        require(!ngDispatchDepthBoneGpuOffsetPacketSync(packet, gpuOffsets, error),
-            "GPU dispatch should report unsupported backend instead of silently falling back");
-        require(!ngTryGenerateDepthBoneGpuOffsetsSync(root, &root.bindings[0], target, param, vec2u(1, 0), gpuOffsets, error),
-            "GPU offset generation should report unsupported backend instead of silently running CPU generation");
+        require(!asyncSource.canFind("ngDispatchDepthBoneGpuOffsetPacketSync") &&
+                !asyncSource.canFind("ngTryGenerateDepthBoneGpuOffsetsSync") &&
+                !asyncSource.canFind("ngWaitDepthBoneGpuAsync"),
+            "DepthBone GPU runtime should not expose synchronous dispatch/wait helpers");
     }
 
     auto path = new PathDeformer(incActivePuppet().root);
@@ -6502,6 +6520,7 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     ngResetDepthBoneCpuReferenceCallCount();
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target, target2]).succeeded,
         "GPU preview command should succeed with fake GPU hooks");
+    ngFlushDepthBoneDirtyImmediate();
     require(ngDepthBoneCpuReferenceCallCount() == 0,
         "GPU preview command should not run CPU DepthBone offset generation");
     foreach (offset; target.deformation) {
@@ -6521,6 +6540,7 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     ngResetDepthBoneCpuReferenceCallCount();
     auto applyResult = cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, cast(Node[])[target]);
     require(applyResult.succeeded, "GPU apply command should succeed with fake GPU hooks");
+    ngFlushDepthBoneDirtyImmediate();
     require(ngDepthBoneCpuReferenceCallCount() == 0,
         "GPU apply command should not run CPU DepthBone offset generation");
     require(incActionHistory().length == 1, "GPU apply command should push one grouped undo action");

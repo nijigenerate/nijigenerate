@@ -602,10 +602,6 @@ bool ngPollDepthBoneGpuAsync(uint jobId, out NgDepthBoneGpuAsyncResult result, o
     return pollDepthBoneGpuAsync(jobId, 0, result, error);
 }
 
-bool ngWaitDepthBoneGpuAsync(uint jobId, ulong timeoutNanoseconds, out NgDepthBoneGpuAsyncResult result, out string error) {
-    return pollDepthBoneGpuAsync(jobId, timeoutNanoseconds, result, error);
-}
-
 size_t ngPendingDepthBoneGpuAsyncJobCount() {
     return pendingJobs.length;
 }
@@ -629,13 +625,6 @@ bool ngSubmitDepthBoneGpuAsync(ref DepthBoneGpuDispatchPacket packet, out uint j
 }
 
 bool ngPollDepthBoneGpuAsync(uint jobId, out NgDepthBoneGpuAsyncResult result, out string error) {
-    result = NgDepthBoneGpuAsyncResult.init;
-    error = "DepthBone GPU async deformation requires the rendering backend";
-    if (pollHook !is null) return pollHook(jobId, result, error);
-    return false;
-}
-
-bool ngWaitDepthBoneGpuAsync(uint jobId, ulong timeoutNanoseconds, out NgDepthBoneGpuAsyncResult result, out string error) {
     result = NgDepthBoneGpuAsyncResult.init;
     error = "DepthBone GPU async deformation requires the rendering backend";
     if (pollHook !is null) return pollHook(jobId, result, error);
