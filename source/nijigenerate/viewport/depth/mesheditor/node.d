@@ -9,6 +9,7 @@ module nijigenerate.viewport.depth.mesheditor.node;
 import bindbc.opengl;
 import nijigenerate;
 import nijigenerate.actions;
+import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.dbg;
 import nijigenerate.ext.nodes.exdepthmapped;
@@ -427,6 +428,7 @@ public:
         log("apply replaceDepths done: savedLength=%s".format(saved is null ? -1 : cast(long)saved.length));
         action.updateNewState();
         incActionPush(action);
+        ngMarkDepthBoneDirtyForTarget(target, "Edit Depth Map");
         target.notifyChange(target, NotifyReason.AttributeChanged);
     }
 

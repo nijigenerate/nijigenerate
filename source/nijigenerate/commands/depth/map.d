@@ -105,28 +105,53 @@ private class PsdDepthImportRefreshJob {
         });
     }
 
+    private void writeFailureLog(Throwable throwable) {
+        try {
+            import std.datetime : Clock;
+            import std.file : append;
+            import std.path : buildPath;
+            import std.process : environment;
+
+            auto dir = environment.get("TEMP", environment.get("TMP", "."));
+            append(buildPath(dir, "nijigenerate-psd-depth-import.log"),
+                "[%s] changedGrids=%s completedWork=%s totalWork=%s remaining=%s\n%s\n".format(
+                    Clock.currTime.toISOString(),
+                    changedGrids,
+                    completedWork,
+                    totalWork,
+                    ngPendingDepthBoneRefreshWorkForSink(group),
+                    throwable.toString()));
+        } catch (Exception) {
+        }
+    }
+
     private void step() {
-        if (finished) return;
-        auto before = ngPendingDepthBoneRefreshWorkForSink(group);
-        if (before == 0) {
-            complete();
-            return;
-        }
+        try {
+            if (finished) return;
+            auto before = ngPendingDepthBoneRefreshWorkForSink(group);
+            if (before == 0) {
+                complete();
+                return;
+            }
 
-        ngFlushDepthBoneDirty();
+            ngFlushDepthBoneDirty();
 
-        auto after = ngPendingDepthBoneRefreshWorkForSink(group);
-        if (after < before) {
-            completedWork += before - after;
-        } else {
-            completedWork++;
-        }
-        totalWork = max(totalWork, completedWork + after);
+            auto after = ngPendingDepthBoneRefreshWorkForSink(group);
+            if (after < before) {
+                completedWork += before - after;
+            } else {
+                completedWork++;
+            }
+            totalWork = max(totalWork, completedWork + after);
 
-        if (after == 0) {
-            complete();
-        } else {
-            scheduleNext();
+            if (after == 0) {
+                complete();
+            } else {
+                scheduleNext();
+            }
+        } catch (Throwable throwable) {
+            writeFailureLog(throwable);
+            throw throwable;
         }
     }
 

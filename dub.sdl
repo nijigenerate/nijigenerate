@@ -67,7 +67,7 @@ configuration "linux-full" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 }
 
 // macOS build
@@ -76,7 +76,7 @@ configuration "osx-full" {
 	targetType "executable"
 	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 
@@ -91,7 +91,7 @@ configuration "osx-regression-smoke" {
 	targetType "executable"
 	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
-	versions "HaveMCP" "RegressionSmoke"
+	versions "HaveMCP" "RegressionSmoke" "InDoesRender"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 
@@ -106,7 +106,7 @@ configuration "win32-full" {
 	platforms "windows"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_staticCRT"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 }
@@ -118,7 +118,7 @@ configuration "linux-nightly" {
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
 	versions "InNightly"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 }
 
 // macOS nightly build
@@ -130,7 +130,7 @@ configuration "osx-nightly" {
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 	versions "InNightly"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 
   // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
   lflags "-L./openssl_3/lib" platform="osx-x86_64"
@@ -146,5 +146,5 @@ configuration "win32-nightly" {
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 	versions "InNightly"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 }

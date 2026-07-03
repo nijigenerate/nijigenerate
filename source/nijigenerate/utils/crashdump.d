@@ -457,7 +457,24 @@ string writeCrashDump(T...)(string filename, Throwable throwable, T state) {
     return path;
 }
 
+private void writeFallbackCrashLog(T...)(Throwable throwable, T state) {
+    try {
+        import std.datetime : Clock;
+        import std.file : append;
+        import std.path : buildPath;
+        import std.process : environment;
+        import std.string : format;
+
+        auto dir = environment.get("TEMP", environment.get("TMP", "."));
+        auto path = buildPath(dir, "nijigenerate-crashdump.log");
+        append(path, "\n=== %s ===\n%s".format(Clock.currTime.toISOString(), genCrashDump(throwable, state)));
+    } catch (Exception) {
+    }
+}
+
 void crashdump(T...)(Throwable throwable, T state) {
+    writeFallbackCrashLog(throwable, state);
+
     // Write crash dump to disk
     string dumpPath;
     try {
