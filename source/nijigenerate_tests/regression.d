@@ -3764,6 +3764,50 @@ private void testPsdDepthMapImportHelpers() {
     require(alphaFiltered.valid && near(alphaFiltered.value, -1.0f),
         "PSD depth convolution should ignore transparent pixels instead of treating them as black");
 
+    ubyte[] translucentEdge;
+    void addTranslucent(ubyte r, ubyte g, ubyte b, ubyte a) {
+        translucentEdge ~= [r, g, b, a];
+    }
+    addTranslucent(0, 0, 0, 16);     addTranslucent(0, 0, 0, 16);       addTranslucent(0, 0, 0, 16);
+    addTranslucent(0, 0, 0, 16);     addTranslucent(255, 255, 255, 255); addTranslucent(0, 0, 0, 16);
+    addTranslucent(0, 0, 0, 16);     addTranslucent(0, 0, 0, 16);       addTranslucent(0, 0, 0, 16);
+    auto translucentWeighted = ngPsdDepthSamplePixels(translucentEdge, 3, 3, 1, 1, settings);
+    require(translucentWeighted.valid && translucentWeighted.value > 0.25f,
+        "PSD depth convolution should weight translucent edge pixels by alpha; value="
+        ~ translucentWeighted.value.to!string);
+
+    ubyte[] opaqueDepthWithBackEdges;
+    ubyte[] normalCoverage;
+    void addDepthCoverage(ubyte r, ubyte g, ubyte b, ubyte depthAlpha, ubyte coverageAlpha) {
+        opaqueDepthWithBackEdges ~= [r, g, b, depthAlpha];
+        normalCoverage ~= [255, 255, 255, coverageAlpha];
+    }
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(255, 255, 255, 255, 255);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    addDepthCoverage(0, 0, 0, 255, 16);
+    auto coverageWeighted = ngPsdDepthSamplePixelsWithCoverage(
+        opaqueDepthWithBackEdges, 3, 3, normalCoverage, 3, 3, 1.0f, 1, 1, settings);
+    require(coverageWeighted.valid && coverageWeighted.value > 0.25f,
+        "PSD depth convolution should weight opaque depth pixels by matched normal-layer coverage; value="
+        ~ coverageWeighted.value.to!string);
+
+    settings.convolution = PsdDepthConvolution.Nearest;
+    auto coverageFiltered = ngPsdDepthSamplePixelsWithCoverage(
+        opaqueDepthWithBackEdges, 3, 3, normalCoverage, 3, 3, 1.0f, 0, 0, settings);
+    require(!coverageFiltered.valid,
+        "PSD depth sampling should reject low normal-layer coverage instead of importing edge background depth");
+
+    ubyte[] opaquePixel = [255, 255, 255, 255];
+    auto invisibleByLayerOpacity = ngPsdDepthSamplePixelsWithOpacity(opaquePixel, 1, 1, 0, 0, 0.005f, settings);
+    require(!invisibleByLayerOpacity.valid,
+        "PSD depth sampling should apply layer opacity before alpha thresholding");
+
     ubyte[] customRadiusPixels;
     foreach (y; 0 .. 5) {
         foreach (x; 0 .. 5) {

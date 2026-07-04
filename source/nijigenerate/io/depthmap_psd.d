@@ -10,7 +10,7 @@ import std.algorithm.comparison : max, min;
 import std.array : array;
 import std.conv : to;
 import std.exception : enforce;
-import std.math : exp, isFinite, round;
+import std.math : ceil, exp, floor, isFinite, round;
 import std.path : baseName;
 import std.stdio : File;
 import std.string : format;
@@ -81,10 +81,12 @@ struct PsdDepthGridResult {
     GridDeformer grid;
     float[] depths;
     PsdDepthGridLayerMask[] layerMasks;
+    size_t coverageSources;
     int previewLeft;
     int previewTop;
     int previewWidth;
     int previewHeight;
+    ubyte[] rawCompositePreviewRgba;
     ubyte[] compositePreviewRgba;
     size_t sampledVertices;
     size_t missingVertices;
@@ -126,6 +128,19 @@ struct PsdDepthSampleResult {
     float value;
 }
 
+private struct CoverageSource {
+    int width;
+    int height;
+    int channels;
+    float opacity = 1.0f;
+    ubyte[] data;
+    mat4 worldToLocal;
+    Vec2Array vertices;
+    Vec2Array uvs;
+    ushort[] indices;
+    vec2 origin;
+}
+
 private struct DepthLayerImage {
     string layerPath;
     string layerName;
@@ -133,7 +148,20 @@ private struct DepthLayerImage {
     int top;
     int width;
     int height;
+    int documentWidth;
+    int documentHeight;
+    float opacity = 1.0f;
     ubyte[] data;
+    float[] coverageGateCache;
+    float[] coverageAlphaCache;
+    int coverageWidth;
+    int coverageHeight;
+    int coverageChannels;
+    float coverageOpacity = 1.0f;
+    ubyte[] coverageData;
+    bool coverageUsesMesh;
+    mat4 coverageWorldToLocal;
+    CoverageSource[] coverageSources;
     GridDeformer grid;
 }
 
@@ -145,6 +173,7 @@ private struct Candidate {
 private struct DepthSample {
     bool valid;
     float value;
+    float weight;
 }
 
 private struct GridAccum {
@@ -266,36 +295,305 @@ private float pixelDepth(const(ubyte)[] data, size_t index, ref PsdDepthImportSe
     return lerp(settings.backDepth, settings.frontDepth, pixelDepth01(data, index, settings)) * settings.depthScale;
 }
 
-private ubyte[] buildDepthMaskPreview(const(ubyte)[] rgba, int width, int height, ref PsdDepthImportSettings settings) {
-    ubyte[] result;
-    auto pixels = cast(size_t)max(0, width * height);
-    result.length = pixels * 4;
-    foreach (i; 0 .. pixels) {
-        auto index = i * 4;
-        auto alpha = index + 3 < rgba.length ? cast(float)rgba[index + 3] / 255.0f : 0.0f;
-        if (alpha <= settings.alphaThreshold) {
-            result[index + 0] = 0;
-            result[index + 1] = 0;
-            result[index + 2] = 0;
-            result[index + 3] = 0;
+private float sampledDepth01(float value, ref PsdDepthImportSettings settings) {
+    if (settings.depthScale == 0.0f || settings.frontDepth == settings.backDepth) return 0.0f;
+    auto unscaled = value / settings.depthScale;
+    return max(0.0f, min(1.0f, (unscaled - settings.backDepth) / (settings.frontDepth - settings.backDepth)));
+}
+
+private float layerOpacity01(ubyte opacity) {
+    return cast(float)opacity / 255.0f;
+}
+
+private float effectiveAlpha(const(ubyte)[] rgba, size_t index, float opacity) {
+    if (index + 3 >= rgba.length) return 0.0f;
+    return (cast(float)rgba[index + 3] / 255.0f) * opacity;
+}
+
+private float coverageAlpha(ref DepthLayerImage layer, int x, int y) {
+    auto cached = coverageCacheValue(layer.coverageAlphaCache, layer, x, y);
+    if (cached >= 0.0f) return cached;
+    if (layer.coverageSources.length > 0) return coverageSourcesAlpha(layer, x, y, true);
+    return coveragePixelAlpha(layer, x, y) * layer.coverageOpacity;
+}
+
+private bool coverageReliable(ref DepthLayerImage layer, int x, int y) {
+    auto cached = coverageCacheValue(layer.coverageGateCache, layer, x, y);
+    if (cached >= 0.0f) return cached > 0.5f;
+    if (layer.coverageSources.length > 0) return coverageSourcesAlpha(layer, x, y, false) > 0.5f;
+    return layer.coverageData.length == 0 || coveragePixelAlpha(layer, x, y) > 0.5f;
+}
+
+private float coverageCacheValue(ref float[] cache, ref DepthLayerImage layer, int x, int y) {
+    if (cache.length != cast(size_t)layer.width * cast(size_t)layer.height) return -1.0f;
+    if (x < 0 || y < 0 || x >= layer.width || y >= layer.height) return 0.0f;
+    return cache[cast(size_t)y * cast(size_t)layer.width + cast(size_t)x];
+}
+
+private float coverageSourcesAlpha(ref DepthLayerImage layer, int x, int y, bool includeOpacity) {
+    if (x < 0 || y < 0 || x >= layer.width || y >= layer.height) return 0.0f;
+
+    auto world = vec2(
+        cast(float)(layer.left + x) - cast(float)layer.documentWidth / 2.0f,
+        cast(float)(layer.top + y) - cast(float)layer.documentHeight / 2.0f
+    );
+    float combined = 0.0f;
+    foreach (ref source; layer.coverageSources) {
+        if (source.data.length == 0 || source.width <= 0 || source.height <= 0) continue;
+        auto local = (source.worldToLocal * vec4(world, 0, 1)).xy;
+        auto alpha = sampleCoverageSourceAlpha(source, local);
+        if (alpha <= 0.0f) continue;
+        if (includeOpacity) alpha *= source.opacity;
+        combined = 1.0f - ((1.0f - combined) * (1.0f - alpha));
+        if (combined >= 1.0f) return 1.0f;
+    }
+    return combined;
+}
+
+private float coveragePixelAlpha(ref DepthLayerImage layer, int x, int y) {
+    if (layer.coverageData.length == 0 || layer.coverageWidth <= 0 || layer.coverageHeight <= 0) {
+        return 1.0f;
+    }
+    if (x < 0 || y < 0 || x >= layer.width || y >= layer.height) return 0.0f;
+    if (layer.coverageUsesMesh) {
+        auto world = vec2(
+            cast(float)(layer.left + x) - cast(float)layer.documentWidth / 2.0f,
+            cast(float)(layer.top + y) - cast(float)layer.documentHeight / 2.0f
+        );
+        auto local = (layer.coverageWorldToLocal * vec4(world, 0, 1)).xy;
+        auto uv = vec2(
+            local.x / cast(float)layer.coverageWidth + 0.5f,
+            local.y / cast(float)layer.coverageHeight + 0.5f
+        );
+        if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f) return 0.0f;
+        return sampleCoverageAlphaAtUv(layer, uv);
+    }
+    auto coverageX = cast(int)round(
+        ((cast(float)x + 0.5f) * cast(float)layer.coverageWidth / cast(float)layer.width) - 0.5f);
+    auto coverageY = cast(int)round(
+        ((cast(float)y + 0.5f) * cast(float)layer.coverageHeight / cast(float)layer.height) - 0.5f);
+    coverageX = max(0, min(layer.coverageWidth - 1, coverageX));
+    coverageY = max(0, min(layer.coverageHeight - 1, coverageY));
+    auto channels = max(1, layer.coverageChannels);
+    auto index = (cast(size_t)coverageY * cast(size_t)layer.coverageWidth + cast(size_t)coverageX) * cast(size_t)channels;
+    if (channels < 4 || index + 3 >= layer.coverageData.length) return 1.0f;
+    return cast(float)layer.coverageData[index + 3] / 255.0f;
+}
+
+private bool barycentric(vec2 p, vec2 a, vec2 b, vec2 c, out float w0, out float w1, out float w2) {
+    auto denom = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+    if (denom == 0.0f) return false;
+    w0 = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / denom;
+    w1 = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / denom;
+    w2 = 1.0f - w0 - w1;
+    enum float Epsilon = -0.0001f;
+    return w0 >= Epsilon && w1 >= Epsilon && w2 >= Epsilon;
+}
+
+private float sampleCoverageSourceAlpha(ref CoverageSource source, vec2 local) {
+    if (source.vertices.length == source.uvs.length && source.indices.length >= 3) {
+        for (size_t tri = 0; tri + 2 < source.indices.length; tri += 3) {
+            auto i0 = cast(size_t)source.indices[tri + 0];
+            auto i1 = cast(size_t)source.indices[tri + 1];
+            auto i2 = cast(size_t)source.indices[tri + 2];
+            if (i0 >= source.vertices.length || i1 >= source.vertices.length || i2 >= source.vertices.length) continue;
+
+            auto a = source.vertices[i0] - source.origin;
+            auto b = source.vertices[i1] - source.origin;
+            auto c = source.vertices[i2] - source.origin;
+            float w0;
+            float w1;
+            float w2;
+            if (!barycentric(local, a, b, c, w0, w1, w2)) continue;
+
+            auto uv = source.uvs[i0] * w0 + source.uvs[i1] * w1 + source.uvs[i2] * w2;
+            if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f) return 0.0f;
+            return sampleCoverageSourceAlphaAtUv(source, uv);
+        }
+        return 0.0f;
+    }
+
+    auto uv = vec2(
+        local.x / cast(float)source.width + 0.5f,
+        local.y / cast(float)source.height + 0.5f
+    );
+    if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f) return 0.0f;
+    return sampleCoverageSourceAlphaAtUv(source, uv);
+}
+
+private float sampleCoverageSourceAlphaAtUv(ref CoverageSource source, vec2 uv) {
+    if (source.channels < 4) return 1.0f;
+    auto u = max(0.0f, min(1.0f, uv.x));
+    auto v = max(0.0f, min(1.0f, uv.y));
+    auto x = u * cast(float)max(0, source.width - 1);
+    auto y = v * cast(float)max(0, source.height - 1);
+    auto x0 = max(0, min(source.width - 1, cast(int)x));
+    auto y0 = max(0, min(source.height - 1, cast(int)y));
+    auto x1 = max(0, min(source.width - 1, x0 + 1));
+    auto y1 = max(0, min(source.height - 1, y0 + 1));
+    auto tx = x - cast(float)x0;
+    auto ty = y - cast(float)y0;
+    float a00 = coverageSourceAlphaAtPixel(source, x0, y0);
+    float a10 = coverageSourceAlphaAtPixel(source, x1, y0);
+    float a01 = coverageSourceAlphaAtPixel(source, x0, y1);
+    float a11 = coverageSourceAlphaAtPixel(source, x1, y1);
+    return lerp(lerp(a00, a10, tx), lerp(a01, a11, tx), ty);
+}
+
+private float coverageSourceAlphaAtPixel(ref CoverageSource source, int x, int y) {
+    auto channels = max(1, source.channels);
+    auto index = (cast(size_t)y * cast(size_t)source.width + cast(size_t)x) * cast(size_t)channels;
+    if (channels < 4 || index + 3 >= source.data.length) return 1.0f;
+    return cast(float)source.data[index + 3] / 255.0f;
+}
+
+private void compositeCoverage(ref float dst, float alpha) {
+    alpha = clamp01(alpha);
+    dst = 1.0f - ((1.0f - dst) * (1.0f - alpha));
+}
+
+private vec2 worldToLayerPixel(ref DepthLayerImage layer, vec2 world) {
+    return vec2(
+        world.x + cast(float)layer.documentWidth / 2.0f - cast(float)layer.left,
+        world.y + cast(float)layer.documentHeight / 2.0f - cast(float)layer.top
+    );
+}
+
+private void buildCoverageCache(ref DepthLayerImage layer) {
+    if (layer.coverageSources.length == 0 || layer.width <= 0 || layer.height <= 0) return;
+    auto pixelCount = cast(size_t)layer.width * cast(size_t)layer.height;
+    layer.coverageGateCache.length = pixelCount;
+    layer.coverageAlphaCache.length = pixelCount;
+    layer.coverageGateCache[] = 0.0f;
+    layer.coverageAlphaCache[] = 0.0f;
+
+    foreach (ref source; layer.coverageSources) {
+        if (source.data.length == 0 || source.width <= 0 || source.height <= 0) continue;
+        auto useMesh = source.vertices.length == source.uvs.length && source.indices.length >= 3;
+        if (!useMesh) {
+            for (int y = 0; y < layer.height; y++) {
+                for (int x = 0; x < layer.width; x++) {
+                    auto world = vec2(
+                        cast(float)(layer.left + x) - cast(float)layer.documentWidth / 2.0f,
+                        cast(float)(layer.top + y) - cast(float)layer.documentHeight / 2.0f
+                    );
+                    auto local = (source.worldToLocal * vec4(world, 0, 1)).xy;
+                    auto alpha = sampleCoverageSourceAlpha(source, local);
+                    if (alpha <= 0.0f) continue;
+                    auto index = cast(size_t)y * cast(size_t)layer.width + cast(size_t)x;
+                    compositeCoverage(layer.coverageGateCache[index], alpha);
+                    compositeCoverage(layer.coverageAlphaCache[index], alpha * source.opacity);
+                }
+            }
             continue;
         }
-        auto gray = cast(ubyte)round(pixelDepth01(rgba, index, settings) * 255.0f);
-        result[index + 0] = gray;
-        result[index + 1] = gray;
-        result[index + 2] = gray;
-        result[index + 3] = rgba[index + 3];
+
+        auto localToWorld = source.worldToLocal.inverse;
+        for (size_t tri = 0; tri + 2 < source.indices.length; tri += 3) {
+            auto i0 = cast(size_t)source.indices[tri + 0];
+            auto i1 = cast(size_t)source.indices[tri + 1];
+            auto i2 = cast(size_t)source.indices[tri + 2];
+            if (i0 >= source.vertices.length || i1 >= source.vertices.length || i2 >= source.vertices.length) continue;
+
+            auto aLocal = source.vertices[i0] - source.origin;
+            auto bLocal = source.vertices[i1] - source.origin;
+            auto cLocal = source.vertices[i2] - source.origin;
+            auto aPix = worldToLayerPixel(layer, (localToWorld * vec4(aLocal, 0, 1)).xy);
+            auto bPix = worldToLayerPixel(layer, (localToWorld * vec4(bLocal, 0, 1)).xy);
+            auto cPix = worldToLayerPixel(layer, (localToWorld * vec4(cLocal, 0, 1)).xy);
+
+            auto minX = max(0, cast(int)floor(min(aPix.x, min(bPix.x, cPix.x))));
+            auto maxX = min(layer.width - 1, cast(int)ceil(max(aPix.x, max(bPix.x, cPix.x))));
+            auto minY = max(0, cast(int)floor(min(aPix.y, min(bPix.y, cPix.y))));
+            auto maxY = min(layer.height - 1, cast(int)ceil(max(aPix.y, max(bPix.y, cPix.y))));
+            if (minX > maxX || minY > maxY) continue;
+
+            foreach (y; minY .. maxY + 1) {
+                foreach (x; minX .. maxX + 1) {
+                    float w0;
+                    float w1;
+                    float w2;
+                    if (!barycentric(vec2(cast(float)x + 0.5f, cast(float)y + 0.5f),
+                        aPix, bPix, cPix, w0, w1, w2)) continue;
+                    auto uv = source.uvs[i0] * w0 + source.uvs[i1] * w1 + source.uvs[i2] * w2;
+                    if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f) continue;
+                    auto alpha = sampleCoverageSourceAlphaAtUv(source, uv);
+                    if (alpha <= 0.0f) continue;
+                    auto index = cast(size_t)y * cast(size_t)layer.width + cast(size_t)x;
+                    compositeCoverage(layer.coverageGateCache[index], alpha);
+                    compositeCoverage(layer.coverageAlphaCache[index], alpha * source.opacity);
+                }
+            }
+        }
+    }
+}
+
+private float sampleCoverageAlphaAtUv(ref DepthLayerImage layer, vec2 uv) {
+    if (layer.coverageChannels < 4) return 1.0f;
+    auto u = max(0.0f, min(1.0f, uv.x));
+    auto v = max(0.0f, min(1.0f, uv.y));
+    auto x = u * cast(float)max(0, layer.coverageWidth - 1);
+    auto y = v * cast(float)max(0, layer.coverageHeight - 1);
+    auto x0 = max(0, min(layer.coverageWidth - 1, cast(int)x));
+    auto y0 = max(0, min(layer.coverageHeight - 1, cast(int)y));
+    auto x1 = max(0, min(layer.coverageWidth - 1, x0 + 1));
+    auto y1 = max(0, min(layer.coverageHeight - 1, y0 + 1));
+    auto tx = x - cast(float)x0;
+    auto ty = y - cast(float)y0;
+    float a00 = coverageAlphaAtPixel(layer, x0, y0);
+    float a10 = coverageAlphaAtPixel(layer, x1, y0);
+    float a01 = coverageAlphaAtPixel(layer, x0, y1);
+    float a11 = coverageAlphaAtPixel(layer, x1, y1);
+    return lerp(lerp(a00, a10, tx), lerp(a01, a11, tx), ty);
+}
+
+private float coverageAlphaAtPixel(ref DepthLayerImage layer, int x, int y) {
+    auto channels = max(1, layer.coverageChannels);
+    auto index = (cast(size_t)y * cast(size_t)layer.coverageWidth + cast(size_t)x) * cast(size_t)channels;
+    if (channels < 4 || index + 3 >= layer.coverageData.length) return 1.0f;
+    return cast(float)layer.coverageData[index + 3] / 255.0f;
+}
+
+private float effectiveAlpha(ref DepthLayerImage layer, size_t index, int x, int y) {
+    return effectiveAlpha(layer.data, index, layer.opacity) * coverageAlpha(layer, x, y);
+}
+
+private ubyte effectiveAlphaByte(ref DepthLayerImage layer, size_t index, int x, int y) {
+    auto alpha = effectiveAlpha(layer, index, x, y);
+    return cast(ubyte)round(max(0.0f, min(1.0f, alpha)) * 255.0f);
+}
+
+private ubyte[] buildDepthMaskPreview(ref DepthLayerImage layer, ref PsdDepthImportSettings settings) {
+    ubyte[] result;
+    auto pixels = cast(size_t)max(0, layer.width * layer.height);
+    result.length = pixels * 4;
+    for (int y = 0; y < layer.height; y++) {
+        for (int x = 0; x < layer.width; x++) {
+            auto index = (cast(size_t)y * cast(size_t)layer.width + cast(size_t)x) * 4;
+            if (!coverageReliable(layer, x, y) || effectiveAlpha(layer, index, x, y) <= settings.alphaThreshold) {
+                result[index + 0] = 0;
+                result[index + 1] = 0;
+                result[index + 2] = 0;
+                result[index + 3] = 0;
+                continue;
+            }
+            auto gray = cast(ubyte)round(pixelDepth01(layer.data, index, settings) * 255.0f);
+            result[index + 0] = gray;
+            result[index + 1] = gray;
+            result[index + 2] = gray;
+            result[index + 3] = 255;
+        }
     }
     return result;
 }
 
 private DepthSample samplePixel(ref DepthLayerImage layer, int x, int y, ref PsdDepthImportSettings settings) {
-    if (x < 0 || y < 0 || x >= layer.width || y >= layer.height) return DepthSample(false, 0);
+    if (x < 0 || y < 0 || x >= layer.width || y >= layer.height) return DepthSample(false, 0, 0);
     auto index = (cast(size_t)y * cast(size_t)layer.width + cast(size_t)x) * 4;
-    if (index + 3 >= layer.data.length) return DepthSample(false, 0);
-    auto alpha = cast(float)layer.data[index + 3] / 255.0f;
-    if (alpha <= settings.alphaThreshold) return DepthSample(false, 0);
-    return DepthSample(true, pixelDepth(layer.data, index, settings));
+    if (!coverageReliable(layer, x, y)) return DepthSample(false, 0, 0);
+    auto alpha = effectiveAlpha(layer, index, x, y);
+    if (alpha <= settings.alphaThreshold) return DepthSample(false, 0, 0);
+    return DepthSample(true, pixelDepth(layer.data, index, settings), alpha);
 }
 
 private int iabs(int value) {
@@ -344,13 +642,13 @@ private DepthSample weightedAverage(ref DepthLayerImage layer, int cx, int cy, i
         for (int dx = -radius; dx <= radius; dx++) {
             auto sample = samplePixel(layer, cx + dx, cy + dy, settings);
             if (!sample.valid) continue;
-            auto weight = kernelWeight(settings, dx, dy);
+            auto weight = kernelWeight(settings, dx, dy) * sample.weight;
             total += sample.value * weight;
             weightTotal += weight;
         }
     }
-    if (weightTotal <= 0) return DepthSample(false, 0);
-    return DepthSample(true, total / weightTotal);
+    if (weightTotal <= 0) return DepthSample(false, 0, 0);
+    return DepthSample(true, total / weightTotal, weightTotal);
 }
 
 private DepthSample medianSample(ref DepthLayerImage layer, int cx, int cy, int radius, ref PsdDepthImportSettings settings) {
@@ -361,9 +659,9 @@ private DepthSample medianSample(ref DepthLayerImage layer, int cx, int cy, int 
             if (sample.valid) values ~= sample.value;
         }
     }
-    if (values.length == 0) return DepthSample(false, 0);
+    if (values.length == 0) return DepthSample(false, 0, 0);
     values.sort();
-    return DepthSample(true, values[values.length / 2]);
+    return DepthSample(true, values[values.length / 2], 1.0f);
 }
 
 private DepthSample extremeSample(ref DepthLayerImage layer, int cx, int cy, int radius, bool frontmost, ref PsdDepthImportSettings settings) {
@@ -379,7 +677,7 @@ private DepthSample extremeSample(ref DepthLayerImage layer, int cx, int cy, int
             }
         }
     }
-    return DepthSample(hasValue, hasValue ? best : 0);
+    return DepthSample(hasValue, hasValue ? best : 0, hasValue ? 1.0f : 0.0f);
 }
 
 private DepthSample sampleLayer(ref DepthLayerImage layer, float x, float y, ref PsdDepthImportSettings settings) {
@@ -491,6 +789,93 @@ private size_t findLayerMask(ref GridAccum accum, string layerPath, string layer
     return accum.layerMasks.length - 1;
 }
 
+private float clamp01(float value) {
+    return max(0.0f, min(1.0f, value));
+}
+
+private void attachPartCoverage(ref DepthLayerImage image, Part part) {
+    bool[ulong] seen;
+    attachPartCoverage(image, part, seen);
+}
+
+private void attachPartCoverage(ref DepthLayerImage image, Part part, ref bool[ulong] seen) {
+    if (part is null) return;
+    if (part.uuid in seen) return;
+    seen[part.uuid] = true;
+    if (part.textures.length == 0) return;
+    auto texture = part.textures[0];
+    if (texture is null || texture.width <= 0 || texture.height <= 0) return;
+
+    auto channels = texture.channels;
+    if (channels <= 0) return;
+    auto data = texture.getTextureData(true);
+    auto expected = cast(size_t)texture.width * cast(size_t)texture.height * cast(size_t)channels;
+    if (data.length < expected) return;
+
+    CoverageSource source;
+    source.width = texture.width;
+    source.height = texture.height;
+    source.channels = channels;
+    source.opacity = clamp01(part.opacity);
+    source.data = data;
+    source.worldToLocal = part.getDynamicMatrix().inverse;
+    auto mesh = part.getMesh();
+    source.vertices = mesh.vertices.dup;
+    source.uvs = mesh.uvs.dup;
+    source.indices = mesh.indices.dup;
+    source.origin = mesh.origin;
+    image.coverageSources ~= source;
+}
+
+private bool nodeTreeContains(Node root, Node target) {
+    if (root is null || target is null) return false;
+    if (root is target) return true;
+    foreach (child; root.children) {
+        if (nodeTreeContains(child, target)) return true;
+    }
+    return false;
+}
+
+private bool nodeCapturedByGrid(GridDeformer grid, Node target) {
+    if (grid is null || target is null) return false;
+    foreach (child; grid.children) {
+        if (nodeTreeContains(child, target)) return true;
+    }
+    return false;
+}
+
+private void attachNodeCoverage(ref DepthLayerImage image, Node node, ref bool[ulong] seen) {
+    if (node is null) return;
+    if (auto part = cast(Part)node) {
+        attachPartCoverage(image, part, seen);
+        return;
+    }
+    foreach (child; node.children) {
+        attachNodeCoverage(image, child, seen);
+    }
+}
+
+private void attachGridCoverage(ref DepthLayerImage image, Puppet puppet, GridDeformer grid, ref bool[ulong] seen) {
+    if (puppet is null || puppet.root is null || grid is null) return;
+    foreach (part; puppet.findNodesType!Part(puppet.root)) {
+        if (containingGrid(part) is grid || nodeCapturedByGrid(grid, part)) {
+            attachPartCoverage(image, part, seen);
+        }
+    }
+}
+
+private void attachMatchedCoverage(ref DepthLayerImage image, Puppet puppet, Node matchedNode, GridDeformer grid) {
+    bool[ulong] seen;
+    if (auto part = cast(Part)matchedNode) {
+        attachPartCoverage(image, part, seen);
+        return;
+    }
+    attachGridCoverage(image, puppet, grid, seen);
+    if (image.coverageSources.length == 0) {
+        attachNodeCoverage(image, matchedNode, seen);
+    }
+}
+
 string ngPsdDepthGridLayerKey(ulong gridUuid, string layerPath) {
     return "%s\n%s".format(gridUuid, layerPath);
 }
@@ -535,12 +920,55 @@ PsdDepthSampleResult ngPsdDepthSamplePixels(
     float y,
     PsdDepthImportSettings settings
 ) {
+    return ngPsdDepthSamplePixelsWithOpacity(rgba, width, height, x, y, 1.0f, settings);
+}
+
+PsdDepthSampleResult ngPsdDepthSamplePixelsWithOpacity(
+    const(ubyte)[] rgba,
+    int width,
+    int height,
+    float x,
+    float y,
+    float opacity,
+    PsdDepthImportSettings settings
+) {
     enforce(width >= 0 && height >= 0, "Image dimensions must be non-negative");
     enforce(rgba.length >= cast(size_t)max(0, width * height) * 4, "RGBA buffer is smaller than dimensions");
     DepthLayerImage layer;
     layer.width = width;
     layer.height = height;
+    layer.opacity = clamp01(opacity);
     layer.data = rgba.dup;
+    auto sample = sampleLayer(layer, x, y, settings);
+    return PsdDepthSampleResult(sample.valid, sample.value);
+}
+
+PsdDepthSampleResult ngPsdDepthSamplePixelsWithCoverage(
+    const(ubyte)[] rgba,
+    int width,
+    int height,
+    const(ubyte)[] coverageRgba,
+    int coverageWidth,
+    int coverageHeight,
+    float coverageOpacity,
+    float x,
+    float y,
+    PsdDepthImportSettings settings
+) {
+    enforce(width >= 0 && height >= 0, "Image dimensions must be non-negative");
+    enforce(coverageWidth >= 0 && coverageHeight >= 0, "Coverage dimensions must be non-negative");
+    enforce(rgba.length >= cast(size_t)max(0, width * height) * 4, "RGBA buffer is smaller than dimensions");
+    enforce(coverageRgba.length >= cast(size_t)max(0, coverageWidth * coverageHeight) * 4,
+        "Coverage RGBA buffer is smaller than dimensions");
+    DepthLayerImage layer;
+    layer.width = width;
+    layer.height = height;
+    layer.data = rgba.dup;
+    layer.coverageWidth = coverageWidth;
+    layer.coverageHeight = coverageHeight;
+    layer.coverageChannels = 4;
+    layer.coverageOpacity = clamp01(coverageOpacity);
+    layer.coverageData = coverageRgba.dup;
     auto sample = sampleLayer(layer, x, y, settings);
     return PsdDepthSampleResult(sample.valid, sample.value);
 }
@@ -660,12 +1088,17 @@ private void buildCompositePreview(
     result.previewTop = top;
     result.previewWidth = width;
     result.previewHeight = height;
+    result.rawCompositePreviewRgba.length = cast(size_t)width * cast(size_t)height * 4;
     result.compositePreviewRgba.length = cast(size_t)width * cast(size_t)height * 4;
 
     foreach (py; 0 .. height) {
         foreach (px; 0 .. width) {
             auto documentX = cast(float)left + (cast(float)px + 0.5f) / scale;
             auto documentY = cast(float)top + (cast(float)py + 0.5f) / scale;
+            bool hasRawSample;
+            float rawBestDepth = 0.0f;
+            float rawBestGray = 0.0f;
+            ubyte rawBestAlpha = 0;
             bool hasSample;
             float bestDepth = 0.0f;
             float bestGray = 0.0f;
@@ -677,21 +1110,42 @@ private void buildCompositePreview(
                 auto layerX = cast(int)round(documentX - cast(float)layer.left);
                 auto layerY = cast(int)round(documentY - cast(float)layer.top);
                 if (layerX < 0 || layerY < 0 || layerX >= layer.width || layerY >= layer.height) continue;
-                auto layerIndex = (cast(size_t)layerY * cast(size_t)layer.width + cast(size_t)layerX) * 4;
-                if (layerIndex + 3 >= layer.data.length) continue;
-                auto alpha = cast(float)layer.data[layerIndex + 3] / 255.0f;
+                auto index = (cast(size_t)layerY * cast(size_t)layer.width + cast(size_t)layerX) * 4;
+                auto rawAlpha = effectiveAlpha(layer.data, index, layer.opacity);
+                if (rawAlpha > settings.alphaThreshold) {
+                    auto rawDepth = pixelDepth(layer.data, index, settings);
+                    if (!hasRawSample || rawDepth > rawBestDepth) {
+                        hasRawSample = true;
+                        rawBestDepth = rawDepth;
+                        rawBestGray = pixelDepth01(layer.data, index, settings);
+                        rawBestAlpha = cast(ubyte)round(max(0.0f, min(1.0f, rawAlpha)) * 255.0f);
+                    }
+                }
+                if (!coverageReliable(layer, layerX, layerY)) continue;
+                auto alpha = effectiveAlpha(layer, index, layerX, layerY);
                 if (alpha <= settings.alphaThreshold) continue;
-
-                auto depth = pixelDepth(layer.data, layerIndex, settings);
+                auto depth = pixelDepth(layer.data, index, settings);
                 if (!hasSample || depth > bestDepth) {
                     hasSample = true;
                     bestDepth = depth;
-                    bestGray = pixelDepth01(layer.data, layerIndex, settings);
-                    bestAlpha = layer.data[layerIndex + 3];
+                    bestGray = pixelDepth01(layer.data, index, settings);
+                    bestAlpha = cast(ubyte)round(max(0.0f, min(1.0f, alpha)) * 255.0f);
                 }
             }
 
             auto outIndex = (cast(size_t)py * cast(size_t)width + cast(size_t)px) * 4;
+            if (!hasRawSample) {
+                result.rawCompositePreviewRgba[outIndex + 0] = 0;
+                result.rawCompositePreviewRgba[outIndex + 1] = 0;
+                result.rawCompositePreviewRgba[outIndex + 2] = 0;
+                result.rawCompositePreviewRgba[outIndex + 3] = 0;
+            } else {
+                auto gray = cast(ubyte)round(rawBestGray * 255.0f);
+                result.rawCompositePreviewRgba[outIndex + 0] = gray;
+                result.rawCompositePreviewRgba[outIndex + 1] = gray;
+                result.rawCompositePreviewRgba[outIndex + 2] = gray;
+                result.rawCompositePreviewRgba[outIndex + 3] = rawBestAlpha;
+            }
             if (!hasSample) {
                 result.compositePreviewRgba[outIndex + 0] = 0;
                 result.compositePreviewRgba[outIndex + 1] = 0;
@@ -745,6 +1199,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         mapping.layerName = layer.name;
 
         GridDeformer grid;
+        Node matchedNode;
         if (auto ignored = layerPath in settings.ignoredLayerPaths) {
             if (*ignored) {
                 mapping.ignored = true;
@@ -764,6 +1219,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.mappings ~= mapping;
                 continue;
             }
+            matchedNode = grid;
             mapping.matched = true;
             mapping.matchedNodeName = grid.name;
             mapping.matchedNodeUuid = grid.uuid;
@@ -780,6 +1236,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
             }
 
             auto candidate = candidates[0];
+            matchedNode = candidate.node;
             grid = containingGrid(candidate.node);
             mapping.matchedNodeName = candidate.node.name;
             mapping.matchedNodeUuid = candidate.node.uuid;
@@ -808,6 +1265,23 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
 
         layer.extractLayerImage();
         if (layer.data.length == 0) continue;
+
+        auto opacity = layerOpacity01(layer.opacity);
+        DepthLayerImage image;
+        image.layerPath = layerPath;
+        image.layerName = layer.name;
+        image.left = layer.left;
+        image.top = layer.top;
+        image.width = layer.width;
+        image.height = layer.height;
+        image.documentWidth = document.width;
+        image.documentHeight = document.height;
+        image.opacity = opacity;
+        image.data = layer.data.dup;
+        image.grid = grid;
+        attachMatchedCoverage(image, puppet, matchedNode, grid);
+        buildCoverageCache(image);
+
         PsdDepthLayerPreview layerPreview;
         layerPreview.layerPath = layerPath;
         layerPreview.layerName = layer.name;
@@ -816,18 +1290,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         layerPreview.width = layer.width;
         layerPreview.height = layer.height;
         layerPreview.originalRgba = layer.data.dup;
-        layerPreview.depthMaskRgba = buildDepthMaskPreview(layer.data, layer.width, layer.height, settings);
+        layerPreview.depthMaskRgba = buildDepthMaskPreview(image, settings);
         result.layerPreviews ~= layerPreview;
 
-        DepthLayerImage image;
-        image.layerPath = layerPath;
-        image.layerName = layer.name;
-        image.left = layer.left;
-        image.top = layer.top;
-        image.width = layer.width;
-        image.height = layer.height;
-        image.data = layer.data.dup;
-        image.grid = grid;
         layers ~= image;
         layer.data = null;
     }
@@ -857,6 +1322,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     foreach (ref accum; accums) {
         PsdDepthGridResult gridResult;
         finalizeGridResult(gridResult, accum, settings);
+        foreach (ref layer; layers) {
+            if (layer.grid is accum.grid) gridResult.coverageSources += layer.coverageSources.length;
+        }
         buildCompositePreview(gridResult, layers, accum.grid, settings);
         if (gridResult.skipped) result.skippedGrids++;
         result.grids ~= gridResult;

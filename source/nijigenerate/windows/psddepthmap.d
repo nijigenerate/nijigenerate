@@ -28,7 +28,7 @@ private:
     ptrdiff_t selectedGridIndex;
     Texture[string] originalPreviewTextures;
     Texture[string] depthMaskPreviewTextures;
-    Texture[string] compositePreviewTextures;
+    Texture[string] rawCompositePreviewTextures;
 
     enum PreviewSize = 160f;
 
@@ -87,12 +87,12 @@ private:
         foreach (key, texture; depthMaskPreviewTextures) {
             if (texture !is null) texture.dispose();
         }
-        foreach (key, texture; compositePreviewTextures) {
+        foreach (key, texture; rawCompositePreviewTextures) {
             if (texture !is null) texture.dispose();
         }
         originalPreviewTextures = null;
         depthMaskPreviewTextures = null;
-        compositePreviewTextures = null;
+        rawCompositePreviewTextures = null;
     }
 
     PsdDepthLayerPreview* findLayerPreview(string layerPath) {
@@ -135,16 +135,18 @@ private:
     }
 
     Texture compositePreviewTexture(ref PsdDepthGridResult gridResult) {
-        if (gridResult.grid is null || gridResult.compositePreviewRgba.length == 0 ||
+        auto source = gridResult.rawCompositePreviewRgba;
+        if (gridResult.grid is null || source.length == 0 ||
             gridResult.previewWidth <= 0 || gridResult.previewHeight <= 0) return null;
 
         auto key = gridResult.grid.uuid.to!string;
-        if (auto existing = key in compositePreviewTextures) return *existing;
+        auto existing = key in rawCompositePreviewTextures;
+        if (existing) return *existing;
 
-        auto rgba = gridResult.compositePreviewRgba.dup;
+        auto rgba = source.dup;
         inTexPremultiply(rgba);
         auto texture = new Texture(rgba, gridResult.previewWidth, gridResult.previewHeight);
-        compositePreviewTextures[key] = texture;
+        rawCompositePreviewTextures[key] = texture;
         return texture;
     }
 
@@ -372,6 +374,7 @@ private:
         ));
         auto maxDimension = cast(float)max(gridResult.previewWidth, gridResult.previewHeight);
         auto scale = maxDimension > 0 ? min(PreviewSize / maxDimension, 1.0f) : 1.0f;
+        incText("Raw PSD Depth");
         igImage(
             cast(void*)texture.getTextureId(),
             ImVec2(cast(float)gridResult.previewWidth * scale, cast(float)gridResult.previewHeight * scale)
@@ -409,12 +412,14 @@ private:
                 incTextureSlotUntitled(("###gridPreview" ~ i.to!string), texture, ImVec2(104, 104), 24, ImGuiWindowFlags.NoInputs, selected);
                 if (igIsItemHovered()) drawCompositePreviewTooltip(gridResult);
                 igTableNextColumn();
-                auto label = "%s\n%s: %d  %s: %d\n%s: %.3f  %s: %.3f\n%s".format(
+                auto label = "%s\n%s: %d  %s: %d\n%s: %d\n%s: %.3f  %s: %.3f\n%s".format(
                     gridResult.grid !is null ? gridResult.grid.name : "-",
                     _("Sampled"),
                     cast(int)gridResult.sampledVertices,
                     _("Missing"),
                     cast(int)gridResult.missingVertices,
+                    "Coverage",
+                    cast(int)gridResult.coverageSources,
                     _("Min"),
                     gridResult.minDepth,
                     _("Max"),
