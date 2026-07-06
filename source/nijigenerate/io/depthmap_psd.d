@@ -1927,9 +1927,10 @@ private Candidate[] matchCandidates(
 ) {
     Candidate[] candidates;
 
-    auto parts = puppet.findNodesType!ExPart(puppet.root);
+    auto parts = puppet.findNodesType!Part(puppet.root);
     foreach (part; parts) {
-        auto path = part.layerPath.length ? part.layerPath : ("/" ~ part.name);
+        auto path = activeArtLayerPath(part);
+        if (path.length == 0) continue;
         if (path == layerPath) {
             candidates ~= Candidate(part, 0, 1.0f);
         } else if (baseName(path) == layerName) {
@@ -2654,6 +2655,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
             auto candidate = candidates[0];
             matchedNode = candidate.node;
             grid = containingDepthTarget(candidate.node);
+            if (grid is null) {
+                if (auto part = cast(Part)candidate.node) grid = activeArtDepthTarget(puppet, part);
+            }
             mapping.matchedNodeName = candidate.node.name;
             mapping.matchedNodeUuid = candidate.node.uuid;
             mapping.ambiguous = candidates.length > 1;
@@ -3296,6 +3300,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 if (candidates.length > 0) {
                     matchedTarget = candidates[0].node;
                     target = containingDepthTarget(matchedTarget);
+                    if (target is null) {
+                        if (auto part = cast(Part)matchedTarget) target = activeArtDepthTarget(puppet, part);
+                    }
                 }
             }
             if (target !is null && matchedTarget !is null) {
@@ -3352,6 +3359,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             auto candidate = candidates[0];
             matchedNode = candidate.node;
             grid = containingDepthTarget(candidate.node);
+            if (grid is null) {
+                if (auto part = cast(Part)candidate.node) grid = activeArtDepthTarget(puppet, part);
+            }
             mapping.matchedNodeName = candidate.node.name;
             mapping.matchedNodeUuid = candidate.node.uuid;
             mapping.ambiguous = candidates.length > 1;

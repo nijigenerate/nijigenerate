@@ -1,5 +1,6 @@
 module nijigenerate.windows.psddepthmap;
 
+import bindbc.opengl;
 import bindbc.imgui;
 import i18n;
 import nijigenerate;
@@ -32,6 +33,233 @@ struct PsdDepth3DAdjustGeometryStats {
     size_t missingPoints;
 }
 
+struct PsdDepth3DAdjustSample {
+    int x;
+    int y;
+    ubyte depthByte;
+    ubyte r;
+    ubyte g;
+    ubyte b;
+    ubyte a;
+}
+
+struct PsdDepth3DAdjustMesh {
+    float[] vertexData;
+    uint[] indices;
+}
+
+private final class PsdDepth3DAdjustGpuRenderer {
+private:
+    Texture texture;
+    GLuint fbo;
+    GLuint depthBuffer;
+    GLuint vao;
+    GLuint vbo;
+    GLuint ibo;
+    Shader shader;
+    int viewportSizeUniform = -1;
+    int centerUniform = -1;
+    int yawPitchUniform = -1;
+    int zoomPanUniform = -1;
+    int depthScaleUniform = -1;
+    int textureUniform = -1;
+    int width;
+    int height;
+
+    void ensureShader() {
+        if (shader !is null) return;
+        shader = new Shader(
+            q{
+#version 330
+layout(location = 0) in vec3 documentPosition;
+layout(location = 1) in vec2 uv;
+out vec2 fragUv;
+uniform vec2 viewportSize;
+uniform vec2 center;
+uniform vec4 yawPitch;
+uniform vec4 zoomPan;
+uniform float depthDisplayScale;
+void main() {
+    float cy = yawPitch.x;
+    float sy = yawPitch.y;
+    float cp = yawPitch.z;
+    float sp = yawPitch.w;
+    float x = documentPosition.x - center.x;
+    float y = documentPosition.y - center.y;
+    float z = -documentPosition.z * depthDisplayScale;
+    float rx = x * cy + z * sy;
+    float rz = -x * sy + z * cy;
+    float ry = y * cp - rz * sp;
+    float cameraDepth = y * sp + rz * cp;
+    vec2 screen = viewportSize * 0.5 + vec2(rx, ry) * zoomPan.x + zoomPan.yz;
+    vec2 clip = vec2(screen.x / viewportSize.x * 2.0 - 1.0, 1.0 - screen.y / viewportSize.y * 2.0);
+    float zClip = clamp(cameraDepth / max(depthDisplayScale * 2.0, 1.0), -1.0, 1.0);
+    gl_Position = vec4(clip, zClip, 1.0);
+    fragUv = uv;
+}
+},
+            q{
+#version 330
+in vec2 fragUv;
+out vec4 color;
+uniform sampler2D tex;
+void main() {
+    color = texture(tex, fragUv);
+    if (color.a < 0.01) discard;
+}
+}
+        );
+        viewportSizeUniform = shader.getUniformLocation("viewportSize");
+        centerUniform = shader.getUniformLocation("center");
+        yawPitchUniform = shader.getUniformLocation("yawPitch");
+        zoomPanUniform = shader.getUniformLocation("zoomPan");
+        depthScaleUniform = shader.getUniformLocation("depthDisplayScale");
+        textureUniform = shader.getUniformLocation("tex");
+    }
+
+    void ensureBuffers() {
+        if (vao == 0) glGenVertexArrays(1, &vao);
+        if (vbo == 0) glGenBuffers(1, &vbo);
+        if (ibo == 0) glGenBuffers(1, &ibo);
+    }
+
+    bool ensureTarget(int targetWidth, int targetHeight) {
+        targetWidth = max(1, targetWidth);
+        targetHeight = max(1, targetHeight);
+        if (texture !is null && (width != targetWidth || height != targetHeight)) {
+            texture.dispose();
+            texture = null;
+            if (depthBuffer != 0) {
+                glDeleteRenderbuffers(1, &depthBuffer);
+                depthBuffer = 0;
+            }
+        }
+        width = targetWidth;
+        height = targetHeight;
+        if (texture is null) texture = new Texture(width, height, 4, false, false);
+        if (fbo == 0) glGenFramebuffers(1, &fbo);
+        if (depthBuffer == 0) {
+            glGenRenderbuffers(1, &depthBuffer);
+            glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        }
+        return texture !is null && fbo != 0 && depthBuffer != 0;
+    }
+
+public:
+    Texture render(
+        int targetWidth,
+        int targetHeight,
+        scope void delegate() drawLayers
+    ) {
+        if (!ensureTarget(targetWidth, targetHeight)) return null;
+        ensureShader();
+        ensureBuffers();
+
+        GLint previousDrawFbo;
+        GLint previousReadFbo;
+        GLint[4] previousViewport;
+        GLboolean depthEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean cullEnabled = glIsEnabled(GL_CULL_FACE);
+        GLboolean blendEnabled = glIsEnabled(GL_BLEND);
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDrawFbo);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFbo);
+        glGetIntegerv(GL_VIEWPORT, previousViewport.ptr);
+        scope(exit) {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cast(GLuint)previousDrawFbo);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, cast(GLuint)previousReadFbo);
+            glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+            if (depthEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+            if (cullEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+            if (blendEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+            glBindVertexArray(0);
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.getTextureId(), 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+        glDrawBuffers(1, [GL_COLOR_ATTACHMENT0].ptr);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return null;
+
+        glViewport(0, 0, width, height);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+        glEnable(GL_BLEND);
+        inSetBlendMode(BlendMode.Normal);
+        glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
+        glClearDepth(1.0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        drawLayers();
+        return texture;
+    }
+
+    void drawLayer(
+        Texture layerTexture,
+        ref PsdDepth3DAdjustMesh mesh,
+        float centerX,
+        float centerY,
+        float yaw,
+        float pitch,
+        float zoom,
+        vec2 pan,
+        float depthDisplayScale
+    ) {
+        if (layerTexture is null || mesh.vertexData.length == 0 || mesh.indices.length == 0) return;
+        import std.math : cos, sin;
+
+        shader.use();
+        shader.setUniform(viewportSizeUniform, vec2(cast(float)width, cast(float)height));
+        shader.setUniform(centerUniform, vec2(centerX, centerY));
+        shader.setUniform(yawPitchUniform, vec4(cos(yaw), sin(yaw), cos(pitch), sin(pitch)));
+        shader.setUniform(zoomPanUniform, vec4(zoom, pan.x, pan.y, 0.0f));
+        shader.setUniform(depthScaleUniform, depthDisplayScale);
+        shader.setUniform(textureUniform, 0);
+        layerTexture.bind(0);
+
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, mesh.vertexData.length * float.sizeof, mesh.vertexData.ptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices.length * uint.sizeof, mesh.indices.ptr, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, float.sizeof * 5, null);
+        glVertexAttribPointer(1, 2, GL_FLOAT, false, float.sizeof * 5, cast(void*)(float.sizeof * 3));
+        glDrawElements(GL_TRIANGLES, cast(GLsizei)mesh.indices.length, GL_UNSIGNED_INT, null);
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+    }
+
+    void dispose() {
+        if (texture !is null) {
+            texture.dispose();
+            texture = null;
+        }
+        if (depthBuffer != 0) {
+            glDeleteRenderbuffers(1, &depthBuffer);
+            depthBuffer = 0;
+        }
+        if (fbo != 0) {
+            glDeleteFramebuffers(1, &fbo);
+            fbo = 0;
+        }
+        if (vbo != 0) {
+            glDeleteBuffers(1, &vbo);
+            vbo = 0;
+        }
+        if (ibo != 0) {
+            glDeleteBuffers(1, &ibo);
+            ibo = 0;
+        }
+        if (vao != 0) {
+            glDeleteVertexArrays(1, &vao);
+            vao = 0;
+        }
+    }
+}
+
 class PSDDepthMapWindow : Window {
 private:
     string path;
@@ -48,15 +276,23 @@ private:
     Texture[string] rawDepthDiagnosticTextures;
     Texture[string] renderMaskDiagnosticTextures;
     Texture[string] rawCompositePreviewTextures;
+    PsdDepth3DAdjustSample[][string] threeDAdjustSamples;
+    PsdDepth3DAdjustMesh[string] threeDAdjustMeshes;
+    PsdDepth3DAdjustGpuRenderer threeDAdjustGpuRenderer;
     Texture threeDAdjustPreviewTexture;
     int threeDAdjustPreviewWidth;
     int threeDAdjustPreviewHeight;
+    bool threeDAdjustPreviewDirty = true;
     DepthCamera3D threeDAdjustCamera;
     ulong threeDAdjustCameraTargetUuid;
     int threeDAdjustCameraLeft = int.min;
     int threeDAdjustCameraTop = int.min;
     int threeDAdjustCameraRight = int.min;
     int threeDAdjustCameraBottom = int.min;
+    float threeDAdjustLastYaw;
+    float threeDAdjustLastPitch;
+    float threeDAdjustLastZoom;
+    vec2 threeDAdjustLastPan;
 
     enum PreviewSize = 160f;
     enum PsdDepth3DAdjustMeshStep = 2;
@@ -137,9 +373,14 @@ private:
         rawDepthDiagnosticTextures = null;
         renderMaskDiagnosticTextures = null;
         rawCompositePreviewTextures = null;
+        threeDAdjustSamples = null;
+        threeDAdjustMeshes = null;
+        if (threeDAdjustGpuRenderer !is null) threeDAdjustGpuRenderer.dispose();
+        threeDAdjustGpuRenderer = null;
         threeDAdjustPreviewTexture = null;
         threeDAdjustPreviewWidth = 0;
         threeDAdjustPreviewHeight = 0;
+        threeDAdjustPreviewDirty = true;
         threeDAdjustCameraLeft = int.min;
         threeDAdjustCameraTop = int.min;
         threeDAdjustCameraRight = int.min;
@@ -1089,6 +1330,132 @@ private:
         );
         threeDAdjustCamera.zoom = clamp(threeDAdjustCamera.zoom, 0.1f, 8.0f);
         threeDAdjustCamera.pan = vec2(0);
+        threeDAdjustPreviewDirty = true;
+    }
+
+    bool threeDAdjustCameraChanged() {
+        return threeDAdjustLastYaw != threeDAdjustCamera.yaw ||
+            threeDAdjustLastPitch != threeDAdjustCamera.pitch ||
+            threeDAdjustLastZoom != threeDAdjustCamera.zoom ||
+            threeDAdjustLastPan.x != threeDAdjustCamera.pan.x ||
+            threeDAdjustLastPan.y != threeDAdjustCamera.pan.y;
+    }
+
+    void rememberThreeDAdjustCamera() {
+        threeDAdjustLastYaw = threeDAdjustCamera.yaw;
+        threeDAdjustLastPitch = threeDAdjustCamera.pitch;
+        threeDAdjustLastZoom = threeDAdjustCamera.zoom;
+        threeDAdjustLastPan = threeDAdjustCamera.pan;
+    }
+
+    PsdDepth3DAdjustSample[] threeDAdjustLayerSamples(ref PsdDepthLayerPreview layerPreview) {
+        auto existing = layerPreview.layerPath in threeDAdjustSamples;
+        if (existing !is null) return *existing;
+
+        PsdDepth3DAdjustSample[] samples;
+        if (layerPreview.width <= 0 || layerPreview.height <= 0) {
+            threeDAdjustSamples[layerPreview.layerPath] = samples;
+            return samples;
+        }
+        foreach (y; 0 .. layerPreview.height) {
+            foreach (x; 0 .. layerPreview.width) {
+                auto index = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
+                if (index + 3 >= layerPreview.depthMaskRgba.length ||
+                    index + 3 >= layerPreview.originalRgba.length) {
+                    continue;
+                }
+                auto depthByte = layerPreview.depthMaskRgba[index];
+                auto alpha = layerPreview.originalRgba[index + 3];
+                if (depthByte == 0 || alpha < 3) continue;
+
+                PsdDepth3DAdjustSample sample;
+                sample.x = x;
+                sample.y = y;
+                sample.depthByte = depthByte;
+                sample.r = layerPreview.originalRgba[index + 0];
+                sample.g = layerPreview.originalRgba[index + 1];
+                sample.b = layerPreview.originalRgba[index + 2];
+                sample.a = alpha;
+                samples ~= sample;
+            }
+        }
+        threeDAdjustSamples[layerPreview.layerPath] = samples;
+        return samples;
+    }
+
+    PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthLayerPreview layerPreview) {
+        auto existing = layerPreview.layerPath in threeDAdjustMeshes;
+        if (existing !is null) return existing;
+
+        PsdDepth3DAdjustMesh mesh;
+        if (layerPreview.width <= 1 || layerPreview.height <= 1) {
+            threeDAdjustMeshes[layerPreview.layerPath] = mesh;
+            return layerPreview.layerPath in threeDAdjustMeshes;
+        }
+
+        auto transform = ngPsdDepthLayerTransform(settings, layerPreview.layerPath);
+        auto step = max(1, PsdDepth3DAdjustMeshStep);
+        auto cols = ((layerPreview.width - 1) + step - 1) / step + 1;
+        auto rows = ((layerPreview.height - 1) + step - 1) / step + 1;
+        int[] lookup;
+        lookup.length = cast(size_t)cols * cast(size_t)rows;
+        lookup[] = -1;
+
+        int sampleX(int x) {
+            return min(layerPreview.width - 1, x * step);
+        }
+        int sampleY(int y) {
+            return min(layerPreview.height - 1, y * step);
+        }
+        float depthFromByte(ubyte rawDepthByte) {
+            auto transformedDepthByte = cast(int)(cast(float)rawDepthByte * transform.zScale + transform.zOffset + 0.5f);
+            transformedDepthByte = clamp(transformedDepthByte, 1, 255);
+            if (transform.invert) transformedDepthByte = 255 - transformedDepthByte;
+            return (cast(float)transformedDepthByte / 255.0f) * PsdDepth3DAdjustDepthScale;
+        }
+        int vertexAt(int gx, int gy) {
+            return lookup[cast(size_t)gy * cast(size_t)cols + cast(size_t)gx];
+        }
+
+        foreach (gy; 0 .. rows) {
+            foreach (gx; 0 .. cols) {
+                auto x = sampleX(gx);
+                auto y = sampleY(gy);
+                auto index = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
+                if (index + 3 >= layerPreview.depthMaskRgba.length ||
+                    index + 3 >= layerPreview.originalRgba.length) {
+                    continue;
+                }
+                auto depthByte = layerPreview.depthMaskRgba[index];
+                if (depthByte == 0 || layerPreview.originalRgba[index + 3] < 3) continue;
+
+                auto vertexIndex = cast(int)(mesh.vertexData.length / 5);
+                lookup[cast(size_t)gy * cast(size_t)cols + cast(size_t)gx] = vertexIndex;
+                mesh.vertexData ~= cast(float)layerPreview.left + (cast(float)x + transform.xyOffsetX) * transform.xyScaleX;
+                mesh.vertexData ~= cast(float)layerPreview.top + (cast(float)y + transform.xyOffsetY) * transform.xyScaleY;
+                mesh.vertexData ~= depthFromByte(depthByte);
+                mesh.vertexData ~= (cast(float)x + 0.5f) / cast(float)layerPreview.width;
+                mesh.vertexData ~= (cast(float)y + 0.5f) / cast(float)layerPreview.height;
+            }
+        }
+
+        foreach (gy; 0 .. rows - 1) {
+            foreach (gx; 0 .. cols - 1) {
+                auto p0 = vertexAt(gx, gy);
+                auto p1 = vertexAt(gx + 1, gy);
+                auto p2 = vertexAt(gx, gy + 1);
+                auto p3 = vertexAt(gx + 1, gy + 1);
+                if (p0 >= 0 && p1 >= 0 && p3 >= 0) {
+                    mesh.indices ~= [cast(uint)p0, cast(uint)p1, cast(uint)p3];
+                }
+                if (p0 >= 0 && p3 >= 0 && p2 >= 0) {
+                    mesh.indices ~= [cast(uint)p0, cast(uint)p3, cast(uint)p2];
+                }
+            }
+        }
+
+        threeDAdjustMeshes[layerPreview.layerPath] = mesh;
+        return layerPreview.layerPath in threeDAdjustMeshes;
     }
 
     void draw3DAdjustRelationshipCanvas(float height) {
@@ -1108,6 +1475,10 @@ private:
         igInvisibleButton("###psdDepth3DAdjustViewport", canvasSize);
         auto io = igGetIO();
         if (igIsItemHovered()) {
+            auto previousYaw = threeDAdjustCamera.yaw;
+            auto previousPitch = threeDAdjustCamera.pitch;
+            auto previousZoom = threeDAdjustCamera.zoom;
+            auto previousPan = threeDAdjustCamera.pan;
             auto usesWheel = io.MouseWheel != 0;
             updateDepthCamera3D(
                 threeDAdjustCamera,
@@ -1116,6 +1487,13 @@ private:
                 (io.MouseDown[1] && io.KeyShift) || io.MouseDown[2],
                 usesWheel
             );
+            if (previousYaw != threeDAdjustCamera.yaw ||
+                previousPitch != threeDAdjustCamera.pitch ||
+                previousZoom != threeDAdjustCamera.zoom ||
+                previousPan.x != threeDAdjustCamera.pan.x ||
+                previousPan.y != threeDAdjustCamera.pan.y) {
+                threeDAdjustPreviewDirty = true;
+            }
             if (usesWheel) igSetItemUsingMouseWheel();
         }
 
@@ -1139,11 +1517,7 @@ private:
             }
         }
         bool hasRenderPixels(ref PsdDepthLayerPreview layerPreview) {
-            foreach (i; 0 .. layerPreview.depthMaskRgba.length / 4) {
-                auto index = i * 4;
-                if (layerPreview.depthMaskRgba[index] > 0) return true;
-            }
-            return false;
+            return threeDAdjustLayerSamples(layerPreview).length > 0;
         }
         foreach (ref layerPreview; preview.layerPreviews) {
             if (!hasRenderPixels(layerPreview)) continue;
@@ -1173,11 +1547,68 @@ private:
             threeDAdjustCameraRight = right;
             threeDAdjustCameraBottom = bottom;
             resetPsdDepth3DAdjustCameraToBounds(sourceW, sourceH, canvasSize);
+            threeDAdjustPreviewDirty = true;
         }
         auto depthDisplayScale = max(1.0f, sourceH);
 
         auto framebufferWidth = max(1, cast(int)canvasSize.x);
         auto framebufferHeight = max(1, cast(int)canvasSize.y);
+        if (threeDAdjustGpuRenderer is null) threeDAdjustGpuRenderer = new PsdDepth3DAdjustGpuRenderer();
+        auto gpuTexture = threeDAdjustGpuRenderer.render(
+            framebufferWidth,
+            framebufferHeight,
+            {
+                foreach (ref layerPreview; preview.layerPreviews) {
+                    if (!hasRenderPixels(layerPreview)) continue;
+                    auto mesh = threeDAdjustLayerMesh(layerPreview);
+                    if (mesh is null || mesh.indices.length == 0) continue;
+                    auto layerTexture = layerPreviewTexture(layerPreview.layerPath, false);
+                    threeDAdjustGpuRenderer.drawLayer(
+                        layerTexture,
+                        *mesh,
+                        centerX,
+                        centerY,
+                        threeDAdjustCamera.yaw,
+                        threeDAdjustCamera.pitch,
+                        threeDAdjustCamera.zoom,
+                        threeDAdjustCamera.pan,
+                        depthDisplayScale
+                    );
+                }
+            }
+        );
+        if (gpuTexture !is null) {
+            ImDrawList_AddImage(
+                drawList,
+                cast(void*)gpuTexture.getTextureId(),
+                origin,
+                canvasMax,
+                ImVec2(0, 1),
+                ImVec2(1, 0),
+                textureTint
+            );
+            ImDrawList_AddRect(drawList, origin, canvasMax, border, 4.0f, ImDrawFlags.None, 1.0f);
+            return;
+        }
+        if (threeDAdjustPreviewTexture !is null &&
+            threeDAdjustPreviewWidth == framebufferWidth &&
+            threeDAdjustPreviewHeight == framebufferHeight &&
+            !threeDAdjustPreviewDirty &&
+            !threeDAdjustCameraChanged()) {
+            ImDrawList_AddImage(
+                drawList,
+                cast(void*)threeDAdjustPreviewTexture.getTextureId(),
+                origin,
+                canvasMax,
+                ImVec2(0, 0),
+                ImVec2(1, 1),
+                textureTint
+            );
+            ImDrawList_AddRect(drawList, origin, canvasMax, border, 4.0f, ImDrawFlags.None, 1.0f);
+            return;
+        }
+        threeDAdjustPreviewDirty = false;
+        rememberThreeDAdjustCamera();
         ubyte[] framebuffer;
         float[] zBuffer;
         framebuffer.length = cast(size_t)framebufferWidth * cast(size_t)framebufferHeight * 4;
@@ -1192,31 +1623,36 @@ private:
         }
         size_t renderedPixels;
 
+        import std.math : cos, sin;
+
+        float cameraYawCos = cos(threeDAdjustCamera.yaw);
+        float cameraYawSin = sin(threeDAdjustCamera.yaw);
+        float cameraPitchCos = cos(threeDAdjustCamera.pitch);
+        float cameraPitchSin = sin(threeDAdjustCamera.pitch);
+        float cameraZoom = threeDAdjustCamera.zoom;
+        float cameraPanX = threeDAdjustCamera.pan.x;
+        float cameraPanY = threeDAdjustCamera.pan.y;
+
         float cameraDepthForPoint(vec2 point, float depth) {
-            import std.math : cos, sin;
-
-            float cy = cos(threeDAdjustCamera.yaw);
-            float sy = sin(threeDAdjustCamera.yaw);
-            float cp = cos(threeDAdjustCamera.pitch);
-            float sp = sin(threeDAdjustCamera.pitch);
-
             float x = point.x;
             float y = point.y;
             float z = depth;
 
-            float rz = -x * sy + z * cy;
-            return y * sp + rz * cp;
+            float rz = -x * cameraYawSin + z * cameraYawCos;
+            return y * cameraPitchSin + rz * cameraPitchCos;
         }
 
         ImVec2 projectDocumentPoint(vec2 documentPoint, float depth) {
-            auto projected = projectDepthPoint(
-                vec2(documentPoint.x - centerX, documentPoint.y - centerY),
-                -depth * depthDisplayScale,
-                threeDAdjustCamera
-            );
+            float x = documentPoint.x - centerX;
+            float y = documentPoint.y - centerY;
+            float z = -depth * depthDisplayScale;
+
+            float rx = x * cameraYawCos + z * cameraYawSin;
+            float rz = -x * cameraYawSin + z * cameraYawCos;
+            float ry = y * cameraPitchCos - rz * cameraPitchSin;
             return ImVec2(
-                origin.x + canvasSize.x * 0.5f + projected.x,
-                origin.y + canvasSize.y * 0.5f + projected.y
+                origin.x + canvasSize.x * 0.5f + rx * cameraZoom + cameraPanX,
+                origin.y + canvasSize.y * 0.5f + ry * cameraZoom + cameraPanY
             );
         }
 
@@ -1326,74 +1762,12 @@ private:
             if (!hasRenderPixels(layerPreview)) continue;
             if (layerPreview.width <= 1 || layerPreview.height <= 1) continue;
             auto transform = ngPsdDepthLayerTransform(settings, layerPreview.layerPath);
+            auto samples = threeDAdjustLayerSamples(layerPreview);
+            if (samples.length == 0) continue;
             auto step = 1;
-            auto cols = cast(int)((layerPreview.width - 1) / step) + 1;
-            auto rows = cast(int)((layerPreview.height - 1) / step) + 1;
-            if (cols < 2 || rows < 2) continue;
 
-            ImVec2[] points;
-            ImVec2[] uvs;
-            float[] cameraDepths;
-            bool[] validPoints;
-            points.length = cast(size_t)cols * cast(size_t)rows;
-            uvs.length = points.length;
-            cameraDepths.length = points.length;
-            validPoints.length = points.length;
-
-            size_t vertexIndex(int x, int y) {
-                return cast(size_t)y * cast(size_t)cols + cast(size_t)x;
-            }
-
-            ubyte sourceDepthByte(size_t index) {
-                if (index + 3 >= layerPreview.depthRgba.length) {
-                    return 0;
-                }
-
-                float value;
-                if (layerPreview.depthRgba[index + 3] == 0) {
-                    value = 255.0f;
-                } else {
-                    auto r = cast(float)layerPreview.depthRgba[index + 0];
-                    auto g = cast(float)layerPreview.depthRgba[index + 1];
-                    auto b = cast(float)layerPreview.depthRgba[index + 2];
-                    switch (layerPreview.channel) {
-                        case PsdDepthChannel.R:
-                            value = r;
-                            break;
-                        case PsdDepthChannel.G:
-                            value = g;
-                            break;
-                        case PsdDepthChannel.B:
-                            value = b;
-                            break;
-                        case PsdDepthChannel.Luminance:
-                            value = r * 0.2126f + g * 0.7152f + b * 0.0722f;
-                            break;
-                        case PsdDepthChannel.AverageRGB:
-                        default:
-                            value = (r + g + b) / 3.0f;
-                            break;
-                    }
-                }
-                if (layerPreview.invert) value = 255.0f - value;
-                return cast(ubyte)clamp(cast(int)(value + 0.5f), 0, 255);
-            }
-
-            bool renderDepthMaskAt(int x, int y, out ubyte depthByte) {
-                depthByte = 0;
-                if (x < 0 || y < 0 || x >= layerPreview.width || y >= layerPreview.height) return false;
-                auto index = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
-                if (index >= layerPreview.depthMaskRgba.length) {
-                    return false;
-                }
-                depthByte = layerPreview.depthMaskRgba[index + 0];
-                return depthByte > 0;
-            }
-
-            bool depthAt(int x, int y, out float depth) {
+            bool depthAt(ubyte rawDepthByte, out float depth) {
                 depth = 0.0f;
-                ubyte rawDepthByte;
-                if (!renderDepthMaskAt(x, y, rawDepthByte)) return false;
                 auto transformedDepthByte = cast(int)(cast(float)rawDepthByte * transform.zScale + transform.zOffset + 0.5f);
                 transformedDepthByte = clamp(transformedDepthByte, 1, 255);
                 if (transform.invert) transformedDepthByte = 255 - transformedDepthByte;
@@ -1401,15 +1775,10 @@ private:
                 return true;
             }
 
-            void rasterizeDepthPixel(int px, int py, float depth) {
-                auto colorIndex = (cast(size_t)py * cast(size_t)layerPreview.width + cast(size_t)px) * 4;
-                if (colorIndex + 3 >= layerPreview.originalRgba.length) return;
-                auto sa = layerPreview.originalRgba[colorIndex + 3];
-                if (sa < 3) return;
-
+            void rasterizeDepthSample(PsdDepth3DAdjustSample sample, float depth) {
                 auto documentPoint = vec2(
-                    cast(float)layerPreview.left + (cast(float)px + transform.xyOffsetX) * transform.xyScaleX,
-                    cast(float)layerPreview.top + (cast(float)py + transform.xyOffsetY) * transform.xyScaleY
+                    cast(float)layerPreview.left + (cast(float)sample.x + transform.xyOffsetX) * transform.xyScaleX,
+                    cast(float)layerPreview.top + (cast(float)sample.y + transform.xyOffsetY) * transform.xyScaleY
                 );
                 auto projected = projectDocumentPoint(documentPoint, depth);
                 auto sx = cast(int)round(projected.x - origin.x);
@@ -1428,16 +1797,13 @@ private:
                         auto zIndex = cast(size_t)y * cast(size_t)framebufferWidth + cast(size_t)x;
                         if (z >= zBuffer[zIndex]) continue;
 
-                        auto alpha = cast(float)sa / 255.0f;
+                        auto alpha = cast(float)sample.a / 255.0f;
                         auto pixelIndex = zIndex * 4;
-                        auto sr = layerPreview.originalRgba[colorIndex + 0];
-                        auto sg = layerPreview.originalRgba[colorIndex + 1];
-                        auto sb = layerPreview.originalRgba[colorIndex + 2];
-                        framebuffer[pixelIndex + 0] = cast(ubyte)clamp(cast(int)(cast(float)sr * alpha +
+                        framebuffer[pixelIndex + 0] = cast(ubyte)clamp(cast(int)(cast(float)sample.r * alpha +
                             cast(float)framebuffer[pixelIndex + 0] * (1.0f - alpha) + 0.5f), 0, 255);
-                        framebuffer[pixelIndex + 1] = cast(ubyte)clamp(cast(int)(cast(float)sg * alpha +
+                        framebuffer[pixelIndex + 1] = cast(ubyte)clamp(cast(int)(cast(float)sample.g * alpha +
                             cast(float)framebuffer[pixelIndex + 1] * (1.0f - alpha) + 0.5f), 0, 255);
-                        framebuffer[pixelIndex + 2] = cast(ubyte)clamp(cast(int)(cast(float)sb * alpha +
+                        framebuffer[pixelIndex + 2] = cast(ubyte)clamp(cast(int)(cast(float)sample.b * alpha +
                             cast(float)framebuffer[pixelIndex + 2] * (1.0f - alpha) + 0.5f), 0, 255);
                         framebuffer[pixelIndex + 3] = 255;
                         zBuffer[zIndex] = z;
@@ -1446,12 +1812,10 @@ private:
                 }
             }
 
-            for (int y = 0; y < layerPreview.height; y += step) {
-                for (int x = 0; x < layerPreview.width; x += step) {
-                    float depth;
-                    if (!depthAt(x, y, depth)) continue;
-                    rasterizeDepthPixel(x, y, depth);
-                }
+            foreach (sample; samples) {
+                float depth;
+                if (!depthAt(sample.depthByte, depth)) continue;
+                rasterizeDepthSample(sample, depth);
             }
         }
 
