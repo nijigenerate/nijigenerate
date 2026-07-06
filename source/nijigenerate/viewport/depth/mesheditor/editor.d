@@ -18,6 +18,8 @@ import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.camera;
+import nijigenerate.viewport.depth.common.session;
+import nijigenerate.viewport.depth.common.targetview;
 import nijigenerate.viewport.depth.mesheditor.action;
 import nijigenerate.viewport.depth.mesheditor.node;
 import nijigenerate.viewport.depth.renderer;
@@ -46,6 +48,7 @@ private:
     DepthTextureMeshRenderer renderer;
     ActionStackScope actionScope;
     bool buildRenderResources;
+    DepthViewSession viewSession;
 
     bool editable(Node node) {
         auto ok = cast(GridDeformer)node !is null;
@@ -105,6 +108,7 @@ public:
 public:
     this(bool buildRenderResources = true) {
         this.buildRenderResources = buildRenderResources;
+        viewSession = new DepthViewSession();
         if (buildRenderResources)
             renderer = new DepthTextureMeshRenderer();
         actionScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
@@ -119,6 +123,7 @@ public:
         foreach (editor; editors.byValue) editor.dispose();
         editors.clear();
         operations.clear();
+        if (viewSession !is null) viewSession.clear();
     }
 
     void closeStack() {
@@ -130,9 +135,11 @@ public:
 
     void setTargets(Node[] targets) {
         DepthMeshEditorOne[GridDeformer] next;
+        Deformable[] nextViewTargets;
         foreach (node; targets) {
             if (!editable(node)) continue;
             auto grid = cast(GridDeformer)node;
+            nextViewTargets ~= grid;
             if (grid in editors) {
                 next[grid] = editors[grid];
             } else {
@@ -153,6 +160,23 @@ public:
             }
         }
         editors = next;
+        if (viewSession !is null) {
+            viewSession.setTargets(nextViewTargets);
+            foreach (grid, editor; editors) {
+                editor.bindTargetView(viewSession.targetByGrid(grid.uuid));
+                if (editor in operations) recompute(editor);
+            }
+        }
+    }
+
+    DepthViewSession depthViewSession() {
+        return viewSession;
+    }
+
+    DepthTargetView targetViewFor(DepthMeshEditorOne editor) {
+        if (editor is null || viewSession is null) return null;
+        auto target = editor.getTarget();
+        return target is null ? null : viewSession.targetByGrid(target.uuid);
     }
 
     GridDeformer[] getTargets() {
@@ -175,6 +199,7 @@ public:
             directDepthDirty.remove(editor);
             loadOperationsFromTarget(editor);
         }
+        if (viewSession !is null) viewSession.resetFromTargets();
     }
 
     void applyToTargets() {
@@ -302,7 +327,7 @@ public:
         bool dirty
     ) {
         if (editor is null) return;
-        editor.baseDepths = baseDepths.dup;
+        editor.replaceBaseDepths(baseDepths);
         replaceOperations(editor, nextOperations);
         editor.replaceEditorDepths(depths);
         if (dirty) {

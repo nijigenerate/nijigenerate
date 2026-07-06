@@ -3,12 +3,20 @@ module nijigenerate.regression_smoke;
 version (RegressionSmoke):
 
 import std.conv : to;
-import std.string : startsWith;
+import std.file : exists, tempDir;
+import std.path : buildPath;
+import std.process : environment;
+import std.string : join, startsWith;
 
 import nijigenerate.actions : Action;
+import nijigenerate.commands : Context;
 import nijigenerate.commands.depth.bone : ngFlushDepthBoneDirty;
+import nijigenerate.commands.depth.map : ngApplyPsdDepthImportResult;
+import nijigenerate.commands.vertex.define_mesh : DefineGridCommand;
 import nijigenerate.core;
 import nijigenerate.core.actionstack;
+import nijigenerate.ext.nodes.exgriddeformer : ExGridDeformer;
+import nijigenerate.io.depthmap_psd : PsdDepthImportResult;
 import nijigenerate.io.save : incCloseProjectAsk, incSetSaveProjectOnClose;
 import nijigenerate.panels;
 import nijigenerate.panels.resource;
@@ -17,9 +25,85 @@ import nijigenerate.widgets.modal : incModalAdd;
 import nijigenerate.windows;
 import nijigenerate.windows.autosave : RestoreSaveWindow;
 import nijigenerate.windows.inpexport : ExportWindow;
+import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, DepthToolMode;
+import nijigenerate.viewport.depth.draw : DepthDrawGpuComposePacket, DepthDrawGpuComposeReadback,
+    DepthDrawGpuDispatchPollResult, DepthDrawGpuLayerReadback, DepthDrawViewport, ngClearDepthDrawGpuTestHooks,
+    ngDepthDrawAutoBindSession, ngLoadDepthDrawPngLayer, ngSetDepthDrawGpuTestHooks;
+import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
+import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthPlaneOperation, DepthRingOperation;
+import nijigenerate.viewport.depth.viewport : DepthEditViewport;
 import nijigenerate.windows.settings : SettingsWindow;
 import nijilive;
+import nijilive.core.meshdata : MeshData;
 import nijilive.core.param : Parameter;
+import nijilive.core.texture : Texture;
+import nijilive.math : Vec2Array, vec2;
+
+private string g_RegressionSmokeFailureMessage;
+private uint regressionSmokeDepthDrawGpuNextJobId = 1;
+private uint regressionSmokeDepthDrawGpuSubmitCount;
+private uint regressionSmokeDepthDrawGpuPollCount;
+private DepthDrawGpuComposeReadback[uint] regressionSmokeDepthDrawGpuReadbacks;
+
+private bool regressionSmokeDepthDrawGpuSupported() {
+    return true;
+}
+
+private bool regressionSmokeDepthDrawGpuSubmit(ref DepthDrawGpuComposePacket packet, out uint jobId, out string error) {
+    jobId = regressionSmokeDepthDrawGpuNextJobId++;
+    error = null;
+    regressionSmokeDepthDrawGpuSubmitCount++;
+
+    DepthDrawGpuComposeReadback readback;
+    readback.targetGridUuid = packet.targetGridUuid;
+    readback.depths.length = packet.vertices.length;
+    readback.winningLayerIndices.length = packet.vertices.length;
+    foreach (i; 0 .. packet.vertices.length) {
+        readback.depths[i] = 0.625f;
+        readback.winningLayerIndices[i] = packet.layers.length > 0 ? 0 : -1;
+    }
+    readback.layers.length = packet.layers.length;
+    foreach (layerIndex; 0 .. packet.layers.length) {
+        ubyte[] validSamples;
+        float[] sampleDepths;
+        validSamples.length = packet.vertices.length;
+        sampleDepths.length = packet.vertices.length;
+        foreach (i; 0 .. packet.vertices.length) {
+            validSamples[i] = 1;
+            sampleDepths[i] = 0.625f;
+        }
+        readback.layers[layerIndex] = DepthDrawGpuLayerReadback(cast(uint)layerIndex, validSamples, sampleDepths);
+    }
+    regressionSmokeDepthDrawGpuReadbacks[jobId] = readback;
+    return true;
+}
+
+private bool regressionSmokeDepthDrawGpuPoll(uint jobId, out DepthDrawGpuDispatchPollResult result, out string error) {
+    result = DepthDrawGpuDispatchPollResult.init;
+    error = null;
+    auto readback = jobId in regressionSmokeDepthDrawGpuReadbacks;
+    if (readback is null) {
+        error = "missing regression smoke DepthDraw GPU readback";
+        return false;
+    }
+    result.ready = true;
+    result.readback = *readback;
+    regressionSmokeDepthDrawGpuReadbacks.remove(jobId);
+    regressionSmokeDepthDrawGpuPollCount++;
+    return true;
+}
+
+private void resetRegressionSmokeDepthDrawGpuHooks() {
+    regressionSmokeDepthDrawGpuNextJobId = 1;
+    regressionSmokeDepthDrawGpuSubmitCount = 0;
+    regressionSmokeDepthDrawGpuPollCount = 0;
+    regressionSmokeDepthDrawGpuReadbacks = null;
+    ngSetDepthDrawGpuTestHooks(
+        &regressionSmokeDepthDrawGpuSupported,
+        &regressionSmokeDepthDrawGpuSubmit,
+        &regressionSmokeDepthDrawGpuPoll
+    );
+}
 
 struct RegressionSmokeOptions {
     bool enabled;
@@ -47,6 +131,18 @@ RegressionSmokeOptions ngParseRegressionSmokeOptions(string[] args) {
     if (options.frameDelayMs < 0)
         options.frameDelayMs = 0;
     return options;
+}
+
+void ngRegressionSmokeFail(string message) {
+    g_RegressionSmokeFailureMessage = message;
+}
+
+bool ngRegressionSmokeFailed() {
+    return g_RegressionSmokeFailureMessage.length != 0;
+}
+
+string ngRegressionSmokeFailureMessage() {
+    return g_RegressionSmokeFailureMessage;
 }
 
 private final class RegressionSmokeDirtyAction : Action {
@@ -87,6 +183,90 @@ void ngSetupRegressionSmokeScenario(string scenario) {
 
     void ensureVertexMode() {
         incSetEditMode(EditMode.VertexEdit);
+    }
+
+    string localDepthDrawDataPath(string filename, string fallback) {
+        auto userProfile = environment.get("USERPROFILE", null);
+        if (userProfile.length) {
+            auto candidate = buildPath(userProfile, "src", "depth-draw", "data", filename);
+            if (candidate.exists)
+                return candidate;
+        }
+        return fallback;
+    }
+
+    string writeSmokeDepthPng(string filename, ubyte baseGray) {
+        auto path = buildPath(tempDir(), filename);
+        immutable width = 3;
+        immutable height = 2;
+        ubyte[] pixels;
+        pixels.length = width * height * 4;
+        foreach (i; 0 .. width * height) {
+            auto offset = i * 4;
+            auto gray = cast(ubyte)(baseGray + i * 16);
+            pixels[offset + 0] = gray;
+            pixels[offset + 1] = gray;
+            pixels[offset + 2] = gray;
+            pixels[offset + 3] = 255;
+        }
+        auto texture = ShallowTexture(pixels, width, height, 4);
+        texture.save(path);
+        return path;
+    }
+
+    ExGridDeformer createSmokeDepthGridWithAxes(string name, float[] xs, float[] ys) {
+        auto grid = new ExGridDeformer(incActivePuppet().root);
+        grid.name = name;
+        auto ctx = new Context();
+        ctx.nodes = [cast(Node)grid];
+        auto result = (new DefineGridCommand(xs, ys)).run(ctx);
+        if (!result.succeeded)
+            ngRegressionSmokeFail("Regression smoke failed to define target grid: " ~ result.message);
+        return grid;
+    }
+
+    ExGridDeformer createSmokeDepthGrid(string name) {
+        return createSmokeDepthGridWithAxes(name, [-1.0f, 0.0f, 1.0f], [-1.0f, 1.0f]);
+    }
+
+    PsdDepthImportResult combinePsdDepthImportPreviews(PsdDepthImportResult[] previews) {
+        PsdDepthImportResult result;
+        foreach (preview; previews) {
+            result.grids ~= preview.grids;
+            result.mappings ~= preview.mappings;
+            result.layerPreviews ~= preview.layerPreviews;
+            result.composedLayers ~= preview.composedLayers;
+            result.sourceDepthLayerCount += preview.sourceDepthLayerCount;
+            result.composedLayerCount += preview.composedLayerCount;
+            result.compositionDiagnostics ~= preview.compositionDiagnostics;
+            result.matchedLayers += preview.matchedLayers;
+            result.unmatchedLayers += preview.unmatchedLayers;
+            result.ambiguousLayers += preview.ambiguousLayers;
+            result.skippedGrids += preview.skippedGrids;
+            result.gpuCompositionRequested = result.gpuCompositionRequested || preview.gpuCompositionRequested;
+        }
+        return result;
+    }
+
+    void attachSmokeCoveragePart(ExGridDeformer grid, string name, float extent = 1.0f) {
+        MeshData data;
+        data.vertices = Vec2Array([
+            vec2(-extent, -extent),
+            vec2(extent, -extent),
+            vec2(-extent, extent),
+            vec2(extent, extent),
+        ]);
+        data.uvs = Vec2Array([
+            vec2(0.0f, 0.0f),
+            vec2(1.0f, 0.0f),
+            vec2(0.0f, 1.0f),
+            vec2(1.0f, 1.0f),
+        ]);
+        data.indices = [cast(ushort)0, 1, 3, 0, 3, 2];
+        data.origin = vec2(0.0f, 0.0f);
+        auto texture = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+        auto part = new Part(data, [texture], inCreateUUID(), grid);
+        part.name = name;
     }
 
     bool isPanelScenario =
@@ -155,6 +335,216 @@ void ngSetupRegressionSmokeScenario(string scenario) {
         incSetSaveProjectOnClose("Ask");
         incActionPush(new RegressionSmokeDirtyAction());
         incCloseProjectAsk();
+    } else if (scenario == "project.depthdraw-live-ui-smoke") {
+        ensureDepthMode();
+        showPanels("Viewport", "Tool Settings", "Inspector");
+        auto grid = createSmokeDepthGrid("nijigenerate-depthdraw-smoke");
+        if (ngRegressionSmokeFailed()) return;
+        auto depthDrawWindow = new DepthDrawWindow(writeSmokeDepthPng("nijigenerate-depthdraw-smoke-back.png", 32));
+        if (depthDrawWindow.loadError.length) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to load source: " ~ depthDrawWindow.loadError);
+            return;
+        }
+        if (depthDrawWindow.depthDrawSession() is null || depthDrawWindow.depthDrawSession().layers.length == 0) {
+            ngRegressionSmokeFail("DepthDraw smoke loaded no layers");
+            return;
+        }
+        depthDrawWindow.depthDrawSession().layers[0].layerPath = "/" ~ grid.name;
+        depthDrawWindow.depthDrawSession().layers[0].displayName = grid.name;
+        auto frontLayer = ngLoadDepthDrawPngLayer(
+            writeSmokeDepthPng("nijigenerate-depthdraw-smoke-front.png", 144),
+            "nijigenerate-depthdraw-smoke-front"
+        );
+        frontLayer.layerPath = "/" ~ grid.name;
+        frontLayer.displayName = grid.name;
+        depthDrawWindow.depthDrawSession().layers ~= frontLayer;
+        auto bindings = ngDepthDrawAutoBindSession(depthDrawWindow.depthDrawSession(), incActivePuppet());
+        if (bindings.length < 2 || depthDrawWindow.depthDrawSession().bindings.length < 2) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to auto-bind generated layers to target grid");
+            return;
+        }
+        depthDrawWindow.selectLayer(depthDrawWindow.depthDrawSession().layers[0].id);
+        depthDrawWindow.selectTargetGrid(grid.uuid);
+        auto rows = depthDrawWindow.displayLayerStackRows();
+        size_t boundRows;
+        size_t sampledRows;
+        foreach (row; rows) {
+            if (row.targetGridUuid != grid.uuid) continue;
+            boundRows++;
+            if (row.sampledVertices > 0 && row.hasDepthRange) sampledRows++;
+        }
+        if (rows.length < 2 || boundRows < 2 || sampledRows < 2) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to build two sampled layer-stack rows for the target grid");
+            return;
+        }
+        auto smokeViewport = new DepthDrawViewport(depthDrawWindow.depthDrawSession());
+        smokeViewport.setDocumentSize(3, 2);
+        smokeViewport.selectionChanged([cast(Node)grid]);
+        auto preview = smokeViewport.composePreview(grid.uuid);
+        if (preview.depths.length == 0 || preview.sampledVertices == 0 || preview.layerStats.length < 2) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to compose viewport preview for the target grid");
+            return;
+        }
+        auto gpuDisplay = depthDrawWindow.depthDrawSession().display;
+        gpuDisplay.useGpuPreview = true;
+        if (!depthDrawWindow.depthDrawSession().updateDisplayOptions(gpuDisplay) ||
+            !depthDrawWindow.depthDrawSession().display.useGpuPreview ||
+            !depthDrawWindow.depthDrawSession().isTargetPreviewDirty(grid.uuid) ||
+            smokeViewport.composeSelectedPreviewForUpdate()) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to route GPU preview display option through session");
+            return;
+        }
+        gpuDisplay.useGpuPreview = false;
+        if (!depthDrawWindow.depthDrawSession().updateDisplayOptions(gpuDisplay)) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to restore CPU preview display option");
+            return;
+        }
+        auto geometryStats = smokeViewport.collectRenderGeometry().stats();
+        if (geometryStats.targetMeshes == 0 ||
+            geometryStats.targetLines == 0 ||
+            geometryStats.layerPlaneLines < 8 ||
+            geometryStats.depthRangeLines < 8 ||
+            geometryStats.selectedLayerLines == 0) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to build viewport relationship render geometry");
+            return;
+        }
+        if (!depthDrawWindow.presentDepthDrawViewport()) {
+            ngRegressionSmokeFail("DepthDraw smoke failed to open viewport: " ~ depthDrawWindow.loadError);
+            return;
+        }
+        incPushWindow(depthDrawWindow);
+    } else if (scenario == "project.psd-depth-map-import-ui-smoke" || scenario == "windows.psd-depth-map") {
+        ensureDepthMode();
+        showPanels("Viewport", "Tool Settings", "Inspector");
+        auto bodyGrid = createSmokeDepthGridWithAxes(
+            "Body:G",
+            [-180.0f, -90.0f, 0.0f, 90.0f, 180.0f],
+            [-180.0f, -90.0f, 0.0f, 90.0f, 180.0f]
+        );
+        if (ngRegressionSmokeFailed()) return;
+        attachSmokeCoveragePart(bodyGrid, "body", 220.0f);
+        auto psdDepthWindow = new PSDDepthMapWindow(localDepthDrawDataPath(
+            "Midori-20260621-color-psd-depth.psd",
+            "regression-smoke-depth.psd"
+        ));
+        psdDepthWindow.rebuildPreviewForRegressionSmoke();
+        if (psdDepthWindow.loadErrorForRegressionSmoke.length) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to build preview: " ~ psdDepthWindow.loadErrorForRegressionSmoke);
+            return;
+        }
+        if (!psdDepthWindow.hasSampledPreviewGridForRegressionSmoke(bodyGrid.name)) {
+            auto bodyRemapped = psdDepthWindow.remapLayerNameToGridForRegressionSmoke("body", bodyGrid.uuid) &&
+                psdDepthWindow.hasSampledPreviewGridForRegressionSmoke(bodyGrid.name);
+            auto anyRemapped = bodyRemapped ||
+                psdDepthWindow.remapAnyLayerToSampledGridForRegressionSmoke(bodyGrid.name, bodyGrid.uuid);
+            if (!anyRemapped) {
+                ngRegressionSmokeFail("PSD depth import smoke failed to remap body layer to target grid");
+                return;
+            }
+        }
+        if (psdDepthWindow.previewGridCountForRegressionSmoke() == 0 ||
+            !psdDepthWindow.hasSampledPreviewGridForRegressionSmoke(bodyGrid.name)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to build sampled preview grid");
+            return;
+        }
+        if (!psdDepthWindow.has3DAdjustGeometryForRegressionSmoke(bodyGrid.name)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to build 3D Adjust relationship geometry");
+            return;
+        }
+        auto pngGrid = createSmokeDepthGridWithAxes(
+            "PngDepthSmoke:G",
+            [-1.0f, 0.0f, 1.0f],
+            [-1.0f, 0.0f, 1.0f]
+        );
+        auto pngWindow = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-import-smoke.png", 192));
+        pngWindow.rebuildPreviewForRegressionSmoke();
+        if (pngWindow.loadErrorForRegressionSmoke.length) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to load PNG source: " ~ pngWindow.loadErrorForRegressionSmoke);
+            return;
+        }
+        if (!pngWindow.remapAnyLayerToSampledGridForRegressionSmoke(pngGrid.name, pngGrid.uuid) ||
+            !pngWindow.hasSampledPreviewGridForRegressionSmoke(pngGrid.name) ||
+            !pngWindow.has3DAdjustGeometryForRegressionSmoke(pngGrid.name)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to route PNG through Source / Mapping and 3D Adjust: " ~
+                pngWindow.diagnosticsForRegressionSmoke().join(" | ") ~ " :: " ~
+                pngWindow.previewSummaryForRegressionSmoke());
+            return;
+        }
+        string pngApplyMessage;
+        if (!pngWindow.applyForRegressionSmoke(pngApplyMessage) ||
+            !pngWindow.hasAppliedDepthsForRegressionSmoke(pngGrid.name)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to apply PNG source through existing path: " ~ pngApplyMessage);
+            return;
+        }
+
+        auto pngGpuGrid = createSmokeDepthGridWithAxes(
+            "PngGpuDepthSmoke:G",
+            [-1.0f, 0.0f, 1.0f],
+            [-1.0f, 0.0f, 1.0f]
+        );
+        auto pngGpuWindow = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-import-gpu-smoke.png", 208));
+        pngGpuWindow.rebuildPreviewForRegressionSmoke();
+        if (pngGpuWindow.loadErrorForRegressionSmoke.length) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to load GPU PNG source: " ~ pngGpuWindow.loadErrorForRegressionSmoke);
+            return;
+        }
+        if (!pngGpuWindow.remapAnyLayerToSampledGridForRegressionSmoke(pngGpuGrid.name, pngGpuGrid.uuid)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to map GPU PNG source");
+            return;
+        }
+        pngGpuWindow.setGpuCompositionForRegressionSmoke(true);
+        resetRegressionSmokeDepthDrawGpuHooks();
+        string pngGpuApplyMessage;
+        auto gpuApplied = pngGpuWindow.applyForRegressionSmoke(pngGpuApplyMessage);
+        ngClearDepthDrawGpuTestHooks();
+        if (!gpuApplied ||
+            regressionSmokeDepthDrawGpuSubmitCount == 0 ||
+            regressionSmokeDepthDrawGpuPollCount == 0 ||
+            pngGpuGrid.copyDepths().length == 0 ||
+            pngGpuGrid.copyDepths()[0] != 0.625f) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to apply PNG source through GPU submit/poll/readback: " ~ pngGpuApplyMessage);
+            return;
+        }
+
+        auto multiGridA = createSmokeDepthGrid("PngMultiSmokeA:G");
+        auto multiGridB = createSmokeDepthGrid("PngMultiSmokeB:G");
+        multiGridA.replaceDepths([0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f]);
+        multiGridB.replaceDepths([0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f]);
+        auto multiWindowA = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-multi-a.png", 80));
+        auto multiWindowB = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-multi-b.png", 176));
+        multiWindowA.rebuildPreviewForRegressionSmoke();
+        multiWindowB.rebuildPreviewForRegressionSmoke();
+        if (multiWindowA.loadErrorForRegressionSmoke.length || multiWindowB.loadErrorForRegressionSmoke.length) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to load multi-binding PNG sources");
+            return;
+        }
+        if (!multiWindowA.remapAnyLayerToSampledGridForRegressionSmoke(multiGridA.name, multiGridA.uuid) ||
+            !multiWindowB.remapAnyLayerToSampledGridForRegressionSmoke(multiGridB.name, multiGridB.uuid)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to map multiple PNG bindings");
+            return;
+        }
+        auto combinedImport = combinePsdDepthImportPreviews([
+            multiWindowA.previewForRegressionSmoke(),
+            multiWindowB.previewForRegressionSmoke(),
+        ]);
+        incActionClearHistory();
+        auto multiApply = ngApplyPsdDepthImportResult(combinedImport);
+        if (!multiApply.succeeded || multiGridA.copyDepths()[0] == 0.1f || multiGridB.copyDepths()[0] == 0.6f) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to apply multiple mapped targets: " ~ multiApply.message);
+            return;
+        }
+        incActionUndo();
+        if (multiGridA.copyDepths() != [0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f] ||
+            multiGridB.copyDepths() != [0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f]) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to undo multiple mapped targets");
+            return;
+        }
+        incActionRedo();
+        if (multiGridA.copyDepths()[0] == 0.1f || multiGridB.copyDepths()[0] == 0.6f) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to redo multiple mapped targets");
+            return;
+        }
+        incPushWindow(psdDepthWindow);
     } else if (scenario == "project.export-video" || scenario.startsWith("io.video-")) {
         incPushWindow(new VideoExportWindow("regression-smoke.mp4"));
     } else if (scenario == "io.image-export") {
@@ -170,6 +560,83 @@ void ngSetupRegressionSmokeScenario(string scenario) {
     } else if (scenario.startsWith("depth.") || scenario == "depthbone.refresh-queue") {
         ensureDepthMode();
         showPanels("Viewport", "Tool Settings", "Inspector");
+        if (scenario == "depth.edit-live-ui-smoke") {
+            auto grid = createSmokeDepthGridWithAxes(
+                "DepthEditSmoke:G",
+                [-2.0f, -1.0f, 0.0f, 1.0f, 2.0f],
+                [-2.0f, -1.0f, 0.0f, 1.0f, 2.0f]);
+            if (ngRegressionSmokeFailed()) return;
+            auto viewport = new DepthEditViewport();
+            viewport.selectionChanged([cast(Node)grid]);
+            viewport.present();
+            scope(exit) viewport.withdraw();
+            auto editor = viewport.getEditor();
+            if (editor is null ||
+                editor.getTargets().length != 1 ||
+                editor.depthViewSession() is null ||
+                editor.depthViewSession().targetByGrid(grid.uuid) is null) {
+                ngRegressionSmokeFail("DepthEdit smoke failed to initialize shared target view");
+                return;
+            }
+            auto activeEditor = editor.getEditorFor(grid);
+            auto targetView = editor.depthViewSession().targetByGrid(grid.uuid);
+            if (activeEditor is null || targetView is null || editor.targetViewFor(activeEditor) !is targetView) {
+                ngRegressionSmokeFail("DepthEdit smoke failed to bind editor wrapper to shared target view");
+                return;
+            }
+            foreach (mode; [
+                DepthToolMode.DirectDepth,
+                DepthToolMode.AttachedPoint,
+                DepthToolMode.Ring,
+                DepthToolMode.Plane,
+            ]) {
+                viewport.setToolMode(mode);
+                auto tool = viewport.activeTool();
+                if (viewport.activeToolMode() != mode || tool is null || tool.mode() != mode) {
+                    ngRegressionSmokeFail("DepthEdit smoke failed to route tool mode through viewport");
+                    return;
+                }
+            }
+            activeEditor.setDepth(0, 0.75f);
+            if (targetView.getDepth(0) != 0.75f || activeEditor.copyEditorDepths()[0] != 0.75f) {
+                ngRegressionSmokeFail("DepthEdit smoke failed to route direct depth edit through shared target view");
+                return;
+            }
+            DepthBrushSettings brush;
+            brush.amount = 0.35f;
+            brush.radiusY = 1.4f;
+            brush.hardness = 1.0f;
+            auto baselineDepths = activeEditor.copyEditorDepths();
+            if (!editor.commitOperationAdd(activeEditor, new DepthAttachedPointOperation(12, 0.25f)) ||
+                !editor.commitOperationAdd(activeEditor, new DepthRingOperation(vec2(-2.0f, 0.0f), vec2(2.0f, 0.0f), brush)) ||
+                !editor.commitOperationAdd(activeEditor, new DepthPlaneOperation(vec2(0.0f, 0.0f), 2.0f, 2.0f, brush))) {
+                ngRegressionSmokeFail("DepthEdit smoke failed to add attached, ring, and plane operations");
+                return;
+            }
+            auto operations = editor.copyOperations(activeEditor);
+            auto operatedDepths = activeEditor.copyEditorDepths();
+            bool depthChanged;
+            foreach (i, value; operatedDepths) {
+                if (i < baselineDepths.length && value != baselineDepths[i]) {
+                    depthChanged = true;
+                    break;
+                }
+            }
+            if (operations.length != 3 || !depthChanged || targetView.copyWorkingDepths() != operatedDepths) {
+                ngRegressionSmokeFail("DepthEdit smoke failed to apply operation edits through shared target view");
+                return;
+            }
+            DepthCamera3D depthCamera;
+            auto renderer = new DepthTargetRenderer();
+            auto mesh = renderer.buildMesh(targetView, depthCamera);
+            auto lines = renderer.buildGridLines(targetView, depthCamera);
+            if (mesh.positions.length != targetView.getVertices().length ||
+                mesh.indices.length == 0 ||
+                lines.length == 0) {
+                ngRegressionSmokeFail("DepthEdit smoke failed to build shared target render geometry");
+                return;
+            }
+        }
     } else if (scenario.startsWith("mesh.") || scenario.startsWith("deform.")) {
         ensureModelMode();
         showPanels("Viewport", "Tool Settings", "Inspector");

@@ -14,6 +14,12 @@ import std.traits;
 import std.array;
 import i18n;
 
+private string crashDumpDirOverride;
+
+void ngSetCrashDumpDirOverrideForTests(string dir) {
+    crashDumpDirOverride = dir;
+}
+
 private string serializeCrashDumpState(T)(auto ref T value) {
     import std.conv : text;
     import std.string : replace;
@@ -277,6 +283,7 @@ string linuxStateHome() {
 }
 
 string getCrashDumpDir() {
+    if (crashDumpDirOverride.length) return crashDumpDirOverride;
     version(Windows) return getDesktopDir();
     else version(OSX) return expandTilde("~/Library/Logs/");
     else version(linux) return expandTilde(linuxStateHome() ~ "/");

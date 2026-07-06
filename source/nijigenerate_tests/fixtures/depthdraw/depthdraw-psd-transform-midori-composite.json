@@ -1,0 +1,1129 @@
+{
+  "currentModel": {
+    "id": "psd:Midori-20260621-color:Midori-20260621-color-psd-depth.psd",
+    "type": "psd",
+    "label": "Midori 20260621 (PSD) + Midori-20260621-color-psd-depth.psd",
+    "colorUrl": "/data/Midori-20260621-color.psd",
+    "depthPsdUrl": "/data/Midori-20260621-color-psd-depth.psd",
+    "stableDepthUrl": null
+  },
+  "sourceMode": "psd",
+  "settings": {
+    "globalDepthScale": 1,
+    "contourRepair": false,
+    "surfaceSmooth": false
+  },
+  "composedSource": {
+    "width": 1280,
+    "height": 1280,
+    "mode": "N:N",
+    "colorSource": {
+      "format": "psd",
+      "width": 1280,
+      "height": 1280,
+      "name": "",
+      "layerCount": 29
+    },
+    "depthSource": {
+      "format": "psd",
+      "width": 1280,
+      "height": 1280,
+      "name": "",
+      "layerCount": 29
+    },
+    "globalDepthScale": 1,
+    "globalDepthCentroid": 182.33332028250035,
+    "diagnostics": [],
+    "layers": [
+      {
+        "index": 0,
+        "id": "composed:0",
+        "name": "animal_ears",
+        "sourceIndex": 0,
+        "sourceIndices": [
+          0
+        ],
+        "left": 508,
+        "top": 21,
+        "width": 275,
+        "height": 151,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 1,
+        "id": "composed:1",
+        "name": "tail",
+        "sourceIndex": 1,
+        "sourceIndices": [
+          1
+        ],
+        "left": 606,
+        "top": 463,
+        "width": 378,
+        "height": 423,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 2,
+        "id": "composed:2",
+        "name": "bottomwear-back",
+        "sourceIndex": 2,
+        "sourceIndices": [
+          2
+        ],
+        "left": 288,
+        "top": 416,
+        "width": 724,
+        "height": 606,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 3,
+        "id": "composed:3",
+        "name": "back hair",
+        "sourceIndex": 3,
+        "sourceIndices": [
+          3
+        ],
+        "left": 504,
+        "top": 45,
+        "width": 275,
+        "height": 235,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 4,
+        "id": "composed:4",
+        "name": "legwear",
+        "sourceIndex": 4,
+        "sourceIndices": [
+          4
+        ],
+        "left": 500,
+        "top": 589,
+        "width": 229,
+        "height": 533,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 5,
+        "id": "composed:5",
+        "name": "footwear",
+        "sourceIndex": 5,
+        "sourceIndices": [
+          5
+        ],
+        "left": 592,
+        "top": 1047,
+        "width": 163,
+        "height": 212,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 6,
+        "id": "composed:6",
+        "name": "handwear-r",
+        "sourceIndex": 6,
+        "sourceIndices": [
+          6
+        ],
+        "left": 345,
+        "top": 265,
+        "width": 256,
+        "height": 289,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 7,
+        "id": "composed:7",
+        "name": "bottomwear-front",
+        "sourceIndex": 7,
+        "sourceIndices": [
+          7
+        ],
+        "left": 291,
+        "top": 430,
+        "width": 625,
+        "height": 590,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 8,
+        "id": "composed:8",
+        "name": "topwear-back",
+        "sourceIndex": 8,
+        "sourceIndices": [
+          8
+        ],
+        "left": 454,
+        "top": 242,
+        "width": 281,
+        "height": 429,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 9,
+        "id": "composed:9",
+        "name": "neck",
+        "sourceIndex": 9,
+        "sourceIndices": [
+          9
+        ],
+        "left": 628,
+        "top": 205,
+        "width": 54,
+        "height": 64,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 10,
+        "id": "composed:10",
+        "name": "ears-r",
+        "sourceIndex": 10,
+        "sourceIndices": [
+          10
+        ],
+        "left": 567,
+        "top": 184,
+        "width": 34,
+        "height": 36,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 11,
+        "id": "composed:11",
+        "name": "ears-l",
+        "sourceIndex": 11,
+        "sourceIndices": [
+          11
+        ],
+        "left": 694,
+        "top": 158,
+        "width": 26,
+        "height": 45,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 12,
+        "id": "composed:12",
+        "name": "face",
+        "sourceIndex": 12,
+        "sourceIndices": [
+          12,
+          14,
+          15,
+          16,
+          17,
+          19,
+          20,
+          23,
+          24,
+          25,
+          26
+        ],
+        "left": 559,
+        "top": 73,
+        "width": 143,
+        "height": 176,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 13,
+        "id": "composed:13",
+        "name": "topwear-front",
+        "sourceIndex": 13,
+        "sourceIndices": [
+          13
+        ],
+        "left": 525,
+        "top": 241,
+        "width": 187,
+        "height": 391,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 14,
+        "id": "composed:14",
+        "name": "head",
+        "sourceIndex": 18,
+        "sourceIndices": [
+          18
+        ],
+        "left": 561,
+        "top": 86,
+        "width": 160,
+        "height": 162,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 15,
+        "id": "composed:15",
+        "name": "headwear",
+        "sourceIndex": 21,
+        "sourceIndices": [
+          21
+        ],
+        "left": 512,
+        "top": 23,
+        "width": 239,
+        "height": 180,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 16,
+        "id": "composed:16",
+        "name": "earwear",
+        "sourceIndex": 22,
+        "sourceIndices": [
+          22
+        ],
+        "left": 702,
+        "top": 196,
+        "width": 14,
+        "height": 19,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 17,
+        "id": "composed:17",
+        "name": "handwear-l",
+        "sourceIndex": 27,
+        "sourceIndices": [
+          27
+        ],
+        "left": 701,
+        "top": 211,
+        "width": 180,
+        "height": 248,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      },
+      {
+        "index": 18,
+        "id": "composed:18",
+        "name": "front hair",
+        "sourceIndex": 28,
+        "sourceIndices": [
+          28
+        ],
+        "left": 527,
+        "top": 50,
+        "width": 194,
+        "height": 232,
+        "visible": true,
+        "depthOffset": 0,
+        "depthScale": 1,
+        "outlierPruneEnabled": false,
+        "puppetFitEnabled": true,
+        "puppetBindingOverride": null
+      }
+    ]
+  },
+  "psdColorTree": {
+    "name": "root",
+    "left": 0,
+    "top": 0,
+    "width": 0,
+    "height": 0,
+    "hidden": false,
+    "indexPath": [],
+    "children": [
+      {
+        "name": "animal_ears",
+        "left": 508,
+        "top": 21,
+        "width": 275,
+        "height": 151,
+        "hidden": false,
+        "indexPath": [
+          0
+        ],
+        "children": []
+      },
+      {
+        "name": "tail",
+        "left": 606,
+        "top": 463,
+        "width": 378,
+        "height": 423,
+        "hidden": false,
+        "indexPath": [
+          1
+        ],
+        "children": []
+      },
+      {
+        "name": "bottomwear-back",
+        "left": 288,
+        "top": 416,
+        "width": 724,
+        "height": 606,
+        "hidden": false,
+        "indexPath": [
+          2
+        ],
+        "children": []
+      },
+      {
+        "name": "back hair",
+        "left": 504,
+        "top": 45,
+        "width": 275,
+        "height": 235,
+        "hidden": false,
+        "indexPath": [
+          3
+        ],
+        "children": []
+      },
+      {
+        "name": "legwear",
+        "left": 500,
+        "top": 589,
+        "width": 229,
+        "height": 533,
+        "hidden": false,
+        "indexPath": [
+          4
+        ],
+        "children": []
+      },
+      {
+        "name": "footwear",
+        "left": 592,
+        "top": 1047,
+        "width": 163,
+        "height": 212,
+        "hidden": false,
+        "indexPath": [
+          5
+        ],
+        "children": []
+      },
+      {
+        "name": "handwear-r",
+        "left": 345,
+        "top": 265,
+        "width": 256,
+        "height": 289,
+        "hidden": false,
+        "indexPath": [
+          6
+        ],
+        "children": []
+      },
+      {
+        "name": "bottomwear-front",
+        "left": 291,
+        "top": 430,
+        "width": 625,
+        "height": 590,
+        "hidden": false,
+        "indexPath": [
+          7
+        ],
+        "children": []
+      },
+      {
+        "name": "topwear-back",
+        "left": 454,
+        "top": 242,
+        "width": 281,
+        "height": 429,
+        "hidden": false,
+        "indexPath": [
+          8
+        ],
+        "children": []
+      },
+      {
+        "name": "neck",
+        "left": 628,
+        "top": 205,
+        "width": 54,
+        "height": 64,
+        "hidden": false,
+        "indexPath": [
+          9
+        ],
+        "children": []
+      },
+      {
+        "name": "ears-r",
+        "left": 567,
+        "top": 184,
+        "width": 34,
+        "height": 36,
+        "hidden": false,
+        "indexPath": [
+          10
+        ],
+        "children": []
+      },
+      {
+        "name": "ears-l",
+        "left": 694,
+        "top": 158,
+        "width": 26,
+        "height": 45,
+        "hidden": false,
+        "indexPath": [
+          11
+        ],
+        "children": []
+      },
+      {
+        "name": "face",
+        "left": 559,
+        "top": 73,
+        "width": 143,
+        "height": 176,
+        "hidden": false,
+        "indexPath": [
+          12
+        ],
+        "children": []
+      },
+      {
+        "name": "topwear-front",
+        "left": 525,
+        "top": 241,
+        "width": 187,
+        "height": 391,
+        "hidden": false,
+        "indexPath": [
+          13
+        ],
+        "children": []
+      },
+      {
+        "name": "eyebrow-l",
+        "left": 639,
+        "top": 135,
+        "width": 50,
+        "height": 10,
+        "hidden": false,
+        "indexPath": [
+          14
+        ],
+        "children": []
+      },
+      {
+        "name": "eyebrow-r",
+        "left": 574,
+        "top": 147,
+        "width": 36,
+        "height": 20,
+        "hidden": false,
+        "indexPath": [
+          15
+        ],
+        "children": []
+      },
+      {
+        "name": "nose",
+        "left": 627,
+        "top": 189,
+        "width": 11,
+        "height": 12,
+        "hidden": false,
+        "indexPath": [
+          16
+        ],
+        "children": []
+      },
+      {
+        "name": "mouth",
+        "left": 627,
+        "top": 206,
+        "width": 32,
+        "height": 28,
+        "hidden": false,
+        "indexPath": [
+          17
+        ],
+        "children": []
+      },
+      {
+        "name": "head",
+        "left": 561,
+        "top": 86,
+        "width": 160,
+        "height": 162,
+        "hidden": false,
+        "indexPath": [
+          18
+        ],
+        "children": []
+      },
+      {
+        "name": "eyewhite-r",
+        "left": 585,
+        "top": 177,
+        "width": 32,
+        "height": 24,
+        "hidden": false,
+        "indexPath": [
+          19
+        ],
+        "children": []
+      },
+      {
+        "name": "eyewhite-l",
+        "left": 654,
+        "top": 159,
+        "width": 32,
+        "height": 25,
+        "hidden": false,
+        "indexPath": [
+          20
+        ],
+        "children": []
+      },
+      {
+        "name": "headwear",
+        "left": 512,
+        "top": 23,
+        "width": 239,
+        "height": 180,
+        "hidden": false,
+        "indexPath": [
+          21
+        ],
+        "children": []
+      },
+      {
+        "name": "earwear",
+        "left": 702,
+        "top": 196,
+        "width": 14,
+        "height": 19,
+        "hidden": false,
+        "indexPath": [
+          22
+        ],
+        "children": []
+      },
+      {
+        "name": "irides-r",
+        "left": 594,
+        "top": 174,
+        "width": 23,
+        "height": 25,
+        "hidden": false,
+        "indexPath": [
+          23
+        ],
+        "children": []
+      },
+      {
+        "name": "eyelash-r",
+        "left": 574,
+        "top": 168,
+        "width": 43,
+        "height": 31,
+        "hidden": false,
+        "indexPath": [
+          24
+        ],
+        "children": []
+      },
+      {
+        "name": "eyelash-l",
+        "left": 646,
+        "top": 154,
+        "width": 50,
+        "height": 30,
+        "hidden": false,
+        "indexPath": [
+          25
+        ],
+        "children": []
+      },
+      {
+        "name": "irides-l",
+        "left": 657,
+        "top": 159,
+        "width": 23,
+        "height": 24,
+        "hidden": false,
+        "indexPath": [
+          26
+        ],
+        "children": []
+      },
+      {
+        "name": "handwear-l",
+        "left": 701,
+        "top": 211,
+        "width": 180,
+        "height": 248,
+        "hidden": false,
+        "indexPath": [
+          27
+        ],
+        "children": []
+      },
+      {
+        "name": "front hair",
+        "left": 527,
+        "top": 50,
+        "width": 194,
+        "height": 232,
+        "hidden": false,
+        "indexPath": [
+          28
+        ],
+        "children": []
+      }
+    ]
+  },
+  "psdDepthTree": {
+    "name": "root",
+    "left": 0,
+    "top": 0,
+    "width": 0,
+    "height": 0,
+    "hidden": false,
+    "indexPath": [],
+    "children": [
+      {
+        "name": "animal_ears",
+        "left": 508,
+        "top": 21,
+        "width": 275,
+        "height": 151,
+        "hidden": false,
+        "indexPath": [
+          0
+        ],
+        "children": []
+      },
+      {
+        "name": "tail",
+        "left": 606,
+        "top": 463,
+        "width": 378,
+        "height": 423,
+        "hidden": false,
+        "indexPath": [
+          1
+        ],
+        "children": []
+      },
+      {
+        "name": "bottomwear-back",
+        "left": 288,
+        "top": 416,
+        "width": 724,
+        "height": 606,
+        "hidden": false,
+        "indexPath": [
+          2
+        ],
+        "children": []
+      },
+      {
+        "name": "back hair",
+        "left": 504,
+        "top": 45,
+        "width": 275,
+        "height": 235,
+        "hidden": false,
+        "indexPath": [
+          3
+        ],
+        "children": []
+      },
+      {
+        "name": "legwear",
+        "left": 500,
+        "top": 589,
+        "width": 229,
+        "height": 533,
+        "hidden": false,
+        "indexPath": [
+          4
+        ],
+        "children": []
+      },
+      {
+        "name": "footwear",
+        "left": 592,
+        "top": 1047,
+        "width": 163,
+        "height": 212,
+        "hidden": false,
+        "indexPath": [
+          5
+        ],
+        "children": []
+      },
+      {
+        "name": "handwear-r",
+        "left": 345,
+        "top": 265,
+        "width": 256,
+        "height": 289,
+        "hidden": false,
+        "indexPath": [
+          6
+        ],
+        "children": []
+      },
+      {
+        "name": "bottomwear-front",
+        "left": 291,
+        "top": 430,
+        "width": 625,
+        "height": 590,
+        "hidden": false,
+        "indexPath": [
+          7
+        ],
+        "children": []
+      },
+      {
+        "name": "topwear-back",
+        "left": 454,
+        "top": 242,
+        "width": 281,
+        "height": 429,
+        "hidden": false,
+        "indexPath": [
+          8
+        ],
+        "children": []
+      },
+      {
+        "name": "neck",
+        "left": 628,
+        "top": 205,
+        "width": 54,
+        "height": 64,
+        "hidden": false,
+        "indexPath": [
+          9
+        ],
+        "children": []
+      },
+      {
+        "name": "ears-r",
+        "left": 567,
+        "top": 184,
+        "width": 34,
+        "height": 36,
+        "hidden": false,
+        "indexPath": [
+          10
+        ],
+        "children": []
+      },
+      {
+        "name": "ears-l",
+        "left": 694,
+        "top": 158,
+        "width": 26,
+        "height": 45,
+        "hidden": false,
+        "indexPath": [
+          11
+        ],
+        "children": []
+      },
+      {
+        "name": "face",
+        "left": 559,
+        "top": 73,
+        "width": 143,
+        "height": 176,
+        "hidden": false,
+        "indexPath": [
+          12
+        ],
+        "children": []
+      },
+      {
+        "name": "topwear-front",
+        "left": 525,
+        "top": 241,
+        "width": 187,
+        "height": 391,
+        "hidden": false,
+        "indexPath": [
+          13
+        ],
+        "children": []
+      },
+      {
+        "name": "eyebrow-l",
+        "left": 639,
+        "top": 135,
+        "width": 50,
+        "height": 10,
+        "hidden": false,
+        "indexPath": [
+          14
+        ],
+        "children": []
+      },
+      {
+        "name": "eyebrow-r",
+        "left": 574,
+        "top": 147,
+        "width": 36,
+        "height": 20,
+        "hidden": false,
+        "indexPath": [
+          15
+        ],
+        "children": []
+      },
+      {
+        "name": "nose",
+        "left": 627,
+        "top": 189,
+        "width": 11,
+        "height": 12,
+        "hidden": false,
+        "indexPath": [
+          16
+        ],
+        "children": []
+      },
+      {
+        "name": "mouth",
+        "left": 627,
+        "top": 206,
+        "width": 32,
+        "height": 28,
+        "hidden": false,
+        "indexPath": [
+          17
+        ],
+        "children": []
+      },
+      {
+        "name": "head",
+        "left": 561,
+        "top": 86,
+        "width": 160,
+        "height": 162,
+        "hidden": false,
+        "indexPath": [
+          18
+        ],
+        "children": []
+      },
+      {
+        "name": "eyewhite-r",
+        "left": 585,
+        "top": 177,
+        "width": 32,
+        "height": 24,
+        "hidden": false,
+        "indexPath": [
+          19
+        ],
+        "children": []
+      },
+      {
+        "name": "eyewhite-l",
+        "left": 654,
+        "top": 159,
+        "width": 32,
+        "height": 25,
+        "hidden": false,
+        "indexPath": [
+          20
+        ],
+        "children": []
+      },
+      {
+        "name": "headwear",
+        "left": 512,
+        "top": 23,
+        "width": 239,
+        "height": 180,
+        "hidden": false,
+        "indexPath": [
+          21
+        ],
+        "children": []
+      },
+      {
+        "name": "earwear",
+        "left": 702,
+        "top": 196,
+        "width": 14,
+        "height": 19,
+        "hidden": false,
+        "indexPath": [
+          22
+        ],
+        "children": []
+      },
+      {
+        "name": "irides-r",
+        "left": 594,
+        "top": 174,
+        "width": 23,
+        "height": 25,
+        "hidden": false,
+        "indexPath": [
+          23
+        ],
+        "children": []
+      },
+      {
+        "name": "eyelash-r",
+        "left": 574,
+        "top": 168,
+        "width": 43,
+        "height": 31,
+        "hidden": false,
+        "indexPath": [
+          24
+        ],
+        "children": []
+      },
+      {
+        "name": "eyelash-l",
+        "left": 646,
+        "top": 154,
+        "width": 50,
+        "height": 30,
+        "hidden": false,
+        "indexPath": [
+          25
+        ],
+        "children": []
+      },
+      {
+        "name": "irides-l",
+        "left": 657,
+        "top": 159,
+        "width": 23,
+        "height": 24,
+        "hidden": false,
+        "indexPath": [
+          26
+        ],
+        "children": []
+      },
+      {
+        "name": "handwear-l",
+        "left": 701,
+        "top": 211,
+        "width": 180,
+        "height": 248,
+        "hidden": false,
+        "indexPath": [
+          27
+        ],
+        "children": []
+      },
+      {
+        "name": "front hair",
+        "left": 527,
+        "top": 50,
+        "width": 194,
+        "height": 232,
+        "hidden": false,
+        "indexPath": [
+          28
+        ],
+        "children": []
+      }
+    ]
+  }
+}

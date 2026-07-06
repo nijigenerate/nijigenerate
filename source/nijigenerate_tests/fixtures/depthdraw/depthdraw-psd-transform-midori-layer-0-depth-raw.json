@@ -1,0 +1,41 @@
+{
+  "generatedBy": "depth-draw",
+  "source": "globalThis.__depthDrawApi.getLayerDepthImage(0) after setLayerDepthTransform(0,{offset:32,scale:0.5})",
+  "width": 275,
+  "height": 151,
+  "stats": {
+    "min": 0,
+    "max": 130,
+    "nonZero": 9933,
+    "sum": 1148929,
+    "average": 27.668368452739312
+  },
+  "sha256": "f3dab066802c87552b08e15866278ef3cc1574e0458af46e8225e57ed789e8ad",
+  "samples": [
+    {
+      "y": 0,
+      "value": 0,
+      "x": 0
+    },
+    {
+      "y": 75,
+      "value": 0,
+      "x": 137
+    },
+    {
+      "y": 150,
+      "value": 0,
+      "x": 274
+    },
+    {
+      "y": 37,
+      "value": 0,
+      "x": 68
+    },
+    {
+      "y": 113,
+      "value": 0,
+      "x": 206
+    }
+  ]
+}

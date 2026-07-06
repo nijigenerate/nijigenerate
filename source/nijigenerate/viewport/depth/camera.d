@@ -6,6 +6,7 @@
 */
 module nijigenerate.viewport.depth.camera;
 
+import bindbc.imgui : ImGuiIO;
 import nijigenerate;
 import nijigenerate.project;
 import nijigenerate.viewport.base;
@@ -36,6 +37,31 @@ struct DepthCamera3D {
     float pitch = 0.0f;
     float zoom = 1.0f;
     vec2 pan = vec2(0);
+}
+
+bool updateDepthCamera3D(
+    ref DepthCamera3D camera,
+    ImGuiIO* io,
+    bool rotateRequested,
+    bool panRequested,
+    bool zoomRequested
+) {
+    if (io is null) return false;
+    bool changed;
+    if (rotateRequested) {
+        camera.yaw -= io.MouseDelta.x * 0.01f;
+        camera.pitch = clamp(camera.pitch + io.MouseDelta.y * 0.01f, -1.35f, 1.35f);
+        changed = true;
+    }
+    if (panRequested) {
+        camera.pan += vec2(io.MouseDelta.x, io.MouseDelta.y);
+        changed = true;
+    }
+    if (zoomRequested && io.MouseWheel != 0) {
+        camera.zoom = clamp(camera.zoom * (1 + io.MouseWheel * 0.08f), 0.1f, 8.0f);
+        changed = true;
+    }
+    return changed;
 }
 
 void focusGridOrigin(GridDeformer grid) {

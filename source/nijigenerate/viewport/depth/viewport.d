@@ -39,17 +39,13 @@ private:
     }
 
     bool updateDepthCamera(ImGuiIO* io) {
-        bool changed = false;
-        if (io.MouseDown[1] && !io.KeyShift && incInputIsDragRequested(ImGuiMouseButton.Right)) {
-            depthCamera.yaw -= io.MouseDelta.x * 0.01f;
-            depthCamera.pitch = clamp(depthCamera.pitch + io.MouseDelta.y * 0.01f, -1.35f, 1.35f);
-            changed = true;
-        }
-        if (io.MouseWheel != 0) {
-            depthCamera.zoom = clamp(depthCamera.zoom * (1 + io.MouseWheel * 0.08f), 0.1f, 8.0f);
-            changed = true;
-        }
-        return changed;
+        return updateDepthCamera3D(
+            depthCamera,
+            io,
+            io.MouseDown[1] && !io.KeyShift && incInputIsDragRequested(ImGuiMouseButton.Right),
+            false,
+            io.MouseWheel != 0
+        );
     }
 
 public:

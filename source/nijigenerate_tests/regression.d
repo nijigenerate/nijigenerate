@@ -18,6 +18,7 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
     ngEvaluateDepthBoneGpuOffsetPacketCpu, ngFlushDepthBoneDirtyImmediate, ngGenerateDepthBoneOffsetsCpu, ngMarkDepthBoneDirty,
     ngResetDepthBoneCpuReferenceCallCount;
+import nijigenerate.commands.depth.map : ngExportPsdDepthComposedSourcePng, ngPsdDepthImportResultToDepthDrawSession;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.inspector.apply_node;
@@ -50,16 +51,74 @@ import nijigenerate.ext;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.ext.nodes.exgriddeformer;
+import nijigenerate.ext.nodes.expathdeformer;
 import nijigenerate.ext.param;
 import nijigenerate.io.autosave;
 import nijigenerate.io.depthmap_psd;
+import nijigenerate.io.depthimage;
+import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution, DepthSampleExtremeAccumulator,
+    DepthSampleResult,
+    DepthSampleWeightedAccumulator, ngDepthSampleAcceptsAlpha, ngDepthSampleAlphaByte,
+    ngDepthSampleConvolutionRadius, ngDepthSampleConvolutionUsesBackmost, ngDepthSampleConvolutionUsesFrontmost,
+    ngDepthSampleConvolutionUsesMedian, ngDepthSampleConvolutionUsesWeightedAverage, ngDepthSampleEffectiveAlpha,
+    ngDepthSampleExtreme, ngDepthSampleFrontmost, ngDepthSampleKernelWeight, ngDepthSampleMedian,
+    ngDepthSampleMissingPoint, ngDepthSampleOpacity01, ngDepthSamplePixelDepth, ngDepthSamplePixelDepth01,
+    ngDepthSampleValueToDepth01, ngDepthSampleWeightedAverage;
 import nijigenerate.io.inpexport;
 import nijigenerate.project;
 import nijigenerate.viewport.common.mesh : IncMesh;
+import nijigenerate.viewport.base : incViewport;
 import meshNodeOps = nijigenerate.viewport.common.mesheditor.operations.node;
 import meshDeformableOps = nijigenerate.viewport.vertex.mesheditor.deformable;
 import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
+import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession, ngDepthTargetClampDepth;
+import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
+import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawSession, DepthMergePolicy,
+    DepthDrawLayerStackSortMode,
+    ngComposeDepthDrawTarget, ngDepthDrawApplyFitZToGap, ngDepthDrawAutoBindLayer, ngDepthDrawAutoBindSession,
+    ngDepthDrawFitZDiagnostics, ngDepthDrawFitZToGap, ngDepthDrawGapFromAdjacentRanges,
+    ngDepthDrawGapFromSelectedLayerRanges, ngDepthDrawGapFromTargetRange, ngDepthDrawRangeFromValues,
+    ngDepthDrawWinningLayerColor,
+    ngApplyDepthDrawTargetResult,
+    ngApplyDepthDrawTargetResultWithSummary,
+    ngExportDepthDrawPngSession,
+    ngDepthDrawLayerPixelFromDocument,
+    ngDepthDrawCompositePreviewSummary, ngDepthDrawDepthSpaceSummary, ngDepthDrawSessionFromManifest,
+    ngDepthDrawSessionToManifest,
+    DepthDrawGpuComposePacket, DepthDrawGpuComposeReadback, DepthDrawGpuLayerReadback,
+    DepthDrawGpuTargetComposeJob, DepthDrawGpuTargetComposePollResult,
+    DepthDrawGpuDispatchPollResult, DepthDrawGpuLayerSamplePollResult,
+    DepthDrawGpuBindingField, DepthDrawGpuBindingStride, DepthDrawGpuDocumentPositionStride,
+    DepthDrawGpuLayerField, DepthDrawGpuLayerStride, DepthDrawGpuRgbaPixelStride,
+    ngBuildDepthDrawGpuComposePacket, ngBuildDepthDrawGpuLayerSamplePacket,
+    ngBuildDepthDrawGpuComposeReadback, ngBuildDepthDrawGpuLayerSampleUpload,
+    ngClearDepthDrawGpuTestHooks, ngDepthDrawComposeResultFromGpuReadback,
+    ngDepthDrawGpuLayerPixelFromDocument, ngDepthDrawGpuLayerSampleMissingRequirements,
+    ngDepthDrawGpuLayerSampleSupported, ngDepthDrawGpuLayerSampleSupportDiagnostic,
+    ngDepthDrawGpuLayerSampleSupportsConvolution,
+    ngDepthDrawGpuMissingRequirements, ngDepthDrawGpuSupported,
+    ngFlattenDepthDrawGpuDocumentPositions, ngFlattenDepthDrawGpuRgbaBytes,
+    ngDepthDrawGpuSupportDiagnostic, ngFlattenDepthDrawGpuBindings,
+    ngFlattenDepthDrawGpuLayers, ngPendingDepthDrawGpuLayerSampleJobCount,
+    ngPollDepthDrawGpuCompose, ngPollDepthDrawGpuLayerSample, ngPollDepthDrawGpuTargetCompose,
+    ngSetDepthDrawGpuTestHooks,
+    ngSubmitDepthDrawGpuCompose, ngSubmitDepthDrawGpuLayerSample, ngSubmitDepthDrawGpuTargetCompose,
+    ngValidateDepthDrawGpuComposePacket, ngValidateDepthDrawGpuComposeReadback,
+    ngValidateDepthDrawGpuLayerSamplePacket,
+    ngDepthDrawFilterAndSortLayerStackRows, ngDepthDrawLayerStackRows, ngDepthDrawSourceDiagnostics,
+    ngLoadDepthDrawManifest, ngLoadDepthDrawPngLayer,
+    ngCompareDepthDrawComposeReadback,
+    DepthDrawViewport,
+    ngPreviewDepthDrawTarget,
+    ngClearPuppetDepthDrawSession,
+    ngDepthDrawApplyMaskToLayerAlpha,
+    ngDepthDrawAttachNormalCoverage,
+    ngGetPuppetDepthDrawSession,
+    ngLoadDepthDrawPsd,
+    ngSetPuppetDepthDrawSession,
+    ngDepthDrawVertexDocumentPosition,
+    ngSaveDepthDrawManifest, ngValidateDepthDrawSessionManifest;
 import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
 import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
@@ -67,6 +126,7 @@ import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProce
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
 import nijigenerate.windows.command_browser : ngCommandBrowserDifferentialReport;
+import nijigenerate.windows.depthdraw : DepthDrawWindow;
 import nijigenerate.windows.paramsplit : ngSplitParameterBindings;
 import nijilive;
 import nijilive.core.nodes.deformer.grid;
@@ -78,15 +138,16 @@ import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
 import psd : PSD, parsePSDDocument = parseDocument;
 import std.base64 : Base64;
-import std.exception : enforce;
+import std.exception : collectException, enforce;
 import std.algorithm.searching : canFind, countUntil, endsWith, startsWith;
 import std.algorithm.sorting : sort;
 import std.array : join;
 import std.conv : to;
 import std.file : SpanMode, dirEntries, exists, isFile, mkdirRecurse, read, readText, remove, rmdirRecurse, tempDir, write;
 import std.format : format;
-import std.path : buildPath, relativePath, setExtension;
+import std.path : buildPath, dirName, relativePath, setExtension;
 import std.json : JSONType, JSONValue;
+import std.math : isFinite;
 import std.regex : regex, replaceAll;
 import std.stdio : stderr, writeln;
 import std.string : replace, split, splitLines, strip, stripLeft;
@@ -119,6 +180,8 @@ private immutable Scenario[] scenarios = [
     Scenario("node.composite-type-matrix", "Node Hierarchy", "Every registered node menu type can be created, renamed, undone, and redone", automated, "Expands the matrix into a direct scenario for node type command coverage."),
     Scenario("parameter.composite-preset-matrix", "Parameters", "1D and 2D parameter presets across ranges preserve bindings through rename undo/redo", automated, "Expands the matrix into a direct scenario for parameter preset and binding combinations."),
     Scenario("depth.composite-operation-matrix", "Depth Edit", "Attached-point, ring, and plane depth operations are undoable after depth initialization", automated, "Expands the matrix into a direct scenario for depth operation combinations."),
+    Scenario("depth.common-target-view", "Depth Edit", "Shared depth target view preserves GridDeformer working-depth contracts", automated, "Covers the non-rendering common DepthTargetView foundation used by DepthEdit and DepthDraw."),
+    Scenario("depth.edit-live-ui-smoke", "Depth Edit", "DepthEdit live UI smoke for direct, attached point, ring, and plane tools", computerUse, "Needs live render/input verification for direct manipulation tools after common depth view extraction."),
     Scenario("automesh.composite-processor-matrix-scenario", "AutoMesh", "Grid, contour, skeleton, and optimum AutoMesh processors produce valid meshes", automated, "Expands the matrix into a direct scenario for all standard AutoMesh processors."),
     Scenario("simplephysics.composite-settings-matrix", "SimplePhysics", "SimplePhysics model, map, local, gravity, length, frequency, and damping settings undo/redo", automated, "Expands the matrix into a direct scenario for SimplePhysics setting combinations."),
 
@@ -131,6 +194,13 @@ private immutable Scenario[] scenarios = [
     Scenario("project.autosave-recovery", "Project/File", "Autosave, recovery, lockfile, recovery rejection, and stale-record cleanup paths", automated, "Covers autosave file creation, lockfile state, recovery record creation, and stale-record pruning; restart dialog rejection uses computer-use."),
     Scenario("project.import-psd", "Project/File", "PSD import, layer grouping, node-type mapping, clipping, opacity, blend, and texture placement", automated, "Covers generated PSD fixture reader and import command path; rich layered PSD golden coverage remains asset-dependent."),
     Scenario("project.import-psd-depth-map", "Project/File", "PSD depth map import maps grayscale layer depth to GridDeformer depth arrays", automated, "Covers PSD depth sampling helpers, target GridDeformer resolution, and command registration; full layered PSD golden coverage remains asset-dependent."),
+    Scenario("project.depthdraw-compatibility", "Project/File", "DepthDraw calculation entrypoints remain compatible with depth-draw fixture expectations", automated, "Covers the neutral depth image sampling facade and the future depth-draw golden fixture runner."),
+    Scenario("project.depthdraw-data-model", "Project/File", "DepthDraw layer, binding, and session state preserve PSD/PNG source metadata and target links", automated, "Covers the initial DepthDraw data model before compositor and viewport integration."),
+    Scenario("project.depthdraw-source-manifest", "Project/File", "DepthDraw PNG/PSD source loading, manifest round-trip, window actions, and INX session persistence preserve layer and binding settings", automated, "Covers PNG-to-layer conversion, empty PSD load handling, JSON manifest save/load, DepthDrawWindow source/export/apply actions, and ExPuppet-backed DepthDraw session persistence."),
+    Scenario("project.depthdraw-composer", "Project/File", "DepthDraw compositor, GPU preview boundary, and viewport depth-space geometry map image layers to depth-mapped deformer arrays", automated, "Covers GridDeformer and PathDeformer target vertex sampling, layer ordering, merge policy, missing samples, preview working-depth updates, GPU-style readback, depth-space summary, and viewport render geometry."),
+    Scenario("project.depthdraw-fit-z", "Project/File", "DepthDraw Fit Z to Gap computes layer z scale and offset without changing source pixels", automated, "Covers raw range measurement, manual gap fitting, margins, and invalid range rejection."),
+    Scenario("project.depthdraw-live-ui-smoke", "Project/File", "DepthDraw live UI and OpenGL viewport smoke for PSD/PNG/manifest workflows", computerUse, "Needs live render verification for source dialog, layer stack relationships, depth-space labels, viewport options, and textured composite preview."),
+    Scenario("project.psd-depth-map-import-ui-smoke", "Project/File", "PSD Depth Map Import live UI smoke still opens and previews existing import behavior", computerUse, "Needs live dialog verification for the legacy PSD depth map importer after DepthDraw refactoring."),
     Scenario("project.import-kra", "Project/File", "KRA import, layer grouping, node-type mapping, clipping, opacity, blend, and texture placement", automated, "Covers generated KRA fixture reader and import command path; rich layered KRA golden coverage remains asset-dependent."),
     Scenario("project.import-inp", "Project/File", "INP import and compatibility with exported files", automated, "Covers command-level import and merge of generated INP fixtures with nodes, parameters, and bindings."),
     Scenario("project.import-images", "Project/File", "Image and image-folder import into Parts", automated, "Covers generated PNG fixtures through image-folder import and merge-image-files command paths."),
@@ -308,7 +378,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depth.renderer", "Depth Edit", "Depth renderer draws signs, colors, rings, lines, and hidden/back-side cues correctly", computerUse, "Needs computer-use render snapshot fixture."),
     Scenario("depth.sign-colors", "Depth Edit", "Positive and negative depth display colors and front-side markers", automated, "Covers positive, negative, zero, selected, and rounding color contracts; rendered marker geometry remains in depth.renderer."),
     Scenario("depth.persistence", "Depth Edit", "Depth map edit apply, cancel, interpolation, and save/load", automated, "Covers depth arrays and depth operations through copy/replace/rebuffer helpers plus native INX save/load round-trip."),
-    Scenario("depth.exdepthmapped", "Depth Edit", "DepthMapped node serialization, depth array resize, and depth operation helpers", automated, "Covers ExGridDeformer depth array copying, resize-on-rebuffer, depth operation copy, and native INX round-trip."),
+    Scenario("depth.exdepthmapped", "Depth Edit", "DepthMapped node serialization, depth array resize, and depth operation helpers", automated, "Covers ExGridDeformer and ExPathDeformer depth array copying, resize-on-rebuffer, depth operation copy, and native INX round-trip."),
     Scenario("depth.camera", "Depth Edit", "Depth camera projection, viewport transform, hit testing, and depth edit view state", automated, "Covers depth camera projection/unprojection math and pan/zoom/yaw/pitch/depth effects; UI viewport smoke remains in viewport.depth-mode."),
     Scenario("depth.operation-helpers", "Depth Edit", "Depth operation helpers apply, cancel, copy, resize, and interpolate depth arrays", automated, "Covers DepthMapped/DepthOperation copy, replace, resize, clone, and basic geometry helper contracts."),
     Scenario("depth.commands", "Depth Edit", "Depth map and individual depth operation commands", automated, "Covers Set/List/Clear Depths and Add/Update/Move/Remove/Clear/Apply depth-ops commands with undo/redo."),
@@ -590,7 +660,7 @@ private void configureRegressionConfigDir() {
     import nijigenerate.core.path : ENV_CONFIG_PATH;
     import std.process : environment;
 
-    auto configDir = buildPath("/private/tmp", "nijigenerate-regression-config");
+    auto configDir = buildPath(tempDir(), "nijigenerate-regression-config");
     if (!exists(configDir))
         mkdirRecurse(configDir);
     environment[ENV_CONFIG_PATH] = configDir;
@@ -660,7 +730,7 @@ private Parameter findParameter(Puppet puppet, string name) {
     return null;
 }
 
-private void writeRegressionPng(string path, ubyte r, ubyte g, ubyte b, int width = 2, int height = 2) {
+private void writeRegressionPng(string path, ubyte r, ubyte g, ubyte b, int width = 2, int height = 2, ubyte a = 255) {
     ubyte[] pixels;
     pixels.length = width * height * 4;
     foreach (i; 0 .. width * height) {
@@ -668,7 +738,7 @@ private void writeRegressionPng(string path, ubyte r, ubyte g, ubyte b, int widt
         pixels[offset + 0] = r;
         pixels[offset + 1] = g;
         pixels[offset + 2] = b;
-        pixels[offset + 3] = 255;
+        pixels[offset + 3] = a;
     }
     auto texture = ShallowTexture(pixels, width, height, 4);
     texture.save(path);
@@ -683,6 +753,17 @@ private void writeRegressionPsdFixture(string path) {
     writeRegressionFixtureBase64(path, minimalPsd);
 }
 
+private string localDepthDrawDataPath(string filename) {
+    import std.process : environment;
+
+    auto userProfile = environment.get("USERPROFILE", null);
+    if (userProfile.length) {
+        auto candidate = buildPath(userProfile, "src", "depth-draw", "data", filename);
+        if (candidate.exists) return candidate;
+    }
+    return null;
+}
+
 private void writeRegressionKraFixture(string path) {
     enum minimalKra = "UEsDBBQAAAAAALmEulyh8AOnEwAAABMAAAAIAAAAbWltZXR5cGVhcHBsaWNhdGlvbi94LWtyaXRhUEsDBBQAAAAAALmEulyi9NGxYAAAAGAAAAALAAAAbWFpbmRvYy54bWw8RE9DPjxJTUFHRSBuYW1lPSJyZWdyZXNzaW9uIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBjb2xvcnNwYWNlbmFtZT0iUkdCQSI+PGxheWVycy8+PC9JTUFHRT48L0RPQz5QSwECFAMUAAAAAAC5hLpcofADpxMAAAATAAAACAAAAAAAAAAAAAAAgAEAAAAAbWltZXR5cGVQSwECFAMUAAAAAAC5hLpcovTRsWAAAABgAAAACwAAAAAAAAAAAAAAgAE5AAAAbWFpbmRvYy54bWxQSwUGAAAAAAIAAgBvAAAAwgAAAAAA";
     writeRegressionFixtureBase64(path, minimalKra);
@@ -691,7 +772,7 @@ private void writeRegressionKraFixture(string path) {
 private void testPSDAndKRAReaderImportMergeFixtures() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-psd-kra");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-psd-kra");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -729,7 +810,7 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
 }
 
 private void testImageCodecRoundTrips() {
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-image-codecs");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-image-codecs");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1335,7 +1416,7 @@ private void testNodeClipboardCopyPasteUndoRedo() {
 private void testProjectImportImagesCommandPaths() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-image-import");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-image-import");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1567,7 +1648,7 @@ private void testProjectRepairMaintenanceCommands() {
 private void testProjectNewSaveOpenCommandPaths() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-save-open");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-save-open");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1608,7 +1689,7 @@ private void testProjectNewSaveOpenCommandPaths() {
 private void testNativeSavePathOverwriteAndReload() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-native-save");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-native-save");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1652,7 +1733,7 @@ private void testNativeSavePathOverwriteAndReload() {
 private void testProjectCameraViewportRoundTrip() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-camera-viewport");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-camera-viewport");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1685,7 +1766,7 @@ private void testProjectCameraViewportRoundTrip() {
 private void testProjectINXSerializationRoundTrip() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-inx-roundtrip");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-inx-roundtrip");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1749,7 +1830,7 @@ private void testProjectINXSerializationRoundTrip() {
 private void testProjectCompositeCommandRoundTrip() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-composite-roundtrip");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-composite-roundtrip");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1806,7 +1887,7 @@ private void testProjectCompositeCommandRoundTrip() {
 private void testProjectAutosaveRecoveryRecords() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-autosave");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-autosave");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1888,7 +1969,7 @@ private void testProjectRecentFilesSettings() {
 private void testProjectINPImportMergeRoundTripCommandPaths() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-inp-roundtrip");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-inp-roundtrip");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -1943,7 +2024,7 @@ private void testProjectINPImportMergeRoundTripCommandPaths() {
 private void testProjectSessionImportCommandPath() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-session-import");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-session-import");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -2226,7 +2307,7 @@ private void testPartInspectorPropertiesUndoRedo() {
 private void testPartTextureReloadFixture() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-texture-reload");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-texture-reload");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -2292,7 +2373,7 @@ private void testPartTextureReloadFixture() {
 private void testPuppetInspectorStateRoundTrip() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-puppet-inspector");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-puppet-inspector");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -2976,7 +3057,7 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     resetCase();
     ensureRegressionNodeTypesRegistered();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-depthmapped");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthmapped");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -3023,7 +3104,7 @@ private void testDepthMappedNodeSerializationRoundTrip() {
 
     incActivePuppet().root.build();
     auto saveBase = buildPath(fixtureDir, "depthmapped-roundtrip");
-    auto savePath = saveBase ~ ".inx";
+    auto savePath = saveBase.setExtension(".inx");
     auto ctx = new Context();
     require((new SaveFileCommand(saveBase)).run(ctx).succeeded, "SaveFileCommand should save depth-mapped fixture");
     require(exists(savePath) && isFile(savePath), "depth-mapped INX fixture should exist");
@@ -3039,6 +3120,40 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     require(loadedOps[0].type == ExDepthOpType.Ring, "depth-mapped INX round-trip should restore operation type");
     require(nearVec2(loadedOps[0].p0, vec2(-1, 0)) && nearVec2(loadedOps[0].p1, vec2(1, 0)), "depth-mapped INX round-trip should restore ring endpoints");
     require(near(loadedOps[0].amount, 0.75f) && near(loadedOps[0].width, 0.5f) && near(loadedOps[0].hardness, 0.25f), "depth-mapped INX round-trip should restore ring settings");
+
+    auto path = new ExPathDeformer(incActivePuppet().root);
+    path.name = "depth-path";
+    path.rebuffer(Vec2Array([
+        vec2(-2, 0),
+        vec2(0, 1),
+        vec2(2, 0),
+    ]));
+    path.replaceDepths([-0.25f, 0.0f, 0.75f]);
+
+    auto copiedPath = new ExPathDeformer(incActivePuppet().root);
+    copiedPath.copyDepthsFrom(path);
+    require(copiedPath.copyDepths() == [-0.25f, 0.0f, 0.75f],
+        "DepthMapped PathDeformer copy should duplicate depths");
+    copiedPath.rebuffer(Vec2Array([
+        vec2(-2, 0),
+        vec2(-1, 0.5f),
+        vec2(0, 1),
+        vec2(1, 0.5f),
+        vec2(2, 0),
+    ]));
+    require(copiedPath.copyDepths().length == copiedPath.vertices.length,
+        "DepthMapped PathDeformer rebuffer should resize depth array to vertices");
+
+    incActivePuppet().root.build();
+    auto pathSaveBase = buildPath(fixtureDir, "depthmapped-path-roundtrip");
+    auto pathSavePath = pathSaveBase.setExtension(".inx");
+    require((new SaveFileCommand(pathSaveBase)).run(ctx).succeeded, "SaveFileCommand should save depth-mapped PathDeformer fixture");
+    ensureRegressionNodeTypesRegistered();
+    auto loadedPathPuppet = inLoadPuppet!ExPuppet(pathSavePath);
+    auto loadedPath = cast(ExPathDeformer)findNodeRecursive(loadedPathPuppet.root, "depth-path");
+    require(loadedPath !is null, "depth-mapped INX round-trip should restore ExPathDeformer; tree:\n" ~ nodeTreeSummary(loadedPathPuppet.root));
+    require(loadedPath.copyDepths() == [-0.25f, 0.0f, 0.75f],
+        "depth-mapped INX round-trip should restore PathDeformer depths");
 }
 
 private void testDepthSignColorContracts() {
@@ -3092,7 +3207,7 @@ private void testDepthCameraProjectionContracts() {
 private void testRenderCameraExportCommands() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-render-camera");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-render-camera");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -3681,6 +3796,200 @@ private void testDepthCompositeMapOpsWorkflow() {
         "redo apply should restore baked depths with coherent length");
 }
 
+private void testDepthTargetViewContracts() {
+    resetCase();
+
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "depth-target-view-grid";
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+
+    require((new DefineGridCommand([-20f, 0f, 20f], [-10f, 10f])).run(ctx).succeeded,
+        "DepthTargetView fixture should define a rectangular GridDeformer");
+    grid.replaceDepths([0.1f, 0.2f]);
+
+    auto view = new DepthTargetView(grid);
+    require(view.getTarget() is grid, "DepthTargetView should retain its target GridDeformer");
+    require(view.getVertices().length == 6, "DepthTargetView should expose target vertices");
+    require(view.copyWorkingDepths().length == grid.vertices.length,
+        "DepthTargetView should normalize short stored depths to vertex count");
+    require(near(view.getDepth(0), 0.1f) && near(view.getDepth(1), 0.2f) && near(view.getDepth(5), 0.0f),
+        "DepthTargetView should preserve existing stored depths and zero-fill new entries");
+    require(view.getIndices().length == 12, "DepthTargetView should build rectangular grid triangle indices");
+    require(view.boundsMin() == vec2(-20f, -10f) && view.boundsMax() == vec2(20f, 10f),
+        "DepthTargetView should compute target bounds from vertices");
+
+    auto depthEditEditor = new DepthMeshEditor(false);
+    scope(exit) depthEditEditor.dispose();
+    depthEditEditor.setTargets([cast(Node)grid]);
+    require(depthEditEditor.depthViewSession() !is null &&
+        depthEditEditor.depthViewSession().targetByGrid(grid.uuid) !is null,
+        "DepthEdit editor should own a shared DepthViewSession for selected targets");
+    auto depthEditOne = depthEditEditor.getEditorFor(grid);
+    require(depthEditOne !is null &&
+        depthEditEditor.targetViewFor(depthEditOne) is depthEditEditor.depthViewSession().targetByGrid(grid.uuid),
+        "DepthEdit editor wrapper should resolve its common DepthTargetView");
+    grid.replaceDepths([0.75f, 0.5f, 0.25f, 0.0f, -0.25f, -0.5f]);
+    depthEditEditor.resetFromTargets();
+    auto depthEditTargetView = depthEditEditor.depthViewSession().targetByGrid(grid.uuid);
+    require(near(depthEditTargetView.getDepth(0), 0.75f),
+        "DepthEdit shared DepthViewSession should reset working depths from the target");
+    DepthCamera3D depthEditCamera;
+    depthEditCamera.yaw = 0.3f;
+    depthEditCamera.pitch = -0.2f;
+    depthEditCamera.zoom = 1.25f;
+    depthEditCamera.pan = vec2(3, -4);
+    require(near(depthEditOne.depthDisplayScale(), depthEditTargetView.depthDisplayScale()) &&
+        nearVec2(depthEditOne.modelToDepthView(vec2(10, -5), 0.4f, depthEditCamera),
+            depthEditTargetView.modelToDepthView(vec2(10, -5), 0.4f, depthEditCamera)) &&
+        nearVec2(depthEditOne.depthViewToModel(vec2(12, -8), depthEditCamera, -0.2f),
+            depthEditTargetView.depthViewToModel(vec2(12, -8), depthEditCamera, -0.2f)),
+        "DepthEdit wrapper projection helpers should remain equivalent to the shared DepthTargetView");
+    require(nearVec2(depthEditOne.localToWorld(vec2(3, 4)), depthEditTargetView.localToWorld(vec2(3, 4))) &&
+        nearVec2(depthEditOne.worldToLocal(vec2(3, 4)), depthEditTargetView.worldToLocal(vec2(3, 4))) &&
+        nearVec2(depthEditOne.displayWorldToLocal(vec2(12, -8), depthEditCamera, -0.2f),
+            depthEditTargetView.displayWorldToLocal(vec2(12, -8), depthEditCamera, -0.2f)),
+        "DepthEdit wrapper local/world helpers should remain equivalent to the shared DepthTargetView");
+    require(depthEditOne.nearestLocalVertexIndex(vec2(18f, 8f)) ==
+        depthEditTargetView.nearestLocalVertexIndex(vec2(18f, 8f)) &&
+        near(depthEditOne.depthAtLocalPoint(vec2(-20f, -10f)), depthEditTargetView.depthAtLocalPoint(vec2(-20f, -10f))),
+        "DepthEdit wrapper local vertex/depth helpers should remain equivalent to the shared DepthTargetView");
+    depthEditOne.setDepth(0, 5.0f);
+    depthEditTargetView.setDepth(0, 5.0f);
+    depthEditOne.addDepth(1, -5.0f);
+    depthEditTargetView.addDepth(1, -5.0f);
+    require(near(depthEditOne.getDepth(0), depthEditTargetView.getDepth(0)) &&
+        near(depthEditOne.getDepth(1), depthEditTargetView.getDepth(1)),
+        "DepthEdit wrapper depth edits should clamp and round like the shared DepthTargetView");
+    depthEditOne.replaceEditorDepths([0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f]);
+    require(depthEditTargetView.copyWorkingDepths() == depthEditOne.copyEditorDepths(),
+        "DepthEdit wrapper should write direct depth changes through the shared DepthTargetView");
+    depthEditOne.replaceBaseDepths([0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f]);
+    depthEditOne.resetWorkingDepths();
+    require(depthEditTargetView.copyWorkingDepths() == depthEditTargetView.baseDepths &&
+        depthEditOne.copyEditorDepths() == depthEditTargetView.baseDepths,
+        "DepthEdit wrapper should reset working depths through the shared DepthTargetView base depths");
+
+    view.setDepth(0, 5.0f);
+    view.addDepth(1, -5.0f);
+    require(near(view.getDepth(0), 2.0f) && near(view.getDepth(1), -2.0f),
+        "DepthTargetView should clamp edited depth values to the existing DepthEdit range");
+    require(near(ngDepthTargetClampDepth(5.0f), 2.0f) && near(ngDepthTargetClampDepth(-5.0f), -2.0f) &&
+        near(ngDepthTargetClampDepth(0.33349f), 0.333f),
+        "DepthTargetView should expose the shared DepthEdit clamp and rounding helper");
+
+    view.replaceWorkingDepths([0.33349f, -0.33349f, 0, 0, 0, 0]);
+    view.setDepth(0, view.getDepth(0));
+    view.setDepth(1, view.getDepth(1));
+    require(near(view.getDepth(0), 0.333f) && near(view.getDepth(1), -0.333f),
+        "DepthTargetView should keep DepthEdit depth rounding behavior");
+
+    require(view.nearestLocalVertexIndex(vec2(18f, 8f)) >= 0,
+        "DepthTargetView should support nearest local vertex lookup");
+    require(near(view.depthAtLocalPoint(vec2(-20f, -10f)), 0.333f),
+        "DepthTargetView should read depth at the nearest local vertex");
+
+    DepthCamera3D targetRenderCamera;
+    auto targetRenderer = new DepthTargetRenderer();
+    auto renderMesh = targetRenderer.buildMesh(view, targetRenderCamera);
+    require(renderMesh.positions.length == view.getVertices().length &&
+        renderMesh.uvs.length == view.getVertices().length &&
+        renderMesh.indices == view.getIndices(),
+        "DepthTargetRenderer should build projected mesh data from a common DepthTargetView");
+    require(view.projectedPoints.length == renderMesh.positions.length &&
+        renderMesh.uvs[0] == vec2(0.0f, 1.0f) &&
+        renderMesh.uvs[$ - 1] == vec2(1.0f, 0.0f),
+        "DepthTargetRenderer should update projected points and derive stable target UVs");
+    require(view.projectedVertex(0) == view.projectedPoints[0] &&
+        view.nearestProjectedVertex(view.projectedPoints[0], 0.1f) == 0,
+        "DepthTargetView should expose projected-point lookup helpers for DepthEdit wrappers");
+    auto renderLines = targetRenderer.buildGridLines(view, targetRenderCamera);
+    require(renderLines.length == 7,
+        "DepthTargetRenderer should build shared rectangular grid wire lines for DepthEdit and DepthDraw");
+    auto depthLine = targetRenderer.buildLine(vec2(-20f, -10f), vec2(20f, -10f), 0.5f,
+        view.depthDisplayScale(), targetRenderCamera);
+    require(nearVec2(depthLine.p0, view.projectLocalPoint(vec2(-20f, -10f), 0.5f, targetRenderCamera)) &&
+        nearVec2(depthLine.p1, view.projectLocalPoint(vec2(20f, -10f), 0.5f, targetRenderCamera)),
+        "DepthTargetRenderer should build reusable projected line overlay geometry");
+    auto depthGapLine = targetRenderer.buildDepthLine(vec2(0f, 0f), -0.25f, vec2(0f, 0f), 0.75f,
+        view.depthDisplayScale(), targetRenderCamera);
+    require(nearVec2(depthGapLine.p0, view.projectLocalPoint(vec2(0f, 0f), -0.25f, targetRenderCamera)) &&
+        nearVec2(depthGapLine.p1, view.projectLocalPoint(vec2(0f, 0f), 0.75f, targetRenderCamera)),
+        "DepthTargetRenderer should build reusable depth-space gap marker geometry");
+    auto ellipseLines = targetRenderer.buildEllipseLines(vec2(0), 10.0f, 5.0f, 30.0f, 0.25f,
+        view.depthDisplayScale(), targetRenderCamera, 12);
+    require(ellipseLines.length == 12 && nearVec2(ellipseLines[0].p0, ellipseLines[$ - 1].p1),
+        "DepthTargetRenderer should build closed reusable ellipse overlay geometry");
+    auto renderPoint = targetRenderer.buildPoint(vec2(0), 0.25f, view.depthDisplayScale(), targetRenderCamera, 9.0f);
+    require(nearVec2(renderPoint.point, view.projectLocalPoint(vec2(0), 0.25f, targetRenderCamera)) &&
+        near(renderPoint.size, 9.0f),
+        "DepthTargetRenderer should build reusable projected point overlay geometry");
+    auto planeLines = targetRenderer.buildPlaneLines(vec2(-20f, -10f), vec2(20f, 10f), 0.0f,
+        view.depthDisplayScale(), targetRenderCamera);
+    require(planeLines.length == 4 && nearVec2(planeLines[0].p0, planeLines[$ - 1].p1),
+        "DepthTargetRenderer should build closed reusable plane overlay geometry");
+    auto rangeLines = targetRenderer.buildRangeLines(vec2(-20f, -10f), vec2(20f, 10f), -0.5f, 0.5f,
+        view.depthDisplayScale(), targetRenderCamera);
+    require(rangeLines.length == 4 &&
+        nearVec2(rangeLines[0].p0, view.projectLocalPoint(vec2(-20f, -10f), -0.5f, targetRenderCamera)) &&
+        nearVec2(rangeLines[1].p0, view.projectLocalPoint(vec2(-20f, 10f), 0.5f, targetRenderCamera)),
+        "DepthTargetRenderer should build reusable depth-range overlay geometry");
+
+    view.clearBaseDepths();
+    require(view.copyWorkingDepths().length == grid.vertices.length && near(view.getDepth(0), 0.0f),
+        "DepthTargetView should clear base and working depths to target vertex count");
+
+    auto viewSession = new DepthViewSession();
+    require(near(viewSession.camera.zoom, 1.0f) && near(viewSession.camera.yaw, 0.0f) &&
+        near(viewSession.camera.pitch, 0.0f),
+        "DepthViewSession should own an initialized shared DepthCamera3D");
+    viewSession.camera.zoom = 1.5f;
+    require(viewSession.ensureTarget(null) is null, "DepthViewSession should ignore null targets");
+    auto sessionView = viewSession.ensureTarget(grid);
+    require(sessionView !is null && sessionView.getTarget() is grid,
+        "DepthViewSession should create a DepthTargetView for a GridDeformer");
+    require(viewSession.ensureTarget(grid) is sessionView && viewSession.targets.length == 1,
+        "DepthViewSession should reuse an existing target view for the same GridDeformer");
+    require(viewSession.selectedTarget() is sessionView && viewSession.selectTarget(grid.uuid),
+        "DepthViewSession should track the selected target");
+    auto secondSessionGrid = new ExGridDeformer(incActivePuppet().root);
+    viewSession.setTargets([grid, secondSessionGrid, grid]);
+    require(viewSession.targets.length == 2 && viewSession.targetByGrid(grid.uuid) is sessionView &&
+        viewSession.targetByGrid(secondSessionGrid.uuid) !is null &&
+        viewSession.selectedTarget() is sessionView,
+        "DepthViewSession target synchronization should preserve existing views, add new targets, and ignore duplicates");
+    require(near(viewSession.camera.zoom, 1.5f),
+        "DepthViewSession should preserve the shared camera while synchronizing targets");
+    viewSession.setTargets([secondSessionGrid]);
+    require(viewSession.targets.length == 1 && viewSession.targetByGrid(grid.uuid) is null &&
+        viewSession.selectedTarget().getTarget() is secondSessionGrid,
+        "DepthViewSession target synchronization should remove stale targets and repair stale selection");
+    viewSession.setTargets([grid]);
+    sessionView = viewSession.targetByGrid(grid.uuid);
+    require(sessionView !is null && viewSession.selectedTarget() is sessionView,
+        "DepthViewSession target synchronization should restore selected target state for shared apply tests");
+    sessionView.replaceWorkingDepths([1.0f, 1.0f]);
+    viewSession.resetWorkingDepths();
+    require(near(sessionView.getDepth(0), sessionView.baseDepths[0]),
+        "DepthViewSession should reset all target working depths");
+    auto beforeApply = grid.copyDepths();
+    sessionView.replaceWorkingDepths([0.5f, 0.25f, 0, 0, 0, 0]);
+    auto applyAction = viewSession.workingDepthsChangeAction(grid.uuid, "DepthViewSession test apply");
+    require(applyAction !is null && grid.copyDepths() == sessionView.copyWorkingDepths(),
+        "DepthViewSession should expose working-depth apply actions through the shared depth command path");
+    applyAction.rollback();
+    require(grid.copyDepths() == beforeApply,
+        "DepthViewSession working-depth apply action should rollback to previous target depths");
+    applyAction.redo();
+    require(grid.copyDepths() == sessionView.copyWorkingDepths(),
+        "DepthViewSession working-depth apply action should redo the shared working depths");
+    require(viewSession.workingDepthsChangeAction(999999, "missing target") is null,
+        "DepthViewSession should reject working-depth apply actions for missing targets");
+    viewSession.removeTarget(grid.uuid);
+    require(viewSession.targets.length == 0 && viewSession.selectedGridUuid == 0,
+        "DepthViewSession should remove targets and clear stale selection");
+}
+
 private void testPsdDepthMapImportHelpers() {
     resetCase();
 
@@ -3737,9 +4046,887 @@ private void testPsdDepthMapImportHelpers() {
     auto luminanceChannel = ngPsdDepthSamplePixels(channelPixels, 1, 1, 0, 0, settings);
     require(luminanceChannel.valid && near(luminanceChannel.value, -0.5748f),
         "PSD depth Luminance channel should use perceptual weights");
+    require(near(
+        ngDepthSamplePixelDepth01(channelPixels, 0, DepthSampleChannel.Luminance, false),
+        (0.2126f * 255.0f) / 255.0f),
+        "common depth sample helper should expose the shared luminance depth conversion");
+    require(near(
+        ngDepthSamplePixelDepth(channelPixels, 0, DepthSampleChannel.R, false, -1.0f, 1.0f, 1.0f),
+        redChannel.value),
+        "PSD depth sampling should use the common pixel depth conversion helper");
+    require(near(
+        ngDepthSamplePixelDepth(channelPixels, 0, DepthSampleChannel.R, true, -1.0f, 1.0f, 1.0f),
+        -1.0f),
+        "common depth sample helper should preserve invert semantics");
+    require(near(ngDepthSampleValueToDepth01(0.0f, -1.0f, 1.0f, 1.0f), 0.5f),
+        "common depth sample helper should invert depth values back to normalized depth");
+    require(near(ngDepthSampleOpacity01(128), cast(float)128 / 255.0f),
+        "common depth sample helper should expose opacity conversion");
+    require(ngPsdDepthCompositionModeForCounts(1, 1) == PsdDepthCompositionMode.OneToOne &&
+        ngPsdDepthCompositionModeForCounts(2, 1) == PsdDepthCompositionMode.NToOne &&
+        ngPsdDepthCompositionModeForCounts(2, 2) == PsdDepthCompositionMode.NToN &&
+        ngPsdDepthCompositionModeForCounts(1, 2) == PsdDepthCompositionMode.UnsupportedOneToN,
+        "PSD depth import composition classifier should reject depth-draw unsupported 1:N composition");
+    require(ngPsdDepthNormalizeLayerName("/Group/Face.PNG") == "face" &&
+        ngPsdDepthLayerIdentityKey("/Group/Face.PNG", 1, 2, 3, 4) == "face:1:2:3:4",
+        "PSD depth import should expose depth-draw-style normalized layer identity keys");
+    require(near(ngPsdDepthRectOverlapScore(0, 0, 10, 10, 5, 5, 10, 10), 25.0f / 175.0f) &&
+        near(ngPsdDepthRectOverlapScore(0, 0, 10, 10, 20, 20, 10, 10), 0.0f),
+        "PSD depth import should expose rectangle-overlap scoring for depth-draw layer matching fallback");
+    require(near(ngDepthSampleEffectiveAlpha(channelPixels, 0, 0.5f), 0.5f),
+        "common depth sample helper should multiply pixel alpha by opacity");
+    require(!ngDepthSampleAcceptsAlpha(0.01f, 0.01f) && ngDepthSampleAcceptsAlpha(0.0101f, 0.01f),
+        "common depth sample helper should preserve strict alpha-threshold missing semantics");
+    require(!ngDepthSampleMissingPoint().valid,
+        "common depth sample helper should provide a shared missing sample value");
+    require(ngDepthSampleAlphaByte(0.5f) == 128,
+        "common depth sample helper should preserve alpha byte rounding");
     settings.channel = PsdDepthChannel.AverageRGB;
 
+    auto pngFixtureDir = buildPath(tempDir(), "nijigenerate-psd-depth-png-source");
+    if (exists(pngFixtureDir))
+        rmdirRecurse(pngFixtureDir);
+    mkdirRecurse(pngFixtureDir);
+    scope(exit) {
+        if (exists(pngFixtureDir))
+            rmdirRecurse(pngFixtureDir);
+    }
+    auto pngDepthPath = buildPath(pngFixtureDir, "png-depth-grid.png");
+    writeRegressionPng(pngDepthPath, 255, 255, 255, 4, 4);
+    auto pngGrid = new ExGridDeformer(incActivePuppet().root);
+    pngGrid.name = "png-depth-grid";
+    pngGrid.vertices = Vec2Array([vec2(-1, -1), vec2(0, 0), vec2(1, 1)]);
+    pngGrid.localTransform.update();
+    incActivePuppet().root.build();
+    PsdDepthImportSettings pngSettings;
+    pngSettings.convolution = PsdDepthConvolution.Nearest;
+    pngSettings.layerTargetGridUuidOverrides["/png-depth-grid"] = pngGrid.uuid.to!string;
+    auto pngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
+    require(pngImported.mappings.length == 1 && pngImported.mappings[0].matched &&
+        pngImported.grids.length == 1 && pngImported.grids[0].grid is pngGrid,
+        "PSD depth import dialog source builder should map PNG sources through the existing target mapping path");
+    require(pngImported.compositionMode == PsdDepthCompositionMode.OneToOne &&
+        pngImported.compositionModeName == "1:1" &&
+        pngImported.compositionWidth == 4 &&
+        pngImported.compositionHeight == 4 &&
+        pngImported.colorLayerCount == 1 &&
+        pngImported.sourceDepthLayerCount == 1 &&
+        pngImported.composedLayerCount == 1 &&
+        near(pngImported.globalDepthScale, 1.0f) &&
+        near(pngImported.globalDepthCentroid, 255.0f),
+        "PSD depth import PNG manual/direct mapping should expose depth-draw 1:1 composition metadata: " ~
+        "mode=%s width=%s height=%s color=%s depth=%s composed=%s scale=%s centroid=%s".format(
+            pngImported.compositionModeName,
+            pngImported.compositionWidth,
+            pngImported.compositionHeight,
+            pngImported.colorLayerCount,
+            pngImported.sourceDepthLayerCount,
+            pngImported.composedLayerCount,
+            pngImported.globalDepthScale,
+            pngImported.globalDepthCentroid
+        ));
+    auto pngComposedSource = ngPsdDepthComposedSourceFromImportResult(pngImported);
+    require(pngImported.composedSource.mode == PsdDepthCompositionMode.OneToOne &&
+        pngImported.composedSource.modeName == "1:1" &&
+        pngImported.composedSource.width == 4 &&
+        pngImported.composedSource.height == 4 &&
+        pngImported.composedSource.colorSource.kind == PsdDepthCompositeSourceKind.ActiveArtTargets &&
+        pngImported.composedSource.depthSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
+        near(pngImported.composedSource.globalDepthCentroid, 255.0f) &&
+        pngImported.composedSource.layers.length == 1 &&
+        pngComposedSource.layers.length == pngImported.composedSource.layers.length &&
+        pngComposedSource.width == pngImported.composedSource.width,
+        "PSD depth import should expose a named ColorComposite/DepthComposite/ComposedSource model");
+    require(pngImported.composedLayers.length == 1 &&
+        pngImported.composedLayers[0].id == "/png-depth-grid" &&
+        pngImported.composedLayers[0].sourcePath == pngDepthPath &&
+        pngImported.composedLayers[0].targetGridUuid == pngGrid.uuid &&
+        pngImported.composedLayers[0].depthRgba.length == 4 * 4 * 4 &&
+        pngImported.composedLayers[0].maskRgba.length == 4 * 4 * 4 &&
+        pngImported.composedLayers[0].puppetFitEnabled &&
+        pngImported.composedLayers[0].puppetBindingOverride == pngGrid.uuid.to!string,
+        "PSD depth import should expose a first-class composed layer before target sampling/apply");
+    auto pngComposedSession = ngPsdDepthImportResultToDepthDrawSession(pngImported);
+    require(pngComposedSession.layers.length == 1 &&
+        pngComposedSession.layers[0].id == "/png-depth-grid" &&
+        pngComposedSession.layers[0].sourcePath == pngDepthPath &&
+        pngComposedSession.layers[0].hasDepthPixels() &&
+        pngComposedSession.bindings.length == 1 &&
+        pngComposedSession.bindings[0].layerId == pngComposedSession.layers[0].id &&
+        pngComposedSession.bindings[0].targetGridUuid == pngGrid.uuid,
+        "PSD depth import composed source should export to DepthDraw layer entries with target bindings");
+    auto pngComposedManifest = ngDepthDrawSessionToManifest(pngComposedSession);
+    require(pngComposedManifest.object["layers"].array.length == 1 &&
+        pngComposedManifest.object["bindings"].array.length == 1,
+        "PSD depth import composed source layer entries should be serializable through the DepthDraw manifest");
+    auto psdDepthExportDir = buildPath(pngFixtureDir, "psd-depth-composed-export");
+    auto psdDepthExportManifest = buildPath(psdDepthExportDir, "manifest.json");
+    auto psdDepthExport = ngExportPsdDepthComposedSourcePng(
+        pngImported.composedSource,
+        psdDepthExportDir,
+        psdDepthExportManifest
+    );
+    require(psdDepthExport.succeeded &&
+        psdDepthExport.exportedLayers == 1 &&
+        psdDepthExport.layerPaths.length == 1 &&
+        exists(psdDepthExport.layerPaths[0]) &&
+        exists(psdDepthExport.manifestPath),
+        "PSD depth import composed source should drive PNG layer export directly from the source model");
+    {
+        import std.json : parseJSON;
+        auto exportedManifest = parseJSON(readText(psdDepthExport.manifestPath));
+        require(exportedManifest.object["layers"].array.length == 1 &&
+            exportedManifest.object["bindings"].array.length == 1,
+            "PSD depth import composed source PNG export should preserve layer and binding manifest entries");
+    }
+    auto disabledPngSettings = pngSettings;
+    disabledPngSettings.disabledComposedLayerPaths["/png-depth-grid"] = true;
+    auto disabledPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, disabledPngSettings);
+    require(disabledPngImported.composedLayers.length == 1 &&
+        !disabledPngImported.composedLayers[0].enabled &&
+        disabledPngImported.layerPreviews.length == 1 &&
+        !disabledPngImported.layerPreviews[0].enabled &&
+        disabledPngImported.grids.length == 1 &&
+        disabledPngImported.grids[0].sampledVertices == 0,
+        "PSD depth import should apply source/composed layer enabled state before target sampling");
+    auto persistedPngSource = pngImported.composedSource;
+    persistedPngSource.layers[0].visible = false;
+    persistedPngSource.layers[0].enabled = false;
+    persistedPngSource.layers[0].depthOffset = 0.42f;
+    persistedPngSource.layers[0].depthScale = 0.75f;
+    auto persistedPngSettings = ngPsdDepthSettingsWithComposedSourceState(pngSettings, persistedPngSource);
+    auto persistedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, persistedPngSettings);
+    ngPsdDepthApplyPreviousComposedSourceState(persistedPngImported, persistedPngSource);
+    require(persistedPngImported.composedLayers.length == 1 &&
+        !persistedPngImported.composedLayers[0].visible &&
+        !persistedPngImported.composedLayers[0].enabled &&
+        near(persistedPngImported.composedLayers[0].depthOffset, 0.42f) &&
+        near(persistedPngImported.composedLayers[0].depthScale, 0.75f) &&
+        persistedPngImported.composedLayers[0].targetGridUuid == pngGrid.uuid &&
+        persistedPngImported.composedSource.layers.length == 1 &&
+        !persistedPngImported.composedSource.layers[0].enabled,
+        "PSD depth import should reload layer state from the persistent composed source model, not only dialog settings");
+    auto pngImportSummary = ngPsdDepthImportSummaryToJson(pngImported, 0);
+    require(pngImportSummary.object["compositionMode"].str == "1:1" &&
+        pngImportSummary.object["compositionWidth"].integer == 4 &&
+        pngImportSummary.object["compositionHeight"].integer == 4 &&
+        pngImportSummary.object["colorSourceKind"].str == "ActiveArtTargets" &&
+        pngImportSummary.object["depthSourceKind"].str == "FlatImage" &&
+        pngImportSummary.object["composedLayerCount"].integer == 1 &&
+        pngImportSummary.object["composedSourceMode"].str == "1:1" &&
+        pngImportSummary.object["composedSourceWidth"].integer == 4 &&
+        pngImportSummary.object["composedSourceHeight"].integer == 4 &&
+        pngImportSummary.object["composedSourceLayerCount"].integer == 1 &&
+        pngImportSummary.object["composedLayers"].array.length == 1 &&
+        pngImportSummary.object["composedLayers"].array[0].object["layerPath"].str == "/png-depth-grid" &&
+        pngImportSummary.object["compositionDiagnostics"].array.length == 0,
+        "PSD depth import apply summary should expose depth-draw composition/debug stats");
+    require(pngImported.depthSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
+        pngImported.depthSource.kindName == "FlatImage" &&
+        pngImported.depthSource.sourcePath == pngDepthPath &&
+        pngImported.depthSource.width == 4 &&
+        pngImported.depthSource.height == 4 &&
+        pngImported.depthSource.layers.length == 1 &&
+        pngImported.depthSource.layers[0].rgba.length == 4 * 4 * 4 &&
+        pngImported.depthSource.layers[0].maskRgba.length == 4 * 4 * 4 &&
+        pngImported.colorSource.kind == PsdDepthCompositeSourceKind.ActiveArtTargets &&
+        pngImported.colorSource.sourcePath.length == 0 &&
+        pngImported.colorSource.width == pngImported.compositionWidth &&
+        pngImported.colorSource.height == pngImported.compositionHeight &&
+        pngImported.colorSource.layers.length == 1 &&
+        pngImported.colorSource.layers[0].rgba.length == 4 * 4 * 4 &&
+        pngImported.colorSource.layers[0].maskRgba.length == 4 * 4 * 4,
+        "PSD depth import should expose format-neutral color/depth source summaries with source pixels/masks");
+    require(pngImported.grids[0].sampledVertices == pngGrid.vertices.length &&
+        pngImported.grids[0].missingVertices == 0 &&
+        pngImported.grids[0].depths.length == pngGrid.vertices.length,
+        "PSD depth import dialog source builder should sample PNG sources into GridDeformer depths");
+    require(pngImported.layerPreviews.length == 1 && pngImported.layerPreviews[0].originalRgba.length == 4 * 4 * 4,
+        "PSD depth import dialog source builder should expose PNG previews in the same layer preview model");
+    auto pngLayerPreview = pngImported.layerPreviews[0];
+    require(pngLayerPreview.id == "/png-depth-grid" &&
+        pngLayerPreview.sourcePath == pngDepthPath &&
+        pngLayerPreview.layerPath == "/png-depth-grid" &&
+        pngLayerPreview.layerName == "png-depth-grid",
+        "PSD depth import normalized PNG source session should expose stable id, source path, layer path, and display name");
+    require(pngLayerPreview.documentWidth == 4 &&
+        pngLayerPreview.documentHeight == 4 &&
+        pngLayerPreview.left == 0 &&
+        pngLayerPreview.top == 0 &&
+        pngLayerPreview.width == 4 &&
+        pngLayerPreview.height == 4,
+        "PSD depth import normalized PNG source session should expose document and layer bounds");
+    require(near(pngLayerPreview.opacity, 1.0f) &&
+        pngLayerPreview.originalRgba.length == 4 * 4 * 4 &&
+        pngLayerPreview.depthMaskRgba.length == 4 * 4 * 4 &&
+        pngLayerPreview.coverageMaskRgba.length == 4 * 4 * 4 &&
+        pngLayerPreview.originalRgba[3] == 255,
+        "PSD depth import normalized PNG source session should expose RGBA/depth pixels and alpha coverage");
+    require(pngLayerPreview.visible &&
+        pngLayerPreview.enabled &&
+        pngLayerPreview.coverageMaskRgba[3] == 255 &&
+        pngLayerPreview.normalArtCoverageSources == 0,
+        "PSD depth import normalized PNG source session should expose visibility, enabled state, coverage, and normal/art coverage count");
+    require(pngLayerPreview.transform == PsdDepthLayerTransform() &&
+        !pngLayerPreview.invert &&
+        near(pngLayerPreview.backDepth, -1.0f) &&
+        near(pngLayerPreview.frontDepth, 1.0f) &&
+        near(pngLayerPreview.depthScale, 1.0f) &&
+        pngLayerPreview.convolution == PsdDepthConvolution.Nearest &&
+        pngLayerPreview.channel == PsdDepthChannel.R,
+        "PSD depth import normalized PNG source session should expose transform and depth-draw-compatible PNG red-channel sampling state");
+    require(pngLayerPreview.depthStats.hasDepth &&
+        pngLayerPreview.depthStats.maskedPixels == 16 &&
+        pngLayerPreview.depthStats.zeroPixels == 0 &&
+        near(pngLayerPreview.depthStats.minDepth01, 1.0f) &&
+        near(pngLayerPreview.depthStats.maxDepth01, 1.0f),
+        "PSD depth import normalized PNG source session should expose composed-layer depth pixel stats");
+    auto previousPngImportState = pngImported;
+    previousPngImportState.composedLayers[0].visible = false;
+    previousPngImportState.composedLayers[0].enabled = false;
+    previousPngImportState.composedLayers[0].depthOffset = 0.25f;
+    previousPngImportState.composedLayers[0].depthScale = 0.5f;
+    previousPngImportState.composedLayers[0].outlierPruneEnabled = true;
+    previousPngImportState.composedLayers[0].puppetFitEnabled = false;
+    previousPngImportState.composedLayers[0].puppetBindingOverride = "manual-binding";
+    auto refreshedPngImport = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
+    ngPsdDepthApplyPreviousComposedLayerState(refreshedPngImport, previousPngImportState);
+    require(refreshedPngImport.composedLayers.length == 1 &&
+        !refreshedPngImport.composedLayers[0].visible &&
+        !refreshedPngImport.composedLayers[0].enabled &&
+        near(refreshedPngImport.composedLayers[0].depthOffset, 0.25f) &&
+        near(refreshedPngImport.composedLayers[0].depthScale, 0.5f) &&
+        refreshedPngImport.composedLayers[0].outlierPruneEnabled &&
+        !refreshedPngImport.composedLayers[0].puppetFitEnabled &&
+        refreshedPngImport.composedLayers[0].puppetBindingOverride == "manual-binding" &&
+        refreshedPngImport.layerPreviews.length == 1 &&
+        !refreshedPngImport.layerPreviews[0].visible &&
+        !refreshedPngImport.layerPreviews[0].enabled &&
+        near(refreshedPngImport.layerPreviews[0].transform.zOffset, 0.25f) &&
+        near(refreshedPngImport.layerPreviews[0].transform.zScale, 0.5f) &&
+        refreshedPngImport.composedSource.layers.length == 1 &&
+        !refreshedPngImport.composedSource.layers[0].visible &&
+        near(refreshedPngImport.composedSource.layers[0].depthOffset, 0.25f),
+        "PSD depth import should preserve depth-draw composed-layer state by source layer identity across reloads");
+    auto previousNormalizedState = pngImported;
+    previousNormalizedState.composedLayers[0].id = null;
+    previousNormalizedState.composedLayers[0].layerPath = null;
+    previousNormalizedState.composedLayers[0].layerName = "PNG Depth Grid.png";
+    previousNormalizedState.composedLayers[0].depthOffset = 0.75f;
+    auto refreshedNormalizedState = pngImported;
+    refreshedNormalizedState.composedLayers[0].id = null;
+    refreshedNormalizedState.composedLayers[0].layerPath = null;
+    refreshedNormalizedState.composedLayers[0].layerName = "png-depth-grid";
+    ngPsdDepthApplyPreviousComposedLayerState(refreshedNormalizedState, previousNormalizedState);
+    require(near(refreshedNormalizedState.composedLayers[0].depthOffset, 0.75f),
+        "PSD depth import should preserve state by normalized name plus bounds when path identity is unavailable");
+
+    auto replacementDepthPath = buildPath(pngFixtureDir, "png-depth-grid-replacement.png");
+    writeRegressionPng(replacementDepthPath, 128, 128, 128, 4, 4);
+    auto previousForDepthReplacement = pngImported;
+    previousForDepthReplacement.composedLayers[0].depthOffset = 0.33f;
+    previousForDepthReplacement.composedLayers[0].enabled = false;
+    ngPsdDepthSyncComposedSource(previousForDepthReplacement);
+    auto replacedDepthImport = ngPsdDepthReplaceDepthSource(incActivePuppet(), previousForDepthReplacement,
+        replacementDepthPath, pngSettings);
+    require(replacedDepthImport.depthSource.sourcePath == replacementDepthPath &&
+        replacedDepthImport.composedSource.depthSource.sourcePath == replacementDepthPath &&
+        replacedDepthImport.composedLayers.length == 1 &&
+        near(replacedDepthImport.composedLayers[0].depthOffset, 0.33f) &&
+        !replacedDepthImport.composedLayers[0].enabled &&
+        near(replacedDepthImport.composedSource.layers[0].depthOffset, 0.33f),
+        "PSD depth import should replace the depth source while preserving composed-layer state");
+
+    auto blackPngDepthPath = buildPath(pngFixtureDir, "png-depth-zero-mask.png");
+    writeRegressionPng(blackPngDepthPath, 0, 0, 0, 4, 4);
+    pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
+    auto blackPngSettings = pngSettings;
+    blackPngSettings.layerTargetGridUuidOverrides["/png-depth-zero-mask"] = pngGrid.uuid.to!string;
+    auto blackPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), blackPngDepthPath, blackPngSettings);
+    require(blackPngImported.grids.length == 1 &&
+        blackPngImported.grids[0].sampledVertices == 0 &&
+        blackPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
+        blackPngImported.grids[0].depths == [0.1f, 0.2f, 0.3f] &&
+        blackPngImported.layerPreviews[0].depthStats.maskedPixels == 0,
+        "PSD depth import PNG should treat zero depth pixels as missing like depth-draw createMaskFromDepthPixels");
+
+    auto unmatchedPngPath = buildPath(pngFixtureDir, "unmatched-depth-source.png");
+    writeRegressionPng(unmatchedPngPath, 192, 192, 192, 4, 4);
+    PsdDepthImportSettings unmatchedPngSettings;
+    unmatchedPngSettings.convolution = PsdDepthConvolution.Nearest;
+    unmatchedPngSettings.matchDirectGridName = false;
+    auto unmatchedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), unmatchedPngPath, unmatchedPngSettings);
+    require(unmatchedPngImported.grids.length == 0 &&
+        unmatchedPngImported.mappings.length == 1 &&
+        unmatchedPngImported.mappings[0].status == "Unmatched" &&
+        unmatchedPngImported.layerPreviews.length == 1 &&
+        unmatchedPngImported.layerPreviews[0].layerPath == "/unmatched-depth-source",
+        "PSD depth import dialog must keep unmatched PNG source layers visible so users can remap them");
+    require(unmatchedPngImported.composedLayers.length == 1 &&
+        unmatchedPngImported.composedLayers[0].targetGridUuid == 0 &&
+        unmatchedPngImported.composedLayers[0].layerPath == "/unmatched-depth-source" &&
+        unmatchedPngImported.composedLayers[0].depthRgba.length == 4 * 4 * 4,
+        "PSD depth import dialog must keep unmatched PNG source as an unbound composed layer");
+    require(unmatchedPngImported.compositionMode == PsdDepthCompositionMode.Unknown &&
+        unmatchedPngImported.compositionDiagnostics.length == 1 &&
+        unmatchedPngImported.compositionDiagnostics[0].type == "missing-color-source",
+        "PSD depth import unmatched PNG source should expose composition diagnostics instead of silently becoming an empty target view");
+
+    auto flatColorPath = buildPath(pngFixtureDir, "flat-color-source.png");
+    auto pairedFlatDepthPath = buildPath(pngFixtureDir, "paired-flat-depth.png");
+    writeRegressionPng(flatColorPath, 255, 255, 255, 4, 4, 0);
+    writeRegressionPng(pairedFlatDepthPath, 255, 255, 255, 4, 4);
+    PsdDepthImportSettings pairedFlatSettings;
+    pairedFlatSettings.convolution = PsdDepthConvolution.Nearest;
+    pairedFlatSettings.matchDirectGridName = false;
+    pairedFlatSettings.colorSourcePath = flatColorPath;
+    auto pairedFlatImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pairedFlatDepthPath, pairedFlatSettings);
+    require(pairedFlatImported.compositionMode == PsdDepthCompositionMode.OneToOne &&
+        pairedFlatImported.colorSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
+        pairedFlatImported.colorSource.layers.length == 1 &&
+        pairedFlatImported.colorSource.layers[0].id == "/flat-color-source" &&
+        pairedFlatImported.colorSource.layers[0].rgba.length == 4 * 4 * 4 &&
+        pairedFlatImported.depthSource.layers.length == 1 &&
+        pairedFlatImported.composedLayers.length == 1 &&
+        pairedFlatImported.composedLayers[0].layerPath == "/flat-color-source" &&
+        pairedFlatImported.composedLayers[0].depthStats.maskedPixels == 0 &&
+        pairedFlatImported.layerPreviews[0].coverageMaskRgba[3] == 0 &&
+        pairedFlatImported.compositionDiagnostics.length == 1 &&
+        pairedFlatImported.compositionDiagnostics[0].type == "unbound-composed-layer",
+        "PSD depth import should support depth-draw flat color PNG + flat depth PNG 1:1 composition using color alpha as mask");
+    auto replacementFlatColorPath = buildPath(pngFixtureDir, "flat-color-replacement.png");
+    writeRegressionPng(replacementFlatColorPath, 64, 64, 64, 4, 4);
+    auto previousForColorReplacement = pairedFlatImported;
+    previousForColorReplacement.composedLayers[0].depthScale = 0.25f;
+    previousForColorReplacement.composedLayers[0].visible = false;
+    ngPsdDepthSyncComposedSource(previousForColorReplacement);
+    auto replacedColorImport = ngPsdDepthReplaceColorSource(incActivePuppet(), previousForColorReplacement,
+        replacementFlatColorPath, pairedFlatSettings);
+    require(replacedColorImport.depthSource.sourcePath == pairedFlatDepthPath &&
+        replacedColorImport.colorSource.sourcePath == replacementFlatColorPath &&
+        replacedColorImport.composedSource.colorSource.sourcePath == replacementFlatColorPath &&
+        replacedColorImport.composedLayers.length == 1 &&
+        near(replacedColorImport.composedLayers[0].depthScale, 0.25f) &&
+        !replacedColorImport.composedLayers[0].visible,
+        "PSD depth import should replace the color source while preserving composed-layer state");
+    auto mismatchedFlatColorPath = buildPath(pngFixtureDir, "flat-color-mismatched.png");
+    writeRegressionPng(mismatchedFlatColorPath, 255, 255, 255, 2, 2);
+    auto mismatchedFlatSettings = pairedFlatSettings;
+    mismatchedFlatSettings.colorSourcePath = mismatchedFlatColorPath;
+    require(collectException(ngBuildPsdDepthsFromSource(incActivePuppet(), pairedFlatDepthPath, mismatchedFlatSettings)) !is null,
+        "PSD depth import should reject flat color/depth 1:1 sources with mismatched dimensions");
+    auto pairedColorPsdDepthPath = buildPath(pngFixtureDir, "paired-color-psd-depth.psd");
+    auto pairedColorPsdColorPath = buildPath(pngFixtureDir, "paired-color-psd-color.png");
+    auto pairedColorPsdMismatchPath = buildPath(pngFixtureDir, "paired-color-psd-color-mismatch.png");
+    writeRegressionPsdFixture(pairedColorPsdDepthPath);
+    writeRegressionPng(pairedColorPsdColorPath, 255, 255, 255, 1, 1);
+    writeRegressionPng(pairedColorPsdMismatchPath, 255, 255, 255, 2, 2);
+    PsdDepthImportSettings pairedColorPsdSettings;
+    pairedColorPsdSettings.colorSourcePath = pairedColorPsdColorPath;
+    auto pairedColorPsdImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pairedColorPsdDepthPath, pairedColorPsdSettings);
+    require(pairedColorPsdImported.colorSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
+        pairedColorPsdImported.colorSource.layers.length == 1 &&
+        pairedColorPsdImported.colorSource.layers[0].id == "/paired-color-psd-color" &&
+        pairedColorPsdImported.colorSource.layers[0].rgba.length == 4 &&
+        pairedColorPsdImported.colorLayerCount == 1,
+        "PSD depth import should route explicit flat color PNG sources into PSD depth composition");
+    auto pairedColorPsdMismatchSettings = pairedColorPsdSettings;
+    pairedColorPsdMismatchSettings.colorSourcePath = pairedColorPsdMismatchPath;
+    require(collectException(ngBuildPsdDepthsFromSource(incActivePuppet(), pairedColorPsdDepthPath,
+        pairedColorPsdMismatchSettings)) !is null,
+        "PSD depth import should reject paired flat color PNG sources whose dimensions differ from the PSD depth source");
+    auto pairedPsdColorPath = buildPath(pngFixtureDir, "paired-color-source.psd");
+    auto pairedPsdColorMismatchPath = buildPath(pngFixtureDir, "paired-color-source-mismatch.png");
+    writeRegressionPsdFixture(pairedPsdColorPath);
+    PsdDepthImportSettings pairedPsdColorSettings;
+    pairedPsdColorSettings.colorSourcePath = pairedPsdColorPath;
+    auto pairedPsdColorImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pairedColorPsdDepthPath,
+        pairedPsdColorSettings);
+    require(pairedPsdColorImported.colorSource.kind == PsdDepthCompositeSourceKind.PsdLayers &&
+        pairedPsdColorImported.colorSource.width == 1 &&
+        pairedPsdColorImported.colorSource.height == 1,
+        "PSD depth import should route explicit PSD color sources as PsdLayers color composites");
+    auto richColorPsdPath = localDepthDrawDataPath("Midori-20260621-color.psd");
+    auto richDepthPsdPath = localDepthDrawDataPath("Midori-20260621-color-psd-depth.psd");
+    if (richColorPsdPath.length && richDepthPsdPath.length) {
+        PsdDepthImportSettings richPsdPairSettings;
+        richPsdPairSettings.colorSourcePath = richColorPsdPath;
+        richPsdPairSettings.matchDirectGridName = false;
+        auto richPsdPairImported = ngBuildPsdDepthsFromSource(incActivePuppet(), richDepthPsdPath,
+            richPsdPairSettings);
+        bool hasMatchedColorLayerIdentity;
+        foreach (layer; richPsdPairImported.composedSource.layers) {
+            if (layer.colorLayerPath.length && layer.colorLayerName.length) {
+                hasMatchedColorLayerIdentity = true;
+                break;
+            }
+        }
+        require(richPsdPairImported.compositionMode == PsdDepthCompositionMode.NToN &&
+            richPsdPairImported.colorSource.kind == PsdDepthCompositeSourceKind.PsdLayers &&
+            richPsdPairImported.depthSource.kind == PsdDepthCompositeSourceKind.PsdLayers &&
+            richPsdPairImported.colorSource.layers.length > 1 &&
+            richPsdPairImported.depthSource.layers.length > 1 &&
+            richPsdPairImported.composedSource.layers.length > 1 &&
+            richPsdPairImported.composedSource.width == richPsdPairImported.compositionWidth &&
+            richPsdPairImported.composedSource.height == richPsdPairImported.compositionHeight &&
+            hasMatchedColorLayerIdentity,
+            "PSD depth import should prove N:N source-domain pairing against the local depth-draw multi-layer PSD fixture");
+    }
+    auto pairedPsdColorPngDepthPath = buildPath(pngFixtureDir, "paired-psd-color-flat-depth.png");
+    writeRegressionPng(pairedPsdColorPngDepthPath, 255, 255, 255, 1, 1);
+    auto pairedPsdColorPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pairedPsdColorPngDepthPath,
+        pairedPsdColorSettings);
+    require(pairedPsdColorPngImported.colorSource.kind == PsdDepthCompositeSourceKind.PsdLayers &&
+        pairedPsdColorPngImported.colorSource.width == 1 &&
+        pairedPsdColorPngImported.colorSource.height == 1 &&
+        pairedPsdColorPngImported.grids.length == 0 &&
+        pairedPsdColorPngImported.compositionDiagnostics.length > 0 &&
+        pairedPsdColorPngImported.compositionDiagnostics[$ - 1].type == "missing-color-source",
+        "PSD depth import should use explicit PSD color source for flat PNG depth N:1 instead of falling back to active targets");
+
+    auto flatComposedDepthPath = buildPath(pngFixtureDir, "flat-composed-depth.png");
+    writeRegressionPng(flatComposedDepthPath, 255, 255, 255, 4, 4);
+    auto composedGridA = new ExGridDeformer(incActivePuppet().root);
+    composedGridA.name = "color-layer-a";
+    composedGridA.vertices = Vec2Array([vec2(0, 0)]);
+    auto composedGridB = new ExGridDeformer(incActivePuppet().root);
+    composedGridB.name = "color-layer-b";
+    composedGridB.vertices = Vec2Array([vec2(0, 0)]);
+    auto composedBareGrid = new ExGridDeformer(incActivePuppet().root);
+    composedBareGrid.name = "bare-depth-target";
+    composedBareGrid.vertices = Vec2Array([vec2(0, 0)]);
+    auto composedTextureA = new Texture(cast(ubyte[])[255, 32, 16, 255], 1, 1, 4, 4, false, false);
+    auto composedTextureB = new Texture(cast(ubyte[])[16, 32, 255, 255], 1, 1, 4, 4, false, false);
+    MeshData composedCoverageMesh;
+    composedCoverageMesh.vertices = Vec2Array([
+        vec2(-4, -4),
+        vec2(4, -4),
+        vec2(-4, 4),
+        vec2(4, 4),
+    ]);
+    composedCoverageMesh.uvs = Vec2Array([
+        vec2(0, 0),
+        vec2(1, 0),
+        vec2(0, 1),
+        vec2(1, 1),
+    ]);
+    composedCoverageMesh.indices = [cast(ushort)0, 1, 3, 0, 3, 2];
+    auto composedPartA = new Part(composedCoverageMesh, [composedTextureA], inCreateUUID(), composedGridA);
+    composedPartA.name = "color-layer-a-art";
+    auto composedPartB = new Part(composedCoverageMesh, [composedTextureB], inCreateUUID(), composedGridB);
+    composedPartB.name = "color-layer-b-art";
+    incActivePuppet().root.build();
+    PsdDepthImportSettings composedPngSettings;
+    composedPngSettings.convolution = PsdDepthConvolution.Nearest;
+    composedPngSettings.matchDirectGridName = false;
+    auto composedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), flatComposedDepthPath, composedPngSettings);
+    require(composedPngImported.grids.length == 2 &&
+        composedPngImported.layerPreviews.length == 2 &&
+        composedPngImported.mappings.length == 2 &&
+        composedPngImported.mappings[0].status == "ComposedN1" &&
+        composedPngImported.mappings[1].status == "ComposedN1",
+        "PSD depth import should split a flat PNG depth source into color-backed target layers instead of mapping every target");
+    require(composedPngImported.compositionMode == PsdDepthCompositionMode.NToOne &&
+        composedPngImported.compositionModeName == "N:1" &&
+        composedPngImported.compositionWidth == 4 &&
+        composedPngImported.compositionHeight == 4 &&
+        composedPngImported.colorLayerCount == 2 &&
+        composedPngImported.sourceDepthLayerCount == 1 &&
+        composedPngImported.composedLayerCount == 2,
+        "PSD depth import flat PNG composition should expose depth-draw N:1 composition metadata");
+    require(composedPngImported.composedLayers.length == 2 &&
+        composedPngImported.composedLayers[0].layerPath != "/flat-composed-depth" &&
+        composedPngImported.composedLayers[1].sourcePath == flatComposedDepthPath &&
+        composedPngImported.composedLayers[0].depthRgba.length == 4 * 4 * 4 &&
+        composedPngImported.colorSource.layers.length == 2 &&
+        composedPngImported.colorSource.layers[0].rgba.length == 4 * 4 * 4 &&
+        composedPngImported.colorSource.layers[0].maskRgba.length == 4 * 4 * 4 &&
+        composedPngImported.depthSource.layers.length == 1 &&
+        composedPngImported.depthSource.layers[0].rgba.length == 4 * 4 * 4,
+        "PSD depth import N:1 should materialize composed color/target layers separately from the flat depth source");
+    bool hasUpperSuppressionDiagnostic;
+    foreach (diagnostic; composedPngImported.compositionDiagnostics) {
+        if (diagnostic.type == "upper-layer-suppression" && diagnostic.count > 0) {
+            hasUpperSuppressionDiagnostic = true;
+            break;
+        }
+    }
+    require(hasUpperSuppressionDiagnostic &&
+        composedPngImported.composedLayers[0].depthStats.maskedPixels == 0 &&
+        composedPngImported.composedLayers[1].depthStats.maskedPixels > 0,
+        "PSD depth import N:1 should suppress lower-layer depth under upper color/art coverage");
+    bool foundComposedA;
+    bool foundComposedB;
+    bool foundBare;
+    foreach (gridResult; composedPngImported.grids) {
+        if (gridResult.grid is composedGridA) foundComposedA = true;
+        if (gridResult.grid is composedGridB) foundComposedB = true;
+        if (gridResult.grid is composedBareGrid) foundBare = true;
+        require(gridResult.coverageSources > 0 &&
+            gridResult.depths.length == gridResult.grid.vertices.length,
+            "PSD depth import N:1 composed PNG targets should use color/art coverage before target sampling target=%s coverage=%s depths=%s vertices=%s".format(
+                gridResult.grid.name,
+                gridResult.coverageSources,
+                gridResult.depths.length,
+                gridResult.grid.vertices.length));
+    }
+    require(foundComposedA && foundComposedB && !foundBare,
+        "PSD depth import N:1 composed PNG import should include only targets backed by color/art layers");
+    require(composedPngImported.layerPreviews[0].layerPath != "/flat-composed-depth" &&
+        composedPngImported.layerPreviews[1].sourcePath == flatComposedDepthPath,
+        "PSD depth import N:1 composed PNG previews should be keyed by color/target layer while retaining the flat depth source path");
+    foreach (layerPreview; composedPngImported.layerPreviews) {
+        require(layerPreview.depthStats.maskedPixels <= cast(size_t)layerPreview.width * cast(size_t)layerPreview.height,
+            "PSD depth import N:1 composed PNG layer previews should expose bounded coverage-masked depth stats");
+    }
+    bool foundComposedColorPreviewA;
+    bool foundComposedColorPreviewB;
+    foreach (layerPreview; composedPngImported.layerPreviews) {
+        if (layerPreview.layerPath == "/color-layer-a-art" && layerPreview.originalRgba.length >= 4 &&
+            layerPreview.originalRgba[0] == 255 && layerPreview.originalRgba[1] == 32 &&
+            layerPreview.originalRgba[2] == 16) foundComposedColorPreviewA = true;
+        if (layerPreview.layerPath == "/color-layer-b-art" && layerPreview.originalRgba.length >= 4 &&
+            layerPreview.originalRgba[0] == 16 && layerPreview.originalRgba[1] == 32 &&
+            layerPreview.originalRgba[2] == 255) foundComposedColorPreviewB = true;
+    }
+    require(foundComposedColorPreviewA && foundComposedColorPreviewB,
+        "PSD depth import N:1 3D previews should use color/art texture pixels instead of the flat depth PNG pixels");
+    auto localizedDepthPath = buildPath(pngFixtureDir, "localized-composed-depth.png");
+    writeRegressionPng(localizedDepthPath, 255, 255, 255, 16, 16);
+    auto localizedGrid = new ExGridDeformer(incActivePuppet().root);
+    localizedGrid.name = "localized-color-layer";
+    localizedGrid.vertices = Vec2Array([vec2(0, 0)]);
+    auto localizedTexture = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    MeshData localizedCoverageMesh;
+    localizedCoverageMesh.vertices = Vec2Array([
+        vec2(-1, -1),
+        vec2(1, -1),
+        vec2(-1, 1),
+        vec2(1, 1),
+    ]);
+    localizedCoverageMesh.uvs = Vec2Array([
+        vec2(0, 0),
+        vec2(1, 0),
+        vec2(0, 1),
+        vec2(1, 1),
+    ]);
+    localizedCoverageMesh.indices = [cast(ushort)0, 1, 3, 0, 3, 2];
+    auto localizedPart = new Part(localizedCoverageMesh, [localizedTexture], inCreateUUID(), localizedGrid);
+    localizedPart.name = "localized-color-layer-art";
+    incActivePuppet().root.build();
+    PsdDepthImportSettings localizedSettings;
+    localizedSettings.convolution = PsdDepthConvolution.Nearest;
+    localizedSettings.matchDirectGridName = false;
+    auto localizedImported = ngBuildPsdDepthsFromSource(incActivePuppet(), localizedDepthPath, localizedSettings);
+    PsdDepthComposedLayer* localizedLayer;
+    PsdDepthGridResult* localizedGridResult;
+    foreach (ref layer; localizedImported.composedLayers) {
+        if (layer.layerPath == "/localized-color-layer-art") localizedLayer = &layer;
+    }
+    foreach (ref gridResult; localizedImported.grids) {
+        if (gridResult.grid is localizedGrid) localizedGridResult = &gridResult;
+    }
+    require(localizedLayer !is null &&
+        localizedLayer.width < localizedImported.compositionWidth &&
+        localizedLayer.height < localizedImported.compositionHeight &&
+        localizedLayer.left > 0 &&
+        localizedLayer.top > 0,
+        "PSD depth import active-target N:1 should crop composed layers to target/art coverage bounds instead of using the full PNG rectangle");
+    require(localizedGridResult !is null &&
+        localizedGridResult.previewWidth < localizedImported.compositionWidth &&
+        localizedGridResult.previewHeight < localizedImported.compositionHeight,
+        "PSD depth import active-target N:1 preview should use localized composed-layer bounds");
+
+    auto multiPartDepthPath = buildPath(pngFixtureDir, "multi-part-composed-depth.png");
+    writeRegressionPng(multiPartDepthPath, 255, 255, 255, 16, 16);
+    auto multiPartGrid = new ExGridDeformer(incActivePuppet().root);
+    multiPartGrid.name = "multi-part-grid";
+    multiPartGrid.vertices = Vec2Array([vec2(-2, 0), vec2(2, 0)]);
+    auto multiTextureA = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    auto multiTextureB = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    MeshData multiMeshA;
+    multiMeshA.vertices = Vec2Array([
+        vec2(-4, -2),
+        vec2(0, -2),
+        vec2(-4, 2),
+        vec2(0, 2),
+    ]);
+    multiMeshA.uvs = Vec2Array([
+        vec2(0, 0),
+        vec2(1, 0),
+        vec2(0, 1),
+        vec2(1, 1),
+    ]);
+    multiMeshA.indices = [cast(ushort)0, 1, 3, 0, 3, 2];
+    MeshData multiMeshB = multiMeshA;
+    multiMeshB.vertices = Vec2Array([
+        vec2(0, -2),
+        vec2(4, -2),
+        vec2(0, 2),
+        vec2(4, 2),
+    ]);
+    auto multiPartA = new Part(multiMeshA, [multiTextureA], inCreateUUID(), multiPartGrid);
+    multiPartA.name = "multi-art-left";
+    auto multiPartB = new Part(multiMeshB, [multiTextureB], inCreateUUID(), multiPartGrid);
+    multiPartB.name = "multi-art-right";
+    incActivePuppet().root.build();
+    PsdDepthImportSettings multiPartSettings;
+    multiPartSettings.convolution = PsdDepthConvolution.Nearest;
+    multiPartSettings.matchDirectGridName = false;
+    auto multiPartImported = ngBuildPsdDepthsFromSource(incActivePuppet(), multiPartDepthPath, multiPartSettings);
+    bool foundMultiLayerA;
+    bool foundMultiLayerB;
+    PsdDepthGridResult* multiPartGridResult;
+    foreach (ref layer; multiPartImported.composedLayers) {
+        if (layer.layerPath == "/multi-art-left") foundMultiLayerA = true;
+        if (layer.layerPath == "/multi-art-right") foundMultiLayerB = true;
+    }
+    foreach (ref gridResult; multiPartImported.grids) {
+        if (gridResult.grid is multiPartGrid) multiPartGridResult = &gridResult;
+    }
+    require(foundMultiLayerA && foundMultiLayerB,
+        "PSD depth import active-target N:1 should preserve active art Part layers instead of collapsing them to the target Grid");
+    require(multiPartGridResult !is null && multiPartGridResult.layerMasks.length == 2,
+        "PSD depth import active-target N:1 should combine multiple Part layers as layer masks on the same target Grid");
+
+    auto activeArtPsdDepthPath = buildPath(pngFixtureDir, "active-art-psd-depth.psd");
+    writeRegressionPsdFixture(activeArtPsdDepthPath);
+    auto activeArtPsdGrid = new ExGridDeformer(incActivePuppet().root);
+    activeArtPsdGrid.name = "active-art-psd-grid";
+    activeArtPsdGrid.vertices = Vec2Array([vec2(0, 0)]);
+    auto activeArtPsdTextureA = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    auto activeArtPsdTextureB = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    MeshData activeArtPsdMesh;
+    activeArtPsdMesh.vertices = Vec2Array([
+        vec2(-1, -1),
+        vec2(1, -1),
+        vec2(-1, 1),
+        vec2(1, 1),
+    ]);
+    activeArtPsdMesh.uvs = Vec2Array([
+        vec2(0, 0),
+        vec2(1, 0),
+        vec2(0, 1),
+        vec2(1, 1),
+    ]);
+    activeArtPsdMesh.indices = [cast(ushort)0, 1, 3, 0, 3, 2];
+    auto activeArtPsdPartA = new Part(activeArtPsdMesh, [activeArtPsdTextureA], inCreateUUID(), activeArtPsdGrid);
+    activeArtPsdPartA.name = "active-art-psd-left";
+    auto activeArtPsdPartB = new Part(activeArtPsdMesh, [activeArtPsdTextureB], inCreateUUID(), activeArtPsdGrid);
+    activeArtPsdPartB.name = "active-art-psd-right";
+    incActivePuppet().root.build();
+    PsdDepthImportSettings activeArtPsdSettings;
+    activeArtPsdSettings.convolution = PsdDepthConvolution.Nearest;
+    activeArtPsdSettings.matchDirectGridName = false;
+    auto activeArtPsdImported = ngBuildPsdDepthsFromSource(incActivePuppet(), activeArtPsdDepthPath,
+        activeArtPsdSettings);
+    bool foundActiveArtPsdLeft;
+    bool foundActiveArtPsdRight;
+    bool foundActiveArtPsdGridLayer;
+    foreach (layer; activeArtPsdImported.composedLayers) {
+        if (layer.layerPath == "/active-art-psd-left") foundActiveArtPsdLeft = true;
+        if (layer.layerPath == "/active-art-psd-right") foundActiveArtPsdRight = true;
+        if (layer.layerPath == "/active-art-psd-grid") foundActiveArtPsdGridLayer = true;
+    }
+    require(foundActiveArtPsdLeft && foundActiveArtPsdRight && !foundActiveArtPsdGridLayer,
+        "PSD depth import active-target color source should preserve Part layers instead of collapsing missing layers to the target Grid");
+
+    auto pngSecondDepthPath = buildPath(pngFixtureDir, "png-depth-second.png");
+    writeRegressionPng(pngSecondDepthPath, 255, 255, 255, 4, 4);
+    auto pngSecondGrid = new ExGridDeformer(incActivePuppet().root);
+    pngSecondGrid.name = "png-depth-second";
+    pngSecondGrid.vertices = Vec2Array([vec2(-1, -1), vec2(0, 0), vec2(1, 1)]);
+    pngSecondGrid.localTransform.update();
+    incActivePuppet().root.build();
+    PsdDepthImportSettings pngSecondSettings;
+    pngSecondSettings.convolution = PsdDepthConvolution.Nearest;
+    pngSecondSettings.layerTargetGridUuidOverrides["/png-depth-second"] = pngSecondGrid.uuid.to!string;
+    auto pngSecondImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngSecondDepthPath, pngSecondSettings);
+    require(pngSecondImported.grids.length == 1 && pngSecondImported.grids[0].grid is pngSecondGrid,
+        "PSD depth import dialog source builder should map a second PNG source to a second target");
+
+    PsdDepthImportResult combinedPngImport;
+    combinedPngImport.grids ~= pngImported.grids;
+    combinedPngImport.grids ~= pngSecondImported.grids;
+    combinedPngImport.mappings ~= pngImported.mappings;
+    combinedPngImport.mappings ~= pngSecondImported.mappings;
+    combinedPngImport.layerPreviews ~= pngImported.layerPreviews;
+    combinedPngImport.layerPreviews ~= pngSecondImported.layerPreviews;
+    combinedPngImport.matchedLayers = pngImported.matchedLayers + pngSecondImported.matchedLayers;
+    combinedPngImport.unmatchedLayers = pngImported.unmatchedLayers + pngSecondImported.unmatchedLayers;
+    pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
+    pngSecondGrid.replaceDepths([0.4f, 0.5f, 0.6f]);
+    incActionClearHistory();
+    require(ngApplyPsdDepthImportResult(combinedPngImport).succeeded,
+        "PSD depth import apply should update multiple source-builder targets in one operation");
+    auto combinedPngAction = cast(GroupAction)incActionTop();
+    require(combinedPngAction !is null && combinedPngAction.actions.length == 2,
+        "PSD depth import apply should group multiple source-builder target updates into one undo action");
+    require(pngGrid.copyDepths() == [1.0f, 1.0f, 1.0f] &&
+        pngSecondGrid.copyDepths() == [1.0f, 1.0f, 1.0f],
+        "PSD depth import apply should write all enabled mapped targets, not only one selected binding");
+    incActionUndo();
+    require(pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f] &&
+        pngSecondGrid.copyDepths() == [0.4f, 0.5f, 0.6f],
+        "undo PSD depth import should restore every target from a multi-binding apply");
+    incActionRedo();
+    require(pngGrid.copyDepths() == [1.0f, 1.0f, 1.0f] &&
+        pngSecondGrid.copyDepths() == [1.0f, 1.0f, 1.0f],
+        "redo PSD depth import should reapply every target from a multi-binding apply");
+
+    PsdDepthImportSettings pngGpuSettings;
+    pngGpuSettings.convolution = PsdDepthConvolution.Nearest;
+    pngGpuSettings.useGpuComposition = true;
+    pngGpuSettings.layerTargetGridUuidOverrides["/png-depth-grid"] = pngGrid.uuid.to!string;
+    pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
+    auto pngGpuImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngGpuSettings);
+    auto pngGpuApply = ngApplyPsdDepthImportResult(pngGpuImported);
+    require(!pngGpuApply.succeeded &&
+        pngGpuApply.message.canFind("CPU fallback is disabled") &&
+        pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f],
+        "PSD depth import GPU-selected apply should fail explicitly instead of falling back to CPU mutation");
+
+    fakeDepthDrawGpuNextJobId = 1;
+    fakeDepthDrawGpuSubmitCount = 0;
+    fakeDepthDrawGpuPollCount = 0;
+    fakeDepthDrawGpuNotReadyPolls = 0;
+    fakeDepthDrawGpuReadbacks = null;
+    fakeDepthDrawGpuReadbacks[1] = DepthDrawGpuComposeReadback(
+        pngGrid.uuid,
+        [0.75f, 0.75f, 0.75f],
+        [0, 0, 0],
+        [DepthDrawGpuLayerReadback(0, [1, 1, 1], [0.75f, 0.75f, 0.75f])]
+    );
+    ngSetDepthDrawGpuTestHooks(&fakeDepthDrawGpuSupported, &fakeDepthDrawGpuSubmit, &fakeDepthDrawGpuPoll);
+    scope(exit) ngClearDepthDrawGpuTestHooks();
+    pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
+    auto pngGpuImportedWithBackend = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngGpuSettings);
+    incActionClearHistory();
+    auto pngGpuApplyWithBackend = ngApplyPsdDepthImportResult(pngGpuImportedWithBackend);
+    require(pngGpuApplyWithBackend.succeeded &&
+        fakeDepthDrawGpuSubmitCount == 1 &&
+        fakeDepthDrawGpuPollCount == 1 &&
+        pngGrid.copyDepths() == [0.75f, 0.75f, 0.75f],
+        "PSD depth import GPU-selected apply should submit, poll, read back, and apply GPU depths without CPU fallback");
+    incActionUndo();
+    require(pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f],
+        "undo PSD depth import GPU-selected apply should restore previous depths");
+
+    PsdDepthImportSettings pngTransformSettings;
+    pngTransformSettings.convolution = PsdDepthConvolution.Nearest;
+    pngTransformSettings.layerTargetGridUuidOverrides["/png-depth-grid"] = pngGrid.uuid.to!string;
+    pngTransformSettings.layerTransforms["/png-depth-grid"] = PsdDepthLayerTransform(
+        0.0f, 0.0f, 1.0f, 1.0f, -0.25f, 0.5f, false);
+    auto transformedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
+    require(transformedPngImported.grids.length == 1 &&
+        transformedPngImported.grids[0].depths == [0.25f, 0.25f, 0.25f],
+        "PSD depth import layer Z transform should feed the same PNG preview/apply depth result");
+    pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
+    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.KeepExisting;
+    pngTransformSettings.layerTransforms["/png-depth-grid"] = PsdDepthLayerTransform(
+        100.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, false);
+    auto keepExistingPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
+    require(keepExistingPngImported.grids.length == 1 &&
+        keepExistingPngImported.grids[0].sampledVertices == 0 &&
+        keepExistingPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
+        keepExistingPngImported.grids[0].depths == [0.1f, 0.2f, 0.3f],
+        "PSD depth import KeepExisting missing policy should preserve target depths for missing PNG samples");
+    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.SetZero;
+    pngTransformSettings.layerTransforms["/png-depth-grid"] = PsdDepthLayerTransform(
+        100.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, false);
+    auto offsetPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
+    require(offsetPngImported.grids.length == 1 &&
+        offsetPngImported.grids[0].sampledVertices == 0 &&
+        offsetPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
+        offsetPngImported.grids[0].depths == [0.0f, 0.0f, 0.0f],
+        "PSD depth import layer XY transform should affect sampling before missing-policy application");
+    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.SetBack;
+    pngTransformSettings.backDepth = -0.25f;
+    pngTransformSettings.depthScale = 2.0f;
+    auto setBackPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
+    require(setBackPngImported.grids.length == 1 &&
+        setBackPngImported.grids[0].sampledVertices == 0 &&
+        setBackPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
+        setBackPngImported.grids[0].depths == [-0.5f, -0.5f, -0.5f],
+        "PSD depth import SetBack missing policy should write scaled back depth for missing PNG samples");
+    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.SkipGrid;
+    pngGrid.replaceDepths([0.4f, 0.5f, 0.6f]);
+    auto skipGridPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
+    require(skipGridPngImported.grids.length == 1 &&
+        skipGridPngImported.grids[0].skipped &&
+        skipGridPngImported.grids[0].depths == [0.4f, 0.5f, 0.6f],
+        "PSD depth import SkipGrid missing policy should skip the target and preserve existing depths");
+
+    auto pngPathDepthPath = buildPath(pngFixtureDir, "png-depth-path.png");
+    writeRegressionPng(pngPathDepthPath, 255, 255, 255, 4, 4);
+    auto pngPath = new ExPathDeformer(incActivePuppet().root);
+    pngPath.name = "png-depth-path";
+    pngPath.rebuffer(Vec2Array([vec2(-1, -1), vec2(0, 0), vec2(1, 1)]));
+    pngPath.replaceDepths([0.25f, 0.25f, 0.25f]);
+    incActivePuppet().root.build();
+    PsdDepthImportSettings pngPathSettings;
+    pngPathSettings.convolution = PsdDepthConvolution.Nearest;
+    pngPathSettings.layerTargetGridUuidOverrides["/png-depth-path"] = pngPath.uuid.to!string;
+    auto pngPathImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngPathDepthPath, pngPathSettings);
+    require(pngPathImported.mappings.length == 1 && pngPathImported.mappings[0].matched &&
+        pngPathImported.grids.length == 1 && pngPathImported.grids[0].grid is pngPath,
+        "PSD depth import dialog source builder should map PNG sources to PathDeformer targets");
+    require(pngPathImported.grids[0].sampledVertices == pngPath.vertices.length &&
+        pngPathImported.grids[0].missingVertices == 0 &&
+        pngPathImported.grids[0].depths.length == pngPath.vertices.length,
+        "PSD depth import dialog source builder should sample PNG sources into PathDeformer control depths");
+    incActionClearHistory();
+    require(ngApplyPsdDepthImportResult(pngPathImported).succeeded,
+        "PSD depth import apply should accept PathDeformer target results");
+    require(pngPath.copyDepths() == [1.0f, 1.0f, 1.0f],
+        "PSD depth import apply should write PathDeformer depth arrays");
+    incActionUndo();
+    require(pngPath.copyDepths() == [0.25f, 0.25f, 0.25f],
+        "undo PSD depth import should restore previous PathDeformer depths");
+    incActionRedo();
+    require(pngPath.copyDepths() == [1.0f, 1.0f, 1.0f],
+        "redo PSD depth import should restore imported PathDeformer depths");
+
     settings.convolution = PsdDepthConvolution.Gaussian3x3;
+    require(ngDepthSampleConvolutionRadius(DepthSampleConvolution.Gaussian3x3, 9) == 1 &&
+        ngDepthSampleConvolutionRadius(DepthSampleConvolution.Gaussian5x5, 9) == 2 &&
+        ngDepthSampleConvolutionRadius(DepthSampleConvolution.GaussianCustom, 3) == 3,
+        "common depth sample helper should preserve convolution radius selection");
+    require(near(ngDepthSampleKernelWeight(DepthSampleConvolution.Gaussian3x3, 1, 0, 0), 4.0f) &&
+        near(ngDepthSampleKernelWeight(DepthSampleConvolution.Gaussian3x3, 1, 1, 1), 1.0f) &&
+        near(ngDepthSampleKernelWeight(DepthSampleConvolution.Gaussian5x5, 2, 0, 0), 36.0f) &&
+        near(ngDepthSampleKernelWeight(DepthSampleConvolution.Gaussian5x5, 2, 2, 2), 1.0f),
+        "common depth sample helper should preserve fixed Gaussian kernel weights");
+    require(ngDepthSampleConvolutionUsesWeightedAverage(DepthSampleConvolution.Box3x3) &&
+        ngDepthSampleConvolutionUsesWeightedAverage(DepthSampleConvolution.GaussianCustom) &&
+        ngDepthSampleConvolutionUsesMedian(DepthSampleConvolution.MedianCustom) &&
+        ngDepthSampleConvolutionUsesFrontmost(DepthSampleConvolution.Frontmost3x3) &&
+        ngDepthSampleConvolutionUsesBackmost(DepthSampleConvolution.BackmostCustom),
+        "common depth sample helper should classify convolution modes for PSD import");
+    auto weighted = ngDepthSampleWeightedAverage([0.0f, 1.0f, -1.0f], [1.0f, 2.0f, 0.0f]);
+    require(weighted.valid && near(weighted.value, 2.0f / 3.0f) && near(weighted.weight, 3.0f),
+        "common depth sample helper should preserve weighted-average aggregation");
+    DepthSampleWeightedAccumulator weightedAccumulator;
+    weightedAccumulator.add(0.0f, 1.0f);
+    weightedAccumulator.add(1.0f, 2.0f);
+    weightedAccumulator.add(-1.0f, 0.0f);
+    auto weightedAccumulated = weightedAccumulator.result();
+    require(weightedAccumulated.valid && near(weightedAccumulated.value, weighted.value) &&
+        near(weightedAccumulated.weight, weighted.weight),
+        "common depth sample helper should support allocation-free weighted-average aggregation");
+    auto median = ngDepthSampleMedian([1.0f, -1.0f, 0.25f]);
+    require(median.valid && near(median.value, 0.25f),
+        "common depth sample helper should preserve median aggregation");
+    require(ngDepthSampleExtreme([0.2f, 0.9f, -0.5f], true).value == 0.9f &&
+        ngDepthSampleExtreme([0.2f, 0.9f, -0.5f], false).value == -0.5f,
+        "common depth sample helper should preserve frontmost/backmost aggregation");
+    DepthSampleExtremeAccumulator extremeAccumulator;
+    extremeAccumulator.frontmost = false;
+    extremeAccumulator.add(0.2f);
+    extremeAccumulator.add(0.9f);
+    extremeAccumulator.add(-0.5f);
+    require(extremeAccumulator.result().value == -0.5f,
+        "common depth sample helper should support allocation-free extreme aggregation");
     auto gaussian = ngPsdDepthSamplePixels(pixels, 3, 3, 1, 1, settings);
     require(gaussian.valid && gaussian.value > 0.0f && gaussian.value < 1.0f,
         "PSD depth Gaussian3x3 should smooth toward valid weighted neighbors; value=" ~ gaussian.value.to!string);
@@ -3858,10 +5045,4758 @@ private void testPsdDepthMapImportHelpers() {
         "PSD depth per-grid layer switch should leave other layers enabled");
     require(ngPsdDepthGridLayerEnabled(settings, otherGrid.uuid, layerPath),
         "PSD depth per-grid layer switch should be scoped by GridDeformer");
+
+    settings.disabledComposedLayerPaths[layerPath] = true;
+    require(!ngPsdDepthComposedLayerEnabled(settings, layerPath) &&
+        !ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath) &&
+        !ngPsdDepthGridLayerEnabled(settings, otherGrid.uuid, layerPath) &&
+        ngPsdDepthGridLayerEnabled(settings, grid.uuid, otherLayerPath),
+        "PSD depth source/composed layer switch should disable the layer before target projection");
+    settings.disabledComposedLayerPaths.remove(layerPath);
+    settings.hiddenComposedLayerPaths[layerPath] = true;
+    require(!ngPsdDepthComposedLayerVisible(settings, layerPath) &&
+        !ngPsdDepthComposedLayerEnabled(settings, layerPath) &&
+        !ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath),
+        "PSD depth source/composed layer visibility should hide and disable layer projection");
+}
+
+private void testDepthImageFacadeMatchesPsdDepthSampling() {
+    resetCase();
+
+    bool sameDepthSampleValue(float a, float b) {
+        return near(a, b) || (a != a && b != b);
+    }
+
+    ubyte[] pixels = [
+        0, 0, 0, 255,       255, 255, 255, 128, 0, 0, 0, 0,
+        255, 0, 0, 255,     128, 128, 128, 255, 0, 255, 0, 255,
+        0, 0, 255, 255,     255, 255, 255, 0,   255, 255, 255, 255,
+    ];
+    ubyte[] coverage = [
+        255, 255, 255, 255, 255, 255, 255, 64,  255, 255, 255, 0,
+        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+        255, 255, 255, 255, 255, 255, 255, 0,   255, 255, 255, 255,
+    ];
+
+    DepthImageSampleSettings settings;
+    settings.backDepth = -1.0f;
+    settings.frontDepth = 1.0f;
+    settings.alphaThreshold = 0.01f;
+    settings.convolution = DepthImageConvolution.Gaussian3x3;
+    settings.channel = DepthImageChannel.AverageRGB;
+
+    auto psdSettings = ngDepthImageToPsdSettings(settings);
+
+    foreach (channel; [
+        DepthImageChannel.AverageRGB,
+        DepthImageChannel.R,
+        DepthImageChannel.G,
+        DepthImageChannel.B,
+        DepthImageChannel.Luminance,
+    ]) {
+        auto name = ngDepthImageChannelName(channel);
+        settings.channel = channel;
+        auto converted = ngDepthImageToPsdSettings(settings);
+        require(ngDepthImageChannelFromString(name) == channel &&
+            ngPsdDepthChannelFromString(name) == converted.channel,
+            "neutral depth image channel names should round-trip through the PSD compatibility bridge: " ~ name);
+    }
+
+    foreach (convolution; [
+        DepthImageConvolution.Nearest,
+        DepthImageConvolution.Box3x3,
+        DepthImageConvolution.Box5x5,
+        DepthImageConvolution.Gaussian3x3,
+        DepthImageConvolution.Gaussian5x5,
+        DepthImageConvolution.Median3x3,
+        DepthImageConvolution.Frontmost3x3,
+        DepthImageConvolution.Backmost3x3,
+        DepthImageConvolution.BoxCustom,
+        DepthImageConvolution.GaussianCustom,
+        DepthImageConvolution.MedianCustom,
+        DepthImageConvolution.FrontmostCustom,
+        DepthImageConvolution.BackmostCustom,
+    ]) {
+        auto name = ngDepthImageConvolutionName(convolution);
+        settings.convolution = convolution;
+        auto converted = ngDepthImageToPsdSettings(settings);
+        require(ngDepthImageConvolutionFromString(name) == convolution &&
+            ngPsdDepthConvolutionFromString(name) == converted.convolution,
+            "neutral depth image convolution names should round-trip through the PSD compatibility bridge: " ~ name);
+    }
+
+    settings.channel = DepthImageChannel.AverageRGB;
+    settings.convolution = DepthImageConvolution.Gaussian3x3;
+    psdSettings = ngDepthImageToPsdSettings(settings);
+
+    auto depthImageSample = ngDepthImageSampleRgba(pixels, 3, 3, 1, 1, settings);
+    auto psdSample = ngPsdDepthSamplePixels(pixels, 3, 3, 1, 1, psdSettings);
+    require(depthImageSample.valid == psdSample.valid && sameDepthSampleValue(depthImageSample.value, psdSample.value),
+        "neutral depth image sampling facade must match existing PSD sampling: depthImage=(%s,%s) psd=(%s,%s)".format(
+            depthImageSample.valid, depthImageSample.value, psdSample.valid, psdSample.value));
+
+    auto depthImageCoverage = ngDepthImageSampleRgbaWithCoverage(pixels, 3, 3, coverage, 3, 3, 0.75f, 1, 1, settings);
+    auto psdCoverage = ngPsdDepthSamplePixelsWithCoverage(pixels, 3, 3, coverage, 3, 3, 0.75f, 1, 1, psdSettings);
+    require(depthImageCoverage.valid == psdCoverage.valid && sameDepthSampleValue(depthImageCoverage.value, psdCoverage.value),
+        "neutral depth image coverage facade must match existing PSD coverage sampling");
+    require(near(ngDepthImageCoverageAlphaAt(1, 0, 3, 3, coverage, 3, 3), 64.0f / 255.0f) &&
+        !ngDepthImageCoverageReliableAt(1, 0, 3, 3, coverage, 3, 3),
+        "neutral depth image coverage helpers should expose coverage alpha and reliability thresholds");
+    require(near(ngDepthImageCoverageAlphaAt(0, 0, 3, 3, null, 0, 0), 1.0f) &&
+        ngDepthImageCoverageReliableAt(0, 0, 3, 3, null, 0, 0),
+        "neutral depth image coverage helpers should treat missing coverage as fully reliable");
+    require(near(ngDepthImageCoverageAlphaAt(1, 0, 3, 3, coverage[0 .. 27], 3, 3, 3), 1.0f) &&
+        ngDepthImageCoverageReliableAt(1, 0, 3, 3, coverage[0 .. 27], 3, 3, 3),
+        "neutral depth image coverage helpers should preserve legacy non-alpha coverage as fully reliable");
+    ubyte[] uvCoverage = [
+        255, 255, 255, 0,   255, 255, 255, 64,
+        255, 255, 255, 128, 255, 255, 255, 255,
+    ];
+    require(near(ngDepthImageCoverageAlphaAtUv(0.5f, 0.5f, uvCoverage, 2, 2, 4), 111.75f / 255.0f) &&
+        near(ngDepthImageCoverageAlphaAtUv(0.5f, 0.5f, uvCoverage[0 .. 12], 2, 2, 3), 1.0f),
+        "neutral depth image coverage helpers should own bilinear UV alpha sampling for mesh coverage");
+    require(near(ngDepthImageCompositeAlpha(0.25f, 0.5f), 0.625f) &&
+        near(ngDepthImageCompositeAlpha(-1.0f, 0.5f), 0.5f) &&
+        near(ngDepthImageCompositeAlpha(0.25f, 2.0f), 1.0f),
+        "neutral depth image coverage composition should use clamped alpha-over semantics");
+    auto composedCoverage = ngDepthImageCompositeAlpha(0.0f, 0.25f);
+    composedCoverage = ngDepthImageCompositeAlpha(composedCoverage, 0.5f);
+    require(near(composedCoverage, 0.625f),
+        "neutral depth image coverage composition should accumulate multiple coverage sources deterministically");
+
+    auto depthImageOpacity = ngDepthImageSampleRgbaWithOpacity(pixels, 3, 3, 1, 1, 0.25f, settings);
+    auto psdOpacity = ngPsdDepthSamplePixelsWithOpacity(pixels, 3, 3, 1, 1, 0.25f, psdSettings);
+    require(depthImageOpacity.valid == psdOpacity.valid && sameDepthSampleValue(depthImageOpacity.value, psdOpacity.value),
+        "neutral depth image opacity facade must match existing PSD opacity sampling");
+
+    auto frontmost = ngDepthImageFrontmost([
+        DepthImageSampleResult(false, -1.0f),
+        DepthImageSampleResult(true, -0.25f),
+        DepthImageSampleResult(true, 0.5f),
+    ]);
+    require(frontmost.valid && near(frontmost.value, 0.5f),
+        "neutral depth image composition facade must preserve frontmost behavior");
+    auto sampleFrontmost = ngDepthSampleFrontmost([
+        DepthSampleResult(false, -1.0f),
+        DepthSampleResult(true, 0.25f),
+        DepthSampleResult(true, 0.75f),
+    ]);
+    require(sampleFrontmost.valid && near(sampleFrontmost.value, 0.75f),
+        "common depth sample result should preserve frontmost behavior without PSD sample types");
+
+    foreach (channel; [
+        DepthImageChannel.AverageRGB,
+        DepthImageChannel.R,
+        DepthImageChannel.G,
+        DepthImageChannel.B,
+        DepthImageChannel.Luminance,
+    ]) {
+        foreach (convolution; [
+            DepthImageConvolution.Nearest,
+            DepthImageConvolution.Box3x3,
+            DepthImageConvolution.Box5x5,
+            DepthImageConvolution.Gaussian3x3,
+            DepthImageConvolution.Gaussian5x5,
+            DepthImageConvolution.Median3x3,
+            DepthImageConvolution.Frontmost3x3,
+            DepthImageConvolution.Backmost3x3,
+            DepthImageConvolution.BoxCustom,
+            DepthImageConvolution.GaussianCustom,
+            DepthImageConvolution.MedianCustom,
+            DepthImageConvolution.FrontmostCustom,
+            DepthImageConvolution.BackmostCustom,
+        ]) {
+            settings.channel = channel;
+            settings.convolution = convolution;
+            settings.customRadius = 2;
+            settings.invert = convolution == DepthImageConvolution.Backmost3x3 ||
+                convolution == DepthImageConvolution.BackmostCustom;
+            settings.depthScale = channel == DepthImageChannel.Luminance ? 0.75f : 1.0f;
+            psdSettings = ngDepthImageToPsdSettings(settings);
+
+            auto direct = ngDepthImageSampleRgbaWithCoverage(pixels, 3, 3, coverage, 3, 3, 0.75f, 1, 1, settings);
+            auto legacy = ngPsdDepthSamplePixelsWithCoverage(pixels, 3, 3, coverage, 3, 3, 0.75f, 1, 1, psdSettings);
+            require(direct.valid == legacy.valid && sameDepthSampleValue(direct.value, legacy.value),
+                "neutral depth image sampling must remain deterministic against PSD sampling for channel "
+                ~ ngDepthImageChannelName(channel) ~ " and convolution " ~ ngDepthImageConvolutionName(convolution)
+                ~ ": neutral=" ~ direct.value.to!string ~ " psd=" ~ legacy.value.to!string);
+        }
+    }
+
+    settings = DepthImageSampleSettings();
+    settings.convolution = DepthImageConvolution.Nearest;
+    settings.alphaThreshold = 0.01f;
+    auto rejectedByCoverage = ngDepthImageSampleRgbaWithCoverage(pixels, 3, 3, coverage, 3, 3, 1.0f, 2, 0, settings);
+    require(!rejectedByCoverage.valid,
+        "neutral depth image sampling should deterministically reject missing coverage pixels");
+
+    auto rejectedByOpacity = ngDepthImageSampleRgbaWithOpacity([255, 255, 255, 255], 1, 1, 0, 0, 0.005f, settings);
+    require(!rejectedByOpacity.valid,
+        "neutral depth image sampling should deterministically apply layer opacity before alpha thresholding");
+
+    auto rejectedOutOfBounds = ngDepthImageSampleRgba(pixels, 3, 3, -1, 1, settings);
+    require(!rejectedOutOfBounds.valid,
+        "neutral depth image sampling should reject out-of-bounds document samples deterministically");
+
+    ubyte[] white4x4;
+    foreach (i; 0 .. 16) white4x4 ~= [255, 255, 255, 255];
+    ubyte[] coverage2x2 = [
+        255, 255, 255, 255, 255, 255, 255, 0,
+        255, 255, 255, 0,   255, 255, 255, 255,
+    ];
+    auto scaledCoverageAccepted = ngDepthImageSampleRgbaWithCoverage(
+        white4x4, 4, 4, coverage2x2, 2, 2, 1.0f, 0, 0, settings);
+    auto scaledCoverageRejected = ngDepthImageSampleRgbaWithCoverage(
+        white4x4, 4, 4, coverage2x2, 2, 2, 1.0f, 3, 0, settings);
+    auto scaledCoverageAcceptedBottomRight = ngDepthImageSampleRgbaWithCoverage(
+        white4x4, 4, 4, coverage2x2, 2, 2, 1.0f, 3, 3, settings);
+    require(scaledCoverageAccepted.valid && !scaledCoverageRejected.valid &&
+        scaledCoverageAcceptedBottomRight.valid,
+        "neutral depth image sampling should map scaled coverage alpha deterministically");
+
+    auto rejectedByCoverageOpacity = ngDepthImageSampleRgbaWithCoverage(
+        white4x4, 4, 4, coverage2x2, 2, 2, 0.005f, 0, 0, settings);
+    require(!rejectedByCoverageOpacity.valid,
+        "neutral depth image sampling should apply coverage layer opacity before alpha thresholding");
+
+    bool threwBadRgba = false;
+    try {
+        ngDepthImageSampleRgba([255, 255, 255], 1, 1, 0, 0, settings);
+    } catch (Exception) {
+        threwBadRgba = true;
+    }
+    require(threwBadRgba, "neutral depth image sampling should reject undersized RGBA buffers deterministically");
+}
+
+private void testDepthDrawDataModelContracts() {
+    resetCase();
+
+    DepthDrawLayer layer;
+    layer.id = "layer-a";
+    layer.sourcePath = "source.psd";
+    layer.layerPath = "/Face/depth";
+    layer.displayName = "Face Depth";
+    layer.width = 2;
+    layer.height = 1;
+    layer.bounds.left = 10;
+    layer.bounds.top = 20;
+    layer.bounds.width = 2;
+    layer.bounds.height = 1;
+    layer.depthPixels = [0, 0, 0, 255, 255, 255, 255, 255];
+    layer.normalCoverage = [255, 255, 255, 255, 255, 255, 255, 128];
+    layer.xyOffset = vec2(3, -4);
+    layer.xyScale = vec2(1.5f, 0.5f);
+    layer.zScale = 2.0f;
+    layer.zOffset = -0.25f;
+    layer.backDepth = -0.5f;
+    layer.frontDepth = 0.75f;
+    layer.invert = true;
+    layer.channel = DepthImageChannel.R;
+    layer.convolution = DepthImageConvolution.BoxCustom;
+    layer.customRadius = 4;
+    layer.alphaThreshold = 0.2f;
+
+    require(layer.hasDepthPixels(), "DepthDrawLayer should report complete RGBA depth pixels");
+    require(layer.hasNormalCoverage(), "DepthDrawLayer should report complete normal coverage pixels");
+    require(near(layer.applyZTransform(0.5f), 0.75f), "DepthDrawLayer should apply z scale before z offset");
+
+    auto settings = layer.sampleSettings();
+    require(settings.invert && near(settings.backDepth, -0.5f) && near(settings.frontDepth, 0.75f),
+        "DepthDrawLayer sample settings should preserve depth conversion parameters");
+    require(settings.channel == DepthImageChannel.R && settings.convolution == DepthImageConvolution.BoxCustom &&
+        settings.customRadius == 4 && near(settings.alphaThreshold, 0.2f),
+        "DepthDrawLayer sample settings should preserve channel, convolution, radius, and alpha threshold");
+
+    DepthDrawBinding binding;
+    binding.layerId = layer.id;
+    binding.targetGridUuid = 42;
+    binding.targetNodeUuid = 24;
+    binding.order = 7;
+    require(binding.mergePolicy == DepthMergePolicy.Frontmost,
+        "DepthDrawBinding should default to depth-draw frontmost-style composition");
+    require(binding.appliesTo(42) && !binding.appliesTo(43),
+        "DepthDrawBinding should match only its enabled target grid");
+
+    auto session = new DepthDrawSession();
+    session.layers ~= layer;
+    session.bindings ~= binding;
+    require(session.layerById("layer-a") !is null && session.layerById("missing") is null,
+        "DepthDrawSession should look up layers by id");
+    require(session.selectLayer("layer-a") && session.selectedLayerId == "layer-a",
+        "DepthDrawSession should select existing layers");
+    require(!session.selectLayer("missing") && session.selectedLayerId == "layer-a",
+        "DepthDrawSession should reject missing layer selection without changing selection");
+    require(session.selectTargetGrid(42) && session.selectedGridUuid == 42,
+        "DepthDrawSession should select target grids referenced by bindings");
+    require(!session.selectTargetGrid(43) && session.selectedGridUuid == 42,
+        "DepthDrawSession should reject unbound target grid selection without changing selection");
+    auto selectionSession = new DepthDrawSession();
+    selectionSession.layers ~= layer;
+    selectionSession.bindings ~= binding;
+    DepthDrawLayer topLayer = layer;
+    topLayer.id = "layer-top";
+    topLayer.bounds.left = 10;
+    topLayer.bounds.top = 20;
+    topLayer.bounds.width = 2;
+    topLayer.bounds.height = 1;
+    selectionSession.layers ~= topLayer;
+    DepthDrawBinding topBinding = binding;
+    topBinding.layerId = topLayer.id;
+    topBinding.targetGridUuid = 84;
+    selectionSession.bindings ~= topBinding;
+    require(selectionSession.selectLayerPlaneAtDocumentPoint(vec2(10.5f, 20.5f)) &&
+        selectionSession.selectedLayerId == "layer-top" && selectionSession.selectedGridUuid == 84,
+        "DepthDrawSession should select the topmost visible layer plane at a document point and synchronize its target");
+    selectionSession.layers[$ - 1].visible = false;
+    require(selectionSession.selectLayerPlaneAtDocumentPoint(vec2(10.5f, 20.5f)) &&
+        selectionSession.selectedLayerId == "layer-a" && selectionSession.selectedGridUuid == 42,
+        "DepthDrawSession layer-plane selection should ignore invisible layers");
+    require(!selectionSession.selectLayerPlaneAtDocumentPoint(vec2(1000, 1000)) &&
+        selectionSession.selectedLayerId == "layer-a" && selectionSession.selectedGridUuid == 42,
+        "DepthDrawSession layer-plane selection should reject misses without changing selection");
+    session.clearSelection();
+    require(session.selectedLayerId.length == 0 && session.selectedGridUuid == 0,
+        "DepthDrawSession should clear layer and target selection together");
+    require(session.bindingsForGrid(42).length == 1 && session.bindingsForGrid(43).length == 0,
+        "DepthDrawSession should list enabled bindings for one target grid");
+
+    auto dirtySession = new DepthDrawSession();
+    DepthDrawLayer dirtyLayerB;
+    dirtyLayerB.id = "layer-b";
+    dirtySession.layers ~= layer;
+    dirtySession.layers ~= dirtyLayerB;
+    dirtySession.bindings ~= binding;
+    DepthDrawBinding dirtyBindingB = binding;
+    dirtyBindingB.layerId = "layer-b";
+    dirtyBindingB.targetGridUuid = 43;
+    dirtySession.bindings ~= dirtyBindingB;
+    dirtySession.markLayerPreviewDirty("layer-a");
+    require(dirtySession.isTargetPreviewDirty(42) && !dirtySession.isTargetPreviewDirty(43),
+        "DepthDrawSession should mark only targets bound to the changed layer as preview-dirty");
+    dirtySession.markBindingPreviewDirty(dirtyBindingB);
+    require(dirtySession.dirtyTargetGridIds() == [42UL, 43UL],
+        "DepthDrawSession should expose sorted preview-dirty target grid ids");
+    dirtySession.clearTargetPreviewDirty(42);
+    require(!dirtySession.isTargetPreviewDirty(42) && dirtySession.isTargetPreviewDirty(43),
+        "DepthDrawSession should clear preview dirty state per target");
+    dirtySession.markAllPreviewDirty();
+    require(dirtySession.dirtyTargetGridIds() == [42UL, 43UL],
+        "DepthDrawSession should mark every enabled bound target preview-dirty");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.dirtyTargetGridIds().length == 0,
+        "DepthDrawSession should clear all preview dirty state");
+    require(dirtySession.updateLayerXYTransform("layer-a", vec2(-2, 5), vec2(0.5f, 2.0f)),
+        "DepthDrawSession should update XY transform for existing layers");
+    require(dirtySession.layers[0].xyOffset == vec2(-2, 5) && dirtySession.layers[0].xyScale == vec2(0.5f, 2.0f),
+        "DepthDrawSession should store updated XY transform values");
+    require(dirtySession.dirtyTargetGridIds() == [42UL],
+        "DepthDrawSession XY transform updates should dirty only targets bound to the changed layer");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateLayerZTransform("layer-a", -0.75f, 0.8f, false, 1.25f, -0.1f),
+        "DepthDrawSession should update Z transform for existing layers");
+    require(near(dirtySession.layers[0].backDepth, -0.75f) && near(dirtySession.layers[0].frontDepth, 0.8f) &&
+        !dirtySession.layers[0].invert && near(dirtySession.layers[0].zScale, 1.25f) &&
+        near(dirtySession.layers[0].zOffset, -0.1f),
+        "DepthDrawSession should store updated Z transform values");
+    require(dirtySession.dirtyTargetGridIds() == [42UL],
+        "DepthDrawSession Z transform updates should dirty only targets bound to the changed layer");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateLayerSampling("layer-b", DepthImageChannel.B, DepthImageConvolution.MedianCustom, 6, 0.35f),
+        "DepthDrawSession should update layer sampling settings");
+    require(dirtySession.layers[1].channel == DepthImageChannel.B &&
+        dirtySession.layers[1].convolution == DepthImageConvolution.MedianCustom &&
+        dirtySession.layers[1].customRadius == 6 && near(dirtySession.layers[1].alphaThreshold, 0.35f),
+        "DepthDrawSession should store updated layer sampling settings");
+    require(dirtySession.dirtyTargetGridIds() == [43UL],
+        "DepthDrawSession sampling updates should dirty only targets bound to the changed layer");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateLayerVisibility("layer-b", false, false) &&
+        !dirtySession.layers[1].visible && !dirtySession.layers[1].enabled,
+        "DepthDrawSession should update layer visibility and enabled state");
+    require(dirtySession.dirtyTargetGridIds() == [43UL],
+        "DepthDrawSession visibility updates should dirty only targets bound to the changed layer");
+    dirtySession.clearPreviewDirty();
+    DepthDrawLayer gapLayer;
+    gapLayer.id = "gap-layer";
+    gapLayer.width = 5;
+    gapLayer.height = 5;
+    gapLayer.bounds.width = 5;
+    gapLayer.bounds.height = 5;
+    ubyte[] gapDepth = [
+        80, 80, 80, 80, 80,
+        80, 10, 0, 30, 80,
+        80, 80, 20, 80, 80,
+        80, 80, 0, 80, 80,
+        80, 80, 80, 80, 80,
+    ];
+    foreach (depth; gapDepth) {
+        gapLayer.depthPixels ~= depth;
+        gapLayer.depthPixels ~= depth;
+        gapLayer.depthPixels ~= depth;
+        gapLayer.depthPixels ~= cast(ubyte)255;
+    }
+    gapLayer.alphaMask.length = gapDepth.length;
+    gapLayer.alphaMask[] = 1;
+    DepthDrawBinding gapBinding = binding;
+    gapBinding.layerId = gapLayer.id;
+    gapBinding.targetGridUuid = 44;
+    dirtySession.layers ~= gapLayer;
+    dirtySession.bindings ~= gapBinding;
+    auto gapFill = dirtySession.applyLayerAlphaDepthGapFill(gapLayer.id);
+    require(gapFill.succeeded && gapFill.detected.total == 5 && gapFill.filled.filled == 5 &&
+        gapFill.filled.remaining == 0,
+        "DepthDrawSession alpha-depth gap fill should report depth-draw-compatible detection/fill counts");
+    require(ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(dirtySession.layers[$ - 1].depthPixels) ==
+        [
+            80, 80, 80, 80, 80,
+            80, 80, 80, 80, 80,
+            80, 80, 80, 80, 80,
+            80, 80, 80, 80, 80,
+            80, 80, 80, 80, 80,
+        ],
+        "DepthDrawSession alpha-depth gap fill should update layer depth pixels from the depth-draw median fill result");
+    require(dirtySession.dirtyTargetGridIds() == [44UL],
+        "DepthDrawSession alpha-depth gap fill should dirty only targets bound to the changed layer");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateBindingSampling("layer-b", 43, false, 0.45f),
+        "DepthDrawSession should update binding sampling settings");
+    require(!dirtySession.bindings[1].useNormalLayerAlpha && near(dirtySession.bindings[1].coverageThreshold, 0.45f),
+        "DepthDrawSession should store updated binding sampling settings");
+    require(dirtySession.dirtyTargetGridIds() == [43UL],
+        "DepthDrawSession binding sampling updates should dirty only the binding target");
+    dirtySession.clearPreviewDirty();
+    auto nextDisplay = dirtySession.display;
+    require(!dirtySession.updateDisplayOptions(nextDisplay) && dirtySession.dirtyTargetGridIds().length == 0,
+        "DepthDrawSession display option updates should ignore unchanged display state");
+    nextDisplay.showRawDepth = !nextDisplay.showRawDepth;
+    nextDisplay.showCoverage = !nextDisplay.showCoverage;
+    require(dirtySession.updateDisplayOptions(nextDisplay) &&
+        dirtySession.display.showRawDepth == nextDisplay.showRawDepth &&
+        dirtySession.display.showCoverage == nextDisplay.showCoverage,
+        "DepthDrawSession should update display options through a shared preview-dirty path");
+    require(dirtySession.dirtyTargetGridIds() == [42UL, 43UL, 44UL],
+        "DepthDrawSession display option updates should dirty every enabled bound target");
+    dirtySession.clearPreviewDirty();
+    require(!dirtySession.updateLayerXYTransform("missing", vec2(0, 0), vec2(1, 1)) &&
+        !dirtySession.updateLayerZTransform("missing", -1, 1, false, 1, 0) &&
+        !dirtySession.updateLayerSampling("missing", DepthImageChannel.R, DepthImageConvolution.Nearest, 1, 0.01f) &&
+        !dirtySession.updateLayerVisibility("missing", true, true) &&
+        !dirtySession.updateBindingSampling("missing", 42, true, 0.01f),
+        "DepthDrawSession inspector updates should reject missing layers and bindings");
+    require(dirtySession.dirtyTargetGridIds().length == 0,
+        "DepthDrawSession failed inspector updates should not dirty any target");
+
+    auto directGrid = new ExGridDeformer(incActivePuppet().root);
+    directGrid.name = "AutoBindGrid";
+    DepthDrawLayer autoLayer;
+    autoLayer.id = "auto-layer";
+    autoLayer.layerPath = "/AutoBindGrid";
+    autoLayer.displayName = "AutoBindGrid";
+    auto autoBind = ngDepthDrawAutoBindLayer(incActivePuppet(), autoLayer);
+    require(autoBind.matched && !autoBind.ambiguous && autoBind.targetGridUuid == directGrid.uuid,
+        "DepthDraw auto-binding should reuse PSD depth direct GridDeformer name matching");
+    auto autoBindSession = new DepthDrawSession();
+    autoBindSession.layers ~= autoLayer;
+    auto directBinding = ngDepthDrawAutoBindSession(autoBindSession, incActivePuppet());
+    require(directBinding.length == 1 && autoBindSession.bindings.length == 1 &&
+        autoBindSession.bindings[0].targetGridUuid == directGrid.uuid,
+        "DepthDraw auto-bind session should add bindings for matched layers");
+
+    auto directPath = new ExPathDeformer(incActivePuppet().root);
+    directPath.name = "AutoBindPath";
+    DepthDrawLayer autoPathLayer;
+    autoPathLayer.id = "auto-path-layer";
+    autoPathLayer.layerPath = "/AutoBindPath";
+    autoPathLayer.displayName = "AutoBindPath";
+    auto autoPathBind = ngDepthDrawAutoBindLayer(incActivePuppet(), autoPathLayer);
+    require(autoPathBind.matched && !autoPathBind.ambiguous && autoPathBind.targetGridUuid == directPath.uuid,
+        "DepthDraw auto-binding should support direct PathDeformer name matching");
+
+    auto duplicateGrid = new ExGridDeformer(incActivePuppet().root);
+    duplicateGrid.name = "AutoBindGrid";
+    auto ambiguousBind = ngDepthDrawAutoBindLayer(incActivePuppet(), autoLayer);
+    require(ambiguousBind.matched && ambiguousBind.ambiguous,
+        "DepthDraw auto-binding should report ambiguous direct GridDeformer matches");
+
+    DepthDrawLayer unboundLayer;
+    unboundLayer.id = "layer-b";
+    unboundLayer.width = 1;
+    unboundLayer.height = 1;
+    unboundLayer.depthPixels = [128, 128, 128, 255];
+    session.layers ~= unboundLayer;
+
+    DepthDrawLayer missingPixelsLayer;
+    missingPixelsLayer.id = "layer-c";
+    missingPixelsLayer.width = 1;
+    missingPixelsLayer.height = 1;
+    session.layers ~= missingPixelsLayer;
+
+    auto ambiguousBinding = binding;
+    ambiguousBinding.targetGridUuid = 44;
+    session.bindings ~= ambiguousBinding;
+
+    auto diagnostics = ngDepthDrawSourceDiagnostics(session);
+    require(diagnostics.totalLayers == 3 && diagnostics.usableDepthLayers == 2,
+        "DepthDraw source diagnostics should count total and usable depth layers");
+    require(diagnostics.layersMissingDepthPixels == 1 && diagnostics.layersMissingTarget == 1,
+        "DepthDraw source diagnostics should report missing pixels and missing targets");
+    require(diagnostics.layersMissingCoverage == 1 && diagnostics.layersWithAmbiguousBindings == 1,
+        "DepthDraw source diagnostics should report missing coverage and ambiguous bindings");
+    auto stackRows = ngDepthDrawLayerStackRows(session);
+    require(stackRows.length == 3 && stackRows[0].layerId == "layer-a" && stackRows[0].hasBinding &&
+        stackRows[0].targetGridUuid == binding.targetGridUuid && stackRows[0].mergePolicy == binding.mergePolicy,
+        "DepthDraw layer stack rows should expose binding target and merge policy");
+    auto namedStackRows = ngDepthDrawLayerStackRows(session, null, (ulong uuid) {
+        return uuid == binding.targetGridUuid ? "Resolved Target" : null;
+    });
+    require(namedStackRows[0].targetDisplayName == "Resolved Target",
+        "DepthDraw layer stack rows should resolve target display names when a resolver is provided");
+    auto filteredStackRows = ngDepthDrawFilterAndSortLayerStackRows(
+        namedStackRows,
+        "resolved",
+        DepthDrawLayerStackSortMode.Name,
+        false
+    );
+    require(filteredStackRows.length == 1 && filteredStackRows[0].layerId == "layer-a",
+        "DepthDraw layer stack rows should filter against resolved target names");
+    auto sortedStackRows = ngDepthDrawFilterAndSortLayerStackRows(
+        namedStackRows,
+        "",
+        DepthDrawLayerStackSortMode.Name,
+        true
+    );
+    require(sortedStackRows.length == 3 && sortedStackRows[0].layerId == "layer-c" &&
+        sortedStackRows[$ - 1].layerId == "layer-a",
+        "DepthDraw layer stack rows should sort by display name in descending order");
+    auto tieRows = namedStackRows.dup;
+    foreach (ref row; tieRows) {
+        row.displayName = "same";
+        row.targetDisplayName = "same-target";
+        row.sampledVertices = 1;
+        row.missingVertices = 1;
+        row.hasDepthRange = true;
+        row.minDepth = 0.0f;
+    }
+    auto sortedTieRows = ngDepthDrawFilterAndSortLayerStackRows(
+        tieRows,
+        "",
+        DepthDrawLayerStackSortMode.Name,
+        true
+    );
+    require(sortedTieRows.length == 3 && sortedTieRows[0].layerId == "layer-a" &&
+        sortedTieRows[1].layerId == "layer-b" && sortedTieRows[2].layerId == "layer-c",
+        "DepthDraw layer stack row sorting should preserve source order for equal sort keys");
+    sortedTieRows = ngDepthDrawFilterAndSortLayerStackRows(
+        tieRows,
+        "",
+        DepthDrawLayerStackSortMode.Sampled,
+        false
+    );
+    require(sortedTieRows.length == 3 && sortedTieRows[0].layerId == "layer-a" &&
+        sortedTieRows[1].layerId == "layer-b" && sortedTieRows[2].layerId == "layer-c",
+        "DepthDraw layer stack numeric sorting should preserve source order for equal sort keys");
+    require(stackRows[0].hasAmbiguousBindings && !stackRows[0].warningMissingCoverage &&
+        !stackRows[0].warningMissingTarget,
+        "DepthDraw layer stack rows should expose ambiguous binding without false missing-coverage warnings");
+    require(stackRows[1].warningMissingTarget && stackRows[1].warningMissingCoverage &&
+        !stackRows[1].warningMissingDepthPixels,
+        "DepthDraw layer stack rows should warn when a usable layer has no binding or coverage");
+    require(stackRows[2].warningMissingDepthPixels,
+        "DepthDraw layer stack rows should warn when a layer has no depth pixels");
+
+    DepthDrawLayer maskedLayer;
+    maskedLayer.id = "masked";
+    maskedLayer.width = 2;
+    maskedLayer.height = 2;
+    maskedLayer.bounds.left = 10;
+    maskedLayer.bounds.top = 20;
+    maskedLayer.bounds.width = 2;
+    maskedLayer.bounds.height = 2;
+    maskedLayer.rgba = [
+        10, 10, 10, 255, 20, 20, 20, 128,
+        30, 30, 30, 64,  40, 40, 40, 255,
+    ];
+    maskedLayer.depthPixels = maskedLayer.rgba.dup;
+    ngDepthDrawApplyMaskToLayerAlpha(maskedLayer, [255, 128, 64, 0], 2, 2, 10, 20, false, 255);
+    require(maskedLayer.rgba[3] == 255 && maskedLayer.rgba[7] == 64 &&
+        maskedLayer.rgba[11] == 16 && maskedLayer.rgba[15] == 0,
+        "DepthDraw PSD mask application should multiply layer alpha using document-space mask coordinates");
+    require(maskedLayer.depthPixels[3] == maskedLayer.rgba[3] &&
+        maskedLayer.depthPixels[7] == maskedLayer.rgba[7] &&
+        maskedLayer.depthPixels[11] == maskedLayer.rgba[11] &&
+        maskedLayer.depthPixels[15] == maskedLayer.rgba[15],
+        "DepthDraw PSD mask application should keep depth pixel alpha in sync with RGBA alpha");
+    require(maskedLayer.alphaMask == [1, 1, 1, 0],
+        "DepthDraw PSD mask application should rebuild the binary alpha mask after masking");
+
+    ubyte[] relativeMaskedAlpha = ngDepthDrawApplyPsdMaskToAlpha([255, 128, 64, 32], 2, 2, 100, 200,
+        [0], 1, 1, 1, 1, true, 128);
+    require(relativeMaskedAlpha == [128, 64, 32, 0],
+        "DepthDraw PSD mask application should honor relative mask coordinates and default mask color");
+    auto scaledMask = ngDepthDrawScaleAlphaMask([1, 0, 0, 1], 2, 2, 4, 4);
+    require(scaledMask == [
+        1, 1, 0, 0,
+        1, 1, 0, 0,
+        0, 0, 1, 1,
+        0, 0, 1, 1,
+    ], "DepthDraw PSD depth alpha mask scaling should match depth-draw center/floor nearest mapping");
+
+    auto pairSession = new DepthDrawSession();
+    DepthDrawLayer depthA;
+    depthA.id = "depth-a";
+    depthA.displayName = " Face ";
+    depthA.layerPath = "/Depth/Face";
+    depthA.width = 2;
+    depthA.height = 2;
+    depthA.bounds.left = 10;
+    depthA.bounds.top = 20;
+    depthA.bounds.width = 2;
+    depthA.bounds.height = 2;
+    depthA.depthPixels = [
+        0, 0, 0, 255, 0, 0, 0, 255,
+        0, 0, 0, 255, 0, 0, 0, 255,
+    ];
+    DepthDrawLayer depthB = depthA;
+    depthB.id = "depth-b";
+    depthB.displayName = "Missing";
+    depthB.layerPath = "/Depth/Missing";
+    depthB.bounds.left = 100;
+    pairSession.layers ~= depthA;
+    pairSession.layers ~= depthB;
+
+    DepthDrawLayer normalA;
+    normalA.id = "normal-a";
+    normalA.displayName = "face";
+    normalA.layerPath = "/Color/Face";
+    normalA.width = 3;
+    normalA.height = 3;
+    normalA.bounds.left = 9;
+    normalA.bounds.top = 19;
+    normalA.bounds.width = 3;
+    normalA.bounds.height = 3;
+    normalA.opacity = 0.5f;
+    normalA.rgba = [
+        255, 255, 255, 0,   255, 255, 255, 20,  255, 255, 255, 40,
+        255, 255, 255, 60,  255, 255, 255, 128, 255, 255, 255, 200,
+        255, 255, 255, 220, 255, 255, 255, 240, 255, 255, 255, 255,
+    ];
+    ngDepthDrawApplyMaskToLayerAlpha(normalA, [255, 128, 255, 255], 2, 2, 10, 20, false, 255);
+    DepthDrawLayer normalUnused = normalA;
+    normalUnused.id = "normal-unused";
+    normalUnused.displayName = "Other";
+    normalUnused.bounds.left = 200;
+
+    auto pairing = ngDepthDrawAttachNormalCoverage(pairSession, [normalUnused, normalA]);
+    require(pairing.matchedDepthLayers == 1 && pairing.missingNormalCoverage == 1,
+        "DepthDraw normal/depth pairing should report matched and missing depth layers");
+    require(pairing.matchedDepthLayerIds == ["depth-a"] && pairing.missingNormalLayerIds == ["depth-b"],
+        "DepthDraw normal/depth pairing should report affected depth layer ids");
+    require(pairSession.layers[0].hasNormalCoverage() && pairSession.layers[1].normalCoverage.length == 0,
+        "DepthDraw normal/depth pairing should attach coverage only to matched depth layers");
+    require(pairSession.layers[0].normalCoverage[3] == 64 &&
+        pairSession.layers[0].normalCoverage[7] == 50 &&
+        pairSession.layers[0].normalCoverage[11] == 120 &&
+        pairSession.layers[0].normalCoverage[15] == 128,
+        "DepthDraw normal coverage should project masked normal alpha through document bounds and layer opacity");
+
+    auto hiddenPairSession = new DepthDrawSession();
+    DepthDrawLayer hiddenDepth = depthA;
+    hiddenDepth.id = "hidden-depth";
+    hiddenDepth.visible = false;
+    hiddenDepth.enabled = false;
+    hiddenPairSession.layers ~= hiddenDepth;
+    hiddenPairSession.layers ~= depthA;
+    DepthDrawLayer hiddenNormal = normalA;
+    hiddenNormal.id = "hidden-normal";
+    hiddenNormal.visible = false;
+    hiddenNormal.enabled = false;
+    hiddenNormal.opacity = 1.0f;
+    DepthDrawLayer visibleNormal = normalA;
+    visibleNormal.id = "visible-normal";
+    visibleNormal.opacity = 0.25f;
+    auto visibleOnlyPairing = ngDepthDrawAttachNormalCoverage(hiddenPairSession, [hiddenNormal, visibleNormal]);
+    require(visibleOnlyPairing.matchedDepthLayers == 1 && visibleOnlyPairing.missingNormalCoverage == 0,
+        "DepthDraw normal/depth pairing should exclude hidden depth layers from missing-coverage reporting");
+    require(visibleOnlyPairing.matchedDepthLayerIds == ["depth-a"],
+        "DepthDraw normal/depth pairing should match only visible depth layers");
+    require(hiddenPairSession.layers[0].normalCoverage.length == 0,
+        "DepthDraw normal/depth pairing should not attach coverage to hidden depth layers");
+    require(hiddenPairSession.layers[1].normalCoverage[3] == 32 &&
+        hiddenPairSession.layers[1].normalCoverage[7] == 25 &&
+        hiddenPairSession.layers[1].normalCoverage[11] == 60 &&
+        hiddenPairSession.layers[1].normalCoverage[15] == 64,
+        "DepthDraw normal/depth pairing should skip hidden normal layers before exact-name/bounds matching");
+
+    session.clear();
+    require(session.layers.length == 0 && session.bindings.length == 0 && session.selectedLayerId.length == 0,
+        "DepthDrawSession clear should remove layers, bindings, and selection");
+}
+
+private void testDepthDrawSourceManifestContracts() {
+    resetCase();
+
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthdraw-manifest");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+
+    auto pngPath = buildPath(fixtureDir, "depth-layer.png");
+    writeRegressionPng(pngPath, 32, 128, 224, 3, 2);
+    auto layer = ngLoadDepthDrawPngLayer(pngPath, "depth-layer-id");
+    require(layer.id == "depth-layer-id" && layer.sourcePath == pngPath && layer.layerPath == "/depth-layer-id",
+        "DepthDraw PNG loader should initialize id, source path, and default layer path");
+    require(layer.width == 3 && layer.height == 2 && layer.hasDepthPixels(),
+        "DepthDraw PNG loader should load RGBA depth pixels with source dimensions");
+    require(layer.rgba == layer.depthPixels,
+        "DepthDraw PNG loader should keep visual and depth pixels identical for a PNG source");
+    auto depthDrawWindow = new DepthDrawWindow(pngPath);
+    require(depthDrawWindow.loadError.length == 0 && depthDrawWindow.depthDrawSession() !is null &&
+        depthDrawWindow.depthDrawSession().layers.length == 1 &&
+        depthDrawWindow.loadedDocumentWidth == 3 && depthDrawWindow.loadedDocumentHeight == 2,
+        "DepthDraw window entry point should load a PNG source into a DepthDraw session");
+    require(depthDrawWindow.selectLayer(depthDrawWindow.depthDrawSession().layers[0].id) &&
+        depthDrawWindow.depthDrawSession().selectedLayerId == depthDrawWindow.depthDrawSession().layers[0].id,
+        "DepthDraw window layer selection should synchronize with the DepthDraw session");
+
+    auto psdPath = buildPath(fixtureDir, "empty-depthdraw.psd");
+    writeRegressionPsdFixture(psdPath);
+    auto psdLoad = ngLoadDepthDrawPsd(psdPath);
+    require(psdLoad.documentWidth == 1 && psdLoad.documentHeight == 1,
+        "DepthDraw PSD loader should preserve source document dimensions");
+    require(psdLoad.session !is null && psdLoad.layers.length == 0 && psdLoad.session.layers.length == 0,
+        "DepthDraw PSD loader should return an empty session for PSD files without image layers");
+
+    layer.xyOffset = vec2(2, -3);
+    layer.xyScale = vec2(1.25f, 0.75f);
+    layer.zScale = 1.5f;
+    layer.zOffset = -0.25f;
+    layer.backDepth = -0.75f;
+    layer.frontDepth = 0.5f;
+    layer.invert = true;
+    layer.channel = DepthImageChannel.B;
+    layer.convolution = DepthImageConvolution.MedianCustom;
+    layer.customRadius = 5;
+    layer.alphaThreshold = 0.2f;
+
+    DepthDrawBinding binding;
+    binding.layerId = layer.id;
+    binding.targetNodeUuid = 111;
+    binding.targetGridUuid = 222;
+    binding.order = 3;
+    binding.useNormalLayerAlpha = false;
+    binding.coverageThreshold = 0.25f;
+    binding.mergePolicy = DepthMergePolicy.Backmost;
+
+    auto session = new DepthDrawSession();
+    session.layers ~= layer;
+    session.bindings ~= binding;
+    session.selectedLayerId = layer.id;
+    session.selectedGridUuid = binding.targetGridUuid;
+    session.display.showNormalImage = false;
+    session.display.showRawDepth = true;
+    session.display.showCoverage = true;
+    session.display.showComposite = false;
+    session.display.showLayerPlanes = false;
+    session.display.showDepthRanges = false;
+    session.display.showMissingVertices = false;
+    session.display.showWinningLayer = true;
+    session.display.useGpuPreview = true;
+
+    auto manifest = ngDepthDrawSessionToManifest(session);
+    auto restored = ngDepthDrawSessionFromManifest(manifest);
+    require(restored.layers.length == 1 && restored.bindings.length == 1,
+        "DepthDraw manifest should restore layer and binding counts");
+    require(restored.selectedLayerId == layer.id && restored.selectedGridUuid == binding.targetGridUuid,
+        "DepthDraw manifest should preserve selected layer and target grid state");
+    require(!restored.display.showNormalImage && restored.display.showRawDepth &&
+        restored.display.showCoverage && !restored.display.showComposite &&
+        !restored.display.showLayerPlanes && !restored.display.showDepthRanges &&
+        !restored.display.showMissingVertices && restored.display.showWinningLayer &&
+        restored.display.useGpuPreview,
+        "DepthDraw manifest should preserve display mode toggles");
+    auto restoredLayer = restored.layers[0];
+    require(restoredLayer.id == layer.id && restoredLayer.sourcePath == layer.sourcePath &&
+        restoredLayer.layerPath == layer.layerPath && restoredLayer.width == layer.width && restoredLayer.height == layer.height,
+        "DepthDraw manifest should preserve layer identity and dimensions");
+    require(restoredLayer.xyOffset == layer.xyOffset && restoredLayer.xyScale == layer.xyScale &&
+        near(restoredLayer.zScale, layer.zScale) && near(restoredLayer.zOffset, layer.zOffset),
+        "DepthDraw manifest should preserve XY and Z transforms");
+    require(restoredLayer.invert == layer.invert && restoredLayer.channel == layer.channel &&
+        restoredLayer.convolution == layer.convolution && restoredLayer.customRadius == layer.customRadius &&
+        near(restoredLayer.alphaThreshold, layer.alphaThreshold),
+        "DepthDraw manifest should preserve sampling settings");
+    auto restoredBinding = restored.bindings[0];
+    require(restoredBinding.layerId == binding.layerId && restoredBinding.targetNodeUuid == binding.targetNodeUuid &&
+        restoredBinding.targetGridUuid == binding.targetGridUuid && restoredBinding.order == binding.order,
+        "DepthDraw manifest should preserve binding identity and order");
+    require(restoredBinding.mergePolicy == DepthMergePolicy.Backmost && !restoredBinding.useNormalLayerAlpha &&
+        near(restoredBinding.coverageThreshold, 0.25f),
+        "DepthDraw manifest should preserve binding sampling and merge settings");
+    auto selectionWindow = new DepthDrawWindow(pngPath);
+    selectionWindow.depthDrawSession().layers = [layer];
+    selectionWindow.depthDrawSession().bindings = [binding];
+    DepthDrawLayer windowLayerB = layer;
+    windowLayerB.id = "window-layer-b";
+    windowLayerB.displayName = "Z Window Layer";
+    selectionWindow.depthDrawSession().layers ~= windowLayerB;
+    require(selectionWindow.selectLayer(layer.id) && selectionWindow.selectTargetGrid(binding.targetGridUuid) &&
+        selectionWindow.depthDrawSession().selectedLayerId == layer.id &&
+        selectionWindow.depthDrawSession().selectedGridUuid == binding.targetGridUuid,
+        "DepthDraw window binding selection should synchronize layer and target ids");
+    require(selectionWindow.diagnosticsText.canFind("2 layer") &&
+        selectionWindow.diagnosticsText.canFind("1 binding") &&
+        selectionWindow.diagnosticsText.canFind("2 missing coverage"),
+        "DepthDraw window should expose source diagnostics for layer, binding, and coverage state");
+    selectionWindow.updateLayerStackView("window", DepthDrawLayerStackSortMode.Name, true);
+    auto displayRows = selectionWindow.displayLayerStackRows();
+    require(displayRows.length == 1 && displayRows[0].layerId == "window-layer-b",
+        "DepthDraw window layer stack view should apply filter and sort settings through the shared row helper");
+    selectionWindow.updateLayerStackView("", DepthDrawLayerStackSortMode.SourceOrder, false);
+    selectionWindow.depthDrawSession().clearSelection();
+    require(selectionWindow.selectLayerStackRow(layer.id) &&
+        selectionWindow.depthDrawSession().selectedLayerId == layer.id &&
+        selectionWindow.depthDrawSession().selectedGridUuid == binding.targetGridUuid,
+        "DepthDraw window layer stack row selection should synchronize the bound target grid");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateLayerXYTransform(layer.id, vec2(7, -8), vec2(1.5f, 0.5f)) &&
+        selectionWindow.depthDrawSession().layers[0].xyOffset == vec2(7, -8) &&
+        selectionWindow.depthDrawSession().layers[0].xyScale == vec2(1.5f, 0.5f) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window XY inspector updates should store values and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateSelectedLayerXYUniformScale(2.25f) &&
+        selectionWindow.depthDrawSession().layers[0].xyOffset == vec2(7, -8) &&
+        selectionWindow.depthDrawSession().layers[0].xyScale == vec2(2.25f, 2.25f) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window XY inspector uniform scale should update both scale axes and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.fitSelectedLayerXYToSourceBounds() &&
+        selectionWindow.depthDrawSession().layers[0].xyOffset == vec2(0, 0) &&
+        selectionWindow.depthDrawSession().layers[0].xyScale == vec2(1, 1) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window XY fit-to-source should restore source layer bounds sampling");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    DepthDrawLayer windowGapLayer;
+    windowGapLayer.id = "window-gap-layer";
+    windowGapLayer.displayName = "Window Gap Layer";
+    windowGapLayer.width = 5;
+    windowGapLayer.height = 5;
+    windowGapLayer.bounds.width = 5;
+    windowGapLayer.bounds.height = 5;
+    foreach (depth; [
+        cast(ubyte)80, 80, 80, 80, 80,
+        80, 10, 0, 30, 80,
+        80, 80, 20, 80, 80,
+        80, 80, 0, 80, 80,
+        80, 80, 80, 80, 80,
+    ]) {
+        windowGapLayer.depthPixels ~= cast(ubyte)depth;
+        windowGapLayer.depthPixels ~= cast(ubyte)depth;
+        windowGapLayer.depthPixels ~= cast(ubyte)depth;
+        windowGapLayer.depthPixels ~= cast(ubyte)255;
+    }
+    windowGapLayer.alphaMask.length = 25;
+    windowGapLayer.alphaMask[] = 1;
+    auto windowGapBinding = binding;
+    windowGapBinding.layerId = windowGapLayer.id;
+    windowGapBinding.targetGridUuid = 333;
+    selectionWindow.depthDrawSession().layers = [windowGapLayer];
+    selectionWindow.depthDrawSession().bindings = [windowGapBinding];
+    require(selectionWindow.selectLayer(windowGapLayer.id),
+        "DepthDraw window alpha-depth gap fill test should select the gap layer");
+    auto windowGapFill = selectionWindow.applySelectedLayerAlphaDepthGapFill();
+    require(windowGapFill.succeeded && windowGapFill.detected.total == 5 && windowGapFill.filled.filled == 5 &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(windowGapBinding.targetGridUuid) &&
+        selectionWindow.statusText.canFind("Filled alpha-depth gaps"),
+        "DepthDraw window alpha-depth gap fill entry point should update the selected layer, dirty preview, and report status");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    DepthDrawLayer contourLayer;
+    contourLayer.id = "window-contour-layer";
+    contourLayer.displayName = "Window Contour Layer";
+    contourLayer.width = 5;
+    contourLayer.height = 5;
+    contourLayer.bounds.width = 5;
+    contourLayer.bounds.height = 5;
+    foreach (y; 0 .. 5) {
+        foreach (x; 0 .. 5) {
+            auto depth = cast(ubyte)((x == 0 || x == 4 || y == 0 || y == 4) ? 20 : 100);
+            contourLayer.depthPixels ~= depth;
+            contourLayer.depthPixels ~= depth;
+            contourLayer.depthPixels ~= depth;
+            contourLayer.depthPixels ~= cast(ubyte)255;
+        }
+    }
+    contourLayer.alphaMask.length = 25;
+    contourLayer.alphaMask[] = 1;
+    auto contourBinding = binding;
+    contourBinding.layerId = contourLayer.id;
+    contourBinding.targetGridUuid = 334;
+    selectionWindow.depthDrawSession().layers = [contourLayer];
+    selectionWindow.depthDrawSession().bindings = [contourBinding];
+    require(selectionWindow.selectLayer(contourLayer.id),
+        "DepthDraw window contour repair test should select the contour layer");
+    auto contourRepair = selectionWindow.repairSelectedLayerContourDepth(1);
+    auto repairedContourDepth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(
+        selectionWindow.depthDrawSession().layers[0].depthPixels);
+    bool repairedContourBorder = true;
+    foreach (i, value; repairedContourDepth) {
+        auto x = cast(int)(i % 5);
+        auto y = cast(int)(i / 5);
+        if ((x == 0 || x == 4 || y == 0 || y == 4) && value <= 20) {
+            repairedContourBorder = false;
+            break;
+        }
+    }
+    require(contourRepair.succeeded && contourRepair.contourPixels == 16 && contourRepair.filledPixels > 0 &&
+        repairedContourBorder &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(contourBinding.targetGridUuid) &&
+        selectionWindow.statusText.canFind("Repaired contour depth"),
+        "DepthDraw window contour repair entry point should inpaint contour depth, dirty preview, and report status");
+    selectionWindow.depthDrawSession().layers = [layer];
+    selectionWindow.depthDrawSession().bindings = [binding];
+    require(selectionWindow.selectLayer(layer.id) && selectionWindow.selectTargetGrid(binding.targetGridUuid),
+        "DepthDraw window should restore the original selected layer and target after alpha-depth gap fill test");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+
+    auto xyGrid = new ExGridDeformer(incActivePuppet().root);
+    xyGrid.name = "depthdraw-xy-fit-target";
+    auto xyCtx = new Context();
+    xyCtx.nodes = [cast(Node)xyGrid];
+    require((new DefineGridCommand([-1f, 1f], [-1f, 1f])).run(xyCtx).succeeded,
+        "DepthDraw XY fit test should define a target grid");
+    auto xyWindow = new DepthDrawWindow(pngPath);
+    auto xyBinding = binding;
+    xyBinding.targetGridUuid = xyGrid.uuid;
+    xyBinding.targetNodeUuid = xyGrid.uuid;
+    xyWindow.depthDrawSession().layers = [layer];
+    xyWindow.depthDrawSession().bindings = [xyBinding];
+    require(xyWindow.selectLayer(layer.id) && xyWindow.selectTargetGrid(xyGrid.uuid),
+        "DepthDraw XY fit test should select layer and target");
+    xyWindow.depthDrawSession().clearPreviewDirty();
+    require(xyWindow.fitSelectedLayerXYToTargetBounds() &&
+        near(xyWindow.depthDrawSession().layers[0].xyOffset.x, 0.5f) &&
+        near(xyWindow.depthDrawSession().layers[0].xyOffset.y, 0.0f) &&
+        near(xyWindow.depthDrawSession().layers[0].xyScale.x, 2.0f / 3.0f) &&
+        near(xyWindow.depthDrawSession().layers[0].xyScale.y, 1.0f) &&
+        xyWindow.depthDrawSession().isTargetPreviewDirty(xyGrid.uuid),
+        "DepthDraw window XY fit-to-target should map target document bounds into the source layer pixel bounds");
+    auto xyStackRows = xyWindow.displayLayerStackRows();
+    require(xyStackRows.length == 1 &&
+        xyStackRows[0].mergePolicy == xyBinding.mergePolicy &&
+        xyStackRows[0].sampledVertices > 0 &&
+        xyStackRows[0].sampledVertices + xyStackRows[0].missingVertices == xyGrid.vertices.length &&
+        xyStackRows[0].hasDepthRange &&
+        xyStackRows[0].warningMissingCoverage,
+        "DepthDraw window layer stack should expose merge policy, sampled/missing counts, depth range, and warnings");
+    auto xyDepthsBeforeApply = xyGrid.copyDepths();
+    auto xyApplySummary = xyWindow.applySelectedTargetDepthDraw();
+    require(xyApplySummary.succeeded && xyApplySummary.changedTargets == 1 &&
+        xyApplySummary.changedVertices > 0 &&
+        xyGrid.copyDepths() != xyDepthsBeforeApply &&
+        xyWindow.statusText.canFind("Applied DepthDraw"),
+        "DepthDraw window apply entry point should compose and apply the selected target through the shared depth command path");
+    auto xyGpuDisplay = xyWindow.depthDrawSession().display;
+    xyGpuDisplay.useGpuPreview = true;
+    require(xyWindow.depthDrawSession().updateDisplayOptions(xyGpuDisplay),
+        "DepthDraw window GPU apply test should enable GPU preview/apply mode");
+    require(xyWindow.updateLayerSampling(layer.id, DepthImageChannel.AverageRGB, DepthImageConvolution.Median3x3, 3, 0.01f),
+        "DepthDraw window GPU apply test should use a GPU-supported convolution mode");
+    {
+        auto xyGpuTarget = new DepthTargetView(xyGrid);
+        auto xyGpuPacket = ngBuildDepthDrawGpuComposePacket(xyWindow.depthDrawSession(), xyGpuTarget, 2, 2);
+        DepthDrawGpuComposeReadback xyGpuReadback;
+        xyGpuReadback.targetGridUuid = xyGrid.uuid;
+        xyGpuReadback.depths.length = xyGrid.vertices.length;
+        foreach (i; 0 .. xyGpuReadback.depths.length) xyGpuReadback.depths[i] = 0.125f + cast(float)i * 0.125f;
+        xyGpuReadback.winningLayerIndices.length = xyGrid.vertices.length;
+        foreach (i; 0 .. xyGpuReadback.winningLayerIndices.length) xyGpuReadback.winningLayerIndices[i] = 0;
+        xyGpuReadback.layers.length = xyGpuPacket.layers.length;
+        foreach (layerIndex; 0 .. xyGpuPacket.layers.length) {
+            DepthDrawGpuLayerReadback layerReadback;
+            layerReadback.layerIndex = cast(uint)layerIndex;
+            layerReadback.validSamples.length = xyGrid.vertices.length;
+            layerReadback.sampleDepths.length = xyGrid.vertices.length;
+            foreach (i; 0 .. xyGrid.vertices.length) {
+                layerReadback.validSamples[i] = 1;
+                layerReadback.sampleDepths[i] = xyGpuReadback.depths[i];
+            }
+            xyGpuReadback.layers[layerIndex] = layerReadback;
+        }
+        ngValidateDepthDrawGpuComposeReadback(xyGpuPacket, xyGpuReadback);
+        fakeDepthDrawGpuNextJobId = 1;
+        fakeDepthDrawGpuSubmitCount = 0;
+        fakeDepthDrawGpuPollCount = 0;
+        fakeDepthDrawGpuNotReadyPolls = 1;
+        fakeDepthDrawGpuReadbacks = null;
+        fakeDepthDrawGpuReadbacks[1] = xyGpuReadback;
+        ngSetDepthDrawGpuTestHooks(&fakeDepthDrawGpuSupported, &fakeDepthDrawGpuSubmit, &fakeDepthDrawGpuPoll);
+        scope(exit) {
+            ngClearDepthDrawGpuTestHooks();
+            fakeDepthDrawGpuNotReadyPolls = 0;
+            fakeDepthDrawGpuReadbacks = null;
+        }
+        auto xyGpuDepthsBeforeApply = xyGrid.copyDepths();
+        auto xyGpuApplySummary = xyWindow.applySelectedTargetDepthDraw();
+        auto xyGpuDepthsAfterPending = xyGrid.copyDepths();
+        require(!xyGpuApplySummary.succeeded &&
+            fakeDepthDrawGpuSubmitCount == 1 &&
+            fakeDepthDrawGpuPollCount == 1 &&
+            xyGpuDepthsAfterPending == xyGpuDepthsBeforeApply &&
+            xyWindow.statusText.canFind("pending"),
+            "DepthDraw window GPU apply should keep the model unchanged while GPU readback is not ready: before=%s after=%s status=%s submit=%s poll=%s notReady=%s".format(
+                xyGpuDepthsBeforeApply,
+                xyGpuDepthsAfterPending,
+                xyWindow.statusText,
+                fakeDepthDrawGpuSubmitCount,
+                fakeDepthDrawGpuPollCount,
+                fakeDepthDrawGpuNotReadyPolls));
+        xyGpuApplySummary = xyWindow.pollPendingGpuApply();
+        require(xyGpuApplySummary.succeeded &&
+            fakeDepthDrawGpuSubmitCount == 1 &&
+            fakeDepthDrawGpuPollCount == 2 &&
+            xyGrid.copyDepths() == xyGpuReadback.depths &&
+            xyGrid.copyDepths() != xyGpuDepthsBeforeApply &&
+            xyWindow.statusText.canFind("Applied DepthDraw GPU"),
+            "DepthDraw window GPU apply should apply GPU readback through the shared depth command path without CPU fallback");
+    }
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateLayerZTransform(layer.id, -0.25f, 0.9f, false, 2.0f, -0.1f) &&
+        near(selectionWindow.depthDrawSession().layers[0].backDepth, -0.25f) &&
+        near(selectionWindow.depthDrawSession().layers[0].frontDepth, 0.9f) &&
+        near(selectionWindow.depthDrawSession().layers[0].zScale, 2.0f) &&
+        near(selectionWindow.depthDrawSession().layers[0].zOffset, -0.1f) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window Z inspector updates should store values and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateLayerSampling(layer.id, DepthImageChannel.R, DepthImageConvolution.Box5x5, 4, 0.33f) &&
+        selectionWindow.depthDrawSession().layers[0].channel == DepthImageChannel.R &&
+        selectionWindow.depthDrawSession().layers[0].convolution == DepthImageConvolution.Box5x5 &&
+        selectionWindow.depthDrawSession().layers[0].customRadius == 4 &&
+        near(selectionWindow.depthDrawSession().layers[0].alphaThreshold, 0.33f) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window sampling inspector updates should store values and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateLayerVisibility(layer.id, false, true) &&
+        !selectionWindow.depthDrawSession().layers[0].visible &&
+        selectionWindow.depthDrawSession().layers[0].enabled &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window layer row actions should store visibility and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateBindingSampling(layer.id, binding.targetGridUuid, true, 0.44f) &&
+        selectionWindow.depthDrawSession().bindings[0].useNormalLayerAlpha &&
+        near(selectionWindow.depthDrawSession().bindings[0].coverageThreshold, 0.44f) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window binding sampling inspector updates should store values and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateBindingState(layer.id, binding.targetGridUuid, false, 11, DepthMergePolicy.Replace) &&
+        !selectionWindow.depthDrawSession().bindings[0].enabled &&
+        selectionWindow.depthDrawSession().bindings[0].order == 11 &&
+        selectionWindow.depthDrawSession().bindings[0].mergePolicy == DepthMergePolicy.Replace &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window binding row actions should store enabled/order/merge policy and dirty the bound target");
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.updateBindingState(layer.id, binding.targetGridUuid, true, binding.order, binding.mergePolicy) &&
+        selectionWindow.depthDrawSession().bindings[0].enabled &&
+        selectionWindow.depthDrawSession().bindings[0].order == binding.order &&
+        selectionWindow.depthDrawSession().bindings[0].mergePolicy == binding.mergePolicy &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw window binding row actions should restore enabled/order/merge policy for later workflow checks");
+    auto samplingDiagnostics = selectionWindow.selectedLayerSamplingDiagnostics();
+    require(samplingDiagnostics.totalPixels == cast(size_t)(layer.width * layer.height) &&
+        samplingDiagnostics.sampledPixels > 0 &&
+        samplingDiagnostics.sampledPixels + samplingDiagnostics.missingPixels == samplingDiagnostics.totalPixels &&
+        samplingDiagnostics.usesCoverage && !samplingDiagnostics.hasCoverage &&
+        samplingDiagnostics.sampledRange.valid,
+        "DepthDraw window sampling inspector should expose sampled/missing feedback for the selected layer");
+
+    require(selectionWindow.updateLayerXYTransform(layer.id, vec2(4, 5), vec2(1.75f, 0.8f)),
+        "DepthDraw source reload test should set a non-identity XY transform before reload");
+    selectionWindow.depthDrawSession().display.showRawDepth = true;
+    selectionWindow.depthDrawSession().display.useGpuPreview = true;
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.reloadSourcePreservingState(),
+        "DepthDraw window should reload the current source while preserving session state");
+    require(selectionWindow.depthDrawSession().layers.length == 1 &&
+        selectionWindow.depthDrawSession().bindings.length == 1 &&
+        selectionWindow.depthDrawSession().selectedLayerId == selectionWindow.depthDrawSession().layers[0].id &&
+        selectionWindow.depthDrawSession().bindings[0].layerId == selectionWindow.depthDrawSession().layers[0].id &&
+        selectionWindow.depthDrawSession().selectedGridUuid == binding.targetGridUuid &&
+        selectionWindow.depthDrawSession().display.showRawDepth &&
+        selectionWindow.depthDrawSession().display.useGpuPreview &&
+        !selectionWindow.depthDrawSession().layers[0].visible &&
+        near(selectionWindow.depthDrawSession().layers[0].xyScale.x, 1.75f) &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw source reload should preserve transforms, binding, selection, display state, and dirty the target");
+
+    auto replacementPath = buildPath(fixtureDir, "replacement-depth-layer.png");
+    writeRegressionPng(replacementPath, 8, 16, 24, 3, 2);
+    selectionWindow.depthDrawSession().layers[0].id = "stable-layer";
+    selectionWindow.depthDrawSession().layers[0].layerPath = "/replacement-depth-layer";
+    selectionWindow.depthDrawSession().layers[0].displayName = "replacement-depth-layer";
+    selectionWindow.depthDrawSession().bindings[0].layerId = "stable-layer";
+    selectionWindow.depthDrawSession().selectedLayerId = "stable-layer";
+    selectionWindow.depthDrawSession().clearPreviewDirty();
+    require(selectionWindow.replaceSourcePreservingState(replacementPath),
+        "DepthDraw window should replace the source while preserving matched session state");
+    require(selectionWindow.depthDrawSession().layers.length == 1 &&
+        selectionWindow.depthDrawSession().layers[0].id == "replacement-depth-layer" &&
+        selectionWindow.depthDrawSession().layers[0].depthPixels[0] == 8 &&
+        selectionWindow.depthDrawSession().display.useGpuPreview &&
+        !selectionWindow.depthDrawSession().layers[0].visible &&
+        near(selectionWindow.depthDrawSession().layers[0].xyScale.x, 1.75f) &&
+        selectionWindow.depthDrawSession().bindings[0].layerId == "replacement-depth-layer" &&
+        selectionWindow.depthDrawSession().selectedLayerId == "replacement-depth-layer" &&
+        selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
+        "DepthDraw source replacement should remap previous layer state and bindings onto the reloaded layer");
+
+    auto validReport = ngValidateDepthDrawSessionManifest(restored, (ulong uuid) => uuid == binding.targetGridUuid);
+    require(validReport.ok, "DepthDraw manifest validation should accept existing sources and targets");
+    restored.layers[0].sourcePath = buildPath(fixtureDir, "missing-depth-layer.png");
+    auto missingReport = ngValidateDepthDrawSessionManifest(restored, (ulong uuid) => false);
+    require(!missingReport.ok && missingReport.missingSourceLayerIds == [layer.id] &&
+        missingReport.missingTargetLayerIds == [layer.id],
+        "DepthDraw manifest validation should report missing source files and target grids");
+    require(missingReport.missingSelectedLayerId.length == 0 &&
+        missingReport.missingSelectedGridUuid == binding.targetGridUuid,
+        "DepthDraw manifest validation should report missing selected target grids");
+    restored.selectedLayerId = "missing-selected-layer";
+    auto missingSelectionReport = ngValidateDepthDrawSessionManifest(restored, (ulong uuid) => uuid == binding.targetGridUuid);
+    require(!missingSelectionReport.ok && missingSelectionReport.missingSelectedLayerId == "missing-selected-layer",
+        "DepthDraw manifest validation should report missing selected layers");
+    restored.selectedLayerId = layer.id;
+    restored.selectedGridUuid = 999_998;
+    auto unboundSelectedTargetReport = ngValidateDepthDrawSessionManifest(restored, (ulong uuid) => true);
+    require(!unboundSelectedTargetReport.ok && unboundSelectedTargetReport.missingSelectedGridUuid == 999_998,
+        "DepthDraw manifest validation should reject selected target grids that are not bound in the session");
+
+    auto manifestPath = buildPath(fixtureDir, "depthdraw.json");
+    ngSaveDepthDrawManifest(session, manifestPath);
+    auto loaded = ngLoadDepthDrawManifest(manifestPath);
+    require(loaded.layers.length == 1 && loaded.layers[0].id == layer.id && loaded.bindings.length == 1,
+        "DepthDraw manifest file save/load should round-trip session metadata");
+    auto invalidManifestSession = ngLoadDepthDrawManifest(manifestPath);
+    auto duplicateLayer = invalidManifestSession.layers[0];
+    invalidManifestSession.layers ~= duplicateLayer;
+    invalidManifestSession.bindings[0].layerId = "missing-binding-layer";
+    auto invalidReport = ngValidateDepthDrawSessionManifest(invalidManifestSession,
+        (ulong uuid) => uuid == binding.targetGridUuid);
+    require(!invalidReport.ok &&
+        invalidReport.duplicateLayerIds == [layer.id] &&
+        invalidReport.missingBindingLayerIds == ["missing-binding-layer"],
+        "DepthDraw manifest validation should report duplicate layer ids and bindings that reference missing layers");
+    auto duplicateBindingSession = ngLoadDepthDrawManifest(manifestPath);
+    duplicateBindingSession.bindings ~= duplicateBindingSession.bindings[0];
+    auto duplicateBindingReport = ngValidateDepthDrawSessionManifest(duplicateBindingSession,
+        (ulong uuid) => uuid == binding.targetGridUuid);
+    require(!duplicateBindingReport.ok && duplicateBindingReport.duplicateBindingKeys.length == 1,
+        "DepthDraw manifest validation should report duplicate enabled layer/target bindings");
+
+    require(ngSetPuppetDepthDrawSession(incActivePuppet(), session),
+        "DepthDraw persistent session should attach to the active ExPuppet");
+    auto persistentSession = ngGetPuppetDepthDrawSession(incActivePuppet());
+    require(persistentSession !is null && persistentSession.layers.length == 1 &&
+        persistentSession.layers[0].id == layer.id &&
+        persistentSession.bindings.length == 1 &&
+        persistentSession.bindings[0].targetGridUuid == binding.targetGridUuid &&
+        persistentSession.display.useGpuPreview,
+        "DepthDraw persistent session should restore from the active puppet metadata");
+    auto saveBase = buildPath(fixtureDir, "depthdraw-persistent-session");
+    auto savePath = saveBase.setExtension(".inx");
+    require((new SaveFileCommand(saveBase)).run(new Context()).succeeded,
+        "DepthDraw persistent session fixture should save as INX");
+    require(exists(savePath), "DepthDraw persistent session INX should exist");
+    auto loadedPuppet = inLoadPuppet!ExPuppet(savePath);
+    auto loadedPersistentSession = ngGetPuppetDepthDrawSession(loadedPuppet);
+    require(loadedPersistentSession !is null && loadedPersistentSession.layers.length == 1 &&
+        loadedPersistentSession.layers[0].id == layer.id &&
+        loadedPersistentSession.selectedLayerId == layer.id &&
+        loadedPersistentSession.selectedGridUuid == binding.targetGridUuid &&
+        loadedPersistentSession.display.useGpuPreview,
+        "DepthDraw persistent session should round-trip through INX");
+    require(ngClearPuppetDepthDrawSession(incActivePuppet()) &&
+        ngGetPuppetDepthDrawSession(incActivePuppet()) is null,
+        "DepthDraw persistent session should be clearable from the active puppet");
+
+    auto exportDir = buildPath(fixtureDir, "exported-depth");
+    auto exportManifestPath = buildPath(fixtureDir, "exported-depthdraw.json");
+    auto exportResult = ngExportDepthDrawPngSession(session, exportDir, exportManifestPath);
+    require(exportResult.succeeded && exportResult.exportedLayers == 1 && exportResult.skippedLayers == 0,
+        "DepthDraw PNG export should export every layer with depth pixels");
+    require(exists(exportManifestPath) && exportResult.layerPaths.length == 1 && exists(exportResult.layerPaths[0]),
+        "DepthDraw PNG export should write a manifest and exported layer PNG");
+    auto exportedTexture = ShallowTexture(exportResult.layerPaths[0], 4);
+    require(exportedTexture.width == layer.width && exportedTexture.height == layer.height,
+        "DepthDraw PNG export should preserve layer dimensions");
+    require(exportedTexture.data[0] == 128 && exportedTexture.data[1] == 128 &&
+        exportedTexture.data[2] == 128 && exportedTexture.data[3] == 255,
+        "DepthDraw PNG export should write grayscale depth pixels with opaque alpha");
+    auto exportedManifest = ngLoadDepthDrawManifest(exportManifestPath);
+    auto exportedRelativePath = relativePath(exportResult.layerPaths[0], exportManifestPath.dirName);
+    auto exportedValidation = ngValidateDepthDrawSessionManifest(exportedManifest,
+        (ulong uuid) => uuid == binding.targetGridUuid, exportManifestPath.dirName);
+    require(exportedManifest.layers.length == 1 && exportedManifest.layers[0].sourcePath == exportedRelativePath &&
+        exportedManifest.bindings.length == 1 && exportedManifest.bindings[0].targetGridUuid == binding.targetGridUuid &&
+        exportedManifest.selectedLayerId == layer.id && exportedManifest.selectedGridUuid == binding.targetGridUuid &&
+        exportedManifest.display.useGpuPreview,
+        "DepthDraw PNG export manifest should link relative PNGs to target bindings and preserve selection/display state");
+    require(exportedValidation.ok,
+        "DepthDraw PNG export manifest validation should resolve relative PNG paths from the manifest directory");
+
+    auto exportWindow = new DepthDrawWindow(pngPath);
+    exportWindow.depthDrawSession().layers = [layer];
+    exportWindow.depthDrawSession().bindings = [binding];
+    auto exportWindowDisplay = exportWindow.depthDrawSession().display;
+    exportWindowDisplay.useGpuPreview = true;
+    require(exportWindow.depthDrawSession().updateDisplayOptions(exportWindowDisplay),
+        "DepthDraw window export fixture should enable GPU preview display state before export");
+    require(exportWindow.selectLayer(layer.id) && exportWindow.selectTargetGrid(binding.targetGridUuid),
+        "DepthDraw window export fixture should select a layer and target before export");
+    auto windowExportDir = buildPath(fixtureDir, "window-exported-depth");
+    auto windowExportManifestPath = buildPath(fixtureDir, "window-exported-depthdraw.json");
+    auto windowExportResult = exportWindow.exportPngSession(windowExportDir, windowExportManifestPath);
+    require(windowExportResult.succeeded && windowExportResult.exportedLayers == 1 &&
+        exists(windowExportManifestPath) && windowExportResult.layerPaths.length == 1 &&
+        exists(windowExportResult.layerPaths[0]) && exportWindow.loadError.length == 0,
+        "DepthDraw window export entry point should write PNG layers and a manifest");
+    auto windowExportedManifest = ngLoadDepthDrawManifest(windowExportManifestPath);
+    auto windowExportedRelativePath = relativePath(windowExportResult.layerPaths[0], windowExportManifestPath.dirName);
+    auto windowExportedValidation = ngValidateDepthDrawSessionManifest(windowExportedManifest,
+        (ulong uuid) => uuid == binding.targetGridUuid, windowExportManifestPath.dirName);
+    require(windowExportedManifest.layers.length == 1 &&
+        windowExportedManifest.layers[0].sourcePath == windowExportedRelativePath &&
+        windowExportedManifest.bindings.length == 1 &&
+        windowExportedManifest.bindings[0].targetGridUuid == binding.targetGridUuid &&
+        windowExportedManifest.selectedLayerId == layer.id &&
+        windowExportedManifest.selectedGridUuid == binding.targetGridUuid &&
+        windowExportedManifest.display.useGpuPreview,
+        "DepthDraw window export entry point should preserve binding, selection, and display metadata in the exported manifest");
+    require(windowExportedValidation.ok,
+        "DepthDraw window export manifest validation should resolve relative PNG paths from the manifest directory");
+    auto manifestWindow = new DepthDrawWindow(windowExportManifestPath);
+    require(manifestWindow.loadError.length == 0 &&
+        manifestWindow.depthDrawSession() !is null &&
+        manifestWindow.depthDrawSession().layers.length == 1 &&
+        manifestWindow.depthDrawSession().layers[0].sourcePath == windowExportedRelativePath &&
+        manifestWindow.depthDrawSession().layers[0].hasDepthPixels() &&
+        manifestWindow.depthDrawSession().bindings.length == 1 &&
+        manifestWindow.depthDrawSession().bindings[0].targetGridUuid == binding.targetGridUuid &&
+        manifestWindow.depthDrawSession().selectedLayerId == layer.id &&
+        manifestWindow.depthDrawSession().selectedGridUuid == binding.targetGridUuid,
+        "DepthDraw window should load an exported JSON manifest, hydrate PNG layer pixels, and restore selection");
+
+    auto relativeManifestSession = ngLoadDepthDrawManifest(windowExportManifestPath);
+    relativeManifestSession.layers[0].sourcePath = relativePath(windowExportResult.layerPaths[0], windowExportManifestPath.dirName);
+    auto relativeManifestPath = buildPath(fixtureDir, "window-exported-depthdraw-relative.json");
+    ngSaveDepthDrawManifest(relativeManifestSession, relativeManifestPath);
+    auto relativeManifestWindow = new DepthDrawWindow(relativeManifestPath);
+    require(relativeManifestWindow.loadError.length == 0 &&
+        relativeManifestWindow.depthDrawSession() !is null &&
+        relativeManifestWindow.depthDrawSession().layers.length == 1 &&
+        relativeManifestWindow.depthDrawSession().layers[0].sourcePath == relativeManifestSession.layers[0].sourcePath &&
+        relativeManifestWindow.depthDrawSession().layers[0].hasDepthPixels() &&
+        relativeManifestWindow.depthDrawSession().bindings.length == 1 &&
+        relativeManifestWindow.depthDrawSession().bindings[0].targetGridUuid == binding.targetGridUuid,
+        "DepthDraw window should resolve relative PNG source paths against the JSON manifest directory");
+
+    auto missingManifestSession = ngLoadDepthDrawManifest(windowExportManifestPath);
+    missingManifestSession.layers[0].sourcePath = "missing-depthdraw-layer.png";
+    missingManifestSession.selectedLayerId = "missing-selected-layer";
+    missingManifestSession.selectedGridUuid = 9_999_999;
+    missingManifestSession.bindings[0].targetGridUuid = 9_999_999;
+    auto invalidWindowLayer = missingManifestSession.layers[0];
+    missingManifestSession.layers ~= invalidWindowLayer;
+    missingManifestSession.bindings[0].layerId = "missing-binding-layer";
+    auto missingManifestPath = buildPath(fixtureDir, "window-exported-depthdraw-missing.json");
+    ngSaveDepthDrawManifest(missingManifestSession, missingManifestPath);
+    auto missingManifestWindow = new DepthDrawWindow(missingManifestPath);
+    require(missingManifestWindow.loadError.length == 0 &&
+        missingManifestWindow.statusText.canFind("missing references") &&
+        missingManifestWindow.statusText.canFind("2 source") &&
+        missingManifestWindow.statusText.canFind("2 target") &&
+        missingManifestWindow.statusText.canFind("1 selection") &&
+        missingManifestWindow.statusText.canFind("2 invalid"),
+        "DepthDraw window should report missing manifest sources, targets, selections, duplicate layers, and missing binding layers after JSON import");
+
+    require(manifestWindow.presentDepthDrawViewport(),
+        "DepthDraw window should expose an entry point that presents the DepthDraw viewport");
+    auto activeDepthDrawViewport = cast(DepthDrawViewport)incViewport.subView;
+    require(activeDepthDrawViewport !is null &&
+        activeDepthDrawViewport.depthDrawSession() is manifestWindow.depthDrawSession() &&
+        manifestWindow.statusText.canFind("Opened DepthDraw viewport"),
+        "DepthDraw viewport entry point should install a sibling DepthDrawViewport using the window session");
+}
+
+private JSONValue loadDepthDrawFixture(string name) {
+    import std.json : parseJSON;
+    return parseJSON(readText(buildPath("source", "nijigenerate_tests", "fixtures", "depthdraw", name)));
+}
+
+private void testDepthDrawComposerContracts() {
+    resetCase();
+
+    auto frontmostFixture = loadDepthDrawFixture("local-frontmost-smoke.json");
+    auto expectedFrontmostDepths = fixtureFloatArray(frontmostFixture["expectedDepths"],
+        "local-frontmost-smoke.expectedDepths");
+    auto expectedFrontmostWinners = fixtureStringArray(frontmostFixture["expectedWinners"],
+        "local-frontmost-smoke.expectedWinners");
+
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "depthdraw-compose-grid";
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+    require((new DefineGridCommand([-1f, 1f], [-1f, 1f])).run(ctx).succeeded,
+        "DepthDraw composer fixture should define a 2x2 grid");
+    grid.replaceDepths([0.25f, 0.25f, 0.25f, 0.25f]);
+
+    ubyte[] layerA;
+    ubyte[] layerB;
+    foreach (i; 0 .. 16) {
+        layerA ~= [0, 0, 0, 0];
+        layerB ~= [0, 0, 0, 0];
+    }
+    void setPixel(ref ubyte[] pixels, int x, int y, ubyte gray, ubyte alpha) {
+        auto index = (cast(size_t)y * 4 + cast(size_t)x) * 4;
+        pixels[index + 0] = gray;
+        pixels[index + 1] = gray;
+        pixels[index + 2] = gray;
+        pixels[index + 3] = alpha;
+    }
+
+    setPixel(layerA, 1, 1, 0, 255);
+    setPixel(layerB, 1, 1, 255, 255);
+    setPixel(layerB, 3, 1, 255, 255);
+
+    DepthDrawLayer backLayer;
+    backLayer.id = "back";
+    backLayer.layerPath = "/back";
+    backLayer.displayName = "Back";
+    backLayer.width = 4;
+    backLayer.height = 4;
+    backLayer.bounds.width = 4;
+    backLayer.bounds.height = 4;
+    backLayer.rgba = layerA.dup;
+    backLayer.depthPixels = layerA;
+    backLayer.normalCoverage = layerA.dup;
+
+    DepthDrawLayer frontLayer;
+    frontLayer.id = "front";
+    frontLayer.layerPath = "/front";
+    frontLayer.displayName = "Front";
+    frontLayer.width = 4;
+    frontLayer.height = 4;
+    frontLayer.bounds.width = 4;
+    frontLayer.bounds.height = 4;
+    frontLayer.rgba = layerB.dup;
+    frontLayer.depthPixels = layerB;
+    frontLayer.normalCoverage = layerB.dup;
+    frontLayer.zScale = 0.5f;
+    frontLayer.zOffset = 0.25f;
+
+    DepthDrawBinding backBinding;
+    backBinding.layerId = "back";
+    backBinding.targetGridUuid = grid.uuid;
+    backBinding.targetNodeUuid = grid.uuid;
+    backBinding.order = 0;
+    backBinding.mergePolicy = DepthMergePolicy.Frontmost;
+
+    DepthDrawBinding frontBinding = backBinding;
+    frontBinding.layerId = "front";
+    frontBinding.order = 1;
+
+    auto session = new DepthDrawSession();
+    session.layers ~= backLayer;
+    session.layers ~= frontLayer;
+    session.bindings ~= backBinding;
+    session.bindings ~= frontBinding;
+    session.selectedLayerId = "front";
+    session.selectedGridUuid = grid.uuid;
+
+    auto view = new DepthTargetView(grid);
+    auto result = ngComposeDepthDrawTarget(session, view, 4, 4);
+    require(result.depths.length == grid.vertices.length, "DepthDraw composer should produce one depth per target vertex");
+    require(result.layerStats.length == 2, "DepthDraw composer should report stats for each composed layer");
+    require(result.depths.length == expectedFrontmostDepths.length &&
+        result.winningLayerIds.length == expectedFrontmostWinners.length,
+        "DepthDraw frontmost fixture should match the composed target vertex count");
+
+    foreach (i, vertex; view.getVertices()) {
+        auto depth = result.depths[i];
+        require(near(depth, expectedFrontmostDepths[i]),
+            "DepthDraw composer final target depths should match the fixture expectedDepths");
+        require(result.winningLayerIds[i] == expectedFrontmostWinners[i],
+            "DepthDraw composer winning layer ids should match the fixture expectedWinners");
+        if (near(vertex.y, -1.0f)) {
+            require(near(depth, 0.75f), "front layer should win top-row vertices after z transform");
+            require(result.winningLayerIds[i] == "front", "front layer should be recorded as the winning layer");
+        } else {
+            require(near(depth, 0.25f), "missing layer samples should preserve base depth");
+            require(result.winningLayerIds[i].length == 0, "missing samples should not record a winning layer");
+        }
+    }
+
+    require(result.layerStats[0].sampledVertices == 1 && result.layerStats[0].missingVertices == 3 &&
+        result.layerStats[0].winningVertices == 0,
+        "back layer stats should reflect one sampled vertex superseded by frontmost composition");
+    require(result.layerStats[1].sampledVertices == 2 && result.layerStats[1].missingVertices == 2 &&
+        result.layerStats[1].winningVertices == 2,
+        "front layer stats should reflect two winning sampled vertices");
+    require(result.sampledVertices == 3 && result.missingVertices == 5,
+        "DepthDraw composer aggregate stats should include all layer sample attempts");
+    require(result.hasDepthRange && near(result.minDepth, 0.25f) && near(result.maxDepth, 0.75f),
+        "DepthDraw composer should report final depth range");
+    auto opacitySession = new DepthDrawSession();
+    auto lowOpacityLayer = backLayer;
+    lowOpacityLayer.opacity = 0.005f;
+    auto lowOpacityBinding = backBinding;
+    lowOpacityBinding.layerId = lowOpacityLayer.id;
+    opacitySession.layers ~= lowOpacityLayer;
+    opacitySession.bindings ~= lowOpacityBinding;
+    auto opacityResult = ngComposeDepthDrawTarget(opacitySession, view, 4, 4);
+    require(opacityResult.sampledVertices == 0 && opacityResult.missingVertices == grid.vertices.length &&
+        opacityResult.depths == [0.25f, 0.25f, 0.25f, 0.25f],
+        "DepthDraw composer should apply normal depth layer opacity before accepting samples");
+    auto gpuPacket = ngBuildDepthDrawGpuComposePacket(session, view, 4, 4);
+    require(gpuPacket.targetGridUuid == grid.uuid && gpuPacket.vertices.length == grid.vertices.length &&
+        gpuPacket.documentPositions.length == grid.vertices.length && gpuPacket.baseDepths.length == grid.vertices.length,
+        "DepthDraw GPU compose packet should carry the selected target geometry and base depth arrays");
+    require(gpuPacket.layers.length == 2 && gpuPacket.bindings.length == 2 &&
+        gpuPacket.layers[0].layerId == "back" && gpuPacket.layers[1].layerId == "front" &&
+        gpuPacket.bindings[0].layerIndex == 0 && gpuPacket.bindings[1].layerIndex == 1,
+        "DepthDraw GPU compose packet should preserve the CPU composer layer and binding order");
+    require(gpuPacket.layers[0].depthPixelOffset == 0 &&
+        gpuPacket.layers[1].depthPixelOffset == cast(uint)backLayer.depthPixels.length &&
+        gpuPacket.depthPixels.length == backLayer.depthPixels.length + frontLayer.depthPixels.length,
+        "DepthDraw GPU compose packet should pack layer depth pixels with deterministic offsets");
+    require(near(gpuPacket.layers[0].boundsLeft, backLayer.bounds.left) &&
+        near(gpuPacket.layers[0].boundsTop, backLayer.bounds.top) &&
+        near(gpuPacket.layers[0].boundsWidth, backLayer.bounds.width) &&
+        near(gpuPacket.layers[0].boundsHeight, backLayer.bounds.height),
+        "DepthDraw GPU compose packet should carry layer document bounds for GPU coordinate conversion");
+    require(gpuPacket.layers[0].normalCoverageOffset == 0 &&
+        gpuPacket.layers[1].normalCoverageOffset == cast(uint)backLayer.normalCoverage.length &&
+        gpuPacket.normalCoveragePixels.length == backLayer.normalCoverage.length + frontLayer.normalCoverage.length,
+        "DepthDraw GPU compose packet should pack normal coverage pixels with deterministic offsets");
+    auto frontSamplePacket = ngBuildDepthDrawGpuLayerSamplePacket(gpuPacket, 1);
+    require(frontSamplePacket.targetGridUuid == grid.uuid &&
+        frontSamplePacket.layerIndex == 1 &&
+        frontSamplePacket.layer.layerId == "front" &&
+        frontSamplePacket.layer.depthPixelOffset == 0 &&
+        frontSamplePacket.layer.normalCoverageOffset == 0 &&
+        frontSamplePacket.binding.layerIndex == 0 &&
+        frontSamplePacket.depthPixels == frontLayer.depthPixels &&
+        frontSamplePacket.normalCoveragePixels == frontLayer.normalCoverage &&
+        frontSamplePacket.documentPositions == gpuPacket.documentPositions,
+        "DepthDraw GPU layer sample packet should slice one layer into zero-offset shader inputs");
+    ngValidateDepthDrawGpuLayerSamplePacket(frontSamplePacket);
+    auto flatSamplePositions = ngFlattenDepthDrawGpuDocumentPositions(frontSamplePacket.documentPositions);
+    auto flatSampleDepthPixels = ngFlattenDepthDrawGpuRgbaBytes(frontSamplePacket.depthPixels);
+    auto sampleUpload = ngBuildDepthDrawGpuLayerSampleUpload(frontSamplePacket);
+    require(flatSamplePositions.length == frontSamplePacket.documentPositions.length * DepthDrawGpuDocumentPositionStride &&
+        near(flatSamplePositions[0], frontSamplePacket.documentPositions[0].x) &&
+        near(flatSamplePositions[1], frontSamplePacket.documentPositions[0].y) &&
+        near(flatSamplePositions[2], frontSamplePacket.documentPositions[1].x) &&
+        near(flatSamplePositions[3], frontSamplePacket.documentPositions[1].y),
+        "DepthDraw GPU document-position upload buffer should expose xy pairs in vertex order");
+    require(flatSampleDepthPixels.length == frontLayer.depthPixels.length &&
+        flatSampleDepthPixels.length % DepthDrawGpuRgbaPixelStride == 0 &&
+        near(flatSampleDepthPixels[0], cast(float)frontLayer.depthPixels[0]) &&
+        near(flatSampleDepthPixels[$ - 1], cast(float)frontLayer.depthPixels[$ - 1]),
+        "DepthDraw GPU RGBA upload buffer should preserve layer pixel bytes as shader-readable floats");
+    require(sampleUpload.documentPositions == flatSamplePositions &&
+        sampleUpload.depthPixels == flatSampleDepthPixels &&
+        sampleUpload.normalCoveragePixels.length == frontLayer.normalCoverage.length &&
+        sampleUpload.layer.length == DepthDrawGpuLayerStride &&
+        sampleUpload.binding.length == DepthDrawGpuBindingStride &&
+        near(sampleUpload.layer[DepthDrawGpuLayerField.DepthPixelOffset], 0.0f) &&
+        near(sampleUpload.layer[DepthDrawGpuLayerField.NormalCoverageOffset], 0.0f) &&
+        near(sampleUpload.binding[DepthDrawGpuBindingField.LayerIndex], 0.0f),
+        "DepthDraw GPU layer sample upload should flatten all single-layer shader inputs with zero offsets");
+    require(ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Nearest) &&
+        ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Box3x3) &&
+        ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Gaussian5x5) &&
+        ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.FrontmostCustom) &&
+        ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.BackmostCustom) &&
+        ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Median3x3) &&
+        !ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.MedianCustom) &&
+        !ngDepthDrawGpuLayerSampleSupportsConvolution(999),
+        "DepthDraw GPU layer sample backend should advertise supported weighted/extreme/fixed median convolution modes and reject custom median/unknown modes");
+    if (!ngDepthDrawGpuLayerSampleSupported()) {
+        uint layerSampleJobId;
+        string layerSampleError;
+        DepthDrawGpuLayerSamplePollResult layerSamplePoll;
+        require(ngDepthDrawGpuLayerSampleMissingRequirements().length > 0 &&
+            ngDepthDrawGpuLayerSampleSupportDiagnostic().length > 0,
+            "DepthDraw GPU layer sample backend should expose missing OpenGL requirements");
+        require(!ngSubmitDepthDrawGpuLayerSample(frontSamplePacket, layerSampleJobId, layerSampleError) &&
+            layerSampleError.length > 0 &&
+            ngPendingDepthDrawGpuLayerSampleJobCount() == 0,
+            "DepthDraw GPU layer sample submit should fail explicitly without CPU fallback when backend is unavailable");
+        require(!ngPollDepthDrawGpuLayerSample(1, layerSamplePoll, layerSampleError) &&
+            layerSampleError.length > 0,
+            "DepthDraw GPU layer sample poll should fail explicitly without fabricating CPU readback");
+    }
+    require(near(gpuPacket.layers[1].zScale, frontLayer.zScale) &&
+        near(gpuPacket.layers[1].zOffset, frontLayer.zOffset) &&
+        gpuPacket.bindings[1].mergePolicy == cast(uint)DepthMergePolicy.Frontmost &&
+        gpuPacket.bindings[1].flags == 1,
+        "DepthDraw GPU compose packet should carry Z transform, merge policy, and coverage-use state");
+    require(near(gpuPacket.documentPositions[0].x, 1.0f) && near(gpuPacket.documentPositions[0].y, 1.0f) &&
+        near(gpuPacket.documentPositions[1].x, 3.0f) && near(gpuPacket.documentPositions[1].y, 1.0f),
+        "DepthDraw GPU compose packet should precompute the same document positions used by the CPU sampler");
+    ngValidateDepthDrawGpuComposePacket(gpuPacket);
+    auto flatGpuLayers = ngFlattenDepthDrawGpuLayers(gpuPacket.layers);
+    auto flatGpuBindings = ngFlattenDepthDrawGpuBindings(gpuPacket.bindings);
+    require(flatGpuLayers.length == gpuPacket.layers.length * DepthDrawGpuLayerStride &&
+        flatGpuBindings.length == gpuPacket.bindings.length * DepthDrawGpuBindingStride,
+        "DepthDraw GPU flatten helpers should produce fixed-stride upload buffers");
+    require(near(flatGpuLayers[DepthDrawGpuLayerField.Width], backLayer.width) &&
+        near(flatGpuLayers[DepthDrawGpuLayerField.Height], backLayer.height) &&
+        near(flatGpuLayers[DepthDrawGpuLayerField.DepthPixelOffset], 0.0f) &&
+        near(flatGpuLayers[DepthDrawGpuLayerField.BoundsWidth], backLayer.bounds.width) &&
+        near(flatGpuLayers[DepthDrawGpuLayerField.Opacity], backLayer.opacity),
+        "DepthDraw GPU flattened layer buffer should expose shader-readable layer fields at stable offsets");
+    auto flatFrontBase = DepthDrawGpuLayerStride;
+    require(near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.DepthPixelOffset], backLayer.depthPixels.length) &&
+        near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.ZScale], frontLayer.zScale) &&
+        near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.ZOffset], frontLayer.zOffset),
+        "DepthDraw GPU flattened layer buffer should preserve per-layer offsets and Z transforms");
+    require(near(flatGpuBindings[DepthDrawGpuBindingField.LayerIndex], 0.0f) &&
+        near(flatGpuBindings[DepthDrawGpuBindingField.MergePolicy], cast(float)DepthMergePolicy.Frontmost) &&
+        near(flatGpuBindings[DepthDrawGpuBindingField.Flags], 1.0f) &&
+        near(flatGpuBindings[DepthDrawGpuBindingField.CoverageThreshold], backBinding.coverageThreshold),
+        "DepthDraw GPU flattened binding buffer should expose shader-readable binding fields at stable offsets");
+    DepthDrawGpuComposeReadback gpuReadback;
+    gpuReadback.targetGridUuid = grid.uuid;
+    gpuReadback.depths = result.depths.dup;
+    gpuReadback.winningLayerIndices = [1, 1, -1, -1];
+    DepthDrawGpuLayerReadback backReadback;
+    backReadback.layerIndex = 0;
+    backReadback.validSamples = [1, 0, 0, 0];
+    backReadback.sampleDepths = [-1.0f, 0.0f, 0.0f, 0.0f];
+    DepthDrawGpuLayerReadback frontReadback;
+    frontReadback.layerIndex = 1;
+    frontReadback.validSamples = [1, 1, 0, 0];
+    frontReadback.sampleDepths = [0.75f, 0.75f, 0.0f, 0.0f];
+    gpuReadback.layers = [backReadback, frontReadback];
+    ngValidateDepthDrawGpuComposeReadback(gpuPacket, gpuReadback);
+    auto builtGpuReadback = ngBuildDepthDrawGpuComposeReadback(gpuPacket, [backReadback, frontReadback]);
+    require(builtGpuReadback.targetGridUuid == gpuPacket.targetGridUuid &&
+        builtGpuReadback.depths == gpuReadback.depths &&
+        builtGpuReadback.winningLayerIndices == gpuReadback.winningLayerIndices &&
+        builtGpuReadback.layers.length == gpuReadback.layers.length,
+        "DepthDraw GPU compose readback builder should merge layer readbacks into final depth and winner arrays");
+    auto builtGpuResult = ngDepthDrawComposeResultFromGpuReadback(gpuPacket, builtGpuReadback);
+    auto builtGpuComparison = ngCompareDepthDrawComposeReadback(result, builtGpuResult);
+    require(builtGpuComparison.ok,
+        "DepthDraw GPU compose readback builder should produce a CPU-comparable composed result");
+    ngClearDepthDrawGpuTestHooks();
+    uint depthDrawGpuJobId;
+    string depthDrawGpuError;
+    DepthDrawGpuDispatchPollResult depthDrawGpuPoll;
+    if (!ngDepthDrawGpuSupported()) {
+        require(ngDepthDrawGpuMissingRequirements().length > 0 &&
+            ngDepthDrawGpuSupportDiagnostic().length > 0,
+            "DepthDraw GPU dispatch should expose a diagnostic for missing OpenGL backend requirements");
+        require(!ngSubmitDepthDrawGpuCompose(gpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+            depthDrawGpuError.length > 0,
+            "DepthDraw GPU dispatch should fail explicitly instead of falling back to CPU when no backend is connected");
+        require(!ngPollDepthDrawGpuCompose(1, depthDrawGpuPoll, depthDrawGpuError) &&
+            depthDrawGpuError.length > 0,
+            "DepthDraw GPU poll should fail explicitly instead of fabricating CPU readback when no backend is connected");
+    } else {
+        auto medianGpuPacket = gpuPacket;
+        medianGpuPacket.layers = gpuPacket.layers.dup;
+        medianGpuPacket.layers[0].convolution = cast(int)DepthImageConvolution.MedianCustom;
+        require(!ngSubmitDepthDrawGpuCompose(medianGpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+            depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("median"),
+            "DepthDraw GPU dispatch should fail explicitly for unsupported custom median convolution instead of falling back to CPU");
+    }
+    fakeDepthDrawGpuNextJobId = 1;
+    fakeDepthDrawGpuSubmitCount = 0;
+    fakeDepthDrawGpuPollCount = 0;
+    fakeDepthDrawGpuNotReadyPolls = 0;
+    fakeDepthDrawGpuReadbacks = null;
+    fakeDepthDrawGpuReadbacks[1] = gpuReadback;
+    ngSetDepthDrawGpuTestHooks(&fakeDepthDrawGpuSupported, &fakeDepthDrawGpuSubmit, &fakeDepthDrawGpuPoll);
+    scope(exit) {
+        ngClearDepthDrawGpuTestHooks();
+        fakeDepthDrawGpuNotReadyPolls = 0;
+        fakeDepthDrawGpuReadbacks = null;
+    }
+    require(ngDepthDrawGpuSupported(), "DepthDraw GPU dispatch should use the configured backend support hook");
+    auto cleanGpuPacket = gpuPacket;
+    cleanGpuPacket.layers = gpuPacket.layers.dup;
+    cleanGpuPacket.bindings = gpuPacket.bindings.dup;
+    auto invalidGpuPacket = gpuPacket;
+    invalidGpuPacket.baseDepths = invalidGpuPacket.baseDepths[0 .. $ - 1].dup;
+    require(!ngSubmitDepthDrawGpuCompose(invalidGpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("base-depth"),
+        "DepthDraw GPU dispatch should reject invalid packets before backend hooks can submit them");
+    invalidGpuPacket = cleanGpuPacket;
+    invalidGpuPacket.layers = cleanGpuPacket.layers.dup;
+    invalidGpuPacket.layers[0].channel = 999;
+    require(!ngSubmitDepthDrawGpuCompose(invalidGpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("channel"),
+        "DepthDraw GPU dispatch should reject unknown sampling channels before backend hooks can submit them");
+    invalidGpuPacket = cleanGpuPacket;
+    invalidGpuPacket.layers = cleanGpuPacket.layers.dup;
+    invalidGpuPacket.layers[0].convolution = 999;
+    require(!ngSubmitDepthDrawGpuCompose(invalidGpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("convolution"),
+        "DepthDraw GPU dispatch should reject unknown convolution modes before backend hooks can submit them");
+    invalidGpuPacket = cleanGpuPacket;
+    invalidGpuPacket.layers = cleanGpuPacket.layers.dup;
+    invalidGpuPacket.layers[0].customRadius = 65;
+    require(!ngSubmitDepthDrawGpuCompose(invalidGpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("custom radius"),
+        "DepthDraw GPU dispatch should reject unsupported custom radii before backend hooks can submit them");
+    invalidGpuPacket = cleanGpuPacket;
+    invalidGpuPacket.layers = cleanGpuPacket.layers.dup;
+    invalidGpuPacket.layers[0].convolution = cast(int)DepthImageConvolution.MedianCustom;
+    require(!ngSubmitDepthDrawGpuCompose(invalidGpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("median") &&
+        fakeDepthDrawGpuSubmitCount == 0,
+        "DepthDraw GPU dispatch should reject custom median convolution before backend hooks can submit it");
+    require(ngSubmitDepthDrawGpuCompose(gpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuJobId == 1 && fakeDepthDrawGpuSubmitCount == 1,
+        "DepthDraw GPU dispatch should submit through the configured backend hook");
+    require(ngPollDepthDrawGpuCompose(depthDrawGpuJobId, depthDrawGpuPoll, depthDrawGpuError) &&
+        depthDrawGpuPoll.ready && fakeDepthDrawGpuPollCount == 1,
+        "DepthDraw GPU dispatch should poll readback through the configured backend hook");
+    auto validDepthDrawGpuPoll = depthDrawGpuPoll;
+    auto invalidGpuReadback = gpuReadback;
+    invalidGpuReadback.depths = invalidGpuReadback.depths[0 .. $ - 1].dup;
+    fakeDepthDrawGpuReadbacks[2] = invalidGpuReadback;
+    require(ngSubmitDepthDrawGpuCompose(gpuPacket, depthDrawGpuJobId, depthDrawGpuError) &&
+        depthDrawGpuJobId == 2,
+        "DepthDraw GPU dispatch should submit another packet for invalid-readback validation");
+    require(!ngPollDepthDrawGpuCompose(depthDrawGpuJobId, depthDrawGpuPoll, depthDrawGpuError) &&
+        depthDrawGpuError.length > 0 && depthDrawGpuError.canFind("readback depth"),
+        "DepthDraw GPU dispatch should reject invalid backend readback before reconstruction");
+    auto reconstructedGpuResult = ngDepthDrawComposeResultFromGpuReadback(gpuPacket, gpuReadback);
+    auto gpuReadbackComparison = ngCompareDepthDrawComposeReadback(result, reconstructedGpuResult);
+    require(gpuReadbackComparison.ok,
+        "DepthDraw GPU readback reconstruction should produce a CPU-comparable compose result");
+    auto hookedGpuResult = ngDepthDrawComposeResultFromGpuReadback(gpuPacket, validDepthDrawGpuPoll.readback);
+    gpuReadbackComparison = ngCompareDepthDrawComposeReadback(result, hookedGpuResult);
+    require(gpuReadbackComparison.ok,
+        "DepthDraw GPU dispatch hook readback should remain CPU-comparable after reconstruction");
+    fakeDepthDrawGpuReadbacks[3] = gpuReadback;
+    DepthDrawGpuTargetComposeJob targetGpuJob;
+    DepthDrawGpuTargetComposePollResult targetGpuPoll;
+    require(ngSubmitDepthDrawGpuTargetCompose(session, view, 4, 4, targetGpuJob, depthDrawGpuError) &&
+        targetGpuJob.jobId == 3 && fakeDepthDrawGpuSubmitCount == 3,
+        "DepthDraw GPU target compose wrapper should submit a packet built from the session and target view");
+    require(ngPollDepthDrawGpuTargetCompose(targetGpuJob, targetGpuPoll, depthDrawGpuError) &&
+        targetGpuPoll.ready && fakeDepthDrawGpuPollCount == 3,
+        "DepthDraw GPU target compose wrapper should poll and reconstruct a compose result");
+    gpuReadbackComparison = ngCompareDepthDrawComposeReadback(result, targetGpuPoll.result);
+    require(gpuReadbackComparison.ok,
+        "DepthDraw GPU target compose wrapper should return a CPU-comparable compose result");
+    auto sameOrderSession = new DepthDrawSession();
+    sameOrderSession.layers = session.layers.dup;
+    auto sameOrderBack = backBinding;
+    sameOrderBack.mergePolicy = DepthMergePolicy.Replace;
+    sameOrderBack.order = 0;
+    auto sameOrderFront = frontBinding;
+    sameOrderFront.mergePolicy = DepthMergePolicy.Replace;
+    sameOrderFront.order = 0;
+    sameOrderSession.bindings = [sameOrderBack, sameOrderFront];
+    auto sameOrderResult = ngComposeDepthDrawTarget(sameOrderSession, view, 4, 4);
+    require(sameOrderResult.winningLayerIds[0] == "front" && near(sameOrderResult.depths[0], 0.75f),
+        "DepthDraw composer should preserve session binding order when binding order values are equal");
+
+    ubyte[] lowerPixels;
+    ubyte[] transparentUpperPixels;
+    foreach (i; 0 .. 16) {
+        lowerPixels ~= [0, 0, 0, 0];
+        transparentUpperPixels ~= [0, 0, 0, 0];
+    }
+    setPixel(lowerPixels, 1, 3, 255, 255);
+    setPixel(lowerPixels, 3, 3, 255, 255);
+    setPixel(transparentUpperPixels, 1, 1, 0, 255);
+    setPixel(transparentUpperPixels, 3, 1, 0, 255);
+    setPixel(transparentUpperPixels, 1, 3, 255, 0);
+    setPixel(transparentUpperPixels, 3, 3, 255, 0);
+
+    auto lowerLayer = backLayer;
+    lowerLayer.id = "lower";
+    lowerLayer.layerPath = "/lower";
+    lowerLayer.displayName = "Lower";
+    lowerLayer.rgba = lowerPixels.dup;
+    lowerLayer.depthPixels = lowerPixels;
+    lowerLayer.normalCoverage = lowerPixels.dup;
+
+    auto upperLayer = frontLayer;
+    upperLayer.id = "upper";
+    upperLayer.layerPath = "/upper";
+    upperLayer.displayName = "Upper";
+    upperLayer.rgba = transparentUpperPixels.dup;
+    upperLayer.depthPixels = transparentUpperPixels;
+    upperLayer.normalCoverage = transparentUpperPixels.dup;
+    upperLayer.zScale = 1.0f;
+    upperLayer.zOffset = 0.0f;
+
+    DepthDrawBinding lowerBinding = backBinding;
+    lowerBinding.layerId = "lower";
+    lowerBinding.order = 0;
+    DepthDrawBinding upperBinding = backBinding;
+    upperBinding.layerId = "upper";
+    upperBinding.order = 1;
+
+    auto transparentSession = new DepthDrawSession();
+    transparentSession.layers = [lowerLayer, upperLayer];
+    transparentSession.bindings = [lowerBinding, upperBinding];
+    auto transparentResult = ngComposeDepthDrawTarget(transparentSession, view, 4, 4);
+    require(transparentResult.depths.length == 4 &&
+        near(transparentResult.depths[0], -1.0f) &&
+        near(transparentResult.depths[1], -1.0f) &&
+        near(transparentResult.depths[2], 1.0f) &&
+        near(transparentResult.depths[3], 1.0f),
+        "DepthDraw composer should allow lower layers to contribute where the upper layer is transparent");
+    require(transparentResult.winningLayerIds == ["upper", "upper", "lower", "lower"],
+        "DepthDraw composer should record lower winners under transparent upper-layer pixels");
+
+    auto disabledLayer = upperLayer;
+    disabledLayer.id = "disabled-layer";
+    DepthDrawBinding disabledLayerBinding = upperBinding;
+    disabledLayerBinding.layerId = "disabled-layer";
+    disabledLayerBinding.order = 2;
+    auto disabledBindingLayer = upperLayer;
+    disabledBindingLayer.id = "disabled-binding-layer";
+    DepthDrawBinding disabledBinding = upperBinding;
+    disabledBinding.layerId = "disabled-binding-layer";
+    disabledBinding.order = 3;
+    disabledBinding.enabled = false;
+    auto invisibleLayer = upperLayer;
+    invisibleLayer.id = "invisible-layer";
+    invisibleLayer.visible = false;
+    DepthDrawBinding invisibleBinding = upperBinding;
+    invisibleBinding.layerId = "invisible-layer";
+    invisibleBinding.order = 4;
+    auto disabledSession = new DepthDrawSession();
+    disabledSession.layers = [lowerLayer, disabledLayer, disabledBindingLayer, invisibleLayer];
+    disabledSession.layers[1].enabled = false;
+    disabledSession.bindings = [lowerBinding, disabledLayerBinding, disabledBinding, invisibleBinding];
+    auto disabledResult = ngComposeDepthDrawTarget(disabledSession, view, 4, 4);
+    require(disabledResult.layerStats.length == 1 && disabledResult.layerStats[0].layerId == "lower",
+        "DepthDraw composer should skip disabled layers, invisible layers, and disabled bindings");
+    require(disabledResult.winningLayerIds == ["", "", "lower", "lower"] &&
+        near(disabledResult.depths[2], 1.0f) && near(disabledResult.depths[3], 1.0f),
+        "DepthDraw disabled composer inputs should not contribute sampled depths");
+
+    auto additiveBottomLayer = lowerLayer;
+    additiveBottomLayer.id = "additive-bottom";
+    auto additiveTopLayer = lowerLayer;
+    additiveTopLayer.id = "additive-top";
+    DepthDrawBinding additiveBottomBinding = lowerBinding;
+    additiveBottomBinding.layerId = "additive-bottom";
+    additiveBottomBinding.mergePolicy = DepthMergePolicy.Add;
+    additiveBottomBinding.order = 0;
+    DepthDrawBinding additiveTopBinding = additiveBottomBinding;
+    additiveTopBinding.layerId = "additive-top";
+    additiveTopBinding.order = 1;
+    auto additiveSession = new DepthDrawSession();
+    additiveSession.layers = [additiveBottomLayer, additiveTopLayer];
+    additiveSession.bindings = [additiveBottomBinding, additiveTopBinding];
+    auto additiveResult = ngComposeDepthDrawTarget(additiveSession, view, 4, 4);
+    require(additiveResult.layerStats.length == 2 &&
+        additiveResult.layerStats[0].contributedVertices == 2 &&
+        additiveResult.layerStats[1].contributedVertices == 2 &&
+        additiveResult.layerStats[0].winningVertices == 0 &&
+        additiveResult.layerStats[1].winningVertices == 2,
+        "DepthDraw composer should count additive contributions even when a later additive layer owns the final winner id");
+
+    auto drawViewport = new DepthDrawViewport(session);
+    drawViewport.setDocumentSize(4, 4);
+    drawViewport.selectionChanged([cast(Node)grid]);
+    require(drawViewport.depthViewSession().targets.length == 1 &&
+        drawViewport.depthViewSession().selectedTarget().getTarget() is grid &&
+        drawViewport.depthDrawSession() is session &&
+        drawViewport.targetRenderer() !is null,
+        "DepthDrawViewport should be a sibling viewport owning DepthViewSession and DepthTargetRenderer");
+    session.markAllPreviewDirty();
+    require(drawViewport.composeDirtyPreviews() == 1 && !session.isTargetPreviewDirty(grid.uuid),
+        "DepthDrawViewport should compose dirty previews through DepthDrawSession");
+    auto viewportPreview = drawViewport.previewResult(grid.uuid);
+    require(viewportPreview.depths.length == result.depths.length &&
+        viewportPreview.winningLayerIds.length == result.winningLayerIds.length,
+        "DepthDrawViewport should retain composed preview results per target");
+    foreach (i, expectedDepth; result.depths) {
+        require(near(viewportPreview.depths[i], expectedDepth) &&
+            viewportPreview.winningLayerIds[i] == result.winningLayerIds[i],
+            "DepthDrawViewport preview result should match direct DepthDraw composition");
+    }
+    require(drawViewport.depthViewSession().selectedTarget().copyWorkingDepths() == viewportPreview.depths,
+        "DepthDrawViewport preview composition should update common target working depths only");
+    auto gpuDisplay = session.display;
+    gpuDisplay.useGpuPreview = true;
+    require(session.updateDisplayOptions(gpuDisplay), "DepthDrawSession should dirty previews when GPU preview is enabled");
+    fakeDepthDrawGpuReadbacks[4] = gpuReadback;
+    fakeDepthDrawGpuNotReadyPolls = 1;
+    require(drawViewport.composeDirtyPreviews() == 1 &&
+        drawViewport.pendingGpuPreviewJobCount() == 1 &&
+        session.isTargetPreviewDirty(grid.uuid),
+        "DepthDrawViewport GPU preview should submit dirty previews without clearing them before readback");
+    require(drawViewport.composeDirtyPreviews() == 0 &&
+        drawViewport.pendingGpuPreviewJobCount() == 1 &&
+        session.isTargetPreviewDirty(grid.uuid) &&
+        drawViewport.gpuPreviewError().length == 0,
+        "DepthDrawViewport GPU preview should keep pending and dirty state while GPU readback is not ready");
+    require(!drawViewport.composeSelectedPreviewForUpdate(),
+        "DepthDrawViewport selected-preview update helper should not compose CPU preview while GPU preview is enabled");
+    require(drawViewport.pendingGpuPreviewJobCount() == 1 &&
+        session.isTargetPreviewDirty(grid.uuid),
+        "DepthDrawViewport update should not run CPU preview composition while GPU preview is pending");
+    require(drawViewport.composeDirtyPreviews() == 1 &&
+        drawViewport.pendingGpuPreviewJobCount() == 0 &&
+        !session.isTargetPreviewDirty(grid.uuid) &&
+        drawViewport.gpuPreviewError().length == 0,
+        "DepthDrawViewport GPU preview should poll ready readback and clear dirty state without CPU fallback");
+    auto gpuViewportPreview = drawViewport.previewResult(grid.uuid);
+    auto gpuViewportComparison = ngCompareDepthDrawComposeReadback(result, gpuViewportPreview);
+    require(gpuViewportComparison.ok &&
+        drawViewport.depthViewSession().selectedTarget().copyWorkingDepths() == gpuViewportPreview.depths,
+        "DepthDrawViewport GPU preview should reconstruct a CPU-comparable preview and update working depths");
+    gpuDisplay.useGpuPreview = false;
+    require(session.updateDisplayOptions(gpuDisplay), "DepthDrawSession should dirty previews when GPU preview is disabled");
+    require(drawViewport.composeDirtyPreviews() == 1 && !session.isTargetPreviewDirty(grid.uuid),
+        "DepthDrawViewport should return to CPU preview composition when GPU preview is disabled");
+    session.clearSelection();
+    require(drawViewport.selectLayerPlaneAtDocumentPoint(vec2(1.5f, 1.5f)) &&
+        session.selectedLayerId == "front" && session.selectedGridUuid == grid.uuid &&
+        drawViewport.depthViewSession().selectedTarget().getTarget() is grid,
+        "DepthDrawViewport should select a layer plane at a document point and synchronize the selected target view");
+    session.clearSelection();
+    require(drawViewport.depthViewPointToDocumentPoint(vec2(1.5f, 1.5f)) == vec2(1.5f, 1.5f) &&
+        drawViewport.selectLayerPlaneAtDepthViewPoint(vec2(1.5f, 1.5f)) &&
+        session.selectedLayerId == "front" && session.selectedGridUuid == grid.uuid,
+        "DepthDrawViewport should convert depth-view points into document-space layer-plane selection");
+    session.selectedGridUuid = 0;
+    drawViewport.depthViewSession().selectedGridUuid = 0;
+    require(drawViewport.selectTargetAtDepthViewPoint(vec2(-1.0f, -1.0f), 0.25f) &&
+        session.selectedGridUuid == grid.uuid &&
+        drawViewport.depthViewSession().selectedTarget().getTarget() is grid,
+        "DepthDrawViewport should hit-test target depth geometry and synchronize selected target ids");
+    session.selectedGridUuid = 0;
+    drawViewport.depthViewSession().selectedGridUuid = 0;
+    require(!drawViewport.selectTargetAtDepthViewPoint(vec2(1000.0f, 1000.0f), 0.25f) &&
+        session.selectedGridUuid == 0 && drawViewport.depthViewSession().selectedGridUuid == 0,
+        "DepthDrawViewport target hit-test should reject misses without changing selection");
+    require(session.selectTargetGrid(grid.uuid) && drawViewport.depthViewSession().selectTarget(grid.uuid),
+        "DepthDrawViewport target hit-test test should restore the selected target for later checks");
+    MeshData previewChildMesh;
+    previewChildMesh.vertices = Vec2Array([
+        vec2(-1.0f, -1.0f),
+        vec2(1.0f, -1.0f),
+        vec2(-1.0f, 1.0f),
+        vec2(1.0f, 1.0f),
+    ]);
+    previewChildMesh.uvs = Vec2Array([
+        vec2(0.0f, 0.0f),
+        vec2(1.0f, 0.0f),
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 1.0f),
+    ]);
+    previewChildMesh.indices = [cast(ushort)0, 1, 3, 0, 3, 2];
+    previewChildMesh.origin = vec2(0.0f, 0.0f);
+    auto previewChildPart = new Part(previewChildMesh, Texture[].init, inCreateUUID(), grid);
+    session.display.showWinningLayer = true;
+    auto viewportGeometry = drawViewport.collectRenderGeometry();
+    auto meshRenderPlans = drawViewport.collectMeshRenderPlan(viewportGeometry);
+    require(meshRenderPlans.length == 1 && meshRenderPlans[0].targetGridUuid == grid.uuid &&
+        meshRenderPlans[0].hasTarget && meshRenderPlans[0].hasMesh &&
+        meshRenderPlans[0].drawableChildren == 1 && meshRenderPlans[0].willAttemptTexture,
+        "DepthDrawViewport render plan should route target meshes through the shared offscreen texture path");
+    auto viewportStats = viewportGeometry.stats();
+    require(viewportStats.targetMeshes == 1 && viewportStats.targetMeshGridUuids == 1 &&
+        viewportStats.targetSurfaceTriangles == 2 && viewportStats.targetLines == 4 &&
+        viewportStats.layerPlaneLines == 8 && viewportStats.selectedLayerLines == 4 &&
+        viewportStats.depthRangeLines == 8 && viewportStats.gapLines == 1 &&
+        viewportStats.overlapGapLines == 0 && viewportStats.gapHandles == 1 &&
+        viewportStats.textLabels == 1 &&
+        viewportStats.missingPoints == 2 && viewportStats.winningPoints == 2 &&
+        viewportStats.winningPointGroups == 1 && viewportStats.normalImageLines == 8 &&
+        viewportStats.rawDepthLines == 0 && viewportStats.coverageLines == 0 &&
+        viewportStats.coveragePoints == 0,
+        "DepthDrawViewport render-geometry stats should summarize enabled depth-space groups");
+    require(viewportGeometry.targetMeshes.length == 1 &&
+        viewportGeometry.targetMeshes[0].positions.length == grid.vertices.length &&
+        viewportGeometry.targetMeshes[0].uvs.length == grid.vertices.length &&
+        viewportGeometry.targetMeshes[0].indices.length > 0,
+        "DepthDrawViewport should expose composed target depth surface mesh geometry");
+    require(viewportGeometry.targetLines.length == 4,
+        "DepthDrawViewport should expose target grid lines for the depth-space viewport");
+    require(viewportGeometry.layerPlaneLines.length == 8 && viewportGeometry.depthRangeLines.length == 8,
+        "DepthDrawViewport should expose layer planes and depth ranges for multiple source layers");
+    require(viewportGeometry.selectedLayerLines.length == 4 && viewportGeometry.gapLines.length == 1 &&
+        viewportGeometry.overlapGapLines.length == 0,
+        "DepthDrawViewport should expose selected layer bounds and valid depth-space gap markers");
+    require(viewportGeometry.gapHandles.length == 1 &&
+        viewportGeometry.gapHandles[0].backLayerId == "back" &&
+        viewportGeometry.gapHandles[0].frontLayerId == "front" &&
+        !viewportGeometry.gapHandles[0].overlap &&
+        near(viewportGeometry.gapHandles[0].documentPoint.x, 2.0f) &&
+        near(viewportGeometry.gapHandles[0].documentPoint.y, 2.0f) &&
+        near(viewportGeometry.gapHandles[0].backDepth, -1.0f) &&
+        near(viewportGeometry.gapHandles[0].frontDepth, 0.75f) &&
+        near(viewportGeometry.gapHandles[0].renderPoint.size, 7.0f),
+        "DepthDrawViewport should expose visible gap handle metadata for labels and interaction");
+    require(viewportGeometry.textLabels.length == 1 &&
+        viewportGeometry.textLabels[0].text == "Gap: back -> front" &&
+        viewportGeometry.textLabels[0].backLayerId == "back" &&
+        viewportGeometry.textLabels[0].frontLayerId == "front" &&
+        !viewportGeometry.textLabels[0].overlap &&
+        near(viewportGeometry.textLabels[0].point.x, viewportGeometry.gapHandles[0].renderPoint.point.x) &&
+        near(viewportGeometry.textLabels[0].point.y, viewportGeometry.gapHandles[0].renderPoint.point.y),
+        "DepthDrawViewport should expose gap handle text labels next to visible handles");
+    require(viewportGeometry.missingPoints.length == 2 && viewportGeometry.winningPoints.length == 2,
+        "DepthDrawViewport should expose missing and winning target vertices from the composite preview");
+    auto frontWinnerColor = ngDepthDrawWinningLayerColor("front");
+    require(viewportGeometry.winningPointGroups.length == 1 &&
+        viewportGeometry.winningPointGroups[0].layerId == "front" &&
+        viewportGeometry.winningPointGroups[0].points.length == 2 &&
+        viewportGeometry.winningPointGroups[0].color == frontWinnerColor,
+        "DepthDrawViewport should group winning target vertices by layer color");
+    require(viewportGeometry.normalImageLines.length == 8 && viewportGeometry.rawDepthLines.length == 0 &&
+        viewportGeometry.coverageLines.length == 0 && viewportGeometry.coveragePoints.length == 0,
+        "DepthDrawViewport should expose source-image plane geometry through display toggles");
+    session.display.showRawDepth = true;
+    session.display.showCoverage = true;
+    session.display.showComposite = false;
+    session.display.showLayerPlanes = false;
+    session.display.showDepthRanges = false;
+    session.display.showMissingVertices = false;
+    session.display.showWinningLayer = false;
+    viewportGeometry = drawViewport.collectRenderGeometry();
+    viewportStats = viewportGeometry.stats();
+    require(viewportStats.targetMeshes == 0 && viewportStats.targetMeshGridUuids == 0 &&
+        viewportStats.targetSurfaceTriangles == 0 && viewportStats.targetLines == 0 &&
+        viewportStats.layerPlaneLines == 0 && viewportStats.selectedLayerLines == 0 &&
+        viewportStats.depthRangeLines == 0 && viewportStats.gapLines == 0 &&
+        viewportStats.overlapGapLines == 0 && viewportStats.gapHandles == 0 &&
+        viewportStats.textLabels == 0 &&
+        viewportStats.missingPoints == 0 && viewportStats.winningPoints == 0 &&
+        viewportStats.winningPointGroups == 0 && viewportStats.normalImageLines == 8 &&
+        viewportStats.rawDepthLines == 8 && viewportStats.coverageLines == 8 &&
+        viewportStats.coveragePoints == 3,
+        "DepthDrawViewport render-geometry stats should reflect display toggles");
+    require(viewportGeometry.targetMeshes.length == 0 && viewportGeometry.targetLines.length == 0 &&
+        viewportGeometry.missingPoints.length == 0 &&
+        viewportGeometry.winningPoints.length == 0 && viewportGeometry.layerPlaneLines.length == 0 &&
+        viewportGeometry.depthRangeLines.length == 0 && viewportGeometry.gapLines.length == 0,
+        "DepthDrawViewport display toggles should disable composite and depth-space geometry groups");
+    require(viewportGeometry.normalImageLines.length == 8 && viewportGeometry.rawDepthLines.length == 8 &&
+        viewportGeometry.coverageLines.length == 8 && viewportGeometry.coveragePoints.length == 3,
+        "DepthDrawViewport display toggles should enable normal, raw-depth, and coverage source overlays");
+    require(viewportGeometry.coveragePoints[0].layerId == "back" &&
+        near(viewportGeometry.coveragePoints[0].documentPoint.x, 1.5f) &&
+        near(viewportGeometry.coveragePoints[0].documentPoint.y, 1.5f) &&
+        near(viewportGeometry.coveragePoints[0].alpha, 1.0f),
+        "DepthDrawViewport coverage overlay should expose normal-layer coverage alpha points");
+    drawViewport.withdraw();
+    require(drawViewport.depthViewSession().targets.length == 0,
+        "DepthDrawViewport withdraw should clear common target views without clearing the source session");
+    auto composedStackRows = ngDepthDrawLayerStackRows(session, &result);
+    require(composedStackRows.length == 2 && composedStackRows[0].sampledVertices == 1 &&
+        composedStackRows[0].missingVertices == 3 && composedStackRows[0].winningVertices == 0,
+        "DepthDraw layer stack rows should expose sampled, missing, and winning counts from composition");
+    require(composedStackRows[1].hasDepthRange && near(composedStackRows[1].minDepth, 0.75f) &&
+        near(composedStackRows[1].maxDepth, 0.75f),
+        "DepthDraw layer stack rows should expose per-layer composed depth range");
+    auto previewSummary = ngDepthDrawCompositePreviewSummary(result);
+    require(previewSummary.targetGridUuid == grid.uuid && previewSummary.vertexCount == result.depths.length,
+        "DepthDraw composite preview summary should identify the target and vertex count");
+    require(previewSummary.sampledVertices == result.sampledVertices &&
+        previewSummary.missingVertices == result.missingVertices &&
+        previewSummary.finalSampledVertices == 2 && previewSummary.finalMissingVertices == 2,
+        "DepthDraw composite preview summary should expose sampled and missing counts");
+    require(previewSummary.points.length == result.depths.length &&
+        previewSummary.points[0].sampled && !previewSummary.points[0].missing &&
+        previewSummary.points[0].winningLayerId == "front" &&
+        !previewSummary.points[2].sampled && previewSummary.points[2].missing,
+        "DepthDraw composite preview summary should expose per-vertex winner and missing state");
+    require(previewSummary.points[0].winningLayerColor == frontWinnerColor,
+        "DepthDraw composite preview summary should assign stable colors to winning layer vertices");
+    require(previewSummary.hasDepthRange && near(previewSummary.minDepth, result.minDepth) &&
+        near(previewSummary.maxDepth, result.maxDepth),
+        "DepthDraw composite preview summary should preserve final depth range");
+    auto readbackComparison = ngCompareDepthDrawComposeReadback(result, result);
+    require(readbackComparison.ok && readbackComparison.depthMismatches == 0 &&
+        readbackComparison.winnerMismatches == 0 && readbackComparison.missingFlagMismatches == 0 &&
+        readbackComparison.targetMismatches == 0,
+        "DepthDraw readback equivalence should accept identical CPU/readback compose results");
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, result, -0.1f);
+    require(!readbackComparison.ok && readbackComparison.error.length > 0,
+        "DepthDraw readback equivalence should reject negative tolerance");
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, result, float.nan);
+    require(!readbackComparison.ok && readbackComparison.error.length > 0,
+        "DepthDraw readback equivalence should reject NaN tolerance");
+    auto lengthMismatch = result;
+    lengthMismatch.depths = result.depths[0 .. $ - 1].dup;
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, lengthMismatch);
+    require(!readbackComparison.ok && readbackComparison.error.length > 0,
+        "DepthDraw readback equivalence should reject depth array length mismatches");
+    auto depthMismatch = result;
+    depthMismatch.depths = result.depths.dup;
+    depthMismatch.winningLayerIds = result.winningLayerIds.dup;
+    depthMismatch.depths[0] += 0.1f;
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, depthMismatch);
+    require(!readbackComparison.ok && readbackComparison.depthMismatches == 1,
+        "DepthDraw readback equivalence should reject mismatched depth arrays");
+    auto winnerMismatch = result;
+    winnerMismatch.depths = result.depths.dup;
+    winnerMismatch.winningLayerIds = result.winningLayerIds.dup;
+    winnerMismatch.winningLayerIds[0] = "back";
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, winnerMismatch);
+    require(!readbackComparison.ok && readbackComparison.winnerMismatches == 1,
+        "DepthDraw readback equivalence should reject mismatched layer winners");
+    auto missingMismatch = result;
+    missingMismatch.depths = result.depths.dup;
+    missingMismatch.winningLayerIds = result.winningLayerIds.dup;
+    missingMismatch.winningLayerIds[0] = "";
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, missingMismatch);
+    require(!readbackComparison.ok && readbackComparison.missingFlagMismatches == 1,
+        "DepthDraw readback equivalence should reject mismatched missing flags");
+    auto targetMismatch = result;
+    targetMismatch.depths = result.depths.dup;
+    targetMismatch.winningLayerIds = result.winningLayerIds.dup;
+    targetMismatch.targetGridUuid = result.targetGridUuid + 1;
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, targetMismatch);
+    require(!readbackComparison.ok && readbackComparison.targetMismatches == 1 &&
+        readbackComparison.winnerMismatches == 0,
+        "DepthDraw readback equivalence should report target identity mismatches separately from winner mismatches");
+    auto aggregateStatsMismatch = result;
+    aggregateStatsMismatch.depths = result.depths.dup;
+    aggregateStatsMismatch.winningLayerIds = result.winningLayerIds.dup;
+    aggregateStatsMismatch.layerStats = result.layerStats.dup;
+    aggregateStatsMismatch.sampledVertices++;
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, aggregateStatsMismatch);
+    require(!readbackComparison.ok && readbackComparison.aggregateStatMismatches == 1,
+        "DepthDraw readback equivalence should reject mismatched aggregate compose stats");
+    auto layerStatsMismatch = result;
+    layerStatsMismatch.depths = result.depths.dup;
+    layerStatsMismatch.winningLayerIds = result.winningLayerIds.dup;
+    layerStatsMismatch.layerStats = result.layerStats.dup;
+    layerStatsMismatch.layerStats[0].sampledVertices++;
+    readbackComparison = ngCompareDepthDrawComposeReadback(result, layerStatsMismatch);
+    require(!readbackComparison.ok && readbackComparison.layerStatMismatches == 1,
+        "DepthDraw readback equivalence should reject mismatched per-layer compose stats");
+    auto depthSpace = ngDepthDrawDepthSpaceSummary(session, &result);
+    require(depthSpace.selectedGridUuid == grid.uuid && depthSpace.selectedLayerId == "front",
+        "DepthDraw depth-space summary should preserve selected target and layer ids");
+    require(depthSpace.layers.length == 2 && !depthSpace.layers[0].selected && depthSpace.layers[1].selected,
+        "DepthDraw depth-space summary should expose selected layer plane state");
+    require(depthSpace.layers[1].bounds.width == 4 && depthSpace.layers[1].bounds.height == 4 &&
+        depthSpace.layers[1].hasDepthRange && near(depthSpace.layers[1].representativeDepth, 0.75f),
+        "DepthDraw depth-space summary should expose layer bounds and representative depth");
+    require(depthSpace.gaps.length == 1 && depthSpace.gaps[0].valid && !depthSpace.gaps[0].overlap &&
+        depthSpace.gaps[0].backLayerId == "back" && depthSpace.gaps[0].frontLayerId == "front" &&
+        near(depthSpace.gaps[0].backDepth, -1.0f) && near(depthSpace.gaps[0].frontDepth, 0.75f),
+        "DepthDraw depth-space summary should expose adjacent gap and overlap markers");
+
+    ubyte[] fullVertexPixels(ubyte gray) {
+        ubyte[] pixels;
+        foreach (i; 0 .. 16) pixels ~= [0, 0, 0, 0];
+        setPixel(pixels, 1, 1, gray, 255);
+        setPixel(pixels, 3, 1, gray, 255);
+        setPixel(pixels, 1, 3, gray, 255);
+        setPixel(pixels, 3, 3, gray, 255);
+        return pixels;
+    }
+
+    auto mergeFixture = loadDepthDrawFixture("local-merge-policies-smoke.json");
+    foreach (caseIndex, caseValue; mergeFixture["cases"].array) {
+        auto policyName = fixtureString(fixtureRequired(caseValue.object, "policy",
+            "local-merge-policies-smoke.cases[%s]".format(caseIndex)), "merge policy");
+        auto expectedDepths = fixtureFloatArray(fixtureRequired(caseValue.object, "expectedDepths",
+            "local-merge-policies-smoke.cases[%s]".format(caseIndex)), policyName ~ ".expectedDepths");
+        auto expectedWinners = fixtureStringArray(fixtureRequired(caseValue.object, "expectedWinners",
+            "local-merge-policies-smoke.cases[%s]".format(caseIndex)), policyName ~ ".expectedWinners");
+
+        DepthDrawLayer lowLayer;
+        lowLayer.id = "low";
+        lowLayer.layerPath = "/low";
+        lowLayer.displayName = "Low";
+        lowLayer.width = 4;
+        lowLayer.height = 4;
+        lowLayer.bounds.width = 4;
+        lowLayer.bounds.height = 4;
+        lowLayer.convolution = DepthImageConvolution.Nearest;
+        lowLayer.depthPixels = fullVertexPixels(0);
+
+        DepthDrawLayer highLayer = lowLayer;
+        highLayer.id = "high";
+        highLayer.layerPath = "/high";
+        highLayer.displayName = "High";
+        highLayer.depthPixels = fullVertexPixels(255);
+
+        DepthDrawBinding lowBinding;
+        lowBinding.layerId = "low";
+        lowBinding.targetGridUuid = grid.uuid;
+        lowBinding.targetNodeUuid = grid.uuid;
+        lowBinding.order = 0;
+        lowBinding.mergePolicy = fixtureMergePolicy(policyName);
+
+        DepthDrawBinding highBinding = lowBinding;
+        highBinding.layerId = "high";
+        highBinding.order = 1;
+
+        auto mergeSession = new DepthDrawSession();
+        mergeSession.layers ~= lowLayer;
+        mergeSession.layers ~= highLayer;
+        mergeSession.bindings ~= lowBinding;
+        mergeSession.bindings ~= highBinding;
+
+        auto mergeResult = ngComposeDepthDrawTarget(mergeSession, view, 4, 4);
+        require(mergeResult.depths.length == expectedDepths.length &&
+            mergeResult.winningLayerIds.length == expectedWinners.length,
+            "DepthDraw merge policy fixture should match the composed target vertex count for " ~ policyName);
+        foreach (i, expectedDepth; expectedDepths) {
+            require(near(mergeResult.depths[i], expectedDepth),
+                "DepthDraw merge policy " ~ policyName ~ " should produce fixture expectedDepths");
+            require(mergeResult.winningLayerIds[i] == expectedWinners[i],
+                "DepthDraw merge policy " ~ policyName ~ " should produce fixture expectedWinners");
+        }
+
+        auto mergeGpuPacket = ngBuildDepthDrawGpuComposePacket(mergeSession, view, 4, 4);
+        DepthDrawGpuLayerReadback lowMergeReadback;
+        lowMergeReadback.layerIndex = 0;
+        lowMergeReadback.validSamples.length = grid.vertices.length;
+        lowMergeReadback.sampleDepths.length = grid.vertices.length;
+        DepthDrawGpuLayerReadback highMergeReadback;
+        highMergeReadback.layerIndex = 1;
+        highMergeReadback.validSamples.length = grid.vertices.length;
+        highMergeReadback.sampleDepths.length = grid.vertices.length;
+        foreach (i; 0 .. grid.vertices.length) {
+            lowMergeReadback.validSamples[i] = 1;
+            lowMergeReadback.sampleDepths[i] = -1.0f;
+            highMergeReadback.validSamples[i] = 1;
+            highMergeReadback.sampleDepths[i] = 1.0f;
+        }
+        auto mergeGpuReadback = ngBuildDepthDrawGpuComposeReadback(
+            mergeGpuPacket,
+            [lowMergeReadback, highMergeReadback]);
+        auto mergeGpuResult = ngDepthDrawComposeResultFromGpuReadback(mergeGpuPacket, mergeGpuReadback);
+        auto mergeGpuComparison = ngCompareDepthDrawComposeReadback(mergeResult, mergeGpuResult);
+        require(mergeGpuComparison.ok,
+            "DepthDraw GPU readback merge policy " ~ policyName ~ " should match CPU composition");
+    }
+
+    auto transformGrid = new ExGridDeformer(incActivePuppet().root);
+    transformGrid.name = "depthdraw-transform-grid";
+    auto transformCtx = new Context();
+    transformCtx.nodes = [cast(Node)transformGrid];
+    require((new DefineGridCommand([-1f, 1f], [-1f, 1f])).run(transformCtx).succeeded,
+        "DepthDraw transform fixture should define a 2x2 grid");
+    transformGrid.replaceDepths([0.0f, 0.0f, 0.0f, 0.0f]);
+
+    ubyte[] transformPixels;
+    foreach (i; 0 .. 16) transformPixels ~= [0, 0, 0, 0];
+    setPixel(transformPixels, 0, 0, 0, 255);
+    setPixel(transformPixels, 1, 0, 64, 255);
+    setPixel(transformPixels, 0, 1, 128, 255);
+    setPixel(transformPixels, 1, 1, 255, 255);
+
+    DepthDrawLayer transformLayer;
+    transformLayer.id = "transform";
+    transformLayer.layerPath = "/transform";
+    transformLayer.displayName = "Transform";
+    transformLayer.width = 4;
+    transformLayer.height = 4;
+    transformLayer.bounds.width = 4;
+    transformLayer.bounds.height = 4;
+    transformLayer.xyOffset = vec2(1, 1);
+    transformLayer.xyScale = vec2(2, 2);
+    transformLayer.convolution = DepthImageConvolution.Nearest;
+    transformLayer.depthPixels = transformPixels;
+
+    DepthDrawBinding transformBinding;
+    transformBinding.layerId = "transform";
+    transformBinding.targetGridUuid = transformGrid.uuid;
+    transformBinding.targetNodeUuid = transformGrid.uuid;
+    transformBinding.order = 0;
+    transformBinding.mergePolicy = DepthMergePolicy.Replace;
+
+    auto transformSession = new DepthDrawSession();
+    transformSession.layers ~= transformLayer;
+    transformSession.bindings ~= transformBinding;
+
+    auto transformView = new DepthTargetView(transformGrid);
+    auto topLeftDocumentPoint = ngDepthDrawVertexDocumentPosition(transformView, vec2(-1, -1), 4, 4);
+    require(nearVec2(topLeftDocumentPoint, vec2(1, 1)),
+        "DepthDraw coordinate helper should convert local vertices to document space");
+    auto topLeftLayerPoint = ngDepthDrawLayerPixelFromDocument(transformLayer, topLeftDocumentPoint);
+    require(nearVec2(topLeftLayerPoint, vec2(0, 0)),
+        "DepthDraw coordinate helper should apply bounds, XY offset, and XY scale in one shared path");
+    auto transformGpuPacket = ngBuildDepthDrawGpuComposePacket(transformSession, transformView, 4, 4);
+    require(transformGpuPacket.layers.length == 1 &&
+        near(transformGpuPacket.layers[0].xyOffsetX, transformLayer.xyOffset.x) &&
+        near(transformGpuPacket.layers[0].xyOffsetY, transformLayer.xyOffset.y) &&
+        near(transformGpuPacket.layers[0].xyScaleX, transformLayer.xyScale.x) &&
+        near(transformGpuPacket.layers[0].xyScaleY, transformLayer.xyScale.y),
+        "DepthDraw GPU compose packet should carry XY transform values used by the CPU sampler");
+    auto gpuTopLeftLayerPoint = ngDepthDrawGpuLayerPixelFromDocument(
+        transformGpuPacket.layers[0],
+        transformGpuPacket.documentPositions[0]);
+    require(nearVec2(gpuTopLeftLayerPoint, topLeftLayerPoint),
+        "DepthDraw GPU coordinate helper should match the CPU layer-pixel coordinate helper");
+    auto transformResult = ngComposeDepthDrawTarget(transformSession, transformView, 4, 4);
+    require(transformResult.depths.length == transformGrid.vertices.length,
+        "DepthDraw transform composer should produce one depth per target vertex");
+    foreach (i, vertex; transformView.getVertices()) {
+        float expected;
+        if (near(vertex.x, -1.0f) && near(vertex.y, -1.0f)) {
+            expected = -1.0f;
+        } else if (near(vertex.x, 1.0f) && near(vertex.y, -1.0f)) {
+            expected = cast(float)(64.0 / 255.0 * 2.0 - 1.0);
+        } else if (near(vertex.x, -1.0f) && near(vertex.y, 1.0f)) {
+            expected = cast(float)(128.0 / 255.0 * 2.0 - 1.0);
+        } else if (near(vertex.x, 1.0f) && near(vertex.y, 1.0f)) {
+            expected = 1.0f;
+        } else {
+            require(false, "DepthDraw transform fixture should only contain the expected 2x2 vertices");
+        }
+        require(near(transformResult.depths[i], expected),
+            "DepthDraw composer should apply layer bounds, XY offset, and XY scale before sampling");
+        require(transformResult.winningLayerIds[i] == "transform",
+            "DepthDraw transform fixture should sample every vertex from the transform layer");
+    }
+
+    auto pathTarget = new ExPathDeformer(incActivePuppet().root);
+    pathTarget.name = "depthdraw-path-target";
+    pathTarget.rebuffer(Vec2Array([
+        vec2(-1, -1),
+        vec2(1, -1),
+        vec2(1, 1),
+    ]));
+    pathTarget.replaceDepths([0.1f, 0.2f, 0.3f]);
+
+    DepthDrawLayer pathLayer;
+    pathLayer.id = "path-layer";
+    pathLayer.layerPath = "/path-layer";
+    pathLayer.displayName = "Path Layer";
+    pathLayer.width = 4;
+    pathLayer.height = 4;
+    pathLayer.bounds.width = 4;
+    pathLayer.bounds.height = 4;
+    pathLayer.convolution = DepthImageConvolution.Nearest;
+    pathLayer.depthPixels = fullVertexPixels(255);
+
+    DepthDrawBinding pathBinding;
+    pathBinding.layerId = "path-layer";
+    pathBinding.targetGridUuid = pathTarget.uuid;
+    pathBinding.targetNodeUuid = pathTarget.uuid;
+    pathBinding.mergePolicy = DepthMergePolicy.Replace;
+
+    auto pathSession = new DepthDrawSession();
+    pathSession.layers ~= pathLayer;
+    pathSession.bindings ~= pathBinding;
+    auto pathView = new DepthTargetView(pathTarget);
+    auto pathResult = ngComposeDepthDrawTarget(pathSession, pathView, 4, 4);
+    require(pathResult.targetGridUuid == pathTarget.uuid && pathResult.depths.length == pathTarget.vertices.length,
+        "DepthDraw composer should support PathDeformer targets");
+    foreach (depth; pathResult.depths) {
+        require(near(depth, 1.0f), "DepthDraw PathDeformer composition should sample one depth per path control point");
+    }
+    auto pathSummary = ngApplyDepthDrawTargetResultWithSummary(new Context(), pathView, pathResult);
+    require(pathSummary.succeeded && pathSummary.changedTargets == 1 && pathTarget.copyDepths() == pathResult.depths,
+        "DepthDraw apply should write composed depths to PathDeformer targets");
+    auto pathGpuPacket = ngBuildDepthDrawGpuComposePacket(pathSession, pathView, 4, 4);
+    require(pathGpuPacket.targetGridUuid == pathTarget.uuid &&
+        pathGpuPacket.vertices == pathTarget.vertices.toArray() &&
+        pathGpuPacket.documentPositions.length == pathTarget.vertices.length &&
+        pathGpuPacket.baseDepths == pathView.baseDepths &&
+        pathGpuPacket.layers.length == 1 &&
+        pathGpuPacket.bindings.length == 1,
+        "DepthDraw GPU compose packet should support PathDeformer targets through the shared target view");
+    DepthDrawGpuLayerReadback pathLayerReadback;
+    pathLayerReadback.layerIndex = 0;
+    pathLayerReadback.validSamples = [1, 1, 1];
+    pathLayerReadback.sampleDepths = pathResult.depths.dup;
+    auto builtPathGpuReadback = ngBuildDepthDrawGpuComposeReadback(pathGpuPacket, [pathLayerReadback]);
+    require(builtPathGpuReadback.targetGridUuid == pathTarget.uuid &&
+        builtPathGpuReadback.depths.length == pathTarget.vertices.length &&
+        builtPathGpuReadback.winningLayerIndices == [0, 0, 0],
+        "DepthDraw GPU readback builder should merge PathDeformer control-point samples");
+    auto builtPathGpuResult = ngDepthDrawComposeResultFromGpuReadback(pathGpuPacket, builtPathGpuReadback);
+    auto builtPathGpuComparison = ngCompareDepthDrawComposeReadback(pathResult, builtPathGpuResult);
+    require(builtPathGpuComparison.ok,
+        "DepthDraw GPU readback result should match CPU composition for PathDeformer targets");
+    incActionUndo();
+    require(pathTarget.copyDepths() == [0.1f, 0.2f, 0.3f],
+        "DepthDraw PathDeformer apply undo should restore previous target depths");
+    incActionRedo();
+    require(pathTarget.copyDepths() == pathResult.depths,
+        "DepthDraw PathDeformer apply redo should restore composed target depths");
+
+    session.markTargetPreviewDirty(grid.uuid);
+    session.markTargetPreviewDirty(transformGrid.uuid);
+    auto preview = ngPreviewDepthDrawTarget(session, view, 4, 4);
+    require(preview.depths == view.copyWorkingDepths(),
+        "DepthDraw preview should write composed depths into the shared target view only");
+    require(grid.copyDepths() == [0.25f, 0.25f, 0.25f, 0.25f],
+        "DepthDraw preview should not apply composed depths to the model target");
+    require(!session.isTargetPreviewDirty(grid.uuid) && session.isTargetPreviewDirty(transformGrid.uuid),
+        "DepthDraw preview should clear dirty state only for the recomposed target");
+
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+    }
+
+    auto rigRoot = new ExDepthRigRoot(incActivePuppet().root);
+    rigRoot.name = "depthdraw-refresh-root";
+    auto bone = ngCreateDepthBone(rigRoot, "DepthDrawRefreshBone", vec3(0, 0, 0), vec3(0, 100, 0));
+    ExDepthRigBinding rigBinding;
+    rigBinding.targetUuid = grid.uuid;
+    rigBinding.targetKind = ExDepthTargetKind.Grid;
+    rigBinding.sourceBoneUuids = [cast(ulong)bone.uuid];
+    rigBinding.influenceRule.maxInfluences = 1;
+    rigRoot.bindings ~= rigBinding;
+
+    auto param = new ExParameter("DepthDrawRefreshParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto tx = newValueBinding(param, bone, "transform.t.x");
+    tx.setValue(vec2u(1, 0), 5.0f);
+
+    auto applyCtx = new Context();
+    auto applySummary = ngApplyDepthDrawTargetResultWithSummary(applyCtx, view, result);
+    require(applySummary.succeeded,
+        "DepthDraw apply helper should apply through the shared depth map change path");
+    require(applySummary.changedTargets == 1 && applySummary.changedVertices == 2,
+        "DepthDraw apply summary should count changed target and vertices");
+    require(applySummary.layersApplied == 1 && applySummary.layersSkipped == 1,
+        "DepthDraw apply summary should count applied and skipped layers");
+    require(applySummary.missingSamples == result.missingVertices,
+        "DepthDraw apply summary should report missing sample warnings");
+    require(grid.copyDepths() == result.depths, "DepthDraw apply should write composed depths to the target");
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount >= 2,
+        "DepthDraw apply should submit DepthBone refresh work for the changed target and keypoints");
+    auto deformBinding = cast(DeformationParameterBinding)param.getBinding(grid, "deform");
+    require(deformBinding !is null, "DepthDraw apply should refresh DepthBone deform binding for the changed target");
+    require(deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == grid.vertices.length,
+        "DepthDraw apply DepthBone refresh should write every target vertex offset");
+    incActionUndo();
+    require(grid.copyDepths() == [0.25f, 0.25f, 0.25f, 0.25f],
+        "DepthDraw apply undo should restore previous target depths");
+    incActionRedo();
+    require(grid.copyDepths() == result.depths,
+        "DepthDraw apply redo should restore composed target depths");
+
+    auto additiveApplySummary = ngApplyDepthDrawTargetResultWithSummary(new Context(), view, additiveResult);
+    require(additiveApplySummary.succeeded &&
+        additiveApplySummary.layersApplied == 2 &&
+        additiveApplySummary.layersSkipped == 0,
+        "DepthDraw apply summary should count additive layers that contributed to final depths");
+}
+
+private double fixtureNumber(JSONValue value, string name) {
+    final switch (value.type) {
+        case JSONType.float_:
+            return value.floating;
+        case JSONType.integer:
+            return cast(double)value.integer;
+        case JSONType.uinteger:
+            return cast(double)value.uinteger;
+        case JSONType.object:
+        case JSONType.array:
+        case JSONType.string:
+        case JSONType.true_:
+        case JSONType.false_:
+        case JSONType.null_:
+            require(false, name ~ " must be a number");
+    }
+    assert(0);
+}
+
+private string fixtureString(JSONValue value, string name) {
+    require(value.type == JSONType.string, name ~ " must be a string");
+    return value.str;
+}
+
+private bool fixtureBool(JSONValue value, string name) {
+    final switch (value.type) {
+        case JSONType.true_:
+            return true;
+        case JSONType.false_:
+            return false;
+        case JSONType.object:
+        case JSONType.array:
+        case JSONType.string:
+        case JSONType.integer:
+        case JSONType.uinteger:
+        case JSONType.float_:
+        case JSONType.null_:
+            require(false, name ~ " must be a boolean");
+    }
+    assert(0);
+}
+
+private JSONValue fixtureRequired(JSONValue[string] object, string key, string owner) {
+    auto ptr = key in object;
+    require(ptr !is null, owner ~ " missing required key: " ~ key);
+    return *ptr;
+}
+
+private float[] fixtureFloatArray(JSONValue value, string name) {
+    require(value.type == JSONType.array, name ~ " must be an array");
+    float[] result;
+    foreach (i, entry; value.array) {
+        result ~= cast(float)fixtureNumber(entry, "%s[%s]".format(name, i));
+    }
+    return result;
+}
+
+private ubyte[] fixtureByteArray(JSONValue value, string name) {
+    require(value.type == JSONType.array, name ~ " must be an array");
+    ubyte[] result;
+    foreach (i, entry; value.array) {
+        auto number = fixtureNumber(entry, "%s[%s]".format(name, i));
+        require(number >= 0 && number <= 255 && number == cast(int)number,
+            "%s[%s] must be an integer byte".format(name, i));
+        result ~= cast(ubyte)number;
+    }
+    return result;
+}
+
+private int[] fixtureIntArray(JSONValue value, string name) {
+    require(value.type == JSONType.array, name ~ " must be an array");
+    int[] result;
+    foreach (i, entry; value.array) {
+        auto number = fixtureNumber(entry, "%s[%s]".format(name, i));
+        require(number == cast(int)number, "%s[%s] must be an integer".format(name, i));
+        result ~= cast(int)number;
+    }
+    return result;
+}
+
+private string[] fixtureStringArray(JSONValue value, string name) {
+    require(value.type == JSONType.array, name ~ " must be an array");
+    string[] result;
+    foreach (i, entry; value.array) result ~= fixtureString(entry, "%s[%s]".format(name, i));
+    return result;
+}
+
+private DepthMergePolicy fixtureMergePolicy(string value) {
+    switch (value) {
+        case "Replace": return DepthMergePolicy.Replace;
+        case "Frontmost": return DepthMergePolicy.Frontmost;
+        case "Backmost": return DepthMergePolicy.Backmost;
+        case "Add": return DepthMergePolicy.Add;
+        case "KeepExistingWhereMissing": return DepthMergePolicy.KeepExistingWhereMissing;
+        default:
+            require(false, "unknown depthdraw fixture merge policy: " ~ value);
+    }
+    assert(0);
+}
+
+private bool fixtureStringArrayContains(JSONValue[string] obj, string key, string expected, string owner) {
+    auto values = fixtureStringArray(fixtureRequired(obj, key, owner), owner ~ "." ~ key);
+    foreach (value; values) {
+        if (value == expected) return true;
+    }
+    return false;
+}
+
+private size_t runDepthDrawApiCapabilitiesFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    require(fixtureString(fixtureRequired(obj, "referenceRepository", id), id ~ ".referenceRepository")
+        == "C:/Users/siget/src/depth-draw",
+        id ~ " must record the hard depth-draw repository path");
+    foreach (referenceFile; ["scripts/depth-draw-cli.js", "doc/api.md", "src/app/externalApi.js"]) {
+        require(fixtureStringArrayContains(obj, "referenceFiles", referenceFile, id),
+            id ~ " must record searched depth-draw reference file: " ~ referenceFile);
+    }
+    foreach (root; ["src", "doc", "scripts"]) {
+        require(fixtureStringArrayContains(obj, "sourceSearchRoots", root, id),
+            id ~ " must record searched depth-draw source root: " ~ root);
+    }
+    foreach (term; [
+        "Fit Z",
+        "fitZ",
+        "fit-z",
+        "gap",
+        "depthOffset",
+        "depthScale",
+        "setLayerDepthTransform",
+        "target-depth",
+        "targetDepth",
+        "winner",
+        "winning",
+    ]) {
+        require(fixtureStringArrayContains(obj, "blockedCapabilitySearchTerms", term, id),
+            id ~ " must record blocked capability search term: " ~ term);
+    }
+    require(fixtureString(fixtureRequired(obj, "lastCapabilitySearchDate", id), id ~ ".lastCapabilitySearchDate")
+        == "2026-07-05",
+        id ~ " must record the latest hard depth-draw capability search date");
+
+    foreach (command; ["composite", "layer-depth", "layer-mesh", "meshes", "set-layer-depth-mesh"]) {
+        require(fixtureStringArrayContains(obj, "supportedCliCommands", command, id),
+            id ~ " must record depth-draw CLI command: " ~ command);
+    }
+    foreach (action; ["getCompositeSource", "getLayerMesh", "getAllLayerMeshes", "setLayerDepthMesh"]) {
+        require(fixtureStringArrayContains(obj, "supportedApiActions", action, id),
+            id ~ " must record depth-draw API action: " ~ action);
+    }
+    foreach (command; fixtureStringArray(fixtureRequired(obj, "unsupportedCliCommands", id),
+        id ~ ".unsupportedCliCommands")) {
+        require(!fixtureStringArrayContains(obj, "supportedCliCommands", command, id),
+            id ~ " must not list unsupported depth-draw CLI command as supported: " ~ command);
+    }
+    foreach (action; fixtureStringArray(fixtureRequired(obj, "unsupportedApiActions", id),
+        id ~ ".unsupportedApiActions")) {
+        require(!fixtureStringArrayContains(obj, "supportedApiActions", action, id),
+            id ~ " must not list unsupported depth-draw API action as supported: " ~ action);
+    }
+    require(fixtureString(fixtureRequired(obj, "targetGeometryFixtureRoute", id), id ~ ".targetGeometryFixtureRoute")
+        == "blocked",
+        id ~ " must record that target-geometry fixture generation is blocked");
+    require(fixtureString(fixtureRequired(obj, "fitZFixtureRoute", id), id ~ ".fitZFixtureRoute")
+        == "blocked",
+        id ~ " must record that Fit Z fixture generation is blocked");
+    foreach (command; ["target-depths", "final-target-depths", "per-vertex-layer-winners", "fit-z", "fit-z-to-gap"]) {
+        require(fixtureStringArrayContains(obj, "unsupportedCliCommands", command, id),
+            id ~ " must record unsupported depth-draw CLI command: " ~ command);
+    }
+    foreach (action; ["getTargetDepthArray", "getFinalTargetDepths", "getPerVertexLayerWinners",
+        "fitZ", "fitZToGap", "fitLayerDepthToGap"]) {
+        require(fixtureStringArrayContains(obj, "unsupportedApiActions", action, id),
+            id ~ " must record unsupported depth-draw API action: " ~ action);
+    }
+
+    require(fixtureBool(fixtureRequired(obj, "meshExportAppliesShaderDepth", id), id ~ ".meshExportAppliesShaderDepth"),
+        id ~ " must record that exported layer mesh positions include shader depth");
+    require(fixtureBool(fixtureRequired(obj, "supportsLayerMeshes", id), id ~ ".supportsLayerMeshes"),
+        id ~ " must record layer mesh export support");
+    require(fixtureBool(fixtureRequired(obj, "supportsAllLayerMeshes", id), id ~ ".supportsAllLayerMeshes"),
+        id ~ " must record all-layer mesh export support");
+    require(fixtureBool(fixtureRequired(obj, "supportsLayerDepthMeshWriteback", id), id ~ ".supportsLayerDepthMeshWriteback"),
+        id ~ " must record per-layer depth mesh writeback support");
+    require(fixtureString(fixtureRequired(obj, "psdWritebackRoute", id), id ~ ".psdWritebackRoute")
+        == "browser-js-ag-psd-only",
+        id ~ " must record that layered PSD writeback is browser-side ag-psd only");
+    require(fixtureBool(fixtureRequired(obj, "supportsBrowserSideLayeredPsdWriteback", id),
+        id ~ ".supportsBrowserSideLayeredPsdWriteback"),
+        id ~ " must record depth-draw browser-side layered PSD writeback support");
+    require(!fixtureBool(fixtureRequired(obj, "supportsNativeDLayeredPsdWriteback", id),
+        id ~ ".supportsNativeDLayeredPsdWriteback"),
+        id ~ " must not claim native D layered PSD writeback support until nijigenerate exposes a verified writer");
+    require(!fixtureBool(fixtureRequired(obj, "supportsFinalTargetDepthArrays", id), id ~ ".supportsFinalTargetDepthArrays"),
+        id ~ " must not claim final target depth array support until depth-draw exposes it");
+    require(!fixtureBool(fixtureRequired(obj, "supportsPerVertexLayerWinners", id), id ~ ".supportsPerVertexLayerWinners"),
+        id ~ " must not claim per-vertex layer winner support until depth-draw exposes it");
+    require(!fixtureBool(fixtureRequired(obj, "supportsFitZToGap", id), id ~ ".supportsFitZToGap"),
+        id ~ " must not claim Fit Z to Gap support until depth-draw exposes it");
+    return 1;
+}
+
+private size_t runDepthDrawFixtureFile(string path) {
+    import std.json : parseJSON;
+
+    auto root = parseJSON(readText(path));
+    require(root.type == JSONType.object, "depthdraw fixture root must be an object: " ~ path);
+    auto obj = root.object;
+    auto generatedByPtr = "generatedBy" in obj;
+    if (generatedByPtr is null) return 0;
+    auto generatedBy = fixtureString(*generatedByPtr, path ~ ".generatedBy");
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-alpha-mask-contract") {
+        return runDepthDrawAlphaMaskFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-alpha-depth-gap-fill-contract") {
+        return runDepthDrawAlphaDepthGapFillFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-depth-cleanup-contract") {
+        return runDepthDrawDepthCleanupFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-depth-prune-contract") {
+        return runDepthDrawDepthPruneFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-depth-split-contract") {
+        return runDepthDrawDepthSplitFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-depth-conversion-contract") {
+        return runDepthDrawDepthConversionFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-layer-bounds-sampling-contract") {
+        return runDepthDrawLayerBoundsSamplingFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-psd-mask-export-contract") {
+        return runDepthDrawPsdMaskExportFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-global-depth-scale-contract") {
+        return runDepthDrawGlobalDepthScaleFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-grid-convolution-contract") {
+        return runDepthDrawGridConvolutionFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && idOrEmpty(obj) == "depthdraw-api-capabilities") {
+        return runDepthDrawApiCapabilitiesFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw" && ("composite" in obj) !is null) {
+        return runDepthDrawArtifactFixtureFile(path, obj);
+    }
+    if (generatedBy == "depth-draw") return 0;
+    if (generatedBy == "local-contract" && idOrEmpty(obj) == "local-merge-policies-smoke") {
+        return runDepthDrawLocalMergePoliciesFixtureFile(path, obj);
+    }
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto document = fixtureRequired(obj, "document", id);
+    require(document.type == JSONType.object, id ~ ".document must be an object");
+    auto documentWidth = cast(int)fixtureNumber(fixtureRequired(document.object, "width", id ~ ".document"), id ~ ".document.width");
+    auto documentHeight = cast(int)fixtureNumber(fixtureRequired(document.object, "height", id ~ ".document"), id ~ ".document.height");
+
+    auto gridObj = fixtureRequired(obj, "grid", id);
+    require(gridObj.type == JSONType.object, id ~ ".grid must be an object");
+    auto axisX = fixtureFloatArray(fixtureRequired(gridObj.object, "axisX", id ~ ".grid"), id ~ ".grid.axisX");
+    auto axisY = fixtureFloatArray(fixtureRequired(gridObj.object, "axisY", id ~ ".grid"), id ~ ".grid.axisY");
+    auto baseDepths = fixtureFloatArray(fixtureRequired(gridObj.object, "baseDepths", id ~ ".grid"), id ~ ".grid.baseDepths");
+
+    resetCase();
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "depthdraw-fixture-" ~ id;
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+    require((new DefineGridCommand(axisX, axisY)).run(ctx).succeeded, id ~ " should define fixture grid");
+    grid.localTransform.translation = vec3(0, 0, 0);
+    grid.localTransform.update();
+    incActivePuppet().root.build();
+    grid.replaceDepths(baseDepths);
+
+    auto session = new DepthDrawSession();
+    auto layersValue = fixtureRequired(obj, "layers", id);
+    require(layersValue.type == JSONType.array, id ~ ".layers must be an array");
+    foreach (layerIndex, layerValue; layersValue.array) {
+        require(layerValue.type == JSONType.object, "%s.layers[%s] must be an object".format(id, layerIndex));
+        auto layerObj = layerValue.object;
+        DepthDrawLayer layer;
+        layer.id = fixtureString(fixtureRequired(layerObj, "id", "%s.layers[%s]".format(id, layerIndex)),
+            "%s.layers[%s].id".format(id, layerIndex));
+        layer.width = cast(int)fixtureNumber(fixtureRequired(layerObj, "width", layer.id), layer.id ~ ".width");
+        layer.height = cast(int)fixtureNumber(fixtureRequired(layerObj, "height", layer.id), layer.id ~ ".height");
+        auto bounds = fixtureFloatArray(fixtureRequired(layerObj, "bounds", layer.id), layer.id ~ ".bounds");
+        require(bounds.length == 4, layer.id ~ ".bounds must have four values");
+        layer.bounds.left = cast(int)bounds[0];
+        layer.bounds.top = cast(int)bounds[1];
+        layer.bounds.width = cast(int)bounds[2];
+        layer.bounds.height = cast(int)bounds[3];
+        layer.depthPixels = fixtureByteArray(fixtureRequired(layerObj, "pixels", layer.id), layer.id ~ ".pixels");
+        if (auto value = "zScale" in layerObj) layer.zScale = cast(float)fixtureNumber(*value, layer.id ~ ".zScale");
+        if (auto value = "zOffset" in layerObj) layer.zOffset = cast(float)fixtureNumber(*value, layer.id ~ ".zOffset");
+        if (auto value = "backDepth" in layerObj) layer.backDepth = cast(float)fixtureNumber(*value, layer.id ~ ".backDepth");
+        if (auto value = "frontDepth" in layerObj) layer.frontDepth = cast(float)fixtureNumber(*value, layer.id ~ ".frontDepth");
+        session.layers ~= layer;
+    }
+
+    auto bindingsValue = fixtureRequired(obj, "bindings", id);
+    require(bindingsValue.type == JSONType.array, id ~ ".bindings must be an array");
+    foreach (bindingIndex, bindingValue; bindingsValue.array) {
+        require(bindingValue.type == JSONType.object, "%s.bindings[%s] must be an object".format(id, bindingIndex));
+        auto bindingObj = bindingValue.object;
+        DepthDrawBinding binding;
+        binding.layerId = fixtureString(fixtureRequired(bindingObj, "layerId", "%s.bindings[%s]".format(id, bindingIndex)),
+            "%s.bindings[%s].layerId".format(id, bindingIndex));
+        binding.targetGridUuid = grid.uuid;
+        binding.targetNodeUuid = grid.uuid;
+        if (auto value = "order" in bindingObj) binding.order = cast(int)fixtureNumber(*value, binding.layerId ~ ".order");
+        if (auto value = "mergePolicy" in bindingObj) binding.mergePolicy = fixtureMergePolicy(fixtureString(*value, binding.layerId ~ ".mergePolicy"));
+        session.bindings ~= binding;
+    }
+
+    auto view = new DepthTargetView(grid);
+    auto fixtureVertices = view.getVertices();
+    if (fixtureVertices.length > 0) {
+        auto firstDocumentPoint = ngDepthDrawVertexDocumentPosition(view, fixtureVertices[0], documentWidth, documentHeight);
+        require(firstDocumentPoint.x.isFinite && firstDocumentPoint.y.isFinite,
+            "%s first vertex document point must be finite: (%s,%s)".format(
+                id, firstDocumentPoint.x, firstDocumentPoint.y));
+    }
+    auto result = ngComposeDepthDrawTarget(session, view, documentWidth, documentHeight);
+    auto expectedDepths = fixtureFloatArray(fixtureRequired(obj, "expectedDepths", id), id ~ ".expectedDepths");
+    require(result.depths.length == expectedDepths.length,
+        "%s expected depth length mismatch actual=%s expected=%s".format(id, result.depths.length, expectedDepths.length));
+    auto tolerance = obj.get("tolerance", JSONValue(0.00001)).fixtureNumber(id ~ ".tolerance");
+    foreach (i, expected; expectedDepths) {
+        require(abs(result.depths[i] - expected) <= tolerance,
+            "%s depth[%s] actual=%s expected=%s tolerance=%s".format(id, i, result.depths[i], expected, tolerance));
+    }
+
+    if (auto winners = "expectedWinners" in obj) {
+        auto expectedWinners = fixtureStringArray(*winners, id ~ ".expectedWinners");
+        require(result.winningLayerIds.length == expectedWinners.length,
+            "%s winner length mismatch actual=%s expected=%s".format(id, result.winningLayerIds.length, expectedWinners.length));
+        foreach (i, expected; expectedWinners) {
+            require(result.winningLayerIds[i] == expected,
+                "%s winner[%s] actual=%s expected=%s".format(id, i, result.winningLayerIds[i], expected));
+        }
+    }
+
+    return generatedBy == "depth-draw" ? 1 : 0;
+}
+
+private size_t runDepthDrawLocalMergePoliciesFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto document = fixtureRequired(obj, "document", id);
+    require(document.type == JSONType.object, id ~ ".document must be an object");
+    auto documentWidth = cast(int)fixtureNumber(fixtureRequired(document.object, "width", id ~ ".document"), id ~ ".document.width");
+    auto documentHeight = cast(int)fixtureNumber(fixtureRequired(document.object, "height", id ~ ".document"), id ~ ".document.height");
+
+    auto gridObj = fixtureRequired(obj, "grid", id);
+    require(gridObj.type == JSONType.object, id ~ ".grid must be an object");
+    auto axisX = fixtureFloatArray(fixtureRequired(gridObj.object, "axisX", id ~ ".grid"), id ~ ".grid.axisX");
+    auto axisY = fixtureFloatArray(fixtureRequired(gridObj.object, "axisY", id ~ ".grid"), id ~ ".grid.axisY");
+    auto baseDepths = fixtureFloatArray(fixtureRequired(gridObj.object, "baseDepths", id ~ ".grid"), id ~ ".grid.baseDepths");
+
+    resetCase();
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "depthdraw-fixture-" ~ id;
+    auto ctx = new Context();
+    ctx.nodes = [cast(Node)grid];
+    require((new DefineGridCommand(axisX, axisY)).run(ctx).succeeded, id ~ " should define fixture grid");
+    grid.localTransform.translation = vec3(0, 0, 0);
+    grid.localTransform.update();
+    incActivePuppet().root.build();
+    grid.replaceDepths(baseDepths);
+
+    ubyte[] fullVertexPixels(ubyte gray) {
+        ubyte[] pixels;
+        foreach (i; 0 .. 16) pixels ~= [0, 0, 0, 0];
+        void setPixel(int x, int y) {
+            auto index = (cast(size_t)y * 4 + cast(size_t)x) * 4;
+            pixels[index + 0] = gray;
+            pixels[index + 1] = gray;
+            pixels[index + 2] = gray;
+            pixels[index + 3] = 255;
+        }
+        setPixel(1, 1);
+        setPixel(3, 1);
+        setPixel(1, 3);
+        setPixel(3, 3);
+        return pixels;
+    }
+
+    auto casesValue = fixtureRequired(obj, "cases", id);
+    require(casesValue.type == JSONType.array, id ~ ".cases must be an array");
+    foreach (caseIndex, caseValue; casesValue.array) {
+        require(caseValue.type == JSONType.object, "%s.cases[%s] must be an object".format(id, caseIndex));
+        auto caseObj = caseValue.object;
+        auto policyName = fixtureString(fixtureRequired(caseObj, "policy", "%s.cases[%s]".format(id, caseIndex)),
+            "%s.cases[%s].policy".format(id, caseIndex));
+        auto policy = fixtureMergePolicy(policyName);
+
+        DepthDrawLayer lowLayer;
+        lowLayer.id = "low";
+        lowLayer.layerPath = "/low";
+        lowLayer.displayName = "Low";
+        lowLayer.width = 4;
+        lowLayer.height = 4;
+        lowLayer.bounds.width = 4;
+        lowLayer.bounds.height = 4;
+        lowLayer.convolution = DepthImageConvolution.Nearest;
+        lowLayer.depthPixels = fullVertexPixels(0);
+
+        DepthDrawLayer highLayer = lowLayer;
+        highLayer.id = "high";
+        highLayer.layerPath = "/high";
+        highLayer.displayName = "High";
+        highLayer.depthPixels = fullVertexPixels(255);
+
+        DepthDrawBinding lowBinding;
+        lowBinding.layerId = "low";
+        lowBinding.targetGridUuid = grid.uuid;
+        lowBinding.targetNodeUuid = grid.uuid;
+        lowBinding.order = 0;
+        lowBinding.mergePolicy = policy;
+
+        DepthDrawBinding highBinding = lowBinding;
+        highBinding.layerId = "high";
+        highBinding.order = 1;
+
+        auto session = new DepthDrawSession();
+        session.layers ~= lowLayer;
+        session.layers ~= highLayer;
+        session.bindings ~= lowBinding;
+        session.bindings ~= highBinding;
+
+        auto view = new DepthTargetView(grid);
+        auto result = ngComposeDepthDrawTarget(session, view, documentWidth, documentHeight);
+        auto expectedDepths = fixtureFloatArray(fixtureRequired(caseObj, "expectedDepths",
+            "%s.cases[%s]".format(id, caseIndex)), policyName ~ ".expectedDepths");
+        auto expectedWinners = fixtureStringArray(fixtureRequired(caseObj, "expectedWinners",
+            "%s.cases[%s]".format(id, caseIndex)), policyName ~ ".expectedWinners");
+        require(result.depths.length == expectedDepths.length,
+            "%s.%s expected depth length mismatch actual=%s expected=%s".format(
+                id, policyName, result.depths.length, expectedDepths.length));
+        require(result.winningLayerIds.length == expectedWinners.length,
+            "%s.%s expected winner length mismatch actual=%s expected=%s".format(
+                id, policyName, result.winningLayerIds.length, expectedWinners.length));
+        foreach (i, expected; expectedDepths) {
+            require(near(result.depths[i], expected),
+                "%s.%s depth[%s] actual=%s expected=%s".format(id, policyName, i, result.depths[i], expected));
+            require(result.winningLayerIds[i] == expectedWinners[i],
+                "%s.%s winner[%s] actual=%s expected=%s".format(
+                    id, policyName, i, result.winningLayerIds[i], expectedWinners[i]));
+        }
+    }
+
+    return 0;
+}
+
+private string idOrEmpty(JSONValue[string] obj) {
+    if (auto id = "id" in obj) {
+        return fixtureString(*id, "id");
+    }
+    return "";
+}
+
+private size_t runDepthDrawAlphaMaskFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto rgba = fixtureByteArray(fixtureRequired(obj, "rgba", id), id ~ ".rgba");
+    auto depthPixels = fixtureByteArray(fixtureRequired(obj, "depthPixels", id), id ~ ".depthPixels");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto alphaMask = ngDepthDrawAlphaMaskFromRgba(rgba, 1);
+    auto surfaceMask = ngDepthDrawAlphaMaskFromRgba(rgba, 255);
+    auto depthMask = ngDepthDrawMaskFromDepthPixels(depthPixels);
+    auto splitDepthPixels = ngDepthDrawApplyBinaryMaskToDepthPixels(depthPixels, alphaMask);
+    auto splitRenderDepthMask = ngDepthDrawMaskFromDepthPixels(splitDepthPixels);
+
+    require(alphaMask == fixtureByteArray(fixtureRequired(expected, "alphaMaskMin1", id), id ~ ".expected.alphaMaskMin1"),
+        id ~ " alphaMask min=1 must match depth-draw extractAlphaMask");
+    require(surfaceMask == fixtureByteArray(fixtureRequired(expected, "surfaceMaskMin255", id), id ~ ".expected.surfaceMaskMin255"),
+        id ~ " surfaceMask min=255 must match depth-draw extractAlphaMask");
+    require(depthMask == fixtureByteArray(fixtureRequired(expected, "depthMaskPositive", id), id ~ ".expected.depthMaskPositive"),
+        id ~ " depth mask must match depth-draw createMaskFromDepthPixels");
+    require(splitDepthPixels == fixtureByteArray(fixtureRequired(expected, "splitDepthPixels", id), id ~ ".expected.splitDepthPixels"),
+        id ~ " split depth pixels must match depth-draw splitFlatDepthByColorLayers");
+    require(alphaMask == fixtureByteArray(fixtureRequired(expected, "splitDepthMaskPixels", id), id ~ ".expected.splitDepthMaskPixels"),
+        id ~ " split depthMaskPixels must use color alpha mask");
+    require(splitRenderDepthMask == fixtureByteArray(fixtureRequired(expected, "splitRenderDepthMask", id), id ~ ".expected.splitRenderDepthMask"),
+        id ~ " split renderDepthMask must be positive split depth pixels");
+    require(surfaceMask == fixtureByteArray(fixtureRequired(expected, "splitSurfaceMaskPixels", id), id ~ ".expected.splitSurfaceMaskPixels"),
+        id ~ " split surfaceMaskPixels must preserve strict surface alpha mask");
+
+    return 1;
+}
+
+private size_t runDepthDrawAlphaDepthGapFillFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto width = cast(int)fixtureNumber(fixtureRequired(obj, "width", id), id ~ ".width");
+    auto height = cast(int)fixtureNumber(fixtureRequired(obj, "height", id), id ~ ".height");
+    auto layerIndex = cast(int)fixtureNumber(fixtureRequired(obj, "layerIndex", id), id ~ ".layerIndex");
+    auto depthPixels = fixtureByteArray(fixtureRequired(obj, "depthPixels", id), id ~ ".depthPixels");
+    auto alphaMask = fixtureByteArray(fixtureRequired(obj, "alphaMask", id), id ~ ".alphaMask");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto detected = ngDepthDrawDetectAlphaDepthGaps(depthPixels, alphaMask, width, height, layerIndex);
+    require(detected.mask == fixtureByteArray(fixtureRequired(expected, "detectedMask", id ~ ".expected"),
+        id ~ ".expected.detectedMask"), id ~ " detected alpha-depth gap mask must match depth-draw");
+    require(detected.zero == cast(size_t)fixtureNumber(fixtureRequired(expected, "zero", id ~ ".expected"),
+        id ~ ".expected.zero"), id ~ " zero gap count must match depth-draw");
+    require(detected.depression == cast(size_t)fixtureNumber(fixtureRequired(expected, "depression", id ~ ".expected"),
+        id ~ ".expected.depression"), id ~ " depression gap count must match depth-draw");
+    require(detected.cliff == cast(size_t)fixtureNumber(fixtureRequired(expected, "cliff", id ~ ".expected"),
+        id ~ ".expected.cliff"), id ~ " cliff gap count must match depth-draw");
+    require(detected.focusedAdded == cast(size_t)fixtureNumber(fixtureRequired(expected, "focusedAdded", id ~ ".expected"),
+        id ~ ".expected.focusedAdded"), id ~ " focused gap count must match depth-draw");
+    require(detected.total == cast(size_t)fixtureNumber(fixtureRequired(expected, "total", id ~ ".expected"),
+        id ~ ".expected.total"), id ~ " total gap count must match depth-draw");
+
+    auto filled = ngDepthDrawMedianFillDepth(depthPixels, alphaMask, detected.mask, width, height);
+    require(filled.depth == fixtureByteArray(fixtureRequired(expected, "filledDepth", id ~ ".expected"),
+        id ~ ".expected.filledDepth"), id ~ " median-filled depth must match depth-draw");
+    require(filled.filled == cast(size_t)fixtureNumber(fixtureRequired(expected, "filled", id ~ ".expected"),
+        id ~ ".expected.filled"), id ~ " filled count must match depth-draw");
+    require(filled.remaining == cast(size_t)fixtureNumber(fixtureRequired(expected, "remaining", id ~ ".expected"),
+        id ~ ".expected.remaining"), id ~ " remaining count must match depth-draw");
+    return 1;
+}
+
+private size_t runDepthDrawDepthCleanupFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto width = cast(int)fixtureNumber(fixtureRequired(obj, "width", id), id ~ ".width");
+    auto height = cast(int)fixtureNumber(fixtureRequired(obj, "height", id), id ~ ".height");
+    auto maskPixels = fixtureByteArray(fixtureRequired(obj, "maskPixels", id), id ~ ".maskPixels");
+    auto depthPixels = fixtureByteArray(fixtureRequired(obj, "depthPixels", id), id ~ ".depthPixels");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    require(ngDepthDrawBuildLayerContourBandMask(maskPixels, width, height, 2) ==
+        fixtureByteArray(fixtureRequired(expected, "contourBandThickness2", id ~ ".expected"),
+            id ~ ".expected.contourBandThickness2"),
+        id ~ " contour band mask must match depth-draw");
+    require(ngDepthDrawErodePositiveDepthMask(depthPixels, width, height, 1) ==
+        fixtureByteArray(fixtureRequired(expected, "erodedPositiveThickness1", id ~ ".expected"),
+            id ~ ".expected.erodedPositiveThickness1"),
+        id ~ " positive-depth erosion must match depth-draw");
+    auto inpaint = ngDepthDrawInpaintMaskedLayerDepth(depthPixels, maskPixels, width, height);
+    auto expectedInpaintPixels = fixtureByteArray(fixtureRequired(expected, "inpaintPixels", id ~ ".expected"),
+        id ~ ".expected.inpaintPixels");
+    require(inpaint.pixels == expectedInpaintPixels,
+        "%s inpainted depth pixels must match depth-draw actual=%s expected=%s".format(
+            id, inpaint.pixels, expectedInpaintPixels));
+    require(inpaint.filledMask == fixtureByteArray(fixtureRequired(expected, "inpaintFilledMask", id ~ ".expected"),
+        id ~ ".expected.inpaintFilledMask"), id ~ " inpaint filled mask must match depth-draw");
+    require(ngDepthDrawSmoothMaskedPositiveDepth(depthPixels, maskPixels, width, height) ==
+        fixtureByteArray(fixtureRequired(expected, "smooth", id ~ ".expected"), id ~ ".expected.smooth"),
+        id ~ " smoothed depth pixels must match depth-draw");
+    return 1;
+}
+
+private size_t runDepthDrawDepthPruneFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto imageWidth = cast(int)fixtureNumber(fixtureRequired(obj, "imageWidth", id), id ~ ".imageWidth");
+    auto imageHeight = cast(int)fixtureNumber(fixtureRequired(obj, "imageHeight", id), id ~ ".imageHeight");
+    auto layerValue = fixtureRequired(obj, "layer", id);
+    require(layerValue.type == JSONType.object, id ~ ".layer must be an object");
+    auto layerObj = layerValue.object;
+    DepthDrawPruneLayer layer;
+    layer.left = cast(int)fixtureNumber(fixtureRequired(layerObj, "left", id ~ ".layer"), id ~ ".layer.left");
+    layer.top = cast(int)fixtureNumber(fixtureRequired(layerObj, "top", id ~ ".layer"), id ~ ".layer.top");
+    layer.width = cast(int)fixtureNumber(fixtureRequired(layerObj, "width", id ~ ".layer"), id ~ ".layer.width");
+    layer.height = cast(int)fixtureNumber(fixtureRequired(layerObj, "height", id ~ ".layer"), id ~ ".layer.height");
+    auto layerIndex = cast(int)fixtureNumber(fixtureRequired(obj, "layerIndex", id), id ~ ".layerIndex");
+    auto threshold = fixtureNumber(fixtureRequired(obj, "threshold", id), id ~ ".threshold");
+    auto depthPixels = fixtureByteArray(fixtureRequired(obj, "depthPixels", id), id ~ ".depthPixels");
+    auto maskPixels = fixtureByteArray(fixtureRequired(obj, "maskPixels", id), id ~ ".maskPixels");
+    auto stableDepthPixels = fixtureByteArray(fixtureRequired(obj, "stableDepthPixels", id), id ~ ".stableDepthPixels");
+    auto visibleLayerMap = fixtureIntArray(fixtureRequired(obj, "visibleLayerMap", id), id ~ ".visibleLayerMap");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto pruned = ngDepthDrawPruneForeignDepthSeeds(
+        depthPixels, layer, layerIndex, imageWidth, imageHeight,
+        stableDepthPixels, visibleLayerMap, maskPixels, threshold);
+    require(pruned.pixels == fixtureByteArray(fixtureRequired(expected, "pixels", id ~ ".expected"),
+        id ~ ".expected.pixels"), id ~ " pruned depth pixels must match depth-draw");
+    require(pruned.debugState == fixtureByteArray(fixtureRequired(expected, "debugState", id ~ ".expected"),
+        id ~ ".expected.debugState"), id ~ " prune debug state must match depth-draw");
+    require(pruned.debugScore == fixtureByteArray(fixtureRequired(expected, "debugScore", id ~ ".expected"),
+        id ~ ".expected.debugScore"), id ~ " prune debug score must match depth-draw");
+    return 1;
+}
+
+private size_t runDepthDrawDepthSplitFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto imageWidth = cast(int)fixtureNumber(fixtureRequired(obj, "imageWidth", id), id ~ ".imageWidth");
+    auto imageHeight = cast(int)fixtureNumber(fixtureRequired(obj, "imageHeight", id), id ~ ".imageHeight");
+    auto layerValues = fixtureRequired(obj, "layers", id);
+    require(layerValues.type == JSONType.array, id ~ ".layers must be an array");
+    DepthDrawSplitLayer[] layers;
+    foreach (i, layerValue; layerValues.array) {
+        require(layerValue.type == JSONType.object, "%s.layers[%s] must be an object".format(id, i));
+        auto layerObj = layerValue.object;
+        DepthDrawSplitLayer layer;
+        auto owner = "%s.layers[%s]".format(id, i);
+        layer.left = cast(int)fixtureNumber(fixtureRequired(layerObj, "left", owner), owner ~ ".left");
+        layer.top = cast(int)fixtureNumber(fixtureRequired(layerObj, "top", owner), owner ~ ".top");
+        layer.width = cast(int)fixtureNumber(fixtureRequired(layerObj, "width", owner), owner ~ ".width");
+        layer.height = cast(int)fixtureNumber(fixtureRequired(layerObj, "height", owner), owner ~ ".height");
+        layer.maskPixels = fixtureByteArray(fixtureRequired(layerObj, "maskPixels", owner), owner ~ ".maskPixels");
+        layers ~= layer;
+    }
+    auto stableDepthPixels = fixtureByteArray(fixtureRequired(obj, "stableDepthPixels", id), id ~ ".stableDepthPixels");
+    auto contourBandMask = fixtureByteArray(fixtureRequired(obj, "contourBandMask", id), id ~ ".contourBandMask");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto visibleLayerMap = ngDepthDrawBuildVisibleLayerMap(imageWidth, imageHeight, layers);
+    require(visibleLayerMap == fixtureIntArray(fixtureRequired(expected, "visibleLayerMap", id ~ ".expected"),
+        id ~ ".expected.visibleLayerMap"), id ~ " visible layer map must match depth-draw");
+    require(ngDepthDrawSeedLayerDepthPixels(
+            layers[0], 0, imageWidth, imageHeight, stableDepthPixels, visibleLayerMap,
+            layers[0].maskPixels, layers, null, 0) ==
+        fixtureByteArray(fixtureRequired(expected, "seedLayer0Radius0", id ~ ".expected"),
+            id ~ ".expected.seedLayer0Radius0"), id ~ " radius 0 seed layer depth must match depth-draw");
+    require(ngDepthDrawSeedLayerDepthPixels(
+            layers[0], 0, imageWidth, imageHeight, stableDepthPixels, visibleLayerMap,
+            layers[0].maskPixels, layers, null, 1) ==
+        fixtureByteArray(fixtureRequired(expected, "seedLayer0Radius1", id ~ ".expected"),
+            id ~ ".expected.seedLayer0Radius1"), id ~ " radius 1 seed layer depth must match depth-draw");
+    require(ngDepthDrawSeedLayerDepthPixels(
+            layers[0], 0, imageWidth, imageHeight, stableDepthPixels, visibleLayerMap,
+            layers[0].maskPixels, layers, contourBandMask, 0) ==
+        fixtureByteArray(fixtureRequired(expected, "seedLayer0Contour", id ~ ".expected"),
+            id ~ ".expected.seedLayer0Contour"), id ~ " contour-skipped seed layer depth must match depth-draw");
+
+    auto upperChecks = fixtureRequired(expected, "upperChecks", id ~ ".expected");
+    require(upperChecks.type == JSONType.array, id ~ ".expected.upperChecks must be an array");
+    require(fixtureBool(upperChecks.array[0], id ~ ".expected.upperChecks[0]") ==
+        ngDepthDrawHasUpperLayerMaskNearby(layers, 0, 0, 0, 1),
+        id ~ " upper mask nearby check 0 must match depth-draw");
+    require(fixtureBool(upperChecks.array[1], id ~ ".expected.upperChecks[1]") ==
+        ngDepthDrawHasUpperLayerMaskNearby(layers, 0, 2, 1, 1),
+        id ~ " upper mask nearby check 1 must match depth-draw");
+    require(fixtureBool(upperChecks.array[2], id ~ ".expected.upperChecks[2]") ==
+        ngDepthDrawHasUpperLayerMaskNearby(layers, 0, 0, 1, 0),
+        id ~ " upper mask nearby check 2 must match depth-draw");
+    return 1;
+}
+
+private size_t runDepthDrawDepthConversionFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto rgba = fixtureByteArray(fixtureRequired(obj, "rgba", id), id ~ ".rgba");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    require(ngDepthDrawDepthPixelsFromRgbaRed(rgba) ==
+        fixtureByteArray(fixtureRequired(expected, "depthPixelsFromImageData", id ~ ".expected"),
+            id ~ ".expected.depthPixelsFromImageData"),
+        id ~ " depthPixelsFromImageData must use the red channel");
+    require(ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(rgba) ==
+        fixtureByteArray(fixtureRequired(expected, "decodeGrayscaleDepthPixels", id ~ ".expected"),
+            id ~ ".expected.decodeGrayscaleDepthPixels"),
+        id ~ " decodeGrayscaleDepthPixels must average RGB and zero transparent pixels");
+
+    return 1;
+}
+
+private size_t runDepthDrawLayerBoundsSamplingFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto depthLayerValue = fixtureRequired(obj, "depthLayer", id);
+    auto colorLayerValue = fixtureRequired(obj, "colorLayer", id);
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(depthLayerValue.type == JSONType.object, id ~ ".depthLayer must be an object");
+    require(colorLayerValue.type == JSONType.object, id ~ ".colorLayer must be an object");
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto depthLayer = depthLayerValue.object;
+    auto colorLayer = colorLayerValue.object;
+    auto expected = expectedValue.object;
+
+    auto depthPixels = fixtureByteArray(fixtureRequired(depthLayer, "pixels", id ~ ".depthLayer"),
+        id ~ ".depthLayer.pixels");
+    auto alphaMask = fixtureByteArray(fixtureRequired(depthLayer, "alphaMask", id ~ ".depthLayer"),
+        id ~ ".depthLayer.alphaMask");
+    auto sampled = ngDepthDrawSampleDepthLayerToColorLayer(
+        depthPixels,
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "width", id ~ ".depthLayer"), id ~ ".depthLayer.width"),
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "height", id ~ ".depthLayer"), id ~ ".depthLayer.height"),
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "left", id ~ ".depthLayer"), id ~ ".depthLayer.left"),
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "top", id ~ ".depthLayer"), id ~ ".depthLayer.top"),
+        alphaMask,
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "width", id ~ ".colorLayer"), id ~ ".colorLayer.width"),
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "height", id ~ ".colorLayer"), id ~ ".colorLayer.height"),
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "left", id ~ ".colorLayer"), id ~ ".colorLayer.left"),
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "top", id ~ ".colorLayer"), id ~ ".colorLayer.top")
+    );
+    require(sampled == fixtureByteArray(fixtureRequired(expected, "sampled", id ~ ".expected"),
+        id ~ ".expected.sampled"), id ~ " sampleDepthLayerToColorLayer must match depth-draw with alpha mask");
+
+    auto sampledWithoutAlphaMask = ngDepthDrawSampleDepthLayerToColorLayer(
+        depthPixels,
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "width", id ~ ".depthLayer"), id ~ ".depthLayer.width"),
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "height", id ~ ".depthLayer"), id ~ ".depthLayer.height"),
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "left", id ~ ".depthLayer"), id ~ ".depthLayer.left"),
+        cast(int)fixtureNumber(fixtureRequired(depthLayer, "top", id ~ ".depthLayer"), id ~ ".depthLayer.top"),
+        null,
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "width", id ~ ".colorLayer"), id ~ ".colorLayer.width"),
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "height", id ~ ".colorLayer"), id ~ ".colorLayer.height"),
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "left", id ~ ".colorLayer"), id ~ ".colorLayer.left"),
+        cast(int)fixtureNumber(fixtureRequired(colorLayer, "top", id ~ ".colorLayer"), id ~ ".colorLayer.top")
+    );
+    require(sampledWithoutAlphaMask == fixtureByteArray(fixtureRequired(expected, "sampledWithoutAlphaMask", id ~ ".expected"),
+        id ~ ".expected.sampledWithoutAlphaMask"),
+        id ~ " sampleDepthLayerToColorLayer must match depth-draw without alpha mask");
+
+    return 1;
+}
+
+private size_t runDepthDrawPsdMaskExportFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto maskCaseValue = fixtureRequired(obj, "maskCase", id);
+    require(maskCaseValue.type == JSONType.object, id ~ ".maskCase must be an object");
+    auto maskCase = maskCaseValue.object;
+    auto maskApplied = ngDepthDrawApplyPsdMaskToAlpha(
+        fixtureByteArray(fixtureRequired(maskCase, "alpha", id ~ ".maskCase"), id ~ ".maskCase.alpha"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "width", id ~ ".maskCase"), id ~ ".maskCase.width"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "height", id ~ ".maskCase"), id ~ ".maskCase.height"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "layerLeft", id ~ ".maskCase"), id ~ ".maskCase.layerLeft"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "layerTop", id ~ ".maskCase"), id ~ ".maskCase.layerTop"),
+        fixtureByteArray(fixtureRequired(maskCase, "mask", id ~ ".maskCase"), id ~ ".maskCase.mask"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "maskWidth", id ~ ".maskCase"), id ~ ".maskCase.maskWidth"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "maskHeight", id ~ ".maskCase"), id ~ ".maskCase.maskHeight"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "maskLeft", id ~ ".maskCase"), id ~ ".maskCase.maskLeft"),
+        cast(int)fixtureNumber(fixtureRequired(maskCase, "maskTop", id ~ ".maskCase"), id ~ ".maskCase.maskTop"),
+        fixtureBool(fixtureRequired(maskCase, "positionRelativeToLayer", id ~ ".maskCase"),
+            id ~ ".maskCase.positionRelativeToLayer"),
+        cast(ubyte)fixtureNumber(fixtureRequired(maskCase, "defaultColor", id ~ ".maskCase"), id ~ ".maskCase.defaultColor")
+    );
+    require(maskApplied == fixtureByteArray(fixtureRequired(expected, "maskAppliedAlpha", id ~ ".expected"),
+        id ~ ".expected.maskAppliedAlpha"), id ~ " PSD mask alpha multiplication must match depth-draw");
+
+    auto overrideCaseValue = fixtureRequired(obj, "depthOverrideCase", id);
+    require(overrideCaseValue.type == JSONType.object, id ~ ".depthOverrideCase must be an object");
+    auto overrideCase = overrideCaseValue.object;
+    auto overrideMasks = ngDepthDrawDepthOverrideMasks(
+        fixtureByteArray(fixtureRequired(overrideCase, "colorAlpha", id ~ ".depthOverrideCase"),
+            id ~ ".depthOverrideCase.colorAlpha"),
+        fixtureByteArray(fixtureRequired(overrideCase, "depthPixels", id ~ ".depthOverrideCase"),
+            id ~ ".depthOverrideCase.depthPixels")
+    );
+    auto expectedOverrideValue = fixtureRequired(expected, "depthOverride", id ~ ".expected");
+    require(expectedOverrideValue.type == JSONType.object, id ~ ".expected.depthOverride must be an object");
+    auto expectedOverride = expectedOverrideValue.object;
+    require(overrideMasks.colorMask == fixtureByteArray(fixtureRequired(expectedOverride, "colorMask", id ~ ".expected.depthOverride"),
+        id ~ ".expected.depthOverride.colorMask"), id ~ " color mask must match depth-draw");
+    require(overrideMasks.strictSurfaceMask == fixtureByteArray(fixtureRequired(expectedOverride, "strictSurfaceMask",
+        id ~ ".expected.depthOverride"), id ~ ".expected.depthOverride.strictSurfaceMask"),
+        id ~ " strict surface mask must match depth-draw");
+    require(overrideMasks.surfaceMask == fixtureByteArray(fixtureRequired(expectedOverride, "surfaceMask",
+        id ~ ".expected.depthOverride"), id ~ ".expected.depthOverride.surfaceMask"),
+        id ~ " surface mask must match depth-draw");
+    require(overrideMasks.renderDepthMask == fixtureByteArray(fixtureRequired(expectedOverride, "renderDepthMask",
+        id ~ ".expected.depthOverride"), id ~ ".expected.depthOverride.renderDepthMask"),
+        id ~ " render depth mask must match depth-draw");
+
+    auto exportCaseValue = fixtureRequired(obj, "exportCase", id);
+    require(exportCaseValue.type == JSONType.object, id ~ ".exportCase must be an object");
+    auto exportCase = exportCaseValue.object;
+    auto exported = ngDepthDrawPsdExportDepthPixels(
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "sourceWidth", id ~ ".exportCase"),
+            id ~ ".exportCase.sourceWidth"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "sourceHeight", id ~ ".exportCase"),
+            id ~ ".exportCase.sourceHeight"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "sourceLeft", id ~ ".exportCase"),
+            id ~ ".exportCase.sourceLeft"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "sourceTop", id ~ ".exportCase"),
+            id ~ ".exportCase.sourceTop"),
+        fixtureByteArray(fixtureRequired(exportCase, "sourceAlpha", id ~ ".exportCase"),
+            id ~ ".exportCase.sourceAlpha"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "preparedLeft", id ~ ".exportCase"),
+            id ~ ".exportCase.preparedLeft"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "preparedTop", id ~ ".exportCase"),
+            id ~ ".exportCase.preparedTop"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "preparedWidth", id ~ ".exportCase"),
+            id ~ ".exportCase.preparedWidth"),
+        cast(int)fixtureNumber(fixtureRequired(exportCase, "preparedHeight", id ~ ".exportCase"),
+            id ~ ".exportCase.preparedHeight"),
+        fixtureByteArray(fixtureRequired(exportCase, "exportDepthPixels", id ~ ".exportCase"),
+            id ~ ".exportCase.exportDepthPixels"),
+        fixtureByteArray(fixtureRequired(exportCase, "sourceDepthPixels", id ~ ".exportCase"),
+            id ~ ".exportCase.sourceDepthPixels"),
+        fixtureByteArray(fixtureRequired(exportCase, "coverageMask", id ~ ".exportCase"),
+            id ~ ".exportCase.coverageMask")
+    );
+    require(exported == fixtureByteArray(fixtureRequired(expected, "exportDepthPixels", id ~ ".expected"),
+        id ~ ".expected.exportDepthPixels"), id ~ " PSD export depth pixels must match depth-draw");
+
+    return 1;
+}
+
+private size_t runDepthDrawGlobalDepthScaleFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto casesValue = fixtureRequired(obj, "cases", id);
+    require(casesValue.type == JSONType.array, id ~ ".cases must be an array");
+    foreach (caseValue; casesValue.array) {
+        require(caseValue.type == JSONType.object, id ~ ".cases[] must be an object");
+        auto caseObj = caseValue.object;
+        auto depth = cast(ubyte)fixtureNumber(fixtureRequired(caseObj, "depth", id ~ ".case"), id ~ ".case.depth");
+        auto scaleValue = fixtureRequired(caseObj, "scale", id ~ ".case");
+        double scale = scaleValue.type == JSONType.string && fixtureString(scaleValue, id ~ ".case.scale") == "NaN"
+            ? double.nan
+            : fixtureNumber(scaleValue, id ~ ".case.scale");
+        auto center = fixtureNumber(fixtureRequired(caseObj, "center", id ~ ".case"), id ~ ".case.center");
+        auto expected = cast(ubyte)fixtureNumber(fixtureRequired(caseObj, "expected", id ~ ".case"), id ~ ".case.expected");
+        require(ngDepthDrawScaleDepthValueAroundCenter(depth, scale, center) == expected,
+            id ~ " scaleDepthValueAroundCenter must match depth-draw");
+    }
+
+    auto pixels = fixtureByteArray(fixtureRequired(obj, "pixels", id), id ~ ".pixels");
+    auto mask = fixtureByteArray(fixtureRequired(obj, "mask", id), id ~ ".mask");
+    auto scale = fixtureNumber(fixtureRequired(obj, "scale", id), id ~ ".scale");
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto result = ngDepthDrawApplyGlobalDepthScale(pixels, scale, mask);
+    auto expectedMaskedValue = fixtureRequired(expected, "applyGlobalDepthScale", id ~ ".expected");
+    require(expectedMaskedValue.type == JSONType.object, id ~ ".expected.applyGlobalDepthScale must be an object");
+    auto expectedMasked = expectedMaskedValue.object;
+    require(result.pixels == fixtureByteArray(fixtureRequired(expectedMasked, "pixels", id ~ ".expected.masked"),
+        id ~ ".expected.masked.pixels"), id ~ " applyGlobalDepthScale pixels must match depth-draw");
+    require(abs(result.centroid - fixtureNumber(fixtureRequired(expectedMasked, "centroid", id ~ ".expected.masked"),
+        id ~ ".expected.masked.centroid")) <= 0.000001, id ~ " applyGlobalDepthScale centroid must match depth-draw");
+    require(result.count == cast(size_t)fixtureNumber(fixtureRequired(expectedMasked, "count", id ~ ".expected.masked"),
+        id ~ ".expected.masked.count"), id ~ " applyGlobalDepthScale count must match depth-draw");
+
+    auto noMaskResult = ngDepthDrawApplyGlobalDepthScale(pixels, scale);
+    auto expectedNoMaskValue = fixtureRequired(expected, "applyGlobalDepthScaleNoMask", id ~ ".expected");
+    require(expectedNoMaskValue.type == JSONType.object, id ~ ".expected.applyGlobalDepthScaleNoMask must be an object");
+    auto expectedNoMask = expectedNoMaskValue.object;
+    require(noMaskResult.pixels == fixtureByteArray(fixtureRequired(expectedNoMask, "pixels", id ~ ".expected.noMask"),
+        id ~ ".expected.noMask.pixels"), id ~ " applyGlobalDepthScale no-mask pixels must match depth-draw");
+    require(abs(noMaskResult.centroid - fixtureNumber(fixtureRequired(expectedNoMask, "centroid", id ~ ".expected.noMask"),
+        id ~ ".expected.noMask.centroid")) <= 0.000001, id ~ " applyGlobalDepthScale no-mask centroid must match depth-draw");
+    require(noMaskResult.count == cast(size_t)fixtureNumber(fixtureRequired(expectedNoMask, "count", id ~ ".expected.noMask"),
+        id ~ ".expected.noMask.count"), id ~ " applyGlobalDepthScale no-mask count must match depth-draw");
+
+    return 1;
+}
+
+private size_t runDepthDrawGridConvolutionFixtureFile(string path, JSONValue[string] obj) {
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto width = cast(int)fixtureNumber(fixtureRequired(obj, "width", id), id ~ ".width");
+    auto height = cast(int)fixtureNumber(fixtureRequired(obj, "height", id), id ~ ".height");
+    auto sourcePixels = fixtureByteArray(fixtureRequired(obj, "sourcePixels", id), id ~ ".sourcePixels");
+    auto maskPixels = fixtureByteArray(fixtureRequired(obj, "maskPixels", id), id ~ ".maskPixels");
+    auto casesValue = fixtureRequired(obj, "cases", id);
+    require(casesValue.type == JSONType.array, id ~ ".cases must be an array");
+
+    foreach (caseIndex, caseValue; casesValue.array) {
+        require(caseValue.type == JSONType.object, "%s.cases[%s] must be an object".format(id, caseIndex));
+        auto caseObj = caseValue.object;
+        auto caseName = fixtureString(fixtureRequired(caseObj, "name", id ~ ".case"), id ~ ".case.name");
+        auto actual = ngDepthDrawCreateMaskedGridDepthPixels(
+            width,
+            height,
+            sourcePixels,
+            maskPixels,
+            fixtureString(fixtureRequired(caseObj, "specMode", caseName), caseName ~ ".specMode"),
+            cast(int)fixtureNumber(fixtureRequired(caseObj, "gridX", caseName), caseName ~ ".gridX"),
+            cast(int)fixtureNumber(fixtureRequired(caseObj, "gridY", caseName), caseName ~ ".gridY"),
+            cast(int)fixtureNumber(fixtureRequired(caseObj, "kernelSize", caseName), caseName ~ ".kernelSize"),
+            fixtureString(fixtureRequired(caseObj, "interpMode", caseName), caseName ~ ".interpMode")
+        );
+        auto expected = fixtureByteArray(fixtureRequired(caseObj, "pixels", caseName), caseName ~ ".pixels");
+        require(actual == expected, "%s.%s masked grid convolution must match depth-draw".format(id, caseName));
+    }
+
+    return 1;
+}
+
+private size_t runDepthDrawArtifactFixtureFile(string path, JSONValue[string] obj) {
+    import std.json : parseJSON;
+
+    auto id = fixtureString(fixtureRequired(obj, "id", path), path ~ ".id");
+    auto baseDir = path.dirName;
+    auto expectedValue = fixtureRequired(obj, "expected", id);
+    require(expectedValue.type == JSONType.object, id ~ ".expected must be an object");
+    auto expected = expectedValue.object;
+
+    auto compositePath = buildPath(baseDir, fixtureString(fixtureRequired(obj, "composite", id), id ~ ".composite"));
+    auto composite = parseJSON(readText(compositePath));
+    require(composite.type == JSONType.object, id ~ ".composite must point to an object JSON file");
+    auto compositeObj = composite.object;
+    require(fixtureString(fixtureRequired(compositeObj, "sourceMode", id ~ ".composite"), id ~ ".sourceMode") ==
+        fixtureString(fixtureRequired(expected, "sourceMode", id ~ ".expected"), id ~ ".expected.sourceMode"),
+        id ~ " sourceMode should match depth-draw fixture expectation");
+
+    auto source = fixtureRequired(compositeObj, "composedSource", id ~ ".composite");
+    require(source.type == JSONType.object, id ~ ".composedSource must be an object");
+    auto sourceObj = source.object;
+    require(fixtureString(fixtureRequired(sourceObj, "mode", id ~ ".composedSource"), id ~ ".mode") ==
+        fixtureString(fixtureRequired(expected, "mode", id ~ ".expected"), id ~ ".expected.mode"),
+        id ~ " composed mode should match depth-draw fixture expectation");
+    auto width = cast(int)fixtureNumber(fixtureRequired(sourceObj, "width", id ~ ".composedSource"), id ~ ".width");
+    auto height = cast(int)fixtureNumber(fixtureRequired(sourceObj, "height", id ~ ".composedSource"), id ~ ".height");
+    require(width == cast(int)fixtureNumber(fixtureRequired(expected, "width", id ~ ".expected"), id ~ ".expected.width") &&
+        height == cast(int)fixtureNumber(fixtureRequired(expected, "height", id ~ ".expected"), id ~ ".expected.height"),
+        id ~ " composed dimensions should match depth-draw fixture expectation");
+    require(abs(fixtureNumber(fixtureRequired(sourceObj, "globalDepthScale", id ~ ".composedSource"), id ~ ".globalDepthScale") -
+        fixtureNumber(fixtureRequired(expected, "globalDepthScale", id ~ ".expected"), id ~ ".expected.globalDepthScale")) <= 0.00001,
+        id ~ " global depth scale should match depth-draw fixture expectation");
+    require(abs(fixtureNumber(fixtureRequired(sourceObj, "globalDepthCentroid", id ~ ".composedSource"), id ~ ".globalDepthCentroid") -
+        fixtureNumber(fixtureRequired(expected, "globalDepthCentroid", id ~ ".expected"), id ~ ".expected.globalDepthCentroid")) <= 0.00001,
+        id ~ " global depth centroid should match depth-draw fixture expectation");
+
+    auto layersValue = fixtureRequired(obj, "layers", id);
+    require(layersValue.type == JSONType.array, id ~ ".layers must be an array");
+    require(layersValue.array.length == cast(size_t)fixtureNumber(fixtureRequired(expected, "layerCount", id ~ ".expected"), id ~ ".expected.layerCount"),
+        id ~ " artifact layer count should match depth-draw fixture expectation");
+    if (auto compositeLayerCount = "compositeLayerCount" in expected) {
+        auto compositeLayers = fixtureRequired(sourceObj, "layers", id ~ ".composedSource");
+        require(compositeLayers.type == JSONType.array, id ~ ".composedSource.layers must be an array");
+        require(compositeLayers.array.length == cast(size_t)fixtureNumber(*compositeLayerCount, id ~ ".expected.compositeLayerCount"),
+            id ~ " composite layer count should match depth-draw fixture expectation");
+    }
+    foreach (layerValue; layersValue.array) {
+        require(layerValue.type == JSONType.object, id ~ ".layers[] must be an object");
+        auto layer = layerValue.object;
+        auto layerIndex = cast(size_t)fixtureNumber(fixtureRequired(layer, "index", id ~ ".layer"), id ~ ".layer.index");
+        if (auto expectedTransformValue = "expectedTransform" in layer) {
+            require(expectedTransformValue.type == JSONType.object, id ~ ".layer.expectedTransform must be an object");
+            auto expectedTransform = expectedTransformValue.object;
+            auto compositeLayers = fixtureRequired(sourceObj, "layers", id ~ ".composedSource");
+            require(compositeLayers.type == JSONType.array && layerIndex < compositeLayers.array.length,
+                id ~ " expected transform layer index must exist in composedSource.layers");
+            auto compositeLayer = compositeLayers.array[layerIndex];
+            require(compositeLayer.type == JSONType.object, id ~ ".composedSource.layers[] must be objects");
+            auto compositeLayerObj = compositeLayer.object;
+            require(abs(fixtureNumber(fixtureRequired(compositeLayerObj, "depthOffset", id ~ ".composedSource.layer"),
+                id ~ ".composedSource.layer.depthOffset") -
+                fixtureNumber(fixtureRequired(expectedTransform, "depthOffset", id ~ ".layer.expectedTransform"),
+                    id ~ ".layer.expectedTransform.depthOffset")) <= 0.000001,
+                id ~ " layer depthOffset should match depth-draw transform expectation");
+            require(abs(fixtureNumber(fixtureRequired(compositeLayerObj, "depthScale", id ~ ".composedSource.layer"),
+                id ~ ".composedSource.layer.depthScale") -
+                fixtureNumber(fixtureRequired(expectedTransform, "depthScale", id ~ ".layer.expectedTransform"),
+                    id ~ ".layer.expectedTransform.depthScale")) <= 0.000001,
+                id ~ " layer depthScale should match depth-draw transform expectation");
+        }
+        if (auto expectedApiTransformValue = "expectedApiTransform" in layer) {
+            require(expectedApiTransformValue.type == JSONType.object, id ~ ".layer.expectedApiTransform must be an object");
+            auto transformResultPath = buildPath(baseDir,
+                fixtureString(fixtureRequired(layer, "transformResult", id ~ ".layer"), id ~ ".layer.transformResult"));
+            auto transformResult = parseJSON(readText(transformResultPath));
+            require(transformResult.type == JSONType.object, id ~ ".layer transform result must be an object");
+            auto transformResultObj = transformResult.object;
+            auto expectedApiTransform = expectedApiTransformValue.object;
+            require(cast(size_t)fixtureNumber(fixtureRequired(transformResultObj, "index", id ~ ".layer.transformResult"),
+                id ~ ".layer.transformResult.index") == layerIndex,
+                id ~ " layer transform result index should match the fixture layer index");
+            require(abs(fixtureNumber(fixtureRequired(transformResultObj, "depthOffset", id ~ ".layer.transformResult"),
+                id ~ ".layer.transformResult.depthOffset") -
+                fixtureNumber(fixtureRequired(expectedApiTransform, "depthOffset", id ~ ".layer.expectedApiTransform"),
+                    id ~ ".layer.expectedApiTransform.depthOffset")) <= 0.000001,
+                id ~ " layer depthOffset should match depth-draw API transform result");
+            require(abs(fixtureNumber(fixtureRequired(transformResultObj, "depthScale", id ~ ".layer.transformResult"),
+                id ~ ".layer.transformResult.depthScale") -
+                fixtureNumber(fixtureRequired(expectedApiTransform, "depthScale", id ~ ".layer.expectedApiTransform"),
+                    id ~ ".layer.expectedApiTransform.depthScale")) <= 0.000001,
+                id ~ " layer depthScale should match depth-draw API transform result");
+        }
+        auto metaPath = buildPath(baseDir, fixtureString(fixtureRequired(layer, "depthMeta", id ~ ".layer"), id ~ ".layer.depthMeta"));
+        auto imagePath = buildPath(baseDir, fixtureString(fixtureRequired(layer, "depthImage", id ~ ".layer"), id ~ ".layer.depthImage"));
+        auto rawPath = buildPath(baseDir, fixtureString(fixtureRequired(layer, "depthRaw", id ~ ".layer"), id ~ ".layer.depthRaw"));
+        auto meta = parseJSON(readText(metaPath));
+        require(meta.type == JSONType.object, id ~ ".layer depth metadata must be an object");
+        auto metaObj = meta.object;
+        auto layerWidth = cast(int)fixtureNumber(fixtureRequired(layer, "width", id ~ ".layer"), id ~ ".layer.width");
+        auto layerHeight = cast(int)fixtureNumber(fixtureRequired(layer, "height", id ~ ".layer"), id ~ ".layer.height");
+        require(cast(int)fixtureNumber(fixtureRequired(metaObj, "width", id ~ ".layer.meta"), id ~ ".layer.meta.width") == layerWidth &&
+            cast(int)fixtureNumber(fixtureRequired(metaObj, "height", id ~ ".layer.meta"), id ~ ".layer.meta.height") == layerHeight,
+            id ~ " layer depth metadata dimensions should match the manifest");
+        auto imageBytes = read(imagePath);
+        require(imageBytes.length > 8 &&
+            imageBytes[0 .. 8] == cast(ubyte[])[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+            id ~ " layer depth image should be a PNG generated by depth-draw");
+        auto raw = parseJSON(readText(rawPath));
+        require(raw.type == JSONType.object, id ~ ".layer raw depth metadata must be an object");
+        auto rawObj = raw.object;
+        require(fixtureString(fixtureRequired(rawObj, "generatedBy", id ~ ".layer.raw"), id ~ ".layer.raw.generatedBy") == "depth-draw",
+            id ~ " raw layer depth artifact must be generated by depth-draw");
+        require(cast(int)fixtureNumber(fixtureRequired(rawObj, "width", id ~ ".layer.raw"), id ~ ".layer.raw.width") == layerWidth &&
+            cast(int)fixtureNumber(fixtureRequired(rawObj, "height", id ~ ".layer.raw"), id ~ ".layer.raw.height") == layerHeight,
+            id ~ " raw layer depth dimensions should match the manifest");
+        auto expectedRawStatsValue = fixtureRequired(layer, "rawStats", id ~ ".layer");
+        require(expectedRawStatsValue.type == JSONType.object, id ~ ".layer.rawStats must be an object");
+        auto expectedRawStats = expectedRawStatsValue.object;
+        auto rawStatsValue = fixtureRequired(rawObj, "stats", id ~ ".layer.raw");
+        require(rawStatsValue.type == JSONType.object, id ~ ".layer.raw.stats must be an object");
+        auto rawStats = rawStatsValue.object;
+        foreach (key; ["min", "max", "nonZero", "sum"]) {
+            require(cast(long)fixtureNumber(fixtureRequired(rawStats, key, id ~ ".layer.raw.stats"), id ~ ".layer.raw.stats." ~ key) ==
+                cast(long)fixtureNumber(fixtureRequired(expectedRawStats, key, id ~ ".layer.rawStats"), id ~ ".layer.rawStats." ~ key),
+                id ~ " raw layer depth " ~ key ~ " should match depth-draw fixture expectation");
+        }
+        require(abs(fixtureNumber(fixtureRequired(rawStats, "average", id ~ ".layer.raw.stats"), id ~ ".layer.raw.stats.average") -
+            fixtureNumber(fixtureRequired(expectedRawStats, "average", id ~ ".layer.rawStats"), id ~ ".layer.rawStats.average")) <= 0.000001,
+            id ~ " raw layer depth average should match depth-draw fixture expectation");
+        require(fixtureString(fixtureRequired(rawObj, "sha256", id ~ ".layer.raw"), id ~ ".layer.raw.sha256") ==
+            fixtureString(fixtureRequired(expectedRawStats, "sha256", id ~ ".layer.rawStats"), id ~ ".layer.rawStats.sha256"),
+            id ~ " raw layer depth sha256 should match depth-draw fixture expectation");
+        if (auto rawMustDifferFrom = "rawMustDifferFromSha256" in layer) {
+            require(fixtureString(fixtureRequired(rawObj, "sha256", id ~ ".layer.raw"), id ~ ".layer.raw.sha256") !=
+                fixtureString(*rawMustDifferFrom, id ~ ".layer.rawMustDifferFromSha256"),
+                id ~ " raw layer depth sha256 should differ from the referenced baseline fixture");
+        }
+        auto rawSamplesValue = fixtureRequired(rawObj, "samples", id ~ ".layer.raw");
+        auto expectedSamplesValue = fixtureRequired(expectedRawStats, "samples", id ~ ".layer.rawStats");
+        require(rawSamplesValue.type == JSONType.array && expectedSamplesValue.type == JSONType.array,
+            id ~ " raw layer depth samples must be arrays");
+        require(rawSamplesValue.array.length == expectedSamplesValue.array.length,
+            id ~ " raw layer depth sample count should match depth-draw fixture expectation");
+        foreach (sampleIndex, rawSampleValue; rawSamplesValue.array) {
+            require(rawSampleValue.type == JSONType.object && expectedSamplesValue.array[sampleIndex].type == JSONType.object,
+                id ~ " raw layer depth sample entries must be objects");
+            auto rawSample = rawSampleValue.object;
+            auto expectedSample = expectedSamplesValue.array[sampleIndex].object;
+            foreach (key; ["x", "y", "value"]) {
+                require(cast(int)fixtureNumber(fixtureRequired(rawSample, key, id ~ ".layer.raw.sample"), id ~ ".layer.raw.sample." ~ key) ==
+                    cast(int)fixtureNumber(fixtureRequired(expectedSample, key, id ~ ".layer.rawStats.sample"),
+                        id ~ ".layer.rawStats.sample." ~ key),
+                    id ~ " raw layer depth sample " ~ key ~ " should match depth-draw fixture expectation");
+            }
+        }
+        if (auto meshSummaryFile = "meshSummary" in layer) {
+            auto meshPath = buildPath(baseDir, fixtureString(*meshSummaryFile, id ~ ".layer.meshSummary"));
+            auto mesh = parseJSON(readText(meshPath));
+            require(mesh.type == JSONType.object, id ~ ".layer mesh summary must be an object");
+            auto meshObj = mesh.object;
+            require(fixtureString(fixtureRequired(meshObj, "generatedBy", id ~ ".layer.mesh"), id ~ ".layer.mesh.generatedBy") == "depth-draw",
+                id ~ " mesh summary must be generated by depth-draw");
+            auto expectedMeshStatsValue = fixtureRequired(layer, "meshStats", id ~ ".layer");
+            require(expectedMeshStatsValue.type == JSONType.object, id ~ ".layer.meshStats must be an object");
+            auto expectedMeshStats = expectedMeshStatsValue.object;
+            require(cast(long)fixtureNumber(fixtureRequired(meshObj, "vertexCount", id ~ ".layer.mesh"), id ~ ".layer.mesh.vertexCount") ==
+                cast(long)fixtureNumber(fixtureRequired(expectedMeshStats, "vertexCount", id ~ ".layer.meshStats"),
+                    id ~ ".layer.meshStats.vertexCount"),
+                id ~ " mesh vertex count should match depth-draw fixture expectation");
+            auto meshCountsValue = fixtureRequired(meshObj, "counts", id ~ ".layer.mesh");
+            auto expectedMeshCountsValue = fixtureRequired(expectedMeshStats, "counts", id ~ ".layer.meshStats");
+            require(meshCountsValue.type == JSONType.object && expectedMeshCountsValue.type == JSONType.object,
+                id ~ " mesh counts must be objects");
+            auto meshCounts = meshCountsValue.object;
+            auto expectedMeshCounts = expectedMeshCountsValue.object;
+            foreach (key; ["positions", "uvs", "normals", "indices"]) {
+                require(cast(long)fixtureNumber(fixtureRequired(meshCounts, key, id ~ ".layer.mesh.counts"),
+                    id ~ ".layer.mesh.counts." ~ key) ==
+                    cast(long)fixtureNumber(fixtureRequired(expectedMeshCounts, key, id ~ ".layer.meshStats.counts"),
+                        id ~ ".layer.meshStats.counts." ~ key),
+                    id ~ " mesh " ~ key ~ " count should match depth-draw fixture expectation");
+            }
+            auto meshHashesValue = fixtureRequired(meshObj, "sha256", id ~ ".layer.mesh");
+            auto expectedMeshHashesValue = fixtureRequired(expectedMeshStats, "sha256", id ~ ".layer.meshStats");
+            require(meshHashesValue.type == JSONType.object && expectedMeshHashesValue.type == JSONType.object,
+                id ~ " mesh hashes must be objects");
+            auto meshHashes = meshHashesValue.object;
+            auto expectedMeshHashes = expectedMeshHashesValue.object;
+            foreach (key; ["positions", "uvs", "normals", "indices"]) {
+                require(fixtureString(fixtureRequired(meshHashes, key, id ~ ".layer.mesh.sha256"),
+                    id ~ ".layer.mesh.sha256." ~ key) ==
+                    fixtureString(fixtureRequired(expectedMeshHashes, key, id ~ ".layer.meshStats.sha256"),
+                        id ~ ".layer.meshStats.sha256." ~ key),
+                    id ~ " mesh " ~ key ~ " sha256 should match depth-draw fixture expectation");
+            }
+            auto meshSamplesValue = fixtureRequired(meshObj, "samples", id ~ ".layer.mesh");
+            auto expectedMeshSamplesValue = fixtureRequired(expectedMeshStats, "samples", id ~ ".layer.meshStats");
+            require(meshSamplesValue.type == JSONType.object && expectedMeshSamplesValue.type == JSONType.object,
+                id ~ " mesh samples must be objects");
+            auto meshSamples = meshSamplesValue.object;
+            auto expectedMeshSamples = expectedMeshSamplesValue.object;
+            foreach (key; ["positions", "uvs", "normals", "indices"]) {
+                auto samples = fixtureFloatArray(fixtureRequired(meshSamples, key, id ~ ".layer.mesh.samples"),
+                    id ~ ".layer.mesh.samples." ~ key);
+                auto expectedSamples = fixtureFloatArray(fixtureRequired(expectedMeshSamples, key, id ~ ".layer.meshStats.samples"),
+                    id ~ ".layer.meshStats.samples." ~ key);
+                require(samples.length == expectedSamples.length, id ~ " mesh " ~ key ~ " sample count should match");
+                foreach (sampleIndex, sample; samples) {
+                    require(abs(sample - expectedSamples[sampleIndex]) <= 0.000001,
+                        "%s mesh %s sample[%s] actual=%s expected=%s".format(
+                            id, key, sampleIndex, sample, expectedSamples[sampleIndex]));
+                }
+            }
+        }
+    }
+
+    return 1;
+}
+
+private void testDepthDrawFixtureRunner() {
+    auto fixtureDir = buildPath(regressionRepoRoot(), "source", "nijigenerate_tests", "fixtures", "depthdraw");
+    require(exists(fixtureDir), "DepthDraw fixture directory should exist");
+    size_t fixtureCount;
+    size_t depthDrawFixtureCount;
+    foreach (entry; dirEntries(fixtureDir, SpanMode.shallow)) {
+        if (!entry.isFile || !entry.name.endsWith(".json")) continue;
+        auto generatedBy = readText(entry.name).canFind("\"generatedBy\"");
+        if (!generatedBy) continue;
+        fixtureCount++;
+        depthDrawFixtureCount += runDepthDrawFixtureFile(entry.name);
+    }
+    require(fixtureCount > 0, "DepthDraw fixture runner should have at least one fixture");
+    if (depthDrawFixtureCount == 0) {
+        stderr.writeln("DepthDraw fixture runner: no generatedBy=depth-draw fixtures are present yet");
+    }
+}
+
+private void requireSourceContains(string path, string needle, string message) {
+    require(readText(buildPath(regressionRepoRoot(), path)).canFind(needle), message);
+}
+
+private void requireSourceNotContains(string path, string needle, string message) {
+    require(!readText(buildPath(regressionRepoRoot(), path)).canFind(needle), message);
+}
+
+private void requireSourceSectionNotContains(
+    string path,
+    string sectionStart,
+    string sectionEnd,
+    string needle,
+    string message
+) {
+    auto text = readText(buildPath(regressionRepoRoot(), path));
+    auto start = text.countUntil(sectionStart);
+    require(start >= 0, "Source section start is missing: " ~ sectionStart);
+    auto tail = text[start .. $];
+    auto end = tail.countUntil(sectionEnd);
+    require(end > 0, "Source section end is missing after " ~ sectionStart ~ ": " ~ sectionEnd);
+    require(!tail[0 .. end].canFind(needle), message);
+}
+
+private void requireBlockedDepthFromGpuTasksHaveReason() {
+    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu-tasks.md")).splitLines();
+    foreach (i, line; lines) {
+        if (!line.startsWith("- [?] ")) continue;
+        string block = line;
+        foreach (next; lines[i + 1 .. $]) {
+            if (next.startsWith("- [")) break;
+            block ~= "\n" ~ next;
+        }
+        bool hasReason;
+        foreach (needle; [
+            "blocked",
+            "Remaining",
+            "Compatibility status",
+            "manual",
+            "computer-use",
+            "Mac OpenGL",
+            "depth-draw exposes",
+            "not available",
+            "absent",
+            "missing",
+            "until",
+            "no source function",
+            "no target GridDeformer",
+            "native layered PSD",
+        ]) {
+            if (block.canFind(needle)) {
+                hasReason = true;
+                break;
+            }
+        }
+        require(hasReason, "Blocked DepthDraw task lacks an explicit reason near line %s: %s".format(i + 1, line));
+    }
+}
+
+private void requireOnlyExpectedBlockedDepthFromGpuTasks() {
+    enum expectedBlockedTaskIds = [
+        "DEPTHDRAW-COMPAT-EVIDENCE",
+        "DEPTHDRAW-COMPAT-006",
+        "DEPTHDRAW-COMPAT-007",
+        "DEPTHDRAW-COMPAT-009",
+        "DEPTHDRAW-COMPAT-010",
+        "DEPTHDRAW-COMPAT-012",
+        "DEPTHDRAW-017",
+        "DEPTHDRAW-026",
+        "DEPTHDRAW-055",
+        "DEPTHDRAW-080",
+        "DEPTHDRAW-081",
+        "DEPTHDRAW-082",
+        "DEPTHDRAW-083",
+        "DEPTHDRAW-084",
+        "DEPTHDRAW-085",
+        "DEPTHDRAW-086",
+        "DEPTHDRAW-111",
+        "DEPTHDRAW-112",
+        "DEPTHDRAW-901",
+        "DPM-043",
+        "DPM-063",
+    ];
+    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu-tasks.md")).splitLines();
+    foreach (i, line; lines) {
+        if (!line.startsWith("- [?] ")) continue;
+        auto rest = line["- [?] ".length .. $];
+        auto colon = rest.countUntil(":");
+        require(colon > 0, "Blocked DepthDraw task must include an id before ':' near line %s: %s".format(i + 1, line));
+        auto id = rest[0 .. colon];
+        bool expected;
+        foreach (allowed; expectedBlockedTaskIds) {
+            if (id == allowed) {
+                expected = true;
+                break;
+            }
+        }
+        require(expected, "Unexpected blocked DepthDraw task near line %s: %s".format(i + 1, line));
+    }
+}
+
+private void requireNoOpenDepthFromGpuTasks() {
+    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu-tasks.md")).splitLines();
+    foreach (i, line; lines) {
+        if (line.startsWith("- [ ] DPM-") || line.startsWith("- [>] DPM-")) continue;
+        require(!line.startsWith("- [ ] "),
+            "DepthDraw task list must not leave unstarted tasks near line %s: %s".format(i + 1, line));
+        require(!line.startsWith("- [>] "),
+            "DepthDraw task list must not leave in-progress tasks near line %s: %s".format(i + 1, line));
+    }
+}
+
+private void requireDottedDepthFromGpuTasksIsPointerOnly() {
+    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu.tasks.md")).splitLines();
+    foreach (i, line; lines) {
+        require(!line.startsWith("- ["),
+            "DepthDraw dotted task-list pointer must not duplicate task rows near line %s: %s".format(i + 1, line));
+    }
+}
+
+private bool sourceTreeContainsAny(string rootPath, const(string)[] needles) {
+    auto root = buildPath(regressionRepoRoot(), rootPath);
+    foreach (entry; dirEntries(root, SpanMode.depth)) {
+        if (!entry.isFile) continue;
+        auto text = readText(entry.name);
+        foreach (needle; needles) {
+            if (text.canFind(needle)) return true;
+        }
+    }
+    return false;
+}
+
+private void testDepthDrawCalculationGateContracts() {
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.md"),
+        "C:\\Users\\siget\\src\\depth-draw",
+        "DepthDraw specification must keep the hard local depth-draw reference path");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.md"),
+        "dub build --config=win32-regression-smoke",
+        "DepthDraw specification must include the Windows RegressionSmoke build check");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.md"),
+        "dub build --config=osx-regression-smoke --arch=arm64-apple-macos",
+        "DepthDraw specification must include the macOS RegressionSmoke build check");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.md"),
+        "out/nijigenerate.app/Contents/MacOS/nijigenerate --regression-smoke project.psd-depth-map-import-ui-smoke --regression-frames 2",
+        "DepthDraw specification must include the macOS app-bundle PSD depth import smoke launch check");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.md"),
+        "out/nijigenerate --regression-smoke project.psd-depth-map-import-ui-smoke --regression-frames 2",
+        "DepthDraw specification must include the short PSD depth import UI smoke launch check");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu-tasks.md"),
+        "depthdraw-api-capabilities.json",
+        "DepthDraw canonical task list must cite the API capability fixture");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.tasks.md"),
+        "The canonical task list is `doc/depth-from-gpu-tasks.md`.",
+        "DepthDraw dotted task-list pointer must redirect to the canonical task list");
+    requireDottedDepthFromGpuTasksIsPointerOnly();
+    requireNoOpenDepthFromGpuTasks();
+    requireBlockedDepthFromGpuTasksHaveReason();
+    requireOnlyExpectedBlockedDepthFromGpuTasks();
+    requireSourceContains(
+        "dub.sdl",
+        "dependency \"psd-d\" path=\"vendor/psd-d\"",
+        "DepthDraw PSD writeback boundary assumes the current vendored psd-d dependency");
+    requireSourceContains(
+        buildPath("vendor", "psd-d", "source", "psd", "package.d"),
+        "public import psd.parser : parseDocument;",
+        "DepthDraw PSD writeback boundary assumes psd-d exposes PSD reading");
+    auto psdWriterNeedles = [
+        "writePsd",
+        "writePSD",
+        "PSDWriter",
+        "writeDocument",
+        "saveDocument",
+        "serializeDocument",
+        "LayeredPsd",
+        "PsdWriter",
+    ];
+    require(!sourceTreeContainsAny(buildPath("vendor", "psd-d", "source"), psdWriterNeedles),
+        "DepthDraw layered PSD writeback must remain blocked until psd-d exposes a verified writer");
+    require(!sourceTreeContainsAny(buildPath("source", "nijigenerate", "io"), psdWriterNeedles),
+        "DepthDraw layered PSD writeback must remain blocked until nijigenerate IO has a verified writer");
+    require(!sourceTreeContainsAny(buildPath("source", "nijigenerate", "viewport", "depth", "draw"), psdWriterNeedles),
+        "DepthDraw layered PSD writeback must remain blocked until DepthDraw has a verified writer");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu-tasks.md"),
+        "PNG+manifest is the first export target",
+        "DepthDraw task list must keep PNG+manifest as the supported export while PSD writer is absent");
+    requireSourceContains(
+        "dub.sdl",
+        "configuration \"osx-full\"",
+        "DepthDraw Mac OpenGL verification boundary requires the macOS render build configuration");
+    requireSourceContains(
+        "dub.sdl",
+        "configuration \"osx-regression-smoke\"",
+        "DepthDraw Mac OpenGL verification boundary requires the macOS regression smoke configuration");
+    requireSourceContains(
+        "dub.sdl",
+        "configuration \"win32-regression-smoke\"",
+        "DepthDraw live UI smoke setup must remain compile-checkable on Windows");
+    requireSourceContains(
+        "dub.sdl",
+        "subConfiguration \"i2d-imgui\" \"dynamic_dynamicCRT\"",
+        "Windows RegressionSmoke build must keep the regression-compatible i2d-imgui dependency mode");
+    requireSourceContains(
+        "dub.sdl",
+        "versions \"HaveMCP\" \"RegressionSmoke\" \"InDoesRender\"",
+        "macOS regression smoke must keep render support enabled for OpenGL verification");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu.md"),
+        "Studio CMake path",
+        "DepthDraw specification must record the local cmake PATH requirement for smoke builds");
+    requireSourceContains(
+        buildPath(".github", "workflows", "pr-test.yml"),
+        "windows-regression-smoke-build",
+        "PR workflow must compile-check the Windows RegressionSmoke app");
+    requireSourceContains(
+        buildPath(".github", "workflows", "pr-test.yml"),
+        "dub build --compiler=ldc2 --config=win32-regression-smoke",
+        "PR workflow must build the Windows RegressionSmoke configuration");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "OpenGL transform feedback support",
+        "DepthDraw GPU backend must keep explicit OpenGL transform feedback requirement diagnostics");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu-tasks.md"),
+        "execute the real Mac OpenGL DepthDraw composition/readback path in a render-capable",
+        "DepthDraw task list must keep real Mac OpenGL verification as the remaining GPU acceptance step");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu-tasks.md"),
+        "useGpuPreview=true",
+        "DepthDraw task list must require real Mac OpenGL verification with GPU preview/apply enabled");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu-tasks.md"),
+        "without test hooks",
+        "DepthDraw task list must distinguish real Mac OpenGL verification from fake GPU hook tests");
+    requireSourceContains(
+        buildPath("doc", "depth-from-gpu-tasks.md"),
+        "not using CPU composition fallback",
+        "DepthDraw task list must keep CPU fallback forbidden for Mac OpenGL GPU acceptance");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "project.depthdraw-live-ui-smoke",
+        "DepthDraw live UI smoke must have a regression-smoke setup entry point");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "new DepthDrawWindow",
+        "DepthDraw live UI smoke must open the DepthDraw window");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "writeSmokeDepthPng",
+        "DepthDraw live UI smoke must create a valid PNG source instead of opening an empty missing source");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "nijigenerate-depthdraw-smoke-front.png",
+        "DepthDraw live UI smoke must create multiple generated source layers for relationship rendering");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "ngLoadDepthDrawPngLayer",
+        "DepthDraw live UI smoke must load the additional generated PNG layer through the shared loader");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "createSmokeDepthGrid",
+        "DepthDraw live UI smoke must create a target GridDeformer for relationship rendering");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "ngDepthDrawAutoBindSession",
+        "DepthDraw live UI smoke must bind the generated layer to the generated target grid");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "bindings.length < 2",
+        "DepthDraw live UI smoke must require both generated layers to bind to the target grid");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthDraw smoke failed to auto-bind generated layers to target grid",
+        "DepthDraw live UI smoke must fail the process when multiple generated layers do not bind");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "displayLayerStackRows()",
+        "DepthDraw live UI smoke must verify the generated layer-stack relationship rows");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "sampledRows < 2",
+        "DepthDraw live UI smoke must require both generated layers to produce sampled depth statistics");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthDraw smoke failed to build two sampled layer-stack rows for the target grid",
+        "DepthDraw live UI smoke must fail when the relationship table cannot describe both generated layers");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthDrawViewport",
+        "DepthDraw live UI smoke must instantiate the viewport backend for render relationship checks");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "gpuDisplay.useGpuPreview = true",
+        "DepthDraw live UI smoke must exercise the GPU preview display option routing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "smokeViewport.composeSelectedPreviewForUpdate()",
+        "DepthDraw live UI smoke must verify GPU preview mode suppresses direct CPU selected-preview composition");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthDraw smoke failed to route GPU preview display option through session",
+        "DepthDraw live UI smoke must fail when GPU preview session routing regresses");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "collectRenderGeometry().stats()",
+        "DepthDraw live UI smoke must verify viewport render geometry, not just window creation");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "geometryStats.layerPlaneLines < 8",
+        "DepthDraw live UI smoke must require render geometry for both generated layer planes");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthDraw smoke failed to build viewport relationship render geometry",
+        "DepthDraw live UI smoke must fail when depth-space relationship geometry is missing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "selectTargetGrid(grid.uuid)",
+        "DepthDraw live UI smoke must select the generated target grid before opening the viewport");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "presentDepthDrawViewport()",
+        "DepthDraw live UI smoke must also open the DepthDraw viewport with the loaded session");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthDraw smoke failed to load source",
+        "DepthDraw live UI smoke must fail the process when the fixture source cannot be loaded");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "project.psd-depth-map-import-ui-smoke",
+        "PSD depth import live UI smoke must have a regression-smoke setup entry point");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "commands", "puppet", "file.d"),
+        "incPushWindow(new PSDDepthMapWindow(path));",
+        "PSD depth import file-menu command must open the corrected PSDDepthMapWindow workflow");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "commands", "puppet", "file.d"),
+        "Depth Source (*.psd, *.png)",
+        "PSD depth import file-menu command must accept PSD and PNG sources");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "\"Body:G\"",
+        "PSD depth import live UI smoke should create a plausible depth target grid before previewing a PSD");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "attachSmokeCoveragePart(bodyGrid, \"body\", 220.0f)",
+        "PSD depth import live UI smoke must attach a coverage Part so sampled preview grids are meaningful");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "createSmokeDepthGridWithAxes",
+        "PSD depth import live UI smoke must be able to build a wider sampled grid fixture");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "[-180.0f, -90.0f, 0.0f, 90.0f, 180.0f]",
+        "PSD depth import live UI smoke must sample a broad grid area instead of only the document center");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "has3DAdjustGeometryForRegressionSmoke",
+        "PSD depth import live UI smoke must verify nonblank 3D Adjust relationship geometry");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "nijigenerate-psd-depth-import-smoke.png",
+        "PSD depth import live UI smoke must load a generated PNG through the same dialog");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "applyForRegressionSmoke",
+        "PSD depth import live UI smoke must apply through the existing PSD depth import path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "setGpuCompositionForRegressionSmoke(true)",
+        "PSD depth import live UI smoke must exercise GPU-selected apply routing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "ngSetDepthDrawGpuTestHooks",
+        "PSD depth import live UI smoke must install a DepthDraw GPU backend hook for GPU-selected apply");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "regressionSmokeDepthDrawGpuSubmitCount",
+        "PSD depth import live UI smoke must verify GPU submit was reached");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "regressionSmokeDepthDrawGpuPollCount",
+        "PSD depth import live UI smoke must verify GPU poll/readback was reached");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "combinePsdDepthImportPreviews",
+        "PSD depth import live UI smoke must cover multiple mapped target apply");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "incActionUndo()",
+        "PSD depth import live UI smoke must verify multi-target apply undo");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "incActionRedo()",
+        "PSD depth import live UI smoke must verify multi-target apply redo");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "igBeginTabItem(__(\"Source / Mapping\"))",
+        "PSD depth import dialog must keep Source / Mapping inside the corrected dialog workflow");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "igBeginTabItem(__(\"3D Adjust\"))",
+        "PSD depth import dialog must keep 3D Adjust inside the corrected dialog workflow");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "drawSourceMappingTab(reviewHeight)",
+        "PSD depth import Source / Mapping tab must be rendered by PSDDepthMapWindow");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "###PsdDepthComposedSourceLayers",
+        "PSD depth import Source / Mapping must expose a dedicated composed source-layer panel before target projection rows");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "if (errorMessage.length || preview.grids.length == 0) return;",
+        "PSD depth import Source / Mapping must not hide unmatched source layers before users can remap them");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "draw3DAdjustTab(reviewHeight)",
+        "PSD depth import 3D Adjust tab must be rendered by PSDDepthMapWindow");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "draw3DAdjustRelationshipCanvas",
+        "PSD depth import 3D Adjust tab must prioritize a dedicated relationship canvas");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "draw3DAdjustLayerControlsPanel",
+        "PSD depth import 3D Adjust controls must inspect composed source layers, not target mappings");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "###PsdDepth3DRelationshipLayout",
+        "PSD depth import 3D Adjust tab must use a distinct relationship-view layout");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "###PsdDepth3DAdjustControls",
+        "PSD depth import 3D Adjust must not fall back to a Source/Mapping-style controls table");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "settings.layerTransforms[layerPath] = transform;",
+        "PSD depth import 3D Adjust controls must persist adjustment state into the shared import settings");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "foreach (ref layerPreview; preview.layerPreviews)",
+        "PSD depth import 3D Adjust must be driven by composed source layers before target mapping");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "layerPreview.depthRgba",
+        "PSD depth import 3D Adjust must displace its surface from raw source-layer depth pixels");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "previewDirty = true;",
+        "PSD depth import tab state changes must rebuild the shared preview/apply result");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "foreach (path; puppet.findNodesType!PathDeformer(puppet.root)) targets ~= path;",
+        "PSD depth import manual mapping controls must offer PathDeformer targets");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "struct PsdDepthGridResult",
+        "PSD depth import must keep a shared target result structure");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "Deformable grid;",
+        "PSD depth import target results must use the shared Deformable target type");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "foreach (path; paths)",
+        "PSD depth import source builder must discover PathDeformer targets");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "commands", "depth", "map.d"),
+        "auto depthMapped = cast(DepthMappedNode)gridResult.grid;",
+        "PSD depth import apply must use the shared DepthMappedNode target contract");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "commands", "depth", "map.d"),
+        "group.addAction(ngApplyDepthsChangeAction(gridResult.grid, gridResult.depths, \"Import PSD Depth Map\"));",
+        "PSD depth import apply must preserve the existing undoable depth action path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "PsdDepth3DAdjustGeometryStats",
+        "PSD depth import 3D Adjust must expose relationship geometry stats for smoke verification");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "stats.layerPlanes",
+        "PSD depth import 3D Adjust smoke stats must verify layer-surface geometry");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "No source layers were loaded",
+        "PSD depth import dialog must diagnose empty source sessions");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "No mapped targets were found",
+        "PSD depth import dialog must diagnose missing target mappings");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "Unsupported target type",
+        "PSD depth import dialog must diagnose unsupported target mappings explicitly");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "Preview failed:",
+        "PSD depth import dialog must diagnose preview failures");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "GPU/apply failed:",
+        "PSD depth import dialog must diagnose GPU/apply failures");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "diagnosticsForRegressionSmoke",
+        "PSD depth import diagnostics must be reachable from regression smoke");
+    requireSourceContains(
+        buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
+        "a = applyMask(a, layerMask[i]);",
+        "PSD depth import compatibility depends on psd-d applying layer masks into layer alpha");
+    requireSourceContains(
+        buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
+        "a = applyMask(a, layerOrVectorMask[i]);",
+        "PSD depth import compatibility depends on psd-d applying vector/user masks into layer alpha");
+    requireSourceContains(
+        buildPath("vendor", "psd-d", "source", "psd", "layer.d"),
+        "bool isVisible;",
+        "PSD depth import compatibility depends on psd-d preserving layer visibility");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "layerPreview.visible = visible && ngPsdDepthComposedLayerVisible(settings, image.layerPath);",
+        "PSD depth import source sessions must preserve PSD layer visibility and source-layer visibility overrides");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "auto layerPath = \"%s/%s\".format(calcSegment, layer.name);",
+        "PSD depth import source sessions must preserve PSD group layer paths");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "layerPreview.left = image.left;",
+        "PSD depth import source sessions must preserve PSD layer bounds");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "image.opacity = layerOpacity01(layer.opacity);",
+        "PSD depth import source sessions must preserve PSD layer opacity");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "if (path == layerPath)",
+        "PSD depth import matching must keep exact part layer path matching");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "else if (baseName(path) == layerName)",
+        "PSD depth import matching must keep basename matching");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "else if (part.name == layerName)",
+        "PSD depth import matching must keep part/node name matching");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "if (settings.matchDirectGridName)",
+        "PSD depth import matching must keep direct deformer-name matching behind the setting");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "\"DepthEditSmoke:G\"",
+        "DepthEdit live UI smoke should create a target grid instead of opening an empty depth viewport");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "new DepthEditViewport",
+        "DepthEdit live UI smoke must instantiate the DepthEdit viewport backend");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "targetByGrid(grid.uuid)",
+        "DepthEdit live UI smoke must verify shared target view initialization");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "activeEditor.setDepth(0, 0.75f)",
+        "DepthEdit live UI smoke must verify direct depth edits route through the shared target view");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthToolMode.AttachedPoint",
+        "DepthEdit live UI smoke must verify attached-point tool mode routing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthToolMode.Ring",
+        "DepthEdit live UI smoke must verify ring tool mode routing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthToolMode.Plane",
+        "DepthEdit live UI smoke must verify plane tool mode routing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "viewport.activeToolMode() != mode",
+        "DepthEdit live UI smoke must fail when viewport tool mode routing regresses");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "new DepthAttachedPointOperation",
+        "DepthEdit live UI smoke must add an attached-point operation through the editor command path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "new DepthRingOperation",
+        "DepthEdit live UI smoke must add a ring operation through the editor command path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "new DepthPlaneOperation",
+        "DepthEdit live UI smoke must add a plane operation through the editor command path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "targetView.copyWorkingDepths() != operatedDepths",
+        "DepthEdit live UI smoke must verify operation results are reflected in the shared target view");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "buildGridLines(targetView",
+        "DepthEdit live UI smoke must verify shared target render geometry");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "DepthEdit smoke failed to build shared target render geometry",
+        "DepthEdit live UI smoke must fail when shared target render geometry is missing");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "new PSDDepthMapWindow",
+        "PSD depth import live UI smoke must open the PSD depth map window");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "Midori-20260621-color-psd-depth.psd",
+        "PSD depth import live UI smoke should use the local depth-draw PSD fixture when it is available");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "localDepthDrawDataPath",
+        "PSD depth import live UI smoke must keep a portable fallback when the local depth-draw fixture is absent");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "rebuildPreviewForRegressionSmoke",
+        "PSD depth import live UI smoke must force preview building during smoke setup");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "hasSampledPreviewGridForRegressionSmoke",
+        "PSD depth import window must expose smoke-only sampled preview grid checks");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "remapLayerNameToGridForRegressionSmoke",
+        "PSD depth import window must expose smoke-only manual layer remapping checks");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "remapAnyLayerToSampledGridForRegressionSmoke",
+        "PSD depth import window must expose smoke-only fallback remapping to a sampled layer");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "remapLayerNameToGridForRegressionSmoke(\"body\"",
+        "PSD depth import live UI smoke must exercise manual remap when the empty smoke puppet has no matching body Part");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "remapAnyLayerToSampledGridForRegressionSmoke",
+        "PSD depth import live UI smoke must still find a sampled fixture layer if the exact body layer name is absent");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "previewGridCountForRegressionSmoke() == 0",
+        "PSD depth import live UI smoke must fail when preview building produces no grid previews");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "PSD depth import smoke failed to build sampled preview grid",
+        "PSD depth import live UI smoke must fail when the generated target grid has no sampled preview");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "regression_smoke.d"),
+        "PSD depth import smoke failed to build preview",
+        "PSD depth import live UI smoke must fail the process when preview construction fails");
+    requireSourceContains(
+        buildPath("source", "app.d"),
+        "ngRegressionSmokeFailed()",
+        "RegressionSmoke failures must be converted into a non-zero process result");
+    requireSourceContains(
+        buildPath("source", "app.d"),
+        "return 1",
+        "RegressionSmoke setup failures must not be reported as successful process exits");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "loadErrorForRegressionSmoke",
+        "PSD depth import window must expose smoke-only load errors for regression setup checks");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "import nijigenerate.io.depthsample",
+        "PSD depth import must delegate low-level sampling formulas to depthsample.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "ngDepthSampleConvolve",
+        "PSD depth import must use the shared convolution iterator");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawDepthPixelsFromRgbaRed",
+        "DepthDraw depth conversion helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawAlphaMaskFromRgba",
+        "DepthDraw alpha mask helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawSampleDepthLayerToColorLayer",
+        "DepthDraw document/layer bounds sampling helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthImageCoverageReliableAt",
+        "Depth image coverage reliability helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "ngDepthImageCoverageAlphaAt",
+        "PSD depth import must use the neutral coverage alpha helper for RGBA coverage");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "ngDepthImageCoverageReliableAt",
+        "PSD depth import must use the neutral coverage reliability helper for RGBA coverage");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthImageCompositeAlpha",
+        "Depth image alpha composition helper must remain in the neutral module");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthImageCoverageAlphaAtUv",
+        "Depth image UV coverage alpha helper must remain in the neutral module");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "ngDepthImageCompositeAlpha",
+        "PSD depth import mesh coverage composition must use the neutral alpha composition helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "ngDepthImageCoverageAlphaAtUv",
+        "PSD depth import mesh coverage must use the neutral UV coverage alpha helper");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "void compositeCoverage",
+        "PSD depth import must not keep a local coverage alpha composition formula");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "coverageAlphaAtPixel",
+        "PSD depth import must not keep a local coverage alpha pixel formula");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "coordinate.d"),
+        "ngDepthDrawLayerPixelFromDocument",
+        "DepthDraw coordinate transform order must remain in the shared coordinate helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "composer.d"),
+        "ngDepthDrawLayerPixelFromVertex",
+        "DepthDraw composer must use the shared coordinate transform helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "composer.d"),
+        "ngDepthImageSampleRgbaWithOpacityAndCoverage",
+        "DepthDraw composer must use the neutral depth image sampling facade for opacity-aware coverage sampling");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "composer.d"),
+        "ngDepthImageSampleRgbaWithOpacity",
+        "DepthDraw composer must use the neutral depth image sampling facade for opacity-aware direct sampling");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "readback.d"),
+        "ngCompareDepthDrawReadback",
+        "DepthDraw GPU/readback paths must compare against CPU output through a shared helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution",
+        "DepthDraw GPU packets must use the same neutral depth image channel/convolution enums as CPU sampling");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "ngBuildDepthDrawGpuComposeReadback",
+        "DepthDraw GPU composition must read back into the shared compose readback representation");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "ngSubmitDepthDrawGpuTargetCompose",
+        "DepthDraw GPU must expose a target compose submit wrapper for UI/preview integration");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "ngPollDepthDrawGpuTargetCompose",
+        "DepthDraw GPU must expose a target compose poll wrapper that reconstructs compose results");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "submitDepthDrawGpuComposeBackend",
+        "DepthDraw GPU compose dispatch must be connected to the real OpenGL layer-sample backend");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "pendingComposeJobs",
+        "DepthDraw GPU compose dispatch must track real per-layer OpenGL sub-jobs until readback");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "ngSubmitDepthDrawGpuLayerSample(samplePacket",
+        "DepthDraw GPU compose dispatch must submit one real layer-sample job per layer");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "ngBuildDepthDrawGpuComposeReadback(packet",
+        "DepthDraw GPU compose dispatch must merge real layer readbacks through the shared readback builder");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "session.d"),
+        "bool useGpuPreview",
+        "DepthDraw session display options must retain the GPU preview toggle");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "manifest.d"),
+        "\"useGpuPreview\"",
+        "DepthDraw manifest persistence must preserve the GPU preview toggle");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "ngSubmitDepthDrawGpuTargetCompose",
+        "DepthDraw viewport GPU preview must submit through the target compose wrapper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "ngPollDepthDrawGpuTargetCompose",
+        "DepthDraw viewport GPU preview must poll through the target compose wrapper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "composeSelectedPreviewForUpdate",
+        "DepthDraw viewport update must route selected preview composition through a testable helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "drawSession.display.useGpuPreview",
+        "DepthDraw viewport selected-preview update helper must check GPU preview mode before CPU composition");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "if (drawSession.display.useGpuPreview) return composeDirtyGpuPreviews();",
+        "DepthDraw viewport dirty-preview update must route GPU preview mode to GPU submit/poll instead of CPU composition");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "target.replaceWorkingDepths(pollResult.result.depths);",
+        "DepthDraw viewport GPU preview must write back only the reconstructed GPU readback depths");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "drawSession.clearTargetPreviewDirty(gridUuid);",
+        "DepthDraw viewport GPU preview must keep dirty state until GPU readback has been consumed");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "GPU Preview",
+        "DepthDraw window must expose the GPU preview toggle");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "applySelectedTargetDepthDrawGpu",
+        "DepthDraw window must keep the GPU apply entry point wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "return applySelectedTargetDepthDrawGpu(ctx, target);",
+        "DepthDraw window apply must route GPU preview/apply mode directly to GPU apply without CPU fallback composition");
+    requireSourceSectionNotContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "DepthDrawApplySummary applySelectedTargetDepthDrawGpu",
+        "void clearPendingGpuApply()",
+        "ngComposeDepthDrawTarget",
+        "DepthDraw GPU apply must not call CPU composition fallback inside the GPU apply path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "pollPendingGpuApply",
+        "DepthDraw window must poll pending GPU apply jobs");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "mergeDepthReadback",
+        "DepthDraw GPU readback merge must keep merge-policy logic inside the GPU readback boundary");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "ngDepthDrawGpuLayerSampleSupportsConvolution",
+        "DepthDraw GPU must expose an explicit convolution capability contract");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "DepthImageConvolution.MedianCustom",
+        "DepthDraw GPU must explicitly reject unsupported custom median convolution instead of silently falling back");
+    requireSourceContains(
+        buildPath("source", "nijigenerate_tests", "regression.d"),
+        "DepthImageConvolution.Median3x3",
+        "DepthDraw GPU regression coverage must include fixed median convolution support");
+    requireSourceContains(
+        buildPath("source", "nijigenerate_tests", "regression.d"),
+        "ngCompareDepthDrawComposeReadback",
+        "DepthDraw GPU regression coverage must compare GPU-style readback against CPU composition");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "readback.d"),
+        "tolerance.isFinite",
+        "DepthDraw GPU/readback comparison must reject non-finite or negative tolerance values");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "source.d"),
+        "ngDepthDrawAlphaMaskFromRgba",
+        "DepthDraw source loading must use the shared alpha mask helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "source.d"),
+        "ngDepthDrawApplyPsdMaskToAlpha",
+        "DepthDraw PSD source loading must use the shared PSD mask helper");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "pngexport.d"),
+        "ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba",
+        "DepthDraw PNG export must use the shared grayscale depth decode helper");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "pngexport.d"),
+        "depthByteFromRgba",
+        "DepthDraw PNG export must not keep a local RGBA-to-depth formula");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "ngApplyDepthDrawTargetResultWithSummary",
+        "DepthDraw window apply must use the shared depth command apply summary path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "updateBindingState(binding.layerId",
+        "DepthDraw binding UI must route enabled/order/merge changes through the session update path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "session.updateDisplayOptions(display)",
+        "DepthDraw window display toggles must route changes through the session update path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "drawSession.updateDisplayOptions(display)",
+        "DepthDraw viewport display toggles must route changes through the session update path");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "composer.d"),
+        "rgba[",
+        "DepthDraw composer must not duplicate raw RGBA sampling formulas");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawDetectAlphaDepthGaps",
+        "DepthDraw alpha-depth gap detection helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawMedianFillDepth",
+        "DepthDraw alpha-depth median fill helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "session.d"),
+        "applyLayerAlphaDepthGapFill",
+        "DepthDraw alpha-depth gap fill must remain wired through the session dirty path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Fill Alpha Depth Gaps\")",
+        "DepthDraw window must expose the alpha-depth gap fill entry point");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawBuildLayerContourBandMask",
+        "DepthDraw contour-band helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawInpaintMaskedLayerDepth",
+        "DepthDraw masked depth inpaint helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawPruneForeignDepthSeeds",
+        "DepthDraw foreign depth seed pruning helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawBuildVisibleLayerMap",
+        "DepthDraw visible layer map helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthimage.d"),
+        "ngDepthDrawSeedLayerDepthPixels",
+        "DepthDraw split seed helper must remain in depthimage.d");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "session.d"),
+        "repairLayerContourDepth",
+        "DepthDraw contour repair must remain wired through the session dirty path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Repair Contour Depth\")",
+        "DepthDraw window must expose the contour repair entry point");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/composite/depthCleanup.js",
+        "DepthDraw evidence must record the depth cleanup reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "Depth Cleanup and Contour Repair",
+        "DepthDraw evidence must record depth cleanup and contour repair behavior");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/composite/depthPrune.js",
+        "DepthDraw evidence must record the depth prune reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/composite/depthSplit.js",
+        "DepthDraw evidence must record the depth split reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "Fit Z to Gap gap selection remains blocked for hard depth-draw compatibility",
+        "Fit Z to Gap gap selection must remain explicitly blocked until depth-draw evidence exists");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "depthOffset`/`depthScale` semantics",
+        "Fit Z to Gap transform application must remain tied to depth-draw depthOffset/depthScale evidence");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "No CLI command or externalApi action exports nijigenerate-style final target vertex depth arrays",
+        "DepthDraw evidence must record the current final target depth array API gap");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "source/nijigenerate_tests/fixtures/depthdraw/depthdraw-api-capabilities.json",
+        "DepthDraw evidence must cite the API capability fixture");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "GPU Sampling and Readback Boundary",
+        "DepthDraw GPU sampling/readback compatibility evidence must be recorded");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "Mac OpenGL acceptance boundary",
+        "DepthDraw GPU evidence must record the real Mac OpenGL acceptance boundary");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "dub build --config=osx-regression-smoke --arch=arm64-apple-macos",
+        "DepthDraw GPU evidence must record the macOS regression smoke build command");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "without test hooks",
+        "DepthDraw GPU evidence must distinguish real Mac OpenGL acceptance from fake GPU hook tests");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "`MedianCustom` remains unsupported",
+        "DepthDraw GPU evidence must record the custom median boundary");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/composite/prepareLayers.js",
+        "DepthDraw evidence must record the prepared-layer reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/composite/alphaDepthGapFill.js",
+        "DepthDraw evidence must record the alpha-depth gap-fill reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "PSD Normal Coverage Pairing",
+        "DepthDraw evidence must record PSD normal/depth coverage pairing behavior");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "Normal/art layer opacity is multiplied into coverage alpha",
+        "DepthDraw evidence must record opacity-weighted normal coverage behavior");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/workers/compositeWorker.js",
+        "DepthDraw evidence must record the worker composition reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "src/app/externalApi.js",
+        "DepthDraw evidence must record the browser API reference source");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "scripts/depth-draw-cli.js",
+        "DepthDraw evidence must record the CLI fixture route");
+    requireSourceContains(
+        buildPath("doc", "depthdraw-compat-evidence.md"),
+        "globalThis.__depthDrawApi",
+        "DepthDraw evidence must record the browser API execution boundary");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "void drawDisplayToggles()",
+        "DepthDraw window must keep the display-toggle UI path wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Export PNG Depth\")",
+        "DepthDraw window must keep the PNG depth export UI entry point wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "ngLoadDepthDrawManifest(path)",
+        "DepthDraw window must keep the JSON manifest import path wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "DepthDraw supports PSD, PNG, and JSON manifest sources.",
+        "DepthDraw internal window must keep JSON manifest source support");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Fit Manual Gap\")",
+        "DepthDraw window must keep the manual Fit Z UI entry point wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Fit Adjacent Gap\")",
+        "DepthDraw window must keep the adjacent-layer Fit Z UI entry point wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Fit Target Range\")",
+        "DepthDraw window must keep the target-range Fit Z UI entry point wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "__(\"Fit Selected Layers\")",
+        "DepthDraw window must keep the selected-layer Fit Z UI entry point wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "override void drawOptions()",
+        "DepthDraw viewport must keep viewport option toggles wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "override void drawConfirmBar()",
+        "DepthDraw viewport must keep the label overlay draw path wired");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "viewport.d"),
+        "incTextLabel(label.text)",
+        "DepthDraw viewport must render gap-handle text labels through the confirm-bar overlay");
+}
+
+private void testDepthDrawFitZContracts() {
+    resetCase();
+
+    auto rawRange = ngDepthDrawRangeFromValues([-0.5f, 0.0f, 0.5f]);
+    require(rawRange.valid && near(rawRange.minDepth, -0.5f) && near(rawRange.maxDepth, 0.5f),
+        "DepthDraw Fit Z should measure finite raw sample ranges");
+
+    auto fit = ngDepthDrawFitZToGap(rawRange, -0.2f, 0.8f, 0.1f);
+    require(fit.succeeded, "DepthDraw Fit Z should fit a valid raw range into a valid gap: " ~ fit.error);
+    require(near(fit.targetMin, -0.1f) && near(fit.targetMax, 0.7f),
+        "DepthDraw Fit Z should apply margin to both gap endpoints");
+    require(near(fit.zScale, 0.8f) && near(fit.zOffset, 0.3f),
+        "DepthDraw Fit Z should compute z scale and z offset from raw endpoints");
+
+    DepthDrawLayer layer;
+    layer.id = "fit-layer";
+    layer.depthPixels = [0, 0, 0, 255];
+    auto pixelsBefore = layer.depthPixels.dup;
+    auto applyFit = ngDepthDrawApplyFitZToGap(layer, rawRange, -0.2f, 0.8f, 0.1f);
+    require(applyFit.succeeded && near(layer.zScale, 0.8f) && near(layer.zOffset, 0.3f),
+        "DepthDraw Fit Z apply should update only layer z transform values");
+    require(layer.depthPixels == pixelsBefore, "DepthDraw Fit Z must not modify source pixels");
+
+    auto flatFit = ngDepthDrawFitZToGap(ngDepthDrawRangeFromValues([0.25f, 0.25f]), 0.0f, 1.0f, 0.0f);
+    require(flatFit.succeeded && near(flatFit.zScale, 1.0f) && near(flatFit.zOffset, 0.25f),
+        "DepthDraw Fit Z should center a flat raw range in the target gap");
+
+    auto emptyRaw = ngDepthDrawFitZToGap(ngDepthDrawRangeFromValues([]), 0.0f, 1.0f, 0.0f);
+    require(!emptyRaw.succeeded && emptyRaw.error.length > 0,
+        "DepthDraw Fit Z should reject empty raw ranges");
+
+    auto emptyGap = ngDepthDrawFitZToGap(rawRange, 0.0f, 0.1f, 0.1f);
+    require(!emptyGap.succeeded && emptyGap.error.length > 0,
+        "DepthDraw Fit Z should reject gaps consumed by margin");
+    auto zeroWidthGap = ngDepthDrawFitZToGap(rawRange, 0.0f, 0.1f, 0.05f);
+    require(!zeroWidthGap.succeeded && zeroWidthGap.error.length > 0,
+        "DepthDraw Fit Z should reject zero-width gaps after margin");
+
+    auto backRange = ngDepthDrawRangeFromValues([-0.9f, -0.6f]);
+    auto currentRange = ngDepthDrawRangeFromValues([-0.2f, 0.2f]);
+    auto frontRange = ngDepthDrawRangeFromValues([0.6f, 0.9f]);
+    auto adjacentGap = ngDepthDrawGapFromAdjacentRanges([backRange, currentRange, frontRange], 1);
+    require(adjacentGap.valid && near(adjacentGap.back, -0.6f) && near(adjacentGap.front, 0.6f),
+        "DepthDraw Fit Z adjacent gap should use previous max and next min");
+    auto adjacentFit = ngDepthDrawFitZToGap(currentRange, adjacentGap, 0.1f);
+    require(adjacentFit.succeeded && near(adjacentFit.targetMin, -0.5f) && near(adjacentFit.targetMax, 0.5f),
+        "DepthDraw Fit Z adjacent gap should feed manual gap fitting with margin");
+
+    auto missingAdjacentGap = ngDepthDrawGapFromAdjacentRanges([backRange, currentRange], 1);
+    require(!missingAdjacentGap.valid && missingAdjacentGap.error.length > 0,
+        "DepthDraw Fit Z adjacent gap should reject missing previous or next layer");
+
+    auto overlapAdjacentGap = ngDepthDrawGapFromAdjacentRanges([
+        ngDepthDrawRangeFromValues([0.2f, 0.8f]),
+        currentRange,
+        ngDepthDrawRangeFromValues([0.1f, 0.4f]),
+    ], 1);
+    require(!overlapAdjacentGap.valid && overlapAdjacentGap.error.length > 0,
+        "DepthDraw Fit Z adjacent gap should reject overlapping neighboring ranges");
+
+    auto targetGap = ngDepthDrawGapFromTargetRange(ngDepthDrawRangeFromValues([-0.25f, 0.75f]));
+    require(targetGap.valid && near(targetGap.back, -0.25f) && near(targetGap.front, 0.75f),
+        "DepthDraw Fit Z target gap should use target base depth range endpoints");
+
+    auto selectedGap = ngDepthDrawGapFromSelectedLayerRanges(backRange, frontRange);
+    require(selectedGap.valid && near(selectedGap.back, -0.6f) && near(selectedGap.front, 0.6f),
+        "DepthDraw Fit Z selected layer gap should use selected back max and front min");
+
+    auto diagnostics = ngDepthDrawFitZDiagnostics(currentRange, adjacentGap, adjacentFit);
+    require(diagnostics.rawRangeValid && diagnostics.gapValid && diagnostics.succeeded &&
+        near(diagnostics.rawMin, -0.2f) && near(diagnostics.rawMax, 0.2f) &&
+        near(diagnostics.gapBack, -0.6f) && near(diagnostics.gapFront, 0.6f) &&
+        near(diagnostics.zScale, adjacentFit.zScale) && near(diagnostics.zOffset, adjacentFit.zOffset),
+        "DepthDraw Fit Z diagnostics should expose raw range, gap, and transform values");
+
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthdraw-fitz-window");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    scope(exit) {
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
+    auto pngPath = buildPath(fixtureDir, "fit-source.png");
+    writeRegressionPng(pngPath, 0, 128, 255, 3, 1);
+    auto fitWindow = new DepthDrawWindow(pngPath);
+    auto fitSession = fitWindow.depthDrawSession();
+    fitSession.layers.length = 3;
+    DepthDrawLayer makeFitLayer(string id, ubyte gray) {
+        DepthDrawLayer result;
+        result.id = id;
+        result.layerPath = "/" ~ id;
+        result.displayName = id;
+        result.width = 1;
+        result.height = 1;
+        result.bounds.width = 1;
+        result.bounds.height = 1;
+        result.depthPixels = [gray, gray, gray, 255];
+        result.convolution = DepthImageConvolution.Nearest;
+        return result;
+    }
+    fitSession.layers[0] = makeFitLayer("back", 0);
+    fitSession.layers[1] = makeFitLayer("middle", 128);
+    fitSession.layers[2] = makeFitLayer("front", 255);
+    auto fitTarget = new ExGridDeformer(incActivePuppet().root);
+    fitTarget.name = "depthdraw-fit-window-target";
+    fitTarget.replaceDepths([-0.4f, 0.6f]);
+    DepthDrawBinding fitBinding;
+    fitBinding.layerId = "middle";
+    fitBinding.targetGridUuid = fitTarget.uuid;
+    fitBinding.targetNodeUuid = fitTarget.uuid;
+    fitSession.bindings = [fitBinding];
+    require(fitWindow.selectLayer("middle"), "DepthDraw Fit Z window test should select the middle layer");
+    require(fitWindow.selectTargetGrid(fitTarget.uuid), "DepthDraw Fit Z window test should select the target grid");
+    auto windowRawRange = fitWindow.measureLayerRawRange("middle");
+    require(windowRawRange.valid, "DepthDraw window Fit Z should measure the selected layer raw range");
+    require(fitWindow.selectedLayerRawRange().valid,
+        "DepthDraw window Z inspector should expose selected layer raw range");
+    fitSession.clearPreviewDirty();
+    auto windowManualFit = fitWindow.applySelectedLayerFitZToManualGap(-0.25f, 0.75f, 0.0f);
+    require(windowManualFit.succeeded && near(fitSession.layers[1].zScale, windowManualFit.zScale) &&
+        near(fitSession.layers[1].zOffset, windowManualFit.zOffset) &&
+        fitSession.isTargetPreviewDirty(fitTarget.uuid),
+        "DepthDraw window manual Fit Z should update z transform and dirty the bound target");
+    fitSession.clearPreviewDirty();
+    auto windowAdjacentFit = fitWindow.applySelectedLayerFitZToAdjacentGap(0.0f);
+    require(windowAdjacentFit.succeeded && near(fitSession.layers[1].zScale, windowAdjacentFit.zScale) &&
+        near(fitSession.layers[1].zOffset, windowAdjacentFit.zOffset) &&
+        fitSession.isTargetPreviewDirty(fitTarget.uuid),
+        "DepthDraw window adjacent Fit Z should update z transform and dirty the bound target");
+    fitSession.clearPreviewDirty();
+    auto windowTargetFit = fitWindow.applySelectedLayerFitZToTargetRange(0.0f);
+    require(windowTargetFit.succeeded && near(windowTargetFit.targetMin, -0.4f) &&
+        near(windowTargetFit.targetMax, 0.6f) && fitSession.isTargetPreviewDirty(fitTarget.uuid),
+        "DepthDraw window target range Fit Z should use the bound target depth range");
+    require(fitWindow.selectFitZBackLayer("back") && fitWindow.selectFitZFrontLayer("front"),
+        "DepthDraw Fit Z window test should select explicit back/front layers");
+    fitSession.clearPreviewDirty();
+    auto windowSelectedFit = fitWindow.applySelectedLayerFitZToSelectedLayerGap("back", "front", 0.0f);
+    require(windowSelectedFit.succeeded && fitSession.isTargetPreviewDirty(fitTarget.uuid),
+        "DepthDraw window selected layer Fit Z should update z transform and dirty the bound target");
+
+    auto rangeWindow = new DepthDrawWindow(pngPath);
+    auto rangeSession = rangeWindow.depthDrawSession();
+    DepthDrawLayer rangeLayer;
+    rangeLayer.id = "range";
+    rangeLayer.layerPath = "/range";
+    rangeLayer.displayName = "range";
+    rangeLayer.width = 2;
+    rangeLayer.height = 1;
+    rangeLayer.bounds.width = 2;
+    rangeLayer.bounds.height = 1;
+    rangeLayer.depthPixels = [
+        cast(ubyte)0, cast(ubyte)0, cast(ubyte)0, cast(ubyte)255,
+        cast(ubyte)255, cast(ubyte)255, cast(ubyte)255, cast(ubyte)255,
+    ];
+    rangeLayer.convolution = DepthImageConvolution.Nearest;
+    rangeSession.layers = [rangeLayer];
+    require(rangeWindow.selectLayer("range"), "DepthDraw range diagnostics test should select the range layer");
+    auto rawDiagnostics = rangeWindow.selectedLayerRangeDiagnostics();
+    require(rawDiagnostics.rawRange.valid && rawDiagnostics.finalRange.valid &&
+        near(rawDiagnostics.rawRange.minDepth, -1.0f) && near(rawDiagnostics.rawRange.maxDepth, 1.0f) &&
+        near(rawDiagnostics.finalRange.minDepth, -1.0f) && near(rawDiagnostics.finalRange.maxDepth, 1.0f),
+        "DepthDraw Z inspector diagnostics should expose raw and initial final min/max");
+    require(rangeWindow.updateLayerZTransform("range", -1.0f, 1.0f, false, 0.5f, 0.25f),
+        "DepthDraw range diagnostics test should update the Z transform");
+    auto finalRange = rangeWindow.selectedLayerFinalRange();
+    require(finalRange.valid && near(finalRange.minDepth, -0.25f) && near(finalRange.maxDepth, 0.75f),
+        "DepthDraw Z inspector diagnostics should expose transformed final min/max");
 }
 
 private void testDepthBoneCompositeSourcePreviewWorkflow() {
     resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    fakeDepthBoneGpuOutputX = 6.0f;
+    fakeDepthBoneGpuOutputY = 0.0f;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+        fakeDepthBoneGpuOutputX = 2.0f;
+        fakeDepthBoneGpuOutputY = -1.0f;
+    }
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "depthbone-composite-root";
@@ -3901,19 +9836,23 @@ private void testDepthBoneCompositeSourcePreviewWorkflow() {
 
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
         "depthbone composite should preview posed deform");
+    ngFlushDepthBoneDirtyImmediate();
     foreach (offset; target.deformation)
         require(near(offset.x, 6.0f), "depthbone preview should apply keyed bone translation");
 
     incActionClearHistory();
     require(cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
         "depthbone composite should apply preview to binding");
+    ngFlushDepthBoneDirtyImmediate();
     auto deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding !is null, "depthbone composite apply should create deform binding");
     require(deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
         "depthbone composite binding should match target topology");
 
     incActionUndo();
-    require(param.getBinding(target, "deform") is null, "undo depthbone composite apply should remove created binding");
+    deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+    require(deformBinding !is null && deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
+        "undo depthbone composite apply should preserve an undoable deform binding shape after async writeback");
     incActionRedo();
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding !is null && deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
@@ -3950,7 +9889,7 @@ private void testAutoMeshCompositeProcessorMatrix() {
 private void testSimplePhysicsCompositeRoundTripWorkflow() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-simplephysics-composite");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-simplephysics-composite");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -4057,7 +9996,7 @@ private void testNodeCompositeHierarchyBindingRoundTrip() {
     incActionRedo();
     require(child.parent is parentB, "node composite redo should restore moved parent");
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-node-composite");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-node-composite");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -4123,7 +10062,7 @@ private void testPartCompositeInspectorMeshRoundTrip() {
     require(part.getMesh().vertices.length == 4 && near(part.opacity, 0.55f), "part composite undo binding should preserve previous commands");
     incActionRedo();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-part-composite");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-part-composite");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -4193,7 +10132,7 @@ private void testParameterCompositeLifecycleBindingWorkflow() {
 private void testProjectImageMergeExportCompositeWorkflow() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-image-merge-export-composite");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-image-merge-export-composite");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -4351,7 +10290,7 @@ private void testDeformCompositeGridPathBindingWorkflow() {
 private void testRenderCameraTextureCompositeWorkflow() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-render-composite");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-render-composite");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -5495,7 +11434,7 @@ private void testAnimationLifecycleUndoRedo() {
 private void testAnimationTrackBindingCleanup() {
     resetCase();
 
-    auto fixtureDir = buildPath("/private/tmp", "nijigenerate-regression-animation-track-cleanup");
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-animation-track-cleanup");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
     mkdirRecurse(fixtureDir);
@@ -6159,10 +12098,27 @@ private Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
     ctx.armedParameters = [param];
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
         "z-axis fixture should preview DepthBone deformation");
+    ngFlushDepthBoneDirtyImmediate();
     return target.deformation.dup;
 }
 
 private void testDepthBonePlanarRestAxisIgnoresChildZ() {
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+    }
+
     auto flat = depthBoneYawOffsetsWithChildZ(0.0f);
     auto raised = depthBoneYawOffsetsWithChildZ(80.0f);
     require(flat.length == raised.length && flat.length > 0, "z-axis fixture should produce comparable offsets");
@@ -6395,8 +12351,46 @@ private uint fakeDepthBoneGpuSubmitCount;
 private uint fakeDepthBoneGpuPollCount;
 private uint fakeDepthBoneGpuSubmitFailAfter;
 private uint fakeDepthBoneGpuNotReadyPolls;
+private float fakeDepthBoneGpuOutputX = 2.0f;
+private float fakeDepthBoneGpuOutputY = -1.0f;
+private uint fakeDepthDrawGpuNextJobId;
+private uint fakeDepthDrawGpuSubmitCount;
+private uint fakeDepthDrawGpuPollCount;
+private uint fakeDepthDrawGpuNotReadyPolls;
+private DepthDrawGpuComposeReadback[uint] fakeDepthDrawGpuReadbacks;
 
 private bool fakeDepthBoneGpuSupported() {
+    return true;
+}
+
+private bool fakeDepthDrawGpuSupported() {
+    return true;
+}
+
+private bool fakeDepthDrawGpuSubmit(ref DepthDrawGpuComposePacket packet, out uint jobId, out string error) {
+    jobId = fakeDepthDrawGpuNextJobId++;
+    error = null;
+    fakeDepthDrawGpuSubmitCount++;
+    return true;
+}
+
+private bool fakeDepthDrawGpuPoll(uint jobId, out DepthDrawGpuDispatchPollResult result, out string error) {
+    error = null;
+    result = DepthDrawGpuDispatchPollResult.init;
+    if (fakeDepthDrawGpuNotReadyPolls > 0) {
+        fakeDepthDrawGpuNotReadyPolls--;
+        fakeDepthDrawGpuPollCount++;
+        return true;
+    }
+    auto readback = jobId in fakeDepthDrawGpuReadbacks;
+    if (readback is null) {
+        error = "missing fake DepthDraw GPU job";
+        return false;
+    }
+    result.ready = true;
+    result.readback = *readback;
+    fakeDepthDrawGpuPollCount++;
+    fakeDepthDrawGpuReadbacks.remove(jobId);
     return true;
 }
 
@@ -6434,8 +12428,8 @@ private bool fakeDepthBoneGpuPoll(uint jobId, out NgDepthBoneGpuAsyncResult resu
     result.xs.length = vertexCount;
     result.ys.length = vertexCount;
     foreach (i; 0 .. vertexCount) {
-        result.xs[i] = 2.0f;
-        result.ys[i] = -1.0f;
+        result.xs[i] = fakeDepthBoneGpuOutputX;
+        result.ys[i] = fakeDepthBoneGpuOutputY;
     }
     fakeDepthBoneGpuJobVertexCounts.remove(jobId);
     return true;
@@ -6778,6 +12772,25 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
 
 private void testDepthBoneSkinningLockToRootTerminal() {
     resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    fakeDepthBoneGpuOutputX = 2.0f;
+    fakeDepthBoneGpuOutputY = -1.0f;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+        fakeDepthBoneGpuOutputX = 2.0f;
+        fakeDepthBoneGpuOutputY = -1.0f;
+    }
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "skinning-depth-root";
@@ -6816,15 +12829,21 @@ private void testDepthBoneSkinningLockToRootTerminal() {
 
     foot.lockToRoot = false;
     target.deformation[] = vec2(0, 0);
+    fakeDepthBoneGpuOutputX = 30.0f;
+    fakeDepthBoneGpuOutputY = 0.0f;
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
         "skin fixture should preview with unlocked terminal bone");
+    ngFlushDepthBoneDirtyImmediate();
     foreach (offset; target.deformation)
         require(near(offset.x, 30.0f), "unlocked terminal bone should inherit parent translation beyond the terminal segment");
 
     foot.lockToRoot = true;
     target.deformation[] = vec2(0, 0);
+    fakeDepthBoneGpuOutputX = 0.0f;
+    fakeDepthBoneGpuOutputY = 0.0f;
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target]).succeeded,
         "skin fixture should preview with locked terminal bone");
+    ngFlushDepthBoneDirtyImmediate();
     foreach (offset; target.deformation)
         require(nearVec2(offset, vec2(0, 0)), "locked terminal bone should keep vertices beyond the terminal bone fixed to root");
 
@@ -8178,6 +14197,23 @@ private void testDefaultShortcutRegistration() {
         "default shortcut should bind save dialog");
     require(ngShortcutFor(nijigenerate.commands.puppet.file.commands[FileCommand.ShowSaveFileAsDialog]) == _K!"Ctrl-Shift-S",
         "default shortcut should bind save-as dialog");
+    require(nijigenerate.commands.puppet.file.commands[FileCommand.ShowImportPSDDepthMapDialog] !is null &&
+        nijigenerate.commands.puppet.file.commands[FileCommand.ShowImportPSDDepthMapDialog].label.length > 0,
+        "PSD depth map import entry command should be registered with a menu label");
+    auto mainMenuSource = readText(buildPath(regressionSourceRoot("widgets"), "mainmenu.d"));
+    require(mainMenuSource.canFind("FileCommand.ShowImportPSDDepthMapDialog"),
+        "Import menu should expose the PSD/PNG depth source import entry");
+    require(!mainMenuSource.canFind("DepthDrawWindow") &&
+        !mainMenuSource.canFind("Open DepthDraw Source") &&
+        !mainMenuSource.canFind("ShowDepthDraw"),
+        "Import menu must not expose standalone DepthDraw as a second product workflow");
+    auto fileCommandSource = readText(buildPath(regressionSourceRoot("commands"), "puppet", "file.d"));
+    require(fileCommandSource.canFind(`["*.psd", "*.png"]`) &&
+        fileCommandSource.canFind(`Depth Source (*.psd, *.png)`),
+        "PSD depth map import dialog must accept PSD and PNG sources through the single product entry");
+    require(!fileCommandSource.canFind("Open DepthDraw Source") &&
+        !fileCommandSource.canFind("ShowDepthDraw"),
+        "File import dialog commands must not expose standalone DepthDraw as a second product workflow");
     require(ngShortcutFor(nijigenerate.commands.puppet.edit.commands[EditCommand.Undo]) == _K!"Ctrl-Z",
         "default shortcut should bind undo");
     require(ngShortcutFor(nijigenerate.commands.puppet.edit.commands[EditCommand.Redo]) == _K!"Ctrl-Shift-Z",
@@ -9124,7 +15160,19 @@ private void testPlatformTaskQueue() {
 }
 
 private void testPlatformCrashDumpGeneration() {
-    import nijigenerate.utils.crashdump : genCrashDump, genCrashDumpPath, getCrashDumpDir, writeCrashDump;
+    import nijigenerate.utils.crashdump : genCrashDump, genCrashDumpPath, getCrashDumpDir,
+        ngSetCrashDumpDirOverrideForTests, writeCrashDump;
+
+    auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-crashdump");
+    if (exists(fixtureDir))
+        rmdirRecurse(fixtureDir);
+    mkdirRecurse(fixtureDir);
+    ngSetCrashDumpDirOverrideForTests(fixtureDir);
+    scope(exit) {
+        ngSetCrashDumpDirOverrideForTests(null);
+        if (exists(fixtureDir))
+            rmdirRecurse(fixtureDir);
+    }
 
     auto ex = new Exception("regression crash");
     auto dump = genCrashDump(ex, "state", 12);
@@ -9176,6 +15224,14 @@ private bool hasScenarioId(string id) {
     foreach (scenario; allScenarios()) {
         if (scenario.id == id)
             return true;
+    }
+    return false;
+}
+
+private bool hasScenarioStatus(string id, string status) {
+    foreach (scenario; allScenarios()) {
+        if (scenario.id == id)
+            return scenario.status == status;
     }
     return false;
 }
@@ -9335,6 +15391,16 @@ private void testCoverageFullFeatureScenarioInventory() {
     foreach (kind; requiredKinds) {
         if ((kind !in inventory) || inventory[kind].length == 0)
             failures ~= "feature inventory missing kind: " ~ kind;
+    }
+
+    immutable string[] requiredComputerUseScenarios = [
+        "depth.edit-live-ui-smoke",
+        "project.depthdraw-live-ui-smoke",
+        "project.psd-depth-map-import-ui-smoke",
+    ];
+    foreach (id; requiredComputerUseScenarios) {
+        if (!hasScenarioStatus(id, computerUse))
+            failures ~= "missing required computer-use scenario: " ~ id;
     }
 
     require(("command" in inventory) && inventory["command"].length >= 170,
@@ -9839,8 +15905,12 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "viewport/common/mesheditor/operations/impl.d|node.transform.translation =",
         "viewport/common/mesheditor/tools/grid.d|deformable.vertices =",
         "viewport/common/mesheditor/tools/onetimedeform.d|backup.binding.values = backup.values",
+        "viewport/depth/draw/gpu.d|clone.vertices = packet.vertices.dup",
+        "viewport/depth/draw/gpu.d|packet.vertices = target.getVertices()",
         "viewport/depth/mesheditor/node.d|offscreenCamera.scale =",
         "viewport/depth/mesheditor/node.d|offscreenCamera.rotation = 0",
+        "viewport/depth/renderer.d|offscreenCamera.scale = vec2(1, 1)",
+        "viewport/depth/renderer.d|offscreenCamera.rotation = 0",
         "viewport/vertex/mesheditor/deformable.d|this.vertices = getTarget().getVertices().toMVertices",
         "viewport/vertex/mesheditor/drawable.d|mesh.vertices = indexedVerts",
         "viewport/vertex/package.d|part.deformation = originalDeform",
@@ -10163,7 +16233,7 @@ private void testPlatformStartupShutdownModuleConstructors() {
     }
 
     immutable string[] allowedConstructors = [
-        "commands/depth/bone.d:70: shared static this() {",
+        "commands/depth/bone.d:71: shared static this() {",
         "panels/agent.d:1744: shared static ~this() {",
         "panels/nodes.d:40: static this() {",
         "panels/package.d:136: static this() {",
@@ -10645,6 +16715,9 @@ private bool runAutomatedScenario(string id) {
         case "depth.composite-operation-matrix":
             runCase("depth-composite-operation-matrix", &testCompositeMatrixDepthOpsScenario);
             return true;
+        case "depth.common-target-view":
+            runCase("depth-target-view-contracts", &testDepthTargetViewContracts);
+            return true;
         case "automesh.composite-processor-matrix-scenario":
             runCase("automesh-composite-processor-matrix-scenario", &testCompositeMatrixAutoMeshProcessorsScenario);
             return true;
@@ -10705,6 +16778,23 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "project.import-psd-depth-map":
             runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
+            return true;
+        case "project.depthdraw-compatibility":
+            runCase("depth-image-facade-matches-psd-depth-sampling", &testDepthImageFacadeMatchesPsdDepthSampling);
+            runCase("depthdraw-calculation-gate-contracts", &testDepthDrawCalculationGateContracts);
+            runCase("depthdraw-fixture-runner", &testDepthDrawFixtureRunner);
+            return true;
+        case "project.depthdraw-data-model":
+            runCase("depthdraw-data-model-contracts", &testDepthDrawDataModelContracts);
+            return true;
+        case "project.depthdraw-source-manifest":
+            runCase("depthdraw-source-manifest-contracts", &testDepthDrawSourceManifestContracts);
+            return true;
+        case "project.depthdraw-composer":
+            runCase("depthdraw-composer-contracts", &testDepthDrawComposerContracts);
+            return true;
+        case "project.depthdraw-fit-z":
+            runCase("depthdraw-fit-z-contracts", &testDepthDrawFitZContracts);
             return true;
         case "project.import-psd":
         case "project.import-kra":

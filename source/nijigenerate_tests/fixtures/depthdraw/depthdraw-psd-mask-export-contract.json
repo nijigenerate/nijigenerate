@@ -1,0 +1,142 @@
+{
+  "id": "depthdraw-psd-mask-export-contract",
+  "generatedBy": "depth-draw",
+  "referenceRoot": "C:/Users/siget/src/depth-draw",
+  "referenceFunctions": [
+    "src/psd/loader.js:applyDepthLayerMaskToBitmap",
+    "src/app/externalApi.js:applyDepthPixelsToLayer",
+    "src/psd/export.js:createPsdExportDepthCanvas"
+  ],
+  "maskCase": {
+    "width": 3,
+    "height": 2,
+    "layerLeft": 10,
+    "layerTop": 20,
+    "alpha": [
+      255,
+      128,
+      64,
+      0,
+      200,
+      100
+    ],
+    "maskWidth": 2,
+    "maskHeight": 2,
+    "maskLeft": 11,
+    "maskTop": 20,
+    "positionRelativeToLayer": false,
+    "defaultColor": 32,
+    "mask": [
+      255,
+      128,
+      0,
+      64
+    ]
+  },
+  "depthOverrideCase": {
+    "colorAlpha": [
+      0,
+      8,
+      9,
+      254,
+      255,
+      128
+    ],
+    "depthPixels": [
+      10,
+      20,
+      0,
+      40,
+      50,
+      0
+    ]
+  },
+  "exportCase": {
+    "sourceWidth": 3,
+    "sourceHeight": 2,
+    "sourceLeft": 10,
+    "sourceTop": 20,
+    "sourceAlpha": [
+      0,
+      1,
+      255,
+      255,
+      255,
+      255
+    ],
+    "preparedLeft": 11,
+    "preparedTop": 20,
+    "preparedWidth": 2,
+    "preparedHeight": 2,
+    "exportDepthPixels": [
+      5,
+      0,
+      40,
+      50
+    ],
+    "sourceDepthPixels": [
+      7,
+      8,
+      0,
+      60
+    ],
+    "coverageMask": [
+      1,
+      1,
+      0,
+      1
+    ]
+  },
+  "expected": {
+    "maskAppliedAlpha": [
+      32,
+      128,
+      32,
+      0,
+      0,
+      25
+    ],
+    "depthOverride": {
+      "colorMask": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1
+      ],
+      "strictSurfaceMask": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "surfaceMask": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "renderDepthMask": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "exportDepthPixels": [
+      0,
+      5,
+      8,
+      0,
+      0,
+      50
+    ]
+  }
+}

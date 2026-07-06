@@ -1,0 +1,53 @@
+{
+  "id": "local-merge-policies-smoke",
+  "generatedBy": "local-contract",
+  "tolerance": 0.00001,
+  "document": {
+    "width": 4,
+    "height": 4
+  },
+  "grid": {
+    "axisX": [-1, 1],
+    "axisY": [-1, 1],
+    "baseDepths": [0.25, 0.25, 0.25, 0.25]
+  },
+  "layers": [
+    {
+      "id": "low",
+      "gray": 0,
+      "depth": -1.0
+    },
+    {
+      "id": "high",
+      "gray": 255,
+      "depth": 1.0
+    }
+  ],
+  "cases": [
+    {
+      "policy": "Replace",
+      "expectedDepths": [1.0, 1.0, 1.0, 1.0],
+      "expectedWinners": ["high", "high", "high", "high"]
+    },
+    {
+      "policy": "Frontmost",
+      "expectedDepths": [1.0, 1.0, 1.0, 1.0],
+      "expectedWinners": ["high", "high", "high", "high"]
+    },
+    {
+      "policy": "Backmost",
+      "expectedDepths": [-1.0, -1.0, -1.0, -1.0],
+      "expectedWinners": ["low", "low", "low", "low"]
+    },
+    {
+      "policy": "Add",
+      "expectedDepths": [0.25, 0.25, 0.25, 0.25],
+      "expectedWinners": ["high", "high", "high", "high"]
+    },
+    {
+      "policy": "KeepExistingWhereMissing",
+      "expectedDepths": [-1.0, -1.0, -1.0, -1.0],
+      "expectedWinners": ["low", "low", "low", "low"]
+    }
+  ]
+}

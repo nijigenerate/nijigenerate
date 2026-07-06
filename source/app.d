@@ -5,11 +5,12 @@
     
     Authors: Luna Nielsen
 */
-//import std.stdio;
 import std.string;
 version(RegressionSmoke) {
 import core.thread : Thread;
 import core.time : msecs;
+import std.file : write;
+import std.stdio : stderr;
 }
 import nijigenerate.core;
 import nijigenerate.core.settings;
@@ -34,7 +35,11 @@ import nijigenerate.windows.flipconfig;
 import nijilive;
 import nijilive.core.nodes.common : nlApplyBlendingCapabilities;
 import nijigenerate;
-version(RegressionSmoke) import nijigenerate.regression_smoke : ngParseRegressionSmokeOptions, ngSetupRegressionSmokeScenario;
+version(RegressionSmoke) import nijigenerate.regression_smoke :
+    ngParseRegressionSmokeOptions,
+    ngRegressionSmokeFailed,
+    ngRegressionSmokeFailureMessage,
+    ngSetupRegressionSmokeScenario;
 version(HaveMCP) import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings, ngMcpStop;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
@@ -141,6 +146,13 @@ int main(string[] args)
             if (regressionSmoke.enabled) {
                 incNewProject();
                 ngSetupRegressionSmokeScenario(regressionSmoke.scenario);
+                if (ngRegressionSmokeFailed()) {
+                    auto smokeFailure = "Regression smoke failed: " ~ ngRegressionSmokeFailureMessage();
+                    stderr.writefln("%s", smokeFailure);
+                    write("regression-smoke-failure.txt", smokeFailure ~ "\n");
+                    stopBackgroundServices();
+                    return 1;
+                }
             } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
             else {
                 incNewProject();
@@ -182,7 +194,12 @@ int main(string[] args)
         }
         version(RegressionSmoke) if (regressionSmoke.enabled) {
             stopBackgroundServices();
-            return 0;
+            if (ngRegressionSmokeFailed()) {
+                auto smokeFailure = "Regression smoke failed: " ~ ngRegressionSmokeFailureMessage();
+                stderr.writefln("%s", smokeFailure);
+                write("regression-smoke-failure.txt", smokeFailure ~ "\n");
+            }
+            return ngRegressionSmokeFailed() ? 1 : 0;
         }
         incSettingsSave();
         stopBackgroundServices();

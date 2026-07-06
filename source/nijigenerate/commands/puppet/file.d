@@ -546,7 +546,7 @@ class ShowImportPSDDepthMapDialogCommand : ExCommand!() {
     override
     CommandResult run(Context ctx) {
         const TFD_Filter[] filters = [
-            { ["*.psd"], "Photoshop Document (*.psd)" }
+            { ["*.psd", "*.png"], "Depth Source (*.psd, *.png)" }
         ];
 
         string path = incShowImportDialog(filters, _("Import PSD Depth Map..."));

@@ -1,0 +1,67 @@
+{
+  "generatedBy": "depth-draw",
+  "method": "globalThis.__depthDrawApi.getLayerMesh(0)",
+  "index": 0,
+  "layerIndex": 0,
+  "targetKey": "psd:0",
+  "geometryId": 17,
+  "vertexCount": 10488,
+  "counts": {
+    "positions": 31464,
+    "uvs": 20976,
+    "normals": 31464,
+    "indices": 13410
+  },
+  "sha256": {
+    "positions": "61bce46526217a6b414d0d5e2c83c8ebea3eef7b0693def1e81b6d414d3c4038",
+    "uvs": "39cf4fc954438bfcd2197d2256ca83f932a59c56e143a260830cbc1860d8c3f2",
+    "normals": "8aec0f5cb36177bbcfedc79366112e7f0c45ea2790195a557fd66d1e8df67131",
+    "indices": "71b1f4ea0276edbc0b843a980b263aaabc34fdcc7a2adeae9b2faf9077162e69"
+  },
+  "samples": {
+    "positions": [
+      -0.1028146967291832,
+      0.48358091711997986,
+      0,
+      -0.10125097632408142,
+      0.48358091711997986,
+      0,
+      -0.09968725591897964,
+      0.48358091711997986,
+      0
+    ],
+    "uvs": [
+      0.001818181830458343,
+      0.996688723564148,
+      0.00909090880304575,
+      0.996688723564148,
+      0.016363635659217834,
+      0.996688723564148
+    ],
+    "normals": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "indices": [
+      102,
+      240,
+      103,
+      103,
+      240,
+      241,
+      103,
+      241,
+      104,
+      104,
+      241,
+      242
+    ]
+  }
+}

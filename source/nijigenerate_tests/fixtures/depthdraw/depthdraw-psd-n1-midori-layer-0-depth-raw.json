@@ -1,0 +1,43 @@
+{
+  "generatedBy": "depth-draw",
+  "method": "globalThis.__depthDrawApi.getLayerDepthImage(0) decoded by browser Canvas red channel",
+  "index": 0,
+  "name": "animal_ears",
+  "width": 275,
+  "height": 151,
+  "stats": {
+    "min": 0,
+    "max": 201,
+    "nonZero": 9933,
+    "sum": 1140501,
+    "average": 27.465406381697772
+  },
+  "samples": [
+    {
+      "x": 0,
+      "y": 0,
+      "value": 0
+    },
+    {
+      "x": 137,
+      "y": 75,
+      "value": 0
+    },
+    {
+      "x": 274,
+      "y": 150,
+      "value": 0
+    },
+    {
+      "x": 68,
+      "y": 37,
+      "value": 0
+    },
+    {
+      "x": 206,
+      "y": 113,
+      "value": 0
+    }
+  ],
+  "sha256": "904322cce77926dc46881e83e827a3388b54052c4fee215b38d9e0ba08f19f8a"
+}

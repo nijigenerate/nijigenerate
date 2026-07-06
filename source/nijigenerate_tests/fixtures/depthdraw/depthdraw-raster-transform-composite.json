@@ -1,0 +1,55 @@
+{
+  "currentModel": {
+    "id": "api:raster",
+    "type": "raster",
+    "label": "depthdraw-raster-transform",
+    "colorUrl": "",
+    "depthUrl": ""
+  },
+  "sourceMode": "raster",
+  "settings": {
+    "globalDepthScale": 1,
+    "contourRepair": false,
+    "surfaceSmooth": false
+  },
+  "composedSource": {
+    "width": 654,
+    "height": 1240,
+    "mode": "1:1",
+    "colorSource": {
+      "format": "raster",
+      "width": 654,
+      "height": 1240,
+      "name": "",
+      "layerCount": 1
+    },
+    "depthSource": {
+      "format": "raster",
+      "width": 654,
+      "height": 1240,
+      "name": "",
+      "layerCount": 1
+    },
+    "globalDepthScale": 1,
+    "globalDepthCentroid": 112.70821641935675,
+    "diagnostics": [],
+    "layers": [
+      {
+        "index": 0,
+        "id": "composed:0",
+        "name": "depthdraw-raster-transform",
+        "sourceIndex": 0,
+        "sourceIndices": [
+          0
+        ],
+        "left": 0,
+        "top": 0,
+        "width": 654,
+        "height": 1240,
+        "visible": true,
+        "depthOffset": 32,
+        "depthScale": 0.5
+      }
+    ]
+  }
+}

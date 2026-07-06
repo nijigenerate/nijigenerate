@@ -1,0 +1,56 @@
+{
+  "id": "local-frontmost-smoke",
+  "generatedBy": "local-contract",
+  "tolerance": 0.00001,
+  "document": {
+    "width": 4,
+    "height": 4
+  },
+  "grid": {
+    "axisX": [-1, 1],
+    "axisY": [-1, 1],
+    "baseDepths": [0.25, 0.25, 0.25, 0.25]
+  },
+  "layers": [
+    {
+      "id": "back",
+      "width": 4,
+      "height": 4,
+      "bounds": [0, 0, 4, 4],
+      "pixels": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      ]
+    },
+    {
+      "id": "front",
+      "width": 4,
+      "height": 4,
+      "bounds": [0, 0, 4, 4],
+      "zScale": 0.5,
+      "zOffset": 0.25,
+      "pixels": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "layerId": "back",
+      "order": 0,
+      "mergePolicy": "Frontmost"
+    },
+    {
+      "layerId": "front",
+      "order": 1,
+      "mergePolicy": "Frontmost"
+    }
+  ],
+  "expectedDepths": [0.75, 0.75, 0.25, 0.25],
+  "expectedWinners": ["front", "front", "", ""]
+}

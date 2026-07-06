@@ -19,6 +19,7 @@ private:
 protected:
 public:
     ExParameterGroup[] groups = [];
+    string depthDrawSessionManifestJson;
     this() { super(); }
     this(Node root) { super(root); }
 
@@ -123,6 +124,9 @@ public:
                 this.groups ~= group;
             }
         }
+        if (!data["depthDrawSessionManifest"].isEmpty) {
+            data["depthDrawSessionManifest"].deserializeValue(depthDrawSessionManifestJson);
+        }
         super.deserializeFromFghj(data);
         return null;
     }
@@ -132,6 +136,10 @@ public:
         super.serializeSelf(serializer);
         serializer.putKey("groups");
         serializer.serializeValue(groups);
+        if (depthDrawSessionManifestJson.length > 0) {
+            serializer.putKey("depthDrawSessionManifest");
+            serializer.serializeValue(depthDrawSessionManifestJson);
+        }
     }
 
     override

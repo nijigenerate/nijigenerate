@@ -1,0 +1,67 @@
+{
+  "id": "depthdraw-depth-prune-contract",
+  "generatedBy": "depth-draw",
+  "reference": "C:/Users/siget/src/depth-draw/src/composite/depthPrune.js",
+  "generatedCommand": "node -e \"import('file:///C:/Users/siget/src/depth-draw/src/composite/depthPrune.js').then(...)\"",
+  "imageWidth": 5,
+  "imageHeight": 5,
+  "layer": {
+    "left": 0,
+    "top": 0,
+    "width": 5,
+    "height": 5
+  },
+  "layerIndex": 0,
+  "threshold": 30,
+  "depthPixels": [
+    100, 100, 100, 100, 100,
+    100, 100, 40, 100, 100,
+    100, 100, 100, 100, 100,
+    100, 100, 100, 100, 100,
+    100, 100, 100, 100, 100
+  ],
+  "maskPixels": [
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1
+  ],
+  "stableDepthPixels": [
+    40, 40, 40, 40, 40,
+    40, 40, 40, 40, 40,
+    40, 40, 40, 40, 40,
+    40, 40, 40, 40, 40,
+    40, 40, 40, 40, 40
+  ],
+  "visibleLayerMap": [
+    1, 1, 1, 1, 1,
+    1, 1, 0, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1
+  ],
+  "expected": {
+    "pixels": [
+      100, 100, 100, 100, 100,
+      100, 100, 0, 100, 100,
+      100, 100, 100, 100, 100,
+      100, 100, 100, 100, 100,
+      100, 100, 100, 100, 100
+    ],
+    "debugState": [
+      2, 2, 2, 2, 2,
+      2, 2, 3, 2, 2,
+      2, 2, 2, 2, 2,
+      2, 2, 2, 2, 2,
+      2, 2, 2, 2, 2
+    ],
+    "debugScore": [
+      0, 0, 0, 0, 0,
+      0, 0, 255, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": "depthdraw-depth-split-contract",
+  "generatedBy": "depth-draw",
+  "reference": "C:/Users/siget/src/depth-draw/src/composite/depthSplit.js",
+  "generatedCommand": "node -e \"import('file:///C:/Users/siget/src/depth-draw/src/composite/depthSplit.js').then(...)\"",
+  "imageWidth": 4,
+  "imageHeight": 3,
+  "layers": [
+    {
+      "left": 0,
+      "top": 0,
+      "width": 3,
+      "height": 2,
+      "maskPixels": [
+        1, 1, 1,
+        1, 1, 1
+      ]
+    },
+    {
+      "left": 1,
+      "top": 0,
+      "width": 2,
+      "height": 2,
+      "maskPixels": [
+        1, 0,
+        0, 1
+      ]
+    }
+  ],
+  "stableDepthPixels": [
+    10, 20, 30, 40,
+    50, 60, 70, 80,
+    90, 100, 110, 120
+  ],
+  "contourBandMask": [
+    0, 0, 1,
+    0, 0, 0
+  ],
+  "expected": {
+    "visibleLayerMap": [
+      0, 1, 0, -1,
+      0, 0, 1, -1,
+      -1, -1, -1, -1
+    ],
+    "seedLayer0Radius0": [
+      10, 0, 30,
+      50, 60, 0
+    ],
+    "seedLayer0Radius1": [
+      0, 0, 0,
+      0, 0, 0
+    ],
+    "seedLayer0Contour": [
+      10, 0, 0,
+      50, 60, 0
+    ],
+    "upperChecks": [
+      true,
+      true,
+      false
+    ]
+  }
+}

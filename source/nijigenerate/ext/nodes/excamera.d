@@ -127,7 +127,7 @@ public:
         auto scale = localTransform.scale;
         if (scale.x == 1 && scale.y == 1) return;
 
-        auto childWorldTransforms = captureChildWorldTransforms();
+        auto childWorldTransforms = captureChildWorldTransformsWithCameraScale(vec2(1, 1));
         setViewport(vec2(viewport.x * abs(scale.x), viewport.y * abs(scale.y)));
         localTransform.scale = vec2(scaleSign(scale.x), scaleSign(scale.y));
         localTransform.update();
@@ -161,6 +161,28 @@ public:
         return result;
     }
 
+    private Transform cameraTransformWithScale(vec2 scale) {
+        auto cameraLocal = localTransform;
+        cameraLocal.scale = scale;
+        cameraLocal.update();
+        if (parent !is null) return cameraLocal * parent.transform();
+        return cameraLocal;
+    }
+
+    private Transform[uint] captureChildWorldTransformsWithCameraScale(vec2 scale) {
+        auto cameraTransform = cameraTransformWithScale(scale);
+        Transform[uint] result;
+        foreach (child; children) {
+            if (child.lockToRoot()) {
+                result[child.uuid] = child.transform();
+                continue;
+            }
+            child.localTransform.update();
+            result[child.uuid] = child.localTransform * cameraTransform;
+        }
+        return result;
+    }
+
     private void restoreChildWorldTransforms(Transform[uint] childWorldTransforms) {
         foreach (child; children) {
             if (auto worldTransform = child.uuid in childWorldTransforms) {
@@ -187,12 +209,22 @@ public:
             ? rootTransformFor(child)
             : (parent is null ? Transform(vec3(0, 0, 0)) : parent.transform());
 
-        auto localWithOffsetTranslation = Node.getRelativePosition(parentTransform.matrix, worldTransform.matrix);
         auto localWithOffsetRotation = worldTransform.rotation - parentTransform.rotation;
         auto localWithOffsetScale = vec2(
             worldTransform.scale.x / nonZeroScale(parentTransform.scale.x),
             worldTransform.scale.y / nonZeroScale(parentTransform.scale.y)
         );
+        auto localBasis =
+            quat.eulerRotation(localWithOffsetRotation.x, localWithOffsetRotation.y, localWithOffsetRotation.z).toMatrix!(4, 4) *
+            mat4.scaling(localWithOffsetScale.x, localWithOffsetScale.y, 1) *
+            vec4(1, 1, 1, 0);
+        auto parentRelativePoint = parentTransform.matrix.inverse * vec4(
+            worldTransform.translation.x,
+            worldTransform.translation.y,
+            worldTransform.translation.z,
+            1
+        );
+        auto localWithOffsetTranslation = parentRelativePoint.xyz - localBasis.xyz;
 
         child.localTransform.translation = localWithOffsetTranslation - vec3(
             child.getValue("transform.t.x"),

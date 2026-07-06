@@ -359,6 +359,17 @@ MainViewport incViewport() {
     return viewport;
 }
 
+void ngPresentTemporaryViewport(Viewport next) {
+    auto mainViewport = incViewport();
+    mainViewport.withdraw();
+    mainViewport.subView = next;
+    if (next !is null) {
+        next.selectionChanged(incSelectedNodes());
+        next.armedParameterChanged(incArmedParameter());
+        next.present();
+    }
+}
+
 
 /**
     Gets the mouse position in the viewport

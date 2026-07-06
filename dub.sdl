@@ -111,6 +111,15 @@ configuration "win32-full" {
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 }
 
+configuration "win32-regression-smoke" {
+	platforms "windows"
+	targetType "executable"
+	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
+	versions "HaveMCP" "RegressionSmoke" "InDoesRender"
+	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
+	sourceFiles "build-aux\\windows\\nijigenerate.res"
+}
+
 // Linux nightly build
 configuration "linux-nightly" {
 	platforms "linux"

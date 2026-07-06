@@ -14,17 +14,19 @@ import nijigenerate.core.actionstack;
 import nijigenerate.core.dbg;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.viewport.depth.camera;
+import nijigenerate.viewport.depth.common.targetview : DepthTargetDisplayPlaneSize, DepthTargetDisplayZScale,
+    DepthTargetView, ngDepthTargetClampDepth;
 import nijigenerate.viewport.depth.renderer;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import std.algorithm : canFind, clamp, countUntil, max, min, sort, uniq;
+import std.algorithm : canFind, countUntil, max, min, sort, uniq;
 import std.algorithm.mutation : remove;
 import std.array : array;
 import std.format : format;
-import std.math : abs, ceil, cmp, round;
+import std.math : abs, ceil, cmp;
 
-enum DepthDisplayPlaneSize = 2.9f;
-enum DepthDisplayZScale = 0.42f;
+alias DepthDisplayPlaneSize = DepthTargetDisplayPlaneSize;
+alias DepthDisplayZScale = DepthTargetDisplayZScale;
 
 class DepthMeshEditorOne {
 private:
@@ -34,6 +36,7 @@ private:
     GLuint textureFbo;
     int textureWidth;
     int textureHeight;
+    DepthTargetOffscreenTextureRenderer offscreenTextureRenderer;
     vec2 minPoint = vec2(0);
     vec2 maxPoint = vec2(1);
     ushort[] indices;
@@ -47,12 +50,10 @@ private:
     bool loggedDepthLengthMismatch;
     bool loggedFirstDraw;
     bool loggedOffscreenDraw;
+    DepthTargetRenderer targetRenderer;
+    DepthTargetView targetView;
 
     void log(string message) {
-    }
-
-    float roundDepth(float value) {
-        return cast(float)(round(value * 1000.0f) / 1000.0f);
     }
 
     float[] sortedUnique(float[] values) {
@@ -125,13 +126,11 @@ private:
             verts.length, xs.length, ys.length, indices.length / 3));
     }
 
-    void rebuildTexture() {
+    void rebuildBounds() {
         auto verts = target.vertices.toArray();
         if (verts.length == 0) {
-            if (!loggedEmptyVertices) {
-                log("texture skipped: GridDeformer has no vertices");
-                loggedEmptyVertices = true;
-            }
+            minPoint = vec2(0);
+            maxPoint = vec2(1);
             return;
         }
 
@@ -142,6 +141,18 @@ private:
             minPoint.y = min(minPoint.y, v.y);
             maxPoint.x = max(maxPoint.x, v.x);
             maxPoint.y = max(maxPoint.y, v.y);
+        }
+    }
+
+    void rebuildTexture() {
+        rebuildBounds();
+        auto verts = target.vertices.toArray();
+        if (verts.length == 0) {
+            if (!loggedEmptyVertices) {
+                log("texture skipped: GridDeformer has no vertices");
+                loggedEmptyVertices = true;
+            }
+            return;
         }
 
         textureWidth = max(1, cast(int)ceil(maxPoint.x - minPoint.x));
@@ -267,11 +278,13 @@ public:
     this(GridDeformer target, bool buildRenderResources = true) {
         this.target = target;
         this.depthMapped = cast(DepthMappedNode)target;
+        this.targetRenderer = new DepthTargetRenderer();
+        this.offscreenTextureRenderer = buildRenderResources ? new DepthTargetOffscreenTextureRenderer() : null;
         log("editor created: type=%s depthMapped=%s vertices=%s deformation=%s".format(
             typeid(target).toString(), depthMapped !is null, target.vertices.length, target.deformation.length));
         resetFromTarget();
         rebuildTopology();
-        if (buildRenderResources) rebuildTexture();
+        rebuildBounds();
     }
 
     ~this() {
@@ -282,16 +295,37 @@ public:
         return target;
     }
 
+    void bindTargetView(DepthTargetView view) {
+        targetView = view;
+        syncFromTargetView();
+    }
+
+    void syncFromTargetView() {
+        if (targetView is null) return;
+        depths = targetView.depths.dup;
+        baseDepths = targetView.baseDepths.dup;
+    }
+
+    void replaceBaseDepths(float[] values) {
+        baseDepths = values.dup;
+        if (targetView !is null) {
+            targetView.baseDepths = baseDepths.dup;
+        }
+    }
+
     vec2[] getVertices() {
+        if (targetView !is null) return targetView.getVertices();
         return target.vertices.toArray();
     }
 
     vec2 localVertex(size_t index) {
+        if (targetView !is null) return targetView.localVertex(index);
         auto vertices = getVertices();
         return index < vertices.length ? vertices[index] : vec2(0);
     }
 
     vec2 snapLocalPoint(vec2 point) {
+        if (targetView !is null) return targetView.snapLocalPoint(point);
         auto vertices = getVertices();
         if (vertices.length == 0) return point;
         auto best = vertices[0];
@@ -307,6 +341,7 @@ public:
     }
 
     ptrdiff_t nearestLocalVertexIndex(vec2 point) {
+        if (targetView !is null) return targetView.nearestLocalVertexIndex(point);
         auto vertices = getVertices();
         if (vertices.length == 0) return -1;
         ptrdiff_t best = 0;
@@ -322,39 +357,51 @@ public:
     }
 
     vec2 projectedVertex(size_t index) {
+        if (targetView !is null) return targetView.projectedVertex(index);
         return index < projectedPoints.length ? projectedPoints[index] : vec2(0);
     }
 
     float depthDisplayScale() {
+        if (targetView !is null) return targetView.depthDisplayScale();
         auto size = maxPoint - minPoint;
         return max(1.0f, max(size.x, size.y) * (DepthDisplayZScale / DepthDisplayPlaneSize));
     }
 
     vec2 depthViewToModel(vec2 point, ref DepthCamera3D depthCamera, float depth = 0.0f) {
+        if (targetView !is null) return targetView.depthViewToModel(point, depthCamera, depth);
         return unprojectDepthPoint(point, -depth * depthDisplayScale(), depthCamera);
     }
 
     vec2 modelToDepthView(vec2 point, float depth, ref DepthCamera3D depthCamera) {
+        if (targetView !is null) return targetView.modelToDepthView(point, depth, depthCamera);
         return projectDepthPoint(point, -depth * depthDisplayScale(), depthCamera);
     }
 
     vec2 localToWorld(vec2 point) {
+        if (targetView !is null) return targetView.localToWorld(point);
         return point;
     }
 
     vec2 projectLocalPoint(vec2 point, float depth, ref DepthCamera3D depthCamera) {
+        if (targetView !is null) return targetView.projectLocalPoint(point, depth, depthCamera);
         return modelToDepthView(point, depth, depthCamera);
     }
 
     vec2 displayWorldToLocal(vec2 point, ref DepthCamera3D depthCamera, float depth = 0.0f) {
+        if (targetView !is null) return targetView.displayWorldToLocal(point, depthCamera, depth);
         return depthViewToModel(point, depthCamera, depth);
     }
 
     vec2 worldToLocal(vec2 point) {
+        if (targetView !is null) return targetView.worldToLocal(point);
         return point;
     }
 
     float[] copyEditorDepths() {
+        if (targetView !is null) {
+            syncFromTargetView();
+            return targetView.copyWorkingDepths();
+        }
         return depths.dup;
     }
 
@@ -363,6 +410,11 @@ public:
     }
 
     void replaceEditorDepths(float[] values) {
+        if (targetView !is null) {
+            targetView.replaceWorkingDepths(values);
+            syncFromTargetView();
+            return;
+        }
         depths = values.dup;
         if (depths.length != target.vertices.length) {
             depths.length = target.vertices.length;
@@ -370,10 +422,20 @@ public:
     }
 
     void resetWorkingDepths() {
+        if (targetView !is null) {
+            targetView.resetWorkingDepths();
+            syncFromTargetView();
+            return;
+        }
         replaceEditorDepths(baseDepths);
     }
 
     void clearBaseDepths() {
+        if (targetView !is null) {
+            targetView.clearBaseDepths();
+            syncFromTargetView();
+            return;
+        }
         baseDepths.length = target.vertices.length;
         baseDepths[] = 0;
         replaceEditorDepths(baseDepths);
@@ -388,9 +450,18 @@ public:
             glDeleteFramebuffers(1, &textureFbo);
             textureFbo = 0;
         }
+        if (offscreenTextureRenderer !is null) {
+            offscreenTextureRenderer.dispose();
+            offscreenTextureRenderer = null;
+        }
     }
 
     void resetFromTarget() {
+        if (targetView !is null) {
+            targetView.resetFromTarget();
+            syncFromTargetView();
+            return;
+        }
         depths = depthMapped !is null ? depthMapped.copyDepths() : null;
         if (depths is null || depths.length != target.vertices.length) {
             log("depths initialized: sourceLength=%s targetVertices=%s".format(
@@ -408,6 +479,7 @@ public:
             log("apply skipped: target is not DepthMappedNode");
             return;
         }
+        if (targetView !is null) syncFromTargetView();
         size_t nonZero;
         float minDepth = depths.length ? depths[0] : 0;
         float maxDepth = depths.length ? depths[0] : 0;
@@ -433,10 +505,12 @@ public:
     }
 
     float getDepth(size_t index) {
+        if (targetView !is null) return targetView.getDepth(index);
         return index < depths.length ? depths[index] : 0;
     }
 
     float depthAtLocalPoint(vec2 point) {
+        if (targetView !is null) return targetView.depthAtLocalPoint(point);
         auto vertices = getVertices();
         if (vertices.length == 0 || depths.length == 0) return 0;
         size_t bestIndex;
@@ -452,15 +526,26 @@ public:
     }
 
     void setDepth(size_t index, float value) {
+        if (targetView !is null) {
+            targetView.setDepth(index, value);
+            syncFromTargetView();
+            return;
+        }
         if (index >= depths.length) return;
-        depths[index] = roundDepth(clamp(value, -2.0f, 2.0f));
+        depths[index] = ngDepthTargetClampDepth(value);
     }
 
     void addDepth(size_t index, float value) {
+        if (targetView !is null) {
+            targetView.addDepth(index, value);
+            syncFromTargetView();
+            return;
+        }
         setDepth(index, getDepth(index) + value);
     }
 
     ptrdiff_t nearestProjectedVertex(vec2 point, float radius) {
+        if (targetView !is null) return targetView.nearestProjectedVertex(point, radius);
         ptrdiff_t best = -1;
         float bestDistance = radius;
         foreach (i, projected; projectedPoints) {
@@ -538,7 +623,7 @@ public:
                 vertices.length,
                 depths.length,
                 indices.length,
-                texture !is null,
+                offscreenTextureRenderer !is null,
                 textureFbo,
                 viewportCamera.scale,
                 viewportCamera.position));
@@ -562,73 +647,22 @@ public:
             log("draw skipped texture mesh: no indices");
             loggedInvalidTopology = true;
         }
-        renderTextureLikeVertexMode();
-
-        vec2[] projected;
-        vec2[] uvs;
-        Vec3Array points;
-        projected.length = vertices.length;
-        uvs.length = vertices.length;
-        points.length = vertices.length;
-
-        vec2 size = maxPoint - minPoint;
-        if (size.x == 0) size.x = 1;
-        if (size.y == 0) size.y = 1;
-
-        foreach (i, v; vertices) {
-            vec2 projectedLocal = modelToDepthView(v, depths[i], depthCamera);
-            projected[i] = projectedLocal;
-            uvs[i] = vec2(
-                (v.x - minPoint.x) / size.x,
-                1.0f - ((v.y - minPoint.y) / size.y)
-            );
-            points[i] = vec3(projected[i].x, projected[i].y, 0);
+        if (offscreenTextureRenderer is null) {
+            offscreenTextureRenderer = new DepthTargetOffscreenTextureRenderer();
         }
-        projectedPoints = projected.dup;
+        auto targetTexture = offscreenTextureRenderer.render(target);
 
-        renderer.draw(texture, projected, uvs, indices, viewportCamera);
+        auto mesh = targetView !is null
+            ? targetRenderer.buildMesh(targetView, depthCamera)
+            : targetRenderer.buildMesh(vertices, depths, indices, minPoint, maxPoint, depthDisplayScale(), depthCamera);
+        projectedPoints = mesh.positions.dup;
+        if (targetView !is null) targetView.projectedPoints = projectedPoints.dup;
+        renderer.draw(targetTexture, mesh.positions, mesh.uvs, mesh.indices, viewportCamera);
 
         Vec3Array gridLines;
-        float[] xs;
-        float[] ys;
-        foreach (v; vertices) {
-            xs ~= v.x;
-            ys ~= v.y;
-        }
-        xs = sortedUnique(xs);
-        ys = sortedUnique(ys);
-        if (xs.length >= 2 && ys.length >= 2 && xs.length * ys.length == vertices.length) {
-            ushort[ulong] lookup;
-            foreach (i, v; vertices) {
-                size_t xi;
-                size_t yi;
-                foreach (j, x; xs) if (x == v.x) { xi = j; break; }
-                foreach (j, y; ys) if (y == v.y) { yi = j; break; }
-                lookup[yi * xs.length + xi] = cast(ushort)i;
-            }
-
-            void appendGridLine(ulong key0, ulong key1) {
-                auto p0 = key0 in lookup;
-                auto p1 = key1 in lookup;
-                if (p0 is null || p1 is null) return;
-                auto i0 = *p0;
-                auto i1 = *p1;
-                if (i0 < points.length && i1 < points.length) {
-                    gridLines ~= points[i0];
-                    gridLines ~= points[i1];
-                }
-            }
-
-            foreach (y; 0 .. ys.length) {
-                foreach (x; 0 .. xs.length - 1) {
-                    appendGridLine(y * xs.length + x, y * xs.length + x + 1);
-                }
-            }
-            foreach (x; 0 .. xs.length) {
-                foreach (y; 0 .. ys.length - 1) {
-                    appendGridLine(y * xs.length + x, (y + 1) * xs.length + x);
-                }
-            }
+        foreach (line; targetRenderer.buildGridLines(vertices, mesh.positions)) {
+            gridLines ~= vec3(line.p0.x, line.p0.y, 0);
+            gridLines ~= vec3(line.p1.x, line.p1.y, 0);
         }
         if (gridLines.length > 0) {
             inDbgSetBuffer(gridLines);

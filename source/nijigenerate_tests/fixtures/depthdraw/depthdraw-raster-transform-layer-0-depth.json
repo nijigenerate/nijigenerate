@@ -1,0 +1,15 @@
+{
+  "generatedBy": "depth-draw",
+  "method": "setLayerDepthTransform(0,{offset:32,scale:0.5}) then getLayerDepthImage(0)",
+  "index": 0,
+  "name": "depthdraw-raster-transform",
+  "width": 654,
+  "height": 1240,
+  "left": 0,
+  "top": 0,
+  "transform": {
+    "index": 0,
+    "depthOffset": 32,
+    "depthScale": 0.5
+  }
+}
