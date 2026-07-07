@@ -2,8 +2,11 @@ module nijigenerate.io.depthmap_psd;
 
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.expart;
-import nijigenerate.io.depthimage : ngDepthImageCompositeAlpha, ngDepthImageCoverageAlphaAt,
-    ngDepthImageCoverageAlphaAtUv, ngDepthImageCoverageReliableAt;
+import nijigenerate.io.depthimage : DepthDrawPruneLayer, DepthDrawSplitLayer, ngDepthDrawAlphaMaskFromRgba,
+    ngDepthDrawBuildLayerContourBandMask, ngDepthDrawBuildVisibleLayerMap, ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba,
+    ngDepthDrawDetectAlphaDepthGaps, ngDepthDrawInpaintMaskedLayerDepth, ngDepthDrawMedianFillDepth,
+    ngDepthDrawPruneForeignDepthSeeds, ngDepthDrawSeedLayerDepthPixels, ngDepthImageCompositeAlpha,
+    ngDepthImageCoverageAlphaAt, ngDepthImageCoverageAlphaAtUv, ngDepthImageCoverageReliableAt;
 import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, DepthSampleConvolution, DepthSamplePoint,
     ngDepthSampleAcceptsAlpha, ngDepthSampleAlphaByte, ngDepthSampleConvolve, ngDepthSampleEffectiveAlpha,
     ngDepthSampleMissingPoint, ngDepthSampleOpacity01, ngDepthSamplePixelDepth, ngDepthSamplePixelDepth01,
@@ -14,6 +17,7 @@ import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.nodes.deformer.path : PathDeformer;
 import psd;
 import std.algorithm.comparison : max, min;
+import std.algorithm.sorting : sort;
 import std.array : array;
 import std.conv : to;
 import std.exception : enforce;
@@ -184,6 +188,9 @@ struct PsdDepthLayerPreview {
     ubyte[] depthMaskRgba;
     ubyte[] coverageMaskRgba;
     ubyte[] flippedDepthRgba;
+    ubyte[] yFlippedDepthRgba;
+    int nearestDepthDx;
+    int nearestDepthDy;
     size_t normalArtCoverageSources;
     PsdDepthLayerDepthStats depthStats;
 }
@@ -276,6 +283,10 @@ struct PsdDepthImportResult {
     size_t composedLayerCount;
     PsdDepthCompositeSource colorSource;
     PsdDepthCompositeSource depthSource;
+    ubyte[] depthSourceReferenceRgba;
+    int depthSourceReferenceWidth;
+    int depthSourceReferenceHeight;
+    bool depthSourceReferenceYFlipped;
     PsdDepthCompositionDiagnostic[] compositionDiagnostics;
     PsdDepthComposedLayer[] composedLayers;
     PsdDepthComposedSource composedSource;
@@ -332,6 +343,9 @@ private struct DepthLayerImage {
     float coverageOpacity = 1.0f;
     ubyte[] coverageData;
     ubyte[] flippedDepthRgba;
+    ubyte[] yFlippedDepthRgba;
+    int nearestDepthDx;
+    int nearestDepthDy;
     bool coverageUsesMesh;
     mat4 coverageWorldToLocal;
     CoverageSource[] coverageSources;
@@ -766,14 +780,60 @@ private ubyte[] cropRgbaRect(const(ubyte)[] rgba, int sourceWidth, int sourceHei
     return result;
 }
 
-private ubyte[] normalizeFlatDepthRgba(const(ubyte)[] rgba, int width, int height) {
+private ubyte[] normalizeFlatDepthRgba(const(ubyte)[] rgba, int width, int height, int channels = 4) {
     auto expectedLength = cast(size_t)max(0, width * height) * 4;
     ubyte[] result;
     result.length = expectedLength;
-    auto copyLength = min(result.length, rgba.length);
-    if (copyLength > 0) result[0 .. copyLength] = rgba[0 .. copyLength];
-    foreach (i; 0 .. result.length / 4) {
-        result[i * 4 + 3] = 255;
+    auto sourceChannels = max(1, channels);
+    auto pixelCount = cast(size_t)max(0, width * height);
+    auto sourceLength = min(rgba.length, pixelCount * cast(size_t)sourceChannels);
+    foreach (i; 0 .. pixelCount) {
+        auto sourceIndex = i * cast(size_t)sourceChannels;
+        auto outIndex = i * 4;
+        if (sourceIndex >= sourceLength) {
+            result[outIndex + 3] = 0;
+            continue;
+        }
+        switch (sourceChannels) {
+            case 1:
+                result[outIndex + 0] = rgba[sourceIndex];
+                result[outIndex + 1] = rgba[sourceIndex];
+                result[outIndex + 2] = rgba[sourceIndex];
+                result[outIndex + 3] = 255;
+                break;
+            case 2:
+                result[outIndex + 0] = rgba[sourceIndex];
+                result[outIndex + 1] = rgba[sourceIndex];
+                result[outIndex + 2] = rgba[sourceIndex];
+                result[outIndex + 3] = sourceIndex + 1 < sourceLength ? rgba[sourceIndex + 1] : 255;
+                break;
+            case 3:
+                result[outIndex + 0] = rgba[sourceIndex + 0];
+                result[outIndex + 1] = sourceIndex + 1 < sourceLength ? rgba[sourceIndex + 1] : rgba[sourceIndex + 0];
+                result[outIndex + 2] = sourceIndex + 2 < sourceLength ? rgba[sourceIndex + 2] : rgba[sourceIndex + 0];
+                result[outIndex + 3] = 255;
+                break;
+            default:
+                result[outIndex + 0] = rgba[sourceIndex + 0];
+                result[outIndex + 1] = sourceIndex + 1 < sourceLength ? rgba[sourceIndex + 1] : rgba[sourceIndex + 0];
+                result[outIndex + 2] = sourceIndex + 2 < sourceLength ? rgba[sourceIndex + 2] : rgba[sourceIndex + 0];
+                result[outIndex + 3] = sourceIndex + 3 < sourceLength ? rgba[sourceIndex + 3] : 255;
+                break;
+        }
+    }
+    return result;
+}
+
+private ubyte[] flipRgbaY(const(ubyte)[] rgba, int width, int height) {
+    ubyte[] result;
+    auto expectedLength = cast(size_t)max(0, width * height) * 4;
+    result.length = expectedLength;
+    if (rgba.length < expectedLength || width <= 0 || height <= 0) return result;
+    auto rowBytes = cast(size_t)width * 4;
+    foreach (y; 0 .. height) {
+        auto src = cast(size_t)y * rowBytes;
+        auto dst = cast(size_t)(height - 1 - y) * rowBytes;
+        result[dst .. dst + rowBytes] = rgba[src .. src + rowBytes];
     }
     return result;
 }
@@ -1446,8 +1506,41 @@ private bool setDepthLayerImageToCoverageDocumentBounds(ref DepthLayerImage imag
         }
     }
 
+    void includeMeshBounds(ref CoverageSource source) {
+        if (source.vertices.length == 0) return;
+        bool hasMeshBounds;
+        float minX;
+        float minY;
+        float maxX;
+        float maxY;
+        foreach (vertex; source.vertices) {
+            auto world = (source.localToDocumentWorld * vec4(vertex - source.origin, 0, 1)).xy;
+            auto documentX = world.x + cast(float)image.documentWidth / 2.0f;
+            auto documentY = world.y + cast(float)image.documentHeight / 2.0f;
+            if (!hasMeshBounds) {
+                minX = maxX = documentX;
+                minY = maxY = documentY;
+                hasMeshBounds = true;
+            } else {
+                minX = min(minX, documentX);
+                minY = min(minY, documentY);
+                maxX = max(maxX, documentX);
+                maxY = max(maxY, documentY);
+            }
+        }
+        if (!hasMeshBounds) return;
+        includeRect(
+            cast(int)floor(minX),
+            cast(int)floor(minY),
+            max(1, cast(int)ceil(maxX) - cast(int)floor(minX) + 1),
+            max(1, cast(int)ceil(maxY) - cast(int)floor(minY) + 1)
+        );
+    }
+
     foreach (ref source; image.coverageSources) {
-        if (source.hasDocumentRect) {
+        if (source.vertices.length > 0) {
+            includeMeshBounds(source);
+        } else if (source.hasDocumentRect) {
             includeRect(source.documentLeft, source.documentTop, source.documentWidth, source.documentHeight);
         }
     }
@@ -1559,6 +1652,163 @@ private void maskDepthToCoverage(ref DepthLayerImage layer, ref PsdDepthImportSe
     }
 }
 
+private void applyDepthDrawLayerDepthCleanup(ref DepthLayerImage layer) {
+    if (layer.width <= 0 || layer.height <= 0 || layer.data.length != cast(size_t)(layer.width * layer.height * 4)) {
+        return;
+    }
+    auto depth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.data);
+    ubyte[] mask;
+    if (layer.coverageAlphaCache.length == depth.length) {
+        mask.length = depth.length;
+        foreach (i, value; layer.coverageAlphaCache) mask[i] = value > 0.0f ? 1 : 0;
+    } else if (layer.coverageData.length == layer.data.length) {
+        mask = ngDepthDrawAlphaMaskFromRgba(layer.coverageData);
+    } else {
+        mask = ngDepthDrawAlphaMaskFromRgba(layer.data);
+    }
+    if (mask.length != depth.length) return;
+
+    auto contourBand = ngDepthDrawBuildLayerContourBandMask(mask, layer.width, layer.height, 2);
+    auto contourSeed = depth.dup;
+    foreach (i, value; contourBand) {
+        if (value) contourSeed[i] = 0;
+    }
+    auto repaired = ngDepthDrawInpaintMaskedLayerDepth(contourSeed, mask, layer.width, layer.height);
+    foreach (i, value; repaired.pixels) {
+        auto offset = i * 4;
+        layer.data[offset + 0] = value;
+        layer.data[offset + 1] = value;
+        layer.data[offset + 2] = value;
+    }
+}
+
+private DepthDrawSplitLayer depthDrawSplitLayerFromCompositeSource(PsdDepthCompositeSourceLayer sourceLayer) {
+    DepthDrawSplitLayer splitLayer;
+    splitLayer.left = sourceLayer.left;
+    splitLayer.top = sourceLayer.top;
+    splitLayer.width = sourceLayer.width;
+    splitLayer.height = sourceLayer.height;
+    splitLayer.maskPixels = ngDepthDrawAlphaMaskFromRgba(sourceLayer.rgba);
+    splitLayer.alphaMask = splitLayer.maskPixels.dup;
+    return splitLayer;
+}
+
+private ubyte[] depthDrawMaskFromDepthLayerImage(ref DepthLayerImage image) {
+    auto pixelCount = cast(size_t)max(0, image.width * image.height);
+    ubyte[] mask;
+    mask.length = pixelCount;
+    if (pixelCount == 0) return mask;
+
+    if (image.coverageAlphaCache.length == pixelCount) {
+        foreach (i, value; image.coverageAlphaCache) mask[i] = value > 0.0f ? 1 : 0;
+        return mask;
+    }
+    if (image.coverageData.length >= pixelCount * 4 &&
+        image.coverageWidth == image.width &&
+        image.coverageHeight == image.height &&
+        image.coverageChannels == 4) {
+        return ngDepthDrawAlphaMaskFromRgba(image.coverageData[0 .. pixelCount * 4]);
+    }
+
+    bool hasDocumentRectSource;
+    foreach (ref source; image.coverageSources) {
+        if (!source.hasDocumentRect ||
+            source.data.length == 0 ||
+            source.width <= 0 ||
+            source.height <= 0 ||
+            source.channels <= 0) {
+            continue;
+        }
+        hasDocumentRectSource = true;
+        for (int y = 0; y < image.height; y++) {
+            auto sourceY = image.top + y - source.documentTop;
+            if (sourceY < 0 || sourceY >= source.height) continue;
+            for (int x = 0; x < image.width; x++) {
+                auto sourceX = image.left + x - source.documentLeft;
+                if (sourceX < 0 || sourceX >= source.width) continue;
+                auto sourceIndex = (cast(size_t)sourceY * cast(size_t)source.width + cast(size_t)sourceX) *
+                    cast(size_t)source.channels;
+                if (sourceIndex >= source.data.length) continue;
+                auto alpha = source.channels > 3 ? source.data[sourceIndex + 3] : 255;
+                if (alpha == 0) continue;
+                mask[cast(size_t)y * cast(size_t)image.width + cast(size_t)x] = 1;
+            }
+        }
+    }
+    if (hasDocumentRectSource) return mask;
+
+    if (image.data.length >= pixelCount * 4) {
+        return ngDepthDrawAlphaMaskFromRgba(image.data[0 .. pixelCount * 4]);
+    }
+    return mask;
+}
+
+private DepthDrawSplitLayer depthDrawSplitLayerFromDepthLayerImage(ref DepthLayerImage image) {
+    DepthDrawSplitLayer splitLayer;
+    splitLayer.left = image.left;
+    splitLayer.top = image.top;
+    splitLayer.width = image.width;
+    splitLayer.height = image.height;
+    splitLayer.maskPixels = depthDrawMaskFromDepthLayerImage(image);
+    splitLayer.alphaMask = splitLayer.maskPixels.dup;
+    return splitLayer;
+}
+
+private void setLayerDepthFromDepthDrawPixels(ref DepthLayerImage image, const(ubyte)[] depthPixels, const(ubyte)[] alphaMask = null) {
+    if (depthPixels.length != cast(size_t)(image.width * image.height)) return;
+    if (alphaMask.length && alphaMask.length != depthPixels.length) return;
+    image.data.length = cast(size_t)image.width * cast(size_t)image.height * 4;
+    foreach (i, value; depthPixels) {
+        auto offset = i * 4;
+        image.data[offset + 0] = value;
+        image.data[offset + 1] = value;
+        image.data[offset + 2] = value;
+        image.data[offset + 3] = value > 0 && (!alphaMask.length || alphaMask[i]) ? 255 : 0;
+    }
+}
+
+private void seedLayerDepthFromDepthDrawSplit(
+    ref DepthLayerImage image,
+    DepthDrawSplitLayer splitLayer,
+    int layerIndex,
+    int documentWidth,
+    int documentHeight,
+    const(ubyte)[] stableDepthPixels,
+    const(int)[] visibleLayerMap,
+    const(DepthDrawSplitLayer)[] splitLayers
+) {
+    auto contourBand = ngDepthDrawBuildLayerContourBandMask(splitLayer.maskPixels, splitLayer.width, splitLayer.height, 2);
+    auto seeded = ngDepthDrawSeedLayerDepthPixels(
+        splitLayer,
+        layerIndex,
+        documentWidth,
+        documentHeight,
+        stableDepthPixels,
+        visibleLayerMap,
+        splitLayer.maskPixels,
+        splitLayers,
+        contourBand,
+        2
+    );
+    DepthDrawPruneLayer pruneLayer;
+    pruneLayer.left = splitLayer.left;
+    pruneLayer.top = splitLayer.top;
+    pruneLayer.width = splitLayer.width;
+    pruneLayer.height = splitLayer.height;
+    auto pruned = ngDepthDrawPruneForeignDepthSeeds(
+        seeded,
+        pruneLayer,
+        layerIndex,
+        documentWidth,
+        documentHeight,
+        stableDepthPixels,
+        visibleLayerMap,
+        splitLayer.maskPixels,
+        24.0
+    );
+    setLayerDepthFromDepthDrawPixels(image, pruned.pixels, splitLayer.maskPixels);
+}
+
 private float sampleCoverageAlphaAtUv(ref DepthLayerImage layer, vec2 uv) {
     return ngDepthImageCoverageAlphaAtUv(
         uv.x,
@@ -1597,7 +1847,12 @@ private bool acceptsDepthPixel(ref DepthLayerImage layer, size_t index, int x, i
     return true;
 }
 
-private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] layers, int radius = 2) {
+private float depthLayerZSort(ref DepthLayerImage layer) {
+    if (layer.grid is null) return 0.0f;
+    return layer.grid.zSort;
+}
+
+private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] layers, int radius = 0) {
     size_t suppressed;
     if (layers.length < 2) return 0;
     foreach (lowerIndex, ref lower; layers) {
@@ -1605,6 +1860,7 @@ private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] la
             lower.coverageAlphaCache.length != lower.coverageGateCache.length) {
             continue;
         }
+        auto lowerZ = depthLayerZSort(lower);
         for (int y = 0; y < lower.height; y++) {
             for (int x = 0; x < lower.width; x++) {
                 auto index = cast(size_t)y * cast(size_t)lower.width + cast(size_t)x;
@@ -1614,7 +1870,9 @@ private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] la
                 auto globalX = lower.left + x;
                 auto globalY = lower.top + y;
                 foreach (upperIndex, ref upper; layers) {
-                    if (upperIndex <= lowerIndex) continue;
+                    if (upperIndex == lowerIndex) continue;
+                    auto upperZ = depthLayerZSort(upper);
+                    if (upperZ > lowerZ || (upperZ == lowerZ && upperIndex <= lowerIndex)) continue;
                     if (globalX < upper.left - radius ||
                         globalX >= upper.left + upper.width + radius ||
                         globalY < upper.top - radius ||
@@ -1627,7 +1885,11 @@ private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] la
                         for (int dx = -radius; dx <= radius; dx++) {
                             auto upperX = globalX + dx - upper.left;
                             if (upperX < 0 || upperX >= upper.width) continue;
-                            if (coverageReliable(upper, upperX, upperY)) {
+                            auto upperIndex4 = (cast(size_t)upperY * cast(size_t)upper.width + cast(size_t)upperX) * 4;
+                            if (upperIndex4 + 3 >= upper.data.length) continue;
+                            if (upper.data[upperIndex4] > 0 &&
+                                upper.data[upperIndex4 + 3] > 0 &&
+                                coverageReliable(upper, upperX, upperY)) {
                                 hasUpper = true;
                                 break;
                             }
@@ -1684,8 +1946,14 @@ private ubyte[] buildDepthMaskPreviewFromSurface(
             auto index = (cast(size_t)y * cast(size_t)layer.width + cast(size_t)x) * 4;
             if (index + 3 >= layer.data.length || index + 3 >= surfaceRgba.length) continue;
             auto surfaceAlpha01 = cast(float)surfaceRgba[index + 3] / 255.0f;
+            auto coverageAlpha01 = coverageAlpha(layer, x, y);
             auto depth01 = pixelDepth01(layer.data, index, sampleSettings);
-            if (!ngDepthSampleAcceptsAlpha(surfaceAlpha01, settings.alphaThreshold) || depth01 <= 0.0f) continue;
+            if (!ngDepthSampleAcceptsAlpha(surfaceAlpha01, settings.alphaThreshold) ||
+                !ngDepthSampleAcceptsAlpha(coverageAlpha01, settings.alphaThreshold) ||
+                !coverageReliable(layer, x, y) ||
+                depth01 <= 0.0f) {
+                continue;
+            }
             auto gray = cast(ubyte)round(depth01 * 255.0f);
             result[index + 0] = gray;
             result[index + 1] = gray;
@@ -1722,11 +1990,11 @@ private ubyte[] sampleDepthToSurfaceLayer(
     return result;
 }
 
-private ubyte[] sampleDepthToSurfaceLayerFlippedY(
-    const(ubyte)[] depthRgba,
-    int depthWidth,
-    int depthHeight,
-    int layerLeft,
+    private ubyte[] sampleDepthToSurfaceLayerFlippedY(
+        const(ubyte)[] depthRgba,
+        int depthWidth,
+        int depthHeight,
+        int layerLeft,
     int layerTop,
     int layerWidth,
     int layerHeight
@@ -1740,6 +2008,19 @@ private ubyte[] sampleDepthToSurfaceLayerFlippedY(
         layerWidth,
         layerHeight
     );
+}
+
+private size_t depthSurfaceOverlap(
+    const(ubyte)[] depthRgba,
+    const(ubyte)[] surfaceRgba
+) {
+    size_t result;
+    auto pixels = min(depthRgba.length, surfaceRgba.length) / 4;
+    foreach (i; 0 .. pixels) {
+        auto index = i * 4;
+        if (surfaceRgba[index + 3] >= 3 && depthRgba[index] > 0) result++;
+    }
+    return result;
 }
 
 private void compositeFlatDepthByCoverageSources(
@@ -2092,6 +2373,11 @@ private void attachPartCoverage(ref DepthLayerImage image, Part part, ref bool[u
     source.data = data;
     source.worldToLocal = part.transform.matrix.inverse;
     source.localToDocumentWorld = part.transform.matrix;
+    auto mesh = part.getMesh();
+    source.vertices = mesh.vertices;
+    source.uvs = mesh.uvs;
+    source.indices = mesh.indices.dup;
+    source.origin = mesh.origin;
     auto center = (source.localToDocumentWorld * vec4(vec2(0, 0), 0, 1)).xy;
     auto documentLeft = cast(int)round(center.x + cast(float)image.documentWidth / 2.0f -
         cast(float)source.width / 2.0f);
@@ -2883,6 +3169,7 @@ private PsdDepthLayerPreview buildLayerPreview(
     layerPreview.depthMaskRgba = buildDepthMaskPreviewFromSurface(image, settings, originalPreview.rgba);
     layerPreview.coverageMaskRgba = image.coverageData.length ? image.coverageData.dup : image.data.dup;
     layerPreview.flippedDepthRgba = image.flippedDepthRgba.dup;
+    layerPreview.yFlippedDepthRgba = image.yFlippedDepthRgba.dup;
     layerPreview.normalArtCoverageSources = image.coverageSources.length;
     layerPreview.depthStats = computeLayerDepthStats(image, settings);
     return layerPreview;
@@ -2941,7 +3228,10 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         true,
         0
     );
-    auto normalizedFlatDepthRgba = normalizeFlatDepthRgba(texture.data, texture.width, texture.height);
+    auto normalizedFlatDepthRgba = normalizeFlatDepthRgba(texture.data, texture.width, texture.height, texture.channels);
+    result.depthSourceReferenceRgba = normalizedFlatDepthRgba.dup;
+    result.depthSourceReferenceWidth = texture.width;
+    result.depthSourceReferenceHeight = texture.height;
     setCompositeSourceLayerPixels(pngDepthSourceLayer, normalizedFlatDepthRgba);
     result.depthSource.layers ~= pngDepthSourceLayer;
     result.colorSource.kind = hasPsdColorSource ? PsdDepthCompositeSourceKind.PsdLayers :
@@ -3071,6 +3361,96 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         layers ~= image;
     }
 
+    void applyDepthDrawSplitToPngBindings(ref PngComposedBinding[] bindings) {
+        sort!((a, b) {
+            auto drawableA = cast(Drawable)a.matchedTarget;
+            auto drawableB = cast(Drawable)b.matchedTarget;
+            auto zA = drawableA is null ? (a.target is null ? 0.0f : a.target.zSort) : drawableA.zSort;
+            auto zB = drawableB is null ? (b.target is null ? 0.0f : b.target.zSort) : drawableB.zSort;
+            if (zA == zB) return a.image.layerPath < b.image.layerPath;
+            return zA > zB;
+        })(bindings);
+
+        DepthDrawSplitLayer[] splitLayers;
+        foreach (ref binding; bindings) {
+            if (binding.image.width <= 0 || binding.image.height <= 0) continue;
+            splitLayers ~= depthDrawSplitLayerFromDepthLayerImage(binding.image);
+        }
+        if (splitLayers.length == 0) return;
+
+        auto yFlippedFlatDepthRgba = flipRgbaY(normalizedFlatDepthRgba, texture.width, texture.height);
+        size_t normalCropOverlap;
+        size_t flippedCropOverlap;
+        foreach (ref binding; bindings) {
+            if (binding.image.width <= 0 || binding.image.height <= 0) continue;
+            auto surfacePreview = buildColorLayerPreviewRgba(binding.image);
+            auto normalCrop = sampleDepthToSurfaceLayer(
+                normalizedFlatDepthRgba,
+                texture.width,
+                texture.height,
+                binding.image.left,
+                binding.image.top,
+                binding.image.width,
+                binding.image.height
+            );
+            auto flippedCrop = sampleDepthToSurfaceLayer(
+                yFlippedFlatDepthRgba,
+                texture.width,
+                texture.height,
+                binding.image.left,
+                binding.image.top,
+                binding.image.width,
+                binding.image.height
+            );
+            normalCropOverlap += depthSurfaceOverlap(normalCrop, surfacePreview.rgba);
+            flippedCropOverlap += depthSurfaceOverlap(flippedCrop, surfacePreview.rgba);
+        }
+        auto splitDepthRgba = flippedCropOverlap > normalCropOverlap ? yFlippedFlatDepthRgba : normalizedFlatDepthRgba;
+        result.depthSourceReferenceRgba = splitDepthRgba.dup;
+        result.depthSourceReferenceWidth = texture.width;
+        result.depthSourceReferenceHeight = texture.height;
+        result.depthSourceReferenceYFlipped = flippedCropOverlap > normalCropOverlap;
+        auto stableDepthPixels = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(splitDepthRgba);
+        auto visibleLayerMap = ngDepthDrawBuildVisibleLayerMap(texture.width, texture.height, splitLayers);
+        int splitIndex;
+        foreach (ref binding; bindings) {
+            if (binding.image.width <= 0 || binding.image.height <= 0) continue;
+            binding.image.flippedDepthRgba = sampleDepthToSurfaceLayer(
+                normalizedFlatDepthRgba,
+                texture.width,
+                texture.height,
+                binding.image.left,
+                binding.image.top,
+                binding.image.width,
+                binding.image.height
+            );
+            binding.image.yFlippedDepthRgba = sampleDepthToSurfaceLayer(
+                yFlippedFlatDepthRgba,
+                texture.width,
+                texture.height,
+                binding.image.left,
+                binding.image.top,
+                binding.image.width,
+                binding.image.height
+            );
+            auto splitLayer = depthDrawSplitLayerFromDepthLayerImage(binding.image);
+            seedLayerDepthFromDepthDrawSplit(
+                binding.image,
+                splitLayer,
+                splitIndex,
+                texture.width,
+                texture.height,
+                stableDepthPixels,
+                visibleLayerMap,
+                splitLayers
+            );
+            splitIndex++;
+            buildCoverageCache(binding.image);
+            maskDepthToCoverage(binding.image, settings);
+            applyDepthDrawLayerDepthCleanup(binding.image);
+        }
+    }
+
     void addMappedPngGridResults(ref DepthLayerImage[] layers) {
         GridAccum[] accums;
         foreach (ref layer; layers) {
@@ -3127,6 +3507,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         }
         buildCoverageCache(image);
         maskDepthToCoverage(image, settings);
+        applyDepthDrawLayerDepthCleanup(image);
         addMappedPngTarget(image, target, matchedTarget, status, manual);
         return true;
     }
@@ -3148,6 +3529,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             compositeFlatDepthByCoverageSources(image, normalizedFlatDepthRgba, texture.width, texture.height);
             buildCoverageCache(image);
             maskDepthToCoverage(image, settings);
+            applyDepthDrawLayerDepthCleanup(image);
             bindings ~= PngComposedBinding(image, manualGrid, manualGrid, "Manual", true);
             return true;
         }
@@ -3161,6 +3543,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         compositeFlatDepthByCoverageSources(image, normalizedFlatDepthRgba, texture.width, texture.height);
         buildCoverageCache(image);
         maskDepthToCoverage(image, settings);
+        applyDepthDrawLayerDepthCleanup(image);
         bindings ~= PngComposedBinding(image, target, target, "ComposedN1", false);
         return true;
     }
@@ -3196,6 +3579,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             compositeFlatDepthByCoverageSources(image, normalizedFlatDepthRgba, texture.width, texture.height);
             buildCoverageCache(image);
             maskDepthToCoverage(image, settings);
+            applyDepthDrawLayerDepthCleanup(image);
             bindings ~= PngComposedBinding(image, target, matchedTarget, manual ? "Manual" : "ComposedN1", manual);
         }
 
@@ -3209,13 +3593,11 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         }
         if (bindings.length == 0) return false;
 
+        applyDepthDrawSplitToPngBindings(bindings);
+
         DepthLayerImage[] composedImages;
         foreach (binding; bindings) composedImages ~= binding.image;
-        auto suppressed = suppressLowerLayerDepthNearUpperCoverage(composedImages);
-        if (suppressed > 0) {
-            addCompositionDiagnostic(result, "upper-layer-suppression",
-                "N:1 composition suppressed lower-layer depth under upper color/art coverage.", null, null, suppressed);
-        }
+        suppressLowerLayerDepthNearUpperCoverage(composedImages);
         DepthLayerImage[] layers;
         foreach (i, ref binding; bindings) {
             binding.image = composedImages[i];
@@ -3260,11 +3642,32 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         }
 
         DepthLayerImage[] composedImages;
+        DepthDrawSplitLayer[] splitLayers;
+        foreach (sourceLayer; result.colorSource.layers) {
+            if (!sourceLayer.visible || sourceLayer.width <= 0 || sourceLayer.height <= 0) continue;
+            splitLayers ~= depthDrawSplitLayerFromCompositeSource(sourceLayer);
+        }
+        auto stableDepthPixels = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(normalizedFlatDepthRgba);
+        auto visibleLayerMap = ngDepthDrawBuildVisibleLayerMap(texture.width, texture.height, splitLayers);
+        int splitIndex;
         foreach (sourceLayer; result.colorSource.layers) {
             if (!sourceLayer.visible || sourceLayer.width <= 0 || sourceLayer.height <= 0) continue;
             auto image = imageFromColorSourceLayer(sourceLayer);
+            auto splitLayer = depthDrawSplitLayerFromCompositeSource(sourceLayer);
+            seedLayerDepthFromDepthDrawSplit(
+                image,
+                splitLayer,
+                splitIndex,
+                texture.width,
+                texture.height,
+                stableDepthPixels,
+                visibleLayerMap,
+                splitLayers
+            );
+            splitIndex++;
             buildCoverageCache(image);
             maskDepthToCoverage(image, settings);
+            applyDepthDrawLayerDepthCleanup(image);
             composedImages ~= image;
         }
         if (composedImages.length == 0) {
@@ -3272,13 +3675,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 "PSD color source has no visible pixel layers.", settings.colorSourcePath, null);
             return false;
         }
-
-        auto suppressed = suppressLowerLayerDepthNearUpperCoverage(composedImages);
-        if (suppressed > 0) {
-            addCompositionDiagnostic(result, "upper-layer-suppression",
-                "N:1 composition suppressed lower-layer depth under upper PSD color-layer coverage.",
-                null, null, suppressed);
-        }
+        suppressLowerLayerDepthNearUpperCoverage(composedImages);
 
         DepthLayerImage[] layers;
         foreach (ref image; composedImages) {
