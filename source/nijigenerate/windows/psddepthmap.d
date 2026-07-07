@@ -270,6 +270,8 @@ private:
     bool previewDirty = true;
     bool onlyProblemLayers;
     ptrdiff_t selectedGridIndex;
+    ptrdiff_t selected3DAdjustLayerIndex;
+    bool initial3DAdjustTabSelected;
     Texture[string] originalPreviewTextures;
     Texture[string] depthMaskPreviewTextures;
     Texture[string] surfaceMaskDiagnosticTextures;
@@ -1229,7 +1231,14 @@ private:
         }
     }
 
-    void draw3DAdjustLayerControlsPanel() {
+    PsdDepthLayerPreview* selected3DAdjustLayerPreview() {
+        if (preview.layerPreviews.length == 0) return null;
+        auto lastIndex = cast(ptrdiff_t)preview.layerPreviews.length - 1;
+        selected3DAdjustLayerIndex = clamp(selected3DAdjustLayerIndex, 0, lastIndex);
+        return &preview.layerPreviews[cast(size_t)selected3DAdjustLayerIndex];
+    }
+
+    void draw3DAdjustLayerControlsPanel(float height) {
         size_t countRgbaAlphaPixels(const(ubyte)[] rgba) {
             size_t count;
             foreach (i; 0 .. rgba.length / 4) {
@@ -1274,7 +1283,33 @@ private:
         incText("%s: %s".format(_("Composition"), preview.compositionModeName));
         igSeparator();
 
-        foreach (ref layerPreview; preview.layerPreviews) {
+        if (preview.layerPreviews.length == 0) return;
+        auto listHeight = clamp(height * 0.34f, 140.0f, max(140.0f, height - 260.0f));
+        if (igBeginChild("###PsdDepth3DLayerList", ImVec2(0, listHeight), true)) {
+            foreach (i, ref layerPreview; preview.layerPreviews) {
+                auto selected = selected3DAdjustLayerIndex == cast(ptrdiff_t)i;
+                auto label = "%s\n%d x %d  (%d, %d)###psdDepth3DLayer%d".format(
+                    layerPreview.layerName.length ? layerPreview.layerName : layerPreview.layerPath,
+                    layerPreview.width,
+                    layerPreview.height,
+                    layerPreview.left,
+                    layerPreview.top,
+                    cast(int)i
+                );
+                if (igSelectable(label.toStringz, selected, ImGuiSelectableFlags.SpanAllColumns, ImVec2(0, 42))) {
+                    selected3DAdjustLayerIndex = cast(ptrdiff_t)i;
+                }
+            }
+        }
+        igEndChild();
+
+        auto selectedLayer = selected3DAdjustLayerPreview();
+        if (selectedLayer is null) return;
+        auto layerPreview = *selectedLayer;
+
+        igSeparator();
+        if (igBeginChild("###PsdDepth3DLayerDetail", ImVec2(0, 0), false,
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)) {
             drawLayerPreviewHoverText(layerPreview.layerName, layerPreview.layerPath, true);
             incText("%s: %dx%d  (%d, %d)".format(
                 _("Layer"),
@@ -1317,8 +1352,8 @@ private:
             drawLayerXYScaleControls(layerPreview.layerPath);
             incText(_("Z / Invert"));
             drawLayerZControls(layerPreview.layerPath);
-            igSeparator();
         }
+        igEndChild();
     }
 
     void resetPsdDepth3DAdjustCameraToBounds(float sourceWidth, float sourceHeight, ImVec2 canvasSize) {
@@ -1853,7 +1888,7 @@ private:
             igTableNextColumn();
             draw3DAdjustRelationshipCanvas(height);
             igTableNextColumn();
-            draw3DAdjustLayerControlsPanel();
+            draw3DAdjustLayerControlsPanel(height);
             igEndTable();
         }
     }
@@ -1893,7 +1928,11 @@ private:
             drawDiagnostics();
             igSeparator();
         }
-        draw3DAdjustTargetPreview(height);
+        if (igBeginChild("###PsdDepth3DAdjustContent", ImVec2(0, height), false,
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)) {
+            draw3DAdjustTargetPreview(incAvailableSpace().y);
+        }
+        igEndChild();
     }
 
     void apply() {
@@ -1938,12 +1977,14 @@ protected:
         if (reviewHeight < 120) reviewHeight = 120;
 
         if (igBeginTabBar("###PsdDepthMapImportTabs")) {
-            if (igBeginTabItem(__("Source / Mapping"))) {
-                drawSourceMappingTab(reviewHeight);
+            auto threeDTabFlags = initial3DAdjustTabSelected ? ImGuiTabItemFlags.None : ImGuiTabItemFlags.SetSelected;
+            if (igBeginTabItem(__("3D Adjust"), null, threeDTabFlags)) {
+                initial3DAdjustTabSelected = true;
+                draw3DAdjustTab(reviewHeight);
                 igEndTabItem();
             }
-            if (igBeginTabItem(__("3D Adjust"))) {
-                draw3DAdjustTab(reviewHeight);
+            if (igBeginTabItem(__("Source / Mapping"))) {
+                drawSourceMappingTab(reviewHeight);
                 igEndTabItem();
             }
             igEndTabBar();
