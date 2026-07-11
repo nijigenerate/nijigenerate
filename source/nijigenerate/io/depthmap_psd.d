@@ -72,14 +72,8 @@ enum PsdDepthCompositeSourceKind {
     PsdLayers,
 }
 
-struct PsdDepthLayerTransform {
-    float xyOffsetX = 0.0f;
-    float xyOffsetY = 0.0f;
-    float xyScaleX = 1.0f;
-    float xyScaleY = 1.0f;
-    float zOffset = 0.0f;
-    float zScale = 1.0f;
-    bool invert = false;
+private bool psdLayerVisible(ref Layer layer) {
+    return (layer.flags & LayerFlags.Visible) == 0;
 }
 
 struct PsdDepthImportSettings {
@@ -99,11 +93,8 @@ struct PsdDepthImportSettings {
     string colorSourcePath;
     string[string] layerTargetGridUuidOverrides;
     bool[string] ignoredLayerPaths;
-    bool[string] hiddenComposedLayerPaths;
-    bool[string] disabledComposedLayerPaths;
     bool[string] disabledGridUuids;
     bool[string] disabledGridLayerKeys;
-    PsdDepthLayerTransform[string] layerTransforms;
 }
 
 struct PsdDepthLayerMapping {
@@ -123,6 +114,8 @@ struct PsdDepthLayerMapping {
 struct PsdDepthGridResult {
     Deformable grid;
     float[] depths;
+    float[] baseDepths;
+    string[] winnerLayerPaths;
     PsdDepthGridLayerMask[] layerMasks;
     size_t coverageSources;
     int documentWidth;
@@ -156,43 +149,6 @@ struct PsdDepthLayerDepthStats {
     float rangeDepth01;
     float adjacentDelta01;
     bool hasDepth;
-}
-
-struct PsdDepthLayerPreview {
-    string id;
-    string sourcePath;
-    string layerPath;
-    string layerName;
-    int documentWidth;
-    int documentHeight;
-    int left;
-    int top;
-    int width;
-    int height;
-    int originalWidth;
-    int originalHeight;
-    bool visible = true;
-    bool enabled = true;
-    float opacity = 1.0f;
-    PsdDepthLayerTransform transform;
-    bool invert;
-    float backDepth = -1.0f;
-    float frontDepth = 1.0f;
-    float depthScale = 1.0f;
-    float alphaThreshold = 0.01f;
-    int customRadius = 3;
-    PsdDepthConvolution convolution = PsdDepthConvolution.Gaussian3x3;
-    PsdDepthChannel channel = PsdDepthChannel.AverageRGB;
-    ubyte[] originalRgba;
-    ubyte[] depthRgba;
-    ubyte[] depthMaskRgba;
-    ubyte[] coverageMaskRgba;
-    ubyte[] flippedDepthRgba;
-    ubyte[] yFlippedDepthRgba;
-    int nearestDepthDx;
-    int nearestDepthDy;
-    size_t normalArtCoverageSources;
-    PsdDepthLayerDepthStats depthStats;
 }
 
 struct PsdDepthCompositionDiagnostic {
@@ -246,16 +202,25 @@ struct PsdDepthComposedLayer {
     int height;
     bool visible = true;
     bool enabled = true;
+    bool invert;
     float depthOffset = 0.0f;
     float depthScale = 1.0f;
+    float backDepth = -1.0f;
+    float frontDepth = 1.0f;
+    float sourceDepthScale = 1.0f;
+    float alphaThreshold = 0.01f;
+    int customRadius = 3;
+    PsdDepthConvolution convolution = PsdDepthConvolution.Gaussian3x3;
     bool outlierPruneEnabled;
     bool puppetFitEnabled = true;
     string puppetBindingOverride;
     ulong targetGridUuid;
     string targetGridName;
     PsdDepthLayerDepthStats depthStats;
+    ubyte[] colorRgba;
     ubyte[] depthRgba;
     ubyte[] maskRgba;
+    ubyte[] coverageMaskRgba;
 }
 
 struct PsdDepthComposedSource {
@@ -283,21 +248,36 @@ struct PsdDepthImportResult {
     size_t composedLayerCount;
     PsdDepthCompositeSource colorSource;
     PsdDepthCompositeSource depthSource;
-    ubyte[] depthSourceReferenceRgba;
-    int depthSourceReferenceWidth;
-    int depthSourceReferenceHeight;
-    bool depthSourceReferenceYFlipped;
     PsdDepthCompositionDiagnostic[] compositionDiagnostics;
     PsdDepthComposedLayer[] composedLayers;
-    PsdDepthComposedSource composedSource;
     PsdDepthLayerMapping[] mappings;
     PsdDepthGridResult[] grids;
-    PsdDepthLayerPreview[] layerPreviews;
     size_t matchedLayers;
     size_t unmatchedLayers;
     size_t ambiguousLayers;
     size_t skippedGrids;
     bool gpuCompositionRequested;
+}
+
+private PsdDepthCompositeSourceLayer cloneCompositeSourceLayer(PsdDepthCompositeSourceLayer layer) {
+    layer.rgba = layer.rgba.dup;
+    layer.maskRgba = layer.maskRgba.dup;
+    return layer;
+}
+
+private PsdDepthCompositeSource cloneCompositeSource(PsdDepthCompositeSource source) {
+    auto layers = source.layers;
+    source.layers.length = layers.length;
+    foreach (i, layer; layers) source.layers[i] = cloneCompositeSourceLayer(layer);
+    return source;
+}
+
+private PsdDepthComposedLayer cloneComposedLayer(PsdDepthComposedLayer layer) {
+    layer.colorRgba = layer.colorRgba.dup;
+    layer.depthRgba = layer.depthRgba.dup;
+    layer.maskRgba = layer.maskRgba.dup;
+    layer.coverageMaskRgba = layer.coverageMaskRgba.dup;
+    return layer;
 }
 
 struct PsdDepthSampleResult {
@@ -342,15 +322,10 @@ private struct DepthLayerImage {
     int coverageChannels;
     float coverageOpacity = 1.0f;
     ubyte[] coverageData;
-    ubyte[] flippedDepthRgba;
-    ubyte[] yFlippedDepthRgba;
-    int nearestDepthDx;
-    int nearestDepthDy;
     bool coverageUsesMesh;
     mat4 coverageWorldToLocal;
     CoverageSource[] coverageSources;
     Deformable grid;
-    PsdDepthLayerTransform transform;
 }
 
 private struct Candidate {
@@ -374,6 +349,7 @@ private struct ColorLayerPreviewRgba {
 private struct GridAccum {
     Deformable grid;
     float[] best;
+    float[] baseBest;
     bool[] has;
     string[] winnerLayerPaths;
     PsdDepthGridLayerMask[] layerMasks;
@@ -499,7 +475,20 @@ private void setCompositionMode(ref PsdDepthImportResult result, PsdDepthComposi
 string ngPsdDepthNormalizeLayerName(string name) {
     auto normalized = name.baseName.stripExtension.toLower;
     if (normalized.length && normalized[0] == '/') normalized = normalized[1 .. $];
-    return normalized;
+    char[] compact;
+    bool previousSeparator;
+    foreach (ch; normalized) {
+        auto separator = ch == ' ' || ch == '_' || ch == '-';
+        if (separator) {
+            if (!previousSeparator && compact.length > 0) compact ~= '-';
+            previousSeparator = true;
+            continue;
+        }
+        compact ~= ch;
+        previousSeparator = false;
+    }
+    if (compact.length && compact[$ - 1] == '-') compact.length = compact.length - 1;
+    return compact.idup;
 }
 
 string ngPsdDepthLayerIdentityKey(string name, int left, int top, int width, int height) {
@@ -530,15 +519,11 @@ float ngPsdDepthRectOverlapScore(
 }
 
 private bool sameComposedLayerIdentity(PsdDepthComposedLayer layer, PsdDepthComposedLayer previousLayer) {
-    if (layer.id.length && layer.id == previousLayer.id) return true;
-    if (layer.layerPath.length && layer.layerPath == previousLayer.layerPath) return true;
-    if (layer.layerName.length && previousLayer.layerName.length &&
-        ngPsdDepthLayerIdentityKey(layer.layerName, layer.left, layer.top, layer.width, layer.height) ==
-        ngPsdDepthLayerIdentityKey(previousLayer.layerName, previousLayer.left, previousLayer.top,
-            previousLayer.width, previousLayer.height)) {
-        return true;
+    if (layer.layerPath.length == 0 || layer.layerPath != previousLayer.layerPath) return false;
+    if (layer.targetGridUuid != 0 || previousLayer.targetGridUuid != 0) {
+        return layer.targetGridUuid != 0 && layer.targetGridUuid == previousLayer.targetGridUuid;
     }
-    return false;
+    return true;
 }
 
 private PsdDepthComposedLayer* findPreviousComposedLayerState(
@@ -553,20 +538,21 @@ private PsdDepthComposedLayer* findPreviousComposedLayerState(
 
 private void copyComposedLayerState(ref PsdDepthComposedLayer layer, PsdDepthComposedLayer previousLayer) {
     layer.visible = previousLayer.visible;
-    layer.enabled = previousLayer.enabled;
+    if (layer.targetGridUuid != 0 && layer.targetGridUuid == previousLayer.targetGridUuid) {
+        layer.enabled = previousLayer.enabled;
+    }
+    layer.invert = previousLayer.invert;
     layer.depthOffset = previousLayer.depthOffset;
     layer.depthScale = previousLayer.depthScale;
     layer.outlierPruneEnabled = previousLayer.outlierPruneEnabled;
     layer.puppetFitEnabled = previousLayer.puppetFitEnabled;
-    layer.puppetBindingOverride = previousLayer.puppetBindingOverride;
 }
 
 void ngPsdDepthApplyPreviousComposedLayerState(
     ref PsdDepthImportResult result,
     ref PsdDepthImportResult previous
 ) {
-    ngPsdDepthApplyPreviousComposedSourceState(result, previous.composedSource.layers.length ?
-        previous.composedSource : ngPsdDepthComposedSourceFromImportResult(previous));
+    ngPsdDepthApplyPreviousComposedSourceState(result, ngPsdDepthComposedSourceFromImportResult(previous));
 }
 
 void ngPsdDepthApplyPreviousComposedSourceState(
@@ -577,46 +563,7 @@ void ngPsdDepthApplyPreviousComposedSourceState(
         auto previousLayer = findPreviousComposedLayerState(previous.layers, layer);
         if (previousLayer !is null) copyComposedLayerState(layer, *previousLayer);
     }
-    foreach (ref preview; result.layerPreviews) {
-        PsdDepthComposedLayer layerKey;
-        layerKey.id = preview.id;
-        layerKey.layerPath = preview.layerPath;
-        layerKey.layerName = preview.layerName;
-        layerKey.left = preview.left;
-        layerKey.top = preview.top;
-        layerKey.width = preview.width;
-        layerKey.height = preview.height;
-        auto previousLayer = findPreviousComposedLayerState(previous.layers, layerKey);
-        if (previousLayer is null) continue;
-        preview.visible = previousLayer.visible;
-        preview.enabled = previousLayer.enabled;
-        preview.transform.zOffset = previousLayer.depthOffset;
-        preview.transform.zScale = previousLayer.depthScale;
-    }
-    ngPsdDepthSyncComposedSource(result);
-}
-
-PsdDepthImportSettings ngPsdDepthSettingsWithComposedSourceState(
-    PsdDepthImportSettings settings,
-    PsdDepthComposedSource source
-) {
-    foreach (layer; source.layers) {
-        auto key = layer.layerPath.length ? layer.layerPath : layer.id;
-        if (key.length == 0) continue;
-        if (!layer.visible) settings.hiddenComposedLayerPaths[key] = true;
-        if (!layer.enabled) settings.disabledComposedLayerPaths[key] = true;
-        PsdDepthLayerTransform transform;
-        if (auto existing = key in settings.layerTransforms) transform = *existing;
-        transform.zOffset = layer.depthOffset;
-        transform.zScale = layer.depthScale;
-        settings.layerTransforms[key] = transform;
-        if (layer.puppetBindingOverride.length) {
-            settings.layerTargetGridUuidOverrides[key] = layer.puppetBindingOverride;
-        } else if (layer.targetGridUuid != 0) {
-            settings.layerTargetGridUuidOverrides[key] = layer.targetGridUuid.to!string;
-        }
-    }
-    return settings;
+    ngPsdDepthRefreshDerivedState(result);
 }
 
 private void addCompositionDiagnostic(
@@ -644,7 +591,7 @@ private void validateCompositionDimensions(ref PsdDepthImportResult result, stri
         result.depthSource.width == result.compositionWidth &&
         result.depthSource.height == result.compositionHeight,
         "Color and depth source dimensions must match for " ~ context);
-    ngPsdDepthSyncComposedSource(result);
+    ngPsdDepthRefreshDerivedState(result);
 }
 
 PsdDepthComposedSource ngPsdDepthComposedSourceFromImportResult(ref PsdDepthImportResult result) {
@@ -655,10 +602,11 @@ PsdDepthComposedSource ngPsdDepthComposedSourceFromImportResult(ref PsdDepthImpo
     source.height = result.compositionHeight;
     source.globalDepthScale = result.globalDepthScale;
     source.globalDepthCentroid = result.globalDepthCentroid;
-    source.colorSource = result.colorSource;
-    source.depthSource = result.depthSource;
-    source.layers = result.composedLayers;
-    source.diagnostics = result.compositionDiagnostics;
+    source.colorSource = cloneCompositeSource(result.colorSource);
+    source.depthSource = cloneCompositeSource(result.depthSource);
+    source.layers.length = result.composedLayers.length;
+    foreach (i, layer; result.composedLayers) source.layers[i] = cloneComposedLayer(layer);
+    source.diagnostics = result.compositionDiagnostics.dup;
     return source;
 }
 
@@ -685,9 +633,8 @@ private float computeGlobalDepthCentroid(PsdDepthComposedLayer[] layers) {
     return count > 0 ? cast(float)(sum / cast(double)count) : 0.0f;
 }
 
-void ngPsdDepthSyncComposedSource(ref PsdDepthImportResult result) {
+void ngPsdDepthRefreshDerivedState(ref PsdDepthImportResult result) {
     result.globalDepthCentroid = computeGlobalDepthCentroid(result.composedLayers);
-    result.composedSource = ngPsdDepthComposedSourceFromImportResult(result);
 }
 
 private void applySingleLayerReplacementFallback(ref PsdDepthImportResult result, ref PsdDepthImportResult previous) {
@@ -698,13 +645,7 @@ private void applySingleLayerReplacementFallback(ref PsdDepthImportResult result
         result.composedLayers[0].targetGridName = previous.composedLayers[0].targetGridName;
         result.composedLayers[0].puppetBindingOverride = previous.composedLayers[0].puppetBindingOverride;
     }
-    if (result.layerPreviews.length == 1) {
-        result.layerPreviews[0].visible = result.composedLayers[0].visible;
-        result.layerPreviews[0].enabled = result.composedLayers[0].enabled;
-        result.layerPreviews[0].transform.zOffset = result.composedLayers[0].depthOffset;
-        result.layerPreviews[0].transform.zScale = result.composedLayers[0].depthScale;
-    }
-    ngPsdDepthSyncComposedSource(result);
+    ngPsdDepthRefreshDerivedState(result);
 }
 
 private PsdDepthCompositeSourceLayer makeCompositeSourceLayer(
@@ -878,7 +819,7 @@ private void loadPsdCompositeSourceLayers(
             layer.top,
             layer.width,
             layer.height,
-            layer.isVisible,
+            psdLayerVisible(layer),
             true,
             countAcceptedAlphaPixels(layer.data, opacity)
         );
@@ -948,10 +889,17 @@ private void addComposedLayer(
     layer.top = image.top;
     layer.width = image.width;
     layer.height = image.height;
-    layer.visible = visible && ngPsdDepthComposedLayerVisible(settings, image.layerPath);
-    layer.enabled = enabled && ngPsdDepthComposedLayerEnabled(settings, image.layerPath);
-    layer.depthOffset = image.transform.zOffset;
-    layer.depthScale = image.transform.zScale;
+    layer.visible = visible;
+    layer.enabled = enabled;
+    layer.invert = false;
+    layer.depthOffset = 0.0f;
+    layer.depthScale = 1.0f;
+    layer.backDepth = settings.backDepth;
+    layer.frontDepth = settings.frontDepth;
+    layer.sourceDepthScale = settings.depthScale;
+    layer.alphaThreshold = settings.alphaThreshold;
+    layer.customRadius = settings.customRadius;
+    layer.convolution = settings.convolution;
     layer.depthStats = computeLayerDepthStats(image, settings);
     if (target !is null) {
         layer.targetGridUuid = target.uuid;
@@ -959,8 +907,10 @@ private void addComposedLayer(
         layer.puppetBindingOverride = target.uuid.to!string;
     }
     auto surfacePreview = buildColorLayerPreviewRgba(image);
+    layer.colorRgba = surfacePreview.rgba;
     layer.depthRgba = buildDepthMaskPreviewFromSurface(image, settings, surfacePreview.rgba);
     layer.maskRgba = layer.depthRgba.dup;
+    layer.coverageMaskRgba = image.coverageData.length ? image.coverageData.dup : image.data.dup;
     result.composedLayers ~= layer;
     result.composedLayerCount = result.composedLayers.length;
 }
@@ -1064,31 +1014,12 @@ private float pixelDepth(const(ubyte)[] data, size_t index, ref PsdDepthImportSe
     );
 }
 
-PsdDepthLayerTransform ngPsdDepthLayerTransform(ref PsdDepthImportSettings settings, string layerPath) {
-    if (auto transform = layerPath in settings.layerTransforms) return *transform;
-    return PsdDepthLayerTransform();
-}
-
-private PsdDepthImportSettings layerSampleSettings(ref PsdDepthImportSettings settings, ref DepthLayerImage layer) {
-    auto result = settings;
-    if (layer.transform.invert) result.invert = !result.invert;
-    return result;
-}
-
-private float applyLayerZTransform(float depth, ref DepthLayerImage layer) {
-    return depth * layer.transform.zScale + layer.transform.zOffset;
-}
-
 private float layerToSourceX(ref DepthLayerImage layer, float documentX) {
-    auto scale = layer.transform.xyScaleX;
-    if (scale == 0.0f) scale = 1.0f;
-    return (documentX - cast(float)layer.left - layer.transform.xyOffsetX) / scale;
+    return documentX - cast(float)layer.left;
 }
 
 private float layerToSourceY(ref DepthLayerImage layer, float documentY) {
-    auto scale = layer.transform.xyScaleY;
-    if (scale == 0.0f) scale = 1.0f;
-    return (documentY - cast(float)layer.top - layer.transform.xyOffsetY) / scale;
+    return documentY - cast(float)layer.top;
 }
 
 private float sampledDepth01(float value, ref PsdDepthImportSettings settings) {
@@ -1114,6 +1045,7 @@ private bool coverageReliable(ref DepthLayerImage layer, int x, int y) {
     auto cached = coverageCacheValue(layer.coverageGateCache, layer, x, y);
     if (cached >= 0.0f) return cached > 0.5f;
     if (layer.coverageSources.length > 0) return coverageSourcesAlpha(layer, x, y, false) > 0.5f;
+    if (layer.coverageData.length == 0) return true;
     if (layer.coverageUsesMesh) return layer.coverageData.length == 0 || coveragePixelAlpha(layer, x, y) > 0.5f;
     return ngDepthImageCoverageReliableAt(
         x,
@@ -1670,9 +1602,12 @@ private void applyDepthDrawLayerDepthCleanup(ref DepthLayerImage layer) {
 
     auto contourBand = ngDepthDrawBuildLayerContourBandMask(mask, layer.width, layer.height, 2);
     auto contourSeed = depth.dup;
+    size_t remainingSeedPixels;
     foreach (i, value; contourBand) {
         if (value) contourSeed[i] = 0;
+        else if (mask[i] && contourSeed[i] > 0) remainingSeedPixels++;
     }
+    if (remainingSeedPixels == 0) return;
     auto repaired = ngDepthDrawInpaintMaskedLayerDepth(contourSeed, mask, layer.width, layer.height);
     foreach (i, value; repaired.pixels) {
         auto offset = i * 4;
@@ -1767,6 +1702,15 @@ private void setLayerDepthFromDepthDrawPixels(ref DepthLayerImage image, const(u
     }
 }
 
+private bool hasVisibleDepthDrawPixels(const(ubyte)[] depthPixels, const(ubyte)[] alphaMask = null) {
+    foreach (i, value; depthPixels) {
+        if (value == 0) continue;
+        if (alphaMask.length && (i >= alphaMask.length || alphaMask[i] == 0)) continue;
+        return true;
+    }
+    return false;
+}
+
 private void seedLayerDepthFromDepthDrawSplit(
     ref DepthLayerImage image,
     DepthDrawSplitLayer splitLayer,
@@ -1806,7 +1750,11 @@ private void seedLayerDepthFromDepthDrawSplit(
         splitLayer.maskPixels,
         24.0
     );
-    setLayerDepthFromDepthDrawPixels(image, pruned.pixels, splitLayer.maskPixels);
+    if (hasVisibleDepthDrawPixels(pruned.pixels, splitLayer.maskPixels)) {
+        setLayerDepthFromDepthDrawPixels(image, pruned.pixels, splitLayer.maskPixels);
+    } else if (hasVisibleDepthDrawPixels(seeded, splitLayer.maskPixels)) {
+        setLayerDepthFromDepthDrawPixels(image, seeded, splitLayer.maskPixels);
+    }
 }
 
 private float sampleCoverageAlphaAtUv(ref DepthLayerImage layer, vec2 uv) {
@@ -1841,7 +1789,7 @@ private bool acceptsDepthPixel(ref DepthLayerImage layer, size_t index, int x, i
     if (!coverageReliable(layer, x, y)) return false;
     if (!ngDepthSampleAcceptsAlpha(surfaceAlpha(layer, index, x, y), settings.alphaThreshold)) return false;
     if (settings.zeroDepthIsMissing) {
-        auto sampleSettings = layerSampleSettings(settings, layer);
+        auto sampleSettings = settings;
         if (pixelDepth01(layer.data, index, sampleSettings) <= 0.0f) return false;
     }
     return true;
@@ -1869,7 +1817,7 @@ private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] la
                 bool hasUpper;
                 auto globalX = lower.left + x;
                 auto globalY = lower.top + y;
-                foreach (upperIndex, ref upper; layers) {
+                    foreach (upperIndex, ref upper; layers) {
                     if (upperIndex == lowerIndex) continue;
                     auto upperZ = depthLayerZSort(upper);
                     if (upperZ > lowerZ || (upperZ == lowerZ && upperIndex <= lowerIndex)) continue;
@@ -1887,8 +1835,7 @@ private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] la
                             if (upperX < 0 || upperX >= upper.width) continue;
                             auto upperIndex4 = (cast(size_t)upperY * cast(size_t)upper.width + cast(size_t)upperX) * 4;
                             if (upperIndex4 + 3 >= upper.data.length) continue;
-                            if (upper.data[upperIndex4] > 0 &&
-                                upper.data[upperIndex4 + 3] > 0 &&
+                            if (ngDepthSampleAcceptsAlpha(coverageAlpha(upper, upperX, upperY), 0.0f) &&
                                 coverageReliable(upper, upperX, upperY)) {
                                 hasUpper = true;
                                 break;
@@ -1921,7 +1868,7 @@ private ubyte[] buildDepthMaskPreview(ref DepthLayerImage layer, ref PsdDepthImp
                 result[index + 3] = 0;
                 continue;
             }
-            auto sampleSettings = layerSampleSettings(settings, layer);
+            auto sampleSettings = settings;
             auto gray = cast(ubyte)round(pixelDepth01(layer.data, index, sampleSettings) * 255.0f);
             result[index + 0] = gray;
             result[index + 1] = gray;
@@ -1940,7 +1887,7 @@ private ubyte[] buildDepthMaskPreviewFromSurface(
     ubyte[] result;
     auto pixels = cast(size_t)max(0, layer.width * layer.height);
     result.length = pixels * 4;
-    auto sampleSettings = layerSampleSettings(settings, layer);
+    auto sampleSettings = settings;
     for (int y = 0; y < layer.height; y++) {
         for (int x = 0; x < layer.width; x++) {
             auto index = (cast(size_t)y * cast(size_t)layer.width + cast(size_t)x) * 4;
@@ -2073,7 +2020,6 @@ private void compositeFlatDepthByCoverageSources(
     }
 
     image.data = result;
-    image.flippedDepthRgba = null;
 }
 
 private PsdDepthLayerDepthStats computeLayerDepthStats(ref DepthLayerImage layer, ref PsdDepthImportSettings settings) {
@@ -2091,7 +2037,7 @@ private PsdDepthLayerDepthStats computeLayerDepthStats(ref DepthLayerImage layer
                 continue;
             }
 
-            auto sampleSettings = layerSampleSettings(settings, layer);
+            auto sampleSettings = settings;
             auto depth01 = pixelDepth01(layer.data, index, sampleSettings);
             stats.maskedPixels++;
             if (depth01 <= 0.0f) stats.zeroPixels++;
@@ -2124,8 +2070,8 @@ private DepthSample samplePixel(ref DepthLayerImage layer, int x, int y, ref Psd
     auto index = (cast(size_t)y * cast(size_t)layer.width + cast(size_t)x) * 4;
     if (!acceptsDepthPixel(layer, index, x, y, settings)) return DepthSample(false, 0, 0);
     auto alpha = surfaceAlpha(layer, index, x, y);
-    auto sampleSettings = layerSampleSettings(settings, layer);
-    return DepthSample(true, applyLayerZTransform(pixelDepth(layer.data, index, sampleSettings), layer), alpha);
+    auto sampleSettings = settings;
+    return DepthSample(true, pixelDepth(layer.data, index, sampleSettings), alpha);
 }
 
 private DepthSample aggregateToDepthSample(DepthSampleAggregate aggregate) {
@@ -2325,6 +2271,7 @@ private size_t findAccum(ref GridAccum[] accums, Deformable grid) {
     GridAccum accum;
     accum.grid = grid;
     accum.best.length = vertices.length;
+    accum.baseBest.length = vertices.length;
     accum.has.length = vertices.length;
     accum.winnerLayerPaths.length = vertices.length;
     accums ~= accum;
@@ -2450,19 +2397,7 @@ bool ngPsdDepthGridEnabled(ref PsdDepthImportSettings settings, ulong gridUuid) 
     return true;
 }
 
-bool ngPsdDepthComposedLayerVisible(ref PsdDepthImportSettings settings, string layerPath) {
-    if (auto hidden = layerPath in settings.hiddenComposedLayerPaths) return !*hidden;
-    return true;
-}
-
-bool ngPsdDepthComposedLayerEnabled(ref PsdDepthImportSettings settings, string layerPath) {
-    if (!ngPsdDepthComposedLayerVisible(settings, layerPath)) return false;
-    if (auto disabled = layerPath in settings.disabledComposedLayerPaths) return !*disabled;
-    return true;
-}
-
 bool ngPsdDepthGridLayerEnabled(ref PsdDepthImportSettings settings, ulong gridUuid, string layerPath) {
-    if (!ngPsdDepthComposedLayerEnabled(settings, layerPath)) return false;
     auto key = ngPsdDepthGridLayerKey(gridUuid, layerPath);
     if (auto disabled = key in settings.disabledGridLayerKeys) return !*disabled;
     return true;
@@ -2577,6 +2512,8 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
 
     result.grid = accum.grid;
     result.depths.length = accum.best.length;
+    result.baseDepths.length = accum.best.length;
+    result.winnerLayerPaths.length = accum.best.length;
     result.missingVertexMask.length = accum.best.length;
     result.layerMasks = accum.layerMasks.dup;
     if (!ngPsdDepthGridEnabled(settings, accum.grid.uuid)) {
@@ -2598,6 +2535,8 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
     foreach (i; 0 .. accum.best.length) {
         if (accum.has[i]) {
             result.depths[i] = accum.best[i];
+            result.baseDepths[i] = accum.baseBest[i];
+            result.winnerLayerPaths[i] = accum.winnerLayerPaths[i];
             result.missingVertexMask[i] = false;
             result.sampledVertices++;
             if (!hasMinMax || result.depths[i] < result.minDepth) result.minDepth = result.depths[i];
@@ -2701,8 +2640,8 @@ private void buildCompositePreview(
                 auto index = (cast(size_t)layerY * cast(size_t)layer.width + cast(size_t)layerX) * 4;
                 auto rawAlpha = surfaceAlpha(layer, index, layerX, layerY);
                 if (ngDepthSampleAcceptsAlpha(rawAlpha, settings.alphaThreshold)) {
-                    auto sampleSettings = layerSampleSettings(settings, layer);
-                    auto rawDepth = applyLayerZTransform(pixelDepth(layer.data, index, sampleSettings), layer);
+                    auto sampleSettings = settings;
+                    auto rawDepth = pixelDepth(layer.data, index, sampleSettings);
                     if (!hasRawSample || rawDepth > rawBestDepth) {
                         hasRawSample = true;
                         rawBestDepth = rawDepth;
@@ -2713,8 +2652,8 @@ private void buildCompositePreview(
                 if (!coverageReliable(layer, layerX, layerY)) continue;
                 auto alpha = surfaceAlpha(layer, index, layerX, layerY);
                 if (!ngDepthSampleAcceptsAlpha(alpha, settings.alphaThreshold)) continue;
-                auto sampleSettings = layerSampleSettings(settings, layer);
-                auto depth = applyLayerZTransform(pixelDepth(layer.data, index, sampleSettings), layer);
+                auto sampleSettings = settings;
+                auto depth = pixelDepth(layer.data, index, sampleSettings);
                 if (!hasSample || depth > bestDepth) {
                     hasSample = true;
                     bestDepth = depth;
@@ -2863,7 +2802,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 image.coverageOpacity = 1.0f;
                 image.coverageData = flatColorTexture.data.dup;
             }
-            image.transform = ngPsdDepthLayerTransform(settings, layerPath);
             auto depthSourceLayer = makeCompositeSourceLayer(
                 layerPath,
                 layer.name,
@@ -2871,7 +2809,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 layer.top,
                 layer.width,
                 layer.height,
-                layer.isVisible,
+                psdLayerVisible(layer),
                 true,
                 computeLayerDepthStats(image, settings).maskedPixels
             );
@@ -2888,8 +2826,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 mapping.status = "Ignored";
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, layer.isVisible, false);
-                    result.layerPreviews ~= buildLayerPreview(path, image, settings, layer.isVisible, false);
+                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), false);
                 }
                 addCompositionDiagnostic(result, "ignored-depth-layer",
                     "Depth layer is ignored by user setting.", layerPath, layer.name);
@@ -2906,8 +2843,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, layer.isVisible, true);
-                    result.layerPreviews ~= buildLayerPreview(path, image, settings, layer.isVisible, true);
+                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), true);
                 }
                 addCompositionDiagnostic(result, "missing-manual-target",
                     "Manual target binding points to a missing GridDeformer or PathDeformer.", layerPath, layer.name);
@@ -2929,8 +2865,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, layer.isVisible, true);
-                    result.layerPreviews ~= buildLayerPreview(path, image, settings, layer.isVisible, true);
+                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), true);
                 }
                 addCompositionDiagnostic(result, "unused-depth-layer",
                     "Depth layer did not match any color/target layer.", layerPath, layer.name);
@@ -2959,8 +2894,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, layer.isVisible, true);
-                    result.layerPreviews ~= buildLayerPreview(path, image, settings, layer.isVisible, true);
+                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), true);
                 }
                 addCompositionDiagnostic(result, "unused-depth-layer",
                     "Depth layer matched a node that is not inside a depth target.", layerPath, layer.name);
@@ -2980,10 +2914,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         image.grid = grid;
         attachMatchedCoverage(image, puppet, matchedNode, grid);
         buildCoverageCache(image);
-        addComposedLayer(result, path, image, settings, layer.isVisible,
+        addComposedLayer(result, path, image, settings, psdLayerVisible(layer),
             ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath), grid);
-        result.layerPreviews ~= buildLayerPreview(path, image, settings, layer.isVisible,
-            ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath));
 
         layers ~= image;
         layer.data = null;
@@ -3006,6 +2938,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
             if (!accums[accumIndex].has[i] || sample.value > accums[accumIndex].best[i]) {
                 accums[accumIndex].has[i] = true;
                 accums[accumIndex].best[i] = sample.value;
+                accums[accumIndex].baseBest[i] = sample.value;
                 accums[accumIndex].winnerLayerPaths[i] = layer.layerPath;
             }
         }
@@ -3129,52 +3062,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     return result;
 }
 
-private PsdDepthLayerPreview buildLayerPreview(
-    string sourcePath,
-    ref DepthLayerImage image,
-    ref PsdDepthImportSettings settings,
-    bool visible,
-    bool enabled
-) {
-    PsdDepthLayerPreview layerPreview;
-    layerPreview.id = image.layerPath;
-    layerPreview.sourcePath = sourcePath;
-    layerPreview.layerPath = image.layerPath;
-    layerPreview.layerName = image.layerName;
-    layerPreview.documentWidth = image.documentWidth;
-    layerPreview.documentHeight = image.documentHeight;
-    layerPreview.left = image.left;
-    layerPreview.top = image.top;
-    layerPreview.width = image.width;
-    layerPreview.height = image.height;
-    layerPreview.originalWidth = image.width;
-    layerPreview.originalHeight = image.height;
-    layerPreview.visible = visible && ngPsdDepthComposedLayerVisible(settings, image.layerPath);
-    layerPreview.enabled = enabled && ngPsdDepthComposedLayerEnabled(settings, image.layerPath);
-    layerPreview.opacity = image.opacity;
-    layerPreview.transform = image.transform;
-    layerPreview.invert = settings.invert;
-    layerPreview.backDepth = settings.backDepth;
-    layerPreview.frontDepth = settings.frontDepth;
-    layerPreview.depthScale = settings.depthScale;
-    layerPreview.alphaThreshold = settings.alphaThreshold;
-    layerPreview.customRadius = settings.customRadius;
-    layerPreview.convolution = settings.convolution;
-    layerPreview.channel = settings.channel;
-    auto originalPreview = buildColorLayerPreviewRgba(image);
-    layerPreview.originalRgba = originalPreview.rgba;
-    layerPreview.originalWidth = originalPreview.width;
-    layerPreview.originalHeight = originalPreview.height;
-    layerPreview.depthRgba = image.data.dup;
-    layerPreview.depthMaskRgba = buildDepthMaskPreviewFromSurface(image, settings, originalPreview.rgba);
-    layerPreview.coverageMaskRgba = image.coverageData.length ? image.coverageData.dup : image.data.dup;
-    layerPreview.flippedDepthRgba = image.flippedDepthRgba.dup;
-    layerPreview.yFlippedDepthRgba = image.yFlippedDepthRgba.dup;
-    layerPreview.normalArtCoverageSources = image.coverageSources.length;
-    layerPreview.depthStats = computeLayerDepthStats(image, settings);
-    return layerPreview;
-}
-
 PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDepthImportSettings settings) {
     enforce(puppet !is null && puppet.root !is null, "No active puppet");
     enforce(path.length > 0, "Path not provided");
@@ -3229,9 +3116,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         0
     );
     auto normalizedFlatDepthRgba = normalizeFlatDepthRgba(texture.data, texture.width, texture.height, texture.channels);
-    result.depthSourceReferenceRgba = normalizedFlatDepthRgba.dup;
-    result.depthSourceReferenceWidth = texture.width;
-    result.depthSourceReferenceHeight = texture.height;
     setCompositeSourceLayerPixels(pngDepthSourceLayer, normalizedFlatDepthRgba);
     result.depthSource.layers ~= pngDepthSourceLayer;
     result.colorSource.kind = hasPsdColorSource ? PsdDepthCompositeSourceKind.PsdLayers :
@@ -3292,7 +3176,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             image.coverageOpacity = 1.0f;
             image.coverageData = flatColorTexture.data.dup;
         }
-        image.transform = ngPsdDepthLayerTransform(settings, image.layerPath);
         return image;
     }
 
@@ -3306,7 +3189,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             result.mappings ~= mapping;
             auto image = basePngImage();
             addComposedLayer(result, path, image, settings, true, false);
-            result.layerPreviews ~= buildLayerPreview(path, image, settings, true, false);
             return finishResult();
         }
     }
@@ -3355,8 +3237,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         }
         addComposedLayer(result, path, image, settings, true,
             ngPsdDepthGridLayerEnabled(settings, target.uuid, image.layerPath), target);
-        result.layerPreviews ~= buildLayerPreview(path, image, settings, true,
-            ngPsdDepthGridLayerEnabled(settings, target.uuid, image.layerPath));
 
         layers ~= image;
     }
@@ -3406,33 +3286,11 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             flippedCropOverlap += depthSurfaceOverlap(flippedCrop, surfacePreview.rgba);
         }
         auto splitDepthRgba = flippedCropOverlap > normalCropOverlap ? yFlippedFlatDepthRgba : normalizedFlatDepthRgba;
-        result.depthSourceReferenceRgba = splitDepthRgba.dup;
-        result.depthSourceReferenceWidth = texture.width;
-        result.depthSourceReferenceHeight = texture.height;
-        result.depthSourceReferenceYFlipped = flippedCropOverlap > normalCropOverlap;
         auto stableDepthPixels = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(splitDepthRgba);
         auto visibleLayerMap = ngDepthDrawBuildVisibleLayerMap(texture.width, texture.height, splitLayers);
         int splitIndex;
         foreach (ref binding; bindings) {
             if (binding.image.width <= 0 || binding.image.height <= 0) continue;
-            binding.image.flippedDepthRgba = sampleDepthToSurfaceLayer(
-                normalizedFlatDepthRgba,
-                texture.width,
-                texture.height,
-                binding.image.left,
-                binding.image.top,
-                binding.image.width,
-                binding.image.height
-            );
-            binding.image.yFlippedDepthRgba = sampleDepthToSurfaceLayer(
-                yFlippedFlatDepthRgba,
-                texture.width,
-                texture.height,
-                binding.image.left,
-                binding.image.top,
-                binding.image.width,
-                binding.image.height
-            );
             auto splitLayer = depthDrawSplitLayerFromDepthLayerImage(binding.image);
             seedLayerDepthFromDepthDrawSplit(
                 binding.image,
@@ -3470,6 +3328,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 if (!accums[accumIndex].has[i] || sample.value > accums[accumIndex].best[i]) {
                     accums[accumIndex].has[i] = true;
                     accums[accumIndex].best[i] = sample.value;
+                    accums[accumIndex].baseBest[i] = sample.value;
                     accums[accumIndex].winnerLayerPaths[i] = layer.layerPath;
                 }
             }
@@ -3597,7 +3456,12 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
 
         DepthLayerImage[] composedImages;
         foreach (binding; bindings) composedImages ~= binding.image;
-        suppressLowerLayerDepthNearUpperCoverage(composedImages);
+        auto suppressed = suppressLowerLayerDepthNearUpperCoverage(composedImages);
+        if (suppressed > 0) {
+            addCompositionDiagnostic(result, "upper-layer-suppression",
+                "N:1 composition suppressed lower-layer depth under upper color/art coverage.",
+                null, null, suppressed);
+        }
         DepthLayerImage[] layers;
         foreach (i, ref binding; bindings) {
             binding.image = composedImages[i];
@@ -3629,7 +3493,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         image.coverageChannels = 4;
         image.coverageOpacity = sourceLayer.opacity;
         image.coverageData = sourceLayer.rgba.dup;
-        image.transform = ngPsdDepthLayerTransform(settings, image.layerPath);
         return image;
     }
 
@@ -3675,7 +3538,12 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 "PSD color source has no visible pixel layers.", settings.colorSourcePath, null);
             return false;
         }
-        suppressLowerLayerDepthNearUpperCoverage(composedImages);
+        auto suppressed = suppressLowerLayerDepthNearUpperCoverage(composedImages);
+        if (suppressed > 0) {
+            addCompositionDiagnostic(result, "upper-layer-suppression",
+                "N:1 composition suppressed lower-layer depth under upper color/art coverage.",
+                null, null, suppressed);
+        }
 
         DepthLayerImage[] layers;
         foreach (ref image; composedImages) {
@@ -3715,7 +3583,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                     "PSD color/depth N:1 composed layer has no matching target binding.",
                     image.layerPath, image.layerName);
                 addComposedLayer(result, path, image, settings, true, true);
-                result.layerPreviews ~= buildLayerPreview(path, image, settings, true, true);
             }
         }
         addMappedPngGridResults(layers);
@@ -3738,7 +3605,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 "Manual target binding points to a missing GridDeformer or PathDeformer.", layerPath, layerName);
             auto image = basePngImage();
             addComposedLayer(result, path, image, settings, true, true);
-            result.layerPreviews ~= buildLayerPreview(path, image, settings, true, true);
             return finishResult();
         }
         matchedNode = grid;
@@ -3770,7 +3636,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                     "Depth source matched a node that is not inside a depth target.", layerPath, layerName);
                 auto image = basePngImage();
                 addComposedLayer(result, path, image, settings, true, true);
-                result.layerPreviews ~= buildLayerPreview(path, image, settings, true, true);
                 return finishResult();
             }
             addDirectMatchedPngTarget(grid, matchedNode, mapping.ambiguous ? "Ambiguous" : "Matched", false);
@@ -3796,7 +3661,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             }
             auto image = basePngImage();
             addComposedLayer(result, path, image, settings, true, true);
-            result.layerPreviews ~= buildLayerPreview(path, image, settings, true, true);
         }
         return finishResult();
     }
@@ -3815,16 +3679,15 @@ PsdDepthImportResult ngPsdDepthReplaceDepthSource(
     PsdDepthImportSettings settings
 ) {
     enforce(depthSourcePath.length > 0, "Replacement depth source path is required");
-    auto previousColorPath = previous.composedSource.colorSource.sourcePath.length ?
-        previous.composedSource.colorSource.sourcePath : previous.colorSource.sourcePath;
+    auto previousColorPath = previous.colorSource.sourcePath;
     if (settings.colorSourcePath.length == 0 && previousColorPath.length > 0) {
         settings.colorSourcePath = previousColorPath;
     }
-    if (previous.composedSource.layers.length == 1 && previous.composedSource.layers[0].targetGridUuid != 0) {
+    if (previous.composedLayers.length == 1 && previous.composedLayers[0].targetGridUuid != 0) {
         auto replacementLayerPath = "/" ~ depthSourcePath.baseName.stripExtension;
         if (!(replacementLayerPath in settings.layerTargetGridUuidOverrides)) {
             settings.layerTargetGridUuidOverrides[replacementLayerPath] =
-                previous.composedSource.layers[0].targetGridUuid.to!string;
+                previous.composedLayers[0].targetGridUuid.to!string;
         }
     }
     auto result = ngBuildPsdDepthsFromSource(puppet, depthSourcePath, settings);
@@ -3840,8 +3703,7 @@ PsdDepthImportResult ngPsdDepthReplaceColorSource(
     PsdDepthImportSettings settings
 ) {
     enforce(colorSourcePath.length > 0, "Replacement color source path is required");
-    auto previousDepthPath = previous.composedSource.depthSource.sourcePath.length ?
-        previous.composedSource.depthSource.sourcePath : previous.depthSource.sourcePath;
+    auto previousDepthPath = previous.depthSource.sourcePath;
     enforce(previousDepthPath.length > 0, "Previous depth source path is required");
     settings.colorSourcePath = colorSourcePath;
     auto result = ngBuildPsdDepthsFromSource(puppet, previousDepthPath, settings);

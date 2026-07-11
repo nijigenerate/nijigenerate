@@ -1,7 +1,7 @@
 module nijigenerate.commands.depth.bone;
 
 import nijigenerate.commands.base;
-import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult,
+import nijigenerate.commands.depth.bone_gpu_async : DepthBoneGpuDispatchPacket, NgDepthBoneGpuAsyncResult,
     ngDepthBoneGpuAsyncMissingRequirements, ngDepthBoneGpuAsyncSupported, ngPendingDepthBoneGpuAsyncJobCount,
     ngPollDepthBoneGpuAsync, ngSubmitDepthBoneGpuAsync;
 import nijigenerate.actions;
@@ -19,17 +19,15 @@ import nijilive.core.nodes.deformable : Deformable;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import nijilive.core.nodes.deformer.path : PathDeformer;
 import nijilive.core.param.binding : DeformationParameterBinding, ParameterBinding, ValueParameterBinding;
-import nijilive.core.render.commands : DepthBoneGpuDispatchPacket;
 import nijilive.math;
 import i18n;
 
 import std.algorithm.comparison : max, min;
-import std.algorithm.sorting : sort;
 import std.algorithm.searching : countUntil;
 import std.array : join;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
-import std.math : abs, exp, isFinite, sqrt;
+import std.math : abs, isFinite, sqrt;
 import std.conv : to;
 import std.string : format, split, startsWith;
 
@@ -40,7 +38,6 @@ enum DepthBoneGpuMaxBones = 64u;
 enum DepthBoneGpuMaxSources = 128u;
 enum DepthBoneGpuMaxInfluences = 8u;
 enum DepthBoneGpuMaxVertices = 1_000_000u;
-private size_t depthBoneCpuReferenceCallCount;
 
 private void depthBoneDebugLog(Args...)(const(char)[] fmt, Args args) {
     static if (EnableDepthBoneDebugLog) {
@@ -147,30 +144,6 @@ private float jsonNumber(JSONValue value, float fallback) {
         case JSONType.array:
             return fallback;
     }
-}
-
-private float distanceSqPointSegment(vec3 p, vec3 a, vec3 b) {
-    auto ab = b - a;
-    auto ap = p - a;
-    auto lenSq = ab.x * ab.x + ab.y * ab.y + ab.z * ab.z;
-    if (lenSq <= 1e-8f) {
-        auto d = p - a;
-        return d.x * d.x + d.y * d.y + d.z * d.z;
-    }
-    auto t = (ap.x * ab.x + ap.y * ab.y + ap.z * ab.z) / lenSq;
-    if (t < 0) t = 0;
-    if (t > 1) t = 1;
-    auto c = a + ab * t;
-    auto d = p - c;
-    return d.x * d.x + d.y * d.y + d.z * d.z;
-}
-
-private float pointSegmentProjection(vec3 p, vec3 a, vec3 b) {
-    auto ab = b - a;
-    auto ap = p - a;
-    auto lenSq = dotVec(ab, ab);
-    if (lenSq <= 1e-8f) return 0.0f;
-    return dotVec(ap, ab) / lenSq;
 }
 
 private float segmentLength(vec3 a, vec3 b) {
@@ -604,80 +577,6 @@ bool ngFitDepthRigNodeTranslationZToCurrentDepth(Node node) {
     return false;
 }
 
-private void logDepthBoneDepthInput(Node targetNode, Deformable target) {
-    auto mapped = cast(DepthMappedNode)targetNode;
-    if (mapped is null) {
-        depthBoneDebugLog("[DepthBone] %s: depth input skipped: target is not DepthMappedNode",
-            targetNode is null ? "(null)" : targetNode.name);
-        return;
-    }
-
-    auto depths = mapped.copyDepths();
-    if (depths is null) {
-        depthBoneDebugLog("[DepthBone] %s: depth input: depths=null vertices=%s",
-            targetNode is null ? "(null)" : targetNode.name,
-            target is null ? 0 : target.vertices.length);
-        return;
-    }
-
-    size_t nonZero;
-    float minDepth = depths.length ? depths[0] : 0;
-    float maxDepth = depths.length ? depths[0] : 0;
-    ptrdiff_t firstNonZero = -1;
-    foreach (i, value; depths) {
-        if (value < minDepth) minDepth = value;
-        if (value > maxDepth) maxDepth = value;
-        if (value < -0.000001f || value > 0.000001f) {
-            nonZero++;
-            if (firstNonZero < 0) firstNonZero = cast(ptrdiff_t)i;
-        }
-    }
-
-    vec2 boundsMin;
-    vec2 boundsMax;
-    vec2 boundsSize;
-    float rawScale;
-    float scale;
-    depthScaleDetails(target, boundsMin, boundsMax, boundsSize, rawScale, scale);
-
-    depthBoneDebugLog("[DepthBone] %s: depth input: depths=%s vertices=%s nonZero=%s min=%s max=%s firstNonZero=%s boundsMin=(%s,%s) boundsMax=(%s,%s) boundsSize=(%s,%s) rawScale=%s scale=%s",
-        targetNode is null ? "(null)" : targetNode.name,
-        depths.length,
-        target is null ? 0 : target.vertices.length,
-        nonZero,
-        minDepth,
-        maxDepth,
-        firstNonZero,
-        boundsMin.x,
-        boundsMin.y,
-        boundsMax.x,
-        boundsMax.y,
-        boundsSize.x,
-        boundsSize.y,
-        rawScale,
-        scale);
-
-    if (target !is null && target.vertices.length > 0) {
-        size_t[] samples;
-        samples ~= 0;
-        samples ~= target.vertices.length / 2;
-        samples ~= target.vertices.length - 1;
-        if (firstNonZero >= 0) samples ~= cast(size_t)firstNonZero;
-        foreach (sample; samples) {
-            if (sample >= target.vertices.length) continue;
-            auto vertex = target.vertices[sample];
-            auto depth = sample < depths.length ? depths[sample] : 0.0f;
-            depthBoneDebugLog("[DepthBone] %s: depth sample[%s]: vertex=(%s,%s) depth=%s scaledZ=%s",
-                targetNode is null ? "(null)" : targetNode.name,
-                sample,
-                vertex.x,
-                vertex.y,
-                depth,
-                -depth * scale);
-        }
-    }
-}
-
 private quat depthEditRotation(float pitch, float yaw, float roll) {
     return quat.eulerRotation(-pitch, -yaw, roll);
 }
@@ -885,18 +784,6 @@ private void appendMat4(ref float[] values, mat4 value) {
     foreach (i; 0 .. 16) values ~= value.ptr[i];
 }
 
-Vec2Array ngGenerateDepthBoneOffsetsCpu(ExDepthRigRoot root, ExDepthRigBinding* binding, Deformable target, Parameter param = null, vec2u cursor = vec2u.init) {
-    return generateDepthBoneOffsets(root, binding, target, param, cursor);
-}
-
-void ngResetDepthBoneCpuReferenceCallCount() {
-    depthBoneCpuReferenceCallCount = 0;
-}
-
-size_t ngDepthBoneCpuReferenceCallCount() {
-    return depthBoneCpuReferenceCallCount;
-}
-
 bool ngDepthBoneGpuSupported() {
     return ngDepthBoneGpuAsyncSupported();
 }
@@ -905,12 +792,6 @@ string ngDepthBoneGpuSupportDiagnostic() {
     if (ngDepthBoneGpuAsyncSupported()) return "Depth bone GPU async deformation is supported";
     auto missing = ngDepthBoneGpuAsyncMissingRequirements();
     return "Depth bone GPU async deformation is unavailable; missing: " ~ missing.join(", ");
-}
-
-private void noteDepthBoneCpuCompatibilityFallback() {
-    if (depthBoneCpuCompatibilityFallbackNotified || ngDepthBoneGpuSupported()) return;
-    depthBoneCpuCompatibilityFallbackNotified = true;
-    incSetStatus("DepthBone GPU unavailable; using explicit CPU compatibility fallback");
 }
 
 private void writeDepthBoneGpuFatalLog(string message) {
@@ -939,160 +820,6 @@ Vec2Array ngDepthBoneGpuReadbackToOffsets(float[] xs, float[] ys) {
     Vec2Array offsets;
     offsets.length = xs.length;
     foreach (i; 0 .. xs.length) offsets[i] = vec2(xs[i], ys[i]);
-    return offsets;
-}
-
-private float gpuBoneValue(ref DepthBoneGpuOffsetPacket packet, uint boneIndex, uint component) {
-    return packet.bones[boneIndex * DepthBoneGpuBoneStride + component];
-}
-
-private float gpuSourceValue(ref DepthBoneGpuOffsetPacket packet, uint sourceIndex, uint component) {
-    return packet.sources[sourceIndex * DepthBoneGpuSourceStride + component];
-}
-
-private vec3 gpuBoneRestHead(ref DepthBoneGpuOffsetPacket packet, uint boneIndex) {
-    return vec3(gpuBoneValue(packet, boneIndex, 0), gpuBoneValue(packet, boneIndex, 1), gpuBoneValue(packet, boneIndex, 2));
-}
-
-private float gpuBoneRestLength(ref DepthBoneGpuOffsetPacket packet, uint boneIndex) {
-    return gpuBoneValue(packet, boneIndex, 3);
-}
-
-private vec3 gpuBoneRestTail(ref DepthBoneGpuOffsetPacket packet, uint boneIndex) {
-    return vec3(gpuBoneValue(packet, boneIndex, 4), gpuBoneValue(packet, boneIndex, 5), gpuBoneValue(packet, boneIndex, 6));
-}
-
-private float gpuBoneParentIndex(ref DepthBoneGpuOffsetPacket packet, uint boneIndex) {
-    return gpuBoneValue(packet, boneIndex, 7);
-}
-
-private mat4 gpuBoneSkinMatrix(ref DepthBoneGpuOffsetPacket packet, uint boneIndex) {
-    auto base = boneIndex * DepthBoneGpuBoneStride + 8;
-    return mat4(
-        packet.bones[base + 0], packet.bones[base + 1], packet.bones[base + 2], packet.bones[base + 3],
-        packet.bones[base + 4], packet.bones[base + 5], packet.bones[base + 6], packet.bones[base + 7],
-        packet.bones[base + 8], packet.bones[base + 9], packet.bones[base + 10], packet.bones[base + 11],
-        packet.bones[base + 12], packet.bones[base + 13], packet.bones[base + 14], packet.bones[base + 15]);
-}
-
-Vec2Array ngEvaluateDepthBoneGpuOffsetPacketCpu(DepthBoneGpuOffsetPacket packet) {
-    enforce(packet.vertices.length <= packet.depths.length, "Depth bone GPU packet depth buffer is too short");
-    enforce(packet.bones.length >= packet.boneCount * DepthBoneGpuBoneStride, "Depth bone GPU packet bone buffer is too short");
-    enforce(packet.sources.length >= packet.sourceCount * DepthBoneGpuSourceStride, "Depth bone GPU packet source buffer is too short");
-
-    struct GpuInfluence {
-        float score;
-        float distanceSq;
-        uint boneIndex;
-        vec3 rest;
-    }
-
-    Vec2Array offsets;
-    offsets.length = packet.vertices.length;
-    auto maxInfluences = packet.maxInfluences == 0 ? 1 : min(packet.maxInfluences, DepthBoneGpuMaxInfluences);
-
-    foreach (i, vertex; packet.vertices) {
-        auto x = vertex.x;
-        auto y = vertex.y;
-        auto z = packet.depths[i];
-
-        GpuInfluence[] influences;
-        int lockedTerminal = -1;
-        float lockedScore;
-        float lockedDistance;
-        uint lockedBoneIndex;
-        vec3 lockedRest;
-
-        foreach (sourceIndex; 0 .. packet.sourceCount) {
-            auto boneIndex = cast(uint)gpuSourceValue(packet, sourceIndex, 0);
-            if (boneIndex >= packet.boneCount) continue;
-
-            auto weight = gpuSourceValue(packet, sourceIndex, 4);
-            auto depthScale = gpuSourceValue(packet, sourceIndex, 5);
-            auto depthOffset = gpuSourceValue(packet, sourceIndex, 6);
-            auto multiplier = gpuSourceValue(packet, sourceIndex, 7);
-            auto score = weight * multiplier;
-            if (!(score > 0.0f)) continue;
-
-            auto sourceRestLocal = vec3(x, y, z * depthScale + depthOffset);
-            auto sourceRest = transformPoint(packet.targetToRoot, sourceRestLocal);
-            auto restHead = gpuBoneRestHead(packet, boneIndex);
-            auto restTail = gpuBoneRestTail(packet, boneIndex);
-            auto restLength = max(gpuBoneRestLength(packet, boneIndex), 0.0001f);
-            float distanceSq;
-            float terminalDistanceSq = float.max;
-            float terminalProjection;
-            auto radius = max(restLength * 0.85f * packet.radiusScale, packet.influenceRadiusFloor);
-            auto radiusSq = radius * radius;
-
-            if (packet.sourceCount > 1) {
-                distanceSq = distanceSqPointSegment(sourceRest, restHead, restTail);
-                if (cast(uint)gpuSourceValue(packet, sourceIndex, 3) == 1) {
-                    auto distance = cast(float)sqrt(distanceSq);
-                    score *= max(0.0f, 1.0f - distance / radius);
-                } else {
-                    score *= cast(float)exp(-distanceSq / radiusSq);
-                }
-
-                if (cast(uint)gpuSourceValue(packet, sourceIndex, 1) != 0 && gpuBoneParentIndex(packet, boneIndex) >= 0.0f) {
-                    auto parentIndex = cast(uint)gpuBoneParentIndex(packet, boneIndex);
-                    if (parentIndex < packet.boneCount) {
-                        auto parentHead = gpuBoneRestHead(packet, parentIndex);
-                        terminalProjection = pointSegmentProjection(sourceRest, parentHead, restHead);
-                        terminalDistanceSq = distanceSqPointSegment(sourceRest, parentHead, restHead);
-                    }
-                }
-            }
-
-            if (!(score > 0.0f)) continue;
-
-            if (packet.sourceCount > 1 &&
-                cast(uint)gpuSourceValue(packet, sourceIndex, 1) != 0 &&
-                cast(uint)gpuSourceValue(packet, sourceIndex, 2) != 0 &&
-                terminalProjection > 1.0f && terminalDistanceSq <= radiusSq) {
-                if (lockedTerminal < 0 || score > lockedScore ||
-                    (score == lockedScore && terminalDistanceSq < lockedDistance)) {
-                    lockedTerminal = cast(int)sourceIndex;
-                    lockedScore = score;
-                    lockedDistance = terminalDistanceSq;
-                    lockedBoneIndex = boneIndex;
-                    lockedRest = sourceRest;
-                }
-                continue;
-            }
-
-            influences ~= GpuInfluence(score, distanceSq, boneIndex, sourceRest);
-        }
-
-        if (lockedTerminal >= 0) {
-            influences = [GpuInfluence(1.0f, 0.0f, lockedBoneIndex, lockedRest)];
-        }
-        if (influences.length == 0) {
-            offsets[i] = vec2(0, 0);
-            continue;
-        }
-
-        sort!((a, b) => a.score == b.score ? a.distanceSq < b.distanceSq : a.score > b.score)(influences);
-        if (influences.length > maxInfluences) influences.length = maxInfluences;
-
-        float total;
-        foreach (influence; influences) total += influence.score;
-        if (!(total > 0.00000001f)) {
-            total = 1.0f;
-            influences.length = 1;
-            influences[0].score = 1.0f;
-        }
-
-        vec3 deformed = vec3(0, 0, 0);
-        foreach (influence; influences) {
-            auto weight = influence.score / total;
-            deformed += transformPoint(gpuBoneSkinMatrix(packet, influence.boneIndex), influence.rest) * weight;
-        }
-
-        auto local = transformPoint(packet.rootToTarget, deformed);
-        offsets[i] = vec2(local.x - x, local.y - y);
-    }
-
     return offsets;
 }
 
@@ -1222,252 +949,6 @@ bool ngBuildDepthBoneGpuOffsetPacket(
     return true;
 }
 
-private Vec2Array generateDepthBoneOffsets(ExDepthRigRoot root, ExDepthRigBinding* binding, Deformable target, Parameter param = null, vec2u cursor = vec2u.init) {
-    depthBoneCpuReferenceCallCount++;
-    enforce(root !is null, "Depth rig root is required");
-    enforce(binding !is null, "Depth rig binding is required");
-    enforce(target !is null, "target is not deformable");
-    enforce(binding.sourceBoneUuids.length > 0, "Depth rig binding has no bone sources");
-
-    ExDepthBone[] bones;
-    foreach (uuid; binding.sourceBoneUuids) {
-        if (auto bone = findBoneByUuid(root, uuid)) bones ~= bone;
-    }
-    enforce(bones.length > 0, "No valid depth bone sources");
-
-    struct Influence {
-        ExDepthBone bone;
-        ExDepthBoneSourceSettings sourceSetting;
-        vec3 rest;
-        float score;
-        float distanceSq;
-        float projection;
-        float radiusSq;
-        float terminalDistanceSq;
-        float terminalProjection;
-    }
-
-    auto maxInfluences = binding.influenceRule.maxInfluences == 0 ? 1 : binding.influenceRule.maxInfluences;
-    auto runtime = buildDepthRigRuntime(root, param, cursor);
-    auto targetNode = cast(Node)target;
-    auto targetToRoot = targetToRootMatrix(root, targetNode);
-    auto rootToTarget = targetToRoot.inverse;
-    Vec2Array offsets;
-    offsets.length = target.vertices.length;
-    logDepthBoneDepthInput(targetNode, target);
-    bool loggedDepthTransformSample;
-    bool loggedInfluenceSample;
-    auto influenceRadiusFloor = max(binding.influenceRule.minimumRadius, targetBoundsSize(target) * 0.18f);
-
-    foreach (i, vertex; target.vertices) {
-        auto restLocal = vec3(vertex.x, vertex.y, worldDepthAt(target, i));
-        auto rest = transformPoint(targetToRoot, restLocal);
-        Influence[] influences;
-
-        foreach (bone; bones) {
-            auto setting = binding.sourceSetting(bone.uuid);
-            auto multiplier = setting.weight;
-            if (auto p = bone.uuid in binding.influenceRule.multipliersByBoneUuid) multiplier *= *p;
-            if (!multiplier.isFinite || multiplier <= 0) continue;
-            auto restRuntimeBone = bone.uuid in runtime;
-            enforce(restRuntimeBone !is null, "Depth bone runtime is missing");
-            auto sourceRestLocal = vec3(vertex.x, vertex.y, worldDepthAt(target, i, setting));
-            auto sourceRest = transformPoint(targetToRoot, sourceRestLocal);
-            auto score = multiplier;
-            float distanceSq;
-            float projection;
-            float radiusSq = float.max;
-            float terminalDistanceSq = float.max;
-            float terminalProjection;
-            if (bones.length > 1) {
-                auto radius = max(
-                    (*restRuntimeBone).restLength * 0.85f * binding.influenceRule.radiusScale,
-                    influenceRadiusFloor
-                );
-                if (radius <= 1e-6f) radius = 1.0f;
-                radiusSq = radius * radius;
-                projection = pointSegmentProjection(sourceRest, (*restRuntimeBone).restHead, (*restRuntimeBone).restTail);
-                distanceSq = distanceSqPointSegment(sourceRest, (*restRuntimeBone).restHead, (*restRuntimeBone).restTail);
-                if (binding.influenceRule.falloff == "linear") {
-                    auto distance = cast(float)sqrt(distanceSq);
-                    score *= max(0.0f, 1.0f - distance / radius);
-                } else {
-                    score *= cast(float)exp(-distanceSq / (radius * radius));
-                }
-                if (isTerminalDepthBoneSource(bone, bones) && (*restRuntimeBone).parent !is null) {
-                    terminalProjection = pointSegmentProjection(sourceRest, (*restRuntimeBone).parent.restHead, (*restRuntimeBone).restHead);
-                    terminalDistanceSq = distanceSqPointSegment(sourceRest, (*restRuntimeBone).parent.restHead, (*restRuntimeBone).restHead);
-                }
-            }
-            if (!score.isFinite) continue;
-            influences ~= Influence(bone, setting, sourceRest, score, distanceSq, projection, radiusSq, terminalDistanceSq, terminalProjection);
-        }
-
-        if (influences.length == 0) {
-            offsets[i] = vec2(0, 0);
-            continue;
-        }
-
-        if (bones.length > 1) {
-            ptrdiff_t lockedTerminalIndex = -1;
-            foreach (j, influence; influences) {
-                if (!influence.bone.lockToRoot) continue;
-                if (!isTerminalDepthBoneSource(influence.bone, bones)) continue;
-                if (influence.terminalProjection <= 1.0f) continue;
-                if (influence.terminalDistanceSq > influence.radiusSq) continue;
-                if (lockedTerminalIndex < 0) {
-                    lockedTerminalIndex = cast(ptrdiff_t)j;
-                    continue;
-                }
-                auto current = influences[cast(size_t)lockedTerminalIndex];
-                if (influence.score > current.score || (influence.score == current.score && influence.terminalDistanceSq < current.terminalDistanceSq)) {
-                    lockedTerminalIndex = cast(ptrdiff_t)j;
-                }
-            }
-            if (lockedTerminalIndex >= 0) {
-                auto terminal = influences[cast(size_t)lockedTerminalIndex];
-                terminal.score = 1.0f;
-                terminal.distanceSq = 0.0f;
-                influences = [terminal];
-            }
-        }
-
-        sort!((a, b) => a.score == b.score ? a.distanceSq < b.distanceSq : a.score > b.score)(influences);
-        if (influences.length > maxInfluences) influences.length = maxInfluences;
-
-        if (!loggedInfluenceSample && bones.length > 1 && (rest.z < -0.000001f || rest.z > 0.000001f)) {
-            auto targetNode = cast(Node)target;
-            depthBoneDebugLog("[DepthBone] %s: influence sample[%s]: radiusFloor=%s maxInfluences=%s candidates=%s",
-                targetNode is null ? "(null)" : targetNode.name,
-                i,
-                influenceRadiusFloor,
-                maxInfluences,
-                influences.length);
-            foreach (influence; influences) {
-                depthBoneDebugLog("[DepthBone] %s: influence sample[%s] bone=%s score=%s distance=%s",
-                    targetNode is null ? "(null)" : targetNode.name,
-                    i,
-                    influence.bone.name,
-                    influence.score,
-                    cast(float)sqrt(influence.distanceSq));
-            }
-            loggedInfluenceSample = true;
-        }
-
-        float total = 0;
-        foreach (influence; influences) total += influence.score;
-        bool usedInfluenceFallback;
-        if (total <= 1e-8f) {
-            influences.length = 1;
-            total = 1.0f;
-            influences[0].score = 1.0f;
-            usedInfluenceFallback = true;
-        }
-
-        if (loggedInfluenceSample && !loggedDepthTransformSample && (rest.z < -0.000001f || rest.z > 0.000001f)) {
-            auto targetNode = cast(Node)target;
-            depthBoneDebugLog("[DepthBone] %s: normalized influence sample[%s]: total=%s fallback=%s",
-                targetNode is null ? "(null)" : targetNode.name,
-                i,
-                total,
-                usedInfluenceFallback);
-            foreach (influence; influences) {
-                depthBoneDebugLog("[DepthBone] %s: normalized influence sample[%s] bone=%s weight=%s rawScore=%s distance=%s",
-                    targetNode is null ? "(null)" : targetNode.name,
-                    i,
-                    influence.bone.name,
-                    influence.score / total,
-                    influence.score,
-                    cast(float)sqrt(influence.distanceSq));
-            }
-        }
-
-        vec3 deformed = vec3(0, 0, 0);
-        foreach (influence; influences) {
-            auto weight = influence.score / total;
-            auto runtimeBone = influence.bone.uuid in runtime;
-            enforce(runtimeBone !is null, "Depth bone runtime is missing");
-            deformed += transformPoint((*runtimeBone).skinMatrix, influence.rest) * weight;
-        }
-        auto deformedLocal = transformPoint(rootToTarget, deformed);
-        offsets[i] = vec2(deformedLocal.x - vertex.x, deformedLocal.y - vertex.y);
-        if (!loggedDepthTransformSample && (rest.z < -0.000001f || rest.z > 0.000001f)) {
-            depthBoneDebugLog("[DepthBone] %s: transform sample[%s]: restLocal=(%s,%s,%s) restRoot=(%s,%s,%s) deformedRoot=(%s,%s,%s) deformedLocal=(%s,%s,%s) offset=(%s,%s) totalWeight=%s influences=%s",
-                targetNode is null ? "(null)" : targetNode.name,
-                i,
-                restLocal.x,
-                restLocal.y,
-                restLocal.z,
-                rest.x,
-                rest.y,
-                rest.z,
-                deformed.x,
-                deformed.y,
-                deformed.z,
-                deformedLocal.x,
-                deformedLocal.y,
-                deformedLocal.z,
-                offsets[i].x,
-                offsets[i].y,
-                total,
-                influences.length);
-            foreach (influence; influences) {
-                auto runtimeBone = influence.bone.uuid in runtime;
-                if (runtimeBone is null) continue;
-                depthBoneDebugLog("[DepthBone] %s: transform sample[%s] influence bone=%s score=%s weight=%s head=(%s,%s,%s) tail=(%s,%s,%s)",
-                    targetNode is null ? "(null)" : targetNode.name,
-                    i,
-                    influence.bone.name,
-                    influence.score,
-                    influence.score / total,
-                    (*runtimeBone).worldHead.x,
-                    (*runtimeBone).worldHead.y,
-                    (*runtimeBone).worldHead.z,
-                    (*runtimeBone).worldTail.x,
-                    (*runtimeBone).worldTail.y,
-                    (*runtimeBone).worldTail.z);
-                depthBoneDebugLog("[DepthBone] %s: transform sample[%s] source bone=%s sourceWeight=%s depthOffset=%s depthScale=%s sourceRestRoot=(%s,%s,%s)",
-                    targetNode is null ? "(null)" : targetNode.name,
-                    i,
-                    influence.bone.name,
-                    influence.sourceSetting.weight,
-                    influence.sourceSetting.depthOffset,
-                    influence.sourceSetting.depthScale,
-                    influence.rest.x,
-                    influence.rest.y,
-                    influence.rest.z);
-                depthBoneDebugLog("[DepthBone] %s: transform sample[%s] bind bone=%s restHead=(%s,%s,%s) restTail=(%s,%s,%s) localRestOffset=(%s,%s,%s) poseTranslation=(%s,%s,%s) poseQuaternion=(%s,%s,%s,%s) worldQuaternion=(%s,%s,%s,%s)",
-                    targetNode is null ? "(null)" : targetNode.name,
-                    i,
-                    influence.bone.name,
-                    (*runtimeBone).restHead.x,
-                    (*runtimeBone).restHead.y,
-                    (*runtimeBone).restHead.z,
-                    (*runtimeBone).restTail.x,
-                    (*runtimeBone).restTail.y,
-                    (*runtimeBone).restTail.z,
-                    (*runtimeBone).localRestOffset.x,
-                    (*runtimeBone).localRestOffset.y,
-                    (*runtimeBone).localRestOffset.z,
-                    (*runtimeBone).poseTranslation.x,
-                    (*runtimeBone).poseTranslation.y,
-                    (*runtimeBone).poseTranslation.z,
-                    (*runtimeBone).poseQuaternion.w,
-                    (*runtimeBone).poseQuaternion.x,
-                    (*runtimeBone).poseQuaternion.y,
-                    (*runtimeBone).poseQuaternion.z,
-                    (*runtimeBone).worldQuaternion.w,
-                    (*runtimeBone).worldQuaternion.x,
-                    (*runtimeBone).worldQuaternion.y,
-                    (*runtimeBone).worldQuaternion.z);
-            }
-            loggedDepthTransformSample = true;
-        }
-    }
-
-    return offsets;
-}
-
 private Vec2Array generateInfluencePreviewOffsets(ExDepthRigBinding* binding, ExDepthBone bone, Deformable target) {
     enforce(binding !is null, "Depth rig binding is required");
     enforce(bone !is null, "Depth bone is required");
@@ -1580,8 +1061,6 @@ private DepthBoneGpuQueuedJob[] depthBoneGpuSubmissionQueue;
 private DepthBoneGpuRefreshJob[] depthBoneGpuRefreshJobs;
 private DepthBoneGpuCompletedJob[] depthBoneGpuCompletedJobs;
 private uint nextDepthBoneGpuBatchId = 1;
-private bool depthBoneCpuCompatibilityFallbackNotified;
-
 private struct DepthBoneFingerprint {
     ulong rigHash;
     ulong[uint] parameterStructureHashes;
@@ -2523,93 +2002,34 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
         reason,
         rigRoot.bindings.length);
 
-    if (ngDepthBoneGpuSupported()) {
-        DepthBoneGpuOffsetPacket[] packets;
-        foreach (ref binding; rigRoot.bindings) {
-            if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
-            if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
-            auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
-            auto deformable = cast(Deformable)targetNode;
-            if (deformable is null) {
-                auto message = "Depth Bone GPU packet build failed: target uuid=%s is missing or not deformable".format(
-                    binding.targetUuid);
-                writeDepthBoneGpuFatalLog(message);
-                enforce(false, message);
-            }
-
-            DepthBoneGpuOffsetPacket packet;
-            string error;
-            if (!ngBuildDepthBoneGpuOffsetPacket(rigRoot, &binding, deformable, param, kp, packet, error, true, param !is null)) {
-                auto message = "Depth Bone GPU packet build failed: target=%s key=(%s,%s) reason=%s".format(
-                    targetNode is null ? "(null)" : targetNode.name,
-                    kp.x,
-                    kp.y,
-                    error);
-                writeDepthBoneGpuFatalLog(message);
-                enforce(false, message);
-            }
-            packets ~= packet;
-        }
-        enqueueDepthBoneGpuRefreshBatch(packets, reason, depthBoneRefreshActionSink);
-        return packets.length > 0;
-    }
     enforceDepthBoneGpuAvailable("Depth Bone dirty refresh");
-
-    DeformationParameterBinding[] deformBindings;
-    Vec2Array[] offsetsList;
-    ParameterBinding[] created;
-
+    DepthBoneGpuOffsetPacket[] packets;
     foreach (ref binding; rigRoot.bindings) {
         if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
         if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
         auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
         auto deformable = cast(Deformable)targetNode;
-        if (deformable is null) continue;
-
-        auto offsets = generateDepthBoneOffsets(rigRoot, &binding, deformable, param, kp);
-        size_t nonZero;
-        foreach (offset; offsets) {
-            if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) nonZero++;
+        if (deformable is null) {
+            auto message = "Depth Bone GPU packet build failed: target uuid=%s is missing or not deformable".format(
+                binding.targetUuid);
+            writeDepthBoneGpuFatalLog(message);
+            enforce(false, message);
         }
-        depthBoneDebugLog("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=%s",
-            targetNode is null ? "(null)" : targetNode.name,
-            offsets.length,
-            nonZero,
-            param !is null);
-        deformable.deformation = offsets;
-        deformable.notifyChange(deformable, NotifyReason.AttributeChanged);
-
-        if (param is null) continue;
-        auto existing = param.getBinding(targetNode, "deform");
-        auto deformBinding = cast(DeformationParameterBinding)existing;
-        if (deformBinding is null) {
-            deformBinding = cast(DeformationParameterBinding)param.getOrAddBinding(targetNode, "deform");
-            created ~= deformBinding;
+        DepthBoneGpuOffsetPacket packet;
+        string error;
+        if (!ngBuildDepthBoneGpuOffsetPacket(rigRoot, &binding, deformable, param, kp, packet, error, true, param !is null)) {
+            auto message = "Depth Bone GPU packet build failed: target=%s key=(%s,%s) reason=%s".format(
+                targetNode is null ? "(null)" : targetNode.name,
+                kp.x,
+                kp.y,
+                error);
+            writeDepthBoneGpuFatalLog(message);
+            enforce(false, message);
         }
-        if (deformBinding is null) continue;
-        deformBindings ~= deformBinding;
-        offsetsList ~= offsets;
+        packets ~= packet;
     }
-
-    if (param is null) {
-        depthBoneDebugLog("[DepthBoneRefresh] refresh done: preview-only root=%s", rigRoot.name);
-        return true;
-    }
-    if (deformBindings.length == 0) return false;
-
-    auto group = new GroupAction();
-    foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
-
-    auto label = reason.length ? _("Auto Refresh Depth Bone Deform: %s").format(reason) : _("Auto Refresh Depth Bone Deform");
-    auto action = new ParameterChangeBindingsValueAction(label, param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
-    foreach (i, binding; deformBindings) {
-        binding.update(kp, offsetsList[i]);
-    }
-    action.updateNewState();
-    group.addAction(action);
-    pushDepthBoneRefreshAction(group);
-    depthBoneDebugLog("[DepthBoneRefresh] refresh done: root=%s bindings=%s", rigRoot.name, deformBindings.length);
-    return true;
+    enqueueDepthBoneGpuRefreshBatch(packets, reason, depthBoneRefreshActionSink);
+    return packets.length > 0;
 }
 
 private bool ngRefreshDepthBoneDeformKeypoints(
@@ -2632,107 +2052,41 @@ private bool ngRefreshDepthBoneDeformKeypoints(
         keypoints.length,
         rigRoot.bindings.length);
 
-    if (ngDepthBoneGpuSupported()) {
-        bool submitted;
-        foreach (kp; keypoints) {
-            DepthBoneGpuOffsetPacket[] packets;
-            foreach (ref binding; rigRoot.bindings) {
-                if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
-                if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
-                auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
-                auto deformable = cast(Deformable)targetNode;
-                if (deformable is null) {
-                    auto message = "Depth Bone GPU packet build failed: target uuid=%s is missing or not deformable".format(
-                        binding.targetUuid);
-                    writeDepthBoneGpuFatalLog(message);
-                    enforce(false, message);
-                }
-
-                DepthBoneGpuOffsetPacket packet;
-                string error;
-                if (!ngBuildDepthBoneGpuOffsetPacket(rigRoot, &binding, deformable, param, kp, packet, error, kp == visualKeypoint, true)) {
-                    auto message = "Depth Bone GPU packet build failed: target=%s key=(%s,%s) reason=%s".format(
-                        targetNode is null ? "(null)" : targetNode.name,
-                        kp.x,
-                        kp.y,
-                        error);
-                    writeDepthBoneGpuFatalLog(message);
-                    enforce(false, message);
-                }
-                packets ~= packet;
-            }
-            enqueueDepthBoneGpuRefreshBatch(packets, reason, depthBoneRefreshActionSink);
-            submitted = packets.length > 0 || submitted;
-        }
-        return submitted;
-    }
     enforceDepthBoneGpuAvailable("Depth Bone all-keypoints refresh");
-
-    DeformationParameterBinding[] deformBindings;
-    Deformable[] deformables;
-    Node[] targetNodes;
-    ExDepthRigBinding*[] rigBindings;
-    ParameterBinding[] created;
-
-    foreach (ref binding; rigRoot.bindings) {
-        if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
-        if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
-        auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
-        auto deformable = cast(Deformable)targetNode;
-        if (deformable is null) continue;
-
-        auto existing = param.getBinding(targetNode, "deform");
-        auto deformBinding = cast(DeformationParameterBinding)existing;
-        if (deformBinding is null) {
-            deformBinding = cast(DeformationParameterBinding)param.getOrAddBinding(targetNode, "deform");
-            created ~= deformBinding;
-        }
-        if (deformBinding is null) continue;
-        deformBindings ~= deformBinding;
-        deformables ~= deformable;
-        targetNodes ~= targetNode;
-        rigBindings ~= &binding;
-    }
-
-    if (deformBindings.length == 0) return false;
-
-    auto group = new GroupAction();
-    foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
-
-    auto label = reason.length ? _("Auto Refresh Depth Bone Deform: %s").format(reason) : _("Auto Refresh Depth Bone Deform");
+    bool submitted;
     foreach (kp; keypoints) {
-        Vec2Array[] offsetsList;
-        offsetsList.length = deformBindings.length;
-
-        foreach (i, deformable; deformables) {
-            auto offsets = generateDepthBoneOffsets(rigRoot, rigBindings[i], deformable, param, kp);
-            offsetsList[i] = offsets;
-            if (kp == visualKeypoint) {
-                size_t nonZero;
-                foreach (offset; offsets) {
-                    if (offset.x < -0.0001f || offset.x > 0.0001f || offset.y < -0.0001f || offset.y > 0.0001f) nonZero++;
-                }
-                depthBoneDebugLog("[DepthBoneRefresh] target refreshed: target=%s offsets=%s nonZero=%s writeBinding=true scope=all-keypoints visual=true",
-                    targetNodes[i] is null ? "(null)" : targetNodes[i].name,
-                    offsets.length,
-                    nonZero);
-                deformable.deformation = offsets;
-                deformable.notifyChange(deformable, NotifyReason.AttributeChanged);
+        DepthBoneGpuOffsetPacket[] packets;
+        foreach (ref binding; rigRoot.bindings) {
+            if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
+            if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
+            auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
+            auto deformable = cast(Deformable)targetNode;
+            if (deformable is null) {
+                auto message = "Depth Bone GPU packet build failed: target uuid=%s is missing or not deformable".format(
+                    binding.targetUuid);
+                writeDepthBoneGpuFatalLog(message);
+                enforce(false, message);
             }
+
+            DepthBoneGpuOffsetPacket packet;
+            string error;
+            if (!ngBuildDepthBoneGpuOffsetPacket(
+                rigRoot, &binding, deformable, param, kp, packet, error, kp == visualKeypoint, true
+            )) {
+                auto message = "Depth Bone GPU packet build failed: target=%s key=(%s,%s) reason=%s".format(
+                    targetNode is null ? "(null)" : targetNode.name,
+                    kp.x,
+                    kp.y,
+                    error);
+                writeDepthBoneGpuFatalLog(message);
+                enforce(false, message);
+            }
+            packets ~= packet;
         }
-
-        auto action = new ParameterChangeBindingsValueAction(label, param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
-        foreach (i, binding; deformBindings) binding.update(kp, offsetsList[i]);
-        action.updateNewState();
-        group.addAction(action);
+        enqueueDepthBoneGpuRefreshBatch(packets, reason, depthBoneRefreshActionSink);
+        submitted = packets.length > 0 || submitted;
     }
-
-    pushDepthBoneRefreshAction(group);
-    depthBoneDebugLog("[DepthBoneRefresh] refresh chunk done: root=%s bindings=%s keypoints=%s scope=all-keypoints",
-        rigRoot.name,
-        deformBindings.length,
-        keypoints.length);
-    return true;
+    return submitted;
 }
 
 private bool enqueueDepthBoneAllKeypoints(ExDepthRigRoot rigRoot, Parameter param, string reason, uint targetUuid = 0) {

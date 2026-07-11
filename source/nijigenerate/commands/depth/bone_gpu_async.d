@@ -1,6 +1,6 @@
 module nijigenerate.commands.depth.bone_gpu_async;
 
-import nijilive.core.render.commands : DepthBoneGpuDispatchPacket;
+import nijilive.math : Vec2Array, mat4;
 
 version (InDoesRender) {
 import bindbc.opengl;
@@ -15,6 +15,20 @@ enum NgDepthBoneGpuAsyncMaxInfluences = 8u;
 enum NgDepthBoneGpuAsyncMaxVertices = 1_000_000u;
 enum NgDepthBoneGpuAsyncBoneStride = 24u;
 enum NgDepthBoneGpuAsyncSourceStride = 8u;
+
+struct DepthBoneGpuDispatchPacket {
+    Vec2Array vertices;
+    float[] depths;
+    float[] bones;
+    float[] sources;
+    mat4 targetToRoot;
+    mat4 rootToTarget;
+    float influenceRadiusFloor;
+    float radiusScale;
+    uint boneCount;
+    uint sourceCount;
+    uint maxInfluences;
+}
 
 struct NgDepthBoneGpuAsyncResult {
     bool ready;
@@ -206,7 +220,6 @@ void main() {
     float lockedDistance = 0.0;
     uint lockedBoneIndex = 0u;
     vec3 lockedRest = vec3(0.0);
-
     for (uint s = 0u; s < sourceCount; ++s) {
         uint boneIndex = uint(sourceValue(s, 0u));
         if (boneIndex >= boneCount) continue;

@@ -36,6 +36,7 @@ struct DepthDrawLayer {
     float zScale = 1.0f;
     float backDepth = -1.0f;
     float frontDepth = 1.0f;
+    float sampleDepthScale = 1.0f;
     bool invert = false;
 
     DepthImageChannel channel = DepthImageChannel.AverageRGB;
@@ -56,7 +57,7 @@ struct DepthDrawLayer {
         settings.invert = invert;
         settings.backDepth = backDepth;
         settings.frontDepth = frontDepth;
-        settings.depthScale = 1.0f;
+        settings.depthScale = sampleDepthScale;
         settings.alphaThreshold = alphaThreshold;
         settings.customRadius = customRadius;
         settings.convolution = convolution;

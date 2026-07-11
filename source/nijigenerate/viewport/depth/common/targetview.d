@@ -5,17 +5,44 @@ import nijigenerate.viewport.depth.camera;
 import nijilive;
 import std.algorithm : max, min, sort, uniq;
 import std.array : array;
-import std.math : abs, round;
+import std.math : abs, isFinite, round;
 
 enum DepthTargetDisplayPlaneSize = 2.9f;
 enum DepthTargetDisplayZScale = 0.42f;
+
+float ngDepthDisplayScaleForBounds(vec2 minPoint, vec2 maxPoint) {
+    auto size = maxPoint - minPoint;
+    return max(1.0f, max(size.x, size.y) * (DepthTargetDisplayZScale / DepthTargetDisplayPlaneSize));
+}
+
+float ngDepthDisplayScaleForTargets(Deformable[] targets) {
+    bool hasBounds;
+    vec2 minPoint;
+    vec2 maxPoint;
+    foreach (target; targets) {
+        if (target is null) continue;
+        foreach (vertex; target.vertices) {
+            if (!hasBounds) {
+                minPoint = vertex;
+                maxPoint = vertex;
+                hasBounds = true;
+            } else {
+                minPoint.x = min(minPoint.x, vertex.x);
+                minPoint.y = min(minPoint.y, vertex.y);
+                maxPoint.x = max(maxPoint.x, vertex.x);
+                maxPoint.y = max(maxPoint.y, vertex.y);
+            }
+        }
+    }
+    return hasBounds ? ngDepthDisplayScaleForBounds(minPoint, maxPoint) : 0.0f;
+}
 
 float ngDepthTargetRoundDepth(float value) {
     return cast(float)(round(value * 1000.0f) / 1000.0f);
 }
 
 float ngDepthTargetClampDepth(float value) {
-    return ngDepthTargetRoundDepth(max(-2.0f, min(2.0f, value)));
+    return value.isFinite ? ngDepthTargetRoundDepth(value) : 0.0f;
 }
 
 class DepthTargetView {
@@ -167,8 +194,7 @@ public:
     }
 
     float depthDisplayScale() {
-        auto size = maxPoint - minPoint;
-        return max(1.0f, max(size.x, size.y) * (DepthTargetDisplayZScale / DepthTargetDisplayPlaneSize));
+        return ngDepthDisplayScaleForBounds(minPoint, maxPoint);
     }
 
     vec2 depthViewToModel(vec2 point, ref DepthCamera3D depthCamera, float depth = 0.0f) {

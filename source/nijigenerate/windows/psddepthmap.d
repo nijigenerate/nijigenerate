@@ -5,13 +5,15 @@ import bindbc.imgui;
 import i18n;
 import nijigenerate;
 import nijigenerate.commands;
-import nijigenerate.commands.depth.map : ngApplyPsdDepthImportResult;
+import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
+    ngComposePsdDepthImportResult, ngComposePsdDepthTarget;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijigenerate.ext.nodes.expart;
 import nijigenerate.io : TFD_Filter, incShowImportDialog;
-import nijigenerate.io.depthimage : ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba;
 import nijigenerate.io.depthmap_psd;
-import nijigenerate.io.depthsample : DepthSampleChannel, ngDepthSamplePixelDepth;
+import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, DepthSampleConvolution,
+    DepthSamplePoint, ngDepthSampleConvolve, ngDepthSampleMissingPoint, ngDepthSamplePixelDepth,
+    ngDepthSampleValueToDepth01;
 import nijigenerate.viewport.depth.camera : DepthCamera3D, projectDepthPoint, updateDepthCamera3D;
 import nijigenerate.viewport.depth.common.targetview : DepthTargetDisplayPlaneSize, DepthTargetDisplayZScale,
     DepthTargetView;
@@ -26,6 +28,7 @@ import std.algorithm : clamp;
 import std.conv : to;
 import std.exception : collectException;
 import std.format : format;
+import std.math : round;
 import std.string : join, toLower, toStringz;
 
 struct PsdDepth3DAdjustGeometryStats {
@@ -34,6 +37,12 @@ struct PsdDepth3DAdjustGeometryStats {
     size_t targetWireLines;
     size_t sampledPoints;
     size_t missingPoints;
+}
+
+private struct PsdDepthLayerEdit {
+    float zOffset;
+    float zScale = 1.0f;
+    bool invert;
 }
 
 struct PsdDepth3DAdjustSample {
@@ -269,21 +278,17 @@ private:
     string path;
     PsdDepthImportSettings settings;
     PsdDepthImportResult preview;
+    PsdDepthComposedView composedPreview;
     string errorMessage;
     string lastApplyErrorMessage;
     bool previewDirty = true;
-    bool rebuildBeforeApply;
     bool onlyProblemLayers;
     ptrdiff_t selectedGridIndex;
     ptrdiff_t selected3DAdjustLayerIndex;
     bool initial3DAdjustTabSelected;
     Texture[string] originalPreviewTextures;
     Texture[string] depthMaskPreviewTextures;
-    Texture[string] surfaceMaskDiagnosticTextures;
-    Texture[string] rawDepthDiagnosticTextures;
-    Texture[string] renderMaskDiagnosticTextures;
     Texture[string] rawCompositePreviewTextures;
-    Texture depthSourceReferenceTexture;
     PsdDepth3DAdjustSample[][string] threeDAdjustSamples;
     PsdDepth3DAdjustMesh[string] threeDAdjustMeshes;
     PsdDepth3DAdjustGpuRenderer threeDAdjustGpuRenderer;
@@ -339,7 +344,9 @@ private:
 
     void rebuildPreview() {
         disposePreviewTextures();
+        auto previous = preview;
         preview = PsdDepthImportResult.init;
+        composedPreview = PsdDepthComposedView.init;
         errorMessage = null;
         lastApplyErrorMessage = null;
         auto puppet = incActivePuppet();
@@ -351,9 +358,16 @@ private:
         auto ex = collectException(preview = ngBuildPsdDepthsFromSource(puppet, path, settings));
         if (ex !is null) {
             errorMessage = ex.msg;
+        } else {
+            if (previous.composedLayers.length > 0) {
+                ngPsdDepthApplyPreviousComposedLayerState(preview, previous);
+            }
+            string composeError;
+            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
+                errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
+            }
         }
         previewDirty = false;
-        rebuildBeforeApply = false;
     }
 
     void disposePreviewTextures() {
@@ -363,27 +377,13 @@ private:
         foreach (key, texture; depthMaskPreviewTextures) {
             if (texture !is null) texture.dispose();
         }
-        foreach (key, texture; surfaceMaskDiagnosticTextures) {
-            if (texture !is null) texture.dispose();
-        }
-        foreach (key, texture; rawDepthDiagnosticTextures) {
-            if (texture !is null) texture.dispose();
-        }
-        foreach (key, texture; renderMaskDiagnosticTextures) {
-            if (texture !is null) texture.dispose();
-        }
         foreach (key, texture; rawCompositePreviewTextures) {
             if (texture !is null) texture.dispose();
         }
-        if (depthSourceReferenceTexture !is null) depthSourceReferenceTexture.dispose();
         if (threeDAdjustPreviewTexture !is null) threeDAdjustPreviewTexture.dispose();
         originalPreviewTextures = null;
         depthMaskPreviewTextures = null;
-        surfaceMaskDiagnosticTextures = null;
-        rawDepthDiagnosticTextures = null;
-        renderMaskDiagnosticTextures = null;
         rawCompositePreviewTextures = null;
-        depthSourceReferenceTexture = null;
         threeDAdjustSamples = null;
         threeDAdjustMeshes = null;
         if (threeDAdjustGpuRenderer !is null) threeDAdjustGpuRenderer.dispose();
@@ -398,16 +398,22 @@ private:
         threeDAdjustCameraBottom = int.min;
     }
 
-    PsdDepthLayerPreview* findLayerPreview(string layerPath) {
-        foreach (ref layerPreview; preview.layerPreviews) {
+    PsdDepthComposedLayer* findLayerPreview(string layerPath) {
+        foreach (ref layerPreview; preview.composedLayers) {
             if (layerPreview.layerPath == layerPath) return &layerPreview;
         }
         return null;
     }
 
-    PsdDepthComposedLayer* findComposedLayer(string layerPath) {
+    PsdDepthComposedLayer* findComposedLayer(string layerPath, ulong targetGridUuid = 0) {
+        if (targetGridUuid != 0) {
+            foreach (ref layer; preview.composedLayers) {
+                if (layer.layerPath == layerPath && layer.targetGridUuid == targetGridUuid) return &layer;
+            }
+            return null;
+        }
         foreach (ref layer; preview.composedLayers) {
-            if (layer.layerPath == layerPath || layer.id == layerPath || layer.colorLayerPath == layerPath) return &layer;
+            if (layer.layerPath == layerPath) return &layer;
         }
         return null;
     }
@@ -438,7 +444,7 @@ private:
             if (layer.targetGridUuid != 0) continue;
             if (findLayerPreview(layer.layerPath) !is null) return layer.layerPath;
         }
-        foreach (ref layerPreview; preview.layerPreviews) {
+        foreach (ref layerPreview; preview.composedLayers) {
             return layerPreview.layerPath;
         }
         return null;
@@ -491,7 +497,7 @@ private:
                 lines ~= diagnostic.type;
             }
         }
-        if (preview.layerPreviews.length == 0) {
+        if (preview.composedLayers.length == 0) {
             lines ~= _("No source layers were loaded from the selected depth source.");
         }
         if (preview.mappings.length > 0 && preview.grids.length == 0) {
@@ -515,15 +521,47 @@ private:
         foreach (line; lines) incText(line);
     }
 
+    ubyte[] transformedDepthPreviewRgba(ref PsdDepthComposedLayer layerPreview) {
+        ubyte[] rgba;
+        if (layerPreview.width <= 0 || layerPreview.height <= 0) return rgba;
+        auto pixelCount = cast(size_t)layerPreview.width * cast(size_t)layerPreview.height;
+        rgba.length = pixelCount * 4;
+        auto back = layerPreview.backDepth;
+        auto front = layerPreview.frontDepth;
+        auto minDepth = min(back, front);
+        auto maxDepth = max(back, front);
+        auto range = maxDepth - minDepth;
+        if (range <= 0.000001f) range = 1.0f;
+        foreach (i; 0 .. pixelCount) {
+            auto index = i * 4;
+            if (index + 3 >= layerPreview.maskRgba.length ||
+                index + 3 >= layerPreview.colorRgba.length ||
+                layerPreview.maskRgba[index] == 0 ||
+                layerPreview.maskRgba[index + 3] == 0 ||
+                layerPreview.colorRgba[index + 3] < 3) {
+                continue;
+            }
+            float depth;
+            if (!threeDAdjustDepthAt(layerPreview, index, depth)) continue;
+            auto normalized = clamp((depth - minDepth) / range, 0.0f, 1.0f);
+            auto gray = cast(ubyte)clamp(cast(int)(normalized * 255.0f + 0.5f), 0, 255);
+            rgba[index + 0] = gray;
+            rgba[index + 1] = gray;
+            rgba[index + 2] = gray;
+            rgba[index + 3] = 255;
+        }
+        return rgba;
+    }
+
     Texture layerPreviewTexture(string layerPath, bool depthMask) {
         auto layerPreview = findLayerPreview(layerPath);
         if (layerPreview is null) return null;
         auto existing = depthMask ? layerPath in depthMaskPreviewTextures : layerPath in originalPreviewTextures;
         if (existing !is null) return *existing;
 
-        auto rgba = depthMask ? layerPreview.depthMaskRgba.dup : layerPreview.originalRgba.dup;
-        auto textureWidth = depthMask || layerPreview.originalWidth <= 0 ? layerPreview.width : layerPreview.originalWidth;
-        auto textureHeight = depthMask || layerPreview.originalHeight <= 0 ? layerPreview.height : layerPreview.originalHeight;
+        auto rgba = depthMask ? transformedDepthPreviewRgba(*layerPreview) : layerPreview.colorRgba.dup;
+        auto textureWidth = depthMask || layerPreview.width <= 0 ? layerPreview.width : layerPreview.width;
+        auto textureHeight = depthMask || layerPreview.height <= 0 ? layerPreview.height : layerPreview.height;
         inTexPremultiply(rgba);
         auto texture = new Texture(rgba, textureWidth, textureHeight);
         if (depthMask) depthMaskPreviewTextures[layerPath] = texture;
@@ -545,164 +583,6 @@ private:
         auto texture = new Texture(rgba, gridResult.previewWidth, gridResult.previewHeight);
         rawCompositePreviewTextures[key] = texture;
         return texture;
-    }
-
-    Texture diagnosticLayerTexture(string layerPath, string kind) {
-        auto layerPreview = findLayerPreview(layerPath);
-        if (layerPreview is null || layerPreview.width <= 0 || layerPreview.height <= 0) return null;
-
-        Texture[string]* store;
-        if (kind == "surface") {
-            store = &surfaceMaskDiagnosticTextures;
-        } else if (kind == "depth") {
-            store = &rawDepthDiagnosticTextures;
-        } else if (kind == "render") {
-            store = &renderMaskDiagnosticTextures;
-        } else {
-            return null;
-        }
-
-        auto existing = layerPath in *store;
-        if (existing !is null) return *existing;
-
-        auto pixelCount = cast(size_t)layerPreview.width * cast(size_t)layerPreview.height;
-        ubyte[] rgba;
-        rgba.length = pixelCount * 4;
-        foreach (i; 0 .. pixelCount) {
-            auto index = i * 4;
-            ubyte gray;
-            if (kind == "surface") {
-                if (index + 3 < layerPreview.originalRgba.length && layerPreview.originalRgba[index + 3] >= 3) {
-                    rgba[index + 0] = layerPreview.originalRgba[index + 0];
-                    rgba[index + 1] = layerPreview.originalRgba[index + 1];
-                    rgba[index + 2] = layerPreview.originalRgba[index + 2];
-                    rgba[index + 3] = 255;
-                    continue;
-                }
-            } else if (kind == "depth") {
-                if (index < layerPreview.depthRgba.length) {
-                    gray = layerPreview.depthRgba[index];
-                }
-            } else {
-                if (index < layerPreview.depthMaskRgba.length) {
-                    gray = layerPreview.depthMaskRgba[index];
-                }
-            }
-            rgba[index + 0] = gray;
-            rgba[index + 1] = gray;
-            rgba[index + 2] = gray;
-            rgba[index + 3] = 255;
-        }
-
-        auto texture = new Texture(rgba, layerPreview.width, layerPreview.height);
-        (*store)[layerPath] = texture;
-        return texture;
-    }
-
-    void drawDiagnosticLayerImage(string label, string layerPath, string kind, float size) {
-        auto layerPreview = findLayerPreview(layerPath);
-        auto texture = diagnosticLayerTexture(layerPath, kind);
-        if (layerPreview is null || texture is null) return;
-
-        incText(label);
-        auto maxDimension = cast(float)max(layerPreview.width, layerPreview.height);
-        auto scale = maxDimension > 0 ? min(size / maxDimension, 1.0f) : 1.0f;
-        igImage(
-            cast(void*)texture.getTextureId(),
-            ImVec2(cast(float)layerPreview.width * scale, cast(float)layerPreview.height * scale)
-        );
-        if (igIsItemHovered()) {
-            igBeginTooltip();
-            incText(label);
-            incText("%s  %dx%d  (%d, %d)".format(
-                layerPreview.layerName,
-                layerPreview.width,
-                layerPreview.height,
-                layerPreview.left,
-                layerPreview.top
-            ));
-            auto tooltipScale = maxDimension > 0 ? min(PreviewSize / maxDimension, 1.0f) : 1.0f;
-            igImage(
-                cast(void*)texture.getTextureId(),
-                ImVec2(cast(float)layerPreview.width * tooltipScale, cast(float)layerPreview.height * tooltipScale)
-            );
-            igEndTooltip();
-        }
-    }
-
-    Texture depthSourceReferenceImageTexture() {
-        if (depthSourceReferenceTexture !is null) return depthSourceReferenceTexture;
-        auto width = preview.depthSourceReferenceWidth;
-        auto height = preview.depthSourceReferenceHeight;
-        auto sourceRgba = preview.depthSourceReferenceRgba;
-        if ((width <= 0 || height <= 0 || sourceRgba.length == 0) && preview.depthSource.layers.length > 0) {
-            auto layer = preview.depthSource.layers[0];
-            width = layer.width;
-            height = layer.height;
-            sourceRgba = layer.rgba;
-        }
-        if (width <= 0 || height <= 0 || sourceRgba.length == 0) return null;
-        auto expectedLength = cast(size_t)width * cast(size_t)height * 4;
-        if (sourceRgba.length < expectedLength) return null;
-
-        auto depthPixels = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(sourceRgba[0 .. expectedLength]);
-        ubyte[] rgba;
-        rgba.length = expectedLength;
-        foreach (i, gray; depthPixels) {
-            auto index = i * 4;
-            rgba[index + 0] = gray;
-            rgba[index + 1] = gray;
-            rgba[index + 2] = gray;
-            rgba[index + 3] = 255;
-        }
-        depthSourceReferenceTexture = new Texture(rgba, width, height);
-        return depthSourceReferenceTexture;
-    }
-
-    void drawDepthSourceReferenceImage(ref PsdDepthLayerPreview layerPreview, float maxSize) {
-        auto texture = depthSourceReferenceImageTexture();
-        if (texture is null) return;
-        auto sourceWidth = preview.depthSourceReferenceWidth;
-        auto sourceHeight = preview.depthSourceReferenceHeight;
-        if ((sourceWidth <= 0 || sourceHeight <= 0) && preview.depthSource.layers.length > 0) {
-            sourceWidth = preview.depthSource.layers[0].width;
-            sourceHeight = preview.depthSource.layers[0].height;
-        }
-        if (sourceWidth <= 0 || sourceHeight <= 0) return;
-
-        incText(preview.depthSourceReferenceYFlipped ? "depth source reference (Y flipped)" : "depth source reference");
-        auto maxDimension = cast(float)max(sourceWidth, sourceHeight);
-        auto scale = maxDimension > 0 ? min(maxSize / maxDimension, 1.0f) : 1.0f;
-        auto imageSize = ImVec2(cast(float)sourceWidth * scale, cast(float)sourceHeight * scale);
-        igImage(cast(void*)texture.getTextureId(), imageSize);
-
-        ImVec2 imageMin;
-        ImVec2 imageMax;
-        igGetItemRectMin(&imageMin);
-        igGetItemRectMax(&imageMax);
-        auto drawList = igGetWindowDrawList();
-        auto rectMin = ImVec2(
-            imageMin.x + cast(float)layerPreview.left * scale,
-            imageMin.y + cast(float)layerPreview.top * scale
-        );
-        auto rectMax = ImVec2(
-            imageMin.x + cast(float)(layerPreview.left + layerPreview.width) * scale,
-            imageMin.y + cast(float)(layerPreview.top + layerPreview.height) * scale
-        );
-        auto red = igGetColorU32(ImVec4(1, 0.05f, 0.02f, 1));
-        auto white = igGetColorU32(ImVec4(1, 1, 1, 0.9f));
-        ImDrawList_AddRect(drawList, rectMin, rectMax, white, 0.0f, ImDrawFlags.None, 3.0f);
-        ImDrawList_AddRect(drawList, rectMin, rectMax, red, 0.0f, ImDrawFlags.None, 1.5f);
-        ImDrawList_AddRect(drawList, imageMin, imageMax, igGetColorU32(ImVec4(0.5f, 0.5f, 0.5f, 1)), 0.0f,
-            ImDrawFlags.None, 1.0f);
-
-        if (igIsItemHovered()) {
-            igBeginTooltip();
-            incText("depth source reference");
-            incText("rect %dx%d (%d, %d)".format(layerPreview.width, layerPreview.height,
-                layerPreview.left, layerPreview.top));
-            igEndTooltip();
-        }
     }
 
     void drawLayerPreviewTooltip(string layerPath, bool depthMask) {
@@ -1054,123 +934,171 @@ private:
         }
     }
 
-    void drawComposedLayerEnabledCheckbox(string layerPath) {
-        bool enabled = ngPsdDepthComposedLayerEnabled(settings, layerPath);
-        if (ngCheckbox(("###useComposedLayer" ~ layerPath).toStringz, &enabled)) {
-            if (enabled) {
-                settings.disabledComposedLayerPaths.remove(layerPath);
-                settings.hiddenComposedLayerPaths.remove(layerPath);
-            } else {
-                settings.disabledComposedLayerPaths[layerPath] = true;
-            }
-            previewDirty = true;
+    void drawComposedLayerEnabledCheckbox(string layerPath, ulong targetGridUuid = 0) {
+        auto layer = findComposedLayer(layerPath, targetGridUuid);
+        if (layer is null) return;
+        bool enabled = layer.enabled;
+        auto widgetKey = "###useComposedLayer" ~ layerPath ~ targetGridUuid.to!string;
+        if (ngCheckbox(widgetKey.toStringz, &enabled)) {
+            layer.enabled = enabled;
+            layer.visible = enabled;
+            refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
         }
     }
 
-    void drawComposedLayerShowCheckbox(string layerPath) {
-        bool enabled = ngPsdDepthComposedLayerEnabled(settings, layerPath);
-        if (ngCheckbox((_("Show") ~ "###showComposedLayer" ~ layerPath).toStringz, &enabled)) {
-            if (enabled) {
-                settings.disabledComposedLayerPaths.remove(layerPath);
-                settings.hiddenComposedLayerPaths.remove(layerPath);
-            } else {
-                settings.disabledComposedLayerPaths[layerPath] = true;
-            }
-            updateLayerPreviewEnabled(layerPath);
-            mark3DAdjustLayerDirty(layerPath, true);
+    void drawComposedLayerShowCheckbox(string layerPath, ulong targetGridUuid = 0) {
+        auto layer = findComposedLayer(layerPath, targetGridUuid);
+        if (layer is null) return;
+        bool enabled = layer.enabled && layer.visible;
+        igPushID(("showComposedLayer" ~ layerPath ~ targetGridUuid.to!string).toStringz);
+        scope(exit) igPopID();
+        if (ngCheckbox(__("Show"), &enabled)) {
+            layer.enabled = enabled;
+            layer.visible = enabled;
+            refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
         }
     }
 
-    PsdDepthLayerTransform layerTransform(string layerPath) {
-        return ngPsdDepthLayerTransform(settings, layerPath);
+    PsdDepthLayerEdit layerTransform(string layerPath, ulong targetGridUuid = 0) {
+        PsdDepthLayerEdit transform;
+        if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
+            transform.zOffset = layer.depthOffset;
+            transform.zScale = layer.depthScale;
+            transform.invert = layer.invert;
+        }
+        return transform;
     }
 
-    void storeLayerTransform(string layerPath, PsdDepthLayerTransform transform, bool changed) {
+    void storeLayerTransform(string layerPath, ulong targetGridUuid, PsdDepthLayerEdit transform, bool changed) {
         if (!changed) return;
-        settings.layerTransforms[layerPath] = transform;
-        updateLayerPreviewTransform(layerPath, transform);
-        mark3DAdjustLayerDirty(layerPath, true);
+        if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
+            layer.depthOffset = transform.zOffset;
+            layer.depthScale = transform.zScale;
+            layer.invert = transform.invert;
+        }
+        refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
     }
 
-    void updateLayerPreviewEnabled(string layerPath) {
-        foreach (ref layerPreview; preview.layerPreviews) {
-            if (layerPreview.layerPath != layerPath) continue;
-            layerPreview.enabled = ngPsdDepthComposedLayerEnabled(settings, layerPath);
-            layerPreview.visible = ngPsdDepthComposedLayerVisible(settings, layerPath);
+    DepthSampleConvolution threeDAdjustSampleConvolution() {
+        final switch (settings.convolution) {
+        case PsdDepthConvolution.Nearest:
+            return DepthSampleConvolution.Nearest;
+        case PsdDepthConvolution.Box3x3:
+            return DepthSampleConvolution.Box3x3;
+        case PsdDepthConvolution.Box5x5:
+            return DepthSampleConvolution.Box5x5;
+        case PsdDepthConvolution.Gaussian3x3:
+            return DepthSampleConvolution.Gaussian3x3;
+        case PsdDepthConvolution.Gaussian5x5:
+            return DepthSampleConvolution.Gaussian5x5;
+        case PsdDepthConvolution.Median3x3:
+            return DepthSampleConvolution.Median3x3;
+        case PsdDepthConvolution.Frontmost3x3:
+            return DepthSampleConvolution.Frontmost3x3;
+        case PsdDepthConvolution.Backmost3x3:
+            return DepthSampleConvolution.Backmost3x3;
+        case PsdDepthConvolution.BoxCustom:
+            return DepthSampleConvolution.BoxCustom;
+        case PsdDepthConvolution.GaussianCustom:
+            return DepthSampleConvolution.GaussianCustom;
+        case PsdDepthConvolution.MedianCustom:
+            return DepthSampleConvolution.MedianCustom;
+        case PsdDepthConvolution.FrontmostCustom:
+            return DepthSampleConvolution.FrontmostCustom;
+        case PsdDepthConvolution.BackmostCustom:
+            return DepthSampleConvolution.BackmostCustom;
         }
     }
 
-    void updateLayerPreviewTransform(string layerPath, PsdDepthLayerTransform transform) {
-        foreach (ref layerPreview; preview.layerPreviews) {
-            if (layerPreview.layerPath == layerPath) layerPreview.transform = transform;
+    bool gridResultUsesLayer(ref PsdDepthGridResult gridResult, string layerPath) {
+        foreach (ref layerMask; gridResult.layerMasks) {
+            if (layerMask.layerPath == layerPath) return true;
+        }
+        return false;
+    }
+
+    bool layerTargetsGrid(string layerPath, ulong gridUuid) {
+        if (gridUuid == 0) return false;
+        if (auto composedLayer = findComposedLayer(layerPath, gridUuid)) {
+            if (composedLayer.targetGridUuid == gridUuid) return true;
+        }
+        if (auto mapping = findMapping(layerPath)) {
+            if (mapping.targetGridUuid == gridUuid) return true;
+        }
+        return false;
+    }
+
+    void disposeCompositePreviewTexture(ref PsdDepthGridResult gridResult) {
+        if (gridResult.grid is null) return;
+        auto key = gridResult.grid.uuid.to!string;
+        if (auto texture = key in rawCompositePreviewTextures) {
+            if (*texture !is null) (*texture).dispose();
+            rawCompositePreviewTextures.remove(key);
         }
     }
 
-    void mark3DAdjustLayerDirty(string layerPath, bool needsApplyRebuild) {
+    void disposeCompositePreviewTextures() {
+        foreach (key, texture; rawCompositePreviewTextures) {
+            if (texture !is null) texture.dispose();
+        }
+        rawCompositePreviewTextures = null;
+    }
+
+    void refreshGridResultDepths(ref PsdDepthGridResult gridResult) {
+        if (gridResult.grid is null) return;
+        PsdDepthGridResult composedGrid;
+        string composeError;
+        if (ngComposePsdDepthTarget(preview, gridResult, composedGrid, composeError)) {
+            gridResult = composedGrid;
+            disposeCompositePreviewTexture(gridResult);
+            return;
+        }
+        errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
+    }
+
+    void refreshPreviewDepthsForLayer(string layerPath, ulong targetGridUuid = 0) {
+        foreach (ref gridResult; preview.grids) {
+            if (targetGridUuid != 0 && (gridResult.grid is null || gridResult.grid.uuid != targetGridUuid)) continue;
+            if (!gridResultUsesLayer(gridResult, layerPath) &&
+                (gridResult.grid is null || !layerTargetsGrid(layerPath, gridResult.grid.uuid))) {
+                continue;
+            }
+            refreshGridResultDepths(gridResult);
+        }
+    }
+
+    void invalidate3DAdjustLayerCaches(string layerPath, ulong targetGridUuid = 0) {
+        if (auto texture = layerPath in depthMaskPreviewTextures) {
+            if (*texture !is null) (*texture).dispose();
+            depthMaskPreviewTextures.remove(layerPath);
+        }
         threeDAdjustSamples.remove(layerPath);
         threeDAdjustMeshes.remove(layerPath);
         threeDAdjustPreviewDirty = true;
-        rebuildBeforeApply = rebuildBeforeApply || needsApplyRebuild;
     }
 
-    void drawLayerZControls(string layerPath) {
-        auto transform = ngPsdDepthLayerTransform(settings, layerPath);
+    void refreshAfter3DAdjustLayerChange(string layerPath, ulong targetGridUuid = 0) {
+        invalidate3DAdjustLayerCaches(layerPath, targetGridUuid);
+        refreshPreviewDepthsForLayer(layerPath, targetGridUuid);
+    }
+
+    void drawLayerZControls(string layerPath, ulong targetGridUuid = 0) {
+        igPushID(("layerZControls" ~ layerPath ~ targetGridUuid.to!string).toStringz);
+        scope(exit) igPopID();
+        auto transform = layerTransform(layerPath, targetGridUuid);
         bool changed;
-        changed = ngCheckbox((_("Invert Depth") ~ "###invertLayer" ~ layerPath).toStringz, &transform.invert) ||
-            changed;
-        changed = igDragFloat((_("Z Scale") ~ "###zScale" ~ layerPath).toStringz,
+        changed = ngCheckbox(__("Invert Depth"), &transform.invert) || changed;
+        changed = igDragFloat(__("Z Scale"),
             &transform.zScale, 0.01f, -100.0f, 100.0f, "%.3f") || changed;
-        changed = igDragFloat((_("Z Offset") ~ "###zOffset" ~ layerPath).toStringz,
+        changed = igDragFloat(__("Z Offset"),
             &transform.zOffset, 0.01f, -100.0f, 100.0f, "%.3f") || changed;
-        if (incButtonColored((_("Reset Z") ~ "###resetZTransform" ~ layerPath).toStringz, ImVec2(120, 0))) {
+        if (incButtonColored(__("Reset Z"), ImVec2(120, 0))) {
             transform.zOffset = 0.0f;
             transform.zScale = 1.0f;
             transform.invert = false;
             changed = true;
         }
-        storeLayerTransform(layerPath, transform, changed);
-    }
-
-    bool fitLayerBoundsToTarget(ref PsdDepthGridResult gridResult, string layerPath) {
-        auto previewLayer = findLayerPreview(layerPath);
-        if (previewLayer is null || gridResult.grid is null) return false;
-        auto targetView = new DepthTargetView(gridResult.grid);
-        auto targetVertices = targetView.getVertices();
-        if (previewLayer.width <= 0 || previewLayer.height <= 0 || targetVertices.length == 0) return false;
-
-        bool hasBounds;
-        float minX;
-        float maxX;
-        float minY;
-        float maxY;
-        foreach (vertex; targetVertices) {
-            auto documentPoint = ngPsdDepthTargetPointDocumentPosition(
-                gridResult.grid,
-                vertex,
-                gridResult.documentWidth,
-                gridResult.documentHeight
-            );
-            if (!hasBounds) {
-                minX = maxX = documentPoint.x;
-                minY = maxY = documentPoint.y;
-                hasBounds = true;
-            } else {
-                minX = min(minX, documentPoint.x);
-                maxX = max(maxX, documentPoint.x);
-                minY = min(minY, documentPoint.y);
-                maxY = max(maxY, documentPoint.y);
-            }
-        }
-        if (!hasBounds || maxX <= minX || maxY <= minY) return false;
-
-        auto transform = ngPsdDepthLayerTransform(settings, layerPath);
-        transform.xyScaleX = (maxX - minX) / cast(float)previewLayer.width;
-        transform.xyScaleY = (maxY - minY) / cast(float)previewLayer.height;
-        transform.xyOffsetX = minX - cast(float)previewLayer.left;
-        transform.xyOffsetY = minY - cast(float)previewLayer.top;
-        settings.layerTransforms[layerPath] = transform;
-        previewDirty = true;
-        return true;
+        storeLayerTransform(layerPath, targetGridUuid, transform, changed);
     }
 
     void drawMappingLayerRow(ref PsdDepthLayerMapping mapping, Deformable grid = null, PsdDepthGridLayerMask* layerMask = null) {
@@ -1179,7 +1107,7 @@ private:
         auto previewLayer = findLayerPreview(mapping.layerPath);
         igTableNextRow();
         igTableNextColumn();
-        drawComposedLayerEnabledCheckbox(mapping.layerPath);
+        drawComposedLayerEnabledCheckbox(mapping.layerPath, mapping.targetGridUuid);
         igTableNextColumn();
         drawLayerPreviewHoverText(mapping.layerPath, mapping.layerPath, false);
         igTableNextColumn();
@@ -1263,7 +1191,7 @@ private:
                 auto layerPath = layer.layerPath.length ? layer.layerPath : layer.id;
                 igTableNextRow();
                 igTableNextColumn();
-                drawComposedLayerEnabledCheckbox(layerPath);
+                drawComposedLayerEnabledCheckbox(layerPath, layer.targetGridUuid);
                 igTableNextColumn();
                 auto texture = layerPreviewTexture(layerPath, true);
                 incTextureSlotUntitled(("###composedSourceLayerPreview" ~ i.to!string), texture,
@@ -1309,7 +1237,7 @@ private:
             if (errorMessage.length) return;
             igSeparator();
         }
-        if (preview.grids.length == 0 && !hasOtherMappings() && preview.layerPreviews.length == 0) {
+        if (preview.grids.length == 0 && !hasOtherMappings() && preview.composedLayers.length == 0) {
             incText(_("No mapped targets were found. Remap a source layer to a GridDeformer or PathDeformer."));
             return;
         }
@@ -1323,62 +1251,22 @@ private:
         }
     }
 
-    PsdDepthLayerPreview* selected3DAdjustLayerPreview() {
-        if (preview.layerPreviews.length == 0) return null;
-        auto lastIndex = cast(ptrdiff_t)preview.layerPreviews.length - 1;
+    PsdDepthComposedLayer* selected3DAdjustLayerPreview() {
+        if (preview.composedLayers.length == 0) return null;
+        auto lastIndex = cast(ptrdiff_t)preview.composedLayers.length - 1;
         selected3DAdjustLayerIndex = clamp(selected3DAdjustLayerIndex, 0, lastIndex);
-        return &preview.layerPreviews[cast(size_t)selected3DAdjustLayerIndex];
+        return &preview.composedLayers[cast(size_t)selected3DAdjustLayerIndex];
     }
 
     void draw3DAdjustLayerControlsPanel(float height) {
-        size_t countRgbaAlphaPixels(const(ubyte)[] rgba) {
-            size_t count;
-            foreach (i; 0 .. rgba.length / 4) {
-                if (rgba[i * 4 + 3] >= 3) count++;
-            }
-            return count;
-        }
-
-        size_t countDepthPixels(const(ubyte)[] rgba, bool requireAlpha) {
-            size_t count;
-            foreach (i; 0 .. rgba.length / 4) {
-                auto index = i * 4;
-                if (requireAlpha && rgba[index + 3] == 0) continue;
-                if (rgba[index] > 0) count++;
-            }
-            return count;
-        }
-
-        void countSurfaceDepthOverlap(ref PsdDepthLayerPreview layerPreview, out size_t surface, out size_t depth, out size_t overlap) {
-            auto pixels = min(layerPreview.originalRgba.length, layerPreview.depthRgba.length) / 4;
-            foreach (i; 0 .. pixels) {
-                auto index = i * 4;
-                auto hasSurface = layerPreview.originalRgba[index + 3] >= 3;
-                auto hasDepth = layerPreview.depthRgba[index] > 0;
-                if (hasSurface) surface++;
-                if (hasDepth) depth++;
-                if (hasSurface && hasDepth) overlap++;
-            }
-        }
-
-        size_t countDepthCropOverlap(ref PsdDepthLayerPreview layerPreview, const(ubyte)[] depthRgba) {
-            size_t overlap;
-            auto pixels = min(layerPreview.originalRgba.length, depthRgba.length) / 4;
-            foreach (i; 0 .. pixels) {
-                auto index = i * 4;
-                if (layerPreview.originalRgba[index + 3] >= 3 && depthRgba[index] > 0) overlap++;
-            }
-            return overlap;
-        }
-
-        incText("%s: %d".format(_("Layers"), cast(int)preview.layerPreviews.length));
+        incText("%s: %d".format(_("Layers"), cast(int)preview.composedLayers.length));
         incText("%s: %s".format(_("Composition"), preview.compositionModeName));
         igSeparator();
 
-        if (preview.layerPreviews.length == 0) return;
+        if (preview.composedLayers.length == 0) return;
         auto listHeight = clamp(height * 0.34f, 140.0f, max(140.0f, height - 260.0f));
         if (igBeginChild("###PsdDepth3DLayerList", ImVec2(0, listHeight), true)) {
-            foreach (i, ref layerPreview; preview.layerPreviews) {
+            foreach (i, ref layerPreview; preview.composedLayers) {
                 auto selected = selected3DAdjustLayerIndex == cast(ptrdiff_t)i;
                 auto label = "%s\n%d x %d  (%d, %d)###psdDepth3DLayer%d".format(
                     layerPreview.layerName.length ? layerPreview.layerName : layerPreview.layerPath,
@@ -1410,38 +1298,9 @@ private:
                 layerPreview.left,
                 layerPreview.top
             ));
-            size_t surfaceCount;
-            size_t depthCount;
-            size_t overlapCount;
-            countSurfaceDepthOverlap(layerPreview, surfaceCount, depthCount, overlapCount);
-            auto depthCropOverlap = countDepthCropOverlap(layerPreview, layerPreview.flippedDepthRgba);
-            auto yFlippedCropOverlap = countDepthCropOverlap(layerPreview, layerPreview.yFlippedDepthRgba);
-            incText("3D: c %d/%d dm %d raw %d ov %d crop %d flip %d img %dx%d".format(
-                cast(int)surfaceCount,
-                cast(int)(layerPreview.originalRgba.length / 4),
-                cast(int)countDepthPixels(layerPreview.depthMaskRgba, true),
-                cast(int)depthCount,
-                cast(int)overlapCount,
-                cast(int)depthCropOverlap,
-                cast(int)yFlippedCropOverlap,
-                layerPreview.originalWidth,
-                layerPreview.originalHeight
-            ));
-            drawDepthSourceReferenceImage(layerPreview, 220.0f);
-            if (igBeginTable(("###PsdDepth3DDiag" ~ layerPreview.layerPath).toStringz, 3,
-                ImGuiTableFlags.SizingFixedFit)) {
-                igTableNextRow();
-                igTableNextColumn();
-                drawDiagnosticLayerImage("color", layerPreview.layerPath, "surface", 72.0f);
-                igTableNextColumn();
-                drawDiagnosticLayerImage("depth", layerPreview.layerPath, "depth", 72.0f);
-                igTableNextColumn();
-                drawDiagnosticLayerImage("render", layerPreview.layerPath, "render", 72.0f);
-                igEndTable();
-            }
 
-            drawComposedLayerShowCheckbox(layerPreview.layerPath);
-            drawLayerZControls(layerPreview.layerPath);
+            drawComposedLayerShowCheckbox(layerPreview.layerPath, layerPreview.targetGridUuid);
+            drawLayerZControls(layerPreview.layerPath, layerPreview.targetGridUuid);
         }
         igEndChild();
     }
@@ -1473,8 +1332,8 @@ private:
         threeDAdjustLastPan = threeDAdjustCamera.pan;
     }
 
-    DepthSampleChannel threeDAdjustSampleChannel() {
-        final switch (settings.channel) {
+    DepthSampleChannel threeDAdjustSampleChannel(PsdDepthChannel channel) {
+        final switch (channel) {
         case PsdDepthChannel.AverageRGB:
             return DepthSampleChannel.AverageRGB;
         case PsdDepthChannel.R:
@@ -1488,30 +1347,31 @@ private:
         }
     }
 
+    DepthSampleChannel threeDAdjustSampleChannel() {
+        return threeDAdjustSampleChannel(settings.channel);
+    }
+
     float threeDAdjustDepthDisplayScale(float width, float height) {
         return max(1.0f, max(width, height) * (DepthTargetDisplayZScale / DepthTargetDisplayPlaneSize));
     }
 
-    bool threeDAdjustDepthAt(ref PsdDepthLayerPreview layerPreview, size_t index, out float depth) {
+    bool threeDAdjustDepthAt(ref PsdDepthComposedLayer layerPreview, size_t index, out float depth) {
         depth = 0.0f;
         if (index + 3 >= layerPreview.depthRgba.length) return false;
-        auto transform = ngPsdDepthLayerTransform(settings, layerPreview.layerPath);
-        auto invert = settings.invert;
-        if (transform.invert) invert = !invert;
         depth = ngDepthSamplePixelDepth(
             layerPreview.depthRgba,
             index,
-            threeDAdjustSampleChannel(),
-            invert,
-            settings.backDepth,
-            settings.frontDepth,
-            settings.depthScale
+            DepthSampleChannel.AverageRGB,
+            layerPreview.invert,
+            layerPreview.backDepth,
+            layerPreview.frontDepth,
+            layerPreview.sourceDepthScale
         );
-        depth = depth * transform.zScale + transform.zOffset;
+        depth = depth * layerPreview.depthScale + layerPreview.depthOffset;
         return true;
     }
 
-    PsdDepth3DAdjustSample[] threeDAdjustLayerSamples(ref PsdDepthLayerPreview layerPreview) {
+    PsdDepth3DAdjustSample[] threeDAdjustLayerSamples(ref PsdDepthComposedLayer layerPreview) {
         auto existing = layerPreview.layerPath in threeDAdjustSamples;
         if (existing !is null) return *existing;
 
@@ -1523,12 +1383,12 @@ private:
         foreach (y; 0 .. layerPreview.height) {
             foreach (x; 0 .. layerPreview.width) {
                 auto index = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
-                if (index + 3 >= layerPreview.depthMaskRgba.length ||
-                    index + 3 >= layerPreview.originalRgba.length) {
+                if (index + 3 >= layerPreview.maskRgba.length ||
+                    index + 3 >= layerPreview.colorRgba.length) {
                     continue;
                 }
-                auto depthByte = layerPreview.depthMaskRgba[index];
-                auto alpha = layerPreview.originalRgba[index + 3];
+                auto depthByte = layerPreview.maskRgba[index];
+                auto alpha = layerPreview.colorRgba[index + 3];
                 if (depthByte == 0 || alpha < 3) continue;
                 float depth;
                 if (!threeDAdjustDepthAt(layerPreview, index, depth)) continue;
@@ -1538,9 +1398,9 @@ private:
                 sample.y = y;
                 sample.depthByte = depthByte;
                 sample.depth = depth;
-                sample.r = layerPreview.originalRgba[index + 0];
-                sample.g = layerPreview.originalRgba[index + 1];
-                sample.b = layerPreview.originalRgba[index + 2];
+                sample.r = layerPreview.colorRgba[index + 0];
+                sample.g = layerPreview.colorRgba[index + 1];
+                sample.b = layerPreview.colorRgba[index + 2];
                 sample.a = alpha;
                 samples ~= sample;
             }
@@ -1549,7 +1409,7 @@ private:
         return samples;
     }
 
-    PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthLayerPreview layerPreview) {
+    PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthComposedLayer layerPreview) {
         auto existing = layerPreview.layerPath in threeDAdjustMeshes;
         if (existing !is null) return existing;
 
@@ -1559,7 +1419,6 @@ private:
             return layerPreview.layerPath in threeDAdjustMeshes;
         }
 
-        auto transform = ngPsdDepthLayerTransform(settings, layerPreview.layerPath);
         auto step = max(1, PsdDepth3DAdjustMeshStep);
         auto cols = ((layerPreview.width - 1) + step - 1) / step + 1;
         auto rows = ((layerPreview.height - 1) + step - 1) / step + 1;
@@ -1582,19 +1441,19 @@ private:
                 auto x = sampleX(gx);
                 auto y = sampleY(gy);
                 auto index = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
-                if (index + 3 >= layerPreview.depthMaskRgba.length ||
-                    index + 3 >= layerPreview.originalRgba.length) {
+                if (index + 3 >= layerPreview.maskRgba.length ||
+                    index + 3 >= layerPreview.colorRgba.length) {
                     continue;
                 }
-                auto depthByte = layerPreview.depthMaskRgba[index];
-                if (depthByte == 0 || layerPreview.originalRgba[index + 3] < 3) continue;
+                auto depthByte = layerPreview.maskRgba[index];
+                if (depthByte == 0 || layerPreview.colorRgba[index + 3] < 3) continue;
                 float depth;
                 if (!threeDAdjustDepthAt(layerPreview, index, depth)) continue;
 
                 auto vertexIndex = cast(int)(mesh.vertexData.length / 5);
                 lookup[cast(size_t)gy * cast(size_t)cols + cast(size_t)gx] = vertexIndex;
-                mesh.vertexData ~= cast(float)layerPreview.left + (cast(float)x + transform.xyOffsetX) * transform.xyScaleX;
-                mesh.vertexData ~= cast(float)layerPreview.top + (cast(float)y + transform.xyOffsetY) * transform.xyScaleY;
+                mesh.vertexData ~= cast(float)layerPreview.left + cast(float)x;
+                mesh.vertexData ~= cast(float)layerPreview.top + cast(float)y;
                 mesh.vertexData ~= depth;
                 mesh.vertexData ~= (cast(float)x + 0.5f) / cast(float)layerPreview.width;
                 mesh.vertexData ~= (cast(float)y + 0.5f) / cast(float)layerPreview.height;
@@ -1678,10 +1537,10 @@ private:
                 bottom = max(bottom, y1);
             }
         }
-        bool hasRenderPixels(ref PsdDepthLayerPreview layerPreview) {
+        bool hasRenderPixels(ref PsdDepthComposedLayer layerPreview) {
             return threeDAdjustLayerSamples(layerPreview).length > 0;
         }
-        foreach (ref layerPreview; preview.layerPreviews) {
+        foreach (ref layerPreview; preview.composedLayers) {
             if (!hasRenderPixels(layerPreview)) continue;
             includeBounds(
                 layerPreview.left,
@@ -1720,7 +1579,7 @@ private:
             framebufferWidth,
             framebufferHeight,
             {
-                foreach (ref layerPreview; preview.layerPreviews) {
+                foreach (ref layerPreview; preview.composedLayers) {
                     if (!hasRenderPixels(layerPreview)) continue;
                     auto mesh = threeDAdjustLayerMesh(layerPreview);
                     if (mesh is null || mesh.indices.length == 0) continue;
@@ -1804,10 +1663,10 @@ private:
             return y * cameraPitchSin + rz * cameraPitchCos;
         }
 
-        ImVec2 projectDocumentPoint(vec2 documentPoint, float depth) {
+        ImVec2 projectDocumentPoint(vec2 documentPoint, float depth, float sceneDepthDisplayScale) {
             float x = documentPoint.x - centerX;
             float y = documentPoint.y - centerY;
-            float z = -depth * depthDisplayScale;
+            float z = -depth * sceneDepthDisplayScale;
 
             float rx = x * cameraYawCos + z * cameraYawSin;
             float rz = -x * cameraYawSin + z * cameraYawCos;
@@ -1822,20 +1681,20 @@ private:
             return (cx - ax) * (by - ay) - (cy - ay) * (bx - ax);
         }
 
-        ubyte sampleCoverage(ref PsdDepthLayerPreview layerPreview, float u, float v) {
+        ubyte sampleCoverage(ref PsdDepthComposedLayer layerPreview, float u, float v) {
             auto textureWidth = layerPreview.width;
             auto textureHeight = layerPreview.height;
             if (textureWidth <= 0 || textureHeight <= 0) return 0;
             auto x = clamp(cast(int)(u * cast(float)textureWidth), 0, textureWidth - 1);
             auto y = clamp(cast(int)(v * cast(float)textureHeight), 0, textureHeight - 1);
             auto index = (cast(size_t)y * cast(size_t)textureWidth + cast(size_t)x) * 4;
-            if (index + 3 >= layerPreview.originalRgba.length) return 0;
-            if (index + 3 >= layerPreview.depthMaskRgba.length) return 0;
-            if (layerPreview.depthMaskRgba[index] == 0 || layerPreview.depthMaskRgba[index + 3] == 0) return 0;
-            return layerPreview.originalRgba[index + 3];
+            if (index + 3 >= layerPreview.colorRgba.length) return 0;
+            if (index + 3 >= layerPreview.maskRgba.length) return 0;
+            if (layerPreview.maskRgba[index] == 0 || layerPreview.maskRgba[index + 3] == 0) return 0;
+            return layerPreview.colorRgba[index + 3];
         }
 
-        bool sampleColor(ref PsdDepthLayerPreview layerPreview, float u, float v, out ubyte r, out ubyte g, out ubyte b, out ubyte a) {
+        bool sampleColor(ref PsdDepthComposedLayer layerPreview, float u, float v, out ubyte r, out ubyte g, out ubyte b, out ubyte a) {
             r = g = b = a = 0;
             auto textureWidth = layerPreview.width;
             auto textureHeight = layerPreview.height;
@@ -1843,18 +1702,18 @@ private:
             auto x = clamp(cast(int)(u * cast(float)textureWidth), 0, textureWidth - 1);
             auto y = clamp(cast(int)(v * cast(float)textureHeight), 0, textureHeight - 1);
             auto index = (cast(size_t)y * cast(size_t)textureWidth + cast(size_t)x) * 4;
-            if (index + 3 >= layerPreview.originalRgba.length) return false;
-            if (index + 3 >= layerPreview.depthMaskRgba.length) return false;
-            if (layerPreview.depthMaskRgba[index] == 0 || layerPreview.depthMaskRgba[index + 3] == 0) return false;
-            r = layerPreview.originalRgba[index + 0];
-            g = layerPreview.originalRgba[index + 1];
-            b = layerPreview.originalRgba[index + 2];
-            a = layerPreview.originalRgba[index + 3];
+            if (index + 3 >= layerPreview.colorRgba.length) return false;
+            if (index + 3 >= layerPreview.maskRgba.length) return false;
+            if (layerPreview.maskRgba[index] == 0 || layerPreview.maskRgba[index + 3] == 0) return false;
+            r = layerPreview.colorRgba[index + 0];
+            g = layerPreview.colorRgba[index + 1];
+            b = layerPreview.colorRgba[index + 2];
+            a = layerPreview.colorRgba[index + 3];
             return true;
         }
 
         void rasterizeImageTriangle(
-            ref PsdDepthLayerPreview layerPreview,
+            ref PsdDepthComposedLayer layerPreview,
             ImVec2 p0,
             ImVec2 p1,
             ImVec2 p2,
@@ -1924,20 +1783,18 @@ private:
             }
         }
 
-        foreach (ref layerPreview; preview.layerPreviews) {
+        foreach (ref layerPreview; preview.composedLayers) {
             if (!hasRenderPixels(layerPreview)) continue;
             if (layerPreview.width <= 1 || layerPreview.height <= 1) continue;
-            auto transform = ngPsdDepthLayerTransform(settings, layerPreview.layerPath);
             auto samples = threeDAdjustLayerSamples(layerPreview);
             if (samples.length == 0) continue;
             auto step = 1;
-
             void rasterizeDepthSample(PsdDepth3DAdjustSample sample, float depth) {
                 auto documentPoint = vec2(
-                    cast(float)layerPreview.left + (cast(float)sample.x + transform.xyOffsetX) * transform.xyScaleX,
-                    cast(float)layerPreview.top + (cast(float)sample.y + transform.xyOffsetY) * transform.xyScaleY
+                    cast(float)layerPreview.left + cast(float)sample.x,
+                    cast(float)layerPreview.top + cast(float)sample.y
                 );
-                auto projected = projectDocumentPoint(documentPoint, depth);
+                auto projected = projectDocumentPoint(documentPoint, depth, depthDisplayScale);
                 auto sx = cast(int)round(projected.x - origin.x);
                 auto sy = cast(int)round(projected.y - origin.y);
                 if (sx < -1 || sy < -1 || sx > framebufferWidth || sy > framebufferHeight) return;
@@ -2040,7 +1897,7 @@ private:
             drawDiagnostics();
             return;
         }
-        if (preview.layerPreviews.length == 0) {
+        if (preview.composedLayers.length == 0) {
             incText(_("No composed source layers were loaded."));
             return;
         }
@@ -2056,12 +1913,12 @@ private:
     }
 
     void apply() {
-        if (previewDirty || rebuildBeforeApply) rebuildPreview();
+        if (previewDirty) rebuildPreview();
         if (errorMessage.length) {
             incDialog(__("Error"), errorMessage);
             return;
         }
-        auto result = ngApplyPsdDepthImportResult(preview);
+        auto result = ngApplyPsdDepthImportResult(composedPreview);
         if (!result.succeeded) {
             lastApplyErrorMessage = result.message;
             incDialog(__("Error"), result.message);
@@ -2208,6 +2065,17 @@ public:
 
         string previewSummaryForRegressionSmoke() {
             string[] lines;
+            foreach (layer; preview.composedLayers) {
+                lines ~= "layer=%s bounds=%s,%s %sx%s enabled=%s depth=%s zero=%s".format(
+                    layer.layerPath,
+                    layer.left,
+                    layer.top,
+                    layer.width,
+                    layer.height,
+                    layer.enabled,
+                    layer.depthStats.maskedPixels,
+                    layer.depthStats.zeroPixels);
+            }
             foreach (mapping; preview.mappings) {
                 lines ~= "mapping layer=%s target=%s status=%s matched=%s manual=%s".format(
                     mapping.layerPath,
@@ -2237,7 +2105,7 @@ public:
                 message = errorMessage;
                 return false;
             }
-            auto result = ngApplyPsdDepthImportResult(preview);
+            auto result = ngApplyPsdDepthImportResult(composedPreview);
             message = result.message;
             return result.succeeded;
         }
@@ -2246,6 +2114,21 @@ public:
             settings.useGpuComposition = enabled;
             previewDirty = true;
             rebuildPreview();
+        }
+
+        bool setFirstMappedLayerZOffsetForRegressionSmoke(string gridName, float zOffset) {
+            if (previewDirty) rebuildPreview();
+            foreach (ref gridResult; preview.grids) {
+                if (gridResult.grid is null || gridResult.grid.name != gridName) continue;
+                foreach (layerMask; gridResult.layerMasks) {
+                    if (layerMask.layerPath.length == 0) continue;
+                    auto transform = layerTransform(layerMask.layerPath, gridResult.grid.uuid);
+                    transform.zOffset = zOffset;
+                    storeLayerTransform(layerMask.layerPath, gridResult.grid.uuid, transform, true);
+                    return true;
+                }
+            }
+            return false;
         }
 
         PsdDepthImportResult previewForRegressionSmoke() {

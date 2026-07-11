@@ -10,11 +10,14 @@ import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngE
 import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
-import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution;
+import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, ngDepthImageSampleRgbaWithOpacity;
 import nijigenerate.io.depthmap_psd;
+import nijigenerate.io.depthsample : ngDepthSampleValueToDepth01;
 import nijigenerate.project : incActivePuppet;
 import nijigenerate.viewport.depth.common.targetview : DepthTargetView;
 import nijigenerate.viewport.depth.draw.binding : DepthDrawBinding, DepthMergePolicy;
+import nijigenerate.viewport.depth.draw.composer : ngComposeDepthDrawTarget;
+import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerPixelFromDocument;
 import nijigenerate.viewport.depth.draw.gpu : DepthDrawGpuTargetComposeJob, DepthDrawGpuTargetComposePollResult,
     ngPollDepthDrawGpuTargetCompose, ngSubmitDepthDrawGpuTargetCompose;
 import nijigenerate.viewport.depth.draw.layer : DepthDrawLayer, DepthDrawRect;
@@ -25,10 +28,10 @@ import nijigenerate.viewport.depth.tools.operation : applyRingNormalSurfaces, de
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthPlaneOperation, DepthRingOperation;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
-import std.algorithm.comparison : max;
+import std.algorithm.comparison : max, min;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue;
-import std.math : isFinite;
+import std.math : isFinite, round;
 import std.string : format;
 import nijigenerate.widgets.notification : NotificationPopup;
 import bindbc.imgui : ImGuiIO, ImVec2, igProgressBar, igText;
@@ -174,6 +177,19 @@ private class PsdDepthImportRefreshJob {
 }
 
 private PsdDepthImportRefreshJob activePsdDepthImportRefreshJob;
+
+public struct PsdDepthComposedView {
+private:
+    PsdDepthImportResult* imported;
+}
+
+version (CommandBrowserDifferential) {
+    PsdDepthComposedView ngPsdDepthComposedViewForRegression(ref PsdDepthImportResult imported) {
+        PsdDepthComposedView composed;
+        composed.imported = &imported;
+        return composed;
+    }
+}
 
 private DepthOperationMappedNode requireDepthOperated(Node node) {
     auto operated = cast(DepthOperationMappedNode)node;
@@ -347,6 +363,7 @@ DepthMappedChangeAction ngApplyDepthsChangeAction(Node target, float[] nextDepth
     auto mapped = requireDepthMapped(target);
     auto action = new DepthMappedChangeAction(target);
     mapped.replaceDepths(nextDepths);
+    target.notifyChange(target, NotifyReason.AttributeChanged);
     action.updateNewState();
     ngMarkDepthBoneDirtyForTarget(target, reason);
     return action;
@@ -354,6 +371,17 @@ DepthMappedChangeAction ngApplyDepthsChangeAction(Node target, float[] nextDepth
 
 private void replaceDepthsWithUndo(Node target, float[] nextDepths, string reason) {
     incActionPush(ngApplyDepthsChangeAction(target, nextDepths, reason));
+}
+
+private DepthOperationMappedChangeAction ngClearDepthOpsChangeAction(Node target, string reason) {
+    auto operated = cast(DepthOperationMappedNode)target;
+    if (operated is null || operated.copyDepthOps().length == 0) return null;
+    auto action = new DepthOperationMappedChangeAction(target);
+    operated.replaceDepthOps(null);
+    target.notifyChange(target, NotifyReason.AttributeChanged);
+    action.updateNewState();
+    ngMarkDepthBoneDirtyForTarget(target, reason);
+    return action;
 }
 
 JSONValue ngPsdDepthImportSummaryToJson(PsdDepthImportResult imported, size_t changedGrids) {
@@ -373,10 +401,10 @@ JSONValue ngPsdDepthImportSummaryToJson(PsdDepthImportResult imported, size_t ch
     obj["composedLayerCount"] = JSONValue(cast(long)imported.composedLayerCount);
     obj["globalDepthScale"] = JSONValue(cast(double)imported.globalDepthScale);
     obj["globalDepthCentroid"] = JSONValue(cast(double)imported.globalDepthCentroid);
-    obj["composedSourceMode"] = JSONValue(imported.composedSource.modeName);
-    obj["composedSourceWidth"] = JSONValue(cast(long)imported.composedSource.width);
-    obj["composedSourceHeight"] = JSONValue(cast(long)imported.composedSource.height);
-    obj["composedSourceLayerCount"] = JSONValue(cast(long)imported.composedSource.layers.length);
+    obj["composedSourceMode"] = JSONValue(imported.compositionModeName);
+    obj["composedSourceWidth"] = JSONValue(cast(long)imported.compositionWidth);
+    obj["composedSourceHeight"] = JSONValue(cast(long)imported.compositionHeight);
+    obj["composedSourceLayerCount"] = JSONValue(cast(long)imported.composedLayers.length);
 
     JSONValue compositionDiagnostics = JSONValue.emptyArray;
     foreach (diagnostic; imported.compositionDiagnostics) {
@@ -463,16 +491,16 @@ private DepthImageConvolution psdDepthConvolutionToDepthImage(PsdDepthConvolutio
     }
 }
 
-private PsdDepthLayerPreview* psdDepthLayerPreviewByPath(ref PsdDepthImportResult imported, string layerPath) {
-    foreach (ref layerPreview; imported.layerPreviews) {
-        if (layerPreview.layerPath == layerPath) return &layerPreview;
-    }
-    return null;
-}
-
-private PsdDepthComposedLayer* psdDepthComposedLayerByPath(ref PsdDepthImportResult imported, string layerPath) {
+private PsdDepthComposedLayer* psdDepthComposedLayerByPath(
+    ref PsdDepthImportResult imported,
+    string layerPath,
+    ulong targetGridUuid
+) {
     foreach (ref layer; imported.composedLayers) {
-        if (layer.layerPath == layerPath || layer.id == layerPath || layer.colorLayerPath == layerPath) return &layer;
+        if (layer.layerPath == layerPath && layer.targetGridUuid == targetGridUuid) return &layer;
+    }
+    foreach (ref layer; imported.composedLayers) {
+        if (layer.layerPath == layerPath && layer.targetGridUuid == 0) return &layer;
     }
     return null;
 }
@@ -494,6 +522,14 @@ private DepthDrawLayer psdDepthComposedLayerToDepthDrawLayer(ref PsdDepthCompose
     layer.enabled = composedLayer.enabled;
     layer.zOffset = composedLayer.depthOffset;
     layer.zScale = composedLayer.depthScale;
+    layer.backDepth = composedLayer.backDepth;
+    layer.frontDepth = composedLayer.frontDepth;
+    layer.sampleDepthScale = composedLayer.sourceDepthScale;
+    layer.invert = composedLayer.invert;
+    layer.channel = DepthImageChannel.AverageRGB;
+    layer.convolution = psdDepthConvolutionToDepthImage(composedLayer.convolution);
+    layer.customRadius = composedLayer.customRadius;
+    layer.alphaThreshold = composedLayer.alphaThreshold;
     return layer;
 }
 
@@ -528,7 +564,7 @@ DepthDrawSession ngPsdDepthComposedSourceToDepthDrawSession(PsdDepthComposedSour
 }
 
 DepthDrawSession ngPsdDepthImportResultToDepthDrawSession(PsdDepthImportResult imported) {
-    return ngPsdDepthComposedSourceToDepthDrawSession(imported.composedSource);
+    return ngPsdDepthComposedSourceToDepthDrawSession(ngPsdDepthComposedSourceFromImportResult(imported));
 }
 
 DepthDrawPngExportResult ngExportPsdDepthComposedSourcePng(
@@ -540,34 +576,159 @@ DepthDrawPngExportResult ngExportPsdDepthComposedSourcePng(
     return ngExportDepthDrawPngSession(session, outputDir, manifestPath);
 }
 
-private DepthDrawLayer psdDepthLayerPreviewToDepthDrawLayer(ref PsdDepthLayerPreview layerPreview) {
-    DepthDrawLayer layer;
-    layer.id = layerPreview.id.length ? layerPreview.id : layerPreview.layerPath;
-    layer.layerPath = layerPreview.layerPath;
-    layer.displayName = layerPreview.layerName;
-    layer.width = layerPreview.width;
-    layer.height = layerPreview.height;
-    layer.bounds = DepthDrawRect(layerPreview.left, layerPreview.top, layerPreview.width, layerPreview.height);
-    layer.rgba = layerPreview.originalRgba.dup;
-    layer.depthPixels = layerPreview.originalRgba.dup;
-    layer.opacity = layerPreview.opacity;
-    layer.visible = layerPreview.visible;
-    layer.enabled = layerPreview.enabled;
-    layer.xyOffset = vec2(layerPreview.transform.xyOffsetX, layerPreview.transform.xyOffsetY);
-    layer.xyScale = vec2(layerPreview.transform.xyScaleX, layerPreview.transform.xyScaleY);
-    layer.zOffset = layerPreview.transform.zOffset;
-    layer.zScale = layerPreview.transform.zScale * layerPreview.depthScale;
-    layer.backDepth = layerPreview.backDepth;
-    layer.frontDepth = layerPreview.frontDepth;
-    layer.invert = layerPreview.invert;
-    layer.channel = psdDepthChannelToDepthImage(layerPreview.channel);
-    layer.convolution = psdDepthConvolutionToDepthImage(layerPreview.convolution);
-    layer.customRadius = layerPreview.customRadius;
-    layer.alphaThreshold = layerPreview.alphaThreshold;
-    return layer;
+private void buildPsdDepthDrawCompositePreview(ref PsdDepthGridResult gridResult, DepthDrawLayer[] layers) {
+    enum int MaxPreviewSize = 192;
+
+    bool hasBounds;
+    int left;
+    int top;
+    int right;
+    int bottom;
+    foreach (ref layer; layers) {
+        if (!layer.enabled || !layer.visible || !layer.hasDepthPixels()) continue;
+        auto layerRight = layer.bounds.left + layer.bounds.width;
+        auto layerBottom = layer.bounds.top + layer.bounds.height;
+        if (!hasBounds) {
+            left = layer.bounds.left;
+            top = layer.bounds.top;
+            right = layerRight;
+            bottom = layerBottom;
+            hasBounds = true;
+        } else {
+            left = min(left, layer.bounds.left);
+            top = min(top, layer.bounds.top);
+            right = max(right, layerRight);
+            bottom = max(bottom, layerBottom);
+        }
+    }
+    if (!hasBounds || right <= left || bottom <= top) {
+        gridResult.previewWidth = 0;
+        gridResult.previewHeight = 0;
+        gridResult.rawCompositePreviewRgba = null;
+        gridResult.compositePreviewRgba = null;
+        return;
+    }
+
+    auto sourceWidth = right - left;
+    auto sourceHeight = bottom - top;
+    auto scale = min(
+        cast(float)MaxPreviewSize / cast(float)sourceWidth,
+        cast(float)MaxPreviewSize / cast(float)sourceHeight
+    );
+    if (scale > 1.0f) scale = 1.0f;
+    if (scale <= 0.0f) scale = 1.0f;
+
+    auto width = max(1, cast(int)round(cast(float)sourceWidth * scale));
+    auto height = max(1, cast(int)round(cast(float)sourceHeight * scale));
+    gridResult.previewLeft = left;
+    gridResult.previewTop = top;
+    gridResult.previewWidth = width;
+    gridResult.previewHeight = height;
+    gridResult.rawCompositePreviewRgba.length = cast(size_t)width * cast(size_t)height * 4;
+    gridResult.compositePreviewRgba.length = gridResult.rawCompositePreviewRgba.length;
+    gridResult.rawCompositePreviewRgba[] = 0;
+    gridResult.compositePreviewRgba[] = 0;
+
+    foreach (py; 0 .. height) {
+        foreach (px; 0 .. width) {
+            auto documentPoint = vec2(
+                cast(float)left + (cast(float)px + 0.5f) / scale,
+                cast(float)top + (cast(float)py + 0.5f) / scale
+            );
+            bool hasSample;
+            float bestDepth;
+            float bestBackDepth = -1.0f;
+            float bestFrontDepth = 1.0f;
+            float bestDepthScale = 1.0f;
+            foreach (ref layer; layers) {
+                if (!layer.enabled || !layer.visible || !layer.hasDepthPixels()) continue;
+                auto layerPoint = ngDepthDrawLayerPixelFromDocument(layer, documentPoint);
+                auto sample = ngDepthImageSampleRgbaWithOpacity(
+                    layer.depthPixels,
+                    layer.width,
+                    layer.height,
+                    layerPoint.x,
+                    layerPoint.y,
+                    layer.opacity,
+                    layer.sampleSettings()
+                );
+                if (!sample.valid) continue;
+                auto depth = layer.applyZTransform(sample.value);
+                if (!hasSample || depth > bestDepth) {
+                    hasSample = true;
+                    bestDepth = depth;
+                    bestBackDepth = layer.backDepth;
+                    bestFrontDepth = layer.frontDepth;
+                    bestDepthScale = layer.sampleDepthScale;
+                }
+            }
+            if (!hasSample) continue;
+            auto depthIndex = cast(size_t)py * cast(size_t)width + cast(size_t)px;
+            auto normalized = ngDepthSampleValueToDepth01(bestDepth, bestBackDepth, bestFrontDepth, bestDepthScale);
+            auto gray = cast(ubyte)round(normalized * 255.0f);
+            auto outIndex = depthIndex * 4;
+            gridResult.rawCompositePreviewRgba[outIndex + 0] = gray;
+            gridResult.rawCompositePreviewRgba[outIndex + 1] = gray;
+            gridResult.rawCompositePreviewRgba[outIndex + 2] = gray;
+            gridResult.rawCompositePreviewRgba[outIndex + 3] = 255;
+            gridResult.compositePreviewRgba[outIndex + 0] = gray;
+            gridResult.compositePreviewRgba[outIndex + 1] = gray;
+            gridResult.compositePreviewRgba[outIndex + 2] = gray;
+            gridResult.compositePreviewRgba[outIndex + 3] = 255;
+        }
+    }
 }
 
-private bool composePsdDepthGpuTarget(
+private DepthDrawSession buildPsdDepthDrawSessionForGrid(
+    ref PsdDepthImportResult imported,
+    ref PsdDepthGridResult gridResult,
+    out string[string] layerIdToPath,
+    out DepthDrawLayer[] previewLayers
+) {
+    auto session = new DepthDrawSession();
+    int order;
+    foreach (layerMask; gridResult.layerMasks) {
+        auto composedLayer = psdDepthComposedLayerByPath(imported, layerMask.layerPath, gridResult.grid.uuid);
+        if (composedLayer is null || composedLayer.depthRgba.length == 0) continue;
+        auto layer = psdDepthComposedLayerToDepthDrawLayer(*composedLayer);
+        session.layers ~= layer;
+        previewLayers ~= layer;
+        layerIdToPath[layer.id] = layerMask.layerPath;
+
+        DepthDrawBinding binding;
+        binding.layerId = layer.id;
+        binding.targetNodeUuid = gridResult.grid.uuid;
+        binding.targetGridUuid = gridResult.grid.uuid;
+        binding.order = order++;
+        binding.enabled = true;
+        binding.useNormalLayerAlpha = false;
+        binding.coverageThreshold = 0.0f;
+        binding.mergePolicy = DepthMergePolicy.Frontmost;
+        session.bindings ~= binding;
+    }
+    return session;
+}
+
+private void updatePsdDepthGridRange(ref PsdDepthGridResult gridResult) {
+    bool hasDepth;
+    foreach (depth; gridResult.depths) {
+        if (!depth.isFinite) continue;
+        if (!hasDepth) {
+            gridResult.minDepth = depth;
+            gridResult.maxDepth = depth;
+            hasDepth = true;
+        } else {
+            gridResult.minDepth = min(gridResult.minDepth, depth);
+            gridResult.maxDepth = max(gridResult.maxDepth, depth);
+        }
+    }
+    if (!hasDepth) {
+        gridResult.minDepth = 0.0f;
+        gridResult.maxDepth = 0.0f;
+    }
+}
+
+bool ngComposePsdDepthTarget(
     ref PsdDepthImportResult imported,
     ref PsdDepthGridResult gridResult,
     out PsdDepthGridResult composed,
@@ -578,35 +739,15 @@ private bool composePsdDepthGpuTarget(
     if (gridResult.grid is null || gridResult.skipped) return true;
     auto depthMapped = cast(DepthMappedNode)gridResult.grid;
     if (depthMapped is null) {
-        error = "PSD depth map GPU composition target does not support depth maps";
+        error = "PSD depth map composition target does not support depth maps";
         return false;
     }
 
-    auto session = new DepthDrawSession();
-    int order;
-    foreach (layerMask; gridResult.layerMasks) {
-        auto composedLayer = psdDepthComposedLayerByPath(imported, layerMask.layerPath);
-        auto layerPreview = psdDepthLayerPreviewByPath(imported, layerMask.layerPath);
-        if (composedLayer !is null && composedLayer.depthRgba.length > 0) {
-            session.layers ~= psdDepthComposedLayerToDepthDrawLayer(*composedLayer);
-        } else if (layerPreview !is null) {
-            session.layers ~= psdDepthLayerPreviewToDepthDrawLayer(*layerPreview);
-        } else {
-            continue;
-        }
-        DepthDrawBinding binding;
-        binding.layerId = layerMask.layerPath;
-        binding.targetNodeUuid = gridResult.grid.uuid;
-        binding.targetGridUuid = gridResult.grid.uuid;
-        binding.order = order++;
-        binding.enabled = true;
-        binding.useNormalLayerAlpha = false;
-        binding.coverageThreshold = layerPreview !is null ? layerPreview.alphaThreshold : 0.0f;
-        binding.mergePolicy = DepthMergePolicy.Frontmost;
-        session.bindings ~= binding;
-    }
+    string[string] layerIdToPath;
+    DepthDrawLayer[] previewLayers;
+    auto session = buildPsdDepthDrawSessionForGrid(imported, gridResult, layerIdToPath, previewLayers);
     if (session.layers.length == 0) {
-        error = "PSD depth map GPU composition has no enabled source layers for target";
+        error = "PSD depth map composition has no enabled source layers for target";
         return false;
     }
 
@@ -619,71 +760,156 @@ private bool composePsdDepthGpuTarget(
     target.baseDepths = oldDepths.dup;
     target.depths = oldDepths.dup;
 
-    DepthDrawGpuTargetComposeJob job;
-    if (!ngSubmitDepthDrawGpuTargetCompose(session, target, gridResult.documentWidth, gridResult.documentHeight, job, error)) {
-        if (error.length == 0) error = "PSD depth map GPU composition submit failed";
+    auto result = ngComposeDepthDrawTarget(session, target, gridResult.documentWidth, gridResult.documentHeight);
+    if (result.depths.length != gridResult.grid.vertices.length) {
+        error = "PSD depth map composition depth count mismatch";
         return false;
     }
-
-    DepthDrawGpuTargetComposePollResult pollResult;
-    if (!ngPollDepthDrawGpuTargetCompose(job, pollResult, error)) {
-        if (error.length == 0) error = "PSD depth map GPU composition poll failed";
-        return false;
-    }
-    if (!pollResult.ready) {
-        error = "PSD depth map GPU composition did not finish synchronously";
-        return false;
-    }
-    if (pollResult.result.depths.length != gridResult.grid.vertices.length) {
-        error = "PSD depth map GPU composition readback depth count mismatch";
-        return false;
-    }
-
-    composed.depths = pollResult.result.depths.dup;
-    composed.sampledVertices = pollResult.result.sampledVertices;
-    composed.missingVertices = pollResult.result.missingVertices;
+    composed.depths = result.depths.dup;
+    composed.baseDepths = oldDepths.dup;
+    composed.winnerLayerPaths.length = composed.depths.length;
     composed.missingVertexMask.length = composed.depths.length;
-    foreach (i, winnerId; pollResult.result.winningLayerIds) {
-        composed.missingVertexMask[i] = winnerId.length == 0;
+    composed.sampledVertices = 0;
+    composed.missingVertices = 0;
+    foreach (i, winnerId; result.winningLayerIds) {
+        auto hasWinner = winnerId.length > 0;
+        composed.missingVertexMask[i] = !hasWinner;
+        if (hasWinner) {
+            composed.sampledVertices++;
+            if (auto layerPath = winnerId in layerIdToPath) {
+                composed.winnerLayerPaths[i] = *layerPath;
+            } else {
+                composed.winnerLayerPaths[i] = winnerId;
+            }
+        } else {
+            composed.missingVertices++;
+            composed.winnerLayerPaths[i] = null;
+        }
     }
-    composed.minDepth = pollResult.result.hasDepthRange ? pollResult.result.minDepth : 0.0f;
-    composed.maxDepth = pollResult.result.hasDepthRange ? pollResult.result.maxDepth : 0.0f;
+    updatePsdDepthGridRange(composed);
+    foreach (ref layerMask; composed.layerMasks) {
+        layerMask.sampledVertices = 0;
+        layerMask.selectedVertices = 0;
+        foreach (stats; result.layerStats) {
+            string statsLayerPath = stats.layerId;
+            if (auto path = stats.layerId in layerIdToPath) statsLayerPath = *path;
+            if (statsLayerPath != layerMask.layerPath) continue;
+            layerMask.sampledVertices += stats.sampledVertices;
+            layerMask.selectedVertices += stats.winningVertices;
+        }
+    }
+    buildPsdDepthDrawCompositePreview(composed, previewLayers);
     return true;
 }
 
-private bool composePsdDepthGpuImport(PsdDepthImportResult imported, out PsdDepthImportResult composed, out string error) {
-    composed = imported;
+bool ngComposePsdDepthImportResult(
+    ref PsdDepthImportResult imported,
+    out PsdDepthComposedView composed,
+    out string error
+) {
+    composed = PsdDepthComposedView.init;
+    error = null;
+    if (imported.gpuCompositionRequested) {
+        if (!composePsdDepthImportGpu(imported, error)) return false;
+    } else {
+        foreach (i, ref gridResult; imported.grids) {
+            PsdDepthGridResult composedGrid;
+            if (!ngComposePsdDepthTarget(imported, gridResult, composedGrid, error)) return false;
+            imported.grids[i] = composedGrid;
+        }
+    }
+    composed.imported = &imported;
+    return true;
+}
+
+private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out string error) {
     error = null;
     foreach (i, ref gridResult; imported.grids) {
-        PsdDepthGridResult composedGrid;
-        if (!composePsdDepthGpuTarget(imported, gridResult, composedGrid, error)) return false;
-        composed.grids[i] = composedGrid;
+        if (gridResult.grid is null || gridResult.skipped) continue;
+        auto depthMapped = cast(DepthMappedNode)gridResult.grid;
+        if (depthMapped is null) {
+            error = "PSD depth map GPU composition target does not support depth maps";
+            return false;
+        }
+
+        string[string] layerIdToPath;
+        DepthDrawLayer[] previewLayers;
+        auto session = buildPsdDepthDrawSessionForGrid(imported, gridResult, layerIdToPath, previewLayers);
+        if (session.layers.length == 0) {
+            error = "PSD depth map GPU composition has no enabled source layers for target";
+            return false;
+        }
+
+        auto target = new DepthTargetView(gridResult.grid);
+        auto oldDepths = depthMapped.copyDepths();
+        if (oldDepths is null || oldDepths.length != gridResult.grid.vertices.length) {
+            oldDepths.length = gridResult.grid.vertices.length;
+            oldDepths[] = 0.0f;
+        }
+        target.baseDepths = oldDepths.dup;
+        target.depths = oldDepths.dup;
+
+        DepthDrawGpuTargetComposeJob job;
+        if (!ngSubmitDepthDrawGpuTargetCompose(session, target, gridResult.documentWidth, gridResult.documentHeight,
+            job, error)) {
+            if (error.length == 0) error = "CPU fallback is disabled for PSD depth map GPU composition";
+            else error = "CPU fallback is disabled for PSD depth map GPU composition: " ~ error;
+            return false;
+        }
+        DepthDrawGpuTargetComposePollResult pollResult;
+        if (!ngPollDepthDrawGpuTargetCompose(job, pollResult, error) || !pollResult.ready) {
+            if (error.length == 0) error = "PSD depth map GPU composition did not finish";
+            return false;
+        }
+        if (pollResult.result.depths.length != gridResult.grid.vertices.length) {
+            error = "PSD depth map GPU composition depth count mismatch";
+            return false;
+        }
+
+        auto composedGrid = gridResult;
+        composedGrid.depths = pollResult.result.depths.dup;
+        composedGrid.baseDepths = oldDepths.dup;
+        composedGrid.sampledVertices = 0;
+        composedGrid.missingVertices = 0;
+        composedGrid.missingVertexMask.length = composedGrid.depths.length;
+        composedGrid.winnerLayerPaths.length = composedGrid.depths.length;
+        foreach (vertexIndex; 0 .. composedGrid.depths.length) {
+            auto winnerId = vertexIndex < pollResult.result.winningLayerIds.length
+                ? pollResult.result.winningLayerIds[vertexIndex]
+                : null;
+            auto hasWinner = winnerId.length > 0;
+            composedGrid.missingVertexMask[vertexIndex] = !hasWinner;
+            if (hasWinner) {
+                composedGrid.sampledVertices++;
+                if (auto layerPath = winnerId in layerIdToPath) {
+                    composedGrid.winnerLayerPaths[vertexIndex] = *layerPath;
+                } else {
+                    composedGrid.winnerLayerPaths[vertexIndex] = winnerId;
+                }
+            } else {
+                composedGrid.missingVertices++;
+            }
+        }
+        foreach (ref layerMask; composedGrid.layerMasks) {
+            layerMask.sampledVertices = 0;
+            layerMask.selectedVertices = 0;
+        }
+        updatePsdDepthGridRange(composedGrid);
+        imported.grids[i] = composedGrid;
     }
-    composed.gpuCompositionRequested = false;
     return true;
 }
 
-ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult imported) {
+ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView composed) {
     size_t changedGrids;
-
-    if (imported.gpuCompositionRequested) {
-        PsdDepthImportResult gpuComposed;
-        string gpuError;
-        if (!composePsdDepthGpuImport(imported, gpuComposed, gpuError)) {
-            return ExCommandResult!JSONValue(
-                false,
-                ngPsdDepthImportSummaryToJson(imported, changedGrids),
-                "PSD depth map GPU composition failed; CPU fallback is disabled for GPU-selected apply: " ~ gpuError
-            );
-        }
-        imported = gpuComposed;
-    }
+    enforce(composed.imported !is null, "PSD depth import apply requires a composed view");
+    auto imported = composed.imported;
 
     if (imported.grids.length > 0) {
         if (activePsdDepthImportRefreshJob !is null) {
             return ExCommandResult!JSONValue(
                 false,
-                ngPsdDepthImportSummaryToJson(imported, changedGrids),
+                ngPsdDepthImportSummaryToJson(*imported, changedGrids),
                 "PSD depth map import is still finalizing"
             );
         }
@@ -695,7 +921,18 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult impor
             if (gridResult.skipped) continue;
             if (gridResult.grid is null) continue;
             enforce(gridResult.depths.length == gridResult.grid.vertices.length, "imported depths length must match target vertices");
-            group.addAction(ngApplyDepthsChangeAction(gridResult.grid, gridResult.depths, "Import PSD Depth Map"));
+            auto depthMapped = cast(DepthMappedNode)gridResult.grid;
+            enforce(depthMapped !is null, "imported target must support depth maps");
+            auto depthChanged = depthMapped.copyDepths() != gridResult.depths;
+            auto depthOperated = cast(DepthOperationMappedNode)gridResult.grid;
+            auto hasDepthOps = depthOperated !is null && depthOperated.copyDepthOps().length > 0;
+            if (!depthChanged && !hasDepthOps) continue;
+            auto clearOps = ngClearDepthOpsChangeAction(gridResult.grid, "Import PSD Depth Map");
+            if (clearOps !is null) group.addAction(clearOps);
+            if (depthChanged) {
+                auto depthAction = ngApplyDepthsChangeAction(gridResult.grid, gridResult.depths, "Import PSD Depth Map");
+                group.addAction(depthAction);
+            }
             changedGrids++;
         }
         if (ngHasPendingDepthBoneRefreshForSink(group)) {
@@ -708,7 +945,7 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthImportResult impor
 
     return ExCommandResult!JSONValue(
         true,
-        ngPsdDepthImportSummaryToJson(imported, changedGrids),
+        ngPsdDepthImportSummaryToJson(*imported, changedGrids),
         "PSD depth map imported"
     );
 }
@@ -980,7 +1217,16 @@ class ImportPSDDepthsCommand : ExCommand!(
         settings.matchDirectGridName = matchDirectGridName;
 
         auto imported = ngBuildPsdDepthsFromSource(puppet, path, settings);
-        return ngApplyPsdDepthImportResult(imported);
+        PsdDepthComposedView composed;
+        string composeError;
+        if (!ngComposePsdDepthImportResult(imported, composed, composeError)) {
+            return ExCommandResult!JSONValue(
+                false,
+                ngPsdDepthImportSummaryToJson(imported, 0),
+                "PSD depth map composition failed: " ~ composeError
+            );
+        }
+        return ngApplyPsdDepthImportResult(composed);
     }
 }
 

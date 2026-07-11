@@ -2,6 +2,7 @@ module nijigenerate.regression_smoke;
 
 version (RegressionSmoke):
 
+import std.algorithm.comparison : min;
 import std.conv : to;
 import std.file : exists, tempDir;
 import std.path : buildPath;
@@ -11,7 +12,8 @@ import std.string : join, startsWith;
 import nijigenerate.actions : Action;
 import nijigenerate.commands : Context;
 import nijigenerate.commands.depth.bone : ngFlushDepthBoneDirty;
-import nijigenerate.commands.depth.map : ngApplyPsdDepthImportResult;
+import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
+    ngComposePsdDepthImportResult;
 import nijigenerate.commands.vertex.define_mesh : DefineGridCommand;
 import nijigenerate.core;
 import nijigenerate.core.actionstack;
@@ -197,13 +199,13 @@ void ngSetupRegressionSmokeScenario(string scenario) {
 
     string writeSmokeDepthPng(string filename, ubyte baseGray) {
         auto path = buildPath(tempDir(), filename);
-        immutable width = 3;
-        immutable height = 2;
+        immutable width = 32;
+        immutable height = 32;
         ubyte[] pixels;
         pixels.length = width * height * 4;
         foreach (i; 0 .. width * height) {
             auto offset = i * 4;
-            auto gray = cast(ubyte)(baseGray + i * 16);
+            auto gray = cast(ubyte)min(255, cast(int)baseGray + cast(int)(i % 4) * 8);
             pixels[offset + 0] = gray;
             pixels[offset + 1] = gray;
             pixels[offset + 2] = gray;
@@ -229,13 +231,42 @@ void ngSetupRegressionSmokeScenario(string scenario) {
         return createSmokeDepthGridWithAxes(name, [-1.0f, 0.0f, 1.0f], [-1.0f, 1.0f]);
     }
 
-    PsdDepthImportResult combinePsdDepthImportPreviews(PsdDepthImportResult[] previews) {
+    PsdDepthImportResult combinePsdDepthImportPreviews(PsdDepthImportResult[] previews, ulong[] targetGridUuids) {
         PsdDepthImportResult result;
-        foreach (preview; previews) {
-            result.grids ~= preview.grids;
-            result.mappings ~= preview.mappings;
-            result.layerPreviews ~= preview.layerPreviews;
-            result.composedLayers ~= preview.composedLayers;
+        foreach (previewIndex, preview; previews) {
+            if (previewIndex >= targetGridUuids.length) break;
+            auto targetGridUuid = targetGridUuids[previewIndex];
+            auto prefix = "/combined-" ~ previewIndex.to!string;
+            string[string] renamedPaths;
+            bool[string] usedPaths;
+            foreach (grid; preview.grids) {
+                if (grid.grid is null || grid.grid.uuid != targetGridUuid) continue;
+                auto renamed = grid;
+                renamed.layerMasks = grid.layerMasks.dup;
+                foreach (ref layerMask; renamed.layerMasks) {
+                    auto oldPath = layerMask.layerPath;
+                    auto newPath = prefix ~ oldPath;
+                    renamedPaths[oldPath] = newPath;
+                    usedPaths[oldPath] = true;
+                    layerMask.layerPath = newPath;
+                }
+                result.grids ~= renamed;
+            }
+            foreach (layer; preview.composedLayers) {
+                if ((layer.layerPath in usedPaths) is null) continue;
+                auto renamed = layer;
+                auto newPath = layer.layerPath in renamedPaths;
+                if (newPath is null) continue;
+                renamed.id = *newPath;
+                renamed.layerPath = *newPath;
+                result.composedLayers ~= renamed;
+            }
+            foreach (mapping; preview.mappings) {
+                if (mapping.targetGridUuid != targetGridUuid || (mapping.layerPath in usedPaths) is null) continue;
+                auto renamed = mapping;
+                if (auto newPath = mapping.layerPath in renamedPaths) renamed.layerPath = *newPath;
+                result.mappings ~= renamed;
+            }
             result.sourceDepthLayerCount += preview.sourceDepthLayerCount;
             result.composedLayerCount += preview.composedLayerCount;
             result.compositionDiagnostics ~= preview.compositionDiagnostics;
@@ -416,13 +447,15 @@ void ngSetupRegressionSmokeScenario(string scenario) {
     } else if (scenario == "project.psd-depth-map-import-ui-smoke" || scenario == "windows.psd-depth-map") {
         ensureDepthMode();
         showPanels("Viewport", "Tool Settings", "Inspector");
+        float[] psdAxes;
+        for (float value = -600.0f; value <= 600.0f; value += 40.0f) psdAxes ~= value;
         auto bodyGrid = createSmokeDepthGridWithAxes(
             "Body:G",
-            [-180.0f, -90.0f, 0.0f, 90.0f, 180.0f],
-            [-180.0f, -90.0f, 0.0f, 90.0f, 180.0f]
+            psdAxes,
+            psdAxes
         );
         if (ngRegressionSmokeFailed()) return;
-        attachSmokeCoveragePart(bodyGrid, "body", 220.0f);
+        attachSmokeCoveragePart(bodyGrid, "bottomwear-back", 300.0f);
         auto psdDepthWindow = new PSDDepthMapWindow(localDepthDrawDataPath(
             "Midori-20260621-color-psd-depth.psd",
             "regression-smoke-depth.psd"
@@ -433,12 +466,14 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             return;
         }
         if (!psdDepthWindow.hasSampledPreviewGridForRegressionSmoke(bodyGrid.name)) {
-            auto bodyRemapped = psdDepthWindow.remapLayerNameToGridForRegressionSmoke("body", bodyGrid.uuid) &&
+            auto bodyRemapped = psdDepthWindow.remapLayerNameToGridForRegressionSmoke("bottomwear-back", bodyGrid.uuid) &&
                 psdDepthWindow.hasSampledPreviewGridForRegressionSmoke(bodyGrid.name);
             auto anyRemapped = bodyRemapped ||
                 psdDepthWindow.remapAnyLayerToSampledGridForRegressionSmoke(bodyGrid.name, bodyGrid.uuid);
             if (!anyRemapped) {
-                ngRegressionSmokeFail("PSD depth import smoke failed to remap body layer to target grid");
+                ngRegressionSmokeFail("PSD depth import smoke failed to remap body layer to target grid: " ~
+                    psdDepthWindow.diagnosticsForRegressionSmoke().join(" | ") ~ " :: " ~
+                    psdDepthWindow.previewSummaryForRegressionSmoke());
                 return;
             }
         }
@@ -456,6 +491,7 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             [-1.0f, 0.0f, 1.0f],
             [-1.0f, 0.0f, 1.0f]
         );
+        attachSmokeCoveragePart(pngGrid, "png-depth-smoke", 1.0f);
         auto pngWindow = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-import-smoke.png", 192));
         pngWindow.rebuildPreviewForRegressionSmoke();
         if (pngWindow.loadErrorForRegressionSmoke.length) {
@@ -470,10 +506,17 @@ void ngSetupRegressionSmokeScenario(string scenario) {
                 pngWindow.previewSummaryForRegressionSmoke());
             return;
         }
+        if (!pngWindow.setFirstMappedLayerZOffsetForRegressionSmoke(pngGrid.name, 0.75f) ||
+            !pngWindow.hasSampledPreviewGridForRegressionSmoke(pngGrid.name)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to update Source / Mapping after 3D Adjust offset: " ~
+                pngWindow.previewSummaryForRegressionSmoke());
+            return;
+        }
         string pngApplyMessage;
         if (!pngWindow.applyForRegressionSmoke(pngApplyMessage) ||
             !pngWindow.hasAppliedDepthsForRegressionSmoke(pngGrid.name)) {
-            ngRegressionSmokeFail("PSD depth import smoke failed to apply PNG source through existing path: " ~ pngApplyMessage);
+            ngRegressionSmokeFail("PSD depth import smoke failed to apply offset PNG source through Source / Mapping path: " ~
+                pngApplyMessage ~ " :: " ~ pngWindow.previewSummaryForRegressionSmoke());
             return;
         }
 
@@ -482,6 +525,7 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             [-1.0f, 0.0f, 1.0f],
             [-1.0f, 0.0f, 1.0f]
         );
+        attachSmokeCoveragePart(pngGpuGrid, "png-gpu-depth-smoke", 1.0f);
         auto pngGpuWindow = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-import-gpu-smoke.png", 208));
         pngGpuWindow.rebuildPreviewForRegressionSmoke();
         if (pngGpuWindow.loadErrorForRegressionSmoke.length) {
@@ -492,14 +536,18 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             ngRegressionSmokeFail("PSD depth import smoke failed to map GPU PNG source");
             return;
         }
-        pngGpuWindow.setGpuCompositionForRegressionSmoke(true);
         resetRegressionSmokeDepthDrawGpuHooks();
+        pngGpuWindow.setGpuCompositionForRegressionSmoke(true);
+        auto gpuSubmitCountBeforeApply = regressionSmokeDepthDrawGpuSubmitCount;
+        auto gpuPollCountBeforeApply = regressionSmokeDepthDrawGpuPollCount;
         string pngGpuApplyMessage;
         auto gpuApplied = pngGpuWindow.applyForRegressionSmoke(pngGpuApplyMessage);
         ngClearDepthDrawGpuTestHooks();
         if (!gpuApplied ||
-            regressionSmokeDepthDrawGpuSubmitCount == 0 ||
-            regressionSmokeDepthDrawGpuPollCount == 0 ||
+            gpuSubmitCountBeforeApply == 0 ||
+            gpuPollCountBeforeApply == 0 ||
+            regressionSmokeDepthDrawGpuSubmitCount != gpuSubmitCountBeforeApply ||
+            regressionSmokeDepthDrawGpuPollCount != gpuPollCountBeforeApply ||
             pngGpuGrid.copyDepths().length == 0 ||
             pngGpuGrid.copyDepths()[0] != 0.625f) {
             ngRegressionSmokeFail("PSD depth import smoke failed to apply PNG source through GPU submit/poll/readback: " ~ pngGpuApplyMessage);
@@ -508,6 +556,8 @@ void ngSetupRegressionSmokeScenario(string scenario) {
 
         auto multiGridA = createSmokeDepthGrid("PngMultiSmokeA:G");
         auto multiGridB = createSmokeDepthGrid("PngMultiSmokeB:G");
+        attachSmokeCoveragePart(multiGridA, "png-multi-smoke-a", 1.0f);
+        attachSmokeCoveragePart(multiGridB, "png-multi-smoke-b", 1.0f);
         multiGridA.replaceDepths([0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f]);
         multiGridB.replaceDepths([0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f]);
         auto multiWindowA = new PSDDepthMapWindow(writeSmokeDepthPng("nijigenerate-psd-depth-multi-a.png", 80));
@@ -526,11 +576,22 @@ void ngSetupRegressionSmokeScenario(string scenario) {
         auto combinedImport = combinePsdDepthImportPreviews([
             multiWindowA.previewForRegressionSmoke(),
             multiWindowB.previewForRegressionSmoke(),
-        ]);
+        ], [multiGridA.uuid, multiGridB.uuid]);
         incActionClearHistory();
-        auto multiApply = ngApplyPsdDepthImportResult(combinedImport);
-        if (!multiApply.succeeded || multiGridA.copyDepths()[0] == 0.1f || multiGridB.copyDepths()[0] == 0.6f) {
-            ngRegressionSmokeFail("PSD depth import smoke failed to apply multiple mapped targets: " ~ multiApply.message);
+        PsdDepthComposedView combinedComposed;
+        string combinedComposeError;
+        if (!ngComposePsdDepthImportResult(combinedImport, combinedComposed, combinedComposeError)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to compose multiple mapped targets: " ~ combinedComposeError);
+            return;
+        }
+        auto multiApply = ngApplyPsdDepthImportResult(combinedComposed);
+        if (!multiApply.succeeded ||
+            multiGridA.copyDepths() == [0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f] ||
+            multiGridB.copyDepths() == [0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f]) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to apply multiple mapped targets: " ~ multiApply.message ~
+                " a=" ~ multiGridA.copyDepths().to!string ~ " b=" ~ multiGridB.copyDepths().to!string ~
+                " composedA=" ~ combinedImport.grids[0].depths.to!string ~
+                " composedB=" ~ combinedImport.grids[1].depths.to!string);
             return;
         }
         incActionUndo();

@@ -14,11 +14,12 @@ import nijigenerate.commands.binding.binding;
 import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMaxInfluences, DepthBoneGpuOffsetPacket,
     DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
-    ngDepthBoneCpuReferenceCallCount, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
+    ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
-    ngEvaluateDepthBoneGpuOffsetPacketCpu, ngFlushDepthBoneDirtyImmediate, ngGenerateDepthBoneOffsetsCpu, ngMarkDepthBoneDirty,
-    ngResetDepthBoneCpuReferenceCallCount;
-import nijigenerate.commands.depth.map : ngExportPsdDepthComposedSourcePng, ngPsdDepthImportResultToDepthDrawSession;
+    ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirty;
+import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
+    ngComposePsdDepthImportResult, ngExportPsdDepthComposedSourcePng,
+    ngPsdDepthImportResultToDepthDrawSession;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.inspector.apply_node;
@@ -132,7 +133,7 @@ import nijilive;
 import nijilive.core.nodes.deformer.grid;
 import nijilive.core.nodes.drivers;
 import nijilive.core.nodes.mask : Mask;
-import nijilive.core.render.commands : DepthBoneGpuDispatchPacket;
+import nijigenerate.commands.depth.bone_gpu_async : DepthBoneGpuDispatchPacket;
 import nijilive.core.nodes.node : inRegisterNodeType;
 import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
@@ -394,8 +395,8 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.fit-z", "Depth Bone", "Fit Z to Depth updates descendant DepthBone Z from mapped GridDeformer depth", automated, "Covers DepthRigRoot Fit Z to Depth using per-DepthBone depth samples from DepthMapped GridDeformer targets."),
     Scenario("depthbone.influence-rule", "Depth Bone", "Influence rule get/set, terminal bone selection, max influence, and radius behavior", automated, "Covers command-level influence rule set/get with undo/redo and serialization."),
     Scenario("depthbone.preview-commands", "Depth Bone", "List, preview influence, preview deform, and apply deform commands", automated, "Covers reduced command fixture for listing bones/sources, influence preview deformation, posed deform preview, apply-to-binding, undo, and redo."),
-    Scenario("depthbone.gpu-packet", "Depth Bone", "GPU offset packet construction for GridDeformer and PathDeformer", automated, "Covers the CPU/GPU split boundary before OpenGL transform feedback dispatch."),
-    Scenario("depthbone.gpu-all-keypoints", "Depth Bone", "GPU all-keypoints refresh avoids CPU offset generation", automated, "Covers fake GPU dispatch/readback through all-keypoints refresh and verifies CPU offset generation is not used in GPU mode."),
+    Scenario("depthbone.gpu-packet", "Depth Bone", "GPU offset packet construction for GridDeformer and PathDeformer", automated, "Covers packet construction before OpenGL transform feedback dispatch."),
+    Scenario("depthbone.gpu-all-keypoints", "Depth Bone", "GPU all-keypoints refresh dispatch and readback", automated, "Covers GPU dispatch/readback through all-keypoints refresh."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
     Scenario("depthbone.cleanup", "Depth Bone", "Deleting bones or target structures cleans stale source/binding references", automated, "Covers DeleteNodeCommand cleanup of DepthBone source references with undo/redo."),
     Scenario("depthbone.skinning", "Depth Bone", "Skinning influence, terminal bone rule, lockToRoot, and parent-to-target options", automated, "Covers a golden two-bone fixture where terminal lockToRoot prevents parent translation from moving vertices beyond the locked terminal bone."),
@@ -3365,16 +3366,21 @@ private void testDepthMapCommandsUndoRedo() {
     psdGridResult.grid = grid;
     psdGridResult.depths = [1.0f, 0.5f, 0.0f, -0.5f];
     psdImport.grids ~= psdGridResult;
-    require(ngApplyPsdDepthImportResult(psdImport).succeeded, "PSD depth import apply should succeed");
+    require(applyPsdDepthImportForRegression(psdImport).succeeded, "PSD depth import apply should succeed");
     require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f], "PSD depth import should apply depths");
     incActionUndo();
     require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "undo PSD depth import should restore previous depths");
     incActionRedo();
     require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f], "redo PSD depth import should restore imported depths");
+    auto actionBeforeNoopImport = incActionTop();
+    require(applyPsdDepthImportForRegression(psdImport).succeeded,
+        "reapplying identical PSD depths should succeed without touching the target");
+    require(incActionTop() is actionBeforeNoopImport,
+        "identical PSD depths must not create an action or refresh an unchanged target");
 
     auto depthScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
     psdImport.grids[0].depths = [-1.0f, -0.25f, 0.25f, 1.0f];
-    require(ngApplyPsdDepthImportResult(psdImport).succeeded,
+    require(applyPsdDepthImportForRegression(psdImport).succeeded,
         "PSD depth import apply should close edit action scopes before pushing undo history");
     require(!depthScope.isActive(), "PSD depth import apply should close the active DepthEdit action scope");
     require(grid.copyDepths() == [-1.0f, -0.25f, 0.25f, 1.0f], "PSD depth import from DepthEdit scope should apply depths");
@@ -3401,7 +3407,7 @@ private void testDepthMapCommandsUndoRedo() {
     secondDialogGridResult.grid = secondGrid;
     secondDialogGridResult.depths = [1.0f, 1.1f, 1.2f, 1.3f];
     psdImport.grids ~= secondDialogGridResult;
-    require(ngApplyPsdDepthImportResult(psdImport).succeeded,
+    require(applyPsdDepthImportForRegression(psdImport).succeeded,
         "PSD depth import dialog apply should update multiple GridDeformers");
     auto groupedImport = cast(GroupAction)incActionTop();
     require(groupedImport !is null && groupedImport.actions.length == 2,
@@ -3554,7 +3560,7 @@ private void testPsdDepthImportRefreshesDepthBoneBindings() {
         psdImport.grids ~= gridResult;
     }
 
-    auto applyResult = ngApplyPsdDepthImportResult(psdImport);
+    auto applyResult = applyPsdDepthImportForRegression(psdImport);
     require(applyResult.succeeded, "PSD depth import with DepthBone bindings should start successfully");
     foreach (_; 0 .. 100) ngMcpProcessQueue();
 
@@ -3796,6 +3802,25 @@ private void testDepthCompositeMapOpsWorkflow() {
         "redo apply should restore baked depths with coherent length");
 }
 
+private PsdDepthImportResult composePsdDepthImportForRegression(PsdDepthImportResult imported) {
+    PsdDepthComposedView composed;
+    string composeError;
+    auto composedOk = ngComposePsdDepthImportResult(imported, composed, composeError);
+    require(composedOk, "PSD depth import regression compose should succeed: " ~ composeError);
+    return imported;
+}
+
+private auto applyPsdDepthImportForRegression(PsdDepthImportResult imported) {
+    if (imported.composedLayers.length == 0) {
+        return ngApplyPsdDepthImportResult(ngPsdDepthComposedViewForRegression(imported));
+    }
+    PsdDepthComposedView composed;
+    string composeError;
+    auto composedOk = ngComposePsdDepthImportResult(imported, composed, composeError);
+    require(composedOk, "PSD depth import regression compose should succeed: " ~ composeError);
+    return ngApplyPsdDepthImportResult(composed);
+}
+
 private void testDepthTargetViewContracts() {
     resetCase();
 
@@ -3872,11 +3897,11 @@ private void testDepthTargetViewContracts() {
 
     view.setDepth(0, 5.0f);
     view.addDepth(1, -5.0f);
-    require(near(view.getDepth(0), 2.0f) && near(view.getDepth(1), -2.0f),
-        "DepthTargetView should clamp edited depth values to the existing DepthEdit range");
-    require(near(ngDepthTargetClampDepth(5.0f), 2.0f) && near(ngDepthTargetClampDepth(-5.0f), -2.0f) &&
+    require(near(view.getDepth(0), 5.0f) && near(view.getDepth(1), -4.8f),
+        "DepthTargetView should preserve edited depths outside the legacy DepthEdit range");
+    require(near(ngDepthTargetClampDepth(5.0f), 5.0f) && near(ngDepthTargetClampDepth(-5.0f), -5.0f) &&
         near(ngDepthTargetClampDepth(0.33349f), 0.333f),
-        "DepthTargetView should expose the shared DepthEdit clamp and rounding helper");
+        "DepthTargetView should expose shared finite-value normalization without clipping absolute depth");
 
     view.replaceWorkingDepths([0.33349f, -0.33349f, 0, 0, 0, 0]);
     view.setDepth(0, view.getDepth(0));
@@ -3991,6 +4016,13 @@ private void testDepthTargetViewContracts() {
 }
 
 private void testPsdDepthMapImportHelpers() {
+    static assert(!__traits(hasMember, PsdDepthImportSettings, "layerTransforms"),
+        "PSD depth import settings must not duplicate 3D Adjust layer state");
+    static assert(!__traits(hasMember, PsdDepthImportSettings, "hiddenComposedLayerPaths") &&
+        !__traits(hasMember, PsdDepthImportSettings, "disabledComposedLayerPaths"),
+        "PSD depth import settings must not duplicate composed-layer visibility state");
+    static assert(!__traits(hasMember, PsdDepthImportResult, "composedSource"),
+        "PSD depth import result must not retain a second composed-layer copy");
     resetCase();
 
     auto grid = new ExGridDeformer(incActivePuppet().root);
@@ -4112,8 +4144,7 @@ private void testPsdDepthMapImportHelpers() {
         pngImported.colorLayerCount == 1 &&
         pngImported.sourceDepthLayerCount == 1 &&
         pngImported.composedLayerCount == 1 &&
-        near(pngImported.globalDepthScale, 1.0f) &&
-        near(pngImported.globalDepthCentroid, 255.0f),
+        near(pngImported.globalDepthScale, 1.0f),
         "PSD depth import PNG manual/direct mapping should expose depth-draw 1:1 composition metadata: " ~
         "mode=%s width=%s height=%s color=%s depth=%s composed=%s scale=%s centroid=%s".format(
             pngImported.compositionModeName,
@@ -4126,16 +4157,13 @@ private void testPsdDepthMapImportHelpers() {
             pngImported.globalDepthCentroid
         ));
     auto pngComposedSource = ngPsdDepthComposedSourceFromImportResult(pngImported);
-    require(pngImported.composedSource.mode == PsdDepthCompositionMode.OneToOne &&
-        pngImported.composedSource.modeName == "1:1" &&
-        pngImported.composedSource.width == 4 &&
-        pngImported.composedSource.height == 4 &&
-        pngImported.composedSource.colorSource.kind == PsdDepthCompositeSourceKind.ActiveArtTargets &&
-        pngImported.composedSource.depthSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
-        near(pngImported.composedSource.globalDepthCentroid, 255.0f) &&
-        pngImported.composedSource.layers.length == 1 &&
-        pngComposedSource.layers.length == pngImported.composedSource.layers.length &&
-        pngComposedSource.width == pngImported.composedSource.width,
+    require(pngComposedSource.mode == PsdDepthCompositionMode.OneToOne &&
+        pngComposedSource.modeName == "1:1" &&
+        pngComposedSource.width == 4 &&
+        pngComposedSource.height == 4 &&
+        pngComposedSource.colorSource.kind == PsdDepthCompositeSourceKind.ActiveArtTargets &&
+        pngComposedSource.depthSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
+        pngComposedSource.layers.length == 1,
         "PSD depth import should expose a named ColorComposite/DepthComposite/ComposedSource model");
     require(pngImported.composedLayers.length == 1 &&
         pngImported.composedLayers[0].id == "/png-depth-grid" &&
@@ -4162,7 +4190,7 @@ private void testPsdDepthMapImportHelpers() {
     auto psdDepthExportDir = buildPath(pngFixtureDir, "psd-depth-composed-export");
     auto psdDepthExportManifest = buildPath(psdDepthExportDir, "manifest.json");
     auto psdDepthExport = ngExportPsdDepthComposedSourcePng(
-        pngImported.composedSource,
+        pngComposedSource,
         psdDepthExportDir,
         psdDepthExportManifest
     );
@@ -4179,32 +4207,27 @@ private void testPsdDepthMapImportHelpers() {
             exportedManifest.object["bindings"].array.length == 1,
             "PSD depth import composed source PNG export should preserve layer and binding manifest entries");
     }
-    auto disabledPngSettings = pngSettings;
-    disabledPngSettings.disabledComposedLayerPaths["/png-depth-grid"] = true;
-    auto disabledPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, disabledPngSettings);
+    auto disabledPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
+    disabledPngImported.composedLayers[0].enabled = false;
+    auto disabledPngComposed = composePsdDepthImportForRegression(disabledPngImported);
     require(disabledPngImported.composedLayers.length == 1 &&
         !disabledPngImported.composedLayers[0].enabled &&
-        disabledPngImported.layerPreviews.length == 1 &&
-        !disabledPngImported.layerPreviews[0].enabled &&
-        disabledPngImported.grids.length == 1 &&
-        disabledPngImported.grids[0].sampledVertices == 0,
-        "PSD depth import should apply source/composed layer enabled state before target sampling");
-    auto persistedPngSource = pngImported.composedSource;
+        disabledPngComposed.grids.length == 1 &&
+        disabledPngComposed.grids[0].sampledVertices == 0,
+        "PSD depth import should apply the sole composed-layer enabled state before target sampling");
+    auto persistedPngSource = ngPsdDepthComposedSourceFromImportResult(pngImported);
     persistedPngSource.layers[0].visible = false;
     persistedPngSource.layers[0].enabled = false;
     persistedPngSource.layers[0].depthOffset = 0.42f;
     persistedPngSource.layers[0].depthScale = 0.75f;
-    auto persistedPngSettings = ngPsdDepthSettingsWithComposedSourceState(pngSettings, persistedPngSource);
-    auto persistedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, persistedPngSettings);
+    auto persistedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
     ngPsdDepthApplyPreviousComposedSourceState(persistedPngImported, persistedPngSource);
     require(persistedPngImported.composedLayers.length == 1 &&
         !persistedPngImported.composedLayers[0].visible &&
         !persistedPngImported.composedLayers[0].enabled &&
         near(persistedPngImported.composedLayers[0].depthOffset, 0.42f) &&
         near(persistedPngImported.composedLayers[0].depthScale, 0.75f) &&
-        persistedPngImported.composedLayers[0].targetGridUuid == pngGrid.uuid &&
-        persistedPngImported.composedSource.layers.length == 1 &&
-        !persistedPngImported.composedSource.layers[0].enabled,
+        persistedPngImported.composedLayers[0].targetGridUuid == pngGrid.uuid,
         "PSD depth import should reload layer state from the persistent composed source model, not only dialog settings");
     auto pngImportSummary = ngPsdDepthImportSummaryToJson(pngImported, 0);
     require(pngImportSummary.object["compositionMode"].str == "1:1" &&
@@ -4237,44 +4260,91 @@ private void testPsdDepthMapImportHelpers() {
         pngImported.colorSource.layers[0].rgba.length == 4 * 4 * 4 &&
         pngImported.colorSource.layers[0].maskRgba.length == 4 * 4 * 4,
         "PSD depth import should expose format-neutral color/depth source summaries with source pixels/masks");
-    require(pngImported.grids[0].sampledVertices == pngGrid.vertices.length &&
-        pngImported.grids[0].missingVertices == 0 &&
-        pngImported.grids[0].depths.length == pngGrid.vertices.length,
-        "PSD depth import dialog source builder should sample PNG sources into GridDeformer depths");
-    require(pngImported.layerPreviews.length == 1 && pngImported.layerPreviews[0].originalRgba.length == 4 * 4 * 4,
-        "PSD depth import dialog source builder should expose PNG previews in the same layer preview model");
-    auto pngLayerPreview = pngImported.layerPreviews[0];
+    require(pngImported.composedLayers.length == 1 && pngImported.composedLayers[0].colorRgba.length == 4 * 4 * 4,
+        "PSD depth import dialog source builder should expose PNG previews in the composed layer model");
+    auto pngLayerPreview = pngImported.composedLayers[0];
+    auto pngDebugSession = ngPsdDepthImportResultToDepthDrawSession(pngImported);
+    auto pngDebugLayer = pngDebugSession.layers.length ? pngDebugSession.layers[0] : DepthDrawLayer();
+    auto pngDebugTarget = new DepthTargetView(pngGrid);
+    auto pngDebugDoc0 = ngDepthDrawVertexDocumentPosition(
+        pngDebugTarget,
+        pngGrid.vertices[0],
+        pngImported.grids[0].documentWidth,
+        pngImported.grids[0].documentHeight
+    );
+    auto pngDebugLayer0 = ngDepthDrawLayerPixelFromDocument(pngDebugLayer, pngDebugDoc0);
+    auto pngDebugSample0 = ngDepthImageSampleRgbaWithOpacity(
+        pngDebugLayer.depthPixels,
+        pngDebugLayer.width,
+        pngDebugLayer.height,
+        pngDebugLayer0.x,
+        pngDebugLayer0.y,
+        pngDebugLayer.opacity,
+        pngDebugLayer.sampleSettings()
+    );
+    auto sampledPngImported = composePsdDepthImportForRegression(pngImported);
+    require(sampledPngImported.grids[0].sampledVertices == pngGrid.vertices.length &&
+        sampledPngImported.grids[0].missingVertices == 0 &&
+        sampledPngImported.grids[0].depths.length == pngGrid.vertices.length,
+        ("PSD depth import composition should sample PNG sources into GridDeformer depths: "
+        ~ "sampled=%s missing=%s depths=%s vertices=%s doc=%sx%s layer=%s,%s %sx%s "
+        ~ "dd=%s,%s %sx%s enabled=%s visible=%s hasDepth=%s point=%s,%s layerPoint=%s,%s sample=%s/%s "
+        ~ "depthA=%s maskA=%s")
+            .format(
+                sampledPngImported.grids[0].sampledVertices,
+                sampledPngImported.grids[0].missingVertices,
+                sampledPngImported.grids[0].depths.length,
+                pngGrid.vertices.length,
+                sampledPngImported.grids[0].documentWidth,
+                sampledPngImported.grids[0].documentHeight,
+                pngLayerPreview.left,
+                pngLayerPreview.top,
+                pngLayerPreview.width,
+                pngLayerPreview.height,
+                pngDebugLayer.bounds.left,
+                pngDebugLayer.bounds.top,
+                pngDebugLayer.width,
+                pngDebugLayer.height,
+                pngDebugLayer.enabled,
+                pngDebugLayer.visible,
+                pngDebugLayer.hasDepthPixels(),
+                pngDebugDoc0.x,
+                pngDebugDoc0.y,
+                pngDebugLayer0.x,
+                pngDebugLayer0.y,
+                pngDebugSample0.valid,
+                pngDebugSample0.value,
+                pngLayerPreview.depthRgba.length > 3 ? pngLayerPreview.depthRgba[3] : 0,
+                pngLayerPreview.maskRgba.length > 3 ? pngLayerPreview.maskRgba[3] : 0
+            ));
     require(pngLayerPreview.id == "/png-depth-grid" &&
         pngLayerPreview.sourcePath == pngDepthPath &&
         pngLayerPreview.layerPath == "/png-depth-grid" &&
         pngLayerPreview.layerName == "png-depth-grid",
         "PSD depth import normalized PNG source session should expose stable id, source path, layer path, and display name");
-    require(pngLayerPreview.documentWidth == 4 &&
-        pngLayerPreview.documentHeight == 4 &&
+    require(pngImported.compositionWidth == 4 &&
+        pngImported.compositionHeight == 4 &&
         pngLayerPreview.left == 0 &&
         pngLayerPreview.top == 0 &&
         pngLayerPreview.width == 4 &&
         pngLayerPreview.height == 4,
         "PSD depth import normalized PNG source session should expose document and layer bounds");
-    require(near(pngLayerPreview.opacity, 1.0f) &&
-        pngLayerPreview.originalRgba.length == 4 * 4 * 4 &&
-        pngLayerPreview.depthMaskRgba.length == 4 * 4 * 4 &&
+    require(pngLayerPreview.colorRgba.length == 4 * 4 * 4 &&
+        pngLayerPreview.maskRgba.length == 4 * 4 * 4 &&
         pngLayerPreview.coverageMaskRgba.length == 4 * 4 * 4 &&
-        pngLayerPreview.originalRgba[3] == 255,
+        pngLayerPreview.colorRgba[3] == 255,
         "PSD depth import normalized PNG source session should expose RGBA/depth pixels and alpha coverage");
     require(pngLayerPreview.visible &&
         pngLayerPreview.enabled &&
-        pngLayerPreview.coverageMaskRgba[3] == 255 &&
-        pngLayerPreview.normalArtCoverageSources == 0,
+        pngLayerPreview.coverageMaskRgba[3] == 255,
         "PSD depth import normalized PNG source session should expose visibility, enabled state, coverage, and normal/art coverage count");
-    require(pngLayerPreview.transform == PsdDepthLayerTransform() &&
-        !pngLayerPreview.invert &&
+    require(near(pngLayerPreview.depthOffset, 0.0f) &&
+        near(pngLayerPreview.depthScale, 1.0f) &&
         near(pngLayerPreview.backDepth, -1.0f) &&
         near(pngLayerPreview.frontDepth, 1.0f) &&
-        near(pngLayerPreview.depthScale, 1.0f) &&
-        pngLayerPreview.convolution == PsdDepthConvolution.Nearest &&
-        pngLayerPreview.channel == PsdDepthChannel.R,
-        "PSD depth import normalized PNG source session should expose transform and depth-draw-compatible PNG red-channel sampling state");
+        near(pngLayerPreview.sourceDepthScale, 1.0f) &&
+        pngLayerPreview.convolution == PsdDepthConvolution.Nearest,
+        "PSD depth import normalized PNG source session should expose transform and depth-draw-compatible sampling state");
     require(pngLayerPreview.depthStats.hasDepth &&
         pngLayerPreview.depthStats.maskedPixels == 16 &&
         pngLayerPreview.depthStats.zeroPixels == 0 &&
@@ -4282,13 +4352,13 @@ private void testPsdDepthMapImportHelpers() {
         near(pngLayerPreview.depthStats.maxDepth01, 1.0f),
         "PSD depth import normalized PNG source session should expose composed-layer depth pixel stats");
     auto previousPngImportState = pngImported;
+    previousPngImportState.composedLayers = previousPngImportState.composedLayers.dup;
     previousPngImportState.composedLayers[0].visible = false;
     previousPngImportState.composedLayers[0].enabled = false;
     previousPngImportState.composedLayers[0].depthOffset = 0.25f;
     previousPngImportState.composedLayers[0].depthScale = 0.5f;
     previousPngImportState.composedLayers[0].outlierPruneEnabled = true;
     previousPngImportState.composedLayers[0].puppetFitEnabled = false;
-    previousPngImportState.composedLayers[0].puppetBindingOverride = "manual-binding";
     auto refreshedPngImport = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
     ngPsdDepthApplyPreviousComposedLayerState(refreshedPngImport, previousPngImportState);
     require(refreshedPngImport.composedLayers.length == 1 &&
@@ -4297,44 +4367,61 @@ private void testPsdDepthMapImportHelpers() {
         near(refreshedPngImport.composedLayers[0].depthOffset, 0.25f) &&
         near(refreshedPngImport.composedLayers[0].depthScale, 0.5f) &&
         refreshedPngImport.composedLayers[0].outlierPruneEnabled &&
-        !refreshedPngImport.composedLayers[0].puppetFitEnabled &&
-        refreshedPngImport.composedLayers[0].puppetBindingOverride == "manual-binding" &&
-        refreshedPngImport.layerPreviews.length == 1 &&
-        !refreshedPngImport.layerPreviews[0].visible &&
-        !refreshedPngImport.layerPreviews[0].enabled &&
-        near(refreshedPngImport.layerPreviews[0].transform.zOffset, 0.25f) &&
-        near(refreshedPngImport.layerPreviews[0].transform.zScale, 0.5f) &&
-        refreshedPngImport.composedSource.layers.length == 1 &&
-        !refreshedPngImport.composedSource.layers[0].visible &&
-        near(refreshedPngImport.composedSource.layers[0].depthOffset, 0.25f),
+        !refreshedPngImport.composedLayers[0].puppetFitEnabled,
         "PSD depth import should preserve depth-draw composed-layer state by source layer identity across reloads");
     auto previousNormalizedState = pngImported;
+    previousNormalizedState.composedLayers = previousNormalizedState.composedLayers.dup;
     previousNormalizedState.composedLayers[0].id = null;
     previousNormalizedState.composedLayers[0].layerPath = null;
     previousNormalizedState.composedLayers[0].layerName = "PNG Depth Grid.png";
     previousNormalizedState.composedLayers[0].depthOffset = 0.75f;
     auto refreshedNormalizedState = pngImported;
+    refreshedNormalizedState.composedLayers = refreshedNormalizedState.composedLayers.dup;
     refreshedNormalizedState.composedLayers[0].id = null;
     refreshedNormalizedState.composedLayers[0].layerPath = null;
     refreshedNormalizedState.composedLayers[0].layerName = "png-depth-grid";
     ngPsdDepthApplyPreviousComposedLayerState(refreshedNormalizedState, previousNormalizedState);
-    require(near(refreshedNormalizedState.composedLayers[0].depthOffset, 0.75f),
-        "PSD depth import should preserve state by normalized name plus bounds when path identity is unavailable");
+    require(near(refreshedNormalizedState.composedLayers[0].depthOffset, 0.0f),
+        "PSD depth import must not transfer transforms through ambiguous normalized-name matching");
+
+    PsdDepthImportResult duplicateIdPrevious;
+    PsdDepthImportResult duplicateIdRefreshed;
+    auto duplicateIdLayerA = pngImported.composedLayers[0];
+    auto duplicateIdLayerB = pngImported.composedLayers[0];
+    duplicateIdLayerA.id = "shared-source";
+    duplicateIdLayerA.layerPath = "/part-a";
+    duplicateIdLayerA.depthOffset = 0.25f;
+    duplicateIdLayerA.depthScale = 0.5f;
+    duplicateIdLayerB.id = "shared-source";
+    duplicateIdLayerB.layerPath = "/part-b";
+    duplicateIdLayerB.depthOffset = -0.75f;
+    duplicateIdLayerB.depthScale = 1.5f;
+    duplicateIdPrevious.composedLayers = [duplicateIdLayerA, duplicateIdLayerB];
+    duplicateIdLayerA.depthOffset = 0.0f;
+    duplicateIdLayerA.depthScale = 1.0f;
+    duplicateIdLayerB.depthOffset = 0.0f;
+    duplicateIdLayerB.depthScale = 1.0f;
+    duplicateIdRefreshed.composedLayers = [duplicateIdLayerA, duplicateIdLayerB];
+    ngPsdDepthApplyPreviousComposedLayerState(duplicateIdRefreshed, duplicateIdPrevious);
+    require(near(duplicateIdRefreshed.composedLayers[0].depthOffset, 0.25f) &&
+        near(duplicateIdRefreshed.composedLayers[0].depthScale, 0.5f) &&
+        near(duplicateIdRefreshed.composedLayers[1].depthOffset, -0.75f) &&
+        near(duplicateIdRefreshed.composedLayers[1].depthScale, 1.5f),
+        "PSD depth import must preserve transforms by exact layerPath when source ids are shared");
 
     auto replacementDepthPath = buildPath(pngFixtureDir, "png-depth-grid-replacement.png");
     writeRegressionPng(replacementDepthPath, 128, 128, 128, 4, 4);
     auto previousForDepthReplacement = pngImported;
+    previousForDepthReplacement.composedLayers = previousForDepthReplacement.composedLayers.dup;
     previousForDepthReplacement.composedLayers[0].depthOffset = 0.33f;
     previousForDepthReplacement.composedLayers[0].enabled = false;
-    ngPsdDepthSyncComposedSource(previousForDepthReplacement);
+    ngPsdDepthRefreshDerivedState(previousForDepthReplacement);
     auto replacedDepthImport = ngPsdDepthReplaceDepthSource(incActivePuppet(), previousForDepthReplacement,
         replacementDepthPath, pngSettings);
     require(replacedDepthImport.depthSource.sourcePath == replacementDepthPath &&
-        replacedDepthImport.composedSource.depthSource.sourcePath == replacementDepthPath &&
         replacedDepthImport.composedLayers.length == 1 &&
         near(replacedDepthImport.composedLayers[0].depthOffset, 0.33f) &&
-        !replacedDepthImport.composedLayers[0].enabled &&
-        near(replacedDepthImport.composedSource.layers[0].depthOffset, 0.33f),
+        !replacedDepthImport.composedLayers[0].enabled,
         "PSD depth import should replace the depth source while preserving composed-layer state");
 
     auto blackPngDepthPath = buildPath(pngFixtureDir, "png-depth-zero-mask.png");
@@ -4347,7 +4434,7 @@ private void testPsdDepthMapImportHelpers() {
         blackPngImported.grids[0].sampledVertices == 0 &&
         blackPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
         blackPngImported.grids[0].depths == [0.1f, 0.2f, 0.3f] &&
-        blackPngImported.layerPreviews[0].depthStats.maskedPixels == 0,
+        blackPngImported.composedLayers[0].depthStats.maskedPixels == 0,
         "PSD depth import PNG should treat zero depth pixels as missing like depth-draw createMaskFromDepthPixels");
 
     auto unmatchedPngPath = buildPath(pngFixtureDir, "unmatched-depth-source.png");
@@ -4359,8 +4446,8 @@ private void testPsdDepthMapImportHelpers() {
     require(unmatchedPngImported.grids.length == 0 &&
         unmatchedPngImported.mappings.length == 1 &&
         unmatchedPngImported.mappings[0].status == "Unmatched" &&
-        unmatchedPngImported.layerPreviews.length == 1 &&
-        unmatchedPngImported.layerPreviews[0].layerPath == "/unmatched-depth-source",
+        unmatchedPngImported.composedLayers.length == 1 &&
+        unmatchedPngImported.composedLayers[0].layerPath == "/unmatched-depth-source",
         "PSD depth import dialog must keep unmatched PNG source layers visible so users can remap them");
     require(unmatchedPngImported.composedLayers.length == 1 &&
         unmatchedPngImported.composedLayers[0].targetGridUuid == 0 &&
@@ -4390,7 +4477,7 @@ private void testPsdDepthMapImportHelpers() {
         pairedFlatImported.composedLayers.length == 1 &&
         pairedFlatImported.composedLayers[0].layerPath == "/flat-color-source" &&
         pairedFlatImported.composedLayers[0].depthStats.maskedPixels == 0 &&
-        pairedFlatImported.layerPreviews[0].coverageMaskRgba[3] == 0 &&
+        pairedFlatImported.composedLayers[0].coverageMaskRgba[3] == 0 &&
         pairedFlatImported.compositionDiagnostics.length == 1 &&
         pairedFlatImported.compositionDiagnostics[0].type == "unbound-composed-layer",
         "PSD depth import should support depth-draw flat color PNG + flat depth PNG 1:1 composition using color alpha as mask");
@@ -4399,12 +4486,11 @@ private void testPsdDepthMapImportHelpers() {
     auto previousForColorReplacement = pairedFlatImported;
     previousForColorReplacement.composedLayers[0].depthScale = 0.25f;
     previousForColorReplacement.composedLayers[0].visible = false;
-    ngPsdDepthSyncComposedSource(previousForColorReplacement);
+    ngPsdDepthRefreshDerivedState(previousForColorReplacement);
     auto replacedColorImport = ngPsdDepthReplaceColorSource(incActivePuppet(), previousForColorReplacement,
         replacementFlatColorPath, pairedFlatSettings);
     require(replacedColorImport.depthSource.sourcePath == pairedFlatDepthPath &&
         replacedColorImport.colorSource.sourcePath == replacementFlatColorPath &&
-        replacedColorImport.composedSource.colorSource.sourcePath == replacementFlatColorPath &&
         replacedColorImport.composedLayers.length == 1 &&
         near(replacedColorImport.composedLayers[0].depthScale, 0.25f) &&
         !replacedColorImport.composedLayers[0].visible,
@@ -4455,7 +4541,8 @@ private void testPsdDepthMapImportHelpers() {
         auto richPsdPairImported = ngBuildPsdDepthsFromSource(incActivePuppet(), richDepthPsdPath,
             richPsdPairSettings);
         bool hasMatchedColorLayerIdentity;
-        foreach (layer; richPsdPairImported.composedSource.layers) {
+        auto richPsdPairSource = ngPsdDepthComposedSourceFromImportResult(richPsdPairImported);
+        foreach (layer; richPsdPairSource.layers) {
             if (layer.colorLayerPath.length && layer.colorLayerName.length) {
                 hasMatchedColorLayerIdentity = true;
                 break;
@@ -4466,9 +4553,9 @@ private void testPsdDepthMapImportHelpers() {
             richPsdPairImported.depthSource.kind == PsdDepthCompositeSourceKind.PsdLayers &&
             richPsdPairImported.colorSource.layers.length > 1 &&
             richPsdPairImported.depthSource.layers.length > 1 &&
-            richPsdPairImported.composedSource.layers.length > 1 &&
-            richPsdPairImported.composedSource.width == richPsdPairImported.compositionWidth &&
-            richPsdPairImported.composedSource.height == richPsdPairImported.compositionHeight &&
+            richPsdPairSource.layers.length > 1 &&
+            richPsdPairSource.width == richPsdPairImported.compositionWidth &&
+            richPsdPairSource.height == richPsdPairImported.compositionHeight &&
             hasMatchedColorLayerIdentity,
             "PSD depth import should prove N:N source-domain pairing against the local depth-draw multi-layer PSD fixture");
     }
@@ -4521,7 +4608,7 @@ private void testPsdDepthMapImportHelpers() {
     composedPngSettings.matchDirectGridName = false;
     auto composedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), flatComposedDepthPath, composedPngSettings);
     require(composedPngImported.grids.length == 2 &&
-        composedPngImported.layerPreviews.length == 2 &&
+        composedPngImported.composedLayers.length == 2 &&
         composedPngImported.mappings.length == 2 &&
         composedPngImported.mappings[0].status == "ComposedN1" &&
         composedPngImported.mappings[1].status == "ComposedN1",
@@ -4554,7 +4641,18 @@ private void testPsdDepthMapImportHelpers() {
     require(hasUpperSuppressionDiagnostic &&
         composedPngImported.composedLayers[0].depthStats.maskedPixels == 0 &&
         composedPngImported.composedLayers[1].depthStats.maskedPixels > 0,
-        "PSD depth import N:1 should suppress lower-layer depth under upper color/art coverage");
+        "PSD depth import N:1 should suppress lower-layer depth under upper color/art coverage: "
+        ~ "diag=%s layer0=%s:%s/%s layer1=%s:%s/%s z0=%s z1=%s".format(
+            hasUpperSuppressionDiagnostic,
+            composedPngImported.composedLayers[0].layerName,
+            composedPngImported.composedLayers[0].depthStats.maskedPixels,
+            composedPngImported.composedLayers[0].depthRgba.length > 3 ? composedPngImported.composedLayers[0].depthRgba[3] : 0,
+            composedPngImported.composedLayers[1].layerName,
+            composedPngImported.composedLayers[1].depthStats.maskedPixels,
+            composedPngImported.composedLayers[1].depthRgba.length > 3 ? composedPngImported.composedLayers[1].depthRgba[3] : 0,
+            composedGridA.zSort,
+            composedGridB.zSort
+        ));
     bool foundComposedA;
     bool foundComposedB;
     bool foundBare;
@@ -4572,22 +4670,22 @@ private void testPsdDepthMapImportHelpers() {
     }
     require(foundComposedA && foundComposedB && !foundBare,
         "PSD depth import N:1 composed PNG import should include only targets backed by color/art layers");
-    require(composedPngImported.layerPreviews[0].layerPath != "/flat-composed-depth" &&
-        composedPngImported.layerPreviews[1].sourcePath == flatComposedDepthPath,
-        "PSD depth import N:1 composed PNG previews should be keyed by color/target layer while retaining the flat depth source path");
-    foreach (layerPreview; composedPngImported.layerPreviews) {
+    require(composedPngImported.composedLayers[0].layerPath != "/flat-composed-depth" &&
+        composedPngImported.composedLayers[1].sourcePath == flatComposedDepthPath,
+        "PSD depth import N:1 composed PNG layers should be keyed by color/target layer while retaining the flat depth source path");
+    foreach (layerPreview; composedPngImported.composedLayers) {
         require(layerPreview.depthStats.maskedPixels <= cast(size_t)layerPreview.width * cast(size_t)layerPreview.height,
-            "PSD depth import N:1 composed PNG layer previews should expose bounded coverage-masked depth stats");
+            "PSD depth import N:1 composed PNG layers should expose bounded coverage-masked depth stats");
     }
     bool foundComposedColorPreviewA;
     bool foundComposedColorPreviewB;
-    foreach (layerPreview; composedPngImported.layerPreviews) {
-        if (layerPreview.layerPath == "/color-layer-a-art" && layerPreview.originalRgba.length >= 4 &&
-            layerPreview.originalRgba[0] == 255 && layerPreview.originalRgba[1] == 32 &&
-            layerPreview.originalRgba[2] == 16) foundComposedColorPreviewA = true;
-        if (layerPreview.layerPath == "/color-layer-b-art" && layerPreview.originalRgba.length >= 4 &&
-            layerPreview.originalRgba[0] == 16 && layerPreview.originalRgba[1] == 32 &&
-            layerPreview.originalRgba[2] == 255) foundComposedColorPreviewB = true;
+    foreach (layerPreview; composedPngImported.composedLayers) {
+        if (layerPreview.layerPath == "/color-layer-a-art" && layerPreview.colorRgba.length >= 4 &&
+            layerPreview.colorRgba[0] == 255 && layerPreview.colorRgba[1] == 32 &&
+            layerPreview.colorRgba[2] == 16) foundComposedColorPreviewA = true;
+        if (layerPreview.layerPath == "/color-layer-b-art" && layerPreview.colorRgba.length >= 4 &&
+            layerPreview.colorRgba[0] == 16 && layerPreview.colorRgba[1] == 32 &&
+            layerPreview.colorRgba[2] == 255) foundComposedColorPreviewB = true;
     }
     require(foundComposedColorPreviewA && foundComposedColorPreviewB,
         "PSD depth import N:1 3D previews should use color/art texture pixels instead of the flat depth PNG pixels");
@@ -4750,21 +4848,95 @@ private void testPsdDepthMapImportHelpers() {
     combinedPngImport.grids ~= pngSecondImported.grids;
     combinedPngImport.mappings ~= pngImported.mappings;
     combinedPngImport.mappings ~= pngSecondImported.mappings;
-    combinedPngImport.layerPreviews ~= pngImported.layerPreviews;
-    combinedPngImport.layerPreviews ~= pngSecondImported.layerPreviews;
+    combinedPngImport.composedLayers ~= pngImported.composedLayers;
+    combinedPngImport.composedLayers ~= pngSecondImported.composedLayers;
+    ngPsdDepthRefreshDerivedState(combinedPngImport);
     combinedPngImport.matchedLayers = pngImported.matchedLayers + pngSecondImported.matchedLayers;
     combinedPngImport.unmatchedLayers = pngImported.unmatchedLayers + pngSecondImported.unmatchedLayers;
     pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
     pngSecondGrid.replaceDepths([0.4f, 0.5f, 0.6f]);
+    auto offsetBaseline = composePsdDepthImportForRegression(combinedPngImport);
+    auto canonicalDepthDrawSession = ngPsdDepthImportResultToDepthDrawSession(combinedPngImport);
+    auto canonicalFirstView = new DepthTargetView(pngGrid);
+    canonicalFirstView.baseDepths = pngGrid.copyDepths();
+    canonicalFirstView.depths = pngGrid.copyDepths();
+    auto canonicalFirstResult = ngComposeDepthDrawTarget(
+        canonicalDepthDrawSession,
+        canonicalFirstView,
+        combinedPngImport.grids[0].documentWidth,
+        combinedPngImport.grids[0].documentHeight);
+    float[] baselineFirstDepths;
+    float[] baselineSecondDepths;
+    foreach (gridResult; offsetBaseline.grids) {
+        if (gridResult.grid is pngGrid) baselineFirstDepths = gridResult.depths.dup;
+        if (gridResult.grid is pngSecondGrid) baselineSecondDepths = gridResult.depths.dup;
+    }
+    require(baselineFirstDepths == canonicalFirstResult.depths,
+        "PSD import must preserve the exact DepthDraw composer output without Apply-only scaling");
+    bool changedFirstLayerOffset;
+    foreach (ref layer; combinedPngImport.composedLayers) {
+        if (layer.targetGridUuid != pngGrid.uuid) continue;
+        layer.depthOffset = 0.75f;
+        changedFirstLayerOffset = true;
+        break;
+    }
+    require(changedFirstLayerOffset, "multi-target PSD fixture must expose the first target layer offset");
+    auto offsetAdjusted = composePsdDepthImportForRegression(combinedPngImport);
+    float[] adjustedFirstDepths;
+    float[] adjustedSecondDepths;
+    foreach (gridResult; offsetAdjusted.grids) {
+        if (gridResult.grid is pngGrid) adjustedFirstDepths = gridResult.depths.dup;
+        if (gridResult.grid is pngSecondGrid) adjustedSecondDepths = gridResult.depths.dup;
+    }
+    require(adjustedSecondDepths == baselineSecondDepths,
+        "changing one PSD layer offset must not alter another target's composed depths");
+    require(adjustedFirstDepths.length == baselineFirstDepths.length && adjustedFirstDepths.length > 0,
+        "offset-only PSD compose must preserve the target depth count");
+    auto firstOffsetDelta = adjustedFirstDepths[0] - baselineFirstDepths[0];
+    foreach (i; 1 .. adjustedFirstDepths.length) {
+        require(near(adjustedFirstDepths[i] - baselineFirstDepths[i], firstOffsetDelta),
+            "offset-only PSD compose must add one constant depth delta without changing scale");
+    }
+
+    auto targetScopedImport = combinedPngImport;
+    targetScopedImport.composedLayers = targetScopedImport.composedLayers.dup;
+    foreach (ref layer; targetScopedImport.composedLayers) {
+        layer.layerPath = "/shared-depth-source";
+    }
+    targetScopedImport.composedLayers[0].depthOffset = 0.75f;
+    targetScopedImport.composedLayers[1].depthOffset = 0.0f;
+    targetScopedImport.grids = targetScopedImport.grids.dup;
+    foreach (ref gridResult; targetScopedImport.grids) {
+        gridResult.layerMasks = gridResult.layerMasks.dup;
+        foreach (ref layerMask; gridResult.layerMasks) layerMask.layerPath = "/shared-depth-source";
+    }
+    auto targetScopedFirst = composePsdDepthImportForRegression(targetScopedImport);
+    float[] targetScopedSecondDepths;
+    foreach (gridResult; targetScopedFirst.grids) {
+        if (gridResult.grid is pngSecondGrid) targetScopedSecondDepths = gridResult.depths.dup;
+    }
+    require(targetScopedSecondDepths == baselineSecondDepths,
+        "same source layer paths must still keep per-target PSD transforms isolated during Apply");
+
+    foreach (ref layer; combinedPngImport.composedLayers) {
+        if (layer.targetGridUuid == pngGrid.uuid) layer.depthOffset = 0.0f;
+    }
     incActionClearHistory();
-    require(ngApplyPsdDepthImportResult(combinedPngImport).succeeded,
+    auto combinedComposedForDebug = composePsdDepthImportForRegression(combinedPngImport);
+    require(applyPsdDepthImportForRegression(combinedPngImport).succeeded,
         "PSD depth import apply should update multiple source-builder targets in one operation");
     auto combinedPngAction = cast(GroupAction)incActionTop();
     require(combinedPngAction !is null && combinedPngAction.actions.length == 2,
         "PSD depth import apply should group multiple source-builder target updates into one undo action");
     require(pngGrid.copyDepths() == [1.0f, 1.0f, 1.0f] &&
         pngSecondGrid.copyDepths() == [1.0f, 1.0f, 1.0f],
-        "PSD depth import apply should write all enabled mapped targets, not only one selected binding");
+        "PSD depth import apply should write all enabled mapped targets, not only one selected binding: "
+        ~ "composed0=%s composed1=%s applied0=%s applied1=%s".format(
+            combinedComposedForDebug.grids.length > 0 ? combinedComposedForDebug.grids[0].depths : [],
+            combinedComposedForDebug.grids.length > 1 ? combinedComposedForDebug.grids[1].depths : [],
+            pngGrid.copyDepths(),
+            pngSecondGrid.copyDepths()
+        ));
     incActionUndo();
     require(pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f] &&
         pngSecondGrid.copyDepths() == [0.4f, 0.5f, 0.6f],
@@ -4780,11 +4952,12 @@ private void testPsdDepthMapImportHelpers() {
     pngGpuSettings.layerTargetGridUuidOverrides["/png-depth-grid"] = pngGrid.uuid.to!string;
     pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
     auto pngGpuImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngGpuSettings);
-    auto pngGpuApply = ngApplyPsdDepthImportResult(pngGpuImported);
-    require(!pngGpuApply.succeeded &&
-        pngGpuApply.message.canFind("CPU fallback is disabled") &&
+    PsdDepthComposedView pngGpuComposed;
+    string pngGpuComposeError;
+    require(!ngComposePsdDepthImportResult(pngGpuImported, pngGpuComposed, pngGpuComposeError) &&
+        pngGpuComposeError.canFind("CPU fallback is disabled") &&
         pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f],
-        "PSD depth import GPU-selected apply should fail explicitly instead of falling back to CPU mutation");
+        "PSD depth import GPU-selected preview composition should fail explicitly instead of falling back to CPU mutation");
 
     fakeDepthDrawGpuNextJobId = 1;
     fakeDepthDrawGpuSubmitCount = 0;
@@ -4802,7 +4975,7 @@ private void testPsdDepthMapImportHelpers() {
     pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
     auto pngGpuImportedWithBackend = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngGpuSettings);
     incActionClearHistory();
-    auto pngGpuApplyWithBackend = ngApplyPsdDepthImportResult(pngGpuImportedWithBackend);
+    auto pngGpuApplyWithBackend = applyPsdDepthImportForRegression(pngGpuImportedWithBackend);
     require(pngGpuApplyWithBackend.succeeded &&
         fakeDepthDrawGpuSubmitCount == 1 &&
         fakeDepthDrawGpuPollCount == 1 &&
@@ -4812,51 +4985,26 @@ private void testPsdDepthMapImportHelpers() {
     require(pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f],
         "undo PSD depth import GPU-selected apply should restore previous depths");
 
-    PsdDepthImportSettings pngTransformSettings;
-    pngTransformSettings.convolution = PsdDepthConvolution.Nearest;
-    pngTransformSettings.layerTargetGridUuidOverrides["/png-depth-grid"] = pngGrid.uuid.to!string;
-    pngTransformSettings.layerTransforms["/png-depth-grid"] = PsdDepthLayerTransform(
-        0.0f, 0.0f, 1.0f, 1.0f, -0.25f, 0.5f, false);
-    auto transformedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
-    require(transformedPngImported.grids.length == 1 &&
-        transformedPngImported.grids[0].depths == [0.25f, 0.25f, 0.25f],
-        "PSD depth import layer Z transform should feed the same PNG preview/apply depth result");
+    auto uiEditedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
+    require(uiEditedPngImported.composedLayers.length == 1,
+        "PSD depth import UI-edit regression fixture should have one composed layer");
+    uiEditedPngImported.composedLayers[0].depthOffset = -0.25f;
+    uiEditedPngImported.composedLayers[0].depthScale = 0.5f;
+    ngPsdDepthRefreshDerivedState(uiEditedPngImported);
+    PsdDepthComposedView uiEditedComposedView;
+    string uiEditedComposeError;
+    require(ngComposePsdDepthImportResult(uiEditedPngImported, uiEditedComposedView, uiEditedComposeError),
+        "PSD depth import UI-edited composition should succeed: " ~ uiEditedComposeError);
+    require(uiEditedPngImported.grids.length == 1 &&
+        uiEditedPngImported.grids[0].depths == [0.25f, 0.25f, 0.25f],
+        "PSD depth import Source/Mapping compose should use the same UI-edited Z transform as 3D Adjust preview");
     pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
-    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.KeepExisting;
-    pngTransformSettings.layerTransforms["/png-depth-grid"] = PsdDepthLayerTransform(
-        100.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, false);
-    auto keepExistingPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
-    require(keepExistingPngImported.grids.length == 1 &&
-        keepExistingPngImported.grids[0].sampledVertices == 0 &&
-        keepExistingPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
-        keepExistingPngImported.grids[0].depths == [0.1f, 0.2f, 0.3f],
-        "PSD depth import KeepExisting missing policy should preserve target depths for missing PNG samples");
-    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.SetZero;
-    pngTransformSettings.layerTransforms["/png-depth-grid"] = PsdDepthLayerTransform(
-        100.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, false);
-    auto offsetPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
-    require(offsetPngImported.grids.length == 1 &&
-        offsetPngImported.grids[0].sampledVertices == 0 &&
-        offsetPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
-        offsetPngImported.grids[0].depths == [0.0f, 0.0f, 0.0f],
-        "PSD depth import layer XY transform should affect sampling before missing-policy application");
-    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.SetBack;
-    pngTransformSettings.backDepth = -0.25f;
-    pngTransformSettings.depthScale = 2.0f;
-    auto setBackPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
-    require(setBackPngImported.grids.length == 1 &&
-        setBackPngImported.grids[0].sampledVertices == 0 &&
-        setBackPngImported.grids[0].missingVertices == pngGrid.vertices.length &&
-        setBackPngImported.grids[0].depths == [-0.5f, -0.5f, -0.5f],
-        "PSD depth import SetBack missing policy should write scaled back depth for missing PNG samples");
-    pngTransformSettings.missingPolicy = PsdDepthMissingPolicy.SkipGrid;
-    pngGrid.replaceDepths([0.4f, 0.5f, 0.6f]);
-    auto skipGridPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngTransformSettings);
-    require(skipGridPngImported.grids.length == 1 &&
-        skipGridPngImported.grids[0].skipped &&
-        skipGridPngImported.grids[0].depths == [0.4f, 0.5f, 0.6f],
-        "PSD depth import SkipGrid missing policy should skip the target and preserve existing depths");
-
+    incActionClearHistory();
+    auto expectedUiEditedDepths = uiEditedPngImported.grids[0].depths.dup;
+    auto uiEditedApply = ngApplyPsdDepthImportResult(uiEditedComposedView);
+    require(uiEditedApply.succeeded &&
+        pngGrid.copyDepths() == expectedUiEditedDepths,
+        "PSD depth import apply should write the exact Source/Mapping composed UI-edited depths");
     auto pngPathDepthPath = buildPath(pngFixtureDir, "png-depth-path.png");
     writeRegressionPng(pngPathDepthPath, 255, 255, 255, 4, 4);
     auto pngPath = new ExPathDeformer(incActivePuppet().root);
@@ -4876,7 +5024,7 @@ private void testPsdDepthMapImportHelpers() {
         pngPathImported.grids[0].depths.length == pngPath.vertices.length,
         "PSD depth import dialog source builder should sample PNG sources into PathDeformer control depths");
     incActionClearHistory();
-    require(ngApplyPsdDepthImportResult(pngPathImported).succeeded,
+    require(applyPsdDepthImportForRegression(pngPathImported).succeeded,
         "PSD depth import apply should accept PathDeformer target results");
     require(pngPath.copyDepths() == [1.0f, 1.0f, 1.0f],
         "PSD depth import apply should write PathDeformer depth arrays");
@@ -5046,18 +5194,6 @@ private void testPsdDepthMapImportHelpers() {
     require(ngPsdDepthGridLayerEnabled(settings, otherGrid.uuid, layerPath),
         "PSD depth per-grid layer switch should be scoped by GridDeformer");
 
-    settings.disabledComposedLayerPaths[layerPath] = true;
-    require(!ngPsdDepthComposedLayerEnabled(settings, layerPath) &&
-        !ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath) &&
-        !ngPsdDepthGridLayerEnabled(settings, otherGrid.uuid, layerPath) &&
-        ngPsdDepthGridLayerEnabled(settings, grid.uuid, otherLayerPath),
-        "PSD depth source/composed layer switch should disable the layer before target projection");
-    settings.disabledComposedLayerPaths.remove(layerPath);
-    settings.hiddenComposedLayerPaths[layerPath] = true;
-    require(!ngPsdDepthComposedLayerVisible(settings, layerPath) &&
-        !ngPsdDepthComposedLayerEnabled(settings, layerPath) &&
-        !ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath),
-        "PSD depth source/composed layer visibility should hide and disable layer projection");
 }
 
 private void testDepthImageFacadeMatchesPsdDepthSampling() {
@@ -8883,7 +9019,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import live UI smoke should create a plausible depth target grid before previewing a PSD");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
-        "attachSmokeCoveragePart(bodyGrid, \"body\", 220.0f)",
+        "attachSmokeCoveragePart(bodyGrid, \"bottomwear-back\", 300.0f)",
         "PSD depth import live UI smoke must attach a coverage Part so sampled preview grids are meaningful");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
@@ -8891,7 +9027,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import live UI smoke must be able to build a wider sampled grid fixture");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
-        "[-180.0f, -90.0f, 0.0f, 90.0f, 180.0f]",
+        "for (float value = -600.0f; value <= 600.0f; value += 40.0f)",
         "PSD depth import live UI smoke must sample a broad grid area instead of only the document center");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
@@ -8939,7 +9075,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import dialog must keep Source / Mapping inside the corrected dialog workflow");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
-        "igBeginTabItem(__(\"3D Adjust\"))",
+        "igBeginTabItem(__(\"3D Adjust\"),",
         "PSD depth import dialog must keep 3D Adjust inside the corrected dialog workflow");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
@@ -8973,14 +9109,30 @@ private void testDepthDrawCalculationGateContracts() {
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "###PsdDepth3DAdjustControls",
         "PSD depth import 3D Adjust must not fall back to a Source/Mapping-style controls table");
-    requireSourceContains(
+    requireSourceNotContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "settings.layerTransforms[layerPath] = transform;",
-        "PSD depth import 3D Adjust controls must persist adjustment state into the shared import settings");
+        "PSD depth import 3D Adjust controls must not duplicate layer state in import settings");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
-        "foreach (ref layerPreview; preview.layerPreviews)",
+        "layer.depthOffset = transform.zOffset;",
+        "PSD depth import 3D Adjust controls must update the sole composed-layer state directly");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "foreach (ref layerPreview; preview.composedLayers)",
         "PSD depth import 3D Adjust must be driven by composed source layers before target mapping");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "threeDAdjustLayerDepthDisplayScale",
+        "PSD depth import 3D Adjust must not move layers into different Z units based on target bounds");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "findComposedLayer(layerPath, targetGridUuid)",
+        "PSD depth import UI state must resolve a composed layer by source path and target grid");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "commands", "depth", "map.d"),
+        "ngPsdDepthDocumentToTargetDepthScale",
+        "PSD import Apply must not rescale canonical DepthDraw output for target storage");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "layerPreview.depthRgba",
@@ -9011,8 +9163,12 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import apply must use the shared DepthMappedNode target contract");
     requireSourceContains(
         buildPath("source", "nijigenerate", "commands", "depth", "map.d"),
-        "group.addAction(ngApplyDepthsChangeAction(gridResult.grid, gridResult.depths, \"Import PSD Depth Map\"));",
+        "auto depthAction = ngApplyDepthsChangeAction(gridResult.grid, gridResult.depths, \"Import PSD Depth Map\");",
         "PSD depth import apply must preserve the existing undoable depth action path");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "commands", "depth", "map.d"),
+        "group.addAction(depthAction);",
+        "PSD depth import apply must add each depth change to the undoable import group");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "PsdDepth3DAdjustGeometryStats",
@@ -9054,20 +9210,24 @@ private void testDepthDrawCalculationGateContracts() {
         "a = applyMask(a, layerOrVectorMask[i]);",
         "PSD depth import compatibility depends on psd-d applying vector/user masks into layer alpha");
     requireSourceContains(
-        buildPath("vendor", "psd-d", "source", "psd", "layer.d"),
-        "bool isVisible;",
-        "PSD depth import compatibility depends on psd-d preserving layer visibility");
-    requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
-        "layerPreview.visible = visible && ngPsdDepthComposedLayerVisible(settings, image.layerPath);",
-        "PSD depth import source sessions must preserve PSD layer visibility and source-layer visibility overrides");
+        "return (layer.flags & LayerFlags.Visible) == 0;",
+        "PSD depth import visibility must use the same PSD flag interpretation as depth-draw");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "layer.isVisible",
+        "PSD depth import must not read psd-d's unset isVisible field");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "hiddenComposedLayerPaths",
+        "PSD depth import settings must not retain a second composed-layer visibility state");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
         "auto layerPath = \"%s/%s\".format(calcSegment, layer.name);",
         "PSD depth import source sessions must preserve PSD group layer paths");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
-        "layerPreview.left = image.left;",
+        "image.left = layer.left;",
         "PSD depth import source sessions must preserve PSD layer bounds");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
@@ -9175,7 +9335,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import window must expose smoke-only fallback remapping to a sampled layer");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
-        "remapLayerNameToGridForRegressionSmoke(\"body\"",
+        "remapLayerNameToGridForRegressionSmoke(\"bottomwear-back\"",
         "PSD depth import live UI smoke must exercise manual remap when the empty smoke puppet has no matching body Part");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
@@ -9800,7 +9960,7 @@ private void testDepthBoneCompositeSourcePreviewWorkflow() {
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "depthbone-composite-root";
-    auto target = new GridDeformer(incActivePuppet().root);
+    auto target = new ExGridDeformer(incActivePuppet().root);
     target.name = "depthbone-composite-target";
     auto bone = new ExDepthBone(root);
     bone.name = "depthbone-composite-bone";
@@ -12310,12 +12470,8 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
             asyncSource.canFind("boneValue(base + 2u), boneValue(base + 6u), boneValue(base + 10u), boneValue(base + 14u)") &&
             asyncSource.canFind("boneValue(base + 3u), boneValue(base + 7u), boneValue(base + 11u), boneValue(base + 15u)"),
         "DepthBone shader should transpose row-major packet floats for GLSL mat4 construction");
-
-    auto cpuOffsets = ngGenerateDepthBoneOffsetsCpu(root, &root.bindings[0], target, param, vec2u(1, 0));
-    require(cpuOffsets.length == target.vertices.length, "CPU reference offsets should preserve target vertex count");
-    auto packetCpuOffsets = ngEvaluateDepthBoneGpuOffsetPacketCpu(packet);
-    require(nearVec2Array(packetCpuOffsets, cpuOffsets),
-        "GPU packet CPU evaluator should match DepthBone CPU reference for GridDeformer packet");
+    require(asyncSource.canFind("score *= exp(-distanceSq / radiusSq);"),
+        "DepthBone GPU shader must use the same Gaussian influence equation as depth-draw");
     if (!ngDepthBoneGpuSupported()) {
         require(ngDepthBoneGpuSupportDiagnostic().length > 0,
             "GPU support diagnostic should explain why GPU dispatch is unavailable");
@@ -12325,13 +12481,14 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
             "DepthBone GPU runtime should not expose synchronous dispatch/wait helpers");
     }
 
-    auto path = new PathDeformer(incActivePuppet().root);
+    auto path = new ExPathDeformer(incActivePuppet().root);
     path.name = "gpu-packet-path";
     path.rebuffer(Vec2Array([
-        vec2(-20, 0),
-        vec2(0, 50),
-        vec2(20, 100),
+        vec2(-2, 0),
+        vec2(0, 5),
+        vec2(2, 10),
     ]));
+    path.replaceDepths([0.5f, 0.5f, 0.5f]);
     ExDepthRigBinding pathBinding = binding;
     pathBinding.targetUuid = path.uuid;
     pathBinding.targetKind = ExDepthTargetKind.Path;
@@ -12435,7 +12592,7 @@ private bool fakeDepthBoneGpuPoll(uint jobId, out NgDepthBoneGpuAsyncResult resu
     return true;
 }
 
-private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
+private void testDepthBoneGpuAllKeypointsDispatch() {
     resetCase();
 
     fakeDepthBoneGpuNextJobId = 1;
@@ -12517,12 +12674,8 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     auto tx = newValueBinding(param, bone, "transform.t.x");
     tx.setValue(vec2u(1, 0), 5.0f);
 
-    ngResetDepthBoneCpuReferenceCallCount();
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU all keypoints regression", DepthBoneDirtyScope.AllKeypoints);
     ngFlushDepthBoneDirtyImmediate();
-
-    require(ngDepthBoneCpuReferenceCallCount() == 0,
-        "GPU all-keypoints refresh should not run CPU DepthBone offset generation");
     require(fakeDepthBoneGpuSubmitCount >= gpuTargets.length * 2 && fakeDepthBoneGpuPollCount >= gpuTargets.length * 2,
         "GPU all-keypoints refresh should submit and poll every target binding across multiple frames");
     DeformationParameterBinding deformBinding;
@@ -12555,12 +12708,9 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     ctx.armedParameters = [param];
     target.deformation[] = vec2(0, 0);
     target2.deformation[] = vec2(0, 0);
-    ngResetDepthBoneCpuReferenceCallCount();
     require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, cast(Node[])[target, target2]).succeeded,
         "GPU preview command should succeed with fake GPU hooks");
     ngFlushDepthBoneDirtyImmediate();
-    require(ngDepthBoneCpuReferenceCallCount() == 0,
-        "GPU preview command should not run CPU DepthBone offset generation");
     foreach (offset; target.deformation) {
         require(nearVec2(offset, vec2(2, -1)), "GPU preview command should write fake GPU readback offsets");
     }
@@ -12568,19 +12718,13 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
         require(nearVec2(offset, vec2(2, -1)), "GPU preview command should write fake GPU readback offsets for the second target");
     }
 
-    ngResetDepthBoneCpuReferenceCallCount();
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU keypoint regression", DepthBoneDirtyScope.Keypoint);
     ngFlushDepthBoneDirtyImmediate();
-    require(ngDepthBoneCpuReferenceCallCount() == 0,
-        "GPU keypoint refresh should not run CPU DepthBone offset generation");
 
     incActionClearHistory();
-    ngResetDepthBoneCpuReferenceCallCount();
     auto applyResult = cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, cast(Node[])[target]);
     require(applyResult.succeeded, "GPU apply command should succeed with fake GPU hooks");
     ngFlushDepthBoneDirtyImmediate();
-    require(ngDepthBoneCpuReferenceCallCount() == 0,
-        "GPU apply command should not run CPU DepthBone offset generation");
     require(incActionHistory().length == 1, "GPU apply command should push one grouped undo action");
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding !is null, "GPU apply command should keep a deform binding");
@@ -12713,7 +12857,6 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     incActivePuppet().parameters ~= param;
     tx = newValueBinding(param, bone, "transform.t.x");
     tx.setValue(vec2u(1, 0), 5.0f);
-    ngResetDepthBoneCpuReferenceCallCount();
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU submit failure regression", DepthBoneDirtyScope.AllKeypoints);
     bool submitFailureThrown;
     try {
@@ -12723,7 +12866,6 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     }
     require(submitFailureThrown, "GPU submit failure must raise a fatal refresh error");
     require(fakeDepthBoneGpuSubmitCount >= 2, "GPU submit failure fixture should attempt both target submissions");
-    require(ngDepthBoneCpuReferenceCallCount() == 0, "GPU submit failure must not fall back to CPU offset generation");
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     deformBinding2 = cast(DeformationParameterBinding)param.getBinding(target2, "deform");
     require(deformBinding is null && deformBinding2 is null,
@@ -12755,7 +12897,6 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
     incActivePuppet().parameters ~= param;
     tx = newValueBinding(param, bone, "transform.t.x");
     tx.setValue(vec2u(1, 0), 5.0f);
-    ngResetDepthBoneCpuReferenceCallCount();
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU packet failure regression", DepthBoneDirtyScope.AllKeypoints);
     bool packetFailureThrown;
     try {
@@ -12765,7 +12906,6 @@ private void testDepthBoneGpuAllKeypointsAvoidsCpuOffsets() {
             e.msg.canFind("maximum influence count");
     }
     require(packetFailureThrown, "GPU packet build failure must raise a fatal refresh error");
-    require(ngDepthBoneCpuReferenceCallCount() == 0, "GPU packet build failure must not fall back to CPU offset generation");
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding is null, "GPU packet build failure must not silently write a partial deform binding");
 }
@@ -12797,7 +12937,7 @@ private void testDepthBoneSkinningLockToRootTerminal() {
     auto shin = ngCreateDepthBone(root, "Shin", vec3(0, 0, 0), vec3(0, 100, 0));
     auto foot = ngCreateDepthBone(shin, "Foot", vec3(0, 100, 0), vec3(0, 200, 0));
 
-    auto target = new GridDeformer(incActivePuppet().root);
+    auto target = new ExGridDeformer(incActivePuppet().root);
     target.name = "skinning-target-grid";
     target.rebuffer(Vec2Array([
         vec2(-10, 140),
@@ -12847,21 +12987,6 @@ private void testDepthBoneSkinningLockToRootTerminal() {
     foreach (offset; target.deformation)
         require(nearVec2(offset, vec2(0, 0)), "locked terminal bone should keep vertices beyond the terminal bone fixed to root");
 
-    DepthBoneGpuOffsetPacket packet;
-    string error;
-    require(ngBuildDepthBoneGpuOffsetPacket(root, &root.bindings[0], target, param, vec2u(1, 0), packet, error),
-        "skinning fixture should build a GPU packet: " ~ error);
-    auto packetOffsets = ngEvaluateDepthBoneGpuOffsetPacketCpu(packet);
-    require(nearVec2Array(packetOffsets, target.deformation),
-        "GPU packet CPU evaluator should match CPU reference for multiple sources and lock-to-root terminal behavior");
-
-    root.bindings[0].influenceRule.falloff = "linear";
-    auto linearCpuOffsets = ngGenerateDepthBoneOffsetsCpu(root, &root.bindings[0], target, param, vec2u(1, 0));
-    require(ngBuildDepthBoneGpuOffsetPacket(root, &root.bindings[0], target, param, vec2u(1, 0), packet, error),
-        "linear falloff fixture should build a GPU packet: " ~ error);
-    auto linearPacketOffsets = ngEvaluateDepthBoneGpuOffsetPacketCpu(packet);
-    require(nearVec2Array(linearPacketOffsets, linearCpuOffsets),
-        "GPU packet CPU evaluator should match CPU reference for linear falloff");
 }
 
 private ExDepthBone findDepthBoneById(ExDepthRigRoot root, string boneId) {
@@ -15880,7 +16005,6 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "commands/depth/bone.d|packet.vertices = target.vertices.dup",
         "commands/depth/bone.d|root.name = name.length",
         "commands/depth/bone.d|deformable.deformation = generateInfluencePreviewOffsets",
-        "commands/depth/bone.d|deformable.deformation = generateDepthBoneOffsets",
         "commands/node/base.d|newChild.localTransform.translation =",
         "commands/parameter/base.d|parent.children = parent.children.remove",
         "commands/parameter/base.d|incActivePuppet().parameters = incActivePuppet().parameters.remove",
@@ -17028,7 +17152,7 @@ private bool runAutomatedScenario(string id) {
             runCase("depthbone-gpu-offset-packet-construction", &testDepthBoneGpuOffsetPacketConstruction);
             return true;
         case "depthbone.gpu-all-keypoints":
-            runCase("depthbone-gpu-all-keypoints-avoids-cpu-offsets", &testDepthBoneGpuAllKeypointsAvoidsCpuOffsets);
+            runCase("depthbone-gpu-all-keypoints-dispatch", &testDepthBoneGpuAllKeypointsDispatch);
             return true;
         case "depthbone.skinning":
             runCase("depthbone-skinning-lock-to-root-terminal", &testDepthBoneSkinningLockToRootTerminal);
