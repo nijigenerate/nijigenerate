@@ -1,6 +1,7 @@
 module nijigenerate.commands.depth.map;
 
 import nijigenerate.actions.depth;
+import nijigenerate.actions.depthbone : DepthRigBindingsChangeAction;
 import nijigenerate.actions : GroupAction;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction;
 import nijigenerate.commands.base;
@@ -9,6 +10,7 @@ import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngE
     ngPendingDepthBoneRefreshWorkForSink;
 import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
 import nijigenerate.ext.nodes.exdepthmapped;
+import nijigenerate.ext.nodes.exdepthbone : ExDepthRigBinding, ExDepthRigRoot;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, ngDepthImageSampleRgbaWithOpacity;
 import nijigenerate.io.depthmap_psd;
@@ -496,11 +498,9 @@ private PsdDepthComposedLayer* psdDepthComposedLayerByPath(
     string layerPath,
     ulong targetGridUuid
 ) {
+    if (targetGridUuid == 0) return null;
     foreach (ref layer; imported.composedLayers) {
         if (layer.layerPath == layerPath && layer.targetGridUuid == targetGridUuid) return &layer;
-    }
-    foreach (ref layer; imported.composedLayers) {
-        if (layer.layerPath == layerPath && layer.targetGridUuid == 0) return &layer;
     }
     return null;
 }
@@ -728,6 +728,45 @@ private void updatePsdDepthGridRange(ref PsdDepthGridResult gridResult) {
     }
 }
 
+private size_t nearestPsdDepthSampleForMissingVertex(
+    Deformable target,
+    size_t vertexIndex,
+    string[] winningLayerIds
+) {
+    if (target is null || vertexIndex >= target.vertices.length) return size_t.max;
+
+    size_t nearestSample = size_t.max;
+    float nearestDistanceSq = float.max;
+    auto vertex = target.vertices[vertexIndex];
+    foreach (sampledIndex, winnerId; winningLayerIds) {
+        if (winnerId.length == 0 || sampledIndex >= target.vertices.length) continue;
+        auto sampledVertex = target.vertices[sampledIndex];
+        auto dx = sampledVertex.x - vertex.x;
+        auto dy = sampledVertex.y - vertex.y;
+        auto distanceSq = dx * dx + dy * dy;
+        if (distanceSq >= nearestDistanceSq) continue;
+        nearestDistanceSq = distanceSq;
+        nearestSample = sampledIndex;
+    }
+    return nearestSample;
+}
+
+private void extrapolatePsdDepthToMissingVertices(
+    ref PsdDepthGridResult composed,
+    string[] winningLayerIds
+) {
+    foreach (vertexIndex, isMissing; composed.missingVertexMask) {
+        if (!isMissing) continue;
+        auto nearestSample = nearestPsdDepthSampleForMissingVertex(
+            composed.grid,
+            vertexIndex,
+            winningLayerIds
+        );
+        if (nearestSample == size_t.max || nearestSample >= composed.depths.length) continue;
+        composed.depths[vertexIndex] = composed.depths[nearestSample];
+    }
+}
+
 bool ngComposePsdDepthTarget(
     ref PsdDepthImportResult imported,
     ref PsdDepthGridResult gridResult,
@@ -786,6 +825,7 @@ bool ngComposePsdDepthTarget(
             composed.winnerLayerPaths[i] = null;
         }
     }
+    extrapolatePsdDepthToMissingVertices(composed, result.winningLayerIds);
     updatePsdDepthGridRange(composed);
     foreach (ref layerMask; composed.layerMasks) {
         layerMask.sampledVertices = 0;
@@ -917,6 +957,39 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
         auto group = new PsdDepthImportChangeAction();
         ngBeginDepthBoneRefreshActionSink(group);
         scope(exit) ngEndDepthBoneRefreshActionSink(group);
+
+        Node[ulong] appliedTargets;
+        foreach (gridResult; imported.grids) {
+            if (!gridResult.skipped && gridResult.grid !is null) {
+                appliedTargets[gridResult.grid.uuid] = gridResult.grid;
+            }
+        }
+
+        bool[ulong] sourceTransformChangedTargets;
+        foreach (root; incActivePuppet().findNodesType!ExDepthRigRoot(incActivePuppet().root)) {
+            auto oldBindings = copyDepthRigBindings(root.bindings);
+            auto nextBindings = copyDepthRigBindings(root.bindings);
+            bool bindingsChanged;
+            foreach (ref binding; nextBindings) {
+                if (binding.targetUuid !in appliedTargets) continue;
+                foreach (ref setting; binding.sourceSettings) {
+                    if (setting.depthScale == 1.0f && setting.depthOffset == 0.0f) continue;
+                    setting.depthScale = 1.0f;
+                    setting.depthOffset = 0.0f;
+                    bindingsChanged = true;
+                    sourceTransformChangedTargets[binding.targetUuid] = true;
+                }
+            }
+            if (!bindingsChanged) continue;
+            root.bindings = copyDepthRigBindings(nextBindings);
+            group.addAction(new DepthRigBindingsChangeAction(
+                "Import PSD Depth Map",
+                root,
+                oldBindings,
+                nextBindings
+            ));
+        }
+
         foreach (gridResult; imported.grids) {
             if (gridResult.skipped) continue;
             if (gridResult.grid is null) continue;
@@ -926,12 +999,15 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
             auto depthChanged = depthMapped.copyDepths() != gridResult.depths;
             auto depthOperated = cast(DepthOperationMappedNode)gridResult.grid;
             auto hasDepthOps = depthOperated !is null && depthOperated.copyDepthOps().length > 0;
-            if (!depthChanged && !hasDepthOps) continue;
+            auto sourceTransformChanged = gridResult.grid.uuid in sourceTransformChangedTargets;
+            if (!depthChanged && !hasDepthOps && sourceTransformChanged is null) continue;
             auto clearOps = ngClearDepthOpsChangeAction(gridResult.grid, "Import PSD Depth Map");
             if (clearOps !is null) group.addAction(clearOps);
             if (depthChanged) {
                 auto depthAction = ngApplyDepthsChangeAction(gridResult.grid, gridResult.depths, "Import PSD Depth Map");
                 group.addAction(depthAction);
+            } else if (clearOps is null && sourceTransformChanged !is null) {
+                ngMarkDepthBoneDirtyForTarget(gridResult.grid, "Import PSD Depth Map");
             }
             changedGrids++;
         }
@@ -948,6 +1024,16 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
         ngPsdDepthImportSummaryToJson(*imported, changedGrids),
         "PSD depth map imported"
     );
+}
+
+private ExDepthRigBinding[] copyDepthRigBindings(ExDepthRigBinding[] bindings) {
+    auto result = bindings.dup;
+    foreach (ref binding; result) {
+        binding.sourceBoneUuids = binding.sourceBoneUuids.dup;
+        binding.sourceSettings = binding.sourceSettings.dup;
+        binding.influenceRule.multipliersByBoneUuid = binding.influenceRule.multipliersByBoneUuid.dup;
+    }
+    return result;
 }
 
 private void replaceDepthOpsWithUndo(Node target, ExDepthOp[] nextOps, string reason) {

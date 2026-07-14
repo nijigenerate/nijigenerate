@@ -13,7 +13,7 @@ import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.project : incActivePuppet, incArmedParameter;
 import nijigenerate.core.tasks : incSetStatus;
-import nijigenerate.viewport.depth.mesheditor.node : DepthDisplayPlaneSize, DepthDisplayZScale;
+import nijigenerate.viewport.depth.common.targetview : ngDepthDisplayScaleForTargetsInNodeSpace;
 import nijilive;
 import nijilive.core.nodes.deformable : Deformable;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
@@ -232,23 +232,6 @@ private vec2 copyVertex2(Deformable target, size_t index) {
     return vec2(vertex.x, vertex.y);
 }
 
-private float depthScaleFor(Deformable target) {
-    if (target is null || target.vertices.length == 0) return 1.0f;
-    auto minPoint = copyVertex2(target, 0);
-    auto maxPoint = minPoint;
-    foreach (i, vertex; target.vertices) {
-        if (i == 0) continue;
-        minPoint.x = min(minPoint.x, vertex.x);
-        minPoint.y = min(minPoint.y, vertex.y);
-        maxPoint.x = max(maxPoint.x, vertex.x);
-        maxPoint.y = max(maxPoint.y, vertex.y);
-    }
-    auto size = maxPoint - minPoint;
-    auto scale = max(size.x, size.y) * (DepthDisplayZScale / DepthDisplayPlaneSize);
-    if (!scale.isFinite) return 1.0f;
-    return max(1.0f, scale);
-}
-
 private float targetBoundsSize(Deformable target) {
     if (target is null || target.vertices.length == 0) return 1.0f;
     auto minPoint = copyVertex2(target, 0);
@@ -264,37 +247,19 @@ private float targetBoundsSize(Deformable target) {
     return max(1.0f, max(size.x, size.y));
 }
 
-private void depthScaleDetails(Deformable target, out vec2 minPoint, out vec2 maxPoint, out vec2 size, out float rawScale, out float scale) {
-    if (target is null || target.vertices.length == 0) {
-        minPoint = vec2(0);
-        maxPoint = vec2(0);
-        size = vec2(0);
-        rawScale = 1.0f;
-        scale = 1.0f;
-        return;
+private float depthWorldScale(ExDepthRigRoot root) {
+    if (root is null || incActivePuppet() is null) return 1.0f;
+    Deformable[] targets;
+    foreach (ref binding; root.bindings) {
+        auto target = cast(Deformable)incActivePuppet().find!Node(cast(uint)binding.targetUuid);
+        if (target !is null) targets ~= target;
     }
-
-    minPoint = copyVertex2(target, 0);
-    maxPoint = minPoint;
-    foreach (i, vertex; target.vertices) {
-        if (i == 0) continue;
-        minPoint.x = min(minPoint.x, vertex.x);
-        minPoint.y = min(minPoint.y, vertex.y);
-        maxPoint.x = max(maxPoint.x, vertex.x);
-        maxPoint.y = max(maxPoint.y, vertex.y);
-    }
-    size = maxPoint - minPoint;
-    rawScale = max(size.x, size.y) * (DepthDisplayZScale / DepthDisplayPlaneSize);
-    scale = max(1.0f, rawScale);
+    auto scale = ngDepthDisplayScaleForTargetsInNodeSpace(root, targets);
+    return scale > 0.0f ? scale : 1.0f;
 }
 
-private float worldDepthAt(Deformable target, size_t index) {
-    return depthAt(target, index) * depthScaleFor(target);
-}
-
-private float worldDepthAt(Deformable target, size_t index, ExDepthBoneSourceSettings setting) {
-    auto adjustedDepth = depthAt(target, index) * setting.depthScale + setting.depthOffset;
-    return adjustedDepth * depthScaleFor(target);
+private float worldDepthAt(Deformable target, size_t index, float worldScale) {
+    return depthAt(target, index) * worldScale;
 }
 
 private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bone, vec2 worldPoint, out float worldDepth) {
@@ -306,6 +271,7 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
 
     size_t sampleCount = 0;
     float totalDepth = 0.0f;
+    auto worldScale = depthWorldScale(root);
     depthBoneDebugLog("[FitZ] start root=%s bone=%s bindings=%s", root.name, bone is null ? "(fallback)" : bone.name, root.bindings.length);
     foreach (ref binding; root.bindings) {
         ExDepthBoneSourceSettings setting;
@@ -343,7 +309,7 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
                 auto adjustedDepth = bone is null
                     ? depths[i]
                     : depths[i] * setting.depthScale + setting.depthOffset;
-                auto depth = adjustedDepth * depthScaleFor(target);
+                auto depth = adjustedDepth * worldScale;
                 if (!depth.isFinite) continue;
                 auto sample = transformPoint(targetToWorld, vec3(vertex.x, vertex.y, depth));
                 if (!sample.x.isFinite || !sample.y.isFinite || !sample.z.isFinite) {
@@ -366,7 +332,7 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
                 auto adjustedDepth = bone is null
                     ? value
                     : value * setting.depthScale + setting.depthOffset;
-                auto depth = adjustedDepth * depthScaleFor(target);
+                auto depth = adjustedDepth * worldScale;
                 if (!depth.isFinite) continue;
                 totalTargetDepth += depth;
                 targetDepthCount++;
@@ -904,7 +870,7 @@ bool ngBuildDepthBoneGpuOffsetPacket(
     }
 
     float[] sourceData;
-    auto targetDepthScale = depthScaleFor(target);
+    auto worldScale = depthWorldScale(root);
     foreach (bone; sourceBones) {
         auto boneIndex = bone.uuid in boneIndices;
         if (boneIndex is null) {
@@ -920,7 +886,7 @@ bool ngBuildDepthBoneGpuOffsetPacket(
         sourceData ~= (binding.influenceRule.falloff == "linear" ? 1.0f : 0.0f);
         sourceData ~= setting.weight;
         sourceData ~= setting.depthScale;
-        sourceData ~= setting.depthOffset * targetDepthScale;
+        sourceData ~= setting.depthOffset * worldScale;
         sourceData ~= multiplier;
     }
 
@@ -932,7 +898,7 @@ bool ngBuildDepthBoneGpuOffsetPacket(
     packet.writeBinding = writeBinding;
     packet.vertices = target.vertices.dup;
     packet.depths.length = target.vertices.length;
-    foreach (i; 0 .. target.vertices.length) packet.depths[i] = worldDepthAt(target, i);
+    foreach (i; 0 .. target.vertices.length) packet.depths[i] = worldDepthAt(target, i, worldScale);
     auto targetNode = cast(Node)target;
     packet.targetToRoot = targetToRootMatrix(root, targetNode);
     packet.rootToTarget = packet.targetToRoot.inverse;
@@ -1191,7 +1157,8 @@ private bool isDepthBoneGpuRefreshJobCurrent(ref DepthBoneGpuRefreshJob job, out
     }
     float[] currentDepths;
     currentDepths.length = target.vertices.length;
-    foreach (i; 0 .. target.vertices.length) currentDepths[i] = worldDepthAt(target, i);
+    auto worldScale = depthWorldScale(job.packet.root);
+    foreach (i; 0 .. target.vertices.length) currentDepths[i] = worldDepthAt(target, i, worldScale);
     if (!sameFloatArray(currentDepths, job.packet.depths)) {
         reason = "target depths changed while GPU job was pending";
         return false;
@@ -1320,6 +1287,7 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
                 job.offsets.length,
                 target.vertices.length));
         }
+
 
         if (job.packet.writePreview) {
             target.deformation = job.offsets;
@@ -1799,13 +1767,6 @@ private ulong depthBoneRigStructureHash(ExDepthRigRoot root) {
             if (auto deformable = cast(Deformable)targetNode) {
                 hash = hashInt(hash, cast(long)deformable.vertices.length);
                 foreach (vertex; deformable.vertices) hash = hashVec2(hash, vertex);
-            }
-            if (auto depthMapped = cast(DepthMappedNode)targetNode) {
-                auto depths = depthMapped.copyDepths();
-                hash = hashInt(hash, depths is null ? -1 : cast(long)depths.length);
-                if (depths !is null) foreach (depth; depths) hash = hashFloat(hash, depth);
-            } else {
-                hash = hashInt(hash, -2);
             }
         }
     }

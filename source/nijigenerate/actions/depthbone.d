@@ -14,21 +14,31 @@ class DepthRigBindingsChangeAction : Action {
     ExDepthRigBinding[] newBindings;
     string label;
 
+    private static ExDepthRigBinding[] copyBindings(ExDepthRigBinding[] bindings) {
+        auto result = bindings.dup;
+        foreach (ref binding; result) {
+            binding.sourceBoneUuids = binding.sourceBoneUuids.dup;
+            binding.sourceSettings = binding.sourceSettings.dup;
+            binding.influenceRule.multipliersByBoneUuid = binding.influenceRule.multipliersByBoneUuid.dup;
+        }
+        return result;
+    }
+
     this(string label, ExDepthRigRoot root, ExDepthRigBinding[] oldBindings, ExDepthRigBinding[] newBindings) {
         this.label = label;
         this.root = root;
-        this.oldBindings = oldBindings.dup;
-        this.newBindings = newBindings.dup;
+        this.oldBindings = copyBindings(oldBindings);
+        this.newBindings = copyBindings(newBindings);
         root.notifyChange(root, NotifyReason.AttributeChanged);
     }
 
     void rollback() {
-        root.bindings = oldBindings.dup;
+        root.bindings = copyBindings(oldBindings);
         root.notifyChange(root, NotifyReason.AttributeChanged);
     }
 
     void redo() {
-        root.bindings = newBindings.dup;
+        root.bindings = copyBindings(newBindings);
         root.notifyChange(root, NotifyReason.AttributeChanged);
     }
 

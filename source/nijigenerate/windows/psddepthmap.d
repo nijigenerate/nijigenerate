@@ -15,8 +15,8 @@ import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, D
     DepthSamplePoint, ngDepthSampleConvolve, ngDepthSampleMissingPoint, ngDepthSamplePixelDepth,
     ngDepthSampleValueToDepth01;
 import nijigenerate.viewport.depth.camera : DepthCamera3D, projectDepthPoint, updateDepthCamera3D;
-import nijigenerate.viewport.depth.common.targetview : DepthTargetDisplayPlaneSize, DepthTargetDisplayZScale,
-    DepthTargetView;
+import nijigenerate.viewport.depth.common.targetview : DepthTargetView, ngDepthDisplayScaleForDocument,
+    ngDepthDisplayScaleForTargetsInNodeSpace;
 import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijilive;
@@ -398,29 +398,29 @@ private:
         threeDAdjustCameraBottom = int.min;
     }
 
-    PsdDepthComposedLayer* findLayerPreview(string layerPath) {
+    string layerCacheKey(string layerPath, ulong targetGridUuid) {
+        return layerPath ~ "\0" ~ targetGridUuid.to!string;
+    }
+
+    PsdDepthComposedLayer* findLayerPreview(string layerPath, ulong targetGridUuid) {
         foreach (ref layerPreview; preview.composedLayers) {
-            if (layerPreview.layerPath == layerPath) return &layerPreview;
-        }
-        return null;
-    }
-
-    PsdDepthComposedLayer* findComposedLayer(string layerPath, ulong targetGridUuid = 0) {
-        if (targetGridUuid != 0) {
-            foreach (ref layer; preview.composedLayers) {
-                if (layer.layerPath == layerPath && layer.targetGridUuid == targetGridUuid) return &layer;
+            if (layerPreview.layerPath == layerPath && layerPreview.targetGridUuid == targetGridUuid) {
+                return &layerPreview;
             }
-            return null;
-        }
-        foreach (ref layer; preview.composedLayers) {
-            if (layer.layerPath == layerPath) return &layer;
         }
         return null;
     }
 
-    PsdDepthLayerMapping* findMapping(string layerPath) {
+    PsdDepthComposedLayer* findComposedLayer(string layerPath, ulong targetGridUuid) {
+        foreach (ref layer; preview.composedLayers) {
+            if (layer.layerPath == layerPath && layer.targetGridUuid == targetGridUuid) return &layer;
+        }
+        return null;
+    }
+
+    PsdDepthLayerMapping* findMapping(string layerPath, ulong targetGridUuid) {
         foreach (ref mapping; preview.mappings) {
-            if (mapping.layerPath == layerPath) return &mapping;
+            if (mapping.layerPath == layerPath && mapping.targetGridUuid == targetGridUuid) return &mapping;
         }
         return null;
     }
@@ -438,21 +438,18 @@ private:
     string firstOtherLayerPath() {
         foreach (ref mapping; preview.mappings) {
             if (mapping.matched && mapping.targetGridUuid != 0) continue;
-            if (findLayerPreview(mapping.layerPath) !is null) return mapping.layerPath;
+            if (findLayerPreview(mapping.layerPath, mapping.targetGridUuid) !is null) return mapping.layerPath;
         }
         foreach (ref layer; preview.composedLayers) {
             if (layer.targetGridUuid != 0) continue;
-            if (findLayerPreview(layer.layerPath) !is null) return layer.layerPath;
-        }
-        foreach (ref layerPreview; preview.composedLayers) {
-            return layerPreview.layerPath;
+            if (findLayerPreview(layer.layerPath, layer.targetGridUuid) !is null) return layer.layerPath;
         }
         return null;
     }
 
     Texture firstOtherPreviewTexture() {
         auto layerPath = firstOtherLayerPath();
-        return layerPath.length ? layerPreviewTexture(layerPath, true) : null;
+        return layerPath.length ? layerPreviewTexture(layerPath, 0, true) : null;
     }
 
     bool isOthersSelected() {
@@ -542,7 +539,9 @@ private:
                 continue;
             }
             float depth;
-            if (!threeDAdjustDepthAt(layerPreview, index, depth)) continue;
+            auto x = cast(int)(i % cast(size_t)layerPreview.width);
+            auto y = cast(int)(i / cast(size_t)layerPreview.width);
+            if (!threeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
             auto normalized = clamp((depth - minDepth) / range, 0.0f, 1.0f);
             auto gray = cast(ubyte)clamp(cast(int)(normalized * 255.0f + 0.5f), 0, 255);
             rgba[index + 0] = gray;
@@ -553,10 +552,11 @@ private:
         return rgba;
     }
 
-    Texture layerPreviewTexture(string layerPath, bool depthMask) {
-        auto layerPreview = findLayerPreview(layerPath);
+    Texture layerPreviewTexture(string layerPath, ulong targetGridUuid, bool depthMask) {
+        auto layerPreview = findLayerPreview(layerPath, targetGridUuid);
         if (layerPreview is null) return null;
-        auto existing = depthMask ? layerPath in depthMaskPreviewTextures : layerPath in originalPreviewTextures;
+        auto key = layerCacheKey(layerPath, targetGridUuid);
+        auto existing = depthMask ? key in depthMaskPreviewTextures : key in originalPreviewTextures;
         if (existing !is null) return *existing;
 
         auto rgba = depthMask ? transformedDepthPreviewRgba(*layerPreview) : layerPreview.colorRgba.dup;
@@ -564,8 +564,8 @@ private:
         auto textureHeight = depthMask || layerPreview.height <= 0 ? layerPreview.height : layerPreview.height;
         inTexPremultiply(rgba);
         auto texture = new Texture(rgba, textureWidth, textureHeight);
-        if (depthMask) depthMaskPreviewTextures[layerPath] = texture;
-        else originalPreviewTextures[layerPath] = texture;
+        if (depthMask) depthMaskPreviewTextures[key] = texture;
+        else originalPreviewTextures[key] = texture;
         return texture;
     }
 
@@ -585,10 +585,10 @@ private:
         return texture;
     }
 
-    void drawLayerPreviewTooltip(string layerPath, bool depthMask) {
-        auto layerPreview = findLayerPreview(layerPath);
+    void drawLayerPreviewTooltip(string layerPath, ulong targetGridUuid, bool depthMask) {
+        auto layerPreview = findLayerPreview(layerPath, targetGridUuid);
         if (layerPreview is null) return;
-        auto texture = layerPreviewTexture(layerPath, depthMask);
+        auto texture = layerPreviewTexture(layerPath, targetGridUuid, depthMask);
         if (texture is null) return;
 
         igBeginTooltip();
@@ -609,14 +609,14 @@ private:
         igEndTooltip();
     }
 
-    void drawLayerPreviewHoverLabel(string label, string layerPath, bool depthMask) {
+    void drawLayerPreviewHoverLabel(string label, string layerPath, ulong targetGridUuid, bool depthMask) {
         incText(label);
-        if (igIsItemHovered()) drawLayerPreviewTooltip(layerPath, depthMask);
+        if (igIsItemHovered()) drawLayerPreviewTooltip(layerPath, targetGridUuid, depthMask);
     }
 
-    void drawLayerPreviewHoverText(string label, string layerPath, bool depthMask) {
+    void drawLayerPreviewHoverText(string label, string layerPath, ulong targetGridUuid, bool depthMask) {
         incText(label.length ? label : "-");
-        if (igIsItemHovered()) drawLayerPreviewTooltip(layerPath, depthMask);
+        if (igIsItemHovered()) drawLayerPreviewTooltip(layerPath, targetGridUuid, depthMask);
     }
 
     ExPart matchedPart(ref PsdDepthLayerMapping mapping) {
@@ -902,10 +902,10 @@ private:
                 auto selected = isOthersSelected();
                 auto texture = firstOtherPreviewTexture();
                 incTextureSlotUntitled("###gridPreviewOthers", texture, ImVec2(104, 104), 24, ImGuiWindowFlags.NoInputs, selected);
-                if (igIsItemHovered()) {
-                    auto layerPath = firstOtherLayerPath();
-                    if (layerPath.length) drawLayerPreviewTooltip(layerPath, true);
-                }
+                    if (igIsItemHovered()) {
+                        auto layerPath = firstOtherLayerPath();
+                        if (layerPath.length) drawLayerPreviewTooltip(layerPath, 0, true);
+                    }
                 igTableNextColumn();
                 if (igSelectable((_("Others") ~ "\n" ~ _("Unmapped or ignored layers") ~ "###gridRowOthers").toStringz,
                     selected, ImGuiSelectableFlags.SpanAllColumns, ImVec2(0, 104))) {
@@ -934,7 +934,7 @@ private:
         }
     }
 
-    void drawComposedLayerEnabledCheckbox(string layerPath, ulong targetGridUuid = 0) {
+    void drawComposedLayerEnabledCheckbox(string layerPath, ulong targetGridUuid) {
         auto layer = findComposedLayer(layerPath, targetGridUuid);
         if (layer is null) return;
         bool enabled = layer.enabled;
@@ -946,7 +946,7 @@ private:
         }
     }
 
-    void drawComposedLayerShowCheckbox(string layerPath, ulong targetGridUuid = 0) {
+    void drawComposedLayerShowCheckbox(string layerPath, ulong targetGridUuid) {
         auto layer = findComposedLayer(layerPath, targetGridUuid);
         if (layer is null) return;
         bool enabled = layer.enabled && layer.visible;
@@ -959,7 +959,7 @@ private:
         }
     }
 
-    PsdDepthLayerEdit layerTransform(string layerPath, ulong targetGridUuid = 0) {
+    PsdDepthLayerEdit layerTransform(string layerPath, ulong targetGridUuid) {
         PsdDepthLayerEdit transform;
         if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
             transform.zOffset = layer.depthOffset;
@@ -1022,7 +1022,7 @@ private:
         if (auto composedLayer = findComposedLayer(layerPath, gridUuid)) {
             if (composedLayer.targetGridUuid == gridUuid) return true;
         }
-        if (auto mapping = findMapping(layerPath)) {
+        if (auto mapping = findMapping(layerPath, gridUuid)) {
             if (mapping.targetGridUuid == gridUuid) return true;
         }
         return false;
@@ -1056,7 +1056,7 @@ private:
         errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
     }
 
-    void refreshPreviewDepthsForLayer(string layerPath, ulong targetGridUuid = 0) {
+    void refreshPreviewDepthsForLayer(string layerPath, ulong targetGridUuid) {
         foreach (ref gridResult; preview.grids) {
             if (targetGridUuid != 0 && (gridResult.grid is null || gridResult.grid.uuid != targetGridUuid)) continue;
             if (!gridResultUsesLayer(gridResult, layerPath) &&
@@ -1067,22 +1067,27 @@ private:
         }
     }
 
-    void invalidate3DAdjustLayerCaches(string layerPath, ulong targetGridUuid = 0) {
-        if (auto texture = layerPath in depthMaskPreviewTextures) {
+    void invalidate3DAdjustLayerCaches(string layerPath, ulong targetGridUuid) {
+        auto key = layerCacheKey(layerPath, targetGridUuid);
+        if (auto texture = key in depthMaskPreviewTextures) {
             if (*texture !is null) (*texture).dispose();
-            depthMaskPreviewTextures.remove(layerPath);
+            depthMaskPreviewTextures.remove(key);
         }
-        threeDAdjustSamples.remove(layerPath);
-        threeDAdjustMeshes.remove(layerPath);
+        if (auto texture = key in originalPreviewTextures) {
+            if (*texture !is null) (*texture).dispose();
+            originalPreviewTextures.remove(key);
+        }
+        threeDAdjustSamples.remove(key);
+        threeDAdjustMeshes.remove(key);
         threeDAdjustPreviewDirty = true;
     }
 
-    void refreshAfter3DAdjustLayerChange(string layerPath, ulong targetGridUuid = 0) {
+    void refreshAfter3DAdjustLayerChange(string layerPath, ulong targetGridUuid) {
         invalidate3DAdjustLayerCaches(layerPath, targetGridUuid);
         refreshPreviewDepthsForLayer(layerPath, targetGridUuid);
     }
 
-    void drawLayerZControls(string layerPath, ulong targetGridUuid = 0) {
+    void drawLayerZControls(string layerPath, ulong targetGridUuid) {
         igPushID(("layerZControls" ~ layerPath ~ targetGridUuid.to!string).toStringz);
         scope(exit) igPopID();
         auto transform = layerTransform(layerPath, targetGridUuid);
@@ -1104,14 +1109,14 @@ private:
     void drawMappingLayerRow(ref PsdDepthLayerMapping mapping, Deformable grid = null, PsdDepthGridLayerMask* layerMask = null) {
         bool problem = !mapping.matched || mapping.ambiguous || mapping.ignored;
         if (onlyProblemLayers && !problem) return;
-        auto previewLayer = findLayerPreview(mapping.layerPath);
+        auto previewLayer = findLayerPreview(mapping.layerPath, mapping.targetGridUuid);
         igTableNextRow();
         igTableNextColumn();
         drawComposedLayerEnabledCheckbox(mapping.layerPath, mapping.targetGridUuid);
         igTableNextColumn();
-        drawLayerPreviewHoverText(mapping.layerPath, mapping.layerPath, false);
+        drawLayerPreviewHoverText(mapping.layerPath, mapping.layerPath, mapping.targetGridUuid, false);
         igTableNextColumn();
-        drawLayerPreviewHoverText(mapping.layerName, mapping.layerPath, true);
+        drawLayerPreviewHoverText(mapping.layerName, mapping.layerPath, mapping.targetGridUuid, true);
         igTableNextColumn();
         drawMatchedNodeText(mapping);
         igTableNextColumn();
@@ -1163,7 +1168,7 @@ private:
             } else {
                 auto gridResult = preview.grids[selectedGridIndex];
                 foreach (ref layerMask; gridResult.layerMasks) {
-                    auto mapping = findMapping(layerMask.layerPath);
+                    auto mapping = findMapping(layerMask.layerPath, gridResult.grid.uuid);
                     if (mapping is null) continue;
                     drawMappingLayerRow(*mapping, gridResult.grid, &layerMask);
                 }
@@ -1193,13 +1198,15 @@ private:
                 igTableNextColumn();
                 drawComposedLayerEnabledCheckbox(layerPath, layer.targetGridUuid);
                 igTableNextColumn();
-                auto texture = layerPreviewTexture(layerPath, true);
+                auto texture = layerPreviewTexture(layerPath, layer.targetGridUuid, true);
                 incTextureSlotUntitled(("###composedSourceLayerPreview" ~ i.to!string), texture,
                     ImVec2(60, 60), 18, ImGuiWindowFlags.NoInputs, false);
-                if (igIsItemHovered() && texture !is null) drawLayerPreviewTooltip(layerPath, true);
+                if (igIsItemHovered() && texture !is null) {
+                    drawLayerPreviewTooltip(layerPath, layer.targetGridUuid, true);
+                }
                 igTableNextColumn();
                 drawLayerPreviewHoverText(layer.colorLayerName.length ? layer.colorLayerName : layer.layerName,
-                    layerPath, true);
+                    layerPath, layer.targetGridUuid, true);
                 igTableNextColumn();
                 incText(layer.targetGridName.length ? layer.targetGridName : "-");
                 igTableNextColumn();
@@ -1290,7 +1297,11 @@ private:
         igSeparator();
         if (igBeginChild("###PsdDepth3DLayerDetail", ImVec2(0, 0), false,
             ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)) {
-            drawLayerPreviewHoverText(layerPreview.layerName, layerPreview.layerPath, true);
+            drawLayerPreviewHoverText(
+                layerPreview.layerName,
+                layerPreview.layerPath,
+                layerPreview.targetGridUuid,
+                true);
             incText("%s: %dx%d  (%d, %d)".format(
                 _("Layer"),
                 layerPreview.width,
@@ -1351,33 +1362,57 @@ private:
         return threeDAdjustSampleChannel(settings.channel);
     }
 
-    float threeDAdjustDepthDisplayScale(float width, float height) {
-        return max(1.0f, max(width, height) * (DepthTargetDisplayZScale / DepthTargetDisplayPlaneSize));
-    }
-
-    bool threeDAdjustDepthAt(ref PsdDepthComposedLayer layerPreview, size_t index, out float depth) {
+    bool threeDAdjustDepthAt(ref PsdDepthComposedLayer layerPreview, int x, int y, out float depth) {
         depth = 0.0f;
-        if (index + 3 >= layerPreview.depthRgba.length) return false;
-        depth = ngDepthSamplePixelDepth(
-            layerPreview.depthRgba,
-            index,
-            DepthSampleChannel.AverageRGB,
-            layerPreview.invert,
-            layerPreview.backDepth,
-            layerPreview.frontDepth,
-            layerPreview.sourceDepthScale
-        );
-        depth = depth * layerPreview.depthScale + layerPreview.depthOffset;
+        DepthSamplePoint sampleAt(int sampleX, int sampleY) {
+            if (sampleX < 0 || sampleY < 0 || sampleX >= layerPreview.width || sampleY >= layerPreview.height) {
+                return ngDepthSampleMissingPoint();
+            }
+            auto index = (cast(size_t)sampleY * cast(size_t)layerPreview.width + cast(size_t)sampleX) * 4;
+            if (index + 3 >= layerPreview.depthRgba.length || layerPreview.depthRgba[index + 3] == 0) {
+                return ngDepthSampleMissingPoint();
+            }
+            auto alpha = cast(float)layerPreview.depthRgba[index + 3] / 255.0f;
+            if (alpha <= layerPreview.alphaThreshold) return ngDepthSampleMissingPoint();
+            auto value = ngDepthSamplePixelDepth(
+                layerPreview.depthRgba,
+                index,
+                DepthSampleChannel.AverageRGB,
+                layerPreview.invert,
+                layerPreview.backDepth,
+                layerPreview.frontDepth,
+                layerPreview.sourceDepthScale
+            );
+            return DepthSamplePoint(true, value, alpha);
+        }
+        auto sampled = ngDepthSampleConvolve!sampleAt(
+            threeDAdjustSampleConvolution(), layerPreview.customRadius, x, y);
+        if (!sampled.valid) return false;
+        depth = sampled.value * layerPreview.depthScale + layerPreview.depthOffset;
         return true;
     }
 
+    float threeDAdjustDepthDisplayScale() {
+        Deformable[] targets;
+        foreach (ref gridResult; preview.grids) {
+            if (gridResult.grid !is null && !gridResult.skipped) targets ~= gridResult.grid;
+        }
+        auto puppet = incActivePuppet();
+        auto targetScale = ngDepthDisplayScaleForTargetsInNodeSpace(
+            puppet is null ? null : puppet.root,
+            targets);
+        if (targetScale > 0.0f) return targetScale;
+        return ngDepthDisplayScaleForDocument(preview.compositionWidth, preview.compositionHeight);
+    }
+
     PsdDepth3DAdjustSample[] threeDAdjustLayerSamples(ref PsdDepthComposedLayer layerPreview) {
-        auto existing = layerPreview.layerPath in threeDAdjustSamples;
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        auto existing = key in threeDAdjustSamples;
         if (existing !is null) return *existing;
 
         PsdDepth3DAdjustSample[] samples;
         if (layerPreview.width <= 0 || layerPreview.height <= 0) {
-            threeDAdjustSamples[layerPreview.layerPath] = samples;
+            threeDAdjustSamples[key] = samples;
             return samples;
         }
         foreach (y; 0 .. layerPreview.height) {
@@ -1387,16 +1422,15 @@ private:
                     index + 3 >= layerPreview.colorRgba.length) {
                     continue;
                 }
-                auto depthByte = layerPreview.maskRgba[index];
                 auto alpha = layerPreview.colorRgba[index + 3];
-                if (depthByte == 0 || alpha < 3) continue;
+                if (alpha < 3) continue;
                 float depth;
-                if (!threeDAdjustDepthAt(layerPreview, index, depth)) continue;
+                if (!threeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
 
                 PsdDepth3DAdjustSample sample;
                 sample.x = x;
                 sample.y = y;
-                sample.depthByte = depthByte;
+                sample.depthByte = layerPreview.depthRgba[index];
                 sample.depth = depth;
                 sample.r = layerPreview.colorRgba[index + 0];
                 sample.g = layerPreview.colorRgba[index + 1];
@@ -1405,18 +1439,19 @@ private:
                 samples ~= sample;
             }
         }
-        threeDAdjustSamples[layerPreview.layerPath] = samples;
+        threeDAdjustSamples[key] = samples;
         return samples;
     }
 
     PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthComposedLayer layerPreview) {
-        auto existing = layerPreview.layerPath in threeDAdjustMeshes;
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        auto existing = key in threeDAdjustMeshes;
         if (existing !is null) return existing;
 
         PsdDepth3DAdjustMesh mesh;
         if (layerPreview.width <= 1 || layerPreview.height <= 1) {
-            threeDAdjustMeshes[layerPreview.layerPath] = mesh;
-            return layerPreview.layerPath in threeDAdjustMeshes;
+            threeDAdjustMeshes[key] = mesh;
+            return key in threeDAdjustMeshes;
         }
 
         auto step = max(1, PsdDepth3DAdjustMeshStep);
@@ -1445,10 +1480,9 @@ private:
                     index + 3 >= layerPreview.colorRgba.length) {
                     continue;
                 }
-                auto depthByte = layerPreview.maskRgba[index];
-                if (depthByte == 0 || layerPreview.colorRgba[index + 3] < 3) continue;
+                if (layerPreview.colorRgba[index + 3] < 3) continue;
                 float depth;
-                if (!threeDAdjustDepthAt(layerPreview, index, depth)) continue;
+                if (!threeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
 
                 auto vertexIndex = cast(int)(mesh.vertexData.length / 5);
                 lookup[cast(size_t)gy * cast(size_t)cols + cast(size_t)gx] = vertexIndex;
@@ -1475,8 +1509,8 @@ private:
             }
         }
 
-        threeDAdjustMeshes[layerPreview.layerPath] = mesh;
-        return layerPreview.layerPath in threeDAdjustMeshes;
+        threeDAdjustMeshes[key] = mesh;
+        return key in threeDAdjustMeshes;
     }
 
     void draw3DAdjustRelationshipCanvas(float height) {
@@ -1570,7 +1604,7 @@ private:
             resetPsdDepth3DAdjustCameraToBounds(sourceW, sourceH, canvasSize);
             threeDAdjustPreviewDirty = true;
         }
-        auto depthDisplayScale = threeDAdjustDepthDisplayScale(sourceW, sourceH);
+        auto depthDisplayScale = threeDAdjustDepthDisplayScale();
 
         auto framebufferWidth = max(1, cast(int)canvasSize.x);
         auto framebufferHeight = max(1, cast(int)canvasSize.y);
@@ -1583,7 +1617,10 @@ private:
                     if (!hasRenderPixels(layerPreview)) continue;
                     auto mesh = threeDAdjustLayerMesh(layerPreview);
                     if (mesh is null || mesh.indices.length == 0) continue;
-                    auto layerTexture = layerPreviewTexture(layerPreview.layerPath, false);
+                    auto layerTexture = layerPreviewTexture(
+                        layerPreview.layerPath,
+                        layerPreview.targetGridUuid,
+                        false);
                     threeDAdjustGpuRenderer.drawLayer(
                         layerTexture,
                         *mesh,
@@ -1876,7 +1913,7 @@ private:
         auto targetView = new DepthTargetView(gridResult.grid);
         auto targetVertices = targetView.getVertices();
         foreach (layerMask; gridResult.layerMasks) {
-            if (findLayerPreview(layerMask.layerPath) is null) continue;
+            if (findLayerPreview(layerMask.layerPath, gridResult.grid.uuid) is null) continue;
             stats.layerPlanes++;
             stats.depthRangeLines += 2;
         }

@@ -18,7 +18,7 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
     ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirty;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
-    ngComposePsdDepthImportResult, ngExportPsdDepthComposedSourcePng,
+    ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
     ngPsdDepthImportResultToDepthDrawSession;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
@@ -73,7 +73,8 @@ import meshNodeOps = nijigenerate.viewport.common.mesheditor.operations.node;
 import meshDeformableOps = nijigenerate.viewport.vertex.mesheditor.deformable;
 import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
-import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession, ngDepthTargetClampDepth;
+import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession,
+    ngDepthDisplayScaleForTargets, ngDepthDisplayScaleForTargetsInNodeSpace, ngDepthTargetClampDepth;
 import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
 import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawSession, DepthMergePolicy,
     DepthDrawLayerStackSortMode,
@@ -3578,6 +3579,22 @@ private void testPsdDepthImportRefreshesDepthBoneBindings() {
                 "PSD depth import should write fake GPU offsets for target %s".format(i));
         }
     }
+
+    fakeDepthBoneGpuSubmitCount = 0;
+    PsdDepthImportResult targetOnlyImport;
+    foreach (i, target; targets) {
+        PsdDepthGridResult gridResult;
+        gridResult.grid = target;
+        gridResult.depths = target.copyDepths();
+        if (i == 0) gridResult.depths[0] += 0.125f;
+        targetOnlyImport.grids ~= gridResult;
+    }
+    auto targetOnlyResult = applyPsdDepthImportForRegression(targetOnlyImport);
+    require(targetOnlyResult.succeeded, "target-specific PSD depth update should start successfully");
+    foreach (_; 0 .. 100) ngMcpProcessQueue();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "changing one PSD target must refresh only that target's two parameter keypoints, not the entire DepthRig: %s"
+            .format(fakeDepthBoneGpuSubmitCount));
 }
 
 private void testSimplePhysicsParameterUndoRedo() {
@@ -3808,6 +3825,226 @@ private PsdDepthImportResult composePsdDepthImportForRegression(PsdDepthImportRe
     auto composedOk = ngComposePsdDepthImportResult(imported, composed, composeError);
     require(composedOk, "PSD depth import regression compose should succeed: " ~ composeError);
     return imported;
+}
+
+private void testPsdDepthAdjustedValuesAreNotRenormalized() {
+    resetCase();
+
+    fakeDepthBoneTransformResults = null;
+    fakeDepthBoneTransformNextJobId = 1;
+    fakeDepthBoneTransformSubmitCount = 0;
+    fakeDepthBoneTransformNonIdentitySourceCount = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(
+        &fakeDepthBoneGpuSupported,
+        &fakeDepthBoneTransformSubmit,
+        &fakeDepthBoneTransformPoll
+    );
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneTransformResults = null;
+        fakeDepthBoneTransformNextJobId = 1;
+        fakeDepthBoneTransformSubmitCount = 0;
+        fakeDepthBoneTransformNonIdentitySourceCount = 0;
+    }
+
+    auto hair = new ExGridDeformer(incActivePuppet().root);
+    hair.name = "FrontHair::G";
+    hair.rebuffer(Vec2Array([
+        vec2(-1000, 0),
+        vec2(0, 0),
+        vec2(125, 0),
+        vec2(250, 0),
+    ]));
+    hair.vertices = Vec2Array([vec2(-1000, 0), vec2(0, 0), vec2(125, 0), vec2(250, 0)]);
+    hair.replaceDepths([0.0f, 0.0f, 0.0f, 0.0f]);
+    auto face = new ExGridDeformer(incActivePuppet().root);
+    face.name = "Face::G";
+    face.rebuffer(Vec2Array([
+        vec2(-150, 0),
+        vec2(0, 0),
+        vec2(150, 0),
+        vec2(300, 0),
+    ]));
+    face.vertices = Vec2Array([vec2(-150, 0), vec2(0, 0), vec2(150, 0), vec2(300, 0)]);
+    face.replaceDepths([0.0f, 0.0f, 0.0f, 0.0f]);
+
+    auto rigRoot = new ExDepthRigRoot(incActivePuppet().root);
+    rigRoot.name = "psd-depth-offset-final-deform-root";
+    auto bone = ngCreateDepthBone(rigRoot, "PsdDepthOffsetBone", vec3(0, 0, 0), vec3(0, 100, 0));
+    foreach (targetIndex, target; [hair, face]) {
+        ExDepthRigBinding binding;
+        binding.targetUuid = target.uuid;
+        binding.targetKind = ExDepthTargetKind.Grid;
+        binding.sourceBoneUuids = [cast(ulong)bone.uuid];
+        ExDepthBoneSourceSettings sourceSetting;
+        sourceSetting.boneUuid = bone.uuid;
+        sourceSetting.depthScale = targetIndex == 0 ? 0.46f : 0.8f;
+        sourceSetting.depthOffset = targetIndex == 0 ? 1.11f : -0.5f;
+        binding.sourceSettings = [sourceSetting];
+        binding.influenceRule.maxInfluences = 1;
+        rigRoot.bindings ~= binding;
+    }
+    auto param = new ExParameter("PsdDepthOffsetFinalDeformParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto yaw = newValueBinding(param, bone, "transform.r.y");
+    yaw.setValue(vec2u(1, 0), 0.35f);
+
+    PsdDepthComposedLayer layer;
+    layer.id = "/front-hair";
+    layer.layerPath = layer.id;
+    layer.layerName = "front hair";
+    layer.left = 0;
+    layer.top = 640;
+    layer.width = 1280;
+    layer.height = 1;
+    layer.targetGridUuid = hair.uuid;
+    layer.targetGridName = hair.name;
+    layer.backDepth = -2.0f;
+    layer.frontDepth = 2.0f;
+    layer.sourceDepthScale = 1.5f;
+    layer.depthScale = 0.75f;
+    layer.depthOffset = 2.0f;
+    layer.depthRgba.length = cast(size_t)layer.width * 4;
+    layer.maskRgba.length = layer.depthRgba.length;
+    foreach (x; 0 .. layer.width) {
+        auto index = cast(size_t)x * 4;
+        auto mask = x < 600 ? cast(ubyte)0 : cast(ubyte)255;
+        auto depth = x < 600 ? cast(ubyte)0 : cast(ubyte)191;
+        layer.depthRgba[index .. index + 4] = [depth, depth, depth, mask];
+        layer.maskRgba[index .. index + 4] = [mask, mask, mask, mask];
+    }
+
+    PsdDepthImportResult imported;
+    imported.compositionWidth = 1280;
+    imported.compositionHeight = 1280;
+    auto faceLayer = layer;
+    faceLayer.targetGridUuid = face.uuid;
+    faceLayer.targetGridName = face.name;
+    faceLayer.depthScale = 1.0f;
+    faceLayer.depthOffset = 0.0f;
+    imported.composedLayers = [layer, faceLayer];
+
+    PsdDepthGridResult gridResult;
+    gridResult.grid = hair;
+    gridResult.documentWidth = 1280;
+    gridResult.documentHeight = 1280;
+    PsdDepthGridLayerMask layerMask;
+    layerMask.layerPath = layer.layerPath;
+    layerMask.layerName = layer.layerName;
+    gridResult.layerMasks = [layerMask];
+
+    auto faceGridResult = gridResult;
+    faceGridResult.grid = face;
+
+    PsdDepthGridResult composed;
+    string error;
+    require(ngComposePsdDepthTarget(imported, gridResult, composed, error),
+        "large-offset PSD target composition should succeed: " ~ error);
+    auto normalizedSource = 191.0f / 255.0f;
+    auto rangedSource = (-2.0f + (2.0f - (-2.0f)) * normalizedSource) * 1.5f;
+    require(composed.depths.length == hair.vertices.length,
+        "large-offset PSD target composition should preserve vertex count");
+    require(composed.sampledVertices > 0 && composed.missingVertices > 0,
+        "large-offset PSD target composition fixture must cover sampled and extrapolated vertices: sampled=%s missing=%s"
+            .format(composed.sampledVertices, composed.missingVertices));
+    foreach (depth; composed.depths) {
+        auto expectedAdjustedDepth = rangedSource * 0.75f + 2.0f;
+        require(near(depth, expectedAdjustedDepth),
+            "stored target depth must equal the exact 3D Adjust value without a second normalization: stored=%s expected=%s"
+                .format(depth, expectedAdjustedDepth));
+    }
+
+    PsdDepthGridResult faceBefore;
+    require(ngComposePsdDepthTarget(imported, faceGridResult, faceBefore, error),
+        "Face::G baseline composition should succeed: " ~ error);
+    imported.grids = [gridResult, faceGridResult];
+    PsdDepthComposedView baselineView;
+    require(ngComposePsdDepthImportResult(imported, baselineView, error),
+        "initial all-target composition should succeed: " ~ error);
+    incActionClearHistory();
+    auto baselineApply = ngApplyPsdDepthImportResult(baselineView);
+    require(baselineApply.succeeded, "initial all-target apply should succeed");
+    foreach (_; 0 .. 100) ngMcpProcessQueue();
+    auto appliedFaceBefore = face.copyDepths();
+    auto appliedHairBefore = hair.copyDepths();
+    require(appliedFaceBefore == imported.grids[1].depths,
+        "initial Apply must write the exact composed Face::G depths");
+    require(appliedHairBefore == imported.grids[0].depths,
+        "initial Apply must write the exact composed FrontHair::G depths");
+    foreach (binding; rigRoot.bindings) {
+        auto sourceSetting = binding.sourceSetting(bone.uuid);
+        require(sourceSetting.depthScale == 1.0f && sourceSetting.depthOffset == 0.0f,
+            "Apply must make 3D Adjust depth the sole source by removing the later Depth Bone affine transform");
+    }
+    require(fakeDepthBoneTransformNonIdentitySourceCount == 0,
+        "GPU packets generated by Apply must consume the exact 3D Adjust depth without another scale or offset");
+    auto faceBindingBefore = cast(DeformationParameterBinding)param.getBinding(face, "deform");
+    auto hairBindingBefore = cast(DeformationParameterBinding)param.getBinding(hair, "deform");
+    require(faceBindingBefore !is null && hairBindingBefore !is null,
+        "initial Apply must generate final Face::G and FrontHair::G deform bindings from the applied depths");
+    auto faceRestOffsetsBefore = faceBindingBefore.getValue(vec2u(0, 0)).vertexOffsets.dup;
+    auto faceYawOffsetsBefore = faceBindingBefore.getValue(vec2u(1, 0)).vertexOffsets.dup;
+    auto hairYawOffsetsBefore = hairBindingBefore.getValue(vec2u(1, 0)).vertexOffsets.dup;
+    param.update();
+    incActivePuppet().update();
+    auto faceRuntimeBefore = face.deformation.dup;
+    auto hairRuntimeBefore = hair.deformation.dup;
+
+    imported.composedLayers[0].depthOffset = 8.0f;
+    PsdDepthComposedView recomposedView;
+    require(ngComposePsdDepthImportResult(imported, recomposedView, error),
+        "all-target recomposition after Hair offset should succeed: " ~ error);
+    require(imported.grids[1].depths == faceBefore.depths,
+        "Face::G depths must remain bit-identical when a same-path FrontHair::G layer offset changes");
+    require(imported.grids[0].depths != appliedHairBefore,
+        "FrontHair::G depths must reflect its own large offset during the same all-target recomposition");
+    foreach (depth; imported.grids[0].depths) {
+        require(near(depth, rangedSource * 0.75f + 8.0f),
+            "changed FrontHair::G depth must preserve raw * ZScale + ZOffset without target-size normalization");
+    }
+    auto changedApply = ngApplyPsdDepthImportResult(recomposedView);
+    require(changedApply.succeeded, "all-target Apply after Hair offset should succeed");
+    fakeDepthBoneTransformSubmitCount = 0;
+    foreach (_; 0 .. 100) ngMcpProcessQueue();
+    require(face.copyDepths() == appliedFaceBefore,
+        "actual Apply must not alter Face::G when only the same-path FrontHair::G offset changes");
+    require(hair.copyDepths() == imported.grids[0].depths && hair.copyDepths() != appliedHairBefore,
+        "actual Apply must write the changed FrontHair::G depths without coupling Face::G");
+    require(fakeDepthBoneTransformSubmitCount == 2,
+        "Hair-only Apply must generate only the two FrontHair::G keypoint deformations, not Face::G");
+    auto faceBindingAfter = cast(DeformationParameterBinding)param.getBinding(face, "deform");
+    auto hairBindingAfter = cast(DeformationParameterBinding)param.getBinding(hair, "deform");
+    require(faceBindingAfter !is null && hairBindingAfter !is null,
+        "Hair-only Apply must preserve both final deform bindings");
+    require(faceBindingAfter.getValue(vec2u(0, 0)).vertexOffsets == faceRestOffsetsBefore &&
+            faceBindingAfter.getValue(vec2u(1, 0)).vertexOffsets == faceYawOffsetsBefore,
+        "Face::G final deform binding must remain bit-identical when only FrontHair::G offset changes");
+    auto hairYawOffsetsAfter = hairBindingAfter.getValue(vec2u(1, 0)).vertexOffsets;
+    require(hairYawOffsetsAfter.length == hairYawOffsetsBefore.length && hairYawOffsetsAfter.length > 0,
+        "Hair-only Apply must preserve FrontHair::G final deform binding shape");
+    auto expectedOffsetDelta = hairYawOffsetsAfter[0] - hairYawOffsetsBefore[0];
+    require(!nearVec2(expectedOffsetDelta, vec2(0, 0)),
+        "FrontHair::G depth offset must reach the final generated deformation");
+    foreach (i; 1 .. hairYawOffsetsAfter.length) {
+        require(nearVec2(hairYawOffsetsAfter[i] - hairYawOffsetsBefore[i], expectedOffsetDelta),
+            "uniform FrontHair::G depth offset must translate final deformation without changing its scale");
+    }
+    param.update();
+    incActivePuppet().update();
+    require(face.deformation == faceRuntimeBefore,
+        "Face::G evaluated runtime deformation must remain bit-identical after Hair-only Apply");
+    require(hair.deformation.length == hairRuntimeBefore.length && hair.deformation.length > 0,
+        "Hair-only Apply must preserve evaluated FrontHair::G runtime deformation shape");
+    auto expectedRuntimeDelta = hair.deformation[0] - hairRuntimeBefore[0];
+    require(!nearVec2(expectedRuntimeDelta, vec2(0, 0)),
+        "FrontHair::G depth offset must reach the evaluated runtime deformation");
+    foreach (i; 1 .. hair.deformation.length) {
+        require(nearVec2(hair.deformation[i] - hairRuntimeBefore[i], expectedRuntimeDelta),
+            "evaluated FrontHair::G runtime deformation must preserve scale for an offset-only change");
+    }
 }
 
 private auto applyPsdDepthImportForRegression(PsdDepthImportResult imported) {
@@ -9131,8 +9368,8 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import UI state must resolve a composed layer by source path and target grid");
     requireSourceNotContains(
         buildPath("source", "nijigenerate", "commands", "depth", "map.d"),
-        "ngPsdDepthDocumentToTargetDepthScale",
-        "PSD import Apply must not rescale canonical DepthDraw output for target storage");
+        "ngPsdDepthDocumentOffsetToTargetDepth",
+        "PSD import composition must not renormalize an adjusted 3D Adjust depth before applying it");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "layerPreview.depthRgba",
@@ -12446,9 +12683,43 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     require(near(packet.sources[4], 0.75f), "GPU packet should preserve source weight");
     require(near(packet.sources[5], 0.5f), "GPU packet should preserve source depthScale");
     require(near(packet.sources[7], 0.5f), "GPU packet should preserve source multiplier");
-    auto targetDepthScale = packet.depths[0] / 0.5f;
-    require(near(packet.sources[6], 1.25f * targetDepthScale),
-        "GPU packet should scale source depthOffset to the same world-depth unit as vertex depths");
+    auto modelDepthScale = ngDepthDisplayScaleForTargetsInNodeSpace(root, cast(Deformable[])[target]);
+    require(modelDepthScale > 1.0f, "GPU packet regression model should have a visible model-wide depth scale");
+    require(near(packet.depths[0], 0.5f * modelDepthScale) &&
+        near(packet.depths[1], -0.25f * modelDepthScale) &&
+        near(packet.depths[2], 0.0f) &&
+        near(packet.depths[3], 1.0f * modelDepthScale),
+        "GPU packet must convert adjusted depths with one model-wide scale");
+    require(near(packet.sources[6], 1.25f * modelDepthScale),
+        "GPU packet must convert source depthOffset with the same model-wide scale");
+
+    auto smallTarget = new ExGridDeformer(incActivePuppet().root);
+    smallTarget.name = "gpu-packet-small-grid";
+    smallTarget.rebuffer(Vec2Array([
+        vec2(-1, 0),
+        vec2(1, 0),
+        vec2(-1, 10),
+        vec2(1, 10),
+    ]));
+    smallTarget.replaceDepths([0.5f, -0.25f, 0.0f, 1.0f]);
+    ExDepthRigBinding smallBinding = binding;
+    smallBinding.targetUuid = smallTarget.uuid;
+    root.bindings ~= smallBinding;
+    DepthBoneGpuOffsetPacket smallPacket;
+    require(ngBuildDepthBoneGpuOffsetPacket(root, &root.bindings[1], smallTarget, param, vec2u(1, 0),
+        smallPacket, error, true, true), "small GridDeformer GPU packet construction should succeed: " ~ error);
+    auto sharedDepthScale = ngDepthDisplayScaleForTargetsInNodeSpace(root, cast(Deformable[])[target, smallTarget]);
+    require(near(smallPacket.depths[0], 0.5f * sharedDepthScale) &&
+        near(smallPacket.sources[6], 1.25f * sharedDepthScale),
+        "different target bounds must not change the model-wide adjusted-depth scale");
+    auto targetPacketBeforeOtherDepthChange = packet.depths.dup;
+    smallTarget.replaceDepths([100.0f, 100.0f, 100.0f, 100.0f]);
+    DepthBoneGpuOffsetPacket targetPacketAfterOtherDepthChange;
+    require(ngBuildDepthBoneGpuOffsetPacket(root, &root.bindings[0], target, param, vec2u(1, 0),
+        targetPacketAfterOtherDepthChange, error, true, true),
+        "target GPU packet rebuild after another target depth change should succeed: " ~ error);
+    require(targetPacketAfterOtherDepthChange.depths == targetPacketBeforeOtherDepthChange,
+        "changing one target depth must not rescale another target");
     auto converted = ngDepthBoneGpuReadbackToOffsets([1.0f, -2.0f], [3.0f, 4.0f]);
     require(converted.length == 2 && nearVec2(converted[0], vec2(1, 3)) && nearVec2(converted[1], vec2(-2, 4)),
         "GPU readback conversion should preserve XY order");
@@ -12510,6 +12781,10 @@ private uint fakeDepthBoneGpuSubmitFailAfter;
 private uint fakeDepthBoneGpuNotReadyPolls;
 private float fakeDepthBoneGpuOutputX = 2.0f;
 private float fakeDepthBoneGpuOutputY = -1.0f;
+private uint fakeDepthBoneTransformNextJobId = 1;
+private uint fakeDepthBoneTransformSubmitCount;
+private uint fakeDepthBoneTransformNonIdentitySourceCount;
+private NgDepthBoneGpuAsyncResult[uint] fakeDepthBoneTransformResults;
 private uint fakeDepthDrawGpuNextJobId;
 private uint fakeDepthDrawGpuSubmitCount;
 private uint fakeDepthDrawGpuPollCount;
@@ -12517,6 +12792,64 @@ private uint fakeDepthDrawGpuNotReadyPolls;
 private DepthDrawGpuComposeReadback[uint] fakeDepthDrawGpuReadbacks;
 
 private bool fakeDepthBoneGpuSupported() {
+    return true;
+}
+
+private bool fakeDepthBoneTransformSubmit(
+    ref DepthBoneGpuDispatchPacket packet,
+    out uint jobId,
+    out string error
+) {
+    jobId = 0;
+    error = null;
+    if (packet.sourceCount != 1 || packet.boneCount == 0 ||
+        packet.sources.length < DepthBoneGpuSourceStride || packet.depths.length != packet.vertices.length) {
+        error = "depth-driven transform fixture requires one valid source and one depth per vertex";
+        return false;
+    }
+
+    auto boneIndex = cast(uint)packet.sources[0];
+    auto matrixOffset = cast(size_t)boneIndex * DepthBoneGpuBoneStride + 8;
+    if (matrixOffset + 16 > packet.bones.length) {
+        error = "depth-driven transform fixture bone matrix is out of bounds";
+        return false;
+    }
+    auto skinMatrix = emulateDepthBoneShaderMat4FromRowMajorPacket(packet.bones[matrixOffset .. matrixOffset + 16]);
+    auto depthScale = packet.sources[5];
+    auto depthOffset = packet.sources[6];
+    if (depthScale != 1.0f || depthOffset != 0.0f) {
+        fakeDepthBoneTransformNonIdentitySourceCount++;
+    }
+
+    NgDepthBoneGpuAsyncResult result;
+    result.ready = true;
+    result.xs.length = packet.vertices.length;
+    result.ys.length = packet.vertices.length;
+    foreach (i, vertex; packet.vertices) {
+        auto sourceLocal = vec4(vertex.x, vertex.y, packet.depths[i] * depthScale + depthOffset, 1.0f);
+        auto sourceInRoot = packet.targetToRoot * sourceLocal;
+        auto deformedInRoot = skinMatrix * sourceInRoot;
+        auto deformedLocal = packet.rootToTarget * deformedInRoot;
+        result.xs[i] = deformedLocal.x - vertex.x;
+        result.ys[i] = deformedLocal.y - vertex.y;
+    }
+
+    jobId = fakeDepthBoneTransformNextJobId++;
+    fakeDepthBoneTransformResults[jobId] = result;
+    fakeDepthBoneTransformSubmitCount++;
+    return true;
+}
+
+private bool fakeDepthBoneTransformPoll(uint jobId, out NgDepthBoneGpuAsyncResult result, out string error) {
+    error = null;
+    result = NgDepthBoneGpuAsyncResult.init;
+    auto stored = jobId in fakeDepthBoneTransformResults;
+    if (stored is null) {
+        error = "missing depth-driven transform fixture job";
+        return false;
+    }
+    result = *stored;
+    fakeDepthBoneTransformResults.remove(jobId);
     return true;
 }
 
@@ -16902,6 +17235,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "project.import-psd-depth-map":
             runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
+            runCase("psd-depth-adjusted-values-are-not-renormalized", &testPsdDepthAdjustedValuesAreNotRenormalized);
             return true;
         case "project.depthdraw-compatibility":
             runCase("depth-image-facade-matches-psd-depth-sampling", &testDepthImageFacadeMatchesPsdDepthSampling);
@@ -17305,10 +17639,12 @@ private bool runAutomatedScenario(string id) {
             runCase("depth-map-commands-undo-redo", &testDepthMapCommandsUndoRedo);
             runCase("psd-depth-import-refreshes-depthbone-bindings", &testPsdDepthImportRefreshesDepthBoneBindings);
             runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
+            runCase("psd-depth-adjusted-values-are-not-renormalized", &testPsdDepthAdjustedValuesAreNotRenormalized);
             return true;
         case "depth.psd-map-import":
             runCase("psd-depth-import-refreshes-depthbone-bindings", &testPsdDepthImportRefreshesDepthBoneBindings);
             runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
+            runCase("psd-depth-adjusted-values-are-not-renormalized", &testPsdDepthAdjustedValuesAreNotRenormalized);
             return true;
         case "depth.composite-map-ops":
             runCase("depth-composite-map-ops", &testDepthCompositeMapOpsWorkflow);

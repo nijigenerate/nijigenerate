@@ -15,6 +15,10 @@ float ngDepthDisplayScaleForBounds(vec2 minPoint, vec2 maxPoint) {
     return max(1.0f, max(size.x, size.y) * (DepthTargetDisplayZScale / DepthTargetDisplayPlaneSize));
 }
 
+float ngDepthDisplayScaleForDocument(int width, int height) {
+    return ngDepthDisplayScaleForBounds(vec2(0, 0), vec2(cast(float)width, cast(float)height));
+}
+
 float ngDepthDisplayScaleForTargets(Deformable[] targets) {
     bool hasBounds;
     vec2 minPoint;
@@ -35,6 +39,49 @@ float ngDepthDisplayScaleForTargets(Deformable[] targets) {
         }
     }
     return hasBounds ? ngDepthDisplayScaleForBounds(minPoint, maxPoint) : 0.0f;
+}
+
+float ngDepthDisplayScaleForTargetsInNodeSpace(Node root, Deformable[] targets) {
+    bool hasBounds;
+    vec2 minPoint;
+    vec2 maxPoint;
+    auto rootInverse = root is null ? mat4.identity : root.transform.matrix.inverse;
+    foreach (target; targets) {
+        auto targetNode = cast(Node)target;
+        if (target is null || targetNode is null) continue;
+        auto targetToRoot = rootInverse * targetNode.transform.matrix;
+        foreach (vertex; target.vertices) {
+            auto transformed = targetToRoot * vec4(vertex.x, vertex.y, 0.0f, 1.0f);
+            if (!transformed.x.isFinite || !transformed.y.isFinite) continue;
+            auto point = vec2(transformed.x, transformed.y);
+            if (!hasBounds) {
+                minPoint = point;
+                maxPoint = point;
+                hasBounds = true;
+            } else {
+                minPoint.x = min(minPoint.x, point.x);
+                minPoint.y = min(minPoint.y, point.y);
+                maxPoint.x = max(maxPoint.x, point.x);
+                maxPoint.y = max(maxPoint.y, point.y);
+            }
+        }
+    }
+    return hasBounds ? ngDepthDisplayScaleForBounds(minPoint, maxPoint) : 0.0f;
+}
+
+float ngDepthDisplayScaleForTarget(Deformable target) {
+    if (target is null || target.vertices.length == 0) return 1.0f;
+    auto first = target.vertices[0];
+    auto minPoint = vec2(first.x, first.y);
+    auto maxPoint = minPoint;
+    foreach (i, vertex; target.vertices) {
+        if (i == 0) continue;
+        minPoint.x = min(minPoint.x, vertex.x);
+        minPoint.y = min(minPoint.y, vertex.y);
+        maxPoint.x = max(maxPoint.x, vertex.x);
+        maxPoint.y = max(maxPoint.y, vertex.y);
+    }
+    return ngDepthDisplayScaleForBounds(minPoint, maxPoint);
 }
 
 float ngDepthTargetRoundDepth(float value) {
