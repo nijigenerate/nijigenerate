@@ -19,7 +19,7 @@ import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.common.session;
-import nijigenerate.viewport.depth.common.targetview;
+import nijigenerate.viewport.depth.common.targetview : DepthTargetView, ngDepthDisplayScaleForTargetsInNodeSpace;
 import nijigenerate.viewport.depth.mesheditor.action;
 import nijigenerate.viewport.depth.mesheditor.node;
 import nijigenerate.viewport.depth.renderer;
@@ -85,6 +85,17 @@ private:
             foreach (op; operations[editor]) {
                 saved.array ~= ngDepthOpToJson(toExDepthOp(op));
             }
+        }
+        return saved;
+    }
+
+    JSONValue targetOperationsToJson(DepthMeshEditorOne editor) {
+        JSONValue saved = JSONValue.emptyArray;
+        if (editor is null) return saved;
+        auto operated = cast(DepthOperationMappedNode)editor.getTarget();
+        if (operated is null) return saved;
+        foreach (op; operated.copyDepthOps()) {
+            saved.array ~= ngDepthOpToJson(op);
         }
         return saved;
     }
@@ -162,6 +173,18 @@ public:
         editors = next;
         if (viewSession !is null) {
             viewSession.setTargets(nextViewTargets);
+            Deformable[] displayTargets;
+            auto puppet = incActivePuppet();
+            if (puppet !is null) {
+                foreach (grid; puppet.findNodesType!GridDeformer(puppet.root)) {
+                    auto mapped = cast(DepthMappedNode)grid;
+                    if (mapped !is null && mapped.copyDepths().length > 0) displayTargets ~= grid;
+                }
+            }
+            if (displayTargets.length == 0) displayTargets = nextViewTargets;
+            viewSession.setDepthDisplayScale(ngDepthDisplayScaleForTargetsInNodeSpace(
+                puppet is null ? null : puppet.root,
+                displayTargets));
             foreach (grid, editor; editors) {
                 editor.bindTargetView(viewSession.targetByGrid(grid.uuid));
                 if (editor in operations) recompute(editor);
@@ -210,8 +233,11 @@ public:
                 cmd!(DepthMapCommand.SetDepths)(ctx, editor.targetNode(), editor.copyEditorDepths());
                 directDepthDirty.remove(editor);
             } else {
-                cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), operationsToJson(editor));
-                cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+                auto nextOperations = operationsToJson(editor);
+                if (nextOperations != targetOperationsToJson(editor)) {
+                    cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), nextOperations);
+                    cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+                }
             }
             editor.resetFromTarget();
         }

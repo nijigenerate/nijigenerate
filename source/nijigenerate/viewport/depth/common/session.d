@@ -13,6 +13,8 @@ DepthMappedChangeAction ngDepthViewWorkingDepthsChangeAction(DepthTargetView vie
 
 class DepthViewSession {
 private:
+    float depthDisplayScale;
+
     ptrdiff_t findTargetIndex(ulong gridUuid) {
         foreach (i, view; targets) {
             if (view !is null && view.getTarget() !is null && view.getTarget().uuid == gridUuid) {
@@ -31,6 +33,7 @@ public:
         if (target is null) return null;
         if (auto existing = targetByGrid(target.uuid)) return existing;
         auto view = new DepthTargetView(target);
+        view.setDepthDisplayScale(depthDisplayScale);
         targets ~= view;
         if (selectedGridUuid == 0) selectedGridUuid = target.uuid;
         return view;
@@ -49,6 +52,7 @@ public:
             if (target is null || containsNext(target.uuid)) continue;
             auto view = targetByGrid(target.uuid);
             if (view is null) view = new DepthTargetView(target);
+            view.setDepthDisplayScale(depthDisplayScale);
             nextViews ~= view;
         }
 
@@ -57,6 +61,13 @@ public:
         selectedGridUuid = targets.length > 0 && targets[0] !is null && targets[0].getTarget() !is null
             ? targets[0].getTarget().uuid
             : 0;
+    }
+
+    void setDepthDisplayScale(float value) {
+        depthDisplayScale = value > 0.0f ? value : 0.0f;
+        foreach (view; targets) {
+            if (view !is null) view.setDepthDisplayScale(depthDisplayScale);
+        }
     }
 
     DepthTargetView targetByGrid(ulong gridUuid) {
@@ -115,5 +126,6 @@ public:
     void clear() {
         targets = null;
         selectedGridUuid = 0;
+        depthDisplayScale = 0.0f;
     }
 }

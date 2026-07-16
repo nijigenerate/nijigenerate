@@ -3477,10 +3477,15 @@ private void testDepthMapCommandsUndoRedo() {
     require(cmd!(DepthMapCommand.ClearDepths)(ctx, grid).succeeded, "ClearDepths should succeed");
     require(grid.copyDepths() is null, "ClearDepths should clear depth array");
 
+    grid.replaceDepths([0.9f, 0.4f, -0.2f, -0.8f]);
     auto editor = new DepthMeshEditor(false);
     scope(exit) editor.dispose();
     editor.setTargets([cast(Node)grid]);
     auto editorOne = editor.getEditorFor(grid);
+    auto untouchedOperationDepths = grid.copyDepths();
+    editor.applyToTargets();
+    require(grid.copyDepths() == untouchedOperationDepths,
+        "DepthEdit Apply without edits must not regenerate depths from unchanged stored operations");
     require(editor.commitOperationAdd(editorOne, new DepthAttachedPointOperation(2, 0.3f)),
         "DepthMeshEditor should commit added depth op through command");
     require(editor.copyOperations(editorOne).length == 3, "editor should show command-added operation");
@@ -4081,6 +4086,20 @@ private void testDepthTargetViewContracts() {
     require(view.boundsMin() == vec2(-20f, -10f) && view.boundsMax() == vec2(20f, 10f),
         "DepthTargetView should compute target bounds from vertices");
 
+    auto depthScalePeer = new ExGridDeformer(incActivePuppet().root);
+    depthScalePeer.name = "depth-target-view-scale-peer";
+    depthScalePeer.rebuffer(Vec2Array([
+        vec2(0f, 0f),
+        vec2(1000f, 0f),
+        vec2(0f, 1000f),
+        vec2(1000f, 1000f),
+    ]));
+    depthScalePeer.replaceDepths([0f, 0f, 0f, 0f]);
+    incActivePuppet().rescanNodes();
+    auto expectedDepthEditScale = ngDepthDisplayScaleForTargetsInNodeSpace(
+        incActivePuppet().root,
+        [cast(Deformable)grid, cast(Deformable)depthScalePeer]);
+
     auto depthEditEditor = new DepthMeshEditor(false);
     scope(exit) depthEditEditor.dispose();
     depthEditEditor.setTargets([cast(Node)grid]);
@@ -4091,11 +4110,17 @@ private void testDepthTargetViewContracts() {
     require(depthEditOne !is null &&
         depthEditEditor.targetViewFor(depthEditOne) is depthEditEditor.depthViewSession().targetByGrid(grid.uuid),
         "DepthEdit editor wrapper should resolve its common DepthTargetView");
+    require(near(depthEditOne.depthDisplayScale(), expectedDepthEditScale),
+        "DepthEdit must use one root-space display scale shared by all model depth targets");
     grid.replaceDepths([0.75f, 0.5f, 0.25f, 0.0f, -0.25f, -0.5f]);
     depthEditEditor.resetFromTargets();
     auto depthEditTargetView = depthEditEditor.depthViewSession().targetByGrid(grid.uuid);
     require(near(depthEditTargetView.getDepth(0), 0.75f),
         "DepthEdit shared DepthViewSession should reset working depths from the target");
+    auto untouchedDepths = grid.copyDepths();
+    depthEditEditor.applyToTargets();
+    require(grid.copyDepths() == untouchedDepths,
+        "DepthEdit Apply without edits must preserve imported target depths exactly");
     DepthCamera3D depthEditCamera;
     depthEditCamera.yaw = 0.3f;
     depthEditCamera.pitch = -0.2f;

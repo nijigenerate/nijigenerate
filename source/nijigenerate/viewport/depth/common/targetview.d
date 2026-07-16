@@ -99,6 +99,7 @@ private:
     vec2 minPoint = vec2(0);
     vec2 maxPoint = vec2(1);
     ushort[] indices;
+    float sharedDepthDisplayScale;
 
     float[] sortedUnique(float[] values) {
         sort(values);
@@ -241,7 +242,13 @@ public:
     }
 
     float depthDisplayScale() {
-        return ngDepthDisplayScaleForBounds(minPoint, maxPoint);
+        return sharedDepthDisplayScale > 0.0f
+            ? sharedDepthDisplayScale
+            : ngDepthDisplayScaleForBounds(minPoint, maxPoint);
+    }
+
+    void setDepthDisplayScale(float value) {
+        sharedDepthDisplayScale = value > 0.0f ? value : 0.0f;
     }
 
     vec2 depthViewToModel(vec2 point, ref DepthCamera3D depthCamera, float depth = 0.0f) {
