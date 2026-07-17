@@ -291,6 +291,7 @@ private:
     Texture[string] rawCompositePreviewTextures;
     PsdDepth3DAdjustSample[][string] threeDAdjustSamples;
     PsdDepth3DAdjustMesh[string] threeDAdjustMeshes;
+    bool threeDAdjustSamplesPrepared;
     PsdDepth3DAdjustGpuRenderer threeDAdjustGpuRenderer;
     Texture threeDAdjustPreviewTexture;
     int threeDAdjustPreviewWidth;
@@ -386,6 +387,7 @@ private:
         rawCompositePreviewTextures = null;
         threeDAdjustSamples = null;
         threeDAdjustMeshes = null;
+        threeDAdjustSamplesPrepared = false;
         if (threeDAdjustGpuRenderer !is null) threeDAdjustGpuRenderer.dispose();
         threeDAdjustGpuRenderer = null;
         threeDAdjustPreviewTexture = null;
@@ -1077,8 +1079,11 @@ private:
             if (*texture !is null) (*texture).dispose();
             originalPreviewTextures.remove(key);
         }
-        threeDAdjustSamples.remove(key);
-        threeDAdjustMeshes.remove(key);
+        // Stacking is a document-space dependency between every layer.
+        // Changing one layer invalidates all prepared depths and meshes.
+        threeDAdjustSamples = null;
+        threeDAdjustMeshes = null;
+        threeDAdjustSamplesPrepared = false;
         threeDAdjustPreviewDirty = true;
     }
 
@@ -1392,6 +1397,92 @@ private:
         return true;
     }
 
+    void prepareThreeDAdjustSamples() {
+        if (threeDAdjustSamplesPrepared) return;
+        threeDAdjustSamples = null;
+
+        foreach (ref layerPreview; preview.composedLayers) {
+            PsdDepth3DAdjustSample[] samples;
+            foreach (y; 0 .. layerPreview.height) {
+                foreach (x; 0 .. layerPreview.width) {
+                    auto rgbaIndex = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
+                    if (rgbaIndex + 3 >= layerPreview.maskRgba.length ||
+                        rgbaIndex + 3 >= layerPreview.colorRgba.length ||
+                        layerPreview.maskRgba[rgbaIndex] == 0 ||
+                        layerPreview.maskRgba[rgbaIndex + 3] == 0 ||
+                        layerPreview.colorRgba[rgbaIndex + 3] < 3) continue;
+                    float depth;
+                    if (!threeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
+                    PsdDepth3DAdjustSample sample;
+                    sample.x = x;
+                    sample.y = y;
+                    sample.depthByte = layerPreview.depthRgba[rgbaIndex];
+                    sample.depth = depth;
+                    sample.r = layerPreview.colorRgba[rgbaIndex + 0];
+                    sample.g = layerPreview.colorRgba[rgbaIndex + 1];
+                    sample.b = layerPreview.colorRgba[rgbaIndex + 2];
+                    sample.a = layerPreview.colorRgba[rgbaIndex + 3];
+                    samples ~= sample;
+                }
+            }
+            threeDAdjustSamples[layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid)] = samples;
+        }
+
+        if (preview.compositionMode == PsdDepthCompositionMode.NToOne &&
+            preview.depthSource.kind == PsdDepthCompositeSourceKind.FlatImage &&
+            preview.compositionWidth > 0 && preview.compositionHeight > 0) {
+            float[] upperDepthLimit;
+            upperDepthLimit.length = cast(size_t)preview.compositionWidth * cast(size_t)preview.compositionHeight;
+            upperDepthLimit[] = float.max;
+
+            // Same single document-space upper-depth buffer as depth-draw.
+            foreach_reverse (ref layerPreview; preview.composedLayers) {
+                if (!layerPreview.enabled || !layerPreview.visible) continue;
+                auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+                auto samples = key in threeDAdjustSamples;
+                if (samples is null) continue;
+                auto depthStep = max(abs((layerPreview.frontDepth - layerPreview.backDepth) *
+                    layerPreview.sourceDepthScale * layerPreview.depthScale) / 255.0f, 0.000001f);
+                foreach (ref sample; *samples) {
+                    auto documentX = layerPreview.left + sample.x;
+                    auto documentY = layerPreview.top + sample.y;
+                    if (documentX < 0 || documentY < 0 ||
+                        documentX >= preview.compositionWidth || documentY >= preview.compositionHeight) continue;
+                    auto documentIndex = cast(size_t)documentY * cast(size_t)preview.compositionWidth +
+                        cast(size_t)documentX;
+                    if (upperDepthLimit[documentIndex] < float.max) {
+                        sample.depth = min(sample.depth, upperDepthLimit[documentIndex] - depthStep);
+                    }
+                    upperDepthLimit[documentIndex] = min(upperDepthLimit[documentIndex], sample.depth);
+                }
+            }
+        }
+        threeDAdjustSamplesPrepared = true;
+    }
+
+    bool preparedThreeDAdjustDepthAt(ref PsdDepthComposedLayer layerPreview, int x, int y, out float depth) {
+        depth = 0.0f;
+        prepareThreeDAdjustSamples();
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        auto samples = key in threeDAdjustSamples;
+        if (samples is null) return false;
+        auto wanted = y * layerPreview.width + x;
+        ptrdiff_t low;
+        auto high = cast(ptrdiff_t)(*samples).length - 1;
+        while (low <= high) {
+            auto middle = low + (high - low) / 2;
+            auto sample = (*samples)[cast(size_t)middle];
+            auto found = sample.y * layerPreview.width + sample.x;
+            if (found < wanted) low = middle + 1;
+            else if (found > wanted) high = middle - 1;
+            else {
+                depth = sample.depth;
+                return true;
+            }
+        }
+        return false;
+    }
+
     float threeDAdjustDepthDisplayScale() {
         Deformable[] targets;
         foreach (ref gridResult; preview.grids) {
@@ -1406,41 +1497,10 @@ private:
     }
 
     PsdDepth3DAdjustSample[] threeDAdjustLayerSamples(ref PsdDepthComposedLayer layerPreview) {
+        prepareThreeDAdjustSamples();
         auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
         auto existing = key in threeDAdjustSamples;
-        if (existing !is null) return *existing;
-
-        PsdDepth3DAdjustSample[] samples;
-        if (layerPreview.width <= 0 || layerPreview.height <= 0) {
-            threeDAdjustSamples[key] = samples;
-            return samples;
-        }
-        foreach (y; 0 .. layerPreview.height) {
-            foreach (x; 0 .. layerPreview.width) {
-                auto index = (cast(size_t)y * cast(size_t)layerPreview.width + cast(size_t)x) * 4;
-                if (index + 3 >= layerPreview.maskRgba.length ||
-                    index + 3 >= layerPreview.colorRgba.length) {
-                    continue;
-                }
-                auto alpha = layerPreview.colorRgba[index + 3];
-                if (alpha < 3) continue;
-                float depth;
-                if (!threeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
-
-                PsdDepth3DAdjustSample sample;
-                sample.x = x;
-                sample.y = y;
-                sample.depthByte = layerPreview.depthRgba[index];
-                sample.depth = depth;
-                sample.r = layerPreview.colorRgba[index + 0];
-                sample.g = layerPreview.colorRgba[index + 1];
-                sample.b = layerPreview.colorRgba[index + 2];
-                sample.a = alpha;
-                samples ~= sample;
-            }
-        }
-        threeDAdjustSamples[key] = samples;
-        return samples;
+        return existing is null ? null : *existing;
     }
 
     PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthComposedLayer layerPreview) {
@@ -1482,7 +1542,7 @@ private:
                 }
                 if (layerPreview.colorRgba[index + 3] < 3) continue;
                 float depth;
-                if (!threeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
+                if (!preparedThreeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
 
                 auto vertexIndex = cast(int)(mesh.vertexData.length / 5);
                 lookup[cast(size_t)gy * cast(size_t)cols + cast(size_t)gx] = vertexIndex;

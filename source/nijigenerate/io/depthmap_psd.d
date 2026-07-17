@@ -1754,6 +1754,10 @@ private void seedLayerDepthFromDepthDrawSplit(
         setLayerDepthFromDepthDrawPixels(image, pruned.pixels, splitLayer.maskPixels);
     } else if (hasVisibleDepthDrawPixels(seeded, splitLayer.maskPixels)) {
         setLayerDepthFromDepthDrawPixels(image, seeded, splitLayer.maskPixels);
+    } else {
+        // An empty split is authoritative. Retaining the pre-split flat PNG
+        // depth here makes fully occluded layers participate in sampling.
+        setLayerDepthFromDepthDrawPixels(image, seeded, splitLayer.maskPixels);
     }
 }
 
@@ -1817,7 +1821,7 @@ private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] la
                 bool hasUpper;
                 auto globalX = lower.left + x;
                 auto globalY = lower.top + y;
-                    foreach (upperIndex, ref upper; layers) {
+                foreach (upperIndex, ref upper; layers) {
                     if (upperIndex == lowerIndex) continue;
                     auto upperZ = depthLayerZSort(upper);
                     if (upperZ > lowerZ || (upperZ == lowerZ && upperIndex <= lowerIndex)) continue;
@@ -3248,6 +3252,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             auto zA = drawableA is null ? (a.target is null ? 0.0f : a.target.zSort) : drawableA.zSort;
             auto zB = drawableB is null ? (b.target is null ? 0.0f : b.target.zSort) : drawableB.zSort;
             if (zA == zB) return a.image.layerPath < b.image.layerPath;
+            // depth-draw consumes layers back-to-front: larger indexes are
+            // upper layers. nijigenerate's PSD/import ordering uses smaller
+            // zSort values for the front, so pass larger values first.
             return zA > zB;
         })(bindings);
 
@@ -3456,12 +3463,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
 
         DepthLayerImage[] composedImages;
         foreach (binding; bindings) composedImages ~= binding.image;
-        auto suppressed = suppressLowerLayerDepthNearUpperCoverage(composedImages);
-        if (suppressed > 0) {
-            addCompositionDiagnostic(result, "upper-layer-suppression",
-                "N:1 composition suppressed lower-layer depth under upper color/art coverage.",
-                null, null, suppressed);
-        }
         DepthLayerImage[] layers;
         foreach (i, ref binding; bindings) {
             binding.image = composedImages[i];

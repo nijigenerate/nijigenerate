@@ -4837,9 +4837,11 @@ private void testPsdDepthMapImportHelpers() {
     writeRegressionPng(flatComposedDepthPath, 255, 255, 255, 4, 4);
     auto composedGridA = new ExGridDeformer(incActivePuppet().root);
     composedGridA.name = "color-layer-a";
+    composedGridA.zSort = 1.0f;
     composedGridA.vertices = Vec2Array([vec2(0, 0)]);
     auto composedGridB = new ExGridDeformer(incActivePuppet().root);
     composedGridB.name = "color-layer-b";
+    composedGridB.zSort = -1.0f;
     composedGridB.vertices = Vec2Array([vec2(0, 0)]);
     auto composedBareGrid = new ExGridDeformer(incActivePuppet().root);
     composedBareGrid.name = "bare-depth-target";
@@ -4883,6 +4885,10 @@ private void testPsdDepthMapImportHelpers() {
         composedPngImported.sourceDepthLayerCount == 1 &&
         composedPngImported.composedLayerCount == 2,
         "PSD depth import flat PNG composition should expose depth-draw N:1 composition metadata");
+    require(composedPngImported.composedLayers[0].targetGridUuid == composedGridA.uuid &&
+        composedPngImported.composedLayers[1].targetGridUuid == composedGridB.uuid &&
+        composedGridA.zSort > composedGridB.zSort,
+        "PSD depth import N:1 must pass layers to depth-draw back-to-front so smaller zSort/front layers have larger indexes");
     require(composedPngImported.composedLayers.length == 2 &&
         composedPngImported.composedLayers[0].layerPath != "/flat-composed-depth" &&
         composedPngImported.composedLayers[1].sourcePath == flatComposedDepthPath &&
@@ -4900,10 +4906,10 @@ private void testPsdDepthMapImportHelpers() {
             break;
         }
     }
-    require(hasUpperSuppressionDiagnostic &&
+    require(!hasUpperSuppressionDiagnostic &&
         composedPngImported.composedLayers[0].depthStats.maskedPixels == 0 &&
-        composedPngImported.composedLayers[1].depthStats.maskedPixels > 0,
-        "PSD depth import N:1 should suppress lower-layer depth under upper color/art coverage: "
+        composedPngImported.composedLayers[1].depthStats.maskedPixels == 0,
+        "PSD depth import N:1 should treat an empty depth-draw split as authoritative without a second suppression pass: "
         ~ "diag=%s layer0=%s:%s/%s layer1=%s:%s/%s z0=%s z1=%s".format(
             hasUpperSuppressionDiagnostic,
             composedPngImported.composedLayers[0].layerName,
