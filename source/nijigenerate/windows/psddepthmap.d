@@ -10,6 +10,9 @@ import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthIm
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijigenerate.ext.nodes.expart;
 import nijigenerate.io : TFD_Filter, incShowImportDialog;
+import nijigenerate.io.depthimage : DepthDrawAlphaDepthFocusedRule,
+    ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba, ngDepthDrawDetectAlphaDepthGaps,
+    ngDepthDrawMedianFillDepth, ngDepthDrawSmoothGridDepthValues;
 import nijigenerate.io.depthmap_psd;
 import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, DepthSampleConvolution,
     DepthSamplePoint, ngDepthSampleConvolve, ngDepthSampleMissingPoint, ngDepthSamplePixelDepth,
@@ -28,7 +31,7 @@ import std.algorithm : clamp;
 import std.conv : to;
 import std.exception : collectException;
 import std.format : format;
-import std.math : round;
+import std.math : abs, round;
 import std.string : join, toLower, toStringz;
 
 struct PsdDepth3DAdjustGeometryStats {
@@ -367,6 +370,51 @@ private:
             if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
                 errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
             }
+        }
+        previewDirty = false;
+    }
+
+    void applyAlphaDepthGapFill() {
+        if (previewDirty) rebuildPreview();
+        if (errorMessage.length) return;
+
+        static immutable DepthDrawAlphaDepthFocusedRule[] focusedRules = [
+            DepthDrawAlphaDepthFocusedRule(17, 72, 0, 122, 132, 10, 18),
+            DepthDrawAlphaDepthFocusedRule(6, 0, 0, 112, 126, 10, 20),
+            DepthDrawAlphaDepthFocusedRule(6, 40, 0, 150, 170, 12, 24),
+            DepthDrawAlphaDepthFocusedRule(10, 0, 0, 96, 120, 8, 16),
+            DepthDrawAlphaDepthFocusedRule(14, 0, 44, 96, 156, 10, 20),
+        ];
+
+        foreach (layerIndex, ref layer; preview.composedLayers) {
+            auto pixelCount = cast(size_t)max(0, layer.width * layer.height);
+            if (pixelCount == 0 || layer.depthRgba.length != pixelCount * 4 ||
+                layer.maskRgba.length != pixelCount * 4) continue;
+
+            auto depth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.depthRgba);
+            ubyte[] mask;
+            mask.length = pixelCount;
+            foreach (i; 0 .. pixelCount) {
+                auto offset = i * 4;
+                mask[i] = layer.maskRgba[offset] != 0 && layer.maskRgba[offset + 3] != 0 ? 1 : 0;
+            }
+            auto detected = ngDepthDrawDetectAlphaDepthGaps(
+                depth, mask, layer.width, layer.height, cast(int)layerIndex, focusedRules);
+            auto filled = ngDepthDrawMedianFillDepth(
+                depth, mask, detected.mask, layer.width, layer.height);
+            foreach (i, value; filled.depth) {
+                auto offset = i * 4;
+                layer.depthRgba[offset + 0] = value;
+                layer.depthRgba[offset + 1] = value;
+                layer.depthRgba[offset + 2] = value;
+                layer.depthRgba[offset + 3] = mask[i] && value > 0 ? 255 : 0;
+            }
+        }
+
+        disposePreviewTextures();
+        string composeError;
+        if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
+            errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
         }
         previewDirty = false;
     }
@@ -779,6 +827,7 @@ private:
 
     void drawOptions() {
         bool changed;
+        bool fillAlphaDepthGaps;
         incText(_("Color Source"));
         igSameLine();
         auto colorLabel = settings.colorSourcePath.length ? settings.colorSourcePath : _("<active target/art>");
@@ -816,6 +865,9 @@ private:
         }
         changed = igDragFloat(__("Alpha Threshold"), &settings.alphaThreshold, 0.001f, 0.0f, 1.0f, "%.3f") || changed;
         changed = drawEnumCombo(_("Missing Vertex Pixel"), settings.missingPolicy) || changed;
+        changed = ngCheckbox(__("Repair contour band"), &settings.repairContourBand) || changed;
+        changed = ngCheckbox(__("Smooth wavy surface"), &settings.smoothWavySurface) || changed;
+        fillAlphaDepthGaps = igButton(__("Fill alpha-depth gaps"));
         changed = ngCheckbox(__("GPU Composition"), &settings.useGpuComposition) || changed;
         incTooltip(_("When enabled, apply must use the GPU composition path. CPU fallback is treated as an error."));
         changed = ngCheckbox(__("Direct Grid Name Match"), &settings.matchDirectGridName) || changed;
@@ -823,6 +875,7 @@ private:
         changed = ngCheckbox(__("Only show problem layers"), &onlyProblemLayers) || changed;
 
         if (changed) previewDirty = true;
+        if (fillAlphaDepthGaps) applyAlphaDepthGapFill();
     }
 
     void drawCompositePreviewTooltip(ref PsdDepthGridResult gridResult) {
@@ -1551,6 +1604,30 @@ private:
                 mesh.vertexData ~= depth;
                 mesh.vertexData ~= (cast(float)x + 0.5f) / cast(float)layerPreview.width;
                 mesh.vertexData ~= (cast(float)y + 0.5f) / cast(float)layerPreview.height;
+            }
+        }
+
+        if (settings.smoothWavySurface) {
+            float[] gridDepths;
+            ubyte[] vertexValid;
+            int[] vertexGroup;
+            gridDepths.length = lookup.length;
+            vertexValid.length = lookup.length;
+            vertexGroup.length = lookup.length;
+            vertexGroup[] = -1;
+            foreach (gridIndex, vertexIndex; lookup) {
+                if (vertexIndex < 0) continue;
+                vertexValid[gridIndex] = 1;
+                vertexGroup[gridIndex] = 0;
+                gridDepths[gridIndex] = mesh.vertexData[cast(size_t)vertexIndex * 5 + 2];
+            }
+            auto depthRange = abs((layerPreview.frontDepth - layerPreview.backDepth) *
+                layerPreview.sourceDepthScale * layerPreview.depthScale);
+            auto smoothed = ngDepthDrawSmoothGridDepthValues(
+                gridDepths, vertexValid, vertexGroup, cols, rows, 18.0f, depthRange);
+            foreach (gridIndex, vertexIndex; lookup) {
+                if (vertexIndex < 0) continue;
+                mesh.vertexData[cast(size_t)vertexIndex * 5 + 2] = smoothed[gridIndex];
             }
         }
 

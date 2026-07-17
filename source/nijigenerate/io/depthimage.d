@@ -6,7 +6,7 @@ import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution,
 import nijigenerate.io.depthmap_psd : PsdDepthChannel, PsdDepthConvolution, PsdDepthImportSettings;
 import std.algorithm : max, min, sort;
 import std.exception : enforce;
-import std.math : abs, ceil, exp, floor, isFinite, lround, round;
+import std.math : abs, ceil, exp, floor, isFinite, lround, round, sqrt;
 
 alias DepthImageChannel = DepthSampleChannel;
 alias DepthImageConvolution = DepthSampleConvolution;
@@ -705,6 +705,114 @@ struct DepthDrawAlphaDepthGapFillResult {
     ubyte[] depth;
     size_t filled;
     size_t remaining;
+}
+
+float[] ngDepthDrawSmoothGridDepthValues(
+    const(float)[] sourceDepths,
+    const(ubyte)[] vertexValid,
+    const(int)[] vertexGroup,
+    int cols,
+    int rows,
+    float depthThreshold = 18.0f,
+    float depthScale = 1.0f
+) {
+    // Port of depth-draw src/scene/geometry.js:smoothGridVertexPositions.
+    enforce(cols >= 0 && rows >= 0, "Grid dimensions must be non-negative");
+    auto count = cast(size_t)cols * cast(size_t)rows;
+    enforce(sourceDepths.length == count, "Depth count must match grid dimensions");
+    enforce(vertexValid.length == count, "Valid mask must match grid dimensions");
+    enforce(vertexGroup.length == count, "Vertex groups must match grid dimensions");
+
+    auto input = sourceDepths.dup;
+    ubyte[] smoothFlags;
+    smoothFlags.length = count;
+    auto edgeThresholdZ = max(0.0001f, (depthThreshold / 255.0f) * max(depthScale, 0.0001f));
+
+    bool sameGroupValid(int x, int y, int group) {
+        if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+        auto index = cast(size_t)y * cast(size_t)cols + cast(size_t)x;
+        return vertexValid[index] != 0 && vertexGroup[index] == group;
+    }
+
+    foreach (gy; 0 .. rows) {
+        foreach (gx; 0 .. cols) {
+            auto index = cast(size_t)gy * cast(size_t)cols + cast(size_t)gx;
+            if (!vertexValid[index]) continue;
+            auto group = vertexGroup[index];
+            bool boundary = !sameGroupValid(gx - 1, gy, group) || !sameGroupValid(gx + 1, gy, group) ||
+                !sameGroupValid(gx, gy - 1, group) || !sameGroupValid(gx, gy + 1, group);
+            float minZ = input[index];
+            float maxZ = input[index];
+            int samples;
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    if (!sameGroupValid(gx + dx, gy + dy, group)) continue;
+                    auto sampleIndex = cast(size_t)(gy + dy) * cast(size_t)cols + cast(size_t)(gx + dx);
+                    minZ = min(minZ, input[sampleIndex]);
+                    maxZ = max(maxZ, input[sampleIndex]);
+                    samples++;
+                }
+            }
+            smoothFlags[index] = boundary || (samples >= 3 && maxZ - minZ >= edgeThresholdZ) ? 1 : 0;
+        }
+    }
+
+    foreach (_; 0 .. 2) {
+        auto expanded = smoothFlags.dup;
+        foreach (gy; 0 .. rows) {
+            foreach (gx; 0 .. cols) {
+                auto index = cast(size_t)gy * cast(size_t)cols + cast(size_t)gx;
+                if (!vertexValid[index] || smoothFlags[index]) continue;
+                auto group = vertexGroup[index];
+                bool adjacent;
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        if (dx == 0 && dy == 0) continue;
+                        auto sx = gx + dx;
+                        auto sy = gy + dy;
+                        if (!sameGroupValid(sx, sy, group)) continue;
+                        auto sampleIndex = cast(size_t)sy * cast(size_t)cols + cast(size_t)sx;
+                        if (smoothFlags[sampleIndex]) adjacent = true;
+                    }
+                }
+                if (adjacent) expanded[index] = 1;
+            }
+        }
+        smoothFlags = expanded;
+    }
+
+    foreach (pass; 0 .. 6) {
+        auto output = input.dup;
+        auto factor = pass % 2 == 0 ? 0.62f : -0.64f;
+        foreach (gy; 0 .. rows) {
+            foreach (gx; 0 .. cols) {
+                auto index = cast(size_t)gy * cast(size_t)cols + cast(size_t)gx;
+                if (!vertexValid[index] || !smoothFlags[index]) continue;
+                auto group = vertexGroup[index];
+                float weightedSum = 0.0f;
+                float weightTotal = 0.0f;
+                for (int dy = -2; dy <= 2; dy++) {
+                    for (int dx = -2; dx <= 2; dx++) {
+                        if (dx == 0 && dy == 0) continue;
+                        auto distance = sqrt(cast(float)(dx * dx + dy * dy));
+                        if (distance <= 0.0f || distance > 2.5f) continue;
+                        auto sx = gx + dx;
+                        auto sy = gy + dy;
+                        if (!sameGroupValid(sx, sy, group)) continue;
+                        auto sampleIndex = cast(size_t)sy * cast(size_t)cols + cast(size_t)sx;
+                        auto weight = 1.0f / distance;
+                        weightedSum += input[sampleIndex] * weight;
+                        weightTotal += weight;
+                    }
+                }
+                if (weightTotal <= 0.0f) continue;
+                auto averageZ = weightedSum / weightTotal;
+                output[index] = input[index] + factor * (averageZ - input[index]);
+            }
+        }
+        input = output;
+    }
+    return input;
 }
 
 struct DepthDrawDepthInpaintResult {

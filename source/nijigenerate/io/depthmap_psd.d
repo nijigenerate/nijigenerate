@@ -89,6 +89,8 @@ struct PsdDepthImportSettings {
     PsdDepthChannel channel = PsdDepthChannel.AverageRGB;
     PsdDepthMissingPolicy missingPolicy = PsdDepthMissingPolicy.KeepExisting;
     bool zeroDepthIsMissing;
+    bool repairContourBand;
+    bool smoothWavySurface;
     bool useGpuComposition;
     string colorSourcePath;
     string[string] layerTargetGridUuidOverrides;
@@ -257,6 +259,7 @@ struct PsdDepthImportResult {
     size_t ambiguousLayers;
     size_t skippedGrids;
     bool gpuCompositionRequested;
+    bool smoothWavySurface;
 }
 
 private PsdDepthCompositeSourceLayer cloneCompositeSourceLayer(PsdDepthCompositeSourceLayer layer) {
@@ -1584,7 +1587,8 @@ private void maskDepthToCoverage(ref DepthLayerImage layer, ref PsdDepthImportSe
     }
 }
 
-private void applyDepthDrawLayerDepthCleanup(ref DepthLayerImage layer) {
+private void applyDepthDrawLayerDepthCleanup(ref DepthLayerImage layer, ref PsdDepthImportSettings settings) {
+    if (!settings.repairContourBand) return;
     if (layer.width <= 0 || layer.height <= 0 || layer.data.length != cast(size_t)(layer.width * layer.height * 4)) {
         return;
     }
@@ -2727,6 +2731,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
 
     PsdDepthImportResult result;
     result.gpuCompositionRequested = settings.useGpuComposition;
+    result.smoothWavySurface = settings.smoothWavySurface;
     setCompositionMode(result, PsdDepthCompositionMode.NToN);
     result.compositionWidth = document.width;
     result.compositionHeight = document.height;
@@ -3098,6 +3103,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
 
     PsdDepthImportResult result;
     result.gpuCompositionRequested = settings.useGpuComposition;
+    result.smoothWavySurface = settings.smoothWavySurface;
     setCompositionMode(result, PsdDepthCompositionMode.Unknown);
     result.compositionWidth = texture.width;
     result.compositionHeight = texture.height;
@@ -3312,7 +3318,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             splitIndex++;
             buildCoverageCache(binding.image);
             maskDepthToCoverage(binding.image, settings);
-            applyDepthDrawLayerDepthCleanup(binding.image);
+            applyDepthDrawLayerDepthCleanup(binding.image, settings);
         }
     }
 
@@ -3373,7 +3379,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         }
         buildCoverageCache(image);
         maskDepthToCoverage(image, settings);
-        applyDepthDrawLayerDepthCleanup(image);
+        applyDepthDrawLayerDepthCleanup(image, settings);
         addMappedPngTarget(image, target, matchedTarget, status, manual);
         return true;
     }
@@ -3395,7 +3401,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             compositeFlatDepthByCoverageSources(image, normalizedFlatDepthRgba, texture.width, texture.height);
             buildCoverageCache(image);
             maskDepthToCoverage(image, settings);
-            applyDepthDrawLayerDepthCleanup(image);
+            applyDepthDrawLayerDepthCleanup(image, settings);
             bindings ~= PngComposedBinding(image, manualGrid, manualGrid, "Manual", true);
             return true;
         }
@@ -3409,7 +3415,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         compositeFlatDepthByCoverageSources(image, normalizedFlatDepthRgba, texture.width, texture.height);
         buildCoverageCache(image);
         maskDepthToCoverage(image, settings);
-        applyDepthDrawLayerDepthCleanup(image);
+        applyDepthDrawLayerDepthCleanup(image, settings);
         bindings ~= PngComposedBinding(image, target, target, "ComposedN1", false);
         return true;
     }
@@ -3445,7 +3451,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             compositeFlatDepthByCoverageSources(image, normalizedFlatDepthRgba, texture.width, texture.height);
             buildCoverageCache(image);
             maskDepthToCoverage(image, settings);
-            applyDepthDrawLayerDepthCleanup(image);
+            applyDepthDrawLayerDepthCleanup(image, settings);
             bindings ~= PngComposedBinding(image, target, matchedTarget, manual ? "Manual" : "ComposedN1", manual);
         }
 
@@ -3531,7 +3537,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
             splitIndex++;
             buildCoverageCache(image);
             maskDepthToCoverage(image, settings);
-            applyDepthDrawLayerDepthCleanup(image);
+            applyDepthDrawLayerDepthCleanup(image, settings);
             composedImages ~= image;
         }
         if (composedImages.length == 0) {

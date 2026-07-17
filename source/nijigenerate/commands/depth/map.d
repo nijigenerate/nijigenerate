@@ -12,7 +12,8 @@ import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthRigBinding, ExDepthRigRoot;
 import nijigenerate.ext.nodes.exdepthops;
-import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, ngDepthImageSampleRgbaWithOpacity;
+import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, ngDepthDrawSmoothGridDepthValues,
+    ngDepthImageSampleRgbaWithOpacity;
 import nijigenerate.io.depthmap_psd;
 import nijigenerate.io.depthsample : ngDepthSampleValueToDepth01;
 import nijigenerate.project : incActivePuppet;
@@ -33,7 +34,7 @@ import nijilive.core.nodes.deformer.grid : GridDeformer;
 import std.algorithm.comparison : max, min;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue;
-import std.math : isFinite, round;
+import std.math : abs, isFinite, round;
 import std.string : format;
 import nijigenerate.widgets.notification : NotificationPopup;
 import bindbc.imgui : ImGuiIO, ImVec2, igProgressBar, igText;
@@ -767,6 +768,52 @@ private void extrapolatePsdDepthToMissingVertices(
     }
 }
 
+private void smoothPsdDepthGridResult(ref PsdDepthGridResult composed, ref PsdDepthImportResult imported) {
+    if (!imported.smoothWavySurface || composed.grid is null || composed.depths.length == 0) return;
+    auto vertices = composed.grid.vertices;
+    if (vertices.length != composed.depths.length) return;
+
+    size_t cols = vertices.length;
+    size_t rows = 1;
+    if (cast(GridDeformer)composed.grid !is null && vertices.length > 1) {
+        cols = 1;
+        auto firstY = vertices[0].y;
+        while (cols < vertices.length && abs(vertices[cols].y - firstY) <= 0.00001f) cols++;
+        if (cols == 0 || vertices.length % cols != 0) {
+            cols = vertices.length;
+        } else {
+            rows = vertices.length / cols;
+        }
+    }
+
+    ubyte[] valid;
+    int[] groups;
+    valid.length = composed.depths.length;
+    groups.length = composed.depths.length;
+    groups[] = -1;
+    int[string] groupByLayer;
+    int nextGroup;
+    foreach (i; 0 .. composed.depths.length) {
+        if (i >= composed.winnerLayerPaths.length || composed.winnerLayerPaths[i].length == 0) continue;
+        valid[i] = 1;
+        auto path = composed.winnerLayerPaths[i];
+        auto group = path in groupByLayer;
+        if (group is null) {
+            groupByLayer[path] = nextGroup;
+            groups[i] = nextGroup++;
+        } else {
+            groups[i] = *group;
+        }
+    }
+    float effectiveDepthScale = 0.0001f;
+    foreach (ref layer; imported.composedLayers) {
+        effectiveDepthScale = max(effectiveDepthScale,
+            abs((layer.frontDepth - layer.backDepth) * layer.sourceDepthScale * layer.depthScale));
+    }
+    composed.depths = ngDepthDrawSmoothGridDepthValues(
+        composed.depths, valid, groups, cast(int)cols, cast(int)rows, 18.0f, effectiveDepthScale);
+}
+
 bool ngComposePsdDepthTarget(
     ref PsdDepthImportResult imported,
     ref PsdDepthGridResult gridResult,
@@ -826,6 +873,7 @@ bool ngComposePsdDepthTarget(
         }
     }
     extrapolatePsdDepthToMissingVertices(composed, result.winningLayerIds);
+    smoothPsdDepthGridResult(composed, imported);
     updatePsdDepthGridRange(composed);
     foreach (ref layerMask; composed.layerMasks) {
         layerMask.sampledVertices = 0;
@@ -934,6 +982,7 @@ private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out str
             layerMask.sampledVertices = 0;
             layerMask.selectedVertices = 0;
         }
+        smoothPsdDepthGridResult(composedGrid, imported);
         updatePsdDepthGridRange(composedGrid);
         imported.grids[i] = composedGrid;
     }

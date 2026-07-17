@@ -5861,6 +5861,27 @@ private void testDepthDrawDataModelContracts() {
         "DepthDrawSession alpha-depth gap fill should update layer depth pixels from the depth-draw median fill result");
     require(dirtySession.dirtyTargetGridIds() == [44UL],
         "DepthDrawSession alpha-depth gap fill should dirty only targets bound to the changed layer");
+    auto repeatedGapFill = dirtySession.applyLayerAlphaDepthGapFill(gapLayer.id);
+    require(repeatedGapFill.succeeded && repeatedGapFill.detected.total == 0 &&
+        repeatedGapFill.filled.filled == 0,
+        "DepthDrawSession alpha-depth gap fill should be repeatable from the previously filled depth");
+    require(!PsdDepthImportSettings.init.repairContourBand &&
+        !PsdDepthImportSettings.init.smoothWavySurface,
+        "PSD depth cleanup toggles should match depth-draw's default-off state");
+    ubyte[] smoothValid = [1, 1, 1, 1, 1, 1, 1, 1, 1];
+    int[] smoothGroups = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    float[] flatDepths = [2, 2, 2, 2, 2, 2, 2, 2, 2];
+    auto smoothedFlatDepths = ngDepthDrawSmoothGridDepthValues(flatDepths, smoothValid, smoothGroups, 3, 3);
+    foreach (i, value; smoothedFlatDepths) {
+        require(abs(value - flatDepths[i]) < 0.0001f,
+            "Smooth wavy surface should preserve a constant Z surface: index=%s actual=%s expected=%s"
+                .format(i, value, flatDepths[i]));
+    }
+    float[] wavyDepths = [0, 0, 0, 0, 10, 0, 0, 0, 0];
+    auto smoothedWavyDepths = ngDepthDrawSmoothGridDepthValues(
+        wavyDepths, smoothValid, smoothGroups, 3, 3, 18.0f, 10.0f);
+    require(smoothedWavyDepths[4] < wavyDepths[4] && smoothedWavyDepths[4] > 0.0f,
+        "Smooth wavy surface should smooth Z discontinuities with depth-draw's Taubin passes");
     dirtySession.clearPreviewDirty();
     require(dirtySession.updateBindingSampling("layer-b", 43, false, 0.45f),
         "DepthDrawSession should update binding sampling settings");
