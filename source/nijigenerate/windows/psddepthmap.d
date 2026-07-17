@@ -2105,7 +2105,9 @@ private:
 protected:
     override
     void onBeginUpdate() {
-        flags |= ImGuiWindowFlags.NoSavedSettings;
+        flags |= ImGuiWindowFlags.NoSavedSettings |
+            ImGuiWindowFlags.NoScrollbar |
+            ImGuiWindowFlags.NoScrollWithMouse;
 
         ImVec2 wpos = ImVec2(
             igGetMainViewport().Pos.x + (igGetMainViewport().Size.x / 2),
@@ -2123,38 +2125,47 @@ protected:
         if (previewDirty) rebuildPreview();
 
         auto space = incAvailableSpace();
-        float footerHeight = 220;
-        float reviewHeight = space.y - footerHeight;
-        if (reviewHeight < 120) reviewHeight = 120;
-
-        if (igBeginTabBar("###PsdDepthMapImportTabs")) {
-            auto threeDTabFlags = initial3DAdjustTabSelected ? ImGuiTabItemFlags.None : ImGuiTabItemFlags.SetSelected;
-            if (igBeginTabItem(__("3D Adjust"), null, threeDTabFlags)) {
-                initial3DAdjustTabSelected = true;
-                draw3DAdjustTab(reviewHeight);
-                igEndTabItem();
-            }
-            if (igBeginTabItem(__("Source / Mapping"))) {
-                drawSourceMappingTab(reviewHeight);
-                igEndTabItem();
-            }
-            igEndTabBar();
-        }
-
-        igSeparator();
-        if (igBeginTable("###PsdDepthOptions", 2, ImGuiTableFlags.SizingStretchProp)) {
-            igTableSetupColumn("###Options", ImGuiTableColumnFlags.WidthStretch);
-            igTableSetupColumn("###Actions", ImGuiTableColumnFlags.WidthFixed, 112);
+        auto settingsWidth = min(340.0f, max(280.0f, space.x * 0.28f));
+        if (igBeginTable("###PsdDepthDialogLayout", 2,
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp, ImVec2(0, space.y))) {
+            igTableSetupColumn(__("Settings"), ImGuiTableColumnFlags.WidthFixed, settingsWidth);
+            igTableSetupColumn(__("Preview"), ImGuiTableColumnFlags.WidthStretch);
             igTableNextRow();
             igTableNextColumn();
-            drawOptions();
-            igTableNextColumn();
-            if (incButtonColored(__("Apply"), ImVec2(104, 26))) {
+
+            auto actionsHeight = 62.0f;
+            auto settingsHeight = max(120.0f, space.y - actionsHeight);
+            if (igBeginChild("###PsdDepthSettingsPane", ImVec2(0, settingsHeight), true)) {
+                drawOptions();
+            }
+            igEndChild();
+            auto actionWidth = incAvailableSpace().x;
+            if (incButtonColored(__("Apply"), ImVec2(actionWidth, 26))) {
                 apply();
             }
-            if (incButtonColored(__("Cancel"), ImVec2(104, 26))) {
+            if (incButtonColored(__("Cancel"), ImVec2(actionWidth, 26))) {
                 close();
             }
+
+            igTableNextColumn();
+            if (igBeginChild("###PsdDepthWorkspace", ImVec2(0, space.y), false,
+                ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)) {
+                if (igBeginTabBar("###PsdDepthMapImportTabs")) {
+                    auto threeDTabFlags = initial3DAdjustTabSelected ?
+                        ImGuiTabItemFlags.None : ImGuiTabItemFlags.SetSelected;
+                    if (igBeginTabItem(__("3D Adjust"), null, threeDTabFlags)) {
+                        initial3DAdjustTabSelected = true;
+                        draw3DAdjustTab(max(120.0f, incAvailableSpace().y));
+                        igEndTabItem();
+                    }
+                    if (igBeginTabItem(__("Source / Mapping"))) {
+                        drawSourceMappingTab(max(120.0f, incAvailableSpace().y));
+                        igEndTabItem();
+                    }
+                    igEndTabBar();
+                }
+            }
+            igEndChild();
             igEndTable();
         }
     }
