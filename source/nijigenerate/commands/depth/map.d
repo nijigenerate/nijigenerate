@@ -32,6 +32,7 @@ import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import std.algorithm.comparison : max, min;
+import std.conv : to;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue;
 import std.math : abs, isFinite, round;
@@ -434,6 +435,7 @@ JSONValue ngPsdDepthImportSummaryToJson(PsdDepthImportResult imported, size_t ch
         entry["height"] = JSONValue(cast(long)layer.height);
         entry["visible"] = JSONValue(layer.visible);
         entry["enabled"] = JSONValue(layer.enabled);
+        entry["depthEnabled"] = JSONValue(layer.depthEnabled);
         entry["targetGridName"] = JSONValue(layer.targetGridName);
         entry["targetGridUuid"] = JSONValue(layer.targetGridUuid);
         entry["depthMin01"] = JSONValue(cast(double)layer.depthStats.minDepth01);
@@ -691,21 +693,85 @@ private DepthDrawSession buildPsdDepthDrawSessionForGrid(
     foreach (layerMask; gridResult.layerMasks) {
         auto composedLayer = psdDepthComposedLayerByPath(imported, layerMask.layerPath, gridResult.grid.uuid);
         if (composedLayer is null || composedLayer.depthRgba.length == 0) continue;
-        auto layer = psdDepthComposedLayerToDepthDrawLayer(*composedLayer);
-        session.layers ~= layer;
-        previewLayers ~= layer;
-        layerIdToPath[layer.id] = layerMask.layerPath;
 
-        DepthDrawBinding binding;
-        binding.layerId = layer.id;
-        binding.targetNodeUuid = gridResult.grid.uuid;
-        binding.targetGridUuid = gridResult.grid.uuid;
-        binding.order = order++;
-        binding.enabled = true;
-        binding.useNormalLayerAlpha = false;
-        binding.coverageThreshold = 0.0f;
-        binding.mergePolicy = DepthMergePolicy.Frontmost;
-        session.bindings ~= binding;
+        void appendLayer(ref PsdDepthComposedLayer source, string id) {
+            auto layer = psdDepthComposedLayerToDepthDrawLayer(source);
+            layer.id = id;
+            session.layers ~= layer;
+            previewLayers ~= layer;
+            layerIdToPath[layer.id] = layerMask.layerPath;
+
+            DepthDrawBinding binding;
+            binding.layerId = layer.id;
+            binding.targetNodeUuid = gridResult.grid.uuid;
+            binding.targetGridUuid = gridResult.grid.uuid;
+            binding.order = order++;
+            binding.enabled = true;
+            binding.useNormalLayerAlpha = false;
+            binding.coverageThreshold = 0.0f;
+            binding.mergePolicy = DepthMergePolicy.Frontmost;
+            session.bindings ~= binding;
+        }
+
+        if (composedLayer.depthEnabled) {
+            auto id = composedLayer.id.length ? composedLayer.id : composedLayer.layerPath;
+            appendLayer(*composedLayer, id);
+            continue;
+        }
+
+        size_t composedIndex = size_t.max;
+        foreach (i, ref candidate; imported.composedLayers) {
+            if (&candidate is composedLayer) {
+                composedIndex = i;
+                break;
+            }
+        }
+        if (composedIndex == size_t.max) continue;
+
+        ubyte[][size_t] depthPixelsBySource;
+        size_t[] sourceIndices;
+        foreach (y; 0 .. composedLayer.height) {
+            foreach (x; 0 .. composedLayer.width) {
+                auto targetIndex = (cast(size_t)y * cast(size_t)composedLayer.width + cast(size_t)x) * 4;
+                if (targetIndex + 3 >= composedLayer.maskRgba.length ||
+                    composedLayer.maskRgba[targetIndex + 3] == 0) continue;
+                if (composedLayer.colorRgba.length >= targetIndex + 4 &&
+                    composedLayer.colorRgba[targetIndex + 3] < 3) continue;
+
+                ptrdiff_t sourceIndex;
+                ubyte[4] sourcePixel;
+                if (!ngPsdDepthResolvedPixelAt(imported, composedIndex,
+                    composedLayer.left + x, composedLayer.top + y, sourceIndex, sourcePixel)) continue;
+                auto sourceKey = cast(size_t)sourceIndex;
+                auto pixels = sourceKey in depthPixelsBySource;
+                if (pixels is null) {
+                    depthPixelsBySource[sourceKey] = new ubyte[cast(size_t)composedLayer.width *
+                        cast(size_t)composedLayer.height * 4];
+                    sourceIndices ~= sourceKey;
+                    pixels = sourceKey in depthPixelsBySource;
+                }
+                (*pixels)[targetIndex .. targetIndex + 4] = sourcePixel[];
+            }
+        }
+
+        foreach (sourceIndex; sourceIndices) {
+            auto resolved = imported.composedLayers[sourceIndex];
+            resolved.id = (composedLayer.id.length ? composedLayer.id : composedLayer.layerPath) ~
+                "\x1Fattached:" ~ sourceIndex.to!string;
+            resolved.layerPath = composedLayer.layerPath;
+            resolved.layerName = composedLayer.layerName;
+            resolved.left = composedLayer.left;
+            resolved.top = composedLayer.top;
+            resolved.width = composedLayer.width;
+            resolved.height = composedLayer.height;
+            resolved.visible = composedLayer.visible;
+            resolved.enabled = composedLayer.enabled;
+            resolved.colorRgba = composedLayer.colorRgba;
+            resolved.maskRgba = composedLayer.maskRgba;
+            resolved.coverageMaskRgba = composedLayer.coverageMaskRgba;
+            resolved.depthRgba = depthPixelsBySource[sourceIndex];
+            appendLayer(resolved, resolved.id);
+        }
     }
     return session;
 }

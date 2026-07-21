@@ -204,6 +204,7 @@ struct PsdDepthComposedLayer {
     int height;
     bool visible = true;
     bool enabled = true;
+    bool depthEnabled = true;
     bool invert;
     float depthOffset = 0.0f;
     float depthScale = 1.0f;
@@ -544,6 +545,7 @@ private void copyComposedLayerState(ref PsdDepthComposedLayer layer, PsdDepthCom
     if (layer.targetGridUuid != 0 && layer.targetGridUuid == previousLayer.targetGridUuid) {
         layer.enabled = previousLayer.enabled;
     }
+    layer.depthEnabled = previousLayer.depthEnabled;
     layer.invert = previousLayer.invert;
     layer.depthOffset = previousLayer.depthOffset;
     layer.depthScale = previousLayer.depthScale;
@@ -617,7 +619,7 @@ private float computeGlobalDepthCentroid(PsdDepthComposedLayer[] layers) {
     double sum = 0.0;
     size_t count;
     foreach (layer; layers) {
-        if (!layer.visible) continue;
+        if (!layer.visible || !layer.depthEnabled) continue;
         if (layer.depthRgba.length < 4) continue;
         auto pixelCount = layer.depthRgba.length / 4;
         foreach (i; 0 .. pixelCount) {
@@ -634,6 +636,79 @@ private float computeGlobalDepthCentroid(PsdDepthComposedLayer[] layers) {
         }
     }
     return count > 0 ? cast(float)(sum / cast(double)count) : 0.0f;
+}
+
+bool ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(
+    ref PsdDepthComposedLayer layer,
+    int documentX,
+    int documentY,
+    out size_t rgbaIndex
+) {
+    rgbaIndex = 0;
+    auto x = documentX - layer.left;
+    auto y = documentY - layer.top;
+    if (x < 0 || y < 0 || x >= layer.width || y >= layer.height) return false;
+    rgbaIndex = (cast(size_t)y * cast(size_t)layer.width + cast(size_t)x) * 4;
+    auto coverage = layer.coverageMaskRgba.length >= rgbaIndex + 4 ?
+        layer.coverageMaskRgba : layer.maskRgba;
+    if (coverage.length >= rgbaIndex + 4 && coverage[rgbaIndex + 3] == 0) return false;
+    if (layer.colorRgba.length >= rgbaIndex + 4 && layer.colorRgba[rgbaIndex + 3] < 3) return false;
+    return true;
+}
+
+bool ngPsdDepthResolvedPixelAt(
+    ref PsdDepthImportResult imported,
+    size_t layerIndex,
+    int documentX,
+    int documentY,
+    out ptrdiff_t sourceLayerIndex,
+    out ubyte[4] pixel
+) {
+    sourceLayerIndex = -1;
+    pixel[] = 0;
+    if (layerIndex >= imported.composedLayers.length) return false;
+    auto layer = &imported.composedLayers[layerIndex];
+    if (!layer.enabled || !layer.visible) return false;
+    if (layer.depthEnabled) {
+        size_t rgbaIndex;
+        if (!ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(*layer, documentX, documentY, rgbaIndex) ||
+            rgbaIndex + 3 >= layer.depthRgba.length || layer.depthRgba[rgbaIndex + 3] == 0) return false;
+        sourceLayerIndex = cast(ptrdiff_t)layerIndex;
+        pixel[] = layer.depthRgba[rgbaIndex .. rgbaIndex + 4];
+        return true;
+    }
+
+    // Layers are stored back-to-front. A disabled layer follows the nearest
+    // enabled depth below it at the same document coordinate. Skipping another
+    // disabled layer implements the recursive attachment without another path.
+    foreach_reverse (candidateIndex; 0 .. layerIndex) {
+        auto candidate = &imported.composedLayers[candidateIndex];
+        if (!candidate.enabled || !candidate.visible || !candidate.depthEnabled) continue;
+        size_t rgbaIndex;
+        if (!ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(*candidate, documentX, documentY, rgbaIndex)) continue;
+        sourceLayerIndex = cast(ptrdiff_t)candidateIndex;
+        if (rgbaIndex + 3 < candidate.depthRgba.length && candidate.depthRgba[rgbaIndex + 3] != 0) {
+            pixel[] = candidate.depthRgba[rgbaIndex .. rgbaIndex + 4];
+            return true;
+        }
+        sourceLayerIndex = -1;
+    }
+    return false;
+}
+
+ptrdiff_t ngPsdDepthResolvedLayerIndexAt(
+    ref PsdDepthImportResult imported,
+    size_t layerIndex,
+    int documentX,
+    int documentY,
+    out size_t rgbaIndex
+) {
+    rgbaIndex = 0;
+    ptrdiff_t sourceLayerIndex;
+    ubyte[4] pixel;
+    return ngPsdDepthResolvedPixelAt(
+        imported, layerIndex, documentX, documentY, sourceLayerIndex, pixel)
+        ? sourceLayerIndex : -1;
 }
 
 void ngPsdDepthRefreshDerivedState(ref PsdDepthImportResult result) {
@@ -912,8 +987,17 @@ private void addComposedLayer(
     auto surfacePreview = buildColorLayerPreviewRgba(image);
     layer.colorRgba = surfacePreview.rgba;
     layer.depthRgba = buildDepthMaskPreviewFromSurface(image, settings, surfacePreview.rgba);
-    layer.maskRgba = layer.depthRgba.dup;
-    layer.coverageMaskRgba = image.coverageData.length ? image.coverageData.dup : image.data.dup;
+    layer.maskRgba.length = surfacePreview.rgba.length;
+    foreach (i; 0 .. surfacePreview.rgba.length / 4) {
+        auto index = i * 4;
+        auto alpha = surfacePreview.rgba[index + 3];
+        if (alpha == 0) continue;
+        layer.maskRgba[index + 0] = 255;
+        layer.maskRgba[index + 1] = 255;
+        layer.maskRgba[index + 2] = 255;
+        layer.maskRgba[index + 3] = alpha;
+    }
+    layer.coverageMaskRgba = layer.maskRgba.dup;
     result.composedLayers ~= layer;
     result.composedLayerCount = result.composedLayers.length;
 }
@@ -1618,6 +1702,7 @@ private void applyDepthDrawLayerDepthCleanup(ref DepthLayerImage layer, ref PsdD
         layer.data[offset + 0] = value;
         layer.data[offset + 1] = value;
         layer.data[offset + 2] = value;
+        layer.data[offset + 3] = mask[i] && value > 0 ? 255 : 0;
     }
 }
 
@@ -1723,9 +1808,38 @@ private void seedLayerDepthFromDepthDrawSplit(
     int documentHeight,
     const(ubyte)[] stableDepthPixels,
     const(int)[] visibleLayerMap,
-    const(DepthDrawSplitLayer)[] splitLayers
+    const(DepthDrawSplitLayer)[] splitLayers,
+    bool repairContourBand
 ) {
-    auto contourBand = ngDepthDrawBuildLayerContourBandMask(splitLayer.maskPixels, splitLayer.width, splitLayer.height, 2);
+    if (!repairContourBand) {
+        ubyte[] sampledDepth;
+        sampledDepth.length = cast(size_t)splitLayer.width * cast(size_t)splitLayer.height;
+        foreach (y; 0 .. splitLayer.height) {
+            foreach (x; 0 .. splitLayer.width) {
+                auto localIndex = cast(size_t)y * cast(size_t)splitLayer.width + cast(size_t)x;
+                if (!splitLayer.maskPixels[localIndex]) continue;
+                auto globalX = splitLayer.left + x;
+                auto globalY = splitLayer.top + y;
+                if (globalX < 0 || globalX >= documentWidth || globalY < 0 || globalY >= documentHeight) continue;
+                sampledDepth[localIndex] = stableDepthPixels[
+                    cast(size_t)globalY * cast(size_t)documentWidth + cast(size_t)globalX];
+            }
+        }
+        setLayerDepthFromDepthDrawPixels(image, sampledDepth, splitLayer.maskPixels);
+        return;
+    }
+
+    ubyte[] contourBand;
+    contourBand = ngDepthDrawBuildLayerContourBandMask(
+        splitLayer.maskPixels, splitLayer.width, splitLayer.height, 2);
+    bool hasInteriorSeed;
+    foreach (i, maskPixel; splitLayer.maskPixels) {
+        if (maskPixel && !contourBand[i]) {
+            hasInteriorSeed = true;
+            break;
+        }
+    }
+    if (!hasInteriorSeed) contourBand = null;
     auto seeded = ngDepthDrawSeedLayerDepthPixels(
         splitLayer,
         layerIndex,
@@ -1801,65 +1915,6 @@ private bool acceptsDepthPixel(ref DepthLayerImage layer, size_t index, int x, i
         if (pixelDepth01(layer.data, index, sampleSettings) <= 0.0f) return false;
     }
     return true;
-}
-
-private float depthLayerZSort(ref DepthLayerImage layer) {
-    if (layer.grid is null) return 0.0f;
-    return layer.grid.zSort;
-}
-
-private size_t suppressLowerLayerDepthNearUpperCoverage(ref DepthLayerImage[] layers, int radius = 0) {
-    size_t suppressed;
-    if (layers.length < 2) return 0;
-    foreach (lowerIndex, ref lower; layers) {
-        if (lower.coverageGateCache.length != cast(size_t)lower.width * cast(size_t)lower.height ||
-            lower.coverageAlphaCache.length != lower.coverageGateCache.length) {
-            continue;
-        }
-        auto lowerZ = depthLayerZSort(lower);
-        for (int y = 0; y < lower.height; y++) {
-            for (int x = 0; x < lower.width; x++) {
-                auto index = cast(size_t)y * cast(size_t)lower.width + cast(size_t)x;
-                if (lower.coverageGateCache[index] <= 0.5f) continue;
-
-                bool hasUpper;
-                auto globalX = lower.left + x;
-                auto globalY = lower.top + y;
-                foreach (upperIndex, ref upper; layers) {
-                    if (upperIndex == lowerIndex) continue;
-                    auto upperZ = depthLayerZSort(upper);
-                    if (upperZ > lowerZ || (upperZ == lowerZ && upperIndex <= lowerIndex)) continue;
-                    if (globalX < upper.left - radius ||
-                        globalX >= upper.left + upper.width + radius ||
-                        globalY < upper.top - radius ||
-                        globalY >= upper.top + upper.height + radius) {
-                        continue;
-                    }
-                    for (int dy = -radius; dy <= radius && !hasUpper; dy++) {
-                        auto upperY = globalY + dy - upper.top;
-                        if (upperY < 0 || upperY >= upper.height) continue;
-                        for (int dx = -radius; dx <= radius; dx++) {
-                            auto upperX = globalX + dx - upper.left;
-                            if (upperX < 0 || upperX >= upper.width) continue;
-                            auto upperIndex4 = (cast(size_t)upperY * cast(size_t)upper.width + cast(size_t)upperX) * 4;
-                            if (upperIndex4 + 3 >= upper.data.length) continue;
-                            if (ngDepthSampleAcceptsAlpha(coverageAlpha(upper, upperX, upperY), 0.0f) &&
-                                coverageReliable(upper, upperX, upperY)) {
-                                hasUpper = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (hasUpper) break;
-                }
-                if (!hasUpper) continue;
-                lower.coverageGateCache[index] = 0.0f;
-                lower.coverageAlphaCache[index] = 0.0f;
-                suppressed++;
-            }
-        }
-    }
-    return suppressed;
 }
 
 private ubyte[] buildDepthMaskPreview(ref DepthLayerImage layer, ref PsdDepthImportSettings settings) {
@@ -3313,7 +3368,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 texture.height,
                 stableDepthPixels,
                 visibleLayerMap,
-                splitLayers
+                splitLayers,
+                settings.repairContourBand
             );
             splitIndex++;
             buildCoverageCache(binding.image);
@@ -3532,7 +3588,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 texture.height,
                 stableDepthPixels,
                 visibleLayerMap,
-                splitLayers
+                splitLayers,
+                settings.repairContourBand
             );
             splitIndex++;
             buildCoverageCache(image);
@@ -3545,13 +3602,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 "PSD color source has no visible pixel layers.", settings.colorSourcePath, null);
             return false;
         }
-        auto suppressed = suppressLowerLayerDepthNearUpperCoverage(composedImages);
-        if (suppressed > 0) {
-            addCompositionDiagnostic(result, "upper-layer-suppression",
-                "N:1 composition suppressed lower-layer depth under upper color/art coverage.",
-                null, null, suppressed);
-        }
-
         DepthLayerImage[] layers;
         foreach (ref image; composedImages) {
             Deformable target;

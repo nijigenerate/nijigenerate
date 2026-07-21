@@ -3962,6 +3962,43 @@ private void testPsdDepthAdjustedValuesAreNotRenormalized() {
                 .format(depth, expectedAdjustedDepth));
     }
 
+    auto bottomLayer = faceLayer;
+    bottomLayer.id = "/recursive-depth-base";
+    bottomLayer.layerPath = bottomLayer.id;
+    bottomLayer.targetGridUuid = 0;
+    bottomLayer.targetGridName = null;
+    bottomLayer.depthScale = 0.5f;
+    bottomLayer.depthOffset = -0.25f;
+    bottomLayer.depthRgba = bottomLayer.depthRgba.dup;
+    bottomLayer.maskRgba = bottomLayer.maskRgba.dup;
+    foreach (x; 0 .. bottomLayer.width) {
+        auto index = cast(size_t)x * 4;
+        bottomLayer.depthRgba[index .. index + 4] = [cast(ubyte)64, 64, 64, 255];
+        bottomLayer.maskRgba[index .. index + 4] = [cast(ubyte)255, 255, 255, 255];
+    }
+    auto middleLayer = faceLayer;
+    middleLayer.id = "/recursive-depth-middle";
+    middleLayer.layerPath = middleLayer.id;
+    middleLayer.targetGridUuid = 0;
+    middleLayer.targetGridName = null;
+    middleLayer.depthEnabled = false;
+    auto attachedLayer = layer;
+    attachedLayer.depthEnabled = false;
+    imported.composedLayers = [bottomLayer, middleLayer, attachedLayer];
+    size_t resolvedPixel;
+    require(ngPsdDepthResolvedLayerIndexAt(imported, 2, 700, 640, resolvedPixel) == 0,
+        "a depth-disabled layer must recursively resolve the nearest enabled depth below at the same document coordinate");
+    PsdDepthGridResult attached;
+    require(ngComposePsdDepthTarget(imported, gridResult, attached, error),
+        "recursive disabled-depth attachment should compose: " ~ error);
+    auto attachedSource = (-2.0f + (2.0f - (-2.0f)) * (64.0f / 255.0f)) * 1.5f;
+    auto expectedAttached = attachedSource * 0.5f - 0.25f;
+    foreach (depth; attached.depths) {
+        require(near(depth, expectedAttached),
+            "attached depth must preserve the resolved lower layer's Z transform");
+    }
+    imported.composedLayers = [layer, faceLayer];
+
     PsdDepthGridResult faceBefore;
     require(ngComposePsdDepthTarget(imported, faceGridResult, faceBefore, error),
         "Face::G baseline composition should succeed: " ~ error);
@@ -4617,6 +4654,7 @@ private void testPsdDepthMapImportHelpers() {
     previousPngImportState.composedLayers = previousPngImportState.composedLayers.dup;
     previousPngImportState.composedLayers[0].visible = false;
     previousPngImportState.composedLayers[0].enabled = false;
+    previousPngImportState.composedLayers[0].depthEnabled = false;
     previousPngImportState.composedLayers[0].depthOffset = 0.25f;
     previousPngImportState.composedLayers[0].depthScale = 0.5f;
     previousPngImportState.composedLayers[0].outlierPruneEnabled = true;
@@ -4626,6 +4664,7 @@ private void testPsdDepthMapImportHelpers() {
     require(refreshedPngImport.composedLayers.length == 1 &&
         !refreshedPngImport.composedLayers[0].visible &&
         !refreshedPngImport.composedLayers[0].enabled &&
+        !refreshedPngImport.composedLayers[0].depthEnabled &&
         near(refreshedPngImport.composedLayers[0].depthOffset, 0.25f) &&
         near(refreshedPngImport.composedLayers[0].depthScale, 0.5f) &&
         refreshedPngImport.composedLayers[0].outlierPruneEnabled &&
@@ -4899,6 +4938,23 @@ private void testPsdDepthMapImportHelpers() {
         composedPngImported.depthSource.layers.length == 1 &&
         composedPngImported.depthSource.layers[0].rgba.length == 4 * 4 * 4,
         "PSD depth import N:1 should materialize composed color/target layers separately from the flat depth source");
+    foreach (layerPreview; composedPngImported.composedLayers) {
+        require(layerPreview.maskRgba.length == layerPreview.colorRgba.length,
+            "PSD depth import surface mask must have the same local dimensions as its color layer");
+        foreach (i; 0 .. layerPreview.colorRgba.length / 4) {
+            auto index = i * 4;
+            auto colorAlpha = layerPreview.colorRgba[index + 3];
+            auto maskAlpha = layerPreview.maskRgba[index + 3];
+            require((colorAlpha == 0) == (maskAlpha == 0),
+                "PSD depth validity must not erase the color surface mask");
+            if (maskAlpha != 0) {
+                require(layerPreview.maskRgba[index + 0] == 255 &&
+                    layerPreview.maskRgba[index + 1] == 255 &&
+                    layerPreview.maskRgba[index + 2] == 255,
+                    "PSD depth surface mask must not depend on color RGB or depth intensity");
+            }
+        }
+    }
     bool hasUpperSuppressionDiagnostic;
     foreach (diagnostic; composedPngImported.compositionDiagnostics) {
         if (diagnostic.type == "upper-layer-suppression" && diagnostic.count > 0) {
@@ -4907,9 +4963,9 @@ private void testPsdDepthMapImportHelpers() {
         }
     }
     require(!hasUpperSuppressionDiagnostic &&
-        composedPngImported.composedLayers[0].depthStats.maskedPixels == 0 &&
-        composedPngImported.composedLayers[1].depthStats.maskedPixels == 0,
-        "PSD depth import N:1 should treat an empty depth-draw split as authoritative without a second suppression pass: "
+        composedPngImported.composedLayers[0].depthStats.maskedPixels == 16 &&
+        composedPngImported.composedLayers[1].depthStats.maskedPixels == 16,
+        "PSD depth import N:1 must not shrink or prune any layer when contour repair is disabled: "
         ~ "diag=%s layer0=%s:%s/%s layer1=%s:%s/%s z0=%s z1=%s".format(
             hasUpperSuppressionDiagnostic,
             composedPngImported.composedLayers[0].layerName,
@@ -4921,6 +4977,13 @@ private void testPsdDepthMapImportHelpers() {
             composedGridA.zSort,
             composedGridB.zSort
         ));
+    auto repairedComposedPngSettings = composedPngSettings;
+    repairedComposedPngSettings.repairContourBand = true;
+    auto repairedComposedPngImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), flatComposedDepthPath, repairedComposedPngSettings);
+    require(repairedComposedPngImported.composedLayers.length == 2 &&
+        repairedComposedPngImported.composedLayers[1].depthStats.maskedPixels == 16,
+        "PSD depth contour repair must preserve a layer when its contour band has no interior seed pixels");
     bool foundComposedA;
     bool foundComposedB;
     bool foundBare;

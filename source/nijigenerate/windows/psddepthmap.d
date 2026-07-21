@@ -1014,6 +1014,19 @@ private:
         }
     }
 
+    void drawComposedLayerDepthEnabledCheckbox(string layerPath, ulong targetGridUuid) {
+        auto layer = findComposedLayer(layerPath, targetGridUuid);
+        if (layer is null) return;
+        bool enabled = layer.depthEnabled;
+        igPushID(("depthEnabledComposedLayer" ~ layerPath ~ targetGridUuid.to!string).toStringz);
+        scope(exit) igPopID();
+        if (ngCheckbox(__("Enable Depth"), &enabled)) {
+            layer.depthEnabled = enabled;
+            refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
+        }
+        incTooltip(_("When disabled, use the nearest enabled depth below at each document coordinate."));
+    }
+
     PsdDepthLayerEdit layerTransform(string layerPath, ulong targetGridUuid) {
         PsdDepthLayerEdit transform;
         if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
@@ -1112,22 +1125,39 @@ private:
     }
 
     void refreshPreviewDepthsForLayer(string layerPath, ulong targetGridUuid) {
-        foreach (ref gridResult; preview.grids) {
-            if (targetGridUuid != 0 && (gridResult.grid is null || gridResult.grid.uuid != targetGridUuid)) continue;
-            if (!gridResultUsesLayer(gridResult, layerPath) &&
-                (gridResult.grid is null || !layerTargetsGrid(layerPath, gridResult.grid.uuid))) {
-                continue;
+        ptrdiff_t changedIndex = -1;
+        foreach (i, ref layer; preview.composedLayers) {
+            if (layer.layerPath == layerPath && layer.targetGridUuid == targetGridUuid) {
+                changedIndex = cast(ptrdiff_t)i;
+                break;
             }
+        }
+        foreach (ref gridResult; preview.grids) {
+            if (gridResult.grid is null) continue;
+            bool affected = gridResultUsesLayer(gridResult, layerPath) ||
+                layerTargetsGrid(layerPath, gridResult.grid.uuid);
+            if (!affected && changedIndex >= 0) {
+                foreach (ref layerMask; gridResult.layerMasks) {
+                    foreach (i, ref candidate; preview.composedLayers) {
+                        if (candidate.layerPath != layerMask.layerPath ||
+                            candidate.targetGridUuid != gridResult.grid.uuid) continue;
+                        if (cast(ptrdiff_t)i > changedIndex && !candidate.depthEnabled) affected = true;
+                        break;
+                    }
+                    if (affected) break;
+                }
+            }
+            if (!affected) continue;
             refreshGridResultDepths(gridResult);
         }
     }
 
     void invalidate3DAdjustLayerCaches(string layerPath, ulong targetGridUuid) {
         auto key = layerCacheKey(layerPath, targetGridUuid);
-        if (auto texture = key in depthMaskPreviewTextures) {
-            if (*texture !is null) (*texture).dispose();
-            depthMaskPreviewTextures.remove(key);
+        foreach (textureKey, texture; depthMaskPreviewTextures) {
+            if (texture !is null) texture.dispose();
         }
+        depthMaskPreviewTextures = null;
         if (auto texture = key in originalPreviewTextures) {
             if (*texture !is null) (*texture).dispose();
             originalPreviewTextures.remove(key);
@@ -1369,7 +1399,12 @@ private:
             ));
 
             drawComposedLayerShowCheckbox(layerPreview.layerPath, layerPreview.targetGridUuid);
-            drawLayerZControls(layerPreview.layerPath, layerPreview.targetGridUuid);
+            drawComposedLayerDepthEnabledCheckbox(layerPreview.layerPath, layerPreview.targetGridUuid);
+            if (layerPreview.depthEnabled) {
+                drawLayerZControls(layerPreview.layerPath, layerPreview.targetGridUuid);
+            } else {
+                incText(_("Attached to depth below"));
+            }
         }
         igEndChild();
     }
@@ -1422,31 +1457,42 @@ private:
 
     bool threeDAdjustDepthAt(ref PsdDepthComposedLayer layerPreview, int x, int y, out float depth) {
         depth = 0.0f;
+        ptrdiff_t layerIndex = -1;
+        foreach (i, ref candidate; preview.composedLayers) {
+            if (&candidate is &layerPreview) {
+                layerIndex = cast(ptrdiff_t)i;
+                break;
+            }
+        }
+        if (layerIndex < 0) return false;
         DepthSamplePoint sampleAt(int sampleX, int sampleY) {
             if (sampleX < 0 || sampleY < 0 || sampleX >= layerPreview.width || sampleY >= layerPreview.height) {
                 return ngDepthSampleMissingPoint();
             }
-            auto index = (cast(size_t)sampleY * cast(size_t)layerPreview.width + cast(size_t)sampleX) * 4;
-            if (index + 3 >= layerPreview.depthRgba.length || layerPreview.depthRgba[index + 3] == 0) {
+            ptrdiff_t sourceIndex;
+            ubyte[4] sourcePixel;
+            if (!ngPsdDepthResolvedPixelAt(preview, cast(size_t)layerIndex,
+                layerPreview.left + sampleX, layerPreview.top + sampleY, sourceIndex, sourcePixel)) {
                 return ngDepthSampleMissingPoint();
             }
-            auto alpha = cast(float)layerPreview.depthRgba[index + 3] / 255.0f;
-            if (alpha <= layerPreview.alphaThreshold) return ngDepthSampleMissingPoint();
+            auto source = &preview.composedLayers[cast(size_t)sourceIndex];
+            auto alpha = cast(float)sourcePixel[3] / 255.0f;
+            if (alpha <= source.alphaThreshold) return ngDepthSampleMissingPoint();
             auto value = ngDepthSamplePixelDepth(
-                layerPreview.depthRgba,
-                index,
+                sourcePixel[],
+                0,
                 DepthSampleChannel.AverageRGB,
-                layerPreview.invert,
-                layerPreview.backDepth,
-                layerPreview.frontDepth,
-                layerPreview.sourceDepthScale
+                source.invert,
+                source.backDepth,
+                source.frontDepth,
+                source.sourceDepthScale
             );
-            return DepthSamplePoint(true, value, alpha);
+            return DepthSamplePoint(true, value * source.depthScale + source.depthOffset, alpha);
         }
         auto sampled = ngDepthSampleConvolve!sampleAt(
             threeDAdjustSampleConvolution(), layerPreview.customRadius, x, y);
         if (!sampled.valid) return false;
-        depth = sampled.value * layerPreview.depthScale + layerPreview.depthOffset;
+        depth = sampled.value;
         return true;
     }
 
