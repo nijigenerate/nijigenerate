@@ -506,16 +506,22 @@ void ngSetupRegressionSmokeScenario(string scenario) {
                 pngWindow.previewSummaryForRegressionSmoke());
             return;
         }
-        if (!pngWindow.setFirstMappedLayerZOffsetForRegressionSmoke(pngGrid.name, 0.75f) ||
-            !pngWindow.hasSampledPreviewGridForRegressionSmoke(pngGrid.name)) {
-            ngRegressionSmokeFail("PSD depth import smoke failed to update Source / Mapping after 3D Adjust offset: " ~
+        auto pngDepthsBeforeAdjust = pngWindow.previewDepthsForRegressionSmoke(pngGrid.name);
+        if (!pngWindow.setFirstMappedLayerZTransformForRegressionSmoke(pngGrid.name, 1.25f, 0.75f) ||
+            !pngWindow.hasPending3DAdjustLayerChangesForRegressionSmoke() ||
+            !pngWindow.hasRealtime3DAdjustTransformForRegressionSmoke(pngGrid.name) ||
+            pngWindow.previewDepthsForRegressionSmoke(pngGrid.name) != pngDepthsBeforeAdjust) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to update 3D Adjust in real time without composing targets: " ~
                 pngWindow.previewSummaryForRegressionSmoke());
             return;
         }
         string pngApplyMessage;
         if (!pngWindow.applyForRegressionSmoke(pngApplyMessage) ||
-            !pngWindow.hasAppliedDepthsForRegressionSmoke(pngGrid.name)) {
-            ngRegressionSmokeFail("PSD depth import smoke failed to apply offset PNG source through Source / Mapping path: " ~
+            pngWindow.hasPending3DAdjustLayerChangesForRegressionSmoke() ||
+            pngWindow.last3DAdjustApplyRecomposedGridCountForRegressionSmoke() != 1 ||
+            !pngWindow.hasAppliedDepthsForRegressionSmoke(pngGrid.name) ||
+            pngWindow.previewDepthsForRegressionSmoke(pngGrid.name) == pngDepthsBeforeAdjust) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to flush and apply deferred 3D Adjust Z Scale/Offset: " ~
                 pngApplyMessage ~ " :: " ~ pngWindow.previewSummaryForRegressionSmoke());
             return;
         }

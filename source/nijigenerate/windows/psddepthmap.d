@@ -48,6 +48,11 @@ private struct PsdDepthLayerEdit {
     bool invert;
 }
 
+private struct PsdDepthPendingLayerChange {
+    string layerPath;
+    ulong targetGridUuid;
+}
+
 struct PsdDepth3DAdjustSample {
     int x;
     int y;
@@ -78,6 +83,7 @@ private:
     int yawPitchUniform = -1;
     int zoomPanUniform = -1;
     int depthScaleUniform = -1;
+    int layerDepthTransformUniform = -1;
     int textureUniform = -1;
     int width;
     int height;
@@ -95,6 +101,7 @@ uniform vec2 center;
 uniform vec4 yawPitch;
 uniform vec4 zoomPan;
 uniform float depthDisplayScale;
+uniform vec4 layerDepthTransform;
 void main() {
     float cy = yawPitch.x;
     float sy = yawPitch.y;
@@ -102,7 +109,14 @@ void main() {
     float sp = yawPitch.w;
     float x = documentPosition.x - center.x;
     float y = documentPosition.y - center.y;
-    float z = -documentPosition.z * depthDisplayScale;
+    float depth = documentPosition.z;
+    if (abs(layerDepthTransform.x) > 0.000001) {
+        depth = (depth - layerDepthTransform.y) *
+            (layerDepthTransform.z / layerDepthTransform.x) + layerDepthTransform.w;
+    } else {
+        depth += layerDepthTransform.w - layerDepthTransform.y;
+    }
+    float z = -depth * depthDisplayScale;
     float rx = x * cy + z * sy;
     float rz = -x * sy + z * cy;
     float ry = y * cp - rz * sp;
@@ -130,6 +144,7 @@ void main() {
         yawPitchUniform = shader.getUniformLocation("yawPitch");
         zoomPanUniform = shader.getUniformLocation("zoomPan");
         depthScaleUniform = shader.getUniformLocation("depthDisplayScale");
+        layerDepthTransformUniform = shader.getUniformLocation("layerDepthTransform");
         textureUniform = shader.getUniformLocation("tex");
     }
 
@@ -220,7 +235,9 @@ public:
         float pitch,
         float zoom,
         vec2 pan,
-        float depthDisplayScale
+        float depthDisplayScale,
+        PsdDepthLayerEdit bakedTransform,
+        PsdDepthLayerEdit currentTransform
     ) {
         if (layerTexture is null || mesh.vertexData.length == 0 || mesh.indices.length == 0) return;
         import std.math : cos, sin;
@@ -231,6 +248,12 @@ public:
         shader.setUniform(yawPitchUniform, vec4(cos(yaw), sin(yaw), cos(pitch), sin(pitch)));
         shader.setUniform(zoomPanUniform, vec4(zoom, pan.x, pan.y, 0.0f));
         shader.setUniform(depthScaleUniform, depthDisplayScale);
+        shader.setUniform(layerDepthTransformUniform, vec4(
+            bakedTransform.zScale,
+            bakedTransform.zOffset,
+            currentTransform.zScale,
+            currentTransform.zOffset
+        ));
         shader.setUniform(textureUniform, 0);
         layerTexture.bind(0);
 
@@ -300,6 +323,9 @@ private:
     int threeDAdjustPreviewWidth;
     int threeDAdjustPreviewHeight;
     bool threeDAdjustPreviewDirty = true;
+    PsdDepthPendingLayerChange[] pending3DAdjustLayerChanges;
+    size_t last3DAdjustApplyRecomposedGridCount;
+    PsdDepthLayerEdit[string] threeDAdjustPreparedTransforms;
     DepthCamera3D threeDAdjustCamera;
     ulong threeDAdjustCameraTargetUuid;
     int threeDAdjustCameraLeft = int.min;
@@ -348,6 +374,7 @@ private:
 
     void rebuildPreview() {
         disposePreviewTextures();
+        pending3DAdjustLayerChanges = null;
         auto previous = preview;
         preview = PsdDepthImportResult.init;
         composedPreview = PsdDepthComposedView.init;
@@ -435,6 +462,7 @@ private:
         rawCompositePreviewTextures = null;
         threeDAdjustSamples = null;
         threeDAdjustMeshes = null;
+        threeDAdjustPreparedTransforms = null;
         threeDAdjustSamplesPrepared = false;
         if (threeDAdjustGpuRenderer !is null) threeDAdjustGpuRenderer.dispose();
         threeDAdjustGpuRenderer = null;
@@ -1037,16 +1065,6 @@ private:
         return transform;
     }
 
-    void storeLayerTransform(string layerPath, ulong targetGridUuid, PsdDepthLayerEdit transform, bool changed) {
-        if (!changed) return;
-        if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
-            layer.depthOffset = transform.zOffset;
-            layer.depthScale = transform.zScale;
-            layer.invert = transform.invert;
-        }
-        refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
-    }
-
     DepthSampleConvolution threeDAdjustSampleConvolution() {
         final switch (settings.convolution) {
         case PsdDepthConvolution.Nearest:
@@ -1166,6 +1184,7 @@ private:
         // Changing one layer invalidates all prepared depths and meshes.
         threeDAdjustSamples = null;
         threeDAdjustMeshes = null;
+        threeDAdjustPreparedTransforms = null;
         threeDAdjustSamplesPrepared = false;
         threeDAdjustPreviewDirty = true;
     }
@@ -1175,12 +1194,59 @@ private:
         refreshPreviewDepthsForLayer(layerPath, targetGridUuid);
     }
 
+    void stage3DAdjustLayerChange(string layerPath, ulong targetGridUuid) {
+        foreach (pending; pending3DAdjustLayerChanges) {
+            if (pending.layerPath == layerPath && pending.targetGridUuid == targetGridUuid) return;
+        }
+        pending3DAdjustLayerChanges ~= PsdDepthPendingLayerChange(layerPath, targetGridUuid);
+        threeDAdjustPreviewDirty = true;
+    }
+
+    bool compose3DAdjustChangesForApply() {
+        last3DAdjustApplyRecomposedGridCount = 0;
+        if (pending3DAdjustLayerChanges.length == 0) return true;
+
+        bool[ulong] targetGridUuids;
+        foreach (change; pending3DAdjustLayerChanges) {
+            if (change.targetGridUuid != 0) {
+                targetGridUuids[change.targetGridUuid] = true;
+                continue;
+            }
+            foreach (ref gridResult; preview.grids) {
+                if (gridResult.grid is null || !gridResultUsesLayer(gridResult, change.layerPath)) continue;
+                targetGridUuids[gridResult.grid.uuid] = true;
+            }
+        }
+
+        foreach (i, ref gridResult; preview.grids) {
+            if (gridResult.grid is null || gridResult.grid.uuid !in targetGridUuids) continue;
+            PsdDepthGridResult composedGrid;
+            string composeError;
+            if (!ngComposePsdDepthTarget(preview, gridResult, composedGrid, composeError)) {
+                errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
+                return false;
+            }
+            preview.grids[i] = composedGrid;
+            last3DAdjustApplyRecomposedGridCount++;
+        }
+        if (last3DAdjustApplyRecomposedGridCount != targetGridUuids.length) {
+            errorMessage = "PSD depth map composition target was not found";
+            return false;
+        }
+        errorMessage = null;
+        pending3DAdjustLayerChanges = null;
+        return true;
+    }
+
     void drawLayerZControls(string layerPath, ulong targetGridUuid) {
         igPushID(("layerZControls" ~ layerPath ~ targetGridUuid.to!string).toStringz);
         scope(exit) igPopID();
         auto transform = layerTransform(layerPath, targetGridUuid);
+        auto previousTransform = transform;
         bool changed;
-        changed = ngCheckbox(__("Invert Depth"), &transform.invert) || changed;
+        if (ngCheckbox(__("Invert Depth"), &transform.invert)) {
+            changed = true;
+        }
         changed = igDragFloat(__("Z Scale"),
             &transform.zScale, 0.01f, -100.0f, 100.0f, "%.3f") || changed;
         changed = igDragFloat(__("Z Offset"),
@@ -1191,7 +1257,17 @@ private:
             transform.invert = false;
             changed = true;
         }
-        storeLayerTransform(layerPath, targetGridUuid, transform, changed);
+        if (changed) {
+            if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
+                layer.depthOffset = transform.zOffset;
+                layer.depthScale = transform.zScale;
+                layer.invert = transform.invert;
+            }
+            stage3DAdjustLayerChange(layerPath, targetGridUuid);
+            if (transform.invert != previousTransform.invert) {
+                invalidate3DAdjustLayerCaches(layerPath, targetGridUuid);
+            }
+        }
     }
 
     void drawMappingLayerRow(ref PsdDepthLayerMapping mapping, Deformable grid = null, PsdDepthGridLayerMask* layerMask = null) {
@@ -1499,8 +1575,12 @@ private:
     void prepareThreeDAdjustSamples() {
         if (threeDAdjustSamplesPrepared) return;
         threeDAdjustSamples = null;
+        threeDAdjustPreparedTransforms = null;
 
         foreach (ref layerPreview; preview.composedLayers) {
+            auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+            threeDAdjustPreparedTransforms[key] = layerTransform(
+                layerPreview.layerPath, layerPreview.targetGridUuid);
             PsdDepth3DAdjustSample[] samples;
             foreach (y; 0 .. layerPreview.height) {
                 foreach (x; 0 .. layerPreview.width) {
@@ -1524,7 +1604,7 @@ private:
                     samples ~= sample;
                 }
             }
-            threeDAdjustSamples[layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid)] = samples;
+            threeDAdjustSamples[key] = samples;
         }
 
         if (preview.compositionMode == PsdDepthCompositionMode.NToOne &&
@@ -1600,6 +1680,22 @@ private:
         auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
         auto existing = key in threeDAdjustSamples;
         return existing is null ? null : *existing;
+    }
+
+    PsdDepthLayerEdit threeDAdjustPreparedTransform(ref PsdDepthComposedLayer layerPreview) {
+        prepareThreeDAdjustSamples();
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        if (auto transform = key in threeDAdjustPreparedTransforms) return *transform;
+        return layerTransform(layerPreview.layerPath, layerPreview.targetGridUuid);
+    }
+
+    float threeDAdjustDisplayDepth(ref PsdDepthComposedLayer layerPreview, float bakedDepth) {
+        auto baked = threeDAdjustPreparedTransform(layerPreview);
+        auto current = layerTransform(layerPreview.layerPath, layerPreview.targetGridUuid);
+        if (abs(baked.zScale) > 0.000001f) {
+            return (bakedDepth - baked.zOffset) * (current.zScale / baked.zScale) + current.zOffset;
+        }
+        return bakedDepth + current.zOffset - baked.zOffset;
     }
 
     PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthComposedLayer layerPreview) {
@@ -1813,7 +1909,9 @@ private:
                         threeDAdjustCamera.pitch,
                         threeDAdjustCamera.zoom,
                         threeDAdjustCamera.pan,
-                        depthDisplayScale
+                        depthDisplayScale,
+                        threeDAdjustPreparedTransform(layerPreview),
+                        layerTransform(layerPreview.layerPath, layerPreview.targetGridUuid)
                     );
                 }
             }
@@ -2047,7 +2145,7 @@ private:
             }
 
             foreach (sample; samples) {
-                rasterizeDepthSample(sample, sample.depth);
+                rasterizeDepthSample(sample, threeDAdjustDisplayDepth(layerPreview, sample.depth));
             }
         }
 
@@ -2134,6 +2232,12 @@ private:
 
     void apply() {
         if (previewDirty) rebuildPreview();
+        // Apply consumes preview.grids directly. Recompose only the grids named by
+        // edited layers, using the same target composer as the original path.
+        if (!compose3DAdjustChangesForApply()) {
+            incDialog(__("Error"), errorMessage);
+            return;
+        }
         if (errorMessage.length) {
             incDialog(__("Error"), errorMessage);
             return;
@@ -2332,6 +2436,10 @@ public:
 
         bool applyForRegressionSmoke(out string message) {
             if (previewDirty) rebuildPreview();
+            if (!compose3DAdjustChangesForApply()) {
+                message = errorMessage;
+                return false;
+            }
             if (errorMessage.length) {
                 message = errorMessage;
                 return false;
@@ -2347,19 +2455,58 @@ public:
             rebuildPreview();
         }
 
-        bool setFirstMappedLayerZOffsetForRegressionSmoke(string gridName, float zOffset) {
+        bool setFirstMappedLayerZTransformForRegressionSmoke(string gridName, float zScale, float zOffset) {
             if (previewDirty) rebuildPreview();
             foreach (ref gridResult; preview.grids) {
                 if (gridResult.grid is null || gridResult.grid.name != gridName) continue;
                 foreach (layerMask; gridResult.layerMasks) {
                     if (layerMask.layerPath.length == 0) continue;
+                    if (auto layer = findComposedLayer(layerMask.layerPath, gridResult.grid.uuid)) {
+                        threeDAdjustLayerMesh(*layer);
+                    }
                     auto transform = layerTransform(layerMask.layerPath, gridResult.grid.uuid);
+                    transform.zScale = zScale;
                     transform.zOffset = zOffset;
-                    storeLayerTransform(layerMask.layerPath, gridResult.grid.uuid, transform, true);
+                    if (auto layer = findComposedLayer(layerMask.layerPath, gridResult.grid.uuid)) {
+                        layer.depthScale = transform.zScale;
+                        layer.depthOffset = transform.zOffset;
+                    }
+                    stage3DAdjustLayerChange(layerMask.layerPath, gridResult.grid.uuid);
                     return true;
                 }
             }
             return false;
+        }
+
+        bool hasPending3DAdjustLayerChangesForRegressionSmoke() const {
+            return pending3DAdjustLayerChanges.length > 0;
+        }
+
+        size_t last3DAdjustApplyRecomposedGridCountForRegressionSmoke() const {
+            return last3DAdjustApplyRecomposedGridCount;
+        }
+
+        bool hasRealtime3DAdjustTransformForRegressionSmoke(string gridName) {
+            foreach (ref gridResult; preview.grids) {
+                if (gridResult.grid is null || gridResult.grid.name != gridName) continue;
+                foreach (layerMask; gridResult.layerMasks) {
+                    auto layer = findComposedLayer(layerMask.layerPath, gridResult.grid.uuid);
+                    if (layer is null) continue;
+                    auto mesh = threeDAdjustLayerMesh(*layer);
+                    if (mesh is null || mesh.vertexData.length < 3) continue;
+                    auto bakedDepth = mesh.vertexData[2];
+                    return abs(threeDAdjustDisplayDepth(*layer, bakedDepth) - bakedDepth) > 0.000001f;
+                }
+            }
+            return false;
+        }
+
+        float[] previewDepthsForRegressionSmoke(string gridName) {
+            foreach (gridResult; preview.grids) {
+                if (gridResult.grid is null || gridResult.grid.name != gridName) continue;
+                return gridResult.depths.dup;
+            }
+            return null;
         }
 
         PsdDepthImportResult previewForRegressionSmoke() {
