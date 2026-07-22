@@ -57,6 +57,7 @@ struct PsdDepth3DAdjustSample {
     int x;
     int y;
     ubyte depthByte;
+    float sourceDepth;
     float depth;
     ubyte r;
     ubyte g;
@@ -66,6 +67,7 @@ struct PsdDepth3DAdjustSample {
 
 struct PsdDepth3DAdjustMesh {
     float[] vertexData;
+    float[] sourceDepths;
     uint[] indices;
 }
 
@@ -326,6 +328,8 @@ private:
     PsdDepthPendingLayerChange[] pending3DAdjustLayerChanges;
     size_t last3DAdjustApplyRecomposedGridCount;
     PsdDepthLayerEdit[string] threeDAdjustPreparedTransforms;
+    size_t[][string] threeDAdjustFrontIntersections;
+    bool[string] threeDAdjustDisplayDepthDirty;
     DepthCamera3D threeDAdjustCamera;
     ulong threeDAdjustCameraTargetUuid;
     int threeDAdjustCameraLeft = int.min;
@@ -463,6 +467,8 @@ private:
         threeDAdjustSamples = null;
         threeDAdjustMeshes = null;
         threeDAdjustPreparedTransforms = null;
+        threeDAdjustFrontIntersections = null;
+        threeDAdjustDisplayDepthDirty = null;
         threeDAdjustSamplesPrepared = false;
         if (threeDAdjustGpuRenderer !is null) threeDAdjustGpuRenderer.dispose();
         threeDAdjustGpuRenderer = null;
@@ -1185,6 +1191,8 @@ private:
         threeDAdjustSamples = null;
         threeDAdjustMeshes = null;
         threeDAdjustPreparedTransforms = null;
+        threeDAdjustFrontIntersections = null;
+        threeDAdjustDisplayDepthDirty = null;
         threeDAdjustSamplesPrepared = false;
         threeDAdjustPreviewDirty = true;
     }
@@ -1195,11 +1203,14 @@ private:
     }
 
     void stage3DAdjustLayerChange(string layerPath, ulong targetGridUuid) {
+        // A layer remains pending until Apply, but every edit still has to
+        // refresh its display mesh. Do this before deduplicating the Apply work.
+        threeDAdjustDisplayDepthDirty[layerCacheKey(layerPath, targetGridUuid)] = true;
+        threeDAdjustPreviewDirty = true;
         foreach (pending; pending3DAdjustLayerChanges) {
             if (pending.layerPath == layerPath && pending.targetGridUuid == targetGridUuid) return;
         }
         pending3DAdjustLayerChanges ~= PsdDepthPendingLayerChange(layerPath, targetGridUuid);
-        threeDAdjustPreviewDirty = true;
     }
 
     bool compose3DAdjustChangesForApply() {
@@ -1596,6 +1607,7 @@ private:
                     sample.x = x;
                     sample.y = y;
                     sample.depthByte = layerPreview.depthRgba[rgbaIndex];
+                    sample.sourceDepth = depth;
                     sample.depth = depth;
                     sample.r = layerPreview.colorRgba[rgbaIndex + 0];
                     sample.g = layerPreview.colorRgba[rgbaIndex + 1];
@@ -1698,6 +1710,124 @@ private:
         return bakedDepth + current.zOffset - baked.zOffset;
     }
 
+    PsdDepth3DAdjustSample* threeDAdjustSampleAtDocument(
+        ref PsdDepthComposedLayer layerPreview,
+        int documentX,
+        int documentY
+    ) {
+        auto x = documentX - layerPreview.left;
+        auto y = documentY - layerPreview.top;
+        if (x < 0 || y < 0 || x >= layerPreview.width || y >= layerPreview.height) return null;
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        auto samples = key in threeDAdjustSamples;
+        if (samples is null) return null;
+        auto wanted = y * layerPreview.width + x;
+        ptrdiff_t low;
+        auto high = cast(ptrdiff_t)(*samples).length - 1;
+        while (low <= high) {
+            auto middle = low + (high - low) / 2;
+            auto found = (*samples)[cast(size_t)middle].y * layerPreview.width +
+                (*samples)[cast(size_t)middle].x;
+            if (found < wanted) low = middle + 1;
+            else if (found > wanted) high = middle - 1;
+            else return &(*samples)[cast(size_t)middle];
+        }
+        return null;
+    }
+
+    bool threeDAdjustLayersIntersect(
+        ref PsdDepthComposedLayer backLayer,
+        ref PsdDepthComposedLayer frontLayer
+    ) {
+        if (backLayer.left >= frontLayer.left + frontLayer.width ||
+            frontLayer.left >= backLayer.left + backLayer.width ||
+            backLayer.top >= frontLayer.top + frontLayer.height ||
+            frontLayer.top >= backLayer.top + backLayer.height) return false;
+
+        auto backSamples = threeDAdjustLayerSamples(backLayer);
+        auto frontSamples = threeDAdjustLayerSamples(frontLayer);
+        if (backSamples.length <= frontSamples.length) {
+            foreach (ref sample; backSamples) {
+                if (threeDAdjustSampleAtDocument(frontLayer,
+                    backLayer.left + sample.x, backLayer.top + sample.y) !is null) return true;
+            }
+        } else {
+            foreach (ref sample; frontSamples) {
+                if (threeDAdjustSampleAtDocument(backLayer,
+                    frontLayer.left + sample.x, frontLayer.top + sample.y) !is null) return true;
+            }
+        }
+        return false;
+    }
+
+    size_t[] threeDAdjustFrontIntersectingLayerIndices(ref PsdDepthComposedLayer layerPreview) {
+        prepareThreeDAdjustSamples();
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        if (auto cached = key in threeDAdjustFrontIntersections) return *cached;
+
+        size_t[] result;
+        ptrdiff_t layerIndex = -1;
+        foreach (i, ref candidate; preview.composedLayers) {
+            if (&candidate is &layerPreview) {
+                layerIndex = cast(ptrdiff_t)i;
+                break;
+            }
+        }
+        if (layerIndex >= 0) {
+            // composedLayers is stored back-to-front. Only later layers can
+            // constrain this one, and only when their visible pixels overlap.
+            foreach (i; cast(size_t)layerIndex + 1 .. preview.composedLayers.length) {
+                auto frontLayer = &preview.composedLayers[i];
+                if (!frontLayer.enabled || !frontLayer.visible) continue;
+                if (threeDAdjustLayersIntersect(layerPreview, *frontLayer)) result ~= i;
+            }
+        }
+        threeDAdjustFrontIntersections[key] = result;
+        return result;
+    }
+
+    float threeDAdjustConstrainedDisplayDepth(
+        ref PsdDepthComposedLayer layerPreview,
+        ref PsdDepth3DAdjustSample sample
+    ) {
+        auto depth = threeDAdjustDisplayDepth(layerPreview, sample.sourceDepth);
+        auto depthStep = max(abs((layerPreview.frontDepth - layerPreview.backDepth) *
+            layerPreview.sourceDepthScale * layerPreview.depthScale) / 255.0f, 0.000001f);
+        auto documentX = layerPreview.left + sample.x;
+        auto documentY = layerPreview.top + sample.y;
+        foreach (frontIndex; threeDAdjustFrontIntersectingLayerIndices(layerPreview)) {
+            auto frontLayer = &preview.composedLayers[frontIndex];
+            auto frontSample = threeDAdjustSampleAtDocument(*frontLayer, documentX, documentY);
+            if (frontSample is null) continue;
+            // Comparing against every overlapping front layer directly is
+            // sufficient to preserve ordering and avoids recursive duplicate
+            // work when several front layers overlap the same pixel.
+            depth = min(depth,
+                threeDAdjustDisplayDepth(*frontLayer, frontSample.sourceDepth) - depthStep);
+        }
+        return depth;
+    }
+
+    void updateThreeDAdjustMeshDisplayDepths(
+        ref PsdDepthComposedLayer layerPreview,
+        ref PsdDepth3DAdjustMesh mesh
+    ) {
+        auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
+        auto dirty = key in threeDAdjustDisplayDepthDirty;
+        if (dirty is null || !*dirty || mesh.sourceDepths.length * 5 != mesh.vertexData.length) return;
+
+        foreach (vertexIndex, sourceDepth; mesh.sourceDepths) {
+            auto offset = vertexIndex * 5;
+            PsdDepth3DAdjustSample sample;
+            sample.x = cast(int)round(mesh.vertexData[offset] - cast(float)layerPreview.left);
+            sample.y = cast(int)round(mesh.vertexData[offset + 1] - cast(float)layerPreview.top);
+            sample.sourceDepth = sourceDepth;
+            sample.depth = sourceDepth;
+            mesh.vertexData[offset + 2] = threeDAdjustConstrainedDisplayDepth(layerPreview, sample);
+        }
+        threeDAdjustDisplayDepthDirty.remove(key);
+    }
+
     PsdDepth3DAdjustMesh* threeDAdjustLayerMesh(ref PsdDepthComposedLayer layerPreview) {
         auto key = layerCacheKey(layerPreview.layerPath, layerPreview.targetGridUuid);
         auto existing = key in threeDAdjustMeshes;
@@ -1738,12 +1868,16 @@ private:
                 if (layerPreview.colorRgba[index + 3] < 3) continue;
                 float depth;
                 if (!preparedThreeDAdjustDepthAt(layerPreview, x, y, depth)) continue;
+                auto sourceSample = threeDAdjustSampleAtDocument(
+                    layerPreview, layerPreview.left + x, layerPreview.top + y);
+                if (sourceSample is null) continue;
 
                 auto vertexIndex = cast(int)(mesh.vertexData.length / 5);
                 lookup[cast(size_t)gy * cast(size_t)cols + cast(size_t)gx] = vertexIndex;
                 mesh.vertexData ~= cast(float)layerPreview.left + cast(float)x;
                 mesh.vertexData ~= cast(float)layerPreview.top + cast(float)y;
                 mesh.vertexData ~= depth;
+                mesh.sourceDepths ~= sourceSample.sourceDepth;
                 mesh.vertexData ~= (cast(float)x + 0.5f) / cast(float)layerPreview.width;
                 mesh.vertexData ~= (cast(float)y + 0.5f) / cast(float)layerPreview.height;
             }
@@ -1896,6 +2030,7 @@ private:
                     if (!hasRenderPixels(layerPreview)) continue;
                     auto mesh = threeDAdjustLayerMesh(layerPreview);
                     if (mesh is null || mesh.indices.length == 0) continue;
+                    updateThreeDAdjustMeshDisplayDepths(layerPreview, *mesh);
                     auto layerTexture = layerPreviewTexture(
                         layerPreview.layerPath,
                         layerPreview.targetGridUuid,
@@ -1910,7 +2045,7 @@ private:
                         threeDAdjustCamera.zoom,
                         threeDAdjustCamera.pan,
                         depthDisplayScale,
-                        threeDAdjustPreparedTransform(layerPreview),
+                        layerTransform(layerPreview.layerPath, layerPreview.targetGridUuid),
                         layerTransform(layerPreview.layerPath, layerPreview.targetGridUuid)
                     );
                 }
@@ -2145,7 +2280,7 @@ private:
             }
 
             foreach (sample; samples) {
-                rasterizeDepthSample(sample, threeDAdjustDisplayDepth(layerPreview, sample.depth));
+                rasterizeDepthSample(sample, threeDAdjustConstrainedDisplayDepth(layerPreview, sample));
             }
         }
 
@@ -2494,11 +2629,80 @@ public:
                     if (layer is null) continue;
                     auto mesh = threeDAdjustLayerMesh(*layer);
                     if (mesh is null || mesh.vertexData.length < 3) continue;
-                    auto bakedDepth = mesh.vertexData[2];
-                    return abs(threeDAdjustDisplayDepth(*layer, bakedDepth) - bakedDepth) > 0.000001f;
+                    auto previousDepth = mesh.vertexData[2];
+                    updateThreeDAdjustMeshDisplayDepths(*layer, *mesh);
+                    return abs(mesh.vertexData[2] - previousDepth) > 0.000001f;
                 }
             }
             return false;
+        }
+
+        bool hasFrontOnlyIntersectionConstraintForRegressionSmoke() {
+            return frontOnlyIntersectionConstraintDiagnosticsForRegressionSmoke() == "ok";
+        }
+
+        string frontOnlyIntersectionConstraintDiagnosticsForRegressionSmoke() {
+            ubyte[] solidPixels(ubyte depth) {
+                ubyte[] result;
+                foreach (_; 0 .. 4) result ~= [depth, depth, depth, cast(ubyte)255];
+                return result;
+            }
+            ubyte[] depthPixels(ubyte[] values) {
+                ubyte[] result;
+                foreach (value; values) result ~= [value, value, value, cast(ubyte)255];
+                return result;
+            }
+
+            PsdDepthComposedLayer backLayer;
+            backLayer.id = "/constraint-back";
+            backLayer.layerPath = backLayer.id;
+            backLayer.layerName = "Constraint Back";
+            backLayer.width = 2;
+            backLayer.height = 2;
+            backLayer.colorRgba = solidPixels(255);
+            backLayer.depthRgba = depthPixels([cast(ubyte)0, 64, 128, 192]);
+            backLayer.maskRgba = solidPixels(255);
+            backLayer.coverageMaskRgba = solidPixels(255);
+
+            auto frontLayer = backLayer;
+            frontLayer.id = "/constraint-front";
+            frontLayer.layerPath = frontLayer.id;
+            frontLayer.layerName = "Constraint Front";
+            frontLayer.depthRgba = solidPixels(220);
+
+            preview = PsdDepthImportResult.init;
+            preview.compositionMode = PsdDepthCompositionMode.NToN;
+            preview.depthSource.kind = PsdDepthCompositeSourceKind.PsdLayers;
+            preview.compositionWidth = 2;
+            preview.compositionHeight = 2;
+            preview.composedLayers = [backLayer, frontLayer];
+            threeDAdjustSamples = null;
+            threeDAdjustMeshes = null;
+            threeDAdjustPreparedTransforms = null;
+            threeDAdjustFrontIntersections = null;
+            threeDAdjustDisplayDepthDirty = null;
+            threeDAdjustSamplesPrepared = false;
+            prepareThreeDAdjustSamples();
+
+            auto backFrontIndices = threeDAdjustFrontIntersectingLayerIndices(preview.composedLayers[0]);
+            auto frontFrontIndices = threeDAdjustFrontIntersectingLayerIndices(preview.composedLayers[1]);
+            if (backFrontIndices != [cast(size_t)1] || frontFrontIndices.length != 0) {
+                return "front index mismatch: back=%s front=%s".format(
+                    backFrontIndices.length, frontFrontIndices.length);
+            }
+
+            auto samples = threeDAdjustLayerSamples(preview.composedLayers[0]);
+            if (samples.length == 0) return "back layer has no samples";
+            auto sample = samples[$ - 1];
+            auto initialDepth = sample.depth;
+            preview.composedLayers[0].depthScale = 200.0f;
+            auto unconstrained = threeDAdjustDisplayDepth(preview.composedLayers[0], sample.sourceDepth);
+            auto constrained = threeDAdjustConstrainedDisplayDepth(preview.composedLayers[0], sample);
+            if (!(constrained < unconstrained && abs(constrained - initialDepth) > 0.000001f)) {
+                return "depth mismatch: initial=%s unconstrained=%s constrained=%s".format(
+                    initialDepth, unconstrained, constrained);
+            }
+            return "ok";
         }
 
         float[] previewDepthsForRegressionSmoke(string gridName) {

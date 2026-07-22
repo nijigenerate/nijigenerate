@@ -444,6 +444,41 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             return;
         }
         incPushWindow(depthDrawWindow);
+    } else if (scenario == "project.psd-depth-3d-adjust-consecutive-smoke") {
+        ensureDepthMode();
+        auto grid = createSmokeDepthGridWithAxes(
+            "PsdDepthConsecutiveSmoke:G",
+            [0.0f, 16.0f, 31.0f],
+            [0.0f, 16.0f, 31.0f]
+        );
+        if (ngRegressionSmokeFailed()) return;
+        auto window = new PSDDepthMapWindow(writeSmokeDepthPng(
+            "nijigenerate-psd-depth-consecutive-smoke.png", 96));
+        window.rebuildPreviewForRegressionSmoke();
+        if (window.loadErrorForRegressionSmoke.length ||
+            !window.remapAnyLayerToSampledGridForRegressionSmoke(grid.name, grid.uuid) ||
+            !window.has3DAdjustGeometryForRegressionSmoke(grid.name)) {
+            ngRegressionSmokeFail("PSD depth consecutive-adjust smoke failed to prepare mapped geometry: " ~
+                window.loadErrorForRegressionSmoke ~ " :: " ~ window.previewSummaryForRegressionSmoke());
+            return;
+        }
+        if (!window.setFirstMappedLayerZTransformForRegressionSmoke(grid.name, 1.25f, 0.75f) ||
+            !window.hasRealtime3DAdjustTransformForRegressionSmoke(grid.name) ||
+            !window.setFirstMappedLayerZTransformForRegressionSmoke(grid.name, 0.8f, -0.25f) ||
+            !window.hasRealtime3DAdjustTransformForRegressionSmoke(grid.name)) {
+            ngRegressionSmokeFail("PSD depth consecutive-adjust smoke failed to refresh every edit before Apply: " ~
+                window.previewSummaryForRegressionSmoke());
+            return;
+        }
+        string applyMessage;
+        if (!window.applyForRegressionSmoke(applyMessage) ||
+            window.hasPending3DAdjustLayerChangesForRegressionSmoke() ||
+            window.last3DAdjustApplyRecomposedGridCountForRegressionSmoke() != 1 ||
+            !window.hasAppliedDepthsForRegressionSmoke(grid.name)) {
+            ngRegressionSmokeFail("PSD depth consecutive-adjust smoke failed to apply the final edit: " ~
+                applyMessage ~ " :: " ~ window.previewSummaryForRegressionSmoke());
+            return;
+        }
     } else if (scenario == "project.psd-depth-map-import-ui-smoke" || scenario == "windows.psd-depth-map") {
         ensureDepthMode();
         showPanels("Viewport", "Tool Settings", "Inspector");
@@ -486,6 +521,11 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             ngRegressionSmokeFail("PSD depth import smoke failed to build 3D Adjust relationship geometry");
             return;
         }
+        if (!psdDepthWindow.hasFrontOnlyIntersectionConstraintForRegressionSmoke()) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to constrain adjusted layers to intersecting front layers only: " ~
+                psdDepthWindow.frontOnlyIntersectionConstraintDiagnosticsForRegressionSmoke());
+            return;
+        }
         auto pngGrid = createSmokeDepthGridWithAxes(
             "PngDepthSmoke:G",
             [-1.0f, 0.0f, 1.0f],
@@ -512,6 +552,12 @@ void ngSetupRegressionSmokeScenario(string scenario) {
             !pngWindow.hasRealtime3DAdjustTransformForRegressionSmoke(pngGrid.name) ||
             pngWindow.previewDepthsForRegressionSmoke(pngGrid.name) != pngDepthsBeforeAdjust) {
             ngRegressionSmokeFail("PSD depth import smoke failed to update 3D Adjust in real time without composing targets: " ~
+                pngWindow.previewSummaryForRegressionSmoke());
+            return;
+        }
+        if (!pngWindow.setFirstMappedLayerZTransformForRegressionSmoke(pngGrid.name, 0.8f, -0.25f) ||
+            !pngWindow.hasRealtime3DAdjustTransformForRegressionSmoke(pngGrid.name)) {
+            ngRegressionSmokeFail("PSD depth import smoke failed to update consecutive 3D Adjust edits before Apply: " ~
                 pngWindow.previewSummaryForRegressionSmoke());
             return;
         }
