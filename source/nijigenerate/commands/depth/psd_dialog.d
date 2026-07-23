@@ -2,6 +2,7 @@ module nijigenerate.commands.depth.psd_dialog;
 
 import i18n;
 import std.conv : to;
+import std.json : JSONValue;
 import nijigenerate.actions : Action;
 import nijigenerate.commands.base;
 import nijigenerate.core.actionstack : incActionPush;
@@ -11,6 +12,7 @@ import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayer
     PsdDepthDialogLayerState, PsdDepthDialogSettingsState, ngActivePsdDepthMapWindow;
 
 enum PsdDepthDialogCommand {
+    InspectPsdDepthDialog,
     SetPsdDepthDialogColorSource,
     SetPsdDepthDialogInvert,
     SetPsdDepthDialogBackDepth,
@@ -48,6 +50,71 @@ Command[PsdDepthDialogCommand] commands;
 
 private PSDDepthMapWindow contextDialog(Context ctx) {
     return ngActivePsdDepthMapWindow();
+}
+
+@ShortcutHidden
+@CommandScopes!(PsdDepthDialogCommandScope)()
+class InspectPsdDepthDialogCommand : ExCommand!() {
+    this() {
+        super(
+            _("Inspect PSD Depth Dialog"),
+            _("Read the settings, source layers, and target UUIDs of the displayed PSD depth dialog.")
+        );
+    }
+
+    override bool runnable(Context ctx) {
+        auto dialog = contextDialog(ctx);
+        return dialog !is null && dialog.dialogCommandsAvailable();
+    }
+
+    override ExCommandResult!JSONValue run(Context ctx) {
+        if (!runnable(ctx)) {
+            return ExCommandResult!JSONValue(
+                false,
+                JSONValue(null),
+                "PSD depth import dialog is not displayed"
+            );
+        }
+
+        auto state = contextDialog(ctx).captureDialogSettingsState();
+        JSONValue[string] settings;
+        settings["colorSourcePath"] = JSONValue(state.settings.colorSourcePath);
+        settings["invert"] = JSONValue(state.settings.invert);
+        settings["backDepth"] = JSONValue(state.settings.backDepth);
+        settings["frontDepth"] = JSONValue(state.settings.frontDepth);
+        settings["depthScale"] = JSONValue(state.settings.depthScale);
+        settings["channel"] = JSONValue(state.settings.channel.to!string);
+        settings["sampling"] = JSONValue(state.settings.convolution.to!string);
+        settings["customRadius"] = JSONValue(state.settings.customRadius);
+        settings["alphaThreshold"] = JSONValue(state.settings.alphaThreshold);
+        settings["missingPolicy"] = JSONValue(state.settings.missingPolicy.to!string);
+        settings["contourRepair"] = JSONValue(state.settings.repairContourBand);
+        settings["surfaceSmoothing"] = JSONValue(state.settings.smoothWavySurface);
+        settings["gpuComposition"] = JSONValue(state.settings.useGpuComposition);
+        settings["directGridMatch"] = JSONValue(state.settings.matchDirectGridName);
+        settings["problemFilter"] = JSONValue(state.onlyProblemLayers);
+
+        JSONValue[] layers;
+        foreach (layer; state.layers) {
+            JSONValue[string] entry;
+            entry["layerPath"] = JSONValue(layer.layerPath);
+            entry["targetGridUuid"] = JSONValue(layer.targetGridUuid);
+            entry["visible"] = JSONValue(layer.visible);
+            entry["enabled"] = JSONValue(layer.enabled);
+            entry["depthEnabled"] = JSONValue(layer.depthEnabled);
+            entry["depthInverted"] = JSONValue(layer.invert);
+            entry["depthOffset"] = JSONValue(layer.depthOffset);
+            entry["depthScale"] = JSONValue(layer.depthScale);
+            entry["outlierPruneEnabled"] = JSONValue(layer.outlierPruneEnabled);
+            entry["puppetFitEnabled"] = JSONValue(layer.puppetFitEnabled);
+            layers ~= JSONValue(entry);
+        }
+
+        JSONValue[string] result;
+        result["settings"] = JSONValue(settings);
+        result["layers"] = JSONValue(layers);
+        return ExCommandResult!JSONValue(true, JSONValue(result));
+    }
 }
 
 private class PsdDepthDialogSettingsChangeAction : Action {
@@ -258,7 +325,7 @@ public:
     }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogColorSourceCommand :
     PsdDepthDialogSettingsValueCommand!(string, "Color source image path; empty uses active target artwork") {
     this() { super(_("Set PSD Depth Color Source"), _("Set the color source used by the displayed PSD depth dialog."),
@@ -266,7 +333,7 @@ class SetPsdDepthDialogColorSourceCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.colorSourcePath = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogInvertCommand :
     PsdDepthDialogSettingsValueCommand!(bool, "Whether white and black depth interpretation is inverted") {
     this() { super(_("Set PSD Depth Inversion"), _("Set global depth inversion in the displayed PSD depth dialog."),
@@ -274,7 +341,7 @@ class SetPsdDepthDialogInvertCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.invert = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogBackDepthCommand :
     PsdDepthDialogSettingsValueCommand!(float, "Depth assigned to the back of the imported range") {
     this() { super(_("Set PSD Back Depth"), _("Set the back depth in the displayed PSD depth dialog."),
@@ -282,7 +349,7 @@ class SetPsdDepthDialogBackDepthCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.backDepth = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogFrontDepthCommand :
     PsdDepthDialogSettingsValueCommand!(float, "Depth assigned to the front of the imported range") {
     this() { super(_("Set PSD Front Depth"), _("Set the front depth in the displayed PSD depth dialog."),
@@ -290,7 +357,7 @@ class SetPsdDepthDialogFrontDepthCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.frontDepth = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogDepthScaleCommand :
     PsdDepthDialogSettingsValueCommand!(float, "Multiplier applied to imported depth values") {
     this() { super(_("Set PSD Depth Scale"), _("Set the global depth scale in the displayed PSD depth dialog."),
@@ -298,7 +365,7 @@ class SetPsdDepthDialogDepthScaleCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.depthScale = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogChannelCommand :
     PsdDepthDialogSettingsValueCommand!(PsdDepthChannel, "Image channel used to read depth") {
     this() { super(_("Set PSD Depth Channel"), _("Set the depth channel in the displayed PSD depth dialog."),
@@ -306,7 +373,7 @@ class SetPsdDepthDialogChannelCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.channel = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogSamplingCommand :
     PsdDepthDialogSettingsValueCommand!(PsdDepthConvolution, "Sampling filter used to read depth") {
     this() { super(_("Set PSD Depth Sampling"), _("Set depth sampling in the displayed PSD depth dialog."),
@@ -314,7 +381,7 @@ class SetPsdDepthDialogSamplingCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.convolution = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogCustomRadiusCommand :
     PsdDepthDialogSettingsValueCommand!(int, "Radius used by custom sampling filters") {
     this() { super(_("Set PSD Sampling Radius"), _("Set the custom sampling radius in the displayed PSD depth dialog."),
@@ -322,7 +389,7 @@ class SetPsdDepthDialogCustomRadiusCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.customRadius = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogAlphaThresholdCommand :
     PsdDepthDialogSettingsValueCommand!(float, "Minimum alpha accepted as a valid depth sample") {
     this() { super(_("Set PSD Alpha Threshold"), _("Set the alpha threshold in the displayed PSD depth dialog."),
@@ -330,7 +397,7 @@ class SetPsdDepthDialogAlphaThresholdCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.alphaThreshold = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogMissingPolicyCommand :
     PsdDepthDialogSettingsValueCommand!(PsdDepthMissingPolicy, "Policy for vertices without a valid depth pixel") {
     this() { super(_("Set PSD Missing Pixel Policy"), _("Set missing-pixel handling in the displayed PSD depth dialog."),
@@ -338,7 +405,7 @@ class SetPsdDepthDialogMissingPolicyCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.missingPolicy = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogContourRepairCommand :
     PsdDepthDialogSettingsValueCommand!(bool, "Whether the contour band is repaired") {
     this() { super(_("Set PSD Contour Repair"), _("Set contour repair in the displayed PSD depth dialog."),
@@ -346,7 +413,7 @@ class SetPsdDepthDialogContourRepairCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.repairContourBand = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogSurfaceSmoothingCommand :
     PsdDepthDialogSettingsValueCommand!(bool, "Whether wavy depth surfaces are smoothed") {
     this() { super(_("Set PSD Surface Smoothing"), _("Set surface smoothing in the displayed PSD depth dialog."),
@@ -354,7 +421,7 @@ class SetPsdDepthDialogSurfaceSmoothingCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.smoothWavySurface = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogGpuCompositionCommand :
     PsdDepthDialogSettingsValueCommand!(bool, "Whether composition must use the GPU path") {
     this() { super(_("Set PSD GPU Composition"), _("Set GPU composition in the displayed PSD depth dialog."),
@@ -362,7 +429,7 @@ class SetPsdDepthDialogGpuCompositionCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.useGpuComposition = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogDirectGridMatchCommand :
     PsdDepthDialogSettingsValueCommand!(bool, "Whether layer names may directly match GridDeformer names") {
     this() { super(_("Set PSD Direct Grid Match"), _("Set direct grid-name matching in the displayed PSD depth dialog."),
@@ -370,7 +437,7 @@ class SetPsdDepthDialogDirectGridMatchCommand :
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.matchDirectGridName = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogProblemFilterCommand :
     PsdDepthDialogSettingsValueCommand!(bool, "Whether Source / Mapping shows only problem layers") {
     this() { super(_("Set PSD Problem Layer Filter"), _("Set the problem-layer filter in the displayed PSD depth dialog."),
@@ -405,7 +472,7 @@ private CommandResult applyMappingChange(
     return CommandResult(true);
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class SetPsdDepthDialogLayerMappingAutoCommand :
     ExCommand!(TW!(string, "layerPath", "PSD source layer path to return to automatic mapping")) {
@@ -415,7 +482,7 @@ class SetPsdDepthDialogLayerMappingAutoCommand :
     override CommandResult run(Context ctx) { return applyMappingChange(ctx, layerPath, null, false, true); }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class SetPsdDepthDialogLayerMappingIgnoredCommand :
     ExCommand!(TW!(string, "layerPath", "PSD source layer path to ignore")) {
@@ -424,7 +491,7 @@ class SetPsdDepthDialogLayerMappingIgnoredCommand :
     override CommandResult run(Context ctx) { return applyMappingChange(ctx, layerPath, null, true, false); }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class SetPsdDepthDialogLayerMappingTargetCommand : ExCommand!(
     TW!(string, "layerPath", "PSD source layer path to remap"),
@@ -438,7 +505,7 @@ class SetPsdDepthDialogLayerMappingTargetCommand : ExCommand!(
     override CommandResult run(Context ctx) { return applyMappingChange(ctx, layerPath, target, false, false); }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class SetPsdDepthDialogTargetEnabledCommand :
     ExCommand!(TW!(bool, "value", "Whether the Context target GridDeformer or PathDeformer is used")) {
@@ -514,7 +581,7 @@ public:
     }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogLayerEnabledCommand :
     PsdDepthDialogLayerValueCommand!(bool, "Whether the composed layer is used") {
     this() { super(_("Set PSD Layer Enabled"), _("Enable or disable the selected composed layer."),
@@ -522,7 +589,7 @@ class SetPsdDepthDialogLayerEnabledCommand :
     override void update(ref PsdDepthDialogLayerState state) { state.enabled = value; state.visible = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogLayerVisibleCommand :
     PsdDepthDialogLayerValueCommand!(bool, "Whether the selected layer is shown in 3D Adjust") {
     this() { super(_("Set PSD Layer Visible"), _("Show or hide the selected layer in 3D Adjust."),
@@ -530,7 +597,7 @@ class SetPsdDepthDialogLayerVisibleCommand :
     override void update(ref PsdDepthDialogLayerState state) { state.visible = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogLayerDepthEnabledCommand :
     PsdDepthDialogLayerValueCommand!(bool, "Whether the selected layer supplies its own depth") {
     this() { super(_("Set PSD Layer Depth Enabled"), _("Enable or attach depth for the selected layer."),
@@ -538,7 +605,7 @@ class SetPsdDepthDialogLayerDepthEnabledCommand :
     override void update(ref PsdDepthDialogLayerState state) { state.depthEnabled = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogLayerDepthInvertedCommand :
     PsdDepthDialogLayerValueCommand!(bool, "Whether depth is inverted for the selected layer") {
     this() { super(_("Set PSD Layer Depth Inversion"), _("Invert depth for the selected layer."),
@@ -546,7 +613,7 @@ class SetPsdDepthDialogLayerDepthInvertedCommand :
     override void update(ref PsdDepthDialogLayerState state) { state.invert = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogLayerDepthScaleCommand :
     PsdDepthDialogLayerValueCommand!(float, "Z scale applied to the selected layer") {
     this() { super(_("Set PSD Layer Z Scale"), _("Set Z scale for the selected layer."),
@@ -554,7 +621,7 @@ class SetPsdDepthDialogLayerDepthScaleCommand :
     override void update(ref PsdDepthDialogLayerState state) { state.depthScale = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 class SetPsdDepthDialogLayerDepthOffsetCommand :
     PsdDepthDialogLayerValueCommand!(float, "Z offset applied to the selected layer") {
     this() { super(_("Set PSD Layer Z Offset"), _("Set Z offset for the selected layer."),
@@ -562,7 +629,7 @@ class SetPsdDepthDialogLayerDepthOffsetCommand :
     override void update(ref PsdDepthDialogLayerState state) { state.depthOffset = value; }
 }
 
-@McpHidden @ShortcutHidden
+@ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class ResetPsdDepthDialogLayerDepthTransformCommand :
     ExCommand!(TW!(string, "layerPath", "PSD composed layer path to reset")) {
@@ -590,7 +657,6 @@ class ResetPsdDepthDialogLayerDepthTransformCommand :
     }
 }
 
-@McpHidden
 @ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class FillPsdDepthDialogAlphaDepthGapsCommand : ExCommand!() {
@@ -617,7 +683,6 @@ class FillPsdDepthDialogAlphaDepthGapsCommand : ExCommand!() {
     }
 }
 
-@McpHidden
 @ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class ApplyPsdDepthDialogCommand : ExCommand!() {
@@ -638,7 +703,6 @@ class ApplyPsdDepthDialogCommand : ExCommand!() {
     }
 }
 
-@McpHidden
 @ShortcutHidden
 @CommandScopes!(PsdDepthDialogCommandScope)()
 class CancelPsdDepthDialogCommand : ExCommand!() {

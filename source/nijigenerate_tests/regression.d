@@ -3650,6 +3650,14 @@ private void testAllPsdDepthDialogCommands() {
     auto ctx = ngBuildExecutionContext();
     require(ctx.hasNodes() && ctx.nodes.length == 1 && ctx.nodes[0] is grid,
         "PSD dialog layer selection must populate the standard Context.nodes target");
+    auto inspectResult = cmd!(PsdDepthDialogCommand.InspectPsdDepthDialog)(ctx);
+    auto inspectPayload = cast(ExCommandResult!JSONValue)inspectResult;
+    require(inspectPayload !is null && inspectPayload.succeeded &&
+        inspectPayload.result["layers"].array.length == 1 &&
+        inspectPayload.result["layers"].array[0].object["layerPath"].str == initialLayer.layerPath &&
+        inspectPayload.result["layers"].array[0].object["targetGridUuid"].get!ulong == grid.uuid &&
+        incActionHistory().length == 0,
+        "InspectPsdDepthDialog must expose layer identity without mutating dialog history");
 
     requirePsdDepthDialogCommandRoundTrip(
         ctx,
@@ -9831,7 +9839,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import dialog must keep 3D Adjust inside the corrected dialog workflow");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
-        "drawSourceMappingTab(reviewHeight)",
+        "drawSourceMappingTab(max(120.0f, incAvailableSpace().y))",
         "PSD depth import Source / Mapping tab must be rendered by PSDDepthMapWindow");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
@@ -9843,7 +9851,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import Source / Mapping must not hide unmatched source layers before users can remap them");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
-        "draw3DAdjustTab(reviewHeight)",
+        "draw3DAdjustTab(max(120.0f, incAvailableSpace().y))",
         "PSD depth import 3D Adjust tab must be rendered by PSDDepthMapWindow");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
@@ -17184,7 +17192,8 @@ private void testPlatformWindowsConsoleWritesAreGuarded() {
 
 private void testPlatformStartupShutdownModuleConstructors() {
     auto root = regressionSourceRoot("");
-    string[] constructors;
+    string[] constructorIds;
+    string[] constructorLocations;
     foreach (entry; dirEntries(root, SpanMode.depth)) {
         if (!entry.isFile || !entry.name.endsWith(".d"))
             continue;
@@ -17199,26 +17208,35 @@ private void testPlatformStartupShutdownModuleConstructors() {
                 stripped.canFind("static ~this()") ||
                 stripped.canFind("shared static ~this()")
             ) {
-                constructors ~= "%s:%s: %s".format(rel, lineNo + 1, stripped);
+                constructorIds ~= "%s: %s".format(rel, stripped);
+                constructorLocations ~= "%s:%s: %s".format(rel, lineNo + 1, stripped);
             }
         }
     }
 
     immutable string[] allowedConstructors = [
-        "commands/depth/bone.d:71: shared static this() {",
-        "panels/agent.d:1744: shared static ~this() {",
-        "panels/nodes.d:40: static this() {",
-        "panels/package.d:136: static this() {",
-        "panels/resource.d:32: static this() {",
-        "panels/timeline.d:32: static this() {",
-        "viewport/package.d:41: static this() {",
-        "widgets/output.d:160: static this() {",
+        "commands/depth/bone.d: shared static this() {",
+        "panels/agent.d: shared static ~this() {",
+        "panels/nodes.d: static this() {",
+        "panels/package.d: static this() {",
+        "panels/resource.d: static this() {",
+        "panels/timeline.d: static this() {",
+        "viewport/package.d: static this() {",
+        "widgets/output.d: static this() {",
     ];
-    foreach (entry; constructors) {
+    bool[string] seenConstructors;
+    foreach (i, id; constructorIds) {
         require(
-            allowedConstructors.canFind(entry),
-            "new module constructor/destructor must be reviewed for startup/shutdown cycles: " ~ entry
+            allowedConstructors.canFind(id),
+            "new module constructor/destructor must be reviewed for startup/shutdown cycles: " ~
+                constructorLocations[i]
         );
+        require(
+            id !in seenConstructors,
+            "duplicate module constructor/destructor must be reviewed for startup/shutdown cycles: " ~
+                constructorLocations[i]
+        );
+        seenConstructors[id] = true;
     }
 }
 

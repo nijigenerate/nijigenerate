@@ -100,6 +100,7 @@ FileCommand.MergeKRA	args=path=command-browser-differential;renameMapped=true;re
 FileCommand.MergePSD	args=path=command-browser-differential;renameMapped=true;retranslateMapped=true	unsupported=	before=path=;renameMapped=false;retranslateMapped=false	after=path=command-browser-differential;renameMapped=true;retranslateMapped=true	cleared=path=;renameMapped=true;retranslateMapped=true
 FileCommand.NewFile	args=	unsupported=	before=	after=	cleared=
 FileCommand.OpenFile	args=file=command-browser-differential	unsupported=	before=file=	after=file=command-browser-differential	cleared=file=
+FileCommand.OpenPSDDepthMapDialog	args=path=command-browser-differential	unsupported=	before=path=	after=path=command-browser-differential	cleared=path=
 FileCommand.SaveFile	args=file=command-browser-differential	unsupported=	before=file=	after=file=command-browser-differential	cleared=file=
 FileCommand.ShowExportToINPDialog	args=	unsupported=	before=	after=	cleared=
 FileCommand.ShowExportToJpegDialog	args=	unsupported=	before=	after=	cleared=
@@ -286,6 +287,7 @@ ParameditCommand.ToggleParameterArm	args=index=7	unsupported=	before=index=0	aft
 PsdDepthDialogCommand.ApplyPsdDepthDialog	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.CancelPsdDepthDialog	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.FillPsdDepthDialogAlphaDepthGaps	args=	unsupported=	before=	after=	cleared=
+PsdDepthDialogCommand.InspectPsdDepthDialog	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.ResetPsdDepthDialogLayerDepthTransform	args=layerPath=command-browser-differential	unsupported=	before=layerPath=	after=layerPath=command-browser-differential	cleared=layerPath=
 PsdDepthDialogCommand.SetPsdDepthDialogAlphaThreshold	args=value=1.25	unsupported=	before=value=nan	after=value=1.25	cleared=value=1.25
 PsdDepthDialogCommand.SetPsdDepthDialogBackDepth	args=value=1.25	unsupported=	before=value=nan	after=value=1.25	cleared=value=1.25
