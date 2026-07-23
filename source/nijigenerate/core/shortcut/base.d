@@ -1,7 +1,8 @@
 module nijigenerate.core.shortcut.base;
 
 // Keep this module free of command/UI imports. It provides infrastructure only.
-import nijigenerate.commands.base : Command, Context, ngCommandIdFromKey; // base types + id helper
+import nijigenerate.commands.base : Command, Context, ngCommandAllowedInCurrentContext,
+    ngCommandIdFromKey; // base types + id helper
 import nijigenerate.core.input;            // incShortcut
 import nijigenerate.project;               // active/selection state
 import bindbc.imgui;
@@ -81,6 +82,7 @@ string ngShortcutFor(Command cmd)
 // Optional providers (set by other modules) to enrich Context without hard imports
 private vec2u function() gParamPointProvider;
 private ParameterBinding[] function() gSelectedBindingsProvider;
+private __gshared Node[] function() gSelectedNodesProvider;
 
 void ngSetParamPointProvider(vec2u function() provider)
 {
@@ -92,6 +94,11 @@ void ngSetSelectedBindingsProvider(ParameterBinding[] function() provider)
     gSelectedBindingsProvider = provider;
 }
 
+void ngSetSelectedNodesProvider(Node[] function() provider)
+{
+    gSelectedNodesProvider = provider;
+}
+
 // Build a Context and populate as much as possible from current app state
 private Context buildExecutionContext()
 {
@@ -101,7 +108,9 @@ private Context buildExecutionContext()
     ctx.puppet = incActivePuppet();
 
     // Selected nodes (only set when exists to keep masks consistent)
-    auto selNodes = incSelectedNodes();
+    auto selNodes = gSelectedNodesProvider !is null ?
+        gSelectedNodesProvider() :
+        incSelectedNodes();
     if (selNodes.length > 0)
         ctx.nodes = selNodes;
 
@@ -169,7 +178,7 @@ void incHandleShortcuts()
     foreach (cmd, entry; gShortcutEntries) {
         if (incShortcut(entry.shortcut, entry.repeat)) {
             auto ctx = buildExecutionContext();
-            if (entry.command.runnable(ctx)) {
+            if (ngCommandAllowedInCurrentContext(entry.command) && entry.command.runnable(ctx)) {
                 auto res = entry.command.run(ctx);
                 // TODO: surface res.message or res.payload to UI/log if needed
             }

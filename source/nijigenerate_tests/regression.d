@@ -130,6 +130,7 @@ import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
 import nijigenerate.windows.command_browser : ngCommandBrowserDifferentialReport;
 import nijigenerate.windows.depthdraw : DepthDrawWindow;
 import nijigenerate.windows.paramsplit : ngSplitParameterBindings;
+import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerState;
 import nijilive;
 import nijilive.core.nodes.deformer.grid;
 import nijilive.core.nodes.drivers;
@@ -3499,6 +3500,405 @@ private void testDepthMapCommandsUndoRedo() {
     editor.closeStack();
     editor.applyToTargets();
     require(grid.copyDepthOps().length == 3, "editor Apply should save local operation edits through depth-op command");
+}
+
+private void testPsdDepthDialogCommandsUndoRedo() {
+    resetCase();
+    auto ctx = new Context();
+    auto dialog = new PSDDepthMapWindow("psd-depth-dialog-command-regression.png");
+
+    auto outsideResult = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogInvert)(ctx, true);
+    require(!outsideResult.succeeded,
+        "PSD depth dialog commands must reject calls while the dialog is not displayed");
+    require(ngActionStackLevel() == 0 && incActionHistory().length == 0,
+        "rejected PSD depth dialog commands must not open or mutate action history");
+
+    dialog.beginDialogCommandSessionForRegression();
+    require(dialog.dialogCommandsAvailable() && ngActionStackLevel() == 1,
+        "displayed PSD depth dialog must open one nested action stack");
+    require(!cmd!(EditCommand.ShowSettingsWindow)(ctx).succeeded,
+        "non-dialog commands must be unavailable while the PSD depth dialog is displayed");
+    auto dialogCommands = filterCommands("");
+    import std.traits : EnumMembers;
+    require(dialogCommands.length == EnumMembers!PsdDepthDialogCommand.length + 2,
+        "PSD depth dialog context must expose only its dialog commands plus Undo and Redo");
+    foreach (command; dialogCommands) {
+        require(ngCommandAllowedInCurrentContext(command),
+            "command lists must not expose commands outside the active PSD depth dialog context");
+    }
+
+    auto updateSettings = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogInvert)(ctx, true);
+    require(updateSettings.succeeded && dialog.captureDialogSettingsState().settings.invert,
+        "PSD depth dialog settings command must update the in-progress dialog state");
+    require(incActionHistory().length == 1,
+        "PSD depth dialog settings command must push to the nested action stack");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded,
+        "dialog context must allow Undo");
+    require(!dialog.captureDialogSettingsState().settings.invert,
+        "undo in the PSD depth dialog stack must restore the previous settings");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded,
+        "dialog context must allow Redo");
+    require(dialog.captureDialogSettingsState().settings.invert,
+        "redo in the PSD depth dialog stack must restore the changed settings");
+
+    auto updateMapping = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingIgnored)(
+        ctx, "/dialog-layer");
+    require(updateMapping.succeeded &&
+        "/dialog-layer" in dialog.captureDialogSettingsState().settings.ignoredLayerPaths,
+        "Source / Mapping ignore command must update the selected source layer mapping");
+    require(incActionHistory().length == 2,
+        "Source / Mapping command must push to the nested action stack");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded &&
+        "/dialog-layer" !in dialog.captureDialogSettingsState().settings.ignoredLayerPaths,
+        "Undo must restore the previous Source / Mapping state");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded &&
+        "/dialog-layer" in dialog.captureDialogSettingsState().settings.ignoredLayerPaths,
+        "Redo must restore the changed Source / Mapping state");
+
+    auto contextTarget = new Node(incActivePuppet().root);
+    PsdDepthDialogLayerState initialLayer;
+    initialLayer.layerPath = "/dialog-layer";
+    initialLayer.targetGridUuid = contextTarget.uuid;
+    initialLayer.visible = true;
+    initialLayer.enabled = true;
+    initialLayer.depthEnabled = true;
+    initialLayer.depthOffset = 0.0f;
+    initialLayer.depthScale = 1.0f;
+    dialog.setDialogLayerStateForRegression(initialLayer);
+
+    auto contextWithoutLayer = new Context();
+    require(!cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthScale)(
+        contextWithoutLayer, "/dialog-layer", 2.5f).succeeded,
+        "PSD depth layer command must require a selected layer in Context");
+
+    ctx = ngBuildExecutionContext();
+    require(ctx.hasNodes() && ctx.nodes.length == 1 && ctx.nodes[0] is contextTarget,
+        "dialog command Context must use the layer selected in the dialog instead of the normal node selection");
+    auto updateLayer = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthScale)(
+        ctx, "/dialog-layer", 2.5f);
+    PsdDepthDialogLayerState capturedLayer;
+    require(updateLayer.succeeded &&
+        dialog.captureDialogLayerState("/dialog-layer", initialLayer.targetGridUuid, capturedLayer) &&
+        capturedLayer.depthScale == 2.5f && capturedLayer.depthOffset == 0.0f,
+        "PSD depth dialog layer command must update layer state: " ~ updateLayer.message);
+    require(incActionHistory().length == 3,
+        "PSD depth dialog layer command must add a nested history action");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded,
+        "dialog context must allow layer Undo");
+    require(dialog.captureDialogLayerState("/dialog-layer", initialLayer.targetGridUuid, capturedLayer) &&
+        capturedLayer.depthScale == 1.0f && capturedLayer.depthOffset == 0.0f,
+        "undo in the PSD depth dialog stack must restore layer state: scale=%s offset=%s"
+            .format(capturedLayer.depthScale, capturedLayer.depthOffset));
+    require(cmd!(EditCommand.Redo)(ctx).succeeded,
+        "dialog context must allow layer Redo");
+    require(dialog.captureDialogLayerState("/dialog-layer", initialLayer.targetGridUuid, capturedLayer) &&
+        capturedLayer.depthScale == 2.5f && capturedLayer.depthOffset == 0.0f,
+        "redo in the PSD depth dialog stack must restore changed layer state");
+
+    auto updateVisibility = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerVisible)(
+        ctx, "/dialog-layer", false);
+    require(updateVisibility.succeeded &&
+        dialog.captureDialogLayerState("/dialog-layer", initialLayer.targetGridUuid, capturedLayer) &&
+        capturedLayer.enabled && !capturedLayer.visible,
+        "Show must be commandized independently from the layer Enable state");
+
+    auto cancelDialog = cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx);
+    require(cancelDialog.succeeded, "Cancel PSD depth dialog command must run while the dialog is displayed");
+    require(!dialog.dialogCommandsAvailable() && ngActionStackLevel() == 0,
+        "closing the PSD depth dialog must discard its nested action stack");
+    require(incActionHistory().length == 0,
+        "PSD depth dialog edit history must not leak into the root action stack");
+    require(!cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx).succeeded,
+        "PSD depth dialog commands must reject calls after the dialog closes");
+    require(ngCommandAllowedInCurrentContext(
+        nijigenerate.commands.puppet.edit.commands[EditCommand.ShowSettingsWindow]),
+        "closing the PSD depth dialog must restore the normal command set");
+}
+
+private void requirePsdDepthDialogCommandRoundTrip(
+    Context ctx,
+    CommandResult result,
+    bool delegate() changed,
+    bool delegate() restored,
+    string commandName
+) {
+    require(result.succeeded, commandName ~ " must run while the PSD depth dialog is displayed: " ~ result.message);
+    require(changed(), commandName ~ " must update the dialog state");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded, commandName ~ " must support Undo");
+    require(restored(), commandName ~ " Undo must restore the previous dialog state");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded, commandName ~ " must support Redo");
+    require(changed(), commandName ~ " Redo must restore the changed dialog state");
+}
+
+private void testAllPsdDepthDialogCommands() {
+    resetCase();
+    auto grid = new GridDeformer(incActivePuppet().root);
+    grid.name = "PSD Dialog Command Target";
+    auto dialog = new PSDDepthMapWindow("psd-depth-dialog-all-commands-regression.png");
+    dialog.beginDialogCommandSessionForRegression();
+
+    PsdDepthDialogLayerState initialLayer;
+    initialLayer.layerPath = "/all-commands-layer";
+    initialLayer.targetGridUuid = grid.uuid;
+    initialLayer.visible = true;
+    initialLayer.enabled = true;
+    initialLayer.depthEnabled = true;
+    initialLayer.depthOffset = 0.0f;
+    initialLayer.depthScale = 1.0f;
+    dialog.setDialogLayerStateForRegression(initialLayer);
+
+    auto ctx = ngBuildExecutionContext();
+    require(ctx.hasNodes() && ctx.nodes.length == 1 && ctx.nodes[0] is grid,
+        "PSD dialog layer selection must populate the standard Context.nodes target");
+
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogColorSource)(ctx, "command-color-source.png"),
+        () => dialog.captureDialogSettingsState().settings.colorSourcePath == "command-color-source.png",
+        () => dialog.captureDialogSettingsState().settings.colorSourcePath.length == 0,
+        "SetPsdDepthDialogColorSource");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogInvert)(ctx, true),
+        () => dialog.captureDialogSettingsState().settings.invert,
+        () => !dialog.captureDialogSettingsState().settings.invert,
+        "SetPsdDepthDialogInvert");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogBackDepth)(ctx, -2.0f),
+        () => near(dialog.captureDialogSettingsState().settings.backDepth, -2.0f),
+        () => near(dialog.captureDialogSettingsState().settings.backDepth, -1.0f),
+        "SetPsdDepthDialogBackDepth");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogFrontDepth)(ctx, 2.0f),
+        () => near(dialog.captureDialogSettingsState().settings.frontDepth, 2.0f),
+        () => near(dialog.captureDialogSettingsState().settings.frontDepth, 1.0f),
+        "SetPsdDepthDialogFrontDepth");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogDepthScale)(ctx, 2.0f),
+        () => near(dialog.captureDialogSettingsState().settings.depthScale, 2.0f),
+        () => near(dialog.captureDialogSettingsState().settings.depthScale, 1.0f),
+        "SetPsdDepthDialogDepthScale");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogChannel)(ctx, PsdDepthChannel.R),
+        () => dialog.captureDialogSettingsState().settings.channel == PsdDepthChannel.R,
+        () => dialog.captureDialogSettingsState().settings.channel == PsdDepthChannel.AverageRGB,
+        "SetPsdDepthDialogChannel");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogSampling)(ctx, PsdDepthConvolution.Nearest),
+        () => dialog.captureDialogSettingsState().settings.convolution == PsdDepthConvolution.Nearest,
+        () => dialog.captureDialogSettingsState().settings.convolution == PsdDepthConvolution.Gaussian3x3,
+        "SetPsdDepthDialogSampling");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogCustomRadius)(ctx, 5),
+        () => dialog.captureDialogSettingsState().settings.customRadius == 5,
+        () => dialog.captureDialogSettingsState().settings.customRadius == 3,
+        "SetPsdDepthDialogCustomRadius");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogAlphaThreshold)(ctx, 0.25f),
+        () => near(dialog.captureDialogSettingsState().settings.alphaThreshold, 0.25f),
+        () => near(dialog.captureDialogSettingsState().settings.alphaThreshold, 0.01f),
+        "SetPsdDepthDialogAlphaThreshold");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogMissingPolicy)(ctx, PsdDepthMissingPolicy.SetZero),
+        () => dialog.captureDialogSettingsState().settings.missingPolicy == PsdDepthMissingPolicy.SetZero,
+        () => dialog.captureDialogSettingsState().settings.missingPolicy == PsdDepthMissingPolicy.KeepExisting,
+        "SetPsdDepthDialogMissingPolicy");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogContourRepair)(ctx, true),
+        () => dialog.captureDialogSettingsState().settings.repairContourBand,
+        () => !dialog.captureDialogSettingsState().settings.repairContourBand,
+        "SetPsdDepthDialogContourRepair");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogSurfaceSmoothing)(ctx, true),
+        () => dialog.captureDialogSettingsState().settings.smoothWavySurface,
+        () => !dialog.captureDialogSettingsState().settings.smoothWavySurface,
+        "SetPsdDepthDialogSurfaceSmoothing");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogGpuComposition)(ctx, true),
+        () => dialog.captureDialogSettingsState().settings.useGpuComposition,
+        () => !dialog.captureDialogSettingsState().settings.useGpuComposition,
+        "SetPsdDepthDialogGpuComposition");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogDirectGridMatch)(ctx, false),
+        () => !dialog.captureDialogSettingsState().settings.matchDirectGridName,
+        () => dialog.captureDialogSettingsState().settings.matchDirectGridName,
+        "SetPsdDepthDialogDirectGridMatch");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogProblemFilter)(ctx, true),
+        () => dialog.captureDialogSettingsState().onlyProblemLayers,
+        () => !dialog.captureDialogSettingsState().onlyProblemLayers,
+        "SetPsdDepthDialogProblemFilter");
+
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingIgnored)(ctx, initialLayer.layerPath),
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (initialLayer.layerPath in state.settings.ignoredLayerPaths) !is null;
+        },
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (initialLayer.layerPath in state.settings.ignoredLayerPaths) is null;
+        },
+        "SetPsdDepthDialogLayerMappingIgnored");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingAuto)(ctx, initialLayer.layerPath),
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (initialLayer.layerPath in state.settings.ignoredLayerPaths) is null;
+        },
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (initialLayer.layerPath in state.settings.ignoredLayerPaths) !is null;
+        },
+        "SetPsdDepthDialogLayerMappingAuto");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingTarget)(
+            ctx, initialLayer.layerPath, cast(Node)grid),
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            auto target = initialLayer.layerPath in state.settings.layerTargetGridUuidOverrides;
+            return target !is null && *target == grid.uuid.to!string;
+        },
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (initialLayer.layerPath in state.settings.layerTargetGridUuidOverrides) is null;
+        },
+        "SetPsdDepthDialogLayerMappingTarget");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogTargetEnabled)(ctx, false),
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (grid.uuid.to!string in state.settings.disabledGridUuids) !is null;
+        },
+        () {
+            auto state = dialog.captureDialogSettingsState();
+            return (grid.uuid.to!string in state.settings.disabledGridUuids) is null;
+        },
+        "SetPsdDepthDialogTargetEnabled");
+
+    PsdDepthDialogLayerState layerState() {
+        PsdDepthDialogLayerState state;
+        require(dialog.captureDialogLayerState(initialLayer.layerPath, grid.uuid, state),
+            "all-command regression layer must remain available");
+        return state;
+    }
+
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerEnabled)(ctx, initialLayer.layerPath, false),
+        () => !layerState().enabled && !layerState().visible,
+        () => layerState().enabled && layerState().visible,
+        "SetPsdDepthDialogLayerEnabled");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerVisible)(ctx, initialLayer.layerPath, true),
+        () => !layerState().enabled && layerState().visible,
+        () => !layerState().enabled && !layerState().visible,
+        "SetPsdDepthDialogLayerVisible");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthEnabled)(
+            ctx, initialLayer.layerPath, false),
+        () => !layerState().depthEnabled,
+        () => layerState().depthEnabled,
+        "SetPsdDepthDialogLayerDepthEnabled");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthInverted)(
+            ctx, initialLayer.layerPath, true),
+        () => layerState().invert,
+        () => !layerState().invert,
+        "SetPsdDepthDialogLayerDepthInverted");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthScale)(
+            ctx, initialLayer.layerPath, 2.5f),
+        () => near(layerState().depthScale, 2.5f),
+        () => near(layerState().depthScale, 1.0f),
+        "SetPsdDepthDialogLayerDepthScale");
+    auto offsetResult = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthOffset)(
+        ctx, initialLayer.layerPath, -0.75f);
+    require(offsetResult.succeeded && near(layerState().depthOffset, -0.75f),
+        "SetPsdDepthDialogLayerDepthOffset must update the dialog state");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded,
+        "SetPsdDepthDialogLayerDepthOffset must support Undo");
+    auto offsetUndoState = layerState();
+    require(near(offsetUndoState.depthOffset, 0.0f),
+        "SetPsdDepthDialogLayerDepthOffset Undo must restore the previous offset; actual=%s"
+            .format(offsetUndoState.depthOffset));
+    require(cmd!(EditCommand.Redo)(ctx).succeeded && near(layerState().depthOffset, -0.75f),
+        "SetPsdDepthDialogLayerDepthOffset Redo must restore the changed offset");
+    requirePsdDepthDialogCommandRoundTrip(
+        ctx,
+        cmd!(PsdDepthDialogCommand.ResetPsdDepthDialogLayerDepthTransform)(ctx, initialLayer.layerPath),
+        () => !layerState().invert && near(layerState().depthScale, 1.0f) &&
+            near(layerState().depthOffset, 0.0f),
+        () => layerState().invert && near(layerState().depthScale, 2.5f) &&
+            near(layerState().depthOffset, -0.75f),
+        "ResetPsdDepthDialogLayerDepthTransform");
+
+    ubyte[] gapDepth = [
+        80, 80, 80, 80, 80,
+        80, 10, 0, 30, 80,
+        80, 80, 20, 80, 80,
+        80, 80, 0, 80, 80,
+        80, 80, 80, 80, 80,
+    ];
+    ubyte[] depthRgba;
+    ubyte[] maskRgba;
+    foreach (depth; gapDepth) {
+        depthRgba ~= [depth, depth, depth, cast(ubyte)255];
+        maskRgba ~= [cast(ubyte)255, cast(ubyte)0, cast(ubyte)0, cast(ubyte)255];
+    }
+    require(dialog.setDialogLayerPixelsForRegression(5, 5, depthRgba, maskRgba),
+        "alpha-depth gap regression fixture must compose");
+    auto beforeFill = dialog.captureDialogLayerPixels();
+    auto fillResult = cmd!(PsdDepthDialogCommand.FillPsdDepthDialogAlphaDepthGaps)(ctx);
+    auto afterFill = dialog.captureDialogLayerPixels();
+    require(fillResult.succeeded && !PSDDepthMapWindow.dialogLayerPixelsEqual(beforeFill, afterFill),
+        "FillPsdDepthDialogAlphaDepthGaps must change the detected gap pixels");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded &&
+        PSDDepthMapWindow.dialogLayerPixelsEqual(beforeFill, dialog.captureDialogLayerPixels()),
+        "FillPsdDepthDialogAlphaDepthGaps Undo must restore source pixels");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded &&
+        PSDDepthMapWindow.dialogLayerPixelsEqual(afterFill, dialog.captureDialogLayerPixels()),
+        "FillPsdDepthDialogAlphaDepthGaps Redo must restore filled pixels");
+
+    auto cancelResult = cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx);
+    require(cancelResult.succeeded && !dialog.dialogCommandsAvailable(),
+        "CancelPsdDepthDialog must close the active command context");
+    foreach (command; nijigenerate.commands.depth.psd_dialog.commands.byValue) {
+        require(!command.runnable(new Context()),
+            "every PSD dialog command must be unavailable after Cancel: " ~ command.label());
+    }
+
+    auto applyDialog = new PSDDepthMapWindow("psd-depth-dialog-apply-command-regression.png");
+    applyDialog.beginDialogCommandSessionForRegression();
+    require(applyDialog.prepareDialogApplyForRegression(),
+        "Apply command regression fixture must prepare an empty composed import");
+    auto applyCtx = new Context();
+    auto applyResult = cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(applyCtx);
+    require(applyResult.succeeded && !applyDialog.dialogCommandsAvailable(),
+        "ApplyPsdDepthDialog must apply and close the active command context");
+    require(!cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(applyCtx).succeeded,
+        "ApplyPsdDepthDialog must reject calls after the dialog closes");
 }
 
 private void testPsdDepthImportRefreshesDepthBoneBindings() {
@@ -17752,6 +18152,8 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depth.commands":
             runCase("depth-map-commands-undo-redo", &testDepthMapCommandsUndoRedo);
+            runCase("psd-depth-dialog-commands-undo-redo", &testPsdDepthDialogCommandsUndoRedo);
+            runCase("psd-depth-dialog-all-commands", &testAllPsdDepthDialogCommands);
             runCase("psd-depth-import-refreshes-depthbone-bindings", &testPsdDepthImportRefreshesDepthBoneBindings);
             runCase("psd-depth-map-import-helpers", &testPsdDepthMapImportHelpers);
             runCase("psd-depth-adjusted-values-are-not-renormalized", &testPsdDepthAdjustedValuesAreNotRenormalized);

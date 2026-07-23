@@ -7,6 +7,9 @@ import nijigenerate;
 import nijigenerate.commands;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget;
+import nijigenerate.core.actionstack : ActionStackScope, incActionCanRedo, incActionCanUndo,
+    ngOpenActionStackScope;
+import nijigenerate.core.shortcut.base : ngSetSelectedNodesProvider;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijigenerate.ext.nodes.expart;
 import nijigenerate.io : TFD_Filter, incShowImportDialog;
@@ -51,6 +54,42 @@ private struct PsdDepthLayerEdit {
 private struct PsdDepthPendingLayerChange {
     string layerPath;
     ulong targetGridUuid;
+}
+
+struct PsdDepthDialogLayerState {
+    string layerPath;
+    ulong targetGridUuid;
+    bool visible;
+    bool enabled;
+    bool depthEnabled;
+    bool invert;
+    float depthOffset;
+    float depthScale;
+    bool outlierPruneEnabled;
+    bool puppetFitEnabled;
+}
+
+struct PsdDepthDialogSettingsState {
+    PsdDepthImportSettings settings;
+    PsdDepthDialogLayerState[] layers;
+    bool onlyProblemLayers;
+}
+
+struct PsdDepthDialogLayerPixels {
+    string layerPath;
+    ulong targetGridUuid;
+    ubyte[] depthRgba;
+}
+
+private __gshared PSDDepthMapWindow activePsdDepthMapWindow;
+
+PSDDepthMapWindow ngActivePsdDepthMapWindow() {
+    return activePsdDepthMapWindow;
+}
+
+private Node[] psdDepthDialogSelectedNodes() {
+    if (activePsdDepthMapWindow is null) return null;
+    return activePsdDepthMapWindow.selectedDialogContextNodes();
 }
 
 struct PsdDepth3DAdjustSample {
@@ -330,6 +369,10 @@ private:
     PsdDepthLayerEdit[string] threeDAdjustPreparedTransforms;
     size_t[][string] threeDAdjustFrontIntersections;
     bool[string] threeDAdjustDisplayDepthDirty;
+    ActionStackScope dialogActionScope;
+    CommandScopeRegistration dialogCommandScope;
+    bool dialogDisplayed;
+    PsdDepthDialogLayerState[] pendingLayerStatesAfterRebuild;
     DepthCamera3D threeDAdjustCamera;
     ulong threeDAdjustCameraTargetUuid;
     int threeDAdjustCameraLeft = int.min;
@@ -379,6 +422,8 @@ private:
     void rebuildPreview() {
         disposePreviewTextures();
         pending3DAdjustLayerChanges = null;
+        auto restoredLayerStates = pendingLayerStatesAfterRebuild;
+        pendingLayerStatesAfterRebuild = null;
         auto previous = preview;
         preview = PsdDepthImportResult.init;
         composedPreview = PsdDepthComposedView.init;
@@ -396,6 +441,11 @@ private:
         } else {
             if (previous.composedLayers.length > 0) {
                 ngPsdDepthApplyPreviousComposedLayerState(preview, previous);
+            }
+            foreach (state; restoredLayerStates) {
+                if (auto layer = findComposedLayer(state.layerPath, state.targetGridUuid)) {
+                    applyDialogLayerStateFields(*layer, state);
+                }
             }
             string composeError;
             if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
@@ -735,6 +785,32 @@ private:
         if (igIsItemHovered()) drawMatchedNodeTooltip(mapping);
     }
 
+    Context dialogCommandContext() {
+        auto ctx = new Context();
+        auto puppet = incActivePuppet();
+        if (puppet !is null) ctx.puppet = puppet;
+        auto nodes = selectedDialogContextNodes();
+        if (nodes.length) ctx.nodes = nodes;
+        return ctx;
+    }
+
+    Context dialogLayerCommandContext(string layerPath, ulong targetGridUuid) {
+        auto ctx = new Context();
+        auto puppet = incActivePuppet();
+        if (puppet !is null) ctx.puppet = puppet;
+        auto nodes = dialogContextNodesForLayer(layerPath, targetGridUuid);
+        if (nodes.length) ctx.nodes = nodes;
+        return ctx;
+    }
+
+    Context dialogNodeCommandContext(Node node) {
+        auto ctx = new Context();
+        auto puppet = incActivePuppet();
+        if (puppet !is null) ctx.puppet = puppet;
+        if (node !is null) ctx.nodes = [node];
+        return ctx;
+    }
+
     bool drawEnumCombo(string label, ref PsdDepthConvolution value) {
         auto current = ngPsdDepthConvolutionName(value);
         bool changed;
@@ -830,15 +906,15 @@ private:
             bool autoSelected = !(mapping.layerPath in settings.ignoredLayerPaths) &&
                 !(mapping.layerPath in settings.layerTargetGridUuidOverrides);
             if (igSelectable(_("Auto").toStringz, autoSelected)) {
-                settings.ignoredLayerPaths.remove(mapping.layerPath);
-                settings.layerTargetGridUuidOverrides.remove(mapping.layerPath);
-                changed = true;
+                auto ctx = dialogLayerCommandContext(mapping.layerPath, mapping.targetGridUuid);
+                changed = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingAuto)(
+                    ctx, mapping.layerPath).succeeded;
             }
             bool ignoreSelected = (mapping.layerPath in settings.ignoredLayerPaths) !is null;
             if (igSelectable(_("Ignore").toStringz, ignoreSelected)) {
-                settings.layerTargetGridUuidOverrides.remove(mapping.layerPath);
-                settings.ignoredLayerPaths[mapping.layerPath] = true;
-                changed = true;
+                auto ctx = dialogLayerCommandContext(mapping.layerPath, mapping.targetGridUuid);
+                changed = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingIgnored)(
+                    ctx, mapping.layerPath).succeeded;
             }
             igSeparator();
             foreach (grid; currentTargets()) {
@@ -849,9 +925,9 @@ private:
                 }
                 auto label = grid.name.length ? grid.name : uuid;
                 if (igSelectable(label.toStringz, selected)) {
-                    settings.ignoredLayerPaths.remove(mapping.layerPath);
-                    settings.layerTargetGridUuidOverrides[mapping.layerPath] = uuid;
-                    changed = true;
+                    auto ctx = dialogLayerCommandContext(mapping.layerPath, mapping.targetGridUuid);
+                    changed = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingTarget)(
+                        ctx, mapping.layerPath, cast(Node)grid).succeeded;
                 }
             }
             igEndCombo();
@@ -860,8 +936,6 @@ private:
     }
 
     void drawOptions() {
-        bool changed;
-        bool fillAlphaDepthGaps;
         incText(_("Color Source"));
         igSameLine();
         auto colorLabel = settings.colorSourcePath.length ? settings.colorSourcePath : _("<active target/art>");
@@ -875,41 +949,97 @@ private:
         if (igButton(__("Select Color Source"))) {
             auto colorPath = incShowImportDialog(colorFilters, _("Select Color Source..."));
             if (colorPath.length) {
-                settings.colorSourcePath = colorPath;
-                changed = true;
+                auto ctx = dialogCommandContext();
+                cmd!(PsdDepthDialogCommand.SetPsdDepthDialogColorSource)(ctx, colorPath);
             }
         }
         if (settings.colorSourcePath.length) {
             igSameLine();
             if (igButton(__("Clear Color Source"))) {
-                settings.colorSourcePath = null;
-                changed = true;
+                auto ctx = dialogCommandContext();
+                cmd!(PsdDepthDialogCommand.SetPsdDepthDialogColorSource)(ctx, "");
             }
         }
-        changed = ngCheckbox(__("Invert Depth"), &settings.invert) || changed;
-        incTooltip(_("Default: white is front and black is back."));
-        changed = igDragFloat(__("Back Depth"), &settings.backDepth, 0.01f, -10.0f, 10.0f, "%.3f") || changed;
-        changed = igDragFloat(__("Front Depth"), &settings.frontDepth, 0.01f, -10.0f, 10.0f, "%.3f") || changed;
-        changed = igDragFloat(__("Depth Scale"), &settings.depthScale, 0.01f, 0.0f, 100.0f, "%.3f") || changed;
-        incTooltip(_("Imported depth values are multiplied by this scale before applying."));
-        changed = drawEnumCombo(_("Channel"), settings.channel) || changed;
-        changed = drawEnumCombo(_("Sampling"), settings.convolution) || changed;
-        if (isCustomConvolution()) {
-            changed = igDragInt(__("Custom Radius"), &settings.customRadius, 0.1f, 1, 64) || changed;
+        auto invert = settings.invert;
+        if (ngCheckbox(__("Invert Depth"), &invert)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogInvert)(ctx, invert);
         }
-        changed = igDragFloat(__("Alpha Threshold"), &settings.alphaThreshold, 0.001f, 0.0f, 1.0f, "%.3f") || changed;
-        changed = drawEnumCombo(_("Missing Vertex Pixel"), settings.missingPolicy) || changed;
-        changed = ngCheckbox(__("Repair contour band"), &settings.repairContourBand) || changed;
-        changed = ngCheckbox(__("Smooth wavy surface"), &settings.smoothWavySurface) || changed;
-        fillAlphaDepthGaps = igButton(__("Fill alpha-depth gaps"));
-        changed = ngCheckbox(__("GPU Composition"), &settings.useGpuComposition) || changed;
+        incTooltip(_("Default: white is front and black is back."));
+        auto backDepth = settings.backDepth;
+        if (igDragFloat(__("Back Depth"), &backDepth, 0.01f, -10.0f, 10.0f, "%.3f")) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogBackDepth)(ctx, backDepth);
+        }
+        auto frontDepth = settings.frontDepth;
+        if (igDragFloat(__("Front Depth"), &frontDepth, 0.01f, -10.0f, 10.0f, "%.3f")) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogFrontDepth)(ctx, frontDepth);
+        }
+        auto depthScale = settings.depthScale;
+        if (igDragFloat(__("Depth Scale"), &depthScale, 0.01f, 0.0f, 100.0f, "%.3f")) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogDepthScale)(ctx, depthScale);
+        }
+        incTooltip(_("Imported depth values are multiplied by this scale before applying."));
+        auto channel = settings.channel;
+        if (drawEnumCombo(_("Channel"), channel)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogChannel)(ctx, channel);
+        }
+        auto convolution = settings.convolution;
+        if (drawEnumCombo(_("Sampling"), convolution)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogSampling)(ctx, convolution);
+        }
+        if (isCustomConvolution()) {
+            auto customRadius = settings.customRadius;
+            if (igDragInt(__("Custom Radius"), &customRadius, 0.1f, 1, 64)) {
+                auto ctx = dialogCommandContext();
+                cmd!(PsdDepthDialogCommand.SetPsdDepthDialogCustomRadius)(ctx, customRadius);
+            }
+        }
+        auto alphaThreshold = settings.alphaThreshold;
+        if (igDragFloat(__("Alpha Threshold"), &alphaThreshold, 0.001f, 0.0f, 1.0f, "%.3f")) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogAlphaThreshold)(ctx, alphaThreshold);
+        }
+        auto missingPolicy = settings.missingPolicy;
+        if (drawEnumCombo(_("Missing Vertex Pixel"), missingPolicy)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogMissingPolicy)(ctx, missingPolicy);
+        }
+        auto repairContourBand = settings.repairContourBand;
+        if (ngCheckbox(__("Repair contour band"), &repairContourBand)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogContourRepair)(ctx, repairContourBand);
+        }
+        auto smoothWavySurface = settings.smoothWavySurface;
+        if (ngCheckbox(__("Smooth wavy surface"), &smoothWavySurface)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogSurfaceSmoothing)(ctx, smoothWavySurface);
+        }
+        if (igButton(__("Fill alpha-depth gaps"))) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.FillPsdDepthDialogAlphaDepthGaps)(ctx);
+        }
+        auto useGpuComposition = settings.useGpuComposition;
+        if (ngCheckbox(__("GPU Composition"), &useGpuComposition)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogGpuComposition)(ctx, useGpuComposition);
+        }
         incTooltip(_("When enabled, apply must use the GPU composition path. CPU fallback is treated as an error."));
-        changed = ngCheckbox(__("Direct Grid Name Match"), &settings.matchDirectGridName) || changed;
+        auto matchDirectGridName = settings.matchDirectGridName;
+        if (ngCheckbox(__("Direct Grid Name Match"), &matchDirectGridName)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogDirectGridMatch)(ctx, matchDirectGridName);
+        }
         incTooltip(_("Also match PSD layer names directly against GridDeformer names."));
-        changed = ngCheckbox(__("Only show problem layers"), &onlyProblemLayers) || changed;
-
-        if (changed) previewDirty = true;
-        if (fillAlphaDepthGaps) applyAlphaDepthGapFill();
+        auto problemFilter = onlyProblemLayers;
+        if (ngCheckbox(__("Only show problem layers"), &problemFilter)) {
+            auto ctx = dialogCommandContext();
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogProblemFilter)(ctx, problemFilter);
+        }
     }
 
     void drawCompositePreviewTooltip(ref PsdDepthGridResult gridResult) {
@@ -1014,12 +1144,8 @@ private:
         auto key = grid.uuid.to!string;
         bool enabled = ngPsdDepthGridEnabled(settings, grid.uuid);
         if (ngCheckbox(("###useGrid" ~ key).toStringz, &enabled)) {
-            if (enabled) {
-                settings.disabledGridUuids.remove(key);
-            } else {
-                settings.disabledGridUuids[key] = true;
-            }
-            previewDirty = true;
+            auto ctx = dialogNodeCommandContext(grid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogTargetEnabled)(ctx, enabled);
         }
     }
 
@@ -1029,22 +1155,20 @@ private:
         bool enabled = layer.enabled;
         auto widgetKey = "###useComposedLayer" ~ layerPath ~ targetGridUuid.to!string;
         if (ngCheckbox(widgetKey.toStringz, &enabled)) {
-            layer.enabled = enabled;
-            layer.visible = enabled;
-            refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerEnabled)(ctx, layerPath, enabled);
         }
     }
 
     void drawComposedLayerShowCheckbox(string layerPath, ulong targetGridUuid) {
         auto layer = findComposedLayer(layerPath, targetGridUuid);
         if (layer is null) return;
-        bool enabled = layer.enabled && layer.visible;
+        bool visible = layer.visible;
         igPushID(("showComposedLayer" ~ layerPath ~ targetGridUuid.to!string).toStringz);
         scope(exit) igPopID();
-        if (ngCheckbox(__("Show"), &enabled)) {
-            layer.enabled = enabled;
-            layer.visible = enabled;
-            refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
+        if (ngCheckbox(__("Show"), &visible)) {
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerVisible)(ctx, layerPath, visible);
         }
     }
 
@@ -1055,8 +1179,8 @@ private:
         igPushID(("depthEnabledComposedLayer" ~ layerPath ~ targetGridUuid.to!string).toStringz);
         scope(exit) igPopID();
         if (ngCheckbox(__("Enable Depth"), &enabled)) {
-            layer.depthEnabled = enabled;
-            refreshAfter3DAdjustLayerChange(layerPath, targetGridUuid);
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthEnabled)(ctx, layerPath, enabled);
         }
         incTooltip(_("When disabled, use the nearest enabled depth below at each document coordinate."));
     }
@@ -1202,6 +1326,98 @@ private:
         refreshPreviewDepthsForLayer(layerPath, targetGridUuid);
     }
 
+    void ensureDialogActionScope() {
+        if (dialogActionScope is null || !dialogActionScope.isActive()) {
+            dialogActionScope = ngOpenActionStackScope();
+        }
+    }
+
+    void activateDialogCommandContext() {
+        activePsdDepthMapWindow = this;
+        ngSetSelectedNodesProvider(&psdDepthDialogSelectedNodes);
+        if (dialogCommandScope is null || !dialogCommandScope.isActive()) {
+            dialogCommandScope = ngPushCommandScope(
+                ngCommandScope!PsdDepthDialogCommandScope());
+        }
+    }
+
+    void deactivateDialogCommandContext() {
+        if (activePsdDepthMapWindow !is this) return;
+        activePsdDepthMapWindow = null;
+        ngSetSelectedNodesProvider(null);
+        if (dialogCommandScope !is null) {
+            dialogCommandScope.close();
+            dialogCommandScope = null;
+        }
+    }
+
+    void closeDialogActionScope() {
+        if (dialogActionScope !is null) {
+            dialogActionScope.close();
+            dialogActionScope = null;
+        }
+    }
+
+    static PsdDepthImportSettings cloneDialogSettings(PsdDepthImportSettings source) {
+        PsdDepthImportSettings result = source;
+        result.layerTargetGridUuidOverrides = null;
+        foreach (key, value; source.layerTargetGridUuidOverrides) {
+            result.layerTargetGridUuidOverrides[key] = value;
+        }
+        result.ignoredLayerPaths = null;
+        foreach (key, value; source.ignoredLayerPaths) {
+            result.ignoredLayerPaths[key] = value;
+        }
+        result.disabledGridUuids = null;
+        foreach (key, value; source.disabledGridUuids) {
+            result.disabledGridUuids[key] = value;
+        }
+        result.disabledGridLayerKeys = null;
+        foreach (key, value; source.disabledGridLayerKeys) {
+            result.disabledGridLayerKeys[key] = value;
+        }
+        return result;
+    }
+
+    static PsdDepthDialogLayerState dialogLayerState(ref PsdDepthComposedLayer layer) {
+        PsdDepthDialogLayerState result;
+        result.layerPath = layer.layerPath;
+        result.targetGridUuid = layer.targetGridUuid;
+        result.visible = layer.visible;
+        result.enabled = layer.enabled;
+        result.depthEnabled = layer.depthEnabled;
+        result.invert = layer.invert;
+        result.depthOffset = layer.depthOffset;
+        result.depthScale = layer.depthScale;
+        result.outlierPruneEnabled = layer.outlierPruneEnabled;
+        result.puppetFitEnabled = layer.puppetFitEnabled;
+        return result;
+    }
+
+    static bool sameDialogLayerState(PsdDepthDialogLayerState a, PsdDepthDialogLayerState b) {
+        return a.layerPath == b.layerPath &&
+            a.targetGridUuid == b.targetGridUuid &&
+            a.visible == b.visible &&
+            a.enabled == b.enabled &&
+            a.depthEnabled == b.depthEnabled &&
+            a.invert == b.invert &&
+            a.depthOffset == b.depthOffset &&
+            a.depthScale == b.depthScale &&
+            a.outlierPruneEnabled == b.outlierPruneEnabled &&
+            a.puppetFitEnabled == b.puppetFitEnabled;
+    }
+
+    static void applyDialogLayerStateFields(ref PsdDepthComposedLayer layer, PsdDepthDialogLayerState state) {
+        layer.visible = state.visible;
+        layer.enabled = state.enabled;
+        layer.depthEnabled = state.depthEnabled;
+        layer.invert = state.invert;
+        layer.depthOffset = state.depthOffset;
+        layer.depthScale = state.depthScale;
+        layer.outlierPruneEnabled = state.outlierPruneEnabled;
+        layer.puppetFitEnabled = state.puppetFitEnabled;
+    }
+
     void stage3DAdjustLayerChange(string layerPath, ulong targetGridUuid) {
         // A layer remains pending until Apply, but every edit still has to
         // refresh its display mesh. Do this before deduplicating the Apply work.
@@ -1253,31 +1469,26 @@ private:
         igPushID(("layerZControls" ~ layerPath ~ targetGridUuid.to!string).toStringz);
         scope(exit) igPopID();
         auto transform = layerTransform(layerPath, targetGridUuid);
-        auto previousTransform = transform;
-        bool changed;
         if (ngCheckbox(__("Invert Depth"), &transform.invert)) {
-            changed = true;
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthInverted)(
+                ctx, layerPath, transform.invert);
         }
-        changed = igDragFloat(__("Z Scale"),
-            &transform.zScale, 0.01f, -100.0f, 100.0f, "%.3f") || changed;
-        changed = igDragFloat(__("Z Offset"),
-            &transform.zOffset, 0.01f, -100.0f, 100.0f, "%.3f") || changed;
+        if (igDragFloat(__("Z Scale"),
+            &transform.zScale, 0.01f, -100.0f, 100.0f, "%.3f")) {
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthScale)(
+                ctx, layerPath, transform.zScale);
+        }
+        if (igDragFloat(__("Z Offset"),
+            &transform.zOffset, 0.01f, -100.0f, 100.0f, "%.3f")) {
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthOffset)(
+                ctx, layerPath, transform.zOffset);
+        }
         if (incButtonColored(__("Reset Z"), ImVec2(120, 0))) {
-            transform.zOffset = 0.0f;
-            transform.zScale = 1.0f;
-            transform.invert = false;
-            changed = true;
-        }
-        if (changed) {
-            if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
-                layer.depthOffset = transform.zOffset;
-                layer.depthScale = transform.zScale;
-                layer.invert = transform.invert;
-            }
-            stage3DAdjustLayerChange(layerPath, targetGridUuid);
-            if (transform.invert != previousTransform.invert) {
-                invalidate3DAdjustLayerCaches(layerPath, targetGridUuid);
-            }
+            auto ctx = dialogLayerCommandContext(layerPath, targetGridUuid);
+            cmd!(PsdDepthDialogCommand.ResetPsdDepthDialogLayerDepthTransform)(ctx, layerPath);
         }
     }
 
@@ -2365,31 +2576,38 @@ private:
         igEndChild();
     }
 
-    void apply() {
+    bool apply() {
         if (previewDirty) rebuildPreview();
         // Apply consumes preview.grids directly. Recompose only the grids named by
         // edited layers, using the same target composer as the original path.
         if (!compose3DAdjustChangesForApply()) {
             incDialog(__("Error"), errorMessage);
-            return;
+            return false;
         }
         if (errorMessage.length) {
             incDialog(__("Error"), errorMessage);
-            return;
+            return false;
         }
+        closeDialogActionScope();
         auto result = ngApplyPsdDepthImportResult(composedPreview);
         if (!result.succeeded) {
+            if (dialogDisplayed) ensureDialogActionScope();
             lastApplyErrorMessage = result.message;
             incDialog(__("Error"), result.message);
-            return;
+            return false;
         }
         lastApplyErrorMessage = null;
+        deactivateDialogCommandContext();
         close();
+        return true;
     }
 
 protected:
     override
     void onBeginUpdate() {
+        dialogDisplayed = true;
+        activateDialogCommandContext();
+        ensureDialogActionScope();
         flags |= ImGuiWindowFlags.NoSavedSettings |
             ImGuiWindowFlags.NoScrollbar |
             ImGuiWindowFlags.NoScrollWithMouse;
@@ -2418,18 +2636,34 @@ protected:
             igTableNextRow();
             igTableNextColumn();
 
-            auto actionsHeight = 62.0f;
+            auto actionsHeight = 94.0f;
             auto settingsHeight = max(120.0f, space.y - actionsHeight);
             if (igBeginChild("###PsdDepthSettingsPane", ImVec2(0, settingsHeight), true)) {
                 drawOptions();
             }
             igEndChild();
             auto actionWidth = incAvailableSpace().x;
+            auto historyButtonWidth = max(1.0f, (actionWidth - 4.0f) * 0.5f);
+            igBeginDisabled(!incActionCanUndo());
+            if (incButtonColored(__("Undo"), ImVec2(historyButtonWidth, 26))) {
+                auto ctx = dialogCommandContext();
+                cmd!(EditCommand.Undo)(ctx);
+            }
+            igEndDisabled();
+            igSameLine();
+            igBeginDisabled(!incActionCanRedo());
+            if (incButtonColored(__("Redo"), ImVec2(historyButtonWidth, 26))) {
+                auto ctx = dialogCommandContext();
+                cmd!(EditCommand.Redo)(ctx);
+            }
+            igEndDisabled();
             if (incButtonColored(__("Apply"), ImVec2(actionWidth, 26))) {
-                apply();
+                auto ctx = dialogCommandContext();
+                cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(ctx);
             }
             if (incButtonColored(__("Cancel"), ImVec2(actionWidth, 26))) {
-                close();
+                auto ctx = dialogCommandContext();
+                cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx);
             }
 
             igTableNextColumn();
@@ -2457,13 +2691,259 @@ protected:
 
     override
     void onClose() {
+        dialogDisplayed = false;
+        deactivateDialogCommandContext();
+        closeDialogActionScope();
         disposePreviewTextures();
     }
 
 public:
+    bool dialogCommandsAvailable() {
+        return dialogDisplayed && dialogActionScope !is null && dialogActionScope.isActive();
+    }
+
+    bool applyDialogResult() {
+        return apply();
+    }
+
+    void cancelDialog() {
+        deactivateDialogCommandContext();
+        closeDialogActionScope();
+        close();
+    }
+
+    Node[] dialogContextNodesForLayer(string layerPath, ulong targetGridUuid) {
+        auto puppet = incActivePuppet();
+        if (puppet is null || puppet.root is null) return null;
+
+        ulong nodeUuid = targetGridUuid;
+        if (auto mapping = findMapping(layerPath, targetGridUuid)) {
+            if (mapping.matchedNodeUuid != 0) nodeUuid = mapping.matchedNodeUuid;
+        }
+        if (nodeUuid == 0) return null;
+        auto node = puppet.find!Node(cast(uint)nodeUuid);
+        return node !is null ? [node] : null;
+    }
+
+    Node[] selectedDialogContextNodes() {
+        auto layer = selected3DAdjustLayerPreview();
+        if (layer !is null) {
+            auto nodes = dialogContextNodesForLayer(layer.layerPath, layer.targetGridUuid);
+            if (nodes.length) return nodes;
+        }
+        if (selectedGridIndex >= 0 && selectedGridIndex < preview.grids.length) {
+            auto grid = preview.grids[cast(size_t)selectedGridIndex].grid;
+            if (grid !is null) return [cast(Node)grid];
+        }
+        return null;
+    }
+
+    bool dialogContextMatchesLayer(Context ctx, string layerPath, ulong targetGridUuid) {
+        if (ctx is null || !ctx.hasNodes() || ctx.nodes.length == 0) return false;
+        auto expected = dialogContextNodesForLayer(layerPath, targetGridUuid);
+        if (expected.length == 0) return false;
+        foreach (selected; ctx.nodes) {
+            if (selected is expected[0]) return true;
+        }
+        return false;
+    }
+
+    bool captureDialogContextLayerState(
+        Context ctx,
+        string layerPath,
+        out PsdDepthDialogLayerState state
+    ) {
+        foreach (ref layer; preview.composedLayers) {
+            if (layer.layerPath != layerPath ||
+                !dialogContextMatchesLayer(ctx, layer.layerPath, layer.targetGridUuid)) {
+                continue;
+            }
+            state = dialogLayerState(layer);
+            return true;
+        }
+        state = PsdDepthDialogLayerState.init;
+        return false;
+    }
+
+    bool dialogMappingTargetAvailable(Node target) {
+        if (target is null) return false;
+        foreach (candidate; currentTargets()) {
+            if (candidate is target) return true;
+        }
+        return false;
+    }
+
+    bool dialogContextTargetUuid(Context ctx, out ulong uuid) {
+        uuid = 0;
+        if (ctx is null || !ctx.hasNodes() || ctx.nodes.length != 1) return false;
+        if (!dialogMappingTargetAvailable(ctx.nodes[0])) return false;
+        uuid = ctx.nodes[0].uuid;
+        return true;
+    }
+
+    PsdDepthDialogSettingsState captureDialogSettingsState() {
+        PsdDepthDialogSettingsState result;
+        result.settings = cloneDialogSettings(settings);
+        result.onlyProblemLayers = onlyProblemLayers;
+        foreach (ref layer; preview.composedLayers) {
+            result.layers ~= dialogLayerState(layer);
+        }
+        return result;
+    }
+
+    bool applyDialogSettingsState(PsdDepthDialogSettingsState state) {
+        settings = cloneDialogSettings(state.settings);
+        onlyProblemLayers = state.onlyProblemLayers;
+        pendingLayerStatesAfterRebuild = state.layers.dup;
+        previewDirty = true;
+        return true;
+    }
+
+    bool captureDialogLayerState(
+        string layerPath,
+        ulong targetGridUuid,
+        out PsdDepthDialogLayerState state
+    ) {
+        if (auto layer = findComposedLayer(layerPath, targetGridUuid)) {
+            state = dialogLayerState(*layer);
+            return true;
+        }
+        state = PsdDepthDialogLayerState.init;
+        return false;
+    }
+
+    bool applyDialogLayerState(PsdDepthDialogLayerState state, bool stageForApply) {
+        auto layer = findComposedLayer(state.layerPath, state.targetGridUuid);
+        if (layer is null) return false;
+        auto previous = dialogLayerState(*layer);
+        if (sameDialogLayerState(previous, state)) return false;
+
+        applyDialogLayerStateFields(*layer, state);
+        if (stageForApply) {
+            stage3DAdjustLayerChange(state.layerPath, state.targetGridUuid);
+            if (state.invert != previous.invert) {
+                invalidate3DAdjustLayerCaches(state.layerPath, state.targetGridUuid);
+            }
+        } else {
+            refreshAfter3DAdjustLayerChange(state.layerPath, state.targetGridUuid);
+        }
+        return true;
+    }
+
+    PsdDepthDialogLayerPixels[] captureDialogLayerPixels() {
+        PsdDepthDialogLayerPixels[] result;
+        foreach (ref layer; preview.composedLayers) {
+            PsdDepthDialogLayerPixels pixels;
+            pixels.layerPath = layer.layerPath;
+            pixels.targetGridUuid = layer.targetGridUuid;
+            pixels.depthRgba = layer.depthRgba.dup;
+            result ~= pixels;
+        }
+        return result;
+    }
+
+    bool applyDialogLayerPixels(PsdDepthDialogLayerPixels[] state) {
+        bool found;
+        foreach (pixels; state) {
+            auto layer = findComposedLayer(pixels.layerPath, pixels.targetGridUuid);
+            if (layer is null) continue;
+            layer.depthRgba = pixels.depthRgba.dup;
+            found = true;
+        }
+        if (!found && state.length > 0) return false;
+
+        disposePreviewTextures();
+        string composeError;
+        if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
+            errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
+            return false;
+        }
+        errorMessage = null;
+        previewDirty = false;
+        return true;
+    }
+
+    bool applyDialogAlphaDepthGapFill() {
+        applyAlphaDepthGapFill();
+        return errorMessage.length == 0;
+    }
+
+    static bool dialogLayerPixelsEqual(
+        PsdDepthDialogLayerPixels[] a,
+        PsdDepthDialogLayerPixels[] b
+    ) {
+        if (a.length != b.length) return false;
+        foreach (i; 0 .. a.length) {
+            if (a[i].layerPath != b[i].layerPath ||
+                a[i].targetGridUuid != b[i].targetGridUuid ||
+                a[i].depthRgba != b[i].depthRgba) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     this(string path) {
         this.path = path;
         super(_("PSD Depth Map Import"));
+    }
+
+    version (CommandBrowserDifferential) {
+        void beginDialogCommandSessionForRegression() {
+            dialogDisplayed = true;
+            activateDialogCommandContext();
+            ensureDialogActionScope();
+        }
+
+        void setDialogLayerStateForRegression(PsdDepthDialogLayerState state) {
+            PsdDepthComposedLayer layer;
+            layer.id = state.layerPath;
+            layer.layerPath = state.layerPath;
+            layer.targetGridUuid = state.targetGridUuid;
+            applyDialogLayerStateFields(layer, state);
+            preview.composedLayers = [layer];
+            previewDirty = false;
+        }
+
+        bool setDialogLayerPixelsForRegression(
+            int width,
+            int height,
+            ubyte[] depthRgba,
+            ubyte[] maskRgba
+        ) {
+            if (preview.composedLayers.length != 1) return false;
+            preview.composedLayers[0].width = width;
+            preview.composedLayers[0].height = height;
+            preview.composedLayers[0].depthRgba = depthRgba.dup;
+            preview.composedLayers[0].maskRgba = maskRgba.dup;
+            string composeError;
+            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
+                errorMessage = composeError;
+                return false;
+            }
+            errorMessage = null;
+            previewDirty = false;
+            return true;
+        }
+
+        bool prepareDialogApplyForRegression() {
+            preview = PsdDepthImportResult.init;
+            pending3DAdjustLayerChanges = null;
+            string composeError;
+            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
+                errorMessage = composeError;
+                return false;
+            }
+            errorMessage = null;
+            previewDirty = false;
+            return true;
+        }
+
+        void endDialogCommandSessionForRegression() {
+            dialogDisplayed = false;
+            deactivateDialogCommandContext();
+            closeDialogActionScope();
+        }
     }
 
     version (RegressionSmoke) {

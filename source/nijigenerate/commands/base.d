@@ -13,6 +13,7 @@ static import nijigenerate.viewport.common.mesheditor.tools.enums;
 static import nijigenerate.viewport.depth.mesheditor.editor;
 static import nijigenerate.viewport.depth.mesheditor.node;
 static import nijigenerate.viewport.depth.tools.operation;
+static import nijigenerate.windows.psddepthmap;
 static import nijilive.core.nodes.drivers; // PhysicsModel, ParamMapMode, Driver
 static import nijilive.core.nodes.drivers.simplephysics;
 
@@ -120,6 +121,36 @@ struct IrreversibleEffectMeta {
     CommandIrreversibleEffect value;
 }
 
+abstract class CommandScope {
+    string typeName() const {
+        return typeid(cast(Object)this).toString();
+    }
+
+    bool accepts(const CommandScope activeScope) const {
+        return this is activeScope;
+    }
+
+    bool permits(ref const CommandMetadata metadata) const {
+        if (auto declaredScope = typeName() in metadata.scopes) {
+            if ((*declaredScope).accepts(this)) return true;
+        }
+        auto globalType = typeid(GlobalCommandScope).toString();
+        if (auto globalScope = globalType in metadata.scopes) {
+            return (*globalScope).accepts(cast(CommandScope)this);
+        }
+        return false;
+    }
+}
+
+final class NormalCommandScope : CommandScope {}
+final class GlobalCommandScope : CommandScope {
+    override bool accepts(const CommandScope activeScope) const {
+        return activeScope !is null;
+    }
+}
+
+struct CommandScopes(Scopes...) {}
+
 enum ShortcutVisible = ShortcutVisibility(CommandShortcutPolicy.visible);
 enum ShortcutHidden = ShortcutVisibility(CommandShortcutPolicy.hidden);
 enum McpTool = McpExposureMeta(CommandMcpExposure.tool);
@@ -154,9 +185,65 @@ struct CommandMetadata {
     bool mcpExposed = true;
     CommandGuiDisplay guiDisplay = CommandGuiDisplay.none;
     CommandIrreversibleEffect irreversibleEffect = CommandIrreversibleEffect.none;
+    CommandScope[string] scopes;
 }
 
 private __gshared CommandMetadata[string] gCommandMetadataByTypeName;
+private __gshared CommandScope[string] gRegisteredCommandScopes;
+private __gshared CommandScope[] gCommandScopeStack;
+
+S ngCommandScope(S)() if (is(S : CommandScope)) {
+    auto key = typeid(S).toString();
+    if (auto registered = key in gRegisteredCommandScopes) {
+        return cast(S)*registered;
+    }
+    auto commandScope = new S();
+    gRegisteredCommandScopes[key] = commandScope;
+    return commandScope;
+}
+
+final class CommandScopeRegistration {
+private:
+    CommandScope registeredScope;
+    bool active;
+
+public:
+    this(CommandScope registeredScope) {
+        enforce(registeredScope !is null, "Command scope must not be null");
+        this.registeredScope = registeredScope;
+        gCommandScopeStack ~= registeredScope;
+        active = true;
+    }
+
+    void close() {
+        if (!active) return;
+        foreach_reverse (i, candidate; gCommandScopeStack) {
+            if (candidate is registeredScope) {
+                gCommandScopeStack =
+                    gCommandScopeStack[0 .. i] ~ gCommandScopeStack[i + 1 .. $];
+                break;
+            }
+        }
+        active = false;
+    }
+
+    bool isActive() const {
+        return active;
+    }
+
+    ~this() {
+        close();
+    }
+}
+
+CommandScopeRegistration ngPushCommandScope(CommandScope commandScope) {
+    return new CommandScopeRegistration(commandScope);
+}
+
+CommandScope ngCurrentCommandScope() {
+    if (gCommandScopeStack.length) return gCommandScopeStack[$ - 1];
+    return ngCommandScope!NormalCommandScope();
+}
 
 private CommandShortcutPolicy _shortcutPolicyOf(C)() {
     static foreach (attr; __traits(getAttributes, C)) {
@@ -194,13 +281,40 @@ private CommandIrreversibleEffect _irreversibleEffectOf(C)() {
     return CommandIrreversibleEffect.none;
 }
 
+private CommandScope[string] _commandScopesOf(C)() {
+    CommandScope[string] result;
+    bool found;
+    static if (is(C == class)) {
+        alias CommandTypes = AliasSeq!(C, BaseClassesTuple!C);
+        static foreach (CommandType; CommandTypes) {
+            static foreach (attr; __traits(getAttributes, CommandType)) {
+                static if (isInstanceOf!(CommandScopes, typeof(attr))) {
+                    found = true;
+                    static foreach (Scope; TemplateArgsOf!(typeof(attr))) {
+                        static assert(is(Scope : CommandScope),
+                            Scope.stringof ~ " must derive from CommandScope");
+                        auto commandScope = ngCommandScope!Scope();
+                        result[commandScope.typeName()] = commandScope;
+                    }
+                }
+            }
+        }
+    }
+    if (!found) {
+        auto normalScope = ngCommandScope!NormalCommandScope();
+        result[normalScope.typeName()] = normalScope;
+    }
+    return result;
+}
+
 void ngRegisterCommandMeta(C)(C cmd) if (is(C : Command)) {
     auto key = typeid(cast(Object)cmd).toString();
     gCommandMetadataByTypeName[key] = CommandMetadata(
         _shortcutPolicyOf!C() != CommandShortcutPolicy.hidden,
         _mcpExposureOf!C() != CommandMcpExposure.hidden,
         _guiDisplayOf!C(),
-        _irreversibleEffectOf!C()
+        _irreversibleEffectOf!C(),
+        _commandScopesOf!C()
     );
 }
 
@@ -391,6 +505,12 @@ interface Command {
     CommandGuiDisplay guiDisplay();
     /// Persistent or one-way side effect category
     CommandIrreversibleEffect irreversibleEffect();
+}
+
+bool ngCommandAllowedInCurrentContext(Command command) {
+    if (command is null) return false;
+    auto metadata = ngLookupCommandMeta(command);
+    return ngCurrentCommandScope().permits(metadata);
 }
 
 abstract class ExCommand(T...) : Command {
@@ -661,7 +781,7 @@ Command ngMenuItemFor(alias id)(ref Context ctx, bool selected = false, bool ena
     auto shortcut = ngShortcutFor(base);
     const(char)* pShortcut = shortcut.length ? shortcut.toStringz : null;
     auto lbl = base.label();
-    bool canRun = base.runnable(ctx);
+    bool canRun = ngCommandAllowedInCurrentContext(base) && base.runnable(ctx);
     bool enabledFinal = enabled && canRun;
     if (igMenuItem(__(lbl), pShortcut, selected, enabledFinal)) {
         import nijigenerate.commands : cmd;
@@ -681,7 +801,7 @@ Command ngMenuItemFor(alias id, A...)(ref Context ctx, bool selected, bool enabl
     auto shortcut = ngShortcutFor(base);
     const(char)* pShortcut = shortcut.length ? shortcut.toStringz : null;
     auto lbl = base.label();
-    bool canRun = base.runnable(ctx);
+    bool canRun = ngCommandAllowedInCurrentContext(base) && base.runnable(ctx);
     bool enabledFinal = enabled && canRun;
     if (igMenuItem(__(lbl), pShortcut, selected, enabledFinal)) {
         import nijigenerate.commands : cmd;
