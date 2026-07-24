@@ -16,7 +16,7 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
     ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
-    ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirty;
+    ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
     ngPsdDepthImportResultToDepthDrawSession;
@@ -10908,6 +10908,103 @@ private void testDepthBoneCompositeSourcePreviewWorkflow() {
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding !is null && deformBinding.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
         "redo depthbone composite apply should restore coherent binding");
+
+    auto parentGrid = new ExGridDeformer(incActivePuppet().root);
+    parentGrid.name = "depthbone-nested-parent";
+    auto childGrid = new ExGridDeformer(parentGrid);
+    childGrid.name = "depthbone-nested-child";
+    incActivePuppet().rescanNodes();
+
+    ExDepthRigBinding parentBinding;
+    parentBinding.targetUuid = parentGrid.uuid;
+    parentBinding.targetKind = ExDepthTargetKind.Grid;
+    parentBinding.sourceBoneUuids = [bone.uuid];
+    ExDepthRigBinding childBinding;
+    childBinding.targetUuid = childGrid.uuid;
+    childBinding.targetKind = ExDepthTargetKind.Grid;
+    childBinding.sourceBoneUuids = [bone.uuid];
+    root.bindings ~= parentBinding;
+    root.bindings ~= childBinding;
+
+    require(cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(
+        ctx, root, cast(Node[])[childGrid, parentGrid]).succeeded,
+        "nested depthbone apply should accept child-before-parent target order");
+    ngFlushDepthBoneDirtyImmediate();
+    auto parentDeformBinding = cast(DeformationParameterBinding)
+        param.getBinding(parentGrid, "deform");
+    auto childDeformBinding = cast(DeformationParameterBinding)
+        param.getBinding(childGrid, "deform");
+    require(parentDeformBinding !is null && childDeformBinding !is null,
+        "nested depthbone apply should create parent and child bindings");
+    foreach (offset; parentDeformBinding.getValue(vec2u(1, 0)).vertexOffsets) {
+        require(near(offset.x, 6.0f),
+            "nested depthbone parent should retain the generated deformation");
+    }
+    foreach (offset; childDeformBinding.getValue(vec2u(1, 0)).vertexOffsets) {
+        require(near(offset.x, 0.0f),
+            "nested depthbone child should remove the inherited parent GridDeformer deformation");
+    }
+
+    float[] parentDepths;
+    parentDepths.length = parentGrid.vertices.length;
+    parentDepths[] = 0.25f;
+    parentGrid.replaceDepths(parentDepths);
+    float[] childDepths;
+    childDepths.length = childGrid.vertices.length;
+    childDepths[] = -0.1f;
+    childGrid.replaceDepths(childDepths);
+    fakeDepthBoneTransformNextJobId = 1;
+    fakeDepthBoneTransformResults = null;
+    ngSetDepthBoneGpuAsyncTestHooks(
+        &fakeDepthBoneGpuSupported,
+        &fakeDepthBoneSourceDepthSubmit,
+        &fakeDepthBoneTransformPoll
+    );
+
+    require(cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(
+        ctx, root, cast(Node[])[childGrid, parentGrid]).succeeded,
+        "nested depthbone source/depth fixture should apply");
+    ngFlushDepthBoneDirtyImmediate();
+    auto initialParentOffset =
+        parentDeformBinding.getValue(vec2u(1, 0)).vertexOffsets[0].x;
+    auto initialChildOffset =
+        childDeformBinding.getValue(vec2u(1, 0)).vertexOffsets[0].x;
+
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx,
+        root,
+        parentGrid,
+        bone,
+        `{"weight":1.0,"depthOffset":0.25,"depthScale":2.0}`
+    ).succeeded, "nested depthbone parent source settings should update");
+    ngFlushDepthBoneDirtyImmediate();
+    auto sourceChangedParentOffset =
+        parentDeformBinding.getValue(vec2u(1, 0)).vertexOffsets[0].x;
+    auto sourceChangedChildOffset =
+        childDeformBinding.getValue(vec2u(1, 0)).vertexOffsets[0].x;
+    require(!near(sourceChangedParentOffset, initialParentOffset) &&
+        !near(sourceChangedChildOffset, initialChildOffset) &&
+        near(
+            sourceChangedParentOffset + sourceChangedChildOffset,
+            initialParentOffset + initialChildOffset
+        ),
+        "changing parent BoneSource offset/scale must refresh the child parent-influence compensation");
+
+    parentDepths[] = 0.75f;
+    parentGrid.replaceDepths(parentDepths);
+    ngMarkDepthBoneDirtyForTarget(parentGrid, "Nested Parent Depth");
+    ngFlushDepthBoneDirtyImmediate();
+    auto depthChangedParentOffset =
+        parentDeformBinding.getValue(vec2u(1, 0)).vertexOffsets[0].x;
+    auto depthChangedChildOffset =
+        childDeformBinding.getValue(vec2u(1, 0)).vertexOffsets[0].x;
+    require(!near(depthChangedParentOffset, sourceChangedParentOffset) &&
+        !near(depthChangedChildOffset, sourceChangedChildOffset) &&
+        near(
+            depthChangedParentOffset + depthChangedChildOffset,
+            sourceChangedParentOffset + sourceChangedChildOffset
+        ),
+        "changing parent GridDeformer depth must refresh descendant compensation in the same DepthRig");
 }
 
 private void testAutoMeshCompositeProcessorMatrix() {
@@ -13491,6 +13588,36 @@ private bool fakeDepthBoneTransformSubmit(
     jobId = fakeDepthBoneTransformNextJobId++;
     fakeDepthBoneTransformResults[jobId] = result;
     fakeDepthBoneTransformSubmitCount++;
+    return true;
+}
+
+private bool fakeDepthBoneSourceDepthSubmit(
+    ref DepthBoneGpuDispatchPacket packet,
+    out uint jobId,
+    out string error
+) {
+    jobId = 0;
+    error = null;
+    if (packet.sourceCount != 1 ||
+        packet.sources.length < DepthBoneGpuSourceStride ||
+        packet.depths.length != packet.vertices.length) {
+        error = "source-depth fixture requires one source and one depth per vertex";
+        return false;
+    }
+
+    NgDepthBoneGpuAsyncResult result;
+    result.ready = true;
+    result.xs.length = packet.vertices.length;
+    result.ys.length = packet.vertices.length;
+    auto depthScale = packet.sources[5];
+    auto depthOffset = packet.sources[6];
+    foreach (i; 0 .. packet.vertices.length) {
+        result.xs[i] = packet.depths[i] * depthScale + depthOffset;
+        result.ys[i] = 0.0f;
+    }
+
+    jobId = fakeDepthBoneTransformNextJobId++;
+    fakeDepthBoneTransformResults[jobId] = result;
     return true;
 }
 

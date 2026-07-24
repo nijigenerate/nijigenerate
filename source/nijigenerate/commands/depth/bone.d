@@ -24,6 +24,7 @@ import i18n;
 
 import std.algorithm.comparison : max, min;
 import std.algorithm.searching : countUntil;
+import std.algorithm.sorting : sort;
 import std.array : join;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
@@ -1071,10 +1072,11 @@ private bool submitDepthBoneGpuRefreshJob(DepthBoneGpuQueuedJob queued, out stri
 
 private void enqueueDepthBoneGpuRefreshBatch(DepthBoneGpuOffsetPacket[] packets, string reason, GroupAction actionSink) {
     if (packets.length == 0) return;
+    auto batchId = nextDepthBoneGpuBatchId++;
+    if (nextDepthBoneGpuBatchId == 0) nextDepthBoneGpuBatchId = 1;
     foreach (packet; packets) {
-        auto batchId = nextDepthBoneGpuBatchId++;
-        if (nextDepthBoneGpuBatchId == 0) nextDepthBoneGpuBatchId = 1;
-        depthBoneGpuSubmissionQueue ~= DepthBoneGpuQueuedJob(packet, reason, actionSink, batchId, 1);
+        depthBoneGpuSubmissionQueue ~= DepthBoneGpuQueuedJob(
+            packet, reason, actionSink, batchId, packets.length);
     }
 }
 
@@ -1240,6 +1242,145 @@ private bool processDepthBoneGpuSubmissionQueue() {
     return submitted;
 }
 
+private size_t nodeHierarchyDepth(Node node) {
+    size_t result;
+    for (auto cursor = node; cursor !is null; cursor = cursor.parent) result++;
+    return result;
+}
+
+private void appendUniqueGridAxis(ref float[] axis, float value) {
+    foreach (existing; axis) {
+        if (abs(existing - value) <= 0.0001f) return;
+    }
+    axis ~= value;
+}
+
+private ptrdiff_t gridVertexIndex(
+    const(Vec2Array) vertices,
+    float x,
+    float y
+) {
+    foreach (i, vertex; vertices) {
+        if (abs(vertex.x - x) <= 0.0001f &&
+            abs(vertex.y - y) <= 0.0001f) return cast(ptrdiff_t)i;
+    }
+    return -1;
+}
+
+private size_t gridAxisInterval(const(float)[] axis, float value) {
+    if (axis.length < 2) return 0;
+    foreach (i; 0 .. axis.length - 1) {
+        if (value <= axis[i + 1]) return i;
+    }
+    return axis.length - 2;
+}
+
+private bool addParentGridInfluence(
+    GridDeformer parentGrid,
+    Deformable target,
+    Vec2Array parentOffsets,
+    ref Vec2Array accumulated
+) {
+    if (parentGrid is null || target is null ||
+        parentOffsets.length != parentGrid.vertices.length) return false;
+
+    float[] axisX;
+    float[] axisY;
+    foreach (vertex; parentGrid.vertices) {
+        appendUniqueGridAxis(axisX, vertex.x);
+        appendUniqueGridAxis(axisY, vertex.y);
+    }
+    axisX.sort();
+    axisY.sort();
+    if (axisX.length < 2 || axisY.length < 2 ||
+        axisX.length * axisY.length != parentGrid.vertices.length) return false;
+
+    if (accumulated.length != target.vertices.length) {
+        accumulated.length = target.vertices.length;
+        accumulated[] = vec2(0, 0);
+    }
+
+    auto targetToParent = parentGrid.transform.matrix.inverse * target.transform.matrix;
+    auto parentToTarget = targetToParent.inverse;
+    foreach (i, vertex; target.vertices) {
+        auto parentPoint4 = targetToParent * vec4(vertex.x, vertex.y, 0.0f, 1.0f);
+        auto parentPoint = vec2(parentPoint4.x, parentPoint4.y);
+        if (parentGrid.dynamic && i < accumulated.length) {
+            auto prior4 = targetToParent * vec4(
+                accumulated[i].x, accumulated[i].y, 0.0f, 0.0f);
+            parentPoint += vec2(prior4.x, prior4.y);
+        }
+
+        auto x = min(max(parentPoint.x, axisX[0]), axisX[$ - 1]);
+        auto y = min(max(parentPoint.y, axisY[0]), axisY[$ - 1]);
+        auto xi = gridAxisInterval(axisX, x);
+        auto yi = gridAxisInterval(axisY, y);
+        auto xSpan = axisX[xi + 1] - axisX[xi];
+        auto ySpan = axisY[yi + 1] - axisY[yi];
+        auto u = xSpan > 0.0f ? (x - axisX[xi]) / xSpan : 0.0f;
+        auto v = ySpan > 0.0f ? (y - axisY[yi]) / ySpan : 0.0f;
+
+        auto i00 = gridVertexIndex(parentGrid.vertices, axisX[xi], axisY[yi]);
+        auto i10 = gridVertexIndex(parentGrid.vertices, axisX[xi + 1], axisY[yi]);
+        auto i01 = gridVertexIndex(parentGrid.vertices, axisX[xi], axisY[yi + 1]);
+        auto i11 = gridVertexIndex(parentGrid.vertices, axisX[xi + 1], axisY[yi + 1]);
+        if (i00 < 0 || i10 < 0 || i01 < 0 || i11 < 0) continue;
+
+        auto parentOffset =
+            parentOffsets[cast(size_t)i00] * ((1.0f - u) * (1.0f - v)) +
+            parentOffsets[cast(size_t)i10] * (u * (1.0f - v)) +
+            parentOffsets[cast(size_t)i01] * ((1.0f - u) * v) +
+            parentOffsets[cast(size_t)i11] * (u * v);
+        auto targetOffset4 = parentToTarget * vec4(
+            parentOffset.x, parentOffset.y, 0.0f, 0.0f);
+        accumulated[i] += vec2(targetOffset4.x, targetOffset4.y);
+    }
+    return true;
+}
+
+private Vec2Array depthBoneAncestorGridInfluence(
+    ExDepthRigRoot root,
+    Deformable target,
+    Parameter parameter,
+    vec2u keypoint,
+    Vec2Array targetOffsets,
+    ref Vec2Array[uint] resolvedOffsets
+) {
+    Vec2Array result = targetOffsets.length == target.vertices.length
+        ? targetOffsets.dup
+        : Vec2Array.init;
+    if (result.length != target.vertices.length) {
+        result.length = target.vertices.length;
+        result[] = vec2(0, 0);
+    }
+    auto original = result.dup;
+
+    Node[] ancestors;
+    for (auto cursor = (cast(Node)target).parent; cursor !is null; cursor = cursor.parent) {
+        if (cast(GridDeformer)cursor) ancestors ~= cursor;
+    }
+    foreach_reverse (ancestorNode; ancestors) {
+        auto parentGrid = cast(GridDeformer)ancestorNode;
+        if (parentGrid is null || root.findBindingIndex(parentGrid.uuid) < 0) continue;
+
+        Vec2Array parentOffsets;
+        if (auto resolved = cast(uint)parentGrid.uuid in resolvedOffsets) {
+            parentOffsets = (*resolved).dup;
+        } else if (parameter !is null) {
+            auto binding = cast(DeformationParameterBinding)
+                parameter.getBinding(parentGrid, "deform");
+            if (binding !is null) {
+                parentOffsets = binding.getValue(keypoint).vertexOffsets.dup;
+            }
+        } else {
+            parentOffsets = parentGrid.deformation.dup;
+        }
+        addParentGridInfluence(parentGrid, target, parentOffsets, result);
+    }
+    result -= original;
+    return result;
+}
+
 private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
     DepthBoneGpuCompletedJob[] batch;
     foreach (job; depthBoneGpuCompletedJobs) {
@@ -1271,6 +1412,35 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
         }
     }
 
+    auto hierarchyBatch = batch.dup;
+    hierarchyBatch.sort!((a, b) =>
+        nodeHierarchyDepth(cast(Node)a.packet.target) <
+        nodeHierarchyDepth(cast(Node)b.packet.target));
+    Vec2Array[uint] resolvedOffsets;
+    foreach (job; hierarchyBatch) {
+        auto target = job.packet.target;
+        auto targetNode = cast(Node)target;
+        if (target is null || targetNode is null) continue;
+        auto adjusted = job.offsets.dup;
+        foreach (_; 0 .. 6) {
+            auto inherited = depthBoneAncestorGridInfluence(
+                job.packet.root,
+                target,
+                job.packet.parameter,
+                job.packet.keypoint,
+                adjusted,
+                resolvedOffsets
+            );
+            if (inherited.length != adjusted.length) break;
+            auto next = job.offsets.dup;
+            next -= inherited;
+            auto converged = sameVec2Array(next, adjusted);
+            adjusted = next;
+            if (converged) break;
+        }
+        resolvedOffsets[targetNode.uuid] = adjusted;
+    }
+
     foreach (job; batch) {
         auto target = job.packet.target;
         auto targetNode = cast(Node)target;
@@ -1288,9 +1458,11 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
                 target.vertices.length));
         }
 
+        auto adjusted = targetNode.uuid in resolvedOffsets;
+        auto offsets = adjusted is null ? job.offsets : *adjusted;
 
         if (job.packet.writePreview) {
-            target.deformation = job.offsets;
+            target.deformation = offsets;
             target.notifyChange(target, NotifyReason.AttributeChanged);
             changed = true;
         }
@@ -1316,7 +1488,7 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
                 job.packet.keypoint.y));
         }
         deformBindings ~= deformBinding;
-        offsetsList ~= job.offsets;
+        offsetsList ~= offsets;
     }
 
     if (expectedBindingWrites != deformBindings.length) {
@@ -1396,6 +1568,7 @@ private bool processDepthBoneGpuRefreshJobs() {
         string staleReason;
         if (!isDepthBoneGpuRefreshJobCurrent(job, staleReason)) {
             requeueStaleDepthBoneGpuJob(job, staleReason);
+            completeDepthBoneGpuJob(job, Vec2Array.init, false);
             depthBoneGpuRefreshJobs = depthBoneGpuRefreshJobs[0 .. i] ~ depthBoneGpuRefreshJobs[i + 1 .. $];
             processed++;
             continue;
@@ -1521,7 +1694,23 @@ void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
                     actualParam = lastDepthBoneDirtyParameter;
                     actualKeypoint = lastDepthBoneDirtyKeypoint;
                 }
-                ngMarkDepthBoneDirty(root, actualParam, actualKeypoint, reason, DepthBoneDirtyScope.AllKeypoints, target.uuid);
+                uint affectedTargetUuid = cast(uint)target.uuid;
+                foreach (ref binding; root.bindings) {
+                    auto bindingTarget = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
+                    if (bindingTarget !is null && bindingTarget !is target &&
+                        isSameOrAncestorNode(target, bindingTarget)) {
+                        affectedTargetUuid = 0;
+                        break;
+                    }
+                }
+                ngMarkDepthBoneDirty(
+                    root,
+                    actualParam,
+                    actualKeypoint,
+                    reason,
+                    DepthBoneDirtyScope.AllKeypoints,
+                    affectedTargetUuid
+                );
             }
         }
         foreach (child; node.children) visit(child);
