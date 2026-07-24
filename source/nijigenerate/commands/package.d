@@ -1,5 +1,6 @@
 module nijigenerate.commands;
 public import nijigenerate.commands.base;
+public import nijigenerate.commands.command_scope;
 public import nijigenerate.commands.binding.binding;
 public import nijigenerate.commands.node.node;
 public import nijigenerate.commands.node.dynamic;
@@ -40,6 +41,7 @@ version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
 else             private void cmdLog(T...)(T args) {}
 
 alias AllCommandMaps = AliasSeq!(
+    nijigenerate.commands.command_scope.commands,
     nijigenerate.commands.binding.binding.commands,
     nijigenerate.commands.node.node.commands,
     nijigenerate.commands.parameter.animedit.commands,
@@ -165,6 +167,8 @@ private void ngInitCommandMap(alias AA)() {
 
     static if (is(K == nijigenerate.commands.binding.binding.BindingCommand))
         nijigenerate.commands.binding.binding.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.command_scope.CommandScopeCommand))
+        nijigenerate.commands.command_scope.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.node.node.NodeCommand))
         nijigenerate.commands.node.node.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.parameter.animedit.AnimeditCommand))

@@ -313,6 +313,7 @@ private immutable Scenario[] scenarios = [
     Scenario("api.external-control", "API/Agent", "External API, MCP task queue, command execution, and agent panel integration", automated, "Covers command result JSON, context payload overrides, resource listing, and queued main-thread dispatch; agent panel UI remains computer-use."),
     Scenario("api.acp-protocol", "API/Agent", "ACP protocol transport, echo agent, message parsing, cancellation, and error reporting", automated, "Covers ACP protocol constants, typed payload structs, and JSON-RPC error serialization; process transport remains in ACP stdio/client scenarios."),
     Scenario("api.mcp-mode-history", "API/Agent", "MCP command execution across ModelEdit, VertexEdit, DepthEdit, and undo/redo history boundaries", automated, "Covers MCP prepare/finish boundaries with pre-existing root history, active edit scopes, and type-preserving undo/redo."),
+    Scenario("api.command-scope", "API/Agent", "Current command scope, allowed MCP tools, scope stack, and finish/cancel transitions", automated, "Covers normal and PSD dialog scope discovery plus metadata-driven lifecycle command reporting."),
     Scenario("api.mcp-server", "API/Agent", "MCP auth, HTTP transport, resource listing, command execution, and queued task dispatch", automated, "Covers disabled settings application, auth toggle behavior, resource listing, and queued command dispatch; live HTTP request smoke remains separate."),
     Scenario("api.mcp-auth", "API/Agent", "MCP auth token generation, validation, rejection, and settings persistence", automated, "Covers approval request data contract and auth UI source contract without blocking headless tests."),
     Scenario("api.mcp-http-transport", "API/Agent", "MCP HTTP transport request parsing, response streaming, errors, and shutdown", automated, "Covers transport construction, auth toggles, handler dispatch, close path, and registered route/source contract."),
@@ -3502,10 +3503,32 @@ private void testDepthMapCommandsUndoRedo() {
     require(grid.copyDepthOps().length == 3, "editor Apply should save local operation edits through depth-op command");
 }
 
+private ExCommandResult!JSONValue currentCommandScope(Context ctx) {
+    auto result = cast(ExCommandResult!JSONValue)
+        cmd!(CommandScopeCommand.GetCurrentCommandScope)(ctx);
+    require(result !is null && result.succeeded,
+        "current command scope query must return a JSON payload");
+    return result;
+}
+
+private bool scopeCommandListContains(JSONValue[] commands, string tool) {
+    foreach (command; commands) {
+        if (command.object["tool"].str == tool) return true;
+    }
+    return false;
+}
+
 private void testPsdDepthDialogCommandsUndoRedo() {
     resetCase();
     auto ctx = new Context();
     auto dialog = new PSDDepthMapWindow("psd-depth-dialog-command-regression.png");
+
+    auto normalScope = currentCommandScope(ctx).result;
+    require(normalScope["scope"].object["id"].str == "normal" &&
+        normalScope["scopeStack"].array.length == 1 &&
+        normalScope["lifecycle"].object["finish"].array.length == 0 &&
+        normalScope["lifecycle"].object["cancel"].array.length == 0,
+        "normal scope query must report no dialog lifecycle commands");
 
     auto outsideResult = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogInvert)(ctx, true);
     require(!outsideResult.succeeded,
@@ -3520,12 +3543,32 @@ private void testPsdDepthDialogCommandsUndoRedo() {
         "non-dialog commands must be unavailable while the PSD depth dialog is displayed");
     auto dialogCommands = filterCommands("");
     import std.traits : EnumMembers;
-    require(dialogCommands.length == EnumMembers!PsdDepthDialogCommand.length + 2,
-        "PSD depth dialog context must expose only its dialog commands plus Undo and Redo");
+    require(dialogCommands.length == EnumMembers!PsdDepthDialogCommand.length + 3,
+        "PSD depth dialog context must expose only its dialog commands, scope query, Undo, and Redo");
     foreach (command; dialogCommands) {
         require(ngCommandAllowedInCurrentContext(command),
             "command lists must not expose commands outside the active PSD depth dialog context");
     }
+    auto dialogScope = currentCommandScope(ctx).result;
+    require(dialogScope["scope"].object["id"].str == "psd-depth-dialog" &&
+        dialogScope["scopeStack"].array.length == 2 &&
+        dialogScope["lifecycle"].object["finish"].array.length == 1 &&
+        dialogScope["lifecycle"].object["finish"].array[0].object["tool"].str ==
+            "PsdDepthDialogCommand_ApplyPsdDepthDialog" &&
+        dialogScope["lifecycle"].object["finish"].array[0].object["available"].type == JSONType.true_ &&
+        dialogScope["lifecycle"].object["cancel"].array.length == 1 &&
+        dialogScope["lifecycle"].object["cancel"].array[0].object["tool"].str ==
+            "PsdDepthDialogCommand_CancelPsdDepthDialog" &&
+        dialogScope["lifecycle"].object["cancel"].array[0].object["available"].type == JSONType.true_,
+        "PSD dialog scope query must report its Apply and Cancel transition commands");
+    require(scopeCommandListContains(
+            dialogScope["availableCommands"].array,
+            "PsdDepthDialogCommand_SetPsdDepthDialogInvert") &&
+        scopeCommandListContains(
+            dialogScope["availableCommands"].array,
+            "CommandScopeCommand_GetCurrentCommandScope") &&
+        !scopeCommandListContains(dialogScope["availableCommands"].array, "Node_Add_Node"),
+        "scope query must list allowed MCP tools and exclude normal-scope tools");
 
     auto updateSettings = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogInvert)(ctx, true);
     require(updateSettings.succeeded && dialog.captureDialogSettingsState().settings.invert,
@@ -3613,6 +3656,8 @@ private void testPsdDepthDialogCommandsUndoRedo() {
     require(ngCommandAllowedInCurrentContext(
         nijigenerate.commands.puppet.edit.commands[EditCommand.ShowSettingsWindow]),
         "closing the PSD depth dialog must restore the normal command set");
+    require(currentCommandScope(ctx).result["scope"].object["id"].str == "normal",
+        "scope query must return to normal after the dialog closes");
 }
 
 private void requirePsdDepthDialogCommandRoundTrip(
@@ -16508,6 +16553,8 @@ private string normalizeRegressionSourcePath(string path, string root) {
 }
 
 private string scenarioPrefixForCommandModule(string rel) {
+    if (rel == "commands/command_scope.d")
+        return "api";
     if (rel.startsWith("commands/automesh/"))
         return "automesh";
     if (rel.startsWith("commands/binding/"))
@@ -17866,6 +17913,9 @@ private bool runAutomatedScenario(string id) {
         case "api.mcp-mode-history":
         case "undo.composite-workflows":
             runCase("mcp-mode-history-composite-workflows", &testMcpModeHistoryCompositeWorkflows);
+            return true;
+        case "api.command-scope":
+            runCase("current-command-scope-and-lifecycle", &testPsdDepthDialogCommandsUndoRedo);
             return true;
         case "mesh.define-mesh-command":
         case "part.uv-mesh-coherence":

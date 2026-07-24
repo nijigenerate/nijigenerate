@@ -49,6 +49,7 @@ BindingCommand.SetInterpolation	args=mode=InterpolateMode.Nearest	unsupported=	b
 BindingCommand.SetKeyFrame	args=	unsupported=	before=	after=	cleared=
 BindingCommand.SymmetrizeDeform	args=	unsupported=	before=	after=	cleared=
 BindingCommand.UnsetKeyFrame	args=	unsupported=	before=	after=	cleared=
+CommandScopeCommand.GetCurrentCommandScope	args=	unsupported=	before=	after=	cleared=
 DepthBoneCommand.AddDepthBone	args=boneId=command-browser-differential;parent=UUID;restRoll=1.25	unsupported=restHead:float[];restTail:float[]	before=parent=null;boneId=;restHead=[];restTail=[];restRoll=nan	after=parent=Node:UUID;boneId=command-browser-differential;restHead=[];restTail=[];restRoll=1.25	cleared=parent=null;boneId=;restHead=[];restTail=[];restRoll=1.25
 DepthBoneCommand.AddDepthBoneSource	args=bone=UUID;root=UUID;target=UUID	unsupported=	before=root=null;target=null;bone=null	after=root=Node:UUID;target=Node:UUID;bone=Node:UUID	cleared=root=null;target=null;bone=null
 DepthBoneCommand.AddStandardDepthParameters	args=root=UUID	unsupported=	before=root=null	after=root=Node:UUID	cleared=root=null

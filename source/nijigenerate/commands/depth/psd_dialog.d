@@ -44,7 +44,29 @@ enum PsdDepthDialogCommand {
     CancelPsdDepthDialog,
 }
 
-final class PsdDepthDialogCommandScope : CommandScope {}
+final class PsdDepthDialogCommandScope : CommandScope {
+    override string id() const {
+        return "psd-depth-dialog";
+    }
+
+    override string description() const {
+        return "PSD depth import dialog";
+    }
+
+    override CommandScopeTransition[] completionCommands() const {
+        return [CommandScopeTransition(
+            ngCommandIdFromKey(PsdDepthDialogCommand.ApplyPsdDepthDialog),
+            "Apply the PSD depth import and close the dialog"
+        )];
+    }
+
+    override CommandScopeTransition[] cancellationCommands() const {
+        return [CommandScopeTransition(
+            ngCommandIdFromKey(PsdDepthDialogCommand.CancelPsdDepthDialog),
+            "Discard dialog changes and close the dialog"
+        )];
+    }
+}
 
 Command[PsdDepthDialogCommand] commands;
 

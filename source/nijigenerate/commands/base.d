@@ -121,7 +121,28 @@ struct IrreversibleEffectMeta {
     CommandIrreversibleEffect value;
 }
 
+struct CommandScopeTransition {
+    string commandId;
+    string description;
+}
+
 abstract class CommandScope {
+    string id() const {
+        return typeName();
+    }
+
+    string description() const {
+        return "";
+    }
+
+    CommandScopeTransition[] completionCommands() const {
+        return null;
+    }
+
+    CommandScopeTransition[] cancellationCommands() const {
+        return null;
+    }
+
     string typeName() const {
         return typeid(cast(Object)this).toString();
     }
@@ -142,8 +163,25 @@ abstract class CommandScope {
     }
 }
 
-final class NormalCommandScope : CommandScope {}
+final class NormalCommandScope : CommandScope {
+    override string id() const {
+        return "normal";
+    }
+
+    override string description() const {
+        return "Normal editor command scope";
+    }
+}
+
 final class GlobalCommandScope : CommandScope {
+    override string id() const {
+        return "global";
+    }
+
+    override string description() const {
+        return "Commands available in every active scope";
+    }
+
     override bool accepts(const CommandScope activeScope) const {
         return activeScope !is null;
     }
@@ -243,6 +281,12 @@ CommandScopeRegistration ngPushCommandScope(CommandScope commandScope) {
 CommandScope ngCurrentCommandScope() {
     if (gCommandScopeStack.length) return gCommandScopeStack[$ - 1];
     return ngCommandScope!NormalCommandScope();
+}
+
+CommandScope[] ngCommandScopeStackSnapshot() {
+    CommandScope[] result = [ngCommandScope!NormalCommandScope()];
+    result ~= gCommandScopeStack;
+    return result;
 }
 
 private CommandShortcutPolicy _shortcutPolicyOf(C)() {
