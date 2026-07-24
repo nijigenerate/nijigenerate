@@ -288,6 +288,7 @@ ParameditCommand.ToggleParameterArm	args=index=7	unsupported=	before=index=0	aft
 PsdDepthDialogCommand.ApplyPsdDepthDialog	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.CancelPsdDepthDialog	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.FillPsdDepthDialogAlphaDepthGaps	args=	unsupported=	before=	after=	cleared=
+PsdDepthDialogCommand.GetPsdDepthDialogPartData	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.InspectPsdDepthDialog	args=	unsupported=	before=	after=	cleared=
 PsdDepthDialogCommand.ResetPsdDepthDialogLayerDepthTransform	args=layerPath=command-browser-differential	unsupported=	before=layerPath=	after=layerPath=command-browser-differential	cleared=layerPath=
 PsdDepthDialogCommand.SetPsdDepthDialogAlphaThreshold	args=value=1.25	unsupported=	before=value=nan	after=value=1.25	cleared=value=1.25

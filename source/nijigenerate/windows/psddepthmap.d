@@ -81,6 +81,66 @@ struct PsdDepthDialogLayerPixels {
     ubyte[] depthRgba;
 }
 
+struct PsdDepthDialogPartLayerData {
+    string layerPath;
+    string layerName;
+    string colorLayerPath;
+    string colorLayerName;
+    string sourcePath;
+    int left;
+    int top;
+    int width;
+    int height;
+    bool visible;
+    bool enabled;
+    bool depthEnabled;
+    ulong targetGridUuid;
+    PsdDepthLayerDepthStats depthStats;
+    ubyte[] colorRgba;
+    ubyte[] depthRgba;
+}
+
+struct PsdDepthDialogPartData {
+    ulong targetGridUuid;
+    string targetGridName;
+    string targetType;
+    bool skipped;
+    int documentWidth;
+    int documentHeight;
+    size_t coverageSources;
+    size_t sampledVertices;
+    size_t missingVertices;
+    float minDepth;
+    float maxDepth;
+    float[] vertexX;
+    float[] vertexY;
+    float[] depths;
+    float[] baseDepths;
+    string[] winnerLayerPaths;
+    bool[] missingVertexMask;
+    int previewLeft;
+    int previewTop;
+    int previewWidth;
+    int previewHeight;
+    ubyte[] previewRgba;
+    PsdDepthDialogPartLayerData[] layers;
+}
+
+struct PsdDepthDialogOverallPreview {
+    int width;
+    int height;
+    float yaw;
+    float pitch;
+    float zoom;
+    float panX;
+    float panY;
+    size_t coveredPixels;
+    float minDepth;
+    float maxDepth;
+    float[] depths;
+    ubyte[] rgba;
+}
+
 private __gshared PSDDepthMapWindow activePsdDepthMapWindow;
 
 PSDDepthMapWindow ngActivePsdDepthMapWindow() {
@@ -267,6 +327,37 @@ public:
         return texture;
     }
 
+    bool capturePreview(out int resultWidth, out int resultHeight, out ubyte[] rgba) {
+        resultWidth = 0;
+        resultHeight = 0;
+        rgba = null;
+        if (fbo == 0 || texture is null || width <= 0 || height <= 0) return false;
+
+        GLint previousReadFbo;
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFbo);
+        scope(exit) glBindFramebuffer(GL_READ_FRAMEBUFFER, cast(GLuint)previousReadFbo);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        if (glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return false;
+
+        rgba.length = cast(size_t)width * cast(size_t)height * 4;
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba.ptr);
+        auto rowBytes = cast(size_t)width * 4;
+        ubyte[] row;
+        row.length = rowBytes;
+        foreach (y; 0 .. height / 2) {
+            auto opposite = height - y - 1;
+            auto top = cast(size_t)y * rowBytes;
+            auto bottom = cast(size_t)opposite * rowBytes;
+            row[] = rgba[top .. top + rowBytes];
+            rgba[top .. top + rowBytes] = rgba[bottom .. bottom + rowBytes];
+            rgba[bottom .. bottom + rowBytes] = row[];
+        }
+        resultWidth = width;
+        resultHeight = height;
+        return true;
+    }
+
     void drawLayer(
         Texture layerTexture,
         ref PsdDepth3DAdjustMesh mesh,
@@ -363,6 +454,9 @@ private:
     Texture threeDAdjustPreviewTexture;
     int threeDAdjustPreviewWidth;
     int threeDAdjustPreviewHeight;
+    ubyte[] threeDAdjustPreviewCaptureRgba;
+    int threeDAdjustPreviewCaptureWidth;
+    int threeDAdjustPreviewCaptureHeight;
     bool threeDAdjustPreviewDirty = true;
     PsdDepthPendingLayerChange[] pending3DAdjustLayerChanges;
     size_t last3DAdjustApplyRecomposedGridCount;
@@ -525,6 +619,9 @@ private:
         threeDAdjustPreviewTexture = null;
         threeDAdjustPreviewWidth = 0;
         threeDAdjustPreviewHeight = 0;
+        threeDAdjustPreviewCaptureRgba = null;
+        threeDAdjustPreviewCaptureWidth = 0;
+        threeDAdjustPreviewCaptureHeight = 0;
         threeDAdjustPreviewDirty = true;
         threeDAdjustCameraLeft = int.min;
         threeDAdjustCameraTop = int.min;
@@ -1734,6 +1831,163 @@ private:
         threeDAdjustLastPan = threeDAdjustCamera.pan;
     }
 
+    bool buildThreeDAdjustOverallPreview(
+        int framebufferWidth,
+        int framebufferHeight,
+        out PsdDepthDialogOverallPreview result
+    ) {
+        import std.math : cos, sin;
+
+        result = PsdDepthDialogOverallPreview.init;
+        framebufferWidth = max(1, framebufferWidth);
+        framebufferHeight = max(1, framebufferHeight);
+
+        int left;
+        int top;
+        int right;
+        int bottom;
+        bool hasBounds;
+        void includeBounds(int x0, int y0, int x1, int y1) {
+            if (!hasBounds) {
+                left = x0;
+                top = y0;
+                right = x1;
+                bottom = y1;
+                hasBounds = true;
+            } else {
+                left = min(left, x0);
+                top = min(top, y0);
+                right = max(right, x1);
+                bottom = max(bottom, y1);
+            }
+        }
+        foreach (ref layerPreview; preview.composedLayers) {
+            if (threeDAdjustLayerSamples(layerPreview).length == 0) continue;
+            includeBounds(
+                layerPreview.left,
+                layerPreview.top,
+                layerPreview.left + layerPreview.width,
+                layerPreview.top + layerPreview.height
+            );
+        }
+        if (!hasBounds) {
+            includeBounds(0, 0, max(1, preview.compositionWidth), max(1, preview.compositionHeight));
+        }
+        if (right <= left) right = left + 1;
+        if (bottom <= top) bottom = top + 1;
+
+        auto centerX = (cast(float)left + cast(float)right) * 0.5f;
+        auto centerY = (cast(float)top + cast(float)bottom) * 0.5f;
+        auto sourceWidth = cast(float)(right - left);
+        auto sourceHeight = cast(float)(bottom - top);
+        auto canvasSize = ImVec2(cast(float)framebufferWidth, cast(float)framebufferHeight);
+        enum ulong PsdDepth3DAdjustSceneCameraKey = ulong.max;
+        if (threeDAdjustCameraTargetUuid != PsdDepth3DAdjustSceneCameraKey ||
+            threeDAdjustCameraLeft != left ||
+            threeDAdjustCameraTop != top ||
+            threeDAdjustCameraRight != right ||
+            threeDAdjustCameraBottom != bottom) {
+            threeDAdjustCameraTargetUuid = PsdDepth3DAdjustSceneCameraKey;
+            threeDAdjustCameraLeft = left;
+            threeDAdjustCameraTop = top;
+            threeDAdjustCameraRight = right;
+            threeDAdjustCameraBottom = bottom;
+            resetPsdDepth3DAdjustCameraToBounds(sourceWidth, sourceHeight, canvasSize);
+        }
+
+        result.width = framebufferWidth;
+        result.height = framebufferHeight;
+        result.yaw = threeDAdjustCamera.yaw;
+        result.pitch = threeDAdjustCamera.pitch;
+        result.zoom = threeDAdjustCamera.zoom;
+        result.panX = threeDAdjustCamera.pan.x;
+        result.panY = threeDAdjustCamera.pan.y;
+        result.rgba.length = cast(size_t)framebufferWidth * cast(size_t)framebufferHeight * 4;
+        result.depths.length = cast(size_t)framebufferWidth * cast(size_t)framebufferHeight;
+        float[] zBuffer;
+        zBuffer.length = cast(size_t)framebufferWidth * cast(size_t)framebufferHeight;
+        foreach (i; 0 .. zBuffer.length) {
+            auto pixelIndex = i * 4;
+            result.rgba[pixelIndex + 0] = 20;
+            result.rgba[pixelIndex + 1] = 23;
+            result.rgba[pixelIndex + 2] = 26;
+            result.rgba[pixelIndex + 3] = 255;
+            result.depths[i] = float.nan;
+            zBuffer[i] = float.max;
+        }
+
+        auto yawCos = cos(threeDAdjustCamera.yaw);
+        auto yawSin = sin(threeDAdjustCamera.yaw);
+        auto pitchCos = cos(threeDAdjustCamera.pitch);
+        auto pitchSin = sin(threeDAdjustCamera.pitch);
+        auto depthDisplayScale = threeDAdjustDepthDisplayScale();
+
+        foreach (ref layerPreview; preview.composedLayers) {
+            auto samples = threeDAdjustLayerSamples(layerPreview);
+            foreach (sample; samples) {
+                auto depth = threeDAdjustConstrainedDisplayDepth(layerPreview, sample);
+                auto documentX = cast(float)layerPreview.left + cast(float)sample.x;
+                auto documentY = cast(float)layerPreview.top + cast(float)sample.y;
+                auto x = documentX - centerX;
+                auto y = documentY - centerY;
+                auto z = -depth * depthDisplayScale;
+                auto rotatedX = x * yawCos + z * yawSin;
+                auto rotatedZ = -x * yawSin + z * yawCos;
+                auto rotatedY = y * pitchCos - rotatedZ * pitchSin;
+                auto cameraDepth = y * pitchSin + rotatedZ * pitchCos;
+                auto screenX = framebufferWidth * 0.5f +
+                    rotatedX * threeDAdjustCamera.zoom + threeDAdjustCamera.pan.x;
+                auto screenY = framebufferHeight * 0.5f +
+                    rotatedY * threeDAdjustCamera.zoom + threeDAdjustCamera.pan.y;
+                auto sx = cast(int)round(screenX);
+                auto sy = cast(int)round(screenY);
+                auto radius = 1;
+                foreach (dy; -radius .. radius + 1) {
+                    auto pixelY = sy + dy;
+                    if (pixelY < 0 || pixelY >= framebufferHeight) continue;
+                    foreach (dx; -radius .. radius + 1) {
+                        auto pixelX = sx + dx;
+                        if (pixelX < 0 || pixelX >= framebufferWidth) continue;
+                        auto zIndex = cast(size_t)pixelY * cast(size_t)framebufferWidth +
+                            cast(size_t)pixelX;
+                        if (cameraDepth >= zBuffer[zIndex]) continue;
+
+                        auto alpha = cast(float)sample.a / 255.0f;
+                        auto pixelIndex = zIndex * 4;
+                        result.rgba[pixelIndex + 0] = cast(ubyte)clamp(cast(int)(
+                            cast(float)sample.r * alpha +
+                            cast(float)result.rgba[pixelIndex + 0] * (1.0f - alpha) + 0.5f
+                        ), 0, 255);
+                        result.rgba[pixelIndex + 1] = cast(ubyte)clamp(cast(int)(
+                            cast(float)sample.g * alpha +
+                            cast(float)result.rgba[pixelIndex + 1] * (1.0f - alpha) + 0.5f
+                        ), 0, 255);
+                        result.rgba[pixelIndex + 2] = cast(ubyte)clamp(cast(int)(
+                            cast(float)sample.b * alpha +
+                            cast(float)result.rgba[pixelIndex + 2] * (1.0f - alpha) + 0.5f
+                        ), 0, 255);
+                        result.rgba[pixelIndex + 3] = 255;
+                        result.depths[zIndex] = depth;
+                        zBuffer[zIndex] = cameraDepth;
+                    }
+                }
+            }
+        }
+        result.minDepth = float.max;
+        result.maxDepth = -float.max;
+        foreach (depth; result.depths) {
+            if (depth != depth) continue;
+            result.coveredPixels++;
+            result.minDepth = min(result.minDepth, depth);
+            result.maxDepth = max(result.maxDepth, depth);
+        }
+        if (result.coveredPixels == 0) {
+            result.minDepth = 0.0f;
+            result.maxDepth = 0.0f;
+        }
+        return true;
+    }
+
     DepthSampleChannel threeDAdjustSampleChannel(PsdDepthChannel channel) {
         final switch (channel) {
         case PsdDepthChannel.AverageRGB:
@@ -2495,6 +2749,9 @@ private:
             }
         }
 
+        threeDAdjustPreviewCaptureRgba = framebuffer.dup;
+        threeDAdjustPreviewCaptureWidth = framebufferWidth;
+        threeDAdjustPreviewCaptureHeight = framebufferHeight;
         inTexPremultiply(framebuffer);
         if (threeDAdjustPreviewTexture is null ||
             threeDAdjustPreviewWidth != framebufferWidth ||
@@ -2791,6 +3048,125 @@ public:
         return result;
     }
 
+    bool captureDialogOverallPreview(
+        out PsdDepthDialogOverallPreview result,
+        out string error
+    ) {
+        result = PsdDepthDialogOverallPreview.init;
+        error = null;
+        if (previewDirty) rebuildPreview();
+        if (errorMessage.length) {
+            error = errorMessage;
+            return false;
+        }
+
+        if (!buildThreeDAdjustOverallPreview(640, 480, result)) {
+            error = "Failed to render the PSD depth dialog overall preview";
+            return false;
+        }
+        result.yaw = threeDAdjustCamera.yaw;
+        result.pitch = threeDAdjustCamera.pitch;
+        result.zoom = threeDAdjustCamera.zoom;
+        result.panX = threeDAdjustCamera.pan.x;
+        result.panY = threeDAdjustCamera.pan.y;
+        return true;
+    }
+
+    bool captureDialogContextPartData(
+        Context ctx,
+        out PsdDepthDialogPartData[] result,
+        out string error
+    ) {
+        result = null;
+        error = null;
+        if (ctx is null || !ctx.hasNodes() || ctx.nodes.length == 0) {
+            error = "Select one or more PSD depth dialog parts through Context.nodes";
+            return false;
+        }
+        if (previewDirty) rebuildPreview();
+        if (errorMessage.length) {
+            error = errorMessage;
+            return false;
+        }
+
+        foreach (ref gridResult; preview.grids) {
+            if (gridResult.grid is null) continue;
+
+            bool selected;
+            foreach (node; ctx.nodes) {
+                if (node is cast(Node)gridResult.grid) {
+                    selected = true;
+                    break;
+                }
+            }
+            if (!selected) {
+                foreach (ref layer; preview.composedLayers) {
+                    if (layer.targetGridUuid != gridResult.grid.uuid) continue;
+                    if (dialogContextMatchesLayer(ctx, layer.layerPath, layer.targetGridUuid)) {
+                        selected = true;
+                        break;
+                    }
+                }
+            }
+            if (!selected) continue;
+
+            PsdDepthDialogPartData part;
+            part.targetGridUuid = gridResult.grid.uuid;
+            part.targetGridName = gridResult.grid.name;
+            part.targetType = typeid(cast(Object)gridResult.grid).toString();
+            part.skipped = gridResult.skipped;
+            part.documentWidth = gridResult.documentWidth;
+            part.documentHeight = gridResult.documentHeight;
+            part.coverageSources = gridResult.coverageSources;
+            part.sampledVertices = gridResult.sampledVertices;
+            part.missingVertices = gridResult.missingVertices;
+            part.minDepth = gridResult.minDepth;
+            part.maxDepth = gridResult.maxDepth;
+            foreach (vertex; gridResult.grid.vertices) {
+                part.vertexX ~= vertex.x;
+                part.vertexY ~= vertex.y;
+            }
+            part.depths = gridResult.depths.dup;
+            part.baseDepths = gridResult.baseDepths.dup;
+            part.winnerLayerPaths = gridResult.winnerLayerPaths.dup;
+            part.missingVertexMask = gridResult.missingVertexMask.dup;
+            part.previewLeft = gridResult.previewLeft;
+            part.previewTop = gridResult.previewTop;
+            part.previewWidth = gridResult.previewWidth;
+            part.previewHeight = gridResult.previewHeight;
+            part.previewRgba = gridResult.rawCompositePreviewRgba.dup;
+
+            foreach (ref layer; preview.composedLayers) {
+                if (layer.targetGridUuid != gridResult.grid.uuid) continue;
+                PsdDepthDialogPartLayerData layerData;
+                layerData.layerPath = layer.layerPath;
+                layerData.layerName = layer.layerName;
+                layerData.colorLayerPath = layer.colorLayerPath;
+                layerData.colorLayerName = layer.colorLayerName;
+                layerData.sourcePath = layer.sourcePath;
+                layerData.left = layer.left;
+                layerData.top = layer.top;
+                layerData.width = layer.width;
+                layerData.height = layer.height;
+                layerData.visible = layer.visible;
+                layerData.enabled = layer.enabled;
+                layerData.depthEnabled = layer.depthEnabled;
+                layerData.targetGridUuid = layer.targetGridUuid;
+                layerData.depthStats = layer.depthStats;
+                layerData.colorRgba = layer.colorRgba.dup;
+                layerData.depthRgba = layer.depthRgba.dup;
+                part.layers ~= layerData;
+            }
+            result ~= part;
+        }
+
+        if (result.length == 0) {
+            error = "Context.nodes does not select a part loaded by the PSD depth dialog";
+            return false;
+        }
+        return true;
+    }
+
     bool applyDialogSettingsState(PsdDepthDialogSettingsState state) {
         settings = cloneDialogSettings(state.settings);
         onlyProblemLayers = state.onlyProblemLayers;
@@ -2902,6 +3278,78 @@ public:
             layer.targetGridUuid = state.targetGridUuid;
             applyDialogLayerStateFields(layer, state);
             preview.composedLayers = [layer];
+            previewDirty = false;
+        }
+
+        bool setDialogPartDataForRegression(
+            Deformable target,
+            int width,
+            int height,
+            ubyte[] colorRgba,
+            ubyte[] depthRgba,
+            ubyte[] previewRgba,
+            float[] depths
+        ) {
+            if (target is null || preview.composedLayers.length != 1 ||
+                width <= 0 || height <= 0) return false;
+            auto expectedLength = cast(size_t)width * cast(size_t)height * 4;
+            if (colorRgba.length != expectedLength ||
+                depthRgba.length != expectedLength ||
+                previewRgba.length != expectedLength) return false;
+
+            auto layer = &preview.composedLayers[0];
+            layer.targetGridUuid = target.uuid;
+            layer.targetGridName = target.name;
+            layer.layerName = "Regression Layer";
+            layer.colorLayerPath = layer.layerPath;
+            layer.colorLayerName = layer.layerName;
+            layer.sourcePath = path;
+            layer.width = width;
+            layer.height = height;
+            layer.colorRgba = colorRgba.dup;
+            layer.depthRgba = depthRgba.dup;
+            layer.maskRgba.length = expectedLength;
+            foreach (i; 0 .. cast(size_t)width * cast(size_t)height) {
+                auto offset = i * 4;
+                layer.maskRgba[offset .. offset + 4] = [cast(ubyte)255, 0, 0, cast(ubyte)255];
+            }
+            layer.depthStats.hasDepth = depths.length > 0;
+            layer.depthStats.maskedPixels = cast(size_t)width * cast(size_t)height;
+
+            PsdDepthGridResult gridResult;
+            gridResult.grid = target;
+            gridResult.depths = depths.dup;
+            gridResult.baseDepths.length = depths.length;
+            gridResult.winnerLayerPaths.length = depths.length;
+            gridResult.winnerLayerPaths[] = layer.layerPath;
+            gridResult.missingVertexMask.length = depths.length;
+            gridResult.documentWidth = width;
+            gridResult.documentHeight = height;
+            gridResult.coverageSources = 1;
+            gridResult.sampledVertices = depths.length;
+            gridResult.minDepth = depths.length ? depths[0] : 0;
+            gridResult.maxDepth = depths.length ? depths[0] : 0;
+            foreach (depth; depths) {
+                gridResult.minDepth = min(gridResult.minDepth, depth);
+                gridResult.maxDepth = max(gridResult.maxDepth, depth);
+            }
+            gridResult.previewWidth = width;
+            gridResult.previewHeight = height;
+            gridResult.rawCompositePreviewRgba = previewRgba.dup;
+            gridResult.compositePreviewRgba = previewRgba.dup;
+            PsdDepthGridLayerMask layerMask;
+            layerMask.layerPath = layer.layerPath;
+            layerMask.layerName = layer.layerName;
+            layerMask.sampledVertices = depths.length;
+            layerMask.selectedVertices = depths.length;
+            gridResult.layerMasks = [layerMask];
+            preview.grids = [gridResult];
+            previewDirty = false;
+            return true;
+        }
+
+        void clearDialogPartDataForRegression() {
+            preview.grids = null;
             previewDirty = false;
         }
 

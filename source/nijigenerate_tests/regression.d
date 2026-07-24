@@ -3704,6 +3704,92 @@ private void testAllPsdDepthDialogCommands() {
         incActionHistory().length == 0,
         "InspectPsdDepthDialog must expose layer identity without mutating dialog history");
 
+    grid.vertices.length = 2;
+    grid.vertices[0] = vec2(0, 0);
+    grid.vertices[1] = vec2(1, 0);
+    ubyte[] partColorRgba = [
+        255, 0, 0, 255,
+        0, 0, 255, 255,
+    ];
+    ubyte[] partDepthRgba = [
+        64, 64, 64, 255,
+        192, 192, 192, 255,
+    ];
+    ubyte[] partPreviewRgba = [
+        80, 80, 80, 255,
+        200, 200, 200, 255,
+    ];
+    require(dialog.setDialogPartDataForRegression(
+        grid,
+        2,
+        1,
+        partColorRgba,
+        partDepthRgba,
+        partPreviewRgba,
+        [-0.5f, 0.75f]
+    ), "PSD dialog part data regression fixture must be installed");
+    auto noPartContext = new Context();
+    require(!cmd!(PsdDepthDialogCommand.GetPsdDepthDialogPartData)(noPartContext).succeeded,
+        "GetPsdDepthDialogPartData must require a target selected through Context.nodes");
+
+    auto partResult = cast(ExCommandResult!JSONValue)
+        cmd!(PsdDepthDialogCommand.GetPsdDepthDialogPartData)(ctx);
+    require(partResult !is null && partResult.succeeded &&
+        partResult.result["mcpDirectToolResult"].type == JSONType.true_ &&
+        partResult.result["_meta"]["imageCount"].integer == 4 &&
+        partResult.result["_meta"]["resourceCount"].integer == 1 &&
+        partResult.result["content"].array.length == 6,
+        "GetPsdDepthDialogPartData must return metadata, overall preview/depth, and part images");
+    import std.json : parseJSON;
+    auto partMetadata = parseJSON(partResult.result["content"].array[0].object["text"].str);
+    auto partEntry = partMetadata["parts"].array[0];
+    auto layerEntry = partEntry["layers"].array[0];
+    require(partMetadata["parts"].array.length == 1 &&
+        partEntry["targetGridUuid"].get!ulong == grid.uuid &&
+        partEntry["depth"]["values"].array.length == 2 &&
+        near(cast(float)partEntry["depth"]["values"].array[0].floating, -0.5f) &&
+        near(cast(float)partEntry["depth"]["values"].array[1].floating, 0.75f) &&
+        partEntry["depth"]["vertexPositions"].array.length == 2 &&
+        partMetadata["overallPreviewImage"]["contentIndex"].integer == 1 &&
+        partMetadata["overallPreviewImage"]["width"].integer == 640 &&
+        partMetadata["overallPreviewImage"]["height"].integer == 480 &&
+        partMetadata["overallDepth"]["contentIndex"].integer == 2 &&
+        partMetadata["overallDepth"]["encoding"].str == "float32-le" &&
+        partMetadata["overallDepth"]["layout"].str == "row-major-top-left" &&
+        partMetadata["overallDepth"]["valueSpace"].str == "composed-depth" &&
+        partEntry["previewImage"]["contentIndex"].integer == 3 &&
+        layerEntry["colorImage"]["contentIndex"].integer == 4 &&
+        layerEntry["depthImage"]["contentIndex"].integer == 5 &&
+        layerEntry["colorStatistics"]["averageRgba8"].array[0].integer == 128 &&
+        layerEntry["colorStatistics"]["averageRgba8"].array[2].integer == 128,
+        "GetPsdDepthDialogPartData must expose target depth geometry and image/content mappings");
+    auto overallDepthResource = partResult.result["content"].array[2];
+    require(overallDepthResource.object["type"].str == "resource" &&
+        overallDepthResource.object["resource"].object["mimeType"].str ==
+            "application/vnd.nijigenerate.depth-map.f32le" &&
+        overallDepthResource.object["resource"].object["blob"].str.length > 0,
+        "GetPsdDepthDialogPartData must expose exact overall float32 depth data");
+    import std.base64 : Base64;
+    auto overallDepthBytes = Base64.decode(
+        overallDepthResource.object["resource"].object["blob"].str);
+    require(overallDepthBytes.length == 640 * 480 * float.sizeof,
+        "GetPsdDepthDialogPartData overall depth data must contain one float32 value per pixel");
+    foreach (image; partResult.result["content"].array[1 .. 2]) {
+        require(image.object["type"].str == "image" &&
+            image.object["mimeType"].str == "image/png" &&
+            image.object["data"].str.length > 0,
+            "GetPsdDepthDialogPartData overall preview content must contain encoded PNG data");
+    }
+    foreach (image; partResult.result["content"].array[3 .. $]) {
+        require(image.object["type"].str == "image" &&
+            image.object["mimeType"].str == "image/png" &&
+            image.object["data"].str.length > 0,
+            "GetPsdDepthDialogPartData image content must contain encoded PNG data");
+    }
+    require(incActionHistory().length == 0,
+        "GetPsdDepthDialogPartData must not mutate dialog history");
+    dialog.clearDialogPartDataForRegression();
+
     requirePsdDepthDialogCommandRoundTrip(
         ctx,
         cmd!(PsdDepthDialogCommand.SetPsdDepthDialogColorSource)(ctx, "command-color-source.png"),

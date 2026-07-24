@@ -2,17 +2,19 @@ module nijigenerate.commands.depth.psd_dialog;
 
 import i18n;
 import std.conv : to;
-import std.json : JSONValue;
+import std.json : JSONType, JSONValue;
 import nijigenerate.actions : Action;
 import nijigenerate.commands.base;
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.io.depthmap_psd : PsdDepthChannel, PsdDepthConvolution, PsdDepthMissingPolicy;
 import nijilive : Node;
 import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerPixels,
-    PsdDepthDialogLayerState, PsdDepthDialogSettingsState, ngActivePsdDepthMapWindow;
+    PsdDepthDialogLayerState, PsdDepthDialogOverallPreview, PsdDepthDialogPartData,
+    PsdDepthDialogPartLayerData, PsdDepthDialogSettingsState, ngActivePsdDepthMapWindow;
 
 enum PsdDepthDialogCommand {
     InspectPsdDepthDialog,
+    GetPsdDepthDialogPartData,
     SetPsdDepthDialogColorSource,
     SetPsdDepthDialogInvert,
     SetPsdDepthDialogBackDepth,
@@ -135,6 +137,361 @@ class InspectPsdDepthDialogCommand : ExCommand!() {
         JSONValue[string] result;
         result["settings"] = JSONValue(settings);
         result["layers"] = JSONValue(layers);
+        return ExCommandResult!JSONValue(true, JSONValue(result));
+    }
+}
+
+private JSONValue finiteFloatToJson(float value) {
+    import std.math : isFinite;
+
+    return value.isFinite ? JSONValue(cast(double)value) : JSONValue(null);
+}
+
+private JSONValue floatArrayToJson(const(float)[] values) {
+    JSONValue result = JSONValue.emptyArray;
+    foreach (value; values) result.array ~= finiteFloatToJson(value);
+    return result;
+}
+
+private JSONValue stringArrayToJson(const(string)[] values) {
+    JSONValue result = JSONValue.emptyArray;
+    foreach (value; values) result.array ~= JSONValue(value);
+    return result;
+}
+
+private JSONValue boolArrayToJson(const(bool)[] values) {
+    JSONValue result = JSONValue.emptyArray;
+    foreach (value; values) result.array ~= JSONValue(value);
+    return result;
+}
+
+private JSONValue vertexPositionsToJson(ref PsdDepthDialogPartData part) {
+    JSONValue result = JSONValue.emptyArray;
+    foreach (i; 0 .. part.vertexX.length) {
+        if (i >= part.vertexY.length) break;
+        result.array ~= JSONValue([
+            finiteFloatToJson(part.vertexX[i]),
+            finiteFloatToJson(part.vertexY[i]),
+        ]);
+    }
+    return result;
+}
+
+private JSONValue colorStatisticsToJson(ref PsdDepthDialogPartLayerData layer) {
+    ulong[4] sums;
+    size_t pixels;
+    foreach (i; 0 .. layer.colorRgba.length / 4) {
+        auto offset = i * 4;
+        if (layer.colorRgba[offset + 3] == 0) continue;
+        foreach (channel; 0 .. 4) sums[channel] += layer.colorRgba[offset + channel];
+        pixels++;
+    }
+
+    JSONValue average = JSONValue.emptyArray;
+    foreach (sum; sums) {
+        average.array ~= JSONValue(cast(long)(pixels ? (sum + pixels / 2) / pixels : 0));
+    }
+    JSONValue[string] result;
+    result["nonTransparentPixels"] = JSONValue(cast(long)pixels);
+    result["averageRgba8"] = average;
+    return JSONValue(result);
+}
+
+private bool appendPngContent(
+    ref JSONValue[] content,
+    const(ubyte)[] rgba,
+    int width,
+    int height,
+    out long contentIndex,
+    out string error
+) {
+    import core.stdc.stdlib : free;
+    import imagefmt : IF_ERROR, IF_PNG, write_image_mem;
+    import std.base64 : Base64;
+
+    contentIndex = -1;
+    error = null;
+    if (width <= 0 || height <= 0 ||
+        rgba.length != cast(size_t)width * cast(size_t)height * 4) return true;
+
+    int encodeError;
+    ubyte[] pngData = write_image_mem(IF_PNG, width, height, rgba, 4, encodeError);
+    if (encodeError) {
+        error = "PNG encode failed: " ~ IF_ERROR[encodeError].to!string;
+        return false;
+    }
+    scope(exit) free(pngData.ptr);
+
+    JSONValue[string] image;
+    image["type"] = JSONValue("image");
+    image["mimeType"] = JSONValue("image/png");
+    image["data"] = JSONValue(Base64.encode(cast(const(ubyte)[])pngData));
+    contentIndex = cast(long)content.length;
+    content ~= JSONValue(image);
+    return true;
+}
+
+private bool appendFloat32ResourceContent(
+    ref JSONValue[] content,
+    const(float)[] values,
+    string uri,
+    out long contentIndex
+) {
+    import core.stdc.string : memcpy;
+    import std.base64 : Base64;
+
+    contentIndex = -1;
+    if (values.length == 0) return true;
+
+    ubyte[] bytes;
+    bytes.length = values.length * float.sizeof;
+    foreach (i, value; values) {
+        uint bits;
+        memcpy(&bits, &value, float.sizeof);
+        auto offset = i * float.sizeof;
+        bytes[offset + 0] = cast(ubyte)(bits & 0xFF);
+        bytes[offset + 1] = cast(ubyte)((bits >> 8) & 0xFF);
+        bytes[offset + 2] = cast(ubyte)((bits >> 16) & 0xFF);
+        bytes[offset + 3] = cast(ubyte)((bits >> 24) & 0xFF);
+    }
+
+    JSONValue[string] resource;
+    resource["uri"] = JSONValue(uri);
+    resource["mimeType"] = JSONValue("application/vnd.nijigenerate.depth-map.f32le");
+    resource["blob"] = JSONValue(Base64.encode(cast(const(ubyte)[])bytes));
+
+    JSONValue[string] item;
+    item["type"] = JSONValue("resource");
+    item["resource"] = JSONValue(resource);
+    contentIndex = cast(long)content.length;
+    content ~= JSONValue(item);
+    return true;
+}
+
+private JSONValue imageReference(
+    long contentIndex,
+    int width,
+    int height,
+    int left = 0,
+    int top = 0
+) {
+    JSONValue[string] result;
+    result["available"] = JSONValue(contentIndex >= 0);
+    result["contentIndex"] = JSONValue(contentIndex);
+    result["mimeType"] = JSONValue(contentIndex >= 0 ? "image/png" : "");
+    result["width"] = JSONValue(width);
+    result["height"] = JSONValue(height);
+    result["left"] = JSONValue(left);
+    result["top"] = JSONValue(top);
+    return JSONValue(result);
+}
+
+@ShortcutHidden
+@CommandScopes!(PsdDepthDialogCommandScope)()
+class GetPsdDepthDialogPartDataCommand : ExCommand!() {
+    this() {
+        super(
+            _("Get PSD Depth Dialog Part Data"),
+            _("Return composed vertex depths, preview images, and color/depth layer images for " ~
+                "the PSD depth dialog parts selected by Context.nodes.")
+        );
+    }
+
+    override bool runnable(Context ctx) {
+        auto dialog = contextDialog(ctx);
+        return dialog !is null && dialog.dialogCommandsAvailable();
+    }
+
+    override ExCommandResult!JSONValue run(Context ctx) {
+        if (!runnable(ctx)) {
+            return ExCommandResult!JSONValue(
+                false,
+                JSONValue(null),
+                "PSD depth import dialog is not displayed"
+            );
+        }
+
+        PsdDepthDialogPartData[] parts;
+        string error;
+        if (!contextDialog(ctx).captureDialogContextPartData(ctx, parts, error)) {
+            return ExCommandResult!JSONValue(false, JSONValue(null), error);
+        }
+
+        JSONValue[] content = [JSONValue(null)];
+        PsdDepthDialogOverallPreview overallPreview;
+        if (!contextDialog(ctx).captureDialogOverallPreview(overallPreview, error)) {
+            return ExCommandResult!JSONValue(false, JSONValue(null), error);
+        }
+        long overallPreviewContentIndex;
+        if (!appendPngContent(
+            content,
+            overallPreview.rgba,
+            overallPreview.width,
+            overallPreview.height,
+            overallPreviewContentIndex,
+            error
+        )) {
+            return ExCommandResult!JSONValue(false, JSONValue(null), error);
+        }
+        long overallDepthContentIndex;
+        appendFloat32ResourceContent(
+            content,
+            overallPreview.depths,
+            "nijigenerate://psd-depth-dialog/overall-depth.f32le",
+            overallDepthContentIndex
+        );
+
+        JSONValue partEntries = JSONValue.emptyArray;
+        foreach (ref part; parts) {
+            JSONValue[string] depth;
+            depth["values"] = floatArrayToJson(part.depths);
+            depth["baseValues"] = floatArrayToJson(part.baseDepths);
+            depth["vertexPositions"] = vertexPositionsToJson(part);
+            depth["winnerLayerPaths"] = stringArrayToJson(part.winnerLayerPaths);
+            depth["missingVertexMask"] = boolArrayToJson(part.missingVertexMask);
+            depth["sampledVertices"] = JSONValue(cast(long)part.sampledVertices);
+            depth["missingVertices"] = JSONValue(cast(long)part.missingVertices);
+            depth["min"] = finiteFloatToJson(part.minDepth);
+            depth["max"] = finiteFloatToJson(part.maxDepth);
+
+            long previewContentIndex;
+            if (!appendPngContent(
+                content,
+                part.previewRgba,
+                part.previewWidth,
+                part.previewHeight,
+                previewContentIndex,
+                error
+            )) {
+                return ExCommandResult!JSONValue(false, JSONValue(null), error);
+            }
+
+            JSONValue layerEntries = JSONValue.emptyArray;
+            foreach (ref layer; part.layers) {
+                long colorContentIndex;
+                if (!appendPngContent(
+                    content,
+                    layer.colorRgba,
+                    layer.width,
+                    layer.height,
+                    colorContentIndex,
+                    error
+                )) {
+                    return ExCommandResult!JSONValue(false, JSONValue(null), error);
+                }
+                long depthContentIndex;
+                if (!appendPngContent(
+                    content,
+                    layer.depthRgba,
+                    layer.width,
+                    layer.height,
+                    depthContentIndex,
+                    error
+                )) {
+                    return ExCommandResult!JSONValue(false, JSONValue(null), error);
+                }
+
+                JSONValue[string] stats;
+                stats["hasDepth"] = JSONValue(layer.depthStats.hasDepth);
+                stats["maskedPixels"] = JSONValue(cast(long)layer.depthStats.maskedPixels);
+                stats["zeroPixels"] = JSONValue(cast(long)layer.depthStats.zeroPixels);
+                stats["minDepth01"] = finiteFloatToJson(layer.depthStats.minDepth01);
+                stats["maxDepth01"] = finiteFloatToJson(layer.depthStats.maxDepth01);
+                stats["rangeDepth01"] = finiteFloatToJson(layer.depthStats.rangeDepth01);
+                stats["adjacentDelta01"] = finiteFloatToJson(layer.depthStats.adjacentDelta01);
+
+                JSONValue[string] layerEntry;
+                layerEntry["layerPath"] = JSONValue(layer.layerPath);
+                layerEntry["layerName"] = JSONValue(layer.layerName);
+                layerEntry["colorLayerPath"] = JSONValue(layer.colorLayerPath);
+                layerEntry["colorLayerName"] = JSONValue(layer.colorLayerName);
+                layerEntry["sourcePath"] = JSONValue(layer.sourcePath);
+                layerEntry["visible"] = JSONValue(layer.visible);
+                layerEntry["enabled"] = JSONValue(layer.enabled);
+                layerEntry["depthEnabled"] = JSONValue(layer.depthEnabled);
+                layerEntry["depthStats"] = JSONValue(stats);
+                layerEntry["colorStatistics"] = colorStatisticsToJson(layer);
+                layerEntry["colorImage"] = imageReference(
+                    colorContentIndex, layer.width, layer.height, layer.left, layer.top);
+                layerEntry["depthImage"] = imageReference(
+                    depthContentIndex, layer.width, layer.height, layer.left, layer.top);
+                layerEntries.array ~= JSONValue(layerEntry);
+            }
+
+            JSONValue[string] partEntry;
+            partEntry["targetGridUuid"] = JSONValue(part.targetGridUuid);
+            partEntry["targetGridName"] = JSONValue(part.targetGridName);
+            partEntry["targetType"] = JSONValue(part.targetType);
+            partEntry["skipped"] = JSONValue(part.skipped);
+            partEntry["documentWidth"] = JSONValue(part.documentWidth);
+            partEntry["documentHeight"] = JSONValue(part.documentHeight);
+            partEntry["coverageSources"] = JSONValue(cast(long)part.coverageSources);
+            partEntry["depth"] = JSONValue(depth);
+            partEntry["previewImage"] = imageReference(
+                previewContentIndex,
+                part.previewWidth,
+                part.previewHeight,
+                part.previewLeft,
+                part.previewTop
+            );
+            partEntry["layers"] = layerEntries;
+            partEntries.array ~= JSONValue(partEntry);
+        }
+
+        JSONValue[string] metadata;
+        auto overallPreviewImage = imageReference(
+            overallPreviewContentIndex,
+            overallPreview.width,
+            overallPreview.height
+        );
+        overallPreviewImage.object["yaw"] = finiteFloatToJson(overallPreview.yaw);
+        overallPreviewImage.object["pitch"] = finiteFloatToJson(overallPreview.pitch);
+        overallPreviewImage.object["zoom"] = finiteFloatToJson(overallPreview.zoom);
+        overallPreviewImage.object["pan"] = JSONValue([
+            finiteFloatToJson(overallPreview.panX),
+            finiteFloatToJson(overallPreview.panY),
+        ]);
+        metadata["overallPreviewImage"] = overallPreviewImage;
+        JSONValue[string] overallDepth;
+        overallDepth["available"] = JSONValue(overallDepthContentIndex >= 0);
+        overallDepth["contentIndex"] = JSONValue(overallDepthContentIndex);
+        overallDepth["mimeType"] = JSONValue(
+            overallDepthContentIndex >= 0
+                ? "application/vnd.nijigenerate.depth-map.f32le"
+                : ""
+        );
+        overallDepth["width"] = JSONValue(overallPreview.width);
+        overallDepth["height"] = JSONValue(overallPreview.height);
+        overallDepth["encoding"] = JSONValue("float32-le");
+        overallDepth["layout"] = JSONValue("row-major-top-left");
+        overallDepth["valueSpace"] = JSONValue("composed-depth");
+        overallDepth["missingValue"] = JSONValue("NaN");
+        overallDepth["coveredPixels"] = JSONValue(cast(long)overallPreview.coveredPixels);
+        overallDepth["min"] = finiteFloatToJson(overallPreview.minDepth);
+        overallDepth["max"] = finiteFloatToJson(overallPreview.maxDepth);
+        metadata["overallDepth"] = JSONValue(overallDepth);
+        metadata["parts"] = partEntries;
+        JSONValue[string] textContent;
+        textContent["type"] = JSONValue("text");
+        textContent["text"] = JSONValue(JSONValue(metadata).toString());
+        content[0] = JSONValue(textContent);
+
+        long imageCount;
+        long resourceCount;
+        foreach (item; content) {
+            if (item.type != JSONType.object || !("type" in item.object)) continue;
+            if (item["type"].str == "image") imageCount++;
+            else if (item["type"].str == "resource") resourceCount++;
+        }
+        JSONValue[string] meta;
+        meta["partCount"] = JSONValue(cast(long)parts.length);
+        meta["imageCount"] = JSONValue(imageCount);
+        meta["resourceCount"] = JSONValue(resourceCount);
+
+        JSONValue[string] result;
+        result["mcpDirectToolResult"] = JSONValue(true);
+        result["content"] = JSONValue(content);
+        result["_meta"] = JSONValue(meta);
         return ExCommandResult!JSONValue(true, JSONValue(result));
     }
 }
