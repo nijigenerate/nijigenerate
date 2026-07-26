@@ -12,11 +12,11 @@ import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProce
 import nijigenerate.commands;
 import nijigenerate.commands.binding.binding;
 import nijigenerate.commands.base;
-import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMaxInfluences, DepthBoneGpuOffsetPacket,
-    DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
+import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMaxInfluences, DepthBoneGpuMaxStaleRetries,
+    DepthBoneGpuOffsetPacket, DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
     ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
-    ngFlushDepthBoneDirtyImmediate, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
+    ngFlushDepthBoneDirtyImmediate, ngHasPendingDepthBoneRefresh, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
     ngPsdDepthImportResultToDepthDrawSession;
@@ -4049,6 +4049,8 @@ private void testPsdDepthImportRefreshesDepthBoneBindings() {
     fakeDepthBoneGpuPollCount = 0;
     fakeDepthBoneGpuSubmitFailAfter = 0;
     fakeDepthBoneGpuNotReadyPolls = 0;
+    fakeDepthBoneGpuMutatingTarget = null;
+    fakeDepthBoneGpuMutateDepthOnReady = false;
     ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
     scope(exit) {
         ngClearDepthBoneGpuAsyncTestHooks();
@@ -4057,6 +4059,8 @@ private void testPsdDepthImportRefreshesDepthBoneBindings() {
         fakeDepthBoneGpuPollCount = 0;
         fakeDepthBoneGpuSubmitFailAfter = 0;
         fakeDepthBoneGpuNotReadyPolls = 0;
+        fakeDepthBoneGpuMutatingTarget = null;
+        fakeDepthBoneGpuMutateDepthOnReady = false;
     }
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
@@ -11007,6 +11011,190 @@ private void testDepthBoneCompositeSourcePreviewWorkflow() {
         "changing parent GridDeformer depth must refresh descendant compensation in the same DepthRig");
 }
 
+private void testDepthBoneAncestorPropagationGates() {
+    resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    fakeDepthBoneGpuOutputX = 6.0f;
+    fakeDepthBoneGpuOutputY = 0.0f;
+    fakeDepthBoneGpuVaryOutputByVertex = true;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+        fakeDepthBoneGpuOutputX = 2.0f;
+        fakeDepthBoneGpuOutputY = -1.0f;
+        fakeDepthBoneGpuVaryOutputByVertex = false;
+    }
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "depthbone-propagation-root";
+    auto bone = new ExDepthBone(root);
+    bone.name = "depthbone-propagation-bone";
+    bone.boneId = "PropagationBone";
+    auto inheritingBone = new ExDepthBone(bone);
+    inheritingBone.name = "depthbone-inheriting-bone";
+    inheritingBone.boneId = "InheritingBone";
+    auto isolatedBone = new ExDepthBone(bone);
+    isolatedBone.name = "depthbone-isolated-bone";
+    isolatedBone.boneId = "IsolatedBone";
+    isolatedBone.allowParentToTargets = false;
+    auto unrelatedBone = new ExDepthBone(root);
+    unrelatedBone.name = "depthbone-unrelated-bone";
+    unrelatedBone.boneId = "UnrelatedBone";
+
+    auto directParent = new ExGridDeformer(incActivePuppet().root);
+    directParent.name = "depthbone-direct-parent";
+    auto directChild = new ExGridDeformer(directParent);
+    directChild.name = "depthbone-direct-child";
+
+    auto propagatedParent = new ExGridDeformer(incActivePuppet().root);
+    propagatedParent.name = "depthbone-propagated-parent";
+    auto propagatedBridgeA = new ExPathDeformer(propagatedParent);
+    propagatedBridgeA.name = "depthbone-propagated-bridge-a";
+    auto propagatedBridgeB = new ExPathDeformer(propagatedBridgeA);
+    propagatedBridgeB.name = "depthbone-propagated-bridge-b";
+    auto propagatedChild = new ExGridDeformer(propagatedBridgeB);
+    propagatedChild.name = "depthbone-propagated-child";
+
+    auto blockedParent = new ExGridDeformer(incActivePuppet().root);
+    blockedParent.name = "depthbone-blocked-parent";
+    auto blocker = new Node(blockedParent);
+    blocker.name = "depthbone-arm-root";
+    blocker.localTransform.translation = vec3(0.25f, -0.25f, 0.0f);
+    blocker.localTransform.update();
+    auto blockedChild = new ExGridDeformer(blocker);
+    blockedChild.name = "depthbone-blocked-child";
+
+    auto stationaryParent = new ExGridDeformer(incActivePuppet().root);
+    stationaryParent.name = "depthbone-stationary-parent";
+    stationaryParent.translateChildren = false;
+    auto stationaryBlocker = new Node(stationaryParent);
+    stationaryBlocker.name = "depthbone-stationary-blocker";
+    auto stationaryChild = new ExGridDeformer(stationaryBlocker);
+    stationaryChild.name = "depthbone-stationary-child";
+
+    auto gatedParent = new ExGridDeformer(incActivePuppet().root);
+    gatedParent.name = "depthbone-parent-influence-gate-parent";
+    auto inheritingRoot = new Node(gatedParent);
+    inheritingRoot.name = "depthbone-inheriting-arm-root";
+    inheritingRoot.localTransform.translation = vec3(0.25f, -0.25f, 0.0f);
+    inheritingRoot.localTransform.update();
+    auto inheritingChild = new ExGridDeformer(inheritingRoot);
+    inheritingChild.name = "depthbone-inheriting-child";
+    auto isolatedRoot = new Node(gatedParent);
+    isolatedRoot.name = "depthbone-isolated-arm-root";
+    isolatedRoot.localTransform.translation = vec3(0.25f, -0.25f, 0.0f);
+    isolatedRoot.localTransform.update();
+    auto isolatedChild = new ExGridDeformer(isolatedRoot);
+    isolatedChild.name = "depthbone-isolated-child";
+
+    auto outerGrid = new ExGridDeformer(incActivePuppet().root);
+    outerGrid.name = "depthbone-outer-grid";
+    auto innerGrid = new ExGridDeformer(outerGrid);
+    innerGrid.name = "depthbone-inner-grid";
+    auto gridBlockedChild = new ExGridDeformer(innerGrid);
+    gridBlockedChild.name = "depthbone-grid-blocked-child";
+
+    ExGridDeformer[] targets = [
+        directParent,
+        directChild,
+        propagatedParent,
+        propagatedChild,
+        blockedParent,
+        blockedChild,
+        stationaryParent,
+        stationaryChild,
+        gatedParent,
+        inheritingChild,
+        isolatedChild,
+        outerGrid,
+        innerGrid,
+        gridBlockedChild,
+    ];
+    foreach (target; targets) {
+        ExDepthRigBinding binding;
+        binding.targetUuid = target.uuid;
+        binding.targetKind = ExDepthTargetKind.Grid;
+        binding.sourceBoneUuids = [bone.uuid];
+        root.bindings ~= binding;
+    }
+    auto inheritingIndex = root.findBindingIndex(inheritingChild.uuid);
+    auto isolatedIndex = root.findBindingIndex(isolatedChild.uuid);
+    auto gatedParentIndex = root.findBindingIndex(gatedParent.uuid);
+    require(inheritingIndex >= 0 && isolatedIndex >= 0 && gatedParentIndex >= 0,
+        "parent-influence gate fixture bindings should exist");
+    root.bindings[cast(size_t)gatedParentIndex].sourceBoneUuids = [
+        bone.uuid,
+        unrelatedBone.uuid,
+    ];
+    root.bindings[cast(size_t)inheritingIndex].sourceBoneUuids = [inheritingBone.uuid];
+    root.bindings[cast(size_t)isolatedIndex].sourceBoneUuids = [isolatedBone.uuid];
+    incActivePuppet().rescanNodes();
+
+    auto param = new ExParameter("DepthBonePropagationParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto tx = newValueBinding(param, bone, "transform.t.x");
+    tx.setValue(vec2u(1, 0), 6.0f);
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.armedParameters = [param];
+    Node[] reversedTargets;
+    foreach_reverse (target; targets) reversedTargets ~= target;
+    require(cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, reversedTargets).succeeded,
+        "DepthBone propagation-gate fixture should accept reverse hierarchy order");
+    ngFlushDepthBoneDirtyImmediate();
+
+    void requireOffsets(ExGridDeformer target, const(float)[] expected, string message) {
+        auto binding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+        require(binding !is null, message ~ ": missing deformation binding");
+        auto offsets = binding.getValue(vec2u(1, 0)).vertexOffsets;
+        require(offsets.length == expected.length,
+            "%s: expected %s offsets, got %s".format(message, expected.length, offsets.length));
+        foreach (i, offset; offsets) {
+            require(near(offset.x, expected[i]),
+                "%s[%s]: expected %.4f, got %.4f".format(message, i, expected[i], offset.x));
+        }
+    }
+
+    enum rawOffsets = [6.0f, 7.0f, 8.0f, 9.0f];
+    enum zeroOffsets = [0.0f, 0.0f, 0.0f, 0.0f];
+    requireOffsets(directParent, rawOffsets, "direct parent should retain generated deformation");
+    requireOffsets(directChild, zeroOffsets,
+        "direct child should remove deformation inherited from its parent GridDeformer");
+    requireOffsets(propagatedParent, rawOffsets, "propagated parent should retain generated deformation");
+    requireOffsets(propagatedChild, zeroOffsets,
+        "child should remove parent deformation when every intermediate node must propagate");
+    requireOffsets(blockedParent, rawOffsets, "blocked parent should retain generated deformation");
+    requireOffsets(blockedChild, [-1.25f, -0.25f, 0.75f, 1.75f],
+        "child should remove the rigid origin movement inherited from an intermediate Node");
+    requireOffsets(stationaryParent, rawOffsets, "stationary parent should retain generated deformation");
+    requireOffsets(stationaryChild, rawOffsets,
+        "child must retain its deformation when translateChildren leaves the intermediate Node origin stationary");
+    requireOffsets(gatedParent, rawOffsets, "parent-influence gate parent should retain generated deformation");
+    requireOffsets(inheritingChild, [-1.25f, -0.25f, 0.75f, 1.75f],
+        "child should remove Node-origin motion inherited through an allowed parent DepthBone");
+    requireOffsets(isolatedChild, rawOffsets,
+        "child must retain its deformation when its DepthBone rejects parent influence");
+    requireOffsets(outerGrid, rawOffsets, "outer GridDeformer should retain generated deformation");
+    requireOffsets(innerGrid, zeroOffsets,
+        "direct inner GridDeformer should remove deformation inherited from the outer GridDeformer");
+    requireOffsets(gridBlockedChild, rawOffsets,
+        "outer GridDeformer compensation must not cross an intermediate GridDeformer");
+}
+
 private void testAutoMeshCompositeProcessorMatrix() {
     resetCase();
 
@@ -13419,6 +13607,8 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     require(packet.keypoint == vec2u(1, 0), "GPU packet should preserve keypoint");
     require(packet.writePreview && packet.writeBinding, "GPU packet should preserve writeback routing flags");
     require(packet.vertices.length == target.vertices.length, "GPU packet should include one vertex per target vertex");
+    require(packet.rawDepths == target.copyDepths(),
+        "GPU packet should preserve unscaled target depths for stale checks");
     require(packet.depths.length == target.vertices.length, "GPU packet should include one depth per target vertex");
     require(packet.boneCount == 1, "GPU packet should include the runtime bone");
     require(packet.bones.length == packet.boneCount * DepthBoneGpuBoneStride, "GPU packet bone stride should match");
@@ -13434,6 +13624,8 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     require(near(packet.sources[4], 0.75f), "GPU packet should preserve source weight");
     require(near(packet.sources[5], 0.5f), "GPU packet should preserve source depthScale");
     require(near(packet.sources[7], 0.5f), "GPU packet should preserve source multiplier");
+    require(near(packet.sourceInputs[6], 1.25f),
+        "GPU packet should preserve the unscaled source depthOffset for stale checks");
     auto modelDepthScale = ngDepthDisplayScaleForTargetsInNodeSpace(root, cast(Deformable[])[target]);
     require(modelDepthScale > 1.0f, "GPU packet regression model should have a visible model-wide depth scale");
     require(near(packet.depths[0], 0.5f * modelDepthScale) &&
@@ -13532,6 +13724,9 @@ private uint fakeDepthBoneGpuSubmitFailAfter;
 private uint fakeDepthBoneGpuNotReadyPolls;
 private float fakeDepthBoneGpuOutputX = 2.0f;
 private float fakeDepthBoneGpuOutputY = -1.0f;
+private bool fakeDepthBoneGpuVaryOutputByVertex;
+private ExGridDeformer fakeDepthBoneGpuMutatingTarget;
+private bool fakeDepthBoneGpuMutateDepthOnReady;
 private uint fakeDepthBoneTransformNextJobId = 1;
 private uint fakeDepthBoneTransformSubmitCount;
 private uint fakeDepthBoneTransformNonIdentitySourceCount;
@@ -13695,11 +13890,19 @@ private bool fakeDepthBoneGpuPoll(uint jobId, out NgDepthBoneGpuAsyncResult resu
     }
     result.ready = true;
     fakeDepthBoneGpuPollCount++;
+    if (fakeDepthBoneGpuMutateDepthOnReady && fakeDepthBoneGpuMutatingTarget !is null) {
+        auto depths = fakeDepthBoneGpuMutatingTarget.copyDepths();
+        if (depths.length > 0) {
+            depths[0] += 1.0f;
+            fakeDepthBoneGpuMutatingTarget.replaceDepths(depths);
+        }
+    }
     auto vertexCount = *count;
     result.xs.length = vertexCount;
     result.ys.length = vertexCount;
     foreach (i; 0 .. vertexCount) {
-        result.xs[i] = fakeDepthBoneGpuOutputX;
+        result.xs[i] = fakeDepthBoneGpuOutputX +
+            (fakeDepthBoneGpuVaryOutputByVertex ? cast(float)i : 0.0f);
         result.ys[i] = fakeDepthBoneGpuOutputY;
     }
     fakeDepthBoneGpuJobVertexCounts.remove(jobId);
@@ -13715,6 +13918,8 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     fakeDepthBoneGpuPollCount = 0;
     fakeDepthBoneGpuSubmitFailAfter = 0;
     fakeDepthBoneGpuNotReadyPolls = 0;
+    fakeDepthBoneGpuMutatingTarget = null;
+    fakeDepthBoneGpuMutateDepthOnReady = false;
     ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
     scope(exit) {
         ngClearDepthBoneGpuAsyncTestHooks();
@@ -13723,6 +13928,8 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         fakeDepthBoneGpuPollCount = 0;
         fakeDepthBoneGpuSubmitFailAfter = 0;
         fakeDepthBoneGpuNotReadyPolls = 0;
+        fakeDepthBoneGpuMutatingTarget = null;
+        fakeDepthBoneGpuMutateDepthOnReady = false;
     }
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
@@ -13910,18 +14117,65 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     fakeDepthBoneGpuSubmitCount = 0;
     fakeDepthBoneGpuPollCount = 0;
     fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "gpu-stale-limit-root";
+    target = new ExGridDeformer(incActivePuppet().root);
+    target.name = "gpu-stale-limit-grid";
+    target.rebuffer(Vec2Array([vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100)]));
+    target.replaceDepths([0.0f, 0.25f, 0.5f, 0.75f]);
+    bone = ngCreateDepthBone(root, "GpuStaleLimitBone", vec3(0, 0, 0), vec3(0, 100, 0));
+    binding = ExDepthRigBinding.init;
+    binding.targetUuid = target.uuid;
+    binding.targetKind = ExDepthTargetKind.Grid;
+    binding.sourceBoneUuids = [cast(ulong)bone.uuid];
+    root.bindings = [binding];
+    param = new ExParameter("DepthGpuStaleLimitParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    tx = newValueBinding(param, bone, "transform.t.x");
+    tx.setValue(vec2u(1, 0), 5.0f);
+    fakeDepthBoneGpuMutatingTarget = target;
+    fakeDepthBoneGpuMutateDepthOnReady = true;
+    ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU stale retry limit regression", DepthBoneDirtyScope.Keypoint);
+    ngFlushDepthBoneDirtyImmediate();
+    fakeDepthBoneGpuMutateDepthOnReady = false;
+    fakeDepthBoneGpuMutatingTarget = null;
+    require(fakeDepthBoneGpuSubmitCount == DepthBoneGpuMaxStaleRetries + 1,
+        "continuously stale GPU work should stop at the bounded retry limit");
+    require(!ngHasPendingDepthBoneRefresh(),
+        "continuously stale GPU work should drain instead of requeueing forever");
+    deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
+    require(deformBinding is null,
+        "a continuously stale GPU job must not write a result from an obsolete depth snapshot");
+
+    resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
     fakeDepthBoneGpuNotReadyPolls = 1;
     root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "gpu-writeback-transform-root";
     target = new ExGridDeformer(incActivePuppet().root);
     target.name = "gpu-writeback-transform-grid";
     target.rebuffer(Vec2Array([vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100)]));
+    target.replaceDepths([0.25f, 0.5f, 0.75f, 1.0f]);
+    auto scaleDriverTarget = new ExGridDeformer(incActivePuppet().root);
+    scaleDriverTarget.name = "gpu-writeback-scale-driver-grid";
+    scaleDriverTarget.rebuffer(Vec2Array([vec2(-5, 0), vec2(5, 0), vec2(-5, 50), vec2(5, 50)]));
     bone = ngCreateDepthBone(root, "GpuWritebackTransformBone", vec3(0, 0, 0), vec3(0, 100, 0));
     binding = ExDepthRigBinding.init;
     binding.targetUuid = target.uuid;
     binding.targetKind = ExDepthTargetKind.Grid;
     binding.sourceBoneUuids = [cast(ulong)bone.uuid];
-    root.bindings = [binding];
+    binding2 = ExDepthRigBinding.init;
+    binding2.targetUuid = scaleDriverTarget.uuid;
+    binding2.targetKind = ExDepthTargetKind.Grid;
+    root.bindings = [binding, binding2];
     param = new ExParameter("DepthGpuWritebackTransformParam", false);
     param.min = vec2(0, 0);
     param.max = vec2(1, 0);
@@ -13929,17 +14183,80 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     incActivePuppet().parameters ~= param;
     tx = newValueBinding(param, bone, "transform.t.x");
     tx.setValue(vec2u(1, 0), 5.0f);
+    auto scaleBeforePendingTransform = ngDepthDisplayScaleForTargetsInNodeSpace(
+        root, cast(Deformable[])[target, scaleDriverTarget]);
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU writeback transform regression", DepthBoneDirtyScope.Keypoint);
     ngFlushDepthBoneDirty();
-    target.localTransform.translation.vector[0] += 20.0f;
+    scaleDriverTarget.localTransform.scale = vec2(20.0f, 20.0f);
+    scaleDriverTarget.localTransform.update();
+    scaleDriverTarget.transformChanged();
+    auto scaleAfterPendingTransform = ngDepthDisplayScaleForTargetsInNodeSpace(
+        root, cast(Deformable[])[target, scaleDriverTarget]);
+    require(!near(scaleBeforePendingTransform, scaleAfterPendingTransform),
+        "GPU world-scale regression fixture should change display scale while a job is pending");
     ngFlushDepthBoneDirtyImmediate();
     require(fakeDepthBoneGpuSubmitCount == 1,
-        "GPU writeback should not requeue only because the target transform changed while pending");
+        "GPU writeback should not requeue because pose-dependent world scale changed while pending");
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     require(deformBinding !is null, "GPU writeback should complete after a pending target transform change");
     offsets = deformBinding.getValue(vec2u(1, 0)).vertexOffsets;
     require(offsets.length == target.vertices.length,
         "GPU writeback transform change should still write offsets for the current target vertex count");
+
+    auto transformCtx = new Context();
+    transformCtx.puppet = incActivePuppet();
+    transformCtx.armedParameters = [param];
+
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuNotReadyPolls = 1;
+    auto sourceSettingsResult = cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        transformCtx,
+        root,
+        target,
+        bone,
+        `{"weight":0.8,"depthOffset":1.5,"depthScale":0.65}`);
+    require(sourceSettingsResult.succeeded, "BoneSource offset/scale command should succeed");
+    ngFlushDepthBoneDirty();
+    scaleDriverTarget.localTransform.scale = vec2(30.0f, 30.0f);
+    scaleDriverTarget.localTransform.update();
+    scaleDriverTarget.transformChanged();
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "BoneSource offset/scale refresh should complete both keypoints without world-scale stale retries");
+
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuNotReadyPolls = 1;
+    auto setDepthsResult = cmd!(DepthMapCommand.SetDepths)(
+        transformCtx,
+        target,
+        [0.1f, 0.3f, 0.6f, 0.9f]);
+    require(setDepthsResult.succeeded, "DepthEdit SetDepths command should succeed");
+    ngFlushDepthBoneDirty();
+    scaleDriverTarget.localTransform.scale = vec2(40.0f, 40.0f);
+    scaleDriverTarget.localTransform.update();
+    scaleDriverTarget.transformChanged();
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "DepthEdit depth refresh should complete both keypoints without world-scale stale retries");
+
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuNotReadyPolls = 1;
+    ngMarkDepthBoneDirty(
+        root,
+        param,
+        param.findClosestKeypoint(),
+        "Force Depth Bone Refresh regression",
+        DepthBoneDirtyScope.AllKeypoints);
+    ngFlushDepthBoneDirty();
+    scaleDriverTarget.localTransform.scale = vec2(50.0f, 50.0f);
+    scaleDriverTarget.localTransform.update();
+    scaleDriverTarget.transformChanged();
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "inspector force refresh should complete both keypoints without world-scale stale retries");
 
     resetCase();
     fakeDepthBoneGpuNextJobId = 1;
@@ -18449,6 +18766,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.composite-source-preview":
             runCase("depthbone-composite-source-preview", &testDepthBoneCompositeSourcePreviewWorkflow);
+            runCase("depthbone-ancestor-propagation-gates", &testDepthBoneAncestorPropagationGates);
             return true;
         case "mesh.vertex-scope":
         case "depth.edit-scope":

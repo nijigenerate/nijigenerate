@@ -39,6 +39,7 @@ enum DepthBoneGpuMaxBones = 64u;
 enum DepthBoneGpuMaxSources = 128u;
 enum DepthBoneGpuMaxInfluences = 8u;
 enum DepthBoneGpuMaxVertices = 1_000_000u;
+enum DepthBoneGpuMaxStaleRetries = 3u;
 
 private void depthBoneDebugLog(Args...)(const(char)[] fmt, Args args) {
     static if (EnableDepthBoneDebugLog) {
@@ -625,11 +626,14 @@ struct DepthBoneGpuOffsetPacket {
     bool writePreview;
     bool writeBinding;
     Vec2Array vertices;
+    float[] rawDepths;
     float[] depths;
     float[] bones;
+    float[] sourceInputs;
     float[] sources;
     mat4 targetToRoot;
     mat4 rootToTarget;
+    float worldScale;
     float influenceRadiusFloor;
     float radiusScale;
     uint boneCount;
@@ -638,6 +642,7 @@ struct DepthBoneGpuOffsetPacket {
     ulong rigHash;
     ulong parameterStructureHash;
     ulong poseHash;
+    uint staleRetryCount;
 
     DepthBoneGpuDispatchPacket dispatchPacket() {
         DepthBoneGpuDispatchPacket packet;
@@ -654,6 +659,18 @@ struct DepthBoneGpuOffsetPacket {
         packet.maxInfluences = maxInfluences;
         return packet;
     }
+}
+
+private float[] snapshotTargetDepths(Deformable target) {
+    float[] result;
+    if (target is null) return result;
+    result.length = target.vertices.length;
+    auto mapped = cast(DepthMappedNode)target;
+    if (mapped is null) return result;
+    auto stored = mapped.copyDepths();
+    auto count = min(result.length, stored.length);
+    if (count > 0) result[0 .. count] = stored[0 .. count];
+    return result;
 }
 
 private float parameterValue(Node node, Parameter param, vec2u cursor, string key, float fallback) {
@@ -871,6 +888,7 @@ bool ngBuildDepthBoneGpuOffsetPacket(
     }
 
     float[] sourceData;
+    float[] sourceInputs;
     auto worldScale = depthWorldScale(root);
     foreach (bone; sourceBones) {
         auto boneIndex = bone.uuid in boneIndices;
@@ -881,14 +899,17 @@ bool ngBuildDepthBoneGpuOffsetPacket(
         auto setting = binding.sourceSetting(bone.uuid);
         auto multiplier = 1.0f;
         if (auto p = bone.uuid in binding.influenceRule.multipliersByBoneUuid) multiplier = *p;
-        sourceData ~= cast(float)*boneIndex;
-        sourceData ~= (isTerminalDepthBoneSource(bone, sourceBones) ? 1.0f : 0.0f);
-        sourceData ~= (bone.lockToRoot ? 1.0f : 0.0f);
-        sourceData ~= (binding.influenceRule.falloff == "linear" ? 1.0f : 0.0f);
-        sourceData ~= setting.weight;
-        sourceData ~= setting.depthScale;
-        sourceData ~= setting.depthOffset * worldScale;
-        sourceData ~= multiplier;
+        auto sourceStart = sourceInputs.length;
+        sourceInputs ~= cast(float)*boneIndex;
+        sourceInputs ~= (isTerminalDepthBoneSource(bone, sourceBones) ? 1.0f : 0.0f);
+        sourceInputs ~= (bone.lockToRoot ? 1.0f : 0.0f);
+        sourceInputs ~= (binding.influenceRule.falloff == "linear" ? 1.0f : 0.0f);
+        sourceInputs ~= setting.weight;
+        sourceInputs ~= setting.depthScale;
+        sourceInputs ~= setting.depthOffset;
+        sourceInputs ~= multiplier;
+        sourceData ~= sourceInputs[sourceStart .. $];
+        sourceData[$ - 2] *= worldScale;
     }
 
     packet.root = root;
@@ -898,15 +919,18 @@ bool ngBuildDepthBoneGpuOffsetPacket(
     packet.writePreview = writePreview;
     packet.writeBinding = writeBinding;
     packet.vertices = target.vertices.dup;
-    packet.depths.length = target.vertices.length;
-    foreach (i; 0 .. target.vertices.length) packet.depths[i] = worldDepthAt(target, i, worldScale);
+    packet.rawDepths = snapshotTargetDepths(target);
+    packet.depths.length = packet.rawDepths.length;
+    foreach (i, depth; packet.rawDepths) packet.depths[i] = depth * worldScale;
     auto targetNode = cast(Node)target;
     packet.targetToRoot = targetToRootMatrix(root, targetNode);
     packet.rootToTarget = packet.targetToRoot.inverse;
+    packet.worldScale = worldScale;
     packet.influenceRadiusFloor = max(binding.influenceRule.minimumRadius, targetBoundsSize(target) * 0.18f);
     packet.radiusScale = binding.influenceRule.radiusScale;
     packet.maxInfluences = maxInfluences;
     packet.bones = boneData;
+    packet.sourceInputs = sourceInputs;
     packet.sources = sourceData;
     packet.boneCount = cast(uint)runtimeBones.length;
     packet.sourceCount = cast(uint)sourceBones.length;
@@ -1096,25 +1120,83 @@ private void abortDepthBoneGpuRefresh() {
     depthBoneGpuCompletedJobs = null;
 }
 
+private bool sameDepthBoneGpuWork(DepthBoneGpuOffsetPacket a, DepthBoneGpuOffsetPacket b) {
+    return a.root is b.root &&
+        a.target is b.target &&
+        a.parameter is b.parameter &&
+        a.keypoint == b.keypoint &&
+        a.writePreview == b.writePreview &&
+        a.writeBinding == b.writeBinding;
+}
+
+private bool hasOtherPendingDepthBoneGpuWork(DepthBoneGpuRefreshJob job) {
+    foreach (queued; depthBoneGpuSubmissionQueue) {
+        if (sameDepthBoneGpuWork(queued.packet, job.packet)) return true;
+    }
+    foreach (running; depthBoneGpuRefreshJobs) {
+        if (running.jobId != job.jobId && sameDepthBoneGpuWork(running.packet, job.packet)) return true;
+    }
+    foreach (completed; depthBoneGpuCompletedJobs) {
+        if (completed.valid && sameDepthBoneGpuWork(completed.packet, job.packet)) return true;
+    }
+    return false;
+}
+
 private void requeueStaleDepthBoneGpuJob(DepthBoneGpuRefreshJob job, string staleReason) {
     auto targetNode = cast(Node)job.packet.target;
-    auto message = "Depth Bone GPU async job stale; requeueing: target=%s key=(%s,%s) reason=%s".format(
+    auto message = "Depth Bone GPU async job stale: target=%s key=(%s,%s) reason=%s".format(
         targetNode is null ? "(null)" : targetNode.name,
         job.packet.keypoint.x,
         job.packet.keypoint.y,
         staleReason);
     writeDepthBoneGpuFatalLog(message);
-    if (job.packet.root !is null && isLiveDepthRigRoot(job.packet.root) && job.packet.parameter !is null) {
-        runWithDepthBoneRefreshActionSink(job.actionSink, {
-            ngMarkDepthBoneDirty(
-                job.packet.root,
-                job.packet.parameter,
-                job.packet.keypoint,
-                "Depth Bone GPU stale requeue",
-                DepthBoneDirtyScope.Keypoint);
-            return true;
-        });
+    if (job.packet.root is null ||
+        !isLiveDepthRigRoot(job.packet.root) ||
+        job.packet.parameter is null ||
+        targetNode is null ||
+        hasOtherPendingDepthBoneGpuWork(job)) return;
+    if (job.packet.staleRetryCount >= DepthBoneGpuMaxStaleRetries) {
+        writeDepthBoneGpuFatalLog(
+            "Depth Bone GPU async job reached stale retry limit: target=%s key=(%s,%s) reason=%s".format(
+                targetNode.name,
+                job.packet.keypoint.x,
+                job.packet.keypoint.y,
+                staleReason));
+        return;
     }
+
+    auto bindingIndex = job.packet.root.findBindingIndex(targetNode.uuid);
+    if (bindingIndex < 0) return;
+    DepthBoneGpuOffsetPacket retryPacket;
+    string buildError;
+    if (!ngBuildDepthBoneGpuOffsetPacket(
+        job.packet.root,
+        &job.packet.root.bindings[cast(size_t)bindingIndex],
+        job.packet.target,
+        job.packet.parameter,
+        job.packet.keypoint,
+        retryPacket,
+        buildError,
+        job.packet.writePreview,
+        job.packet.writeBinding,
+    )) {
+        writeDepthBoneGpuFatalLog(
+            "Depth Bone GPU stale retry packet build failed: target=%s key=(%s,%s) reason=%s".format(
+                targetNode.name,
+                job.packet.keypoint.x,
+                job.packet.keypoint.y,
+                buildError));
+        return;
+    }
+    retryPacket.staleRetryCount = job.packet.staleRetryCount + 1;
+    enqueueDepthBoneGpuRefreshBatch([retryPacket], job.reason, job.actionSink);
+    writeDepthBoneGpuFatalLog(
+        "Depth Bone GPU async job requeued: target=%s key=(%s,%s) retry=%s/%s".format(
+            targetNode.name,
+            job.packet.keypoint.x,
+            job.packet.keypoint.y,
+            retryPacket.staleRetryCount,
+            DepthBoneGpuMaxStaleRetries));
 }
 
 private bool sameVec2Array(Vec2Array a, Vec2Array b) {
@@ -1128,6 +1210,10 @@ private bool sameVec2Array(Vec2Array a, Vec2Array b) {
 private bool sameFloatArray(const(float)[] a, const(float)[] b) {
     if (a.length != b.length) return false;
     foreach (i; 0 .. a.length) {
+        if (a[i] == b[i]) continue;
+        auto bothNaN = a[i] != a[i] && b[i] != b[i];
+        if (bothNaN) continue;
+        if (!a[i].isFinite || !b[i].isFinite) return false;
         if (abs(a[i] - b[i]) > 0.0001f) return false;
     }
     return true;
@@ -1157,11 +1243,8 @@ private bool isDepthBoneGpuRefreshJobCurrent(ref DepthBoneGpuRefreshJob job, out
         reason = "target vertices changed while GPU job was pending";
         return false;
     }
-    float[] currentDepths;
-    currentDepths.length = target.vertices.length;
-    auto worldScale = depthWorldScale(job.packet.root);
-    foreach (i; 0 .. target.vertices.length) currentDepths[i] = worldDepthAt(target, i, worldScale);
-    if (!sameFloatArray(currentDepths, job.packet.depths)) {
+    auto currentRawDepths = snapshotTargetDepths(target);
+    if (!sameFloatArray(currentRawDepths, job.packet.rawDepths)) {
         reason = "target depths changed while GPU job was pending";
         return false;
     }
@@ -1204,7 +1287,7 @@ private bool isDepthBoneGpuRefreshJobCurrent(ref DepthBoneGpuRefreshJob job, out
         abs(currentPacket.influenceRadiusFloor - job.packet.influenceRadiusFloor) > 0.0001f ||
         abs(currentPacket.radiusScale - job.packet.radiusScale) > 0.0001f ||
         !sameFloatArray(currentPacket.bones, job.packet.bones) ||
-        !sameFloatArray(currentPacket.sources, job.packet.sources)) {
+        !sameFloatArray(currentPacket.sourceInputs, job.packet.sourceInputs)) {
         reason = "depth rig binding changed while GPU job was pending";
         return false;
     }
@@ -1275,6 +1358,58 @@ private size_t gridAxisInterval(const(float)[] axis, float value) {
     return axis.length - 2;
 }
 
+private bool prepareGridOffsetSampling(
+    GridDeformer grid,
+    Vec2Array offsets,
+    out float[] axisX,
+    out float[] axisY
+) {
+    if (grid is null || offsets.length != grid.vertices.length) return false;
+    foreach (vertex; grid.vertices) {
+        appendUniqueGridAxis(axisX, vertex.x);
+        appendUniqueGridAxis(axisY, vertex.y);
+    }
+    axisX.sort();
+    axisY.sort();
+    return axisX.length >= 2 && axisY.length >= 2 &&
+        axisX.length * axisY.length == grid.vertices.length;
+}
+
+private bool sampleGridOffset(
+    GridDeformer grid,
+    Vec2Array offsets,
+    const(float)[] axisX,
+    const(float)[] axisY,
+    vec2 point,
+    out vec2 sampled
+) {
+    sampled = vec2(0, 0);
+    if (grid is null || offsets.length != grid.vertices.length ||
+        axisX.length < 2 || axisY.length < 2) return false;
+
+    auto x = min(max(point.x, axisX[0]), axisX[$ - 1]);
+    auto y = min(max(point.y, axisY[0]), axisY[$ - 1]);
+    auto xi = gridAxisInterval(axisX, x);
+    auto yi = gridAxisInterval(axisY, y);
+    auto xSpan = axisX[xi + 1] - axisX[xi];
+    auto ySpan = axisY[yi + 1] - axisY[yi];
+    auto u = xSpan > 0.0f ? (x - axisX[xi]) / xSpan : 0.0f;
+    auto v = ySpan > 0.0f ? (y - axisY[yi]) / ySpan : 0.0f;
+
+    auto i00 = gridVertexIndex(grid.vertices, axisX[xi], axisY[yi]);
+    auto i10 = gridVertexIndex(grid.vertices, axisX[xi + 1], axisY[yi]);
+    auto i01 = gridVertexIndex(grid.vertices, axisX[xi], axisY[yi + 1]);
+    auto i11 = gridVertexIndex(grid.vertices, axisX[xi + 1], axisY[yi + 1]);
+    if (i00 < 0 || i10 < 0 || i01 < 0 || i11 < 0) return false;
+
+    sampled =
+        offsets[cast(size_t)i00] * ((1.0f - u) * (1.0f - v)) +
+        offsets[cast(size_t)i10] * (u * (1.0f - v)) +
+        offsets[cast(size_t)i01] * ((1.0f - u) * v) +
+        offsets[cast(size_t)i11] * (u * v);
+    return true;
+}
+
 private bool addParentGridInfluence(
     GridDeformer parentGrid,
     Deformable target,
@@ -1286,14 +1421,7 @@ private bool addParentGridInfluence(
 
     float[] axisX;
     float[] axisY;
-    foreach (vertex; parentGrid.vertices) {
-        appendUniqueGridAxis(axisX, vertex.x);
-        appendUniqueGridAxis(axisY, vertex.y);
-    }
-    axisX.sort();
-    axisY.sort();
-    if (axisX.length < 2 || axisY.length < 2 ||
-        axisX.length * axisY.length != parentGrid.vertices.length) return false;
+    if (!prepareGridOffsetSampling(parentGrid, parentOffsets, axisX, axisY)) return false;
 
     if (accumulated.length != target.vertices.length) {
         accumulated.length = target.vertices.length;
@@ -1311,30 +1439,128 @@ private bool addParentGridInfluence(
             parentPoint += vec2(prior4.x, prior4.y);
         }
 
-        auto x = min(max(parentPoint.x, axisX[0]), axisX[$ - 1]);
-        auto y = min(max(parentPoint.y, axisY[0]), axisY[$ - 1]);
-        auto xi = gridAxisInterval(axisX, x);
-        auto yi = gridAxisInterval(axisY, y);
-        auto xSpan = axisX[xi + 1] - axisX[xi];
-        auto ySpan = axisY[yi + 1] - axisY[yi];
-        auto u = xSpan > 0.0f ? (x - axisX[xi]) / xSpan : 0.0f;
-        auto v = ySpan > 0.0f ? (y - axisY[yi]) / ySpan : 0.0f;
-
-        auto i00 = gridVertexIndex(parentGrid.vertices, axisX[xi], axisY[yi]);
-        auto i10 = gridVertexIndex(parentGrid.vertices, axisX[xi + 1], axisY[yi]);
-        auto i01 = gridVertexIndex(parentGrid.vertices, axisX[xi], axisY[yi + 1]);
-        auto i11 = gridVertexIndex(parentGrid.vertices, axisX[xi + 1], axisY[yi + 1]);
-        if (i00 < 0 || i10 < 0 || i01 < 0 || i11 < 0) continue;
-
-        auto parentOffset =
-            parentOffsets[cast(size_t)i00] * ((1.0f - u) * (1.0f - v)) +
-            parentOffsets[cast(size_t)i10] * (u * (1.0f - v)) +
-            parentOffsets[cast(size_t)i01] * ((1.0f - u) * v) +
-            parentOffsets[cast(size_t)i11] * (u * v);
+        vec2 parentOffset;
+        if (!sampleGridOffset(
+            parentGrid, parentOffsets, axisX, axisY, parentPoint, parentOffset
+        )) continue;
         auto targetOffset4 = parentToTarget * vec4(
             parentOffset.x, parentOffset.y, 0.0f, 0.0f);
         accumulated[i] += vec2(targetOffset4.x, targetOffset4.y);
     }
+    return true;
+}
+
+private bool gridPropagationStopper(
+    GridDeformer ancestor,
+    Node target,
+    out Node stopper
+) {
+    stopper = null;
+    if (ancestor is null || target is null || ancestor is target) return false;
+    Node[] intermediates;
+    auto cursor = target.parent;
+    while (cursor !is null && cursor !is ancestor) {
+        intermediates ~= cursor;
+        cursor = cursor.parent;
+    }
+    if (cursor !is ancestor) return false;
+    foreach_reverse (intermediate; intermediates) {
+        if (!intermediate.mustPropagate()) {
+            stopper = intermediate;
+            break;
+        }
+    }
+    return true;
+}
+
+private bool depthBoneSourceIncludesAncestorPose(
+    ExDepthBone targetSource,
+    ExDepthBone ancestorSource
+) {
+    if (targetSource is null || ancestorSource is null) return false;
+    auto cursor = targetSource;
+    while (cursor !is null) {
+        if (cursor is ancestorSource) return true;
+        if (!cursor.allowParentToTargets || cursor.lockToRoot) return false;
+        cursor = cast(ExDepthBone)cursor.parent;
+    }
+    return false;
+}
+
+private bool parentGridInfluenceCanReachTarget(
+    ExDepthRigRoot root,
+    GridDeformer parentGrid,
+    Deformable target
+) {
+    if (root is null || parentGrid is null || target is null) return false;
+    auto parentIndex = root.findBindingIndex(parentGrid.uuid);
+    auto targetIndex = root.findBindingIndex((cast(Node)target).uuid);
+    if (parentIndex < 0 || targetIndex < 0) return false;
+    auto parentBinding = &root.bindings[cast(size_t)parentIndex];
+    auto targetBinding = &root.bindings[cast(size_t)targetIndex];
+
+    foreach (parentUuid; parentBinding.sourceBoneUuids) {
+        auto parentSource = findBoneByUuid(root, parentUuid);
+        if (parentSource is null) continue;
+        foreach (targetUuid; targetBinding.sourceBoneUuids) {
+            auto targetSource = findBoneByUuid(root, targetUuid);
+            if (depthBoneSourceIncludesAncestorPose(targetSource, parentSource)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+private bool addParentGridNodeOriginInfluence(
+    GridDeformer parentGrid,
+    Node stopper,
+    Deformable target,
+    Vec2Array parentOffsets,
+    ref Vec2Array accumulated
+) {
+    if (parentGrid is null || stopper is null || target is null ||
+        cast(Deformable)stopper !is null || !parentGrid.translateChildren) return false;
+
+    float[] axisX;
+    float[] axisY;
+    if (!prepareGridOffsetSampling(parentGrid, parentOffsets, axisX, axisY)) return false;
+
+    auto stopperParentMatrix = stopper.parent is null
+        ? mat4.identity
+        : stopper.parent.transform.matrix;
+    auto stopperToParentGrid = parentGrid.transform.matrix.inverse * stopperParentMatrix;
+    auto origin4 = stopperToParentGrid * vec4(
+        stopper.localTransform.translation.x,
+        stopper.localTransform.translation.y,
+        0.0f,
+        1.0f
+    );
+    auto origin = vec2(origin4.x, origin4.y);
+    if (parentGrid.dynamic) {
+        auto offset4 = stopperToParentGrid * vec4(
+            stopper.getValue("transform.t.x"),
+            stopper.getValue("transform.t.y"),
+            0.0f,
+            0.0f
+        );
+        origin += vec2(offset4.x, offset4.y);
+    }
+
+    vec2 parentOffset;
+    if (!sampleGridOffset(
+        parentGrid, parentOffsets, axisX, axisY, origin, parentOffset
+    )) return false;
+
+    if (accumulated.length != target.vertices.length) {
+        accumulated.length = target.vertices.length;
+        accumulated[] = vec2(0, 0);
+    }
+    auto parentToTarget = target.transform.matrix.inverse * parentGrid.transform.matrix;
+    auto targetOffset4 = parentToTarget * vec4(
+        parentOffset.x, parentOffset.y, 0.0f, 0.0f);
+    auto targetOffset = vec2(targetOffset4.x, targetOffset4.y);
+    accumulated += targetOffset;
     return true;
 }
 
@@ -1361,7 +1587,11 @@ private Vec2Array depthBoneAncestorGridInfluence(
     }
     foreach_reverse (ancestorNode; ancestors) {
         auto parentGrid = cast(GridDeformer)ancestorNode;
-        if (parentGrid is null || root.findBindingIndex(parentGrid.uuid) < 0) continue;
+        Node stopper;
+        if (parentGrid is null ||
+            root.findBindingIndex(parentGrid.uuid) < 0 ||
+            !parentGridInfluenceCanReachTarget(root, parentGrid, target) ||
+            !gridPropagationStopper(parentGrid, cast(Node)target, stopper)) continue;
 
         Vec2Array parentOffsets;
         if (auto resolved = cast(uint)parentGrid.uuid in resolvedOffsets) {
@@ -1375,7 +1605,12 @@ private Vec2Array depthBoneAncestorGridInfluence(
         } else {
             parentOffsets = parentGrid.deformation.dup;
         }
-        addParentGridInfluence(parentGrid, target, parentOffsets, result);
+        if (stopper is null) {
+            addParentGridInfluence(parentGrid, target, parentOffsets, result);
+        } else {
+            addParentGridNodeOriginInfluence(
+                parentGrid, stopper, target, parentOffsets, result);
+        }
     }
     result -= original;
     return result;
