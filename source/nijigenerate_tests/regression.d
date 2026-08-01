@@ -15564,6 +15564,7 @@ private void testAutoMeshBatchConfigUndoRedo() {
 
 private void testAutoMeshSchemaValuesPresetsAndActiveProcessor() {
     resetCase();
+    incSetEditMode(EditMode.ModelEdit);
 
     auto processors = ngAutoMeshProcessors();
     require(processors.length >= 4, "AutoMesh processor registry should include standard processors");
@@ -15573,6 +15574,12 @@ private void testAutoMeshSchemaValuesPresetsAndActiveProcessor() {
         require(processor.procId().length > 0, "AutoMesh processor should expose procId");
         require(processor.displayName().length > 0, "AutoMesh processor should expose displayName");
         require(processor.icon().length > 0, "AutoMesh processor should expose icon");
+
+        auto applyCommand = ensureApplyAutoMeshCommand(processor.procId());
+        require(applyCommand !is null,
+            "AutoMesh Apply command should be registered: " ~ processor.procId());
+        require(ngCommandAllowedInCurrentContext(applyCommand),
+            "AutoMesh Apply command should be allowed in ModelEdit: " ~ processor.procId());
 
         auto reflect = cast(IAutoMeshReflect)processor;
         require(reflect !is null, "standard AutoMesh processor should be reflectable: " ~ processor.procId());
@@ -15614,6 +15621,28 @@ private void testAutoMeshSchemaValuesPresetsAndActiveProcessor() {
         }
     }
     require(sawPresetProcessor, "at least one AutoMesh processor should expose presets");
+
+    auto normalScope = currentCommandScope(new Context()).result;
+    foreach (processor; processors) {
+        require(scopeCommandListContains(
+                normalScope["availableCommands"].array,
+                "AutoMesh_Apply_" ~ processor.procId()),
+            "ModelEdit command scope should expose AutoMesh Apply MCP tool: " ~ processor.procId());
+    }
+
+    auto dialogScope = ngPushCommandScope(ngCommandScope!PsdDepthDialogCommandScope());
+    scope(exit) dialogScope.close();
+    foreach (processor; processors) {
+        auto applyCommand = ensureApplyAutoMeshCommand(processor.procId());
+        require(!ngCommandAllowedInCurrentContext(applyCommand),
+            "AutoMesh Apply command should be unavailable in the PSD depth dialog: " ~ processor.procId());
+    }
+    dialogScope.close();
+    foreach (processor; processors) {
+        auto applyCommand = ensureApplyAutoMeshCommand(processor.procId());
+        require(ngCommandAllowedInCurrentContext(applyCommand),
+            "AutoMesh Apply command should return after the PSD depth dialog closes: " ~ processor.procId());
+    }
 
     auto original = ngActiveAutoMeshProcessor();
     auto target = processors[$ - 1] is original ? processors[0] : processors[$ - 1];
