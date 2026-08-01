@@ -16236,6 +16236,17 @@ private void testSettingsPathResolution() {
     }
     require(incGetUIScaleFont() > 0, "UI font scale should be positive");
     require(incGetUIScaleText().length > 0, "UI scale text should render");
+
+    auto fontSource = readText("source/nijigenerate/core/font.d");
+    require(fontSource.canFind(`import("MaterialSymbolsOutlined.ttf")`),
+        "the UI must embed the current Material Symbols font");
+    require(!fontSource.canFind(`import("MaterialIcons.ttf")`) &&
+        !fontSource.canFind("_incMaterialSymbolsFontData"),
+        "the UI must not retain the legacy Material Icons or optional runtime font fallback");
+    require(exists(buildPath("res", "MaterialSymbolsOutlined.ttf")) &&
+        !exists(buildPath("res", "MaterialIcons.ttf")),
+        "the repository must contain only the current Material Symbols icon font asset");
+
     incSettingsSet("RegressionPathProbe", "ok");
     require(incSettingsGet!string("RegressionPathProbe") == "ok", "settings set/get should round-trip string values");
 }

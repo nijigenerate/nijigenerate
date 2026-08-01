@@ -110,7 +110,7 @@ public:
 
     void drawDepthOptions() {
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
-        if (incButtonColored(__(" Snap"), ImVec2(0, 0), brush.snapToGrid ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+        if (incButtonColored(__(" Snap"), ImVec2(0, 0), brush.snapToGrid ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
             brush.snapToGrid = !brush.snapToGrid;
         }
         incTooltip(brush.snapToGrid ? _("Snap tool points to grid vertices") : _("Use free tool points"));
