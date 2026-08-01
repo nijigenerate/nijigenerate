@@ -3,7 +3,7 @@ module nijigenerate.panels.inspector.depthbone;
 import nijigenerate;
 import nijigenerate.commands;
 import nijigenerate.commands.depth.bone : ngDepthRigNodeCurrentScaledDepth,
-    ngFitDepthRigNodeTranslationZToCurrentDepth, ngMarkDepthBoneDirtyAllKeypointsForArmedParameter;
+    ngMarkDepthBoneDirtyAllKeypointsForArmedParameter;
 import nijigenerate.ext;
 import nijigenerate.panels.inspector.common;
 import nijigenerate.widgets;
@@ -25,7 +25,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRi
             igText(__("Bones: %d"), cast(int)root.depthBones().length);
             igText(__("Bindings: %d"), cast(int)root.bindings.length);
             if (igButton(__("Fit Z to Depth"))) {
-                foreach (target; targets) ngFitDepthRigNodeTranslationZToCurrentDepth(target);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                foreach (target; targets)
+                    cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, target);
             }
             incTooltip(_("Set descendant DepthBone translation.t.z values to the scaled depth values used by Depth Bone deformation."));
             if (igButton(__("Add Standard Skeleton"))) {
@@ -72,7 +74,9 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
                 igText(__("Root Depth: %.2f"), rootDepthZ);
             }
             if (igButton(__("Fit Z to Depth"))) {
-                foreach (target; targets) ngFitDepthRigNodeTranslationZToCurrentDepth(target);
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                foreach (target; targets)
+                    cmd!(DepthBoneCommand.FitDepthBoneZToDepth)(ctx, target);
             }
             incTooltip(_("Set translation.t.z to the scaled depth value used by Depth Bone deformation."));
 

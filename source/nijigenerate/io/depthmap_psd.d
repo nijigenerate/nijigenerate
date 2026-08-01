@@ -638,6 +638,10 @@ private float computeGlobalDepthCentroid(PsdDepthComposedLayer[] layers) {
     return count > 0 ? cast(float)(sum / cast(double)count) : 0.0f;
 }
 
+bool ngPsdDepthMappingAccountsForColorLayer(PsdDepthLayerMapping mapping) {
+    return mapping.matched || mapping.ignored;
+}
+
 bool ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(
     ref PsdDepthComposedLayer layer,
     int documentX,
@@ -2279,6 +2283,7 @@ private Candidate[] matchCandidates(
 private bool targetHasArtCoverage(Puppet puppet, Deformable target) {
     if (puppet is null || puppet.root is null || target is null) return false;
     foreach (part; puppet.findNodesType!Part(puppet.root)) {
+        if (!isActiveArtPart(part)) continue;
         if (part.textures.length == 0 || part.textures[0] is null) continue;
         if (containingDepthTarget(part) is target || nodeCapturedByGrid(target, part)) {
             return true;
@@ -2287,8 +2292,12 @@ private bool targetHasArtCoverage(Puppet puppet, Deformable target) {
     return false;
 }
 
+private bool isActiveArtPart(Part part) {
+    return part !is null && (cast(DynamicComposite)part) is null;
+}
+
 private string activeArtLayerName(Part part) {
-    if (part is null) return null;
+    if (!isActiveArtPart(part)) return null;
     if (part.name.length) return part.name;
     return part.uuid.to!string;
 }
@@ -2315,7 +2324,7 @@ private string uniqueActiveArtLayerPath(Part part, ref bool[string] usedLayerPat
 }
 
 private Deformable activeArtDepthTarget(Puppet puppet, Part part) {
-    if (puppet is null || puppet.root is null || part is null) return null;
+    if (puppet is null || puppet.root is null || !isActiveArtPart(part)) return null;
     if (auto target = containingDepthTarget(part)) return target;
     foreach (grid; puppet.findNodesType!GridDeformer(puppet.root)) {
         if (nodeCapturedByGrid(grid, part)) return grid;
@@ -2421,8 +2430,10 @@ private bool nodeCapturedByGrid(Deformable grid, Node target) {
 private void attachNodeCoverage(ref DepthLayerImage image, Node node, ref bool[ulong] seen) {
     if (node is null) return;
     if (auto part = cast(Part)node) {
-        attachPartCoverage(image, part, seen);
-        return;
+        if (isActiveArtPart(part)) {
+            attachPartCoverage(image, part, seen);
+            return;
+        }
     }
     foreach (child; node.children) {
         attachNodeCoverage(image, child, seen);
@@ -2432,6 +2443,7 @@ private void attachNodeCoverage(ref DepthLayerImage image, Node node, ref bool[u
 private void attachGridCoverage(ref DepthLayerImage image, Puppet puppet, Deformable grid, ref bool[ulong] seen) {
     if (puppet is null || puppet.root is null || grid is null) return;
     foreach (part; puppet.findNodesType!Part(puppet.root)) {
+        if (!isActiveArtPart(part)) continue;
         if (containingDepthTarget(part) is grid || nodeCapturedByGrid(grid, part)) {
             attachPartCoverage(image, part, seen);
         }
@@ -2441,8 +2453,10 @@ private void attachGridCoverage(ref DepthLayerImage image, Puppet puppet, Deform
 private void attachMatchedCoverage(ref DepthLayerImage image, Puppet puppet, Node matchedNode, Deformable grid) {
     bool[ulong] seen;
     if (auto part = cast(Part)matchedNode) {
-        attachPartCoverage(image, part, seen);
-        return;
+        if (isActiveArtPart(part)) {
+            attachPartCoverage(image, part, seen);
+            return;
+        }
     }
     attachGridCoverage(image, puppet, grid, seen);
     if (image.coverageSources.length == 0) {
@@ -2558,7 +2572,7 @@ PsdDepthSampleResult ngPsdDepthSamplePixelsWithCoverage(
 PsdDepthSampleResult ngPsdDepthFrontmost(PsdDepthSampleResult[] samples) {
     PsdDepthSampleResult best;
     foreach (sample; samples) {
-        if (!sample.valid) continue;
+        if (!sample.valid || !sample.value.isFinite) continue;
         if (!best.valid || sample.value > best.value) best = sample;
     }
     return best;
@@ -2597,8 +2611,8 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
     bool hasMinMax;
     foreach (i; 0 .. accum.best.length) {
         if (accum.has[i]) {
-            result.depths[i] = accum.best[i];
-            result.baseDepths[i] = accum.baseBest[i];
+            result.depths[i] = ngFiniteDepthOrZero(accum.best[i]);
+            result.baseDepths[i] = ngFiniteDepthOrZero(accum.baseBest[i]);
             result.winnerLayerPaths[i] = accum.winnerLayerPaths[i];
             result.missingVertexMask[i] = false;
             result.sampledVertices++;
@@ -2616,7 +2630,7 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
                     result.depths[i] = 0.0f;
                     break;
                 case PsdDepthMissingPolicy.SetBack:
-                    result.depths[i] = settings.backDepth * settings.depthScale;
+                    result.depths[i] = ngFiniteDepthOrZero(settings.backDepth * settings.depthScale);
                     break;
                 case PsdDepthMissingPolicy.SkipGrid:
                     result.skipped = true;
@@ -2629,6 +2643,8 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
         result.minDepth = 0.0f;
         result.maxDepth = 0.0f;
     }
+    ngNormalizeDepths(result.depths);
+    ngNormalizeDepths(result.baseDepths);
 }
 
 private void buildCompositePreview(
@@ -2892,8 +2908,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 if (hasLayerImage) {
                     addComposedLayer(result, path, image, settings, psdLayerVisible(layer), false);
                 }
-                addCompositionDiagnostic(result, "ignored-depth-layer",
-                    "Depth layer is ignored by user setting.", layerPath, layer.name);
                 layer.data = null;
                 continue;
             }
@@ -3065,9 +3079,11 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         }
     }
 
-    bool[string] mappedLayerPaths;
+    bool[string] accountedLayerPaths;
     foreach (mapping; result.mappings) {
-        if (mapping.layerPath.length && mapping.matched) mappedLayerPaths[mapping.layerPath] = true;
+        if (mapping.layerPath.length && ngPsdDepthMappingAccountsForColorLayer(mapping)) {
+            accountedLayerPaths[mapping.layerPath] = true;
+        }
     }
     if (!hasExplicitColorSource) {
         bool[string] usedLayerPaths;
@@ -3102,7 +3118,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 0,
                 target
             );
-            if (layerPath in mappedLayerPaths) continue;
+            if (layerPath in accountedLayerPaths) continue;
             addMissingComposedLayer(result, layerPath, layerName, image.left, image.top, image.width, image.height, target);
             addCompositionDiagnostic(result, "missing-depth-layer",
                 "Color/art layer has no matched depth layer.", layerPath, layerName);

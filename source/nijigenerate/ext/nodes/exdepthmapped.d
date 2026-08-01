@@ -14,21 +14,32 @@ interface DepthMappedNode {
     void replaceDepths(float[] values);
 }
 
+float ngFiniteDepthOrZero(float value) pure nothrow @safe {
+    return value == value && value != float.infinity && value != -float.infinity ? value : 0.0f;
+}
+
+void ngNormalizeDepths(float[] values) pure nothrow @safe {
+    foreach (ref value; values)
+        value = ngFiniteDepthOrZero(value);
+}
+
 mixin template ExDepthMapped() {
 public:
     float[] depths = null;
 
     float[] copyDepths() {
+        ngNormalizeDepths(depths);
         return depths is null ? null : depths.dup;
     }
 
     void replaceDepths(float[] values) {
         depths = values is null ? null : values.dup;
+        ngNormalizeDepths(depths);
     }
 
     void copyDepthsFrom(Node src) {
         if (auto depthMapped = cast(DepthMappedNode)src) {
-            depths = depthMapped.copyDepths();
+            replaceDepths(depthMapped.copyDepths());
         } else {
             depths = null;
         }
@@ -37,6 +48,7 @@ public:
     void resizeDepthsToVertices(size_t vertexCount) {
         if (depths is null) return;
 
+        ngNormalizeDepths(depths);
         auto oldLength = depths.length;
         depths.length = vertexCount;
         foreach (i; oldLength .. depths.length)
@@ -50,7 +62,7 @@ public:
         auto state = serializer.listBegin();
         foreach (depth; depths) {
             serializer.elemBegin();
-            serializer.serializeValue(depth);
+            serializer.serializeValue(ngFiniteDepthOrZero(depth));
         }
         serializer.listEnd(state);
     }
@@ -67,7 +79,7 @@ public:
         foreach (entry; data["depths"].byElement) {
             float depth;
             if (auto exc = entry.deserializeValue(depth)) return exc;
-            depths ~= depth;
+            depths ~= ngFiniteDepthOrZero(depth);
         }
         if (depths.length != vertexCount) {
             return new SerdeException("depths length must match vertices length");

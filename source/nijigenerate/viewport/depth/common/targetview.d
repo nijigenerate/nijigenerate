@@ -298,6 +298,7 @@ public:
 
     void replaceWorkingDepths(float[] values) {
         depths = values.dup;
+        ngNormalizeDepths(depths);
         normalizeDepthLength();
     }
 
@@ -346,6 +347,7 @@ public:
     }
 
     void normalizeDepthLength() {
+        ngNormalizeDepths(depths);
         if (depths is null || depths.length != target.vertices.length) {
             auto oldLength = depths.length;
             depths.length = target.vertices.length;

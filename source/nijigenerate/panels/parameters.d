@@ -326,16 +326,17 @@ void incBindingList(Parameter param) {
 
                         bool selected = cast(bool)(binding.getTarget() in cSelectedBindings);
                         if (selected) flags2 |= ImGuiTreeNodeFlags.Selected;
+                        bool isSetAtPoint = ngBindingIsSetAt(binding, cParamPoint);
 
                         // Style as inactive if not set at this keypoint
-                        if (!binding.isSet(cParamPoint))
+                        if (!isSetAtPoint)
                             igPushStyleColor(ImGuiCol.Text, inactiveColor);
 
 
                         // Binding entry
                         auto value = cast(ValueParameterBinding)binding;
                         string label;
-                        if (value && binding.isSet(cParamPoint)) {
+                        if (value && isSetAtPoint) {
                             label = format("%s (%.02f)", binding.getName(), value.getValue(cParamPoint));
                         } else {
                             label = binding.getName();
@@ -344,7 +345,7 @@ void incBindingList(Parameter param) {
                         // NOTE: This is a leaf node so it should NOT be popped.
                         const(char)* bid = binding.getName().toStringz;
                         igTreeNodeEx(bid, flags2, label.toStringz);
-                            if (!binding.isSet(cParamPoint)) igPopStyleColor();
+                            if (!isSetAtPoint) igPopStyleColor();
 
                             // Binding selection logic
                             if (igIsItemClicked(ImGuiMouseButton.Right)) {
@@ -560,6 +561,8 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
 }
 
 void incParameterView(bool armedParam=false, bool showCategory = true, bool fixedWidth = false)(size_t idx, Parameter param, string* grabParam, bool canGroup, ref Parameter[] paramArr, vec3 groupColor = vec3.init) {
+    if (incArmedParameter() is param)
+        cParamPoint = param.findClosestKeypoint();
     igPushID(cast(void*)param);
     scope(exit) igPopID();
 
@@ -877,6 +880,8 @@ public:
 }
 
 vec2u incParamPoint() {
+    if (auto param = incArmedParameter())
+        cParamPoint = param.findClosestKeypoint();
     return cParamPoint;
 }
 

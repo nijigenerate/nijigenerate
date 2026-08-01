@@ -56,6 +56,8 @@ DepthBoneCommand.AddStandardDepthParameters	args=root=UUID	unsupported=	before=r
 DepthBoneCommand.AddStandardDepthSkeleton	args=root=UUID;scale=1.25	unsupported=	before=root=null;scale=nan	after=root=Node:UUID;scale=1.25	cleared=root=null;scale=1.25
 DepthBoneCommand.ApplyDepthBoneDeform	args=root=UUID;targets=UUID,UUID	unsupported=	before=root=null;targets=[]	after=root=Node:UUID;targets=[Node:UUID,Node:UUID]	cleared=root=null;targets=[]
 DepthBoneCommand.CreateDepthRigRoot	args=name=command-browser-differential;parent=UUID	unsupported=	before=parent=null;name=	after=parent=Node:UUID;name=command-browser-differential	cleared=parent=null;name=
+DepthBoneCommand.FitDepthBoneZToDepth	args=bone=UUID	unsupported=	before=bone=null	after=bone=Node:UUID	cleared=bone=null
+DepthBoneCommand.FitDepthRigRootZToDepth	args=root=UUID	unsupported=	before=root=null	after=root=Node:UUID	cleared=root=null
 DepthBoneCommand.GetDepthBoneInfluenceRule	args=root=UUID;target=UUID	unsupported=	before=root=null;target=null	after=root=Node:UUID;target=Node:UUID	cleared=root=null;target=null
 DepthBoneCommand.ListDepthBoneSources	args=root=UUID;target=UUID	unsupported=	before=root=null;target=null	after=root=Node:UUID;target=Node:UUID	cleared=root=null;target=null
 DepthBoneCommand.ListDepthBones	args=root=UUID	unsupported=	before=root=null	after=root=Node:UUID	cleared=root=null

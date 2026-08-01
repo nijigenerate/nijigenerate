@@ -1059,6 +1059,11 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
     size_t changedGrids;
     enforce(composed.imported !is null, "PSD depth import apply requires a composed view");
     auto imported = composed.imported;
+    foreach (ref gridResult; imported.grids) {
+        ngNormalizeDepths(gridResult.depths);
+        ngNormalizeDepths(gridResult.baseDepths);
+        updatePsdDepthGridRange(gridResult);
+    }
 
     if (imported.grids.length > 0) {
         if (activePsdDepthImportRefreshJob !is null) {

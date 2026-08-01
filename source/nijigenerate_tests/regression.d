@@ -10,12 +10,13 @@ import nijigenerate.api.mcp.resource_listing : buildCurrentResourceList, rewrite
 import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpFinishActionBoundary, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProcessQueue, ngRunInMainThread;
 import nijigenerate.commands;
+import nijigenerate.commands.binding.base : cParamPoint, ngBindingHasKeypoint, ngBindingIsSetAt, paramPointChanged;
 import nijigenerate.commands.binding.binding;
 import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMaxInfluences, DepthBoneGpuMaxStaleRetries,
     DepthBoneGpuOffsetPacket, DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
-    ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
-    ngDepthBoneGpuSupportDiagnostic, ngFitDepthRigNodeTranslationZToCurrentDepth,
+    ngDepthBoneBindingValueChanged, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
+    ngDepthBoneGpuSupportDiagnostic,
     ngFlushDepthBoneDirtyImmediate, ngHasPendingDepthBoneRefresh, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
@@ -67,6 +68,7 @@ import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution,
     ngDepthSampleValueToDepth01, ngDepthSampleWeightedAverage;
 import nijigenerate.io.inpexport;
 import nijigenerate.project;
+import nijigenerate.panels.parameters : incParamPoint;
 import nijigenerate.viewport.common.mesh : IncMesh;
 import nijigenerate.viewport.base : incViewport;
 import meshNodeOps = nijigenerate.viewport.common.mesheditor.operations.node;
@@ -3106,6 +3108,18 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ]));
     require(copied.copyDepths().length == copied.vertices.length, "DepthMapped rebuffer should resize depth array to vertices");
 
+    auto nonFiniteGrid = new ExGridDeformer(incActivePuppet().root);
+    nonFiniteGrid.name = "non-finite-depth-grid";
+    nonFiniteGrid.rebuffer(Vec2Array([
+        vec2(-1, -1),
+        vec2(1, -1),
+        vec2(-1, 1),
+        vec2(1, 1),
+    ]));
+    nonFiniteGrid.replaceDepths([float.nan, float.infinity, -float.infinity, 0.375f]);
+    require(nonFiniteGrid.copyDepths() == [0.0f, 0.0f, 0.0f, 0.375f],
+        "DepthMapped assignment must immediately replace NaN and infinities with zero");
+
     incActivePuppet().root.build();
     auto saveBase = buildPath(fixtureDir, "depthmapped-roundtrip");
     auto savePath = saveBase.setExtension(".inx");
@@ -3113,12 +3127,19 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     require((new SaveFileCommand(saveBase)).run(ctx).succeeded, "SaveFileCommand should save depth-mapped fixture");
     require(exists(savePath) && isFile(savePath), "depth-mapped INX fixture should exist");
     require((cast(ubyte[])read(savePath)).canFind(cast(ubyte[])"depth-grid"), "depth-mapped INX fixture should contain depth-grid node before load");
+    require(nonFiniteGrid.copyDepths() == [0.0f, 0.0f, 0.0f, 0.375f],
+        "saving must preserve already-normalized in-memory depths");
 
     ensureRegressionNodeTypesRegistered();
     auto loadedPuppet = inLoadPuppet!ExPuppet(savePath);
     auto loaded = cast(ExGridDeformer)findNodeRecursive(loadedPuppet.root, "depth-grid");
+    auto loadedNonFinite = cast(ExGridDeformer)findNodeRecursive(loadedPuppet.root, "non-finite-depth-grid");
     require(loaded !is null, "depth-mapped INX round-trip should restore ExGridDeformer; tree:\n" ~ nodeTreeSummary(loadedPuppet.root));
     require(loaded.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "depth-mapped INX round-trip should restore depths");
+    require(loadedNonFinite !is null,
+        "depth-mapped INX round-trip should restore the non-finite depth fixture");
+    require(loadedNonFinite.copyDepths() == [0.0f, 0.0f, 0.0f, 0.375f],
+        "depth-mapped INX save must serialize NaN and infinities as finite neutral depths");
     auto loadedOps = loaded.copyDepthOps();
     require(loadedOps.length == 1, "depth-mapped INX round-trip should restore depth operation count");
     require(loadedOps[0].type == ExDepthOpType.Ring, "depth-mapped INX round-trip should restore operation type");
@@ -3364,17 +3385,29 @@ private void testDepthMapCommandsUndoRedo() {
     incActionRedo();
     require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "redo SetDepths should restore depths");
 
+    require(cmd!(DepthMapCommand.SetDepths)(
+        ctx, grid, [float.nan, float.infinity, -float.infinity, 0.5f]).succeeded,
+        "SetDepths should accept and normalize non-finite input");
+    require(grid.copyDepths() == [0.0f, 0.0f, 0.0f, 0.5f],
+        "SetDepths must not retain NaN or infinities");
+    incActionUndo();
+    require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f],
+        "undo normalized SetDepths should restore previous finite depths");
+
     PsdDepthImportResult psdImport;
     PsdDepthGridResult psdGridResult;
     psdGridResult.grid = grid;
-    psdGridResult.depths = [1.0f, 0.5f, 0.0f, -0.5f];
+    psdGridResult.depths = [1.0f, float.nan, float.infinity, -float.infinity];
     psdImport.grids ~= psdGridResult;
     require(applyPsdDepthImportForRegression(psdImport).succeeded, "PSD depth import apply should succeed");
-    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f], "PSD depth import should apply depths");
+    require(grid.copyDepths() == [1.0f, 0.0f, 0.0f, 0.0f],
+        "PSD depth import should replace NaN and infinities with zero before applying");
+    require(psdImport.grids[0].depths == [1.0f, 0.0f, 0.0f, 0.0f],
+        "PSD depth import result should not retain non-finite depths");
     incActionUndo();
     require(grid.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "undo PSD depth import should restore previous depths");
     incActionRedo();
-    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f], "redo PSD depth import should restore imported depths");
+    require(grid.copyDepths() == [1.0f, 0.0f, 0.0f, 0.0f], "redo PSD depth import should restore normalized imported depths");
     auto actionBeforeNoopImport = incActionTop();
     require(applyPsdDepthImportForRegression(psdImport).succeeded,
         "reapplying identical PSD depths should succeed without touching the target");
@@ -3389,7 +3422,7 @@ private void testDepthMapCommandsUndoRedo() {
     require(grid.copyDepths() == [-1.0f, -0.25f, 0.25f, 1.0f], "PSD depth import from DepthEdit scope should apply depths");
     require(incActionCanUndo(), "PSD depth import from DepthEdit scope should be undoable from the main action stack");
     incActionUndo();
-    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f],
+    require(grid.copyDepths() == [1.0f, 0.0f, 0.0f, 0.0f],
         "undo PSD depth import from DepthEdit scope should restore previous imported depths");
 
     auto secondGrid = new ExGridDeformer(incActivePuppet().root);
@@ -3418,7 +3451,7 @@ private void testDepthMapCommandsUndoRedo() {
     require(grid.copyDepths() == [0.0f, 0.1f, 0.2f, 0.3f], "PSD depth import group should apply first grid depths");
     require(secondGrid.copyDepths() == [1.0f, 1.1f, 1.2f, 1.3f], "PSD depth import group should apply second grid depths");
     incActionUndo();
-    require(grid.copyDepths() == [1.0f, 0.5f, 0.0f, -0.5f],
+    require(grid.copyDepths() == [1.0f, 0.0f, 0.0f, 0.0f],
         "one undo should restore first grid from grouped PSD depth import");
     require(secondGrid.copyDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
         "one undo should restore second grid from grouped PSD depth import");
@@ -4944,6 +4977,18 @@ private void testPsdDepthMapImportHelpers() {
     require(ngPsdDepthNormalizeLayerName("/Group/Face.PNG") == "face" &&
         ngPsdDepthLayerIdentityKey("/Group/Face.PNG", 1, 2, 3, 4) == "face:1:2:3:4",
         "PSD depth import should expose depth-draw-style normalized layer identity keys");
+    PsdDepthLayerMapping ignoredMapping;
+    ignoredMapping.layerPath = "/ignored";
+    ignoredMapping.ignored = true;
+    PsdDepthLayerMapping matchedMapping;
+    matchedMapping.layerPath = "/matched";
+    matchedMapping.matched = true;
+    PsdDepthLayerMapping unresolvedMapping;
+    unresolvedMapping.layerPath = "/unresolved";
+    require(ngPsdDepthMappingAccountsForColorLayer(ignoredMapping) &&
+        ngPsdDepthMappingAccountsForColorLayer(matchedMapping) &&
+        !ngPsdDepthMappingAccountsForColorLayer(unresolvedMapping),
+        "PSD depth import should not reclassify an ignored depth layer as a missing color-layer match");
     require(near(ngPsdDepthRectOverlapScore(0, 0, 10, 10, 5, 5, 10, 10), 25.0f / 175.0f) &&
         near(ngPsdDepthRectOverlapScore(0, 0, 10, 10, 20, 20, 10, 10), 0.0f),
         "PSD depth import should expose rectangle-overlap scoring for depth-draw layer matching fallback");
@@ -5668,6 +5713,7 @@ private void testPsdDepthMapImportHelpers() {
     activeArtPsdGrid.vertices = Vec2Array([vec2(0, 0)]);
     auto activeArtPsdTextureA = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
     auto activeArtPsdTextureB = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    auto activeArtPsdDynamicTexture = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
     MeshData activeArtPsdMesh;
     activeArtPsdMesh.vertices = Vec2Array([
         vec2(-1, -1),
@@ -5686,6 +5732,9 @@ private void testPsdDepthMapImportHelpers() {
     activeArtPsdPartA.name = "active-art-psd-left";
     auto activeArtPsdPartB = new Part(activeArtPsdMesh, [activeArtPsdTextureB], inCreateUUID(), activeArtPsdGrid);
     activeArtPsdPartB.name = "active-art-psd-right";
+    auto activeArtPsdDynamic = new DynamicComposite(activeArtPsdGrid);
+    activeArtPsdDynamic.name = "active-art-psd-dynamic-composite";
+    activeArtPsdDynamic.textures = [activeArtPsdDynamicTexture, null, null];
     incActivePuppet().root.build();
     PsdDepthImportSettings activeArtPsdSettings;
     activeArtPsdSettings.convolution = PsdDepthConvolution.Nearest;
@@ -5695,13 +5744,16 @@ private void testPsdDepthMapImportHelpers() {
     bool foundActiveArtPsdLeft;
     bool foundActiveArtPsdRight;
     bool foundActiveArtPsdGridLayer;
+    bool foundActiveArtPsdDynamic;
     foreach (layer; activeArtPsdImported.composedLayers) {
         if (layer.layerPath == "/active-art-psd-left") foundActiveArtPsdLeft = true;
         if (layer.layerPath == "/active-art-psd-right") foundActiveArtPsdRight = true;
         if (layer.layerPath == "/active-art-psd-grid") foundActiveArtPsdGridLayer = true;
+        if (layer.layerPath == "/active-art-psd-dynamic-composite") foundActiveArtPsdDynamic = true;
     }
-    require(foundActiveArtPsdLeft && foundActiveArtPsdRight && !foundActiveArtPsdGridLayer,
-        "PSD depth import active-target color source should preserve Part layers instead of collapsing missing layers to the target Grid");
+    require(foundActiveArtPsdLeft && foundActiveArtPsdRight && !foundActiveArtPsdGridLayer &&
+        !foundActiveArtPsdDynamic,
+        "PSD depth import active-target color source should preserve artwork Parts without adding Grid or DynamicComposite outputs");
 
     auto pngSecondDepthPath = buildPath(pngFixtureDir, "png-depth-second.png");
     writeRegressionPng(pngSecondDepthPath, 255, 255, 255, 4, 4);
@@ -13151,6 +13203,36 @@ private void testParameterAxesPropsCommandUndoRedo() {
     require(param.max == vec2(2, 3), "redo ApplyParameterPropsAxesCommand should restore max");
     require(param.axisPoints[0].length == 5 && param.axisPoints[1].length == 3, "redo ApplyParameterPropsAxesCommand should restore axis breakpoints");
     require(binding.isSet(vec2u(2, 1)) && near(binding.getValue(vec2u(2, 1)), 6.0f), "redo ApplyParameterPropsAxesCommand should restore remapped bound value");
+
+    param.value = param.max;
+    paramPointChanged(param);
+    Parameter armedParam = param;
+    incArmParameter(0, armedParam);
+    require(incParamPoint() == vec2u(4, 2), "armed keypoint should initially resolve against expanded axes");
+
+    require((new ApplyParameterPropsAxesCommand(
+        [-2.0f, -3.0f],
+        [2.0f, 3.0f],
+        [0.0f, 1.0f],
+        [0.0f, 1.0f]
+    )).run(ctx).succeeded, "ApplyParameterPropsAxesCommand should support reducing armed axes");
+    require(incParamPoint() == vec2u(1, 1), "armed keypoint should be refreshed after reducing axes");
+    require(ngBindingHasKeypoint(binding, incParamPoint()), "refreshed armed keypoint should remain inside the binding");
+
+    cParamPoint = vec2u(9, 9);
+    require(!ngBindingHasKeypoint(binding, cParamPoint), "out-of-range keypoint should be detected");
+    require(!ngBindingIsSetAt(binding, cParamPoint), "out-of-range binding query should not throw");
+
+    incActionUndo();
+    require(incParamPoint() == vec2u(4, 2), "undo should resolve the armed keypoint against restored axes");
+    require(ngBindingHasKeypoint(binding, incParamPoint()), "undo-resolved keypoint should remain inside the binding");
+    incActionRedo();
+    require(incParamPoint() == vec2u(1, 1), "redo should resolve the armed keypoint against reduced axes");
+    require(ngBindingHasKeypoint(binding, incParamPoint()), "redo-resolved keypoint should remain inside the binding");
+
+    binding.values.length = 1;
+    require(!ngBindingHasKeypoint(binding, vec2u(1, 1)), "mismatched binding value matrix should be detected");
+    require(!ngBindingIsSetAt(binding, vec2u(1, 1)), "mismatched binding value query should not throw");
 }
 
 private void testDepthBoneActionsUndoRedo() {
@@ -13364,6 +13446,34 @@ private void testDepthRigRootFitZToDepth() {
 
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
+    auto rootFitCommand =
+        nijigenerate.commands.depth.bone.commands[DepthBoneCommand.FitDepthRigRootZToDepth];
+    auto boneFitCommand =
+        nijigenerate.commands.depth.bone.commands[DepthBoneCommand.FitDepthBoneZToDepth];
+    require(rootFitCommand !is null && rootFitCommand.mcpExposed(),
+        "DepthRigRoot Fit Z to Depth command must be registered and MCP-visible");
+    require(boneFitCommand !is null && boneFitCommand.mcpExposed(),
+        "DepthBone Fit Z to Depth command must be registered and MCP-visible");
+    require(rootFitCommand.irreversibleEffect() == CommandIrreversibleEffect.configEdit,
+        "DepthRigRoot Fit Z to Depth command must declare its config-edit effect");
+    require(boneFitCommand.irreversibleEffect() == CommandIrreversibleEffect.configEdit,
+        "DepthBone Fit Z to Depth command must declare its config-edit effect");
+    require(
+        ngCommandIdFromKey(DepthBoneCommand.FitDepthRigRootZToDepth)
+            == "DepthBoneCommand.FitDepthRigRootZToDepth",
+        "DepthRigRoot Fit Z to Depth must have a stable public command id");
+    require(
+        ngCommandIdFromKey(DepthBoneCommand.FitDepthBoneZToDepth)
+            == "DepthBoneCommand.FitDepthBoneZToDepth",
+        "DepthBone Fit Z to Depth must have a stable public command id");
+    auto rootFitArgs = FitDepthRigRootZToDepthCommand.reflectArgMeta();
+    auto boneFitArgs = FitDepthBoneZToDepthCommand.reflectArgMeta();
+    require(rootFitArgs.length == 1 && rootFitArgs[0].fieldName == "root"
+        && rootFitArgs[0].fieldDesc.canFind("DepthRigRoot"),
+        "DepthRigRoot Fit Z to Depth must publish an explicit root argument");
+    require(boneFitArgs.length == 1 && boneFitArgs[0].fieldName == "bone"
+        && boneFitArgs[0].fieldDesc.canFind("DepthBone"),
+        "DepthBone Fit Z to Depth must publish an explicit bone argument");
     require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded,
         "fit fixture should add a depth bone source");
     require(root.depthBones().length == 1, "fit fixture should expose one descendant DepthBone");
@@ -13375,8 +13485,8 @@ private void testDepthRigRootFitZToDepth() {
     auto originalLocalZ = bone.localTransform.translation.vector[2];
 
     incActionClearHistory();
-    auto fitResult = ngFitDepthRigNodeTranslationZToCurrentDepth(root);
-    require(fitResult, "DepthRigRoot Fit Z to Depth returned false");
+    auto fitResult = cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, root);
+    require(fitResult.succeeded, "DepthRigRoot Fit Z to Depth command returned false");
     require(!near(bone.localTransform.translation.vector[2], originalLocalZ),
         "DepthRigRoot Fit Z to Depth should update descendant DepthBone local Z; got "
         ~ bone.localTransform.translation.vector[2].to!string);
@@ -13392,6 +13502,21 @@ private void testDepthRigRootFitZToDepth() {
     incActionRedo();
     require(near(bone.localTransform.translation.vector[2], fittedLocalZ),
         "redo DepthRigRoot Fit Z to Depth should restore the fitted DepthBone local Z");
+
+    incActionUndo();
+    incActionClearHistory();
+    auto boneFitResult = cmd!(DepthBoneCommand.FitDepthBoneZToDepth)(ctx, bone);
+    require(boneFitResult.succeeded, "DepthBone Fit Z to Depth command returned false");
+    require(near(bone.localTransform.translation.vector[2], fittedLocalZ),
+        "DepthBone Fit Z to Depth command should produce the fitted local Z");
+    require(incActionHistory().length == 1,
+        "DepthBone Fit Z to Depth command should push one undo action");
+    incActionUndo();
+    require(near(bone.localTransform.translation.vector[2], originalLocalZ),
+        "undo DepthBone Fit Z to Depth should restore the original local Z");
+    incActionRedo();
+    require(near(bone.localTransform.translation.vector[2], fittedLocalZ),
+        "redo DepthBone Fit Z to Depth should restore the fitted local Z");
 }
 
 private Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
@@ -13724,6 +13849,8 @@ private uint fakeDepthBoneGpuSubmitFailAfter;
 private uint fakeDepthBoneGpuNotReadyPolls;
 private float fakeDepthBoneGpuOutputX = 2.0f;
 private float fakeDepthBoneGpuOutputY = -1.0f;
+private float fakeDepthBoneGpuLastSourceDepthOffset;
+private float[] fakeDepthBoneGpuLastBones;
 private bool fakeDepthBoneGpuVaryOutputByVertex;
 private ExGridDeformer fakeDepthBoneGpuMutatingTarget;
 private bool fakeDepthBoneGpuMutateDepthOnReady;
@@ -13870,6 +13997,10 @@ private bool fakeDepthBoneGpuSubmit(ref DepthBoneGpuDispatchPacket packet, out u
     jobId = fakeDepthBoneGpuNextJobId++;
     error = null;
     fakeDepthBoneGpuJobVertexCounts[jobId] = packet.vertices.length;
+    if (packet.sourceCount > 0 && packet.sources.length >= DepthBoneGpuSourceStride) {
+        fakeDepthBoneGpuLastSourceDepthOffset = packet.sources[6];
+    }
+    fakeDepthBoneGpuLastBones = packet.bones.dup;
     fakeDepthBoneGpuSubmitCount++;
     return true;
 }
@@ -13918,6 +14049,8 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     fakeDepthBoneGpuPollCount = 0;
     fakeDepthBoneGpuSubmitFailAfter = 0;
     fakeDepthBoneGpuNotReadyPolls = 0;
+    fakeDepthBoneGpuLastSourceDepthOffset = 0.0f;
+    fakeDepthBoneGpuLastBones = null;
     fakeDepthBoneGpuMutatingTarget = null;
     fakeDepthBoneGpuMutateDepthOnReady = false;
     ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
@@ -13928,6 +14061,8 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         fakeDepthBoneGpuPollCount = 0;
         fakeDepthBoneGpuSubmitFailAfter = 0;
         fakeDepthBoneGpuNotReadyPolls = 0;
+        fakeDepthBoneGpuLastSourceDepthOffset = 0.0f;
+        fakeDepthBoneGpuLastBones = null;
         fakeDepthBoneGpuMutatingTarget = null;
         fakeDepthBoneGpuMutateDepthOnReady = false;
     }
@@ -14041,6 +14176,46 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
 
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU keypoint regression", DepthBoneDirtyScope.Keypoint);
     ngFlushDepthBoneDirtyImmediate();
+
+    auto savedGpuRigBindings = root.bindings;
+    root.bindings = root.bindings[0 .. 1];
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuNotReadyPolls = 4;
+    fakeDepthBoneGpuLastBones = null;
+    tx.setValue(vec2u(1, 0), 6.0f);
+    ngDepthBoneBindingValueChanged(param, bone, tx.getName(), vec2u(1, 0));
+    ngFlushDepthBoneDirty();
+    require(fakeDepthBoneGpuSubmitCount == 1,
+        "DepthBone transform refresh should submit the initial keypoint pose; submitted=%s"
+            .format(fakeDepthBoneGpuSubmitCount));
+    auto initialDepthBonePose = fakeDepthBoneGpuLastBones.dup;
+
+    tx.setValue(vec2u(1, 0), 12.0f);
+    ngDepthBoneBindingValueChanged(param, bone, tx.getName(), vec2u(1, 0));
+    ngFlushDepthBoneDirty();
+    DepthBoneGpuOffsetPacket latestDepthBonePacket;
+    string latestDepthBonePacketError;
+    require(ngBuildDepthBoneGpuOffsetPacket(
+        root,
+        &root.bindings[0],
+        target,
+        param,
+        vec2u(1, 0),
+        latestDepthBonePacket,
+        latestDepthBonePacketError),
+        "latest DepthBone transform packet should build: " ~ latestDepthBonePacketError);
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "newer DepthBone transform should replace the in-flight keypoint batch without a stale retry");
+    require(fakeDepthBoneGpuLastBones != initialDepthBonePose,
+        "DepthBone transform fixture should produce a different bone matrix for the newer pose");
+    require(fakeDepthBoneGpuLastBones == latestDepthBonePacket.bones,
+        "DepthBone transform refresh should dispatch the latest keypoint pose");
+    require(!ngHasPendingDepthBoneRefresh(),
+        "superseded DepthBone transform refresh should drain without stale work");
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    root.bindings = savedGpuRigBindings;
 
     incActionClearHistory();
     auto applyResult = cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, cast(Node[])[target]);
@@ -14224,6 +14399,67 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     ngFlushDepthBoneDirtyImmediate();
     require(fakeDepthBoneGpuSubmitCount == 2,
         "BoneSource offset/scale refresh should complete both keypoints without world-scale stale retries");
+
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    foreach (depthOffset; [1.6f, 1.7f, 1.8f, 1.9f, 2.0f]) {
+        sourceSettingsResult = cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+            transformCtx,
+            root,
+            target,
+            bone,
+            format(
+                `{"weight":0.8,"depthOffset":%s,"depthScale":0.65}`,
+                depthOffset));
+        require(sourceSettingsResult.succeeded,
+            "rapid BoneSource offset command should succeed");
+        ngFlushDepthBoneDirty();
+        require(fakeDepthBoneGpuSubmitCount == 0,
+            "rapid BoneSource edits should settle before dispatching obsolete all-keypoint GPU work");
+    }
+    auto rapidSourceWorldScale = ngDepthDisplayScaleForTargetsInNodeSpace(
+        root, cast(Deformable[])[target, scaleDriverTarget]);
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "rapid BoneSource edits should dispatch only the final value for both keypoints");
+    require(near(fakeDepthBoneGpuLastSourceDepthOffset, 2.0f * rapidSourceWorldScale),
+        "rapid BoneSource refresh should dispatch the final depthOffset");
+    require(!ngHasPendingDepthBoneRefresh(),
+        "rapid BoneSource refresh should drain without leaving stale work");
+
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuNotReadyPolls = 4;
+    sourceSettingsResult = cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        transformCtx,
+        root,
+        target,
+        bone,
+        `{"weight":0.8,"depthOffset":2.1,"depthScale":0.65}`);
+    require(sourceSettingsResult.succeeded,
+        "pending BoneSource offset fixture should accept its initial value");
+    ngFlushDepthBoneDirty();
+    ngFlushDepthBoneDirty();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "pending BoneSource offset fixture should submit its first two keypoints");
+
+    sourceSettingsResult = cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        transformCtx,
+        root,
+        target,
+        bone,
+        `{"weight":0.8,"depthOffset":2.2,"depthScale":0.65}`);
+    require(sourceSettingsResult.succeeded,
+        "newer BoneSource offset should supersede in-flight work");
+    ngFlushDepthBoneDirty();
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == 4,
+        "superseding an in-flight BoneSource refresh should submit only one replacement batch");
+    require(near(fakeDepthBoneGpuLastSourceDepthOffset, 2.2f * rapidSourceWorldScale),
+        "replacement BoneSource refresh should dispatch the latest depthOffset");
+    require(!ngHasPendingDepthBoneRefresh(),
+        "superseded BoneSource refresh should drain without stale retries");
 
     fakeDepthBoneGpuSubmitCount = 0;
     fakeDepthBoneGpuPollCount = 0;

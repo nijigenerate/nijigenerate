@@ -5,6 +5,8 @@ import nijigenerate.ext;
 import nijigenerate.actions;
 import nijigenerate.core;
 import nijigenerate.viewport.model.deform : incViewportNodeDeformNotifyParamValueChanged;
+import nijigenerate.commands.binding.base : paramPointChanged;
+import nijigenerate.project : incArmedParameter;
 import i18n;
 import nijilive; // vec2, Parameter
 import nijilive.core.param.binding : ValueParameterBinding, ParameterParameterBinding, DeformationParameterBinding;
@@ -300,6 +302,8 @@ class ApplyParameterPropsAxesCommand : ExCommand!(
         incActionPush(changeAction);
 
         // Notify after remap
+        if (incArmedParameter() is param)
+            paramPointChanged(param);
         incViewportNodeDeformNotifyParamValueChanged();
         return CommandResult(true);
     }

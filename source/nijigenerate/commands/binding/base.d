@@ -91,10 +91,29 @@ void paramPointChanged(Parameter param) {
 
     cParamPoint = param.findClosestKeypoint();
     foreach(ParameterBinding binding; param.bindings) {
-        if (binding.isSet(cParamPoint)) {
+        if (ngBindingIsSetAt(binding, cParamPoint)) {
             cParamBindingEntries[binding.getTarget.target] ~= binding;
         }
     }
+}
+
+bool ngBindingHasKeypoint(ParameterBinding binding, vec2u point) {
+    if (binding is null) return false;
+    auto isSet = binding.getIsSet();
+    if (point.x >= isSet.length || point.y >= isSet[point.x].length)
+        return false;
+
+    if (auto valueBinding = cast(ValueParameterBinding)binding)
+        return point.x < valueBinding.values.length && point.y < valueBinding.values[point.x].length;
+    if (auto parameterBinding = cast(ParameterParameterBinding)binding)
+        return point.x < parameterBinding.values.length && point.y < parameterBinding.values[point.x].length;
+    if (auto deformationBinding = cast(DeformationParameterBinding)binding)
+        return point.x < deformationBinding.values.length && point.y < deformationBinding.values[point.x].length;
+    return true;
+}
+
+bool ngBindingIsSetAt(ParameterBinding binding, vec2u point) {
+    return ngBindingHasKeypoint(binding, point) && binding.isSet(point);
 }
 
 nijilive.core.Resource[] getCompatibleNodes() {
