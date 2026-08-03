@@ -14,7 +14,7 @@ enum NgDepthBoneGpuAsyncMaxSources = 128u;
 enum NgDepthBoneGpuAsyncMaxInfluences = 8u;
 enum NgDepthBoneGpuAsyncMaxVertices = 1_000_000u;
 enum NgDepthBoneGpuAsyncBoneStride = 24u;
-enum NgDepthBoneGpuAsyncSourceStride = 8u;
+enum NgDepthBoneGpuAsyncSourceStride = 28u;
 
 struct DepthBoneGpuDispatchPacket {
     Vec2Array vertices;
@@ -96,7 +96,7 @@ private enum string VertexSource = q"GLSL
 
 #define MAX_INFLUENCES 8u
 #define BONE_STRIDE 24u
-#define SOURCE_STRIDE 8u
+#define SOURCE_STRIDE 28u
 
 layout(location = 0) in float inX;
 layout(location = 1) in float inY;
@@ -151,6 +151,15 @@ mat4 boneSkinMatrix(uint boneIndex) {
         boneValue(base + 3u), boneValue(base + 7u), boneValue(base + 11u), boneValue(base + 15u));
 }
 
+mat4 sourceNoYawSkinMatrix(uint sourceIndex) {
+    uint base = sourceIndex * SOURCE_STRIDE + 12u;
+    return mat4(
+        sourceValue(base + 0u), sourceValue(base + 4u), sourceValue(base + 8u), sourceValue(base + 12u),
+        sourceValue(base + 1u), sourceValue(base + 5u), sourceValue(base + 9u), sourceValue(base + 13u),
+        sourceValue(base + 2u), sourceValue(base + 6u), sourceValue(base + 10u), sourceValue(base + 14u),
+        sourceValue(base + 3u), sourceValue(base + 7u), sourceValue(base + 11u), sourceValue(base + 15u));
+}
+
 float sourceValue(uint sourceIndex, uint component) {
     return sourceValue(sourceIndex * SOURCE_STRIDE + component);
 }
@@ -173,11 +182,13 @@ void insertInfluence(
     inout float scores[8],
     inout float distances[8],
     inout uint boneIndices[8],
+    inout uint sourceIndices[8],
     inout vec3 rests[8],
     inout uint count,
     float score,
     float distanceSq,
     uint boneIndex,
+    uint sourceIndex,
     vec3 rest
 ) {
     uint limit = min(maxInfluences, MAX_INFLUENCES);
@@ -195,12 +206,14 @@ void insertInfluence(
         scores[pos] = scores[prev];
         distances[pos] = distances[prev];
         boneIndices[pos] = boneIndices[prev];
+        sourceIndices[pos] = sourceIndices[prev];
         rests[pos] = rests[prev];
         pos = prev;
     }
     scores[pos] = score;
     distances[pos] = distanceSq;
     boneIndices[pos] = boneIndex;
+    sourceIndices[pos] = sourceIndex;
     rests[pos] = rest;
 }
 
@@ -212,6 +225,7 @@ void main() {
     float scores[8];
     float distances[8];
     uint boneIndices[8];
+    uint sourceIndices[8];
     vec3 rests[8];
     uint influenceCount = 0u;
 
@@ -219,6 +233,7 @@ void main() {
     float lockedScore = 0.0;
     float lockedDistance = 0.0;
     uint lockedBoneIndex = 0u;
+    uint lockedSourceIndex = 0u;
     vec3 lockedRest = vec3(0.0);
     for (uint s = 0u; s < sourceCount; ++s) {
         uint boneIndex = uint(sourceValue(s, 0u));
@@ -231,7 +246,8 @@ void main() {
         float score = weight * multiplier;
         if (!(score > 0.0)) continue;
 
-        vec3 sourceRestLocal = vec3(x, y, z * depthScale + depthOffset);
+        float sourceDepth = z * depthScale + depthOffset;
+        vec3 sourceRestLocal = vec3(x, y, sourceDepth);
         vec3 sourceRest = (targetToRoot * vec4(sourceRestLocal, 1.0)).xyz;
         vec3 restHead = boneRestHead(boneIndex);
         vec3 restTail = boneRestTail(boneIndex);
@@ -271,18 +287,20 @@ void main() {
                 lockedScore = score;
                 lockedDistance = terminalDistanceSq;
                 lockedBoneIndex = boneIndex;
+                lockedSourceIndex = s;
                 lockedRest = sourceRest;
             }
             continue;
         }
 
-        insertInfluence(scores, distances, boneIndices, rests, influenceCount, score, distanceSq, boneIndex, sourceRest);
+        insertInfluence(scores, distances, boneIndices, sourceIndices, rests, influenceCount, score, distanceSq, boneIndex, s, sourceRest);
     }
 
     if (lockedTerminal >= 0) {
         influenceCount = 1u;
         scores[0] = 1.0;
         boneIndices[0] = lockedBoneIndex;
+        sourceIndices[0] = lockedSourceIndex;
         rests[0] = lockedRest;
     }
 
@@ -300,16 +318,37 @@ void main() {
         scores[0] = 1.0;
     }
 
+    vec3 rest = vec3(0.0);
     vec3 deformed = vec3(0.0);
     for (uint j = 0u; j < influenceCount; ++j) {
         uint boneIndex = boneIndices[j];
+        uint sourceIndex = sourceIndices[j];
         float w = scores[j] / total;
-        deformed += (boneSkinMatrix(boneIndex) * vec4(rests[j], 1.0)).xyz * w;
+        rest += rests[j] * w;
+        mat4 fullSkin = boneSkinMatrix(boneIndex);
+        float rotationPivotXShift = sourceValue(sourceIndex, 10u);
+        float poseYaw = sourceValue(sourceIndex, 11u);
+        float sinRotation = sourceValue(sourceIndex, 8u);
+        float cosRotation = sourceValue(sourceIndex, 9u);
+        vec3 deformedPoint;
+        if (poseYaw == 0.0 || rotationPivotXShift == 0.0 ||
+            (sinRotation == 0.0 && cosRotation == 1.0)) {
+            deformedPoint = (fullSkin * vec4(rests[j], 1.0)).xyz;
+        } else {
+            vec3 rotationRest = rests[j] + vec3(rotationPivotXShift, 0.0, 0.0);
+            mat4 noYawSkin = sourceNoYawSkinMatrix(sourceIndex);
+            vec3 baseDeformed = (noYawSkin * vec4(rests[j], 1.0)).xyz;
+            vec3 rotationWithYaw = (fullSkin * vec4(rotationRest, 1.0)).xyz;
+            vec3 rotationWithoutYaw = (noYawSkin * vec4(rotationRest, 1.0)).xyz;
+            deformedPoint = baseDeformed + rotationWithYaw - rotationWithoutYaw;
+        }
+        deformed += deformedPoint * w;
     }
 
+    vec3 restLocal = (rootToTarget * vec4(rest, 1.0)).xyz;
     vec3 local = (rootToTarget * vec4(deformed, 1.0)).xyz;
-    outDeformX = local.x - x;
-    outDeformY = local.y - y;
+    outDeformX = local.x - restLocal.x;
+    outDeformY = local.y - restLocal.y;
 }
 GLSL";
 

@@ -28,13 +28,19 @@ import std.algorithm.sorting : sort;
 import std.array : join;
 import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
-import std.math : abs, isFinite, sqrt;
+import std.math : abs, cos, isFinite, sin, sqrt;
 import std.conv : to;
 import std.string : format, split, startsWith;
 
 private enum EnableDepthBoneDebugLog = false;
 enum DepthBoneGpuBoneStride = 24u;
-enum DepthBoneGpuSourceStride = 8u;
+enum DepthBoneGpuSourceStride = 28u;
+enum DepthBoneGpuSourceDepthOffsetIndex = 6u;
+enum DepthBoneGpuSourceSinRotationIndex = 8u;
+enum DepthBoneGpuSourceCosRotationIndex = 9u;
+enum DepthBoneGpuSourceRotationPivotXShiftIndex = 10u;
+enum DepthBoneGpuSourcePoseYawIndex = 11u;
+enum DepthBoneGpuSourceNoYawSkinMatrixIndex = 12u;
 enum DepthBoneGpuMaxBones = 64u;
 enum DepthBoneGpuMaxSources = 128u;
 enum DepthBoneGpuMaxInfluences = 8u;
@@ -132,6 +138,7 @@ private JSONValue sourceSettingsToJson(ExDepthBoneSourceSettings setting) {
     obj["weight"] = JSONValue(setting.weight);
     obj["depthOffset"] = JSONValue(setting.depthOffset);
     obj["depthScale"] = JSONValue(setting.depthScale);
+    obj["rotation"] = JSONValue(normalizeDepthBoneSourceRotation(setting.rotation));
     return JSONValue(obj);
 }
 
@@ -223,14 +230,6 @@ private Node findActiveNodeByUuid(ulong uuid) {
     return findNodeByUuid(puppet.root, uuid);
 }
 
-private float depthAt(Node target, size_t index) {
-    if (auto mapped = cast(DepthMappedNode)target) {
-        auto depths = mapped.copyDepths();
-        if (depths !is null && index < depths.length) return depths[index];
-    }
-    return 0.0f;
-}
-
 private vec2 copyVertex2(Deformable target, size_t index) {
     auto vertex = target.vertices[index];
     return vec2(vertex.x, vertex.y);
@@ -262,8 +261,68 @@ private float depthWorldScale(ExDepthRigRoot root) {
     return scale > 0.0f ? scale : 1.0f;
 }
 
-private float worldDepthAt(Deformable target, size_t index, float worldScale) {
-    return depthAt(target, index) * worldScale;
+private float depthBoneSourceTangentSlope(float rotation) {
+    auto normalized = normalizeDepthBoneSourceRotation(rotation);
+    auto cosine = cast(float)cos(normalized);
+    if (abs(cosine) < 1e-4f) cosine = cosine < 0.0f ? -1e-4f : 1e-4f;
+    return cast(float)sin(normalized) / cosine;
+}
+
+private vec3 depthBoneSourceRestLocal(
+    float x,
+    float y,
+    float rawDepth,
+    ExDepthBoneSourceSettings setting,
+    float depthUnitScale = 1.0f,
+) {
+    // Stored depth is the perpendicular origin-to-plane distance. The fitted
+    // source line keeps Z=d and adds X=d*tan(rotation), giving D=d/cos(rotation).
+    auto distance = (rawDepth * setting.depthScale + setting.depthOffset) * depthUnitScale;
+    return vec3(
+        x + distance * depthBoneSourceTangentSlope(setting.rotation),
+        y,
+        distance,
+    );
+}
+
+private float depthBoneSourceRotationPivotXShift(
+    Deformable target,
+    const(float)[] scaledDepths,
+    mat4 targetToRoot,
+    vec3 boneRestHead,
+    ExDepthBoneSourceSettings setting,
+    float worldScale,
+) {
+    float planeDepth;
+    float bestDistanceSq = float.infinity;
+    bool found;
+    foreach (i, vertex; target.vertices) {
+        if (i >= scaledDepths.length) break;
+        auto adjustedDepth = scaledDepths[i] * setting.depthScale
+            + setting.depthOffset * worldScale;
+        if (!adjustedDepth.isFinite) continue;
+        auto sample = transformPoint(targetToRoot, vec3(vertex.x, vertex.y, adjustedDepth));
+        if (!sample.x.isFinite || !sample.y.isFinite || !sample.z.isFinite) continue;
+        auto dx = sample.x - boneRestHead.x;
+        auto dy = sample.y - boneRestHead.y;
+        auto distanceSq = dx * dx + dy * dy;
+        if (!found || distanceSq < bestDistanceSq) {
+            found = true;
+            bestDistanceSq = distanceSq;
+            planeDepth = sample.z;
+        }
+    }
+    if (!found) {
+        auto sample = transformPoint(targetToRoot, vec3(
+            0.0f, 0.0f, setting.depthOffset * worldScale));
+        planeDepth = sample.z.isFinite ? sample.z : 0.0f;
+    }
+
+    // Rotation changes one pivot for the whole source. Applying the same
+    // X-axis shift to every vertex preserves relative relief while the
+    // origin-to-plane line has angle R and length d/cos(R).
+    auto planeDistance = planeDepth - boneRestHead.z;
+    return planeDistance * depthBoneSourceTangentSlope(setting.rotation);
 }
 
 private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bone, vec2 worldPoint, out float worldDepth) {
@@ -310,14 +369,12 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
         if (target.vertices.length > 0) {
             foreach (i, vertex; target.vertices) {
                 if (i >= depths.length) break;
-                auto adjustedDepth = bone is null
-                    ? depths[i]
-                    : depths[i] * setting.depthScale + setting.depthOffset;
-                auto depth = adjustedDepth * worldScale;
-                if (!depth.isFinite) continue;
-                auto sample = transformPoint(targetToWorld, vec3(vertex.x, vertex.y, depth));
+                auto sourceLocal = depthBoneSourceRestLocal(
+                    vertex.x, vertex.y, depths[i], setting, worldScale);
+                if (!sourceLocal.x.isFinite || !sourceLocal.y.isFinite || !sourceLocal.z.isFinite) continue;
+                auto sample = transformPoint(targetToWorld, sourceLocal);
                 if (!sample.x.isFinite || !sample.y.isFinite || !sample.z.isFinite) {
-                    sample = vec3(vertex.x, vertex.y, depth);
+                    sample = sourceLocal;
                 }
                 auto dx = sample.x - worldPoint.x;
                 auto dy = sample.y - worldPoint.y;
@@ -333,18 +390,20 @@ private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bon
             float totalTargetDepth = 0.0f;
             size_t targetDepthCount = 0;
             foreach (i, value; depths) {
-                auto adjustedDepth = bone is null
-                    ? value
-                    : value * setting.depthScale + setting.depthOffset;
-                auto depth = adjustedDepth * worldScale;
-                if (!depth.isFinite) continue;
-                totalTargetDepth += depth;
+                if (!value.isFinite) continue;
+                totalTargetDepth += value;
                 targetDepthCount++;
             }
             if (targetDepthCount > 0) {
-                auto depth = totalTargetDepth / cast(float)targetDepthCount;
-                auto sample = transformPoint(targetToWorld, vec3(0, 0, depth));
-                if (!sample.z.isFinite) sample = vec3(worldPoint.x, worldPoint.y, depth);
+                auto sourceLocal = depthBoneSourceRestLocal(
+                    0.0f,
+                    0.0f,
+                    totalTargetDepth / cast(float)targetDepthCount,
+                    setting,
+                    worldScale,
+                );
+                auto sample = transformPoint(targetToWorld, sourceLocal);
+                if (!sample.z.isFinite) sample = vec3(worldPoint.x, worldPoint.y, sourceLocal.z);
                 foundTargetSample = true;
                 bestDepth = sample.z;
             }
@@ -612,9 +671,12 @@ private class RuntimeDepthBone {
     vec3 localRestOffset;
     vec3 poseTranslation;
     quat poseQuaternion;
+    quat poseWithoutYawQuaternion;
+    float poseYaw;
     vec3 worldHead;
     vec3 worldTail;
     quat worldQuaternion;
+    quat worldPosePrefix;
     mat4 bindMatrix;
     mat4 inverseBindMatrix;
     mat4 skinMatrix;
@@ -706,13 +768,16 @@ private RuntimeDepthBone[ulong] buildDepthRigRuntime(ExDepthRigRoot root, Parame
                     parameterValue(bone, param, cursor, "transform.t.y", 0),
                     parameterValue(bone, param, cursor, "transform.t.z", 0)
                 );
+            auto pitch = parameterValue(bone, param, cursor, "transform.r.x", 0);
+            auto yaw = parameterValue(bone, param, cursor, "transform.r.y", 0);
+            auto roll = parameterValue(bone, param, cursor, "transform.r.z", 0);
+            rb.poseYaw = bone.lockRotation ? 0.0f : yaw;
+            rb.poseWithoutYawQuaternion = bone.lockRotation
+                ? quat.identity
+                : depthEditRotation(pitch, 0.0f, roll);
             rb.poseQuaternion = bone.lockRotation
                 ? quat.identity
-                : depthEditRotation(
-                    parameterValue(bone, param, cursor, "transform.r.x", 0),
-                    parameterValue(bone, param, cursor, "transform.r.y", 0),
-                    parameterValue(bone, param, cursor, "transform.r.z", 0)
-                );
+                : depthEditRotation(pitch, yaw, roll);
         } else {
             vec3 restLocalTranslation;
             if (auto parentBone = cast(ExDepthBone)bone.parent) {
@@ -722,7 +787,21 @@ private RuntimeDepthBone[ulong] buildDepthRigRuntime(ExDepthRigRoot root, Parame
                 restLocalTranslation = rb.restHead;
             }
             rb.poseTranslation = bone.lockTranslation ? vec3(0, 0, 0) : bone.localTransform.translation - restLocalTranslation;
-            rb.poseQuaternion = bone.lockRotation ? quat.identity : depthEditRotation(bone.localTransform.rotation.x, bone.localTransform.rotation.y, bone.localTransform.rotation.z);
+            rb.poseYaw = bone.lockRotation ? 0.0f : bone.localTransform.rotation.y;
+            rb.poseWithoutYawQuaternion = bone.lockRotation
+                ? quat.identity
+                : depthEditRotation(
+                    bone.localTransform.rotation.x,
+                    0.0f,
+                    bone.localTransform.rotation.z,
+                );
+            rb.poseQuaternion = bone.lockRotation
+                ? quat.identity
+                : depthEditRotation(
+                    bone.localTransform.rotation.x,
+                    bone.localTransform.rotation.y,
+                    bone.localTransform.rotation.z,
+                );
         }
         runtime[bone.uuid] = rb;
     }
@@ -748,16 +827,24 @@ private RuntimeDepthBone[ulong] buildDepthRigRuntime(ExDepthRigRoot root, Parame
         auto rb = runtime[bone.uuid];
         if (rb.parent !is null && bone.allowParentToTargets && !bone.lockToRoot) {
             rb.worldHead = rb.parent.worldHead + (rb.parent.worldQuaternion * rb.localRestOffset) + (rb.parent.worldQuaternion * rb.poseTranslation);
-            rb.worldQuaternion = rb.parent.worldQuaternion * rb.localRestQuaternion * rb.poseQuaternion;
+            rb.worldPosePrefix = rb.parent.worldQuaternion * rb.localRestQuaternion;
         } else {
             rb.worldHead = rb.restHead + rb.poseTranslation;
-            rb.worldQuaternion = rb.restQuaternion * rb.poseQuaternion;
+            rb.worldPosePrefix = rb.restQuaternion;
         }
+        rb.worldQuaternion = rb.worldPosePrefix * rb.poseQuaternion;
         rb.worldTail = rb.worldHead + (rb.worldQuaternion * vec3(0, rb.restLength, 0));
         rb.skinMatrix = composeMatrix(rb.worldHead, rb.worldQuaternion) * rb.inverseBindMatrix;
     }
 
     return runtime;
+}
+
+private mat4 depthBoneNoYawSkinMatrix(RuntimeDepthBone bone) {
+    if (bone is null) return mat4.identity;
+    if (bone.poseYaw == 0.0f) return bone.skinMatrix;
+    auto sourceWorld = bone.worldPosePrefix * bone.poseWithoutYawQuaternion;
+    return composeMatrix(bone.worldHead, sourceWorld) * bone.inverseBindMatrix;
 }
 
 private void appendVec3(ref float[] values, vec3 value) {
@@ -889,12 +976,20 @@ bool ngBuildDepthBoneGpuOffsetPacket(
         appendMat4(boneData, (*runtimeBone).skinMatrix);
     }
 
+    auto worldScale = depthWorldScale(root);
+    auto rawDepths = snapshotTargetDepths(target);
+    float[] scaledDepths;
+    scaledDepths.length = rawDepths.length;
+    foreach (i, depth; rawDepths) scaledDepths[i] = depth * worldScale;
+    auto targetNode = cast(Node)target;
+    auto targetToRoot = targetToRootMatrix(root, targetNode);
+
     float[] sourceData;
     float[] sourceInputs;
-    auto worldScale = depthWorldScale(root);
     foreach (bone; sourceBones) {
         auto boneIndex = bone.uuid in boneIndices;
-        if (boneIndex is null) {
+        auto runtimeBone = bone.uuid in runtime;
+        if (boneIndex is null || runtimeBone is null) {
             error = "Depth bone runtime is missing";
             return false;
         }
@@ -910,8 +1005,22 @@ bool ngBuildDepthBoneGpuOffsetPacket(
         sourceInputs ~= setting.depthScale;
         sourceInputs ~= setting.depthOffset;
         sourceInputs ~= multiplier;
+        auto rotation = normalizeDepthBoneSourceRotation(setting.rotation);
+        sourceInputs ~= cast(float)sin(rotation);
+        sourceInputs ~= cast(float)cos(rotation);
+        auto sourceDataStart = sourceData.length;
         sourceData ~= sourceInputs[sourceStart .. $];
-        sourceData[$ - 2] *= worldScale;
+        sourceData[sourceDataStart + DepthBoneGpuSourceDepthOffsetIndex] *= worldScale;
+        sourceData ~= depthBoneSourceRotationPivotXShift(
+            target,
+            scaledDepths,
+            targetToRoot,
+            (*runtimeBone).restHead,
+            setting,
+            worldScale,
+        );
+        sourceData ~= (*runtimeBone).poseYaw;
+        appendMat4(sourceData, depthBoneNoYawSkinMatrix(*runtimeBone));
     }
 
     packet.root = root;
@@ -921,11 +1030,9 @@ bool ngBuildDepthBoneGpuOffsetPacket(
     packet.writePreview = writePreview;
     packet.writeBinding = writeBinding;
     packet.vertices = target.vertices.dup;
-    packet.rawDepths = snapshotTargetDepths(target);
-    packet.depths.length = packet.rawDepths.length;
-    foreach (i, depth; packet.rawDepths) packet.depths[i] = depth * worldScale;
-    auto targetNode = cast(Node)target;
-    packet.targetToRoot = targetToRootMatrix(root, targetNode);
+    packet.rawDepths = rawDepths;
+    packet.depths = scaledDepths;
+    packet.targetToRoot = targetToRoot;
     packet.rootToTarget = packet.targetToRoot.inverse;
     packet.worldScale = worldScale;
     packet.influenceRadiusFloor = max(binding.influenceRule.minimumRadius, targetBoundsSize(target) * 0.18f);
@@ -1939,6 +2046,20 @@ private bool sameDirtyParameter(DepthBoneDirtyRequest request, ExDepthRigRoot ro
         request.actionSink is depthBoneRefreshActionSink;
 }
 
+private bool depthBoneParameterDrivesRig(ExDepthRigRoot root, Parameter param) {
+    if (root is null || param is null) return false;
+    foreach (binding; param.bindings) {
+        auto bone = cast(ExDepthBone)binding.getTarget().node;
+        if (bone is null || !rootContainsBone(root, bone)) continue;
+        if (isDepthBoneTransformBindingName(binding.getName())) return true;
+    }
+    return false;
+}
+
+private Parameter depthBoneRefreshParameter(ExDepthRigRoot root, Parameter candidate) {
+    return depthBoneParameterDrivesRig(root, candidate) ? candidate : null;
+}
+
 void ngMarkDepthBoneDirty(
     ExDepthRigRoot root,
     Parameter parameter,
@@ -2006,10 +2127,12 @@ void ngMarkDepthBoneDirtyForArmedParameter(
     string reason,
     DepthBoneDirtyScope dirtyScope = DepthBoneDirtyScope.Keypoint,
 ) {
-    auto param = incArmedParameter();
+    auto param = depthBoneRefreshParameter(root, incArmedParameter());
     auto keypoint = param is null ? vec2u.init : param.findClosestKeypoint();
-    if (param is null && lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null) {
-        param = lastDepthBoneDirtyParameter;
+    if (param is null && lastDepthBoneDirtyRoot is root) {
+        param = depthBoneRefreshParameter(root, lastDepthBoneDirtyParameter);
+    }
+    if (param !is null && lastDepthBoneDirtyRoot is root && param is lastDepthBoneDirtyParameter) {
         keypoint = lastDepthBoneDirtyKeypoint;
     }
     ngMarkDepthBoneDirty(root, param, keypoint, reason, dirtyScope);
@@ -2026,10 +2149,12 @@ void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
 
     if (auto bone = cast(ExDepthBone)target) {
         if (auto root = findDepthRigRoot(bone)) {
-            auto actualParam = param;
+            auto actualParam = depthBoneRefreshParameter(root, param);
             auto actualKeypoint = keypoint;
-            if (actualParam is null && lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null) {
-                actualParam = lastDepthBoneDirtyParameter;
+            if (actualParam is null && lastDepthBoneDirtyRoot is root) {
+                actualParam = depthBoneRefreshParameter(root, lastDepthBoneDirtyParameter);
+            }
+            if (actualParam !is null && actualParam is lastDepthBoneDirtyParameter) {
                 actualKeypoint = lastDepthBoneDirtyKeypoint;
             }
             if (actualParam is null) {
@@ -2045,10 +2170,12 @@ void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
         if (node is null) return;
         if (auto root = cast(ExDepthRigRoot)node) {
             if (root.findBindingIndex(target.uuid) >= 0) {
-                auto actualParam = param;
+                auto actualParam = depthBoneRefreshParameter(root, param);
                 auto actualKeypoint = keypoint;
-                if (actualParam is null && lastDepthBoneDirtyRoot is root && lastDepthBoneDirtyParameter !is null) {
-                    actualParam = lastDepthBoneDirtyParameter;
+                if (actualParam is null && lastDepthBoneDirtyRoot is root) {
+                    actualParam = depthBoneRefreshParameter(root, lastDepthBoneDirtyParameter);
+                }
+                if (actualParam !is null && actualParam is lastDepthBoneDirtyParameter) {
                     actualKeypoint = lastDepthBoneDirtyKeypoint;
                 }
                 uint affectedTargetUuid = cast(uint)target.uuid;
@@ -2301,6 +2428,7 @@ private ulong depthBoneRigStructureHash(ExDepthRigRoot root) {
             hash = hashFloat(hash, setting.weight);
             hash = hashFloat(hash, setting.depthOffset);
             hash = hashFloat(hash, setting.depthScale);
+            hash = hashFloat(hash, normalizeDepthBoneSourceRotation(setting.rotation));
             if (auto multiplier = uuid in binding.influenceRule.multipliersByBoneUuid) hash = hashFloat(hash, *multiplier);
         }
 
@@ -2461,35 +2589,17 @@ private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
         return false;
     }
 
-    bool hasDepthBonePoseBinding(Parameter param) {
-        foreach (binding; param.bindings) {
-            auto bone = cast(ExDepthBone)binding.getTarget().node;
-            if (bone is null || !rootContainsBone(rigRoot, bone)) continue;
-            if (isDepthBoneTransformBindingName(binding.getName())) return true;
-        }
-        return false;
-    }
-
     auto armed = incArmedParameter();
-    if (armed !is null) result ~= armed;
-    if (lastDepthBoneDirtyRoot is rigRoot && lastDepthBoneDirtyParameter !is null && !hasParam(lastDepthBoneDirtyParameter)) {
+    if (depthBoneParameterDrivesRig(rigRoot, armed)) result ~= armed;
+    if (lastDepthBoneDirtyRoot is rigRoot &&
+        depthBoneParameterDrivesRig(rigRoot, lastDepthBoneDirtyParameter) &&
+        !hasParam(lastDepthBoneDirtyParameter)) {
         result ~= lastDepthBoneDirtyParameter;
     }
 
     foreach (param; puppet.parameters) {
         if (param is null || hasParam(param)) continue;
-        if (hasDepthBonePoseBinding(param)) {
-            result ~= param;
-            continue;
-        }
-        foreach (ref binding; rigRoot.bindings) {
-            auto targetNode = puppet.find!Node(cast(uint)binding.targetUuid);
-            if (targetNode is null) continue;
-            if (param.getBinding(targetNode, "deform") !is null) {
-                result ~= param;
-                break;
-            }
-        }
+        if (depthBoneParameterDrivesRig(rigRoot, param)) result ~= param;
     }
     return result;
 }
@@ -2863,9 +2973,11 @@ private void applySourceSettingsJson(ref ExDepthBoneSourceSettings setting, stri
     if ("weight" in json.object) setting.weight = jsonNumber(json["weight"], setting.weight);
     if ("depthOffset" in json.object) setting.depthOffset = jsonNumber(json["depthOffset"], setting.depthOffset);
     if ("depthScale" in json.object) setting.depthScale = jsonNumber(json["depthScale"], setting.depthScale);
+    if ("rotation" in json.object) setting.rotation = jsonNumber(json["rotation"], setting.rotation);
     if (!setting.weight.isFinite) setting.weight = 1.0f;
     if (!setting.depthOffset.isFinite) setting.depthOffset = 0.0f;
     if (!setting.depthScale.isFinite) setting.depthScale = 1.0f;
+    setting.rotation = normalizeDepthBoneSourceRotation(setting.rotation);
     if (setting.weight < 0) setting.weight = 0;
     if (setting.depthScale < 0.01f) setting.depthScale = 0.01f;
 }
@@ -3568,13 +3680,14 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
         setting.boneUuid = source.uuid;
         applySourceSettingsJson(setting, settings);
         binding.setSourceSetting(setting);
-        depthBoneDebugLog("[DepthBoneRefresh] source settings command: root=%s target=%s bone=%s weight=%s depthOffset=%s depthScale=%s",
+        depthBoneDebugLog("[DepthBoneRefresh] source settings command: root=%s target=%s bone=%s weight=%s depthOffset=%s depthScale=%s rotation=%s",
             rigRoot.name,
             target is null ? "(null)" : target.name,
             source.name,
             setting.weight,
             setting.depthOffset,
-            setting.depthScale);
+            setting.depthScale,
+            setting.rotation);
         incActionPush(new DepthBoneSourceListChangeAction("Set Depth Bone Source Settings", rigRoot, oldBindings, rigRoot.bindings));
         auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : null;
         if (param !is null) {
@@ -3705,6 +3818,8 @@ class PreviewDepthBoneDeformCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : incArmedParameter();
+        enforce(param is null || depthBoneParameterDrivesRig(rigRoot, param),
+            "Armed parameter does not drive this DepthRigRoot");
         auto kp = param !is null ? param.findClosestKeypoint() : vec2u.init;
         Node[] actualTargets = targets;
         if (actualTargets is null || actualTargets.length == 0) {
@@ -3731,6 +3846,8 @@ class ApplyDepthBoneDeformCommand : ExCommand!(
         auto rigRoot = requireRoot(root);
         auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : incArmedParameter();
         if (param is null) return CommandResult(false, "No armed parameter");
+        enforce(depthBoneParameterDrivesRig(rigRoot, param),
+            "Armed parameter does not drive this DepthRigRoot");
         auto kp = param.findClosestKeypoint();
 
         Node[] actualTargets = targets;

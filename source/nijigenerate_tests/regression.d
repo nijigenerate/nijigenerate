@@ -14,9 +14,13 @@ import nijigenerate.commands.binding.base : cParamPoint, ngBindingHasKeypoint, n
 import nijigenerate.commands.binding.binding;
 import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMaxInfluences, DepthBoneGpuMaxStaleRetries,
-    DepthBoneGpuOffsetPacket, DepthBoneGpuSourceStride, DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
+    DepthBoneGpuOffsetPacket, DepthBoneGpuSourceStride, DepthBoneGpuSourceSinRotationIndex,
+    DepthBoneGpuSourceCosRotationIndex, DepthBoneGpuSourceRotationPivotXShiftIndex,
+    DepthBoneGpuSourcePoseYawIndex,
+    DepthBoneGpuSourceNoYawSkinMatrixIndex,
+    DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
     ngDepthBoneBindingValueChanged, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
-    ngDepthBoneGpuSupportDiagnostic,
+    ngDepthBoneGpuSupportDiagnostic, ngDepthRigNodeCurrentScaledDepth,
     ngFlushDepthBoneDirtyImmediate, ngHasPendingDepthBoneRefresh, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
@@ -152,7 +156,7 @@ import std.file : SpanMode, dirEntries, exists, isFile, mkdirRecurse, read, read
 import std.format : format;
 import std.path : buildPath, dirName, relativePath, setExtension;
 import std.json : JSONType, JSONValue;
-import std.math : isFinite;
+import std.math : cos, isFinite, sin;
 import std.regex : regex, replaceAll;
 import std.stdio : stderr, writeln;
 import std.string : replace, split, splitLines, strip, stripLeft;
@@ -396,11 +400,11 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.root-node", "Depth Bone", "DepthRigRoot creation, icon/type registration, serialization, and export exclusion", automated, "Covers node registration, DepthRigRoot round-trip, and INP export pruning."),
     Scenario("depthbone.bone-node", "Depth Bone", "DepthBone creation, parent/child hierarchy, rest transforms, constraints, and serialization", automated, "Covers DepthBone node round-trip of rest pose and constraints."),
     Scenario("depthbone.binding-create", "Depth Bone", "Binding creation, update, removal, and target validation", automated, "Covers command-level DepthBone source binding creation, settings update, removal, and undo/redo."),
-    Scenario("depthbone.sources", "Depth Bone", "Bone Source add/remove/reorder/offset/scale/weight undo and refresh", automated, "Covers source list actions and command-level add/remove/settings undo/redo; generated refresh still needs golden fixture coverage."),
-    Scenario("depthbone.fit-z", "Depth Bone", "Fit Z to Depth updates descendant DepthBone Z from mapped GridDeformer depth", automated, "Covers DepthRigRoot Fit Z to Depth using per-DepthBone depth samples from DepthMapped GridDeformer targets."),
+    Scenario("depthbone.sources", "Depth Bone", "Bone Source add/remove/reorder/offset/scale/rotation/weight undo and refresh", automated, "Covers source list actions and command-level add/remove/settings undo/redo, including rotation normalization and JSON state."),
+    Scenario("depthbone.fit-z", "Depth Bone", "Fit Z to Depth updates descendant DepthBone Z from mapped GridDeformer depth", automated, "Covers DepthRigRoot Fit Z to Depth using per-DepthBone depth samples and rotated BoneSource depth vectors from DepthMapped GridDeformer targets."),
     Scenario("depthbone.influence-rule", "Depth Bone", "Influence rule get/set, terminal bone selection, max influence, and radius behavior", automated, "Covers command-level influence rule set/get with undo/redo and serialization."),
     Scenario("depthbone.preview-commands", "Depth Bone", "List, preview influence, preview deform, and apply deform commands", automated, "Covers reduced command fixture for listing bones/sources, influence preview deformation, posed deform preview, apply-to-binding, undo, and redo."),
-    Scenario("depthbone.gpu-packet", "Depth Bone", "GPU offset packet construction for GridDeformer and PathDeformer", automated, "Covers packet construction before OpenGL transform feedback dispatch."),
+    Scenario("depthbone.gpu-packet", "Depth Bone", "GPU offset packet construction for GridDeformer and PathDeformer", automated, "Covers packet construction, BoneSource rotation records, shader source contract, and rotated deformation before OpenGL transform feedback dispatch."),
     Scenario("depthbone.gpu-all-keypoints", "Depth Bone", "GPU all-keypoints refresh dispatch and readback", automated, "Covers GPU dispatch/readback through all-keypoints refresh."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
     Scenario("depthbone.cleanup", "Depth Bone", "Deleting bones or target structures cleans stale source/binding references", automated, "Covers DeleteNodeCommand cleanup of DepthBone source references with undo/redo."),
@@ -13252,6 +13256,7 @@ private void testDepthBoneActionsUndoRedo() {
     setting.weight = 0.75f;
     setting.depthOffset = 1.25f;
     setting.depthScale = 0.5f;
+    setting.rotation = 0.375f;
     binding.sourceSettings = [setting];
 
     auto oldBindings = root.bindings.dup;
@@ -13259,6 +13264,8 @@ private void testDepthBoneActionsUndoRedo() {
     incActionPush(new DepthBoneSourceListChangeAction("DepthBone Source List", root, oldBindings, root.bindings));
     require(root.bindings.length == 1, "depth bone source list change should apply");
     require(root.bindings[0].sourceSettings[0].depthOffset == 1.25f, "depth bone source settings should apply");
+    require(near(root.bindings[0].sourceSettings[0].rotation, 0.375f),
+        "depth bone source rotation should apply");
 
     incActionUndo();
     require(root.bindings.length == 0, "depth bone source list undo should restore old list");
@@ -13370,6 +13377,28 @@ private void testDepthBoneInspectorCommandsUndoRedo() {
 private void testDepthBoneSourceCommandsUndoRedo() {
     resetCase();
 
+    auto nodeInspectorSource = readText("source/nijigenerate/panels/inspector/node.d");
+    require(nodeInspectorSource.canFind("rotationDegrees = degrees(rotationX.value)") &&
+        nodeInspectorSource.canFind("rotationX.value = radians(rotationDegrees)"),
+        "Node rotation Inspector should use radians for data and degrees for UI");
+    foreach (inspectorPath; [
+        "source/nijigenerate/panels/inspector/griddeform.d",
+        "source/nijigenerate/panels/inspector/pathdeform.d",
+    ]) {
+        auto inspectorSource = readText(inspectorPath);
+        require(inspectorSource.canFind("rotationDegrees = degrees(setting.rotation)") &&
+            inspectorSource.canFind("normalizeDepthBoneSourceRotation(radians(rotationDegrees))") &&
+            inspectorSource.canFind(`"%.2f°", ImGuiSliderFlags.NoRoundToFormat`) &&
+            inspectorSource.canFind(`igDragFloat("###rotation"`) &&
+            inspectorSource.canFind(`"r %.1f°", ImGuiSliderFlags.NoRoundToFormat`),
+            inspectorPath ~ " should expose Node-compatible degree editors in both the popup and source row");
+    }
+
+    require(near(normalizeDepthBoneSourceRotation(6.2831855f), 0.0f),
+        "BoneSource rotation normalization should wrap one full turn to zero");
+    require(near(normalizeDepthBoneSourceRotation(float.nan), 0.0f),
+        "BoneSource rotation normalization should reject non-finite values");
+
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "depth-root";
     auto target = new GridDeformer(incActivePuppet().root);
@@ -13398,32 +13427,128 @@ private void testDepthBoneSourceCommandsUndoRedo() {
         root,
         target,
         bone,
-        `{"weight":0.25,"depthOffset":1.5,"depthScale":2.0}`
+        `{"weight":0.25,"depthOffset":1.5,"depthScale":2.0,"rotation":0.5}`
     );
     require(settingsResult.succeeded, "SetDepthBoneSourceSettings command should succeed");
     auto setting = root.bindings[0].sourceSetting(bone.uuid);
     require(near(setting.weight, 0.25f), "SetDepthBoneSourceSettings should apply weight");
     require(near(setting.depthOffset, 1.5f), "SetDepthBoneSourceSettings should apply depth offset");
     require(near(setting.depthScale, 2.0f), "SetDepthBoneSourceSettings should apply depth scale");
+    require(near(setting.rotation, 0.5f), "SetDepthBoneSourceSettings should apply rotation");
+
+    auto listedSources = cast(ExCommandResult!JSONValue)
+        cmd!(DepthBoneCommand.ListDepthBoneSources)(ctx, root, target);
+    require(listedSources !is null && listedSources.succeeded,
+        "ListDepthBoneSources should return source settings JSON");
+    require(near(cast(float)listedSources.result["sources"].array[0]["rotation"].floating, 0.5f),
+        "ListDepthBoneSources should expose source rotation");
 
     incActionUndo();
     setting = root.bindings[0].sourceSetting(bone.uuid);
     require(near(setting.weight, 1.0f), "undo SetDepthBoneSourceSettings should restore default weight");
     require(near(setting.depthOffset, 0.0f), "undo SetDepthBoneSourceSettings should restore default depth offset");
     require(near(setting.depthScale, 1.0f), "undo SetDepthBoneSourceSettings should restore default depth scale");
+    require(near(setting.rotation, 0.0f), "undo SetDepthBoneSourceSettings should restore default rotation");
 
     incActionRedo();
     setting = root.bindings[0].sourceSetting(bone.uuid);
-    require(near(setting.weight, 0.25f) && near(setting.depthOffset, 1.5f) && near(setting.depthScale, 2.0f), "redo SetDepthBoneSourceSettings should restore edited settings");
+    require(near(setting.weight, 0.25f) && near(setting.depthOffset, 1.5f) &&
+        near(setting.depthScale, 2.0f) && near(setting.rotation, 0.5f),
+        "redo SetDepthBoneSourceSettings should restore edited settings");
+
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx, root, target, bone, `{"weight":0.4}`).succeeded,
+        "SetDepthBoneSourceSettings should accept a legacy payload without rotation");
+    setting = root.bindings[0].sourceSetting(bone.uuid);
+    require(near(setting.weight, 0.4f) && near(setting.rotation, 0.5f),
+        "a settings payload without rotation should preserve the existing source rotation");
+    incActionUndo();
+
+    auto secondTarget = new GridDeformer(incActivePuppet().root);
+    secondTarget.name = "second-target-grid";
+    incActivePuppet().rescanNodes();
+    require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, secondTarget, bone).succeeded,
+        "the same DepthBone should be addable to a second target");
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx, root, secondTarget, bone, `{"rotation":-0.25}`).succeeded,
+        "the second target should accept an independent source rotation");
+    auto firstSetting = root.bindings[cast(size_t)root.findBindingIndex(target.uuid)].sourceSetting(bone.uuid);
+    auto secondSetting = root.bindings[cast(size_t)root.findBindingIndex(secondTarget.uuid)].sourceSetting(bone.uuid);
+    require(near(firstSetting.rotation, 0.5f) && near(secondSetting.rotation, -0.25f),
+        "each target should keep an independent rotation for the same DepthBone");
 
     auto removeResult = cmd!(DepthBoneCommand.RemoveDepthBoneSource)(ctx, root, target, bone);
     require(removeResult.succeeded, "RemoveDepthBoneSource command should succeed");
-    require(root.bindings.length == 0, "RemoveDepthBoneSource should remove empty binding");
+    require(root.bindings.length == 1 && root.findBindingIndex(target.uuid) < 0,
+        "RemoveDepthBoneSource should remove only the emptied target binding");
 
     incActionUndo();
-    require(root.bindings.length == 1 && root.bindings[0].sourceBoneUuids == [cast(ulong)bone.uuid], "undo RemoveDepthBoneSource should restore binding");
+    auto restoredIndex = root.findBindingIndex(target.uuid);
+    require(root.bindings.length == 2 && restoredIndex >= 0 &&
+        root.bindings[cast(size_t)restoredIndex].sourceBoneUuids == [cast(ulong)bone.uuid],
+        "undo RemoveDepthBoneSource should restore binding");
     incActionRedo();
-    require(root.bindings.length == 0, "redo RemoveDepthBoneSource should remove binding");
+    require(root.bindings.length == 1 && root.findBindingIndex(target.uuid) < 0,
+        "redo RemoveDepthBoneSource should remove binding");
+}
+
+private void testDepthBoneSourceRefreshIgnoresPhysicsParameter() {
+    resetCase();
+
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(&fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    scope(exit) {
+        incDisarmParameter();
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuPollCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+    }
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    auto firstTarget = new ExGridDeformer(incActivePuppet().root);
+    auto addedTarget = new ExGridDeformer(incActivePuppet().root);
+    firstTarget.rebuffer(Vec2Array([
+        vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100),
+    ]));
+    addedTarget.rebuffer(Vec2Array([
+        vec2(-20, 0), vec2(20, 0), vec2(-20, 120), vec2(20, 120),
+    ]));
+    auto bone = ngCreateDepthBone(root, "PhysicsIsolationBone", vec3(0, 0, 0), vec3(0, 100, 0));
+    root.addBoneSource(firstTarget, ExDepthTargetKind.Grid, bone);
+
+    auto physicsParam = new ExParameter("Fixture::Physics", true);
+    physicsParam.min = vec2(-1, -1);
+    physicsParam.max = vec2(1, 1);
+    physicsParam.value = vec2(1, 0);
+    incActivePuppet().parameters ~= physicsParam;
+    auto physicsBinding = cast(DeformationParameterBinding)physicsParam.getOrAddBinding(firstTarget, "deform");
+    auto authoredOffsets = Vec2Array([
+        vec2(10, 1), vec2(20, 2), vec2(30, 3), vec2(40, 4),
+    ]);
+    physicsBinding.update(vec2u(1, 0), authoredOffsets);
+    Parameter armedPhysicsParam = physicsParam;
+    incArmParameter(incActivePuppet().parameters.length - 1, armedPhysicsParam);
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, addedTarget, bone).succeeded,
+        "adding a DepthBone source should succeed while a Physics parameter is armed");
+    ngFlushDepthBoneDirtyImmediate();
+
+    physicsBinding = cast(DeformationParameterBinding)physicsParam.getBinding(firstTarget, "deform");
+    require(physicsBinding !is null &&
+        physicsBinding.getValue(vec2u(1, 0)).vertexOffsets == authoredOffsets,
+        "DepthBone source refresh must preserve authored Physics deformation keys");
+    require(physicsParam.getBinding(addedTarget, "deform") is null,
+        "DepthBone source refresh must not add the armed Physics parameter to another target");
 }
 
 private void testDepthRigRootFitZToDepth() {
@@ -13483,6 +13608,10 @@ private void testDepthRigRootFitZToDepth() {
     require(target.copyDepths().length == target.vertices.length, "fit fixture depths should match grid vertices");
 
     auto originalLocalZ = bone.localTransform.translation.vector[2];
+    float baselineProposedLocalZ;
+    float baselineRootDepth;
+    require(ngDepthRigNodeCurrentScaledDepth(bone, baselineProposedLocalZ, baselineRootDepth),
+        "fit fixture should expose its unrotated sampled depth");
 
     incActionClearHistory();
     auto fitResult = cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, root);
@@ -13517,6 +13646,57 @@ private void testDepthRigRootFitZToDepth() {
     incActionRedo();
     require(near(bone.localTransform.translation.vector[2], fittedLocalZ),
         "redo DepthBone Fit Z to Depth should restore the fitted local Z");
+
+    auto rotatedSetting = root.bindings[0].sourceSetting(bone.uuid);
+    rotatedSetting.rotation = 1.0471976f;
+    rotatedSetting.depthScale = 2.0f;
+    rotatedSetting.depthOffset = 0.5f;
+    root.bindings[0].setSourceSetting(rotatedSetting);
+    bone.localTransform.translation.vector[2] = originalLocalZ;
+    bone.localTransform.update();
+    bone.transformChanged();
+    float rotatedProposedLocalZ;
+    float rotatedRootDepth;
+    require(ngDepthRigNodeCurrentScaledDepth(bone, rotatedProposedLocalZ, rotatedRootDepth),
+        "rotated fit fixture should expose its sampled depth");
+    // rawDepth=0.5, scale=2, offset=0.5 gives perpendicular depth d=1.5.
+    // At R=60 degrees the fitted line is (d*tan(R), d). Its length is
+    // D=d/cos(R), while the fitted Z component remains the plane distance d.
+    auto expectedRotatedRootDepth = baselineRootDepth * 3.0f;
+    require(near(rotatedRootDepth, expectedRotatedRootDepth),
+        "Fit Z should preserve the perpendicular plane depth while tilting the source line; got %s expected %s"
+            .format(rotatedRootDepth, expectedRotatedRootDepth));
+    incActionClearHistory();
+    auto rotatedFitResult = cmd!(DepthBoneCommand.FitDepthBoneZToDepth)(ctx, bone);
+    require(rotatedFitResult.succeeded,
+        "DepthBone Fit Z to Depth should accept a rotated BoneSource relationship");
+    require(near(bone.localTransform.translation.vector[2], rotatedProposedLocalZ),
+        "Fit Z should apply the local translation computed from the rotated sampled depth; got %s expected %s"
+            .format(bone.localTransform.translation.vector[2], rotatedProposedLocalZ));
+
+    // Fit Z locates the sample at x+d*tan(R), while its Z remains d.
+    target.replaceDepths([0.25f, 0.75f, 0.25f, 0.75f]);
+    auto worldScale = ngDepthDisplayScaleForTargetsInNodeSpace(
+        root, cast(Deformable[])[target]);
+    auto expectedDistance = (0.75f * rotatedSetting.depthScale
+        + rotatedSetting.depthOffset) * worldScale;
+    auto expectedTangentSlope = cast(float)sin(rotatedSetting.rotation)
+        / cast(float)cos(rotatedSetting.rotation);
+    bone.localTransform.translation.vector[0] = 10.0f
+        + expectedDistance * expectedTangentSlope;
+    bone.localTransform.translation.vector[1] = -10.0f;
+    bone.localTransform.translation.vector[2] = originalLocalZ;
+    bone.localTransform.update();
+    bone.transformChanged();
+
+    float nearestProposedLocalZ;
+    float nearestRootDepth;
+    require(ngDepthRigNodeCurrentScaledDepth(bone, nearestProposedLocalZ, nearestRootDepth),
+        "rotated Fit Z fixture should find a sample at its unchanged X position");
+    auto expectedNearestRootDepth = expectedDistance;
+    require(near(nearestRootDepth, expectedNearestRootDepth),
+        "Fit Z should choose x+d*tan(rotation) while preserving Z=d; got %s expected %s"
+            .format(nearestRootDepth, expectedNearestRootDepth));
 }
 
 private Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
@@ -13712,6 +13892,7 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     setting.weight = 0.75f;
     setting.depthOffset = 1.25f;
     setting.depthScale = 0.5f;
+    setting.rotation = 0.5235988f;
     binding.sourceSettings = [setting];
     root.bindings = [binding];
 
@@ -13749,8 +13930,39 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     require(near(packet.sources[4], 0.75f), "GPU packet should preserve source weight");
     require(near(packet.sources[5], 0.5f), "GPU packet should preserve source depthScale");
     require(near(packet.sources[7], 0.5f), "GPU packet should preserve source multiplier");
+    require(near(packet.sources[DepthBoneGpuSourceSinRotationIndex], 0.5f),
+        "GPU packet should store the source rotation sine");
+    require(near(packet.sources[DepthBoneGpuSourceCosRotationIndex], 0.8660254f),
+        "GPU packet should store the source rotation cosine");
+    require(packet.sources[DepthBoneGpuSourceRotationPivotXShiftIndex].isFinite &&
+        packet.sources[DepthBoneGpuSourceRotationPivotXShiftIndex] != 0.0f,
+        "GPU packet should store one finite source-wide rotation pivot X shift");
+    require(near(packet.sourceInputs[DepthBoneGpuSourceSinRotationIndex], 0.5f) &&
+        near(packet.sourceInputs[DepthBoneGpuSourceCosRotationIndex], 0.8660254f),
+        "GPU stale-check inputs should include source rotation");
     require(near(packet.sourceInputs[6], 1.25f),
         "GPU packet should preserve the unscaled source depthOffset for stale checks");
+
+    foreach (rotationCase; [
+        [0.0f, 0.0f, 1.0f],
+        [1.5707963f, 1.0f, 0.0f],
+        [-1.5707963f, -1.0f, 0.0f],
+    ]) {
+        auto angleSetting = root.bindings[0].sourceSetting(bone.uuid);
+        angleSetting.rotation = rotationCase[0];
+        root.bindings[0].setSourceSetting(angleSetting);
+        DepthBoneGpuOffsetPacket anglePacket;
+        require(ngBuildDepthBoneGpuOffsetPacket(
+            root, &root.bindings[0], target, param, vec2u(1, 0), anglePacket, error, true, true),
+            "GPU packet construction should accept cardinal BoneSource rotation values: " ~ error);
+        require(near(anglePacket.sources[DepthBoneGpuSourceSinRotationIndex], rotationCase[1]) &&
+            near(anglePacket.sources[DepthBoneGpuSourceCosRotationIndex], rotationCase[2]),
+            "GPU packet should encode the expected sine/cosine for cardinal BoneSource rotations");
+        require(near(anglePacket.sources[6], packet.sources[6]),
+            "GPU packet rotation must not change the world-scaled depthOffset component");
+    }
+    root.bindings[0].setSourceSetting(setting);
+
     auto modelDepthScale = ngDepthDisplayScaleForTargetsInNodeSpace(root, cast(Deformable[])[target]);
     require(modelDepthScale > 1.0f, "GPU packet regression model should have a visible model-wide depth scale");
     require(near(packet.depths[0], 0.5f * modelDepthScale) &&
@@ -13760,6 +13972,20 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
         "GPU packet must convert adjusted depths with one model-wide scale");
     require(near(packet.sources[6], 1.25f * modelDepthScale),
         "GPU packet must convert source depthOffset with the same model-wide scale");
+    auto sourcePlaneDistance = (0.5f * setting.depthScale + setting.depthOffset)
+        * modelDepthScale;
+    auto expectedPivotXShift = sourcePlaneDistance
+        * cast(float)sin(setting.rotation) / cast(float)cos(setting.rotation);
+    auto actualPivotXShift = packet.sources[DepthBoneGpuSourceRotationPivotXShiftIndex];
+    require(near(actualPivotXShift, expectedPivotXShift),
+        "BoneSource rotation pivot must keep X=d*tan(R); got %s expected %s"
+            .format(actualPivotXShift, expectedPivotXShift));
+    auto sourceLineLength = sqrt(
+        actualPivotXShift * actualPivotXShift + sourcePlaneDistance * sourcePlaneDistance);
+    auto expectedSourceLineLength = abs(sourcePlaneDistance / cast(float)cos(setting.rotation));
+    require(near(sourceLineLength, expectedSourceLineLength),
+        "BoneSource rotation pivot must keep line length D=d/cos(R); got %s expected %s"
+            .format(sourceLineLength, expectedSourceLineLength));
 
     auto smallTarget = new ExGridDeformer(incActivePuppet().root);
     smallTarget.name = "gpu-packet-small-grid";
@@ -13811,6 +14037,16 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
         "DepthBone shader should transpose row-major packet floats for GLSL mat4 construction");
     require(asyncSource.canFind("score *= exp(-distanceSq / radiusSq);"),
         "DepthBone GPU shader must use the same Gaussian influence equation as depth-draw");
+    require(asyncSource.canFind("#define SOURCE_STRIDE 28u") &&
+            asyncSource.canFind("vec3 sourceRestLocal = vec3(x, y, sourceDepth)") &&
+            asyncSource.canFind("vec3 rotationRest = rests[j] + vec3(rotationPivotXShift, 0.0, 0.0)") &&
+            asyncSource.canFind("sourceNoYawSkinMatrix(sourceIndex)") &&
+            asyncSource.canFind("baseDeformed + rotationWithYaw - rotationWithoutYaw") &&
+            !asyncSource.canFind("rotationDepth = sourceDepth") &&
+            asyncSource.canFind("rest += rests[j] * w") &&
+            asyncSource.canFind("local.x - restLocal.x") &&
+            asyncSource.canFind("local.y - restLocal.y"),
+        "DepthBone GPU shader must apply one source-wide pivot correction so relative mesh relief stays rigid under transform.r.y yaw");
     if (!ngDepthBoneGpuSupported()) {
         require(ngDepthBoneGpuSupportDiagnostic().length > 0,
             "GPU support diagnostic should explain why GPU dispatch is unavailable");
@@ -13850,6 +14086,8 @@ private uint fakeDepthBoneGpuNotReadyPolls;
 private float fakeDepthBoneGpuOutputX = 2.0f;
 private float fakeDepthBoneGpuOutputY = -1.0f;
 private float fakeDepthBoneGpuLastSourceDepthOffset;
+private float fakeDepthBoneGpuLastSourceSinRotation;
+private float fakeDepthBoneGpuLastSourceCosRotation;
 private float[] fakeDepthBoneGpuLastBones;
 private bool fakeDepthBoneGpuVaryOutputByVertex;
 private ExGridDeformer fakeDepthBoneGpuMutatingTarget;
@@ -13858,6 +14096,8 @@ private uint fakeDepthBoneTransformNextJobId = 1;
 private uint fakeDepthBoneTransformSubmitCount;
 private uint fakeDepthBoneTransformNonIdentitySourceCount;
 private NgDepthBoneGpuAsyncResult[uint] fakeDepthBoneTransformResults;
+private float[] fakeDepthBoneTransformLastZOffsets;
+private vec3[] fakeDepthBoneTransformLastDeformedPoints;
 private uint fakeDepthDrawGpuNextJobId;
 private uint fakeDepthDrawGpuSubmitCount;
 private uint fakeDepthDrawGpuPollCount;
@@ -13882,14 +14122,35 @@ private bool fakeDepthBoneTransformSubmit(
     }
 
     auto boneIndex = cast(uint)packet.sources[0];
-    auto matrixOffset = cast(size_t)boneIndex * DepthBoneGpuBoneStride + 8;
-    if (matrixOffset + 16 > packet.bones.length) {
-        error = "depth-driven transform fixture bone matrix is out of bounds";
+    auto fullMatrixOffset = cast(size_t)boneIndex * DepthBoneGpuBoneStride + 8;
+    auto noYawMatrixOffset = cast(size_t)DepthBoneGpuSourceNoYawSkinMatrixIndex;
+    if (fullMatrixOffset + 16 > packet.bones.length ||
+        noYawMatrixOffset + 16 > packet.sources.length) {
+        error = "depth-driven transform fixture matrix is out of bounds";
         return false;
     }
-    auto skinMatrix = emulateDepthBoneShaderMat4FromRowMajorPacket(packet.bones[matrixOffset .. matrixOffset + 16]);
+    auto fullSkinMatrix = emulateDepthBoneShaderMat4FromRowMajorPacket(
+        packet.bones[fullMatrixOffset .. fullMatrixOffset + 16]);
+    auto noYawSkinMatrix = emulateDepthBoneShaderMat4FromRowMajorPacket(
+        packet.sources[noYawMatrixOffset .. noYawMatrixOffset + 16]);
     auto depthScale = packet.sources[5];
     auto depthOffset = packet.sources[6];
+    auto sinRotation = packet.sources[DepthBoneGpuSourceSinRotationIndex];
+    auto cosRotation = packet.sources[DepthBoneGpuSourceCosRotationIndex];
+    auto rotationPivotXShift = packet.sources[DepthBoneGpuSourceRotationPivotXShiftIndex];
+    auto poseYaw = packet.sources[DepthBoneGpuSourcePoseYawIndex];
+    foreach (component; packet.bones[fullMatrixOffset .. fullMatrixOffset + 16]) {
+        if (!component.isFinite) {
+            error = "depth-driven transform fixture full skin matrix contains a non-finite value";
+            return false;
+        }
+    }
+    foreach (component; packet.sources[noYawMatrixOffset .. noYawMatrixOffset + 16]) {
+        if (!component.isFinite) {
+            error = "depth-driven transform fixture no-yaw skin matrix contains a non-finite value";
+            return false;
+        }
+    }
     if (depthScale != 1.0f || depthOffset != 0.0f) {
         fakeDepthBoneTransformNonIdentitySourceCount++;
     }
@@ -13898,13 +14159,41 @@ private bool fakeDepthBoneTransformSubmit(
     result.ready = true;
     result.xs.length = packet.vertices.length;
     result.ys.length = packet.vertices.length;
+    fakeDepthBoneTransformLastZOffsets.length = packet.vertices.length;
+    fakeDepthBoneTransformLastDeformedPoints.length = packet.vertices.length;
     foreach (i, vertex; packet.vertices) {
-        auto sourceLocal = vec4(vertex.x, vertex.y, packet.depths[i] * depthScale + depthOffset, 1.0f);
+        auto sourceDepth = packet.depths[i] * depthScale + depthOffset;
+        auto sourceLocal = vec4(vertex.x, vertex.y, sourceDepth, 1.0f);
         auto sourceInRoot = packet.targetToRoot * sourceLocal;
-        auto deformedInRoot = skinMatrix * sourceInRoot;
+        vec4 deformedInRoot;
+        if (poseYaw == 0.0f || rotationPivotXShift == 0.0f ||
+            (sinRotation == 0.0f && cosRotation == 1.0f)) {
+            deformedInRoot = fullSkinMatrix * sourceInRoot;
+        } else {
+            auto rotationInRoot = sourceInRoot + vec4(rotationPivotXShift, 0.0f, 0.0f, 0.0f);
+            auto baseDeformed = noYawSkinMatrix * sourceInRoot;
+            auto rotationWithYaw = fullSkinMatrix * rotationInRoot;
+            auto rotationWithoutYaw = noYawSkinMatrix * rotationInRoot;
+            deformedInRoot = baseDeformed + rotationWithYaw - rotationWithoutYaw;
+        }
+        if (!deformedInRoot.x.isFinite || !deformedInRoot.y.isFinite ||
+            !deformedInRoot.z.isFinite || !deformedInRoot.w.isFinite) {
+            error = "depth-driven transform fixture produced a non-finite deformed point at vertex %s: depth=%s yaw=%s sinR=%s cosR=%s"
+                .format(i, sourceDepth, poseYaw, sinRotation, cosRotation);
+            return false;
+        }
+        auto restLocal = packet.rootToTarget * sourceInRoot;
         auto deformedLocal = packet.rootToTarget * deformedInRoot;
-        result.xs[i] = deformedLocal.x - vertex.x;
-        result.ys[i] = deformedLocal.y - vertex.y;
+        result.xs[i] = deformedLocal.x - restLocal.x;
+        result.ys[i] = deformedLocal.y - restLocal.y;
+        fakeDepthBoneTransformLastZOffsets[i] = deformedLocal.z - restLocal.z;
+        fakeDepthBoneTransformLastDeformedPoints[i] = vec3(
+            deformedLocal.x, deformedLocal.y, deformedLocal.z);
+        if (!result.xs[i].isFinite || !result.ys[i].isFinite) {
+            error = "depth-driven transform fixture produced a non-finite output offset at vertex %s: rest=(%s,%s) deformed=(%s,%s)"
+                .format(i, restLocal.x, restLocal.y, deformedLocal.x, deformedLocal.y);
+            return false;
+        }
     }
 
     jobId = fakeDepthBoneTransformNextJobId++;
@@ -13956,6 +14245,231 @@ private bool fakeDepthBoneTransformPoll(uint jobId, out NgDepthBoneGpuAsyncResul
     return true;
 }
 
+private Vec2Array depthBoneOffsetsForSourceRotation(
+    float sourceRotation,
+    float boneRotationZ,
+    float boneRotationX = 0.0f,
+    float boneRotationY = 0.0f,
+    float rawDepth = 0.75f,
+    float[]* zOffsets = null,
+    float reliefDepth = 0.0f,
+    vec3[]* deformedPoints = null,
+) {
+    resetCase();
+
+    fakeDepthBoneTransformNextJobId = 1;
+    fakeDepthBoneTransformSubmitCount = 0;
+    fakeDepthBoneTransformResults = null;
+    fakeDepthBoneTransformLastZOffsets = null;
+    fakeDepthBoneTransformLastDeformedPoints = null;
+    ngSetDepthBoneGpuAsyncTestHooks(
+        &fakeDepthBoneGpuSupported,
+        &fakeDepthBoneTransformSubmit,
+        &fakeDepthBoneTransformPoll,
+    );
+    scope(exit) {
+        ngClearDepthBoneGpuAsyncTestHooks();
+        fakeDepthBoneTransformResults = null;
+        fakeDepthBoneTransformSubmitCount = 0;
+        fakeDepthBoneTransformLastZOffsets = null;
+        fakeDepthBoneTransformLastDeformedPoints = null;
+    }
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    auto target = new ExGridDeformer(incActivePuppet().root);
+    if (reliefDepth == 0.0f) {
+        target.rebuffer(Vec2Array([
+            vec2(-20, 0), vec2(20, 0), vec2(-20, 80), vec2(20, 80),
+        ]));
+        target.replaceDepths([rawDepth, rawDepth, rawDepth, rawDepth]);
+    } else {
+        // Duplicate XY positions with different depth values isolate relief
+        // relative to the same display plane point.
+        target.rebuffer(Vec2Array([
+            vec2(-20, 0), vec2(-20, 0), vec2(20, 80), vec2(20, 80),
+        ]));
+        target.replaceDepths([
+            rawDepth, rawDepth + reliefDepth,
+            rawDepth, rawDepth + reliefDepth,
+        ]);
+    }
+    auto bone = ngCreateDepthBone(root, "SourceRotationBone", vec3(0, 0, 0), vec3(0, 100, 0));
+
+    ExDepthRigBinding binding;
+    binding.targetUuid = target.uuid;
+    binding.targetKind = ExDepthTargetKind.Grid;
+    binding.sourceBoneUuids = [cast(ulong)bone.uuid];
+    binding.influenceRule.maxInfluences = 1;
+    ExDepthBoneSourceSettings setting;
+    setting.boneUuid = bone.uuid;
+    setting.rotation = sourceRotation;
+    binding.sourceSettings = [setting];
+    root.bindings = [binding];
+
+    auto param = new ExParameter("SourceRotationParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    auto rotationZ = newValueBinding(param, bone, "transform.r.z");
+    rotationZ.setValue(vec2u(1, 0), boneRotationZ);
+    auto rotationX = newValueBinding(param, bone, "transform.r.x");
+    rotationX.setValue(vec2u(1, 0), boneRotationX);
+    auto rotationY = newValueBinding(param, bone, "transform.r.y");
+    rotationY.setValue(vec2u(1, 0), boneRotationY);
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.armedParameters = [param];
+    require(cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(
+        ctx, root, cast(Node[])[target]).succeeded,
+        "BoneSource rotation fixture should preview DepthBone deformation");
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneTransformSubmitCount == 1,
+        "BoneSource rotation fixture should dispatch one GPU keypoint");
+    if (zOffsets !is null) *zOffsets = fakeDepthBoneTransformLastZOffsets.dup;
+    if (deformedPoints !is null)
+        *deformedPoints = fakeDepthBoneTransformLastDeformedPoints.dup;
+    return target.deformation.dup;
+}
+
+private float maximumDepthBoneOffsetDifference(Vec2Array first, Vec2Array second) {
+    require(first.length == second.length, "DepthBone offset difference requires equal vertex counts");
+    float result = 0.0f;
+    foreach (i; 0 .. first.length) {
+        require(first[i].x.isFinite && first[i].y.isFinite &&
+            second[i].x.isFinite && second[i].y.isFinite,
+            "DepthBone offset difference requires finite values");
+        result = max(
+            result,
+            max(abs(first[i].x - second[i].x), abs(first[i].y - second[i].y)));
+    }
+    return result;
+}
+
+private void testDepthBoneSourceRotationDeform() {
+    auto identityNormal = depthBoneOffsetsForSourceRotation(0.0f, 0.0f);
+    auto identityRotated = depthBoneOffsetsForSourceRotation(0.65f, 0.0f);
+    require(identityNormal.length == identityRotated.length && identityNormal.length > 0,
+        "BoneSource rotation identity fixture should preserve target vertex count");
+    foreach (i; 0 .. identityNormal.length) {
+        require(nearVec2(identityNormal[i], vec2(0, 0)) &&
+            nearVec2(identityRotated[i], vec2(0, 0)),
+            "BoneSource rotation must not deform vertices while DepthBone transform.r.y yaw is zero");
+    }
+
+    auto otherAxesNormal = depthBoneOffsetsForSourceRotation(0.0f, 0.31f, -0.27f, 0.0f);
+    auto otherAxesRotated = depthBoneOffsetsForSourceRotation(0.65f, 0.31f, -0.27f, 0.0f);
+    require(otherAxesNormal.length == otherAxesRotated.length && otherAxesNormal.length > 0,
+        "BoneSource rotation other-axis fixture should preserve target vertex count");
+    foreach (i; 0 .. otherAxesNormal.length) {
+        require(otherAxesNormal[i].x == otherAxesRotated[i].x &&
+            otherAxesNormal[i].y == otherAxesRotated[i].y,
+            "BoneSource rotation must have exactly zero effect while transform.r.y yaw is zero, even when transform.r.x/r.z are non-zero");
+    }
+
+    auto normal = depthBoneOffsetsForSourceRotation(0.0f, 0.0f, 0.0f, 0.45f, 4.0f);
+    auto rotated = depthBoneOffsetsForSourceRotation(0.65f, 0.0f, 0.0f, 0.45f, 4.0f);
+    require(normal.length == rotated.length && normal.length > 0,
+        "BoneSource rotation deformation should preserve target vertex count");
+    bool changed;
+    auto maximumRotationDelta = maximumDepthBoneOffsetDifference(normal, rotated);
+    foreach (i; 0 .. normal.length) {
+        if (!nearVec2(normal[i], rotated[i])) {
+            changed = true;
+        }
+    }
+    require(changed,
+        "non-zero BoneSource rotation should change how a non-zero DepthBone transform.r.y yaw deforms vertices");
+    require(maximumRotationDelta > 1.0f,
+        "BoneSource rotation should produce a material yaw-distance change for non-zero depth; maximum delta was %s"
+            .format(maximumRotationDelta));
+
+    auto halfDepthNormal = depthBoneOffsetsForSourceRotation(0.0f, 0.0f, 0.0f, 0.45f, 2.0f);
+    auto halfDepthRotated = depthBoneOffsetsForSourceRotation(0.65f, 0.0f, 0.0f, 0.45f, 2.0f);
+    auto halfDepthRotationDelta = maximumDepthBoneOffsetDifference(halfDepthNormal, halfDepthRotated);
+    require(abs(maximumRotationDelta - halfDepthRotationDelta * 2.0f) < 0.001f,
+        "BoneSource rotation distance change should scale linearly with adjusted depth; full=%s half=%s"
+            .format(maximumRotationDelta, halfDepthRotationDelta));
+
+    float[] positiveNormalZ;
+    float[] positiveRotatedZ;
+    float[] negativeNormalZ;
+    float[] negativeRotatedZ;
+    auto positiveNormal = depthBoneOffsetsForSourceRotation(
+        0.0f, 0.0f, 0.0f, 0.45f, 4.0f, &positiveNormalZ);
+    auto positiveRotated = depthBoneOffsetsForSourceRotation(
+        0.65f, 0.0f, 0.0f, 0.45f, 4.0f, &positiveRotatedZ);
+    auto negativeNormal = depthBoneOffsetsForSourceRotation(
+        0.0f, 0.0f, 0.0f, -0.45f, 4.0f, &negativeNormalZ);
+    auto negativeRotated = depthBoneOffsetsForSourceRotation(
+        0.65f, 0.0f, 0.0f, -0.45f, 4.0f, &negativeRotatedZ);
+    require(positiveNormal.length == positiveRotated.length &&
+        positiveNormal.length == negativeNormal.length &&
+        positiveNormal.length == negativeRotated.length &&
+        positiveNormal.length == positiveNormalZ.length &&
+        positiveNormal.length == positiveRotatedZ.length &&
+        positiveNormal.length == negativeNormalZ.length &&
+        positiveNormal.length == negativeRotatedZ.length,
+        "opposite-yaw BoneSource rotation fixture should preserve all vertex counts");
+    foreach (i; 0 .. positiveNormal.length) {
+        auto positiveSourceDelta = positiveRotated[i] - positiveNormal[i];
+        auto negativeSourceDelta = negativeRotated[i] - negativeNormal[i];
+        require(nearVec2(positiveSourceDelta, negativeSourceDelta),
+            "a source-wide angled pivot should contribute the same projected X correction at opposite yaw");
+        auto positiveSourceZ = positiveRotatedZ[i] - positiveNormalZ[i];
+        auto negativeSourceZ = negativeRotatedZ[i] - negativeNormalZ[i];
+        require(near(positiveSourceZ, -negativeSourceZ),
+            "a source-wide angled pivot should rotate its Z correction in opposite directions at opposite yaw");
+    }
+
+    vec3[] reliefNormalPoints;
+    vec3[] reliefPositivePoints;
+    vec3[] reliefNegativeNormalPoints;
+    vec3[] reliefNegativePoints;
+    auto reliefNormal = depthBoneOffsetsForSourceRotation(
+        0.0f, 0.0f, 0.0f, 0.45f, 4.0f, null, 2.0f, &reliefNormalPoints);
+    auto reliefRotated = depthBoneOffsetsForSourceRotation(
+        0.65f, 0.0f, 0.0f, 0.45f, 4.0f, null, 2.0f, &reliefPositivePoints);
+    auto reliefOppositeNormal = depthBoneOffsetsForSourceRotation(
+        0.0f, 0.0f, 0.0f, -0.45f, 4.0f, null, 2.0f, &reliefNegativeNormalPoints);
+    auto reliefOppositeYaw = depthBoneOffsetsForSourceRotation(
+        0.65f, 0.0f, 0.0f, -0.45f, 4.0f, null, 2.0f, &reliefNegativePoints);
+    foreach (pairStart; [0u, 2u]) {
+        auto normalRelief = reliefNormal[pairStart + 1] - reliefNormal[pairStart];
+        auto rotatedRelief = reliefRotated[pairStart + 1] - reliefRotated[pairStart];
+        auto oppositeNormalRelief = reliefOppositeNormal[pairStart + 1]
+            - reliefOppositeNormal[pairStart];
+        auto oppositeRelief = reliefOppositeYaw[pairStart + 1] - reliefOppositeYaw[pairStart];
+        require(nearVec2(normalRelief, rotatedRelief),
+            "BoneSource rotation must change only the shared pivot and preserve relief relative to the mesh plane");
+        require(nearVec2(oppositeNormalRelief, oppositeRelief),
+            "BoneSource rotation must preserve relief relative to the mesh plane at opposite yaw");
+
+        float pointDistance(vec3[] points) {
+            auto delta = points[pairStart + 1] - points[pairStart];
+            return sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
+        }
+        auto normalDistance = pointDistance(reliefNormalPoints);
+        auto positiveDistance = pointDistance(reliefPositivePoints);
+        auto negativeNormalDistance = pointDistance(reliefNegativeNormalPoints);
+        auto negativeDistance = pointDistance(reliefNegativePoints);
+        require(near(normalDistance, positiveDistance) &&
+            near(normalDistance, negativeNormalDistance) &&
+            near(normalDistance, negativeDistance),
+            "BoneSource rotation and yaw sign must preserve the 3D distance between the plane and its relief");
+    }
+
+    auto zeroDepthNormal = depthBoneOffsetsForSourceRotation(0.0f, 0.0f, 0.0f, 0.45f, 0.0f);
+    auto zeroDepthRotated = depthBoneOffsetsForSourceRotation(0.65f, 0.0f, 0.0f, 0.45f, 0.0f);
+    require(zeroDepthNormal.length == zeroDepthRotated.length,
+        "zero-depth BoneSource rotation fixture should preserve target vertex count");
+    foreach (i; 0 .. zeroDepthNormal.length) {
+        require(nearVec2(zeroDepthNormal[i], zeroDepthRotated[i]),
+            "BoneSource rotation effect should come from the rotated depth tangent, so zero depth must remove that effect");
+    }
+}
+
 private bool fakeDepthDrawGpuSupported() {
     return true;
 }
@@ -13999,6 +14513,8 @@ private bool fakeDepthBoneGpuSubmit(ref DepthBoneGpuDispatchPacket packet, out u
     fakeDepthBoneGpuJobVertexCounts[jobId] = packet.vertices.length;
     if (packet.sourceCount > 0 && packet.sources.length >= DepthBoneGpuSourceStride) {
         fakeDepthBoneGpuLastSourceDepthOffset = packet.sources[6];
+        fakeDepthBoneGpuLastSourceSinRotation = packet.sources[DepthBoneGpuSourceSinRotationIndex];
+        fakeDepthBoneGpuLastSourceCosRotation = packet.sources[DepthBoneGpuSourceCosRotationIndex];
     }
     fakeDepthBoneGpuLastBones = packet.bones.dup;
     fakeDepthBoneGpuSubmitCount++;
@@ -14390,7 +14906,7 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         root,
         target,
         bone,
-        `{"weight":0.8,"depthOffset":1.5,"depthScale":0.65}`);
+        `{"weight":0.8,"depthOffset":1.5,"depthScale":0.65,"rotation":0.15}`);
     require(sourceSettingsResult.succeeded, "BoneSource offset/scale command should succeed");
     ngFlushDepthBoneDirty();
     scaleDriverTarget.localTransform.scale = vec2(30.0f, 30.0f);
@@ -14410,8 +14926,9 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
             target,
             bone,
             format(
-                `{"weight":0.8,"depthOffset":%s,"depthScale":0.65}`,
-                depthOffset));
+                `{"weight":0.8,"depthOffset":%s,"depthScale":0.65,"rotation":%s}`,
+                depthOffset,
+                depthOffset / 10.0f));
         require(sourceSettingsResult.succeeded,
             "rapid BoneSource offset command should succeed");
         ngFlushDepthBoneDirty();
@@ -14425,6 +14942,9 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         "rapid BoneSource edits should dispatch only the final value for both keypoints");
     require(near(fakeDepthBoneGpuLastSourceDepthOffset, 2.0f * rapidSourceWorldScale),
         "rapid BoneSource refresh should dispatch the final depthOffset");
+    require(near(fakeDepthBoneGpuLastSourceSinRotation, cast(float)sin(0.2f)) &&
+        near(fakeDepthBoneGpuLastSourceCosRotation, cast(float)cos(0.2f)),
+        "rapid BoneSource refresh should dispatch only the final rotation");
     require(!ngHasPendingDepthBoneRefresh(),
         "rapid BoneSource refresh should drain without leaving stale work");
 
@@ -14436,7 +14956,7 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         root,
         target,
         bone,
-        `{"weight":0.8,"depthOffset":2.1,"depthScale":0.65}`);
+        `{"weight":0.8,"depthOffset":2.1,"depthScale":0.65,"rotation":0.21}`);
     require(sourceSettingsResult.succeeded,
         "pending BoneSource offset fixture should accept its initial value");
     ngFlushDepthBoneDirty();
@@ -14449,7 +14969,7 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         root,
         target,
         bone,
-        `{"weight":0.8,"depthOffset":2.2,"depthScale":0.65}`);
+        `{"weight":0.8,"depthOffset":2.2,"depthScale":0.65,"rotation":0.22}`);
     require(sourceSettingsResult.succeeded,
         "newer BoneSource offset should supersede in-flight work");
     ngFlushDepthBoneDirty();
@@ -14458,6 +14978,9 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
         "superseding an in-flight BoneSource refresh should submit only one replacement batch");
     require(near(fakeDepthBoneGpuLastSourceDepthOffset, 2.2f * rapidSourceWorldScale),
         "replacement BoneSource refresh should dispatch the latest depthOffset");
+    require(near(fakeDepthBoneGpuLastSourceSinRotation, cast(float)sin(0.22f)) &&
+        near(fakeDepthBoneGpuLastSourceCosRotation, cast(float)cos(0.22f)),
+        "replacement BoneSource refresh should dispatch the latest rotation");
     require(!ngHasPendingDepthBoneRefresh(),
         "superseded BoneSource refresh should drain without stale retries");
 
@@ -14909,6 +15432,7 @@ private void testDepthBoneSerializationRoundTrip() {
     setting.weight = 0.25f;
     setting.depthOffset = 1.5f;
     setting.depthScale = 2.0f;
+    setting.rotation = -0.625f;
     root.bindings[0].setSourceSetting(setting);
 
     incActivePuppet().root.build();
@@ -14940,7 +15464,9 @@ private void testDepthBoneSerializationRoundTrip() {
     require(loadedBinding.targetUuid == loadedTarget.uuid, "DepthRigBinding target uuid should round-trip");
     require(loadedBinding.sourceBoneUuids == [cast(ulong)loadedBone.uuid], "DepthRigBinding source bone uuid should round-trip");
     auto loadedSetting = loadedBinding.sourceSetting(loadedBone.uuid);
-    require(near(loadedSetting.weight, 0.25f) && near(loadedSetting.depthOffset, 1.5f) && near(loadedSetting.depthScale, 2.0f), "DepthBone source settings should round-trip");
+    require(near(loadedSetting.weight, 0.25f) && near(loadedSetting.depthOffset, 1.5f) &&
+        near(loadedSetting.depthScale, 2.0f) && near(loadedSetting.rotation, -0.625f),
+        "DepthBone source settings should round-trip");
     require(loadedBinding.influenceRule.maxInfluences == 2, "DepthBone influence maxInfluences should round-trip");
     require(near(loadedBinding.influenceRule.radiusScale, 1.5f), "DepthBone influence radiusScale should round-trip");
     require(near(loadedBinding.influenceRule.minimumRadius, 12.0f), "DepthBone influence minimumRadius should round-trip");
@@ -18836,6 +19362,7 @@ private bool runAutomatedScenario(string id) {
         case "depthbone.sources":
             runCase("depthbone-actions-undo-redo", &testDepthBoneActionsUndoRedo);
             runCase("depthbone-source-commands-undo-redo", &testDepthBoneSourceCommandsUndoRedo);
+            runCase("depthbone-source-refresh-ignores-physics", &testDepthBoneSourceRefreshIgnoresPhysicsParameter);
             return true;
         case "depthbone.fit-z":
             runCase("depthrigroot-fit-z-to-depth", &testDepthRigRootFitZToDepth);
@@ -18873,6 +19400,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.gpu-packet":
             runCase("depthbone-gpu-offset-packet-construction", &testDepthBoneGpuOffsetPacketConstruction);
+            runCase("depthbone-source-rotation-deform", &testDepthBoneSourceRotationDeform);
             return true;
         case "depthbone.gpu-all-keypoints":
             runCase("depthbone-gpu-all-keypoints-dispatch", &testDepthBoneGpuAllKeypointsDispatch);

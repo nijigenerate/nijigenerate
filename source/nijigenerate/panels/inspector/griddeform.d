@@ -143,6 +143,12 @@ private:
                                         setting.depthScale = depthScale;
                                         if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
+                                    float rotationDegrees = degrees(setting.rotation);
+                                    if (igDragFloat(__("Rotation"), &rotationDegrees, 0.01f,
+                                        -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat)) {
+                                        setting.rotation = normalizeDepthBoneSourceRotation(radians(rotationDegrees));
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                    }
                                     igSeparator();
                                     if (igMenuItem(__("Delete"))) {
                                         removeUuid = uuid;
@@ -170,20 +176,28 @@ private:
 
                                 igSameLine(0, 0);
                                 if (igBeginChild("###DepthBoneSourceDepth", ImVec2(0, 17), false, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.AlwaysAutoResize)) {
-                                    incDummy(ImVec2(-144, 1));
+                                    incDummy(ImVec2(-168, 1));
                                     igSameLine(0, 0);
                                     auto depthOffset = setting.depthOffset;
                                     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
-                                    igSetNextItemWidth(72);
+                                    igSetNextItemWidth(56);
                                     if (igDragFloat("###offset", &depthOffset, 0.01f, -10.0f, 10.0f, "o %.2f")) {
                                         setting.depthOffset = depthOffset;
                                         if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     igSameLine(0, 0);
                                     auto depthScale = setting.depthScale;
-                                    igSetNextItemWidth(72);
+                                    igSetNextItemWidth(56);
                                     if (igDragFloat("###scale", &depthScale, 0.01f, 0.01f, 10.0f, "s %.2f")) {
                                         setting.depthScale = depthScale;
+                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                    }
+                                    igSameLine(0, 0);
+                                    float rotationDegrees = degrees(setting.rotation);
+                                    igSetNextItemWidth(56);
+                                    if (igDragFloat("###rotation", &rotationDegrees, 0.01f,
+                                        -float.max, float.max, "r %.1f°", ImGuiSliderFlags.NoRoundToFormat)) {
+                                        setting.rotation = normalizeDepthBoneSourceRotation(radians(rotationDegrees));
                                         if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
                                     }
                                     igPopStyleVar();
@@ -326,7 +340,13 @@ private:
             root,
             target,
             bone,
-            format(`{"weight":%s,"depthOffset":%s,"depthScale":%s}`, setting.weight, setting.depthOffset, setting.depthScale)
+            format(
+                `{"weight":%s,"depthOffset":%s,"depthScale":%s,"rotation":%s}`,
+                setting.weight,
+                setting.depthOffset,
+                setting.depthScale,
+                setting.rotation,
+            )
         );
     }
 }

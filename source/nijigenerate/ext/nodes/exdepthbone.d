@@ -13,6 +13,7 @@ import nijilive.math;
 
 import std.algorithm.searching : countUntil;
 import std.exception : enforce;
+import std.math : fmod, isFinite, PI;
 
 enum ExDepthTargetKind {
     Grid,
@@ -84,6 +85,7 @@ struct ExDepthBoneSourceSettings {
     float weight = 1.0f;
     float depthOffset = 0.0f;
     float depthScale = 1.0f;
+    float rotation = 0.0f;
 
     void serialize(S)(ref S serializer) const {
         auto state = serializer.structBegin();
@@ -95,6 +97,9 @@ struct ExDepthBoneSourceSettings {
         serializer.serializeValue(depthOffset);
         serializer.putKey("depthScale");
         serializer.serializeValue(depthScale);
+        serializer.putKey("rotation");
+        auto normalizedRotation = normalizeDepthBoneSourceRotation(rotation);
+        serializer.serializeValue(normalizedRotation);
         serializer.structEnd(state);
     }
 
@@ -111,8 +116,21 @@ struct ExDepthBoneSourceSettings {
         if (!data["depthScale"].isEmpty) {
             if (auto exc = data["depthScale"].deserializeValue(depthScale)) return exc;
         }
+        if (!data["rotation"].isEmpty) {
+            if (auto exc = data["rotation"].deserializeValue(rotation)) return exc;
+        }
+        rotation = normalizeDepthBoneSourceRotation(rotation);
         return null;
     }
+}
+
+float normalizeDepthBoneSourceRotation(float rotation) {
+    if (!rotation.isFinite) return 0.0f;
+    enum float Pi = cast(float)PI;
+    enum float TwoPi = cast(float)(PI * 2.0);
+    auto normalized = cast(float)fmod(rotation + Pi, TwoPi);
+    if (normalized < 0.0f) normalized += TwoPi;
+    return normalized - Pi;
 }
 
 struct ExDepthRigBinding {
@@ -141,12 +159,15 @@ struct ExDepthRigBinding {
     void normalizeSourceSettings() {
         ExDepthBoneSourceSettings[] normalized;
         foreach (uuid; sourceBoneUuids) {
-            normalized ~= sourceSetting(uuid);
+            auto setting = sourceSetting(uuid);
+            setting.rotation = normalizeDepthBoneSourceRotation(setting.rotation);
+            normalized ~= setting;
         }
         sourceSettings = normalized;
     }
 
     void setSourceSetting(ExDepthBoneSourceSettings setting) {
+        setting.rotation = normalizeDepthBoneSourceRotation(setting.rotation);
         auto index = sourceBoneUuids.countUntil(setting.boneUuid);
         if (index < 0) sourceBoneUuids ~= setting.boneUuid;
 

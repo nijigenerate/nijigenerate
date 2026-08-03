@@ -17,12 +17,14 @@ import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthIm
 import nijigenerate.commands.vertex.define_mesh : DefineGridCommand;
 import nijigenerate.core;
 import nijigenerate.core.actionstack;
+import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigRoot, ExDepthTargetKind;
 import nijigenerate.ext.nodes.exgriddeformer : ExGridDeformer;
+import nijigenerate.ext.nodes.expathdeformer : ExPathDeformer;
 import nijigenerate.io.depthmap_psd : PsdDepthImportResult;
 import nijigenerate.io.save : incCloseProjectAsk, incSetSaveProjectOnClose;
 import nijigenerate.panels;
 import nijigenerate.panels.resource;
-import nijigenerate.project : EditMode, incActivePuppet, incSetEditMode;
+import nijigenerate.project : EditMode, incActivePuppet, incSelectNode, incSetEditMode;
 import nijigenerate.widgets.modal : incModalAdd;
 import nijigenerate.windows;
 import nijigenerate.windows.autosave : RestoreSaveWindow;
@@ -673,7 +675,34 @@ void ngSetupRegressionSmokeScenario(string scenario) {
     } else if (scenario.startsWith("depth.") || scenario == "depthbone.refresh-queue") {
         ensureDepthMode();
         showPanels("Viewport", "Tool Settings", "Inspector");
-        if (scenario == "depth.edit-live-ui-smoke") {
+        if (scenario == "depth.bonesource-rotation-grid-ui" ||
+            scenario == "depth.bonesource-rotation-path-ui") {
+            auto root = new ExDepthRigRoot(incActivePuppet().root);
+            root.name = "BoneSource Rotation Root";
+            auto bone = new ExDepthBone(root);
+            bone.name = "BoneSource Rotation Bone";
+            bone.boneId = "RotationBone";
+            Node target;
+            if (scenario == "depth.bonesource-rotation-grid-ui") {
+                auto grid = createSmokeDepthGrid("BoneSource Rotation Grid");
+                if (ngRegressionSmokeFailed()) return;
+                root.addBoneSource(grid, ExDepthTargetKind.Grid, bone);
+                target = grid;
+            } else {
+                auto path = new ExPathDeformer(incActivePuppet().root);
+                path.name = "BoneSource Rotation Path";
+                path.rebuffer(Vec2Array([
+                    vec2(-20.0f, 0.0f),
+                    vec2(0.0f, 50.0f),
+                    vec2(20.0f, 100.0f),
+                ]));
+                path.replaceDepths([0.25f, 0.5f, 0.75f]);
+                root.addBoneSource(path, ExDepthTargetKind.Path, bone);
+                target = path;
+            }
+            incActivePuppet().rescanNodes();
+            incSelectNode(target);
+        } else if (scenario == "depth.edit-live-ui-smoke") {
             auto grid = createSmokeDepthGridWithAxes(
                 "DepthEditSmoke:G",
                 [-2.0f, -1.0f, 0.0f, 1.0f, 2.0f],
