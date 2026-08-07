@@ -325,6 +325,72 @@ private float depthBoneSourceRotationPivotXShift(
     return planeDistance * depthBoneSourceTangentSlope(setting.rotation);
 }
 
+/**
+ * Effective yaw pivot used by a BoneSource after applying its rotation setting.
+ * Points are expressed in DepthRigRoot-local space at the current no-yaw pose.
+ */
+struct DepthBoneSourceEffectivePivot {
+    ulong targetUuid;
+    vec3 bonePoint;
+    vec3 effectivePoint;
+    float rotationPivotXShift;
+    float rotation;
+}
+
+DepthBoneSourceEffectivePivot[] ngDepthBoneSourceEffectivePivots(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+) {
+    DepthBoneSourceEffectivePivot[] result;
+    auto puppet = incActivePuppet();
+    if (root is null || bone is null || puppet is null || puppet.root is null) return result;
+
+    auto runtime = buildDepthRigRuntime(root);
+    auto runtimeBone = bone.uuid in runtime;
+    if (runtimeBone is null) return result;
+
+    auto worldScale = depthWorldScale(root);
+    auto noYawSkin = depthBoneNoYawSkinMatrix(*runtimeBone);
+    auto bonePoint = transformPoint(noYawSkin, (*runtimeBone).restHead);
+
+    foreach (ref binding; root.bindings) {
+        if (binding.sourceBoneUuids.countUntil(bone.uuid) < 0) continue;
+
+        auto targetNode = findNodeByUuid(puppet.root, binding.targetUuid);
+        auto target = cast(Deformable)targetNode;
+        if (target is null) continue;
+
+        auto rawDepths = snapshotTargetDepths(target);
+        float[] scaledDepths;
+        scaledDepths.length = rawDepths.length;
+        foreach (i, depth; rawDepths) scaledDepths[i] = depth * worldScale;
+        auto targetToRoot = targetToRootMatrix(root, targetNode);
+
+        auto setting = binding.sourceSetting(bone.uuid);
+        auto shift = depthBoneSourceRotationPivotXShift(
+            target,
+            scaledDepths,
+            targetToRoot,
+            (*runtimeBone).restHead,
+            setting,
+            worldScale,
+        );
+        if (!shift.isFinite) continue;
+
+        DepthBoneSourceEffectivePivot pivot;
+        pivot.targetUuid = binding.targetUuid;
+        pivot.bonePoint = bonePoint;
+        pivot.effectivePoint = transformPoint(
+            noYawSkin,
+            (*runtimeBone).restHead - vec3(shift, 0.0f, 0.0f),
+        );
+        pivot.rotationPivotXShift = shift;
+        pivot.rotation = setting.rotation;
+        result ~= pivot;
+    }
+    return result;
+}
+
 private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bone, vec2 worldPoint, out float worldDepth) {
     auto puppet = incActivePuppet();
     if (root is null || puppet is null) {

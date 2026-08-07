@@ -19,7 +19,7 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     DepthBoneGpuSourcePoseYawIndex,
     DepthBoneGpuSourceNoYawSkinMatrixIndex,
     DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
-    ngDepthBoneBindingValueChanged, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneGpuSupported,
+    ngDepthBoneBindingValueChanged, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneSourceEffectivePivots, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngDepthRigNodeCurrentScaledDepth,
     ngFlushDepthBoneDirtyImmediate, ngHasPendingDepthBoneRefresh, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
@@ -13986,6 +13986,16 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
     require(near(sourceLineLength, expectedSourceLineLength),
         "BoneSource rotation pivot must keep line length D=d/cos(R); got %s expected %s"
             .format(sourceLineLength, expectedSourceLineLength));
+    auto displayedPivots = ngDepthBoneSourceEffectivePivots(root, bone);
+    require(displayedPivots.length == 1,
+        "ModelEdit should expose one effective pivot for the fixture BoneSource");
+    require(displayedPivots[0].targetUuid == target.uuid &&
+            near(displayedPivots[0].rotationPivotXShift, actualPivotXShift) &&
+            near(displayedPivots[0].effectivePoint.x,
+                displayedPivots[0].bonePoint.x - actualPivotXShift) &&
+            near(displayedPivots[0].effectivePoint.y, displayedPivots[0].bonePoint.y) &&
+            near(displayedPivots[0].effectivePoint.z, displayedPivots[0].bonePoint.z),
+        "ModelEdit effective pivot should match the GPU pivot center Ceff=C-d*tan(R)");
 
     auto smallTarget = new ExGridDeformer(incActivePuppet().root);
     smallTarget.name = "gpu-packet-small-grid";

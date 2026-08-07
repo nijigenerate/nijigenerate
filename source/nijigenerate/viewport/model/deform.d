@@ -7,6 +7,7 @@
 */
 module nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.model.mesheditor;
+import nijigenerate.viewport.model.depthboneoverlay : drawDepthBoneEffectivePivots;
 import nijigenerate.viewport.base;
 import nijigenerate.core.input;
 import nijigenerate.core.dbg;
@@ -93,6 +94,7 @@ public:
             inDbgDrawPoints(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
             inDbgPointsSize(4);
         }
+        drawDepthBoneEffectivePivots(root, selectedBone);
     }
 
     ExDepthRigRoot findDepthRoot(ExDepthBone bone) {
