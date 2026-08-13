@@ -4,9 +4,11 @@
 */
 module nijigenerate.viewport.model.depthboneoverlay;
 
-import nijigenerate.commands.depth.bone : ngDepthBoneSourceEffectivePivots;
+import nijigenerate.commands.depth.bone : ngCachedDepthBoneSourceEffectivePivots,
+    ngFlushDepthBoneEffectivePivotDirty, ngSetDepthBoneEffectivePivotSelection;
 import nijigenerate.core.dbg;
 import nijigenerate.ext.nodes.exdepthbone;
+import nijigenerate.project : ngShowDepthBones;
 import nijilive;
 
 private void appendDashedLine(ref Vec3Array lines, vec3 start, vec3 end) {
@@ -21,14 +23,42 @@ private void appendDashedLine(ref Vec3Array lines, vec3 start, vec3 end) {
     }
 }
 
+/** Keep the overlay cache aligned with the global selection outside drawing. */
+void depthBoneEffectivePivotSelectionChanged(Node[] nodes) {
+    ExDepthBone bone;
+    foreach (node; nodes) {
+        if (auto candidate = cast(ExDepthBone)node) {
+            bone = candidate;
+            break;
+        }
+    }
+
+    ExDepthRigRoot root;
+    for (Node cursor = bone; cursor !is null; cursor = cursor.parent) {
+        if (auto candidate = cast(ExDepthRigRoot)cursor) {
+            root = candidate;
+            break;
+        }
+    }
+    if (!ngShowDepthBones) {
+        root = null;
+        bone = null;
+    }
+
+    ngSetDepthBoneEffectivePivotSelection(root, bone);
+    // Selection changes are user-visible immediately and happen only once per event.
+    ngFlushDepthBoneEffectivePivotDirty();
+}
+
 /** Draw BoneSource effective yaw pivots without reusing DepthBone styling. */
 void drawDepthBoneEffectivePivots(ExDepthRigRoot root, ExDepthBone selectedBone = null) {
     if (root is null || selectedBone is null) return;
+    ngSetDepthBoneEffectivePivotSelection(root, selectedBone);
 
     Vec3Array selectedLines;
     Vec3Array selectedPoints;
 
-    foreach (pivot; ngDepthBoneSourceEffectivePivots(root, selectedBone)) {
+    foreach (pivot; ngCachedDepthBoneSourceEffectivePivots(root, selectedBone)) {
         if (abs(pivot.rotationPivotXShift) <= 1e-4f) continue;
         appendDashedLine(selectedLines, pivot.bonePoint, pivot.effectivePoint);
         selectedPoints ~= pivot.effectivePoint;

@@ -7,7 +7,6 @@ import nijigenerate.utils;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.commands; // cmd!, Context
-import nijigenerate.commands.depth.bone : DepthBoneDirtyScope, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForArmedParameter;
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.project : incActivePuppet, incArmedParameter, incSelectedNodes;
@@ -445,11 +444,6 @@ private:
         binding.sourceBoneUuids = reordered;
         binding.normalizeSourceSettings();
         incActionPush(new DepthBoneSourceListChangeAction("Reorder Depth Bone Source", root, oldBindings, root.bindings));
-        if (parameter !is null) {
-            ngMarkDepthBoneDirty(root, parameter, cursor, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
-        } else {
-            ngMarkDepthBoneDirtyForArmedParameter(root, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
-        }
     }
 
     static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting, Parameter parameter = null, vec2u cursor = vec2u.init) {

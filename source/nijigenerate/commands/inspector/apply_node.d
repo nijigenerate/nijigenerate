@@ -4,8 +4,10 @@ import nijigenerate.commands.base;
 import nijigenerate;
 import nijigenerate.ext; // ExCamera, ExPart, etc.
 import nijigenerate.actions; // Action interface
+import nijigenerate.actions.depthboneinvalidation :
+    DepthBoneMutationKind,
+    ngNotifyDepthBoneTargetChanged;
 import nijigenerate.core.actionstack; // incActionPush
-import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyForTarget;
 import i18n;
 import nijigenerate.panels.inspector.node;
 import nijigenerate.panels.inspector.drawable;
@@ -22,6 +24,20 @@ import nijilive.core.nodes.drivers; // SimplePhysics
 import nijigenerate.commands.base : toCodeString;
 import std.traits : TemplateArgsOf;
 import std.string : format;
+
+private void notifyDepthBoneInspectorMutation(string PropName)(Node node) {
+    static if (
+        PropName == "translationX" || PropName == "translationY" || PropName == "translationZ" ||
+        PropName == "rotationX" || PropName == "rotationY" || PropName == "rotationZ" ||
+        PropName == "scaleX" || PropName == "scaleY" ||
+        PropName == "lockToRoot"
+    ) {
+        ngNotifyDepthBoneTargetChanged(
+            node,
+            DepthBoneMutationKind.TargetTransform,
+            "Target Transform");
+    }
+}
 
 // Generic apply command using NodeInspector; compile-time PropName
 @ShortcutHidden
@@ -87,17 +103,21 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                         this.nodes = nodes;
                         this.oldVals = oldVals;
                         this.newVal = newVal;
+                        foreach (n; nodes)
+                            notifyDepthBoneInspectorMutation!PropName(n);
                     }
                     override void rollback() {
                         foreach (i, n; nodes) {
                             mixin("ni."~PropName~".set(n, oldVals[i]);");
                             n.notifyChange(n, NotifyReason.AttributeChanged);
+                            notifyDepthBoneInspectorMutation!PropName(n);
                         }
                     }
                     override void redo() {
                         foreach (i, n; nodes) {
                             mixin("ni."~PropName~".set(n, newVal);");
                             n.notifyChange(n, NotifyReason.AttributeChanged);
+                            notifyDepthBoneInspectorMutation!PropName(n);
                         }
                     }
                     override string describe() { return _("Changed %s").format(PropName); }
@@ -122,14 +142,6 @@ class ApplyInspectorPropCommand(I, string PropName) : ExCommand!(TW!(typeof(mixi
                     }
                 }
                 incActionPush(new _AttrAction!(NodeT, ValT)(ni, nodes, oldVals, this.value));
-                static if (
-                    PropName == "translationX" || PropName == "translationY" || PropName == "translationZ" ||
-                    PropName == "rotationX" || PropName == "rotationY" || PropName == "rotationZ" ||
-                    PropName == "scaleX" || PropName == "scaleY" ||
-                    PropName == "lockToRoot"
-                ) {
-                    foreach (n; nodes) ngMarkDepthBoneDirtyForTarget(n, "Target Transform");
-                }
             }
         }
 
@@ -192,12 +204,15 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
                     this.ni = ni;
                     this.nodes = nodes;
                     this.oldVals = oldVals;
+                    foreach (n; nodes)
+                        notifyDepthBoneInspectorMutation!PropName(n);
                 }
 
                 override void rollback() {
                     foreach (i, n; nodes) {
                         mixin("ni."~PropName~".set(n, oldVals[i]);");
                         n.notifyChange(n, NotifyReason.AttributeChanged);
+                        notifyDepthBoneInspectorMutation!PropName(n);
                     }
                 }
 
@@ -221,6 +236,7 @@ class ToggleInspectorPropCommand(I, string PropName) : ExCommand!() {
                     foreach (i, n; nodes) {
                         mixin("ni."~PropName~".set(n, newVal);" );
                         n.notifyChange(n, NotifyReason.AttributeChanged);
+                        notifyDepthBoneInspectorMutation!PropName(n);
                     }
                 }
 

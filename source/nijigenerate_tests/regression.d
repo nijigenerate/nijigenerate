@@ -1,6 +1,8 @@
 module nijigenerate_tests.regression;
 
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation :
+    ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate.api.acp.protocol : ACPError, ACP_METHOD_INITIALIZE, ACP_METHOD_PING, ACP_PROTOCOL_VERSION, ErrorCode, JSONRPC_VERSION;
 import nijigenerate.api.acp.types : Document, Position, Range, StatusLevel, StatusNotification, TextEdit, WorkspaceEdit;
 import nijigenerate.api.mcp.helpers : buildContextFromPayload, commandResultToJsonRuntime;
@@ -19,9 +21,14 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     DepthBoneGpuSourcePoseYawIndex,
     DepthBoneGpuSourceNoYawSkinMatrixIndex,
     DepthBoneDirtyScope, ngBuildDepthBoneGpuOffsetPacket,
-    ngDepthBoneBindingValueChanged, ngDepthBoneGpuReadbackToOffsets, ngDepthBoneSourceEffectivePivots, ngDepthBoneGpuSupported,
+    ngCachedDepthBoneSourceEffectivePivots,
+    ngDepthBoneEffectivePivotCacheGeneration, ngDepthBoneGpuReadbackToOffsets,
+    ngDepthBoneSourceEffectivePivots, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngDepthRigNodeCurrentScaledDepth,
-    ngFlushDepthBoneDirtyImmediate, ngHasPendingDepthBoneRefresh, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget;
+    ngFlushDepthBoneDirtyImmediate, ngFlushDepthBoneEffectivePivotDirty,
+    ngHasPendingDepthBoneEffectivePivotRefresh, ngHasPendingDepthBoneRefresh,
+    ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget,
+    ngSetDepthBoneEffectivePivotSelection;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
     ngPsdDepthImportResultToDepthDrawSession;
@@ -13997,6 +14004,44 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
             near(displayedPivots[0].effectivePoint.z, displayedPivots[0].bonePoint.z),
         "ModelEdit effective pivot should match the GPU pivot center Ceff=C-d*tan(R)");
 
+    ngSetDepthBoneEffectivePivotSelection(root, bone);
+    require(ngHasPendingDepthBoneEffectivePivotRefresh(),
+        "selecting a BoneSource pivot should queue one cache refresh");
+    ngFlushDepthBoneEffectivePivotDirty();
+    auto cachedPivots = ngCachedDepthBoneSourceEffectivePivots(root, bone);
+    require(cachedPivots.length == displayedPivots.length &&
+            near(cachedPivots[0].rotationPivotXShift, displayedPivots[0].rotationPivotXShift) &&
+            nearVec3(cachedPivots[0].bonePoint, displayedPivots[0].bonePoint) &&
+            nearVec3(cachedPivots[0].effectivePoint, displayedPivots[0].effectivePoint),
+        "cached ModelEdit pivots must preserve the immediate calculation exactly");
+    auto cachedGeneration = ngDepthBoneEffectivePivotCacheGeneration();
+    foreach (_; 0 .. 3) {
+        ngSetDepthBoneEffectivePivotSelection(root, bone);
+        require(ngCachedDepthBoneSourceEffectivePivots(root, bone).length == displayedPivots.length,
+            "steady ModelEdit frames should reuse the completed pivot cache");
+        ngFlushDepthBoneEffectivePivotDirty();
+    }
+    require(ngDepthBoneEffectivePivotCacheGeneration() == cachedGeneration,
+        "steady ModelEdit frames must not rebuild BoneSource effective pivots");
+    auto overlaySource = readText("source/nijigenerate/viewport/model/depthboneoverlay.d");
+    require(!overlaySource.canFind(
+            "foreach (pivot; ngDepthBoneSourceEffectivePivots(root, selectedBone))") &&
+            overlaySource.canFind(
+                "foreach (pivot; ngCachedDepthBoneSourceEffectivePivots(root, selectedBone))"),
+        "ModelEdit drawing must consume the cache instead of rebuilding effective pivots");
+
+    root.notifyChange(root, NotifyReason.AttributeChanged);
+    require(ngHasPendingDepthBoneEffectivePivotRefresh(),
+        "a selected rig dependency change should invalidate the pivot cache");
+    require(ngDepthBoneEffectivePivotCacheGeneration() == cachedGeneration,
+        "dependency notification should only queue work, not calculate synchronously");
+    ngFlushDepthBoneEffectivePivotDirty();
+    require(ngDepthBoneEffectivePivotCacheGeneration() == cachedGeneration + 1 &&
+            near(ngCachedDepthBoneSourceEffectivePivots(root, bone)[0].rotationPivotXShift,
+                displayedPivots[0].rotationPivotXShift),
+        "the queued dependency update should refresh the same visible pivot once");
+    ngSetDepthBoneEffectivePivotSelection(null, null);
+
     auto smallTarget = new ExGridDeformer(incActivePuppet().root);
     smallTarget.name = "gpu-packet-small-grid";
     smallTarget.rebuffer(Vec2Array([
@@ -14684,6 +14729,145 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
             offsets2 = targetOffsets;
         }
     }
+    require(!ngHasPendingDepthBoneRefresh(),
+        "generated DepthBone deform writeback must not recursively dirty itself");
+
+    auto transformAction = new ParameterChangeBindingsValueAction(
+        "DepthBone transform invalidation fixture",
+        param,
+        cast(ParameterBinding[])[tx],
+        1,
+        0);
+    tx.setValue(vec2u(1, 0), 7.0f);
+    transformAction.updateNewState();
+    require(ngHasPendingDepthBoneRefresh(),
+        "a transform binding action must enqueue its DepthBone keypoint");
+    auto submitCountBeforeTransform = fakeDepthBoneGpuSubmitCount;
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount - submitCountBeforeTransform == gpuTargets.length,
+        "a transform binding action must refresh only its changed keypoint");
+
+    transformAction.rollback();
+    require(ngHasPendingDepthBoneRefresh(),
+        "undoing a transform binding action must enqueue the same DepthBone keypoint");
+    ngFlushDepthBoneDirtyImmediate();
+    transformAction.redo();
+    require(ngHasPendingDepthBoneRefresh(),
+        "redoing a transform binding action must enqueue the same DepthBone keypoint");
+    ngFlushDepthBoneDirtyImmediate();
+
+    auto targetTranslation = newValueBinding(param, target, "transform.t.x");
+    auto targetTransformAction = new ParameterChangeBindingsValueAction(
+        "GridDeformer transform invalidation fixture",
+        param,
+        cast(ParameterBinding[])[targetTranslation],
+        1,
+        0);
+    targetTranslation.setValue(vec2u(1, 0), 3.0f);
+    targetTransformAction.updateNewState();
+    require(ngHasPendingDepthBoneRefresh(),
+        "setting a BoneSource GridDeformer transform must enqueue its DepthBone hierarchy");
+    auto submitCountBeforeTargetTransform = fakeDepthBoneGpuSubmitCount;
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount - submitCountBeforeTargetTransform == gpuTargets.length,
+        "a GridDeformer transform binding action must refresh only its changed keypoint");
+    targetTransformAction.rollback();
+    require(ngHasPendingDepthBoneRefresh(),
+        "undoing a GridDeformer transform binding must enqueue its DepthBone hierarchy");
+    ngFlushDepthBoneDirtyImmediate();
+    targetTransformAction.redo();
+    require(ngHasPendingDepthBoneRefresh(),
+        "redoing a GridDeformer transform binding must enqueue its DepthBone hierarchy");
+    ngFlushDepthBoneDirtyImmediate();
+
+    param.removeBinding(targetTranslation);
+    auto targetTransformRemoveAction = new ParameterBindingRemoveAction(
+        param, targetTranslation);
+    require(ngHasPendingDepthBoneRefresh(),
+        "removing a GridDeformer transform binding must enqueue its DepthBone hierarchy");
+    auto submitCountBeforeTargetBindingRemoval = fakeDepthBoneGpuSubmitCount;
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount - submitCountBeforeTargetBindingRemoval == gpuTargets.length * 2,
+        "a transform binding structure change must refresh every affected keypoint");
+    targetTransformRemoveAction.rollback();
+    require(ngHasPendingDepthBoneRefresh(),
+        "undoing a transform binding removal must enqueue its DepthBone hierarchy");
+    ngFlushDepthBoneDirtyImmediate();
+    targetTransformRemoveAction.redo();
+    require(ngHasPendingDepthBoneRefresh(),
+        "redoing a transform binding removal must enqueue its DepthBone hierarchy");
+    ngFlushDepthBoneDirtyImmediate();
+
+    auto oldRestHead = bone.restHead;
+    auto oldRestTail = bone.restTail;
+    auto oldRestRoll = bone.restRoll;
+    auto newRestHead = oldRestHead + vec3(1, 0, 0);
+    bone.restHead = newRestHead;
+    auto restAction = new DepthBoneRestChangeAction(
+        bone,
+        oldRestHead,
+        oldRestTail,
+        oldRestRoll,
+        newRestHead,
+        oldRestTail,
+        oldRestRoll);
+    require(ngHasPendingDepthBoneRefresh(),
+        "changing a DepthBone rest pose must enqueue generated targets");
+    auto submitCountBeforeRest = fakeDepthBoneGpuSubmitCount;
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount - submitCountBeforeRest == gpuTargets.length * 2,
+        "a rest-pose change must refresh every keypoint exactly once");
+
+    restAction.rollback();
+    require(ngHasPendingDepthBoneRefresh(),
+        "undoing a DepthBone rest change must enqueue generated targets");
+    ngFlushDepthBoneDirtyImmediate();
+    restAction.redo();
+    require(ngHasPendingDepthBoneRefresh(),
+        "redoing a DepthBone rest change must enqueue generated targets");
+    ngFlushDepthBoneDirtyImmediate();
+
+    auto nestedTarget = new ExGridDeformer(target);
+    nestedTarget.name = "gpu-binding-invalidation-nested-grid";
+    nestedTarget.rebuffer(Vec2Array([
+        vec2(-4, 0),
+        vec2(4, 0),
+        vec2(-4, 40),
+        vec2(4, 40),
+    ]));
+    ExDepthRigBinding nestedBinding = binding;
+    nestedBinding.targetUuid = nestedTarget.uuid;
+    root.bindings ~= nestedBinding;
+    incActivePuppet().rescanNodes();
+
+    auto ancestorDeformAction = new ParameterChangeBindingsValueAction(
+        "Ancestor Grid deformation invalidation fixture",
+        param,
+        cast(ParameterBinding[])[deformBinding],
+        1,
+        0);
+    deformBinding.update(vec2u(1, 0), Vec2Array([
+        vec2(1, 0), vec2(1, 0), vec2(1, 0), vec2(1, 0),
+    ]));
+    ancestorDeformAction.updateNewState();
+    require(ngHasPendingDepthBoneRefresh(),
+        "editing an ancestor GridDeformer binding must enqueue nested DepthBone targets");
+    auto submitCountBeforeAncestorDeform = fakeDepthBoneGpuSubmitCount;
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount - submitCountBeforeAncestorDeform == root.bindings.length,
+        "an ancestor GridDeformer binding edit must refresh one hierarchy batch at the changed keypoint");
+    require(!ngHasPendingDepthBoneRefresh(),
+        "DepthBone-generated hierarchy writeback must not feed back into invalidation");
+
+    ancestorDeformAction.rollback();
+    require(ngHasPendingDepthBoneRefresh(),
+        "undoing an ancestor GridDeformer edit must enqueue nested DepthBone targets");
+    ngFlushDepthBoneDirtyImmediate();
+    ancestorDeformAction.redo();
+    require(ngHasPendingDepthBoneRefresh(),
+        "redoing an ancestor GridDeformer edit must enqueue nested DepthBone targets");
+    ngFlushDepthBoneDirtyImmediate();
+    root.bindings = root.bindings[0 .. $ - 1];
 
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
@@ -14710,7 +14894,7 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     fakeDepthBoneGpuNotReadyPolls = 4;
     fakeDepthBoneGpuLastBones = null;
     tx.setValue(vec2u(1, 0), 6.0f);
-    ngDepthBoneBindingValueChanged(param, bone, tx.getName(), vec2u(1, 0));
+    ngNotifyDepthBoneBindingValueChanged(tx, vec2u(1, 0));
     ngFlushDepthBoneDirty();
     require(fakeDepthBoneGpuSubmitCount == 1,
         "DepthBone transform refresh should submit the initial keypoint pose; submitted=%s"
@@ -14718,7 +14902,7 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     auto initialDepthBonePose = fakeDepthBoneGpuLastBones.dup;
 
     tx.setValue(vec2u(1, 0), 12.0f);
-    ngDepthBoneBindingValueChanged(param, bone, tx.getName(), vec2u(1, 0));
+    ngNotifyDepthBoneBindingValueChanged(tx, vec2u(1, 0));
     ngFlushDepthBoneDirty();
     DepthBoneGpuOffsetPacket latestDepthBonePacket;
     string latestDepthBonePacketError;
@@ -15223,6 +15407,40 @@ private void testDepthBoneStandardSkeletonTemplate() {
     auto footR = findDepthBoneById(root, "Foot.R");
     require(footL !is null && footR !is null, "standard DepthBone skeleton should include both feet");
     require(footL.lockToRoot && footR.lockToRoot, "standard feet should be lockToRoot by default");
+}
+
+private void testDepthBoneCreationNotifiesResourceViews() {
+    resetCase();
+
+    auto puppet = incActivePuppet();
+    auto ctx = new Context();
+    ctx.puppet = puppet;
+    bool structureNotified;
+    puppet.root.addNotifyListener((Node target, NotifyReason reason) {
+        if (reason == NotifyReason.StructureChanged)
+            structureNotified = true;
+    });
+
+    auto rootResult = cast(CreateResult!Node)cmd!(DepthBoneCommand.CreateDepthRigRoot)(
+        ctx, puppet.root, "resource-notify-depth-root");
+    require(rootResult !is null && rootResult.succeeded && rootResult.created.length == 1,
+        "CreateDepthRigRoot should create one node for resource notification coverage");
+    auto root = cast(ExDepthRigRoot)rootResult.created[0];
+    require(root !is null && structureNotified,
+        "CreateDepthRigRoot should notify resource views after insertion");
+
+    structureNotified = false;
+    auto boneResult = cast(CreateResult!Node)cmd!(DepthBoneCommand.AddDepthBone)(
+        ctx, root, "ResourceNotifyBone", [0.0f, 0.0f, 0.0f], [0.0f, 100.0f, 0.0f], 0.0f);
+    require(boneResult !is null && boneResult.succeeded && boneResult.created.length == 1,
+        "AddDepthBone should create one node for resource notification coverage");
+    require(structureNotified,
+        "AddDepthBone should notify resource views after insertion");
+
+    structureNotified = false;
+    auto standard = cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1000.0f);
+    require(standard.succeeded && structureNotified,
+        "AddStandardDepthSkeleton should notify resource views after insertion");
 }
 
 private void testDepthBoneStandardParameterTemplate() {
@@ -19392,6 +19610,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.template-bones":
             runCase("depthbone-standard-skeleton-template", &testDepthBoneStandardSkeletonTemplate);
+            runCase("depthbone-creation-notifies-resource-views", &testDepthBoneCreationNotifiesResourceViews);
             return true;
         case "depthbone.template-parameters":
         case "parameter.template-depth-bone":

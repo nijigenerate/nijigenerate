@@ -9,6 +9,8 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.ext;
 import nijigenerate.actions.binding;
+import nijigenerate.actions.depthboneinvalidation :
+    ngNotifyDepthBoneBindingAllValuesChanged;
 import nijigenerate;
 import nijilive;
 import nijilive.core.nodes.drivers; // Driver
@@ -444,6 +446,7 @@ public:
 
     void updateNewState() {
         newState = captureState();
+        notifyBindingValuesChanged();
     }
 
     void clear() { }
@@ -542,6 +545,12 @@ private:
             bindingState.binding.isSet_ = dupBoolMatrix(bindingState.isSet);
             bindingState.binding.reInterpolate();
         }
+        notifyBindingValuesChanged();
+    }
+
+    void notifyBindingValuesChanged() {
+        foreach (binding; self.bindings)
+            ngNotifyDepthBoneBindingAllValuesChanged(binding);
     }
 }
 
@@ -657,19 +666,29 @@ class ParameterChangeBindingsAction : AbstractParameterChangeBindingsAction!() {
     Actions to change binding value of specified keypoints at once.
 */
 
-Action BindingValueChangeMapper(ParameterBinding binding, int pointx, int pointy) {
+Action BindingValueChangeMapper(ParameterBinding binding, int pointx, int pointy, bool notifyDepthBone) {
     if (auto typedBinding = cast(ValueParameterBinding)binding) {
-        return new ParameterBindingValueChangeAction!(float,typeof(typedBinding))(typedBinding.getName(), typedBinding, pointx, pointy);
+        return new ParameterBindingValueChangeAction!(float,typeof(typedBinding))(
+            typedBinding.getName(), typedBinding, pointx, pointy, null, notifyDepthBone);
     } else if (auto typedBinding = cast(DeformationParameterBinding)binding) {
-        return new ParameterBindingValueChangeAction!(Deformation,typeof(typedBinding))(typedBinding.getName(), typedBinding, pointx, pointy);
+        return new ParameterBindingValueChangeAction!(Deformation,typeof(typedBinding))(
+            typedBinding.getName(), typedBinding, pointx, pointy, null, notifyDepthBone);
     } else if (auto typedBinding = cast(ParameterParameterBinding)binding) {
-        return new ParameterBindingValueChangeAction!(float,typeof(typedBinding))(typedBinding.getName(), typedBinding, pointx, pointy);
+        return new ParameterBindingValueChangeAction!(float,typeof(typedBinding))(
+            typedBinding.getName(), typedBinding, pointx, pointy, null, notifyDepthBone);
     } else {
         return null;
     }
 }
-class ParameterChangeBindingsValueAction : AbstractParameterChangeBindingsAction!(int, int) {
-    this(string name, Parameter self, ParameterBinding[] bindings, int pointx, int pointy) {
-        super(name, self, bindings, &BindingValueChangeMapper, pointx, pointy);
+class ParameterChangeBindingsValueAction : AbstractParameterChangeBindingsAction!(int, int, bool) {
+    this(
+        string name,
+        Parameter self,
+        ParameterBinding[] bindings,
+        int pointx,
+        int pointy,
+        bool notifyDepthBone = true,
+    ) {
+        super(name, self, bindings, &BindingValueChangeMapper, pointx, pointy, notifyDepthBone);
     }
 }

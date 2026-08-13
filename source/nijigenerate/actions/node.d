@@ -8,6 +8,9 @@
 module nijigenerate.actions.node;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation :
+    DepthBoneMutationKind,
+    ngNotifyDepthBoneTargetChanged;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.actions.binding : ParameterBindingAllValueChangeAction;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigBinding, ExDepthRigRoot;
@@ -30,6 +33,33 @@ import std.algorithm;
 import std.range:zip;
 import std.array;
 import std.math : abs;
+
+private void notifyDepthBoneNodeTransform(Node node, string reason = "Target Transform") {
+    ngNotifyDepthBoneTargetChanged(
+        node,
+        DepthBoneMutationKind.TargetTransform,
+        reason);
+}
+
+private bool isNodeTransformActionName(string name) {
+    switch (name) {
+        case "X":
+        case "Y":
+        case "Z":
+        case "translationX":
+        case "translationY":
+        case "translationZ":
+        case "rotationX":
+        case "rotationY":
+        case "rotationZ":
+        case "scaleX":
+        case "scaleY":
+        case "lockToRoot":
+            return true;
+        default:
+            return false;
+    }
+}
 /**
     An action that happens when a node is changed
 */
@@ -117,6 +147,8 @@ public:
             newTransform[sn.uuid] = sn.localTransform;
         }
         incActivePuppet().rescanNodes();
+        foreach (node; nodes)
+            notifyDepthBoneNodeTransform(node, "Node Hierarchy");
     
         // Set visual name
         if (nodes.length == 1) descrName = nodes[0].name;
@@ -147,6 +179,8 @@ public:
             }
         }
         incActivePuppet().rescanNodes();
+        foreach (node; nodes)
+            notifyDepthBoneNodeTransform(node, "Node Hierarchy");
     }
 
     /**
@@ -170,6 +204,8 @@ public:
             }
         }
         incActivePuppet().rescanNodes();
+        foreach (node; nodes)
+            notifyDepthBoneNodeTransform(node, "Node Hierarchy");
     }
 
     /**
@@ -218,6 +254,8 @@ public:
 
         foreach (node; affectedNodes)
             newTransforms[node.uuid] = node.localTransform;
+        foreach (node; affectedNodes)
+            notifyDepthBoneNodeTransform(node, "Centralize Node");
     }
 
     private void collect(Node node) {
@@ -232,6 +270,7 @@ public:
                 node.localTransform = *transform;
                 node.transformChanged();
                 node.notifyChange(node, NotifyReason.Transformed);
+                notifyDepthBoneNodeTransform(node, "Centralize Node");
             }
         }
     }
@@ -1196,6 +1235,8 @@ public:
         this.newValue = newValue;
         this.valuePtr = valuePtr;
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        if (isNodeTransformActionName(name))
+            notifyDepthBoneNodeTransform(node);
     }
 
     /**
@@ -1204,6 +1245,8 @@ public:
     void rollback() {
         *valuePtr = oldValue;
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        if (isNodeTransformActionName(name))
+            notifyDepthBoneNodeTransform(node);
     }
 
     /**
@@ -1212,6 +1255,8 @@ public:
     void redo() {
         *valuePtr = newValue;
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        if (isNodeTransformActionName(name))
+            notifyDepthBoneNodeTransform(node);
     }
 
     /**
@@ -1274,8 +1319,11 @@ public:
         this.oldValue = oldValue;
         this.newValue = newValue;
         this.valuePtr = valuePtr;
-        foreach (n; node)
+        foreach (n; node) {
             n.notifyChange(n, NotifyReason.AttributeChanged);
+            if (isNodeTransformActionName(name))
+                notifyDepthBoneNodeTransform(n);
+        }
     }
 
     /**
@@ -1285,6 +1333,8 @@ public:
         foreach (i; 0..node.length) {
             *(valuePtr[i]) = oldValue[i];
             node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+            if (isNodeTransformActionName(name))
+                notifyDepthBoneNodeTransform(node[i]);
         }
     }
 
@@ -1295,6 +1345,8 @@ public:
         foreach (i; 0..node.length) {
             *(valuePtr[i]) = newValue[i];
             node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+            if (isNodeTransformActionName(name))
+                notifyDepthBoneNodeTransform(node[i]);
         }
     }
 

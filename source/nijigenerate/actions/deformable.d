@@ -2,6 +2,9 @@ module nijigenerate.actions.deformable;
 
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation :
+    DepthBoneMutationKind,
+    ngNotifyDepthBoneTargetChanged;
 import nijigenerate;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijigenerate.ext.param : ExParameterGroup;
@@ -43,7 +46,9 @@ public:
     }
 
     override
-    void updateNewState() {}
+    void updateNewState() {
+        notifyGeometryChanged();
+    }
 
     override
     void clear() {}
@@ -127,6 +132,14 @@ private:
         self.clearCache();
         import nijigenerate.viewport.vertex : ngRefreshDeformableCommandEditors;
         ngRefreshDeformableCommandEditors(self);
+        notifyGeometryChanged();
+    }
+
+    private void notifyGeometryChanged() {
+        ngNotifyDepthBoneTargetChanged(
+            cast(Node)self,
+            DepthBoneMutationKind.TargetGeometry,
+            "Target Geometry");
     }
 }
 
@@ -215,6 +228,7 @@ private:
         self.notifyChange(cast(Node)self, NotifyReason.StructureChanged);
         import nijigenerate.viewport.vertex : ngRefreshDeformableCommandEditors;
         ngRefreshDeformableCommandEditors(self);
+        notifyGeometryChanged();
     }
 
 public:
@@ -227,6 +241,7 @@ public:
     override
     void updateNewState() {
         this.newState = captureState();
+        notifyGeometryChanged();
     }
 
     override
@@ -259,4 +274,12 @@ public:
 
     override bool merge(Action other) { return false; }
     override bool canMerge(Action other) { return false; }
+
+private:
+    void notifyGeometryChanged() {
+        ngNotifyDepthBoneTargetChanged(
+            cast(Node)self,
+            DepthBoneMutationKind.TargetGeometry,
+            "Target Geometry");
+    }
 }

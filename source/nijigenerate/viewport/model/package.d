@@ -7,7 +7,9 @@
 */
 module nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
-import nijigenerate.viewport.model.depthboneoverlay : drawDepthBoneEffectivePivots;
+import nijigenerate.viewport.model.depthboneoverlay : depthBoneEffectivePivotSelectionChanged,
+    drawDepthBoneEffectivePivots;
+import nijigenerate.commands.depth.bone : ngFlushDepthBoneEffectivePivotDirty;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.texture;
@@ -52,6 +54,16 @@ ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 
 class ModelLayoutViewport : Viewport {
 public:
+    override
+    void selectionChanged(Node[] nodes) {
+        depthBoneEffectivePivotSelectionChanged(nodes);
+    }
+
+    override
+    void withdraw() {
+        depthBoneEffectivePivotSelectionChanged(null);
+    }
+
     void drawDepthBones(ExDepthRigRoot root, ExDepthBone selectedBone = null) {
         if (root is null) return;
 
@@ -308,6 +320,9 @@ public:
         syncSubView();
 
         incActivePuppet.update();
+        // Parameter and node notifications are complete here. Refresh only the
+        // coalesced selected-pivot cache before the viewport consumes it.
+        ngFlushDepthBoneEffectivePivotDirty();
         incActivePuppet.draw();
         auto onion = OnionSlice.singleton();
         onion.draw();
@@ -346,6 +361,7 @@ public:
                 igSameLine(0, 4);
                 if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     ngShowDepthBones = !ngShowDepthBones;
+                    depthBoneEffectivePivotSelectionChanged(incSelectedNodes());
                 }
                 incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
 

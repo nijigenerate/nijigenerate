@@ -6,8 +6,11 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.viewport.model.deform;
+
+import nijigenerate.actions.depthboneinvalidation : ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate.viewport.model.mesheditor;
-import nijigenerate.viewport.model.depthboneoverlay : drawDepthBoneEffectivePivots;
+import nijigenerate.viewport.model.depthboneoverlay : depthBoneEffectivePivotSelectionChanged,
+    drawDepthBoneEffectivePivots;
 import nijigenerate.viewport.base;
 import nijigenerate.core.input;
 import nijigenerate.core.dbg;
@@ -133,6 +136,7 @@ public:
         if(incBeginDropdownMenu("GIZMOS", "")) {
             if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                 ngShowDepthBones = !ngShowDepthBones;
+                depthBoneEffectivePivotSelectionChanged(incSelectedNodes());
             }
             incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
             incEndDropdownMenu();
@@ -151,7 +155,9 @@ public:
             foreach (d; incSelectedNodes()) {
                 if (auto deformable = cast(Deformable)d) {
                     auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(deformable, "deform");
-                    deform.update(parameter.findClosestKeypoint(), editor.getEditorFor(deformable).getOffsets());
+                    auto keypoint = parameter.findClosestKeypoint();
+                    deform.update(keypoint, editor.getEditorFor(deformable).getOffsets());
+                    ngNotifyDepthBoneBindingValueChanged(deform, keypoint);
                 }
             }
         }
@@ -159,8 +165,14 @@ public:
 
     override
     void selectionChanged(Node[] nodes) {
+        depthBoneEffectivePivotSelectionChanged(nodes);
         editor = null;
         paramValueChanged();
+    }
+
+    override
+    void withdraw() {
+        depthBoneEffectivePivotSelectionChanged(null);
     }
  
     override

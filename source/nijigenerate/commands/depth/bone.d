@@ -5,7 +5,10 @@ import nijigenerate.commands.depth.bone_gpu_async : DepthBoneGpuDispatchPacket, 
     ngDepthBoneGpuAsyncMissingRequirements, ngDepthBoneGpuAsyncSupported, ngPendingDepthBoneGpuAsyncJobCount,
     ngPollDepthBoneGpuAsync, ngSubmitDepthBoneGpuAsync;
 import nijigenerate.actions;
-import nijigenerate.actions.binding : ngDepthBoneBindingValueChangeHook;
+import nijigenerate.actions.depthboneinvalidation :
+    DepthBoneMutation,
+    DepthBoneMutationKind,
+    ngDepthBoneMutationHook;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction, ParameterShapeChangeAction;
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.ext : ExParameter;
@@ -30,7 +33,7 @@ import std.exception : enforce;
 import std.json : JSONType, JSONValue, parseJSON;
 import std.math : abs, cos, isFinite, sin, sqrt;
 import std.conv : to;
-import std.string : format, split, startsWith;
+import std.string : format, startsWith;
 
 private enum EnableDepthBoneDebugLog = false;
 enum DepthBoneGpuBoneStride = 24u;
@@ -76,7 +79,7 @@ enum DepthBoneCommand {
 }
 
 shared static this() {
-    ngDepthBoneBindingValueChangeHook = &ngDepthBoneBindingValueChanged;
+    ngDepthBoneMutationHook = &ngDepthBoneMutationChanged;
 }
 
 Command[DepthBoneCommand] commands;
@@ -391,6 +394,165 @@ DepthBoneSourceEffectivePivot[] ngDepthBoneSourceEffectivePivots(
     return result;
 }
 
+private {
+    ExDepthRigRoot depthBoneEffectivePivotCacheRoot;
+    ExDepthBone depthBoneEffectivePivotCacheBone;
+    DepthBoneSourceEffectivePivot[] depthBoneEffectivePivotCache;
+    bool depthBoneEffectivePivotCacheDirty;
+    bool depthBoneEffectivePivotCacheReady;
+    ulong depthBoneEffectivePivotCacheGeneration;
+    bool[ulong] depthBoneEffectivePivotDependencyUuids;
+    Puppet depthBoneEffectivePivotObservedPuppet;
+
+    final class DepthBoneEffectivePivotObserver {
+        void onChange(Node target, NotifyReason reason) {
+            if (target is null || !depthBoneEffectivePivotCacheReady) return;
+            if (target.uuid in depthBoneEffectivePivotDependencyUuids ||
+                isSameOrAncestorNode(depthBoneEffectivePivotCacheRoot, target)) {
+                depthBoneEffectivePivotCacheDirty = true;
+            }
+        }
+    }
+
+    DepthBoneEffectivePivotObserver depthBoneEffectivePivotObserver;
+}
+
+private void clearDepthBoneEffectivePivotSelection() {
+    depthBoneEffectivePivotCacheRoot = null;
+    depthBoneEffectivePivotCacheBone = null;
+    depthBoneEffectivePivotCache.length = 0;
+    depthBoneEffectivePivotDependencyUuids.clear();
+    depthBoneEffectivePivotCacheDirty = false;
+    depthBoneEffectivePivotCacheReady = false;
+}
+
+private void syncDepthBoneEffectivePivotObserver() {
+    auto puppet = incActivePuppet();
+    if (puppet is depthBoneEffectivePivotObservedPuppet) return;
+
+    if (depthBoneEffectivePivotObserver !is null &&
+        depthBoneEffectivePivotObservedPuppet !is null &&
+        depthBoneEffectivePivotObservedPuppet.root !is null) {
+        depthBoneEffectivePivotObservedPuppet.root.removeNotifyListener(
+            &depthBoneEffectivePivotObserver.onChange);
+    }
+
+    clearDepthBoneEffectivePivotSelection();
+    depthBoneEffectivePivotObservedPuppet = puppet;
+    if (depthBoneEffectivePivotObserver is null) {
+        depthBoneEffectivePivotObserver = new DepthBoneEffectivePivotObserver;
+    }
+    if (puppet !is null && puppet.root !is null) {
+        puppet.root.addNotifyListener(&depthBoneEffectivePivotObserver.onChange);
+    }
+}
+
+private void addDepthBoneEffectivePivotDependency(Node node) {
+    for (auto cursor = node; cursor !is null; cursor = cursor.parent) {
+        depthBoneEffectivePivotDependencyUuids[cursor.uuid] = true;
+    }
+}
+
+private void rebuildDepthBoneEffectivePivotDependencies() {
+    depthBoneEffectivePivotDependencyUuids.clear();
+    auto puppet = incActivePuppet();
+    if (depthBoneEffectivePivotCacheRoot is null || puppet is null || puppet.root is null) return;
+
+    addDepthBoneEffectivePivotDependency(depthBoneEffectivePivotCacheRoot);
+    foreach (ref binding; depthBoneEffectivePivotCacheRoot.bindings) {
+        addDepthBoneEffectivePivotDependency(
+            findNodeByUuid(puppet.root, binding.targetUuid));
+    }
+}
+
+private bool hasVisibleDepthBoneEffectivePivotSource(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+) {
+    if (root is null || bone is null) return false;
+    foreach (ref binding; root.bindings) {
+        if (binding.sourceBoneUuids.countUntil(bone.uuid) < 0) continue;
+        if (normalizeDepthBoneSourceRotation(
+            binding.sourceSetting(bone.uuid).rotation) != 0.0f) return true;
+    }
+    return false;
+}
+
+/**
+ * Select the only BoneSource effective-pivot cache entry needed by ModelEdit.
+ * Repeated calls with the same pair are constant-time and do not invalidate it.
+ */
+void ngSetDepthBoneEffectivePivotSelection(ExDepthRigRoot root, ExDepthBone bone) {
+    syncDepthBoneEffectivePivotObserver();
+    if (root is null || bone is null) {
+        clearDepthBoneEffectivePivotSelection();
+        return;
+    }
+    if (root is depthBoneEffectivePivotCacheRoot && bone is depthBoneEffectivePivotCacheBone) return;
+
+    depthBoneEffectivePivotCacheRoot = root;
+    depthBoneEffectivePivotCacheBone = bone;
+    depthBoneEffectivePivotCache.length = 0;
+    depthBoneEffectivePivotDependencyUuids.clear();
+    depthBoneEffectivePivotCacheDirty = true;
+    depthBoneEffectivePivotCacheReady = false;
+}
+
+/** Mark the selected overlay cache dirty without doing any geometry work. */
+void ngInvalidateDepthBoneEffectivePivotCache(ExDepthRigRoot root = null) {
+    if (depthBoneEffectivePivotCacheRoot is null) return;
+    if (root is null || root is depthBoneEffectivePivotCacheRoot) {
+        depthBoneEffectivePivotCacheDirty = true;
+    }
+}
+
+/**
+ * Process the coalesced overlay update outside viewport drawing. The numerical
+ * result still comes from ngDepthBoneSourceEffectivePivots so rendering behavior
+ * remains identical. Exact zero rotations are invisible and need no rig snapshot.
+ */
+void ngFlushDepthBoneEffectivePivotDirty() {
+    syncDepthBoneEffectivePivotObserver();
+    if (!depthBoneEffectivePivotCacheDirty) return;
+
+    depthBoneEffectivePivotCacheDirty = false;
+    depthBoneEffectivePivotCacheReady = false;
+    depthBoneEffectivePivotCache.length = 0;
+    auto root = depthBoneEffectivePivotCacheRoot;
+    auto bone = depthBoneEffectivePivotCacheBone;
+    if (root is null || bone is null || !isLiveDepthRigRoot(root) || !rootContainsBone(root, bone)) {
+        clearDepthBoneEffectivePivotSelection();
+        return;
+    }
+
+    rebuildDepthBoneEffectivePivotDependencies();
+    if (hasVisibleDepthBoneEffectivePivotSource(root, bone)) {
+        depthBoneEffectivePivotCache = ngDepthBoneSourceEffectivePivots(root, bone);
+    }
+    depthBoneEffectivePivotCacheReady = true;
+    depthBoneEffectivePivotCacheGeneration++;
+}
+
+/** Return the last completed result. This function never rebuilds the rig. */
+DepthBoneSourceEffectivePivot[] ngCachedDepthBoneSourceEffectivePivots(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+) {
+    syncDepthBoneEffectivePivotObserver();
+    if (!depthBoneEffectivePivotCacheReady ||
+        root !is depthBoneEffectivePivotCacheRoot ||
+        bone !is depthBoneEffectivePivotCacheBone) return null;
+    return depthBoneEffectivePivotCache;
+}
+
+bool ngHasPendingDepthBoneEffectivePivotRefresh() {
+    return depthBoneEffectivePivotCacheDirty;
+}
+
+ulong ngDepthBoneEffectivePivotCacheGeneration() {
+    return depthBoneEffectivePivotCacheGeneration;
+}
+
 private bool nearestScaledWorldDepthAtPoint(ExDepthRigRoot root, ExDepthBone bone, vec2 worldPoint, out float worldDepth) {
     auto puppet = incActivePuppet();
     if (root is null || puppet is null) {
@@ -646,7 +808,6 @@ bool ngFitDepthRigNodeTranslationZToCurrentDepth(Node node) {
         if (changed) {
             incActionPush(group);
         }
-        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(root, "Fit Depth Rig Bones Z to Depth");
         incSetStatus(changed
             ? _("Fit Z to Depth updated descendant DepthBone translation.t.z values.")
             : _("Fit Z to Depth completed; descendant DepthBone translation.t.z values were already aligned."));
@@ -663,7 +824,6 @@ bool ngFitDepthRigNodeTranslationZToCurrentDepth(Node node) {
             return false;
         }
         if (changed) incActionPush(group);
-        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(root, "Fit Depth Bone Z to Depth");
         incSetStatus(changed
             ? _("Fit Z to Depth updated the DepthBone translation.t.z value.")
             : _("Fit Z to Depth completed; the DepthBone translation.t.z value was already aligned."));
@@ -1231,13 +1391,6 @@ private DepthBoneGpuRefreshJob[] depthBoneGpuRefreshJobs;
 private DepthBoneGpuCompletedJob[] depthBoneGpuCompletedJobs;
 private bool[uint] canceledDepthBoneGpuBatches;
 private uint nextDepthBoneGpuBatchId = 1;
-private struct DepthBoneFingerprint {
-    ulong rigHash;
-    ulong[uint] parameterStructureHashes;
-    ulong[string] poseKeyHashes;
-}
-
-private DepthBoneFingerprint[uint] depthBoneFingerprints;
 
 void ngBeginDepthBoneRefreshActionSink(GroupAction sink) {
     depthBoneRefreshActionSink = sink;
@@ -2012,10 +2165,13 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
 
     if (param !is null && deformBindings.length > 0) {
         auto group = new GroupAction();
-        foreach (binding; created) group.addAction(new ParameterBindingAddAction(param, binding));
+        foreach (binding; created)
+            group.addAction(new ParameterBindingAddAction(param, binding, false));
         auto label = reason.length ? _("Auto Refresh Depth Bone Deform: %s").format(reason) : _("Auto Refresh Depth Bone Deform");
+        // Generated output is tagged at the action itself so its initial write,
+        // undo, and redo cannot recursively invalidate the generator.
         auto action = new ParameterChangeBindingsValueAction(label, param, cast(ParameterBinding[])deformBindings,
-            cast(int)keypoint.x, cast(int)keypoint.y);
+            cast(int)keypoint.x, cast(int)keypoint.y, false);
         foreach (i, binding; deformBindings) binding.update(keypoint, offsetsList[i]);
         action.updateNewState();
         group.addAction(action);
@@ -2136,6 +2292,7 @@ void ngMarkDepthBoneDirty(
     bool settleBeforeDispatch = false,
 ) {
     if (root is null) return;
+    ngInvalidateDepthBoneEffectivePivotCache(root);
     if (parameter !is null) {
         lastDepthBoneDirtyRoot = root;
         lastDepthBoneDirtyParameter = parameter;
@@ -2210,71 +2367,48 @@ void ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(ExDepthRigRoot root, stri
 
 void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
     if (target is null || incActivePuppet() is null) return;
-    auto param = incArmedParameter();
-    auto keypoint = param is null ? vec2u.init : param.findClosestKeypoint();
 
     if (auto bone = cast(ExDepthBone)target) {
         if (auto root = findDepthRigRoot(bone)) {
-            auto actualParam = depthBoneRefreshParameter(root, param);
-            auto actualKeypoint = keypoint;
-            if (actualParam is null && lastDepthBoneDirtyRoot is root) {
-                actualParam = depthBoneRefreshParameter(root, lastDepthBoneDirtyParameter);
-            }
-            if (actualParam !is null && actualParam is lastDepthBoneDirtyParameter) {
-                actualKeypoint = lastDepthBoneDirtyKeypoint;
-            }
-            if (actualParam is null) {
-                ngMarkDepthBoneDirty(root, null, actualKeypoint, reason, DepthBoneDirtyScope.AllKeypoints);
-            } else {
-                ngMarkDepthBoneDirty(root, actualParam, actualKeypoint, reason, DepthBoneDirtyScope.Keypoint);
-            }
+            if (!depthBoneRootHasGeneratedTargets(root)) return;
+            if (depthBoneAffectedParameters(root).length == 0) return;
+            ngMarkDepthBoneDirty(
+                root, null, vec2u.init, reason, DepthBoneDirtyScope.AllKeypoints);
         }
         return;
     }
 
-    void visit(Node node) {
-        if (node is null) return;
-        if (auto root = cast(ExDepthRigRoot)node) {
-            if (root.findBindingIndex(target.uuid) >= 0) {
-                auto actualParam = depthBoneRefreshParameter(root, param);
-                auto actualKeypoint = keypoint;
-                if (actualParam is null && lastDepthBoneDirtyRoot is root) {
-                    actualParam = depthBoneRefreshParameter(root, lastDepthBoneDirtyParameter);
-                }
-                if (actualParam !is null && actualParam is lastDepthBoneDirtyParameter) {
-                    actualKeypoint = lastDepthBoneDirtyKeypoint;
-                }
-                uint affectedTargetUuid = cast(uint)target.uuid;
-                foreach (ref binding; root.bindings) {
-                    auto bindingTarget = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
-                    if (bindingTarget !is null && bindingTarget !is target &&
-                        isSameOrAncestorNode(target, bindingTarget)) {
-                        affectedTargetUuid = 0;
-                        break;
-                    }
-                }
-                ngMarkDepthBoneDirty(
-                    root,
-                    actualParam,
-                    actualKeypoint,
-                    reason,
-                    DepthBoneDirtyScope.AllKeypoints,
-                    affectedTargetUuid
-                );
-            }
-        }
-        foreach (child; node.children) visit(child);
+    if (auto root = cast(ExDepthRigRoot)target) {
+        if (!depthBoneRootHasGeneratedTargets(root)) return;
+        if (depthBoneAffectedParameters(root).length == 0) return;
+        ngMarkDepthBoneDirty(
+            root, null, vec2u.init, reason, DepthBoneDirtyScope.AllKeypoints);
+        return;
     }
 
-    visit(incActivePuppet().root);
-}
+    foreach (root; depthBoneRoots()) {
+        if (!depthBoneRootHasGeneratedTargets(root)) continue;
+        bool exactTarget;
+        bool affectsDescendant;
+        foreach (ref binding; root.bindings) {
+            auto bindingTarget = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
+            if (bindingTarget is null) continue;
+            if (bindingTarget is target) exactTarget = true;
+            else if (isSameOrAncestorNode(target, bindingTarget)) affectsDescendant = true;
+        }
+        if (!exactTarget && !affectsDescendant) continue;
+        if (depthBoneAffectedParameters(root).length == 0) continue;
 
-bool ngAutoApplyDepthBoneDeform(ExDepthBone changedBone, Parameter param, vec2u kp) {
-    if (changedBone is null || param is null) return false;
-    auto rigRoot = findDepthRigRoot(changedBone);
-    if (rigRoot is null) return false;
-    ngMarkDepthBoneDirty(rigRoot, param, kp, "Depth Bone Transform");
-    return true;
+        // Descendants share hierarchy compensation and must refresh together.
+        auto affectedTargetUuid = affectsDescendant ? 0 : cast(uint)target.uuid;
+        ngMarkDepthBoneDirty(
+            root,
+            null,
+            vec2u.init,
+            reason,
+            DepthBoneDirtyScope.AllKeypoints,
+            affectedTargetUuid);
+    }
 }
 
 private bool isSameOrAncestorNode(Node ancestor, Node node) {
@@ -2290,6 +2424,7 @@ private bool ngMarkDepthBoneDirtyForTransformBindingTarget(Node changedNode, Par
     if (changedNode is null || param is null || incActivePuppet() is null) return false;
     bool marked;
     foreach (root; depthBoneRoots()) {
+        if (!depthBoneRootHasGeneratedTargets(root)) continue;
         bool affectsRoot;
         foreach (ref binding; root.bindings) {
             auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
@@ -2306,13 +2441,152 @@ private bool ngMarkDepthBoneDirtyForTransformBindingTarget(Node changedNode, Par
     return marked;
 }
 
-void ngDepthBoneBindingValueChanged(Parameter param, Node target, string bindingName, vec2u kp) {
-    if (target is null || param is null || !isDepthBoneTransformBindingName(bindingName)) return;
-    if (auto bone = cast(ExDepthBone)target) {
-        ngAutoApplyDepthBoneDeform(bone, param, kp);
-        return;
+private bool depthBoneBindingMutationInfo(
+    ParameterBinding binding,
+    out Parameter parameter,
+    out Node target,
+    out string bindingName,
+) {
+    parameter = null;
+    target = null;
+    bindingName = null;
+    if (auto valueBinding = cast(ValueParameterBinding)binding) {
+        parameter = valueBinding.parameter;
+        target = cast(Node)valueBinding.getTarget().target;
+        bindingName = valueBinding.getName();
+        return parameter !is null && target !is null;
     }
-    ngMarkDepthBoneDirtyForTransformBindingTarget(target, param, kp, "Depth Bone Target Transform");
+    if (auto deformBinding = cast(DeformationParameterBinding)binding) {
+        parameter = deformBinding.parameter;
+        target = cast(Node)deformBinding.getTarget().target;
+        bindingName = deformBinding.getName();
+        return parameter !is null && target !is null;
+    }
+    return false;
+}
+
+private bool ngMarkDepthBoneDirtyForDeformationBindingTarget(
+    Node changedNode,
+    Parameter param,
+    vec2u kp,
+    DepthBoneDirtyScope dirtyScope,
+    string reason,
+) {
+    auto parentGrid = cast(GridDeformer)changedNode;
+    if (parentGrid is null || param is null || incActivePuppet() is null) return false;
+
+    bool marked;
+    foreach (root; depthBoneRoots()) {
+        if (!depthBoneRootHasGeneratedTargets(root)) continue;
+        bool affectsDescendant;
+        foreach (ref rigBinding; root.bindings) {
+            auto targetNode = incActivePuppet().find!Node(cast(uint)rigBinding.targetUuid);
+            auto target = cast(Deformable)targetNode;
+            if (targetNode is null || target is null || targetNode is changedNode) continue;
+            if (!isSameOrAncestorNode(changedNode, targetNode)) continue;
+            if (!parentGridInfluenceCanReachTarget(root, parentGrid, target)) continue;
+            affectsDescendant = true;
+            break;
+        }
+        if (!affectsDescendant) continue;
+
+        // Parent and descendant targets must be generated in one hierarchy batch;
+        // splitting by target would make descendant compensation read stale data.
+        ngMarkDepthBoneDirty(root, param, kp, reason, dirtyScope);
+        marked = true;
+    }
+    return marked;
+}
+
+void ngDepthBoneMutationChanged(DepthBoneMutation mutation) {
+    final switch (mutation.kind) {
+        case DepthBoneMutationKind.BindingValue:
+        case DepthBoneMutationKind.BindingAllValues:
+        case DepthBoneMutationKind.BindingStructure:
+            Parameter param;
+            Node target;
+            string bindingName;
+            if (!depthBoneBindingMutationInfo(
+                mutation.binding, param, target, bindingName)) return;
+
+            auto dirtyScope = mutation.kind == DepthBoneMutationKind.BindingValue
+                ? DepthBoneDirtyScope.Keypoint
+                : DepthBoneDirtyScope.AllKeypoints;
+            if (cast(DeformationParameterBinding)mutation.binding) {
+                ngMarkDepthBoneDirtyForDeformationBindingTarget(
+                    target,
+                    param,
+                    mutation.keypoint,
+                    dirtyScope,
+                    "Depth Bone Ancestor Deformation");
+                return;
+            }
+            if (!isDepthBoneTransformBindingName(bindingName)) return;
+            if (auto bone = cast(ExDepthBone)target) {
+                auto root = findDepthRigRoot(bone);
+                if (root !is null && depthBoneRootHasGeneratedTargets(root)) {
+                    ngMarkDepthBoneDirty(
+                        root,
+                        param,
+                        mutation.keypoint,
+                        "Depth Bone Transform",
+                        dirtyScope);
+                }
+                return;
+            }
+            if (dirtyScope == DepthBoneDirtyScope.Keypoint) {
+                ngMarkDepthBoneDirtyForTransformBindingTarget(
+                    target, param, mutation.keypoint, "Depth Bone Target Transform");
+            } else {
+                foreach (root; depthBoneRoots()) {
+                    if (!depthBoneRootHasGeneratedTargets(root)) continue;
+                    bool affectsRoot = target is root;
+                    foreach (ref rigBinding; root.bindings) {
+                        auto targetNode = incActivePuppet().find!Node(cast(uint)rigBinding.targetUuid);
+                        if (targetNode !is null &&
+                            (target is targetNode || isSameOrAncestorNode(target, targetNode))) {
+                            affectsRoot = true;
+                            break;
+                        }
+                    }
+                    if (affectsRoot) {
+                        ngMarkDepthBoneDirty(
+                            root,
+                            param,
+                            mutation.keypoint,
+                            "Depth Bone Target Transform",
+                            DepthBoneDirtyScope.AllKeypoints);
+                    }
+                }
+            }
+            return;
+
+        case DepthBoneMutationKind.RigConfiguration:
+            ExDepthRigRoot root;
+            if (auto directRoot = cast(ExDepthRigRoot)mutation.target) {
+                root = directRoot;
+            } else if (auto bone = cast(ExDepthBone)mutation.target) {
+                root = findDepthRigRoot(bone);
+            }
+            if (root !is null) {
+                if (!depthBoneRootHasGeneratedTargets(root)) return;
+                if (depthBoneAffectedParameters(root).length == 0) return;
+                ngMarkDepthBoneDirty(
+                    root,
+                    null,
+                    vec2u.init,
+                    mutation.reason,
+                    DepthBoneDirtyScope.AllKeypoints,
+                    0,
+                    mutation.settleBeforeDispatch);
+            }
+            return;
+
+        case DepthBoneMutationKind.TargetTransform:
+        case DepthBoneMutationKind.TargetGeometry:
+            ngMarkDepthBoneDirtyForTarget(mutation.target, mutation.reason);
+            return;
+    }
 }
 
 private ulong hashMix(ulong seed, ulong value) {
@@ -2439,6 +2713,17 @@ private bool isLiveDepthRigRoot(ExDepthRigRoot root) {
     return false;
 }
 
+private bool depthBoneRootHasGeneratedTargets(ExDepthRigRoot root) {
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null) return false;
+    foreach (ref binding; root.bindings) {
+        if (!hasValidDepthBoneSources(root, binding)) continue;
+        auto target = puppet.find!Node(cast(uint)binding.targetUuid);
+        if (cast(Deformable)target !is null) return true;
+    }
+    return false;
+}
+
 private bool rootContainsBone(ExDepthRigRoot root, ExDepthBone bone) {
     if (root is null || bone is null) return false;
     Node cursor = bone;
@@ -2447,10 +2732,6 @@ private bool rootContainsBone(ExDepthRigRoot root, ExDepthBone bone) {
         cursor = cursor.parent;
     }
     return false;
-}
-
-private string poseKey(uint parameterUuid, uint x, uint y) {
-    return parameterUuid.to!string ~ ":" ~ x.to!string ~ ":" ~ y.to!string;
 }
 
 private string keypointKey(vec2u kp) {
@@ -2556,81 +2837,6 @@ private ulong depthBonePoseKeyHash(ExDepthRigRoot root, Parameter param, vec2u k
     }
 
     return hash;
-}
-
-private DepthBoneFingerprint computeDepthBoneFingerprint(ExDepthRigRoot root) {
-    DepthBoneFingerprint fingerprint;
-    fingerprint.rigHash = depthBoneRigStructureHash(root);
-    auto puppet = incActivePuppet();
-    if (root is null || puppet is null) return fingerprint;
-
-    foreach (param; puppet.parameters) {
-        if (param is null) continue;
-        auto paramHash = depthBoneParameterStructureHash(root, param);
-        bool hasDepthBoneBinding;
-        foreach (binding; param.bindings) {
-            auto bone = cast(ExDepthBone)binding.getTarget().node;
-            if (bone is null || !rootContainsBone(root, bone)) continue;
-            if (!isDepthBoneTransformBindingName(binding.getName())) continue;
-            hasDepthBoneBinding = true;
-            break;
-        }
-        if (!hasDepthBoneBinding) continue;
-        fingerprint.parameterStructureHashes[param.uuid] = paramHash;
-        foreach (kp; depthBoneKeypoints(param)) {
-            fingerprint.poseKeyHashes[poseKey(param.uuid, kp.x, kp.y)] = depthBonePoseKeyHash(root, param, kp);
-        }
-    }
-
-    return fingerprint;
-}
-
-private void ngCheckDepthBoneFingerprints() {
-    bool[uint] liveRootUuids;
-    foreach (root; depthBoneRoots()) {
-        liveRootUuids[cast(uint)root.uuid] = true;
-        auto current = computeDepthBoneFingerprint(root);
-        auto oldPtr = cast(uint)root.uuid in depthBoneFingerprints;
-        if (oldPtr is null) {
-            depthBoneFingerprints[cast(uint)root.uuid] = current;
-            continue;
-        }
-        auto old = *oldPtr;
-        if (current.rigHash != old.rigHash) {
-            ngMarkDepthBoneDirty(root, null, vec2u.init, "Depth Bone Dependency", DepthBoneDirtyScope.AllKeypoints);
-        }
-
-        foreach (paramUuid, hash; current.parameterStructureHashes) {
-            auto oldHash = paramUuid in old.parameterStructureHashes;
-            if (oldHash is null || *oldHash != hash) {
-                if (auto param = incActivePuppet().findParameter(paramUuid)) {
-                    ngMarkDepthBoneDirty(root, param, param.findClosestKeypoint(), "Depth Bone Parameter Structure", DepthBoneDirtyScope.AllKeypoints);
-                }
-            }
-        }
-
-        foreach (key, hash; current.poseKeyHashes) {
-            auto oldHash = key in old.poseKeyHashes;
-            if (oldHash is null || *oldHash != hash) {
-                auto parts = key.split(":");
-                if (parts.length == 3) {
-                    auto paramUuid = parts[0].to!uint;
-                    if (auto param = incActivePuppet().findParameter(paramUuid)) {
-                        auto kp = vec2u(parts[1].to!uint, parts[2].to!uint);
-                        ngMarkDepthBoneDirty(root, param, kp, "Depth Bone Pose", DepthBoneDirtyScope.Keypoint);
-                    }
-                }
-            }
-        }
-
-        depthBoneFingerprints[cast(uint)root.uuid] = current;
-    }
-
-    uint[] staleRootUuids;
-    foreach (rootUuid; depthBoneFingerprints.byKey) {
-        if (rootUuid !in liveRootUuids) staleRootUuids ~= rootUuid;
-    }
-    foreach (rootUuid; staleRootUuids) depthBoneFingerprints.remove(rootUuid);
 }
 
 private vec2u[] depthBoneKeypoints(Parameter param) {
@@ -3064,6 +3270,7 @@ class CreateDepthRigRootCommand : ExCommand!(
         auto root = new ExDepthRigRoot(actualParent);
         root.name = name.length ? name : "DepthRig";
         if (actualParent.puppet) actualParent.puppet.rescanNodes();
+        root.notifyChange(root, NotifyReason.StructureChanged);
         return new CreateResult!Node(true, [root]);
     }
 }
@@ -3083,6 +3290,7 @@ class AddDepthBoneCommand : ExCommand!(
         enforce(cast(ExDepthRigRoot)parent || cast(ExDepthBone)parent, "parent must be DepthRigRoot or DepthBone");
         auto bone = ngCreateDepthBone(parent, boneId, vec3From(restHead, "restHead"), vec3From(restTail, "restTail"), restRoll);
         if (parent.puppet) parent.puppet.rescanNodes();
+        bone.notifyChange(bone, NotifyReason.StructureChanged);
         return new CreateResult!Node(true, [bone]);
     }
 }
@@ -3098,6 +3306,7 @@ class AddStandardDepthSkeletonCommand : ExCommand!(
         auto rigRoot = requireRoot(root);
         ngAddStandardDepthSkeleton(rigRoot, scale == 0 ? 1.0f : scale);
         if (rigRoot.puppet) rigRoot.puppet.rescanNodes();
+        rigRoot.notifyChange(rigRoot, NotifyReason.StructureChanged);
         return CommandResult(true);
     }
 }
@@ -3610,7 +3819,6 @@ class SetDepthBoneRestCommand : ExCommand!(
         b.restTail = vec3From(restTail, "restTail");
         b.restRoll = restRoll;
         incActionPush(new DepthBoneRestChangeAction(b, oldHead, oldTail, oldRoll, b.restHead, b.restTail, b.restRoll));
-        if (auto rigRoot = findDepthRigRoot(b)) ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Rest");
         return CommandResult(true);
     }
 }
@@ -3642,7 +3850,6 @@ class SetDepthBoneConstraintCommand : ExCommand!(
         if ("maxStepRadians" in json.object) b.maxStepRadians = jsonNumber(json["maxStepRadians"], b.maxStepRadians);
         action.updateNewState();
         incActionPush(action);
-        if (auto rigRoot = findDepthRigRoot(b)) ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Constraint");
         return CommandResult(true);
     }
 }
@@ -3675,7 +3882,6 @@ class AddDepthBoneSourceCommand : ExCommand!(
         auto oldBindings = rigRoot.bindings.dup;
         rigRoot.addBoneSource(target, targetKindOf(target), source);
         incActionPush(new DepthBoneSourceListChangeAction("Add Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings));
-        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Add Depth Bone Source");
         return CommandResult(true);
     }
 }
@@ -3693,7 +3899,6 @@ class RemoveDepthBoneSourceCommand : ExCommand!(
         auto oldBindings = rigRoot.bindings.dup;
         rigRoot.removeBoneSource(target, requireBone(bone));
         incActionPush(new DepthBoneSourceListChangeAction("Remove Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings));
-        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Remove Depth Bone Source");
         return CommandResult(true);
     }
 }
@@ -3754,27 +3959,12 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
             setting.depthOffset,
             setting.depthScale,
             setting.rotation);
-        incActionPush(new DepthBoneSourceListChangeAction("Set Depth Bone Source Settings", rigRoot, oldBindings, rigRoot.bindings));
-        auto param = ctx.hasArmedParameters && ctx.armedParameters.length > 0 ? ctx.armedParameters[0] : null;
-        if (param !is null) {
-            ngMarkDepthBoneDirty(
-                rigRoot,
-                param,
-                param.findClosestKeypoint(),
-                "Depth Bone Source Settings",
-                DepthBoneDirtyScope.AllKeypoints,
-                0,
-                true);
-        } else {
-            ngMarkDepthBoneDirty(
-                rigRoot,
-                null,
-                vec2u.init,
-                "Depth Bone Source Settings",
-                DepthBoneDirtyScope.AllKeypoints,
-                0,
-                true);
-        }
+        incActionPush(new DepthBoneSourceListChangeAction(
+            "Set Depth Bone Source Settings",
+            rigRoot,
+            oldBindings,
+            rigRoot.bindings,
+            true));
         return CommandResult(true);
     }
 }
@@ -3793,7 +3983,6 @@ class SetDepthBoneInfluenceRuleCommand : ExCommand!(
         auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
         applyRuleJson(binding.influenceRule, rule);
         incActionPush(new DepthBoneBindingRuleChangeAction("Set Depth Bone Influence Rule", rigRoot, oldBindings, rigRoot.bindings));
-        ngMarkDepthBoneDirtyAllKeypointsForArmedParameter(rigRoot, "Depth Bone Influence Rule");
         return CommandResult(true);
     }
 }
