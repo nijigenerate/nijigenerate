@@ -795,7 +795,8 @@ void incViewportTransformHandle() {
                 incGetDragPrevValueOnHandle(btn, name, prevValue);
                 mpos = incInputGetMousePosition();
                 incSetDragPrevPosOnHandle(btn, name, mpos);
-                auto origin = -vec2(selectedNode.transform.translation.vector[0..2]);
+                auto nodeOrigin = (selectedNode.transform.matrix * vec4(0, 0, 0, 1)).xy;
+                auto origin = -nodeOrigin;
                 mpos    -= origin;
                 prevPos -= origin;
 

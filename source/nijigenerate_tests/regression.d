@@ -137,6 +137,7 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
 import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
 import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
+import nijigenerate.viewport.model.depthboneoverlay : buildDepthBoneOverlayGeometry;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
@@ -413,6 +414,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.preview-commands", "Depth Bone", "List, preview influence, preview deform, and apply deform commands", automated, "Covers reduced command fixture for listing bones/sources, influence preview deformation, posed deform preview, apply-to-binding, undo, and redo."),
     Scenario("depthbone.gpu-packet", "Depth Bone", "GPU offset packet construction for GridDeformer and PathDeformer", automated, "Covers packet construction, BoneSource rotation records, shader source contract, and rotated deformation before OpenGL transform feedback dispatch."),
     Scenario("depthbone.gpu-all-keypoints", "Depth Bone", "GPU all-keypoints refresh dispatch and readback", automated, "Covers GPU dispatch/readback through all-keypoints refresh."),
+    Scenario("depthbone.overlay-selection", "Depth Bone", "Selected DepthBone point and parent/child link classification", automated, "Covers selected-node ownership and distinct incoming/outgoing overlay geometry."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
     Scenario("depthbone.cleanup", "Depth Bone", "Deleting bones or target structures cleans stale source/binding references", automated, "Covers DeleteNodeCommand cleanup of DepthBone source references with undo/redo."),
     Scenario("depthbone.skinning", "Depth Bone", "Skinning influence, terminal bone rule, lockToRoot, and parent-to-target options", automated, "Covers a golden two-bone fixture where terminal lockToRoot prevents parent translation from moving vertices beyond the locked terminal bone."),
@@ -15381,6 +15383,61 @@ private ExDepthBone findDepthBoneById(ExDepthRigRoot root, string boneId) {
     return null;
 }
 
+private void testDepthBoneOverlaySelectionGeometry() {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    auto parent = ngCreateDepthBone(root, "Parent", vec3(10, 10, 0), vec3(20, 20, 0));
+    auto selected = ngCreateDepthBone(parent, "Selected", vec3(20, 20, 0), vec3(30, 20, 0));
+    auto childA = ngCreateDepthBone(selected, "ChildA", vec3(30, 20, 0), vec3(40, 20, 0));
+    auto childB = ngCreateDepthBone(selected, "ChildB", vec3(20, 30, 0), vec3(20, 40, 0));
+    auto sibling = ngCreateDepthBone(parent, "Sibling", vec3(5, 20, 0), vec3(0, 30, 0));
+
+    auto rootToLocal = root.transform.matrix.inverse;
+    vec3 nodePoint(Node node) {
+        return (rootToLocal * node.transform.matrix * vec4(0, 0, 0, 1)).xyz;
+    }
+
+    auto geometry = buildDepthBoneOverlayGeometry(root, selected);
+    require(geometry.selectedPoints.length == 1,
+        "DepthBone overlay must mark exactly the selected node");
+    require(nearVec3(geometry.selectedPoints[0], nodePoint(selected)),
+        "DepthBone overlay marker must use the selected node position, not its parent position");
+    require(geometry.points.length == 4,
+        "DepthBone overlay must leave parent, children, and sibling as ordinary points");
+
+    require(geometry.parentLines.length == 2,
+        "DepthBone overlay must classify exactly one parent-to-selected link");
+    require(nearVec3(geometry.parentLines[0], nodePoint(parent))
+        && nearVec3(geometry.parentLines[1], nodePoint(selected)),
+        "incoming DepthBone overlay link must run from parent to selected node");
+
+    require(geometry.childLines.length == 4,
+        "DepthBone overlay must classify every selected-to-child link");
+    require(nearVec3(geometry.childLines[0], nodePoint(selected))
+        && nearVec3(geometry.childLines[1], nodePoint(childA))
+        && nearVec3(geometry.childLines[2], nodePoint(selected))
+        && nearVec3(geometry.childLines[3], nodePoint(childB)),
+        "outgoing DepthBone overlay links must run from selected node to each child");
+
+    require(geometry.lines.length == 2
+        && nearVec3(geometry.lines[0], nodePoint(parent))
+        && nearVec3(geometry.lines[1], nodePoint(sibling)),
+        "unrelated DepthBone links must remain in the ordinary line buffer");
+
+    auto selectedWorld = (selected.transform.matrix * vec4(0, 0, 0, 1)).xy;
+    auto selectedHandleBounds = ngViewportTransformHandleAdapter(selected).bounds(selected);
+    require(nearVec2(selectedHandleBounds.xy, selectedWorld)
+        && nearVec2(selectedHandleBounds.zw, selectedWorld),
+        "DepthBone transform hover controls must be anchored to the selected node origin, not descendant bounds");
+
+    auto rootWorld = (root.transform.matrix * vec4(0, 0, 0, 1)).xy;
+    auto rootHandleBounds = ngViewportTransformHandleAdapter(root).bounds(root);
+    require(nearVec2(rootHandleBounds.xy, rootWorld)
+        && nearVec2(rootHandleBounds.zw, rootWorld),
+        "DepthRigRoot transform hover controls must be anchored to the root node origin, not its bone hierarchy");
+}
+
 private void testDepthBoneStandardSkeletonTemplate() {
     resetCase();
 
@@ -19633,6 +19690,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.gpu-all-keypoints":
             runCase("depthbone-gpu-all-keypoints-dispatch", &testDepthBoneGpuAllKeypointsDispatch);
+            return true;
+        case "depthbone.overlay-selection":
+            runCase("depthbone-overlay-selection-geometry", &testDepthBoneOverlaySelectionGeometry);
             return true;
         case "depthbone.skinning":
             runCase("depthbone-skinning-lock-to-root-terminal", &testDepthBoneSkinningLockToRootTerminal);
