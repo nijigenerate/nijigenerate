@@ -22,6 +22,7 @@ enum DepthBoneMutationKind {
 struct DepthBoneMutation {
     DepthBoneMutationKind kind;
     Node target;
+    Node affectedTarget;
     ParameterBinding binding;
     vec2u keypoint;
     string reason;
@@ -63,11 +64,13 @@ void ngNotifyDepthBoneRigChanged(
     Node target,
     string reason,
     bool settleBeforeDispatch = false,
+    Node affectedTarget = null,
 ) {
     if (target is null || ngDepthBoneMutationHook is null) return;
     DepthBoneMutation mutation;
     mutation.kind = DepthBoneMutationKind.RigConfiguration;
     mutation.target = target;
+    mutation.affectedTarget = affectedTarget;
     mutation.reason = reason;
     mutation.settleBeforeDispatch = settleBeforeDispatch;
     ngDepthBoneMutationHook(mutation);

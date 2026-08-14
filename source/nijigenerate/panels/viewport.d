@@ -161,6 +161,15 @@ protected:
                 ImVec2(1-(0.5/width), (0.5/height)), 
                 0xFFFFFFFF,
             );
+
+            // Draw screen-space overlays in the same phase and DrawList as the
+            // viewport image.  Child tool areas must never reach back into a
+            // parent/sibling DrawList while ImGui is building their contents.
+            viewport.drawOverlay(
+                drawList,
+                igGetCurrentWindow().InnerRect.Max,
+                rect,
+            );
             igItemAdd(rect, igGetID("###VIEWPORT_DISP"));
             
             // Popup right click menu

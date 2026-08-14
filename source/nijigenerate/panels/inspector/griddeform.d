@@ -323,7 +323,8 @@ private:
         }
         binding.sourceBoneUuids = reordered;
         binding.normalizeSourceSettings();
-        incActionPush(new DepthBoneSourceListChangeAction("Reorder Depth Bone Source", root, oldBindings, root.bindings));
+        incActionPush(new DepthBoneSourceListChangeAction(
+            "Reorder Depth Bone Source", root, oldBindings, root.bindings, false, target));
     }
 
     static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting, Parameter parameter = null, vec2u cursor = vec2u.init) {

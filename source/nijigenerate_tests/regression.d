@@ -2,6 +2,10 @@ module nijigenerate_tests.regression;
 
 import nijigenerate.actions;
 import nijigenerate.actions.depthboneinvalidation :
+    DepthBoneMutation,
+    DepthBoneMutationHook,
+    DepthBoneMutationKind,
+    ngDepthBoneMutationHook,
     ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate.api.acp.protocol : ACPError, ACP_METHOD_INITIALIZE, ACP_METHOD_PING, ACP_PROTOCOL_VERSION, ErrorCode, JSONRPC_VERSION;
 import nijigenerate.api.acp.types : Document, Position, Range, StatusLevel, StatusNotification, TextEdit, WorkspaceEdit;
@@ -34,6 +38,19 @@ import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthIm
     ngPsdDepthImportResultToDepthDrawSession;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
+import nijigenerate.commands.depth.bone_status :
+    DepthBoneUpdateState,
+    DepthBoneUpdateStatus,
+    ngClearDepthBoneUpdateStatuses,
+    ngDepthBoneUpdateApplied,
+    ngDepthBoneUpdateBatchCanceled,
+    ngDepthBoneUpdateDetected,
+    ngDepthBoneUpdateFailed,
+    ngDepthBoneUpdatePlanned,
+    ngDepthBoneUpdateProcessing,
+    ngDepthBoneUpdateQueued,
+    ngDepthBoneUpdateStale,
+    ngDepthBoneUpdateStatuses;
 import nijigenerate.commands.inspector.apply_node;
 import nijigenerate.commands.model.set_deform_binding;
 import nijigenerate.commands.node.base : clipboardNodes, conversionMap;
@@ -137,7 +154,10 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
 import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
 import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
-import nijigenerate.viewport.model.depthboneoverlay : buildDepthBoneOverlayGeometry;
+import nijigenerate.viewport.model.depthboneoverlay : buildDepthBoneOverlayGeometry,
+    buildDepthBoneUpdateTargetOutline,
+    depthBoneUpdateProgressFraction,
+    depthBoneUpdateViewportLabel;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
@@ -415,6 +435,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.gpu-packet", "Depth Bone", "GPU offset packet construction for GridDeformer and PathDeformer", automated, "Covers packet construction, BoneSource rotation records, shader source contract, and rotated deformation before OpenGL transform feedback dispatch."),
     Scenario("depthbone.gpu-all-keypoints", "Depth Bone", "GPU all-keypoints refresh dispatch and readback", automated, "Covers GPU dispatch/readback through all-keypoints refresh."),
     Scenario("depthbone.overlay-selection", "Depth Bone", "Selected DepthBone point and parent/child link classification", automated, "Covers selected-node ownership and distinct incoming/outgoing overlay geometry."),
+    Scenario("depthbone.update-visualization", "Depth Bone", "Event-driven GridDeformer and PathDeformer update status visualization", automated, "Covers detected, queued, processing, applied, stale, and failed target states plus cached target outlines."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
     Scenario("depthbone.cleanup", "Depth Bone", "Deleting bones or target structures cleans stale source/binding references", automated, "Covers DeleteNodeCommand cleanup of DepthBone source references with undo/redo."),
     Scenario("depthbone.skinning", "Depth Bone", "Skinning influence, terminal bone rule, lockToRoot, and parent-to-target options", automated, "Covers a golden two-bone fixture where terminal lockToRoot prevents parent translation from moving vertices beyond the locked terminal bone."),
@@ -667,6 +688,7 @@ private void runCase(string name, scope void delegate() test) {
 
 private void resetCase() {
     incActionClearHistory();
+    ngClearDepthBoneUpdateStatuses();
     ngCreateHeadlessRegressionProject();
     incActionClearHistory();
 }
@@ -13560,6 +13582,17 @@ private void testDepthBoneSourceRefreshIgnoresPhysicsParameter() {
         "DepthBone source refresh must not add the armed Physics parameter to another target");
 }
 
+private size_t fitZMutationCount;
+private DepthBoneMutation fitZLastMutation;
+private DepthBoneMutationHook fitZForwardMutationHook;
+
+private void countFitZMutation(DepthBoneMutation mutation) {
+    fitZMutationCount++;
+    fitZLastMutation = mutation;
+    if (fitZForwardMutationHook !is null)
+        fitZForwardMutationHook(mutation);
+}
+
 private void testDepthRigRootFitZToDepth() {
     resetCase();
 
@@ -13576,6 +13609,7 @@ private void testDepthRigRootFitZToDepth() {
     target.replaceDepths([0.5f, 0.5f, 0.5f, 0.5f]);
 
     auto bone = ngCreateDepthBone(root, "FitBone", vec3(-10, -10, 0), vec3(-10, 90, 0));
+    auto siblingBone = ngCreateDepthBone(root, "FitSiblingBone", vec3(10, -10, 0), vec3(10, 90, 0));
     incActivePuppet().rescanNodes();
 
     auto ctx = new Context();
@@ -13610,36 +13644,55 @@ private void testDepthRigRootFitZToDepth() {
         "DepthBone Fit Z to Depth must publish an explicit bone argument");
     require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded,
         "fit fixture should add a depth bone source");
-    require(root.depthBones().length == 1, "fit fixture should expose one descendant DepthBone");
+    require(root.depthBones().length == 2, "fit fixture should expose two descendant DepthBones");
     require(root.bindings.length == 1, "fit fixture should keep one DepthRig binding");
     require(root.bindings[0].targetUuid == target.uuid, "fit fixture binding should point to the depth grid target");
     require(root.bindings[0].sourceBoneUuids == [cast(ulong)bone.uuid], "fit fixture binding should point to the source DepthBone");
     require(target.copyDepths().length == target.vertices.length, "fit fixture depths should match grid vertices");
 
     auto originalLocalZ = bone.localTransform.translation.vector[2];
+    auto siblingOriginalLocalZ = siblingBone.localTransform.translation.vector[2];
     float baselineProposedLocalZ;
     float baselineRootDepth;
     require(ngDepthRigNodeCurrentScaledDepth(bone, baselineProposedLocalZ, baselineRootDepth),
         "fit fixture should expose its unrotated sampled depth");
 
     incActionClearHistory();
+    fitZMutationCount = 0;
+    fitZLastMutation = DepthBoneMutation.init;
+    fitZForwardMutationHook = ngDepthBoneMutationHook;
+    ngDepthBoneMutationHook = &countFitZMutation;
     auto fitResult = cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, root);
+    ngDepthBoneMutationHook = fitZForwardMutationHook;
+    fitZForwardMutationHook = null;
     require(fitResult.succeeded, "DepthRigRoot Fit Z to Depth command returned false");
+    require(fitZMutationCount == 1,
+        "one Fit Z command must publish exactly one DepthBone invalidation, not one per changed bone");
+    require(fitZLastMutation.kind == DepthBoneMutationKind.RigConfiguration
+        && fitZLastMutation.target is root,
+        "Fit Z must invalidate the completed DepthRigRoot pose as one transaction");
     require(!near(bone.localTransform.translation.vector[2], originalLocalZ),
         "DepthRigRoot Fit Z to Depth should update descendant DepthBone local Z; got "
         ~ bone.localTransform.translation.vector[2].to!string);
     require(bone.localTransform.translation.vector[2] > originalLocalZ,
         "positive stored depth should fit descendant DepthBone local Z to the positive side; got "
         ~ bone.localTransform.translation.vector[2].to!string);
+    require(!near(siblingBone.localTransform.translation.vector[2], siblingOriginalLocalZ),
+        "DepthRigRoot Fit Z to Depth should update every fittable sibling DepthBone");
     require(incActionHistory().length == 1, "DepthRigRoot Fit Z to Depth should push one undo action");
     auto fittedLocalZ = bone.localTransform.translation.vector[2];
+    auto siblingFittedLocalZ = siblingBone.localTransform.translation.vector[2];
 
     incActionUndo();
     require(near(bone.localTransform.translation.vector[2], originalLocalZ),
         "undo DepthRigRoot Fit Z to Depth should restore the previous DepthBone local Z");
+    require(near(siblingBone.localTransform.translation.vector[2], siblingOriginalLocalZ),
+        "undo DepthRigRoot Fit Z to Depth should restore every changed sibling DepthBone local Z");
     incActionRedo();
     require(near(bone.localTransform.translation.vector[2], fittedLocalZ),
         "redo DepthRigRoot Fit Z to Depth should restore the fitted DepthBone local Z");
+    require(near(siblingBone.localTransform.translation.vector[2], siblingFittedLocalZ),
+        "redo DepthRigRoot Fit Z to Depth should restore every fitted sibling DepthBone local Z");
 
     incActionUndo();
     incActionClearHistory();
@@ -13706,6 +13759,45 @@ private void testDepthRigRootFitZToDepth() {
     require(near(nearestRootDepth, expectedNearestRootDepth),
         "Fit Z should choose x+d*tan(rotation) while preserving Z=d; got %s expected %s"
             .format(nearestRootDepth, expectedNearestRootDepth));
+
+    // A root Fit invalidates all keypoints of every parameter which drives the
+    // rig.  Verify the dispatch identity, rather than merely counting dirty
+    // notifications: one target x one parameter x two keypoints is exactly two
+    // GPU submissions even though two sibling bones are fitted.
+    auto fitParam = new ExParameter("FitDepthParam", false);
+    fitParam.min = vec2(0, 0);
+    fitParam.max = vec2(1, 0);
+    fitParam.value = vec2(1, 0);
+    incActivePuppet().parameters ~= fitParam;
+    auto fitYaw = newValueBinding(fitParam, bone, "transform.r.y");
+    fitYaw.setValue(vec2u(1, 0), 0.35f);
+    bone.localTransform.translation.vector[2] = originalLocalZ;
+    siblingBone.localTransform.translation.vector[2] = siblingOriginalLocalZ;
+    bone.localTransform.update();
+    siblingBone.localTransform.update();
+    bone.transformChanged();
+    siblingBone.transformChanged();
+
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(
+        &fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    require(cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, root).succeeded,
+        "dispatch-count Fit Z command should succeed");
+    ngFlushDepthBoneDirtyImmediate();
+    ngClearDepthBoneGpuAsyncTestHooks();
+    require(fakeDepthBoneGpuSubmitCount == 2,
+        "Fit Z must submit each affected target/parameter/keypoint exactly once; submitted=%s"
+            .format(fakeDepthBoneGpuSubmitCount));
+    auto fitDeform = cast(DeformationParameterBinding)fitParam.getBinding(target, "deform");
+    require(fitDeform !is null
+        && fitDeform.getValue(vec2u(0, 0)).vertexOffsets.length == target.vertices.length
+        && fitDeform.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
+        "Fit Z GPU submissions must write both distinct parameter keypoints without duplication");
 }
 
 private Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
@@ -14704,9 +14796,26 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     tx.setValue(vec2u(1, 0), 5.0f);
 
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU all keypoints regression", DepthBoneDirtyScope.AllKeypoints);
+    auto detectedStatuses = ngDepthBoneUpdateStatuses(incActivePuppet(), true);
+    require(detectedStatuses.length == gpuTargets.length,
+        "DepthBone invalidation should expose every affected target before dispatch");
+    foreach (status; detectedStatuses) {
+        require(status.state == DepthBoneUpdateState.Detected &&
+            status.expectedWork == 0 && status.appliedWork == 0,
+            "DepthBone invalidation should expose a detected target before queue planning");
+    }
     ngFlushDepthBoneDirtyImmediate();
     require(fakeDepthBoneGpuSubmitCount >= gpuTargets.length * 2 && fakeDepthBoneGpuPollCount >= gpuTargets.length * 2,
         "GPU all-keypoints refresh should submit and poll every target binding across multiple frames");
+    auto appliedStatuses = ngDepthBoneUpdateStatuses(incActivePuppet(), true);
+    require(appliedStatuses.length == gpuTargets.length,
+        "DepthBone writeback should preserve one visual status per affected target");
+    foreach (status; appliedStatuses) {
+        require(status.state == DepthBoneUpdateState.Applied &&
+            status.expectedWork == 2 && status.appliedWork == 2 &&
+            status.queuedWork == 0 && status.processingWork == 0,
+            "DepthBone target should become applied only after both keypoints are written back");
+    }
     DeformationParameterBinding deformBinding;
     DeformationParameterBinding deformBinding2;
     Vec2Array offsets;
@@ -14733,6 +14842,56 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     }
     require(!ngHasPendingDepthBoneRefresh(),
         "generated DepthBone deform writeback must not recursively dirty itself");
+
+    auto scopedChild = new ExGridDeformer(target);
+    scopedChild.name = "gpu-source-scope-dependent-child";
+    scopedChild.rebuffer(Vec2Array([
+        vec2(-4, 0), vec2(4, 0), vec2(-4, 40), vec2(4, 40),
+    ]));
+    auto scopedChildBinding = root.bindings[0];
+    scopedChildBinding.targetUuid = scopedChild.uuid;
+    root.bindings ~= scopedChildBinding;
+    incActivePuppet().rescanNodes();
+
+    auto scopedSourceCtx = new Context();
+    scopedSourceCtx.puppet = incActivePuppet();
+    scopedSourceCtx.armedParameters = [param];
+    auto submitCountBeforeScopedSource = fakeDepthBoneGpuSubmitCount;
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        scopedSourceCtx,
+        root,
+        target,
+        bone,
+        `{"weight":0.9,"depthOffset":0.25,"depthScale":1.0,"rotation":0.0}`
+    ).succeeded, "target-scoped BoneSource settings command should succeed");
+    auto scopedDetectedStatuses = ngDepthBoneUpdateStatuses(incActivePuppet(), true);
+    require(scopedDetectedStatuses.length == 2,
+        "editing one BoneSource must expose its target and dependent child only");
+    bool detectedScopedTarget;
+    bool detectedScopedChild;
+    foreach (status; scopedDetectedStatuses) {
+        require(status.state == DepthBoneUpdateState.Detected,
+            "target-scoped BoneSource status must remain detected before dispatch");
+        if (status.target is target) detectedScopedTarget = true;
+        else if (status.target is scopedChild) detectedScopedChild = true;
+        else require(false,
+            "editing one BoneSource must not expose unrelated sibling targets");
+    }
+    require(detectedScopedTarget && detectedScopedChild,
+        "target-scoped BoneSource status must retain its hierarchy-dependent child");
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount - submitCountBeforeScopedSource == 4,
+        "editing one BoneSource must dispatch only its two-target dependency branch across two keypoints");
+    auto scopedAppliedStatuses = ngDepthBoneUpdateStatuses(incActivePuppet(), true);
+    require(scopedAppliedStatuses.length == 2,
+        "target-scoped BoneSource writeback must leave no unrelated viewport status");
+    foreach (status; scopedAppliedStatuses) {
+        require((status.target is target || status.target is scopedChild) &&
+            status.state == DepthBoneUpdateState.Applied &&
+            status.expectedWork == 2 && status.appliedWork == 2,
+            "only the affected BoneSource dependency branch may become applied");
+    }
+    root.bindings = root.bindings[0 .. $ - 1];
 
     auto transformAction = new ParameterChangeBindingsValueAction(
         "DepthBone transform invalidation fixture",
@@ -15436,6 +15595,206 @@ private void testDepthBoneOverlaySelectionGeometry() {
     require(nearVec2(rootHandleBounds.xy, rootWorld)
         && nearVec2(rootHandleBounds.zw, rootWorld),
         "DepthRigRoot transform hover controls must be anchored to the root node origin, not its bone hierarchy");
+}
+
+private void testDepthBoneUpdateVisualizationState() {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "update-status-root";
+    auto grid = new ExGridDeformer(incActivePuppet().root);
+    grid.name = "update-status-grid";
+    grid.rebuffer(Vec2Array([
+        vec2(-10, -20), vec2(30, -20), vec2(30, 40), vec2(-10, 40),
+    ]));
+    auto param = new ExParameter("UpdateStatusParam", false);
+    incActivePuppet().parameters ~= param;
+
+    DepthBoneUpdateStatus statusFor(Node target) {
+        foreach (status; ngDepthBoneUpdateStatuses(incActivePuppet(), true)) {
+            if (status.target is target) return status;
+        }
+        require(false, "DepthBone update status should include the requested target");
+        return DepthBoneUpdateStatus.init;
+    }
+
+    ngDepthBoneUpdateDetected(root, grid, param, vec2u(1, 0), "depth edited");
+    auto status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Detected,
+        "DepthBone target status should start at detected before work is planned");
+    require(status.hasLocalBounds &&
+        nearVec2(status.localBoundsMin, vec2(-10, -20)) &&
+        nearVec2(status.localBoundsMax, vec2(30, 40)),
+        "DepthBone target status should cache its local bounds at the update event");
+    require(status.hasLabelWorld,
+        "DepthBone target status should decide its viewport label anchor when the update generation starts");
+    auto initialLabelWorld = status.labelWorld;
+    require(status.localOutline.length == 8 && status.pendingLocalOutline.length == 64,
+        "DepthBone target status should cache solid and pending outline geometry outside the frame loop");
+    auto detectedGeneration = status.generation;
+    ngDepthBoneUpdateDetected(root, grid, param, vec2u(2, 0), "coalesced depth edit");
+    status = statusFor(grid);
+    require(status.generation == detectedGeneration &&
+        status.keypoint == vec2u(2, 0) && status.reason == "coalesced depth edit",
+        "repeated invalidations before dispatch should coalesce without rebuilding a new visual generation");
+
+    Vec3Array gridOutline;
+    mat4 gridToWorld;
+    vec3 gridLabelWorld;
+    require(buildDepthBoneUpdateTargetOutline(
+        grid, gridOutline, gridToWorld, gridLabelWorld),
+        "DepthBone update visualization should build a GridDeformer outline");
+    require(gridOutline.length == 8 &&
+        nearVec3(gridOutline[0], vec3(-14, -24, 0)) &&
+        nearVec3(gridOutline[1], vec3(34, -24, 0)),
+        "DepthBone GridDeformer outline should be a padded four-edge rectangle");
+
+    ngDepthBoneUpdatePlanned(root, grid, param, vec2u(1, 0), "depth edited", 3);
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Queued && status.expectedWork == 3,
+        "planned DepthBone work should report the expected keypoint count");
+    require(near(depthBoneUpdateProgressFraction(status), 0.0f)
+        && depthBoneUpdateViewportLabel(status) == grid.name,
+        "viewport progress must start empty and identify the affected GridDeformer by name");
+
+    ngDepthBoneUpdateQueued(101, root, grid, param, vec2u(0, 0), "depth edited");
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Queued && status.queuedWork == 1,
+        "enqueued DepthBone work should report one waiting target write");
+    ngDepthBoneUpdateProcessing(101, root, grid);
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Processing && status.processingWork == 1,
+        "submitted DepthBone work should report processing");
+    ngDepthBoneUpdateApplied(101, root, grid);
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Processing && status.appliedWork == 1,
+        "a generation must remain running between GPU chunks after processing has started");
+    require(near(depthBoneUpdateProgressFraction(status), 1.0f / 3.0f),
+        "viewport progress must represent applied work as a fraction instead of X/N text");
+
+    ngDepthBoneUpdateQueued(102, root, grid, param, vec2u(1, 0), "depth edited");
+    ngDepthBoneUpdateQueued(103, root, grid, param, vec2u(2, 0), "depth edited");
+    ngDepthBoneUpdateQueued(104, root, grid, param, vec2u(3, 0), "overlapping depth edit");
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Processing &&
+        status.expectedWork == 4 && status.appliedWork == 1 && status.queuedWork == 3,
+        "additional queued work must increase the visible total without reverting RUN to WAIT");
+    ngDepthBoneUpdateApplied(102, root, grid);
+    ngDepthBoneUpdateApplied(103, root, grid);
+    ngDepthBoneUpdateProcessing(104, root, grid);
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Processing &&
+        status.appliedWork == 3 && status.expectedWork == 4,
+        "running DepthBone work must retain an unfinished progress denominator");
+    grid.deformation[] = vec2(20, 10);
+    ngDepthBoneUpdateApplied(104, root, grid);
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Applied &&
+        status.appliedWork == 4 && status.expectedWork == 4,
+        "DepthBone target status should become applied only after all writebacks complete");
+    require(near(depthBoneUpdateProgressFraction(status), 1.0f),
+        "viewport progress must be full when every target writeback is applied");
+    require(nearVec3(status.labelWorld, initialLabelWorld),
+        "a DepthBone update generation must keep its first label position even when completion refreshes changed target bounds");
+    auto updateOverlaySource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "viewport", "model", "depthboneoverlay.d"));
+    auto viewportPanelSource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "panels", "viewport.d"));
+    require(!updateOverlaySource.canFind("igProgressBar(")
+        && !updateOverlaySource.canFind("DepthBoneUpdateLabel")
+        && !updateOverlaySource.canFind("ParentWindow.DrawList")
+        && updateOverlaySource.canFind("ImDrawList_AddRectFilled(")
+        && updateOverlaySource.canFind("ImDrawList_AddText(")
+        && updateOverlaySource.canFind("incUiAccentColor(DepthBoneUpdateOverlayOpacity)")
+        && updateOverlaySource.canFind("DepthBoneUpdateFontScale")
+        && updateOverlaySource.canFind("DepthBoneUpdateVerticalPadding = 1.0f")
+        && updateOverlaySource.canFind("WorldToViewport(\n            status.labelWorld.x")
+        && !updateOverlaySource.canFind("vec4(status.labelLocal, 1)")
+        && updateOverlaySource.canFind("ImDrawList_PushClipRect(")
+        && viewportPanelSource.canFind("viewport.drawOverlay("),
+        "DepthBone progress must be a compact, theme-accented custom viewport overlay and never mutate another ImGui window's DrawList");
+
+    auto appliedGeneration = status.generation;
+    require(grid.deformation.length == grid.vertices.length,
+        "GridDeformer update visualization fixture should have matching deformation data");
+    ngDepthBoneUpdateDetected(root, grid, param, vec2u(1, 0), "mesh changed");
+    status = statusFor(grid);
+    require(status.generation > appliedGeneration &&
+        status.appliedWork == 0 && status.expectedWork == 0 &&
+        !nearVec3(status.labelWorld, initialLabelWorld),
+        "a new DepthBone invalidation should start a fresh visual generation");
+    require(nearVec2(status.localBoundsMax, vec2(50, 50)),
+        "a new update event should refresh cached bounds after deformation changes; actual=(%s,%s)".format(
+            status.localBoundsMax.x, status.localBoundsMax.y));
+
+    ngDepthBoneUpdatePlanned(root, grid, param, vec2u(1, 0), "mesh changed", 1);
+    ngDepthBoneUpdateQueued(201, root, grid, param, vec2u(1, 0), "mesh changed", 1);
+    ngDepthBoneUpdateProcessing(201, root, grid);
+    ngDepthBoneUpdateStale(201, root, grid, "target vertices changed");
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Stale &&
+        status.staleWork == 1 && status.detail == "target vertices changed",
+        "stale DepthBone work should remain visible with its rejection reason");
+
+    ngDepthBoneUpdateFailed(
+        root, grid, param, vec2u(1, 0), "mesh changed", "writeback failed");
+    status = statusFor(grid);
+    require(status.state == DepthBoneUpdateState.Failed &&
+        status.detail == "writeback failed",
+        "failed DepthBone work should remain visible with its failure reason");
+
+    auto path = new ExPathDeformer(incActivePuppet().root);
+    path.name = "update-status-path";
+    path.rebuffer(Vec2Array([
+        vec2(100, 200), vec2(140, 200), vec2(140, 260),
+    ]));
+    ngDepthBoneUpdateDetected(root, path, param, vec2u(0, 0), "path depth edited");
+    ngDepthBoneUpdatePlanned(root, path, param, vec2u(0, 0), "path depth edited", 1);
+    ngDepthBoneUpdateQueued(301, root, path, param, vec2u(0, 0), "path depth edited");
+    ngDepthBoneUpdateBatchCanceled(301, "superseded path update");
+    status = statusFor(path);
+    require(status.state == DepthBoneUpdateState.Stale &&
+        status.detail == "superseded path update",
+        "canceled PathDeformer work should expose its stale reason");
+
+    Vec3Array pathOutline;
+    mat4 pathToWorld;
+    vec3 pathLabelWorld;
+    require(buildDepthBoneUpdateTargetOutline(
+        path, pathOutline, pathToWorld, pathLabelWorld) && pathOutline.length == 8,
+        "DepthBone update visualization should build a PathDeformer outline");
+
+    auto noParamRoot = new ExDepthRigRoot(incActivePuppet().root);
+    auto noParamBone = ngCreateDepthBone(
+        noParamRoot, "NoParamBone", vec3(0, 0, 0), vec3(0, 20, 0));
+    auto noParamTarget = new ExGridDeformer(incActivePuppet().root);
+    noParamTarget.name = "update-status-no-param-grid";
+    noParamTarget.rebuffer(Vec2Array([
+        vec2(0, 0), vec2(10, 0), vec2(10, 10), vec2(0, 10),
+    ]));
+    ExDepthRigBinding noParamBinding;
+    noParamBinding.targetUuid = noParamTarget.uuid;
+    noParamBinding.targetKind = ExDepthTargetKind.Grid;
+    noParamBinding.sourceBoneUuids = [cast(ulong)noParamBone.uuid];
+    noParamRoot.bindings = [noParamBinding];
+    incActivePuppet().rescanNodes();
+    ngMarkDepthBoneDirty(
+        noParamRoot,
+        null,
+        vec2u(0, 0),
+        "depth edited without parameter",
+        DepthBoneDirtyScope.AllKeypoints);
+    ngFlushDepthBoneDirty();
+    status = statusFor(noParamTarget);
+    require(status.state == DepthBoneUpdateState.Failed &&
+        status.detail.canFind("No parameter drives"),
+        "DepthBone visualization should report an unqueueable update instead of waiting forever");
+
+    ngClearDepthBoneUpdateStatuses();
+    require(ngDepthBoneUpdateStatuses(incActivePuppet(), true).length == 0,
+        "clearing DepthBone update visualization state should remove every target record");
 }
 
 private void testDepthBoneStandardSkeletonTemplate() {
@@ -19693,6 +20052,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.overlay-selection":
             runCase("depthbone-overlay-selection-geometry", &testDepthBoneOverlaySelectionGeometry);
+            return true;
+        case "depthbone.update-visualization":
+            runCase("depthbone-update-visualization-state", &testDepthBoneUpdateVisualizationState);
             return true;
         case "depthbone.skinning":
             runCase("depthbone-skinning-lock-to-root-terminal", &testDepthBoneSkinningLockToRootTerminal);

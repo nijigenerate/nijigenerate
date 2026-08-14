@@ -4,6 +4,16 @@ import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone_gpu_async : DepthBoneGpuDispatchPacket, NgDepthBoneGpuAsyncResult,
     ngDepthBoneGpuAsyncMissingRequirements, ngDepthBoneGpuAsyncSupported, ngPendingDepthBoneGpuAsyncJobCount,
     ngPollDepthBoneGpuAsync, ngSubmitDepthBoneGpuAsync;
+import nijigenerate.commands.depth.bone_status :
+    ngDepthBoneUpdateAbort,
+    ngDepthBoneUpdateApplied,
+    ngDepthBoneUpdateBatchCanceled,
+    ngDepthBoneUpdateDetected,
+    ngDepthBoneUpdateFailed,
+    ngDepthBoneUpdatePlanned,
+    ngDepthBoneUpdateProcessing,
+    ngDepthBoneUpdateQueued,
+    ngDepthBoneUpdateStale;
 import nijigenerate.actions;
 import nijigenerate.actions.depthboneinvalidation :
     DepthBoneMutation,
@@ -700,7 +710,13 @@ size_t ngDepthRigRootFittableDepthBoneCount(ExDepthRigRoot root) {
     return result;
 }
 
-private bool fitDepthBoneTranslationZToCurrentDepth(ExDepthRigRoot root, ExDepthBone bone, GroupAction group, ref bool changed) {
+private bool fitDepthBoneTranslationZToCurrentDepth(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+    ref ExDepthBone[] changedBones,
+    ref float[] oldValues,
+    ref float[] newValues,
+) {
     if (root is null || bone is null) return false;
 
     float localTranslationZ;
@@ -710,10 +726,18 @@ private bool fitDepthBoneTranslationZToCurrentDepth(ExDepthRigRoot root, ExDepth
         return false;
     }
     depthBoneDebugLog("[FitZ] fit translation bone=%s localZ=%s rootDepth=%s", bone.name, localTranslationZ, rootDepth);
-    return fitDepthBoneTranslationZ(root, bone, localTranslationZ, group, changed);
+    return fitDepthBoneTranslationZ(
+        root, bone, localTranslationZ, changedBones, oldValues, newValues);
 }
 
-private bool fitDepthBoneTranslationZ(ExDepthRigRoot root, ExDepthBone bone, float localTranslationZ, GroupAction group, ref bool changed) {
+private bool fitDepthBoneTranslationZ(
+    ExDepthRigRoot root,
+    ExDepthBone bone,
+    float localTranslationZ,
+    ref ExDepthBone[] changedBones,
+    ref float[] oldValues,
+    ref float[] newValues,
+) {
     if (root is null || bone is null || !localTranslationZ.isFinite) return false;
 
     auto oldValue = bone.localTransform.translation.vector[2];
@@ -722,17 +746,9 @@ private bool fitDepthBoneTranslationZ(ExDepthRigRoot root, ExDepthBone bone, flo
     bone.localTransform.translation.vector[2] = localTranslationZ;
     bone.localTransform.update();
     bone.transformChanged();
-
-    auto action = new NodeValueChangeAction!(Node, float)(
-        "translationZ",
-        bone,
-        oldValue,
-        localTranslationZ,
-        &bone.localTransform.translation.vector[2]
-    );
-    if (group !is null) group.addAction(action);
-    else incActionPush(action);
-    changed = true;
+    changedBones ~= bone;
+    oldValues ~= oldValue;
+    newValues ~= localTranslationZ;
     return true;
 }
 
@@ -787,28 +803,32 @@ private bool fitDepthBoneBindingZToCurrentDepth(
 private bool fitOneDepthBoneZToDepth(
     ExDepthRigRoot root,
     ExDepthBone bone,
-    GroupAction group,
-    ref bool changed,
+    ref ExDepthBone[] changedBones,
+    ref float[] oldValues,
+    ref float[] newValues,
 ) {
-    return fitDepthBoneTranslationZToCurrentDepth(root, bone, group, changed);
+    return fitDepthBoneTranslationZToCurrentDepth(
+        root, bone, changedBones, oldValues, newValues);
 }
 
 bool ngFitDepthRigNodeTranslationZToCurrentDepth(Node node) {
     if (auto root = cast(ExDepthRigRoot)node) {
-        auto group = new GroupAction();
-        bool changed;
+        ExDepthBone[] changedBones;
+        float[] oldValues;
+        float[] newValues;
         bool fitted;
         foreach (bone; root.depthBones()) {
-            fitted = fitOneDepthBoneZToDepth(root, bone, group, changed) || fitted;
+            fitted = fitOneDepthBoneZToDepth(
+                root, bone, changedBones, oldValues, newValues) || fitted;
         }
         if (!fitted) {
             incSetStatus(_("Fit Z to Depth failed: no usable depth samples were found."));
             return false;
         }
-        if (changed) {
-            incActionPush(group);
-        }
-        incSetStatus(changed
+        if (changedBones.length > 0)
+            incActionPush(new DepthBoneFitZChangeAction(
+                root, changedBones, oldValues, newValues));
+        incSetStatus(changedBones.length > 0
             ? _("Fit Z to Depth updated descendant DepthBone translation.t.z values.")
             : _("Fit Z to Depth completed; descendant DepthBone translation.t.z values were already aligned."));
         return true;
@@ -817,14 +837,18 @@ bool ngFitDepthRigNodeTranslationZToCurrentDepth(Node node) {
     if (auto bone = cast(ExDepthBone)node) {
         auto root = findDepthRigRoot(bone);
         if (root is null) return false;
-        auto group = new GroupAction();
-        bool changed;
-        if (!fitOneDepthBoneZToDepth(root, bone, group, changed)) {
+        ExDepthBone[] changedBones;
+        float[] oldValues;
+        float[] newValues;
+        if (!fitOneDepthBoneZToDepth(
+            root, bone, changedBones, oldValues, newValues)) {
             incSetStatus(_("Fit Z to Depth failed: no usable depth sample was found for the DepthBone."));
             return false;
         }
-        if (changed) incActionPush(group);
-        incSetStatus(changed
+        if (changedBones.length > 0)
+            incActionPush(new DepthBoneFitZChangeAction(
+                root, changedBones, oldValues, newValues));
+        incSetStatus(changedBones.length > 0
             ? _("Fit Z to Depth updated the DepthBone translation.t.z value.")
             : _("Fit Z to Depth completed; the DepthBone translation.t.z value was already aligned."));
         return true;
@@ -1423,6 +1447,8 @@ private bool submitDepthBoneGpuRefreshJob(DepthBoneGpuQueuedJob queued, out stri
     if (!ngSubmitDepthBoneGpuAsync(dispatch, jobId, error)) return false;
     depthBoneGpuRefreshJobs ~= DepthBoneGpuRefreshJob(
         jobId, packet, queued.reason, queued.actionSink, queued.batchId, queued.batchExpected);
+    ngDepthBoneUpdateProcessing(
+        queued.batchId, packet.root, cast(Node)packet.target);
     return true;
 }
 
@@ -1433,6 +1459,14 @@ private void enqueueDepthBoneGpuRefreshBatch(DepthBoneGpuOffsetPacket[] packets,
     foreach (packet; packets) {
         depthBoneGpuSubmissionQueue ~= DepthBoneGpuQueuedJob(
             packet, reason, actionSink, batchId, packets.length);
+        ngDepthBoneUpdateQueued(
+            batchId,
+            packet.root,
+            cast(Node)packet.target,
+            packet.parameter,
+            packet.keypoint,
+            reason,
+            packet.staleRetryCount);
     }
 }
 
@@ -1455,7 +1489,7 @@ private bool depthBoneGpuPacketMatchesScope(
     if (packet.root !is root) return false;
     if (parameter !is null && packet.parameter !is parameter) return false;
     auto targetNode = cast(Node)packet.target;
-    return targetUuid == 0 || (targetNode !is null && targetNode.uuid == targetUuid);
+    return depthBoneTargetMatchesScope(root, targetNode, targetUuid);
 }
 
 private bool depthBoneGpuBatchHasPendingWork(uint batchId) {
@@ -1470,8 +1504,9 @@ private void cleanupCanceledDepthBoneGpuBatch(uint batchId) {
     if (!depthBoneGpuBatchHasPendingWork(batchId)) canceledDepthBoneGpuBatches.remove(batchId);
 }
 
-private void cancelDepthBoneGpuBatch(uint batchId) {
+private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
     canceledDepthBoneGpuBatches[batchId] = true;
+    ngDepthBoneUpdateBatchCanceled(batchId, statusDetail);
 
     size_t i;
     while (i < depthBoneGpuSubmissionQueue.length) {
@@ -1517,7 +1552,8 @@ private void cancelSupersededDepthBoneGpuWork(
     foreach (batchId; batchIds) cancelDepthBoneGpuBatch(batchId);
 }
 
-private void abortDepthBoneGpuRefresh() {
+private void abortDepthBoneGpuRefresh(string statusDetail = null) {
+    if (statusDetail.length > 0) ngDepthBoneUpdateAbort(statusDetail);
     depthBoneGpuSubmissionQueue = null;
     depthBoneGpuRefreshJobs = null;
     depthBoneGpuCompletedJobs = null;
@@ -1736,7 +1772,7 @@ private bool processDepthBoneGpuSubmissionQueue() {
                 queued.packet.keypoint.x,
                 queued.packet.keypoint.y,
                 staleReason);
-            cancelDepthBoneGpuBatch(queued.batchId);
+            cancelDepthBoneGpuBatch(queued.batchId, staleReason);
             continue;
         }
         if (depthBoneGpuRefreshJobs.length >= DepthBoneGpuMaxInFlight) break;
@@ -1744,8 +1780,8 @@ private bool processDepthBoneGpuSubmissionQueue() {
         depthBoneGpuSubmissionQueue = depthBoneGpuSubmissionQueue[1 .. $];
         string error;
         if (!submitDepthBoneGpuRefreshJob(queued, error)) {
-            abortDepthBoneGpuRefresh();
             auto message = "Depth Bone GPU async submit failed: %s".format(error);
+            abortDepthBoneGpuRefresh(message);
             writeDepthBoneGpuFatalLog(message);
             enforce(false, message);
         } else {
@@ -2066,6 +2102,8 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
 
     foreach (job; batch) {
         if (!job.valid) {
+            ngDepthBoneUpdateBatchCanceled(
+                batchId, "Depth Bone update batch was discarded because one target became stale");
             size_t i;
             while (i < depthBoneGpuCompletedJobs.length) {
                 if (depthBoneGpuCompletedJobs[i].batchId == batchId) {
@@ -2111,17 +2149,19 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
         auto target = job.packet.target;
         auto targetNode = cast(Node)target;
         if (target is null || targetNode is null) {
-            abortDepthBoneGpuRefresh();
-            enforce(false, "Depth Bone GPU writeback failed: target was deleted before batch writeback");
+            auto message = "Depth Bone GPU writeback failed: target was deleted before batch writeback";
+            abortDepthBoneGpuRefresh(message);
+            enforce(false, message);
         }
         if (job.offsets.length != target.vertices.length) {
-            abortDepthBoneGpuRefresh();
-            enforce(false, "Depth Bone GPU writeback failed: target=%s key=(%s,%s) readback offsets=%s vertices=%s".format(
+            auto message = "Depth Bone GPU writeback failed: target=%s key=(%s,%s) readback offsets=%s vertices=%s".format(
                 targetNode.name,
                 job.packet.keypoint.x,
                 job.packet.keypoint.y,
                 job.offsets.length,
-                target.vertices.length));
+                target.vertices.length);
+            abortDepthBoneGpuRefresh(message);
+            enforce(false, message);
         }
 
         auto adjusted = targetNode.uuid in resolvedOffsets;
@@ -2147,20 +2187,22 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
             if (deformBinding !is null) created ~= deformBinding;
         }
         if (deformBinding is null) {
-            abortDepthBoneGpuRefresh();
-            enforce(false, "Depth Bone GPU writeback failed: target=%s key=(%s,%s) deform binding could not be created".format(
+            auto message = "Depth Bone GPU writeback failed: target=%s key=(%s,%s) deform binding could not be created".format(
                 targetNode.name,
                 job.packet.keypoint.x,
-                job.packet.keypoint.y));
+                job.packet.keypoint.y);
+            abortDepthBoneGpuRefresh(message);
+            enforce(false, message);
         }
         deformBindings ~= deformBinding;
         offsetsList ~= offsets;
     }
 
     if (expectedBindingWrites != deformBindings.length) {
-        abortDepthBoneGpuRefresh();
-        enforce(false, "Depth Bone GPU writeback failed: batch=%s expected binding writes=%s actual=%s".format(
-            batchId, expectedBindingWrites, deformBindings.length));
+        auto message = "Depth Bone GPU writeback failed: batch=%s expected binding writes=%s actual=%s".format(
+            batchId, expectedBindingWrites, deformBindings.length);
+        abortDepthBoneGpuRefresh(message);
+        enforce(false, message);
     }
 
     if (param !is null && deformBindings.length > 0) {
@@ -2180,6 +2222,11 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
             return true;
         });
         changed = true;
+    }
+
+    foreach (job; batch) {
+        ngDepthBoneUpdateApplied(
+            batchId, job.packet.root, cast(Node)job.packet.target);
     }
 
     size_t i;
@@ -2225,8 +2272,8 @@ private bool processDepthBoneGpuRefreshJobs() {
         NgDepthBoneGpuAsyncResult result;
         string error;
         if (!ngPollDepthBoneGpuAsync(job.jobId, result, error)) {
-            abortDepthBoneGpuRefresh();
             auto message = "Depth Bone GPU async poll failed: %s".format(error);
+            abortDepthBoneGpuRefresh(message);
             writeDepthBoneGpuFatalLog(message);
             enforce(false, message);
         }
@@ -2243,6 +2290,11 @@ private bool processDepthBoneGpuRefreshJobs() {
         }
         string staleReason;
         if (!isDepthBoneGpuRefreshJobCurrent(job, staleReason)) {
+            ngDepthBoneUpdateStale(
+                job.batchId,
+                job.packet.root,
+                cast(Node)job.packet.target,
+                staleReason);
             requeueStaleDepthBoneGpuJob(job, staleReason);
             completeDepthBoneGpuJob(job, Vec2Array.init, false);
             depthBoneGpuRefreshJobs = depthBoneGpuRefreshJobs[0 .. i] ~ depthBoneGpuRefreshJobs[i + 1 .. $];
@@ -2282,6 +2334,64 @@ private Parameter depthBoneRefreshParameter(ExDepthRigRoot root, Parameter candi
     return depthBoneParameterDrivesRig(root, candidate) ? candidate : null;
 }
 
+private void markDepthBoneUpdateTargets(
+    ExDepthRigRoot root,
+    Parameter parameter,
+    vec2u keypoint,
+    uint targetUuid,
+    string reason,
+) {
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null) return;
+    foreach (ref binding; root.bindings) {
+        if (!depthBoneBindingMatchesTarget(root, binding, targetUuid)) continue;
+        if (!hasValidDepthBoneSources(root, binding)) continue;
+        auto target = puppet.find!Node(cast(uint)binding.targetUuid);
+        if (target is null) continue;
+        ngDepthBoneUpdateDetected(root, target, parameter, keypoint, reason);
+    }
+}
+
+private void planDepthBoneUpdateTargets(
+    ExDepthRigRoot root,
+    Parameter parameter,
+    vec2u keypoint,
+    uint targetUuid,
+    string reason,
+    size_t expectedWork,
+) {
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null || expectedWork == 0) return;
+    foreach (ref binding; root.bindings) {
+        if (!depthBoneBindingMatchesTarget(root, binding, targetUuid)) continue;
+        if (!hasValidDepthBoneSources(root, binding)) continue;
+        auto target = puppet.find!Node(cast(uint)binding.targetUuid);
+        if (target is null) continue;
+        ngDepthBoneUpdatePlanned(
+            root, target, parameter, keypoint, reason, expectedWork);
+    }
+}
+
+private void failDepthBoneUpdateTargets(
+    ExDepthRigRoot root,
+    Parameter parameter,
+    vec2u keypoint,
+    uint targetUuid,
+    string reason,
+    string detail,
+) {
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null) return;
+    foreach (ref binding; root.bindings) {
+        if (!depthBoneBindingMatchesTarget(root, binding, targetUuid)) continue;
+        if (!hasValidDepthBoneSources(root, binding)) continue;
+        auto target = puppet.find!Node(cast(uint)binding.targetUuid);
+        if (target is null) continue;
+        ngDepthBoneUpdateFailed(
+            root, target, parameter, keypoint, reason, detail);
+    }
+}
+
 void ngMarkDepthBoneDirty(
     ExDepthRigRoot root,
     Parameter parameter,
@@ -2293,6 +2403,8 @@ void ngMarkDepthBoneDirty(
 ) {
     if (root is null) return;
     ngInvalidateDepthBoneEffectivePivotCache(root);
+    markDepthBoneUpdateTargets(
+        root, parameter, keypoint, targetUuid, reason);
     if (parameter !is null) {
         lastDepthBoneDirtyRoot = root;
         lastDepthBoneDirtyParameter = parameter;
@@ -2388,26 +2500,26 @@ void ngMarkDepthBoneDirtyForTarget(Node target, string reason) {
 
     foreach (root; depthBoneRoots()) {
         if (!depthBoneRootHasGeneratedTargets(root)) continue;
-        bool exactTarget;
-        bool affectsDescendant;
+        bool affectsTargetScope;
         foreach (ref binding; root.bindings) {
-            auto bindingTarget = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
-            if (bindingTarget is null) continue;
-            if (bindingTarget is target) exactTarget = true;
-            else if (isSameOrAncestorNode(target, bindingTarget)) affectsDescendant = true;
+            if (depthBoneBindingMatchesTarget(
+                root, binding, cast(uint)target.uuid)) {
+                affectsTargetScope = true;
+                break;
+            }
         }
-        if (!exactTarget && !affectsDescendant) continue;
+        if (!affectsTargetScope) continue;
         if (depthBoneAffectedParameters(root).length == 0) continue;
 
-        // Descendants share hierarchy compensation and must refresh together.
-        auto affectedTargetUuid = affectsDescendant ? 0 : cast(uint)target.uuid;
+        // Affected descendants share hierarchy compensation and remain in the
+        // same scoped batch; unrelated sibling branches are excluded.
         ngMarkDepthBoneDirty(
             root,
             null,
             vec2u.init,
             reason,
             DepthBoneDirtyScope.AllKeypoints,
-            affectedTargetUuid);
+            cast(uint)target.uuid);
     }
 }
 
@@ -2435,7 +2547,8 @@ private bool ngMarkDepthBoneDirtyForTransformBindingTarget(Node changedNode, Par
             }
         }
         if (!affectsRoot) continue;
-        ngMarkDepthBoneDirty(root, param, kp, reason, DepthBoneDirtyScope.Keypoint);
+        ngMarkDepthBoneDirty(
+            root, param, kp, reason, DepthBoneDirtyScope.Keypoint);
         marked = true;
     }
     return marked;
@@ -2577,7 +2690,9 @@ void ngDepthBoneMutationChanged(DepthBoneMutation mutation) {
                     vec2u.init,
                     mutation.reason,
                     DepthBoneDirtyScope.AllKeypoints,
-                    0,
+                    mutation.affectedTarget is null
+                        ? 0
+                        : cast(uint)mutation.affectedTarget.uuid,
                     mutation.settleBeforeDispatch);
             }
             return;
@@ -2876,8 +2991,40 @@ private Parameter[] depthBoneAffectedParameters(ExDepthRigRoot rigRoot) {
     return result;
 }
 
-private bool depthBoneBindingMatchesTarget(ref ExDepthRigBinding binding, uint targetUuid) {
-    return targetUuid == 0 || binding.targetUuid == targetUuid;
+private bool depthBoneTargetMatchesScope(
+    ExDepthRigRoot root,
+    Node candidate,
+    uint targetUuid,
+) {
+    if (targetUuid == 0) return true;
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null || candidate is null) return false;
+    auto scopeTarget = puppet.find!Node(targetUuid);
+    if (scopeTarget is null) return false;
+    if (candidate is scopeTarget) return true;
+    if (!isSameOrAncestorNode(scopeTarget, candidate)) return false;
+
+    // Parent GridDeformer output affects only descendants reachable through
+    // the existing hierarchy propagation gates. Other scoped ancestors keep
+    // their descendant branch together, but never include sibling branches.
+    if (auto parentGrid = cast(GridDeformer)scopeTarget) {
+        auto deformable = cast(Deformable)candidate;
+        return deformable !is null &&
+            parentGridInfluenceCanReachTarget(root, parentGrid, deformable);
+    }
+    return true;
+}
+
+private bool depthBoneBindingMatchesTarget(
+    ExDepthRigRoot root,
+    ref ExDepthRigBinding binding,
+    uint targetUuid,
+) {
+    if (targetUuid == 0) return true;
+    auto puppet = incActivePuppet();
+    if (puppet is null) return false;
+    auto candidate = puppet.find!Node(cast(uint)binding.targetUuid);
+    return depthBoneTargetMatchesScope(root, candidate, targetUuid);
 }
 
 private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, vec2u kp, string reason, uint targetUuid = 0) {
@@ -2892,15 +3039,19 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
         rigRoot.bindings.length);
 
     enforceDepthBoneGpuAvailable("Depth Bone dirty refresh");
+    planDepthBoneUpdateTargets(
+        rigRoot, param, kp, targetUuid, reason, 1);
     DepthBoneGpuOffsetPacket[] packets;
     foreach (ref binding; rigRoot.bindings) {
-        if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
+        if (!depthBoneBindingMatchesTarget(rigRoot, binding, targetUuid)) continue;
         if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
         auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
         auto deformable = cast(Deformable)targetNode;
         if (deformable is null) {
             auto message = "Depth Bone GPU packet build failed: target uuid=%s is missing or not deformable".format(
                 binding.targetUuid);
+            ngDepthBoneUpdateFailed(
+                rigRoot, targetNode, param, kp, reason, message);
             writeDepthBoneGpuFatalLog(message);
             enforce(false, message);
         }
@@ -2912,6 +3063,8 @@ private bool ngRefreshDepthBoneDeform(ExDepthRigRoot rigRoot, Parameter param, v
                 kp.x,
                 kp.y,
                 error);
+            ngDepthBoneUpdateFailed(
+                rigRoot, targetNode, param, kp, reason, message);
             writeDepthBoneGpuFatalLog(message);
             enforce(false, message);
         }
@@ -2949,13 +3102,15 @@ private bool ngRefreshDepthBoneDeformKeypoints(
     foreach (kp; keypoints) {
         DepthBoneGpuOffsetPacket[] packets;
         foreach (ref binding; rigRoot.bindings) {
-            if (!depthBoneBindingMatchesTarget(binding, targetUuid)) continue;
+            if (!depthBoneBindingMatchesTarget(rigRoot, binding, targetUuid)) continue;
             if (!hasValidDepthBoneSources(rigRoot, binding)) continue;
             auto targetNode = incActivePuppet().find!Node(cast(uint)binding.targetUuid);
             auto deformable = cast(Deformable)targetNode;
             if (deformable is null) {
                 auto message = "Depth Bone GPU packet build failed: target uuid=%s is missing or not deformable".format(
                     binding.targetUuid);
+                ngDepthBoneUpdateFailed(
+                    rigRoot, targetNode, param, kp, reason, message);
                 writeDepthBoneGpuFatalLog(message);
                 enforce(false, message);
             }
@@ -2970,6 +3125,8 @@ private bool ngRefreshDepthBoneDeformKeypoints(
                     kp.x,
                     kp.y,
                     error);
+                ngDepthBoneUpdateFailed(
+                    rigRoot, targetNode, param, kp, reason, message);
                 writeDepthBoneGpuFatalLog(message);
                 enforce(false, message);
             }
@@ -2992,6 +3149,13 @@ private bool enqueueDepthBoneAllKeypoints(
     if (rigRoot is null || param is null) return false;
     auto keypoints = depthBoneKeypoints(param);
     if (keypoints.length == 0) return false;
+    planDepthBoneUpdateTargets(
+        rigRoot,
+        param,
+        param.findClosestKeypoint(),
+        targetUuid,
+        reason,
+        keypoints.length);
     cancelSupersededDepthBoneGpuWork(rigRoot, param, targetUuid);
 
     foreach (ref job; depthBoneAllKeypointJobs) {
@@ -3035,7 +3199,16 @@ private bool ngRefreshDepthBoneDeformAllKeypoints(
             rigRoot is null ? "(null)" : rigRoot.name,
             reason,
             params.length);
-        if (params.length == 0) return false;
+        if (params.length == 0) {
+            failDepthBoneUpdateTargets(
+                rigRoot,
+                null,
+                currentKeypoint,
+                targetUuid,
+                reason,
+                "No parameter drives this DepthBone rig, so no target writeback was queued");
+            return false;
+        }
         bool queued;
         foreach (resolvedParam; params) {
             queued = enqueueDepthBoneAllKeypoints(
@@ -3881,7 +4054,8 @@ class AddDepthBoneSourceCommand : ExCommand!(
         auto source = requireBone(bone);
         auto oldBindings = rigRoot.bindings.dup;
         rigRoot.addBoneSource(target, targetKindOf(target), source);
-        incActionPush(new DepthBoneSourceListChangeAction("Add Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings));
+        incActionPush(new DepthBoneSourceListChangeAction(
+            "Add Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings, false, target));
         return CommandResult(true);
     }
 }
@@ -3898,7 +4072,8 @@ class RemoveDepthBoneSourceCommand : ExCommand!(
         auto rigRoot = requireRoot(root);
         auto oldBindings = rigRoot.bindings.dup;
         rigRoot.removeBoneSource(target, requireBone(bone));
-        incActionPush(new DepthBoneSourceListChangeAction("Remove Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings));
+        incActionPush(new DepthBoneSourceListChangeAction(
+            "Remove Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings, false, target));
         return CommandResult(true);
     }
 }
@@ -3964,7 +4139,8 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
             rigRoot,
             oldBindings,
             rigRoot.bindings,
-            true));
+            true,
+            target));
         return CommandResult(true);
     }
 }
@@ -3982,7 +4158,8 @@ class SetDepthBoneInfluenceRuleCommand : ExCommand!(
         auto oldBindings = rigRoot.bindings.dup;
         auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
         applyRuleJson(binding.influenceRule, rule);
-        incActionPush(new DepthBoneBindingRuleChangeAction("Set Depth Bone Influence Rule", rigRoot, oldBindings, rigRoot.bindings));
+        incActionPush(new DepthBoneBindingRuleChangeAction(
+            "Set Depth Bone Influence Rule", rigRoot, oldBindings, rigRoot.bindings, false, target));
         return CommandResult(true);
     }
 }
@@ -4055,6 +4232,8 @@ private CommandResult enqueueDepthBoneGpuDeformCommand(
                 kp.x,
                 kp.y,
                 error);
+            ngDepthBoneUpdateFailed(
+                rigRoot, targetNode, param, kp, reason, message);
             writeDepthBoneGpuFatalLog(message);
             enforce(false, message);
         }

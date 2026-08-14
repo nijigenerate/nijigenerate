@@ -15,6 +15,7 @@ class DepthRigBindingsChangeAction : Action {
     ExDepthRigBinding[] newBindings;
     string label;
     bool settleBeforeDispatch;
+    Node affectedTarget;
 
     private static ExDepthRigBinding[] copyBindings(ExDepthRigBinding[] bindings) {
         auto result = bindings.dup;
@@ -32,18 +33,21 @@ class DepthRigBindingsChangeAction : Action {
         ExDepthRigBinding[] oldBindings,
         ExDepthRigBinding[] newBindings,
         bool settleBeforeDispatch = false,
+        Node affectedTarget = null,
     ) {
         this.label = label;
         this.root = root;
         this.oldBindings = copyBindings(oldBindings);
         this.newBindings = copyBindings(newBindings);
         this.settleBeforeDispatch = settleBeforeDispatch;
+        this.affectedTarget = affectedTarget;
         notifyChanged();
     }
 
     private void notifyChanged() {
         root.notifyChange(root, NotifyReason.AttributeChanged);
-        ngNotifyDepthBoneRigChanged(root, label, settleBeforeDispatch);
+        ngNotifyDepthBoneRigChanged(
+            root, label, settleBeforeDispatch, affectedTarget);
     }
 
     void rollback() {
@@ -65,6 +69,61 @@ class DepthRigBindingsChangeAction : Action {
 
 alias DepthBoneSourceListChangeAction = DepthRigBindingsChangeAction;
 alias DepthBoneBindingRuleChangeAction = DepthRigBindingsChangeAction;
+
+/**
+ * Applies every translation Z changed by one Fit Z to Depth operation as a
+ * single semantic mutation.  A root fit can touch many bones, but generated
+ * deform output depends on the completed rig pose, not on its intermediate
+ * per-bone states.
+ */
+class DepthBoneFitZChangeAction : Action {
+    ExDepthRigRoot root;
+    ExDepthBone[] bones;
+    float[] oldValues;
+    float[] newValues;
+
+    this(
+        ExDepthRigRoot root,
+        ExDepthBone[] bones,
+        float[] oldValues,
+        float[] newValues,
+    ) {
+        assert(root !is null);
+        assert(bones.length == oldValues.length);
+        assert(bones.length == newValues.length);
+        this.root = root;
+        this.bones = bones.dup;
+        this.oldValues = oldValues.dup;
+        this.newValues = newValues.dup;
+        notifyChanged();
+    }
+
+    private void notifyChanged() {
+        foreach (bone; bones) {
+            if (bone !is null)
+                bone.notifyChange(bone, NotifyReason.AttributeChanged);
+        }
+        ngNotifyDepthBoneRigChanged(root, "Fit Z to Depth");
+    }
+
+    private void apply(float[] values) {
+        foreach (i, bone; bones) {
+            if (bone is null) continue;
+            bone.localTransform.translation.vector[2] = values[i];
+            bone.localTransform.update();
+            bone.transformChanged();
+        }
+        notifyChanged();
+    }
+
+    void rollback() { apply(oldValues); }
+    void redo() { apply(newValues); }
+    string describe() { return _("Fit Z to Depth"); }
+    string describeUndo() { return _("Fit Z to Depth"); }
+    string getName() { return "DepthBoneFitZChangeAction"; }
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
 
 class DepthBoneRestChangeAction : Action {
     ExDepthBone bone;

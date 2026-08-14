@@ -79,6 +79,11 @@ public:
     void drawTools() { };
     void drawOptions() { };
     void drawConfirmBar() {};
+    void drawOverlay(
+        ImDrawList* drawList,
+        ImVec2 viewportOrigin,
+        ImRect viewportRect,
+    ) {};
 
     void update(ImGuiIO* io, Camera camera) { }
     void withdraw() { };
@@ -117,6 +122,17 @@ public:
     mixin(use("drawTools"));
     mixin(use("drawOptions"));
     mixin(use("drawConfirmBar"));
+
+    override
+    void drawOverlay(
+        ImDrawList* drawList,
+        ImVec2 viewportOrigin,
+        ImRect viewportRect,
+    ) {
+        if (_subView) {
+            _subView.drawOverlay(drawList, viewportOrigin, viewportRect);
+        }
+    }
 
     override
     void update(ImGuiIO* io, Camera camera) {
