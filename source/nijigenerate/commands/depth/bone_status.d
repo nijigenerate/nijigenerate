@@ -4,11 +4,15 @@
 */
 module nijigenerate.commands.depth.bone_status;
 
-import core.time : MonoTime, seconds;
+import nijigenerate.core.asyncderivedupdate;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthRigRoot;
+import nijigenerate.project : incActiveProject;
 import nijilive;
 import nijilive.core.nodes.deformable : Deformable;
 import std.algorithm.comparison : max, min;
+
+/** Stable provider identity for updates derived from DepthBone edits. */
+enum uint NgDepthBoneDerivedUpdateProviderId = 0x44424F4E; // "DBON"
 
 enum DepthBoneUpdateState {
     Detected,
@@ -19,6 +23,7 @@ enum DepthBoneUpdateState {
     Failed,
 }
 
+/** Compatibility view used by DepthBone diagnostics and commands. */
 struct DepthBoneUpdateStatus {
     ExDepthRigRoot root;
     Node target;
@@ -44,26 +49,16 @@ struct DepthBoneUpdateStatus {
     vec3 labelWorld;
 }
 
-private struct DepthBoneUpdateRecord {
+private struct DepthBoneUpdateAdapterRecord {
     ExDepthRigRoot root;
     Node target;
     Puppet puppet;
     Parameter parameter;
     vec2u keypoint;
     string reason;
-    string detail;
-    size_t expectedWork;
-    size_t appliedWork;
-    size_t staleWork;
-    size_t queuedWork;
-    size_t processingWork;
     size_t[Parameter] plannedByParameter;
-    uint retryCount;
     ulong generation;
     bool detected;
-    bool processingStarted;
-    bool failed;
-    MonoTime changedAt;
     bool hasLocalBounds;
     vec2 localBoundsMin;
     vec2 localBoundsMax;
@@ -72,17 +67,8 @@ private struct DepthBoneUpdateRecord {
     vec3 labelLocal;
     bool hasLabelWorld;
     vec3 labelWorld;
-}
-
-private enum DepthBoneWorkState {
-    Queued,
-    Processing,
-}
-
-private struct DepthBoneUpdateWork {
-    ulong targetKey;
-    ulong generation;
-    DepthBoneWorkState state;
+    AsyncDerivedUpdateRunHandle run;
+    AsyncDerivedUpdateTargetHandle progressTarget;
 }
 
 private struct DepthBoneUpdateWorkKey {
@@ -90,23 +76,43 @@ private struct DepthBoneUpdateWorkKey {
     uint targetUuid;
 }
 
-private DepthBoneUpdateRecord[ulong] updateRecords;
-private DepthBoneUpdateWork[DepthBoneUpdateWorkKey] updateWork;
+private struct DepthBoneUpdateWorkRecord {
+    ulong targetKey;
+    ulong generation;
+    AsyncDerivedUpdateWorkHandle progressWork;
+}
+
+private DepthBoneUpdateAdapterRecord[ulong] updateRecords;
+private DepthBoneUpdateWorkRecord[DepthBoneUpdateWorkKey] updateWork;
+private AsyncDerivedUpdateScopeId[Puppet] fallbackScopes;
 
 private ulong statusTargetKey(ExDepthRigRoot root, Node target) {
     if (root is null || target is null) return 0;
     return (cast(ulong)root.uuid << 32) | cast(ulong)target.uuid;
 }
 
-private ref DepthBoneUpdateRecord ensureRecord(ExDepthRigRoot root, Node target) {
+private AsyncDerivedUpdateScopeId updateScope(Puppet puppet) {
+    auto project = incActiveProject();
+    if (project !is null && project.puppet is puppet)
+        return project.derivedUpdateScope;
+    if (auto found = puppet in fallbackScopes) return *found;
+    auto created = incAsyncDerivedUpdateCreateScope();
+    fallbackScopes[puppet] = created;
+    return created;
+}
+
+private ref DepthBoneUpdateAdapterRecord ensureRecord(
+    ExDepthRigRoot root,
+    Node target,
+) {
     auto key = statusTargetKey(root, target);
     auto record = key in updateRecords;
     if (record is null) {
-        DepthBoneUpdateRecord initial;
+        DepthBoneUpdateAdapterRecord initial;
         initial.root = root;
         initial.target = target;
+        initial.puppet = target.puppet();
         initial.generation = 1;
-        initial.changedAt = MonoTime.currTime;
         updateRecords[key] = initial;
         record = key in updateRecords;
     }
@@ -116,27 +122,7 @@ private ref DepthBoneUpdateRecord ensureRecord(ExDepthRigRoot root, Node target)
     return *record;
 }
 
-private void removeTargetWork(ulong targetKey) {
-    DepthBoneUpdateWorkKey[] removeKeys;
-    foreach (key, work; updateWork) {
-        if (work.targetKey != targetKey) continue;
-        auto record = targetKey in updateRecords;
-        if (record !is null && record.generation == work.generation) {
-            final switch (work.state) {
-            case DepthBoneWorkState.Queued:
-                if (record.queuedWork > 0) record.queuedWork--;
-                break;
-            case DepthBoneWorkState.Processing:
-                if (record.processingWork > 0) record.processingWork--;
-                break;
-            }
-        }
-        removeKeys ~= key;
-    }
-    foreach (key; removeKeys) updateWork.remove(key);
-}
-
-private void refreshLocalBounds(ref DepthBoneUpdateRecord record) {
+private void refreshTargetVisual(ref DepthBoneUpdateAdapterRecord record) {
     auto target = cast(Deformable)record.target;
     if (target is null || target.vertices.length == 0) {
         record.hasLocalBounds = false;
@@ -193,45 +179,101 @@ private void refreshLocalBounds(ref DepthBoneUpdateRecord record) {
     }
 }
 
-private void beginGeneration(ref DepthBoneUpdateRecord record) {
+private AsyncDerivedUpdateViewportVisual viewportVisual(
+    ref DepthBoneUpdateAdapterRecord record,
+) {
+    AsyncDerivedUpdateViewportVisual visual;
+    visual.viewportChannel =
+        cast(uint)AsyncDerivedUpdateViewportChannel.Model;
+    visual.hasAnchor = record.hasLabelWorld;
+    visual.anchorWorld = record.labelWorld;
+    auto targetToWorld = record.target.getDynamicMatrix();
+    vec3[] outlineWorld;
+    foreach (point; record.localOutline)
+        outlineWorld ~= (targetToWorld * vec4(point, 1)).xyz;
+    visual.outlineWorld = outlineWorld;
+    return visual;
+}
+
+private void removeTargetWork(ulong targetKey) {
+    DepthBoneUpdateWorkKey[] removeKeys;
+    foreach (key, work; updateWork) {
+        if (work.targetKey != targetKey) continue;
+        incAsyncDerivedUpdateStale(
+            work.progressWork, "Superseded by a newer Depth Bone update");
+        removeKeys ~= key;
+    }
+    foreach (key; removeKeys) updateWork.remove(key);
+}
+
+private void beginGeneration(ref DepthBoneUpdateAdapterRecord record) {
     auto key = statusTargetKey(record.root, record.target);
     removeTargetWork(key);
     record.generation++;
     if (record.generation == 0) record.generation = 1;
-    record.expectedWork = 0;
-    record.appliedWork = 0;
-    record.staleWork = 0;
-    record.queuedWork = 0;
-    record.processingWork = 0;
     record.plannedByParameter = null;
-    record.retryCount = 0;
-    record.detail = null;
-    record.failed = false;
     record.detected = true;
-    record.processingStarted = false;
-    // Freeze the progress label anchor for this entire update generation.
-    // Completion may refresh target bounds, but must not move a RUN label.
     record.hasLabelWorld = false;
-    refreshLocalBounds(record);
-    record.changedAt = MonoTime.currTime;
+    refreshTargetVisual(record);
+
+    AsyncDerivedUpdateOrigin origin;
+    origin.projectScope = updateScope(record.puppet);
+    origin.transactionId = record.generation;
+    origin.providerId = NgDepthBoneDerivedUpdateProviderId;
+    origin.operationName = "Depth Bone Update";
+    record.run = incAsyncDerivedUpdateBeginRun(origin);
+
+    AsyncDerivedUpdateTargetDesc desc;
+    desc.key = AsyncDerivedUpdateTargetKey(
+        NgDepthBoneDerivedUpdateProviderId,
+        origin.projectScope.id,
+        key);
+    desc.label = record.target.name;
+    desc.reason = record.reason;
+    desc.sourceRevision = record.generation;
+    desc.mergePolicy = AsyncDerivedUpdateMergePolicy.SupersedeRunning;
+    desc.visual = viewportVisual(record);
+    record.progressTarget = incAsyncDerivedUpdateTrackTarget(record.run, desc);
 }
 
-private bool hasCurrentWork(ref DepthBoneUpdateRecord record) {
-    return record.queuedWork > 0 || record.processingWork > 0;
+private bool currentSnapshot(
+    ref DepthBoneUpdateAdapterRecord record,
+    out AsyncDerivedUpdateSnapshot snapshot,
+) {
+    return record.progressTarget.valid &&
+        incAsyncDerivedUpdateTargetSnapshot(
+            record.progressTarget, snapshot, true);
+}
+
+private bool hasCurrentWork(ref DepthBoneUpdateAdapterRecord record) {
+    AsyncDerivedUpdateSnapshot snapshot;
+    return currentSnapshot(record, snapshot) &&
+        (snapshot.queuedUnits > 0 || snapshot.runningUnits > 0);
+}
+
+private bool completedGeneration(ref DepthBoneUpdateAdapterRecord record) {
+    AsyncDerivedUpdateSnapshot snapshot;
+    return currentSnapshot(record, snapshot) &&
+        snapshot.expectedUnits <= snapshot.appliedUnits &&
+        snapshot.queuedUnits == 0 && snapshot.runningUnits == 0;
+}
+
+private void ensureGeneration(ref DepthBoneUpdateAdapterRecord record) {
+    AsyncDerivedUpdateSnapshot snapshot;
+    if (!currentSnapshot(record, snapshot)) beginGeneration(record);
 }
 
 private void removePreviousAppliedStatuses(Puppet puppet, ulong detectedTargetKey) {
     ulong[] removeKeys;
     foreach (targetKey, ref record; updateRecords) {
         if (targetKey == detectedTargetKey || record.puppet !is puppet) continue;
-        if (record.failed || record.detected || record.staleWork > 0 ||
-            hasCurrentWork(record) || record.appliedWork < record.expectedWork) continue;
+        AsyncDerivedUpdateSnapshot snapshot;
+        if (!currentSnapshot(record, snapshot) ||
+            snapshot.state != AsyncDerivedUpdateState.Applied) continue;
+        incAsyncDerivedUpdateForgetTarget(record.progressTarget);
         removeKeys ~= targetKey;
     }
-    foreach (targetKey; removeKeys) {
-        removeTargetWork(targetKey);
-        updateRecords.remove(targetKey);
-    }
+    foreach (targetKey; removeKeys) updateRecords.remove(targetKey);
 }
 
 void ngDepthBoneUpdateDetected(
@@ -245,12 +287,12 @@ void ngDepthBoneUpdateDetected(
     auto targetKey = statusTargetKey(root, target);
     removePreviousAppliedStatuses(target.puppet(), targetKey);
     auto record = &ensureRecord(root, target);
-    if (!record.detected || hasCurrentWork(*record))
+    if (!record.progressTarget.valid || !record.detected || hasCurrentWork(*record))
         beginGeneration(*record);
     record.parameter = parameter;
     record.keypoint = keypoint;
     record.reason = reason;
-    record.changedAt = MonoTime.currTime;
+    incAsyncDerivedUpdateSetContext(record.progressTarget, reason);
 }
 
 void ngDepthBoneUpdatePlanned(
@@ -263,25 +305,28 @@ void ngDepthBoneUpdatePlanned(
 ) {
     if (root is null || target is null || expectedWork == 0) return;
     auto record = &ensureRecord(root, target);
-    if (!record.detected && !hasCurrentWork(*record) &&
-        record.expectedWork <= record.appliedWork) {
+    ensureGeneration(*record);
+    if (!record.detected && !hasCurrentWork(*record) && completedGeneration(*record))
         beginGeneration(*record);
-    }
     record.detected = false;
     record.parameter = parameter;
     record.keypoint = keypoint;
     record.reason = reason;
+    AsyncDerivedUpdateSnapshot snapshot;
+    currentSnapshot(*record, snapshot);
+    auto totalExpected = snapshot.expectedUnits;
     if (parameter !is null) {
         auto previous = parameter in record.plannedByParameter;
         auto oldCount = previous is null ? 0 : *previous;
         if (expectedWork > oldCount) {
-            record.expectedWork += expectedWork - oldCount;
+            totalExpected += expectedWork - oldCount;
             record.plannedByParameter[parameter] = expectedWork;
         }
-    } else if (expectedWork > record.expectedWork) {
-        record.expectedWork = expectedWork;
+    } else if (expectedWork > totalExpected) {
+        totalExpected = expectedWork;
     }
-    record.changedAt = MonoTime.currTime;
+    incAsyncDerivedUpdateSetExpected(record.progressTarget, totalExpected);
+    incAsyncDerivedUpdateSetContext(record.progressTarget, reason);
 }
 
 void ngDepthBoneUpdateQueued(
@@ -295,47 +340,30 @@ void ngDepthBoneUpdateQueued(
 ) {
     if (batchId == 0 || root is null || target is null) return;
     auto record = &ensureRecord(root, target);
-    if (!record.detected && !hasCurrentWork(*record) &&
-        record.expectedWork <= record.appliedWork) {
+    ensureGeneration(*record);
+    if (!record.detected && !hasCurrentWork(*record) && completedGeneration(*record))
         beginGeneration(*record);
-    }
     record.detected = false;
     record.parameter = parameter;
     record.keypoint = keypoint;
     record.reason = reason;
-    record.retryCount = retryCount;
-    record.failed = false;
-    record.detail = null;
+    incAsyncDerivedUpdateSetContext(
+        record.progressTarget, reason, null, retryCount);
     auto workKey = DepthBoneUpdateWorkKey(batchId, target.uuid);
     if (workKey !in updateWork) {
-        DepthBoneUpdateWork work;
+        DepthBoneUpdateWorkRecord work;
         work.targetKey = statusTargetKey(root, target);
         work.generation = record.generation;
-        work.state = DepthBoneWorkState.Queued;
+        work.progressWork = incAsyncDerivedUpdateQueue(record.progressTarget);
         updateWork[workKey] = work;
-        record.queuedWork++;
     }
-    auto trackedWork = record.appliedWork +
-        record.queuedWork + record.processingWork;
-    if (record.expectedWork < trackedWork)
-        record.expectedWork = trackedWork;
-    record.changedAt = MonoTime.currTime;
 }
 
 void ngDepthBoneUpdateProcessing(uint batchId, ExDepthRigRoot root, Node target) {
     if (root is null || target is null) return;
-    auto workKey = DepthBoneUpdateWorkKey(batchId, target.uuid);
-    auto work = workKey in updateWork;
+    auto work = DepthBoneUpdateWorkKey(batchId, target.uuid) in updateWork;
     if (work is null) return;
-    auto record = statusTargetKey(root, target) in updateRecords;
-    if (work.state == DepthBoneWorkState.Queued &&
-        record !is null && record.generation == work.generation) {
-        if (record.queuedWork > 0) record.queuedWork--;
-        record.processingWork++;
-        record.processingStarted = true;
-        record.changedAt = MonoTime.currTime;
-    }
-    work.state = DepthBoneWorkState.Processing;
+    incAsyncDerivedUpdateStart(work.progressWork);
 }
 
 void ngDepthBoneUpdateApplied(uint batchId, ExDepthRigRoot root, Node target) {
@@ -343,26 +371,17 @@ void ngDepthBoneUpdateApplied(uint batchId, ExDepthRigRoot root, Node target) {
     auto workKey = DepthBoneUpdateWorkKey(batchId, target.uuid);
     auto work = workKey in updateWork;
     if (work is null) return;
-    auto generation = work.generation;
-    auto workState = work.state;
-    updateWork.remove(workKey);
     auto record = statusTargetKey(root, target) in updateRecords;
-    if (record is null || record.generation != generation) return;
-    final switch (workState) {
-    case DepthBoneWorkState.Queued:
-        if (record.queuedWork > 0) record.queuedWork--;
-        break;
-    case DepthBoneWorkState.Processing:
-        if (record.processingWork > 0) record.processingWork--;
-        break;
+    if (record is null || record.generation != work.generation) {
+        updateWork.remove(workKey);
+        return;
     }
-    record.appliedWork++;
-    record.detected = false;
-    record.failed = false;
-    record.detail = null;
-    if (record.appliedWork >= record.expectedWork)
-        refreshLocalBounds(*record);
-    record.changedAt = MonoTime.currTime;
+    incAsyncDerivedUpdateApplied(work.progressWork);
+    updateWork.remove(workKey);
+    AsyncDerivedUpdateSnapshot snapshot;
+    if (currentSnapshot(*record, snapshot) &&
+        snapshot.appliedUnits >= snapshot.expectedUnits)
+        refreshTargetVisual(*record);
 }
 
 void ngDepthBoneUpdateStale(
@@ -373,57 +392,30 @@ void ngDepthBoneUpdateStale(
 ) {
     if (root is null || target is null) return;
     auto workKey = DepthBoneUpdateWorkKey(batchId, target.uuid);
-    auto work = workKey in updateWork;
-    ulong generation;
-    DepthBoneWorkState workState;
     bool hadWork;
-    if (work !is null) {
-        generation = work.generation;
-        workState = work.state;
+    if (auto work = workKey in updateWork) {
         hadWork = true;
+        incAsyncDerivedUpdateStale(work.progressWork, detail);
         updateWork.remove(workKey);
     }
-    auto record = statusTargetKey(root, target) in updateRecords;
-    if (record is null || (generation != 0 && record.generation != generation)) return;
-    if (hadWork) {
-        final switch (workState) {
-        case DepthBoneWorkState.Queued:
-            if (record.queuedWork > 0) record.queuedWork--;
-            break;
-        case DepthBoneWorkState.Processing:
-            if (record.processingWork > 0) record.processingWork--;
-            break;
-        }
+    if (auto record = statusTargetKey(root, target) in updateRecords) {
+        record.detected = false;
+        if (!hadWork)
+            incAsyncDerivedUpdateMarkTargetStale(
+                record.progressTarget, detail);
+        incAsyncDerivedUpdateSetContext(
+            record.progressTarget, record.reason, detail);
     }
-    record.staleWork++;
-    record.detail = detail;
-    record.detected = false;
-    record.changedAt = MonoTime.currTime;
 }
 
 void ngDepthBoneUpdateBatchCanceled(uint batchId, string detail = null) {
     DepthBoneUpdateWorkKey[] removeKeys;
     foreach (key, work; updateWork) {
         if (key.batchId != batchId) continue;
-        auto record = work.targetKey in updateRecords;
-        if (record !is null && record.generation == work.generation) {
-            final switch (work.state) {
-            case DepthBoneWorkState.Queued:
-                if (record.queuedWork > 0) record.queuedWork--;
-                break;
-            case DepthBoneWorkState.Processing:
-                if (record.processingWork > 0) record.processingWork--;
-                break;
-            }
-        }
-        if (detail.length > 0) {
-            if (record !is null && record.generation == work.generation) {
-                record.staleWork++;
-                record.detail = detail;
-                record.detected = false;
-                record.changedAt = MonoTime.currTime;
-            }
-        }
+        if (detail.length)
+            incAsyncDerivedUpdateStale(work.progressWork, detail);
+        else
+            incAsyncDerivedUpdateDiscard(work.progressWork);
         removeKeys ~= key;
     }
     foreach (key; removeKeys) updateWork.remove(key);
@@ -439,68 +431,54 @@ void ngDepthBoneUpdateFailed(
 ) {
     if (root is null || target is null) return;
     auto record = &ensureRecord(root, target);
+    ensureGeneration(*record);
     removeTargetWork(statusTargetKey(root, target));
     record.parameter = parameter;
     record.keypoint = keypoint;
     record.reason = reason;
-    record.detail = detail;
     record.detected = false;
-    record.failed = true;
-    refreshLocalBounds(*record);
-    record.changedAt = MonoTime.currTime;
+    refreshTargetVisual(*record);
+    incAsyncDerivedUpdateSetContext(record.progressTarget, reason, detail);
+    incAsyncDerivedUpdateFailTarget(record.progressTarget, detail);
 }
 
 void ngDepthBoneUpdateAbort(string detail) {
     foreach (ref record; updateRecords) {
         if (!hasCurrentWork(record)) continue;
         record.detected = false;
-        record.failed = true;
-        record.detail = detail;
-        record.queuedWork = 0;
-        record.processingWork = 0;
-        record.changedAt = MonoTime.currTime;
+        incAsyncDerivedUpdateFailTarget(record.progressTarget, detail);
     }
     updateWork = null;
 }
 
-private DepthBoneUpdateState recordState(
-    ref DepthBoneUpdateRecord record,
-) {
-    if (record.failed) return DepthBoneUpdateState.Failed;
-    if (record.processingWork > 0) return DepthBoneUpdateState.Processing;
-    // Once one job in this generation has reached the GPU, keep the
-    // user-facing lifecycle in RUN until the whole planned generation ends.
-    // Chunk production and readback have different per-frame limits, so the
-    // instantaneous GPU queue can legitimately become empty between chunks;
-    // exposing that implementation detail as WAIT makes the outline and badge
-    // alternate between purple/dashed and cyan/solid while progress advances.
-    if (record.processingStarted && record.appliedWork < record.expectedWork) {
-        if (record.staleWork > 0 && record.queuedWork == 0)
-            return DepthBoneUpdateState.Stale;
-        return DepthBoneUpdateState.Processing;
+private DepthBoneUpdateState depthBoneState(AsyncDerivedUpdateState state) {
+    final switch (state) {
+    case AsyncDerivedUpdateState.Detected: return DepthBoneUpdateState.Detected;
+    case AsyncDerivedUpdateState.Queued: return DepthBoneUpdateState.Queued;
+    case AsyncDerivedUpdateState.Running: return DepthBoneUpdateState.Processing;
+    case AsyncDerivedUpdateState.Applied: return DepthBoneUpdateState.Applied;
+    case AsyncDerivedUpdateState.Stale: return DepthBoneUpdateState.Stale;
+    case AsyncDerivedUpdateState.Failed: return DepthBoneUpdateState.Failed;
+    case AsyncDerivedUpdateState.Canceled: return DepthBoneUpdateState.Stale;
     }
-    if (record.queuedWork > 0) return DepthBoneUpdateState.Queued;
-    if (record.detected) return DepthBoneUpdateState.Detected;
-    if (record.staleWork > 0 && record.appliedWork < record.expectedWork)
-        return DepthBoneUpdateState.Stale;
-    if (record.appliedWork < record.expectedWork)
-        return DepthBoneUpdateState.Queued;
-    return DepthBoneUpdateState.Applied;
 }
 
-DepthBoneUpdateStatus[] ngDepthBoneUpdateStatuses(Puppet puppet, bool includeExpired = false) {
+DepthBoneUpdateStatus[] ngDepthBoneUpdateStatuses(
+    Puppet puppet,
+    bool includeExpired = false,
+) {
     DepthBoneUpdateStatus[] result;
     ulong[] removeKeys;
-    auto now = MonoTime.currTime;
     foreach (targetKey, ref record; updateRecords) {
         if (record.root is null || record.target is null ||
             (puppet !is null && record.puppet !is puppet)) {
-            removeKeys ~= targetKey;
+            if (record.root is null || record.target is null)
+                removeKeys ~= targetKey;
             continue;
         }
-        auto state = recordState(record);
-        if (!includeExpired && state == DepthBoneUpdateState.Applied &&
-            now - record.changedAt > seconds(2)) {
+        AsyncDerivedUpdateSnapshot snapshot;
+        if (!incAsyncDerivedUpdateTargetSnapshot(
+            record.progressTarget, snapshot, includeExpired)) {
             removeKeys ~= targetKey;
             continue;
         }
@@ -509,15 +487,15 @@ DepthBoneUpdateStatus[] ngDepthBoneUpdateStatuses(Puppet puppet, bool includeExp
         status.target = record.target;
         status.parameter = record.parameter;
         status.keypoint = record.keypoint;
-        status.state = state;
-        status.reason = record.reason;
-        status.detail = record.detail;
-        status.expectedWork = record.expectedWork;
-        status.appliedWork = record.appliedWork;
-        status.queuedWork = record.queuedWork;
-        status.processingWork = record.processingWork;
-        status.staleWork = record.staleWork;
-        status.retryCount = record.retryCount;
+        status.state = depthBoneState(snapshot.state);
+        status.reason = snapshot.reason;
+        status.detail = snapshot.detail;
+        status.expectedWork = cast(size_t)snapshot.expectedUnits;
+        status.appliedWork = cast(size_t)snapshot.appliedUnits;
+        status.queuedWork = cast(size_t)snapshot.queuedUnits;
+        status.processingWork = cast(size_t)snapshot.runningUnits;
+        status.staleWork = cast(size_t)snapshot.staleUnits;
+        status.retryCount = snapshot.retryCount;
         status.generation = record.generation;
         status.hasLocalBounds = record.hasLocalBounds;
         status.localBoundsMin = record.localBoundsMin;
@@ -530,13 +508,56 @@ DepthBoneUpdateStatus[] ngDepthBoneUpdateStatuses(Puppet puppet, bool includeExp
         result ~= status;
     }
     foreach (targetKey; removeKeys) {
-        removeTargetWork(targetKey);
+        if (auto record = targetKey in updateRecords)
+            incAsyncDerivedUpdateForgetTarget(record.progressTarget);
         updateRecords.remove(targetKey);
     }
     return result;
 }
 
+/** Domain adapter helper used by regression tests and target snapshot creation. */
+bool ngBuildDepthBoneUpdateTargetOutline(
+    Node targetNode,
+    out Vec3Array lines,
+    out mat4 targetToWorld,
+    out vec3 labelWorld,
+) {
+    lines = Vec3Array.init;
+    targetToWorld = mat4.identity;
+    labelWorld = vec3.init;
+    auto target = cast(Deformable)targetNode;
+    if (target is null || target.vertices.length == 0) return false;
+
+    auto first = target.vertices[0].toVector();
+    if (target.deformation.length > 0) first += target.deformation[0].toVector();
+    auto minPoint = first;
+    auto maxPoint = first;
+    foreach (i; 1 .. target.vertices.length) {
+        auto point = target.vertices[i].toVector();
+        if (i < target.deformation.length) point += target.deformation[i].toVector();
+        minPoint.x = min(minPoint.x, point.x);
+        minPoint.y = min(minPoint.y, point.y);
+        maxPoint.x = max(maxPoint.x, point.x);
+        maxPoint.y = max(maxPoint.y, point.y);
+    }
+    auto span = maxPoint - minPoint;
+    auto margin = max(4.0f, max(span.x, span.y) * 0.03f);
+    auto outlineMin = minPoint - vec2(margin, margin);
+    auto outlineMax = maxPoint + vec2(margin, margin);
+    lines = Vec3Array([
+        vec3(outlineMin.x, outlineMin.y, 0), vec3(outlineMax.x, outlineMin.y, 0),
+        vec3(outlineMax.x, outlineMin.y, 0), vec3(outlineMax.x, outlineMax.y, 0),
+        vec3(outlineMax.x, outlineMax.y, 0), vec3(outlineMin.x, outlineMax.y, 0),
+        vec3(outlineMin.x, outlineMax.y, 0), vec3(outlineMin.x, outlineMin.y, 0),
+    ]);
+    targetToWorld = targetNode.getDynamicMatrix();
+    labelWorld = (targetToWorld * vec4(outlineMax.x, outlineMin.y, 0, 1)).xyz;
+    return true;
+}
+
 void ngClearDepthBoneUpdateStatuses() {
+    incAsyncDerivedUpdateClearProvider(NgDepthBoneDerivedUpdateProviderId);
     updateRecords = null;
     updateWork = null;
+    fallbackScopes = null;
 }

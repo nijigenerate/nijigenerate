@@ -50,7 +50,8 @@ import nijigenerate.commands.depth.bone_status :
     ngDepthBoneUpdateProcessing,
     ngDepthBoneUpdateQueued,
     ngDepthBoneUpdateStale,
-    ngDepthBoneUpdateStatuses;
+    ngDepthBoneUpdateStatuses,
+    ngBuildDepthBoneUpdateTargetOutline;
 import nijigenerate.commands.inspector.apply_node;
 import nijigenerate.commands.model.set_deform_binding;
 import nijigenerate.commands.node.base : clipboardNodes, conversionMap;
@@ -69,6 +70,7 @@ import nijigenerate.commands.viewport.palette;
 import nijigenerate.commands.vertex.define_mesh;
 import nijigenerate.atlas.packer : TexturePacker;
 import nijigenerate.core.colorbleed : incColorBleedPixels;
+import nijigenerate.core.asyncderivedupdate;
 import nijigenerate.core.actionstack;
 import nijigenerate.core.input : _K;
 import nijigenerate.core.selector.query : Selector;
@@ -154,10 +156,7 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
 import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
 import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
-import nijigenerate.viewport.model.depthboneoverlay : buildDepthBoneOverlayGeometry,
-    buildDepthBoneUpdateTargetOutline,
-    depthBoneUpdateProgressFraction,
-    depthBoneUpdateViewportLabel;
+import nijigenerate.viewport.model.depthboneoverlay : buildDepthBoneOverlayGeometry;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
@@ -436,6 +435,7 @@ private immutable Scenario[] scenarios = [
     Scenario("depthbone.gpu-all-keypoints", "Depth Bone", "GPU all-keypoints refresh dispatch and readback", automated, "Covers GPU dispatch/readback through all-keypoints refresh."),
     Scenario("depthbone.overlay-selection", "Depth Bone", "Selected DepthBone point and parent/child link classification", automated, "Covers selected-node ownership and distinct incoming/outgoing overlay geometry."),
     Scenario("depthbone.update-visualization", "Depth Bone", "Event-driven GridDeformer and PathDeformer update status visualization", automated, "Covers detected, queued, processing, applied, stale, and failed target states plus cached target outlines."),
+    Scenario("async.derived-update", "Async Infrastructure", "Generic progress registry for asynchronous updates derived from edits", automated, "Covers scoped target registration, explicit work handles, duplicate completion, immutable visuals, supersession, and AutoMesh UI isolation."),
     Scenario("depthbone.refresh-queue", "Depth Bone", "All-keypoint refresh queue slices across frames and prioritizes current keypoints", computerUse, "Needs computer-use scheduler/frame fixture."),
     Scenario("depthbone.cleanup", "Depth Bone", "Deleting bones or target structures cleans stale source/binding references", automated, "Covers DeleteNodeCommand cleanup of DepthBone source references with undo/redo."),
     Scenario("depthbone.skinning", "Depth Bone", "Skinning influence, terminal bone rule, lockToRoot, and parent-to-target options", automated, "Covers a golden two-bone fixture where terminal lockToRoot prevents parent translation from moving vertices beyond the locked terminal bone."),
@@ -13408,14 +13408,19 @@ private void testDepthBoneInspectorCommandsUndoRedo() {
 private void testDepthBoneSourceCommandsUndoRedo() {
     resetCase();
 
-    auto nodeInspectorSource = readText("source/nijigenerate/panels/inspector/node.d");
+    auto nodeInspectorSource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "panels", "inspector", "node.d"));
     require(nodeInspectorSource.canFind("rotationDegrees = degrees(rotationX.value)") &&
         nodeInspectorSource.canFind("rotationX.value = radians(rotationDegrees)"),
         "Node rotation Inspector should use radians for data and degrees for UI");
-    foreach (inspectorPath; [
-        "source/nijigenerate/panels/inspector/griddeform.d",
-        "source/nijigenerate/panels/inspector/pathdeform.d",
+    foreach (inspectorName; [
+        "griddeform.d",
+        "pathdeform.d",
     ]) {
+        auto inspectorPath = buildPath(
+            regressionRepoRoot(),
+            "source", "nijigenerate", "panels", "inspector", inspectorName);
         auto inspectorSource = readText(inspectorPath);
         require(inspectorSource.canFind("rotationDegrees = degrees(setting.rotation)") &&
             inspectorSource.canFind("normalizeDepthBoneSourceRotation(radians(rotationDegrees))") &&
@@ -15641,7 +15646,7 @@ private void testDepthBoneUpdateVisualizationState() {
     Vec3Array gridOutline;
     mat4 gridToWorld;
     vec3 gridLabelWorld;
-    require(buildDepthBoneUpdateTargetOutline(
+    require(ngBuildDepthBoneUpdateTargetOutline(
         grid, gridOutline, gridToWorld, gridLabelWorld),
         "DepthBone update visualization should build a GridDeformer outline");
     require(gridOutline.length == 8 &&
@@ -15653,8 +15658,7 @@ private void testDepthBoneUpdateVisualizationState() {
     status = statusFor(grid);
     require(status.state == DepthBoneUpdateState.Queued && status.expectedWork == 3,
         "planned DepthBone work should report the expected keypoint count");
-    require(near(depthBoneUpdateProgressFraction(status), 0.0f)
-        && depthBoneUpdateViewportLabel(status) == grid.name,
+    require(status.appliedWork == 0 && status.target.name == grid.name,
         "viewport progress must start empty and identify the affected GridDeformer by name");
 
     ngDepthBoneUpdateQueued(101, root, grid, param, vec2u(0, 0), "depth edited");
@@ -15669,7 +15673,7 @@ private void testDepthBoneUpdateVisualizationState() {
     status = statusFor(grid);
     require(status.state == DepthBoneUpdateState.Processing && status.appliedWork == 1,
         "a generation must remain running between GPU chunks after processing has started");
-    require(near(depthBoneUpdateProgressFraction(status), 1.0f / 3.0f),
+    require(near(cast(float)status.appliedWork / status.expectedWork, 1.0f / 3.0f),
         "viewport progress must represent applied work as a fraction instead of X/N text");
 
     ngDepthBoneUpdateQueued(102, root, grid, param, vec2u(1, 0), "depth edited");
@@ -15692,29 +15696,53 @@ private void testDepthBoneUpdateVisualizationState() {
     require(status.state == DepthBoneUpdateState.Applied &&
         status.appliedWork == 4 && status.expectedWork == 4,
         "DepthBone target status should become applied only after all writebacks complete");
-    require(near(depthBoneUpdateProgressFraction(status), 1.0f),
+    require(near(cast(float)status.appliedWork / status.expectedWork, 1.0f),
         "viewport progress must be full when every target writeback is applied");
     require(nearVec3(status.labelWorld, initialLabelWorld),
         "a DepthBone update generation must keep its first label position even when completion refreshes changed target bounds");
-    auto updateOverlaySource = readText(buildPath(
+    auto genericOverlaySource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "viewport", "asyncderivedupdateoverlay.d"));
+    auto genericRegistrySource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "core", "asyncderivedupdate.d"));
+    auto depthAdapterSource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "commands", "depth", "bone_status.d"));
+    auto depthBoneOverlaySource = readText(buildPath(
         regressionRepoRoot(),
         "source", "nijigenerate", "viewport", "model", "depthboneoverlay.d"));
     auto viewportPanelSource = readText(buildPath(
         regressionRepoRoot(),
         "source", "nijigenerate", "panels", "viewport.d"));
-    require(!updateOverlaySource.canFind("igProgressBar(")
-        && !updateOverlaySource.canFind("DepthBoneUpdateLabel")
-        && !updateOverlaySource.canFind("ParentWindow.DrawList")
-        && updateOverlaySource.canFind("ImDrawList_AddRectFilled(")
-        && updateOverlaySource.canFind("ImDrawList_AddText(")
-        && updateOverlaySource.canFind("incUiAccentColor(DepthBoneUpdateOverlayOpacity)")
-        && updateOverlaySource.canFind("DepthBoneUpdateFontScale")
-        && updateOverlaySource.canFind("DepthBoneUpdateVerticalPadding = 1.0f")
-        && updateOverlaySource.canFind("WorldToViewport(\n            status.labelWorld.x")
-        && !updateOverlaySource.canFind("vec4(status.labelLocal, 1)")
-        && updateOverlaySource.canFind("ImDrawList_PushClipRect(")
-        && viewportPanelSource.canFind("viewport.drawOverlay("),
-        "DepthBone progress must be a compact, theme-accented custom viewport overlay and never mutate another ImGui window's DrawList");
+    auto modelViewportSource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "viewport", "model", "package.d"));
+    auto deformViewportSource = readText(buildPath(
+        regressionRepoRoot(),
+        "source", "nijigenerate", "viewport", "model", "deform.d"));
+    require(!genericOverlaySource.canFind("igProgressBar(")
+        && !genericOverlaySource.canFind("ParentWindow.DrawList")
+        && genericOverlaySource.canFind("ImDrawList_AddRectFilled(")
+        && genericOverlaySource.canFind("ImDrawList_AddText(")
+        && genericOverlaySource.canFind("incUiAccentColor(AsyncDerivedUpdateOverlayOpacity)")
+        && genericOverlaySource.canFind("AsyncDerivedUpdateFontScale")
+        && genericOverlaySource.canFind("AsyncDerivedUpdateVerticalPadding = 1.0f")
+        && genericOverlaySource.canFind("snapshot.visual.anchorWorld")
+        && genericOverlaySource.canFind("ImDrawList_PushClipRect(")
+        && genericRegistrySource.canFind("const(vec3)[] outlineWorld")
+        && !genericRegistrySource.canFind("GridDeformer")
+        && !genericRegistrySource.canFind("PathDeformer")
+        && !genericRegistrySource.canFind("ExDepthRigRoot")
+        && depthAdapterSource.canFind("incAsyncDerivedUpdateTrackTarget(")
+        && depthAdapterSource.canFind("incAsyncDerivedUpdateQueue(")
+        && !depthBoneOverlaySource.canFind("DepthBoneUpdateStatus")
+        && viewportPanelSource.canFind("viewport.drawOverlay(")
+        && viewportPanelSource.canFind("drawAsyncDerivedUpdateViewportOverlay(")
+        && viewportPanelSource.canFind("drawAsyncDerivedUpdateDetailsUi(")
+        && !modelViewportSource.canFind("drawAsyncDerivedUpdateViewportOverlay(")
+        && !deformViewportSource.canFind("drawAsyncDerivedUpdateViewportOverlay("),
+        "derived-update progress must be a domain-independent, compact, theme-accented custom viewport overlay");
 
     auto appliedGeneration = status.generation;
     require(grid.deformation.length == grid.vertices.length,
@@ -15759,12 +15787,54 @@ private void testDepthBoneUpdateVisualizationState() {
         status.detail == "superseded path update",
         "canceled PathDeformer work should expose its stale reason");
 
+    auto silentPath = new ExPathDeformer(incActivePuppet().root);
+    silentPath.name = "update-status-silent-cancel-path";
+    silentPath.rebuffer(Vec2Array([
+        vec2(200, 300), vec2(240, 300), vec2(240, 360),
+    ]));
+    ngDepthBoneUpdateDetected(
+        root, silentPath, param, vec2u(0, 0), "silent batch replacement");
+    ngDepthBoneUpdatePlanned(
+        root, silentPath, param, vec2u(0, 0), "silent batch replacement", 1);
+    ngDepthBoneUpdateQueued(
+        302, root, silentPath, param, vec2u(0, 0), "silent batch replacement");
+    ngDepthBoneUpdateBatchCanceled(302);
+    status = statusFor(silentPath);
+    require(status.state == DepthBoneUpdateState.Queued
+        && status.queuedWork == 0 && status.staleWork == 0
+        && status.detail.length == 0,
+        "a silent batch replacement must discard in-flight work without inventing a stale or canceled state");
+    ngDepthBoneUpdateStale(
+        999, root, silentPath, "replacement target revision changed");
+    status = statusFor(silentPath);
+    require(status.state == DepthBoneUpdateState.Stale
+        && status.staleWork == 1
+        && status.detail == "replacement target revision changed",
+        "a stale callback without a surviving work handle must preserve the prior DepthBone status behavior");
+
     Vec3Array pathOutline;
     mat4 pathToWorld;
     vec3 pathLabelWorld;
-    require(buildDepthBoneUpdateTargetOutline(
+    require(ngBuildDepthBoneUpdateTargetOutline(
         path, pathOutline, pathToWorld, pathLabelWorld) && pathOutline.length == 8,
         "DepthBone update visualization should build a PathDeformer outline");
+
+    auto mixedPlanGrid = new ExGridDeformer(incActivePuppet().root);
+    mixedPlanGrid.name = "update-status-mixed-plan-grid";
+    mixedPlanGrid.rebuffer(Vec2Array([
+        vec2(0, 0), vec2(10, 0), vec2(10, 10), vec2(0, 10),
+    ]));
+    ngDepthBoneUpdateDetected(
+        root, mixedPlanGrid, param, vec2u(0, 0), "mixed planning");
+    ngDepthBoneUpdatePlanned(
+        root, mixedPlanGrid, param, vec2u(0, 0), "mixed planning", 2);
+    ngDepthBoneUpdatePlanned(
+        root, mixedPlanGrid, null, vec2u(0, 0), "mixed planning", 5);
+    ngDepthBoneUpdatePlanned(
+        root, mixedPlanGrid, param, vec2u(0, 0), "mixed planning", 3);
+    status = statusFor(mixedPlanGrid);
+    require(status.expectedWork == 6,
+        "parameter and parameter-less planning must retain the previous incremental denominator semantics");
 
     auto noParamRoot = new ExDepthRigRoot(incActivePuppet().root);
     auto noParamBone = ngCreateDepthBone(
@@ -15795,6 +15865,130 @@ private void testDepthBoneUpdateVisualizationState() {
     ngClearDepthBoneUpdateStatuses();
     require(ngDepthBoneUpdateStatuses(incActivePuppet(), true).length == 0,
         "clearing DepthBone update visualization state should remove every target record");
+}
+
+private void testAsyncDerivedUpdateRegistry() {
+    resetCase();
+    incAsyncDerivedUpdateClearAll();
+
+    auto registryScope = incAsyncDerivedUpdateCreateScope();
+    AsyncDerivedUpdateOrigin origin;
+    origin.projectScope = registryScope;
+    origin.transactionId = 41;
+    origin.providerId = 0x54455354; // "TEST"
+    origin.operationName = "Fixture Edit";
+    auto run = incAsyncDerivedUpdateBeginRun(origin);
+
+    AsyncDerivedUpdateTargetDesc desc;
+    desc.key = AsyncDerivedUpdateTargetKey(origin.providerId, registryScope.id, 77);
+    desc.label = "fixture-grid";
+    desc.reason = "fixture changed";
+    desc.sourceRevision = 1;
+    desc.visual.viewportChannel =
+        cast(uint)AsyncDerivedUpdateViewportChannel.Model;
+    desc.visual.hasAnchor = true;
+    desc.visual.anchorWorld = vec3(10, 20, 0);
+    vec3[] producerOutline = [
+        vec3(0, 0, 0), vec3(10, 0, 0),
+        vec3(10, 0, 0), vec3(10, 10, 0),
+    ];
+    desc.visual.outlineWorld = producerOutline;
+    auto target = incAsyncDerivedUpdateTrackTarget(run, desc);
+    require(target.valid,
+        "generic derived-update registry should accept a scoped target");
+    auto mismatchedDesc = desc;
+    mismatchedDesc.key.scopeId++;
+    require(!incAsyncDerivedUpdateTrackTarget(run, mismatchedDesc).valid,
+        "a run must reject targets from another project scope");
+
+    // Registration must own its visual value. Reusing a producer buffer cannot
+    // move an already-running target badge or outline.
+    desc.visual.anchorWorld = vec3(100, 200, 0);
+    producerOutline[0] = vec3(999, 999, 0);
+    incAsyncDerivedUpdateSetExpected(target, 2);
+    auto first = incAsyncDerivedUpdateQueue(target);
+    incAsyncDerivedUpdateStart(first);
+    incAsyncDerivedUpdateApplied(first);
+    incAsyncDerivedUpdateApplied(first);
+
+    AsyncDerivedUpdateSnapshot snapshot;
+    require(incAsyncDerivedUpdateTargetSnapshot(target, snapshot, true)
+        && snapshot.state == AsyncDerivedUpdateState.Running
+        && snapshot.expectedUnits == 2
+        && snapshot.appliedUnits == 1
+        && snapshot.runningUnits == 0,
+        "derived-update progress must stay RUN between chunks and ignore duplicate completion");
+    require(nearVec3(snapshot.visual.anchorWorld, vec3(10, 20, 0))
+        && nearVec3(snapshot.visual.outlineWorld[0], vec3(0, 0, 0)),
+        "derived-update visual position and outline must be frozen at target registration");
+
+    AsyncDerivedUpdateSnapshot reread;
+    require(incAsyncDerivedUpdateTargetSnapshot(target, reread, true)
+        && nearVec3(reread.visual.outlineWorld[0], vec3(0, 0, 0)),
+        "consumer snapshots must expose the registry-owned immutable geometry");
+
+    auto second = incAsyncDerivedUpdateQueue(target);
+    incAsyncDerivedUpdateStart(second);
+    incAsyncDerivedUpdateApplied(second);
+    require(incAsyncDerivedUpdateTargetSnapshot(target, snapshot, true)
+        && snapshot.state == AsyncDerivedUpdateState.Applied
+        && near(incAsyncDerivedUpdateProgress(snapshot), 1.0f),
+        "derived-update progress should complete only after every explicit work handle is applied");
+
+    origin.transactionId = 43;
+    auto coalesceRun = incAsyncDerivedUpdateBeginRun(origin);
+    auto coalesceDesc = desc;
+    coalesceDesc.key.subjectId = 88;
+    coalesceDesc.mergePolicy = AsyncDerivedUpdateMergePolicy.CoalescePending;
+    auto coalescedTarget = incAsyncDerivedUpdateTrackTarget(
+        coalesceRun, coalesceDesc);
+    origin.transactionId = 44;
+    auto coalesceReplacementRun = incAsyncDerivedUpdateBeginRun(origin);
+    coalesceDesc.label = "coalesced-fixture";
+    auto coalescedReplacement = incAsyncDerivedUpdateTrackTarget(
+        coalesceReplacementRun, coalesceDesc);
+    require(coalescedTarget == coalescedReplacement
+        && incAsyncDerivedUpdateTargetSnapshot(
+            coalescedTarget, snapshot, true)
+        && snapshot.origin.transactionId == 44
+        && snapshot.label == "coalesced-fixture",
+        "pending updates may coalesce while retaining the newest operation context");
+    incAsyncDerivedUpdateEndRun(coalesceReplacementRun);
+    require(incAsyncDerivedUpdateTargetSnapshot(
+            coalescedTarget, snapshot, true)
+        && snapshot.state == AsyncDerivedUpdateState.Applied
+        && !incAsyncDerivedUpdateQueue(coalescedTarget).valid,
+        "ending a run must seal its no-work targets and reject late queue additions");
+    incAsyncDerivedUpdateForgetTarget(coalescedTarget);
+
+    auto visible = incAsyncDerivedUpdateSnapshots(
+        registryScope, cast(uint)AsyncDerivedUpdateViewportChannel.Model, true);
+    require(visible.length == 1 && visible[0].label == "fixture-grid",
+        "scope and viewport filtering must expose only the exact registered target");
+
+    origin.transactionId = 42;
+    auto replacementRun = incAsyncDerivedUpdateBeginRun(origin);
+    desc.sourceRevision = 2;
+    desc.visual.anchorWorld = vec3(30, 40, 0);
+    producerOutline[0] = vec3(30, 40, 0);
+    auto replacement = incAsyncDerivedUpdateTrackTarget(replacementRun, desc);
+    visible = incAsyncDerivedUpdateSnapshots(
+        registryScope, cast(uint)AsyncDerivedUpdateViewportChannel.Model, true);
+    require(replacement.valid && visible.length == 1
+        && visible[0].target == replacement
+        && visible[0].sourceRevision == 2
+        && !incAsyncDerivedUpdateTargetSnapshot(target, snapshot, true),
+        "a newer generation must supersede the same target without showing unrelated or duplicate records");
+
+    auto autoMeshUiSource = readText(buildPath(
+        regressionRepoRoot(), "source", "nijigenerate", "viewport",
+        "vertex", "automesh", "package.d"));
+    require(!autoMeshUiSource.canFind("asyncderivedupdate"),
+        "AutoMesh must keep its existing explicit-operation UI outside the derived-update registry");
+
+    incAsyncDerivedUpdateClearScope(registryScope);
+    require(incAsyncDerivedUpdateSnapshots(registryScope, 0, true).length == 0,
+        "clearing a project scope must remove all of its derived-update state");
 }
 
 private void testDepthBoneStandardSkeletonTemplate() {
@@ -20055,6 +20249,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.update-visualization":
             runCase("depthbone-update-visualization-state", &testDepthBoneUpdateVisualizationState);
+            return true;
+        case "async.derived-update":
+            runCase("async-derived-update-registry", &testAsyncDerivedUpdateRegistry);
             return true;
         case "depthbone.skinning":
             runCase("depthbone-skinning-lock-to-root-terminal", &testDepthBoneSkinningLockToRootTerminal);

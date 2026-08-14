@@ -8,8 +8,9 @@
 module nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.model.depthboneoverlay : depthBoneEffectivePivotSelectionChanged,
-    drawDepthBones, drawDepthBoneUpdateProgressOverlays,
-    drawDepthBoneUpdateStatusUi, drawDepthBoneUpdateTargets;
+    drawDepthBones;
+import nijigenerate.core.asyncderivedupdate :
+    AsyncDerivedUpdateViewportChannel;
 import nijigenerate.commands.depth.bone : ngFlushDepthBoneEffectivePivotDirty;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.widgets.label;
@@ -55,18 +56,6 @@ ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 
 class ModelLayoutViewport : Viewport {
 public:
-    override
-    void drawOverlay(
-        ImDrawList* drawList,
-        ImVec2 viewportOrigin,
-        ImRect viewportRect,
-    ) {
-        if (ngShowDepthBones) {
-            drawDepthBoneUpdateProgressOverlays(
-                drawList, viewportOrigin, viewportRect);
-        }
-    }
-
     override
     void selectionChanged(Node[] nodes) {
         depthBoneEffectivePivotSelectionChanged(nodes);
@@ -114,7 +103,6 @@ public:
             foreach (root; findDepthRoots()) {
                 drawDepthBones(root, findDepthRoot(selectedDepthBone) is root ? selectedDepthBone : null);
             }
-            drawDepthBoneUpdateTargets();
         }
 
         if (incSelectedNodes.length == 0) return;
@@ -269,6 +257,11 @@ private:
 
 public:
 
+    override
+    uint asyncDerivedUpdateViewportChannel() {
+        return cast(uint)AsyncDerivedUpdateViewportChannel.Model;
+    }
+
     this() {
         activeSubMode = ModelEditSubMode.Layout;
         _subView = createSubView(activeSubMode);
@@ -363,8 +356,6 @@ public:
  
     override
     void drawConfirmBar() {
-        if (ngShowDepthBones) drawDepthBoneUpdateStatusUi();
-
         // If parameter is armed we should *not* show the edit mesh button
         if (ngModelEditSubMode() != ModelEditSubMode.Layout) return;
 

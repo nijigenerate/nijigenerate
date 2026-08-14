@@ -84,6 +84,7 @@ public:
         ImVec2 viewportOrigin,
         ImRect viewportRect,
     ) {};
+    uint asyncDerivedUpdateViewportChannel() { return 0; }
 
     void update(ImGuiIO* io, Camera camera) { }
     void withdraw() { };
@@ -122,6 +123,7 @@ public:
     mixin(use("drawTools"));
     mixin(use("drawOptions"));
     mixin(use("drawConfirmBar"));
+    mixin(use!uint("asyncDerivedUpdateViewportChannel"));
 
     override
     void drawOverlay(

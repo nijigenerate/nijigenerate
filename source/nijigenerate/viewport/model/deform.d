@@ -10,8 +10,7 @@ module nijigenerate.viewport.model.deform;
 import nijigenerate.actions.depthboneinvalidation : ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate.viewport.model.mesheditor;
 import nijigenerate.viewport.model.depthboneoverlay : depthBoneEffectivePivotSelectionChanged,
-    drawDepthBones, drawDepthBoneUpdateProgressOverlays,
-    drawDepthBoneUpdateTargets;
+    drawDepthBones;
 import nijigenerate.viewport.base;
 import nijigenerate.core.input;
 import nijigenerate.core.dbg;
@@ -29,18 +28,6 @@ public:
     Parameter parameter = null;
 
     override
-    void drawOverlay(
-        ImDrawList* drawList,
-        ImVec2 viewportOrigin,
-        ImRect viewportRect,
-    ) {
-        if (ngShowDepthBones) {
-            drawDepthBoneUpdateProgressOverlays(
-                drawList, viewportOrigin, viewportRect);
-        }
-    }
-
-    override
     void draw(Camera camera) { 
         if (editor)
             editor.draw(camera);
@@ -56,7 +43,6 @@ public:
             foreach (root; findDepthRoots()) {
                 drawDepthBones(root, findDepthRoot(selectedDepthBone) is root ? selectedDepthBone : null);
             }
-            drawDepthBoneUpdateTargets();
         }
     }
 

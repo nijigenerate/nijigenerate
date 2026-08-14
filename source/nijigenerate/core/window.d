@@ -13,6 +13,7 @@ import nijigenerate.core.path;
 import nijigenerate.core.font;
 import nijigenerate.core.dpi;
 import nijigenerate.core.tasks;
+import nijigenerate.core.asyncderivedupdate : incAsyncDerivedUpdateUpdate;
 import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.modal;
 import nijigenerate.widgets.button;
@@ -841,6 +842,7 @@ void incBeginLoop() {
         if (stepAfterEvent) break;
     }
 
+    incAsyncDerivedUpdateUpdate();
     incTaskUpdate();
 
     // Begin loop post-event

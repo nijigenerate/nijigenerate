@@ -10,6 +10,8 @@ import bindbc.imgui;
 import i18n;
 import nijigenerate;
 import nijigenerate.core.input;
+import nijigenerate.core.asyncderivedupdate :
+    AsyncDerivedUpdateViewportChannel;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.mesheditor;
@@ -49,6 +51,11 @@ private:
     }
 
 public:
+    override
+    uint asyncDerivedUpdateViewportChannel() {
+        return cast(uint)AsyncDerivedUpdateViewportChannel.Depth;
+    }
+
     override
     void present() {
         editor = new DepthMeshEditor();
