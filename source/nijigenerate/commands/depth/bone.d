@@ -4259,22 +4259,40 @@ class SetDepthBoneConstraintCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto b = requireBone(bone);
-        auto action = new DepthBoneConstraintChangeAction(b);
         auto json = parseJSON(constraint);
-        if ("constraintType" in json.object) b.constraintType = json["constraintType"].str;
-        if ("lockRotation" in json.object) b.lockRotation = json["lockRotation"].boolean;
-        if ("lockTranslation" in json.object) b.lockTranslation = json["lockTranslation"].boolean;
-        if ("allowParentToTargets" in json.object) b.allowParentToTargets = json["allowParentToTargets"].boolean;
+        enforce(json.type == JSONType.object, "constraint must be a JSON object");
+
+        auto constraintType = b.constraintType;
+        auto lockRotation = b.lockRotation;
+        auto lockTranslation = b.lockTranslation;
+        auto allowParentToTargets = b.allowParentToTargets;
+        auto hingeAxis = b.hingeAxis;
+        auto rotationLimits = b.rotationLimits.dup;
+        auto maxStepRadians = b.maxStepRadians;
+
+        if ("constraintType" in json.object) constraintType = json["constraintType"].str;
+        if ("lockRotation" in json.object) lockRotation = json["lockRotation"].boolean;
+        if ("lockTranslation" in json.object) lockTranslation = json["lockTranslation"].boolean;
+        if ("allowParentToTargets" in json.object) allowParentToTargets = json["allowParentToTargets"].boolean;
         if ("hingeAxis" in json.object) {
             auto values = json["hingeAxis"].array;
             enforce(values.length == 3, "hingeAxis must be [x,y,z]");
-            b.hingeAxis = vec3(jsonNumber(values[0], b.hingeAxis.x), jsonNumber(values[1], b.hingeAxis.y), jsonNumber(values[2], b.hingeAxis.z));
+            hingeAxis = vec3(jsonNumber(values[0], hingeAxis.x), jsonNumber(values[1], hingeAxis.y), jsonNumber(values[2], hingeAxis.z));
         }
         if ("rotationLimits" in json.object) {
-            b.rotationLimits.length = 0;
-            foreach (value; json["rotationLimits"].array) b.rotationLimits ~= jsonNumber(value, 0);
+            rotationLimits.length = 0;
+            foreach (value; json["rotationLimits"].array) rotationLimits ~= jsonNumber(value, 0);
         }
-        if ("maxStepRadians" in json.object) b.maxStepRadians = jsonNumber(json["maxStepRadians"], b.maxStepRadians);
+        if ("maxStepRadians" in json.object) maxStepRadians = jsonNumber(json["maxStepRadians"], maxStepRadians);
+
+        auto action = new DepthBoneConstraintChangeAction(b);
+        b.constraintType = constraintType;
+        b.lockRotation = lockRotation;
+        b.lockTranslation = lockTranslation;
+        b.allowParentToTargets = allowParentToTargets;
+        b.hingeAxis = hingeAxis;
+        b.rotationLimits = rotationLimits;
+        b.maxStepRadians = maxStepRadians;
         action.updateNewState();
         incActionPush(action);
         return CommandResult(true);

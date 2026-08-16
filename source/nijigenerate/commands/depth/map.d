@@ -1211,8 +1211,10 @@ class SetDepthsCommand : ExCommand!(
     this() { super(_("Set Depths"), _("Set per-vertex depth values")); }
 
     override CommandResult run(Context ctx) {
-        auto grid = requireDepthGrid(target);
-        enforce(depths.length == grid.vertices.length, "depths length must match target vertices");
+        auto mapped = requireDepthMapped(target);
+        auto deformable = cast(Deformable)target;
+        enforce(deformable !is null, "target must be a Deformable");
+        enforce(depths.length == deformable.vertices.length, "depths length must match target vertices");
         replaceDepthsWithUndo(target, depths, "Set Depths");
         return CommandResult(true);
     }
@@ -1245,7 +1247,7 @@ class ListDepthOpsCommand : ExCommand!(TW!(Node, "target", "Depth operation targ
 @EffectApply
 class SetDepthOpsCommand : ExCommand!(
     TW!(Node, "target", "Depth operation target node"),
-    TW!(JSONValue, "operations", "Depth operations array")
+    TW!(JSONValue, "operations", "Depth operations array", false, CommandJsonSchema.depthOperations)
 ) {
     this() { super(_("Set Depth Operations"), _("Replace saved depth operations")); }
 
@@ -1258,7 +1260,7 @@ class SetDepthOpsCommand : ExCommand!(
 @EffectApply
 class AddDepthOpCommand : ExCommand!(
     TW!(Node, "target", "Depth operation target node"),
-    TW!(JSONValue, "operation", "Depth operation object"),
+    TW!(JSONValue, "operation", "Depth operation object", false, CommandJsonSchema.depthOperation),
     TW!(int, "index", "Insertion index, or -1 to append")
 ) {
     this() { super(_("Add Depth Operation"), _("Add one saved depth operation")); }
@@ -1282,7 +1284,7 @@ class AddDepthOpCommand : ExCommand!(
 class UpdateDepthOpCommand : ExCommand!(
     TW!(Node, "target", "Depth operation target node"),
     TW!(int, "index", "Operation index"),
-    TW!(JSONValue, "operation", "Replacement depth operation object")
+    TW!(JSONValue, "operation", "Replacement depth operation object", false, CommandJsonSchema.depthOperation)
 ) {
     this() { super(_("Update Depth Operation"), _("Replace one saved depth operation")); }
 

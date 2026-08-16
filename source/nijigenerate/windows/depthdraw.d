@@ -167,6 +167,7 @@ private:
 
     void hydrateManifestLayerImages(DepthDrawSession loadedSession, string manifestPath) {
         if (loadedSession is null) return;
+        ulong retainedPngBytes;
         foreach (ref layer; loadedSession.layers) {
             if (layer.sourcePath.length == 0) continue;
             auto resolvedSourcePath = layer.sourcePath.isAbsolute
@@ -176,7 +177,8 @@ private:
             if (resolvedSourcePath.extension.toLower != ".png") continue;
 
             DepthDrawLayer imageLayer;
-            auto ex = collectException(imageLayer = ngLoadDepthDrawPngLayer(resolvedSourcePath, layer.id));
+            auto ex = collectException(imageLayer = ngLoadDepthDrawPngLayer(
+                resolvedSourcePath, layer.id, retainedPngBytes));
             if (ex !is null) {
                 throw new Exception(_("Failed to decode DepthDraw layer image %s: %s").format(
                     resolvedSourcePath, ex.msg));

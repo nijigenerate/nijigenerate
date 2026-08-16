@@ -28,23 +28,42 @@ struct DepthDrawLayerPairingResult {
 
 enum ulong DepthDrawPsdRetainedBytesPerPixel = 9;
 enum ulong DepthDrawMaxPsdRetainedBytes = 256UL * 1024UL * 1024UL;
+enum ulong DepthDrawPngRetainedBytesPerPixel = 8;
+enum ulong DepthDrawMaxPngRetainedBytes = 256UL * 1024UL * 1024UL;
 
-bool ngReserveDepthDrawPsdRetainedLayer(long width, long height, ref ulong retainedBytes) {
+private bool reserveDepthDrawRetainedLayer(
+    long width,
+    long height,
+    ulong bytesPerPixel,
+    ulong maxBytes,
+    ref ulong retainedBytes,
+) {
     if (width < 0 || height < 0) return false;
     auto unsignedWidth = cast(ulong)width;
     auto unsignedHeight = cast(ulong)height;
     if (unsignedHeight != 0 && unsignedWidth > ulong.max / unsignedHeight) return false;
     auto pixelCount = unsignedWidth * unsignedHeight;
-    if (pixelCount > ulong.max / DepthDrawPsdRetainedBytesPerPixel) return false;
-    auto requiredBytes = pixelCount * DepthDrawPsdRetainedBytesPerPixel;
-    if (retainedBytes > DepthDrawMaxPsdRetainedBytes ||
-        requiredBytes > DepthDrawMaxPsdRetainedBytes - retainedBytes) return false;
+    if (pixelCount > ulong.max / bytesPerPixel) return false;
+    auto requiredBytes = pixelCount * bytesPerPixel;
+    if (retainedBytes > maxBytes || requiredBytes > maxBytes - retainedBytes) return false;
     retainedBytes += requiredBytes;
     return true;
 }
 
-DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id = null) {
+bool ngReserveDepthDrawPsdRetainedLayer(long width, long height, ref ulong retainedBytes) {
+    return reserveDepthDrawRetainedLayer(
+        width, height, DepthDrawPsdRetainedBytesPerPixel, DepthDrawMaxPsdRetainedBytes, retainedBytes);
+}
+
+bool ngReserveDepthDrawPngRetainedLayer(long width, long height, ref ulong retainedBytes) {
+    return reserveDepthDrawRetainedLayer(
+        width, height, DepthDrawPngRetainedBytesPerPixel, DepthDrawMaxPngRetainedBytes, retainedBytes);
+}
+
+private DepthDrawLayer loadDepthDrawPngLayer(string path, string id, ref ulong retainedBytes) {
     auto tex = ShallowTexture(path, 4);
+    enforce(ngReserveDepthDrawPngRetainedLayer(tex.width, tex.height, retainedBytes),
+        "PNG layers exceed the DepthDraw retained memory budget");
 
     DepthDrawLayer layer;
     layer.id = id.length ? id : path.baseName.stripExtension;
@@ -57,9 +76,18 @@ DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id = null) {
     layer.bounds.top = 0;
     layer.bounds.width = tex.width;
     layer.bounds.height = tex.height;
-    layer.rgba = tex.data.dup;
-    layer.depthPixels = tex.data.dup;
+    layer.rgba = tex.data;
+    layer.depthPixels = layer.rgba.dup;
     return layer;
+}
+
+DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id = null) {
+    ulong retainedBytes;
+    return loadDepthDrawPngLayer(path, id, retainedBytes);
+}
+
+DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id, ref ulong retainedBytes) {
+    return loadDepthDrawPngLayer(path, id, retainedBytes);
 }
 
 void ngDepthDrawApplyClippingBaseCoverage(

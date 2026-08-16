@@ -14,7 +14,8 @@ import nijigenerate.api.mcp.helpers : buildContextFromPayload, commandResultToJs
 import nijigenerate.api.mcp.auth : ApprovalRequest;
 import nijigenerate.api.mcp.http_transport : createHttpTransport;
 import nijigenerate.api.mcp.resource_listing : buildCurrentResourceList, rewriteResourcesListResponse;
-import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpFinishActionBoundary, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop;
+import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpFinishActionBoundary,
+    ngMcpJsonArgumentSchemaForRegression, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProcessQueue, ngRunInMainThread;
 import nijigenerate.commands;
 import nijigenerate.commands.binding.base : cParamPoint, ngBindingHasKeypoint, ngBindingIsSetAt, paramPointChanged;
@@ -120,7 +121,8 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
     DepthMergePolicy, DepthDrawComposeResult, DepthDrawLayerCleanupKind, DepthDrawLayerCleanupOperation,
     DepthDrawMaxContourThickness, DepthDrawMaxFocusedRuleRadius, DepthDrawLayerStackSortMode,
     ngNormalizeDepthDrawContourThickness, ngNormalizeDepthDrawFocusedRule,
-    ngComposeDepthDrawTarget, ngDepthDrawApplyFitZToGap, ngDepthDrawAutoBindLayer, ngDepthDrawAutoBindSession,
+    ngComposeDepthDrawTarget, ngDepthDrawApplyFitZToGap, ngDepthDrawAutoBindLayer,
+    ngDepthDrawAutoBindSession, ngDepthDrawBindingFromAutoBind,
     ngDepthDrawFitZDiagnostics, ngDepthDrawFitZToGap, ngDepthDrawGapFromAdjacentRanges,
     ngDepthDrawGapFromSelectedLayerRanges, ngDepthDrawGapFromTargetRange, ngDepthDrawRangeFromValues,
     ngDepthDrawWinningLayerColor,
@@ -163,7 +165,9 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
     ngDepthDrawPsdLayerHasPixelData,
     ngDepthDrawAttachNormalCoverage,
     ngDepthDrawCarryReloadState,
+    DepthDrawMaxPngRetainedBytes,
     DepthDrawMaxPsdRetainedBytes,
+    ngReserveDepthDrawPngRetainedLayer,
     ngReserveDepthDrawPsdRetainedLayer,
     ngGetPuppetDepthDrawSession,
     ngLoadDepthDrawPsd,
@@ -3947,6 +3951,19 @@ private void testDepthMapCommandsUndoRedo() {
     require(listedDepths !is null && listedDepths.succeeded, "ListDepths command should return JSON");
     require(listedDepths.result["count"].integer == 4, "ListDepths should report depth count");
 
+    auto path = new ExPathDeformer(incActivePuppet().root);
+    path.name = "depth-command-path";
+    path.rebuffer(Vec2Array([vec2(0, 0), vec2(5, 5), vec2(10, 0)]));
+    require(cmd!(DepthMapCommand.SetDepths)(ctx, path, [-0.25f, 0.0f, 0.75f]).succeeded,
+        "SetDepths should accept every Deformable DepthMapped target");
+    require(path.copyDepths() == [-0.25f, 0.0f, 0.75f],
+        "SetDepths should apply per-vertex depths to PathDeformer targets");
+    incActionUndo();
+    require(path.copyDepths() is null, "undo SetDepths should clear newly assigned PathDeformer depths");
+    incActionRedo();
+    require(path.copyDepths() == [-0.25f, 0.0f, 0.75f],
+        "redo SetDepths should restore PathDeformer depths");
+
     JSONValue[string] attachedFields;
     attachedFields["index"] = JSONValue(1);
     attachedFields["amount"] = JSONValue(0.4);
@@ -7605,6 +7622,29 @@ private void testDepthDrawDataModelContracts() {
         autoBindSession.bindings[0].targetGridUuid == directGrid.uuid,
         "DepthDraw auto-bind session should add bindings for matched layers");
 
+    auto staleAutoBindSession = new DepthDrawSession();
+    staleAutoBindSession.layers ~= autoLayer;
+    auto staleBinding = ngDepthDrawBindingFromAutoBind(autoBind, 0);
+    staleBinding.targetNodeUuid = ulong.max;
+    staleBinding.targetGridUuid = ulong.max;
+    staleBinding.enabled = false;
+    staleAutoBindSession.bindings ~= staleBinding;
+    ngDepthDrawAutoBindSession(staleAutoBindSession, incActivePuppet());
+    require(staleAutoBindSession.bindings.length == 1 &&
+        staleAutoBindSession.bindings[0].targetGridUuid == directGrid.uuid &&
+        staleAutoBindSession.bindings[0].targetNodeUuid == directGrid.uuid &&
+        staleAutoBindSession.bindings[0].enabled,
+        "DepthDraw auto-bind should replace a disabled or missing stale binding with the discovered target");
+
+    auto disabledExactSession = new DepthDrawSession();
+    disabledExactSession.layers ~= autoLayer;
+    auto disabledExactBinding = ngDepthDrawBindingFromAutoBind(autoBind, 0);
+    disabledExactBinding.enabled = false;
+    disabledExactSession.bindings ~= disabledExactBinding;
+    ngDepthDrawAutoBindSession(disabledExactSession, incActivePuppet());
+    require(disabledExactSession.bindings.length == 1 && disabledExactSession.bindings[0].enabled,
+        "DepthDraw auto-bind should re-enable an existing binding to the discovered target");
+
     auto directPath = new ExPathDeformer(incActivePuppet().root);
     directPath.name = "AutoBindPath";
     DepthDrawLayer autoPathLayer;
@@ -7848,6 +7888,13 @@ private void testDepthDrawSourceManifestContracts() {
     ulong oversizedPsdBytes;
     require(!ngReserveDepthDrawPsdRetainedLayer(100_000_000, 100_000_000, oversizedPsdBytes),
         "DepthDraw PSD retained-layer budgeting must reject overflowing dimensions without allocation");
+    ulong retainedPngBytes;
+    require(ngReserveDepthDrawPngRetainedLayer(4096, 4096, retainedPngBytes) &&
+        retainedPngBytes == 4096UL * 4096UL * 8UL &&
+        ngReserveDepthDrawPngRetainedLayer(4096, 4096, retainedPngBytes) &&
+        retainedPngBytes == DepthDrawMaxPngRetainedBytes &&
+        !ngReserveDepthDrawPngRetainedLayer(1, 1, retainedPngBytes),
+        "DepthDraw PNG loading must enforce an aggregate retained-buffer byte budget");
 
     auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthdraw-manifest");
     if (exists(fixtureDir))
@@ -14477,6 +14524,22 @@ private void testDepthBoneInspectorCommandsUndoRedo() {
     require(bone.lockRotation && bone.lockTranslation && !bone.allowParentToTargets, "redo SetDepthBoneConstraint should restore boolean flags");
     require(bone.rotationLimits.length == 2 && near(bone.rotationLimits[0], -0.5f) && near(bone.rotationLimits[1], 0.5f), "redo SetDepthBoneConstraint should restore rotation limits");
     require(near(bone.maxStepRadians, 0.1f), "redo SetDepthBoneConstraint should restore max step");
+
+    auto actionBeforeInvalidConstraint = incActionTop();
+    bool invalidConstraintRejected;
+    try {
+        cmd!(DepthBoneCommand.SetDepthBoneConstraint)(
+            ctx, bone, `{"lockRotation":false,"hingeAxis":[1,2]}`);
+    } catch (Exception) {
+        invalidConstraintRejected = true;
+    }
+    require(invalidConstraintRejected, "SetDepthBoneConstraint should reject an invalid late constraint field");
+    require(bone.constraintType == "hinge" && bone.hingeAxis == vec3(0, 1, 0) &&
+        bone.lockRotation && bone.lockTranslation && !bone.allowParentToTargets &&
+        bone.rotationLimits.length == 2 && near(bone.maxStepRadians, 0.1f),
+        "rejected SetDepthBoneConstraint input must not leave partial mutations");
+    require(incActionTop() is actionBeforeInvalidConstraint,
+        "rejected SetDepthBoneConstraint input must not create an Undo entry");
 }
 
 private void testDepthBoneSourceCommandsUndoRedo() {
@@ -19201,6 +19264,16 @@ private void testCommandBaseContracts() {
     auto rejected = ngRunCommand(nonRunnable, ctx);
     require(!rejected.succeeded && !nonRunnable.didRun,
         "the central command dispatcher must reject a command whose current context is not runnable");
+
+    auto depthOperationSchema = ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema.depthOperation);
+    require(depthOperationSchema["type"].str == "object" &&
+        depthOperationSchema["properties"]["type"]["type"].str == "string" &&
+        depthOperationSchema["properties"]["p0"]["type"].str == "array",
+        "MCP depth-operation arguments must publish an object schema instead of the overlay array schema");
+    auto depthOperationsSchema = ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema.depthOperations);
+    require(depthOperationsSchema["type"].str == "array" &&
+        depthOperationsSchema["items"]["type"].str == "object",
+        "MCP depth-operation list arguments must publish an array of depth-operation objects");
 }
 
 private void testPlatformVersionMetadata() {

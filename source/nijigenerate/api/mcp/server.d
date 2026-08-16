@@ -27,7 +27,7 @@ import std.stdio : writefln;
 
 // nijigenerate command system
 import nijigenerate.commands; // AllCommandMaps, Command, Context
-import nijigenerate.commands.base : BaseExArgsOf, CommandResult, enrichArgDesc, ngCommandIdFromKey;
+import nijigenerate.commands.base : BaseExArgsOf, CommandJsonSchema, CommandResult, enrichArgDesc, ngCommandIdFromKey;
 import nijigenerate.commands.automesh.config : AutoMeshTypedCommand; // for CT logs
 import nijigenerate.project : EditMode, incActivePuppet, incEditMode, incRegisterLoadFunc;
 import nijigenerate.core.actionstack : ActionStackScopeUnit, ngFlushActionStackGroups, ngGuardActionStackScopes;
@@ -83,6 +83,54 @@ private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
 
 private CommandResult _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
     return ngRunCommand(inst, ctx);
+}
+
+private SchemaBuilder depthOperationSchema() {
+    auto vec2Schema = SchemaBuilder.array(SchemaBuilder.number()).length(2, 2);
+    return SchemaBuilder.object()
+        .addProperty("type", SchemaBuilder.enum_(["attached-point", "ring", "plane"]))
+        .addProperty("index", SchemaBuilder.integer().optional())
+        .addProperty("amount", SchemaBuilder.number().optional())
+        .addProperty("p0", vec2Schema.optional())
+        .addProperty("p1", SchemaBuilder.array(SchemaBuilder.number()).length(2, 2).optional())
+        .addProperty("width", SchemaBuilder.number().optional())
+        .addProperty("hardness", SchemaBuilder.number().optional())
+        .addProperty("p0Angle", SchemaBuilder.number().optional())
+        .addProperty("p1Angle", SchemaBuilder.number().optional())
+        .addProperty("center", SchemaBuilder.array(SchemaBuilder.number()).length(2, 2).optional())
+        .addProperty("radiusX", SchemaBuilder.number().optional())
+        .addProperty("radiusY", SchemaBuilder.number().optional())
+        .addProperty("angle", SchemaBuilder.number().optional())
+        .addProperty("targetDepth", SchemaBuilder.number().optional())
+        .addProperty("flattenStrength", SchemaBuilder.number().optional())
+        .allowAdditional(true);
+}
+
+private SchemaBuilder jsonArgumentSchema(CommandJsonSchema schema, string description) {
+    final switch (schema) {
+        case CommandJsonSchema.unspecified:
+            return SchemaBuilder.object().allowAdditional(true).setDescription(description);
+        case CommandJsonSchema.overlayObjects:
+            return SchemaBuilder.array(
+                SchemaBuilder.object()
+                    .addProperty("uuid", SchemaBuilder.integer()
+                        .setDescription("Target Node UUID."))
+                    .addProperty("overlay", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
+                        .setDescription("Overlay kind. Use bounds or mesh."))
+                    .addProperty("type", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
+                        .setDescription("Alias of overlay."))
+            ).optional().setDescription(description);
+        case CommandJsonSchema.depthOperation:
+            return depthOperationSchema().setDescription(description);
+        case CommandJsonSchema.depthOperations:
+            return SchemaBuilder.array(depthOperationSchema()).setDescription(description);
+    }
+}
+
+version (CommandBrowserDifferential) {
+    JSONValue ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema schema) {
+        return jsonArgumentSchema(schema, "regression").toJSON();
+    }
 }
 
 private bool _mcpNeedsActionScopeForCurrentMode(string toolName) {
@@ -556,15 +604,12 @@ private void _ngMcpStart(string host, ushort port) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.string_()).setDescription((desc.length?desc~"; ":"")~"string[]"));
                                     paramLog ~= fname ~ ":string[]";
                                 } else static if (is(TParam == JSONValue)) {
-                                    inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(
-                                        SchemaBuilder.object()
-                                            .addProperty("uuid", SchemaBuilder.integer()
-                                                .setDescription("Target Node UUID."))
-                                            .addProperty("overlay", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
-                                                .setDescription("Overlay kind. Use bounds or mesh."))
-                                            .addProperty("type", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
-                                                .setDescription("Alias of overlay."))
-                                    ).optional().setDescription(desc));
+                                    enum jsonSchema = TemplateArgsOf!Param.length >= 5
+                                        ? TemplateArgsOf!Param[4]
+                                        : CommandJsonSchema.unspecified;
+                                    static assert(jsonSchema != CommandJsonSchema.unspecified,
+                                        "JSONValue command arguments must declare a CommandJsonSchema");
+                                    inputSchema = inputSchema.addProperty(fname, jsonArgumentSchema(jsonSchema, desc));
                                     paramLog ~= fname ~ ":json";
                                 } else static if (is(TParam == vec2u)) {
                                     inputSchema = inputSchema.addProperty(fname, SchemaBuilder.array(SchemaBuilder.integer()).setDescription((desc.length?desc~"; ":"")~"vec2u [x,y]"));

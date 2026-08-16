@@ -63,7 +63,21 @@ template registerCommand(alias id, Args...) {
 import nijilive;
 //import nijigenerate.core;
 import nijigenerate.ext;
-struct TW(alias T, string fieldName, string fieldDesc, bool hidden = false) {}
+
+enum CommandJsonSchema {
+    unspecified,
+    overlayObjects,
+    depthOperation,
+    depthOperations,
+}
+
+struct TW(
+    alias T,
+    string fieldName,
+    string fieldDesc,
+    bool hidden = false,
+    CommandJsonSchema jsonSchema = CommandJsonSchema.unspecified,
+) {}
 
 enum CommandShortcutPolicy {
     visible,
@@ -567,8 +581,8 @@ CommandResult ngRunCommand(Command command, Context context) {
 
 abstract class ExCommand(T...) : Command {
     template _unwrapType(W) {
-        static if (is(W == TW!(E, fname, fdesc), alias E, string fname, string fdesc))
-            alias _unwrapType = E;
+        static if (isInstanceOf!(TW, W))
+            alias _unwrapType = TemplateArgsOf!W[0];
         else
             alias _unwrapType = W;
     }

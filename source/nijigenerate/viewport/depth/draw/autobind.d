@@ -145,14 +145,27 @@ DepthDrawAutoBindResult[] ngDepthDrawAutoBindSession(
         auto result = ngDepthDrawAutoBindLayer(puppet, layer, matchDirectGridName);
         results ~= result;
         if (!result.matched) continue;
-        auto alreadyBound = false;
-        foreach (binding; session.bindings) {
-            if (binding.layerId == layer.id) {
-                alreadyBound = true;
+        auto foundBinding = false;
+        ptrdiff_t reusableBinding = -1;
+        foreach (bindingIndex, ref binding; session.bindings) {
+            if (binding.layerId != layer.id) continue;
+            if (binding.targetGridUuid == result.targetGridUuid) {
+                binding.targetNodeUuid = result.matchedNodeUuid;
+                binding.enabled = true;
+                foundBinding = true;
                 break;
             }
+            auto target = puppet is null ? null : puppet.find!Node(cast(uint)binding.targetGridUuid);
+            if (reusableBinding < 0 && (!binding.enabled || cast(DepthMappedNode)target is null))
+                reusableBinding = cast(ptrdiff_t)bindingIndex;
         }
-        if (!alreadyBound) session.bindings ~= ngDepthDrawBindingFromAutoBind(result, cast(int)i);
+        if (foundBinding) continue;
+        auto binding = ngDepthDrawBindingFromAutoBind(result, cast(int)i);
+        if (reusableBinding >= 0) {
+            session.bindings[cast(size_t)reusableBinding] = binding;
+        } else {
+            session.bindings ~= binding;
+        }
     }
 
     return results;
