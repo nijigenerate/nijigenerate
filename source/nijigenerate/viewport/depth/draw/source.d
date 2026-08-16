@@ -67,6 +67,10 @@ void ngDepthDrawApplyClippingBaseCoverage(
     );
 }
 
+bool ngDepthDrawPsdLayerHasPixelData(ref Layer layer) {
+    return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0;
+}
+
 DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
     auto document = parseDocument(path);
     scope(exit) destroy(document);
@@ -82,7 +86,7 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
     size_t layerIndex;
     DepthDrawLayer[string] clippingBaseByGroup;
     foreach_reverse (i, layer; document.layers) {
-        if (layer.type != LayerType.Any) continue;
+        if (!ngDepthDrawPsdLayerHasPixelData(layer)) continue;
         auto groupState = groupStates[i];
 
         layer.extractLayerImage();

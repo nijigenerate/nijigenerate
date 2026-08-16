@@ -80,17 +80,23 @@ public:
 
 class DepthOperationMappedChangeAction : LazyBoundAction {
 private:
-    Node node;
-    DepthOperationMappedNode depthOperated;
-    ExDepthOp[] oldOperations;
-    ExDepthOp[] newOperations;
-
-    ExDepthOp[] capture() {
-        return depthOperated.copyDepthOps();
+    struct State {
+        ExDepthOp[] operations;
+        float[] baseDepths;
     }
 
-    void apply(ExDepthOp[] operations) {
-        depthOperated.replaceDepthOps(operations);
+    Node node;
+    DepthOperationMappedNode depthOperated;
+    State oldState;
+    State newState;
+
+    State capture() {
+        return State(depthOperated.copyDepthOps(), depthOperated.copyDepthOpBaseDepths());
+    }
+
+    void apply(State state) {
+        depthOperated.replaceDepthOps(state.operations);
+        depthOperated.replaceDepthOpBaseDepths(state.baseDepths);
         node.notifyChange(node, NotifyReason.AttributeChanged);
     }
 
@@ -99,12 +105,12 @@ public:
         this.node = node;
         this.depthOperated = cast(DepthOperationMappedNode)node;
         assert(this.depthOperated !is null);
-        this.oldOperations = capture();
+        this.oldState = capture();
     }
 
     override
     void updateNewState() {
-        newOperations = capture();
+        newState = capture();
     }
 
     override
@@ -112,12 +118,12 @@ public:
 
     override
     void rollback() {
-        apply(oldOperations);
+        apply(oldState);
     }
 
     override
     void redo() {
-        apply(newOperations);
+        apply(newState);
     }
 
     override

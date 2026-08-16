@@ -28,15 +28,25 @@ public:
     void rebuffer(Vec2Array gridPoints) {
         auto oldVertices = vertices.dup;
         auto oldDepths = copyDepths();
+        auto oldOperationBaseDepths = copyDepthOpBaseDepths();
         super.rebuffer(gridPoints);
-        if (oldDepths is null) return;
-
-        float[] resampledDepths;
-        if (ngResampleGridDepths(oldVertices, oldDepths, vertices, resampledDepths)) {
-            replaceDepths(resampledDepths);
-        } else {
-            replaceDepths(oldDepths);
-            resizeDepthsToVertices(vertices.length);
+        if (oldDepths !is null) {
+            float[] resampledDepths;
+            if (ngResampleGridDepths(oldVertices, oldDepths, vertices, resampledDepths)) {
+                replaceDepths(resampledDepths);
+            } else {
+                replaceDepths(oldDepths);
+                resizeDepthsToVertices(vertices.length);
+            }
+        }
+        if (oldOperationBaseDepths !is null) {
+            float[] resampledBaseDepths;
+            if (ngResampleGridDepths(oldVertices, oldOperationBaseDepths, vertices, resampledBaseDepths)) {
+                replaceDepthOpBaseDepths(resampledBaseDepths);
+            } else {
+                replaceDepthOpBaseDepths(oldOperationBaseDepths);
+                resizeDepthOpBaseDepthsToVertices(vertices.length);
+            }
         }
     }
 
@@ -46,6 +56,7 @@ public:
         copyDepthsFrom(src);
         copyDepthOpsFrom(src);
         resizeDepthsToVertices(vertices.length);
+        resizeDepthOpBaseDepthsToVertices(vertices.length);
     }
 
     override
@@ -59,7 +70,11 @@ public:
     SerdeException deserializeFromFghj(Fghj data) {
         if (auto exc = super.deserializeFromFghj(data)) return exc;
         if (auto exc = deserializeDepths(data, vertices.length)) return exc;
-        return deserializeDepthOps(data);
+        if (auto exc = deserializeDepthOps(data)) return exc;
+        if (depthOpBaseDepths.length > 0 && depthOpBaseDepths.length != vertices.length) {
+            return new SerdeException("depth-op-base-depths length must match vertices length");
+        }
+        return null;
     }
 }
 

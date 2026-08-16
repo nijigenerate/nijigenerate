@@ -155,6 +155,7 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
     ngClearPuppetDepthDrawSession,
     ngDepthDrawApplyMaskToLayerAlpha,
     ngDepthDrawApplyClippingBaseCoverage,
+    ngDepthDrawPsdLayerHasPixelData,
     ngDepthDrawAttachNormalCoverage,
     ngDepthDrawCarryReloadState,
     ngGetPuppetDepthDrawSession,
@@ -185,7 +186,7 @@ import nijilive.core.nodes.node : inRegisterNodeType;
 import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
 import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
-import psd.parser : applyMaskSettings, sampleMaskAt;
+import psd.parser : applyMaskFeather, applyMaskSettings, sampleMaskAt;
 import psd.rle : decodeRLE, decodeZip;
 import std.base64 : Base64;
 import std.exception : collectException, enforce;
@@ -911,6 +912,27 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     relativeMaskLayer.layerMask[0].positionRelativeToLayer = false;
     require(sampleMaskAt(relativeMaskLayer, ChannelType.LAYER_MASK, [cast(ubyte)0, 255], 0) == 255,
         "PSD document-positioned masks should sample using the layer document offset");
+    ubyte[] hardMask = [
+        0, 0, 255, 255, 255,
+        0, 0, 255, 255, 255,
+        0, 0, 255, 255, 255,
+        0, 0, 255, 255, 255,
+        0, 0, 255, 255, 255,
+    ];
+    auto featheredMask = applyMaskFeather(hardMask, 5, 5, 1.0, 255);
+    require(featheredMask.length == hardMask.length &&
+        featheredMask[2 + 2 * 5] > 0 && featheredMask[2 + 2 * 5] < 255 &&
+        applyMaskFeather(hardMask, 5, 5, 0.0, 255) == hardMask,
+        "PSD mask feathering should soften hard mask edges while a zero radius preserves source bytes");
+
+    Layer pixelLayer;
+    pixelLayer.type = LayerType.Any;
+    Layer pixelIrrelevantLayer = pixelLayer;
+    pixelIrrelevantLayer.flags = LayerFlags.PixelIrrel;
+    require(ngDepthDrawPsdLayerHasPixelData(pixelLayer) && ngPsdDepthLayerHasPixelData(pixelLayer) &&
+        !ngDepthDrawPsdLayerHasPixelData(pixelIrrelevantLayer) &&
+        !ngPsdDepthLayerHasPixelData(pixelIrrelevantLayer),
+        "PSD depth loaders must reject adjustment and other pixel-data-irrelevant layer records");
 
     Layer groupOpen;
     groupOpen.type = LayerType.OpenFolder;
@@ -3267,6 +3289,7 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ring.width = 0.5f;
     ring.hardness = 0.25f;
     grid.replaceDepthOps([ring]);
+    grid.replaceDepthOpBaseDepths([0.1f, 0.2f, 0.3f, 0.4f]);
 
     auto copied = new ExGridDeformer(incActivePuppet().root);
     copied.name = "copied-depth-grid";
@@ -3274,6 +3297,8 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     copied.copyDepthOpsFrom(grid);
     require(copied.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "DepthMapped copy should duplicate depths");
     require(copied.copyDepthOps().length == 1 && copied.copyDepthOps()[0].type == ExDepthOpType.Ring, "DepthOperation copy should duplicate operations");
+    require(copied.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
+        "DepthOperation copy should duplicate the pre-operation base depths");
 
     copied.rebuffer(Vec2Array([
         vec2(-1, -1),
@@ -3284,6 +3309,8 @@ private void testDepthMappedNodeSerializationRoundTrip() {
         vec2(1, 1),
     ]));
     require(copied.copyDepths().length == copied.vertices.length, "DepthMapped rebuffer should resize depth array to vertices");
+    require(copied.copyDepthOpBaseDepths().length == copied.vertices.length,
+        "DepthOperation rebuffer should resample its base depth array with the target vertices");
 
     auto resized = new ExGridDeformer(incActivePuppet().root);
     resized.rebuffer(Vec2Array([
@@ -3347,6 +3374,8 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     require(loadedOps[0].type == ExDepthOpType.Ring, "depth-mapped INX round-trip should restore operation type");
     require(nearVec2(loadedOps[0].p0, vec2(-1, 0)) && nearVec2(loadedOps[0].p1, vec2(1, 0)), "depth-mapped INX round-trip should restore ring endpoints");
     require(near(loadedOps[0].amount, 0.75f) && near(loadedOps[0].width, 0.5f) && near(loadedOps[0].hardness, 0.25f), "depth-mapped INX round-trip should restore ring settings");
+    require(loaded.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
+        "depth-mapped INX round-trip should restore the pre-operation base depths");
 
     auto path = new ExPathDeformer(incActivePuppet().root);
     path.name = "depth-path";
@@ -3746,6 +3775,57 @@ private void testDepthMapCommandsUndoRedo() {
     editor.closeStack();
     editor.applyToTargets();
     require(grid.copyDepthOps().length == 3, "editor Apply should save local operation edits through depth-op command");
+
+    auto basedGrid = new ExGridDeformer(incActivePuppet().root);
+    basedGrid.name = "depth-op-existing-base";
+    basedGrid.rebuffer(Vec2Array([
+        vec2(0, 0),
+        vec2(10, 0),
+        vec2(0, 10),
+        vec2(10, 10),
+    ]));
+    float[] originalBaseDepths = [0.9f, 0.4f, -0.2f, -0.8f];
+    basedGrid.replaceDepths(originalBaseDepths);
+    auto basedEditor = new DepthMeshEditor(false);
+    scope(exit) basedEditor.dispose();
+    basedEditor.setTargets([cast(Node)basedGrid]);
+    auto basedEditorOne = basedEditor.getEditorFor(basedGrid);
+    require(basedEditor.commitOperationAdd(basedEditorOne, new DepthAttachedPointOperation(2, 0.3f)),
+        "DepthMeshEditor should add the first operation on top of existing depths");
+    auto expectedBasedPreview = basedEditorOne.copyEditorDepths();
+    require(expectedBasedPreview.length == originalBaseDepths.length &&
+        near(expectedBasedPreview[0], originalBaseDepths[0]) &&
+        near(expectedBasedPreview[1], originalBaseDepths[1]) &&
+        near(expectedBasedPreview[2], originalBaseDepths[2] + 0.3f) &&
+        near(expectedBasedPreview[3], originalBaseDepths[3]),
+        "the first depth operation preview should preserve the imported/manual base depths");
+    basedEditor.closeStack();
+    incActionClearHistory();
+    basedEditor.applyToTargets();
+    require(basedGrid.copyDepths() == expectedBasedPreview &&
+        basedGrid.copyDepthOpBaseDepths() == originalBaseDepths,
+        "DepthMeshEditor Apply must persist the same base-plus-operation depths shown in preview");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded && basedGrid.copyDepths() == originalBaseDepths &&
+        basedGrid.copyDepthOps().length == 0 && basedGrid.copyDepthOpBaseDepths().length == 0,
+        "Undo must restore both depths and the absence of operation base state");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded && basedGrid.copyDepths() == expectedBasedPreview &&
+        basedGrid.copyDepthOps().length == 1 && basedGrid.copyDepthOpBaseDepths() == originalBaseDepths,
+        "Redo must restore the saved operation, its base depths, and the preview-equivalent result");
+
+    auto directlyEditedDepths = expectedBasedPreview.dup;
+    directlyEditedDepths[0] += 0.2f;
+    basedEditor.replaceDirectDepths(basedEditorOne, directlyEditedDepths);
+    incActionClearHistory();
+    basedEditor.applyToTargets();
+    require(basedGrid.copyDepths() == directlyEditedDepths && basedGrid.copyDepthOps().length == 0 &&
+        basedGrid.copyDepthOpBaseDepths().length == 0,
+        "direct vertex edits should bake the preview and clear the operation recipe");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded && basedGrid.copyDepths() == expectedBasedPreview &&
+        basedGrid.copyDepthOps().length == 1 && basedGrid.copyDepthOpBaseDepths() == originalBaseDepths,
+        "Undo after a direct edit must restore the operation, its base, and its applied depths");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded && basedGrid.copyDepths() == directlyEditedDepths &&
+        basedGrid.copyDepthOps().length == 0 && basedGrid.copyDepthOpBaseDepths().length == 0,
+        "Redo after a direct edit must restore the baked depths without reapplying an operation recipe");
 }
 
 private ExCommandResult!JSONValue currentCommandScope(Context ctx) {
@@ -4297,6 +4377,21 @@ private void testAllPsdDepthDialogCommands() {
         "ApplyPsdDepthDialog must apply and close the active command context");
     require(!cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(applyCtx).succeeded,
         "ApplyPsdDepthDialog must reject calls after the dialog closes");
+
+    auto firstDialog = new PSDDepthMapWindow("first-overlapping-psd-depth-dialog.png");
+    auto secondDialog = new PSDDepthMapWindow("second-overlapping-psd-depth-dialog.png");
+    firstDialog.beginDialogCommandSessionForRegression();
+    secondDialog.beginDialogCommandSessionForRegression();
+    require(firstDialog.dialogCommandScopeActiveForRegression() &&
+        secondDialog.dialogCommandScopeActiveForRegression(),
+        "overlapping PSD depth dialogs must each own an active command-scope registration");
+    firstDialog.endDialogCommandSessionForRegression();
+    require(!firstDialog.dialogCommandScopeActiveForRegression() &&
+        secondDialog.dialogCommandScopeActiveForRegression(),
+        "closing a non-active PSD depth dialog must close its own command scope without clearing the active dialog");
+    secondDialog.endDialogCommandSessionForRegression();
+    require(!secondDialog.dialogCommandScopeActiveForRegression(),
+        "closing the active PSD depth dialog must close its command scope");
 }
 
 private void testPsdDepthImportRefreshesDepthBoneBindings() {

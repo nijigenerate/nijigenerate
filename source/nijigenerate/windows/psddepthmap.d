@@ -1466,9 +1466,10 @@ private:
     }
 
     void deactivateDialogCommandContext() {
-        if (activePsdDepthMapWindow !is this) return;
-        activePsdDepthMapWindow = null;
-        ngSetSelectedNodesProvider(null);
+        if (activePsdDepthMapWindow is this) {
+            activePsdDepthMapWindow = null;
+            ngSetSelectedNodesProvider(null);
+        }
         if (dialogCommandScope !is null) {
             dialogCommandScope.close();
             dialogCommandScope = null;
@@ -3307,6 +3308,10 @@ public:
             dialogDisplayed = true;
             activateDialogCommandContext();
             ensureDialogActionScope();
+        }
+
+        bool dialogCommandScopeActiveForRegression() {
+            return dialogCommandScope !is null && dialogCommandScope.isActive();
         }
 
         void setDialogLayerStateForRegression(PsdDepthDialogLayerState state) {

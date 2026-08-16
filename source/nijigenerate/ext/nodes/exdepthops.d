@@ -9,6 +9,7 @@ module nijigenerate.ext.nodes.exdepthops;
 import nijilive.core.nodes;
 import nijilive.fmt.serialize;
 import nijilive.math;
+import nijigenerate.ext.nodes.exdepthmapped : ngNormalizeDepths;
 
 enum ExDepthOpType {
     AttachedPoint,
@@ -158,11 +159,14 @@ struct ExDepthOp {
 interface DepthOperationMappedNode {
     ExDepthOp[] copyDepthOps();
     void replaceDepthOps(ExDepthOp[] values);
+    float[] copyDepthOpBaseDepths();
+    void replaceDepthOpBaseDepths(float[] values);
 }
 
 mixin template ExDepthOperated() {
 public:
     ExDepthOp[] depthOps;
+    float[] depthOpBaseDepths;
 
     ExDepthOp[] copyDepthOps() {
         return depthOps.dup;
@@ -172,11 +176,30 @@ public:
         depthOps = values.dup;
     }
 
+    float[] copyDepthOpBaseDepths() {
+        return depthOpBaseDepths.dup;
+    }
+
+    void replaceDepthOpBaseDepths(float[] values) {
+        depthOpBaseDepths = values.dup;
+        ngNormalizeDepths(depthOpBaseDepths);
+    }
+
+    void resizeDepthOpBaseDepthsToVertices(size_t vertexCount) {
+        if (depthOpBaseDepths is null) return;
+        ngNormalizeDepths(depthOpBaseDepths);
+        auto oldLength = depthOpBaseDepths.length;
+        depthOpBaseDepths.length = vertexCount;
+        foreach (i; oldLength .. depthOpBaseDepths.length) depthOpBaseDepths[i] = 0.0f;
+    }
+
     void copyDepthOpsFrom(Node src) {
         if (auto operated = cast(DepthOperationMappedNode)src) {
             depthOps = operated.copyDepthOps();
+            depthOpBaseDepths = operated.copyDepthOpBaseDepths();
         } else {
             depthOps = null;
+            depthOpBaseDepths = null;
         }
     }
 
@@ -185,6 +208,10 @@ public:
 
         serializer.putKey("depth-ops");
         serializer.serializeValue(depthOps);
+        if (depthOpBaseDepths.length > 0) {
+            serializer.putKey("depth-op-base-depths");
+            serializer.serializeValue(depthOpBaseDepths);
+        }
     }
 
     SerdeException deserializeDepthOps(Fghj data) {
@@ -199,6 +226,16 @@ public:
             ExDepthOp op;
             if (auto exc = op.deserializeFromFghj(entry)) return exc;
             depthOps ~= op;
+        }
+        depthOpBaseDepths = null;
+        if (!data["depth-op-base-depths"].isEmpty &&
+            data["depth-op-base-depths"].kind != Fghj.Kind.null_) {
+            foreach (entry; data["depth-op-base-depths"].byElement) {
+                float depth;
+                if (auto exc = entry.deserializeValue(depth)) return exc;
+                depthOpBaseDepths ~= depth;
+            }
+            ngNormalizeDepths(depthOpBaseDepths);
         }
         return null;
     }

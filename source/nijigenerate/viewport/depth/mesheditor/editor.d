@@ -67,9 +67,13 @@ private:
         foreach (op; saved) loaded ~= depthOperationFromExDepthOp(op);
         operations[editor] = loaded;
 
-        // depth-ops are the editable source. Rebuild working depths from the
-        // operation list so saved depths do not get applied a second time.
-        editor.clearBaseDepths();
+        auto baseDepths = operated.copyDepthOpBaseDepths();
+        if (baseDepths.length == editor.getTarget().vertices.length) {
+            editor.replaceBaseDepths(baseDepths);
+        } else {
+            // Older files stored operation-only depths without a separate base.
+            editor.clearBaseDepths();
+        }
         recompute(editor);
     }
 
@@ -230,16 +234,22 @@ public:
         foreach (editor; editors.byValue) {
             auto ctx = new Context();
             auto nextOperations = operationsToJson(editor);
-            auto operationsChanged = nextOperations != targetOperationsToJson(editor);
-            if (operationsChanged)
-                cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), nextOperations);
+            auto targetOperations = targetOperationsToJson(editor);
+            auto operationsChanged = nextOperations != targetOperations;
             if (editor in directDepthDirty) {
+                // Direct vertex edits bake the current preview. Keeping the
+                // operation recipe would make a later reload apply it again.
+                if (targetOperations.array.length > 0) {
+                    cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), JSONValue.emptyArray);
+                }
                 cmd!(DepthMapCommand.SetDepths)(ctx, editor.targetNode(), editor.copyEditorDepths());
                 directDepthDirty.remove(editor);
             } else if (operationsChanged) {
+                cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), nextOperations);
                 cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
             }
             editor.resetFromTarget();
+            syncOperationsFromTarget(editor);
         }
         incActionPopGroup();
     }

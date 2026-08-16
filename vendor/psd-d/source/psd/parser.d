@@ -11,6 +11,7 @@ import utils;
 import psd;
 import std.exception;
 import std.format;
+import std.math : isFinite, round, sqrt;
 import std.string;
 import psd.rle;
 
@@ -85,6 +86,71 @@ public ubyte applyMaskSettings(ubyte mask, ubyte density, bool disabled, bool in
         (cast(uint)mask * cast(uint)density + 127u) / 255u);
 }
 
+private ubyte[] boxBlurMask(
+    const(ubyte)[] data,
+    int width,
+    int height,
+    int radius,
+    bool horizontal,
+    ubyte defaultColor
+) {
+    ubyte[] result;
+    result.length = data.length;
+    auto lineLength = horizontal ? width : height;
+    auto lineCount = horizontal ? height : width;
+    auto windowSize = cast(ulong)radius * 2uL + 1uL;
+    ulong[] prefix;
+    prefix.length = cast(size_t)lineLength + 1;
+    foreach (line; 0 .. lineCount) {
+        prefix[] = 0;
+        foreach (position; 0 .. lineLength) {
+            auto index = horizontal
+                ? cast(size_t)line * cast(size_t)width + cast(size_t)position
+                : cast(size_t)position * cast(size_t)width + cast(size_t)line;
+            prefix[cast(size_t)position + 1] = prefix[cast(size_t)position] + data[index];
+        }
+        foreach (position; 0 .. lineLength) {
+            auto start = cast(long)position - radius;
+            auto end = cast(long)position + radius + 1;
+            auto insideStart = cast(int)(start < 0 ? 0 : start > lineLength ? lineLength : start);
+            auto insideEnd = cast(int)(end < 0 ? 0 : end > lineLength ? lineLength : end);
+            auto insideCount = cast(ulong)(insideEnd - insideStart);
+            auto sum = prefix[insideEnd] - prefix[insideStart] +
+                (windowSize - insideCount) * cast(ulong)defaultColor;
+            auto index = horizontal
+                ? cast(size_t)line * cast(size_t)width + cast(size_t)position
+                : cast(size_t)position * cast(size_t)width + cast(size_t)line;
+            result[index] = cast(ubyte)((sum + windowSize / 2) / windowSize);
+        }
+    }
+    return result;
+}
+
+public ubyte[] applyMaskFeather(
+    const(ubyte)[] data,
+    int width,
+    int height,
+    double feather,
+    ubyte defaultColor
+) {
+    if (width <= 0 || height <= 0 || data.length != cast(size_t)width * cast(size_t)height ||
+        !feather.isFinite || feather <= 0.0) {
+        return data.dup;
+    }
+
+    // Three box passes approximate a Gaussian while keeping the cost linear
+    // even for large Photoshop feather radii.
+    auto radiusValue = round((sqrt(4.0 * feather * feather + 1.0) - 1.0) / 2.0);
+    int radius = radiusValue < 1.0 ? 1 :
+        radiusValue > 1_000_000.0 ? 1_000_000 : cast(int)radiusValue;
+    auto result = data.dup;
+    foreach (_; 0 .. 3) {
+        result = boxBlurMask(result, width, height, radius, true, defaultColor);
+        result = boxBlurMask(result, width, height, radius, false, defaultColor);
+    }
+    return result;
+}
+
 private struct MaskGeometry {
     int top;
     int left;
@@ -110,6 +176,29 @@ private MaskGeometry channelMaskGeometry(ref Layer layer, short channelType) {
     if (layer.vectorMask.length > 0) return maskGeometry(layer.vectorMask[0]);
     if (layer.layerMask.length > 0) return maskGeometry(layer.layerMask[0]);
     return MaskGeometry.init;
+}
+
+private double channelMaskFeather(ref Layer layer, short channelType) {
+    if (channelType == ChannelType.LAYER_MASK && layer.layerMask.length > 0) {
+        return layer.layerMask[0].feather;
+    }
+    if (channelType == ChannelType.LAYER_OR_VECTOR_MASK) {
+        if (layer.vectorMask.length > 0) return layer.vectorMask[0].feather;
+        if (layer.layerMask.length > 0) return layer.layerMask[0].feather;
+    }
+    return 0.0;
+}
+
+private ubyte[] featheredMaskData(ref Layer layer, short channelType, ubyte[] data) {
+    auto mask = channelMaskGeometry(layer, channelType);
+    if (!mask.valid || data.length == 0) return data;
+    return applyMaskFeather(
+        data,
+        mask.right - mask.left,
+        mask.bottom - mask.top,
+        channelMaskFeather(layer, channelType),
+        mask.defaultColor
+    );
 }
 
 private void channelDimensions(ref Layer layer, short channelType, out uint width, out uint height) {
@@ -261,8 +350,10 @@ void extractLayer(ref Layer layer) {
     auto g = channelData(&layer, ChannelType.G);
     auto b = channelData(&layer, ChannelType.B);
     auto alpha = channelData(&layer, ChannelType.TRANSPARENCY_MASK);
-    auto layerOrVectorMask = channelData(&layer, ChannelType.LAYER_OR_VECTOR_MASK);
-    auto layerMask = channelData(&layer, ChannelType.LAYER_MASK);
+    auto layerOrVectorMask = featheredMaskData(
+        layer, ChannelType.LAYER_OR_VECTOR_MASK, channelData(&layer, ChannelType.LAYER_OR_VECTOR_MASK));
+    auto layerMask = featheredMaskData(
+        layer, ChannelType.LAYER_MASK, channelData(&layer, ChannelType.LAYER_MASK));
 
     const size_t pixelCount = cast(size_t)layer.width * cast(size_t)layer.height;
     for (size_t i = 0, j = 0; i < pixelCount; ++i, j += 4) {

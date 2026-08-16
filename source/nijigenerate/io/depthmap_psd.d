@@ -79,6 +79,10 @@ private bool psdLayerVisible(ref Layer layer) {
     return (layer.flags & LayerFlags.Visible) == 0;
 }
 
+bool ngPsdDepthLayerHasPixelData(ref Layer layer) {
+    return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0;
+}
+
 private string uniquePsdLayerPath(string path, ref size_t[string] occurrences) {
     auto previous = path in occurrences;
     auto occurrence = previous is null ? 1 : *previous + 1;
@@ -892,7 +896,7 @@ private void loadPsdCompositeSourceLayers(
     size_t[string] layerPathOccurrences;
     PsdClippingBaseState[string] clippingBaseByGroup;
     foreach_reverse (i, layer; document.layers) {
-        if (layer.type != LayerType.Any) continue;
+        if (!ngPsdDepthLayerHasPixelData(layer)) continue;
         auto groupState = groupStates[i];
 
         auto layerPath = uniquePsdLayerPath("%s/%s".format(groupState.path, layer.name), layerPathOccurrences);
@@ -2988,7 +2992,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     size_t[string] layerPathOccurrences;
     PsdClippingBaseState[string] clippingBaseByGroup;
     foreach_reverse (i, layer; document.layers) {
-        if (layer.type != LayerType.Any) continue;
+        if (!ngPsdDepthLayerHasPixelData(layer)) continue;
         auto groupState = groupStates[i];
 
         result.sourceDepthLayerCount++;

@@ -285,6 +285,7 @@ private DepthOperationMappedChangeAction ngClearDepthOpsChangeAction(Node target
     if (operated is null || operated.copyDepthOps().length == 0) return null;
     auto action = new DepthOperationMappedChangeAction(target);
     operated.replaceDepthOps(null);
+    operated.replaceDepthOpBaseDepths(null);
     target.notifyChange(target, NotifyReason.AttributeChanged);
     action.updateNewState();
     ngMarkDepthBoneDirtyForTarget(target, reason);
@@ -1071,16 +1072,28 @@ private ExDepthRigBinding[] copyDepthRigBindings(ExDepthRigBinding[] bindings) {
 private void replaceDepthOpsWithUndo(Node target, ExDepthOp[] nextOps, string reason) {
     auto operated = requireDepthOperated(target);
     auto action = new DepthOperationMappedChangeAction(target);
+    auto previousOps = operated.copyDepthOps();
+    if (nextOps.length == 0) {
+        operated.replaceDepthOpBaseDepths(null);
+    } else if (previousOps.length == 0) {
+        auto mapped = cast(DepthMappedNode)target;
+        operated.replaceDepthOpBaseDepths(mapped is null ? null : mapped.copyDepths());
+    }
     operated.replaceDepthOps(nextOps);
     action.updateNewState();
     incActionPush(action);
     ngMarkDepthBoneDirtyForTarget(target, reason);
 }
 
-private float[] computeDepthsFromOps(GridDeformer grid, ExDepthOp[] ops) {
+private float[] computeDepthsFromOps(GridDeformer grid, ExDepthOp[] ops, float[] baseDepths) {
     auto editor = new DepthMeshEditorOne(grid, false);
     scope(exit) editor.dispose();
-    editor.clearBaseDepths();
+    if (baseDepths.length == grid.vertices.length) {
+        editor.replaceBaseDepths(baseDepths);
+    } else {
+        editor.clearBaseDepths();
+    }
+    editor.resetWorkingDepths();
 
     DepthRingOperation[] rings;
     DepthAttachedPointOperation[] attachedPoints;
@@ -1266,8 +1279,11 @@ class ApplyDepthOpsCommand : ExCommand!(TW!(Node, "target", "Depth operation tar
 
     override CommandResult run(Context ctx) {
         auto grid = requireDepthGrid(target);
-        auto ops = requireDepthOperated(target).copyDepthOps();
-        replaceDepthsWithUndo(target, computeDepthsFromOps(grid, ops), "Apply Depth Operations");
+        auto operated = requireDepthOperated(target);
+        auto ops = operated.copyDepthOps();
+        replaceDepthsWithUndo(target,
+            computeDepthsFromOps(grid, ops, operated.copyDepthOpBaseDepths()),
+            "Apply Depth Operations");
         return CommandResult(true);
     }
 }
