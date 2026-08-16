@@ -26,6 +26,7 @@ private {
     size_t[] actionIndex;
     // Tracks the action index last marked as "saved" per level
     size_t[] savedIndex;
+    bool[] savedStateValid;
     size_t maxUndoHistory;
     ActionStackScope[ActionStackScopeUnit] activeScopes;
     void function(ActionStackScopeUnit)[ActionStackScopeUnit] scopeCloseHandlers;
@@ -95,6 +96,33 @@ void incActionInit() {
     currentGroup.length = currentLevel + 1;
     groupCount.length = currentLevel + 1;
     savedIndex.length = currentLevel + 1;
+    savedStateValid.length = currentLevel + 1;
+    savedStateValid[currentLevel] = true;
+    ngAsyncActionCompletedHook = &incActionAsyncCompletionChanged;
+}
+
+private bool actionContains(Action entry, Action target) {
+    if (entry is target) return true;
+    auto group = cast(GroupAction)entry;
+    if (group is null) return false;
+    foreach (child; group.actions) {
+        if (actionContains(child, target)) return true;
+    }
+    return false;
+}
+
+private void incActionAsyncCompletionChanged(AsyncGroupAction owner) {
+    foreach (level, history; actions) {
+        if (level >= savedStateValid.length || !savedStateValid[level]) continue;
+        foreach (index, entry; history) {
+            if (!actionContains(entry, owner)) continue;
+            // Only saved snapshots which already included this owner are
+            // changed in place by its asynchronous completion.
+            if (level < savedIndex.length && index < savedIndex[level])
+                savedStateValid[level] = false;
+            break;
+        }
+    }
 }
 
 /**
@@ -279,11 +307,13 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         currentGroup.length = currentLevel + 1;
         groupCount.length = currentLevel + 1;
         savedIndex.length = currentLevel + 1;
+        savedStateValid.length = currentLevel + 1;
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
         // Newly cleared history equals saved state
         savedIndex[currentLevel] = 0;
+        savedStateValid[currentLevel] = true;
         break;
     case ActionStackClear.CurrentLevel:
         ActionStackScopeUnit[] staleUnits;
@@ -342,7 +372,9 @@ void incActionPushStack() {
     currentGroup.length = currentLevel + 1;
     groupCount.length = currentLevel + 1;
     savedIndex.length = currentLevel + 1;
+    savedStateValid.length = currentLevel + 1;
     savedIndex[currentLevel] = 0;
+    savedStateValid[currentLevel] = true;
 }
 
 ActionStackScope ngOpenActionStackScope(ActionStackScopeUnit unit = ActionStackScopeUnit.Manual) {
@@ -406,6 +438,7 @@ void incActionPopStack() {
         currentGroup.length = currentLevel + 1;
         groupCount.length = currentLevel + 1;
         savedIndex.length = currentLevel + 1;
+        savedStateValid.length = currentLevel + 1;
     }
 }
 
@@ -419,7 +452,9 @@ bool incIsActionStackEmpty() {
 void incActionMarkSaved() {
     // Ensure array is sized
     if (savedIndex.length <= currentLevel) savedIndex.length = currentLevel + 1;
+    if (savedStateValid.length <= currentLevel) savedStateValid.length = currentLevel + 1;
     savedIndex[currentLevel] = actionPointer[currentLevel];
+    savedStateValid[currentLevel] = true;
 }
 
 /**
@@ -428,5 +463,12 @@ void incActionMarkSaved() {
 bool incActionIsModified() {
     // If arrays are mismatched, consider modified only if pointers differ from 0
     size_t saved = (savedIndex.length > currentLevel) ? savedIndex[currentLevel] : 0;
-    return actionPointer[currentLevel] != saved;
+    bool valid = savedStateValid.length > currentLevel && savedStateValid[currentLevel];
+    return !valid || actionPointer[currentLevel] != saved;
+}
+
+/** Marks the current saved snapshot stale after a non-pointer state change. */
+void incActionInvalidateSavedState() {
+    if (savedStateValid.length <= currentLevel) savedStateValid.length = currentLevel + 1;
+    savedStateValid[currentLevel] = false;
 }

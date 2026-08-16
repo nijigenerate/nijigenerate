@@ -103,19 +103,23 @@ DepthDrawAutoBindResult ngDepthDrawAutoBindLayer(
     }
 
     result.ambiguous = candidates.length > 1;
+    if (result.ambiguous) {
+        result.status = "Ambiguous";
+        return result;
+    }
     auto matchedNode = candidates[0].node;
     auto target = containingDepthTarget(matchedNode);
     result.matchedNodeName = matchedNode.name;
     result.matchedNodeUuid = matchedNode.uuid;
     if (target is null) {
-        result.status = result.ambiguous ? "AmbiguousWithoutGrid" : "UnmatchedWithoutGrid";
+        result.status = "UnmatchedWithoutGrid";
         return result;
     }
 
     result.matched = true;
     result.targetGridName = target.name;
     result.targetGridUuid = target.uuid;
-    result.status = result.ambiguous ? "Ambiguous" : "Matched";
+    result.status = "Matched";
     return result;
 }
 

@@ -166,6 +166,10 @@ public:
 alias ClaimAsyncGroupActionHook = AsyncGroupAction function(Action action);
 __gshared ClaimAsyncGroupActionHook ngClaimAsyncGroupActionHook;
 
+/** Notifies the history owner when an applied async action gains derived state. */
+alias AsyncActionCompletedHook = void function(AsyncGroupAction action);
+__gshared AsyncActionCompletedHook ngAsyncActionCompletedHook;
+
 enum AsyncGroupActionState {
     Idle,
     Scheduled,
@@ -320,6 +324,7 @@ public:
     bool addCompletedAsyncAction(ulong generation, Action action, size_t completed = 1) {
         if (!applied || generation != currentGeneration || action is null) return false;
         derivedActions ~= action;
+        if (ngAsyncActionCompletedHook !is null) ngAsyncActionCompletedHook(this);
         finishPending(completed);
         currentState = pendingCount == 0
             ? AsyncGroupActionState.Completed

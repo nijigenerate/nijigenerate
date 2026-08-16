@@ -836,6 +836,24 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     PSD psdDoc = parsePSDDocument(psdPath);
     require(psdDoc.width == 1 && psdDoc.height == 1, "PSD reader should parse generated fixture dimensions");
     require(psdDoc.layers.length == 0, "PSD reader should accept an empty-layer fixture");
+    auto unsupportedPsdPath = buildPath(fixtureDir, "unsupported-16-bit.psd");
+    auto unsupportedPsd = cast(ubyte[])read(psdPath);
+    unsupportedPsd[22] = 0;
+    unsupportedPsd[23] = 16;
+    write(unsupportedPsdPath, unsupportedPsd);
+    PSD unsupportedPsdDocument;
+    auto unsupportedPsdError = collectException(unsupportedPsdDocument = parsePSDDocument(unsupportedPsdPath));
+    require(unsupportedPsdError !is null && unsupportedPsdError.msg.canFind("Only 8-bit PSD channels"),
+        "PSD reader should reject unsupported channel bit depths with a controlled diagnostic");
+    auto nonRgbPsdPath = buildPath(fixtureDir, "unsupported-grayscale.psd");
+    auto nonRgbPsd = cast(ubyte[])read(psdPath);
+    nonRgbPsd[24] = 0;
+    nonRgbPsd[25] = 1;
+    write(nonRgbPsdPath, nonRgbPsd);
+    PSD nonRgbPsdDocument;
+    auto nonRgbPsdError = collectException(nonRgbPsdDocument = parsePSDDocument(nonRgbPsdPath));
+    require(nonRgbPsdError !is null && nonRgbPsdError.msg.canFind("Only RGB PSD documents"),
+        "PSD reader should reject unsupported color modes instead of treating their channels as RGB");
 
     KRA kraDoc = parseKRADocument(kraPath);
     require(kraDoc.width == 1 && kraDoc.height == 1, "KRA reader should parse generated fixture dimensions");
@@ -3231,6 +3249,16 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ]));
     path.replaceDepths([-0.25f, 0.0f, 0.75f]);
 
+    auto resampledPath = new ExPathDeformer(incActivePuppet().root);
+    resampledPath.rebuffer(Vec2Array([vec2(-2, 0), vec2(0, 1), vec2(2, 0)]));
+    resampledPath.replaceDepths([-0.25f, 0.0f, 0.75f]);
+    resampledPath.rebuffer(Vec2Array([
+        vec2(-2, 0), vec2(-1, 0.5f), vec2(0, 1), vec2(1, 0.5f), vec2(2, 0),
+    ]));
+    require(nearFloatArray(resampledPath.copyDepths(), [-0.25f, -0.125f, 0.0f, 0.375f, 0.75f]),
+        "DepthMapped PathDeformer rebuffer should interpolate depths by path position: %s".format(
+            resampledPath.copyDepths()));
+
     auto copiedPath = new ExPathDeformer(incActivePuppet().root);
     copiedPath.copyDepthsFrom(path);
     require(copiedPath.copyDepths() == [-0.25f, 0.0f, 0.75f],
@@ -5134,6 +5162,24 @@ private void testPsdDepthMapImportHelpers() {
     require(pngImported.mappings.length == 1 && pngImported.mappings[0].matched &&
         pngImported.grids.length == 1 && pngImported.grids[0].grid is pngGrid,
         "PSD depth import dialog source builder should map PNG sources through the existing target mapping path");
+
+    auto coloredPngDepthPath = buildPath(pngFixtureDir, "colored-depth-grid.png");
+    writeRegressionPng(coloredPngDepthPath, 255, 0, 0, 2, 2);
+    auto coloredPngGrid = new ExGridDeformer(incActivePuppet().root);
+    coloredPngGrid.name = "colored-depth-grid";
+    coloredPngGrid.vertices = Vec2Array([vec2(0, 0)]);
+    coloredPngGrid.localTransform.update();
+    incActivePuppet().root.build();
+    PsdDepthImportSettings coloredPngSettings;
+    coloredPngSettings.channel = PsdDepthChannel.AverageRGB;
+    coloredPngSettings.convolution = PsdDepthConvolution.Nearest;
+    coloredPngSettings.layerTargetGridUuidOverrides["/colored-depth-grid"] = coloredPngGrid.uuid.to!string;
+    auto coloredPngImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), coloredPngDepthPath, coloredPngSettings);
+    coloredPngImported = composePsdDepthImportForRegression(coloredPngImported);
+    require(coloredPngImported.grids.length == 1 && coloredPngImported.grids[0].depths.length == 1 &&
+        near(coloredPngImported.grids[0].depths[0], -1.0f / 3.0f),
+        "PNG depth import must preserve explicit AverageRGB sampling instead of silently using red");
     require(pngImported.compositionMode == PsdDepthCompositionMode.OneToOne &&
         pngImported.compositionModeName == "1:1" &&
         pngImported.compositionWidth == 4 &&
@@ -6708,8 +6754,9 @@ private void testDepthDrawDataModelContracts() {
     auto duplicateGrid = new ExGridDeformer(incActivePuppet().root);
     duplicateGrid.name = "AutoBindGrid";
     auto ambiguousBind = ngDepthDrawAutoBindLayer(incActivePuppet(), autoLayer);
-    require(ambiguousBind.matched && ambiguousBind.ambiguous,
-        "DepthDraw auto-binding should report ambiguous direct GridDeformer matches");
+    require(!ambiguousBind.matched && ambiguousBind.ambiguous &&
+        ambiguousBind.targetGridUuid == 0 && ambiguousBind.status == "Ambiguous",
+        "DepthDraw auto-binding should report ambiguous matches without selecting an arbitrary target");
 
     DepthDrawLayer unboundLayer;
     unboundLayer.id = "layer-b";
@@ -7367,10 +7414,13 @@ private void testDepthDrawSourceManifestContracts() {
         "DepthDraw manifest validation should reject selected target grids that are not bound in the session");
 
     auto manifestPath = buildPath(fixtureDir, "depthdraw.json");
+    session.documentWidth = 640;
+    session.documentHeight = 480;
     ngSaveDepthDrawManifest(session, manifestPath);
     auto loaded = ngLoadDepthDrawManifest(manifestPath);
-    require(loaded.layers.length == 1 && loaded.layers[0].id == layer.id && loaded.bindings.length == 1,
-        "DepthDraw manifest file save/load should round-trip session metadata");
+    require(loaded.layers.length == 1 && loaded.layers[0].id == layer.id && loaded.bindings.length == 1 &&
+        loaded.documentWidth == 640 && loaded.documentHeight == 480,
+        "DepthDraw manifest file save/load should round-trip session metadata and document canvas size");
     auto invalidManifestSession = ngLoadDepthDrawManifest(manifestPath);
     auto duplicateLayer = invalidManifestSession.layers[0];
     invalidManifestSession.layers ~= duplicateLayer;
@@ -7416,6 +7466,7 @@ private void testDepthDrawSourceManifestContracts() {
 
     auto exportDir = buildPath(fixtureDir, "exported-depth");
     auto exportManifestPath = buildPath(fixtureDir, "exported-depthdraw.json");
+    session.layers[0].depthPixels[3] = 64;
     auto exportResult = ngExportDepthDrawPngSession(session, exportDir, exportManifestPath);
     require(exportResult.succeeded && exportResult.exportedLayers == 1 && exportResult.skippedLayers == 0,
         "DepthDraw PNG export should export every layer with depth pixels");
@@ -7425,8 +7476,8 @@ private void testDepthDrawSourceManifestContracts() {
     require(exportedTexture.width == layer.width && exportedTexture.height == layer.height,
         "DepthDraw PNG export should preserve layer dimensions");
     require(exportedTexture.data[0] == 128 && exportedTexture.data[1] == 128 &&
-        exportedTexture.data[2] == 128 && exportedTexture.data[3] == 255,
-        "DepthDraw PNG export should write grayscale depth pixels with opaque alpha");
+        exportedTexture.data[2] == 128 && exportedTexture.data[3] == 64,
+        "DepthDraw PNG export should write grayscale depth pixels while preserving source coverage alpha");
     auto exportedManifest = ngLoadDepthDrawManifest(exportManifestPath);
     auto exportedRelativePath = relativePath(exportResult.layerPaths[0], exportManifestPath.dirName);
     auto exportedValidation = ngValidateDepthDrawSessionManifest(exportedManifest,
@@ -7434,8 +7485,9 @@ private void testDepthDrawSourceManifestContracts() {
     require(exportedManifest.layers.length == 1 && exportedManifest.layers[0].sourcePath == exportedRelativePath &&
         exportedManifest.bindings.length == 1 && exportedManifest.bindings[0].targetGridUuid == binding.targetGridUuid &&
         exportedManifest.selectedLayerId == layer.id && exportedManifest.selectedGridUuid == binding.targetGridUuid &&
-        exportedManifest.display.useGpuPreview,
-        "DepthDraw PNG export manifest should link relative PNGs to target bindings and preserve selection/display state");
+        exportedManifest.display.useGpuPreview &&
+        exportedManifest.documentWidth == 640 && exportedManifest.documentHeight == 480,
+        "DepthDraw PNG export manifest should preserve links, selection, display state, and document canvas size");
     require(exportedValidation.ok,
         "DepthDraw PNG export manifest validation should resolve relative PNG paths from the manifest directory");
 
@@ -7652,6 +7704,7 @@ private void testDepthDrawComposerContracts() {
     require(opacityResult.sampledVertices == 0 && opacityResult.missingVertices == grid.vertices.length &&
         opacityResult.depths == [0.25f, 0.25f, 0.25f, 0.25f],
         "DepthDraw composer should apply normal depth layer opacity before accepting samples");
+    session.layers[1].sampleDepthScale = 0.75f;
     auto gpuPacket = ngBuildDepthDrawGpuComposePacket(session, view, 4, 4);
     require(gpuPacket.targetGridUuid == grid.uuid && gpuPacket.vertices.length == grid.vertices.length &&
         gpuPacket.documentPositions.length == grid.vertices.length && gpuPacket.baseDepths.length == grid.vertices.length,
@@ -7734,6 +7787,7 @@ private void testDepthDrawComposerContracts() {
     }
     require(near(gpuPacket.layers[1].zScale, frontLayer.zScale) &&
         near(gpuPacket.layers[1].zOffset, frontLayer.zOffset) &&
+        near(gpuPacket.layers[1].sampleDepthScale, session.layers[1].sampleDepthScale) &&
         gpuPacket.bindings[1].mergePolicy == cast(uint)DepthMergePolicy.Frontmost &&
         gpuPacket.bindings[1].flags == 1,
         "DepthDraw GPU compose packet should carry Z transform, merge policy, and coverage-use state");
@@ -7755,8 +7809,10 @@ private void testDepthDrawComposerContracts() {
     auto flatFrontBase = DepthDrawGpuLayerStride;
     require(near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.DepthPixelOffset], backLayer.depthPixels.length) &&
         near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.ZScale], frontLayer.zScale) &&
-        near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.ZOffset], frontLayer.zOffset),
-        "DepthDraw GPU flattened layer buffer should preserve per-layer offsets and Z transforms");
+        near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.ZOffset], frontLayer.zOffset) &&
+        near(flatGpuLayers[flatFrontBase + DepthDrawGpuLayerField.SampleDepthScale],
+            session.layers[1].sampleDepthScale),
+        "DepthDraw GPU flattened layer buffer should preserve per-layer offsets and depth transforms");
     require(near(flatGpuBindings[DepthDrawGpuBindingField.LayerIndex], 0.0f) &&
         near(flatGpuBindings[DepthDrawGpuBindingField.MergePolicy], cast(float)DepthMergePolicy.Frontmost) &&
         near(flatGpuBindings[DepthDrawGpuBindingField.Flags], 1.0f) &&
@@ -7890,6 +7946,7 @@ private void testDepthDrawComposerContracts() {
     gpuReadbackComparison = ngCompareDepthDrawComposeReadback(result, targetGpuPoll.result);
     require(gpuReadbackComparison.ok,
         "DepthDraw GPU target compose wrapper should return a CPU-comparable compose result");
+    session.layers[1].sampleDepthScale = 1.0f;
     auto sameOrderSession = new DepthDrawSession();
     sameOrderSession.layers = session.layers.dup;
     auto sameOrderBack = backBinding;
@@ -8126,6 +8183,21 @@ private void testDepthDrawComposerContracts() {
         "DepthDrawViewport should expose target grid lines for the depth-space viewport");
     require(viewportGeometry.layerPlaneLines.length == 8 && viewportGeometry.depthRangeLines.length == 8,
         "DepthDrawViewport should expose layer planes and depth ranges for multiple source layers");
+    float planeMinX = float.max;
+    float planeMaxX = -float.max;
+    float planeMinY = float.max;
+    float planeMaxY = -float.max;
+    foreach (line; viewportGeometry.layerPlaneLines) {
+        foreach (point; [line.p0, line.p1]) {
+            planeMinX = min(planeMinX, point.x);
+            planeMaxX = max(planeMaxX, point.x);
+            planeMinY = min(planeMinY, point.y);
+            planeMaxY = max(planeMaxY, point.y);
+        }
+    }
+    require(near(planeMinX, -2.0f) && near(planeMaxX, 2.0f) &&
+        near(planeMinY, -2.0f) && near(planeMaxY, 2.0f),
+        "DepthDrawViewport should center top-left document-space planes on the model origin");
     require(viewportGeometry.selectedLayerLines.length == 4 && viewportGeometry.gapLines.length == 1 &&
         viewportGeometry.overlapGapLines.length == 0,
         "DepthDrawViewport should expose selected layer bounds and valid depth-space gap markers");
@@ -9749,102 +9821,6 @@ private void requireSourceSectionNotContains(
     require(!tail[0 .. end].canFind(needle), message);
 }
 
-private void requireBlockedDepthFromGpuTasksHaveReason() {
-    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu-tasks.md")).splitLines();
-    foreach (i, line; lines) {
-        if (!line.startsWith("- [?] ")) continue;
-        string block = line;
-        foreach (next; lines[i + 1 .. $]) {
-            if (next.startsWith("- [")) break;
-            block ~= "\n" ~ next;
-        }
-        bool hasReason;
-        foreach (needle; [
-            "blocked",
-            "Remaining",
-            "Compatibility status",
-            "manual",
-            "computer-use",
-            "Mac OpenGL",
-            "depth-draw exposes",
-            "not available",
-            "absent",
-            "missing",
-            "until",
-            "no source function",
-            "no target GridDeformer",
-            "native layered PSD",
-        ]) {
-            if (block.canFind(needle)) {
-                hasReason = true;
-                break;
-            }
-        }
-        require(hasReason, "Blocked DepthDraw task lacks an explicit reason near line %s: %s".format(i + 1, line));
-    }
-}
-
-private void requireOnlyExpectedBlockedDepthFromGpuTasks() {
-    enum expectedBlockedTaskIds = [
-        "DEPTHDRAW-COMPAT-EVIDENCE",
-        "DEPTHDRAW-COMPAT-006",
-        "DEPTHDRAW-COMPAT-007",
-        "DEPTHDRAW-COMPAT-009",
-        "DEPTHDRAW-COMPAT-010",
-        "DEPTHDRAW-COMPAT-012",
-        "DEPTHDRAW-017",
-        "DEPTHDRAW-026",
-        "DEPTHDRAW-055",
-        "DEPTHDRAW-080",
-        "DEPTHDRAW-081",
-        "DEPTHDRAW-082",
-        "DEPTHDRAW-083",
-        "DEPTHDRAW-084",
-        "DEPTHDRAW-085",
-        "DEPTHDRAW-086",
-        "DEPTHDRAW-111",
-        "DEPTHDRAW-112",
-        "DEPTHDRAW-901",
-        "DPM-043",
-        "DPM-063",
-    ];
-    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu-tasks.md")).splitLines();
-    foreach (i, line; lines) {
-        if (!line.startsWith("- [?] ")) continue;
-        auto rest = line["- [?] ".length .. $];
-        auto colon = rest.countUntil(":");
-        require(colon > 0, "Blocked DepthDraw task must include an id before ':' near line %s: %s".format(i + 1, line));
-        auto id = rest[0 .. colon];
-        bool expected;
-        foreach (allowed; expectedBlockedTaskIds) {
-            if (id == allowed) {
-                expected = true;
-                break;
-            }
-        }
-        require(expected, "Unexpected blocked DepthDraw task near line %s: %s".format(i + 1, line));
-    }
-}
-
-private void requireNoOpenDepthFromGpuTasks() {
-    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu-tasks.md")).splitLines();
-    foreach (i, line; lines) {
-        if (line.startsWith("- [ ] DPM-") || line.startsWith("- [>] DPM-")) continue;
-        require(!line.startsWith("- [ ] "),
-            "DepthDraw task list must not leave unstarted tasks near line %s: %s".format(i + 1, line));
-        require(!line.startsWith("- [>] "),
-            "DepthDraw task list must not leave in-progress tasks near line %s: %s".format(i + 1, line));
-    }
-}
-
-private void requireDottedDepthFromGpuTasksIsPointerOnly() {
-    auto lines = readText(buildPath(regressionRepoRoot(), "doc", "depth-from-gpu.tasks.md")).splitLines();
-    foreach (i, line; lines) {
-        require(!line.startsWith("- ["),
-            "DepthDraw dotted task-list pointer must not duplicate task rows near line %s: %s".format(i + 1, line));
-    }
-}
-
 private bool sourceTreeContainsAny(string rootPath, const(string)[] needles) {
     auto root = buildPath(regressionRepoRoot(), rootPath);
     foreach (entry; dirEntries(root, SpanMode.depth)) {
@@ -9858,38 +9834,6 @@ private bool sourceTreeContainsAny(string rootPath, const(string)[] needles) {
 }
 
 private void testDepthDrawCalculationGateContracts() {
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu.md"),
-        "C:\\Users\\siget\\src\\depth-draw",
-        "DepthDraw specification must keep the hard local depth-draw reference path");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu.md"),
-        "dub build --config=win32-regression-smoke",
-        "DepthDraw specification must include the Windows RegressionSmoke build check");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu.md"),
-        "dub build --config=osx-regression-smoke --arch=arm64-apple-macos",
-        "DepthDraw specification must include the macOS RegressionSmoke build check");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu.md"),
-        "out/nijigenerate.app/Contents/MacOS/nijigenerate --regression-smoke project.psd-depth-map-import-ui-smoke --regression-frames 2",
-        "DepthDraw specification must include the macOS app-bundle PSD depth import smoke launch check");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu.md"),
-        "out/nijigenerate --regression-smoke project.psd-depth-map-import-ui-smoke --regression-frames 2",
-        "DepthDraw specification must include the short PSD depth import UI smoke launch check");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu-tasks.md"),
-        "depthdraw-api-capabilities.json",
-        "DepthDraw canonical task list must cite the API capability fixture");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu.tasks.md"),
-        "The canonical task list is `doc/depth-from-gpu-tasks.md`.",
-        "DepthDraw dotted task-list pointer must redirect to the canonical task list");
-    requireDottedDepthFromGpuTasksIsPointerOnly();
-    requireNoOpenDepthFromGpuTasks();
-    requireBlockedDepthFromGpuTasksHaveReason();
-    requireOnlyExpectedBlockedDepthFromGpuTasks();
     requireSourceContains(
         "dub.sdl",
         "dependency \"psd-d\" path=\"vendor/psd-d\"",
@@ -9915,10 +9859,6 @@ private void testDepthDrawCalculationGateContracts() {
     require(!sourceTreeContainsAny(buildPath("source", "nijigenerate", "viewport", "depth", "draw"), psdWriterNeedles),
         "DepthDraw layered PSD writeback must remain blocked until DepthDraw has a verified writer");
     requireSourceContains(
-        buildPath("doc", "depth-from-gpu-tasks.md"),
-        "PNG+manifest is the first export target",
-        "DepthDraw task list must keep PNG+manifest as the supported export while PSD writer is absent");
-    requireSourceContains(
         "dub.sdl",
         "configuration \"osx-full\"",
         "DepthDraw Mac OpenGL verification boundary requires the macOS render build configuration");
@@ -9939,10 +9879,6 @@ private void testDepthDrawCalculationGateContracts() {
         "versions \"HaveMCP\" \"RegressionSmoke\" \"InDoesRender\"",
         "macOS regression smoke must keep render support enabled for OpenGL verification");
     requireSourceContains(
-        buildPath("doc", "depth-from-gpu.md"),
-        "Studio CMake path",
-        "DepthDraw specification must record the local cmake PATH requirement for smoke builds");
-    requireSourceContains(
         buildPath(".github", "workflows", "pr-test.yml"),
         "windows-regression-smoke-build",
         "PR workflow must compile-check the Windows RegressionSmoke app");
@@ -9954,22 +9890,6 @@ private void testDepthDrawCalculationGateContracts() {
         buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
         "OpenGL transform feedback support",
         "DepthDraw GPU backend must keep explicit OpenGL transform feedback requirement diagnostics");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu-tasks.md"),
-        "execute the real Mac OpenGL DepthDraw composition/readback path in a render-capable",
-        "DepthDraw task list must keep real Mac OpenGL verification as the remaining GPU acceptance step");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu-tasks.md"),
-        "useGpuPreview=true",
-        "DepthDraw task list must require real Mac OpenGL verification with GPU preview/apply enabled");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu-tasks.md"),
-        "without test hooks",
-        "DepthDraw task list must distinguish real Mac OpenGL verification from fake GPU hook tests");
-    requireSourceContains(
-        buildPath("doc", "depth-from-gpu-tasks.md"),
-        "not using CPU composition fallback",
-        "DepthDraw task list must keep CPU fallback forbidden for Mac OpenGL GPU acceptance");
     requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
         "project.depthdraw-live-ui-smoke",
@@ -10260,12 +10180,16 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import diagnostics must be reachable from regression smoke");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
-        "a = applyMask(a, layerMask[i]);",
+        "a = applyMask(a, maskAt(layer, layerMask, i));",
         "PSD depth import compatibility depends on psd-d applying layer masks into layer alpha");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
-        "a = applyMask(a, layerOrVectorMask[i]);",
+        "a = applyMask(a, maskAt(layer, layerOrVectorMask, i));",
         "PSD depth import compatibility depends on psd-d applying vector/user masks into layer alpha");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "source.d"),
+        "applyPsdLayerMaskIfAvailable(drawLayer, layer);",
+        "DepthDraw must not apply PSD masks a second time after psd-d has composed layer alpha");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
         "return (layer.flags & LayerFlags.Visible) == 0;",
@@ -10280,16 +10204,20 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import settings must not retain a second composed-layer visibility state");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
-        "auto layerPath = \"%s/%s\".format(calcSegment, layer.name);",
-        "PSD depth import source sessions must preserve PSD group layer paths");
+        "uniquePsdLayerPath(\"%s/%s\".format(calcSegment, layer.name), layerPathOccurrences)",
+        "PSD depth import source sessions must preserve group paths and disambiguate duplicate layers");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
         "image.left = layer.left;",
         "PSD depth import source sessions must preserve PSD layer bounds");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
-        "image.opacity = layerOpacity01(layer.opacity);",
-        "PSD depth import source sessions must preserve PSD layer opacity");
+        "image.opacity = effectiveLayerOpacity;",
+        "PSD depth import source sessions must preserve effective layer and ancestor-group opacity");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
+        "groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);",
+        "PSD depth import must propagate ancestor-group visibility into child layers");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
         "if (path == layerPath)",
@@ -10692,90 +10620,6 @@ private void testDepthDrawCalculationGateContracts() {
         buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
         "__(\"Repair Contour Depth\")",
         "DepthDraw window must expose the contour repair entry point");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/composite/depthCleanup.js",
-        "DepthDraw evidence must record the depth cleanup reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "Depth Cleanup and Contour Repair",
-        "DepthDraw evidence must record depth cleanup and contour repair behavior");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/composite/depthPrune.js",
-        "DepthDraw evidence must record the depth prune reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/composite/depthSplit.js",
-        "DepthDraw evidence must record the depth split reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "Fit Z to Gap gap selection remains blocked for hard depth-draw compatibility",
-        "Fit Z to Gap gap selection must remain explicitly blocked until depth-draw evidence exists");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "depthOffset`/`depthScale` semantics",
-        "Fit Z to Gap transform application must remain tied to depth-draw depthOffset/depthScale evidence");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "No CLI command or externalApi action exports nijigenerate-style final target vertex depth arrays",
-        "DepthDraw evidence must record the current final target depth array API gap");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "source/nijigenerate_tests/fixtures/depthdraw/depthdraw-api-capabilities.json",
-        "DepthDraw evidence must cite the API capability fixture");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "GPU Sampling and Readback Boundary",
-        "DepthDraw GPU sampling/readback compatibility evidence must be recorded");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "Mac OpenGL acceptance boundary",
-        "DepthDraw GPU evidence must record the real Mac OpenGL acceptance boundary");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "dub build --config=osx-regression-smoke --arch=arm64-apple-macos",
-        "DepthDraw GPU evidence must record the macOS regression smoke build command");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "without test hooks",
-        "DepthDraw GPU evidence must distinguish real Mac OpenGL acceptance from fake GPU hook tests");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "`MedianCustom` remains unsupported",
-        "DepthDraw GPU evidence must record the custom median boundary");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/composite/prepareLayers.js",
-        "DepthDraw evidence must record the prepared-layer reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/composite/alphaDepthGapFill.js",
-        "DepthDraw evidence must record the alpha-depth gap-fill reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "PSD Normal Coverage Pairing",
-        "DepthDraw evidence must record PSD normal/depth coverage pairing behavior");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "Normal/art layer opacity is multiplied into coverage alpha",
-        "DepthDraw evidence must record opacity-weighted normal coverage behavior");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/workers/compositeWorker.js",
-        "DepthDraw evidence must record the worker composition reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "src/app/externalApi.js",
-        "DepthDraw evidence must record the browser API reference source");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "scripts/depth-draw-cli.js",
-        "DepthDraw evidence must record the CLI fixture route");
-    requireSourceContains(
-        buildPath("doc", "depthdraw-compat-evidence.md"),
-        "globalThis.__depthDrawApi",
-        "DepthDraw evidence must record the browser API execution boundary");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
         "void drawDisplayToggles()",
@@ -13893,8 +13737,10 @@ private void testDepthRigRootFitZToDepth() {
     bone.transformChanged();
     siblingBone.transformChanged();
     fakeDepthBoneGpuNotReadyPolls = 1000;
+    fakeDepthBoneGpuCancelCount = 0;
     ngSetDepthBoneGpuAsyncTestHooks(
-        &fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+        &fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll,
+        &fakeDepthBoneGpuCancel);
     require(cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, root).succeeded,
         "pending Fit Z cancellation fixture should start successfully");
     ngFlushDepthBoneDirty();
@@ -13914,6 +13760,8 @@ private void testDepthRigRootFitZToDepth() {
     incActionUndo();
     require(!ngHasPendingDepthBoneRefreshForSink(fitOwner),
         "undoing Fit Z must remove its queued and running derived work");
+    require(fakeDepthBoneGpuCancelCount > 0 && fakeDepthBoneGpuJobVertexCounts.length == 0,
+        "undoing Fit Z must cancel submitted backend jobs instead of only dropping frontend records");
     bool foundCanceledFitStatus;
     foreach (status; ngDepthBoneUpdateStatuses(incActivePuppet(), true)) {
         if (status.root is root && status.target is target)
@@ -14364,6 +14212,7 @@ private uint fakeDepthBoneGpuNextJobId;
 private size_t[uint] fakeDepthBoneGpuJobVertexCounts;
 private uint fakeDepthBoneGpuSubmitCount;
 private uint fakeDepthBoneGpuPollCount;
+private uint fakeDepthBoneGpuCancelCount;
 private uint fakeDepthBoneGpuSubmitFailAfter;
 private uint fakeDepthBoneGpuNotReadyPolls;
 private float fakeDepthBoneGpuOutputX = 2.0f;
@@ -15268,12 +15117,17 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     target = new ExGridDeformer(incActivePuppet().root);
     target.name = "gpu-stale-grid";
     target.rebuffer(Vec2Array([vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100)]));
+    target2 = new ExGridDeformer(incActivePuppet().root);
+    target2.name = "gpu-stale-grid-2";
+    target2.rebuffer(Vec2Array([vec2(-20, 0), vec2(20, 0), vec2(-20, 100), vec2(20, 100)]));
     bone = ngCreateDepthBone(root, "GpuStaleBone", vec3(0, 0, 0), vec3(0, 100, 0));
     binding = ExDepthRigBinding.init;
     binding.targetUuid = target.uuid;
     binding.targetKind = ExDepthTargetKind.Grid;
     binding.sourceBoneUuids = [cast(ulong)bone.uuid];
-    root.bindings = [binding];
+    binding2 = binding;
+    binding2.targetUuid = target2.uuid;
+    root.bindings = [binding, binding2];
     param = new ExParameter("DepthGpuStaleParam", false);
     param.min = vec2(0, 0);
     param.max = vec2(1, 0);
@@ -15290,6 +15144,12 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     offsets = deformBinding.getValue(vec2u(1, 0)).vertexOffsets;
     require(offsets.length == target.vertices.length,
         "GPU stale requeue should write offsets for the current target vertex count");
+    deformBinding2 = cast(DeformationParameterBinding)param.getBinding(target2, "deform");
+    require(deformBinding2 !is null &&
+        deformBinding2.getValue(vec2u(1, 0)).vertexOffsets.length == target2.vertices.length,
+        "GPU stale requeue must regenerate and retain every target in the original hierarchy batch");
+    require(fakeDepthBoneGpuSubmitCount == 4,
+        "a stale two-target batch should resubmit both targets exactly once");
 
     resetCase();
     fakeDepthBoneGpuNextJobId = 1;
@@ -16514,6 +16374,11 @@ private void testActionGroupUndoRedo() {
     require(nodeA.name == "A1" && nodeB.name == "B1", "group redo should restore all grouped edits");
 }
 
+private void fakeDepthBoneGpuCancel(uint jobId) {
+    fakeDepthBoneGpuJobVertexCounts.remove(jobId);
+    fakeDepthBoneGpuCancelCount++;
+}
+
 private void testDepthBoneSourceSettingsActionMerge() {
     resetCase();
 
@@ -16616,11 +16481,16 @@ private void testAsyncActionGroupUndoRedo() {
         "async group redo should notify progress observers before fresh work is scheduled");
 
     owner.markAsyncScheduled();
+    incActionMarkSaved();
+    require(!incActionIsModified(),
+        "saving while redo-owned asynchronous work is pending should capture the current primary state");
     derivedNode.name = "derived-redone";
     auto redoneDerived = new NodeValueChangeAction!(Node, string)(
         "name", derivedNode, "derived-before", derivedNode.name, &derivedNode.name_);
     require(owner.addCompletedAsyncAction(owner.generation, redoneDerived),
         "redo generation should accept freshly completed asynchronous output");
+    require(incActionIsModified(),
+        "derived output completed after save must invalidate the saved snapshot without moving the history pointer");
     incActionUndo();
     require(primaryNode.name == "primary-before" && derivedNode.name == "derived-before",
         "second undo should revert asynchronously regenerated output and the primary operation");

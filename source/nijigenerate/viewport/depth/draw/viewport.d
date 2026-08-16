@@ -176,6 +176,13 @@ private:
         return vec2(cast(float)(rect.left + rect.width), cast(float)(rect.top + rect.height));
     }
 
+    vec2 documentToModelPoint(vec2 point) {
+        return vec2(
+            point.x - cast(float)documentWidth * 0.5f,
+            point.y - cast(float)documentHeight * 0.5f
+        );
+    }
+
     bool findDepthSpaceLayer(ref DepthDrawDepthSpaceSummary depthSpace, string layerId, out DepthDrawDepthSpaceLayerPlane plane) {
         foreach (candidate; depthSpace.layers) {
             if (candidate.layerId != layerId) continue;
@@ -317,7 +324,7 @@ private:
                 point.documentPoint = documentPoint;
                 point.alpha = cast(float)alphaByte / 255.0f;
                 point.renderPoint = renderer.buildPoint(
-                    documentPoint,
+                    documentToModelPoint(documentPoint),
                     representativeDepth,
                     depthDisplayScale,
                     viewSession.camera,
@@ -541,8 +548,8 @@ public:
         auto depthDisplayScale = selectedDepthDisplayScale();
         foreach (plane; depthSpace.layers) {
             if (!plane.visible || !plane.enabled) continue;
-            auto minPoint = rectMin(plane.bounds);
-            auto maxPoint = rectMax(plane.bounds);
+            auto minPoint = documentToModelPoint(rectMin(plane.bounds));
+            auto maxPoint = documentToModelPoint(rectMax(plane.bounds));
             auto sourcePlaneLines = renderer.buildPlaneLines(
                 minPoint,
                 maxPoint,
@@ -589,7 +596,8 @@ public:
                     !findDepthSpaceLayer(depthSpace, gap.frontLayerId, frontPlane)) {
                     continue;
                 }
-                auto point = gapMarkerPoint(backPlane, frontPlane);
+                auto documentPoint = gapMarkerPoint(backPlane, frontPlane);
+                auto point = documentToModelPoint(documentPoint);
                 auto line = renderer.buildDepthLine(
                     point,
                     gap.backDepth,
@@ -604,7 +612,7 @@ public:
                 handle.backLayerId = gap.backLayerId;
                 handle.frontLayerId = gap.frontLayerId;
                 handle.overlap = gap.overlap;
-                handle.documentPoint = point;
+                handle.documentPoint = documentPoint;
                 handle.backDepth = gap.backDepth;
                 handle.frontDepth = gap.frontDepth;
                 handle.renderPoint = renderer.buildPoint(

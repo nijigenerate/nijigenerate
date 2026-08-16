@@ -8,6 +8,7 @@ module nijigenerate.actions.depth;
 
 import i18n;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijilive.core.nodes;
@@ -19,6 +20,7 @@ private:
     DepthMappedNode depthMapped;
     float[] oldDepths;
     float[] newDepths;
+    string reason;
 
     float[] capture() {
         return depthMapped.copyDepths();
@@ -27,11 +29,13 @@ private:
     void apply(float[] depths) {
         depthMapped.replaceDepths(depths);
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        ngNotifyDepthBoneTargetChanged(node, DepthBoneMutationKind.TargetDepth, reason);
     }
 
 public:
-    this(Node node) {
+    this(Node node, string reason = "Depth Map") {
         this.node = node;
+        this.reason = reason;
         this.depthMapped = cast(DepthMappedNode)node;
         assert(this.depthMapped !is null);
         this.oldDepths = capture();

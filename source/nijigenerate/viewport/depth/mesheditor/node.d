@@ -494,13 +494,13 @@ public:
         }
         log("apply depths: length=%s vertices=%s nonZero=%s min=%s max=%s firstNonZero=%s".format(
             depths.length, target.vertices.length, nonZero, minDepth, maxDepth, firstNonZero));
-        auto action = new DepthMappedChangeAction(target);
+        auto action = new DepthMappedChangeAction(target, "Edit Depth Map");
         depthMapped.replaceDepths(depths);
         auto saved = depthMapped.copyDepths();
         log("apply replaceDepths done: savedLength=%s".format(saved is null ? -1 : cast(long)saved.length));
         action.updateNewState();
-        incActionPush(action);
         ngMarkDepthBoneDirtyForTarget(target, "Edit Depth Map");
+        incActionPush(action);
         target.notifyChange(target, NotifyReason.AttributeChanged);
     }
 

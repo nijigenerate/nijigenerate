@@ -229,15 +229,15 @@ public:
         incActionPushGroup();
         foreach (editor; editors.byValue) {
             auto ctx = new Context();
+            auto nextOperations = operationsToJson(editor);
+            auto operationsChanged = nextOperations != targetOperationsToJson(editor);
+            if (operationsChanged)
+                cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), nextOperations);
             if (editor in directDepthDirty) {
                 cmd!(DepthMapCommand.SetDepths)(ctx, editor.targetNode(), editor.copyEditorDepths());
                 directDepthDirty.remove(editor);
-            } else {
-                auto nextOperations = operationsToJson(editor);
-                if (nextOperations != targetOperationsToJson(editor)) {
-                    cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), nextOperations);
-                    cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
-                }
+            } else if (operationsChanged) {
+                cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
             }
             editor.resetFromTarget();
         }

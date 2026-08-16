@@ -76,6 +76,13 @@ private bool psdLayerVisible(ref Layer layer) {
     return (layer.flags & LayerFlags.Visible) == 0;
 }
 
+private string uniquePsdLayerPath(string path, ref size_t[string] occurrences) {
+    auto previous = path in occurrences;
+    auto occurrence = previous is null ? 1 : *previous + 1;
+    occurrences[path] = occurrence;
+    return occurrence == 1 ? path : "%s [#%s]".format(path, occurrence);
+}
+
 struct PsdDepthImportSettings {
     bool invert = false;
     float backDepth = -1.0f;
@@ -878,22 +885,30 @@ private void loadPsdCompositeSourceLayers(
 
     import std.array : join;
     string[] layerPathSegments;
+    bool[] groupVisibility;
+    float[] groupOpacity;
+    size_t[string] layerPathOccurrences;
     string calcSegment;
     foreach_reverse (layer; document.layers) {
         if (layer.type != LayerType.Any) {
             if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
                 layerPathSegments ~= layer.name;
+                groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
+                groupOpacity ~= (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
             } else if (layerPathSegments.length > 0) {
                 layerPathSegments.length--;
+                groupVisibility.length--;
+                groupOpacity.length--;
             }
             calcSegment = layerPathSegments.length > 0 ? "/" ~ layerPathSegments.join("/") : "";
             continue;
         }
 
-        auto layerPath = "%s/%s".format(calcSegment, layer.name);
+        auto layerPath = uniquePsdLayerPath("%s/%s".format(calcSegment, layer.name), layerPathOccurrences);
         layer.extractLayerImage();
         if (layer.data.length == 0) continue;
-        auto opacity = layerOpacity01(layer.opacity);
+        auto visible = (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
+        auto opacity = (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
         auto sourceLayer = makeCompositeSourceLayer(
             layerPath,
             layer.name,
@@ -901,7 +916,7 @@ private void loadPsdCompositeSourceLayers(
             layer.top,
             layer.width,
             layer.height,
-            psdLayerVisible(layer),
+            visible,
             true,
             countAcceptedAlphaPixels(layer.data, opacity)
         );
@@ -2842,13 +2857,20 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
 
     import std.array : join;
     string[] layerPathSegments;
+    bool[] groupVisibility;
+    float[] groupOpacity;
+    size_t[string] layerPathOccurrences;
     string calcSegment;
     foreach_reverse (layer; document.layers) {
         if (layer.type != LayerType.Any) {
             if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
                 layerPathSegments ~= layer.name;
+                groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
+                groupOpacity ~= (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
             } else if (layerPathSegments.length > 0) {
                 layerPathSegments.length--;
+                groupVisibility.length--;
+                groupOpacity.length--;
             }
             calcSegment = layerPathSegments.length > 0 ? "/" ~ layerPathSegments.join("/") : "";
             continue;
@@ -2856,7 +2878,10 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
 
         result.sourceDepthLayerCount++;
 
-        auto layerPath = "%s/%s".format(calcSegment, layer.name);
+        auto layerPath = uniquePsdLayerPath("%s/%s".format(calcSegment, layer.name), layerPathOccurrences);
+        auto layerVisible = (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
+        auto effectiveLayerOpacity =
+            (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
         PsdDepthLayerMapping mapping;
         mapping.layerPath = layerPath;
         mapping.layerName = layer.name;
@@ -2873,7 +2898,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
             image.height = layer.height;
             image.documentWidth = document.width;
             image.documentHeight = document.height;
-            image.opacity = layerOpacity01(layer.opacity);
+            image.opacity = effectiveLayerOpacity;
             image.data = layer.data.dup;
             if (hasFlatColorSource) {
                 image.coverageWidth = flatColorTexture.width;
@@ -2889,10 +2914,11 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 layer.top,
                 layer.width,
                 layer.height,
-                psdLayerVisible(layer),
+                layerVisible,
                 true,
                 computeLayerDepthStats(image, settings).maskedPixels
             );
+            depthSourceLayer.opacity = effectiveLayerOpacity;
             setCompositeSourceLayerPixels(depthSourceLayer, image.data, buildDepthMaskPreview(image, settings));
             result.depthSource.layers ~= depthSourceLayer;
         }
@@ -2906,7 +2932,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 mapping.status = "Ignored";
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), false);
+                    addComposedLayer(result, path, image, settings, layerVisible, false);
                 }
                 layer.data = null;
                 continue;
@@ -2921,7 +2947,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), true);
+                    addComposedLayer(result, path, image, settings, layerVisible, true);
                 }
                 addCompositionDiagnostic(result, "missing-manual-target",
                     "Manual target binding points to a missing GridDeformer or PathDeformer.", layerPath, layer.name);
@@ -2943,7 +2969,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), true);
+                    addComposedLayer(result, path, image, settings, layerVisible, true);
                 }
                 addCompositionDiagnostic(result, "unused-depth-layer",
                     "Depth layer did not match any color/target layer.", layerPath, layer.name);
@@ -2972,7 +2998,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
-                    addComposedLayer(result, path, image, settings, psdLayerVisible(layer), true);
+                    addComposedLayer(result, path, image, settings, layerVisible, true);
                 }
                 addCompositionDiagnostic(result, "unused-depth-layer",
                     "Depth layer matched a node that is not inside a depth target.", layerPath, layer.name);
@@ -2992,10 +3018,10 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         image.grid = grid;
         attachMatchedCoverage(image, puppet, matchedNode, grid);
         buildCoverageCache(image);
-        addComposedLayer(result, path, image, settings, psdLayerVisible(layer),
+        addComposedLayer(result, path, image, settings, layerVisible,
             ngPsdDepthGridLayerEnabled(settings, grid.uuid, layerPath), grid);
 
-        layers ~= image;
+        if (layerVisible) layers ~= image;
         layer.data = null;
     }
 
@@ -3150,7 +3176,6 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
     enforce(settings.depthScale >= 0.0f, "Depth scale must be non-negative");
     enforce(settings.alphaThreshold >= 0.0f && settings.alphaThreshold <= 1.0f, "Alpha threshold must be in [0, 1]");
     enforce(settings.customRadius >= 1 && settings.customRadius <= 64, "Custom radius must be in [1, 64]");
-    if (settings.channel == PsdDepthChannel.AverageRGB) settings.channel = PsdDepthChannel.R;
     settings.zeroDepthIsMissing = true;
 
     auto texture = ShallowTexture(path, 4);

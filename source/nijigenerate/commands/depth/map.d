@@ -1,5 +1,8 @@
 module nijigenerate.commands.depth.map;
 
+import core.thread : Thread;
+import core.time : msecs;
+
 import nijigenerate.actions.depth;
 import nijigenerate.actions.depthbone : DepthRigBindingsChangeAction;
 import nijigenerate.actions : AsyncGroupAction;
@@ -22,7 +25,7 @@ import nijigenerate.viewport.depth.draw.binding : DepthDrawBinding, DepthMergePo
 import nijigenerate.viewport.depth.draw.composer : ngComposeDepthDrawTarget;
 import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerPixelFromDocument;
 import nijigenerate.viewport.depth.draw.gpu : DepthDrawGpuTargetComposeJob, DepthDrawGpuTargetComposePollResult,
-    ngPollDepthDrawGpuTargetCompose, ngSubmitDepthDrawGpuTargetCompose;
+    ngCancelDepthDrawGpuTargetCompose, ngPollDepthDrawGpuTargetCompose, ngSubmitDepthDrawGpuTargetCompose;
 import nijigenerate.viewport.depth.draw.layer : DepthDrawLayer, DepthDrawRect;
 import nijigenerate.viewport.depth.draw.pngexport : DepthDrawPngExportResult, ngExportDepthDrawPngSession;
 import nijigenerate.viewport.depth.draw.session : DepthDrawSession;
@@ -265,7 +268,7 @@ private JSONValue depthsToJson(float[] depths) {
 
 DepthMappedChangeAction ngApplyDepthsChangeAction(Node target, float[] nextDepths, string reason) {
     auto mapped = requireDepthMapped(target);
-    auto action = new DepthMappedChangeAction(target);
+    auto action = new DepthMappedChangeAction(target, reason);
     mapped.replaceDepths(nextDepths);
     target.notifyChange(target, NotifyReason.AttributeChanged);
     action.updateNewState();
@@ -911,8 +914,15 @@ private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out str
             return false;
         }
         DepthDrawGpuTargetComposePollResult pollResult;
-        if (!ngPollDepthDrawGpuTargetCompose(job, pollResult, error) || !pollResult.ready) {
-            if (error.length == 0) error = "PSD depth map GPU composition did not finish";
+        bool polled = true;
+        foreach (_; 0 .. 30_000) {
+            polled = ngPollDepthDrawGpuTargetCompose(job, pollResult, error);
+            if (!polled || pollResult.ready) break;
+            Thread.sleep(1.msecs);
+        }
+        if (!polled || !pollResult.ready) {
+            ngCancelDepthDrawGpuTargetCompose(job);
+            if (error.length == 0) error = "PSD depth map GPU composition timed out";
             return false;
         }
         if (pollResult.result.depths.length != gridResult.grid.vertices.length) {

@@ -183,10 +183,14 @@ JSONValue ngDepthDrawSessionToManifest(DepthDrawSession session) {
         root["selectedLayerId"] = JSONValue(session.selectedLayerId);
         root["selectedGridUuid"] = JSONValue(session.selectedGridUuid.to!string);
         root["display"] = displayToJson(session.display);
+        root["documentWidth"] = JSONValue(cast(long)session.documentWidth);
+        root["documentHeight"] = JSONValue(cast(long)session.documentHeight);
     } else {
         root["selectedLayerId"] = JSONValue("");
         root["selectedGridUuid"] = JSONValue("0");
         root["display"] = displayToJson(DepthDrawDisplayOptions());
+        root["documentWidth"] = JSONValue(0L);
+        root["documentHeight"] = JSONValue(0L);
     }
 
     JSONValue layers = JSONValue.emptyArray;
@@ -245,6 +249,10 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
     session.selectedGridUuid = jsonString(manifest.object.get("selectedGridUuid", JSONValue("0")),
         "selectedGridUuid", "0").to!ulong;
     session.display = displayFromJson(manifest.object.get("display", JSONValue(null)), "display");
+    session.documentWidth = cast(int)jsonFloat(
+        manifest.object.get("documentWidth", JSONValue(0)), "documentWidth");
+    session.documentHeight = cast(int)jsonFloat(
+        manifest.object.get("documentHeight", JSONValue(0)), "documentHeight");
 
     auto layersValue = manifest.object.get("layers", JSONValue.emptyArray);
     enforce(layersValue.type == JSONType.array, "DepthDraw manifest layers must be an array");

@@ -17,6 +17,7 @@ enum DepthBoneMutationKind {
     RigConfiguration,
     TargetTransform,
     TargetGeometry,
+    TargetDepth,
 }
 
 struct DepthBoneMutation {
@@ -83,7 +84,8 @@ void ngNotifyDepthBoneTargetChanged(
 ) {
     if (target is null || ngDepthBoneMutationHook is null) return;
     assert(kind == DepthBoneMutationKind.TargetTransform ||
-        kind == DepthBoneMutationKind.TargetGeometry);
+        kind == DepthBoneMutationKind.TargetGeometry ||
+        kind == DepthBoneMutationKind.TargetDepth);
     DepthBoneMutation mutation;
     mutation.kind = kind;
     mutation.target = target;

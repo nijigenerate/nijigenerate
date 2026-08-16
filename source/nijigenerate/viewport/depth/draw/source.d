@@ -52,16 +52,26 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
     result.documentWidth = document.width;
     result.documentHeight = document.height;
     result.session = new DepthDrawSession();
+    result.session.documentWidth = result.documentWidth;
+    result.session.documentHeight = result.documentHeight;
 
     string[] layerPathSegments;
+    bool[] groupVisibility;
+    float[] groupOpacity;
     string groupPath;
     size_t layerIndex;
     foreach_reverse (layer; document.layers) {
         if (layer.type != LayerType.Any) {
             if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
                 layerPathSegments ~= layer.name;
+                groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) &&
+                    (layer.flags & LayerFlags.Visible) == 0;
+                groupOpacity ~= (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) *
+                    cast(float)layer.opacity / 255.0f;
             } else if (layerPathSegments.length > 0) {
                 layerPathSegments.length--;
+                groupVisibility.length--;
+                groupOpacity.length--;
             }
             groupPath = layerPathSegments.length > 0 ? "/" ~ layerPathSegments.join("/") : "";
             continue;
@@ -80,12 +90,13 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         drawLayer.bounds.top = layer.top;
         drawLayer.bounds.width = cast(int)layer.width;
         drawLayer.bounds.height = cast(int)layer.height;
-        drawLayer.opacity = cast(float)layer.opacity / 255.0f;
-        drawLayer.visible = (layer.flags & LayerFlags.Visible) == 0;
+        drawLayer.opacity = (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) *
+            cast(float)layer.opacity / 255.0f;
+        drawLayer.visible = (groupVisibility.length == 0 || groupVisibility[$-1]) &&
+            (layer.flags & LayerFlags.Visible) == 0;
         drawLayer.enabled = drawLayer.visible;
         drawLayer.rgba = layer.data.dup;
         drawLayer.depthPixels = layer.data.dup;
-        applyPsdLayerMaskIfAvailable(drawLayer, layer);
         drawLayer.alphaMask = ngDepthDrawAlphaMaskFromRgba(drawLayer.rgba);
 
         result.layers ~= drawLayer;
@@ -135,37 +146,6 @@ void ngDepthDrawApplyMaskToLayerAlpha(
         if (layer.depthPixels.length >= pixelCount * 4) layer.depthPixels[i * 4 + 3] = value;
     }
     layer.alphaMask = ngDepthDrawAlphaMaskFromRgba(layer.rgba);
-}
-
-private void applyPsdLayerMaskIfAvailable(ref DepthDrawLayer drawLayer, ref Layer psdLayer) {
-    if (psdLayer.layerMask.length == 0) return;
-    auto mask = psdLayer.layerMask[0];
-    auto maskWidth = mask.right - mask.left;
-    auto maskHeight = mask.bottom - mask.top;
-    if (maskWidth <= 0 || maskHeight <= 0) return;
-
-    auto maskBytes = psdLayerMaskChannelBytes(psdLayer, maskWidth, maskHeight);
-    if (maskBytes.length < cast(size_t)maskWidth * cast(size_t)maskHeight) return;
-    ngDepthDrawApplyMaskToLayerAlpha(
-        drawLayer,
-        maskBytes,
-        maskWidth,
-        maskHeight,
-        mask.left,
-        mask.top,
-        false,
-        mask.defaultColor
-    );
-}
-
-private ubyte[] psdLayerMaskChannelBytes(ref Layer psdLayer, int maskWidth, int maskHeight) {
-    foreach (ref channel; psdLayer.channels) {
-        if (channel.type != ChannelType.LAYER_MASK && channel.type != ChannelType.LAYER_OR_VECTOR_MASK) continue;
-        if (channel.data.length >= cast(size_t)maskWidth * cast(size_t)maskHeight) {
-            return channel.data[0 .. cast(size_t)maskWidth * cast(size_t)maskHeight].dup;
-        }
-    }
-    return null;
 }
 
 DepthDrawLayerPairingResult ngDepthDrawAttachNormalCoverage(

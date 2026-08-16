@@ -39,25 +39,30 @@ struct NgDepthBoneGpuAsyncResult {
 alias NgDepthBoneGpuAsyncSupportHook = bool function();
 alias NgDepthBoneGpuAsyncSubmitHook = bool function(ref DepthBoneGpuDispatchPacket packet, out uint jobId, out string error);
 alias NgDepthBoneGpuAsyncPollHook = bool function(uint jobId, out NgDepthBoneGpuAsyncResult result, out string error);
+alias NgDepthBoneGpuAsyncCancelHook = void function(uint jobId);
 
 private NgDepthBoneGpuAsyncSupportHook supportHook;
 private NgDepthBoneGpuAsyncSubmitHook submitHook;
 private NgDepthBoneGpuAsyncPollHook pollHook;
+private NgDepthBoneGpuAsyncCancelHook cancelHook;
 
 void ngSetDepthBoneGpuAsyncTestHooks(
     NgDepthBoneGpuAsyncSupportHook support,
     NgDepthBoneGpuAsyncSubmitHook submit,
-    NgDepthBoneGpuAsyncPollHook poll
+    NgDepthBoneGpuAsyncPollHook poll,
+    NgDepthBoneGpuAsyncCancelHook cancel = null
 ) {
     supportHook = support;
     submitHook = submit;
     pollHook = poll;
+    cancelHook = cancel;
 }
 
 void ngClearDepthBoneGpuAsyncTestHooks() {
     supportHook = null;
     submitHook = null;
     pollHook = null;
+    cancelHook = null;
 }
 
 version (InDoesRender) {
@@ -654,6 +659,19 @@ bool ngPollDepthBoneGpuAsync(uint jobId, out NgDepthBoneGpuAsyncResult result, o
     return pollDepthBoneGpuAsync(jobId, 0, result, error);
 }
 
+void ngCancelDepthBoneGpuAsync(uint jobId) {
+    if (cancelHook !is null) {
+        cancelHook(jobId);
+        return;
+    }
+    foreach (i; 0 .. pendingJobs.length) {
+        if (pendingJobs[i].id != jobId) continue;
+        deleteJobResources(pendingJobs[i]);
+        pendingJobs = pendingJobs[0 .. i] ~ pendingJobs[i + 1 .. $];
+        return;
+    }
+}
+
 size_t ngPendingDepthBoneGpuAsyncJobCount() {
     return pendingJobs.length;
 }
@@ -681,6 +699,10 @@ bool ngPollDepthBoneGpuAsync(uint jobId, out NgDepthBoneGpuAsyncResult result, o
     error = "DepthBone GPU async deformation requires the rendering backend";
     if (pollHook !is null) return pollHook(jobId, result, error);
     return false;
+}
+
+void ngCancelDepthBoneGpuAsync(uint jobId) {
+    if (cancelHook !is null) cancelHook(jobId);
 }
 
 size_t ngPendingDepthBoneGpuAsyncJobCount() {

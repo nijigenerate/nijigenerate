@@ -24,8 +24,17 @@ public:
 
     override
     void rebuffer(Vec2Array originalControlPoints) {
+        auto oldVertices = vertices.dup;
+        auto oldDepths = copyDepths();
         super.rebuffer(originalControlPoints);
-        resizeDepthsToVertices(vertices.length);
+        if (oldDepths is null) return;
+        float[] resampledDepths;
+        if (ngResamplePathDepths(oldVertices, oldDepths, vertices, resampledDepths)) {
+            replaceDepths(resampledDepths);
+        } else {
+            replaceDepths(oldDepths);
+            resizeDepthsToVertices(vertices.length);
+        }
     }
 
     override

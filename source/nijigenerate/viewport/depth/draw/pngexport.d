@@ -46,7 +46,7 @@ ubyte[] ngDepthDrawLayerToExportRgba(DepthDrawLayer layer) {
         result[offset + 0] = depth;
         result[offset + 1] = depth;
         result[offset + 2] = depth;
-        result[offset + 3] = 255;
+        result[offset + 3] = layer.depthPixels[offset + 3];
     }
     return result;
 }
@@ -75,6 +75,8 @@ DepthDrawPngExportResult ngExportDepthDrawPngSession(
     exported.selectedGridUuid = session.selectedGridUuid;
     exported.display = session.display;
     exported.bindings = session.bindings.dup;
+    exported.documentWidth = session.documentWidth;
+    exported.documentHeight = session.documentHeight;
 
     DepthDrawPngExportResult result;
     result.manifestPath = manifestPath;

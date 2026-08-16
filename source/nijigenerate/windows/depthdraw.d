@@ -4,6 +4,7 @@ import bindbc.imgui;
 import i18n;
 import nijigenerate;
 import nijigenerate.commands : Context;
+import nijigenerate.core.actionstack : incActionInvalidateSavedState;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, ngDepthImageSampleRgbaWithOpacity,
     ngDepthImageSampleRgbaWithOpacityAndCoverage;
@@ -58,6 +59,8 @@ private:
     ulong pendingGpuApplyGridUuid;
     Context pendingGpuApplyContext;
     DepthDrawGpuTargetComposeJob pendingGpuApplyJob;
+    string pendingGpuApplySessionState;
+    string lastPersistedSessionState;
 
     enum string[] ChannelNames = [
         "AverageRGB",
@@ -227,6 +230,8 @@ private:
             session.layers ~= layer;
             documentWidth = layer.width > 0 ? layer.width : 1;
             documentHeight = layer.height > 0 ? layer.height : 1;
+            session.documentWidth = documentWidth;
+            session.documentHeight = documentHeight;
             statusMessage = _("Loaded PNG source");
         } else if (ext == ".json") {
             auto ex = collectException(session = ngLoadDepthDrawManifest(path));
@@ -235,7 +240,14 @@ private:
                 return;
             }
             hydrateManifestLayerImages();
-            updateDocumentSizeFromLayers();
+            if (session.documentWidth > 0 && session.documentHeight > 0) {
+                documentWidth = session.documentWidth;
+                documentHeight = session.documentHeight;
+            } else {
+                updateDocumentSizeFromLayers();
+                session.documentWidth = documentWidth;
+                session.documentHeight = documentHeight;
+            }
             updateManifestValidationStatus();
         } else {
             errorMessage = _("DepthDraw supports PSD, PNG, and JSON manifest sources.");
@@ -247,6 +259,32 @@ private:
                 reload.preservedBindings
             );
         }
+    }
+
+    void restorePersistentSessionState() {
+        auto puppet = incActivePuppet();
+        if (puppet is null || session is null) return;
+        auto persisted = ngGetPuppetDepthDrawSession(puppet);
+        if (persisted is null) return;
+        bool sameSource;
+        foreach (layer; persisted.layers) {
+            if (layer.sourcePath == path) {
+                sameSource = true;
+                break;
+            }
+        }
+        if (!sameSource) return;
+        ngDepthDrawCarryReloadState(session, persisted);
+    }
+
+    void persistSessionIfChanged() {
+        if (session is null) return;
+        auto state = ngDepthDrawSessionToPersistentJson(session);
+        if (state == lastPersistedSessionState) return;
+        auto puppet = incActivePuppet();
+        if (puppet is null || !ngSetPuppetDepthDrawSession(puppet, session)) return;
+        lastPersistedSessionState = state;
+        incActionInvalidateSavedState();
     }
 
     void drawDisplayToggles() {
@@ -774,6 +812,7 @@ protected:
             drawLayerInspector();
         }
 
+        persistSessionIfChanged();
         onEndUpdate();
     }
 
@@ -783,6 +822,8 @@ public:
         this.path = path;
         flags |= ImGuiWindowFlags.NoSavedSettings;
         loadSource();
+        restorePersistentSessionState();
+        if (session !is null) lastPersistedSessionState = ngDepthDrawSessionToPersistentJson(session);
     }
 
     DepthDrawSession depthDrawSession() {
@@ -795,6 +836,7 @@ public:
             return false;
         }
         auto viewport = new DepthDrawViewport(session);
+        viewport.setDocumentSize(documentWidth, documentHeight);
         ngPresentTemporaryViewport(viewport);
         statusMessage = _("Opened DepthDraw viewport");
         errorMessage = null;
@@ -852,6 +894,7 @@ public:
         hasPendingGpuApplyJob = true;
         pendingGpuApplyGridUuid = target.getTarget().uuid;
         pendingGpuApplyContext = ctx;
+        pendingGpuApplySessionState = ngDepthDrawSessionToManifest(session).toString();
         statusMessage = _("DepthDraw GPU apply submitted");
         errorMessage = null;
         return pollPendingGpuApply();
@@ -881,6 +924,12 @@ public:
             clearPendingGpuApply();
             return summary;
         }
+        if (pendingGpuApplySessionState != ngDepthDrawSessionToManifest(session).toString()) {
+            statusMessage = _("DepthDraw GPU apply was canceled because the session changed");
+            errorMessage = null;
+            clearPendingGpuApply();
+            return summary;
+        }
         summary = ngApplyDepthDrawTargetResultWithSummary(pendingGpuApplyContext, target, pollResult.result);
         clearPendingGpuApply();
         if (!summary.succeeded) {
@@ -898,10 +947,12 @@ public:
     }
 
     void clearPendingGpuApply() {
+        if (hasPendingGpuApplyJob) ngCancelDepthDrawGpuTargetCompose(pendingGpuApplyJob);
         hasPendingGpuApplyJob = false;
         pendingGpuApplyGridUuid = 0;
         pendingGpuApplyContext = null;
         pendingGpuApplyJob = DepthDrawGpuTargetComposeJob.init;
+        pendingGpuApplySessionState = null;
     }
 
     bool selectLayer(string layerId) {

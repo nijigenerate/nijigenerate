@@ -49,6 +49,7 @@ enum DepthDrawGpuLayerField {
     Channel = 19,
     Convolution = 20,
     CustomRadius = 21,
+    SampleDepthScale = 22,
 }
 
 enum DepthDrawGpuBindingField {
@@ -78,6 +79,7 @@ struct DepthDrawGpuLayerPacket {
     float zScale;
     float backDepth;
     float frontDepth;
+    float sampleDepthScale;
     float alphaThreshold;
     int channel;
     int convolution;
@@ -293,6 +295,7 @@ private enum string LayerSampleVertexSource = q"GLSL
 #define LAYER_CHANNEL 19u
 #define LAYER_CONVOLUTION 20u
 #define LAYER_CUSTOM_RADIUS 21u
+#define LAYER_SAMPLE_DEPTH_SCALE 22u
 
 #define BINDING_FLAGS 2u
 #define BINDING_COVERAGE_THRESHOLD 3u
@@ -414,6 +417,7 @@ bool samplePixel(
     }
     if (!(alpha > threshold)) return false;
     float rawDepth = mix(layerValue(LAYER_BACK_DEPTH), layerValue(LAYER_FRONT_DEPTH), depth01(base, channel, invert));
+    rawDepth *= layerValue(LAYER_SAMPLE_DEPTH_SCALE);
     sampledDepth = rawDepth * layerValue(LAYER_Z_SCALE) + layerValue(LAYER_Z_OFFSET);
     sampledWeight = alpha;
     return true;
@@ -1013,6 +1017,18 @@ private bool pollDepthDrawGpuComposeBackend(
     error = "DepthDraw GPU compose job was not found";
     return false;
 }
+
+private void cancelDepthDrawGpuComposeBackend(uint jobId) {
+    foreach (i; 0 .. pendingComposeJobs.length) {
+        if (pendingComposeJobs[i].id != jobId) continue;
+        foreach (layerIndex, layerJobId; pendingComposeJobs[i].layerJobIds) {
+            if (!pendingComposeJobs[i].layerReady[layerIndex])
+                cancelDepthDrawGpuLayerSampleJob(layerJobId);
+        }
+        pendingComposeJobs = pendingComposeJobs[0 .. i] ~ pendingComposeJobs[i + 1 .. $];
+        return;
+    }
+}
 } else {
 bool ngSubmitDepthDrawGpuLayerSample(
     ref DepthDrawGpuLayerSamplePacket packet,
@@ -1109,6 +1125,14 @@ bool ngPollDepthDrawGpuCompose(uint jobId, out DepthDrawGpuDispatchPollResult re
     return false;
 }
 
+void ngCancelDepthDrawGpuCompose(uint jobId) {
+    if (jobId == 0) return;
+    version (InDoesRender) {
+        if (submitHook is null) cancelDepthDrawGpuComposeBackend(jobId);
+    }
+    pendingPackets.remove(jobId);
+}
+
 bool ngSubmitDepthDrawGpuTargetCompose(
     DepthDrawSession session,
     DepthTargetView target,
@@ -1143,6 +1167,11 @@ bool ngPollDepthDrawGpuTargetCompose(
     return true;
 }
 
+void ngCancelDepthDrawGpuTargetCompose(ref DepthDrawGpuTargetComposeJob job) {
+    ngCancelDepthDrawGpuCompose(job.jobId);
+    job = DepthDrawGpuTargetComposeJob.init;
+}
+
 float[] ngFlattenDepthDrawGpuLayers(const(DepthDrawGpuLayerPacket)[] layers) {
     float[] values;
     values.length = layers.length * DepthDrawGpuLayerStride;
@@ -1170,6 +1199,7 @@ float[] ngFlattenDepthDrawGpuLayers(const(DepthDrawGpuLayerPacket)[] layers) {
         values[base + DepthDrawGpuLayerField.Channel] = cast(float)layer.channel;
         values[base + DepthDrawGpuLayerField.Convolution] = cast(float)layer.convolution;
         values[base + DepthDrawGpuLayerField.CustomRadius] = cast(float)layer.customRadius;
+        values[base + DepthDrawGpuLayerField.SampleDepthScale] = layer.sampleDepthScale;
     }
     return values;
 }
@@ -1616,6 +1646,7 @@ DepthDrawGpuComposePacket ngBuildDepthDrawGpuComposePacket(
         layerPacket.zScale = layer.zScale;
         layerPacket.backDepth = settings.backDepth;
         layerPacket.frontDepth = settings.frontDepth;
+        layerPacket.sampleDepthScale = layer.sampleDepthScale;
         layerPacket.alphaThreshold = settings.alphaThreshold;
         layerPacket.channel = cast(int)settings.channel;
         layerPacket.convolution = cast(int)settings.convolution;

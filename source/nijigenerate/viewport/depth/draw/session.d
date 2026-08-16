@@ -61,6 +61,8 @@ public:
     string selectedLayerId;
     ulong selectedGridUuid;
     DepthDrawDisplayOptions display;
+    int documentWidth;
+    int documentHeight;
 
     DepthDrawLayer* layerById(string id) {
         auto index = findLayerIndex(id);
@@ -345,8 +347,10 @@ DepthDrawReloadStateResult ngDepthDrawCarryReloadState(DepthDrawSession reloaded
     string[string] layerIdMap;
     bool[string] usedReloadedLayerIds;
     foreach (previousLayer; previous.layers) {
-        auto layer = reloaded.layerById(previousLayer.id);
-        if (layer is null) layer = findReloadLayerByKey(reloaded, previousLayer);
+        // PSD ids are positional (psd:0, psd:1, ...), so stable source
+        // identity must win when layers are inserted or reordered.
+        auto layer = findReloadLayerByKey(reloaded, previousLayer);
+        if (layer is null) layer = reloaded.layerById(previousLayer.id);
         if (layer is null) continue;
 
         auto reloadedId = layer.id;

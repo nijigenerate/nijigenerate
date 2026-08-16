@@ -3,7 +3,7 @@ module nijigenerate.commands.depth.bone;
 import nijigenerate.commands.base;
 import nijigenerate.commands.depth.bone_gpu_async : DepthBoneGpuDispatchPacket, NgDepthBoneGpuAsyncResult,
     ngDepthBoneGpuAsyncMissingRequirements, ngDepthBoneGpuAsyncSupported, ngPendingDepthBoneGpuAsyncJobCount,
-    ngPollDepthBoneGpuAsync, ngSubmitDepthBoneGpuAsync;
+    ngCancelDepthBoneGpuAsync, ngPollDepthBoneGpuAsync, ngSubmitDepthBoneGpuAsync;
 import nijigenerate.commands.depth.bone_status :
     ngDepthBoneUpdateAbort,
     ngDepthBoneUpdateApplied,
@@ -1574,6 +1574,17 @@ private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
     }
 
     i = 0;
+    while (i < depthBoneGpuRefreshJobs.length) {
+        if (depthBoneGpuRefreshJobs[i].batchId == batchId) {
+            ngCancelDepthBoneGpuAsync(depthBoneGpuRefreshJobs[i].jobId);
+            depthBoneGpuRefreshJobs =
+                depthBoneGpuRefreshJobs[0 .. i] ~ depthBoneGpuRefreshJobs[i + 1 .. $];
+            continue;
+        }
+        i++;
+    }
+
+    i = 0;
     while (i < depthBoneGpuCompletedJobs.length) {
         if (depthBoneGpuCompletedJobs[i].batchId == batchId) {
             depthBoneGpuCompletedJobs =
@@ -1627,10 +1638,7 @@ private void cancelDepthBoneRefreshForAction(AsyncGroupAction action) {
         job.actionSink = null;
         job.actionToken = AsyncActionToken.init;
     }
-    foreach (batchId; batches.byKey)
-        // The owner token supplies the terminal Canceled state. This call only
-        // removes producer work and keeps submitted GPU resources drainable.
-        cancelDepthBoneGpuBatch(batchId);
+    foreach (batchId; batches.byKey) cancelDepthBoneGpuBatch(batchId);
 }
 
 private void beginDepthBoneRefreshUndo(AsyncGroupAction action) {
@@ -1749,89 +1757,86 @@ private void cancelSupersededDepthBoneGpuWork(
 
 private void abortDepthBoneGpuRefresh(string statusDetail = null) {
     if (statusDetail.length > 0) ngDepthBoneUpdateAbort(statusDetail);
+    foreach (job; depthBoneGpuRefreshJobs) ngCancelDepthBoneGpuAsync(job.jobId);
     depthBoneGpuSubmissionQueue = null;
     depthBoneGpuRefreshJobs = null;
     depthBoneGpuCompletedJobs = null;
     canceledDepthBoneGpuBatches = null;
 }
 
-private bool sameDepthBoneGpuWork(DepthBoneGpuOffsetPacket a, DepthBoneGpuOffsetPacket b) {
-    return a.root is b.root &&
-        a.target is b.target &&
-        a.parameter is b.parameter &&
-        a.keypoint == b.keypoint &&
-        a.writePreview == b.writePreview &&
-        a.writeBinding == b.writeBinding;
+private DepthBoneGpuOffsetPacket[] depthBoneGpuBatchPackets(uint batchId) {
+    DepthBoneGpuOffsetPacket[] packets;
+    foreach (job; depthBoneGpuSubmissionQueue) if (job.batchId == batchId) packets ~= job.packet;
+    foreach (job; depthBoneGpuRefreshJobs) if (job.batchId == batchId) packets ~= job.packet;
+    foreach (job; depthBoneGpuCompletedJobs) if (job.batchId == batchId) packets ~= job.packet;
+    return packets;
 }
 
-private bool hasOtherPendingDepthBoneGpuWork(DepthBoneGpuRefreshJob job) {
-    foreach (queued; depthBoneGpuSubmissionQueue) {
-        if (sameDepthBoneGpuWork(queued.packet, job.packet)) return true;
-    }
-    foreach (running; depthBoneGpuRefreshJobs) {
-        if (running.jobId != job.jobId && sameDepthBoneGpuWork(running.packet, job.packet)) return true;
-    }
-    foreach (completed; depthBoneGpuCompletedJobs) {
-        if (completed.valid && sameDepthBoneGpuWork(completed.packet, job.packet)) return true;
-    }
-    return false;
+private void finishCanceledDepthBoneGpuTask(AsyncGroupAction actionSink, AsyncActionToken actionToken) {
+    if (actionSink !is null && actionToken.acceptsCompletion) actionSink.markAsyncFinished();
 }
 
-private void requeueStaleDepthBoneGpuJob(DepthBoneGpuRefreshJob job, string staleReason) {
+private void requeueStaleDepthBoneGpuBatch(DepthBoneGpuRefreshJob job, string staleReason) {
     auto targetNode = cast(Node)job.packet.target;
-    auto message = "Depth Bone GPU async job stale: target=%s key=(%s,%s) reason=%s".format(
+    auto message = "Depth Bone GPU async batch stale: target=%s key=(%s,%s) reason=%s".format(
         targetNode is null ? "(null)" : targetNode.name,
         job.packet.keypoint.x,
         job.packet.keypoint.y,
         staleReason);
     writeDepthBoneGpuFatalLog(message);
-    if (job.packet.root is null ||
-        !isLiveDepthRigRoot(job.packet.root) ||
-        job.packet.parameter is null ||
-        targetNode is null ||
-        hasOtherPendingDepthBoneGpuWork(job)) return;
-    if (job.packet.staleRetryCount >= DepthBoneGpuMaxStaleRetries) {
-        writeDepthBoneGpuFatalLog(
-            "Depth Bone GPU async job reached stale retry limit: target=%s key=(%s,%s) reason=%s".format(
-                targetNode.name,
-                job.packet.keypoint.x,
-                job.packet.keypoint.y,
-                staleReason));
+    auto originalPackets = depthBoneGpuBatchPackets(job.batchId);
+    DepthBoneGpuOffsetPacket[] retryPackets;
+    string failure;
+    foreach (packet; originalPackets) {
+        auto packetTarget = cast(Node)packet.target;
+        if (packet.root is null || !isLiveDepthRigRoot(packet.root) ||
+            packet.parameter is null || packetTarget is null) {
+            failure = "batch target is no longer available";
+            break;
+        }
+        if (packet.staleRetryCount >= DepthBoneGpuMaxStaleRetries) {
+            failure = "stale retry limit reached";
+            break;
+        }
+        auto bindingIndex = packet.root.findBindingIndex(packetTarget.uuid);
+        if (bindingIndex < 0) {
+            failure = "batch target binding is no longer available";
+            break;
+        }
+        DepthBoneGpuOffsetPacket retryPacket;
+        if (!ngBuildDepthBoneGpuOffsetPacket(
+            packet.root,
+            &packet.root.bindings[cast(size_t)bindingIndex],
+            packet.target,
+            packet.parameter,
+            packet.keypoint,
+            retryPacket,
+            failure,
+            packet.writePreview,
+            packet.writeBinding,
+        )) break;
+        retryPacket.staleRetryCount = packet.staleRetryCount + 1;
+        retryPackets ~= retryPacket;
+    }
+
+    cancelDepthBoneGpuBatch(job.batchId,
+        retryPackets.length == originalPackets.length && retryPackets.length > 0
+            ? "Stale batch is being regenerated"
+            : "Stale batch could not be regenerated");
+    if (retryPackets.length != originalPackets.length || retryPackets.length == 0) {
+        writeDepthBoneGpuFatalLog("Depth Bone GPU stale batch retry failed: %s".format(failure));
+        finishCanceledDepthBoneGpuTask(job.actionSink, job.actionToken);
         return;
     }
 
-    auto bindingIndex = job.packet.root.findBindingIndex(targetNode.uuid);
-    if (bindingIndex < 0) return;
-    DepthBoneGpuOffsetPacket retryPacket;
-    string buildError;
-    if (!ngBuildDepthBoneGpuOffsetPacket(
-        job.packet.root,
-        &job.packet.root.bindings[cast(size_t)bindingIndex],
-        job.packet.target,
-        job.packet.parameter,
-        job.packet.keypoint,
-        retryPacket,
-        buildError,
-        job.packet.writePreview,
-        job.packet.writeBinding,
-    )) {
-        writeDepthBoneGpuFatalLog(
-            "Depth Bone GPU stale retry packet build failed: target=%s key=(%s,%s) reason=%s".format(
-                targetNode.name,
-                job.packet.keypoint.x,
-                job.packet.keypoint.y,
-                buildError));
-        return;
-    }
-    retryPacket.staleRetryCount = job.packet.staleRetryCount + 1;
-    enqueueDepthBoneGpuRefreshBatch(
-        [retryPacket], job.reason, job.actionSink, job.actionToken);
+    enqueueDepthBoneGpuRefreshBatch(retryPackets, job.reason, job.actionSink, job.actionToken);
     writeDepthBoneGpuFatalLog(
-        "Depth Bone GPU async job requeued: target=%s key=(%s,%s) retry=%s/%s".format(
-            targetNode.name,
+        "Depth Bone GPU async batch requeued: target=%s key=(%s,%s) targets=%s retry=%s/%s".format(
+            targetNode is null ? "(null)" : targetNode.name,
             job.packet.keypoint.x,
             job.packet.keypoint.y,
-            retryPacket.staleRetryCount,
+            retryPackets.length,
+            retryPackets[0].staleRetryCount,
             DepthBoneGpuMaxStaleRetries));
 }
 
@@ -2497,9 +2502,7 @@ private bool processDepthBoneGpuRefreshJobs() {
                 job.packet.root,
                 cast(Node)job.packet.target,
                 staleReason);
-            requeueStaleDepthBoneGpuJob(job, staleReason);
-            completeDepthBoneGpuJob(job, Vec2Array.init, false);
-            depthBoneGpuRefreshJobs = depthBoneGpuRefreshJobs[0 .. i] ~ depthBoneGpuRefreshJobs[i + 1 .. $];
+            requeueStaleDepthBoneGpuBatch(job, staleReason);
             processed++;
             continue;
         }
@@ -2925,6 +2928,7 @@ void ngDepthBoneMutationChanged(DepthBoneMutation mutation) {
 
         case DepthBoneMutationKind.TargetTransform:
         case DepthBoneMutationKind.TargetGeometry:
+        case DepthBoneMutationKind.TargetDepth:
             ngMarkDepthBoneDirtyForTarget(mutation.target, mutation.reason);
             return;
     }

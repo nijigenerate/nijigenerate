@@ -77,6 +77,34 @@ private ubyte applyMask(ubyte alpha, ubyte mask)
     return cast(ubyte)((cast(uint)alpha * cast(uint)mask + 127u) / 255u);
 }
 
+private void channelDimensions(ref Layer layer, short channelType, out uint width, out uint height) {
+    width = layer.width;
+    height = layer.height;
+    if ((channelType == ChannelType.LAYER_OR_VECTOR_MASK || channelType == ChannelType.LAYER_MASK) &&
+        layer.layerMask.length > 0) {
+        auto mask = layer.layerMask[0];
+        auto maskWidth = mask.right - mask.left;
+        auto maskHeight = mask.bottom - mask.top;
+        if (maskWidth > 0 && maskHeight > 0) {
+            width = cast(uint)maskWidth;
+            height = cast(uint)maskHeight;
+        }
+    }
+}
+
+private ubyte maskAt(ref Layer layer, const(ubyte)[] data, size_t pixelIndex) {
+    if (data.length == 0 || layer.layerMask.length == 0) return 255;
+    auto mask = layer.layerMask[0];
+    auto maskWidth = mask.right - mask.left;
+    auto maskHeight = mask.bottom - mask.top;
+    if (maskWidth <= 0 || maskHeight <= 0) return mask.defaultColor;
+    auto x = cast(int)(pixelIndex % layer.width) + layer.left - mask.left;
+    auto y = cast(int)(pixelIndex / layer.width) + layer.top - mask.top;
+    if (x < 0 || y < 0 || x >= maskWidth || y >= maskHeight) return mask.defaultColor;
+    auto index = cast(size_t)y * cast(size_t)maskWidth + cast(size_t)x;
+    return index < data.length ? data[index] : mask.defaultColor;
+}
+
 
 void extractLayer(ref Layer layer) {
     auto file = layer.filePtr;
@@ -90,6 +118,9 @@ void extractLayer(ref Layer layer) {
     foreach(i; 0..channelCount) {
         ChannelInfo* channel = &layer.channels[i];
         file.seek(channel.fileOffset);
+        uint channelWidth;
+        uint channelHeight;
+        channelDimensions(layer, channel.type, channelWidth, channelHeight);
 
         // HACK: To allow transparency to be put as RGBA
         //       an offset is applied based on its layer type.
@@ -109,7 +140,7 @@ void extractLayer(ref Layer layer) {
         switch(compressionType) {
             //RAW
             case 0:
-                channel.data = new ubyte[layer.width*layer.height];
+                channel.data = new ubyte[channelWidth*channelHeight];
                 file.rawRead(channel.data);
                 break;
             
@@ -118,7 +149,7 @@ void extractLayer(ref Layer layer) {
 
                 // RLE compressed data is preceded by a 2-byte data count for each scanline
                 uint rleDataSize;
-                foreach(_; 0..layer.height) {
+                foreach(_; 0..channelHeight) {
                     const ushort dataCount = file.readValue!ushort;
                     rleDataSize += dataCount;
                 }
@@ -134,11 +165,12 @@ void extractLayer(ref Layer layer) {
                     // Decompress RLE
                     // FIXME:  We're assuming psd.channelsPerBit == 8 right now, and that's not 
                     //         always the case.
-                    channel.data = new ubyte[layer.width*layer.height];
+                    channel.data = new ubyte[channelWidth*channelHeight];
                     decodeRLE(rleData, channel.data);
                 }
                 break;
-            default: assert(0, "Unsupported compression type.");
+            default:
+                enforce(false, "Unsupported PSD channel compression type: %s".format(compressionType));
         }
 
     }
@@ -160,10 +192,10 @@ void extractLayer(ref Layer layer) {
         rgba[j + 2] = b.length > i ? b[i] : 0;
 
         ubyte a = alpha.length > i ? alpha[i] : 255;
-        if (layerOrVectorMask.length > i)
-            a = applyMask(a, layerOrVectorMask[i]);
-        if (layerMask.length > i)
-            a = applyMask(a, layerMask[i]);
+        if (layerOrVectorMask.length > 0)
+            a = applyMask(a, maskAt(layer, layerOrVectorMask, i));
+        if (layerMask.length > 0)
+            a = applyMask(a, maskAt(layer, layerMask, i));
         rgba[j + 3] = a;
     }
 
@@ -219,7 +251,11 @@ void parseHeader(ref File file, ref PSD psd) {
     psd.height = file.readValue!uint;
     psd.width = file.readValue!uint;
     psd.bitsPerChannel = file.readValue!ushort;
+    enforce(psd.bitsPerChannel == 8,
+        "Only 8-bit PSD channels are supported (found %s-bit)".format(psd.bitsPerChannel));
     psd.colorMode = cast(ColorMode)file.readValue!ushort;
+    enforce(psd.colorMode == ColorMode.RGB,
+        "Only RGB PSD documents are supported (found color mode %s)".format(psd.colorMode));
 }
 
 
@@ -746,10 +782,12 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
 
                     // If there's a unicode name we may as well use that here.
                     import std.utf : toUTF8;
-                    layer.name = utf16Name.toUTF8;
+                    auto unicodeName = utf16Name.toUTF8;
 
                     // Some PSD exporters throw an extra null in there for good measure, yeet it.
-                    if (layer.name[$-1] == '\0') layer.name.length--;
+                    if (unicodeName.length > 0 && unicodeName[$-1] == '\0') unicodeName.length--;
+                    // Keep the Pascal-string name when an exporter writes an empty luni block.
+                    if (unicodeName.length > 0) layer.name = unicodeName;
 
                     // skip possible padding bytes
                     file.skip(length - 4u - characterCountWithoutNull * ushort.sizeof);

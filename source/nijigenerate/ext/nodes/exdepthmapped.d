@@ -137,6 +137,37 @@ bool ngResampleGridDepths(
     return true;
 }
 
+/** Resample a PathDeformer depth field by normalized control-point position. */
+bool ngResamplePathDepths(
+    Vec2Array oldVertices,
+    const(float)[] oldDepths,
+    Vec2Array newVertices,
+    out float[] result,
+) {
+    result = null;
+    if (oldVertices.length == 0 || oldDepths.length != oldVertices.length)
+        return false;
+    result.length = newVertices.length;
+    if (newVertices.length == 0) return true;
+    if (oldVertices.length == 1) {
+        result[] = ngFiniteDepthOrZero(oldDepths[0]);
+        return true;
+    }
+
+    foreach (i; 0 .. newVertices.length) {
+        auto normalized = newVertices.length > 1
+            ? cast(float)i / cast(float)(newVertices.length - 1)
+            : 0.0f;
+        auto oldPosition = normalized * cast(float)(oldDepths.length - 1);
+        auto segment = cast(size_t)oldPosition;
+        if (segment >= oldDepths.length - 1) segment = oldDepths.length - 2;
+        auto weight = oldPosition - cast(float)segment;
+        result[i] = ngFiniteDepthOrZero(
+            oldDepths[segment] * (1.0f - weight) + oldDepths[segment + 1] * weight);
+    }
+    return true;
+}
+
 mixin template ExDepthMapped() {
 public:
     float[] depths = null;
