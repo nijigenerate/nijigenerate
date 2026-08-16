@@ -7,6 +7,7 @@ import nijigenerate.viewport.depth.draw.session;
 import nijilive : ShallowTexture;
 import psd;
 import std.algorithm : max, min;
+import std.exception : enforce;
 import std.math : lround;
 import std.path : baseName, stripExtension;
 import std.string : format;
@@ -23,6 +24,23 @@ struct DepthDrawLayerPairingResult {
     size_t missingNormalCoverage;
     string[] matchedDepthLayerIds;
     string[] missingNormalLayerIds;
+}
+
+enum ulong DepthDrawPsdRetainedBytesPerPixel = 9;
+enum ulong DepthDrawMaxPsdRetainedBytes = 256UL * 1024UL * 1024UL;
+
+bool ngReserveDepthDrawPsdRetainedLayer(long width, long height, ref ulong retainedBytes) {
+    if (width < 0 || height < 0) return false;
+    auto unsignedWidth = cast(ulong)width;
+    auto unsignedHeight = cast(ulong)height;
+    if (unsignedHeight != 0 && unsignedWidth > ulong.max / unsignedHeight) return false;
+    auto pixelCount = unsignedWidth * unsignedHeight;
+    if (pixelCount > ulong.max / DepthDrawPsdRetainedBytesPerPixel) return false;
+    auto requiredBytes = pixelCount * DepthDrawPsdRetainedBytesPerPixel;
+    if (retainedBytes > DepthDrawMaxPsdRetainedBytes ||
+        requiredBytes > DepthDrawMaxPsdRetainedBytes - retainedBytes) return false;
+    retainedBytes += requiredBytes;
+    return true;
 }
 
 DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id = null) {
@@ -95,12 +113,17 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
 
     auto groupStates = ngPsdLayerGroupStates(document.layers);
     size_t layerIndex;
+    ulong retainedLayerBytes;
     DepthDrawLayer[string] clippingBaseByGroup;
     foreach_reverse (i, layer; document.layers) {
         if (!ngDepthDrawPsdLayerHasPixelData(layer)) continue;
         auto groupState = groupStates[i];
 
+        enforce(ngReserveDepthDrawPsdRetainedLayer(
+                layer.width, layer.height, retainedLayerBytes),
+            "PSD layers exceed the DepthDraw retained memory budget");
         layer.extractLayerImage();
+        foreach (ref channel; layer.channels) channel.data = null;
 
         DepthDrawLayer drawLayer;
         drawLayer.id = "psd:%s".format(layerIndex);
@@ -117,8 +140,9 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         drawLayer.visible = groupState.visible &&
             (layer.flags & LayerFlags.Visible) == 0;
         drawLayer.enabled = drawLayer.visible;
-        drawLayer.rgba = layer.data.dup;
-        drawLayer.depthPixels = layer.data.dup;
+        drawLayer.rgba = layer.data;
+        layer.data = null;
+        drawLayer.depthPixels = drawLayer.rgba.dup;
         drawLayer.alphaMask = ngDepthDrawAlphaMaskFromRgba(drawLayer.rgba);
 
         // PSD records use zero for a clipping base and one for clipped layers;
@@ -132,7 +156,6 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
 
         result.layers ~= drawLayer;
         result.session.layers ~= drawLayer;
-        layer.data = null;
         layerIndex++;
     }
 

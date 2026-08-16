@@ -161,6 +161,8 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
     ngDepthDrawPsdLayerHasPixelData,
     ngDepthDrawAttachNormalCoverage,
     ngDepthDrawCarryReloadState,
+    DepthDrawMaxPsdRetainedBytes,
+    ngReserveDepthDrawPsdRetainedLayer,
     ngGetPuppetDepthDrawSession,
     ngLoadDepthDrawPsd,
     ngSetPuppetDepthDrawSession,
@@ -7691,6 +7693,16 @@ private void testDepthDrawDataModelContracts() {
 private void testDepthDrawSourceManifestContracts() {
     resetCase();
 
+    ulong retainedPsdBytes;
+    require(ngReserveDepthDrawPsdRetainedLayer(4096, 4096, retainedPsdBytes) &&
+        retainedPsdBytes == 4096UL * 4096UL * 9UL &&
+        !ngReserveDepthDrawPsdRetainedLayer(4096, 4096, retainedPsdBytes) &&
+        retainedPsdBytes <= DepthDrawMaxPsdRetainedBytes,
+        "DepthDraw PSD loading must enforce an aggregate retained-layer byte budget before extraction");
+    ulong oversizedPsdBytes;
+    require(!ngReserveDepthDrawPsdRetainedLayer(100_000_000, 100_000_000, oversizedPsdBytes),
+        "DepthDraw PSD retained-layer budgeting must reject overflowing dimensions without allocation");
+
     auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthdraw-manifest");
     if (exists(fixtureDir))
         rmdirRecurse(fixtureDir);
@@ -7709,6 +7721,8 @@ private void testDepthDrawSourceManifestContracts() {
         "DepthDraw PNG loader should load RGBA depth pixels with source dimensions");
     require(layer.rgba == layer.depthPixels,
         "DepthDraw PNG loader should keep visual and depth pixels identical for a PNG source");
+    require(layer.rgba.ptr != layer.depthPixels.ptr,
+        "DepthDraw sources must keep independently mutable visual and depth pixel buffers");
     auto depthDrawWindow = new DepthDrawWindow(pngPath);
     require(depthDrawWindow.loadError.length == 0 && depthDrawWindow.depthDrawSession() !is null &&
         depthDrawWindow.depthDrawSession().layers.length == 1 &&
