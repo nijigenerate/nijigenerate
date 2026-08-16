@@ -119,7 +119,8 @@ import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
 import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession,
     ngDepthDisplayScaleForTargets, ngDepthDisplayScaleForTargetsInNodeSpace, ngDepthTargetClampDepth;
-import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
+import nijigenerate.viewport.depth.renderer : DepthTargetOffscreenMaxPixels, DepthTargetRenderer,
+    ngDepthTargetOffscreenTextureSize;
 import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawRect, DepthDrawSession,
     DepthMergePolicy, DepthDrawComposeResult, DepthDrawLayerCleanupKind, DepthDrawLayerCleanupOperation,
     DepthDrawMaxContourThickness, DepthDrawMaxFocusedRuleRadius, DepthDrawLayerStackSortMode,
@@ -5485,6 +5486,20 @@ private void testDepthTargetViewContracts() {
 
     DepthCamera3D targetRenderCamera;
     auto targetRenderer = new DepthTargetRenderer();
+    int offscreenWidth;
+    int offscreenHeight;
+    vec2 offscreenScale;
+    require(ngDepthTargetOffscreenTextureSize(
+            vec2(0, 0), vec2(20_000, 20_000), 8_192,
+            offscreenWidth, offscreenHeight, offscreenScale) &&
+        offscreenWidth <= 8_192 && offscreenHeight <= 8_192 &&
+        cast(ulong)offscreenWidth * cast(ulong)offscreenHeight <= DepthTargetOffscreenMaxPixels &&
+        offscreenScale.x < 1.0f && offscreenScale.y < 1.0f,
+        "depth offscreen texture sizing must downscale oversized targets before GPU allocation");
+    require(!ngDepthTargetOffscreenTextureSize(
+            vec2(0, 0), vec2(float.infinity, 1), 8_192,
+            offscreenWidth, offscreenHeight, offscreenScale),
+        "depth offscreen texture sizing must reject non-finite bounds before GPU allocation");
     auto renderMesh = targetRenderer.buildMesh(view, targetRenderCamera);
     require(renderMesh.positions.length == view.getVertices().length &&
         renderMesh.uvs.length == view.getVertices().length &&
@@ -8340,6 +8355,16 @@ private void testDepthDrawSourceManifestContracts() {
     savedDepthDrawOperation.amount = 0.25f;
     xyGrid.replaceDepthOps([savedDepthDrawOperation]);
     xyGrid.replaceDepthOpBaseDepths(xyDepthsBeforeApply);
+    auto historyBeforeInvalidDepthDrawApply = incActionHistory().length;
+    xyWindow.depthDrawSession().bindings ~= xyBinding;
+    auto invalidDepthDrawApply = xyWindow.applySelectedTargetDepthDraw();
+    require(!invalidDepthDrawApply.succeeded &&
+        xyGrid.copyDepths() == xyDepthsBeforeApply &&
+        xyGrid.copyDepthOps().length == 1 &&
+        incActionHistory().length == historyBeforeInvalidDepthDrawApply &&
+        xyWindow.loadError.canFind("invalid references"),
+        "DepthDraw Apply must reject duplicate enabled bindings before changing depths, operations, or history");
+    xyWindow.depthDrawSession().bindings.length--;
     auto xyApplySummary = xyWindow.applySelectedTargetDepthDraw();
     auto xyDepthsAfterApply = xyGrid.copyDepths();
     require(xyApplySummary.succeeded && xyApplySummary.changedTargets == 1 &&
@@ -17691,6 +17716,18 @@ private void testDepthBoneInfluenceRuleCommandUndoRedo() {
 
     auto validRuleHistoryLength = incActionHistory().length;
     auto invalidRuleError = collectException(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
+        ctx, root, target, `{"radiusScale":[]}`));
+    require(invalidRuleError !is null && root.bindings.length == 1 &&
+        near(root.bindings[0].influenceRule.radiusScale, 1.0f) &&
+        incActionHistory().length == validRuleHistoryLength,
+        "nonnumeric influence radius must be rejected without mutation or history changes");
+    invalidRuleError = collectException(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
+        ctx, root, target, `{"multipliersByBoneUuid":{"123":true}}`));
+    require(invalidRuleError !is null &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 1.0f) &&
+        incActionHistory().length == validRuleHistoryLength,
+        "nonnumeric influence multiplier must be rejected without mutation or history changes");
+    invalidRuleError = collectException(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
         ctx, root, target, `{"maxInfluences":3,"multipliersByBoneUuid":{"invalid":0.5}}`));
     require(invalidRuleError !is null && root.bindings.length == 1 &&
         root.bindings[0].influenceRule.maxInfluences == 2 &&
@@ -21011,7 +21048,7 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "viewport/depth/draw/gpu.d|packet.vertices = target.getVertices()",
         "viewport/depth/mesheditor/node.d|offscreenCamera.scale =",
         "viewport/depth/mesheditor/node.d|offscreenCamera.rotation = 0",
-        "viewport/depth/renderer.d|offscreenCamera.scale = vec2(1, 1)",
+        "viewport/depth/renderer.d|offscreenCamera.scale =",
         "viewport/depth/renderer.d|offscreenCamera.rotation = 0",
         "viewport/vertex/mesheditor/deformable.d|this.vertices = getTarget().getVertices().toMVertices",
         "viewport/vertex/mesheditor/drawable.d|mesh.vertices = indexedVerts",

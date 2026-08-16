@@ -1483,6 +1483,30 @@ private void pushDepthBoneRefreshAction(
     }
 }
 
+private float strictJsonNumber(JSONValue value, string name) {
+    float result;
+    final switch (value.type) {
+        case JSONType.integer:
+            result = cast(float)value.integer;
+            break;
+        case JSONType.uinteger:
+            result = cast(float)value.uinteger;
+            break;
+        case JSONType.float_:
+            result = cast(float)value.floating;
+            break;
+        case JSONType.string:
+        case JSONType.true_:
+        case JSONType.false_:
+        case JSONType.null_:
+        case JSONType.object:
+        case JSONType.array:
+            enforce(false, name ~ " must be a number");
+    }
+    enforce(result.isFinite, name ~ " must be finite");
+    return result;
+}
+
 private bool runWithDepthBoneRefreshActionSink(AsyncGroupAction sink, bool delegate() callback) {
     auto previous = depthBoneRefreshActionSink;
     depthBoneRefreshActionSink = sink;
@@ -3681,13 +3705,16 @@ void ngFlushDepthBoneDirtyImmediate() {
 private void applyRuleJson(ref ExDepthInfluenceRule rule, string text) {
     auto json = parseJSON(text);
     if ("maxInfluences" in json.object) rule.maxInfluences = cast(uint)json["maxInfluences"].integer;
-    if ("radiusScale" in json.object) rule.radiusScale = jsonNumber(json["radiusScale"], rule.radiusScale);
-    if ("minimumRadius" in json.object) rule.minimumRadius = jsonNumber(json["minimumRadius"], rule.minimumRadius);
+    if ("radiusScale" in json.object)
+        rule.radiusScale = strictJsonNumber(json["radiusScale"], "radiusScale");
+    if ("minimumRadius" in json.object)
+        rule.minimumRadius = strictJsonNumber(json["minimumRadius"], "minimumRadius");
     if ("falloff" in json.object) rule.falloff = json["falloff"].str;
     if ("multipliersByBoneUuid" in json.object) {
         rule.multipliersByBoneUuid.clear();
         foreach (key, value; json["multipliersByBoneUuid"].object) {
-            rule.multipliersByBoneUuid[key.to!ulong] = jsonNumber(value, 1.0f);
+            rule.multipliersByBoneUuid[key.to!ulong] =
+                strictJsonNumber(value, "multipliersByBoneUuid." ~ key);
         }
     }
     if (rule.maxInfluences == 0) rule.maxInfluences = 1;

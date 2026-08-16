@@ -12,9 +12,45 @@ import nijigenerate.viewport.depth.common.targetview;
 import nijilive;
 import std.algorithm : max, min, sort;
 import std.array : array;
-import std.math : ceil, cos, sin;
+import std.math : ceil, cos, floor, isFinite, sin, sqrt;
 
 enum float DepthRenderPi = 3.14159265358979323846f;
+enum ulong DepthTargetOffscreenMaxPixels = 4096UL * 4096UL;
+
+bool ngDepthTargetOffscreenTextureSize(
+    vec2 minPoint,
+    vec2 maxPoint,
+    int maxTextureSize,
+    out int width,
+    out int height,
+    out vec2 pixelScale,
+) {
+    width = 0;
+    height = 0;
+    pixelScale = vec2(1);
+    if (maxTextureSize <= 0 ||
+        !minPoint.x.isFinite || !minPoint.y.isFinite ||
+        !maxPoint.x.isFinite || !maxPoint.y.isFinite) return false;
+
+    auto sourceWidth = max(1.0, cast(double)maxPoint.x - cast(double)minPoint.x);
+    auto sourceHeight = max(1.0, cast(double)maxPoint.y - cast(double)minPoint.y);
+    double reduction = 1.0;
+    reduction = min(reduction, cast(double)maxTextureSize / sourceWidth);
+    reduction = min(reduction, cast(double)maxTextureSize / sourceHeight);
+    auto sourcePixels = sourceWidth * sourceHeight;
+    if (sourcePixels > cast(double)DepthTargetOffscreenMaxPixels) {
+        reduction = min(reduction, sqrt(cast(double)DepthTargetOffscreenMaxPixels / sourcePixels));
+    }
+    if (!reduction.isFinite || reduction <= 0.0) return false;
+
+    auto roundedWidth = reduction < 1.0 ? floor(sourceWidth * reduction) : ceil(sourceWidth);
+    auto roundedHeight = reduction < 1.0 ? floor(sourceHeight * reduction) : ceil(sourceHeight);
+    width = cast(int)min(cast(double)maxTextureSize, max(1.0, roundedWidth));
+    height = cast(int)min(cast(double)maxTextureSize, max(1.0, roundedHeight));
+    pixelScale = vec2(cast(float)(cast(double)width / sourceWidth),
+        cast(float)(cast(double)height / sourceHeight));
+    return cast(ulong)width * cast(ulong)height <= DepthTargetOffscreenMaxPixels;
+}
 
 struct DepthTargetRenderMesh {
     vec2[] positions;
@@ -423,6 +459,8 @@ private:
     GLuint textureFbo;
     int textureWidth;
     int textureHeight;
+    vec2 sourceSize = vec2(1);
+    vec2 texturePixelScale = vec2(1);
     vec2 minPoint = vec2(0);
     vec2 maxPoint = vec2(1);
 
@@ -439,8 +477,11 @@ private:
             maxPoint.y = max(maxPoint.y, v.y);
         }
 
-        textureWidth = max(1, cast(int)ceil(maxPoint.x - minPoint.x));
-        textureHeight = max(1, cast(int)ceil(maxPoint.y - minPoint.y));
+        sourceSize = vec2(max(1.0f, maxPoint.x - minPoint.x), max(1.0f, maxPoint.y - minPoint.y));
+        GLint maxTextureSize;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        if (!ngDepthTargetOffscreenTextureSize(
+            minPoint, maxPoint, maxTextureSize, textureWidth, textureHeight, texturePixelScale)) return false;
 
         if (texture !is null && (texture.width != textureWidth || texture.height != textureHeight)) {
             texture.dispose();
@@ -553,10 +594,10 @@ public:
 
         inPushViewport(textureWidth, textureHeight);
         auto offscreenCamera = inGetCamera();
-        offscreenCamera.scale = vec2(1, 1);
+        offscreenCamera.scale = texturePixelScale;
         offscreenCamera.position = vec2(
-            -minPoint.x - cast(float)textureWidth * 0.5f,
-            -minPoint.y - cast(float)textureHeight * 0.5f
+            -minPoint.x - sourceSize.x * 0.5f,
+            -minPoint.y - sourceSize.y * 0.5f
         );
         offscreenCamera.rotation = 0;
 

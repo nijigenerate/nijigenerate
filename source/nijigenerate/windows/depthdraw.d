@@ -210,9 +210,7 @@ private:
         }
     }
 
-    void updateManifestValidationStatus() {
-        if (session is null) return;
-
+    DepthDrawManifestValidation validateCurrentSession() {
         auto puppet = incActivePuppet();
         bool delegate(ulong) hasTargetGrid = null;
         if (puppet !is null) {
@@ -221,7 +219,13 @@ private:
             };
         }
 
-        auto validation = ngValidateDepthDrawSessionManifest(session, hasTargetGrid, path.dirName);
+        return ngValidateDepthDrawSessionManifest(session, hasTargetGrid, path.dirName);
+    }
+
+    void updateManifestValidationStatus() {
+        if (session is null) return;
+
+        auto validation = validateCurrentSession();
         if (validation.ok) {
             statusMessage = _("Loaded DepthDraw manifest");
             return;
@@ -912,6 +916,11 @@ public:
         if (ctx is null) ctx = new Context();
         if (session is null) {
             errorMessage = _("No DepthDraw session to apply");
+            return summary;
+        }
+        if (!validateCurrentSession().ok) {
+            errorMessage = _("Cannot apply DepthDraw with missing or invalid references");
+            statusMessage = null;
             return summary;
         }
         auto target = selectedTargetView();
