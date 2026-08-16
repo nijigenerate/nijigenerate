@@ -113,6 +113,13 @@ private ExDepthBone requireBone(Node node) {
     return bone;
 }
 
+private ExDepthBone requireSourceBone(ExDepthRigRoot root, Node node) {
+    auto bone = requireBone(node);
+    enforce(findBoneByUuid(root, bone.uuid) is bone,
+        "DepthBone source must belong to the selected DepthRigRoot");
+    return bone;
+}
+
 private ExDepthTargetKind targetKindOf(Node node) {
     if (cast(GridDeformer)node) return ExDepthTargetKind.Grid;
     if (cast(PathDeformer)node) return ExDepthTargetKind.Path;
@@ -4361,7 +4368,7 @@ class AddDepthBoneSourceCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
-        auto source = requireBone(bone);
+        auto source = requireSourceBone(rigRoot, bone);
         auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
         rigRoot.addBoneSource(target, targetKindOf(target), source);
         incActionPush(new DepthBoneSourceListChangeAction(
@@ -4381,7 +4388,7 @@ class RemoveDepthBoneSourceCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
-        rigRoot.removeBoneSource(target, requireBone(bone));
+        rigRoot.removeBoneSource(target, requireSourceBone(rigRoot, bone));
         incActionPush(new DepthBoneSourceListChangeAction(
             "Remove Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings, false, target));
         return CommandResult(true);
@@ -4429,7 +4436,7 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
-        auto source = requireBone(bone);
+        auto source = requireSourceBone(rigRoot, bone);
         auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
         auto targetKind = targetKindOf(target);
         auto bindingIndex = rigRoot.findBindingIndex(target.uuid);
@@ -4519,7 +4526,7 @@ class PreviewDepthBoneInfluenceCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         targetKindOf(target);
-        auto source = requireBone(bone);
+        auto source = requireSourceBone(rigRoot, bone);
         auto deformable = cast(Deformable)target;
         enforce(deformable !is null, "target is not deformable");
         ExDepthRigBinding detachedBinding;

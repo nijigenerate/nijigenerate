@@ -2873,7 +2873,7 @@ private void finalizeGridResult(ref PsdDepthGridResult result, ref GridAccum acc
                 case PsdDepthMissingPolicy.SkipGrid:
                     result.skipped = true;
                     result.depths = existing;
-                    break;
+                    return;
             }
         }
     }

@@ -47,6 +47,15 @@ private float[] depthGridAxis(float[] values) {
     return values;
 }
 
+private bool depthGridAxisIndex(const(float)[] axis, float value, out size_t index) {
+    foreach (i, axisValue; axis) {
+        if (!sameDepthGridAxisValue(value, axisValue)) continue;
+        index = i;
+        return true;
+    }
+    return false;
+}
+
 private bool locateDepthGridInterval(
     const(float)[] axis,
     float value,
@@ -104,15 +113,24 @@ bool ngResampleGridDepths(
     if (cols < 2 || rows < 2 || cols * rows != oldVertices.length)
         return false;
 
-    // Depths use the same row-major vertex order as GridDeformer.
-    foreach (y; 0 .. rows) {
-        foreach (x; 0 .. cols) {
-            auto vertex = oldVertices[y * cols + x];
-            if (!sameDepthGridAxisValue(vertex.x, xs[x]) ||
-                !sameDepthGridAxisValue(vertex.y, ys[y]))
-                return false;
-        }
+    // Axis extraction sorts coordinates, so remap depths by position instead
+    // of assuming that the source grid axes were supplied in ascending order.
+    float[] orderedDepths;
+    bool[] assigned;
+    orderedDepths.length = oldDepths.length;
+    assigned.length = oldDepths.length;
+    foreach (i, vertex; oldVertices) {
+        size_t x;
+        size_t y;
+        if (!depthGridAxisIndex(xs, vertex.x, x) ||
+            !depthGridAxisIndex(ys, vertex.y, y)) return false;
+        auto orderedIndex = y * cols + x;
+        if (assigned[orderedIndex]) return false;
+        orderedDepths[orderedIndex] = oldDepths[i];
+        assigned[orderedIndex] = true;
     }
+    foreach (wasAssigned; assigned)
+        if (!wasAssigned) return false;
 
     result.length = newVertices.length;
     foreach (i, vertex; newVertices) {
@@ -130,8 +148,8 @@ bool ngResampleGridDepths(
         auto index10 = cellY * cols + cellX + 1;
         auto index01 = (cellY + 1) * cols + cellX;
         auto index11 = (cellY + 1) * cols + cellX + 1;
-        auto top = oldDepths[index00] * (1.0f - u) + oldDepths[index10] * u;
-        auto bottom = oldDepths[index01] * (1.0f - u) + oldDepths[index11] * u;
+        auto top = orderedDepths[index00] * (1.0f - u) + orderedDepths[index10] * u;
+        auto bottom = orderedDepths[index01] * (1.0f - u) + orderedDepths[index11] * u;
         result[i] = ngFiniteDepthOrZero(top * (1.0f - v) + bottom * v);
     }
     return true;

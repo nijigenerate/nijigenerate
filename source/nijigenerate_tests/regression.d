@@ -3584,6 +3584,27 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     require(nearFloatArray(resized.copyDepths(), [-3.0f, 1.0f, 5.0f, 9.0f]),
         "expanding a grid should linearly extrapolate depths from its edge cells");
 
+    auto descendingGrid = new ExGridDeformer(incActivePuppet().root);
+    descendingGrid.vertices = Vec2Array([
+        vec2(1, 1), vec2(-1, 1),
+        vec2(1, -1), vec2(-1, -1),
+    ]);
+    float[] descendingDepths;
+    foreach (vertex; descendingGrid.vertices)
+        descendingDepths ~= vertex.x + vertex.y * 2.0f;
+    descendingGrid.replaceDepths(descendingDepths);
+    descendingGrid.rebuffer(Vec2Array([
+        vec2(-1, -1), vec2(0, -1), vec2(1, -1),
+        vec2(-1, 0), vec2(0, 0), vec2(1, 0),
+        vec2(-1, 1), vec2(0, 1), vec2(1, 1),
+    ]));
+    float[] expectedDescendingDepths;
+    foreach (vertex; descendingGrid.vertices)
+        expectedDescendingDepths ~= vertex.x + vertex.y * 2.0f;
+    require(nearFloatArray(descendingGrid.copyDepths(), expectedDescendingDepths),
+        "grid depth resampling must preserve depth positions from descending source axes: %s"
+        .format(descendingGrid.copyDepths()));
+
     auto nonFiniteGrid = new ExGridDeformer(incActivePuppet().root);
     nonFiniteGrid.name = "non-finite-depth-grid";
     nonFiniteGrid.rebuffer(Vec2Array([
@@ -5943,6 +5964,7 @@ private void testPsdDepthMapImportHelpers() {
                 pngLayerPreview.depthRgba.length > 3 ? pngLayerPreview.depthRgba[3] : 0,
                 pngLayerPreview.maskRgba.length > 3 ? pngLayerPreview.maskRgba[3] : 0
             ));
+
     require(pngLayerPreview.id == "/png-depth-grid" &&
         pngLayerPreview.sourcePath == pngDepthPath &&
         pngLayerPreview.layerPath == "/png-depth-grid" &&
@@ -6051,6 +6073,30 @@ private void testPsdDepthMapImportHelpers() {
         near(replacedDepthImport.composedLayers[0].depthOffset, 0.33f) &&
         !replacedDepthImport.composedLayers[0].enabled,
         "PSD depth import should replace the depth source while preserving composed-layer state");
+
+    auto partialDepthPath = buildPath(pngFixtureDir, "partial-depth-grid.png");
+    ubyte[] partialDepthPixels;
+    partialDepthPixels.length = 4 * 4 * 4;
+    partialDepthPixels[] = 255;
+    auto partialMissingOffset = cast(size_t)(1 * 4 + 1) * 4;
+    partialDepthPixels[partialMissingOffset .. partialMissingOffset + 3] = 0;
+    ShallowTexture(partialDepthPixels, 4, 4, 4).save(partialDepthPath);
+    pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
+    auto partialSettings = pngSettings;
+    partialSettings.layerTargetGridUuidOverrides["/partial-depth-grid"] = pngGrid.uuid.to!string;
+    partialSettings.missingPolicy = PsdDepthMissingPolicy.KeepExisting;
+    auto partialKeepImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), partialDepthPath, partialSettings);
+    require(partialKeepImported.grids.length == 1 &&
+        partialKeepImported.grids[0].missingVertices > 0 &&
+        partialKeepImported.grids[0].sampledVertices > 0,
+        "partial SkipGrid fixture must contain both missing and covered vertices");
+    partialSettings.missingPolicy = PsdDepthMissingPolicy.SkipGrid;
+    auto partialSkipImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), partialDepthPath, partialSettings);
+    require(partialSkipImported.grids.length == 1 && partialSkipImported.grids[0].skipped &&
+        nearFloatArray(partialSkipImported.grids[0].depths, [0.1f, 0.2f, 0.3f]),
+        "SkipGrid must preserve every existing depth when any vertex is missing");
 
     auto blackPngDepthPath = buildPath(pngFixtureDir, "png-depth-zero-mask.png");
     writeRegressionPng(blackPngDepthPath, 0, 0, 0, 4, 4);
@@ -14662,6 +14708,15 @@ private void testDepthBoneSourceCommandsUndoRedo() {
 
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
+
+    auto foreignRoot = new ExDepthRigRoot(incActivePuppet().root);
+    auto foreignBone = new ExDepthBone(foreignRoot);
+    auto historyBeforeForeignSource = incActionHistory().length;
+    auto foreignSourceError = collectException(
+        cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, foreignBone));
+    require(foreignSourceError !is null && root.bindings.length == 0 &&
+        incActionHistory().length == historyBeforeForeignSource,
+        "AddDepthBoneSource must reject a source from another rig before mutation or history changes");
 
     auto addResult = cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone);
     require(addResult.succeeded, "AddDepthBoneSource command should succeed");
