@@ -16,6 +16,8 @@ import std.string;
 import psd.rle;
 
 enum MaxPsdDecodedPixels = 100_000_000UL;
+enum MaxPsdDecodedLayerChannels = 6u;
+enum MaxPsdDecodedLayerChannelBytes = MaxPsdDecodedPixels * 4;
 
 bool validPsdImageDimensions(long width, long height) {
     if (width < 0 || height < 0) return false;
@@ -37,6 +39,30 @@ bool decodePsdLayerCount(short encodedCount, uint layerLength, out uint layerCou
         return false;
     }
     layerCount = cast(uint)promotedCount;
+    return true;
+}
+
+bool decodedPsdLayerChannel(short channelType) {
+    switch (channelType) {
+        case ChannelType.R:
+        case ChannelType.G:
+        case ChannelType.B:
+        case ChannelType.TRANSPARENCY_MASK:
+        case ChannelType.LAYER_OR_VECTOR_MASK:
+        case ChannelType.LAYER_MASK:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool reservePsdDecodedLayerChannel(ulong decodedLength, ref uint decodedChannels,
+        ref ulong decodedBytes) {
+    if (decodedChannels >= MaxPsdDecodedLayerChannels ||
+        decodedBytes > MaxPsdDecodedLayerChannelBytes ||
+        decodedLength > MaxPsdDecodedLayerChannelBytes - decodedBytes) return false;
+    decodedChannels++;
+    decodedBytes += decodedLength;
     return true;
 }
 
@@ -298,8 +324,12 @@ void extractLayer(ref Layer layer) {
     const size_t channelCount = layer.channels.length;
     //layer.data = new ubyte[layer.width*layer.height*channelCount];
     
+    uint decodedChannels;
+    ulong decodedBytes;
     foreach(i; 0..channelCount) {
         ChannelInfo* channel = &layer.channels[i];
+        channel.data = null;
+        if (!decodedPsdLayerChannel(channel.type)) continue;
         file.seek(channel.fileOffset);
         uint channelWidth;
         uint channelHeight;
@@ -324,6 +354,8 @@ void extractLayer(ref Layer layer) {
             "Invalid PSD channel length: missing compression header");
         const size_t encodedLength = cast(size_t)channel.dataLength - ushort.sizeof;
         const size_t decodedLength = cast(size_t)channelWidth * cast(size_t)channelHeight;
+        enforce(reservePsdDecodedLayerChannel(decodedLength, decodedChannels, decodedBytes),
+            "PSD layer decoded channel data exceeds the supported memory budget");
         switch(compressionType) {
             //RAW
             case 0:

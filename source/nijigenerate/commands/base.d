@@ -557,6 +557,12 @@ bool ngCommandAllowedInCurrentContext(Command command) {
     return ngCurrentCommandScope().permits(metadata);
 }
 
+CommandResult ngRunCommand(Command command, Context context) {
+    if (!ngCommandAllowedInCurrentContext(command))
+        return CommandResult(false, "Command is not available in the current context");
+    return command.run(context);
+}
+
 abstract class ExCommand(T...) : Command {
     template _unwrapType(W) {
         static if (is(W == TW!(E, fname, fdesc), alias E, string fname, string fdesc))

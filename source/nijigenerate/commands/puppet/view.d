@@ -46,7 +46,7 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
             auto cmd = cast(SaveScreenshotCommand)commands[ViewCommand.SaveScreenshot];
             if (cmd) {
                 cmd.filename = filename;
-                return cmd.run(ctx);
+                return ngRunCommand(cmd, ctx);
             }
         }
         return CommandResult(false, "Screenshot save canceled");

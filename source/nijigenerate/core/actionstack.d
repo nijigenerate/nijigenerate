@@ -29,6 +29,7 @@ private {
     bool[] savedStateValid;
     size_t maxUndoHistory;
     ActionStackScope[ActionStackScopeUnit] activeScopes;
+    ActionStackScope[] openScopes;
     void function(ActionStackScopeUnit)[ActionStackScopeUnit] scopeCloseHandlers;
 }
 
@@ -44,32 +45,45 @@ public:
         incActionPushStack();
         level = currentLevel;
         active = true;
+        openScopes ~= this;
     }
 
     void close() {
         if (!active) return;
 
-        auto closeUnit = unit;
-        if (unit != ActionStackScopeUnit.Manual) {
-            ActionStackScopeUnit[] staleUnits;
-            foreach (activeUnit, activeScope; activeScopes) {
-                if (activeScope.level >= level) {
-                    activeScope.active = false;
-                    staleUnits ~= activeUnit;
+        ActionStackScopeUnit[] closedUnits;
+        ActionStackScope[] retainedScopes;
+        foreach (openScope; openScopes) {
+            if (openScope.level < level) {
+                retainedScopes ~= openScope;
+                continue;
+            }
+            openScope.active = false;
+            bool haveUnit;
+            foreach (closedUnit; closedUnits) {
+                if (closedUnit == openScope.unit) {
+                    haveUnit = true;
+                    break;
                 }
             }
-            foreach (activeUnit; staleUnits)
-                activeScopes.remove(activeUnit);
+            if (!haveUnit) closedUnits ~= openScope.unit;
+            if (openScope.unit != ActionStackScopeUnit.Manual) {
+                if (auto registered = openScope.unit in activeScopes) {
+                    if (*registered is openScope) activeScopes.remove(openScope.unit);
+                }
+            }
         }
+        openScopes = retainedScopes;
 
         while (currentLevel >= level && currentLevel > 0) {
             ngFlushActionStackGroups();
             incActionPopStack();
         }
-        active = false;
 
-        if (auto handler = closeUnit in scopeCloseHandlers)
-            (*handler)(closeUnit);
+        foreach (closedUnit; closedUnits) {
+            if (auto handler = closedUnit in scopeCloseHandlers)
+                (*handler)(closedUnit);
+        }
     }
 
     bool isActive() {
@@ -297,8 +311,8 @@ void incActionSetIndex(size_t index) {
 void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
     switch (target) {
     case ActionStackClear.All:
-        foreach (activeScope; activeScopes.byValue)
-            activeScope.active = false;
+        foreach (openScope; openScopes) openScope.active = false;
+        openScopes = null;
         activeScopes.clear();
         currentLevel = 0;
         actions.length = currentLevel + 1;
@@ -316,6 +330,12 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         savedStateValid[currentLevel] = true;
         break;
     case ActionStackClear.CurrentLevel:
+        ActionStackScope[] retainedScopes;
+        foreach (openScope; openScopes) {
+            if (openScope.level >= currentLevel) openScope.active = false;
+            else retainedScopes ~= openScope;
+        }
+        openScopes = retainedScopes;
         ActionStackScopeUnit[] staleUnits;
         foreach (activeUnit, activeScope; activeScopes) {
             if (activeScope.level >= currentLevel) {

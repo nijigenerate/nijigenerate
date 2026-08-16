@@ -5,8 +5,10 @@ import bindbc.imgui;
 import i18n;
 import nijigenerate;
 import nijigenerate.commands;
-import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
-    ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngPsdDepthConvolutionToDepthImage;
+import nijigenerate.commands.depth.map : PsdDepthComposedView, PsdDepthGpuComposeWork,
+    ngApplyPsdDepthImportResult, ngCancelPsdDepthImportGpu, ngComposePsdDepthImportResult,
+    ngComposePsdDepthTarget, ngPollPsdDepthImportGpu, ngPsdDepthConvolutionToDepthImage,
+    ngSubmitPsdDepthImportGpu;
 import nijigenerate.core.actionstack : ActionStackScope, incActionCanRedo, incActionCanUndo,
     ngOpenActionStackScope;
 import nijigenerate.core.shortcut.base : ngSetSelectedNodesProvider;
@@ -439,6 +441,7 @@ private:
     PsdDepthImportSettings settings;
     PsdDepthImportResult preview;
     PsdDepthComposedView composedPreview;
+    PsdDepthGpuComposeWork pendingPreviewGpuComposition;
     string errorMessage;
     string lastApplyErrorMessage;
     bool previewDirty = true;
@@ -564,6 +567,7 @@ private:
     }
 
     void rebuildPreview() {
+        cancelPendingPreviewGpuComposition();
         disposePreviewTextures();
         pending3DAdjustLayerChanges = null;
         auto restoredLayerStates = pendingLayerStatesAfterRebuild;
@@ -592,12 +596,62 @@ private:
                 }
             }
             replayAlphaDepthGapFills();
-            string composeError;
-            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
-                errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
-            }
+            startPreviewComposition();
         }
         previewDirty = false;
+    }
+
+    bool previewCompositionPending() const {
+        return pendingPreviewGpuComposition.isActive();
+    }
+
+    void cancelPendingPreviewGpuComposition() {
+        if (pendingPreviewGpuComposition.isActive()) {
+            ngCancelPsdDepthImportGpu(pendingPreviewGpuComposition);
+        }
+    }
+
+    bool startPreviewComposition() {
+        cancelPendingPreviewGpuComposition();
+        composedPreview = PsdDepthComposedView.init;
+        string composeError;
+        if (!preview.gpuCompositionRequested) {
+            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
+                errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
+                return false;
+            }
+            errorMessage = null;
+            return true;
+        }
+
+        PsdDepthGpuComposeWork work;
+        if (!ngSubmitPsdDepthImportGpu(preview, work, composeError)) {
+            errorMessage = composeError.length ? composeError : "PSD depth map GPU composition failed";
+            return false;
+        }
+        bool ready;
+        if (!ngPollPsdDepthImportGpu(preview, work, ready, composedPreview, composeError)) {
+            errorMessage = composeError.length ? composeError : "PSD depth map GPU composition failed";
+            return false;
+        }
+        if (!ready) pendingPreviewGpuComposition = work;
+        errorMessage = null;
+        return true;
+    }
+
+    void pollPendingPreviewGpuComposition() {
+        if (!pendingPreviewGpuComposition.isActive()) return;
+        bool ready;
+        string composeError;
+        if (!ngPollPsdDepthImportGpu(preview, pendingPreviewGpuComposition,
+            ready, composedPreview, composeError)) {
+            errorMessage = composeError.length ? composeError : "PSD depth map GPU composition failed";
+            return;
+        }
+        if (ready) {
+            errorMessage = null;
+            lastApplyErrorMessage = null;
+        }
     }
 
     void applyAlphaDepthGapFill() {
@@ -611,10 +665,7 @@ private:
         }
 
         disposePreviewTextures();
-        string composeError;
-        if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
-            errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
-        }
+        startPreviewComposition();
         previewDirty = false;
     }
 
@@ -719,6 +770,9 @@ private:
         }
         if (lastApplyErrorMessage.length) {
             lines ~= _("GPU/apply failed: %s").format(lastApplyErrorMessage);
+        }
+        if (previewCompositionPending()) {
+            lines ~= _("GPU preview composition is still running.");
         }
         if (preview.compositionModeName.length) {
             lines ~= _("Composition: %s  %dx%d  color layers: %d  depth layers: %d  composed layers: %d  scale: %.3f").format(
@@ -1447,6 +1501,11 @@ private:
 
     void refreshAfter3DAdjustLayerChange(string layerPath, ulong targetGridUuid) {
         invalidate3DAdjustLayerCaches(layerPath, targetGridUuid);
+        if (preview.gpuCompositionRequested) {
+            startPreviewComposition();
+            pending3DAdjustLayerChanges = null;
+            return;
+        }
         refreshPreviewDepthsForLayer(layerPath, targetGridUuid);
     }
 
@@ -2863,6 +2922,10 @@ private:
 
     bool apply() {
         if (previewDirty) rebuildPreview();
+        if (previewCompositionPending()) {
+            lastApplyErrorMessage = _("GPU preview composition is still running.");
+            return false;
+        }
         // Apply consumes preview.grids directly. Recompose only the grids named by
         // edited layers, using the same target composer as the original path.
         if (!compose3DAdjustChangesForApply()) {
@@ -2910,7 +2973,9 @@ protected:
 
     override
     void onUpdate() {
+        if (dialogDisplayed && activePsdDepthMapWindow is this) ensureDialogActionScope();
         if (previewDirty) rebuildPreview();
+        else pollPendingPreviewGpuComposition();
 
         auto space = incAvailableSpace();
         auto settingsWidth = min(340.0f, max(280.0f, space.x * 0.28f));
@@ -2942,10 +3007,12 @@ protected:
                 cmd!(EditCommand.Redo)(ctx);
             }
             igEndDisabled();
+            igBeginDisabled(previewCompositionPending());
             if (incButtonColored(__("Apply"), ImVec2(actionWidth, 26))) {
                 auto ctx = dialogCommandContext();
                 cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(ctx);
             }
+            igEndDisabled();
             if (incButtonColored(__("Cancel"), ImVec2(actionWidth, 26))) {
                 auto ctx = dialogCommandContext();
                 cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx);
@@ -2979,11 +3046,13 @@ protected:
         dialogDisplayed = false;
         deactivateDialogCommandContext();
         closeDialogActionScope();
+        cancelPendingPreviewGpuComposition();
         disposePreviewTextures();
     }
 
 public:
     bool dialogCommandsAvailable() {
+        if (dialogDisplayed && activePsdDepthMapWindow is this) ensureDialogActionScope();
         return dialogDisplayed && dialogActionScope !is null && dialogActionScope.isActive();
     }
 
@@ -2992,6 +3061,7 @@ public:
     }
 
     void cancelDialog() {
+        cancelPendingPreviewGpuComposition();
         deactivateDialogCommandContext();
         closeDialogActionScope();
         close();
@@ -3083,6 +3153,10 @@ public:
         result = PsdDepthDialogOverallPreview.init;
         error = null;
         if (previewDirty) rebuildPreview();
+        if (previewCompositionPending()) {
+            error = _("GPU preview composition is still running.");
+            return false;
+        }
         if (errorMessage.length) {
             error = errorMessage;
             return false;
@@ -3112,6 +3186,10 @@ public:
             return false;
         }
         if (previewDirty) rebuildPreview();
+        if (previewCompositionPending()) {
+            error = _("GPU preview composition is still running.");
+            return false;
+        }
         if (errorMessage.length) {
             error = errorMessage;
             return false;
@@ -3232,6 +3310,10 @@ public:
             if (state.invert != previous.invert) {
                 invalidate3DAdjustLayerCaches(state.layerPath, state.targetGridUuid);
             }
+            if (preview.gpuCompositionRequested) {
+                startPreviewComposition();
+                pending3DAdjustLayerChanges = null;
+            }
         } else {
             refreshAfter3DAdjustLayerChange(state.layerPath, state.targetGridUuid);
         }
@@ -3267,12 +3349,7 @@ public:
         if (!found && state.length > 0) return false;
 
         disposePreviewTextures();
-        string composeError;
-        if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
-            errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
-            return false;
-        }
-        errorMessage = null;
+        if (!startPreviewComposition()) return false;
         previewDirty = false;
         return true;
     }
@@ -3312,6 +3389,10 @@ public:
 
         bool dialogCommandScopeActiveForRegression() {
             return dialogCommandScope !is null && dialogCommandScope.isActive();
+        }
+
+        bool dialogActionScopeActiveForRegression() {
+            return dialogActionScope !is null && dialogActionScope.isActive();
         }
 
         void setDialogLayerStateForRegression(PsdDepthDialogLayerState state) {
@@ -3407,12 +3488,7 @@ public:
             preview.composedLayers[0].height = height;
             preview.composedLayers[0].depthRgba = depthRgba.dup;
             preview.composedLayers[0].maskRgba = maskRgba.dup;
-            string composeError;
-            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
-                errorMessage = composeError;
-                return false;
-            }
-            errorMessage = null;
+            if (!startPreviewComposition()) return false;
             previewDirty = false;
             return true;
         }
@@ -3427,12 +3503,7 @@ public:
         bool prepareDialogApplyForRegression() {
             preview = PsdDepthImportResult.init;
             pending3DAdjustLayerChanges = null;
-            string composeError;
-            if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
-                errorMessage = composeError;
-                return false;
-            }
-            errorMessage = null;
+            if (!startPreviewComposition()) return false;
             previewDirty = false;
             return true;
         }

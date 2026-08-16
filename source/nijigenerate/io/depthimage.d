@@ -12,6 +12,13 @@ alias DepthImageChannel = DepthSampleChannel;
 alias DepthImageConvolution = DepthSampleConvolution;
 alias DepthImageSampleResult = DepthSampleResult;
 
+enum int DepthImageMinCustomRadius = 1;
+enum int DepthImageMaxCustomRadius = 64;
+
+int ngNormalizeDepthImageCustomRadius(int radius) pure nothrow @safe {
+    return max(DepthImageMinCustomRadius, min(DepthImageMaxCustomRadius, radius));
+}
+
 struct DepthImageSampleSettings {
     bool invert = false;
     float backDepth = -1.0f;

@@ -9,7 +9,7 @@ import nijigenerate.widgets.controller : incController;
 import nijigenerate.widgets.inputtext : incInputText;
 import nijigenerate.commands; // AllCommandMaps
 import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult,
-    ExCommandResult, ngCommandAllowedInCurrentContext, ngCommandIdFromKey;
+    ExCommandResult, ngCommandAllowedInCurrentContext, ngCommandIdFromKey, ngRunCommand;
 import nijigenerate.commands.viewport.palette : filterCommands; // shared filtering
 import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.project : incActivePuppet;
@@ -1075,7 +1075,7 @@ protected:
                         if (!ngCommandAllowedInCurrentContext(selectedCmd)) {
                             res = CommandResult(false, "Command is not available in the current context");
                         } else {
-                            res = selectedCmd.run(ctx);
+                            res = ngRunCommand(selectedCmd, ctx);
                         }
                         lastHasResult = true;
                         lastSucceeded = res.succeeded;

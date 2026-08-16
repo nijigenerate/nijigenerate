@@ -1,7 +1,7 @@
 module nijigenerate.viewport.depth.draw.gpu;
 
 import nijigenerate.viewport.depth.common.targetview;
-import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution;
+import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, DepthImageMaxCustomRadius;
 import nijigenerate.viewport.depth.draw.binding;
 import nijigenerate.viewport.depth.draw.composer : DepthDrawComposeResult, DepthDrawLayerComposeStats;
 import nijigenerate.viewport.depth.draw.coordinate;
@@ -27,7 +27,7 @@ enum DepthDrawGpuDocumentPositionStride = 2u;
 enum DepthDrawGpuRgbaPixelStride = 4u;
 enum DepthDrawGpuMaxVertices = 1_000_000u;
 enum DepthDrawGpuMaxLayers = 1024u;
-enum DepthDrawGpuMaxCustomRadius = 64;
+enum DepthDrawGpuMaxCustomRadius = DepthImageMaxCustomRadius;
 
 enum DepthDrawGpuLayerField {
     Width = 0,

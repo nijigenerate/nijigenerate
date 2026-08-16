@@ -55,9 +55,20 @@ void ngDepthDrawApplyClippingBaseCoverage(
         ? clippingBase.opacity / sharedGroupOpacity
         : 0.0f;
     clippedLayer.opacity *= max(0.0f, min(1.0f, clippingBaseOpacity));
+
+    auto clippingPixelCount = cast(size_t)clippingBase.width * cast(size_t)clippingBase.height;
+    ubyte[] clippingAlpha;
+    clippingAlpha.length = clippingPixelCount;
+    if (clippingBase.rgba.length >= clippingPixelCount * 4) {
+        foreach (i; 0 .. clippingPixelCount) clippingAlpha[i] = clippingBase.rgba[i * 4 + 3];
+    } else {
+        foreach (i; 0 .. clippingPixelCount) {
+            clippingAlpha[i] = i < clippingBase.alphaMask.length && clippingBase.alphaMask[i] != 0 ? 255 : 0;
+        }
+    }
     ngDepthDrawApplyMaskToLayerAlpha(
         clippedLayer,
-        clippingBase.alphaMask,
+        clippingAlpha,
         clippingBase.width,
         clippingBase.height,
         clippingBase.bounds.left,

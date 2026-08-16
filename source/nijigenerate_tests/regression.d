@@ -38,9 +38,11 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     ngSetDepthBoneEffectivePivotSelection,
     ngBeginDepthBoneSourceSettingsMerge,
     ngEndDepthBoneSourceSettingsMerge;
-import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
-    ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
-    ngPsdDepthImportProgressVisibleForRegression, ngPsdDepthImportResultToDepthDrawSession;
+import nijigenerate.commands.depth.map : PsdDepthComposedView, PsdDepthGpuComposeWork,
+    ngApplyPsdDepthImportResult, ngCancelPsdDepthImportGpu, ngComposePsdDepthImportResult,
+    ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng, ngPollPsdDepthImportGpu,
+    ngPsdDepthImportProgressVisibleForRegression, ngPsdDepthImportResultToDepthDrawSession,
+    ngSubmitPsdDepthImportGpu;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.depth.bone_status :
@@ -186,8 +188,8 @@ import nijilive.core.nodes.node : inRegisterNodeType;
 import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
 import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
-import psd.parser : applyMaskFeather, applyMaskSettings, decodePsdLayerCount, sampleMaskAt,
-    validPsdImageDimensions;
+import psd.parser : applyMaskFeather, applyMaskSettings, decodePsdLayerCount, decodedPsdLayerChannel,
+    reservePsdDecodedLayerChannel, sampleMaskAt, validPsdImageDimensions;
 import psd.rle : decodeRLE, decodeZip;
 import utils.io : readPascalStr, readValue;
 import std.base64 : Base64;
@@ -863,6 +865,22 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
         decodedLayerCount == 32_768 && decodedTransparency &&
         !decodePsdLayerCount(short.min, 34, decodedLayerCount, decodedTransparency),
         "PSD layer counts must promote -32768 before negation and remain bounded by section length");
+    uint decodedChannelCount;
+    ulong decodedChannelBytes;
+    require(decodedPsdLayerChannel(ChannelType.R) &&
+        decodedPsdLayerChannel(ChannelType.LAYER_MASK) &&
+        !decodedPsdLayerChannel(12),
+        "PSD layer extraction must ignore channel types that are not used to construct RGBA");
+    foreach (_; 0 .. 6) {
+        require(reservePsdDecodedLayerChannel(1, decodedChannelCount, decodedChannelBytes),
+            "PSD layer extraction must permit the six supported RGBA and mask channels");
+    }
+    require(!reservePsdDecodedLayerChannel(1, decodedChannelCount, decodedChannelBytes),
+        "PSD layer extraction must bound the aggregate number of retained decoded channels");
+    decodedChannelCount = 0;
+    decodedChannelBytes = 0;
+    require(!reservePsdDecodedLayerChannel(400_000_001, decodedChannelCount, decodedChannelBytes),
+        "PSD layer extraction must bound aggregate decoded channel bytes before allocation");
     auto flatOnlyPsdPath = buildPath(fixtureDir, "minimal-flat-only.psd");
     auto flatOnlyPsd = cast(ubyte[])read(psdPath);
     flatOnlyPsd[34 .. 38] = 0;
@@ -3883,6 +3901,13 @@ private void testPsdDepthDialogCommandsUndoRedo() {
         "displayed PSD depth dialog must open one nested action stack");
     require(!cmd!(EditCommand.ShowSettingsWindow)(ctx).succeeded,
         "non-dialog commands must be unavailable while the PSD depth dialog is displayed");
+    auto directAddContext = new Context();
+    directAddContext.puppet = incActivePuppet();
+    directAddContext.nodes = [incActivePuppet().root];
+    auto childCountBeforeDirectAdd = incActivePuppet().root.children.length;
+    require(!ngRunCommand(ensureAddNodeCommand("Node"), directAddContext).succeeded &&
+        incActivePuppet().root.children.length == childCountBeforeDirectAdd,
+        "scope-aware direct command dispatch must reject node-panel mutations in the PSD depth dialog");
     auto dialogCommands = filterCommands("");
     import std.traits : EnumMembers;
     require(dialogCommands.length == EnumMembers!PsdDepthDialogCommand.length + 3,
@@ -4400,15 +4425,22 @@ private void testAllPsdDepthDialogCommands() {
     firstDialog.beginDialogCommandSessionForRegression();
     secondDialog.beginDialogCommandSessionForRegression();
     require(firstDialog.dialogCommandScopeActiveForRegression() &&
-        secondDialog.dialogCommandScopeActiveForRegression(),
-        "overlapping PSD depth dialogs must each own an active command-scope registration");
+        secondDialog.dialogCommandScopeActiveForRegression() &&
+        firstDialog.dialogActionScopeActiveForRegression() &&
+        secondDialog.dialogActionScopeActiveForRegression() && ngActionStackLevel() == 2,
+        "overlapping PSD depth dialogs must each own command and action-scope registrations");
     firstDialog.endDialogCommandSessionForRegression();
     require(!firstDialog.dialogCommandScopeActiveForRegression() &&
-        secondDialog.dialogCommandScopeActiveForRegression(),
-        "closing a non-active PSD depth dialog must close its own command scope without clearing the active dialog");
+        secondDialog.dialogCommandScopeActiveForRegression() &&
+        !secondDialog.dialogActionScopeActiveForRegression() && ngActionStackLevel() == 0,
+        "closing an outer PSD depth dialog must invalidate action scopes unwound above it");
+    require(secondDialog.dialogCommandsAvailable() &&
+        secondDialog.dialogActionScopeActiveForRegression() && ngActionStackLevel() == 1,
+        "the remaining active PSD depth dialog must recreate its invalidated isolated action stack");
     secondDialog.endDialogCommandSessionForRegression();
-    require(!secondDialog.dialogCommandScopeActiveForRegression(),
-        "closing the active PSD depth dialog must close its command scope");
+    require(!secondDialog.dialogCommandScopeActiveForRegression() &&
+        !secondDialog.dialogActionScopeActiveForRegression() && ngActionStackLevel() == 0,
+        "closing the active PSD depth dialog must close its command and action scopes");
 }
 
 private void testPsdDepthImportRefreshesDepthBoneBindings() {
@@ -6419,6 +6451,59 @@ private void testPsdDepthMapImportHelpers() {
     require(pngGrid.copyDepths() == [0.1f, 0.2f, 0.3f],
         "undo PSD depth import GPU-selected apply should restore previous depths");
 
+    fakeDepthDrawGpuNextJobId = 2;
+    fakeDepthDrawGpuPollCount = 0;
+    fakeDepthDrawGpuNotReadyPolls = 1;
+    fakeDepthDrawGpuReadbacks[2] = DepthDrawGpuComposeReadback(
+        pngGrid.uuid,
+        [0.6f, 0.6f, 0.6f],
+        [0, 0, 0],
+        [DepthDrawGpuLayerReadback(0, [1, 1, 1], [0.6f, 0.6f, 0.6f])]
+    );
+    auto incrementalGpuImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), pngDepthPath, pngGpuSettings);
+    auto incrementalDepthsBeforePoll = incrementalGpuImported.grids[0].depths.dup;
+    PsdDepthGpuComposeWork incrementalGpuWork;
+    string incrementalGpuError;
+    require(ngSubmitPsdDepthImportGpu(
+            incrementalGpuImported, incrementalGpuWork, incrementalGpuError) &&
+        incrementalGpuWork.isActive() && ngPendingDepthDrawGpuComposeJobCount() == 1,
+        "PSD GPU preview should retain submitted work without waiting on the UI thread: " ~ incrementalGpuError);
+    bool incrementalGpuReady;
+    PsdDepthComposedView incrementalGpuComposed;
+    require(ngPollPsdDepthImportGpu(incrementalGpuImported, incrementalGpuWork,
+            incrementalGpuReady, incrementalGpuComposed, incrementalGpuError) &&
+        !incrementalGpuReady && incrementalGpuWork.isActive() &&
+        fakeDepthDrawGpuPollCount == 1 &&
+        incrementalGpuImported.grids[0].depths == incrementalDepthsBeforePoll,
+        "one PSD GPU preview poll must return control while unfinished and leave the prior preview transactional");
+    require(ngPollPsdDepthImportGpu(incrementalGpuImported, incrementalGpuWork,
+            incrementalGpuReady, incrementalGpuComposed, incrementalGpuError) &&
+        incrementalGpuReady && !incrementalGpuWork.isActive() &&
+        fakeDepthDrawGpuPollCount == 2 &&
+        incrementalGpuImported.grids[0].depths == [0.6f, 0.6f, 0.6f] &&
+        ngPendingDepthDrawGpuComposeJobCount() == 0,
+        "a later PSD GPU preview poll should atomically publish the completed readback");
+
+    fakeDepthDrawGpuNextJobId = 3;
+    fakeDepthDrawGpuNotReadyPolls = 1;
+    fakeDepthDrawGpuReadbacks[3] = DepthDrawGpuComposeReadback(
+        pngGrid.uuid,
+        [0.5f, 0.5f, 0.5f],
+        [0, 0, 0],
+        [DepthDrawGpuLayerReadback(0, [1, 1, 1], [0.5f, 0.5f, 0.5f])]
+    );
+    auto canceledGpuImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), pngDepthPath, pngGpuSettings);
+    PsdDepthGpuComposeWork canceledGpuWork;
+    string canceledGpuError;
+    require(ngSubmitPsdDepthImportGpu(canceledGpuImported, canceledGpuWork, canceledGpuError) &&
+        ngPendingDepthDrawGpuComposeJobCount() == 1,
+        "PSD GPU preview cancellation fixture should retain one submitted job");
+    ngCancelPsdDepthImportGpu(canceledGpuWork);
+    require(!canceledGpuWork.isActive() && ngPendingDepthDrawGpuComposeJobCount() == 0,
+        "canceling a PSD GPU preview must remove its retained backend jobs immediately");
+
     auto uiEditedPngImported = ngBuildPsdDepthsFromSource(incActivePuppet(), pngDepthPath, pngSettings);
     require(uiEditedPngImported.composedLayers.length == 1,
         "PSD depth import UI-edit regression fixture should have one composed layer");
@@ -6881,7 +6966,11 @@ private void testDepthDrawDataModelContracts() {
     clippingBase.width = 2;
     clippingBase.height = 1;
     clippingBase.bounds = DepthDrawRect(10, 20, 2, 1);
-    clippingBase.alphaMask = [cast(ubyte)255, 0];
+    clippingBase.rgba = [
+        cast(ubyte)255, 255, 255, 128,
+        cast(ubyte)255, 255, 255, 0,
+    ];
+    clippingBase.alphaMask = [cast(ubyte)1, 0];
     clippingBase.visible = false;
     clippingBase.enabled = false;
     clippingBase.opacity = 0.25f;
@@ -6895,9 +6984,9 @@ private void testDepthDrawDataModelContracts() {
     ];
     clippedLayer.depthPixels = clippedLayer.rgba.dup;
     ngDepthDrawApplyClippingBaseCoverage(clippedLayer, clippingBase);
-    require(clippedLayer.rgba[3] == 255 && clippedLayer.rgba[7] == 0 &&
-        clippedLayer.depthPixels[3] == 255 && clippedLayer.depthPixels[7] == 0,
-        "DepthDraw PSD extraction should intersect clipped layer coverage with its clipping base alpha");
+    require(clippedLayer.rgba[3] == 128 && clippedLayer.rgba[7] == 0 &&
+        clippedLayer.depthPixels[3] == 128 && clippedLayer.depthPixels[7] == 0,
+        "DepthDraw PSD extraction should preserve byte alpha when intersecting clipping-base coverage");
     require(!clippedLayer.visible && !clippedLayer.enabled && near(clippedLayer.opacity, 0.25f),
         "DepthDraw PSD extraction should propagate clipping-base visibility, enabled state, and opacity");
 
@@ -6913,7 +7002,7 @@ private void testDepthDrawDataModelContracts() {
     ];
     offsetClippedLayer.depthPixels = offsetClippedLayer.rgba.dup;
     ngDepthDrawApplyClippingBaseCoverage(offsetClippedLayer, clippingBase);
-    require(offsetClippedLayer.rgba[3] == 0 && offsetClippedLayer.rgba[7] == 255 &&
+    require(offsetClippedLayer.rgba[3] == 0 && offsetClippedLayer.rgba[7] == 128 &&
         offsetClippedLayer.rgba[11] == 0 && offsetClippedLayer.rgba[15] == 0,
         "DepthDraw PSD clipping must make pixels outside the clipping base bounds transparent");
 
@@ -7019,6 +7108,16 @@ private void testDepthDrawDataModelContracts() {
         "DepthDrawSession should store updated layer sampling settings");
     require(dirtySession.dirtyTargetGridIds() == [43UL],
         "DepthDrawSession sampling updates should dirty only targets bound to the changed layer");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateLayerSampling(
+            "layer-b", DepthImageChannel.B, DepthImageConvolution.BoxCustom, 100, 0.35f) &&
+        dirtySession.layers[1].customRadius == 64,
+        "DepthDrawSession must clamp oversized custom sampling radii at the shared state boundary");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateLayerSampling(
+            "layer-b", DepthImageChannel.B, DepthImageConvolution.MedianCustom, 0, 0.35f) &&
+        dirtySession.layers[1].customRadius == 1,
+        "DepthDrawSession must clamp non-positive custom sampling radii at the shared state boundary");
     dirtySession.clearPreviewDirty();
     auto gpuDisplay = dirtySession.display;
     gpuDisplay.useGpuPreview = true;
@@ -7719,12 +7818,33 @@ private void testDepthDrawSourceManifestContracts() {
         xyStackRows[0].warningMissingCoverage,
         "DepthDraw window layer stack should expose merge policy, sampled/missing counts, depth range, and warnings");
     auto xyDepthsBeforeApply = xyGrid.copyDepths();
+    ExDepthOp savedDepthDrawOperation;
+    savedDepthDrawOperation.type = ExDepthOpType.AttachedPoint;
+    savedDepthDrawOperation.index = 0;
+    savedDepthDrawOperation.amount = 0.25f;
+    xyGrid.replaceDepthOps([savedDepthDrawOperation]);
+    xyGrid.replaceDepthOpBaseDepths(xyDepthsBeforeApply);
     auto xyApplySummary = xyWindow.applySelectedTargetDepthDraw();
+    auto xyDepthsAfterApply = xyGrid.copyDepths();
     require(xyApplySummary.succeeded && xyApplySummary.changedTargets == 1 &&
         xyApplySummary.changedVertices > 0 &&
         xyGrid.copyDepths() != xyDepthsBeforeApply &&
+        xyGrid.copyDepthOps().length == 0 && xyGrid.copyDepthOpBaseDepths().length == 0 &&
         xyWindow.statusText.canFind("Applied DepthDraw"),
-        "DepthDraw window apply entry point should compose and apply the selected target through the shared depth command path");
+        "DepthDraw apply must replace depths and clear stale saved depth operations in one action group");
+    incActionUndo();
+    auto restoredDepthDrawOperations = xyGrid.copyDepthOps();
+    require(xyGrid.copyDepths() == xyDepthsBeforeApply &&
+        restoredDepthDrawOperations.length == 1 &&
+        restoredDepthDrawOperations[0].type == ExDepthOpType.AttachedPoint &&
+        restoredDepthDrawOperations[0].index == savedDepthDrawOperation.index &&
+        near(restoredDepthDrawOperations[0].amount, savedDepthDrawOperation.amount) &&
+        xyGrid.copyDepthOpBaseDepths() == xyDepthsBeforeApply,
+        "DepthDraw apply Undo must restore depths, saved operations, and their base depths");
+    incActionRedo();
+    require(xyGrid.copyDepths() == xyDepthsAfterApply &&
+        xyGrid.copyDepthOps().length == 0 && xyGrid.copyDepthOpBaseDepths().length == 0,
+        "DepthDraw apply Redo must restore imported depths without replaying stale operations");
     auto xyGpuDisplay = xyWindow.depthDrawSession().display;
     xyGpuDisplay.useGpuPreview = true;
     require(xyWindow.depthDrawSession().updateDisplayOptions(xyGpuDisplay),
@@ -20680,8 +20800,8 @@ private void testCommandBrowserResourceArgumentParsingResolvesLiveResources() {
 
     require(source.canFind("if (info.applyArgs !is null && selectedCmd !is null)") &&
         source.canFind("info.applyArgs(selectedCmd, argValues);") &&
-        source.canFind("res = selectedCmd.run(ctx);"),
-        "Command Browser should apply parsed arguments before running the selected command");
+        source.canFind("res = ngRunCommand(selectedCmd, ctx);"),
+        "Command Browser should apply parsed arguments before scope-aware command dispatch");
 
     auto firstApplier = source.countUntil("applier = (Command c, string[string] vals)");
     auto firstCapture = source.countUntil("defCapturer = (Command c, ref string[string] vals)");

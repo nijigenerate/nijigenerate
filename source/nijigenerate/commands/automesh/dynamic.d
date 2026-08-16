@@ -186,7 +186,7 @@ template ApplyAutoMeshPT(alias PT)
             bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
             if (!onMain) {
                 auto self = this;
-                return ngRunInMainThread!CommandResult({ return self.run(ctx); });
+                return ngRunInMainThread!CommandResult({ return ngRunCommand(self, ctx); });
             }
 
             // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.

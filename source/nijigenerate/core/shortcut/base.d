@@ -1,7 +1,7 @@
 module nijigenerate.core.shortcut.base;
 
 // Keep this module free of command/UI imports. It provides infrastructure only.
-import nijigenerate.commands.base : Command, Context, ngCommandAllowedInCurrentContext,
+import nijigenerate.commands.base : Command, Context, ngCommandAllowedInCurrentContext, ngRunCommand,
     ngCommandIdFromKey; // base types + id helper
 import nijigenerate.core.input;            // incShortcut
 import nijigenerate.project;               // active/selection state
@@ -179,7 +179,7 @@ void incHandleShortcuts()
         if (incShortcut(entry.shortcut, entry.repeat)) {
             auto ctx = buildExecutionContext();
             if (ngCommandAllowedInCurrentContext(entry.command) && entry.command.runnable(ctx)) {
-                auto res = entry.command.run(ctx);
+                auto res = ngRunCommand(entry.command, ctx);
                 // TODO: surface res.message or res.payload to UI/log if needed
             }
             break; // handle one per frame, closest match wins

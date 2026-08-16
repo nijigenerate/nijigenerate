@@ -1,6 +1,7 @@
 module nijigenerate.viewport.depth.draw.apply;
 
 import nijigenerate.actions : AsyncGroupAction, GroupAction;
+import nijigenerate.actions.depth : ngClearDepthOperationsChangeAction;
 import nijigenerate.commands : Context;
 import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngEndDepthBoneRefreshActionSink;
 import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
@@ -82,6 +83,8 @@ DepthDrawApplySummary ngApplyDepthDrawTargetResultWithSummary(
     auto group = new DepthDrawApplyAction();
     ngBeginDepthBoneRefreshActionSink(group);
     scope(exit) ngEndDepthBoneRefreshActionSink(group);
+    auto clearOperations = ngClearDepthOperationsChangeAction(target.getTarget());
+    if (clearOperations !is null) group.addAction(clearOperations);
     target.replaceWorkingDepths(result.depths);
     group.addAction(ngDepthViewWorkingDepthsChangeAction(target, "Apply DepthDraw Depth Map"));
     if (!group.empty()) incActionPush(group);

@@ -22,7 +22,7 @@ import nijigenerate.io.depthsample : ngDepthSampleValueToDepth01;
 import nijigenerate.project : incActivePuppet;
 import nijigenerate.viewport.depth.common.targetview : DepthTargetView;
 import nijigenerate.viewport.depth.draw.binding : DepthDrawBinding, DepthMergePolicy;
-import nijigenerate.viewport.depth.draw.composer : ngComposeDepthDrawTarget;
+import nijigenerate.viewport.depth.draw.composer : DepthDrawComposeResult, ngComposeDepthDrawTarget;
 import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerPixelFromDocument;
 import nijigenerate.viewport.depth.draw.gpu : DepthDrawGpuTargetComposeJob, DepthDrawGpuTargetComposePollResult,
     ngCancelDepthDrawGpuTargetCompose, ngPollDepthDrawGpuTargetCompose, ngSubmitDepthDrawGpuTargetCompose;
@@ -84,6 +84,28 @@ private AsyncGroupActionProgress activePsdDepthImportProgress;
 public struct PsdDepthComposedView {
 private:
     PsdDepthImportResult* imported;
+}
+
+private struct PsdDepthGpuGridComposeWork {
+    size_t gridIndex;
+    PsdDepthGridResult sourceGrid;
+    float[] oldDepths;
+    string[string] layerIdToPath;
+    DepthDrawLayer[] previewLayers;
+    DepthDrawGpuTargetComposeJob job;
+    bool completed;
+}
+
+struct PsdDepthGpuComposeWork {
+private:
+    PsdDepthGpuGridComposeWork[] grids;
+    PsdDepthGridResult[] composedGrids;
+    bool active;
+
+public:
+    bool isActive() const {
+        return active;
+    }
 }
 
 version (CommandBrowserDifferential) {
@@ -281,13 +303,8 @@ private void replaceDepthsWithUndo(Node target, float[] nextDepths, string reaso
 }
 
 private DepthOperationMappedChangeAction ngClearDepthOpsChangeAction(Node target, string reason) {
-    auto operated = cast(DepthOperationMappedNode)target;
-    if (operated is null || operated.copyDepthOps().length == 0) return null;
-    auto action = new DepthOperationMappedChangeAction(target);
-    operated.replaceDepthOps(null);
-    operated.replaceDepthOpBaseDepths(null);
-    target.notifyChange(target, NotifyReason.AttributeChanged);
-    action.updateNewState();
+    auto action = ngClearDepthOperationsChangeAction(target);
+    if (action is null) return null;
     ngMarkDepthBoneDirtyForTarget(target, reason);
     return action;
 }
@@ -806,7 +823,23 @@ bool ngComposePsdDepthTarget(
     target.depths = oldDepths.dup;
 
     auto result = ngComposeDepthDrawTarget(session, target, gridResult.documentWidth, gridResult.documentHeight);
-    if (result.depths.length != gridResult.grid.vertices.length) {
+    return finalizePsdDepthTarget(
+        imported, gridResult, oldDepths, layerIdToPath, previewLayers, result, composed, error);
+}
+
+private bool finalizePsdDepthTarget(
+    ref PsdDepthImportResult imported,
+    ref PsdDepthGridResult gridResult,
+    const(float)[] oldDepths,
+    ref string[string] layerIdToPath,
+    DepthDrawLayer[] previewLayers,
+    ref DepthDrawComposeResult result,
+    out PsdDepthGridResult composed,
+    out string error
+) {
+    composed = gridResult;
+    error = null;
+    if (gridResult.grid is null || result.depths.length != gridResult.grid.vertices.length) {
         error = "PSD depth map composition depth count mismatch";
         return false;
     }
@@ -816,7 +849,8 @@ bool ngComposePsdDepthTarget(
     composed.missingVertexMask.length = composed.depths.length;
     composed.sampledVertices = 0;
     composed.missingVertices = 0;
-    foreach (i, winnerId; result.winningLayerIds) {
+    foreach (i; 0 .. composed.depths.length) {
+        auto winnerId = i < result.winningLayerIds.length ? result.winningLayerIds[i] : null;
         auto hasWinner = winnerId.length > 0;
         composed.missingVertexMask[i] = !hasWinner;
         if (hasWinner) {
@@ -869,13 +903,20 @@ bool ngComposePsdDepthImportResult(
     return true;
 }
 
-private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out string error) {
+bool ngSubmitPsdDepthImportGpu(
+    ref PsdDepthImportResult imported,
+    out PsdDepthGpuComposeWork work,
+    out string error
+) {
+    work = PsdDepthGpuComposeWork.init;
     error = null;
+    work.composedGrids = imported.grids.dup;
     foreach (i, ref gridResult; imported.grids) {
         if (gridResult.grid is null || gridResult.skipped) continue;
         auto depthMapped = cast(DepthMappedNode)gridResult.grid;
         if (depthMapped is null) {
             error = "PSD depth map GPU composition target does not support depth maps";
+            ngCancelPsdDepthImportGpu(work);
             return false;
         }
 
@@ -884,6 +925,7 @@ private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out str
         auto session = buildPsdDepthDrawSessionForGrid(imported, gridResult, layerIdToPath, previewLayers);
         if (session.layers.length == 0) {
             error = "PSD depth map GPU composition has no enabled source layers for target";
+            ngCancelPsdDepthImportGpu(work);
             return false;
         }
 
@@ -899,61 +941,93 @@ private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out str
         DepthDrawGpuTargetComposeJob job;
         if (!ngSubmitDepthDrawGpuTargetCompose(session, target, gridResult.documentWidth, gridResult.documentHeight,
             job, error)) {
+            ngCancelPsdDepthImportGpu(work);
             if (error.length == 0) error = "CPU fallback is disabled for PSD depth map GPU composition";
             else error = "CPU fallback is disabled for PSD depth map GPU composition: " ~ error;
             return false;
         }
+        PsdDepthGpuGridComposeWork gridWork;
+        gridWork.gridIndex = i;
+        gridWork.sourceGrid = gridResult;
+        gridWork.oldDepths = oldDepths;
+        gridWork.layerIdToPath = layerIdToPath;
+        gridWork.previewLayers = previewLayers;
+        gridWork.job = job;
+        work.grids ~= gridWork;
+    }
+    work.active = true;
+    return true;
+}
+
+bool ngPollPsdDepthImportGpu(
+    ref PsdDepthImportResult imported,
+    ref PsdDepthGpuComposeWork work,
+    out bool ready,
+    out PsdDepthComposedView composed,
+    out string error
+) {
+    ready = false;
+    composed = PsdDepthComposedView.init;
+    error = null;
+    if (!work.active) {
+        error = "PSD depth map GPU composition work is not active";
+        return false;
+    }
+
+    bool pending;
+    foreach (ref gridWork; work.grids) {
+        if (gridWork.completed) continue;
         DepthDrawGpuTargetComposePollResult pollResult;
-        bool polled = true;
-        foreach (_; 0 .. 30_000) {
-            polled = ngPollDepthDrawGpuTargetCompose(job, pollResult, error);
-            if (!polled || pollResult.ready) break;
-            Thread.sleep(1.msecs);
-        }
-        if (!polled || !pollResult.ready) {
-            ngCancelDepthDrawGpuTargetCompose(job);
-            if (error.length == 0) error = "PSD depth map GPU composition timed out";
+        if (!ngPollDepthDrawGpuTargetCompose(gridWork.job, pollResult, error)) {
+            ngCancelPsdDepthImportGpu(work);
             return false;
         }
-        if (pollResult.result.depths.length != gridResult.grid.vertices.length) {
-            error = "PSD depth map GPU composition depth count mismatch";
-            return false;
+        if (!pollResult.ready) {
+            pending = true;
+            continue;
         }
 
-        auto composedGrid = gridResult;
-        composedGrid.depths = pollResult.result.depths.dup;
-        composedGrid.baseDepths = oldDepths.dup;
-        composedGrid.sampledVertices = 0;
-        composedGrid.missingVertices = 0;
-        composedGrid.missingVertexMask.length = composedGrid.depths.length;
-        composedGrid.winnerLayerPaths.length = composedGrid.depths.length;
-        foreach (vertexIndex; 0 .. composedGrid.depths.length) {
-            auto winnerId = vertexIndex < pollResult.result.winningLayerIds.length
-                ? pollResult.result.winningLayerIds[vertexIndex]
-                : null;
-            auto hasWinner = winnerId.length > 0;
-            composedGrid.missingVertexMask[vertexIndex] = !hasWinner;
-            if (hasWinner) {
-                composedGrid.sampledVertices++;
-                if (auto layerPath = winnerId in layerIdToPath) {
-                    composedGrid.winnerLayerPaths[vertexIndex] = *layerPath;
-                } else {
-                    composedGrid.winnerLayerPaths[vertexIndex] = winnerId;
-                }
-            } else {
-                composedGrid.missingVertices++;
-            }
+        PsdDepthGridResult composedGrid;
+        if (!finalizePsdDepthTarget(imported, gridWork.sourceGrid, gridWork.oldDepths,
+            gridWork.layerIdToPath, gridWork.previewLayers, pollResult.result, composedGrid, error)) {
+            ngCancelPsdDepthImportGpu(work);
+            return false;
         }
-        applyPsdDepthMissingPolicy(composedGrid, imported, oldDepths);
-        foreach (ref layerMask; composedGrid.layerMasks) {
-            layerMask.sampledVertices = 0;
-            layerMask.selectedVertices = 0;
-        }
-        if (!composedGrid.skipped) smoothPsdDepthGridResult(composedGrid, imported);
-        updatePsdDepthGridRange(composedGrid);
-        imported.grids[i] = composedGrid;
+        work.composedGrids[gridWork.gridIndex] = composedGrid;
+        gridWork.completed = true;
+        gridWork.job = DepthDrawGpuTargetComposeJob.init;
     }
+    if (pending) return true;
+
+    imported.grids = work.composedGrids;
+    work = PsdDepthGpuComposeWork.init;
+    composed.imported = &imported;
+    ready = true;
     return true;
+}
+
+void ngCancelPsdDepthImportGpu(ref PsdDepthGpuComposeWork work) {
+    foreach (ref gridWork; work.grids) {
+        if (!gridWork.completed && gridWork.job.jobId != 0) {
+            ngCancelDepthDrawGpuTargetCompose(gridWork.job);
+        }
+    }
+    work = PsdDepthGpuComposeWork.init;
+}
+
+private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out string error) {
+    PsdDepthGpuComposeWork work;
+    if (!ngSubmitPsdDepthImportGpu(imported, work, error)) return false;
+    foreach (_; 0 .. 30_000) {
+        bool ready;
+        PsdDepthComposedView composed;
+        if (!ngPollPsdDepthImportGpu(imported, work, ready, composed, error)) return false;
+        if (ready) return true;
+        Thread.sleep(1.msecs);
+    }
+    ngCancelPsdDepthImportGpu(work);
+    error = "PSD depth map GPU composition timed out";
+    return false;
 }
 
 ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView composed) {

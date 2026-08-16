@@ -87,10 +87,10 @@ void ngAddOrInsertNodeMenu(bool add)() {
                 if (nodes.length > 0) ctx.nodes = nodes;
                 static if (add) {
                     auto cmd = ensureAddNodeCommand(ClassName, suffixName);
-                    cmd.run(ctx);
+                    ngRunCommand(cmd, ctx);
                 } else {
                     auto cmd = ensureInsertNodeCommand(ClassName, suffixName);
-                    cmd.run(ctx);
+                    ngRunCommand(cmd, ctx);
                 }
                 suffixName = null;
             }
@@ -252,7 +252,7 @@ void incNodeActionsPopup(const char* title, bool isRoot = false, bool icon = fal
                         igSameLine(0, 2);
                         if (igMenuItem(__(toType), "", false, true)) {
                             auto cmd = ensureConvertToCommand(toType);
-                            cmd.run(ctx);
+                            ngRunCommand(cmd, ctx);
                         }
                     }
                     igEndMenu();

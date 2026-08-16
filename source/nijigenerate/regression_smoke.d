@@ -10,7 +10,7 @@ import std.process : environment;
 import std.string : join, startsWith;
 
 import nijigenerate.actions : Action;
-import nijigenerate.commands : Context;
+import nijigenerate.commands : Context, ngRunCommand;
 import nijigenerate.commands.depth.bone : ngFlushDepthBoneDirty;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult;
@@ -223,7 +223,7 @@ void ngSetupRegressionSmokeScenario(string scenario) {
         grid.name = name;
         auto ctx = new Context();
         ctx.nodes = [cast(Node)grid];
-        auto result = (new DefineGridCommand(xs, ys)).run(ctx);
+        auto result = ngRunCommand(new DefineGridCommand(xs, ys), ctx);
         if (!result.succeeded)
             ngRegressionSmokeFail("Regression smoke failed to define target grid: " ~ result.message);
         return grid;

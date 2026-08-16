@@ -3,7 +3,7 @@ module nijigenerate.viewport.depth.draw.session;
 import nijigenerate.io.depthimage : DepthDrawAlphaDepthGapDetection, DepthDrawAlphaDepthGapFillResult,
     DepthDrawAlphaDepthFocusedRule, DepthImageChannel, DepthImageConvolution, ngDepthDrawAlphaMaskFromRgba,
     ngDepthDrawBuildLayerContourBandMask, ngDepthDrawDecodeDepthPixelsFromRgba, ngDepthDrawDetectAlphaDepthGaps,
-    ngDepthDrawInpaintMaskedLayerDepth, ngDepthDrawMedianFillDepth;
+    ngDepthDrawInpaintMaskedLayerDepth, ngDepthDrawMedianFillDepth, ngNormalizeDepthImageCustomRadius;
 import nijigenerate.viewport.depth.draw.binding;
 import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerDocumentBounds;
 import nijigenerate.viewport.depth.draw.layer;
@@ -251,7 +251,7 @@ public:
         }
         layer.channel = channel;
         layer.convolution = convolution;
-        layer.customRadius = customRadius;
+        layer.customRadius = ngNormalizeDepthImageCustomRadius(customRadius);
         layer.alphaThreshold = alphaThreshold;
         markLayerPreviewDirty(layerId);
         return true;

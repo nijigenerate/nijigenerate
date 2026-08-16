@@ -1,7 +1,7 @@
 module nijigenerate.viewport.depth.draw.layer;
 
 import nijigenerate.io.depthimage : DepthDrawAlphaDepthFocusedRule, DepthImageChannel, DepthImageConvolution,
-    DepthImageSampleSettings;
+    DepthImageSampleSettings, ngNormalizeDepthImageCustomRadius;
 import nijilive.math : vec2;
 
 struct DepthDrawRect {
@@ -72,7 +72,7 @@ struct DepthDrawLayer {
         settings.frontDepth = frontDepth;
         settings.depthScale = sampleDepthScale;
         settings.alphaThreshold = alphaThreshold;
-        settings.customRadius = customRadius;
+        settings.customRadius = ngNormalizeDepthImageCustomRadius(customRadius);
         settings.convolution = convolution;
         settings.channel = channel;
         return settings;

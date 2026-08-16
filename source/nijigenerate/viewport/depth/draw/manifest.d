@@ -2,7 +2,7 @@ module nijigenerate.viewport.depth.draw.manifest;
 
 import nijigenerate.io.depthimage : DepthDrawAlphaDepthFocusedRule, DepthImageChannel, DepthImageConvolution,
     ngDepthImageChannelFromString, ngDepthImageChannelName, ngDepthImageConvolutionFromString,
-    ngDepthImageConvolutionName;
+    ngDepthImageConvolutionName, ngNormalizeDepthImageCustomRadius;
 import nijigenerate.viewport.depth.draw.binding;
 import nijigenerate.viewport.depth.draw.layer;
 import nijigenerate.viewport.depth.draw.session;
@@ -363,7 +363,8 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
             jsonString(object.get("channel", JSONValue("AverageRGB")), "layer.channel"));
         layer.convolution = ngDepthImageConvolutionFromString(
             jsonString(object.get("convolution", JSONValue("Gaussian3x3")), "layer.convolution"));
-        layer.customRadius = cast(int)jsonFloat(object.get("customRadius", JSONValue(3)), "layer.customRadius");
+        layer.customRadius = ngNormalizeDepthImageCustomRadius(
+            cast(int)jsonFloat(object.get("customRadius", JSONValue(3)), "layer.customRadius"));
         layer.alphaThreshold = jsonFloat(object.get("alphaThreshold", JSONValue(0.01)), "layer.alphaThreshold");
         layer.cleanupOperations = cleanupOperationsFromJson(
             object.get("cleanupOperations", JSONValue.emptyArray), "layer.cleanupOperations");

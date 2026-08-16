@@ -358,8 +358,9 @@ CommandResult cmd(alias id, A...)(ref Context ctx, auto ref A args) {
     enforce(p !is null, "No registered command for id: " ~ id.stringof ~ " (key type: " ~ typeof(id).stringof ~ ")");
 
     Command base = *p;
-    if (!ngCommandAllowedInCurrentContext(base))
-        return CommandResult(false, "Command is not available in the current context");
+    if (!ngCommandAllowedInCurrentContext(base)) {
+        return CommandResult(false, "Command is not available in the current command scope");
+    }
 
     // 2) Resolve the concrete command type associated with this id at compile-time
     enum _idName  = __traits(identifier, id);   // e.g., "Add1DParameter"
@@ -377,5 +378,5 @@ CommandResult cmd(alias id, A...)(ref Context ctx, auto ref A args) {
     _applyArgs!(C, A)(inst, args);
 
     // 4) Run and return result
-    return inst.run(ctx);
+    return ngRunCommand(inst, ctx);
 }

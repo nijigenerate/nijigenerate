@@ -293,7 +293,7 @@ private:
         import nijigenerate.core.shortcut.base : ngBuildExecutionContext; // wrapper to build Context
         auto ctx = ngBuildExecutionContext();
         if (ngCommandAllowedInCurrentContext(c) && c.runnable(ctx)) {
-            auto res = c.run(ctx);
+            auto res = ngRunCommand(c, ctx);
             if (res.succeeded) {
                 paletteClose();
             }

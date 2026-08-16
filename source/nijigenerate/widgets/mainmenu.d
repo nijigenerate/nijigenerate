@@ -203,7 +203,7 @@ void incMainMenu() {
                         auto sc = ngShortcutFor(cmdInst);
                         const(char)* pShortcut = sc.length ? sc.toStringz : null;
                         if (igMenuItem(lbl.toStringz, pShortcut, panel.visible, enabled)) {
-                            cmdInst.run(ctx);
+                            ngRunCommand(cmdInst, ctx);
                         }
                         if (!enabled) {
                             incTooltip(_("Panel is not visible in current edit mode."));

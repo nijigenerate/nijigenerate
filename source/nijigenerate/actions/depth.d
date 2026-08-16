@@ -144,3 +144,17 @@ public:
     override bool merge(Action other) { return false; }
     override bool canMerge(Action other) { return false; }
 }
+
+DepthOperationMappedChangeAction ngClearDepthOperationsChangeAction(Node node) {
+    auto depthOperated = cast(DepthOperationMappedNode)node;
+    if (depthOperated is null) return null;
+    if (depthOperated.copyDepthOps().length == 0 &&
+        depthOperated.copyDepthOpBaseDepths().length == 0) return null;
+
+    auto action = new DepthOperationMappedChangeAction(node);
+    depthOperated.replaceDepthOps(null);
+    depthOperated.replaceDepthOpBaseDepths(null);
+    node.notifyChange(node, NotifyReason.AttributeChanged);
+    action.updateNewState();
+    return action;
+}

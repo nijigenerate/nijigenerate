@@ -82,9 +82,7 @@ private JSONValue _mcpUnwrapDirectToolResult(JSONValue resultJson) {
 }
 
 private CommandResult _mcpRunCommandInstance(C)(C inst, Context ctx, string toolName) if (is(C : Command)) {
-    if (!ngCommandAllowedInCurrentContext(inst))
-        return CommandResult(false, "Command is not available in the current context");
-    return inst.run(ctx);
+    return ngRunCommand(inst, ctx);
 }
 
 private bool _mcpNeedsActionScopeForCurrentMode(string toolName) {

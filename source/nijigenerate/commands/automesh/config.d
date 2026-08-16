@@ -670,6 +670,6 @@ class AutoMeshApplyActiveCommand : ExCommand!() {
         if (p is null) return CommandResult(false, "No active AutoMesh processor");
         auto cmd = ensureApplyAutoMeshCommand(p.procId());
         if (cmd is null) return CommandResult(false, "Apply command missing");
-        return cmd.run(ctx);
+        return ngRunCommand(cmd, ctx);
     }
 }
