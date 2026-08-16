@@ -124,8 +124,8 @@ struct DepthDrawGpuLayerSampleUpload {
     float[] documentPositions;
     float[] layer;
     float[] binding;
-    float[] depthPixels;
-    float[] normalCoveragePixels;
+    const(ubyte)[] depthPixels;
+    const(ubyte)[] normalCoveragePixels;
 }
 
 struct DepthDrawGpuLayerReadback {
@@ -183,9 +183,9 @@ DepthDrawGpuLayerSampleUpload ngBuildDepthDrawGpuLayerSampleUpload(
     upload.documentPositions = ngFlattenDepthDrawGpuDocumentPositions(packet.documentPositions);
     upload.layer = ngFlattenDepthDrawGpuLayers([packet.layer]);
     upload.binding = ngFlattenDepthDrawGpuBindings([packet.binding]);
-    upload.depthPixels = ngFlattenDepthDrawGpuRgbaBytes(packet.depthPixels);
+    upload.depthPixels = packet.depthPixels;
     if (packet.normalCoveragePixels.length > 0) {
-        upload.normalCoveragePixels = ngFlattenDepthDrawGpuRgbaBytes(packet.normalCoveragePixels);
+        upload.normalCoveragePixels = packet.normalCoveragePixels;
     }
     return upload;
 }
@@ -197,15 +197,6 @@ float[] ngFlattenDepthDrawGpuDocumentPositions(const(vec2)[] documentPositions) 
         auto base = i * DepthDrawGpuDocumentPositionStride;
         values[base] = point.x;
         values[base + 1] = point.y;
-    }
-    return values;
-}
-
-float[] ngFlattenDepthDrawGpuRgbaBytes(const(ubyte)[] pixels) {
-    float[] values;
-    values.length = pixels.length;
-    foreach (i, value; pixels) {
-        values[i] = cast(float)value;
     }
     return values;
 }
@@ -336,8 +327,8 @@ out float outDepth;
 
 uniform samplerBuffer layerData;
 uniform samplerBuffer bindingData;
-uniform samplerBuffer depthPixels;
-uniform samplerBuffer normalCoveragePixels;
+uniform usamplerBuffer depthPixels;
+uniform usamplerBuffer normalCoveragePixels;
 
 float layerValue(uint index) {
     return texelFetch(layerData, int(index)).r;
@@ -348,11 +339,11 @@ float bindingValue(uint index) {
 }
 
 float depthPixelValue(uint index) {
-    return texelFetch(depthPixels, int(index)).r;
+    return float(texelFetch(depthPixels, int(index)).r);
 }
 
 float coveragePixelValue(uint index) {
-    return texelFetch(normalCoveragePixels, int(index)).r;
+    return float(texelFetch(normalCoveragePixels, int(index)).r);
 }
 
 float depth01(uint base, uint channel, bool invert) {
@@ -446,9 +437,13 @@ bool samplePixel(
     if (!(alpha > threshold)) return false;
     float rawDepth = mix(layerValue(LAYER_BACK_DEPTH), layerValue(LAYER_FRONT_DEPTH), depth01(base, channel, invert));
     rawDepth *= layerValue(LAYER_SAMPLE_DEPTH_SCALE);
-    sampledDepth = rawDepth * layerValue(LAYER_Z_SCALE) + layerValue(LAYER_Z_OFFSET);
+    sampledDepth = rawDepth;
     sampledWeight = alpha;
     return true;
+}
+
+float applyZTransform(float sampledDepth) {
+    return sampledDepth * layerValue(LAYER_Z_SCALE) + layerValue(LAYER_Z_OFFSET);
 }
 
 void main() {
@@ -485,7 +480,7 @@ void main() {
             return;
         }
         outValid = 1.0;
-        outDepth = sampleDepth;
+        outDepth = applyZTransform(sampleDepth);
         return;
     }
 
@@ -540,11 +535,12 @@ void main() {
             }
         }
         outValid = 1.0;
-        outDepth = medianValues[medianCount / 2];
+        outDepth = applyZTransform(medianValues[medianCount / 2]);
         return;
     }
     outValid = 1.0;
-    outDepth = convolutionUsesWeighted(convolution) ? (weightedTotal / weightTotal) : extremeDepth;
+    outDepth = applyZTransform(
+        convolutionUsesWeighted(convolution) ? (weightedTotal / weightTotal) : extremeDepth);
 }
 GLSL";
 }
@@ -724,6 +720,14 @@ private void createDepthDrawGpuTextureBuffer(ref GLuint buffer, ref GLuint textu
     glBindTexture(GL_TEXTURE_BUFFER, 0);
 }
 
+private void createDepthDrawGpuByteTextureBuffer(ref GLuint buffer, ref GLuint texture, const(ubyte)[] data) {
+    buffer = createDepthDrawGpuBuffer(GL_TEXTURE_BUFFER, cast(const(void)[])data);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_BUFFER, texture);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, buffer);
+    glBindTexture(GL_TEXTURE_BUFFER, 0);
+}
+
 private void deleteDepthDrawLayerSampleJobResources(ref PendingDepthDrawLayerSampleJob job) {
     if (job.fence !is null && glDeleteSync !is null) {
         glDeleteSync(job.fence);
@@ -839,9 +843,12 @@ bool ngSubmitDepthDrawGpuLayerSample(
         job.documentPositionsBuffer = createDepthDrawGpuBuffer(GL_ARRAY_BUFFER, cast(const(void)[])upload.documentPositions);
         createDepthDrawGpuTextureBuffer(job.layerBuffer, job.layerTexture, upload.layer);
         createDepthDrawGpuTextureBuffer(job.bindingBuffer, job.bindingTexture, upload.binding);
-        createDepthDrawGpuTextureBuffer(job.depthPixelsBuffer, job.depthPixelsTexture, upload.depthPixels);
-        auto coveragePixels = upload.normalCoveragePixels.length > 0 ? upload.normalCoveragePixels : [0.0f, 0.0f, 0.0f, 0.0f];
-        createDepthDrawGpuTextureBuffer(job.normalCoveragePixelsBuffer, job.normalCoveragePixelsTexture, coveragePixels);
+        createDepthDrawGpuByteTextureBuffer(job.depthPixelsBuffer, job.depthPixelsTexture, upload.depthPixels);
+        ubyte[4] emptyCoverage;
+        auto coveragePixels = upload.normalCoveragePixels.length > 0
+            ? upload.normalCoveragePixels : emptyCoverage[];
+        createDepthDrawGpuByteTextureBuffer(
+            job.normalCoveragePixelsBuffer, job.normalCoveragePixelsTexture, coveragePixels);
 
         auto count = packet.documentPositions.length;
         auto laneBytes = cast(GLsizeiptr)(count * float.sizeof);

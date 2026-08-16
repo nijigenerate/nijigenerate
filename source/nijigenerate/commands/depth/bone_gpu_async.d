@@ -14,7 +14,7 @@ private enum GLenum NG_GL_TEXTURE_BUFFER_BINDING = 0x8C2A;
 
 enum NgDepthBoneGpuAsyncMaxBones = 64u;
 enum NgDepthBoneGpuAsyncMaxSources = 128u;
-enum NgDepthBoneGpuAsyncMaxInfluences = 8u;
+enum NgDepthBoneGpuAsyncMaxInfluences = 16u;
 enum NgDepthBoneGpuAsyncMaxVertices = 1_000_000u;
 enum NgDepthBoneGpuAsyncBoneStride = 24u;
 enum NgDepthBoneGpuAsyncSourceStride = 28u;
@@ -127,7 +127,7 @@ private __gshared PendingDepthBoneGpuJob[] pendingJobs;
 private enum string VertexSource = q"GLSL
 #version 330
 
-#define MAX_INFLUENCES 8u
+#define MAX_INFLUENCES 16u
 #define BONE_STRIDE 24u
 #define SOURCE_STRIDE 28u
 
@@ -212,11 +212,11 @@ float distanceSqPointSegment(vec3 p, vec3 a, vec3 b) {
 }
 
 void insertInfluence(
-    inout float scores[8],
-    inout float distances[8],
-    inout uint boneIndices[8],
-    inout uint sourceIndices[8],
-    inout vec3 rests[8],
+    inout float scores[16],
+    inout float distances[16],
+    inout uint boneIndices[16],
+    inout uint sourceIndices[16],
+    inout vec3 rests[16],
     inout uint count,
     float score,
     float distanceSq,
@@ -255,11 +255,11 @@ void main() {
     float y = inY;
     float z = inDepth;
 
-    float scores[8];
-    float distances[8];
-    uint boneIndices[8];
-    uint sourceIndices[8];
-    vec3 rests[8];
+    float scores[16];
+    float distances[16];
+    uint boneIndices[16];
+    uint sourceIndices[16];
+    vec3 rests[16];
     uint influenceCount = 0u;
 
     int lockedTerminal = -1;

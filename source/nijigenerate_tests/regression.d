@@ -148,7 +148,7 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
     ngDepthDrawGpuLayerSampleSupported, ngDepthDrawGpuLayerSampleSupportDiagnostic,
     ngDepthDrawGpuLayerSampleSupportsConvolution,
     ngDepthDrawGpuMissingRequirements, ngDepthDrawGpuSupported,
-    ngFlattenDepthDrawGpuDocumentPositions, ngFlattenDepthDrawGpuRgbaBytes,
+    ngFlattenDepthDrawGpuDocumentPositions,
     ngDepthDrawGpuSupportDiagnostic, ngFlattenDepthDrawGpuBindings,
     ngFlattenDepthDrawGpuLayers, ngPendingDepthDrawGpuComposeJobCount,
     ngPendingDepthDrawGpuLayerSampleJobCount,
@@ -4479,6 +4479,18 @@ private void testAllPsdDepthDialogCommands() {
         () => near(dialog.captureDialogSettingsState().settings.alphaThreshold, 0.25f),
         () => near(dialog.captureDialogSettingsState().settings.alphaThreshold, 0.01f),
         "SetPsdDepthDialogAlphaThreshold");
+    auto historyBeforeInvalidSamplingSettings = incActionHistory().length;
+    auto invalidDepthScale = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogDepthScale)(ctx, -0.1f);
+    auto invalidCustomRadius = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogCustomRadius)(ctx, 65);
+    auto invalidAlphaThreshold = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogAlphaThreshold)(ctx, 1.1f);
+    auto settingsAfterInvalidSampling = dialog.captureDialogSettingsState().settings;
+    require(!invalidDepthScale.succeeded && !invalidCustomRadius.succeeded &&
+        !invalidAlphaThreshold.succeeded &&
+        near(settingsAfterInvalidSampling.depthScale, 2.0f) &&
+        settingsAfterInvalidSampling.customRadius == 5 &&
+        near(settingsAfterInvalidSampling.alphaThreshold, 0.25f) &&
+        incActionHistory().length == historyBeforeInvalidSamplingSettings,
+        "invalid PSD sampling settings must be rejected before changing dialog state or history");
     requirePsdDepthDialogCommandRoundTrip(
         ctx,
         cmd!(PsdDepthDialogCommand.SetPsdDepthDialogMissingPolicy)(ctx, PsdDepthMissingPolicy.SetZero),
@@ -9005,7 +9017,6 @@ private void testDepthDrawComposerContracts() {
         "DepthDraw GPU layer sample packet should slice one layer into zero-offset shader inputs");
     ngValidateDepthDrawGpuLayerSamplePacket(frontSamplePacket);
     auto flatSamplePositions = ngFlattenDepthDrawGpuDocumentPositions(frontSamplePacket.documentPositions);
-    auto flatSampleDepthPixels = ngFlattenDepthDrawGpuRgbaBytes(frontSamplePacket.depthPixels);
     auto sampleUpload = ngBuildDepthDrawGpuLayerSampleUpload(frontSamplePacket);
     require(flatSamplePositions.length == frontSamplePacket.documentPositions.length * DepthDrawGpuDocumentPositionStride &&
         near(flatSamplePositions[0], frontSamplePacket.documentPositions[0].x) &&
@@ -9013,20 +9024,27 @@ private void testDepthDrawComposerContracts() {
         near(flatSamplePositions[2], frontSamplePacket.documentPositions[1].x) &&
         near(flatSamplePositions[3], frontSamplePacket.documentPositions[1].y),
         "DepthDraw GPU document-position upload buffer should expose xy pairs in vertex order");
-    require(flatSampleDepthPixels.length == frontLayer.depthPixels.length &&
-        flatSampleDepthPixels.length % DepthDrawGpuRgbaPixelStride == 0 &&
-        near(flatSampleDepthPixels[0], cast(float)frontLayer.depthPixels[0]) &&
-        near(flatSampleDepthPixels[$ - 1], cast(float)frontLayer.depthPixels[$ - 1]),
-        "DepthDraw GPU RGBA upload buffer should preserve layer pixel bytes as shader-readable floats");
     require(sampleUpload.documentPositions == flatSamplePositions &&
-        sampleUpload.depthPixels == flatSampleDepthPixels &&
+        sampleUpload.depthPixels == frontSamplePacket.depthPixels &&
+        sampleUpload.depthPixels.ptr == frontSamplePacket.depthPixels.ptr &&
         sampleUpload.normalCoveragePixels.length == frontLayer.normalCoverage.length &&
+        sampleUpload.normalCoveragePixels.ptr == frontSamplePacket.normalCoveragePixels.ptr &&
         sampleUpload.layer.length == DepthDrawGpuLayerStride &&
         sampleUpload.binding.length == DepthDrawGpuBindingStride &&
         near(sampleUpload.layer[DepthDrawGpuLayerField.DepthPixelOffset], 0.0f) &&
         near(sampleUpload.layer[DepthDrawGpuLayerField.NormalCoverageOffset], 0.0f) &&
         near(sampleUpload.binding[DepthDrawGpuBindingField.LayerIndex], 0.0f),
-        "DepthDraw GPU layer sample upload should flatten all single-layer shader inputs with zero offsets");
+        "DepthDraw GPU layer sample upload should retain compact byte pixels without staging copies");
+    auto gpuLayerSampleSource = readText(buildPath(
+        "source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"));
+    require(gpuLayerSampleSource.canFind("uniform usamplerBuffer depthPixels;") &&
+        gpuLayerSampleSource.canFind("glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, buffer);") &&
+        !gpuLayerSampleSource.canFind("ngFlattenDepthDrawGpuRgbaBytes"),
+        "DepthDraw GPU layer sampling must upload compact RGBA bytes instead of float-expanded staging arrays");
+    require(gpuLayerSampleSource.canFind("sampledDepth = rawDepth;") &&
+        gpuLayerSampleSource.canFind("outDepth = applyZTransform(sampleDepth);") &&
+        gpuLayerSampleSource.canFind("outDepth = applyZTransform(medianValues[medianCount / 2]);"),
+        "DepthDraw GPU sampling must apply layer Z transforms after convolution like the CPU composer");
     require(ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Nearest) &&
         ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Box3x3) &&
         ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)DepthImageConvolution.Gaussian5x5) &&
@@ -15431,6 +15449,14 @@ private void testDepthBoneGpuOffsetPacketConstruction() {
         "GPU stale-check inputs should include source rotation");
     require(near(packet.sourceInputs[6], 1.25f),
         "GPU packet should preserve the unscaled source depthOffset for stale checks");
+
+    root.bindings[0].influenceRule.maxInfluences = DepthBoneGpuMaxInfluences;
+    DepthBoneGpuOffsetPacket maximumInfluencePacket;
+    require(ngBuildDepthBoneGpuOffsetPacket(
+            root, &root.bindings[0], target, param, vec2u(1, 0), maximumInfluencePacket, error, true, true) &&
+        maximumInfluencePacket.maxInfluences == 16,
+        "GPU packet construction must accept the inspector's maximum influence count");
+    root.bindings[0].influenceRule.maxInfluences = 3;
 
     foreach (rotationCase; [
         [0.0f, 0.0f, 1.0f],

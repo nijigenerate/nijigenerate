@@ -730,6 +730,10 @@ protected:
 
     abstract void update(ref PsdDepthDialogSettingsState state);
 
+    string validate(ref PsdDepthDialogSettingsState state) {
+        return null;
+    }
+
 public:
     override bool runnable(Context ctx) {
         auto dialog = contextDialog(ctx);
@@ -742,6 +746,8 @@ public:
         auto oldState = dialog.captureDialogSettingsState();
         auto nextState = oldState;
         update(nextState);
+        auto validationError = validate(nextState);
+        if (validationError.length) return CommandResult(false, validationError);
         if (!dialog.applyDialogSettingsState(nextState)) return CommandResult(true);
         incActionPush(new PsdDepthDialogSettingsChangeAction(
             dialog, oldState, nextState, changeKey, changeLabel, mergeable));
@@ -783,10 +789,15 @@ class SetPsdDepthDialogFrontDepthCommand :
 
 @ShortcutHidden
 class SetPsdDepthDialogDepthScaleCommand :
-    PsdDepthDialogSettingsValueCommand!(float, "Multiplier applied to imported depth values") {
+    PsdDepthDialogSettingsValueCommand!(float, "Finite non-negative multiplier applied to imported depth values") {
     this() { super(_("Set PSD Depth Scale"), _("Set the global depth scale in the displayed PSD depth dialog."),
         "depth-scale", _("Changed PSD depth scale"), true); }
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.depthScale = value; }
+    override string validate(ref PsdDepthDialogSettingsState state) {
+        import std.math : isFinite;
+        return state.settings.depthScale.isFinite && state.settings.depthScale >= 0.0f
+            ? null : "PSD depth scale must be finite and non-negative";
+    }
 }
 
 @ShortcutHidden
@@ -807,18 +818,28 @@ class SetPsdDepthDialogSamplingCommand :
 
 @ShortcutHidden
 class SetPsdDepthDialogCustomRadiusCommand :
-    PsdDepthDialogSettingsValueCommand!(int, "Radius used by custom sampling filters") {
+    PsdDepthDialogSettingsValueCommand!(int, "Radius used by custom sampling filters in [1, 64]") {
     this() { super(_("Set PSD Sampling Radius"), _("Set the custom sampling radius in the displayed PSD depth dialog."),
         "custom-radius", _("Changed PSD depth sampling radius"), true); }
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.customRadius = value; }
+    override string validate(ref PsdDepthDialogSettingsState state) {
+        return state.settings.customRadius >= 1 && state.settings.customRadius <= 64
+            ? null : "PSD custom sampling radius must be in [1, 64]";
+    }
 }
 
 @ShortcutHidden
 class SetPsdDepthDialogAlphaThresholdCommand :
-    PsdDepthDialogSettingsValueCommand!(float, "Minimum alpha accepted as a valid depth sample") {
+    PsdDepthDialogSettingsValueCommand!(float, "Finite minimum alpha accepted as a valid depth sample in [0, 1]") {
     this() { super(_("Set PSD Alpha Threshold"), _("Set the alpha threshold in the displayed PSD depth dialog."),
         "alpha-threshold", _("Changed PSD depth alpha threshold"), true); }
     override void update(ref PsdDepthDialogSettingsState state) { state.settings.alphaThreshold = value; }
+    override string validate(ref PsdDepthDialogSettingsState state) {
+        import std.math : isFinite;
+        return state.settings.alphaThreshold.isFinite &&
+            state.settings.alphaThreshold >= 0.0f && state.settings.alphaThreshold <= 1.0f
+            ? null : "PSD alpha threshold must be finite and in [0, 1]";
+    }
 }
 
 @ShortcutHidden

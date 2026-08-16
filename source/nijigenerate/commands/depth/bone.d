@@ -57,7 +57,7 @@ enum DepthBoneGpuSourcePoseYawIndex = 11u;
 enum DepthBoneGpuSourceNoYawSkinMatrixIndex = 12u;
 enum DepthBoneGpuMaxBones = 64u;
 enum DepthBoneGpuMaxSources = 128u;
-enum DepthBoneGpuMaxInfluences = 8u;
+enum DepthBoneGpuMaxInfluences = 16u;
 enum DepthBoneGpuMaxVertices = 1_000_000u;
 enum DepthBoneGpuMaxStaleRetries = 3u;
 
