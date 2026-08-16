@@ -220,6 +220,29 @@ struct ExDepthRigBinding {
     }
 }
 
+private ulong remapDepthRigUuid(ulong uuid, ulong[ulong] uuidMap) {
+    if (auto remapped = uuid in uuidMap) return *remapped;
+    return uuid;
+}
+
+private ExDepthRigBinding copyDepthRigBinding(
+    ref ExDepthRigBinding source,
+    ulong[ulong] uuidMap,
+) {
+    ExDepthRigBinding result = source;
+    result.targetUuid = remapDepthRigUuid(source.targetUuid, uuidMap);
+    result.sourceBoneUuids = source.sourceBoneUuids.dup;
+    foreach (ref uuid; result.sourceBoneUuids)
+        uuid = remapDepthRigUuid(uuid, uuidMap);
+    result.sourceSettings = source.sourceSettings.dup;
+    foreach (ref setting; result.sourceSettings)
+        setting.boneUuid = remapDepthRigUuid(setting.boneUuid, uuidMap);
+    result.influenceRule.multipliersByBoneUuid = null;
+    foreach (uuid, multiplier; source.influenceRule.multipliersByBoneUuid)
+        result.influenceRule.multipliersByBoneUuid[remapDepthRigUuid(uuid, uuidMap)] = multiplier;
+    return result;
+}
+
 @TypeId("DepthBone")
 class ExDepthBone : Node {
 public:
@@ -243,6 +266,24 @@ public:
     override
     string typeId() {
         return "DepthBone";
+    }
+
+    override
+    void copyFrom(Node src, bool clone = false, bool deepCopy = true) {
+        super.copyFrom(src, clone, deepCopy);
+        auto source = cast(ExDepthBone)src;
+        if (source is null) return;
+        boneId = source.boneId;
+        restHead = source.restHead;
+        restTail = source.restTail;
+        restRoll = source.restRoll;
+        constraintType = source.constraintType;
+        hingeAxis = source.hingeAxis;
+        lockRotation = source.lockRotation;
+        lockTranslation = source.lockTranslation;
+        allowParentToTargets = source.allowParentToTargets;
+        rotationLimits = source.rotationLimits.dup;
+        maxStepRadians = source.maxStepRadians;
     }
 
 protected:
@@ -330,6 +371,30 @@ public:
     override
     string typeId() {
         return "DepthRigRoot";
+    }
+
+    override
+    void copyFrom(Node src, bool clone = false, bool deepCopy = true) {
+        super.copyFrom(src, clone, deepCopy);
+        auto source = cast(ExDepthRigRoot)src;
+        if (source is null) return;
+
+        ulong[ulong] uuidMap;
+        if (!clone && deepCopy) {
+            void collectUuidMap(Node sourceNode, Node copiedNode) {
+                uuidMap[sourceNode.uuid] = copiedNode.uuid;
+                auto childCount = sourceNode.children.length < copiedNode.children.length
+                    ? sourceNode.children.length
+                    : copiedNode.children.length;
+                foreach (i; 0 .. childCount)
+                    collectUuidMap(sourceNode.children[i], copiedNode.children[i]);
+            }
+            collectUuidMap(source, this);
+        }
+
+        bindings.length = 0;
+        foreach (ref binding; source.bindings)
+            bindings ~= copyDepthRigBinding(binding, uuidMap);
     }
 
     ExDepthBone[] depthBones() {

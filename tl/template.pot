@@ -2728,6 +2728,10 @@ msgstr ""
 msgid "Unnamed "
 msgstr ""
 
+#: source/nijigenerate/actions/node.d:1151
+msgid "Remove deleted Depth Rig bindings"
+msgstr ""
+
 #: source/nijigenerate/actions/node.d:1378
 #: source/nijigenerate/actions/node.d:1386
 #, c-format, d-format

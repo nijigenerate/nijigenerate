@@ -17169,6 +17169,7 @@ private void testDepthBoneSerializationRoundTrip() {
     root.bindings[0].influenceRule.radiusScale = 1.5f;
     root.bindings[0].influenceRule.minimumRadius = 12.0f;
     root.bindings[0].influenceRule.falloff = "linear";
+    root.bindings[0].influenceRule.multipliersByBoneUuid[bone.uuid] = 0.4f;
     ExDepthBoneSourceSettings setting;
     setting.boneUuid = bone.uuid;
     setting.weight = 0.25f;
@@ -17176,6 +17177,32 @@ private void testDepthBoneSerializationRoundTrip() {
     setting.depthScale = 2.0f;
     setting.rotation = -0.625f;
     root.bindings[0].setSourceSetting(setting);
+
+    auto copiedRoot = cast(ExDepthRigRoot)root.dup();
+    require(copiedRoot !is null && copiedRoot.uuid != root.uuid && copiedRoot.children.length == 1,
+        "duplicating a DepthRigRoot must create a distinct root and child hierarchy");
+    auto copiedBone = cast(ExDepthBone)copiedRoot.children[0];
+    require(copiedBone !is null && copiedBone.uuid != bone.uuid &&
+        copiedBone.boneId == bone.boneId && copiedBone.restHead == bone.restHead &&
+        copiedBone.restTail == bone.restTail && near(copiedBone.restRoll, bone.restRoll) &&
+        copiedBone.constraintType == bone.constraintType && copiedBone.hingeAxis == bone.hingeAxis &&
+        copiedBone.lockRotation == bone.lockRotation && copiedBone.lockTranslation == bone.lockTranslation &&
+        copiedBone.allowParentToTargets == bone.allowParentToTargets &&
+        copiedBone.rotationLimits == bone.rotationLimits && near(copiedBone.maxStepRadians, bone.maxStepRadians),
+        "duplicating a DepthBone must preserve all extension state");
+    require(copiedRoot.bindings.length == 1 &&
+        copiedRoot.bindings[0].targetUuid == target.uuid &&
+        copiedRoot.bindings[0].sourceBoneUuids == [cast(ulong)copiedBone.uuid] &&
+        copiedRoot.bindings[0].sourceSettings[0].boneUuid == copiedBone.uuid &&
+        (copiedBone.uuid in copiedRoot.bindings[0].influenceRule.multipliersByBoneUuid) !is null,
+        "duplicating a DepthRigRoot must preserve external targets and remap copied bone references");
+    copiedBone.rotationLimits[0] = -9.0f;
+    copiedRoot.bindings[0].sourceSettings[0].weight = 0.9f;
+    copiedRoot.bindings[0].influenceRule.multipliersByBoneUuid[copiedBone.uuid] = 0.9f;
+    require(near(bone.rotationLimits[0], -0.75f) &&
+        near(root.bindings[0].sourceSettings[0].weight, 0.25f) &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[bone.uuid], 0.4f),
+        "duplicated DepthRig state must not alias nested source arrays or influence maps");
 
     incActivePuppet().root.build();
     auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthbone");
@@ -17220,7 +17247,9 @@ private void testDepthBoneDeleteCleanupUndoRedo() {
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "depth-root";
-    auto target = new GridDeformer(incActivePuppet().root);
+    auto targetParent = new Node(incActivePuppet().root);
+    targetParent.name = "target-parent";
+    auto target = new GridDeformer(targetParent);
     target.name = "target-grid";
     auto boneA = new ExDepthBone(root);
     boneA.name = "bone-a";
@@ -17249,6 +17278,23 @@ private void testDepthBoneDeleteCleanupUndoRedo() {
     incActionRedo();
     require(!isChildOf(root, boneA), "redo DeleteNodeCommand should detach depth bone again");
     require(root.bindings.length == 1 && root.bindings[0].sourceBoneUuids == [cast(ulong)boneB.uuid], "redo DeleteNodeCommand should clean stale source again");
+
+    incActionUndo();
+    require(isChildOf(root, boneA) && root.bindings[0].sourceBoneUuids.length == 2,
+        "undoing source cleanup must restore the complete binding before target deletion");
+    ctx.nodes = [targetParent];
+    require((new DeleteNodeCommand()).run(ctx).succeeded,
+        "DeleteNodeCommand should delete a subtree containing a DepthRig target");
+    require(!isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 0,
+        "deleting a target subtree must remove matching DepthRig bindings");
+
+    incActionUndo();
+    require(isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 1 &&
+        root.bindings[0].targetUuid == target.uuid && root.bindings[0].sourceBoneUuids.length == 2,
+        "undoing target deletion must restore both the subtree and its complete DepthRig binding");
+    incActionRedo();
+    require(!isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 0,
+        "redoing target deletion must detach the subtree and remove its DepthRig binding again");
 }
 
 private void testActionGroupUndoRedo() {

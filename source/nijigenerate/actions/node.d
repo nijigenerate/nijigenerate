@@ -1104,37 +1104,26 @@ GroupAction incDeleteWeldedLinksOfNode(Node n, GroupAction group = null) {
     return group;
 }
 
-GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
+GroupAction ngDeleteDepthRigReferencesOfNode(Node n, GroupAction group = null) {
     if (n is null || incActivePuppet() is null) return group;
 
-    ExDepthBone[] removedBones;
-    void collectRemovedBones(Node node) {
-        if (auto bone = cast(ExDepthBone)node) removedBones ~= bone;
-        foreach (child; node.children) collectRemovedBones(child);
-    }
-    collectRemovedBones(n);
-    if (removedBones.length == 0) return group;
-
     bool[ulong] removedUuids;
-    foreach (bone; removedBones) removedUuids[bone.uuid] = true;
-
-    ExDepthRigRoot[ulong] roots;
-    foreach (bone; removedBones) {
-        auto cursor = bone.parent;
-        while (cursor !is null) {
-            if (auto root = cast(ExDepthRigRoot)cursor) {
-                roots[root.uuid] = root;
-                break;
-            }
-            cursor = cursor.parent;
-        }
+    void collectRemovedUuids(Node node) {
+        removedUuids[node.uuid] = true;
+        foreach (child; node.children) collectRemovedUuids(child);
     }
+    collectRemovedUuids(n);
 
-    foreach (root; roots.byValue) {
+    foreach (root; incActivePuppet().findNodesType!ExDepthRigRoot(incActivePuppet().root)) {
+        if (root.uuid in removedUuids) continue;
         auto oldBindings = root.bindings.dup;
         ExDepthRigBinding[] newBindings;
         bool changed = false;
         foreach (binding; root.bindings) {
+            if (binding.targetUuid in removedUuids) {
+                changed = true;
+                continue;
+            }
             ulong[] kept;
             foreach (uuid; binding.sourceBoneUuids) {
                 if (uuid in removedUuids) {
@@ -1158,7 +1147,8 @@ GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
             root.bindings = newBindings;
             if (group is null)
                 group = new GroupAction();
-            group.addAction(new DepthBoneSourceListChangeAction("Remove deleted Depth Bone Sources", root, oldBindings, root.bindings));
+            group.addAction(new DepthBoneSourceListChangeAction(
+                _("Remove deleted Depth Rig bindings"), root, oldBindings, root.bindings));
         }
     }
 
@@ -1170,7 +1160,7 @@ GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
 void incDeleteChildWithHistory(Node n) {
     auto group = incDeleteMaskOfNode(n);
     group = incDeleteWeldedLinksOfNode(n, group);
-    group = ngDeleteDepthBoneSourcesOfNode(n, group);
+    group = ngDeleteDepthRigReferencesOfNode(n, group);
     if (group !is null) {
         group.addAction(new NodeMoveAction(
             [n],
@@ -1196,7 +1186,7 @@ void incDeleteChildrenWithHistory(Node[] ns) {
     foreach (n; ns) {
         group = incDeleteMaskOfNode(n, group);
         group = incDeleteWeldedLinksOfNode(n, group);
-        group = ngDeleteDepthBoneSourcesOfNode(n, group);
+        group = ngDeleteDepthRigReferencesOfNode(n, group);
     }
     if (group !is null) {
         // Push action to stack
