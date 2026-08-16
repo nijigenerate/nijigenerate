@@ -20,7 +20,8 @@ private bool reserveRectangle(
     ref ulong reservedBytes,
     bool reserveFeatherLine = false,
 ) {
-    if (width <= 0 || height <= 0 || bytesPerPixel == 0) return false;
+    if (width < 0 || height < 0 || bytesPerPixel == 0) return false;
+    if (width == 0 || height == 0) return true;
     auto unsignedWidth = cast(ulong)width;
     auto unsignedHeight = cast(ulong)height;
     if (unsignedWidth > ulong.max / unsignedHeight) return false;

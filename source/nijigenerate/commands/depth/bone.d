@@ -3722,10 +3722,10 @@ private void applyRuleJson(ref ExDepthInfluenceRule rule, string text) {
 
 private void applySourceSettingsJson(ref ExDepthBoneSourceSettings setting, string text) {
     auto json = parseJSON(text);
-    if ("weight" in json.object) setting.weight = jsonNumber(json["weight"], setting.weight);
-    if ("depthOffset" in json.object) setting.depthOffset = jsonNumber(json["depthOffset"], setting.depthOffset);
-    if ("depthScale" in json.object) setting.depthScale = jsonNumber(json["depthScale"], setting.depthScale);
-    if ("rotation" in json.object) setting.rotation = jsonNumber(json["rotation"], setting.rotation);
+    if ("weight" in json.object) setting.weight = strictJsonNumber(json["weight"], "weight");
+    if ("depthOffset" in json.object) setting.depthOffset = strictJsonNumber(json["depthOffset"], "depthOffset");
+    if ("depthScale" in json.object) setting.depthScale = strictJsonNumber(json["depthScale"], "depthScale");
+    if ("rotation" in json.object) setting.rotation = strictJsonNumber(json["rotation"], "rotation");
     if (!setting.weight.isFinite) setting.weight = 1.0f;
     if (!setting.depthOffset.isFinite) setting.depthOffset = 0.0f;
     if (!setting.depthScale.isFinite) setting.depthScale = 1.0f;

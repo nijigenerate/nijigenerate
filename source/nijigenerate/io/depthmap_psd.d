@@ -107,7 +107,8 @@ bool ngReservePsdDepthRetainedLayer(
 }
 
 bool ngPsdDepthLayerHasPixelData(ref Layer layer) {
-    return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0;
+    return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0 &&
+        layer.width > 0 && layer.height > 0;
 }
 
 private string uniquePsdLayerPath(string path, ref size_t[string] occurrences) {
@@ -703,15 +704,17 @@ bool ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(
     return true;
 }
 
-bool ngPsdDepthResolvedPixelAt(
+private bool resolvedPixelAt(
     ref PsdDepthImportResult imported,
     size_t layerIndex,
     int documentX,
     int documentY,
     out ptrdiff_t sourceLayerIndex,
+    out size_t sourceRgbaIndex,
     out ubyte[4] pixel
 ) {
     sourceLayerIndex = -1;
+    sourceRgbaIndex = 0;
     pixel[] = 0;
     if (layerIndex >= imported.composedLayers.length) return false;
     auto layer = &imported.composedLayers[layerIndex];
@@ -721,6 +724,7 @@ bool ngPsdDepthResolvedPixelAt(
         if (!ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(*layer, documentX, documentY, rgbaIndex) ||
             rgbaIndex + 3 >= layer.depthRgba.length || layer.depthRgba[rgbaIndex + 3] == 0) return false;
         sourceLayerIndex = cast(ptrdiff_t)layerIndex;
+        sourceRgbaIndex = rgbaIndex;
         pixel[] = layer.depthRgba[rgbaIndex .. rgbaIndex + 4];
         return true;
     }
@@ -735,12 +739,26 @@ bool ngPsdDepthResolvedPixelAt(
         if (!ngPsdDepthComposedLayerSurfaceCoversDocumentPixel(*candidate, documentX, documentY, rgbaIndex)) continue;
         sourceLayerIndex = cast(ptrdiff_t)candidateIndex;
         if (rgbaIndex + 3 < candidate.depthRgba.length && candidate.depthRgba[rgbaIndex + 3] != 0) {
+            sourceRgbaIndex = rgbaIndex;
             pixel[] = candidate.depthRgba[rgbaIndex .. rgbaIndex + 4];
             return true;
         }
         sourceLayerIndex = -1;
     }
     return false;
+}
+
+bool ngPsdDepthResolvedPixelAt(
+    ref PsdDepthImportResult imported,
+    size_t layerIndex,
+    int documentX,
+    int documentY,
+    out ptrdiff_t sourceLayerIndex,
+    out ubyte[4] pixel
+) {
+    size_t sourceRgbaIndex;
+    return resolvedPixelAt(imported, layerIndex, documentX, documentY,
+        sourceLayerIndex, sourceRgbaIndex, pixel);
 }
 
 ptrdiff_t ngPsdDepthResolvedLayerIndexAt(
@@ -750,11 +768,10 @@ ptrdiff_t ngPsdDepthResolvedLayerIndexAt(
     int documentY,
     out size_t rgbaIndex
 ) {
-    rgbaIndex = 0;
     ptrdiff_t sourceLayerIndex;
     ubyte[4] pixel;
-    return ngPsdDepthResolvedPixelAt(
-        imported, layerIndex, documentX, documentY, sourceLayerIndex, pixel)
+    return resolvedPixelAt(
+        imported, layerIndex, documentX, documentY, sourceLayerIndex, rgbaIndex, pixel)
         ? sourceLayerIndex : -1;
 }
 

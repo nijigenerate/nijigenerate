@@ -1010,12 +1010,18 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
 
     Layer pixelLayer;
     pixelLayer.type = LayerType.Any;
+    pixelLayer.right = 1;
+    pixelLayer.bottom = 1;
     Layer pixelIrrelevantLayer = pixelLayer;
     pixelIrrelevantLayer.flags = LayerFlags.PixelIrrel;
+    Layer zeroAreaPixelLayer = pixelLayer;
+    zeroAreaPixelLayer.right = 0;
     require(ngDepthDrawPsdLayerHasPixelData(pixelLayer) && ngPsdDepthLayerHasPixelData(pixelLayer) &&
         !ngDepthDrawPsdLayerHasPixelData(pixelIrrelevantLayer) &&
-        !ngPsdDepthLayerHasPixelData(pixelIrrelevantLayer),
-        "PSD depth loaders must reject adjustment and other pixel-data-irrelevant layer records");
+        !ngPsdDepthLayerHasPixelData(pixelIrrelevantLayer) &&
+        !ngDepthDrawPsdLayerHasPixelData(zeroAreaPixelLayer) &&
+        !ngPsdDepthLayerHasPixelData(zeroAreaPixelLayer),
+        "PSD depth loaders must skip pixel-data-irrelevant and zero-area layer records");
 
     Layer groupOpen;
     groupOpen.type = LayerType.OpenFolder;
@@ -5270,7 +5276,8 @@ private void testPsdDepthAdjustedValuesAreNotRenormalized() {
     attachedLayer.depthEnabled = false;
     imported.composedLayers = [bottomLayer, middleLayer, attachedLayer];
     size_t resolvedPixel;
-    require(ngPsdDepthResolvedLayerIndexAt(imported, 2, 700, 640, resolvedPixel) == 0,
+    require(ngPsdDepthResolvedLayerIndexAt(imported, 2, 700, 640, resolvedPixel) == 0 &&
+        resolvedPixel == 700UL * 4UL,
         "a depth-disabled layer must recursively resolve the nearest enabled depth below at the same document coordinate");
     PsdDepthGridResult attached;
     require(ngComposePsdDepthTarget(imported, gridResult, attached, error),
@@ -5656,6 +5663,14 @@ private void testPsdDepthMapImportHelpers() {
             PsdDepthRetainedDepthLayerBytesPerPixel, PsdDepthMaxRetainedBytes, maskedLayerBytes) &&
         maskedLayerBytes == 0,
         "PSD extraction budgeting must reject a document-sized mask before extracting a small layer");
+
+    Layer emptyLayer;
+    emptyLayer.bottom = 16;
+    ulong emptyLayerBytes = 123;
+    require(ngReservePsdLayerExtraction(emptyLayer,
+            PsdDepthRetainedDepthLayerBytesPerPixel, PsdDepthMaxRetainedBytes, emptyLayerBytes) &&
+        emptyLayerBytes == 123,
+        "PSD extraction budgeting should accept a zero-area layer without reserving memory");
 
     smallLayerWithLargeMask.layerMask[0].right = 16;
     smallLayerWithLargeMask.layerMask[0].bottom = 16;
@@ -18098,6 +18113,13 @@ private void testDepthBoneSourceSettingsActionMerge() {
     require(invalidSettings !is null && root.findBindingIndex(unboundTarget.uuid) < 0 &&
         incActionHistory().length == 0,
         "invalid source settings JSON must not create a binding or action before validation completes");
+    foreach (malformedRotation; [`{"rotation":true}`, `{"rotation":[]}`]) {
+        auto malformedRotationError = collectException(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+            ctx, root, unboundTarget, bone, malformedRotation));
+        require(malformedRotationError !is null && root.findBindingIndex(unboundTarget.uuid) < 0 &&
+            incActionHistory().length == 0,
+            "nonnumeric source rotation must be rejected before creating a binding or action");
+    }
 
     ngBeginDepthBoneSourceSettingsMerge(101, "weight");
     scope(exit) ngEndDepthBoneSourceSettingsMerge();
@@ -21089,7 +21111,7 @@ private bool isAllowedDirectMutation(string rel, string line) {
         "commands/depth/bone.d|root.name = name.length",
         "commands/depth/bone.d|deformable.deformation = generateInfluencePreviewOffsets",
         "commands/depth/bone.d|pivot.rotation = setting.rotation",
-        "commands/depth/bone.d|setting.rotation = jsonNumber",
+        "commands/depth/bone.d|setting.rotation = strictJsonNumber",
         "commands/depth/bone.d|setting.rotation = normalizeDepthBoneSourceRotation",
         "commands/node/base.d|newChild.localTransform.translation =",
         "commands/parameter/base.d|parent.children = parent.children.remove",

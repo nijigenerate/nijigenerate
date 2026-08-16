@@ -132,7 +132,8 @@ void ngDepthDrawApplyClippingBaseCoverage(
 }
 
 bool ngDepthDrawPsdLayerHasPixelData(ref Layer layer) {
-    return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0;
+    return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0 &&
+        layer.width > 0 && layer.height > 0;
 }
 
 DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
