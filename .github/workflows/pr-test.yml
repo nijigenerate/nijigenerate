@@ -52,7 +52,7 @@ jobs:
         dub build --compiler=ldc2 --build=release --config=linux-full
 
         # Build and run the DepthDraw regression gates for calculation-facing changes
-        dub build --compiler=ldc2 --config=regression-tests
+        dub build --compiler=ldc2 --config=linux-regression-tests
         out/nijigenerate-regression-tests --only project.depthdraw-compatibility
         out/nijigenerate-regression-tests --only project.depthdraw-data-model
         out/nijigenerate-regression-tests --only project.depthdraw-source-manifest
@@ -112,6 +112,9 @@ jobs:
             }
         }
         Invoke-VSDevEnvironment
+
+        # Generate version metadata and Windows resources required by the build.
+        dub build --config=meta
 
         # Compile-check live UI smoke entry points without running GUI computer-use scenarios.
         dub build --compiler=ldc2 --config=win32-regression-smoke
