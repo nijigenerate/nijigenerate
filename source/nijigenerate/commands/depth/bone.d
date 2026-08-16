@@ -3725,7 +3725,13 @@ class AddStandardDepthSkeletonCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
+        auto insertOffset = rigRoot.children.length;
         ngAddStandardDepthSkeleton(rigRoot, scale == 0 ? 1.0f : scale);
+        Node[] createdRoots;
+        foreach (child; rigRoot.children[insertOffset .. $]) createdRoots ~= child;
+        foreach (child; createdRoots) child.reparent(null, 0, true);
+        if (createdRoots.length > 0)
+            incActionPush(new NodeMoveAction(createdRoots, rigRoot, insertOffset));
         if (rigRoot.puppet) rigRoot.puppet.rescanNodes();
         rigRoot.notifyChange(rigRoot, NotifyReason.StructureChanged);
         return CommandResult(true);
@@ -4369,10 +4375,14 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
         auto rigRoot = requireRoot(root);
         auto source = requireBone(bone);
         auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
-        auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
-        auto setting = binding.sourceSetting(source.uuid);
+        auto targetKind = targetKindOf(target);
+        auto bindingIndex = rigRoot.findBindingIndex(target.uuid);
+        ExDepthBoneSourceSettings setting;
+        if (bindingIndex >= 0)
+            setting = rigRoot.bindings[cast(size_t)bindingIndex].sourceSetting(source.uuid);
         setting.boneUuid = source.uuid;
         applySourceSettingsJson(setting, settings);
+        auto binding = rigRoot.getOrCreateBinding(target, targetKind);
         binding.setSourceSetting(setting);
         depthBoneDebugLog("[DepthBoneRefresh] source settings command: root=%s target=%s bone=%s weight=%s depthOffset=%s depthScale=%s rotation=%s",
             rigRoot.name,

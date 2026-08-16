@@ -251,16 +251,19 @@ private DepthDrawLayerCleanupOperation[] cleanupOperationsFromJson(
             enforce(ruleValue.type == JSONType.object, ruleName ~ " must be an object");
             auto ruleObject = ruleValue.object;
             DepthDrawAlphaDepthFocusedRule rule;
+            auto maxX = layerWidth > 0 ? layerWidth : int.max;
+            auto maxY = layerHeight > 0 ? layerHeight : int.max;
             rule.layerIndex = jsonBoundedInt(
                 ruleObject.get("layerIndex", JSONValue(0)), ruleName ~ ".layerIndex", 0, int.max);
-            rule.x = jsonBoundedInt(ruleObject.get("x", JSONValue(0)), ruleName ~ ".x", 0, layerWidth);
-            rule.y = jsonBoundedInt(ruleObject.get("y", JSONValue(0)), ruleName ~ ".y", 0, layerHeight);
-            rule.w = jsonBoundedInt(ruleObject.get("w", JSONValue(0)), ruleName ~ ".w", 0, layerWidth);
-            rule.h = jsonBoundedInt(ruleObject.get("h", JSONValue(0)), ruleName ~ ".h", 0, layerHeight);
+            rule.x = jsonBoundedInt(ruleObject.get("x", JSONValue(0)), ruleName ~ ".x", 0, maxX);
+            rule.y = jsonBoundedInt(ruleObject.get("y", JSONValue(0)), ruleName ~ ".y", 0, maxY);
+            rule.w = jsonBoundedInt(ruleObject.get("w", JSONValue(0)), ruleName ~ ".w", 0, maxX);
+            rule.h = jsonBoundedInt(ruleObject.get("h", JSONValue(0)), ruleName ~ ".h", 0, maxY);
             rule.lift = jsonBoundedInt(ruleObject.get("lift", JSONValue(0)), ruleName ~ ".lift", 0, 255);
             rule.radius = jsonBoundedInt(ruleObject.get("radius", JSONValue(0)), ruleName ~ ".radius",
                 0, DepthDrawMaxFocusedRuleRadius);
-            rule = ngNormalizeDepthDrawFocusedRule(rule, layerWidth, layerHeight);
+            if (layerWidth > 0 && layerHeight > 0)
+                rule = ngNormalizeDepthDrawFocusedRule(rule, layerWidth, layerHeight);
             operation.focusedRules ~= rule;
         }
         result ~= operation;

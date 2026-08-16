@@ -560,6 +560,8 @@ bool ngCommandAllowedInCurrentContext(Command command) {
 CommandResult ngRunCommand(Command command, Context context) {
     if (!ngCommandAllowedInCurrentContext(command))
         return CommandResult(false, "Command is not available in the current context");
+    if (!command.runnable(context))
+        return CommandResult(false, "Command is not runnable in the current context");
     return command.run(context);
 }
 

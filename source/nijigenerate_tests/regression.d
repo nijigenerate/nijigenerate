@@ -1129,6 +1129,17 @@ private bool nearVec2(vec2 a, vec2 b) {
     return near(a.x, b.x) && near(a.y, b.y);
 }
 
+private class RegressionNonRunnableCommand : ExCommand!() {
+    bool didRun;
+
+    this() { super("Non-runnable", "Regression command which must not run"); }
+    override bool runnable(Context ctx) { return false; }
+    override CommandResult run(Context ctx) {
+        didRun = true;
+        return CommandResult(true);
+    }
+}
+
 private bool nearFloatArray(const(float)[] a, const(float)[] b) {
     if (a.length != b.length)
         return false;
@@ -3314,6 +3325,27 @@ private void testProjectINPExportPrunesDepthRigNodes() {
     auto bone = new ExDepthBone(root);
     bone.name = "depth-bone";
     bone.boneId = "Bone";
+    bone.localTransform.translation = vec3(20, -10, 0);
+    bone.localTransform.update();
+    bone.transformChanged();
+    auto preserved = new Node(bone);
+    preserved.name = "preserved-under-depth-rig";
+    preserved.localTransform.translation = vec3(5, 3, 0);
+    preserved.localTransform.update();
+    preserved.transformChanged();
+    auto preservedWorld = nodeRenderedWorldTranslation(preserved);
+    auto secondRoot = new ExDepthRigRoot(incActivePuppet().root);
+    secondRoot.name = "second-depth-root";
+    auto secondBone = new ExDepthBone(secondRoot);
+    secondBone.name = "second-depth-bone";
+    auto secondPreserved = new Node(secondBone);
+    secondPreserved.name = "second-preserved-under-depth-rig";
+    secondPreserved.localTransform.translation = vec3(-7, 4, 0);
+    secondPreserved.localTransform.update();
+    secondPreserved.transformChanged();
+    auto secondPreservedWorld = nodeRenderedWorldTranslation(secondPreserved);
+    auto trailing = new Node(incActivePuppet().root);
+    trailing.name = "trailing-normal-node";
 
     auto param = new ExParameter("ExportParam", false);
     incActivePuppet().parameters ~= param;
@@ -3321,11 +3353,40 @@ private void testProjectINPExportPrunesDepthRigNodes() {
     auto depthBinding = newValueBinding(param, bone, "transform.t.x");
     require(param.bindings.length == 2, "export fixture should contain normal and depth-bone bindings");
 
+    IncINPExportSettings exportSettings;
+    auto exported = incINPExportGenPuppet(incActivePuppet(), exportSettings);
+    auto exportedPreserved = findNodeRecursive(exported.root, preserved.name);
+    auto exportedSecondPreserved = findNodeRecursive(exported.root, secondPreserved.name);
+    auto exportedTrailing = findNodeRecursive(exported.root, trailing.name);
+    require(!treeContainsType!ExDepthRigRoot(exported.root) && !treeContainsType!ExDepthBone(exported.root) &&
+        exportedPreserved !is null && exportedPreserved.parent is exported.root &&
+        exportedSecondPreserved !is null && exportedSecondPreserved.parent is exported.root &&
+        exportedTrailing !is null && exportedTrailing.parent is exported.root &&
+        nearVec3(nodeRenderedWorldTranslation(exportedPreserved), preservedWorld) &&
+        nearVec3(nodeRenderedWorldTranslation(exportedSecondPreserved), secondPreservedWorld) &&
+        exportedPreserved.getIndexInParent() < exportedSecondPreserved.getIndexInParent() &&
+        exportedSecondPreserved.getIndexInParent() < exportedTrailing.getIndexInParent(),
+        "serialized INP export should omit only rig nodes and preserve their ordinary descendants");
+    require(preserved.parent is bone && secondPreserved.parent is secondBone &&
+        root.getIndexInParent() < secondRoot.getIndexInParent() &&
+        secondRoot.getIndexInParent() < trailing.getIndexInParent() &&
+        nearVec3(nodeRenderedWorldTranslation(preserved), preservedWorld) &&
+        nearVec3(nodeRenderedWorldTranslation(secondPreserved), secondPreservedWorld),
+        "temporary INP export pruning must restore the editable source hierarchy and transforms");
+
     ngINPExportPruneEditorOnlyNodes(incActivePuppet());
 
     require(!treeContainsType!ExDepthRigRoot(incActivePuppet().root), "INP export pruning should remove DepthRigRoot");
     require(!treeContainsType!ExDepthBone(incActivePuppet().root), "INP export pruning should remove DepthBone");
     require(incActivePuppet().find!Node(normal.uuid) !is null, "INP export pruning should preserve normal nodes");
+    require(incActivePuppet().find!Node(preserved.uuid) is preserved && preserved.parent is incActivePuppet().root &&
+        nearVec3(nodeRenderedWorldTranslation(preserved), preservedWorld),
+        "INP export pruning should promote ordinary descendants of editor-only rig nodes without moving them");
+    require(secondPreserved.parent is incActivePuppet().root &&
+        nearVec3(nodeRenderedWorldTranslation(secondPreserved), secondPreservedWorld) &&
+        preserved.getIndexInParent() < secondPreserved.getIndexInParent() &&
+        secondPreserved.getIndexInParent() < trailing.getIndexInParent(),
+        "INP export pruning should preserve descendant order across consecutive excluded rig roots");
     require(param.bindings.length == 1, "INP export pruning should drop bindings targeting excluded depth nodes");
     auto exportedBindingTarget = cast(Node)param.bindings[0].getTarget.target;
     require(exportedBindingTarget !is null && exportedBindingTarget.uuid == normal.uuid, "INP export pruning should preserve bindings targeting exported nodes");
@@ -7911,6 +7972,21 @@ private void testDepthDrawSourceManifestContracts() {
         boundedFocusedRule.w == 0 && boundedFocusedRule.h == layer.height &&
         boundedFocusedRule.lift == 255 && boundedFocusedRule.radius == DepthDrawMaxFocusedRuleRadius,
         "DepthDraw manifests must bound focused cleanup rectangles and radii before hydration replay");
+    focusedManifestLayer.width = 0;
+    focusedManifestLayer.height = 0;
+    focusedManifestRule.x = 1;
+    focusedManifestRule.y = 1;
+    focusedManifestRule.w = 2;
+    focusedManifestRule.h = 1;
+    focusedManifestRule.radius = 3;
+    focusedManifestOperation.focusedRules = [focusedManifestRule];
+    focusedManifestLayer.cleanupOperations = [focusedManifestOperation];
+    focusedManifestSession.layers = [focusedManifestLayer];
+    auto unresolvedSizeRule = ngDepthDrawSessionFromManifest(
+        ngDepthDrawSessionToManifest(focusedManifestSession)).layers[0].cleanupOperations[0].focusedRules[0];
+    require(unresolvedSizeRule.x == 1 && unresolvedSizeRule.y == 1 && unresolvedSizeRule.w == 2 &&
+        unresolvedSizeRule.h == 1 && unresolvedSizeRule.radius == 3,
+        "DepthDraw manifests must retain focused cleanup rules until omitted image dimensions are hydrated");
     require(restored.sourceIdentity == session.sourceIdentity,
         "DepthDraw manifest should preserve the actual source identity used for project persistence");
     auto restoredBinding = restored.bindings[0];
@@ -14506,19 +14582,37 @@ private void testDepthBoneSourceCommandsUndoRedo() {
     require(near(firstSetting.rotation, 0.5f) && near(secondSetting.rotation, -0.25f),
         "each target should keep an independent rotation for the same DepthBone");
 
+    auto retainedBone = new ExDepthBone(root);
+    retainedBone.name = "retained-depth-bone";
+    retainedBone.boneId = "RetainedBone";
+    require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, retainedBone).succeeded,
+        "the removal fixture should retain another source on the target");
+    auto targetBindingIndex = cast(size_t)root.findBindingIndex(target.uuid);
+    root.bindings[targetBindingIndex].influenceRule.multipliersByBoneUuid[bone.uuid] = 0.4f;
+    root.bindings[targetBindingIndex].influenceRule.multipliersByBoneUuid[retainedBone.uuid] = 0.8f;
+
     auto removeResult = cmd!(DepthBoneCommand.RemoveDepthBoneSource)(ctx, root, target, bone);
     require(removeResult.succeeded, "RemoveDepthBoneSource command should succeed");
-    require(root.bindings.length == 1 && root.findBindingIndex(target.uuid) < 0,
-        "RemoveDepthBoneSource should remove only the emptied target binding");
+    targetBindingIndex = cast(size_t)root.findBindingIndex(target.uuid);
+    require(root.bindings.length == 2 && root.bindings[targetBindingIndex].sourceBoneUuids ==
+        [cast(ulong)retainedBone.uuid] &&
+        (bone.uuid in root.bindings[targetBindingIndex].influenceRule.multipliersByBoneUuid) is null &&
+        near(root.bindings[targetBindingIndex].influenceRule.multipliersByBoneUuid[retainedBone.uuid], 0.8f),
+        "RemoveDepthBoneSource should remove the source and only its influence multiplier");
 
     incActionUndo();
     auto restoredIndex = root.findBindingIndex(target.uuid);
     require(root.bindings.length == 2 && restoredIndex >= 0 &&
-        root.bindings[cast(size_t)restoredIndex].sourceBoneUuids == [cast(ulong)bone.uuid],
-        "undo RemoveDepthBoneSource should restore binding");
+        root.bindings[cast(size_t)restoredIndex].sourceBoneUuids ==
+            [cast(ulong)bone.uuid, cast(ulong)retainedBone.uuid] &&
+        near(root.bindings[cast(size_t)restoredIndex].influenceRule.multipliersByBoneUuid[bone.uuid], 0.4f),
+        "undo RemoveDepthBoneSource should restore the source and its influence multiplier");
     incActionRedo();
-    require(root.bindings.length == 1 && root.findBindingIndex(target.uuid) < 0,
-        "redo RemoveDepthBoneSource should remove binding");
+    targetBindingIndex = cast(size_t)root.findBindingIndex(target.uuid);
+    require(root.bindings.length == 2 && targetBindingIndex < root.bindings.length &&
+        root.bindings[targetBindingIndex].sourceBoneUuids == [cast(ulong)retainedBone.uuid] &&
+        (bone.uuid in root.bindings[targetBindingIndex].influenceRule.multipliersByBoneUuid) is null,
+        "redo RemoveDepthBoneSource should remove the source multiplier again");
 }
 
 private void testDepthBoneSourceRefreshIgnoresPhysicsParameter() {
@@ -17176,9 +17270,18 @@ private void testDepthBoneCreationNotifiesResourceViews() {
         "AddDepthBone should notify resource views after insertion");
 
     structureNotified = false;
+    incActionClearHistory();
     auto standard = cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1000.0f);
     require(standard.succeeded && structureNotified,
         "AddStandardDepthSkeleton should notify resource views after insertion");
+    require(root.depthBones().length == 20 && incActionHistory().length == 1,
+        "AddStandardDepthSkeleton should create its hierarchy as one undoable action");
+    incActionUndo();
+    require(root.depthBones().length == 1,
+        "undo AddStandardDepthSkeleton should remove only the generated hierarchy");
+    incActionRedo();
+    require(root.depthBones().length == 20,
+        "redo AddStandardDepthSkeleton should restore the generated hierarchy");
 }
 
 private void testDepthBoneStandardParameterTemplate() {
@@ -17562,20 +17665,29 @@ private void testDepthBoneDeleteCleanupUndoRedo() {
     require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, boneA).succeeded, "adding first source should succeed");
     require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, boneB).succeeded, "adding second source should succeed");
     require(root.bindings.length == 1 && root.bindings[0].sourceBoneUuids.length == 2, "delete cleanup fixture should have two sources");
+    root.bindings[0].influenceRule.multipliersByBoneUuid[boneA.uuid] = 0.25f;
+    root.bindings[0].influenceRule.multipliersByBoneUuid[boneB.uuid] = 0.75f;
 
     ctx.nodes = [cast(Node)boneA];
     require((new DeleteNodeCommand()).run(ctx).succeeded, "DeleteNodeCommand should delete depth bone");
     require(!isChildOf(root, boneA), "DeleteNodeCommand should detach deleted depth bone");
     require(root.bindings.length == 1, "DeleteNodeCommand should keep binding when another source remains");
     require(root.bindings[0].sourceBoneUuids == [cast(ulong)boneB.uuid], "DeleteNodeCommand should remove only deleted bone source");
+    require((boneA.uuid in root.bindings[0].influenceRule.multipliersByBoneUuid) is null &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[boneB.uuid], 0.75f),
+        "DeleteNodeCommand should remove only the deleted source's influence multiplier");
 
     incActionUndo();
     require(isChildOf(root, boneA), "undo DeleteNodeCommand should restore deleted depth bone");
     require(root.bindings.length == 1 && root.bindings[0].sourceBoneUuids.length == 2, "undo DeleteNodeCommand should restore removed depth bone source");
+    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[boneA.uuid], 0.25f),
+        "undo DeleteNodeCommand should restore the deleted source's influence multiplier");
 
     incActionRedo();
     require(!isChildOf(root, boneA), "redo DeleteNodeCommand should detach depth bone again");
     require(root.bindings.length == 1 && root.bindings[0].sourceBoneUuids == [cast(ulong)boneB.uuid], "redo DeleteNodeCommand should clean stale source again");
+    require((boneA.uuid in root.bindings[0].influenceRule.multipliersByBoneUuid) is null,
+        "redo DeleteNodeCommand should remove the deleted source's influence multiplier again");
 
     incActionUndo();
     require(isChildOf(root, boneA) && root.bindings[0].sourceBoneUuids.length == 2,
@@ -17648,6 +17760,14 @@ private void testDepthBoneSourceSettingsActionMerge() {
     require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded,
         "source settings merge fixture should add a source");
     incActionClearHistory();
+
+    auto unboundTarget = new GridDeformer(incActivePuppet().root);
+    unboundTarget.name = "invalid-settings-unbound-grid";
+    auto invalidSettings = collectException(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx, root, unboundTarget, bone, `{invalid`));
+    require(invalidSettings !is null && root.findBindingIndex(unboundTarget.uuid) < 0 &&
+        incActionHistory().length == 0,
+        "invalid source settings JSON must not create a binding or action before validation completes");
 
     ngBeginDepthBoneSourceSettingsMerge(101, "weight");
     scope(exit) ngEndDepthBoneSourceSettingsMerge();
@@ -18985,10 +19105,27 @@ private void testActionStackScopeGuard() {
     require(ngActionStackLevel() == 1 && clearScope.isActive(),
         "current-level clear fixture should own a nested VertexEdit stack");
     incActionPushGroup();
+    auto discardedNode = new Node(incActivePuppet().root);
+    discardedNode.name = "before-clear";
+    discardedNode.name = "discarded-change";
+    incActionPush(new NodeValueChangeAction!(Node, string)(
+        "name", discardedNode, "before-clear", discardedNode.name, &discardedNode.name_));
     incActionClearHistory(ActionStackClear.CurrentLevel);
     require(clearScope.isActive() && ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit) &&
-        ngActionStackLevel() == 1 && ngActionStackGroupDepth() == 0 && incActionHistory().length == 0,
-        "clearing current history must keep its scope able to close and reset an open group");
+        ngActionStackLevel() == 1 && ngActionStackGroupDepth() == 1 && incActionHistory().length == 0,
+        "clearing current history must preserve ownership of an open asynchronous group");
+    auto postClearNode = new Node(incActivePuppet().root);
+    postClearNode.name = "before-post-clear";
+    postClearNode.name = "after-post-clear";
+    incActionPush(new NodeValueChangeAction!(Node, string)(
+        "name", postClearNode, "before-post-clear", postClearNode.name, &postClearNode.name_));
+    incActionPopGroup();
+    require(ngActionStackGroupDepth() == 0 && incActionHistory().length == 1,
+        "the original group owner must still close and retain only writeback performed after the clear");
+    incActionUndo();
+    require(postClearNode.name == "before-post-clear" && discardedNode.name == "discarded-change",
+        "undo after a current-level clear must affect only actions recorded after the clear");
+    incActionRedo();
     clearScope.close();
     require(!clearScope.isActive() && ngActionStackLevel() == 0 && incActionHistory().length == 1,
         "closing a cleared edit scope must restore the root action history");
@@ -19044,6 +19181,11 @@ private void testCommandBaseContracts() {
     require(arg.name == "Alice" && arg.arg1 == 7, "ExCommand should assign TW and positional argument fields");
     auto metas = RegressionArgCommand.reflectArgMeta();
     require(metas.length == 1 && metas[0].fieldName == "name" && metas[0].fieldDesc == "Name", "ExCommand should reflect TW argument metadata");
+
+    auto nonRunnable = new RegressionNonRunnableCommand();
+    auto rejected = ngRunCommand(nonRunnable, ctx);
+    require(!rejected.succeeded && !nonRunnable.didRun,
+        "the central command dispatcher must reject a command whose current context is not runnable");
 }
 
 private void testPlatformVersionMetadata() {

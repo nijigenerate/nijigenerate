@@ -332,8 +332,11 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
     case ActionStackClear.CurrentLevel:
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
-        currentGroup[currentLevel] = null;
-        groupCount[currentLevel] = 0;
+        // Keep the ownership of an open group. Its owner may be an asynchronous
+        // operation which must still be able to close the group after history is
+        // cleared. Discard the actions accumulated so far, and collect any later
+        // writeback into a fresh group.
+        currentGroup[currentLevel] = groupCount[currentLevel] > 0 ? new GroupAction() : null;
         break;
     default:
     }
@@ -351,6 +354,7 @@ void incActionPushGroup() {
 }
 
 void incActionPopGroup() {
+    if (groupCount[currentLevel] <= 0) return;
     groupCount[currentLevel] -= 1;
     if (groupCount[currentLevel] == 0 && currentGroup[currentLevel]) {
         auto group = currentGroup[currentLevel];

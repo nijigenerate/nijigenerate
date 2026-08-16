@@ -11,6 +11,7 @@ import nijigenerate.actions;
 import nijigenerate.actions.depthboneinvalidation :
     DepthBoneMutationKind,
     ngNotifyDepthBoneTargetChanged;
+import nijigenerate.actions.depthbone : ngCopyDepthRigBindings;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.actions.binding : ParameterBindingAllValueChangeAction;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigBinding, ExDepthRigRoot;
@@ -1116,7 +1117,7 @@ GroupAction ngDeleteDepthRigReferencesOfNode(Node n, GroupAction group = null) {
 
     foreach (root; incActivePuppet().findNodesType!ExDepthRigRoot(incActivePuppet().root)) {
         if (root.uuid in removedUuids) continue;
-        auto oldBindings = root.bindings.dup;
+        auto oldBindings = ngCopyDepthRigBindings(root.bindings);
         ExDepthRigBinding[] newBindings;
         bool changed = false;
         foreach (binding; root.bindings) {
@@ -1137,6 +1138,8 @@ GroupAction ngDeleteDepthRigReferencesOfNode(Node n, GroupAction group = null) {
             if (removedSource && kept.length == 0) continue;
             if (removedSource) {
                 binding.sourceBoneUuids = kept;
+                foreach (uuid, _; removedUuids)
+                    binding.influenceRule.multipliersByBoneUuid.remove(uuid);
                 binding.normalizeSourceSettings();
             }
             newBindings ~= binding;

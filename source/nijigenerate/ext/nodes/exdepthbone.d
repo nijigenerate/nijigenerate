@@ -432,6 +432,7 @@ public:
             import std.algorithm.mutation : remove;
             binding.sourceBoneUuids = binding.sourceBoneUuids.remove(cast(size_t)sourceIndex);
         }
+        binding.influenceRule.multipliersByBoneUuid.remove(bone.uuid);
         binding.normalizeSourceSettings();
         if (binding.sourceBoneUuids.length == 0) {
             import std.algorithm.mutation : remove;
