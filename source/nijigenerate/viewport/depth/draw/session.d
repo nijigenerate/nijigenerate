@@ -399,19 +399,26 @@ private string reloadLayerKey(const(DepthDrawLayer) layer) {
     return "%s\0%s\0%s\0%s".format(layer.layerPath, layer.displayName, layer.width, layer.height);
 }
 
-private DepthDrawLayer* findReloadLayerByKey(DepthDrawSession session, const(DepthDrawLayer) previousLayer) {
+private DepthDrawLayer* findReloadLayerByKey(
+    DepthDrawSession session,
+    const(DepthDrawLayer) previousLayer,
+    bool[string] usedReloadedLayerIds
+) {
     if (session is null) return null;
     auto key = reloadLayerKey(previousLayer);
     foreach (ref layer; session.layers) {
-        if (reloadLayerKey(layer) == key) return &layer;
+        if ((layer.id in usedReloadedLayerIds) is null && reloadLayerKey(layer) == key) return &layer;
     }
     foreach (ref layer; session.layers) {
-        if (previousLayer.sourcePath.length > 0 && layer.sourcePath == previousLayer.sourcePath &&
+        if ((layer.id in usedReloadedLayerIds) is null &&
+            previousLayer.sourcePath.length > 0 && layer.sourcePath == previousLayer.sourcePath &&
             layer.width == previousLayer.width && layer.height == previousLayer.height) {
             return &layer;
         }
     }
-    if (session.layers.length == 1) return &session.layers[0];
+    if (session.layers.length == 1 && (session.layers[0].id in usedReloadedLayerIds) is null) {
+        return &session.layers[0];
+    }
     return null;
 }
 
@@ -425,12 +432,14 @@ DepthDrawReloadStateResult ngDepthDrawCarryReloadState(DepthDrawSession reloaded
     foreach (previousLayer; previous.layers) {
         // PSD ids are positional (psd:0, psd:1, ...), so stable source
         // identity must win when layers are inserted or reordered.
-        auto layer = findReloadLayerByKey(reloaded, previousLayer);
-        if (layer is null) layer = reloaded.layerById(previousLayer.id);
+        auto layer = findReloadLayerByKey(reloaded, previousLayer, usedReloadedLayerIds);
+        if (layer is null) {
+            auto sameIdLayer = reloaded.layerById(previousLayer.id);
+            if (sameIdLayer !is null && (sameIdLayer.id in usedReloadedLayerIds) is null) layer = sameIdLayer;
+        }
         if (layer is null) continue;
 
         auto reloadedId = layer.id;
-        if ((reloadedId in usedReloadedLayerIds) !is null) continue;
         usedReloadedLayerIds[reloadedId] = true;
         layer.visible = previousLayer.visible;
         layer.enabled = previousLayer.enabled;
@@ -442,6 +451,7 @@ DepthDrawReloadStateResult ngDepthDrawCarryReloadState(DepthDrawSession reloaded
         layer.frontDepth = previousLayer.frontDepth;
         layer.invert = previousLayer.invert;
         layer.channel = previousLayer.channel;
+        layer.sampleDepthScale = previousLayer.sampleDepthScale;
         layer.convolution = previousLayer.convolution;
         layer.customRadius = previousLayer.customRadius;
         layer.alphaThreshold = previousLayer.alphaThreshold;

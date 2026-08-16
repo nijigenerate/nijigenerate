@@ -172,6 +172,7 @@ import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
 import nijigenerate.windows.command_browser : ngCommandBrowserDifferentialReport;
 import nijigenerate.windows.depthdraw : DepthDrawWindow;
+import nijigenerate.windows.base : incPopWindowList, incPushWindowList;
 import nijigenerate.windows.paramsplit : ngSplitParameterBindings;
 import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerState;
 import nijilive;
@@ -6587,6 +6588,9 @@ private void testDepthDrawDataModelContracts() {
     clippingBase.height = 1;
     clippingBase.bounds = DepthDrawRect(10, 20, 2, 1);
     clippingBase.alphaMask = [cast(ubyte)255, 0];
+    clippingBase.visible = false;
+    clippingBase.enabled = false;
+    clippingBase.opacity = 0.25f;
     DepthDrawLayer clippedLayer;
     clippedLayer.width = 2;
     clippedLayer.height = 1;
@@ -6600,6 +6604,8 @@ private void testDepthDrawDataModelContracts() {
     require(clippedLayer.rgba[3] == 255 && clippedLayer.rgba[7] == 0 &&
         clippedLayer.depthPixels[3] == 255 && clippedLayer.depthPixels[7] == 0,
         "DepthDraw PSD extraction should intersect clipped layer coverage with its clipping base alpha");
+    require(!clippedLayer.visible && !clippedLayer.enabled && near(clippedLayer.opacity, 0.25f),
+        "DepthDraw PSD extraction should propagate clipping-base visibility, enabled state, and opacity");
 
     DepthDrawBinding binding;
     binding.layerId = layer.id;
@@ -6770,6 +6776,45 @@ private void testDepthDrawDataModelContracts() {
         reloadedCleanup.layers[0].depthPixels == cleanedGapPixels &&
         reloadedCleanup.layers[0].cleanupOperations.length == 1,
         "DepthDraw persistent state should replay destructive cleanup after source pixels are reloaded");
+    auto duplicatePrevious = new DepthDrawSession();
+    DepthDrawLayer duplicatePreviousA = layer;
+    duplicatePreviousA.id = "previous-duplicate-a";
+    duplicatePreviousA.layerPath = "/duplicate";
+    duplicatePreviousA.displayName = "duplicate";
+    duplicatePreviousA.xyOffset = vec2(1, 2);
+    duplicatePreviousA.sampleDepthScale = 0.25f;
+    DepthDrawLayer duplicatePreviousB = duplicatePreviousA;
+    duplicatePreviousB.id = "previous-duplicate-b";
+    duplicatePreviousB.xyOffset = vec2(3, 4);
+    duplicatePreviousB.sampleDepthScale = 0.75f;
+    duplicatePrevious.layers = [duplicatePreviousA, duplicatePreviousB];
+    DepthDrawBinding duplicateBindingA = binding;
+    duplicateBindingA.layerId = duplicatePreviousA.id;
+    duplicateBindingA.targetGridUuid = 501;
+    DepthDrawBinding duplicateBindingB = binding;
+    duplicateBindingB.layerId = duplicatePreviousB.id;
+    duplicateBindingB.targetGridUuid = 502;
+    duplicatePrevious.bindings = [duplicateBindingA, duplicateBindingB];
+    duplicatePrevious.selectedLayerId = duplicatePreviousB.id;
+    duplicatePrevious.selectedGridUuid = duplicateBindingB.targetGridUuid;
+    auto duplicateReloaded = new DepthDrawSession();
+    DepthDrawLayer duplicateReloadedA = duplicatePreviousA;
+    duplicateReloadedA.id = "reloaded-duplicate-a";
+    duplicateReloadedA.xyOffset = vec2(0, 0);
+    duplicateReloadedA.sampleDepthScale = 1.0f;
+    DepthDrawLayer duplicateReloadedB = duplicateReloadedA;
+    duplicateReloadedB.id = "reloaded-duplicate-b";
+    duplicateReloaded.layers = [duplicateReloadedA, duplicateReloadedB];
+    auto duplicateReload = ngDepthDrawCarryReloadState(duplicateReloaded, duplicatePrevious);
+    require(duplicateReload.matchedLayers == 2 && duplicateReload.preservedBindings == 2 &&
+        duplicateReloaded.layers[0].xyOffset == vec2(1, 2) &&
+        duplicateReloaded.layers[1].xyOffset == vec2(3, 4) &&
+        near(duplicateReloaded.layers[0].sampleDepthScale, 0.25f) &&
+        near(duplicateReloaded.layers[1].sampleDepthScale, 0.75f) &&
+        duplicateReloaded.bindings[0].layerId == "reloaded-duplicate-a" &&
+        duplicateReloaded.bindings[1].layerId == "reloaded-duplicate-b" &&
+        duplicateReloaded.selectedLayerId == "reloaded-duplicate-b",
+        "DepthDraw reload should match duplicate layer keys one-to-one and preserve sample depth scale");
     auto repeatedGapFill = dirtySession.applyLayerAlphaDepthGapFill(gapLayer.id);
     require(repeatedGapFill.succeeded && repeatedGapFill.detected.total == 0 &&
         repeatedGapFill.filled.filled == 0,
@@ -7408,6 +7453,55 @@ private void testDepthDrawSourceManifestContracts() {
             xyGrid.copyDepths() != xyGpuDepthsBeforeApply &&
             xyWindow.statusText.canFind("Applied DepthDraw GPU"),
             "DepthDraw window GPU apply should apply GPU readback through the shared depth command path without CPU fallback");
+
+        fakeDepthDrawGpuReadbacks[2] = xyGpuReadback;
+        fakeDepthDrawGpuNotReadyPolls = 1;
+        auto staleRevisionDepths = xyGrid.copyDepths();
+        xyGpuApplySummary = xyWindow.applySelectedTargetDepthDraw();
+        require(!xyGpuApplySummary.succeeded && xyWindow.statusText.canFind("pending"),
+            "DepthDraw window stale-revision fixture should leave a GPU apply pending");
+        require(xyWindow.updateLayerXYTransform(layer.id, vec2(0.25f, 0.0f), vec2(1.0f, 1.0f)),
+            "DepthDraw window stale-revision fixture should mutate a composition input");
+        xyGpuApplySummary = xyWindow.pollPendingGpuApply();
+        require(!xyGpuApplySummary.succeeded && xyGrid.copyDepths() == staleRevisionDepths &&
+            xyWindow.statusText.canFind("canceled"),
+            "DepthDraw window GPU apply should reject readback from an older session revision");
+
+        fakeDepthDrawGpuReadbacks[3] = xyGpuReadback;
+        fakeDepthDrawGpuNotReadyPolls = 1;
+        auto staleReloadDepths = xyGrid.copyDepths();
+        xyGpuApplySummary = xyWindow.applySelectedTargetDepthDraw();
+        require(!xyGpuApplySummary.succeeded && xyWindow.statusText.canFind("pending"),
+            "DepthDraw window stale-reload fixture should leave a GPU apply pending");
+        writeRegressionPng(pngPath, 48, 96, 192, 3, 2);
+        require(xyWindow.reloadSourcePreservingState(),
+            "DepthDraw window stale-reload fixture should reload changed pixels from the same path");
+        require(ngPendingDepthDrawGpuComposeJobCount() == 0,
+            "DepthDraw source reload should cancel the pending GPU apply immediately");
+        xyGpuApplySummary = xyWindow.pollPendingGpuApply();
+        require(!xyGpuApplySummary.succeeded && xyGrid.copyDepths() == staleReloadDepths &&
+            xyWindow.statusText.canFind("Reloaded source"),
+            "DepthDraw window GPU apply should reject readback submitted before a same-path source reload");
+
+        auto closeWindow = new DepthDrawWindow(pngPath);
+        closeWindow.depthDrawSession().layers = [layer];
+        closeWindow.depthDrawSession().bindings = [xyBinding];
+        auto closeDisplay = closeWindow.depthDrawSession().display;
+        closeDisplay.useGpuPreview = true;
+        closeWindow.depthDrawSession().updateDisplayOptions(closeDisplay);
+        closeWindow.updateLayerSampling(layer.id, DepthImageChannel.AverageRGB,
+            DepthImageConvolution.Median3x3, 3, 0.01f);
+        require(closeWindow.selectLayer(layer.id) && closeWindow.selectTargetGrid(xyGrid.uuid),
+            "DepthDraw window close fixture should select a GPU apply target");
+        fakeDepthDrawGpuReadbacks[4] = xyGpuReadback;
+        fakeDepthDrawGpuNotReadyPolls = 1;
+        closeWindow.applySelectedTargetDepthDraw();
+        require(ngPendingDepthDrawGpuComposeJobCount() == 1,
+            "DepthDraw window close fixture should own one pending GPU apply");
+        incPushWindowList(closeWindow);
+        incPopWindowList(closeWindow);
+        require(ngPendingDepthDrawGpuComposeJobCount() == 0,
+            "DepthDraw window close should cancel its pending GPU apply");
     }
     selectionWindow.depthDrawSession().clearPreviewDirty();
     require(selectionWindow.updateLayerZTransform(layer.id, -0.25f, 0.9f, false, 2.0f, -0.1f) &&
@@ -7475,8 +7569,9 @@ private void testDepthDrawSourceManifestContracts() {
         selectionWindow.depthDrawSession().display.useGpuPreview &&
         !selectionWindow.depthDrawSession().layers[0].visible &&
         near(selectionWindow.depthDrawSession().layers[0].xyScale.x, 1.75f) &&
+        near(selectionWindow.depthDrawSession().layers[0].sampleDepthScale, layer.sampleDepthScale) &&
         selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
-        "DepthDraw source reload should preserve transforms, binding, selection, display state, and dirty the target");
+        "DepthDraw source reload should preserve transforms, sample scale, binding, selection, display state, and dirty the target");
 
     auto replacementPath = buildPath(fixtureDir, "replacement-depth-layer.png");
     writeRegressionPng(replacementPath, 8, 16, 24, 3, 2);
@@ -7553,6 +7648,21 @@ private void testDepthDrawSourceManifestContracts() {
     require(!duplicateBindingReport.ok && duplicateBindingReport.duplicateBindingKeys.length == 1,
         "DepthDraw manifest validation should report duplicate enabled layer/target bindings");
 
+    auto mismatchedManifestSession = new DepthDrawSession();
+    auto mismatchedManifestLayer = layer;
+    mismatchedManifestLayer.sourcePath = relativePath(pngPath, fixtureDir);
+    mismatchedManifestLayer.width = 2;
+    mismatchedManifestLayer.height = 2;
+    mismatchedManifestLayer.rgba = null;
+    mismatchedManifestLayer.depthPixels = null;
+    mismatchedManifestSession.layers = [mismatchedManifestLayer];
+    auto mismatchedManifestPath = buildPath(fixtureDir, "mismatched-depthdraw.json");
+    ngSaveDepthDrawManifest(mismatchedManifestSession, mismatchedManifestPath);
+    auto mismatchedManifestWindow = new DepthDrawWindow(mismatchedManifestPath);
+    require(mismatchedManifestWindow.depthDrawSession() is null &&
+        mismatchedManifestWindow.loadError.canFind("dimensions do not match"),
+        "DepthDraw manifest hydration should reject decoded PNG dimensions that disagree with the manifest");
+
     require(ngSetPuppetDepthDrawSession(incActivePuppet(), session),
         "DepthDraw persistent session should attach to the active ExPuppet");
     auto persistentSession = ngGetPuppetDepthDrawSession(incActivePuppet());
@@ -7590,9 +7700,9 @@ private void testDepthDrawSourceManifestContracts() {
     auto exportedTexture = ShallowTexture(exportResult.layerPaths[0], 4);
     require(exportedTexture.width == layer.width && exportedTexture.height == layer.height,
         "DepthDraw PNG export should preserve layer dimensions");
-    require(exportedTexture.data[0] == 128 && exportedTexture.data[1] == 128 &&
-        exportedTexture.data[2] == 128 && exportedTexture.data[3] == 64,
-        "DepthDraw PNG export should write grayscale depth pixels while preserving source coverage alpha");
+    require(exportedTexture.data[0] == 224 && exportedTexture.data[1] == 224 &&
+        exportedTexture.data[2] == 224 && exportedTexture.data[3] == 64,
+        "DepthDraw PNG export should write grayscale depth from the selected B channel while preserving source coverage alpha");
     auto exportedManifest = ngLoadDepthDrawManifest(exportManifestPath);
     auto exportedRelativePath = relativePath(exportResult.layerPaths[0], exportManifestPath.dirName);
     auto exportedValidation = ngValidateDepthDrawSessionManifest(exportedManifest,
@@ -10743,8 +10853,8 @@ private void testDepthDrawCalculationGateContracts() {
         "DepthDraw PSD source loading must use the shared PSD mask helper");
     requireSourceContains(
         buildPath("source", "nijigenerate", "viewport", "depth", "draw", "pngexport.d"),
-        "ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba",
-        "DepthDraw PNG export must use the shared grayscale depth decode helper");
+        "ngDepthDrawDecodeDepthPixelsFromRgba",
+        "DepthDraw PNG export must use the shared selected-channel depth decode helper");
     requireSourceNotContains(
         buildPath("source", "nijigenerate", "viewport", "depth", "draw", "pngexport.d"),
         "depthByteFromRgba",

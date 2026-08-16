@@ -46,8 +46,15 @@ DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id = null) {
 
 void ngDepthDrawApplyClippingBaseCoverage(
     ref DepthDrawLayer clippedLayer,
-    ref const(DepthDrawLayer) clippingBase
+    ref const(DepthDrawLayer) clippingBase,
+    float sharedGroupOpacity = 1.0f
 ) {
+    clippedLayer.visible = clippedLayer.visible && clippingBase.visible;
+    clippedLayer.enabled = clippedLayer.enabled && clippingBase.enabled;
+    auto clippingBaseOpacity = sharedGroupOpacity > 0.0f
+        ? clippingBase.opacity / sharedGroupOpacity
+        : 0.0f;
+    clippedLayer.opacity *= max(0.0f, min(1.0f, clippingBaseOpacity));
     ngDepthDrawApplyMaskToLayerAlpha(
         clippedLayer,
         clippingBase.alphaMask,
@@ -121,7 +128,8 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         if (layer.clipping) {
             clippingBaseByGroup[groupPath] = drawLayer;
         } else if (auto clippingBase = groupPath in clippingBaseByGroup) {
-            ngDepthDrawApplyClippingBaseCoverage(drawLayer, *clippingBase);
+            auto sharedGroupOpacity = groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1];
+            ngDepthDrawApplyClippingBaseCoverage(drawLayer, *clippingBase, sharedGroupOpacity);
         }
 
         result.layers ~= drawLayer;

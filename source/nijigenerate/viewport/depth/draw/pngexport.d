@@ -1,6 +1,6 @@
 module nijigenerate.viewport.depth.draw.pngexport;
 
-import nijigenerate.io.depthimage : ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba;
+import nijigenerate.io.depthimage : ngDepthDrawDecodeDepthPixelsFromRgba;
 import nijigenerate.viewport.depth.draw.layer;
 import nijigenerate.viewport.depth.draw.manifest;
 import nijigenerate.viewport.depth.draw.session;
@@ -37,7 +37,7 @@ ubyte[] ngDepthDrawLayerToExportRgba(DepthDrawLayer layer) {
     enforce(layer.depthPixels.length >= cast(size_t)layer.width * cast(size_t)layer.height * 4,
         "DepthDraw layer must have RGBA depth pixels");
 
-    auto depthPixels = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.depthPixels);
+    auto depthPixels = ngDepthDrawDecodeDepthPixelsFromRgba(layer.depthPixels, layer.channel);
     ubyte[] result;
     result.length = cast(size_t)layer.width * cast(size_t)layer.height * 4;
     foreach (i; 0 .. cast(size_t)layer.width * cast(size_t)layer.height) {

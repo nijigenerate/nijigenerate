@@ -2,7 +2,7 @@ module nijigenerate.io.depthimage;
 
 import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution, DepthSamplePoint, DepthSampleResult,
     ngDepthSampleAcceptsAlpha, ngDepthSampleConvolve, ngDepthSampleEffectiveAlpha, ngDepthSampleFrontmost,
-    ngDepthSampleMissingPoint, ngDepthSamplePixelDepth;
+    ngDepthSampleMissingPoint, ngDepthSamplePixelDepth, ngDepthSamplePixelDepth01;
 import nijigenerate.io.depthmap_psd : PsdDepthChannel, PsdDepthConvolution, PsdDepthImportSettings;
 import std.algorithm : max, min, sort;
 import std.exception : enforce;
@@ -415,6 +415,10 @@ ubyte[] ngDepthDrawDepthPixelsFromRgbaRed(const(ubyte)[] rgba) {
 }
 
 ubyte[] ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(const(ubyte)[] rgba) {
+    return ngDepthDrawDecodeDepthPixelsFromRgba(rgba, DepthImageChannel.AverageRGB);
+}
+
+ubyte[] ngDepthDrawDecodeDepthPixelsFromRgba(const(ubyte)[] rgba, DepthImageChannel channel) {
     enforce(rgba.length % 4 == 0, "RGBA buffer length must be divisible by 4");
     ubyte[] result;
     result.length = rgba.length / 4;
@@ -424,8 +428,8 @@ ubyte[] ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(const(ubyte)[] rgba) {
             result[i] = 0;
             continue;
         }
-        auto average = (cast(double)rgba[offset] + cast(double)rgba[offset + 1] + cast(double)rgba[offset + 2]) / 3.0;
-        result[i] = cast(ubyte)min(255, max(0, cast(int)lround(average)));
+        auto depth01 = ngDepthSamplePixelDepth01(rgba, offset, channel, false);
+        result[i] = cast(ubyte)min(255, max(0, cast(int)lround(depth01 * 255.0f)));
     }
     return result;
 }

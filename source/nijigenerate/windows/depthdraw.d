@@ -60,6 +60,8 @@ private:
     ulong pendingGpuApplyGridUuid;
     Context pendingGpuApplyContext;
     DepthDrawGpuTargetComposeJob pendingGpuApplyJob;
+    DepthDrawSession pendingGpuApplySession;
+    ulong pendingGpuApplyRevision;
     string pendingGpuApplySessionState;
     string lastPersistedSessionState;
 
@@ -159,10 +161,15 @@ private:
                 throw new Exception(_("Failed to decode DepthDraw layer image %s: %s").format(
                     resolvedSourcePath, ex.msg));
             }
+            if ((layer.width > 0 && layer.width != imageLayer.width) ||
+                (layer.height > 0 && layer.height != imageLayer.height)) {
+                throw new Exception(_("DepthDraw layer image dimensions do not match the manifest for %s: expected %sx%s, decoded %sx%s").format(
+                    resolvedSourcePath, layer.width, layer.height, imageLayer.width, imageLayer.height));
+            }
             layer.rgba = imageLayer.rgba;
             layer.depthPixels = imageLayer.depthPixels;
-            if (layer.width <= 0) layer.width = imageLayer.width;
-            if (layer.height <= 0) layer.height = imageLayer.height;
+            layer.width = imageLayer.width;
+            layer.height = imageLayer.height;
             if (layer.bounds.width <= 0) layer.bounds.width = layer.width;
             if (layer.bounds.height <= 0) layer.bounds.height = layer.height;
             loadedSession.replayLayerCleanupOperations(layer.id);
@@ -282,6 +289,7 @@ private:
             );
         }
 
+        clearPendingGpuApply();
         session = loadedSession;
         documentWidth = loadedDocumentWidth;
         documentHeight = loadedDocumentHeight;
@@ -783,6 +791,10 @@ private:
     }
 
 protected:
+    override void onClose() {
+        clearPendingGpuApply();
+    }
+
     override void onUpdate() {
         igSetNextWindowSize(ImVec2(840, 620), ImGuiCond.FirstUseEver);
         onBeginUpdate();
@@ -922,6 +934,8 @@ public:
         hasPendingGpuApplyJob = true;
         pendingGpuApplyGridUuid = target.getTarget().uuid;
         pendingGpuApplyContext = ctx;
+        pendingGpuApplySession = session;
+        pendingGpuApplyRevision = session.targetPreviewRevision(pendingGpuApplyGridUuid);
         pendingGpuApplySessionState = ngDepthDrawSessionToManifest(session).toString();
         statusMessage = _("DepthDraw GPU apply submitted");
         errorMessage = null;
@@ -952,7 +966,9 @@ public:
             clearPendingGpuApply();
             return summary;
         }
-        if (pendingGpuApplySessionState != ngDepthDrawSessionToManifest(session).toString()) {
+        if (session is null || pendingGpuApplySession !is session ||
+            pendingGpuApplyRevision != session.targetPreviewRevision(pendingGpuApplyGridUuid) ||
+            pendingGpuApplySessionState != ngDepthDrawSessionToManifest(session).toString()) {
             statusMessage = _("DepthDraw GPU apply was canceled because the session changed");
             errorMessage = null;
             clearPendingGpuApply();
@@ -980,6 +996,8 @@ public:
         pendingGpuApplyGridUuid = 0;
         pendingGpuApplyContext = null;
         pendingGpuApplyJob = DepthDrawGpuTargetComposeJob.init;
+        pendingGpuApplySession = null;
+        pendingGpuApplyRevision = 0;
         pendingGpuApplySessionState = null;
     }
 
