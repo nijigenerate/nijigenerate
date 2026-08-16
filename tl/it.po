@@ -128,7 +128,7 @@ msgstr "Usa punti strumento liberi"
 
 #: source/nijigenerate/viewport/depth/viewport.d:159
 #: source/nijigenerate/viewport/vertex/package.d:303
-msgid " Apply"
+msgid " Apply"
 msgstr " Applica"
 
 #: source/nijigenerate/viewport/depth/viewport.d:164
@@ -2838,7 +2838,7 @@ msgid " Deny"
 msgstr " Deny"
 
 #: source/nijigenerate/api/mcp/auth.d:44
-msgid " Approve"
+msgid " Approve"
 msgstr " Applica"
 
 #. ===== Main menu =====

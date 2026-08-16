@@ -123,7 +123,7 @@ msgstr "자유 도구 점 사용"
 
 #: source/nijigenerate/viewport/depth/viewport.d:159
 #: source/nijigenerate/viewport/vertex/package.d:303
-msgid " Apply"
+msgid " Apply"
 msgstr " 적용"
 
 #: source/nijigenerate/viewport/depth/viewport.d:164
@@ -2806,7 +2806,7 @@ msgid " Deny"
 msgstr " Deny"
 
 #: source/nijigenerate/api/mcp/auth.d:44
-msgid " Approve"
+msgid " Approve"
 msgstr " 적용"
 
 #. ===== Main menu =====

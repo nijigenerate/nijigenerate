@@ -299,11 +299,22 @@ AsyncDerivedUpdateTargetHandle incAsyncDerivedUpdateTrackTarget(
     if (auto active = desc.key in activeTargets) {
         if (auto previous = active.id in targetRecords) {
             if (!previous.superseded && !terminal(*previous)) {
+                void transferToCurrentRun() {
+                    if (previous.run == run) return;
+                    if (auto previousRun = previous.run.id in runRecords) {
+                        AsyncDerivedUpdateTargetHandle[] retainedTargets;
+                        foreach (candidate; previousRun.targets) {
+                            if (candidate != previous.handle) retainedTargets ~= candidate;
+                        }
+                        previousRun.targets = retainedTargets;
+                    }
+                    previous.run = run;
+                    runRecord.targets ~= previous.handle;
+                }
                 final switch (desc.mergePolicy) {
                 case AsyncDerivedUpdateMergePolicy.CoalescePending:
                     if (!previous.runningStarted && !previous.sealed) {
-                        previous.run = run;
-                        runRecord.targets ~= previous.handle;
+                        transferToCurrentRun();
                         previous.desc.label = desc.label;
                         previous.desc.reason = desc.reason;
                         previous.desc.sourceRevision = desc.sourceRevision;
@@ -313,8 +324,7 @@ AsyncDerivedUpdateTargetHandle incAsyncDerivedUpdateTrackTarget(
                     break;
                 case AsyncDerivedUpdateMergePolicy.ExtendRunning:
                     if (!previous.sealed) {
-                        previous.run = run;
-                        runRecord.targets ~= previous.handle;
+                        transferToCurrentRun();
                         previous.desc.label = desc.label;
                         previous.desc.reason = desc.reason;
                         previous.desc.sourceRevision = desc.sourceRevision;

@@ -5521,6 +5521,15 @@ private void testPsdDepthMapImportHelpers() {
     require(!ngReservePsdDepthRetainedLayer(long.max, long.max,
             PsdDepthRetainedDepthLayerBytesPerPixel, oversizedPsdDepthBytes),
         "PSD Depth Map retained-image budgeting must reject overflowing dimensions before allocation");
+    ulong retainedPsdColorBytes;
+    foreach (_; 0 .. 10) {
+        require(ngReservePsdDepthRetainedLayer(1024, 1024,
+                PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdColorBytes),
+            "PSD Depth Map color composition should reserve its retained source and derived RGBA buffers");
+    }
+    require(!ngReservePsdDepthRetainedLayer(1024, 1024,
+            PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdColorBytes),
+        "PSD Depth Map color composition must reject aggregate derived buffers beyond the retained budget");
 
     auto grid = new ExGridDeformer(incActivePuppet().root);
     grid.name = "psd-depth-grid";
@@ -17161,6 +17170,12 @@ private void testAsyncDerivedUpdateRegistry() {
         && snapshot.origin.transactionId == 44
         && snapshot.label == "coalesced-fixture",
         "pending updates may coalesce while retaining the newest operation context");
+    incAsyncDerivedUpdateEndRun(coalesceRun);
+    auto coalescedWork = incAsyncDerivedUpdateQueue(coalescedTarget);
+    require(coalescedWork.valid,
+        "ending a replaced producer run must not seal a target transferred to the newer run");
+    incAsyncDerivedUpdateStart(coalescedWork);
+    incAsyncDerivedUpdateApplied(coalescedWork);
     incAsyncDerivedUpdateEndRun(coalesceReplacementRun);
     require(incAsyncDerivedUpdateTargetSnapshot(
             coalescedTarget, snapshot, true)
@@ -21259,6 +21274,8 @@ private string[string] readPotMsgids(string path) {
 }
 
 private void testI18nPotTemplateCoversSimpleSourceLiterals() {
+    import std.utf : toUTF8;
+
     auto potPath = buildPath(regressionRepoRoot(), "tl", "template.pot");
     require(exists(potPath) && isFile(potPath), "tl/template.pot should exist");
     auto msgids = readPotMsgids(potPath);
@@ -21274,8 +21291,22 @@ private void testI18nPotTemplateCoversSimpleSourceLiterals() {
         "Reorder Mask Source",
         "Set SimplePhysics Parameter",
         "Generate Mipmaps...",
+        " Apply",
+        " Approve",
     ]) {
         require((msgid in msgids) !is null, "tl/template.pot should include msgid: " ~ msgid);
+    }
+
+    foreach (entry; dirEntries(buildPath(regressionRepoRoot(), "tl"), SpanMode.shallow)) {
+        if (!entry.isFile || !entry.name.endsWith(".po")) continue;
+        auto catalog = readText(entry.name);
+        dchar[] oldIconChars = [cast(dchar)0xE5CA];
+        auto oldIcon = oldIconChars.toUTF8;
+        require(catalog.canFind(`msgid " Apply"`) &&
+            catalog.canFind(`msgid " Approve"`) &&
+            !catalog.canFind(`msgid "` ~ oldIcon ~ ` Apply"`) &&
+            !catalog.canFind(`msgid "` ~ oldIcon ~ ` Approve"`),
+            "translation catalog must use the current icon-prefixed message ids: " ~ entry.name);
     }
 }
 

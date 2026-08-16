@@ -130,7 +130,7 @@ msgstr "自由なツール点を使用"
 
 #: source/nijigenerate/viewport/depth/viewport.d:159
 #: source/nijigenerate/viewport/vertex/package.d:303
-msgid " Apply"
+msgid " Apply"
 msgstr " 適用"
 
 #: source/nijigenerate/viewport/depth/viewport.d:164
@@ -2829,7 +2829,7 @@ msgid " Deny"
 msgstr " 拒否"
 
 #: source/nijigenerate/api/mcp/auth.d:44
-msgid " Approve"
+msgid " Approve"
 msgstr " 承認"
 
 #. ===== Main menu =====

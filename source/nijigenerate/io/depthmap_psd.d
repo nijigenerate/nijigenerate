@@ -81,7 +81,9 @@ private bool psdLayerVisible(ref Layer layer) {
 
 enum ulong PsdDepthMaxRetainedBytes = 256UL * 1024UL * 1024UL;
 enum ulong PsdDepthRetainedDepthLayerBytesPerPixel = 40;
-enum ulong PsdDepthRetainedColorLayerBytesPerPixel = 8;
+// Retained source pixels plus the four RGBA buffers produced for each
+// color/depth composed layer.
+enum ulong PsdDepthRetainedColorLayerBytesPerPixel = 24;
 
 bool ngReservePsdDepthRetainedLayer(
     long width,

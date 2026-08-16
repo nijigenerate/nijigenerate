@@ -128,7 +128,7 @@ msgstr ""
 
 #: source/nijigenerate/viewport/depth/viewport.d:159
 #: source/nijigenerate/viewport/vertex/package.d:303
-msgid " Apply"
+msgid " Apply"
 msgstr ""
 
 #: source/nijigenerate/viewport/depth/viewport.d:164
@@ -2756,7 +2756,7 @@ msgid " Deny"
 msgstr ""
 
 #: source/nijigenerate/api/mcp/auth.d:44
-msgid " Approve"
+msgid " Approve"
 msgstr ""
 
 #. ===== Main menu =====
