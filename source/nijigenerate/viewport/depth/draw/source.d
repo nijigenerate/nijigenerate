@@ -62,7 +62,8 @@ void ngDepthDrawApplyClippingBaseCoverage(
         clippingBase.height,
         clippingBase.bounds.left,
         clippingBase.bounds.top,
-        false
+        false,
+        0
     );
 }
 

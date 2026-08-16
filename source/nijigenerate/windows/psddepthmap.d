@@ -6,7 +6,7 @@ import i18n;
 import nijigenerate;
 import nijigenerate.commands;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
-    ngComposePsdDepthImportResult, ngComposePsdDepthTarget;
+    ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngPsdDepthConvolutionToDepthImage;
 import nijigenerate.core.actionstack : ActionStackScope, incActionCanRedo, incActionCanUndo,
     ngOpenActionStackScope;
 import nijigenerate.core.shortcut.base : ngSetSelectedNodesProvider;
@@ -23,6 +23,7 @@ import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, D
 import nijigenerate.viewport.depth.camera : DepthCamera3D, projectDepthPoint, updateDepthCamera3D;
 import nijigenerate.viewport.depth.common.targetview : DepthTargetView, ngDepthDisplayScaleForDocument,
     ngDepthDisplayScaleForTargetsInNodeSpace;
+import nijigenerate.viewport.depth.draw.gpu : ngDepthDrawGpuLayerSampleSupportsConvolution;
 import nijigenerate.windows.base;
 import nijigenerate.widgets;
 import nijilive;
@@ -79,6 +80,7 @@ struct PsdDepthDialogLayerPixels {
     string layerPath;
     ulong targetGridUuid;
     ubyte[] depthRgba;
+    bool alphaDepthGapFillApplied;
 }
 
 struct PsdDepthDialogPartLayerData {
@@ -467,6 +469,7 @@ private:
     CommandScopeRegistration dialogCommandScope;
     bool dialogDisplayed;
     PsdDepthDialogLayerState[] pendingLayerStatesAfterRebuild;
+    bool[string] alphaDepthGapFillAppliedByLayer;
     DepthCamera3D threeDAdjustCamera;
     ulong threeDAdjustCameraTargetUuid;
     int threeDAdjustCameraLeft = int.min;
@@ -513,6 +516,53 @@ private:
         "SkipGrid",
     ];
 
+    string cleanupLayerKey(string layerPath, ulong targetGridUuid) {
+        return "%s\n%s".format(layerPath, targetGridUuid);
+    }
+
+    bool applyAlphaDepthGapFillToLayer(ref PsdDepthComposedLayer layer, size_t layerIndex) {
+        static immutable DepthDrawAlphaDepthFocusedRule[] focusedRules = [
+            DepthDrawAlphaDepthFocusedRule(17, 72, 0, 122, 132, 10, 18),
+            DepthDrawAlphaDepthFocusedRule(6, 0, 0, 112, 126, 10, 20),
+            DepthDrawAlphaDepthFocusedRule(6, 40, 0, 150, 170, 12, 24),
+            DepthDrawAlphaDepthFocusedRule(10, 0, 0, 96, 120, 8, 16),
+            DepthDrawAlphaDepthFocusedRule(14, 0, 44, 96, 156, 10, 20),
+        ];
+        auto pixelCount = cast(size_t)max(0, layer.width * layer.height);
+        if (pixelCount == 0 || layer.depthRgba.length != pixelCount * 4 ||
+            layer.maskRgba.length != pixelCount * 4) return false;
+
+        auto depth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.depthRgba);
+        ubyte[] mask;
+        mask.length = pixelCount;
+        foreach (i; 0 .. pixelCount) {
+            auto offset = i * 4;
+            mask[i] = layer.maskRgba[offset] != 0 && layer.maskRgba[offset + 3] != 0 ? 1 : 0;
+        }
+        auto detected = ngDepthDrawDetectAlphaDepthGaps(
+            depth, mask, layer.width, layer.height, cast(int)layerIndex, focusedRules);
+        auto filled = ngDepthDrawMedianFillDepth(depth, mask, detected.mask, layer.width, layer.height);
+        bool changed;
+        foreach (i, value; filled.depth) {
+            if (!detected.mask[i] || depth[i] == value) continue;
+            auto offset = i * 4;
+            changed = true;
+            layer.depthRgba[offset] = value;
+            layer.depthRgba[offset + 1] = value;
+            layer.depthRgba[offset + 2] = value;
+            layer.depthRgba[offset + 3] = mask[i] && value > 0 ? 255 : 0;
+        }
+        return changed;
+    }
+
+    void replayAlphaDepthGapFills() {
+        foreach (layerIndex, ref layer; preview.composedLayers) {
+            auto applied = cleanupLayerKey(layer.layerPath, layer.targetGridUuid) in alphaDepthGapFillAppliedByLayer;
+            if (applied is null || !*applied) continue;
+            applyAlphaDepthGapFillToLayer(layer, layerIndex);
+        }
+    }
+
     void rebuildPreview() {
         disposePreviewTextures();
         pending3DAdjustLayerChanges = null;
@@ -541,6 +591,7 @@ private:
                     applyDialogLayerStateFields(*layer, state);
                 }
             }
+            replayAlphaDepthGapFills();
             string composeError;
             if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
                 errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
@@ -553,36 +604,9 @@ private:
         if (previewDirty) rebuildPreview();
         if (errorMessage.length) return;
 
-        static immutable DepthDrawAlphaDepthFocusedRule[] focusedRules = [
-            DepthDrawAlphaDepthFocusedRule(17, 72, 0, 122, 132, 10, 18),
-            DepthDrawAlphaDepthFocusedRule(6, 0, 0, 112, 126, 10, 20),
-            DepthDrawAlphaDepthFocusedRule(6, 40, 0, 150, 170, 12, 24),
-            DepthDrawAlphaDepthFocusedRule(10, 0, 0, 96, 120, 8, 16),
-            DepthDrawAlphaDepthFocusedRule(14, 0, 44, 96, 156, 10, 20),
-        ];
-
         foreach (layerIndex, ref layer; preview.composedLayers) {
-            auto pixelCount = cast(size_t)max(0, layer.width * layer.height);
-            if (pixelCount == 0 || layer.depthRgba.length != pixelCount * 4 ||
-                layer.maskRgba.length != pixelCount * 4) continue;
-
-            auto depth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.depthRgba);
-            ubyte[] mask;
-            mask.length = pixelCount;
-            foreach (i; 0 .. pixelCount) {
-                auto offset = i * 4;
-                mask[i] = layer.maskRgba[offset] != 0 && layer.maskRgba[offset + 3] != 0 ? 1 : 0;
-            }
-            auto detected = ngDepthDrawDetectAlphaDepthGaps(
-                depth, mask, layer.width, layer.height, cast(int)layerIndex, focusedRules);
-            auto filled = ngDepthDrawMedianFillDepth(
-                depth, mask, detected.mask, layer.width, layer.height);
-            foreach (i, value; filled.depth) {
-                auto offset = i * 4;
-                layer.depthRgba[offset + 0] = value;
-                layer.depthRgba[offset + 1] = value;
-                layer.depthRgba[offset + 2] = value;
-                layer.depthRgba[offset + 3] = mask[i] && value > 0 ? 255 : 0;
+            if (applyAlphaDepthGapFillToLayer(layer, layerIndex)) {
+                alphaDepthGapFillAppliedByLayer[cleanupLayerKey(layer.layerPath, layer.targetGridUuid)] = true;
             }
         }
 
@@ -913,9 +937,12 @@ private:
         bool changed;
         if (igBeginCombo(label.toStringz, current.toStringz)) {
             foreach (name; ConvolutionNames) {
+                auto option = ngPsdDepthConvolutionFromString(name);
+                if (settings.useGpuComposition && !ngDepthDrawGpuLayerSampleSupportsConvolution(
+                    cast(int)ngPsdDepthConvolutionToDepthImage(option))) continue;
                 bool selected = name == current;
                 if (igSelectable(name.toStringz, selected)) {
-                    value = ngPsdDepthConvolutionFromString(name);
+                    value = option;
                     changed = true;
                 }
             }
@@ -3169,6 +3196,10 @@ public:
 
     bool applyDialogSettingsState(PsdDepthDialogSettingsState state) {
         settings = cloneDialogSettings(state.settings);
+        if (settings.useGpuComposition && !ngDepthDrawGpuLayerSampleSupportsConvolution(
+            cast(int)ngPsdDepthConvolutionToDepthImage(settings.convolution))) {
+            settings.convolution = PsdDepthConvolution.Median3x3;
+        }
         onlyProblemLayers = state.onlyProblemLayers;
         pendingLayerStatesAfterRebuild = state.layers.dup;
         previewDirty = true;
@@ -3213,6 +3244,10 @@ public:
             pixels.layerPath = layer.layerPath;
             pixels.targetGridUuid = layer.targetGridUuid;
             pixels.depthRgba = layer.depthRgba.dup;
+            if (auto applied = cleanupLayerKey(layer.layerPath, layer.targetGridUuid) in
+                alphaDepthGapFillAppliedByLayer) {
+                pixels.alphaDepthGapFillApplied = *applied;
+            }
             result ~= pixels;
         }
         return result;
@@ -3224,6 +3259,8 @@ public:
             auto layer = findComposedLayer(pixels.layerPath, pixels.targetGridUuid);
             if (layer is null) continue;
             layer.depthRgba = pixels.depthRgba.dup;
+            alphaDepthGapFillAppliedByLayer[cleanupLayerKey(pixels.layerPath, pixels.targetGridUuid)] =
+                pixels.alphaDepthGapFillApplied;
             found = true;
         }
         if (!found && state.length > 0) return false;
@@ -3252,7 +3289,8 @@ public:
         foreach (i; 0 .. a.length) {
             if (a[i].layerPath != b[i].layerPath ||
                 a[i].targetGridUuid != b[i].targetGridUuid ||
-                a[i].depthRgba != b[i].depthRgba) {
+                a[i].depthRgba != b[i].depthRgba ||
+                a[i].alphaDepthGapFillApplied != b[i].alphaDepthGapFillApplied) {
                 return false;
             }
         }
@@ -3371,6 +3409,13 @@ public:
             }
             errorMessage = null;
             previewDirty = false;
+            return true;
+        }
+
+        bool replayDialogCleanupAfterRebuildForRegression(ubyte[] rebuiltDepthRgba) {
+            if (preview.composedLayers.length != 1) return false;
+            preview.composedLayers[0].depthRgba = rebuiltDepthRgba.dup;
+            replayAlphaDepthGapFills();
             return true;
         }
 

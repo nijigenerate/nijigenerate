@@ -4077,6 +4077,17 @@ private void testAllPsdDepthDialogCommands() {
         () => dialog.captureDialogSettingsState().settings.convolution == PsdDepthConvolution.Nearest,
         () => dialog.captureDialogSettingsState().settings.convolution == PsdDepthConvolution.Gaussian3x3,
         "SetPsdDepthDialogSampling");
+    auto unsupportedGpuSettings = dialog.captureDialogSettingsState();
+    unsupportedGpuSettings.settings.convolution = PsdDepthConvolution.MedianCustom;
+    unsupportedGpuSettings.settings.useGpuComposition = true;
+    dialog.applyDialogSettingsState(unsupportedGpuSettings);
+    auto normalizedGpuSettings = dialog.captureDialogSettingsState();
+    require(normalizedGpuSettings.settings.useGpuComposition &&
+        normalizedGpuSettings.settings.convolution == PsdDepthConvolution.Median3x3,
+        "PSD depth dialog GPU mode must normalize unsupported Median Custom sampling to Median 3x3");
+    unsupportedGpuSettings.settings.convolution = PsdDepthConvolution.Nearest;
+    unsupportedGpuSettings.settings.useGpuComposition = false;
+    dialog.applyDialogSettingsState(unsupportedGpuSettings);
     requirePsdDepthDialogCommandRoundTrip(
         ctx,
         cmd!(PsdDepthDialogCommand.SetPsdDepthDialogCustomRadius)(ctx, 5),
@@ -4264,6 +4275,9 @@ private void testAllPsdDepthDialogCommands() {
     require(cmd!(EditCommand.Redo)(ctx).succeeded &&
         PSDDepthMapWindow.dialogLayerPixelsEqual(afterFill, dialog.captureDialogLayerPixels()),
         "FillPsdDepthDialogAlphaDepthGaps Redo must restore filled pixels");
+    require(dialog.replayDialogCleanupAfterRebuildForRegression(beforeFill[0].depthRgba) &&
+        PSDDepthMapWindow.dialogLayerPixelsEqual(afterFill, dialog.captureDialogLayerPixels()),
+        "PSD dialog preview rebuilds must replay alpha-depth gap cleanup on rebuilt source pixels");
 
     auto cancelResult = cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx);
     require(cancelResult.succeeded && !dialog.dialogCommandsAvailable(),
@@ -4677,22 +4691,22 @@ private void testPsdDepthAdjustedValuesAreNotRenormalized() {
     auto hair = new ExGridDeformer(incActivePuppet().root);
     hair.name = "FrontHair::G";
     hair.rebuffer(Vec2Array([
-        vec2(-1000, 0),
+        vec2(-40, 0),
         vec2(0, 0),
         vec2(125, 0),
         vec2(250, 0),
     ]));
-    hair.vertices = Vec2Array([vec2(-1000, 0), vec2(0, 0), vec2(125, 0), vec2(250, 0)]);
+    hair.vertices = Vec2Array([vec2(-40, 0), vec2(0, 0), vec2(125, 0), vec2(250, 0)]);
     hair.replaceDepths([0.0f, 0.0f, 0.0f, 0.0f]);
     auto face = new ExGridDeformer(incActivePuppet().root);
     face.name = "Face::G";
     face.rebuffer(Vec2Array([
-        vec2(-150, 0),
+        vec2(-40, 0),
         vec2(0, 0),
         vec2(150, 0),
         vec2(300, 0),
     ]));
-    face.vertices = Vec2Array([vec2(-150, 0), vec2(0, 0), vec2(150, 0), vec2(300, 0)]);
+    face.vertices = Vec2Array([vec2(-40, 0), vec2(0, 0), vec2(150, 0), vec2(300, 0)]);
     face.replaceDepths([0.0f, 0.0f, 0.0f, 0.0f]);
 
     auto rigRoot = new ExDepthRigRoot(incActivePuppet().root);
@@ -4774,8 +4788,8 @@ private void testPsdDepthAdjustedValuesAreNotRenormalized() {
     auto rangedSource = (-2.0f + (2.0f - (-2.0f)) * normalizedSource) * 1.5f;
     require(composed.depths.length == hair.vertices.length,
         "large-offset PSD target composition should preserve vertex count");
-    require(composed.sampledVertices > 0 && composed.missingVertices > 0,
-        "large-offset PSD target composition fixture must cover sampled and extrapolated vertices: sampled=%s missing=%s"
+    require(composed.sampledVertices == hair.vertices.length && composed.missingVertices == 0,
+        "large-offset PSD target composition fixture must isolate adjustment math with fully sampled vertices: sampled=%s missing=%s"
             .format(composed.sampledVertices, composed.missingVertices));
     foreach (depth; composed.depths) {
         auto expectedAdjustedDepth = rangedSource * 0.75f + 2.0f;
@@ -5593,6 +5607,37 @@ private void testPsdDepthMapImportHelpers() {
         blackPngImported.grids[0].depths == [0.1f, 0.2f, 0.3f] &&
         blackPngImported.composedLayers[0].depthStats.maskedPixels == 0,
         "PSD depth import PNG should treat zero depth pixels as missing like depth-draw createMaskFromDepthPixels");
+    PsdDepthComposedView blackPngComposed;
+    string blackPngComposeError;
+    require(ngComposePsdDepthImportResult(blackPngImported, blackPngComposed, blackPngComposeError) &&
+        blackPngImported.grids[0].depths == [0.1f, 0.2f, 0.3f],
+        "Keep Existing must preserve target depths for missing vertices through final PSD depth composition: " ~
+            blackPngComposeError);
+
+    auto zeroMissingSettings = blackPngSettings;
+    zeroMissingSettings.missingPolicy = PsdDepthMissingPolicy.SetZero;
+    auto zeroMissingImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), blackPngDepthPath, zeroMissingSettings);
+    PsdDepthComposedView zeroMissingComposed;
+    string zeroMissingError;
+    require(ngComposePsdDepthImportResult(zeroMissingImported, zeroMissingComposed, zeroMissingError) &&
+        zeroMissingImported.grids[0].missingVertices == pngGrid.vertices.length &&
+        zeroMissingImported.grids[0].depths == [0.0f, 0.0f, 0.0f],
+        "Set Zero must set every missing vertex to zero through final PSD depth composition: " ~ zeroMissingError);
+
+    auto backMissingSettings = blackPngSettings;
+    backMissingSettings.missingPolicy = PsdDepthMissingPolicy.SetBack;
+    backMissingSettings.backDepth = -2.0f;
+    backMissingSettings.depthScale = 1.5f;
+    auto backMissingImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), blackPngDepthPath, backMissingSettings);
+    PsdDepthComposedView backMissingComposed;
+    string backMissingError;
+    require(ngComposePsdDepthImportResult(backMissingImported, backMissingComposed, backMissingError) &&
+        backMissingImported.grids[0].missingVertices == pngGrid.vertices.length &&
+        backMissingImported.grids[0].depths == [-3.0f, -3.0f, -3.0f],
+        "Set Back must apply scaled back depth to every missing vertex through final PSD depth composition: " ~
+            backMissingError);
 
     auto unmatchedPngPath = buildPath(pngFixtureDir, "unmatched-depth-source.png");
     writeRegressionPng(unmatchedPngPath, 192, 192, 192, 4, 4);
@@ -5689,6 +5734,25 @@ private void testPsdDepthMapImportHelpers() {
         pairedPsdColorImported.colorSource.width == 1 &&
         pairedPsdColorImported.colorSource.height == 1,
         "PSD depth import should route explicit PSD color sources as PsdLayers color composites");
+    PsdDepthCompositeSourceLayer offsetColorCoverage;
+    offsetColorCoverage.left = 11;
+    offsetColorCoverage.top = 20;
+    offsetColorCoverage.width = 2;
+    offsetColorCoverage.height = 1;
+    offsetColorCoverage.visible = true;
+    offsetColorCoverage.opacity = 1.0f;
+    offsetColorCoverage.rgba = [
+        cast(ubyte)255, 255, 255, 64,
+        cast(ubyte)255, 255, 255, 192,
+    ];
+    auto alignedPsdColorCoverage = ngPsdDepthAttachCompositeSourceCoverageForRegression(
+        10, 20, 4, 1, offsetColorCoverage);
+    require(alignedPsdColorCoverage.length == 16 &&
+        alignedPsdColorCoverage[3] == 0 &&
+        alignedPsdColorCoverage[7] == 64 &&
+        alignedPsdColorCoverage[11] == 192 &&
+        alignedPsdColorCoverage[15] == 0,
+        "PSD depth import must align explicit PSD color pixels to depth-layer document bounds for coverage");
     auto richColorPsdPath = localDepthDrawDataPath("Midori-20260621-color.psd");
     auto richDepthPsdPath = localDepthDrawDataPath("Midori-20260621-color-psd-depth.psd");
     if (richColorPsdPath.length && richDepthPsdPath.length) {
@@ -5923,7 +5987,7 @@ private void testPsdDepthMapImportHelpers() {
         "PSD depth import active-target N:1 preview should use localized composed-layer bounds");
 
     auto multiPartDepthPath = buildPath(pngFixtureDir, "multi-part-composed-depth.png");
-    writeRegressionPng(multiPartDepthPath, 255, 255, 255, 16, 16);
+    writeRegressionPng(multiPartDepthPath, 32, 128, 224, 16, 16);
     auto multiPartGrid = new ExGridDeformer(incActivePuppet().root);
     multiPartGrid.name = "multi-part-grid";
     multiPartGrid.vertices = Vec2Array([vec2(-2, 0), vec2(2, 0)]);
@@ -5957,14 +6021,27 @@ private void testPsdDepthMapImportHelpers() {
     incActivePuppet().root.build();
     PsdDepthImportSettings multiPartSettings;
     multiPartSettings.convolution = PsdDepthConvolution.Nearest;
+    multiPartSettings.channel = PsdDepthChannel.B;
     multiPartSettings.matchDirectGridName = false;
     auto multiPartImported = ngBuildPsdDepthsFromSource(incActivePuppet(), multiPartDepthPath, multiPartSettings);
     bool foundMultiLayerA;
     bool foundMultiLayerB;
+    bool splitLayersUseSelectedBlueChannel = true;
+    size_t selectedBluePixelCount;
     PsdDepthGridResult* multiPartGridResult;
     foreach (ref layer; multiPartImported.composedLayers) {
         if (layer.layerPath == "/multi-art-left") foundMultiLayerA = true;
-        if (layer.layerPath == "/multi-art-right") foundMultiLayerB = true;
+        else if (layer.layerPath == "/multi-art-right") foundMultiLayerB = true;
+        else continue;
+        foreach (pixelIndex; 0 .. layer.depthRgba.length / 4) {
+            auto byteIndex = pixelIndex * 4;
+            if (layer.depthRgba[byteIndex + 3] == 0) continue;
+            selectedBluePixelCount++;
+            splitLayersUseSelectedBlueChannel = splitLayersUseSelectedBlueChannel &&
+                layer.depthRgba[byteIndex] == 224 &&
+                layer.depthRgba[byteIndex + 1] == 224 &&
+                layer.depthRgba[byteIndex + 2] == 224;
+        }
     }
     foreach (ref gridResult; multiPartImported.grids) {
         if (gridResult.grid is multiPartGrid) multiPartGridResult = &gridResult;
@@ -5973,6 +6050,8 @@ private void testPsdDepthMapImportHelpers() {
         "PSD depth import active-target N:1 should preserve active art Part layers instead of collapsing them to the target Grid");
     require(multiPartGridResult !is null && multiPartGridResult.layerMasks.length == 2,
         "PSD depth import active-target N:1 should combine multiple Part layers as layer masks on the same target Grid");
+    require(selectedBluePixelCount > 0 && splitLayersUseSelectedBlueChannel,
+        "PSD depth import active-target N:1 split layers must decode the selected B channel, not Average RGB");
 
     auto activeArtPsdDepthPath = buildPath(pngFixtureDir, "active-art-psd-depth.psd");
     writeRegressionPsdFixture(activeArtPsdDepthPath);
@@ -6689,6 +6768,22 @@ private void testDepthDrawDataModelContracts() {
         "DepthDraw PSD extraction should intersect clipped layer coverage with its clipping base alpha");
     require(!clippedLayer.visible && !clippedLayer.enabled && near(clippedLayer.opacity, 0.25f),
         "DepthDraw PSD extraction should propagate clipping-base visibility, enabled state, and opacity");
+
+    DepthDrawLayer offsetClippedLayer;
+    offsetClippedLayer.width = 4;
+    offsetClippedLayer.height = 1;
+    offsetClippedLayer.bounds = DepthDrawRect(9, 20, 4, 1);
+    offsetClippedLayer.rgba = [
+        cast(ubyte)255, 255, 255, 255,
+        cast(ubyte)255, 255, 255, 255,
+        cast(ubyte)255, 255, 255, 255,
+        cast(ubyte)255, 255, 255, 255,
+    ];
+    offsetClippedLayer.depthPixels = offsetClippedLayer.rgba.dup;
+    ngDepthDrawApplyClippingBaseCoverage(offsetClippedLayer, clippingBase);
+    require(offsetClippedLayer.rgba[3] == 0 && offsetClippedLayer.rgba[7] == 255 &&
+        offsetClippedLayer.rgba[11] == 0 && offsetClippedLayer.rgba[15] == 0,
+        "DepthDraw PSD clipping must make pixels outside the clipping base bounds transparent");
 
     DepthDrawBinding binding;
     binding.layerId = layer.id;

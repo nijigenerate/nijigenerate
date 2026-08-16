@@ -381,7 +381,7 @@ private DepthImageChannel psdDepthChannelToDepthImage(PsdDepthChannel channel) {
     }
 }
 
-private DepthImageConvolution psdDepthConvolutionToDepthImage(PsdDepthConvolution convolution) {
+DepthImageConvolution ngPsdDepthConvolutionToDepthImage(PsdDepthConvolution convolution) {
     final switch (convolution) {
         case PsdDepthConvolution.Nearest: return DepthImageConvolution.Nearest;
         case PsdDepthConvolution.Box3x3: return DepthImageConvolution.Box3x3;
@@ -433,7 +433,7 @@ private DepthDrawLayer psdDepthComposedLayerToDepthDrawLayer(ref PsdDepthCompose
     layer.sampleDepthScale = composedLayer.sourceDepthScale;
     layer.invert = composedLayer.invert;
     layer.channel = DepthImageChannel.AverageRGB;
-    layer.convolution = psdDepthConvolutionToDepthImage(composedLayer.convolution);
+    layer.convolution = ngPsdDepthConvolutionToDepthImage(composedLayer.convolution);
     layer.customRadius = composedLayer.customRadius;
     layer.alphaThreshold = composedLayer.alphaThreshold;
     return layer;
@@ -700,42 +700,29 @@ private void updatePsdDepthGridRange(ref PsdDepthGridResult gridResult) {
     }
 }
 
-private size_t nearestPsdDepthSampleForMissingVertex(
-    Deformable target,
-    size_t vertexIndex,
-    string[] winningLayerIds
-) {
-    if (target is null || vertexIndex >= target.vertices.length) return size_t.max;
-
-    size_t nearestSample = size_t.max;
-    float nearestDistanceSq = float.max;
-    auto vertex = target.vertices[vertexIndex];
-    foreach (sampledIndex, winnerId; winningLayerIds) {
-        if (winnerId.length == 0 || sampledIndex >= target.vertices.length) continue;
-        auto sampledVertex = target.vertices[sampledIndex];
-        auto dx = sampledVertex.x - vertex.x;
-        auto dy = sampledVertex.y - vertex.y;
-        auto distanceSq = dx * dx + dy * dy;
-        if (distanceSq >= nearestDistanceSq) continue;
-        nearestDistanceSq = distanceSq;
-        nearestSample = sampledIndex;
-    }
-    return nearestSample;
-}
-
-private void extrapolatePsdDepthToMissingVertices(
+private void applyPsdDepthMissingPolicy(
     ref PsdDepthGridResult composed,
-    string[] winningLayerIds
+    ref PsdDepthImportResult imported,
+    const(float)[] existingDepths
 ) {
-    foreach (vertexIndex, isMissing; composed.missingVertexMask) {
+    foreach (i, isMissing; composed.missingVertexMask) {
         if (!isMissing) continue;
-        auto nearestSample = nearestPsdDepthSampleForMissingVertex(
-            composed.grid,
-            vertexIndex,
-            winningLayerIds
-        );
-        if (nearestSample == size_t.max || nearestSample >= composed.depths.length) continue;
-        composed.depths[vertexIndex] = composed.depths[nearestSample];
+        final switch (imported.missingPolicy) {
+            case PsdDepthMissingPolicy.KeepExisting:
+                if (i < existingDepths.length) composed.depths[i] = existingDepths[i];
+                break;
+            case PsdDepthMissingPolicy.SetZero:
+                composed.depths[i] = 0.0f;
+                break;
+            case PsdDepthMissingPolicy.SetBack:
+                auto backDepth = imported.missingBackDepth * imported.globalDepthScale;
+                composed.depths[i] = backDepth.isFinite ? backDepth : 0.0f;
+                break;
+            case PsdDepthMissingPolicy.SkipGrid:
+                composed.skipped = true;
+                composed.depths = existingDepths.dup;
+                return;
+        }
     }
 }
 
@@ -843,8 +830,8 @@ bool ngComposePsdDepthTarget(
             composed.winnerLayerPaths[i] = null;
         }
     }
-    extrapolatePsdDepthToMissingVertices(composed, result.winningLayerIds);
-    smoothPsdDepthGridResult(composed, imported);
+    applyPsdDepthMissingPolicy(composed, imported, oldDepths);
+    if (!composed.skipped) smoothPsdDepthGridResult(composed, imported);
     updatePsdDepthGridRange(composed);
     foreach (ref layerMask; composed.layerMasks) {
         layerMask.sampledVertices = 0;
@@ -956,11 +943,12 @@ private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out str
                 composedGrid.missingVertices++;
             }
         }
+        applyPsdDepthMissingPolicy(composedGrid, imported, oldDepths);
         foreach (ref layerMask; composedGrid.layerMasks) {
             layerMask.sampledVertices = 0;
             layerMask.selectedVertices = 0;
         }
-        smoothPsdDepthGridResult(composedGrid, imported);
+        if (!composedGrid.skipped) smoothPsdDepthGridResult(composedGrid, imported);
         updatePsdDepthGridRange(composedGrid);
         imported.grids[i] = composedGrid;
     }
