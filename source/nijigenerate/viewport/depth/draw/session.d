@@ -5,6 +5,7 @@ import nijigenerate.io.depthimage : DepthDrawAlphaDepthGapDetection, DepthDrawAl
     ngDepthDrawBuildLayerContourBandMask, ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba, ngDepthDrawDetectAlphaDepthGaps,
     ngDepthDrawInpaintMaskedLayerDepth, ngDepthDrawMedianFillDepth;
 import nijigenerate.viewport.depth.draw.binding;
+import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerDocumentBounds;
 import nijigenerate.viewport.depth.draw.layer;
 import nijilive.math : vec2;
 import std.algorithm : sort;
@@ -43,9 +44,24 @@ struct DepthDrawLayerContourRepairSummary {
     size_t filledPixels;
 }
 
+private DepthDrawLayerCleanupOperation[] cloneCleanupOperations(
+    const(DepthDrawLayerCleanupOperation)[] operations
+) {
+    DepthDrawLayerCleanupOperation[] result;
+    foreach (operation; operations) {
+        DepthDrawLayerCleanupOperation copy;
+        copy.kind = operation.kind;
+        copy.contourThickness = operation.contourThickness;
+        copy.focusedRules = operation.focusedRules.dup;
+        result ~= copy;
+    }
+    return result;
+}
+
 class DepthDrawSession {
 private:
     bool[ulong] previewDirtyTargets;
+    ulong[ulong] previewTargetRevisions;
 
     ptrdiff_t findLayerIndex(string id) const {
         foreach (i, ref layer; layers) {
@@ -93,7 +109,16 @@ public:
 
     void markTargetPreviewDirty(ulong gridUuid) {
         if (gridUuid == 0) return;
+        auto revision = gridUuid in previewTargetRevisions;
+        auto nextRevision = revision is null ? 1 : *revision + 1;
+        if (nextRevision == 0) nextRevision = 1;
+        previewTargetRevisions[gridUuid] = nextRevision;
         previewDirtyTargets[gridUuid] = true;
+    }
+
+    ulong targetPreviewRevision(ulong gridUuid) const {
+        auto revision = gridUuid in previewTargetRevisions;
+        return revision is null ? 0 : *revision;
     }
 
     void markLayerPreviewDirty(string layerId) {
@@ -149,12 +174,11 @@ public:
     bool selectLayerPlaneAtDocumentPoint(vec2 documentPoint) {
         foreach_reverse (ref layer; layers) {
             if (!layer.enabled || !layer.visible) continue;
-            auto left = cast(float)layer.bounds.left;
-            auto top = cast(float)layer.bounds.top;
-            auto right = cast(float)(layer.bounds.left + layer.bounds.width);
-            auto bottom = cast(float)(layer.bounds.top + layer.bounds.height);
-            if (documentPoint.x < left || documentPoint.x > right ||
-                documentPoint.y < top || documentPoint.y > bottom) {
+            vec2 minPoint;
+            vec2 maxPoint;
+            ngDepthDrawLayerDocumentBounds(layer, minPoint, maxPoint);
+            if (documentPoint.x < minPoint.x || documentPoint.x > maxPoint.x ||
+                documentPoint.y < minPoint.y || documentPoint.y > maxPoint.y) {
                 continue;
             }
             selectedLayerId = layer.id;
@@ -231,14 +255,25 @@ public:
             return summary;
         }
 
+        bool changed;
         foreach (i, value; summary.filled.depth) {
             auto offset = i * 4;
+            changed = changed ||
+                layer.depthPixels[offset + 0] != value ||
+                layer.depthPixels[offset + 1] != value ||
+                layer.depthPixels[offset + 2] != value;
             layer.depthPixels[offset + 0] = value;
             layer.depthPixels[offset + 1] = value;
             layer.depthPixels[offset + 2] = value;
         }
         layer.alphaMask = alphaMask;
-        markLayerPreviewDirty(layerId);
+        if (changed) {
+            DepthDrawLayerCleanupOperation operation;
+            operation.kind = DepthDrawLayerCleanupKind.AlphaDepthGapFill;
+            operation.focusedRules = focusedRules.dup;
+            layer.cleanupOperations ~= operation;
+            markLayerPreviewDirty(layerId);
+        }
         summary.succeeded = true;
         return summary;
     }
@@ -265,16 +300,52 @@ public:
         foreach (i, value; repaired.filledMask) {
             if (value) summary.filledPixels += 1;
         }
+        bool changed;
         foreach (i, value; repaired.pixels) {
             auto offset = i * 4;
+            changed = changed ||
+                layer.depthPixels[offset + 0] != value ||
+                layer.depthPixels[offset + 1] != value ||
+                layer.depthPixels[offset + 2] != value;
             layer.depthPixels[offset + 0] = value;
             layer.depthPixels[offset + 1] = value;
             layer.depthPixels[offset + 2] = value;
         }
         layer.alphaMask = mask;
-        markLayerPreviewDirty(layerId);
+        if (changed) {
+            DepthDrawLayerCleanupOperation operation;
+            operation.kind = DepthDrawLayerCleanupKind.ContourRepair;
+            operation.contourThickness = thickness;
+            layer.cleanupOperations ~= operation;
+            markLayerPreviewDirty(layerId);
+        }
         summary.succeeded = true;
         return summary;
+    }
+
+    bool replayLayerCleanupOperations(string layerId) {
+        auto layer = layerById(layerId);
+        if (layer is null || !layer.hasDepthPixels()) return false;
+        auto operations = cloneCleanupOperations(layer.cleanupOperations);
+        layer.cleanupOperations = null;
+        auto layerIndex = cast(int)findLayerIndex(layerId);
+        foreach (operation; operations) {
+            final switch (operation.kind) {
+                case DepthDrawLayerCleanupKind.AlphaDepthGapFill:
+                    auto rules = operation.focusedRules.dup;
+                    foreach (ref rule; rules) rule.layerIndex = layerIndex;
+                    applyLayerAlphaDepthGapFill(layerId, rules);
+                    break;
+                case DepthDrawLayerCleanupKind.ContourRepair:
+                    repairLayerContourDepth(layerId, operation.contourThickness);
+                    break;
+            }
+        }
+        layer = layerById(layerId);
+        if (layer is null) return false;
+        layer.cleanupOperations = operations;
+        if (operations.length > 0) markLayerPreviewDirty(layerId);
+        return true;
     }
 
     bool updateBindingSampling(string layerId, ulong targetGridUuid, bool useNormalLayerAlpha, float coverageThreshold) {
@@ -320,6 +391,7 @@ public:
         documentHeight = 0;
         clearSelection();
         clearPreviewDirty();
+        previewTargetRevisions = null;
     }
 }
 
@@ -373,6 +445,8 @@ DepthDrawReloadStateResult ngDepthDrawCarryReloadState(DepthDrawSession reloaded
         layer.convolution = previousLayer.convolution;
         layer.customRadius = previousLayer.customRadius;
         layer.alphaThreshold = previousLayer.alphaThreshold;
+        layer.cleanupOperations = cloneCleanupOperations(previousLayer.cleanupOperations);
+        reloaded.replayLayerCleanupOperations(reloadedId);
         layerIdMap[previousLayer.id] = reloadedId;
         result.matchedLayers++;
     }

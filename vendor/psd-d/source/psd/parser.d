@@ -77,6 +77,14 @@ private ubyte applyMask(ubyte alpha, ubyte mask)
     return cast(ubyte)((cast(uint)alpha * cast(uint)mask + 127u) / 255u);
 }
 
+public ubyte applyMaskSettings(ubyte mask, ubyte density, bool disabled, bool invert) {
+    if (disabled) return 255;
+    if (invert) mask = cast(ubyte)(255 - mask);
+    // A density of zero disables the mask effect; 255 applies the mask fully.
+    return cast(ubyte)(255u - density +
+        (cast(uint)mask * cast(uint)density + 127u) / 255u);
+}
+
 private struct MaskGeometry {
     int top;
     int left;
@@ -122,14 +130,37 @@ private ubyte maskAt(ref Layer layer, short channelType, const(ubyte)[] data, si
     if (data.length == 0) return 255;
     auto mask = channelMaskGeometry(layer, channelType);
     if (!mask.valid) return 255;
+    bool disabled;
+    bool invert;
+    ubyte density = 255;
+    if (channelType == ChannelType.LAYER_MASK && layer.layerMask.length > 0) {
+        disabled = layer.layerMask[0].disabled;
+        invert = layer.layerMask[0].invert;
+        density = layer.layerMask[0].density;
+    } else if (channelType == ChannelType.LAYER_OR_VECTOR_MASK) {
+        if (layer.vectorMask.length > 0) {
+            disabled = layer.vectorMask[0].disabled;
+            invert = layer.vectorMask[0].invert;
+            density = layer.vectorMask[0].density;
+        } else if (layer.layerMask.length > 0) {
+            disabled = layer.layerMask[0].disabled;
+            invert = layer.layerMask[0].invert;
+            density = layer.layerMask[0].density;
+        }
+    }
     auto maskWidth = mask.right - mask.left;
     auto maskHeight = mask.bottom - mask.top;
-    if (maskWidth <= 0 || maskHeight <= 0) return mask.defaultColor;
+    ubyte value = mask.defaultColor;
+    if (maskWidth <= 0 || maskHeight <= 0) {
+        return applyMaskSettings(value, density, disabled, invert);
+    }
     auto x = cast(int)(pixelIndex % layer.width) + layer.left - mask.left;
     auto y = cast(int)(pixelIndex / layer.width) + layer.top - mask.top;
-    if (x < 0 || y < 0 || x >= maskWidth || y >= maskHeight) return mask.defaultColor;
-    auto index = cast(size_t)y * cast(size_t)maskWidth + cast(size_t)x;
-    return index < data.length ? data[index] : mask.defaultColor;
+    if (x >= 0 && y >= 0 && x < maskWidth && y < maskHeight) {
+        auto index = cast(size_t)y * cast(size_t)maskWidth + cast(size_t)x;
+        if (index < data.length) value = data[index];
+    }
+    return applyMaskSettings(value, density, disabled, invert);
 }
 
 
@@ -164,10 +195,15 @@ void extractLayer(ref Layer layer) {
         }
 
         const ushort compressionType = file.readValue!ushort;
+        enforce(channel.dataLength >= ushort.sizeof,
+            "Invalid PSD channel length: missing compression header");
+        const size_t encodedLength = cast(size_t)channel.dataLength - ushort.sizeof;
+        const size_t decodedLength = cast(size_t)channelWidth * cast(size_t)channelHeight;
         switch(compressionType) {
             //RAW
             case 0:
-                channel.data = new ubyte[channelWidth*channelHeight];
+                enforce(encodedLength >= decodedLength, "Truncated raw PSD channel data");
+                channel.data = new ubyte[decodedLength];
                 file.rawRead(channel.data);
                 break;
             
@@ -175,11 +211,15 @@ void extractLayer(ref Layer layer) {
             case 1:
 
                 // RLE compressed data is preceded by a 2-byte data count for each scanline
-                uint rleDataSize;
+                size_t rleDataSize;
                 foreach(_; 0..channelHeight) {
                     const ushort dataCount = file.readValue!ushort;
                     rleDataSize += dataCount;
                 }
+
+                auto rowTableLength = cast(size_t)channelHeight * ushort.sizeof;
+                enforce(rowTableLength <= encodedLength && rleDataSize <= encodedLength - rowTableLength,
+                    "Truncated PSD RLE channel data");
 
                 if (rleDataSize > 0) {
 
@@ -192,9 +232,17 @@ void extractLayer(ref Layer layer) {
                     // Decompress RLE
                     // FIXME:  We're assuming psd.channelsPerBit == 8 right now, and that's not 
                     //         always the case.
-                    channel.data = new ubyte[channelWidth*channelHeight];
+                    channel.data = new ubyte[decodedLength];
                     decodeRLE(rleData, channel.data);
+                } else {
+                    enforce(decodedLength == 0, "Truncated PSD RLE channel data");
                 }
+                break;
+            case 2:
+            case 3:
+                ubyte[] compressed = new ubyte[encodedLength];
+                file.rawRead(compressed);
+                channel.data = decodeZip(compressed, channelWidth, channelHeight, compressionType == 3);
                 break;
             default:
                 enforce(false, "Unsupported PSD channel compression type: %s".format(compressionType));
@@ -588,6 +636,8 @@ template ApplyMaskData(T)
         layerMask.feather = feather;
         layerMask.density = density;
         layerMask.defaultColor = maskData.defaultColor;
+        layerMask.disabled = maskData.disabled;
+        layerMask.invert = maskData.invert;
     }
 }
 
@@ -607,6 +657,10 @@ template ApplyMaskData(T)
 void parseLayerMaskInfoSection(ref File file, ref PSD psd) {
     psd.layerMaskInfoSectionLength = file.readValue!uint;
     psd.layerMaskInfoSectionOffset = file.tell();
+    if (psd.layerMaskInfoSectionLength == 0) {
+        psd.layers = null;
+        return;
+    }
     
     // Parse the length of the layer info section
     uint layerInfoSectionLength = file.readValue!uint;
@@ -684,8 +738,8 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
 
                 double layerFeather = 0.0;
                 double vectorFeather = 0.0;
-                ubyte layerDensity = 0;
-                ubyte vectorDensity = 0;
+                ubyte layerDensity = 255;
+                ubyte vectorDensity = 255;
 
                 long toRead = layerMaskDataLength;
 
@@ -699,6 +753,8 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
                 toRead -= ubyte.sizeof;
 
                 maskData[0].isVectorMask = (maskFlags & (1u << 3)) != 0;
+                maskData[0].disabled = (maskFlags & (1u << 1)) != 0;
+                maskData[0].invert = (maskFlags & (1u << 2)) != 0;
                 bool maskHasParameters = (maskFlags & (1u << 4)) != 0;
                 if (maskHasParameters && (layerMaskDataLength <= 28))
                 {
@@ -721,6 +777,8 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
                     toRead -= ReadMaskRectangle(file, maskData[1]);
 
                     maskData[1].isVectorMask = (realFlags & (1u << 3)) != 0;
+                    maskData[1].disabled = (realFlags & (1u << 1)) != 0;
+                    maskData[1].invert = (realFlags & (1u << 2)) != 0;
 
                     // note the OR here. whether the following section has mask parameter data or not is influenced by
                     // the availability of parameter data of the previous mask!

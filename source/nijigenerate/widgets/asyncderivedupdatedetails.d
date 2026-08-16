@@ -5,6 +5,7 @@
 module nijigenerate.widgets.asyncderivedupdatedetails;
 
 import bindbc.imgui;
+import i18n;
 import nijigenerate.core.asyncderivedupdate;
 import nijigenerate.widgets.button : incButtonColored;
 import nijigenerate.widgets.label : incTextColored, incTextLabel;
@@ -27,13 +28,13 @@ private ImVec4 stateColor(AsyncDerivedUpdateState state) {
 
 private string stateLabel(AsyncDerivedUpdateState state) {
     final switch (state) {
-    case AsyncDerivedUpdateState.Detected: return "DETECTED";
-    case AsyncDerivedUpdateState.Queued: return "WAIT";
-    case AsyncDerivedUpdateState.Running: return "RUN";
-    case AsyncDerivedUpdateState.Applied: return "OK";
-    case AsyncDerivedUpdateState.Stale: return "STALE";
-    case AsyncDerivedUpdateState.Failed: return "ERROR";
-    case AsyncDerivedUpdateState.Canceled: return "CANCELED";
+    case AsyncDerivedUpdateState.Detected: return _("DETECTED");
+    case AsyncDerivedUpdateState.Queued: return _("WAIT");
+    case AsyncDerivedUpdateState.Running: return _("RUN");
+    case AsyncDerivedUpdateState.Applied: return _("OK");
+    case AsyncDerivedUpdateState.Stale: return _("STALE");
+    case AsyncDerivedUpdateState.Failed: return _("ERROR");
+    case AsyncDerivedUpdateState.Canceled: return _("CANCELED");
     }
 }
 
@@ -70,7 +71,7 @@ void drawAsyncDerivedUpdateDetailsUi(
     }
     if (detailCount == 0) return;
 
-    auto summary = "Updates  wait:%s  run:%s  ok:%s  stale:%s  error:%s".format(
+    auto summary = _("Updates  wait:%s  run:%s  ok:%s  stale:%s  error:%s").format(
         queued + detected, running, applied, stale + canceled, failed);
     auto summaryState = failed > 0 ? AsyncDerivedUpdateState.Failed :
         (running > 0 ? AsyncDerivedUpdateState.Running :
@@ -83,10 +84,10 @@ void drawAsyncDerivedUpdateDetailsUi(
         stateColor(summaryState))) {
         igOpenPopup("AsyncDerivedUpdateDetails");
     }
-    incTooltip("Updates derived asynchronously from another edit. Click for details.");
+    incTooltip(_("Updates derived asynchronously from another edit. Click for details."));
 
     if (igBeginPopup("AsyncDerivedUpdateDetails")) {
-        incTextLabel("Derived Updates");
+        incTextLabel(_("Derived Updates"));
         size_t[] detailIndices;
         foreach (i, ref const snapshot; snapshots) {
             if ((snapshot.display & cast(uint)AsyncDerivedUpdateDisplay.Details) != 0)
@@ -97,20 +98,20 @@ void drawAsyncDerivedUpdateDetailsUi(
         foreach (i; detailIndices) {
             ref const snapshot = snapshots[i];
             auto operation = snapshot.origin.operationName.length
-                ? snapshot.origin.operationName : "Update";
+                ? snapshot.origin.operationName : _("Update");
             incTextColored(
                 stateColor(snapshot.state),
                 "%s  %s%s".format(
                     snapshot.label,
                     stateLabel(snapshot.state),
                     progressText(snapshot)));
-            incTextLabel("Operation: %s".format(operation));
+            incTextLabel(_("Operation: %s").format(operation));
             if (snapshot.reason.length)
-                incTextLabel("Reason: %s".format(snapshot.reason));
+                incTextLabel(_("Reason: %s").format(snapshot.reason));
             if (snapshot.retryCount > 0)
-                incTextLabel("Retry: %s".format(snapshot.retryCount));
+                incTextLabel(_("Retry: %s").format(snapshot.retryCount));
             if (snapshot.detail.length)
-                incTextLabel("Detail: %s".format(snapshot.detail));
+                incTextLabel(_("Detail: %s").format(snapshot.detail));
             igSeparator();
         }
         igEndPopup();

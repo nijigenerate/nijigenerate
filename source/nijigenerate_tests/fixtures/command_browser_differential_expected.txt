@@ -185,6 +185,7 @@ Inspector.Apply.TranslationZ	args=value=1.25	unsupported=	before=value=nan	after
 Inspector.Apply.ViewportOrigin	args=	unsupported=value:Vector!(float, 2)	before=value=[nan, nan]	after=value=[nan, nan]	cleared=
 Inspector.Apply.ZSort	args=value=1.25	unsupported=	before=value=nan	after=value=1.25	cleared=value=1.25
 ModelCommand.SetDeformBinding	args=bindingName=command-browser-differential	unsupported=values:float[]	before=bindingName=deform;values=[]	after=bindingName=command-browser-differential;values=[]	cleared=bindingName=;values=[]
+ModelCommand.SetRotationYBinding	args=rotationRadians=1.25	unsupported=	before=rotationRadians=0	after=rotationRadians=1.25	cleared=rotationRadians=1.25
 ModelCommand.SetTRSBinding	args=applyRotation=true;rotationDegrees=1.25	unsupported=scale:float[];translation:float[]	before=translation=[];scale=[];rotationDegrees=0;applyRotation=false	after=translation=[];scale=[];rotationDegrees=1.25;applyRotation=true	cleared=translation=[];scale=[];rotationDegrees=1.25;applyRotation=true
 Node.Add.Camera	args=_suffix=command-browser-differential	unsupported=	before=className=Camera;_suffix=	after=className=Camera;_suffix=command-browser-differential	cleared=className=Camera;_suffix=
 Node.Add.Composite	args=_suffix=command-browser-differential	unsupported=	before=className=Composite;_suffix=	after=className=Composite;_suffix=command-browser-differential	cleared=className=Composite;_suffix=

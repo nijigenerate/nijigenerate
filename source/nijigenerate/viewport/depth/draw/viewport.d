@@ -9,6 +9,7 @@ import nijigenerate.viewport.depth.camera : unprojectDepthPoint;
 import nijigenerate.viewport.depth.common.session;
 import nijigenerate.viewport.depth.common.targetview : DepthTargetView;
 import nijigenerate.viewport.depth.draw.composer;
+import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerDocumentBounds;
 import nijigenerate.viewport.depth.draw.diagnostics;
 import nijigenerate.viewport.depth.draw.gpu;
 import nijigenerate.viewport.depth.draw.layer;
@@ -124,6 +125,12 @@ struct DepthDrawViewportWinningPointGroup {
     DepthTargetRenderPoint[] points;
 }
 
+private struct DepthDrawGpuPreviewPendingJob {
+    DepthDrawGpuTargetComposeJob job;
+    DepthDrawSession session;
+    ulong revision;
+}
+
 class DepthDrawViewport : Viewport {
 private:
     Node[] selection;
@@ -135,8 +142,16 @@ private:
     int documentWidth = 1;
     int documentHeight = 1;
     DepthDrawComposeResult[ulong] previewResults;
-    DepthDrawGpuTargetComposeJob[ulong] pendingGpuPreviewJobs;
+    DepthDrawGpuPreviewPendingJob[ulong] pendingGpuPreviewJobs;
     string gpuPreviewErrorMessage;
+
+    void cancelPendingGpuPreviews() {
+        foreach (gridUuid; pendingGpuPreviewJobs.keys) {
+            auto pending = gridUuid in pendingGpuPreviewJobs;
+            if (pending !is null) ngCancelDepthDrawGpuTargetCompose(pending.job);
+        }
+        pendingGpuPreviewJobs = null;
+    }
 
     void syncTargets() {
         viewSession.clear();
@@ -183,6 +198,20 @@ private:
         );
     }
 
+    void planeDocumentBounds(
+        DepthDrawDepthSpaceLayerPlane plane,
+        out vec2 minPoint,
+        out vec2 maxPoint
+    ) {
+        auto layer = drawSession is null ? null : drawSession.layerById(plane.layerId);
+        if (layer !is null) {
+            ngDepthDrawLayerDocumentBounds(*layer, minPoint, maxPoint);
+            return;
+        }
+        minPoint = rectMin(plane.bounds);
+        maxPoint = rectMax(plane.bounds);
+    }
+
     bool findDepthSpaceLayer(ref DepthDrawDepthSpaceSummary depthSpace, string layerId, out DepthDrawDepthSpaceLayerPlane plane) {
         foreach (candidate; depthSpace.layers) {
             if (candidate.layerId != layerId) continue;
@@ -193,10 +222,12 @@ private:
     }
 
     vec2 gapMarkerPoint(DepthDrawDepthSpaceLayerPlane backPlane, DepthDrawDepthSpaceLayerPlane frontPlane) {
-        auto backMin = rectMin(backPlane.bounds);
-        auto backMax = rectMax(backPlane.bounds);
-        auto frontMin = rectMin(frontPlane.bounds);
-        auto frontMax = rectMax(frontPlane.bounds);
+        vec2 backMin;
+        vec2 backMax;
+        vec2 frontMin;
+        vec2 frontMax;
+        planeDocumentBounds(backPlane, backMin, backMax);
+        planeDocumentBounds(frontPlane, frontMin, frontMax);
 
         auto minX = backMin.x > frontMin.x ? backMin.x : frontMin.x;
         auto maxX = backMax.x < frontMax.x ? backMax.x : frontMax.x;
@@ -308,6 +339,8 @@ private:
         if (!layer.hasNormalCoverage() || layer.width <= 0 || layer.height <= 0) return;
         auto stepX = cast(float)layer.bounds.width / cast(float)layer.width;
         auto stepY = cast(float)layer.bounds.height / cast(float)layer.height;
+        auto scaleX = layer.xyScale.x == 0.0f ? 1.0f : layer.xyScale.x;
+        auto scaleY = layer.xyScale.y == 0.0f ? 1.0f : layer.xyScale.y;
         foreach (y; 0 .. layer.height) {
             foreach (x; 0 .. layer.width) {
                 auto pixelIndex = cast(size_t)(y * layer.width + x);
@@ -316,8 +349,10 @@ private:
                 auto alphaByte = layer.normalCoverage[rgbaIndex];
                 if (alphaByte == 0) continue;
                 auto documentPoint = vec2(
-                    cast(float)layer.bounds.left + (cast(float)x + 0.5f) * stepX,
-                    cast(float)layer.bounds.top + (cast(float)y + 0.5f) * stepY
+                    cast(float)layer.bounds.left + layer.xyOffset.x +
+                        (cast(float)x + 0.5f) * stepX * scaleX,
+                    cast(float)layer.bounds.top + layer.xyOffset.y +
+                        (cast(float)y + 0.5f) * stepY * scaleY
                 );
                 DepthDrawViewportCoveragePoint point;
                 point.layerId = layer.id;
@@ -357,6 +392,8 @@ public:
     }
 
     void setDepthDrawSession(DepthDrawSession session) {
+        cancelPendingGpuPreviews();
+        previewResults = null;
         drawSession = session is null ? new DepthDrawSession() : session;
         syncTargets();
     }
@@ -405,13 +442,17 @@ public:
         auto target = viewSession.targetByGrid(gridUuid);
         if (target is null) return false;
 
-        DepthDrawGpuTargetComposeJob job;
+        DepthDrawGpuPreviewPendingJob pending;
+        pending.session = drawSession;
+        pending.revision = drawSession.targetPreviewRevision(gridUuid);
         string error;
-        if (!ngSubmitDepthDrawGpuTargetCompose(drawSession, target, documentWidth, documentHeight, job, error)) {
+        if (!ngSubmitDepthDrawGpuTargetCompose(
+            drawSession, target, documentWidth, documentHeight, pending.job, error
+        )) {
             gpuPreviewErrorMessage = error.length ? error : "DepthDraw GPU preview submit failed";
             return false;
         }
-        pendingGpuPreviewJobs[gridUuid] = job;
+        pendingGpuPreviewJobs[gridUuid] = pending;
         gpuPreviewErrorMessage = null;
         return true;
     }
@@ -419,17 +460,21 @@ public:
     size_t pollGpuPreviews() {
         size_t completed;
         foreach (gridUuid; pendingGpuPreviewJobs.keys) {
-            auto job = gridUuid in pendingGpuPreviewJobs;
-            if (job is null) continue;
+            auto pending = gridUuid in pendingGpuPreviewJobs;
+            if (pending is null) continue;
             DepthDrawGpuTargetComposePollResult pollResult;
             string error;
-            if (!ngPollDepthDrawGpuTargetCompose(*job, pollResult, error)) {
+            if (!ngPollDepthDrawGpuTargetCompose(pending.job, pollResult, error)) {
                 gpuPreviewErrorMessage = error.length ? error : "DepthDraw GPU preview poll failed";
+                ngCancelDepthDrawGpuTargetCompose(pending.job);
                 pendingGpuPreviewJobs.remove(gridUuid);
                 continue;
             }
             if (!pollResult.ready) continue;
+            auto current = pending.session is drawSession && drawSession !is null &&
+                pending.revision == drawSession.targetPreviewRevision(gridUuid);
             pendingGpuPreviewJobs.remove(gridUuid);
+            if (!current) continue;
             previewResults[gridUuid] = pollResult.result;
             auto target = viewSession.targetByGrid(gridUuid);
             if (target !is null && pollResult.result.depths.length > 0) {
@@ -461,10 +506,14 @@ public:
     }
 
     vec2 depthViewPointToDocumentPoint(vec2 depthViewPoint, float representativeDepth = 0.0f) {
-        return unprojectDepthPoint(
+        auto modelPoint = unprojectDepthPoint(
             depthViewPoint,
             -representativeDepth * selectedDepthDisplayScale(),
             viewSession.camera
+        );
+        return vec2(
+            modelPoint.x + cast(float)documentWidth * 0.5f,
+            modelPoint.y + cast(float)documentHeight * 0.5f
         );
     }
 
@@ -495,6 +544,7 @@ public:
     size_t composeDirtyPreviews() {
         if (drawSession is null) return 0;
         if (drawSession.display.useGpuPreview) return composeDirtyGpuPreviews();
+        cancelPendingGpuPreviews();
         size_t composed;
         foreach (gridUuid; drawSession.dirtyTargetGridIds()) {
             if (viewSession.targetByGrid(gridUuid) is null) continue;
@@ -548,8 +598,11 @@ public:
         auto depthDisplayScale = selectedDepthDisplayScale();
         foreach (plane; depthSpace.layers) {
             if (!plane.visible || !plane.enabled) continue;
-            auto minPoint = documentToModelPoint(rectMin(plane.bounds));
-            auto maxPoint = documentToModelPoint(rectMax(plane.bounds));
+            vec2 documentMin;
+            vec2 documentMax;
+            planeDocumentBounds(plane, documentMin, documentMax);
+            auto minPoint = documentToModelPoint(documentMin);
+            auto maxPoint = documentToModelPoint(documentMax);
             auto sourcePlaneLines = renderer.buildPlaneLines(
                 minPoint,
                 maxPoint,
@@ -693,7 +746,7 @@ public:
 
     override void withdraw() {
         previewResults = null;
-        pendingGpuPreviewJobs = null;
+        cancelPendingGpuPreviews();
         gpuPreviewErrorMessage = null;
         viewSession.clear();
     }

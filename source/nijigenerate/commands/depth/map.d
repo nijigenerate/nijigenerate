@@ -441,6 +441,8 @@ private DepthDrawLayer psdDepthComposedLayerToDepthDrawLayer(ref PsdDepthCompose
 
 DepthDrawSession ngPsdDepthComposedSourceToDepthDrawSession(PsdDepthComposedSource source) {
     auto session = new DepthDrawSession();
+    session.documentWidth = source.width;
+    session.documentHeight = source.height;
     int order;
     foreach (ref composedLayer; source.layers) {
         DepthDrawLayer layer = psdDepthComposedLayerToDepthDrawLayer(composedLayer);

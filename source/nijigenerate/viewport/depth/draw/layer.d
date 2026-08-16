@@ -1,6 +1,7 @@
 module nijigenerate.viewport.depth.draw.layer;
 
-import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, DepthImageSampleSettings;
+import nijigenerate.io.depthimage : DepthDrawAlphaDepthFocusedRule, DepthImageChannel, DepthImageConvolution,
+    DepthImageSampleSettings;
 import nijilive.math : vec2;
 
 struct DepthDrawRect {
@@ -8,6 +9,17 @@ struct DepthDrawRect {
     int top;
     int width;
     int height;
+}
+
+enum DepthDrawLayerCleanupKind {
+    AlphaDepthGapFill,
+    ContourRepair,
+}
+
+struct DepthDrawLayerCleanupOperation {
+    DepthDrawLayerCleanupKind kind;
+    int contourThickness = 2;
+    DepthDrawAlphaDepthFocusedRule[] focusedRules;
 }
 
 struct DepthDrawLayer {
@@ -24,6 +36,7 @@ struct DepthDrawLayer {
     ubyte[] depthPixels;
     ubyte[] alphaMask;
     ubyte[] normalCoverage;
+    DepthDrawLayerCleanupOperation[] cleanupOperations;
 
     float opacity = 1.0f;
     bool visible = true;

@@ -1133,6 +1133,10 @@ void ngCancelDepthDrawGpuCompose(uint jobId) {
     pendingPackets.remove(jobId);
 }
 
+size_t ngPendingDepthDrawGpuComposeJobCount() {
+    return pendingPackets.length;
+}
+
 bool ngSubmitDepthDrawGpuTargetCompose(
     DepthDrawSession session,
     DepthTargetView target,

@@ -1790,7 +1790,8 @@ private void requeueStaleDepthBoneGpuBatch(DepthBoneGpuRefreshJob job, string st
     foreach (packet; originalPackets) {
         auto packetTarget = cast(Node)packet.target;
         if (packet.root is null || !isLiveDepthRigRoot(packet.root) ||
-            packet.parameter is null || packetTarget is null) {
+            packet.parameter is null || packetTarget is null ||
+            findActiveNodeByUuid(packetTarget.uuid) !is packetTarget) {
             failure = "batch target is no longer available";
             break;
         }
@@ -1876,6 +1877,11 @@ private bool isDepthBoneGpuRefreshJobCurrent(ref DepthBoneGpuRefreshJob job, out
         reason = "target was deleted";
         return false;
     }
+    auto targetNode = cast(Node)target;
+    if (targetNode is null || findActiveNodeByUuid(targetNode.uuid) !is targetNode) {
+        reason = "target is no longer attached to the active puppet";
+        return false;
+    }
     if (!isLiveDepthRigRoot(job.packet.root)) {
         reason = "depth rig root is no longer live";
         return false;
@@ -1887,11 +1893,6 @@ private bool isDepthBoneGpuRefreshJobCurrent(ref DepthBoneGpuRefreshJob job, out
     auto currentRawDepths = snapshotTargetDepths(target);
     if (!sameFloatArray(currentRawDepths, job.packet.rawDepths)) {
         reason = "target depths changed while GPU job was pending";
-        return false;
-    }
-    auto targetNode = cast(Node)target;
-    if (targetNode is null) {
-        reason = "target was deleted";
         return false;
     }
     if (!job.packet.writeBinding) {
@@ -2303,6 +2304,11 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
     size_t expectedBindingWrites;
 
     foreach (job; batch) {
+        auto targetNode = cast(Node)job.packet.target;
+        if (targetNode is null || findActiveNodeByUuid(targetNode.uuid) !is targetNode) {
+            cancelDepthBoneGpuBatch(batchId, "Target is no longer attached to the active puppet");
+            return false;
+        }
         if (job.actionSink !is null && !job.actionToken.acceptsCompletion) {
             cancelDepthBoneGpuBatch(batchId, "Owner operation is no longer active");
             return false;

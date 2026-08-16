@@ -498,9 +498,38 @@ public:
         GLint prevDrawFbo;
         GLint prevReadFbo;
         GLint[4] prevViewport;
+        GLboolean prevDepthEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean prevCullEnabled = glIsEnabled(GL_CULL_FACE);
+        GLboolean prevBlendEnabled = glIsEnabled(GL_BLEND);
+        GLint prevBlendEquationRgb;
+        GLint prevBlendEquationAlpha;
+        GLint prevBlendSrcRgb;
+        GLint prevBlendDstRgb;
+        GLint prevBlendSrcAlpha;
+        GLint prevBlendDstAlpha;
+        GLfloat[4] prevClearColor;
+        GLint maxDrawBuffers;
         glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFbo);
         glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFbo);
         glGetIntegerv(GL_VIEWPORT, prevViewport.ptr);
+        glGetIntegerv(GL_BLEND_EQUATION_RGB, &prevBlendEquationRgb);
+        glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevBlendEquationAlpha);
+        glGetIntegerv(GL_BLEND_SRC_RGB, &prevBlendSrcRgb);
+        glGetIntegerv(GL_BLEND_DST_RGB, &prevBlendDstRgb);
+        glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevBlendSrcAlpha);
+        glGetIntegerv(GL_BLEND_DST_ALPHA, &prevBlendDstAlpha);
+        glGetFloatv(GL_COLOR_CLEAR_VALUE, prevClearColor.ptr);
+        glGetIntegerv(GL_MAX_DRAW_BUFFERS, &maxDrawBuffers);
+        GLenum[] prevDrawBuffers;
+        prevDrawBuffers.length = maxDrawBuffers > 0 ? cast(size_t)maxDrawBuffers : 1;
+        foreach (i; 0 .. prevDrawBuffers.length) {
+            GLint drawBuffer;
+            glGetIntegerv(cast(GLenum)(GL_DRAW_BUFFER0 + i), &drawBuffer);
+            prevDrawBuffers[i] = cast(GLenum)drawBuffer;
+        }
+        while (prevDrawBuffers.length > 1 && prevDrawBuffers[$ - 1] == GL_NONE) {
+            prevDrawBuffers.length--;
+        }
 
         glBindFramebuffer(GL_FRAMEBUFFER, textureFbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.getTextureId(), 0);
@@ -539,9 +568,18 @@ public:
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cast(GLuint)prevDrawFbo);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, cast(GLuint)prevReadFbo);
             glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
-            if (prevDrawFbo != 0) {
-                glDrawBuffers(3, [GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2].ptr);
-            }
+            if (prevDepthEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+            if (prevCullEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+            if (prevBlendEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+            glBlendEquationSeparate(cast(GLenum)prevBlendEquationRgb, cast(GLenum)prevBlendEquationAlpha);
+            glBlendFuncSeparate(
+                cast(GLenum)prevBlendSrcRgb,
+                cast(GLenum)prevBlendDstRgb,
+                cast(GLenum)prevBlendSrcAlpha,
+                cast(GLenum)prevBlendDstAlpha
+            );
+            glClearColor(prevClearColor[0], prevClearColor[1], prevClearColor[2], prevClearColor[3]);
+            glDrawBuffers(cast(GLsizei)prevDrawBuffers.length, prevDrawBuffers.ptr);
         }
 
         foreach (part; drawableChildren(target)) {

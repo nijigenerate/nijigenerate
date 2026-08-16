@@ -165,6 +165,7 @@ private:
             if (layer.height <= 0) layer.height = imageLayer.height;
             if (layer.bounds.width <= 0) layer.bounds.width = layer.width;
             if (layer.bounds.height <= 0) layer.bounds.height = layer.height;
+            loadedSession.replayLayerCleanupOperations(layer.id);
         }
     }
 

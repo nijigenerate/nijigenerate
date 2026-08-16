@@ -84,6 +84,12 @@ struct LayerMask
     */
     ubyte density;
 
+    /** Whether this mask is disabled in the PSD. */
+    bool disabled;
+
+    /** Whether this mask is inverted in the PSD. */
+    bool invert;
+
 	/**
         The mask's default color regions outside the enclosing rectangle.
     */
@@ -138,6 +144,12 @@ struct VectorMask
     */
     ubyte density;
 
+    /** Whether this mask is disabled in the PSD. */
+    bool disabled;
+
+    /** Whether this mask is inverted in the PSD. */
+    bool invert;
+
 	/**
         The mask's default color regions outside the enclosing rectangle.
     */
@@ -178,6 +190,12 @@ struct MaskData
         If the mask is a vector mask or not
     */
     bool isVectorMask;
+
+    /** Whether the mask is disabled. */
+    bool disabled;
+
+    /** Whether the mask is inverted. */
+    bool invert;
 };
 
 /**

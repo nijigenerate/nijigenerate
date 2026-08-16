@@ -1,7 +1,8 @@
 module nijigenerate.viewport.depth.draw.manifest;
 
-import nijigenerate.io.depthimage : DepthImageChannel, DepthImageConvolution, ngDepthImageChannelFromString,
-    ngDepthImageChannelName, ngDepthImageConvolutionFromString, ngDepthImageConvolutionName;
+import nijigenerate.io.depthimage : DepthDrawAlphaDepthFocusedRule, DepthImageChannel, DepthImageConvolution,
+    ngDepthImageChannelFromString, ngDepthImageChannelName, ngDepthImageConvolutionFromString,
+    ngDepthImageConvolutionName;
 import nijigenerate.viewport.depth.draw.binding;
 import nijigenerate.viewport.depth.draw.layer;
 import nijigenerate.viewport.depth.draw.session;
@@ -9,6 +10,7 @@ import nijilive;
 import std.conv : to;
 import std.exception : enforce;
 import std.file : exists, readText, write;
+import std.format : format;
 import std.json : JSONType, JSONValue, parseJSON;
 import std.path : buildPath, isAbsolute;
 
@@ -176,6 +178,78 @@ private DepthMergePolicy mergePolicyFromString(string value) {
     }
 }
 
+private string cleanupKindName(DepthDrawLayerCleanupKind kind) {
+    final switch (kind) {
+        case DepthDrawLayerCleanupKind.AlphaDepthGapFill: return "AlphaDepthGapFill";
+        case DepthDrawLayerCleanupKind.ContourRepair: return "ContourRepair";
+    }
+}
+
+private DepthDrawLayerCleanupKind cleanupKindFromString(string value) {
+    switch (value) {
+        case "AlphaDepthGapFill": return DepthDrawLayerCleanupKind.AlphaDepthGapFill;
+        case "ContourRepair": return DepthDrawLayerCleanupKind.ContourRepair;
+        default: throw new Exception("Unknown DepthDraw cleanup operation: " ~ value);
+    }
+}
+
+private JSONValue cleanupOperationsToJson(const(DepthDrawLayerCleanupOperation)[] operations) {
+    JSONValue result = JSONValue.emptyArray;
+    foreach (operation; operations) {
+        JSONValue[string] item;
+        item["kind"] = JSONValue(cleanupKindName(operation.kind));
+        item["contourThickness"] = JSONValue(cast(long)operation.contourThickness);
+        JSONValue rules = JSONValue.emptyArray;
+        foreach (rule; operation.focusedRules) {
+            JSONValue[string] ruleItem;
+            ruleItem["layerIndex"] = JSONValue(cast(long)rule.layerIndex);
+            ruleItem["x"] = JSONValue(cast(long)rule.x);
+            ruleItem["y"] = JSONValue(cast(long)rule.y);
+            ruleItem["w"] = JSONValue(cast(long)rule.w);
+            ruleItem["h"] = JSONValue(cast(long)rule.h);
+            ruleItem["lift"] = JSONValue(cast(long)rule.lift);
+            ruleItem["radius"] = JSONValue(cast(long)rule.radius);
+            rules.array ~= JSONValue(ruleItem);
+        }
+        item["focusedRules"] = rules;
+        result.array ~= JSONValue(item);
+    }
+    return result;
+}
+
+private DepthDrawLayerCleanupOperation[] cleanupOperationsFromJson(JSONValue value, string name) {
+    if (value.type == JSONType.null_) return null;
+    enforce(value.type == JSONType.array, name ~ " must be an array");
+    DepthDrawLayerCleanupOperation[] result;
+    foreach (i, entry; value.array) {
+        auto itemName = "%s[%s]".format(name, i);
+        enforce(entry.type == JSONType.object, itemName ~ " must be an object");
+        auto object = entry.object;
+        DepthDrawLayerCleanupOperation operation;
+        operation.kind = cleanupKindFromString(jsonString(object.get("kind", JSONValue(null)), itemName ~ ".kind"));
+        operation.contourThickness = cast(int)jsonFloat(
+            object.get("contourThickness", JSONValue(2)), itemName ~ ".contourThickness", 2);
+        auto rulesValue = object.get("focusedRules", JSONValue.emptyArray);
+        enforce(rulesValue.type == JSONType.array, itemName ~ ".focusedRules must be an array");
+        foreach (ruleIndex, ruleValue; rulesValue.array) {
+            auto ruleName = "%s.focusedRules[%s]".format(itemName, ruleIndex);
+            enforce(ruleValue.type == JSONType.object, ruleName ~ " must be an object");
+            auto ruleObject = ruleValue.object;
+            DepthDrawAlphaDepthFocusedRule rule;
+            rule.layerIndex = cast(int)jsonFloat(ruleObject.get("layerIndex", JSONValue(0)), ruleName ~ ".layerIndex");
+            rule.x = cast(int)jsonFloat(ruleObject.get("x", JSONValue(0)), ruleName ~ ".x");
+            rule.y = cast(int)jsonFloat(ruleObject.get("y", JSONValue(0)), ruleName ~ ".y");
+            rule.w = cast(int)jsonFloat(ruleObject.get("w", JSONValue(0)), ruleName ~ ".w");
+            rule.h = cast(int)jsonFloat(ruleObject.get("h", JSONValue(0)), ruleName ~ ".h");
+            rule.lift = cast(int)jsonFloat(ruleObject.get("lift", JSONValue(0)), ruleName ~ ".lift");
+            rule.radius = cast(int)jsonFloat(ruleObject.get("radius", JSONValue(0)), ruleName ~ ".radius");
+            operation.focusedRules ~= rule;
+        }
+        result ~= operation;
+    }
+    return result;
+}
+
 JSONValue ngDepthDrawSessionToManifest(DepthDrawSession session) {
     JSONValue[string] root;
     root["version"] = JSONValue(1L);
@@ -221,6 +295,7 @@ JSONValue ngDepthDrawSessionToManifest(DepthDrawSession session) {
             item["convolution"] = JSONValue(ngDepthImageConvolutionName(layer.convolution));
             item["customRadius"] = JSONValue(cast(long)layer.customRadius);
             item["alphaThreshold"] = JSONValue(cast(double)layer.alphaThreshold);
+            item["cleanupOperations"] = cleanupOperationsToJson(layer.cleanupOperations);
             layers.array ~= JSONValue(item);
         }
     }
@@ -290,6 +365,8 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
             jsonString(object.get("convolution", JSONValue("Gaussian3x3")), "layer.convolution"));
         layer.customRadius = cast(int)jsonFloat(object.get("customRadius", JSONValue(3)), "layer.customRadius");
         layer.alphaThreshold = jsonFloat(object.get("alphaThreshold", JSONValue(0.01)), "layer.alphaThreshold");
+        layer.cleanupOperations = cleanupOperationsFromJson(
+            object.get("cleanupOperations", JSONValue.emptyArray), "layer.cleanupOperations");
         session.layers ~= layer;
     }
 

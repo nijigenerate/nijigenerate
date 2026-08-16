@@ -44,6 +44,21 @@ DepthDrawLayer ngLoadDepthDrawPngLayer(string path, string id = null) {
     return layer;
 }
 
+void ngDepthDrawApplyClippingBaseCoverage(
+    ref DepthDrawLayer clippedLayer,
+    ref const(DepthDrawLayer) clippingBase
+) {
+    ngDepthDrawApplyMaskToLayerAlpha(
+        clippedLayer,
+        clippingBase.alphaMask,
+        clippingBase.width,
+        clippingBase.height,
+        clippingBase.bounds.left,
+        clippingBase.bounds.top,
+        false
+    );
+}
+
 DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
     auto document = parseDocument(path);
     scope(exit) destroy(document);
@@ -60,6 +75,7 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
     float[] groupOpacity;
     string groupPath;
     size_t layerIndex;
+    DepthDrawLayer[string] clippingBaseByGroup;
     foreach_reverse (layer; document.layers) {
         if (layer.type != LayerType.Any) {
             if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
@@ -98,6 +114,15 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         drawLayer.rgba = layer.data.dup;
         drawLayer.depthPixels = layer.data.dup;
         drawLayer.alphaMask = ngDepthDrawAlphaMaskFromRgba(drawLayer.rgba);
+
+        // PSD records use zero for a clipping base and one for clipped layers;
+        // parser Layer.clipping is true for the former. Clipped layers share the
+        // effective transparency of the nearest base below them in the same group.
+        if (layer.clipping) {
+            clippingBaseByGroup[groupPath] = drawLayer;
+        } else if (auto clippingBase = groupPath in clippingBaseByGroup) {
+            ngDepthDrawApplyClippingBaseCoverage(drawLayer, *clippingBase);
+        }
 
         result.layers ~= drawLayer;
         result.session.layers ~= drawLayer;

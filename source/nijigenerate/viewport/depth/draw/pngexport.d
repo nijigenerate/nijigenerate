@@ -96,6 +96,8 @@ DepthDrawPngExportResult ngExportDepthDrawPngSession(
         exportedLayer.depthPixels = null;
         exportedLayer.alphaMask = null;
         exportedLayer.normalCoverage = null;
+        // Cleanup is baked into the exported PNG and must not be replayed.
+        exportedLayer.cleanupOperations = null;
         exported.layers ~= exportedLayer;
         result.layerPaths ~= path;
         result.exportedLayers++;
