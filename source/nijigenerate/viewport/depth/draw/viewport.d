@@ -125,6 +125,13 @@ struct DepthDrawViewportWinningPointGroup {
     DepthTargetRenderPoint[] points;
 }
 
+enum size_t DepthDrawMaxCoverageOverlayPoints = 16_384;
+
+size_t ngDepthDrawCoverageOverlayStride(size_t pixelCount) {
+    if (pixelCount <= DepthDrawMaxCoverageOverlayPoints) return 1;
+    return 1 + (pixelCount - 1) / DepthDrawMaxCoverageOverlayPoints;
+}
+
 private struct DepthDrawGpuPreviewPendingJob {
     DepthDrawGpuTargetComposeJob job;
     DepthDrawSession session;
@@ -341,32 +348,33 @@ private:
         auto stepY = cast(float)layer.bounds.height / cast(float)layer.height;
         auto scaleX = layer.xyScale.x == 0.0f ? 1.0f : layer.xyScale.x;
         auto scaleY = layer.xyScale.y == 0.0f ? 1.0f : layer.xyScale.y;
-        foreach (y; 0 .. layer.height) {
-            foreach (x; 0 .. layer.width) {
-                auto pixelIndex = cast(size_t)(y * layer.width + x);
-                auto rgbaIndex = pixelIndex * 4 + 3;
-                if (rgbaIndex >= layer.normalCoverage.length) continue;
-                auto alphaByte = layer.normalCoverage[rgbaIndex];
-                if (alphaByte == 0) continue;
-                auto documentPoint = vec2(
-                    cast(float)layer.bounds.left + layer.xyOffset.x +
-                        (cast(float)x + 0.5f) * stepX * scaleX,
-                    cast(float)layer.bounds.top + layer.xyOffset.y +
-                        (cast(float)y + 0.5f) * stepY * scaleY
-                );
-                DepthDrawViewportCoveragePoint point;
-                point.layerId = layer.id;
-                point.documentPoint = documentPoint;
-                point.alpha = cast(float)alphaByte / 255.0f;
-                point.renderPoint = renderer.buildPoint(
-                    documentToModelPoint(documentPoint),
-                    representativeDepth,
-                    depthDisplayScale,
-                    viewSession.camera,
-                    3.0f
-                );
-                geometry.coveragePoints ~= point;
-            }
+        auto pixelCount = cast(size_t)layer.width * cast(size_t)layer.height;
+        auto stride = ngDepthDrawCoverageOverlayStride(pixelCount);
+        for (size_t pixelIndex; pixelIndex < pixelCount; pixelIndex += stride) {
+            auto rgbaIndex = pixelIndex * 4 + 3;
+            if (rgbaIndex >= layer.normalCoverage.length) continue;
+            auto alphaByte = layer.normalCoverage[rgbaIndex];
+            if (alphaByte == 0) continue;
+            auto x = cast(int)(pixelIndex % cast(size_t)layer.width);
+            auto y = cast(int)(pixelIndex / cast(size_t)layer.width);
+            auto documentPoint = vec2(
+                cast(float)layer.bounds.left + layer.xyOffset.x +
+                    (cast(float)x + 0.5f) * stepX * scaleX,
+                cast(float)layer.bounds.top + layer.xyOffset.y +
+                    (cast(float)y + 0.5f) * stepY * scaleY
+            );
+            DepthDrawViewportCoveragePoint point;
+            point.layerId = layer.id;
+            point.documentPoint = documentPoint;
+            point.alpha = cast(float)alphaByte / 255.0f;
+            point.renderPoint = renderer.buildPoint(
+                documentToModelPoint(documentPoint),
+                representativeDepth,
+                depthDisplayScale,
+                viewSession.camera,
+                3.0f
+            );
+            geometry.coveragePoints ~= point;
         }
     }
 

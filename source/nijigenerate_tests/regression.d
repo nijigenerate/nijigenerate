@@ -118,7 +118,8 @@ import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession,
 import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
 import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawRect, DepthDrawSession,
     DepthMergePolicy, DepthDrawComposeResult, DepthDrawLayerCleanupKind, DepthDrawLayerCleanupOperation,
-    DepthDrawMaxContourThickness, DepthDrawLayerStackSortMode, ngNormalizeDepthDrawContourThickness,
+    DepthDrawMaxContourThickness, DepthDrawMaxFocusedRuleRadius, DepthDrawLayerStackSortMode,
+    ngNormalizeDepthDrawContourThickness, ngNormalizeDepthDrawFocusedRule,
     ngComposeDepthDrawTarget, ngDepthDrawApplyFitZToGap, ngDepthDrawAutoBindLayer, ngDepthDrawAutoBindSession,
     ngDepthDrawFitZDiagnostics, ngDepthDrawFitZToGap, ngDepthDrawGapFromAdjacentRanges,
     ngDepthDrawGapFromSelectedLayerRanges, ngDepthDrawGapFromTargetRange, ngDepthDrawRangeFromValues,
@@ -154,6 +155,7 @@ import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, Dept
     ngLoadDepthDrawManifest, ngLoadDepthDrawPngLayer,
     ngCompareDepthDrawComposeReadback,
     DepthDrawViewport,
+    DepthDrawMaxCoverageOverlayPoints, ngDepthDrawCoverageOverlayStride,
     ngPreviewDepthDrawTarget,
     ngClearPuppetDepthDrawSession,
     ngDepthDrawApplyMaskToLayerAlpha,
@@ -948,6 +950,17 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     auto predictedCompressed = cast(ubyte[])compress(predictedSource);
     require(decodeZip(predictedCompressed, 3, 2, true) == zipSource,
         "PSD ZIP decoder should undo per-row 8-bit prediction for compression type 3");
+    ubyte[] zipBombSource;
+    zipBombSource.length = 1_000_000;
+    auto zipBomb = cast(ubyte[])compress(zipBombSource);
+    bool oversizedZipRejected;
+    try {
+        decodeZip(zipBomb, 4, 4, false);
+    } catch (Exception) {
+        oversizedZipRejected = true;
+    }
+    require(oversizedZipRejected,
+        "PSD ZIP decoding must abort when inflation exceeds the declared channel dimensions");
     require(applyMaskSettings(0, 255, true, false) == 255 &&
         applyMaskSettings(0, 128, false, false) == 127 &&
         applyMaskSettings(0, 255, false, true) == 255,
@@ -7058,6 +7071,14 @@ private void testDepthImageFacadeMatchesPsdDepthSampling() {
 private void testDepthDrawDataModelContracts() {
     resetCase();
 
+    require(ngDepthDrawCoverageOverlayStride(DepthDrawMaxCoverageOverlayPoints) == 1 &&
+        ngDepthDrawCoverageOverlayStride(DepthDrawMaxCoverageOverlayPoints + 1) == 2,
+        "DepthDraw coverage overlays must start sampling once the bounded point budget is exceeded");
+    auto largeCoveragePixelCount = DepthDrawMaxCoverageOverlayPoints * 100 + 37;
+    auto largeCoverageStride = ngDepthDrawCoverageOverlayStride(largeCoveragePixelCount);
+    require(1 + (largeCoveragePixelCount - 1) / largeCoverageStride <= DepthDrawMaxCoverageOverlayPoints,
+        "DepthDraw coverage overlay sampling must keep arbitrarily large layers within the point budget");
+
     require(ngDepthDrawHistogramIntegralDimensionsSupported(2_048, 2_048) &&
         !ngDepthDrawHistogramIntegralDimensionsSupported(4_096, 4_096) &&
         !ngDepthDrawHistogramIntegralDimensionsSupported(-1, 1),
@@ -7219,6 +7240,13 @@ private void testDepthDrawDataModelContracts() {
     require(dirtySession.dirtyTargetGridIds() == [42UL, 43UL],
         "DepthDrawSession should mark every enabled bound target preview-dirty");
     dirtySession.clearPreviewDirty();
+    dirtySession.bindings[1].enabled = false;
+    auto disabledBindingDiagnosticsRevision = dirtySession.diagnosticsRevision();
+    require(dirtySession.updateBindingSampling("layer-b", 43, false, 0.6f) &&
+        dirtySession.diagnosticsRevision() != disabledBindingDiagnosticsRevision &&
+        dirtySession.dirtyTargetGridIds().length == 0,
+        "disabled binding sampling edits must invalidate diagnostics without dispatching target preview work");
+    dirtySession.bindings[1].enabled = true;
     require(dirtySession.dirtyTargetGridIds().length == 0,
         "DepthDrawSession should clear all preview dirty state");
     require(dirtySession.updateLayerXYTransform("layer-a", vec2(-2, 5), vec2(0.5f, 2.0f)),
@@ -7302,7 +7330,15 @@ private void testDepthDrawDataModelContracts() {
     gapBinding.targetGridUuid = 44;
     dirtySession.layers ~= gapLayer;
     dirtySession.bindings ~= gapBinding;
-    auto gapFill = dirtySession.applyLayerAlphaDepthGapFill(gapLayer.id);
+    DepthDrawAlphaDepthFocusedRule extremeFocusedRule;
+    extremeFocusedRule.layerIndex = int.max;
+    extremeFocusedRule.x = int.max;
+    extremeFocusedRule.y = int.min;
+    extremeFocusedRule.w = int.max;
+    extremeFocusedRule.h = int.max;
+    extremeFocusedRule.lift = int.max;
+    extremeFocusedRule.radius = int.max;
+    auto gapFill = dirtySession.applyLayerAlphaDepthGapFill(gapLayer.id, [extremeFocusedRule]);
     require(gapFill.succeeded && gapFill.detected.total == 5 && gapFill.filled.filled == 5 &&
         gapFill.filled.remaining == 0,
         "DepthDrawSession alpha-depth gap fill should report depth-draw-compatible detection/fill counts");
@@ -7320,6 +7356,11 @@ private void testDepthDrawDataModelContracts() {
     require(dirtySession.layers[$ - 1].cleanupOperations.length == 1 &&
         dirtySession.layers[$ - 1].cleanupOperations[0].kind == DepthDrawLayerCleanupKind.AlphaDepthGapFill,
         "DepthDrawSession should record destructive alpha-depth cleanup as a replayable operation");
+    auto storedFocusedRule = dirtySession.layers[$ - 1].cleanupOperations[0].focusedRules[0];
+    require(storedFocusedRule.x == gapLayer.width && storedFocusedRule.y == 0 &&
+        storedFocusedRule.w == 0 && storedFocusedRule.h == gapLayer.height &&
+        storedFocusedRule.lift == 255 && storedFocusedRule.radius == DepthDrawMaxFocusedRuleRadius,
+        "generic alpha-depth cleanup must normalize focused rule bounds before execution and persistence");
     auto cleanedGapPixels = dirtySession.layers[$ - 1].depthPixels.dup;
     auto cleanupState = new DepthDrawSession();
     cleanupState.layers = [dirtySession.layers[$ - 1]];
@@ -7813,6 +7854,28 @@ private void testDepthDrawSourceManifestContracts() {
         restoredLayer.cleanupOperations[0].contourThickness == DepthDrawMaxContourThickness &&
         ngNormalizeDepthDrawContourThickness(-100) == 1,
         "DepthDraw cleanup replay must clamp persisted contour thickness to the shared safe range");
+    auto focusedManifestLayer = layer;
+    DepthDrawLayerCleanupOperation focusedManifestOperation;
+    focusedManifestOperation.kind = DepthDrawLayerCleanupKind.AlphaDepthGapFill;
+    DepthDrawAlphaDepthFocusedRule focusedManifestRule;
+    focusedManifestRule.layerIndex = int.max;
+    focusedManifestRule.x = int.max;
+    focusedManifestRule.y = int.min;
+    focusedManifestRule.w = int.max;
+    focusedManifestRule.h = int.max;
+    focusedManifestRule.lift = int.max;
+    focusedManifestRule.radius = int.max;
+    focusedManifestOperation.focusedRules = [focusedManifestRule];
+    focusedManifestLayer.cleanupOperations = [focusedManifestOperation];
+    auto focusedManifestSession = new DepthDrawSession();
+    focusedManifestSession.layers = [focusedManifestLayer];
+    auto focusedManifestRestored = ngDepthDrawSessionFromManifest(
+        ngDepthDrawSessionToManifest(focusedManifestSession));
+    auto boundedFocusedRule = focusedManifestRestored.layers[0].cleanupOperations[0].focusedRules[0];
+    require(boundedFocusedRule.x == layer.width && boundedFocusedRule.y == 0 &&
+        boundedFocusedRule.w == 0 && boundedFocusedRule.h == layer.height &&
+        boundedFocusedRule.lift == 255 && boundedFocusedRule.radius == DepthDrawMaxFocusedRuleRadius,
+        "DepthDraw manifests must bound focused cleanup rectangles and radii before hydration replay");
     require(restored.sourceIdentity == session.sourceIdentity,
         "DepthDraw manifest should preserve the actual source identity used for project persistence");
     auto restoredBinding = restored.bindings[0];
@@ -17268,6 +17331,22 @@ private void testDepthBoneInfluenceRuleCommandUndoRedo() {
     require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f),
         "SetDepthBoneInfluenceRule should apply per-bone multipliers");
 
+    auto validRuleHistoryLength = incActionHistory().length;
+    auto invalidRuleError = collectException(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
+        ctx, root, target, `{"maxInfluences":3,"multipliersByBoneUuid":{"invalid":0.5}}`));
+    require(invalidRuleError !is null && root.bindings.length == 1 &&
+        root.bindings[0].influenceRule.maxInfluences == 2 &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f) &&
+        incActionHistory().length == validRuleHistoryLength,
+        "invalid DepthBone influence JSON must not partially mutate an existing binding or action history");
+    auto unboundTarget = new GridDeformer(incActivePuppet().root);
+    unboundTarget.name = "unbound-influence-target";
+    invalidRuleError = collectException(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
+        ctx, root, unboundTarget, `{"multipliersByBoneUuid":{"invalid":0.5}}`));
+    require(invalidRuleError !is null && root.bindings.length == 1 &&
+        incActionHistory().length == validRuleHistoryLength,
+        "invalid DepthBone influence JSON must not create a target binding before validation completes");
+
     auto getResult = cast(ExCommandResult!JSONValue)cmd!(DepthBoneCommand.GetDepthBoneInfluenceRule)(ctx, root, target);
     require(getResult !is null, "GetDepthBoneInfluenceRule should return JSON payload");
     require(getResult.succeeded, "GetDepthBoneInfluenceRule command should succeed");
@@ -17376,6 +17455,16 @@ private void testDepthBoneSerializationRoundTrip() {
         separatelyCopiedRoot.bindings.length == 1 &&
         separatelyCopiedRoot.bindings[0].targetUuid == separatelyCopiedTarget.uuid,
         "copying a DepthRigRoot and sibling target together must remap references across clipboard roots");
+    clipboardNodes.length = 0;
+
+    copyToClipboard([copyContainer, cast(Node)root, cast(Node)target, cast(Node)bone]);
+    require(clipboardNodes.length == 1,
+        "copying overlapping ancestor and descendant selections must keep only the outermost root");
+    auto overlapCopiedRoot = cast(ExDepthRigRoot)findNodeRecursive(clipboardNodes[0], "serialized-depth-root'");
+    auto overlapCopiedTarget = cast(GridDeformer)findNodeRecursive(clipboardNodes[0], "serialized-depth-target'");
+    require(overlapCopiedRoot !is null && overlapCopiedTarget !is null &&
+        overlapCopiedRoot.bindings[0].targetUuid == overlapCopiedTarget.uuid,
+        "overlapping clipboard selections must keep bindings within the copied ancestor subtree");
     clipboardNodes.length = 0;
 
     incActivePuppet().root.build();

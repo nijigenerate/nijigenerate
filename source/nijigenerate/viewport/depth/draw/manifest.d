@@ -217,7 +217,19 @@ private JSONValue cleanupOperationsToJson(const(DepthDrawLayerCleanupOperation)[
     return result;
 }
 
-private DepthDrawLayerCleanupOperation[] cleanupOperationsFromJson(JSONValue value, string name) {
+private int jsonBoundedInt(JSONValue value, string name, int minimum, int maximum, int fallback = 0) {
+    auto number = jsonFloat(value, name, fallback);
+    if (number <= minimum) return minimum;
+    if (number >= maximum) return maximum;
+    return cast(int)number;
+}
+
+private DepthDrawLayerCleanupOperation[] cleanupOperationsFromJson(
+    JSONValue value,
+    string name,
+    int layerWidth,
+    int layerHeight,
+) {
     if (value.type == JSONType.null_) return null;
     enforce(value.type == JSONType.array, name ~ " must be an array");
     DepthDrawLayerCleanupOperation[] result;
@@ -239,13 +251,16 @@ private DepthDrawLayerCleanupOperation[] cleanupOperationsFromJson(JSONValue val
             enforce(ruleValue.type == JSONType.object, ruleName ~ " must be an object");
             auto ruleObject = ruleValue.object;
             DepthDrawAlphaDepthFocusedRule rule;
-            rule.layerIndex = cast(int)jsonFloat(ruleObject.get("layerIndex", JSONValue(0)), ruleName ~ ".layerIndex");
-            rule.x = cast(int)jsonFloat(ruleObject.get("x", JSONValue(0)), ruleName ~ ".x");
-            rule.y = cast(int)jsonFloat(ruleObject.get("y", JSONValue(0)), ruleName ~ ".y");
-            rule.w = cast(int)jsonFloat(ruleObject.get("w", JSONValue(0)), ruleName ~ ".w");
-            rule.h = cast(int)jsonFloat(ruleObject.get("h", JSONValue(0)), ruleName ~ ".h");
-            rule.lift = cast(int)jsonFloat(ruleObject.get("lift", JSONValue(0)), ruleName ~ ".lift");
-            rule.radius = cast(int)jsonFloat(ruleObject.get("radius", JSONValue(0)), ruleName ~ ".radius");
+            rule.layerIndex = jsonBoundedInt(
+                ruleObject.get("layerIndex", JSONValue(0)), ruleName ~ ".layerIndex", 0, int.max);
+            rule.x = jsonBoundedInt(ruleObject.get("x", JSONValue(0)), ruleName ~ ".x", 0, layerWidth);
+            rule.y = jsonBoundedInt(ruleObject.get("y", JSONValue(0)), ruleName ~ ".y", 0, layerHeight);
+            rule.w = jsonBoundedInt(ruleObject.get("w", JSONValue(0)), ruleName ~ ".w", 0, layerWidth);
+            rule.h = jsonBoundedInt(ruleObject.get("h", JSONValue(0)), ruleName ~ ".h", 0, layerHeight);
+            rule.lift = jsonBoundedInt(ruleObject.get("lift", JSONValue(0)), ruleName ~ ".lift", 0, 255);
+            rule.radius = jsonBoundedInt(ruleObject.get("radius", JSONValue(0)), ruleName ~ ".radius",
+                0, DepthDrawMaxFocusedRuleRadius);
+            rule = ngNormalizeDepthDrawFocusedRule(rule, layerWidth, layerHeight);
             operation.focusedRules ~= rule;
         }
         result ~= operation;
@@ -370,7 +385,8 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
             cast(int)jsonFloat(object.get("customRadius", JSONValue(3)), "layer.customRadius"));
         layer.alphaThreshold = jsonFloat(object.get("alphaThreshold", JSONValue(0.01)), "layer.alphaThreshold");
         layer.cleanupOperations = cleanupOperationsFromJson(
-            object.get("cleanupOperations", JSONValue.emptyArray), "layer.cleanupOperations");
+            object.get("cleanupOperations", JSONValue.emptyArray), "layer.cleanupOperations",
+            layer.width, layer.height);
         session.layers ~= layer;
     }
 

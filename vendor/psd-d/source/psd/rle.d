@@ -3,6 +3,7 @@ import psd.layer;
 import utils.io;
 import std.exception;
 import std.format;
+import std.algorithm : min;
 
 /**
     Taken from psd_sdk
@@ -47,11 +48,30 @@ void decodeRLE(ubyte[] source, ubyte[] destination) {
 }
 
 ubyte[] decodeZip(ubyte[] source, uint width, uint height, bool prediction) {
-    import std.zlib : uncompress;
+    import std.zlib : UnCompress;
 
     auto decodedLength = cast(size_t)width * cast(size_t)height;
-    auto data = cast(ubyte[])uncompress(source, decodedLength);
-    enforce(data.length == decodedLength, "Invalid ZIP-compressed PSD channel length");
+    auto data = new ubyte[decodedLength];
+    auto decoder = new UnCompress(64 * 1024);
+    size_t sourceOffset;
+    size_t decodedOffset;
+    enum size_t compressedChunkSize = 1024;
+    while (sourceOffset < source.length && !decoder.empty) {
+        auto sourceEnd = min(source.length, sourceOffset + compressedChunkSize);
+        auto chunk = cast(const(ubyte)[])decoder.uncompress(source[sourceOffset .. sourceEnd]);
+        enforce(chunk.length <= decodedLength - decodedOffset,
+            "ZIP-compressed PSD channel exceeds its declared dimensions");
+        data[decodedOffset .. decodedOffset + chunk.length] = chunk;
+        decodedOffset += chunk.length;
+        sourceOffset = sourceEnd;
+    }
+    auto tail = cast(const(ubyte)[])decoder.flush();
+    enforce(tail.length <= decodedLength - decodedOffset,
+        "ZIP-compressed PSD channel exceeds its declared dimensions");
+    data[decodedOffset .. decodedOffset + tail.length] = tail;
+    decodedOffset += tail.length;
+    enforce(decoder.empty && decodedOffset == decodedLength,
+        "Invalid ZIP-compressed PSD channel length");
     if (!prediction) return data;
 
     foreach (y; 0 .. height) {

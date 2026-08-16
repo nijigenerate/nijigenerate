@@ -173,6 +173,7 @@ public:
     }
 
     void markBindingPreviewDirty(const(DepthDrawBinding) binding) {
+        bumpDiagnosticsRevision();
         if (!binding.enabled) return;
         markTargetPreviewDirty(binding.targetGridUuid);
     }
@@ -290,12 +291,17 @@ public:
         auto layer = layerById(layerId);
         if (layer is null || !layer.hasDepthPixels()) return summary;
 
+        DepthDrawAlphaDepthFocusedRule[] normalizedRules;
+        foreach (rule; focusedRules) {
+            normalizedRules ~= ngNormalizeDepthDrawFocusedRule(rule, layer.width, layer.height);
+        }
+
         auto depth = ngDepthDrawDecodeDepthPixelsFromRgba(layer.depthPixels, layer.channel);
         auto alphaMask = layer.alphaMask.length == depth.length
             ? layer.alphaMask.dup
             : ngDepthDrawAlphaMaskFromRgba(layer.depthPixels);
         summary.detected = ngDepthDrawDetectAlphaDepthGaps(depth, alphaMask, layer.width, layer.height,
-            cast(int)findLayerIndex(layerId), focusedRules);
+            cast(int)findLayerIndex(layerId), normalizedRules);
         summary.filled = ngDepthDrawMedianFillDepth(depth, alphaMask, summary.detected.mask, layer.width, layer.height);
         if (summary.detected.total == 0 && summary.filled.filled == 0 && summary.filled.remaining == 0) {
             summary.succeeded = true;
@@ -311,7 +317,7 @@ public:
         if (changed) {
             DepthDrawLayerCleanupOperation operation;
             operation.kind = DepthDrawLayerCleanupKind.AlphaDepthGapFill;
-            operation.focusedRules = focusedRules.dup;
+            operation.focusedRules = normalizedRules;
             layer.cleanupOperations ~= operation;
             markLayerPreviewDirty(layerId);
         }

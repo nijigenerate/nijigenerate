@@ -4411,8 +4411,16 @@ class SetDepthBoneInfluenceRuleCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
-        auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
-        applyRuleJson(binding.influenceRule, rule);
+        auto targetKind = targetKindOf(target);
+        auto bindingIndex = rigRoot.findBindingIndex(target.uuid);
+        ExDepthInfluenceRule nextRule;
+        if (bindingIndex >= 0) {
+            nextRule = rigRoot.bindings[cast(size_t)bindingIndex].influenceRule;
+            nextRule.multipliersByBoneUuid = nextRule.multipliersByBoneUuid.dup;
+        }
+        applyRuleJson(nextRule, rule);
+        auto binding = rigRoot.getOrCreateBinding(target, targetKind);
+        binding.influenceRule = nextRule;
         incActionPush(new DepthBoneBindingRuleChangeAction(
             "Set Depth Bone Influence Rule", rigRoot, oldBindings, rigRoot.bindings, false, target));
         return CommandResult(true);
