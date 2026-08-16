@@ -20,7 +20,8 @@ import std.exception : collectException;
 import std.file : exists;
 import std.format : format;
 import std.array : join;
-import std.path : baseName, buildPath, dirName, extension, isAbsolute, setExtension, stripExtension;
+import std.path : absolutePath, baseName, buildNormalizedPath, buildPath, dirName, extension, isAbsolute,
+    setExtension, stripExtension;
 import std.string : toLower, toStringz;
 
 struct DepthDrawLayerRangeDiagnostics {
@@ -137,17 +138,27 @@ private:
         );
     }
 
-    void hydrateManifestLayerImages() {
-        if (session is null) return;
-        foreach (ref layer; session.layers) {
+    string normalizedSourceIdentity(string sourcePath) {
+        if (sourcePath.length == 0) return null;
+        return buildNormalizedPath(absolutePath(sourcePath));
+    }
+
+    void hydrateManifestLayerImages(DepthDrawSession loadedSession, string manifestPath) {
+        if (loadedSession is null) return;
+        foreach (ref layer; loadedSession.layers) {
             if (layer.sourcePath.length == 0) continue;
-            auto resolvedSourcePath = layer.sourcePath.isAbsolute ? layer.sourcePath : buildPath(path.dirName, layer.sourcePath);
+            auto resolvedSourcePath = layer.sourcePath.isAbsolute
+                ? layer.sourcePath
+                : buildPath(manifestPath.dirName, layer.sourcePath);
             if (!exists(resolvedSourcePath)) continue;
             if (resolvedSourcePath.extension.toLower != ".png") continue;
 
             DepthDrawLayer imageLayer;
             auto ex = collectException(imageLayer = ngLoadDepthDrawPngLayer(resolvedSourcePath, layer.id));
-            if (ex !is null) continue;
+            if (ex !is null) {
+                throw new Exception(_("Failed to decode DepthDraw layer image %s: %s").format(
+                    resolvedSourcePath, ex.msg));
+            }
             layer.rgba = imageLayer.rgba;
             layer.depthPixels = imageLayer.depthPixels;
             if (layer.width <= 0) layer.width = imageLayer.width;
@@ -157,15 +168,15 @@ private:
         }
     }
 
-    void updateDocumentSizeFromLayers() {
-        documentWidth = 1;
-        documentHeight = 1;
-        if (session is null) return;
-        foreach (layer; session.layers) {
+    void updateDocumentSizeFromLayers(DepthDrawSession loadedSession, out int width, out int height) {
+        width = 1;
+        height = 1;
+        if (loadedSession is null) return;
+        foreach (layer; loadedSession.layers) {
             auto right = layer.bounds.left + (layer.bounds.width > 0 ? layer.bounds.width : layer.width);
             auto bottom = layer.bounds.top + (layer.bounds.height > 0 ? layer.bounds.height : layer.height);
-            if (right > documentWidth) documentWidth = right;
-            if (bottom > documentHeight) documentHeight = bottom;
+            if (right > width) width = right;
+            if (bottom > height) height = bottom;
         }
     }
 
@@ -176,7 +187,7 @@ private:
         bool delegate(ulong) hasTargetGrid = null;
         if (puppet !is null) {
             hasTargetGrid = (ulong uuid) {
-                return puppet.find!Node(cast(uint)uuid) !is null;
+                return cast(DepthMappedNode)puppet.find!Node(cast(uint)uuid) !is null;
             };
         }
 
@@ -202,11 +213,13 @@ private:
 
     void loadSource(bool preserveState = false) {
         auto previousSession = preserveState ? session : null;
-        session = new DepthDrawSession();
-        documentWidth = 1;
-        documentHeight = 1;
         errorMessage = null;
         statusMessage = null;
+
+        auto loadedSession = new DepthDrawSession();
+        int loadedDocumentWidth = 1;
+        int loadedDocumentHeight = 1;
+        string loadedStatus;
 
         auto ext = path.extension.toLower;
         if (ext == ".psd") {
@@ -216,10 +229,10 @@ private:
                 errorMessage = ex.msg;
                 return;
             }
-            session = result.session is null ? new DepthDrawSession() : result.session;
-            documentWidth = result.documentWidth > 0 ? result.documentWidth : 1;
-            documentHeight = result.documentHeight > 0 ? result.documentHeight : 1;
-            statusMessage = _("Loaded PSD source");
+            loadedSession = result.session is null ? new DepthDrawSession() : result.session;
+            loadedDocumentWidth = result.documentWidth > 0 ? result.documentWidth : 1;
+            loadedDocumentHeight = result.documentHeight > 0 ? result.documentHeight : 1;
+            loadedStatus = _("Loaded PSD source");
         } else if (ext == ".png") {
             DepthDrawLayer layer;
             auto ex = collectException(layer = ngLoadDepthDrawPngLayer(path));
@@ -227,38 +240,53 @@ private:
                 errorMessage = ex.msg;
                 return;
             }
-            session.layers ~= layer;
-            documentWidth = layer.width > 0 ? layer.width : 1;
-            documentHeight = layer.height > 0 ? layer.height : 1;
-            session.documentWidth = documentWidth;
-            session.documentHeight = documentHeight;
-            statusMessage = _("Loaded PNG source");
+            loadedSession.layers ~= layer;
+            loadedDocumentWidth = layer.width > 0 ? layer.width : 1;
+            loadedDocumentHeight = layer.height > 0 ? layer.height : 1;
+            loadedStatus = _("Loaded PNG source");
         } else if (ext == ".json") {
-            auto ex = collectException(session = ngLoadDepthDrawManifest(path));
+            auto ex = collectException(loadedSession = ngLoadDepthDrawManifest(path));
             if (ex !is null) {
                 errorMessage = ex.msg;
                 return;
             }
-            hydrateManifestLayerImages();
-            if (session.documentWidth > 0 && session.documentHeight > 0) {
-                documentWidth = session.documentWidth;
-                documentHeight = session.documentHeight;
-            } else {
-                updateDocumentSizeFromLayers();
-                session.documentWidth = documentWidth;
-                session.documentHeight = documentHeight;
+            ex = collectException(hydrateManifestLayerImages(loadedSession, path));
+            if (ex !is null) {
+                errorMessage = ex.msg;
+                return;
             }
-            updateManifestValidationStatus();
+            if (loadedSession.documentWidth > 0 && loadedSession.documentHeight > 0) {
+                loadedDocumentWidth = loadedSession.documentWidth;
+                loadedDocumentHeight = loadedSession.documentHeight;
+            } else {
+                updateDocumentSizeFromLayers(loadedSession, loadedDocumentWidth, loadedDocumentHeight);
+            }
         } else {
             errorMessage = _("DepthDraw supports PSD, PNG, and JSON manifest sources.");
+            return;
         }
-        if (errorMessage.length == 0 && previousSession !is null) {
-            auto reload = ngDepthDrawCarryReloadState(session, previousSession);
-            statusMessage = _("Reloaded source: %s layer(s), %s binding(s)").format(
+
+        loadedSession.sourceIdentity = normalizedSourceIdentity(path);
+        loadedSession.documentWidth = loadedDocumentWidth;
+        loadedSession.documentHeight = loadedDocumentHeight;
+        auto normalLayers = loadedSession.layers.dup;
+        ngDepthDrawAttachNormalCoverage(loadedSession, normalLayers);
+
+        string reloadStatus;
+        if (previousSession !is null) {
+            auto reload = ngDepthDrawCarryReloadState(loadedSession, previousSession);
+            reloadStatus = _("Reloaded source: %s layer(s), %s binding(s)").format(
                 reload.matchedLayers,
                 reload.preservedBindings
             );
         }
+
+        session = loadedSession;
+        documentWidth = loadedDocumentWidth;
+        documentHeight = loadedDocumentHeight;
+        statusMessage = loadedStatus;
+        if (ext == ".json") updateManifestValidationStatus();
+        if (reloadStatus.length > 0) statusMessage = reloadStatus;
     }
 
     void restorePersistentSessionState() {
@@ -266,12 +294,11 @@ private:
         if (puppet is null || session is null) return;
         auto persisted = ngGetPuppetDepthDrawSession(puppet);
         if (persisted is null) return;
-        bool sameSource;
-        foreach (layer; persisted.layers) {
-            if (layer.sourcePath == path) {
-                sameSource = true;
-                break;
-            }
+        bool sameSource = persisted.sourceIdentity.length > 0 &&
+            persisted.sourceIdentity == session.sourceIdentity;
+        // Backward compatibility for projects saved before sourceIdentity was serialized.
+        if (!sameSource && persisted.sourceIdentity.length == 0) foreach (layer; persisted.layers) {
+            if (layer.sourcePath == path) { sameSource = true; break; }
         }
         if (!sameSource) return;
         ngDepthDrawCarryReloadState(session, persisted);
@@ -508,7 +535,7 @@ private:
         if (puppet is null) return null;
         auto node = puppet.find!Node(cast(uint)gridUuid);
         auto deformable = cast(Deformable)node;
-        if (deformable is null) return null;
+        if (deformable is null || cast(DepthMappedNode)deformable is null) return null;
         return new DepthTargetView(deformable);
     }
 
@@ -985,8 +1012,10 @@ public:
     }
 
     bool replaceSourcePreservingState(string nextPath) {
+        auto previousPath = path;
         path = nextPath;
         loadSource(true);
+        if (errorMessage.length > 0) path = previousPath;
         return errorMessage.length == 0;
     }
 

@@ -59,7 +59,8 @@ private DepthDrawApplySummary summarizeDepthDrawApply(DepthTargetView target, re
     }
 
     auto depthMapped = cast(DepthMappedNode)grid;
-    auto before = depthMapped is null ? null : depthMapped.copyDepths();
+    if (depthMapped is null) return summary;
+    auto before = depthMapped.copyDepths();
     summary.changedVertices = countChangedVertices(before, result.depths);
     summary.changedTargets = summary.changedVertices > 0 ? 1 : 0;
     summary.succeeded = true;

@@ -183,12 +183,14 @@ JSONValue ngDepthDrawSessionToManifest(DepthDrawSession session) {
         root["selectedLayerId"] = JSONValue(session.selectedLayerId);
         root["selectedGridUuid"] = JSONValue(session.selectedGridUuid.to!string);
         root["display"] = displayToJson(session.display);
+        root["sourceIdentity"] = JSONValue(session.sourceIdentity);
         root["documentWidth"] = JSONValue(cast(long)session.documentWidth);
         root["documentHeight"] = JSONValue(cast(long)session.documentHeight);
     } else {
         root["selectedLayerId"] = JSONValue("");
         root["selectedGridUuid"] = JSONValue("0");
         root["display"] = displayToJson(DepthDrawDisplayOptions());
+        root["sourceIdentity"] = JSONValue("");
         root["documentWidth"] = JSONValue(0L);
         root["documentHeight"] = JSONValue(0L);
     }
@@ -213,6 +215,7 @@ JSONValue ngDepthDrawSessionToManifest(DepthDrawSession session) {
             item["zScale"] = JSONValue(cast(double)layer.zScale);
             item["backDepth"] = JSONValue(cast(double)layer.backDepth);
             item["frontDepth"] = JSONValue(cast(double)layer.frontDepth);
+            item["sampleDepthScale"] = JSONValue(cast(double)layer.sampleDepthScale);
             item["invert"] = JSONValue(layer.invert);
             item["channel"] = JSONValue(ngDepthImageChannelName(layer.channel));
             item["convolution"] = JSONValue(ngDepthImageConvolutionName(layer.convolution));
@@ -249,6 +252,8 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
     session.selectedGridUuid = jsonString(manifest.object.get("selectedGridUuid", JSONValue("0")),
         "selectedGridUuid", "0").to!ulong;
     session.display = displayFromJson(manifest.object.get("display", JSONValue(null)), "display");
+    session.sourceIdentity = jsonString(
+        manifest.object.get("sourceIdentity", JSONValue("")), "sourceIdentity", "");
     session.documentWidth = cast(int)jsonFloat(
         manifest.object.get("documentWidth", JSONValue(0)), "documentWidth");
     session.documentHeight = cast(int)jsonFloat(
@@ -276,6 +281,8 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
         layer.zScale = jsonFloat(object.get("zScale", JSONValue(1.0)), "layer.zScale");
         layer.backDepth = jsonFloat(object.get("backDepth", JSONValue(-1.0)), "layer.backDepth");
         layer.frontDepth = jsonFloat(object.get("frontDepth", JSONValue(1.0)), "layer.frontDepth");
+        layer.sampleDepthScale = jsonFloat(
+            object.get("sampleDepthScale", JSONValue(1.0)), "layer.sampleDepthScale");
         layer.invert = jsonBool(object.get("invert", JSONValue(false)), "layer.invert");
         layer.channel = ngDepthImageChannelFromString(
             jsonString(object.get("channel", JSONValue("AverageRGB")), "layer.channel"));

@@ -61,6 +61,7 @@ public:
     string selectedLayerId;
     ulong selectedGridUuid;
     DepthDrawDisplayOptions display;
+    string sourceIdentity;
     int documentWidth;
     int documentHeight;
 
@@ -314,6 +315,9 @@ public:
     void clear() {
         layers = null;
         bindings = null;
+        sourceIdentity = null;
+        documentWidth = 0;
+        documentHeight = 0;
         clearSelection();
         clearPreviewDirty();
     }

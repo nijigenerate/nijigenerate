@@ -77,12 +77,38 @@ private ubyte applyMask(ubyte alpha, ubyte mask)
     return cast(ubyte)((cast(uint)alpha * cast(uint)mask + 127u) / 255u);
 }
 
+private struct MaskGeometry {
+    int top;
+    int left;
+    int bottom;
+    int right;
+    ubyte defaultColor = 255;
+    bool valid;
+}
+
+private MaskGeometry maskGeometry(T)(const ref T mask) {
+    return MaskGeometry(mask.top, mask.left, mask.bottom, mask.right, mask.defaultColor, true);
+}
+
+private MaskGeometry channelMaskGeometry(ref Layer layer, short channelType) {
+    if (channelType == ChannelType.LAYER_MASK) {
+        if (layer.layerMask.length > 0) return maskGeometry(layer.layerMask[0]);
+        return MaskGeometry.init;
+    }
+    if (channelType != ChannelType.LAYER_OR_VECTOR_MASK) return MaskGeometry.init;
+
+    // Channel -2 is the vector mask when both vector and real layer masks are
+    // present, and otherwise represents whichever single user mask is present.
+    if (layer.vectorMask.length > 0) return maskGeometry(layer.vectorMask[0]);
+    if (layer.layerMask.length > 0) return maskGeometry(layer.layerMask[0]);
+    return MaskGeometry.init;
+}
+
 private void channelDimensions(ref Layer layer, short channelType, out uint width, out uint height) {
     width = layer.width;
     height = layer.height;
-    if ((channelType == ChannelType.LAYER_OR_VECTOR_MASK || channelType == ChannelType.LAYER_MASK) &&
-        layer.layerMask.length > 0) {
-        auto mask = layer.layerMask[0];
+    auto mask = channelMaskGeometry(layer, channelType);
+    if (mask.valid) {
         auto maskWidth = mask.right - mask.left;
         auto maskHeight = mask.bottom - mask.top;
         if (maskWidth > 0 && maskHeight > 0) {
@@ -92,9 +118,10 @@ private void channelDimensions(ref Layer layer, short channelType, out uint widt
     }
 }
 
-private ubyte maskAt(ref Layer layer, const(ubyte)[] data, size_t pixelIndex) {
-    if (data.length == 0 || layer.layerMask.length == 0) return 255;
-    auto mask = layer.layerMask[0];
+private ubyte maskAt(ref Layer layer, short channelType, const(ubyte)[] data, size_t pixelIndex) {
+    if (data.length == 0) return 255;
+    auto mask = channelMaskGeometry(layer, channelType);
+    if (!mask.valid) return 255;
     auto maskWidth = mask.right - mask.left;
     auto maskHeight = mask.bottom - mask.top;
     if (maskWidth <= 0 || maskHeight <= 0) return mask.defaultColor;
@@ -193,9 +220,9 @@ void extractLayer(ref Layer layer) {
 
         ubyte a = alpha.length > i ? alpha[i] : 255;
         if (layerOrVectorMask.length > 0)
-            a = applyMask(a, maskAt(layer, layerOrVectorMask, i));
+            a = applyMask(a, maskAt(layer, ChannelType.LAYER_OR_VECTOR_MASK, layerOrVectorMask, i));
         if (layerMask.length > 0)
-            a = applyMask(a, maskAt(layer, layerMask, i));
+            a = applyMask(a, maskAt(layer, ChannelType.LAYER_MASK, layerMask, i));
         rgba[j + 3] = a;
     }
 

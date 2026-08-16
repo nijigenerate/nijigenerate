@@ -114,7 +114,7 @@ import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession,
     ngDepthDisplayScaleForTargets, ngDepthDisplayScaleForTargetsInNodeSpace, ngDepthTargetClampDepth;
 import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
 import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawSession, DepthMergePolicy,
-    DepthDrawLayerStackSortMode,
+    DepthDrawComposeResult, DepthDrawLayerStackSortMode,
     ngComposeDepthDrawTarget, ngDepthDrawApplyFitZToGap, ngDepthDrawAutoBindLayer, ngDepthDrawAutoBindSession,
     ngDepthDrawFitZDiagnostics, ngDepthDrawFitZToGap, ngDepthDrawGapFromAdjacentRanges,
     ngDepthDrawGapFromSelectedLayerRanges, ngDepthDrawGapFromTargetRange, ngDepthDrawRangeFromValues,
@@ -186,7 +186,7 @@ import std.array : join;
 import std.conv : to;
 import std.file : SpanMode, dirEntries, exists, isFile, mkdirRecurse, read, readText, remove, rmdirRecurse, tempDir, write;
 import std.format : format;
-import std.path : buildPath, dirName, relativePath, setExtension;
+import std.path : absolutePath, buildNormalizedPath, buildPath, dirName, relativePath, setExtension;
 import std.json : JSONType, JSONValue;
 import std.math : cos, isFinite, sin;
 import std.regex : regex, replaceAll;
@@ -6998,6 +6998,8 @@ private void testDepthDrawSourceManifestContracts() {
         depthDrawWindow.depthDrawSession().layers.length == 1 &&
         depthDrawWindow.loadedDocumentWidth == 3 && depthDrawWindow.loadedDocumentHeight == 2,
         "DepthDraw window entry point should load a PNG source into a DepthDraw session");
+    require(depthDrawWindow.depthDrawSession().layers[0].hasNormalCoverage(),
+        "DepthDraw window source loading should populate normal-layer coverage for binding sampling");
     require(depthDrawWindow.selectLayer(depthDrawWindow.depthDrawSession().layers[0].id) &&
         depthDrawWindow.depthDrawSession().selectedLayerId == depthDrawWindow.depthDrawSession().layers[0].id,
         "DepthDraw window layer selection should synchronize with the DepthDraw session");
@@ -7016,6 +7018,7 @@ private void testDepthDrawSourceManifestContracts() {
     layer.zOffset = -0.25f;
     layer.backDepth = -0.75f;
     layer.frontDepth = 0.5f;
+    layer.sampleDepthScale = 0.375f;
     layer.invert = true;
     layer.channel = DepthImageChannel.B;
     layer.convolution = DepthImageConvolution.MedianCustom;
@@ -7032,6 +7035,7 @@ private void testDepthDrawSourceManifestContracts() {
     binding.mergePolicy = DepthMergePolicy.Backmost;
 
     auto session = new DepthDrawSession();
+    session.sourceIdentity = buildNormalizedPath(absolutePath(pngPath));
     session.layers ~= layer;
     session.bindings ~= binding;
     session.selectedLayerId = layer.id;
@@ -7067,8 +7071,11 @@ private void testDepthDrawSourceManifestContracts() {
         "DepthDraw manifest should preserve XY and Z transforms");
     require(restoredLayer.invert == layer.invert && restoredLayer.channel == layer.channel &&
         restoredLayer.convolution == layer.convolution && restoredLayer.customRadius == layer.customRadius &&
-        near(restoredLayer.alphaThreshold, layer.alphaThreshold),
+        near(restoredLayer.alphaThreshold, layer.alphaThreshold) &&
+        near(restoredLayer.sampleDepthScale, layer.sampleDepthScale),
         "DepthDraw manifest should preserve sampling settings");
+    require(restored.sourceIdentity == session.sourceIdentity,
+        "DepthDraw manifest should preserve the actual source identity used for project persistence");
     auto restoredBinding = restored.bindings[0];
     require(restoredBinding.layerId == binding.layerId && restoredBinding.targetNodeUuid == binding.targetNodeUuid &&
         restoredBinding.targetGridUuid == binding.targetGridUuid && restoredBinding.order == binding.order,
@@ -7393,6 +7400,15 @@ private void testDepthDrawSourceManifestContracts() {
         selectionWindow.depthDrawSession().isTargetPreviewDirty(binding.targetGridUuid),
         "DepthDraw source replacement should remap previous layer state and bindings onto the reloaded layer");
 
+    auto preservedReplacementSession = selectionWindow.depthDrawSession();
+    auto preservedReplacementState = ngDepthDrawSessionToManifest(preservedReplacementSession).toString();
+    auto corruptReplacementPath = buildPath(fixtureDir, "corrupt-replacement.png");
+    write(corruptReplacementPath, cast(ubyte[])[1, 2, 3, 4]);
+    require(!selectionWindow.replaceSourcePreservingState(corruptReplacementPath) &&
+        selectionWindow.depthDrawSession() is preservedReplacementSession &&
+        ngDepthDrawSessionToManifest(selectionWindow.depthDrawSession()).toString() == preservedReplacementState,
+        "DepthDraw source replacement failure must preserve the configured live session");
+
     auto validReport = ngValidateDepthDrawSessionManifest(restored, (ulong uuid) => uuid == binding.targetGridUuid);
     require(validReport.ok, "DepthDraw manifest validation should accept existing sources and targets");
     restored.layers[0].sourcePath = buildPath(fixtureDir, "missing-depth-layer.png");
@@ -7532,6 +7548,17 @@ private void testDepthDrawSourceManifestContracts() {
         manifestWindow.depthDrawSession().selectedLayerId == layer.id &&
         manifestWindow.depthDrawSession().selectedGridUuid == binding.targetGridUuid,
         "DepthDraw window should load an exported JSON manifest, hydrate PNG layer pixels, and restore selection");
+    auto persistedManifestSession = ngLoadDepthDrawManifest(windowExportManifestPath);
+    persistedManifestSession.sourceIdentity = buildNormalizedPath(absolutePath(windowExportManifestPath));
+    persistedManifestSession.layers[0].xyOffset = vec2(17, -9);
+    require(ngSetPuppetDepthDrawSession(incActivePuppet(), persistedManifestSession),
+        "DepthDraw manifest source identity fixture should attach a persisted session");
+    auto restoredManifestWindow = new DepthDrawWindow(windowExportManifestPath);
+    require(restoredManifestWindow.loadError.length == 0 &&
+        restoredManifestWindow.depthDrawSession().layers[0].xyOffset == vec2(17, -9),
+        "DepthDraw manifest windows should restore project-persisted state by manifest source identity");
+    require(ngClearPuppetDepthDrawSession(incActivePuppet()),
+        "DepthDraw manifest source identity fixture should clear persisted state");
 
     auto relativeManifestSession = ngLoadDepthDrawManifest(windowExportManifestPath);
     relativeManifestSession.layers[0].sourcePath = relativePath(windowExportResult.layerPaths[0], windowExportManifestPath.dirName);
@@ -7546,6 +7573,17 @@ private void testDepthDrawSourceManifestContracts() {
         relativeManifestWindow.depthDrawSession().bindings.length == 1 &&
         relativeManifestWindow.depthDrawSession().bindings[0].targetGridUuid == binding.targetGridUuid,
         "DepthDraw window should resolve relative PNG source paths against the JSON manifest directory");
+
+    auto corruptManifestSession = ngLoadDepthDrawManifest(windowExportManifestPath);
+    auto corruptManifestPngPath = buildPath(fixtureDir, "corrupt-manifest-layer.png");
+    write(corruptManifestPngPath, cast(ubyte[])[5, 6, 7, 8]);
+    corruptManifestSession.layers[0].sourcePath = corruptManifestPngPath;
+    auto corruptManifestPath = buildPath(fixtureDir, "corrupt-depthdraw.json");
+    ngSaveDepthDrawManifest(corruptManifestSession, corruptManifestPath);
+    auto corruptManifestWindow = new DepthDrawWindow(corruptManifestPath);
+    require(corruptManifestWindow.loadError.canFind("Failed to decode DepthDraw layer image") &&
+        corruptManifestWindow.depthDrawSession() is null,
+        "DepthDraw manifest loading should report referenced image decode failures");
 
     auto missingManifestSession = ngLoadDepthDrawManifest(windowExportManifestPath);
     missingManifestSession.layers[0].sourcePath = "missing-depthdraw-layer.png";
@@ -7596,6 +7634,15 @@ private void testDepthDrawComposerContracts() {
     require((new DefineGridCommand([-1f, 1f], [-1f, 1f])).run(ctx).succeeded,
         "DepthDraw composer fixture should define a 2x2 grid");
     grid.replaceDepths([0.25f, 0.25f, 0.25f, 0.25f]);
+
+    auto nonDepthPart = newMeshPart("depthdraw-non-depth-target");
+    auto nonDepthTarget = new DepthTargetView(nonDepthPart);
+    DepthDrawComposeResult nonDepthResult;
+    nonDepthResult.targetGridUuid = nonDepthPart.uuid;
+    nonDepthResult.depths.length = nonDepthPart.vertices.length;
+    auto nonDepthSummary = ngApplyDepthDrawTargetResultWithSummary(new Context(), nonDepthTarget, nonDepthResult);
+    require(!nonDepthSummary.succeeded && nonDepthSummary.changedTargets == 0,
+        "DepthDraw apply should reject deformables that do not implement DepthMappedNode");
 
     ubyte[] layerA;
     ubyte[] layerB;
@@ -10180,12 +10227,16 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import diagnostics must be reachable from regression smoke");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
-        "a = applyMask(a, maskAt(layer, layerMask, i));",
+        "maskAt(layer, ChannelType.LAYER_MASK, layerMask, i)",
         "PSD depth import compatibility depends on psd-d applying layer masks into layer alpha");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
-        "a = applyMask(a, maskAt(layer, layerOrVectorMask, i));",
+        "maskAt(layer, ChannelType.LAYER_OR_VECTOR_MASK, layerOrVectorMask, i)",
         "PSD depth import compatibility depends on psd-d applying vector/user masks into layer alpha");
+    requireSourceContains(
+        buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
+        "if (layer.vectorMask.length > 0) return maskGeometry(layer.vectorMask[0]);",
+        "PSD vector-mask channels must use their own bounds instead of the real layer-mask rectangle");
     requireSourceNotContains(
         buildPath("source", "nijigenerate", "viewport", "depth", "draw", "source.d"),
         "applyPsdLayerMaskIfAvailable(drawLayer, layer);",
