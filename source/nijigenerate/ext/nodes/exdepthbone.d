@@ -533,8 +533,8 @@ void ngAddStandardDepthSkeleton(ExDepthRigRoot root, float scale = 1.0f) {
         hasBounds = size.x > 1e-4f && size.y > 1e-4f;
     }
     if (!hasBounds) {
-        auto halfWidth = 180.0f * scale;
-        auto halfHeight = 300.0f * scale;
+        auto halfWidth = 180.0f;
+        auto halfHeight = 300.0f;
         bounds = vec4(-halfWidth, -halfHeight, halfWidth, halfHeight);
     }
 

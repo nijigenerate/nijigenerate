@@ -17531,6 +17531,22 @@ private void testAsyncDerivedUpdateRegistry() {
 private void testDepthBoneStandardSkeletonTemplate() {
     resetCase();
 
+    auto unitScaleRoot = new ExDepthRigRoot(null);
+    auto doubleScaleRoot = new ExDepthRigRoot(null);
+    ngAddStandardDepthSkeleton(unitScaleRoot, 1.0f);
+    ngAddStandardDepthSkeleton(doubleScaleRoot, 2.0f);
+    auto unitScaleHand = findDepthBoneById(unitScaleRoot, "Hand.R");
+    auto doubleScaleHand = findDepthBoneById(doubleScaleRoot, "Hand.R");
+    auto unitScaleFoot = findDepthBoneById(unitScaleRoot, "Foot.R");
+    auto doubleScaleFoot = findDepthBoneById(doubleScaleRoot, "Foot.R");
+    require(unitScaleHand !is null && doubleScaleHand !is null &&
+        near(doubleScaleHand.restTail.x, unitScaleHand.restTail.x * 2.0f),
+        "fallback standard skeleton width should apply the requested scale exactly once");
+    require(unitScaleFoot !is null && doubleScaleFoot !is null &&
+        near(doubleScaleFoot.restTail.y - doubleScaleFoot.restHead.y,
+            (unitScaleFoot.restTail.y - unitScaleFoot.restHead.y) * 2.0f),
+        "fallback standard skeleton segment heights should apply the requested scale exactly once");
+
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "template-depth-root";
     ngAddStandardDepthSkeleton(root, 1000.0f);
