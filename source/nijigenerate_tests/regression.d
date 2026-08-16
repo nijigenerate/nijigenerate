@@ -15,7 +15,8 @@ import nijigenerate.api.mcp.auth : ApprovalRequest;
 import nijigenerate.api.mcp.http_transport : createHttpTransport;
 import nijigenerate.api.mcp.resource_listing : buildCurrentResourceList, rewriteResourcesListResponse;
 import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpAuthEnabled, ngMcpFinishActionBoundary,
-    ngMcpJsonArgumentSchemaForRegression, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop;
+    ngMcpJsonArgumentSchemaForRegression, ngMcpPrepareActionScopeForCurrentMode, ngMcpStop,
+    ngMcpValidateJsonArgumentForRegression;
 import nijigenerate.api.mcp.task : ngMcpEnqueueAction, ngMcpInitTask, ngMcpProcessQueue, ngRunInMainThread;
 import nijigenerate.commands;
 import nijigenerate.commands.binding.base : cParamPoint, ngBindingHasKeypoint, ngBindingIsSetAt, paramPointChanged;
@@ -211,7 +212,7 @@ import std.conv : to;
 import std.file : SpanMode, dirEntries, exists, isFile, mkdirRecurse, read, readText, remove, rmdirRecurse, tempDir, write;
 import std.format : format;
 import std.path : absolutePath, buildNormalizedPath, buildPath, dirName, relativePath, setExtension;
-import std.json : JSONType, JSONValue;
+import std.json : JSONType, JSONValue, parseJSON;
 import std.math : cos, isFinite, sin;
 import std.regex : regex, replaceAll;
 import std.stdio : File, stderr, writeln;
@@ -7916,6 +7917,23 @@ private void testDepthDrawSourceManifestContracts() {
         "DepthDraw PNG loader should keep visual and depth pixels identical for a PNG source");
     require(layer.rgba.ptr != layer.depthPixels.ptr,
         "DepthDraw sources must keep independently mutable visual and depth pixel buffers");
+
+    auto oversizedPngPath = buildPath(fixtureDir, "oversized-header.png");
+    ubyte[] oversizedPngHeader = [
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x20, 0x00,
+    ];
+    write(oversizedPngPath, oversizedPngHeader);
+    bool oversizedPngRejectedBeforeDecode;
+    try {
+        ngLoadDepthDrawPngLayer(oversizedPngPath);
+    } catch (Exception e) {
+        oversizedPngRejectedBeforeDecode = e.msg.canFind("retained memory budget");
+    }
+    require(oversizedPngRejectedBeforeDecode,
+        "DepthDraw PNG loading must reject oversized IHDR dimensions before attempting pixel decode");
+
     auto depthDrawWindow = new DepthDrawWindow(pngPath);
     require(depthDrawWindow.loadError.length == 0 && depthDrawWindow.depthDrawSession() !is null &&
         depthDrawWindow.depthDrawSession().layers.length == 1 &&
@@ -14476,6 +14494,21 @@ private void testDepthBoneInspectorCommandsUndoRedo() {
     ctx.puppet = incActivePuppet();
     ctx.nodes = [bone];
 
+    auto actionBeforeInvalidRest = incActionTop();
+    bool invalidRestRejected;
+    try {
+        cmd!(DepthBoneCommand.SetDepthBoneRest)(
+            ctx, bone, [7.0f, 8.0f, 9.0f], [1.0f, 2.0f], 0.5f);
+    } catch (Exception) {
+        invalidRestRejected = true;
+    }
+    require(invalidRestRejected, "SetDepthBoneRest should reject an invalid late rest vector");
+    require(bone.restHead == vec3(0, 0, 0) && bone.restTail == vec3(0, 100, 0) &&
+        near(bone.restRoll, 0.0f),
+        "rejected SetDepthBoneRest input must not leave partial mutations");
+    require(incActionTop() is actionBeforeInvalidRest,
+        "rejected SetDepthBoneRest input must not create an Undo entry");
+
     auto restResult = cmd!(DepthBoneCommand.SetDepthBoneRest)(
         ctx,
         bone,
@@ -15134,6 +15167,17 @@ private void testDepthBonePreviewApplyCommands() {
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
     ctx.armedParameters = [param];
+
+    auto unboundTarget = new GridDeformer(incActivePuppet().root);
+    unboundTarget.name = "unbound-preview-target-grid";
+    unboundTarget.rebuffer(Vec2Array([
+        vec2(-1, -1), vec2(1, -1), vec2(-1, 1), vec2(1, 1),
+    ]));
+    require(root.bindings.length == 0 &&
+        cmd!(DepthBoneCommand.PreviewDepthBoneInfluence)(ctx, root, unboundTarget, bone).succeeded,
+        "PreviewDepthBoneInfluence should support an unbound target with default influence settings");
+    require(root.bindings.length == 0 && unboundTarget.deformation.length == unboundTarget.vertices.length,
+        "PreviewDepthBoneInfluence must not persist an empty binding for an unbound target");
 
     require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded, "preview fixture should add a depth bone source");
     auto listBones = cast(ExCommandResult!JSONValue)cmd!(DepthBoneCommand.ListDepthBones)(ctx, root);
@@ -17483,37 +17527,22 @@ private void testDepthBoneStandardParameterTemplate() {
 
     auto wrongTypeFaceRoll = new ExParameter("Face::Roll", true);
     incActivePuppet().parameters ~= wrongTypeFaceRoll;
+    auto actionBeforeTypeConflict = incActionTop();
     auto typeConflictCommand = new AddStandardDepthParametersCommand();
     typeConflictCommand.root = typeConflictRoot;
-    require(typeConflictCommand.run(new Context()).succeeded,
-        "AddStandardDepthParametersCommand should create standard parameters even when a same-name incompatible parameter exists");
-    auto standardFaceRollCount = 0;
-    Parameter standardFaceRoll;
+    auto typeConflictResult = typeConflictCommand.run(new Context());
+    require(!typeConflictResult.succeeded && typeConflictResult.message.canFind("Face::Roll") &&
+        typeConflictResult.message.canFind("2D") && typeConflictResult.message.canFind("1D"),
+        "AddStandardDepthParametersCommand should report a same-name dimensionality conflict");
+    auto sameNameFaceRollCount = 0;
     foreach (param; incActivePuppet().parameters) {
-        if (param.name == "Face::Roll" && !param.isVec2) {
-            standardFaceRollCount++;
-            standardFaceRoll = param;
-        }
+        if (param.name == "Face::Roll") sameNameFaceRollCount++;
     }
-    require(standardFaceRollCount == 1 && standardFaceRoll !is null,
-        "same-name incompatible Face::Roll should not block creation of a standard 1D Face::Roll");
-    require(wrongTypeFaceRoll.isVec2, "same-name incompatible Face::Roll should not be mutated into a standard parameter");
-
-    incActionUndo();
-    standardFaceRollCount = 0;
-    foreach (param; incActivePuppet().parameters)
-        if (param.name == "Face::Roll" && !param.isVec2)
-            standardFaceRollCount++;
-    require(standardFaceRollCount == 0 && incActivePuppet().parameters.canFind(wrongTypeFaceRoll),
-        "undo type-conflict standard depth setup should remove created standard Face::Roll and keep the pre-existing incompatible one");
-
-    incActionRedo();
-    standardFaceRollCount = 0;
-    foreach (param; incActivePuppet().parameters)
-        if (param.name == "Face::Roll" && !param.isVec2)
-            standardFaceRollCount++;
-    require(standardFaceRollCount == 1,
-        "redo type-conflict standard depth setup should recreate the standard Face::Roll");
+    require(sameNameFaceRollCount == 1 && wrongTypeFaceRoll.isVec2,
+        "same-name incompatible parameters must not be duplicated or mutated");
+    require(findParameter(incActivePuppet(), "Face::Yaw-Pitch") is null &&
+        incActionTop() is actionBeforeTypeConflict,
+        "standard depth parameter type preflight must reject the command before any mutation or Undo entry");
 }
 
 private void testDepthBoneInfluenceRuleCommandUndoRedo() {
@@ -19274,6 +19303,14 @@ private void testCommandBaseContracts() {
     require(depthOperationsSchema["type"].str == "array" &&
         depthOperationsSchema["items"]["type"].str == "object",
         "MCP depth-operation list arguments must publish an array of depth-operation objects");
+    auto overlaySchema = ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema.overlayObjects);
+    require(overlaySchema["type"].str == "array" &&
+        !("required" in overlaySchema["items"].object),
+        "MCP overlay arguments must admit the documented keyed-object form without requiring uuid");
+    ngMcpValidateJsonArgumentForRegression(
+        CommandJsonSchema.overlayObjects, parseJSON(`[{"123":"bounds"}]`));
+    ngMcpValidateJsonArgumentForRegression(
+        CommandJsonSchema.overlayObjects, parseJSON(`[{"uuid":123,"overlay":"mesh"}]`));
 }
 
 private void testPlatformVersionMetadata() {

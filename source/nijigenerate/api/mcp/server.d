@@ -113,12 +113,13 @@ private SchemaBuilder jsonArgumentSchema(CommandJsonSchema schema, string descri
         case CommandJsonSchema.overlayObjects:
             return SchemaBuilder.array(
                 SchemaBuilder.object()
-                    .addProperty("uuid", SchemaBuilder.integer()
+                    .addProperty("uuid", SchemaBuilder.integer().optional()
                         .setDescription("Target Node UUID."))
                     .addProperty("overlay", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
                         .setDescription("Overlay kind. Use bounds or mesh."))
                     .addProperty("type", SchemaBuilder.enum_(["bounds", "mesh"]).optional()
                         .setDescription("Alias of overlay."))
+                    .allowAdditional(true)
             ).optional().setDescription(description);
         case CommandJsonSchema.depthOperation:
             return depthOperationSchema().setDescription(description);
@@ -130,6 +131,10 @@ private SchemaBuilder jsonArgumentSchema(CommandJsonSchema schema, string descri
 version (CommandBrowserDifferential) {
     JSONValue ngMcpJsonArgumentSchemaForRegression(CommandJsonSchema schema) {
         return jsonArgumentSchema(schema, "regression").toJSON();
+    }
+
+    void ngMcpValidateJsonArgumentForRegression(CommandJsonSchema schema, JSONValue value) {
+        jsonArgumentSchema(schema, "regression").validate(value);
     }
 }
 

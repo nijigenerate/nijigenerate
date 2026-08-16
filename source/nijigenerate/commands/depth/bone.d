@@ -3987,13 +3987,21 @@ private StandardDepthBoneBindingSpec[] standardDepthBoneBindingSpecs() {
     ];
 }
 
-private Parameter findDepthParameterByName(string name, bool isVec2) {
+private Parameter findDepthParameterByName(string name) {
     auto puppet = incActivePuppet();
     if (puppet is null) return null;
     foreach (param; puppet.parameters) {
-        if (param.name == name && param.isVec2 == isVec2) return param;
+        if (param.name == name) return param;
     }
     return null;
+}
+
+private string standardDepthParameterTypeConflictMessage(Parameter param, ref StandardDepthParameterSpec spec) {
+    return _("Existing parameter '%s' is %s but the standard depth template requires %s").format(
+        spec.name,
+        param.isVec2 ? "2D" : "1D",
+        spec.isVec2 ? "2D" : "1D"
+    );
 }
 
 private float parameterAxisValue(Parameter param, size_t axis, size_t index) {
@@ -4059,11 +4067,7 @@ private void ensureStandardDepthParameterKeys(Parameter param, StandardDepthBone
 private bool conformStandardDepthParameter(Parameter param, ref StandardDepthParameterSpec spec, StandardDepthBoneBindingSpec[] bindingSpecs, GroupAction group, out bool changed, out string message) {
     changed = false;
     if (param.isVec2 != spec.isVec2) {
-        message = _("Existing parameter '%s' is %s but the standard depth template requires %s").format(
-            spec.name,
-            param.isVec2 ? "2D" : "1D",
-            spec.isVec2 ? "2D" : "1D"
-        );
+        message = standardDepthParameterTypeConflictMessage(param, spec);
         return false;
     }
     if (parameterStructureMatchesSpec(param, spec) && standardDepthParameterHasRequiredKeys(param, bindingSpecs))
@@ -4113,8 +4117,15 @@ class AddStandardDepthParametersCommand : ExCommand!(
             bindingSpecsByParameter[bindingSpec.parameterName] ~= bindingSpec;
         bool changed = false;
 
-        foreach (spec; standardDepthParameterSpecs()) {
-            auto param = findDepthParameterByName(spec.name, spec.isVec2);
+        auto parameterSpecs = standardDepthParameterSpecs();
+        foreach (ref spec; parameterSpecs) {
+            auto param = findDepthParameterByName(spec.name);
+            if (param !is null && param.isVec2 != spec.isVec2)
+                return CommandResult(false, standardDepthParameterTypeConflictMessage(param, spec));
+        }
+
+        foreach (spec; parameterSpecs) {
+            auto param = findDepthParameterByName(spec.name);
             if (param is null) {
                 auto created = new ExParameter(spec.name, spec.isVec2);
                 created.min = spec.minValue;
@@ -4242,8 +4253,10 @@ class SetDepthBoneRestCommand : ExCommand!(
         auto oldHead = b.restHead;
         auto oldTail = b.restTail;
         auto oldRoll = b.restRoll;
-        b.restHead = vec3From(restHead, "restHead");
-        b.restTail = vec3From(restTail, "restTail");
+        auto nextHead = vec3From(restHead, "restHead");
+        auto nextTail = vec3From(restTail, "restTail");
+        b.restHead = nextHead;
+        b.restTail = nextTail;
         b.restRoll = restRoll;
         incActionPush(new DepthBoneRestChangeAction(b, oldHead, oldTail, oldRoll, b.restHead, b.restTail, b.restRoll));
         return CommandResult(true);
@@ -4484,7 +4497,13 @@ class PreviewDepthBoneInfluenceCommand : ExCommand!(
         auto source = requireBone(bone);
         auto deformable = cast(Deformable)target;
         enforce(deformable !is null, "target is not deformable");
-        auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
+        ExDepthRigBinding detachedBinding;
+        detachedBinding.targetUuid = target.uuid;
+        detachedBinding.targetKind = targetKindOf(target);
+        auto bindingIndex = rigRoot.findBindingIndex(target.uuid);
+        auto binding = bindingIndex >= 0
+            ? &rigRoot.bindings[cast(size_t)bindingIndex]
+            : &detachedBinding;
         deformable.deformation = generateInfluencePreviewOffsets(binding, source, deformable);
         deformable.notifyChange(deformable, NotifyReason.AttributeChanged);
         return CommandResult(true);
