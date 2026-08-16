@@ -467,10 +467,15 @@ protected:
 }
 
 void ngRemapCopiedDepthRigReferences(Node sourceRoot, Node copiedRoot) {
-    if (sourceRoot is null || copiedRoot is null) return;
+    ngRemapCopiedDepthRigReferences([sourceRoot], [copiedRoot]);
+}
+
+void ngRemapCopiedDepthRigReferences(Node[] sourceRoots, Node[] copiedRoots) {
+    if (sourceRoots.length != copiedRoots.length) return;
 
     ulong[ulong] uuidMap;
     void collectUuidMap(Node sourceNode, Node copiedNode) {
+        if (sourceNode is null || copiedNode is null) return;
         uuidMap[sourceNode.uuid] = copiedNode.uuid;
         auto childCount = sourceNode.children.length < copiedNode.children.length
             ? sourceNode.children.length
@@ -478,7 +483,8 @@ void ngRemapCopiedDepthRigReferences(Node sourceRoot, Node copiedRoot) {
         foreach (i; 0 .. childCount)
             collectUuidMap(sourceNode.children[i], copiedNode.children[i]);
     }
-    collectUuidMap(sourceRoot, copiedRoot);
+    foreach (i; 0 .. sourceRoots.length)
+        collectUuidMap(sourceRoots[i], copiedRoots[i]);
 
     void copyRigBindings(Node sourceNode, Node copiedNode) {
         auto sourceRig = cast(ExDepthRigRoot)sourceNode;
@@ -494,7 +500,8 @@ void ngRemapCopiedDepthRigReferences(Node sourceRoot, Node copiedRoot) {
         foreach (i; 0 .. childCount)
             copyRigBindings(sourceNode.children[i], copiedNode.children[i]);
     }
-    copyRigBindings(sourceRoot, copiedRoot);
+    foreach (i; 0 .. sourceRoots.length)
+        copyRigBindings(sourceRoots[i], copiedRoots[i]);
 }
 
 ExDepthBone ngCreateDepthBone(Node parent, string boneId, vec3 restHead, vec3 restTail, float restRoll = 0.0f) {

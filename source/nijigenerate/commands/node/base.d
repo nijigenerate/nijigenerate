@@ -30,10 +30,9 @@ import i18n;
     void copyToClipboard(Node[] nodes) {
         clipboardNodes.length = 0;
         foreach (node; nodes) {
-            auto newNode = node.dup;
-            ngRemapCopiedDepthRigReferences(node, newNode);
-            clipboardNodes ~= newNode;
+            clipboardNodes ~= node.dup;
         }
+        ngRemapCopiedDepthRigReferences(nodes, clipboardNodes);
     }
 
     void pasteFromClipboard(Node parent) {

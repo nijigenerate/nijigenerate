@@ -4300,7 +4300,7 @@ class AddDepthBoneSourceCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto source = requireBone(bone);
-        auto oldBindings = rigRoot.bindings.dup;
+        auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
         rigRoot.addBoneSource(target, targetKindOf(target), source);
         incActionPush(new DepthBoneSourceListChangeAction(
             "Add Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings, false, target));
@@ -4318,7 +4318,7 @@ class RemoveDepthBoneSourceCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
-        auto oldBindings = rigRoot.bindings.dup;
+        auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
         rigRoot.removeBoneSource(target, requireBone(bone));
         incActionPush(new DepthBoneSourceListChangeAction(
             "Remove Depth Bone Source", rigRoot, oldBindings, rigRoot.bindings, false, target));
@@ -4368,7 +4368,7 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
         auto source = requireBone(bone);
-        auto oldBindings = rigRoot.bindings.dup;
+        auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
         auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
         auto setting = binding.sourceSetting(source.uuid);
         setting.boneUuid = source.uuid;
@@ -4410,7 +4410,7 @@ class SetDepthBoneInfluenceRuleCommand : ExCommand!(
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
-        auto oldBindings = rigRoot.bindings.dup;
+        auto oldBindings = ngCopyDepthRigBindings(rigRoot.bindings);
         auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
         applyRuleJson(binding.influenceRule, rule);
         incActionPush(new DepthBoneBindingRuleChangeAction(
@@ -4428,8 +4428,11 @@ class GetDepthBoneInfluenceRuleCommand : ExCommand!(
 
     override ExCommandResult!JSONValue run(Context ctx) {
         auto rigRoot = requireRoot(root);
-        auto binding = rigRoot.getOrCreateBinding(target, targetKindOf(target));
-        return ExCommandResult!JSONValue(true, ruleToJson(binding.influenceRule));
+        targetKindOf(target);
+        auto index = rigRoot.findBindingIndex(target.uuid);
+        ExDepthInfluenceRule rule;
+        if (index >= 0) rule = rigRoot.bindings[cast(size_t)index].influenceRule;
+        return ExCommandResult!JSONValue(true, ruleToJson(rule));
     }
 }
 

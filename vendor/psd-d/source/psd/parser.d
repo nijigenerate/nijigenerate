@@ -396,8 +396,10 @@ void extractLayer(ref Layer layer) {
 
                 // RLE compressed data is preceded by a 2-byte data count for each scanline
                 size_t rleDataSize;
-                foreach(_; 0..channelHeight) {
-                    const ushort dataCount = file.readValue!ushort;
+                ushort[] rleRowSizes;
+                rleRowSizes.length = channelHeight;
+                foreach(ref dataCount; rleRowSizes) {
+                    dataCount = file.readValue!ushort;
                     rleDataSize += dataCount;
                 }
 
@@ -413,11 +415,19 @@ void extractLayer(ref Layer layer) {
                     // We need to work around the same D bug as before.
                     file.rawRead(rleData);
 
-                    // Decompress RLE
+                    // Decompress each scanline independently. PackBits runs must
+                    // not spill into the next row even if the total byte count fits.
                     // FIXME:  We're assuming psd.channelsPerBit == 8 right now, and that's not 
                     //         always the case.
                     channel.data = new ubyte[decodedLength];
-                    decodeRLE(rleData, channel.data);
+                    size_t encodedOffset;
+                    foreach(row, rowSize; rleRowSizes) {
+                        auto decodedOffset = cast(size_t)row * cast(size_t)channelWidth;
+                        decodeRLE(
+                            rleData[encodedOffset .. encodedOffset + rowSize],
+                            channel.data[decodedOffset .. decodedOffset + channelWidth]);
+                        encodedOffset += rowSize;
+                    }
                 } else {
                     enforce(decodedLength == 0, "Truncated PSD RLE channel data");
                 }

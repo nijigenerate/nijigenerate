@@ -64,6 +64,26 @@ private:
     ulong pendingGpuApplyRevision;
     string pendingGpuApplySessionState;
     string lastPersistedSessionState;
+    DepthDrawSession diagnosticsCacheSession;
+    ulong diagnosticsCacheRevision;
+    ulong diagnosticsCacheSelectedGridUuid;
+    bool diagnosticsCacheInitialized;
+    DepthDrawLayerRangeDiagnostics[string] rangeDiagnosticsCache;
+    DepthDrawLayerSamplingDiagnostics[string] samplingDiagnosticsCache;
+
+    void prepareDiagnosticsCache() {
+        auto revision = session is null ? 0 : session.diagnosticsRevision();
+        auto selectedGridUuid = session is null ? 0 : session.selectedGridUuid;
+        if (diagnosticsCacheInitialized && diagnosticsCacheSession is session &&
+            diagnosticsCacheRevision == revision &&
+            diagnosticsCacheSelectedGridUuid == selectedGridUuid) return;
+        diagnosticsCacheSession = session;
+        diagnosticsCacheRevision = revision;
+        diagnosticsCacheSelectedGridUuid = selectedGridUuid;
+        diagnosticsCacheInitialized = true;
+        rangeDiagnosticsCache = null;
+        samplingDiagnosticsCache = null;
+    }
 
     enum string[] ChannelNames = [
         "AverageRGB",
@@ -1264,6 +1284,8 @@ public:
     }
 
     DepthDrawLayerRangeDiagnostics layerRangeDiagnostics(string layerId) {
+        prepareDiagnosticsCache();
+        if (auto cached = layerId in rangeDiagnosticsCache) return *cached;
         DepthDrawLayerRangeDiagnostics diagnostics;
         diagnostics.rawRange = measureLayerRawRange(layerId);
         auto layer = session is null ? null : session.layerById(layerId);
@@ -1273,6 +1295,7 @@ public:
                 layer.applyZTransform(diagnostics.rawRange.maxDepth),
             ]);
         }
+        rangeDiagnosticsCache[layerId] = diagnostics;
         return diagnostics;
     }
 
@@ -1282,10 +1305,15 @@ public:
     }
 
     DepthDrawLayerSamplingDiagnostics layerSamplingDiagnostics(string layerId) {
+        prepareDiagnosticsCache();
+        if (auto cached = layerId in samplingDiagnosticsCache) return *cached;
         DepthDrawLayerSamplingDiagnostics diagnostics;
         if (session is null) return diagnostics;
         auto layer = session.layerById(layerId);
-        if (layer is null || !layer.hasDepthPixels()) return diagnostics;
+        if (layer is null || !layer.hasDepthPixels()) {
+            samplingDiagnosticsCache[layerId] = diagnostics;
+            return diagnostics;
+        }
 
         auto settings = layer.sampleSettings();
         auto binding = selectedBinding();
@@ -1331,6 +1359,7 @@ public:
             }
         }
         diagnostics.sampledRange = ngDepthDrawRangeFromValues(values);
+        samplingDiagnosticsCache[layerId] = diagnostics;
         return diagnostics;
     }
 

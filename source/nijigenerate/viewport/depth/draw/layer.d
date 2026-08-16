@@ -16,6 +16,14 @@ enum DepthDrawLayerCleanupKind {
     ContourRepair,
 }
 
+enum int DepthDrawMaxContourThickness = 64;
+
+int ngNormalizeDepthDrawContourThickness(int thickness) {
+    if (thickness < 1) return 1;
+    if (thickness > DepthDrawMaxContourThickness) return DepthDrawMaxContourThickness;
+    return thickness;
+}
+
 struct DepthDrawLayerCleanupOperation {
     DepthDrawLayerCleanupKind kind;
     int contourThickness = 2;

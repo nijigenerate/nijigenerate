@@ -15,13 +15,14 @@ import nijilive.fmt.serialize;
 import nijilive.math;
 import std.math : isFinite;
 
-private ExDepthOp[] remapIndexBoundDepthOperations(
+ExDepthOp[] ngRemapGridIndexBoundDepthOperations(
     Vec2Array oldVertices,
     Vec2Array newVertices,
     ExDepthOp[] operations,
+    bool preserveSameCount = true,
 ) {
     enum float matchingVertexDistanceSquared = 1.0e-8f;
-    auto preserveAttachedIndices = oldVertices.length == newVertices.length;
+    auto preserveAttachedIndices = preserveSameCount && oldVertices.length == newVertices.length;
     ExDepthOp[] result;
     foreach (operation; operations) {
         if (operation.type != ExDepthOpType.AttachedPoint) {
@@ -88,7 +89,7 @@ public:
                 resizeDepthOpBaseDepthsToVertices(vertices.length);
             }
         }
-        replaceDepthOps(remapIndexBoundDepthOperations(oldVertices, vertices, oldOperations));
+        replaceDepthOps(ngRemapGridIndexBoundDepthOperations(oldVertices, vertices, oldOperations));
     }
 
     override

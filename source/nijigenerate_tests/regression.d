@@ -61,7 +61,7 @@ import nijigenerate.commands.depth.bone_status :
     ngBuildDepthBoneUpdateTargetOutline;
 import nijigenerate.commands.inspector.apply_node;
 import nijigenerate.commands.model.set_deform_binding;
-import nijigenerate.commands.node.base : clipboardNodes, conversionMap;
+import nijigenerate.commands.node.base : clipboardNodes, conversionMap, copyToClipboard;
 import nijigenerate.commands.node.dynamic;
 import nijigenerate.commands.node.node;
 import nijigenerate.commands.node.simplephysics;
@@ -117,7 +117,8 @@ import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession,
     ngDepthDisplayScaleForTargets, ngDepthDisplayScaleForTargetsInNodeSpace, ngDepthTargetClampDepth;
 import nijigenerate.viewport.depth.renderer : DepthTargetRenderer;
 import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawRect, DepthDrawSession,
-    DepthMergePolicy, DepthDrawComposeResult, DepthDrawLayerCleanupKind, DepthDrawLayerStackSortMode,
+    DepthMergePolicy, DepthDrawComposeResult, DepthDrawLayerCleanupKind, DepthDrawLayerCleanupOperation,
+    DepthDrawMaxContourThickness, DepthDrawLayerStackSortMode, ngNormalizeDepthDrawContourThickness,
     ngComposeDepthDrawTarget, ngDepthDrawApplyFitZToGap, ngDepthDrawAutoBindLayer, ngDepthDrawAutoBindSession,
     ngDepthDrawFitZDiagnostics, ngDepthDrawFitZToGap, ngDepthDrawGapFromAdjacentRanges,
     ngDepthDrawGapFromSelectedLayerRanges, ngDepthDrawGapFromTargetRange, ngDepthDrawRangeFromValues,
@@ -920,6 +921,21 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     }
     require(truncatedRleRejected && overflowingRleRejected,
         "PSD PackBits decoder should reject source truncation and destination overflow");
+    ubyte[] noOpTerminatedRow;
+    noOpTerminatedRow.length = 2;
+    decodeRLE([cast(ubyte)1, 10, 20, cast(ubyte)0x80], noOpTerminatedRow);
+    require(noOpTerminatedRow == [cast(ubyte)10, 20],
+        "PSD PackBits decoder should accept a legal no-op after a complete scanline");
+    bool trailingRleRejected;
+    try {
+        ubyte[] exactRow;
+        exactRow.length = 2;
+        decodeRLE([cast(ubyte)1, 10, 20, cast(ubyte)0, 30], exactRow);
+    } catch (Exception) {
+        trailingRleRejected = true;
+    }
+    require(trailingRleRejected,
+        "PSD PackBits decoder should reject a data run that spills past one completed scanline");
 
     import std.zlib : compress;
     ubyte[] zipSource = [10, 20, 40, 5, 6, 9];
@@ -3409,6 +3425,31 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ]));
     require(movedPointGrid.copyDepthOps().length == 1 && movedPointGrid.copyDepthOps()[0].index == 3,
         "moving vertices without changing topology must preserve attached depth operation indices");
+
+    auto equalCountTopologyGrid = new ExGridDeformer(incActivePuppet().root);
+    equalCountTopologyGrid.rebuffer(Vec2Array([
+        vec2(-1, -1), vec2(0, -1), vec2(1, -1),
+        vec2(-1, 1), vec2(0, 1), vec2(1, 1),
+    ]));
+    ExDepthOp removedEqualCountPoint = attached;
+    removedEqualCountPoint.index = 1;
+    equalCountTopologyGrid.replaceDepthOps([removedEqualCountPoint]);
+    auto equalCountDefineAction = new GridDeformerDefineAction("Reshape equal-count grid", equalCountTopologyGrid);
+    equalCountTopologyGrid.rebuffer(Vec2Array([
+        vec2(-1, -1), vec2(1, -1),
+        vec2(-1, 0), vec2(1, 0),
+        vec2(-1, 1), vec2(1, 1),
+    ]));
+    equalCountDefineAction.updateNewState();
+    require(equalCountTopologyGrid.copyDepthOps().length == 0,
+        "grid definition must clear attached points removed by an equal-vertex-count topology change");
+    equalCountDefineAction.rollback();
+    require(equalCountTopologyGrid.copyDepthOps().length == 1 &&
+        equalCountTopologyGrid.copyDepthOps()[0].index == 1,
+        "undoing an equal-count topology change must restore the attached point");
+    equalCountDefineAction.redo();
+    require(equalCountTopologyGrid.copyDepthOps().length == 0,
+        "redoing an equal-count topology change must clear the removed attached point again");
 
     auto copied = new ExGridDeformer(incActivePuppet().root);
     copied.name = "copied-depth-grid";
@@ -7331,6 +7372,25 @@ private void testDepthDrawDataModelContracts() {
         duplicateReloaded.bindings[1].layerId == "reloaded-duplicate-b" &&
         duplicateReloaded.selectedLayerId == "reloaded-duplicate-b",
         "DepthDraw reload should match duplicate layer keys one-to-one and preserve sample depth scale");
+    auto unrelatedPrevious = new DepthDrawSession();
+    auto unrelatedOldLayer = duplicatePreviousA;
+    unrelatedOldLayer.id = "psd:0";
+    unrelatedOldLayer.layerPath = "/old-layer";
+    unrelatedOldLayer.displayName = "old-layer";
+    unrelatedOldLayer.sourcePath = "same.psd";
+    unrelatedPrevious.layers = [unrelatedOldLayer];
+    auto unrelatedBinding = duplicateBindingA;
+    unrelatedBinding.layerId = unrelatedOldLayer.id;
+    unrelatedPrevious.bindings = [unrelatedBinding];
+    auto unrelatedReloaded = new DepthDrawSession();
+    auto unrelatedNewLayer = unrelatedOldLayer;
+    unrelatedNewLayer.layerPath = "/new-layer";
+    unrelatedNewLayer.displayName = "new-layer";
+    unrelatedReloaded.layers = [unrelatedNewLayer];
+    auto unrelatedReload = ngDepthDrawCarryReloadState(unrelatedReloaded, unrelatedPrevious);
+    require(unrelatedReload.matchedLayers == 0 && unrelatedReload.preservedBindings == 0 &&
+        unrelatedReloaded.bindings.length == 0,
+        "DepthDraw reload must not transfer state to an unrelated same-size PSD layer at the same positional id");
     auto repeatedGapFill = dirtySession.applyLayerAlphaDepthGapFill(gapLayer.id);
     require(repeatedGapFill.succeeded && repeatedGapFill.detected.total == 0 &&
         repeatedGapFill.filled.filled == 0,
@@ -7680,6 +7740,10 @@ private void testDepthDrawSourceManifestContracts() {
     layer.convolution = DepthImageConvolution.MedianCustom;
     layer.customRadius = 5;
     layer.alphaThreshold = 0.2f;
+    DepthDrawLayerCleanupOperation oversizedContourOperation;
+    oversizedContourOperation.kind = DepthDrawLayerCleanupKind.ContourRepair;
+    oversizedContourOperation.contourThickness = int.max;
+    layer.cleanupOperations = [oversizedContourOperation];
 
     DepthDrawBinding binding;
     binding.layerId = layer.id;
@@ -7731,6 +7795,10 @@ private void testDepthDrawSourceManifestContracts() {
         near(restoredLayer.alphaThreshold, layer.alphaThreshold) &&
         near(restoredLayer.sampleDepthScale, layer.sampleDepthScale),
         "DepthDraw manifest should normalize unsupported sampling when restoring GPU preview state");
+    require(restoredLayer.cleanupOperations.length == 1 &&
+        restoredLayer.cleanupOperations[0].contourThickness == DepthDrawMaxContourThickness &&
+        ngNormalizeDepthDrawContourThickness(-100) == 1,
+        "DepthDraw cleanup replay must clamp persisted contour thickness to the shared safe range");
     require(restored.sourceIdentity == session.sourceIdentity,
         "DepthDraw manifest should preserve the actual source identity used for project persistence");
     auto restoredBinding = restored.bindings[0];
@@ -17165,11 +17233,17 @@ private void testDepthBoneInfluenceRuleCommandUndoRedo() {
 
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
+    auto defaultResult = cast(ExCommandResult!JSONValue)cmd!(DepthBoneCommand.GetDepthBoneInfluenceRule)(
+        ctx, root, target);
+    require(defaultResult !is null && defaultResult.succeeded &&
+        defaultResult.result["maxInfluences"].toString() == "4" && root.bindings.length == 0,
+        "GetDepthBoneInfluenceRule must return defaults without creating a target binding");
     auto result = cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
         ctx,
         root,
         target,
-        `{"maxInfluences":2,"radiusScale":1.5,"minimumRadius":12.0,"falloff":"linear"}`
+        `{"maxInfluences":2,"radiusScale":1.5,"minimumRadius":12.0,"falloff":"linear",` ~
+            `"multipliersByBoneUuid":{"123":0.25}}`
     );
     require(result.succeeded, "SetDepthBoneInfluenceRule command should succeed");
     require(root.bindings.length == 1, "SetDepthBoneInfluenceRule should create binding for target");
@@ -17177,17 +17251,32 @@ private void testDepthBoneInfluenceRuleCommandUndoRedo() {
     require(near(root.bindings[0].influenceRule.radiusScale, 1.5f), "SetDepthBoneInfluenceRule should apply radiusScale");
     require(near(root.bindings[0].influenceRule.minimumRadius, 12.0f), "SetDepthBoneInfluenceRule should apply minimumRadius");
     require(root.bindings[0].influenceRule.falloff == "linear", "SetDepthBoneInfluenceRule should apply falloff");
+    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f),
+        "SetDepthBoneInfluenceRule should apply per-bone multipliers");
 
     auto getResult = cast(ExCommandResult!JSONValue)cmd!(DepthBoneCommand.GetDepthBoneInfluenceRule)(ctx, root, target);
     require(getResult !is null, "GetDepthBoneInfluenceRule should return JSON payload");
     require(getResult.succeeded, "GetDepthBoneInfluenceRule command should succeed");
     require(getResult.result["maxInfluences"].toString() == "2", "GetDepthBoneInfluenceRule should return maxInfluences");
 
+    auto replaceResult = cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
+        ctx, root, target, `{"multipliersByBoneUuid":{"123":0.75}}`);
+    require(replaceResult.succeeded &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.75f),
+        "replacing a DepthBone influence map should update the current rule");
     incActionUndo();
-    require(root.bindings.length == 0, "undo SetDepthBoneInfluenceRule should restore prior binding list");
+    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f),
+        "undo SetDepthBoneInfluenceRule should restore the independent previous influence map");
 
     incActionRedo();
-    require(root.bindings.length == 1 && root.bindings[0].influenceRule.maxInfluences == 2, "redo SetDepthBoneInfluenceRule should restore rule");
+    require(root.bindings.length == 1 && root.bindings[0].influenceRule.maxInfluences == 2 &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.75f),
+        "redo SetDepthBoneInfluenceRule should restore the replacement rule");
+    incActionUndo();
+    incActionUndo();
+    require(root.bindings.length == 0, "undoing both rule changes should restore the prior binding list");
+    incActionRedo();
+    incActionRedo();
 }
 
 private void testDepthBoneSerializationRoundTrip() {
@@ -17262,6 +17351,17 @@ private void testDepthBoneSerializationRoundTrip() {
         ancestorCopiedRoot.bindings.length == 1 &&
         ancestorCopiedRoot.bindings[0].targetUuid == ancestorCopiedTarget.uuid,
         "copying an ancestor must remap a DepthRig binding to its copied sibling target");
+    clipboardNodes.length = 0;
+
+    copyToClipboard([cast(Node)root, cast(Node)target]);
+    require(clipboardNodes.length == 2,
+        "copying separate selected DepthRig nodes must preserve both clipboard roots");
+    auto separatelyCopiedRoot = cast(ExDepthRigRoot)clipboardNodes[0];
+    auto separatelyCopiedTarget = cast(GridDeformer)clipboardNodes[1];
+    require(separatelyCopiedRoot !is null && separatelyCopiedTarget !is null &&
+        separatelyCopiedRoot.bindings.length == 1 &&
+        separatelyCopiedRoot.bindings[0].targetUuid == separatelyCopiedTarget.uuid,
+        "copying a DepthRigRoot and sibling target together must remap references across clipboard roots");
     clipboardNodes.length = 0;
 
     incActivePuppet().root.build();

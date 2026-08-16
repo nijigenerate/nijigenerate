@@ -13,8 +13,7 @@ void decodeRLE(ubyte[] source, ubyte[] destination) {
     size_t sourceOffset;
     size_t destinationOffset;
 
-    while (destinationOffset < destination.length) {
-        enforce(sourceOffset < source.length, "Truncated PSD RLE stream: missing PackBits tag");
+    while (sourceOffset < source.length) {
         const ubyte tag = source[sourceOffset++];
 
         if (tag == 0x80) {
@@ -43,6 +42,8 @@ void decodeRLE(ubyte[] source, ubyte[] destination) {
             destinationOffset += count;
         }
     }
+    enforce(destinationOffset == destination.length,
+        "Truncated PSD RLE stream: scanline is shorter than its destination");
 }
 
 ubyte[] decodeZip(ubyte[] source, uint width, uint height, bool prediction) {

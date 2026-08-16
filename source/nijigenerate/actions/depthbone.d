@@ -9,6 +9,16 @@ import nijilive.math;
 import i18n;
 import std.format : format;
 
+ExDepthRigBinding[] ngCopyDepthRigBindings(ExDepthRigBinding[] bindings) {
+    auto result = bindings.dup;
+    foreach (ref binding; result) {
+        binding.sourceBoneUuids = binding.sourceBoneUuids.dup;
+        binding.sourceSettings = binding.sourceSettings.dup;
+        binding.influenceRule.multipliersByBoneUuid = binding.influenceRule.multipliersByBoneUuid.dup;
+    }
+    return result;
+}
+
 class DepthRigBindingsChangeAction : Action {
     ExDepthRigRoot root;
     ExDepthRigBinding[] oldBindings;
@@ -19,16 +29,6 @@ class DepthRigBindingsChangeAction : Action {
     ulong mergeSession;
     ulong mergeSourceUuid;
     string mergeProperty;
-
-    private static ExDepthRigBinding[] copyBindings(ExDepthRigBinding[] bindings) {
-        auto result = bindings.dup;
-        foreach (ref binding; result) {
-            binding.sourceBoneUuids = binding.sourceBoneUuids.dup;
-            binding.sourceSettings = binding.sourceSettings.dup;
-            binding.influenceRule.multipliersByBoneUuid = binding.influenceRule.multipliersByBoneUuid.dup;
-        }
-        return result;
-    }
 
     this(
         string label,
@@ -43,8 +43,8 @@ class DepthRigBindingsChangeAction : Action {
     ) {
         this.label = label;
         this.root = root;
-        this.oldBindings = copyBindings(oldBindings);
-        this.newBindings = copyBindings(newBindings);
+        this.oldBindings = ngCopyDepthRigBindings(oldBindings);
+        this.newBindings = ngCopyDepthRigBindings(newBindings);
         this.settleBeforeDispatch = settleBeforeDispatch;
         this.affectedTarget = affectedTarget;
         this.mergeSession = mergeSession;
@@ -60,12 +60,12 @@ class DepthRigBindingsChangeAction : Action {
     }
 
     void rollback() {
-        root.bindings = copyBindings(oldBindings);
+        root.bindings = ngCopyDepthRigBindings(oldBindings);
         notifyChanged();
     }
 
     void redo() {
-        root.bindings = copyBindings(newBindings);
+        root.bindings = ngCopyDepthRigBindings(newBindings);
         notifyChanged();
     }
 
@@ -75,7 +75,7 @@ class DepthRigBindingsChangeAction : Action {
     bool merge(Action other) {
         auto next = cast(DepthRigBindingsChangeAction)other;
         if (!canMerge(next)) return false;
-        newBindings = copyBindings(next.newBindings);
+        newBindings = ngCopyDepthRigBindings(next.newBindings);
         label = next.label;
         settleBeforeDispatch = settleBeforeDispatch || next.settleBeforeDispatch;
         return true;

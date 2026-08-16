@@ -8,6 +8,7 @@ import nijigenerate.actions.depthboneinvalidation :
 import nijigenerate;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
 import nijigenerate.ext.nodes.exdepthops : DepthOperationMappedNode, ExDepthOp;
+import nijigenerate.ext.nodes.exgriddeformer : ngRemapGridIndexBoundDepthOperations;
 import nijigenerate.ext.param : ExParameterGroup;
 import nijilive;
 import nijilive.math : Vec2Array;
@@ -269,6 +270,10 @@ public:
 
     override
     void updateNewState() {
+        if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+            depthOperated.replaceDepthOps(ngRemapGridIndexBoundDepthOperations(
+                Vec2Array(oldState.vertices), self.vertices, oldState.depthOperations, false));
+        }
         this.newState = captureState();
         notifyGeometryChanged();
     }

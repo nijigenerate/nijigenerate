@@ -10,6 +10,8 @@ import nijigenerate.viewport.depth.draw.layer;
 import nijilive.math : vec2;
 import std.algorithm : sort;
 import std.format : format;
+import std.path : extension;
+import std.string : toLower;
 
 struct DepthDrawReloadStateResult {
     size_t matchedLayers;
@@ -91,6 +93,12 @@ class DepthDrawSession {
 private:
     bool[ulong] previewDirtyTargets;
     ulong[ulong] previewTargetRevisions;
+    ulong diagnosticsRevisionValue;
+
+    void bumpDiagnosticsRevision() {
+        diagnosticsRevisionValue++;
+        if (diagnosticsRevisionValue == 0) diagnosticsRevisionValue = 1;
+    }
 
     ptrdiff_t findLayerIndex(string id) const {
         foreach (i, ref layer; layers) {
@@ -138,6 +146,7 @@ public:
 
     void markTargetPreviewDirty(ulong gridUuid) {
         if (gridUuid == 0) return;
+        bumpDiagnosticsRevision();
         auto revision = gridUuid in previewTargetRevisions;
         auto nextRevision = revision is null ? 1 : *revision + 1;
         if (nextRevision == 0) nextRevision = 1;
@@ -150,8 +159,13 @@ public:
         return revision is null ? 0 : *revision;
     }
 
+    ulong diagnosticsRevision() const {
+        return diagnosticsRevisionValue;
+    }
+
     void markLayerPreviewDirty(string layerId) {
         if (layerId.length == 0) return;
+        bumpDiagnosticsRevision();
         foreach (binding; bindings) {
             if (!binding.enabled || binding.layerId != layerId) continue;
             markTargetPreviewDirty(binding.targetGridUuid);
@@ -164,6 +178,7 @@ public:
     }
 
     void markAllPreviewDirty() {
+        bumpDiagnosticsRevision();
         foreach (binding; bindings) {
             if (!binding.enabled) continue;
             markTargetPreviewDirty(binding.targetGridUuid);
@@ -310,6 +325,7 @@ public:
         auto layer = layerById(layerId);
         if (layer is null || !layer.hasDepthPixels()) return summary;
 
+        thickness = ngNormalizeDepthDrawContourThickness(thickness);
         auto depth = ngDepthDrawDecodeDepthPixelsFromRgba(layer.depthPixels, layer.channel);
         auto mask = layer.alphaMask.length == depth.length
             ? layer.alphaMask.dup
@@ -349,7 +365,7 @@ public:
         auto operations = cloneCleanupOperations(layer.cleanupOperations);
         layer.cleanupOperations = null;
         auto layerIndex = cast(int)findLayerIndex(layerId);
-        foreach (operation; operations) {
+        foreach (ref operation; operations) {
             final switch (operation.kind) {
                 case DepthDrawLayerCleanupKind.AlphaDepthGapFill:
                     auto rules = operation.focusedRules.dup;
@@ -357,6 +373,8 @@ public:
                     applyLayerAlphaDepthGapFill(layerId, rules);
                     break;
                 case DepthDrawLayerCleanupKind.ContourRepair:
+                    operation.contourThickness = ngNormalizeDepthDrawContourThickness(
+                        operation.contourThickness);
                     repairLayerContourDepth(layerId, operation.contourThickness);
                     break;
             }
@@ -426,11 +444,17 @@ public:
         clearSelection();
         clearPreviewDirty();
         previewTargetRevisions = null;
+        bumpDiagnosticsRevision();
     }
 }
 
 private string reloadLayerKey(const(DepthDrawLayer) layer) {
     return "%s\0%s\0%s\0%s".format(layer.layerPath, layer.displayName, layer.width, layer.height);
+}
+
+private bool isFlatDepthDrawLayerSource(const(DepthDrawLayer) layer) {
+    auto ext = extension(layer.sourcePath).toLower();
+    return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".tga";
 }
 
 private DepthDrawLayer* findReloadLayerByKey(
@@ -443,14 +467,9 @@ private DepthDrawLayer* findReloadLayerByKey(
     foreach (ref layer; session.layers) {
         if ((layer.id in usedReloadedLayerIds) is null && reloadLayerKey(layer) == key) return &layer;
     }
-    foreach (ref layer; session.layers) {
-        if ((layer.id in usedReloadedLayerIds) is null &&
-            previousLayer.sourcePath.length > 0 && layer.sourcePath == previousLayer.sourcePath &&
-            layer.width == previousLayer.width && layer.height == previousLayer.height) {
-            return &layer;
-        }
-    }
-    if (session.layers.length == 1 && (session.layers[0].id in usedReloadedLayerIds) is null) {
+    if (session.layers.length == 1 && isFlatDepthDrawLayerSource(previousLayer) &&
+        isFlatDepthDrawLayerSource(session.layers[0]) &&
+        (session.layers[0].id in usedReloadedLayerIds) is null) {
         return &session.layers[0];
     }
     return null;
@@ -467,10 +486,6 @@ DepthDrawReloadStateResult ngDepthDrawCarryReloadState(DepthDrawSession reloaded
         // PSD ids are positional (psd:0, psd:1, ...), so stable source
         // identity must win when layers are inserted or reordered.
         auto layer = findReloadLayerByKey(reloaded, previousLayer, usedReloadedLayerIds);
-        if (layer is null) {
-            auto sameIdLayer = reloaded.layerById(previousLayer.id);
-            if (sameIdLayer !is null && (sameIdLayer.id in usedReloadedLayerIds) is null) layer = sameIdLayer;
-        }
         if (layer is null) continue;
 
         auto reloadedId = layer.id;

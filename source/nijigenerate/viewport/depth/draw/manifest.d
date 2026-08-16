@@ -227,8 +227,11 @@ private DepthDrawLayerCleanupOperation[] cleanupOperationsFromJson(JSONValue val
         auto object = entry.object;
         DepthDrawLayerCleanupOperation operation;
         operation.kind = cleanupKindFromString(jsonString(object.get("kind", JSONValue(null)), itemName ~ ".kind"));
-        operation.contourThickness = cast(int)jsonFloat(
+        auto contourThickness = jsonFloat(
             object.get("contourThickness", JSONValue(2)), itemName ~ ".contourThickness", 2);
+        operation.contourThickness = contourThickness >= DepthDrawMaxContourThickness
+            ? DepthDrawMaxContourThickness
+            : ngNormalizeDepthDrawContourThickness(cast(int)contourThickness);
         auto rulesValue = object.get("focusedRules", JSONValue.emptyArray);
         enforce(rulesValue.type == JSONType.array, itemName ~ ".focusedRules must be an array");
         foreach (ruleIndex, ruleValue; rulesValue.array) {
