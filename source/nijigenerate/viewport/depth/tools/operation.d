@@ -592,6 +592,36 @@ void applyRingNormalSurfaces(DepthMeshEditorOne editor, DepthRingOperation[] rin
     applyRingFamilySurface(editor, vertical, 'y');
 }
 
+float[] ngComputeDepthsFromOps(GridDeformer grid, ExDepthOp[] ops, const(float)[] baseDepths) {
+    auto editor = new DepthMeshEditorOne(grid, false);
+    scope(exit) editor.dispose();
+    if (baseDepths.length == grid.vertices.length) {
+        editor.replaceBaseDepths(baseDepths.dup);
+    } else {
+        editor.clearBaseDepths();
+    }
+    editor.resetWorkingDepths();
+
+    DepthRingOperation[] rings;
+    DepthAttachedPointOperation[] attachedPoints;
+    DepthPlaneOperation[] planes;
+    foreach (op; ops) {
+        auto operation = depthOperationFromExDepthOp(op);
+        if (auto ring = cast(DepthRingOperation)operation) {
+            rings ~= ring;
+        } else if (auto attached = cast(DepthAttachedPointOperation)operation) {
+            attachedPoints ~= attached;
+        } else if (auto plane = cast(DepthPlaneOperation)operation) {
+            planes ~= plane;
+        }
+    }
+
+    applyRingNormalSurfaces(editor, rings);
+    foreach (op; attachedPoints) op.apply(editor);
+    foreach (op; planes) op.apply(editor);
+    return editor.copyEditorDepths();
+}
+
 float ringBaseDepthAt(DepthMeshEditorOne editor, DepthRingOperation op, float ratio) {
     auto d0 = editor.depthAtLocalPoint(op.p0);
     auto d1 = editor.depthAtLocalPoint(op.p1);

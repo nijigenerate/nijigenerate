@@ -197,35 +197,8 @@ private JSONValue colorStatisticsToJson(ref PsdDepthDialogPartLayerData layer) {
     return JSONValue(result);
 }
 
-private enum size_t PsdDepthDialogSerializedBinaryBudget = 48 * 1024 * 1024;
-
-private struct PsdDepthDialogContentBudget {
-    size_t retainedBytes;
-
-    bool reserve(size_t bytes, out string error) {
-        if (bytes > PsdDepthDialogSerializedBinaryBudget - retainedBytes) {
-            error = "PSD depth dialog response exceeds the 48 MiB binary content budget";
-            return false;
-        }
-        retainedBytes += bytes;
-        return true;
-    }
-}
-
-version (CommandBrowserDifferential) {
-    bool ngPsdDepthDialogContentBudgetAcceptsForRegression(size_t[] sizes) {
-        PsdDepthDialogContentBudget budget;
-        string error;
-        foreach (bytes; sizes) {
-            if (!budget.reserve(bytes, error)) return false;
-        }
-        return true;
-    }
-}
-
 private bool appendPngContent(
     ref JSONValue[] content,
-    ref PsdDepthDialogContentBudget budget,
     const(ubyte)[] rgba,
     int width,
     int height,
@@ -248,7 +221,6 @@ private bool appendPngContent(
         return false;
     }
     scope(exit) free(pngData.ptr);
-    if (!budget.reserve(pngData.length, error)) return false;
 
     JSONValue[string] image;
     image["type"] = JSONValue("image");
@@ -261,7 +233,6 @@ private bool appendPngContent(
 
 private bool appendFloat32ResourceContent(
     ref JSONValue[] content,
-    ref PsdDepthDialogContentBudget budget,
     const(float)[] values,
     string uri,
     out long contentIndex,
@@ -277,8 +248,6 @@ private bool appendFloat32ResourceContent(
         error = "PSD depth dialog float resource size overflow";
         return false;
     }
-    if (!budget.reserve(values.length * float.sizeof, error)) return false;
-
     ubyte[] bytes;
     bytes.length = values.length * float.sizeof;
     foreach (i, value; values) {
@@ -354,7 +323,6 @@ class GetPsdDepthDialogPartDataCommand : ExCommand!() {
         }
 
         JSONValue[] content = [JSONValue(null)];
-        PsdDepthDialogContentBudget contentBudget;
         PsdDepthDialogOverallPreview overallPreview;
         if (!contextDialog(ctx).captureDialogOverallPreview(overallPreview, error)) {
             return ExCommandResult!JSONValue(false, JSONValue(null), error);
@@ -362,7 +330,6 @@ class GetPsdDepthDialogPartDataCommand : ExCommand!() {
         long overallPreviewContentIndex;
         if (!appendPngContent(
             content,
-            contentBudget,
             overallPreview.rgba,
             overallPreview.width,
             overallPreview.height,
@@ -374,7 +341,6 @@ class GetPsdDepthDialogPartDataCommand : ExCommand!() {
         long overallDepthContentIndex;
         if (!appendFloat32ResourceContent(
             content,
-            contentBudget,
             overallPreview.depths,
             "nijigenerate://psd-depth-dialog/overall-depth.f32le",
             overallDepthContentIndex,
@@ -399,7 +365,6 @@ class GetPsdDepthDialogPartDataCommand : ExCommand!() {
             long previewContentIndex;
             if (!appendPngContent(
                 content,
-                contentBudget,
                 part.previewRgba,
                 part.previewWidth,
                 part.previewHeight,
@@ -414,7 +379,6 @@ class GetPsdDepthDialogPartDataCommand : ExCommand!() {
                 long colorContentIndex;
                 if (!appendPngContent(
                     content,
-                    contentBudget,
                     layer.colorRgba,
                     layer.width,
                     layer.height,
@@ -426,7 +390,6 @@ class GetPsdDepthDialogPartDataCommand : ExCommand!() {
                 long depthContentIndex;
                 if (!appendPngContent(
                     content,
-                    contentBudget,
                     layer.depthRgba,
                     layer.width,
                     layer.height,

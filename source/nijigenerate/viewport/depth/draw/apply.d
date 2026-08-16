@@ -1,14 +1,17 @@
 module nijigenerate.viewport.depth.draw.apply;
 
 import nijigenerate.actions : AsyncGroupAction, GroupAction;
-import nijigenerate.actions.depth : ngClearDepthOperationsChangeAction;
+import nijigenerate.actions.depth : DepthOperationMappedChangeAction;
 import nijigenerate.commands : Context;
 import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngEndDepthBoneRefreshActionSink;
 import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
+import nijigenerate.ext.nodes.exdepthops : DepthOperationMappedNode;
 import nijigenerate.viewport.depth.common.session : ngDepthViewWorkingDepthsChangeAction;
 import nijigenerate.viewport.depth.common.targetview;
 import nijigenerate.viewport.depth.draw.composer;
+import nijigenerate.viewport.depth.tools.operation : ngComputeDepthsFromOps;
+import nijilive.core.nodes.deformer.grid : GridDeformer;
 import i18n;
 
 private class DepthDrawApplyAction : AsyncGroupAction {
@@ -83,11 +86,27 @@ DepthDrawApplySummary ngApplyDepthDrawTargetResultWithSummary(
     auto group = new DepthDrawApplyAction();
     ngBeginDepthBoneRefreshActionSink(group);
     scope(exit) ngEndDepthBoneRefreshActionSink(group);
-    auto clearOperations = ngClearDepthOperationsChangeAction(target.getTarget());
-    if (clearOperations !is null) group.addAction(clearOperations);
-    target.replaceWorkingDepths(result.depths);
+    auto targetNode = target.getTarget();
+    auto depthMapped = cast(DepthMappedNode)targetNode;
+    auto beforeDepths = depthMapped.copyDepths();
+    auto appliedDepths = result.depths.dup;
+    auto operated = cast(DepthOperationMappedNode)targetNode;
+    auto grid = cast(GridDeformer)targetNode;
+    if (operated !is null && grid !is null) {
+        auto operations = operated.copyDepthOps();
+        if (operations.length > 0) {
+            auto operationAction = new DepthOperationMappedChangeAction(targetNode);
+            operated.replaceDepthOpBaseDepths(result.depths);
+            operationAction.updateNewState();
+            group.addAction(operationAction);
+            appliedDepths = ngComputeDepthsFromOps(grid, operations, result.depths);
+        }
+    }
+    target.replaceWorkingDepths(appliedDepths);
     group.addAction(ngDepthViewWorkingDepthsChangeAction(target, "Apply DepthDraw Depth Map"));
     if (!group.empty()) incActionPush(group);
+    summary.changedVertices = countChangedVertices(beforeDepths, appliedDepths);
+    summary.changedTargets = summary.changedVertices > 0 ? 1 : 0;
     return summary;
 }
 

@@ -29,9 +29,7 @@ import nijigenerate.viewport.depth.draw.gpu : DepthDrawGpuTargetComposeJob, Dept
 import nijigenerate.viewport.depth.draw.layer : DepthDrawLayer, DepthDrawRect;
 import nijigenerate.viewport.depth.draw.pngexport : DepthDrawPngExportResult, ngExportDepthDrawPngSession;
 import nijigenerate.viewport.depth.draw.session : DepthDrawSession;
-import nijigenerate.viewport.depth.mesheditor.node : DepthMeshEditorOne;
-import nijigenerate.viewport.depth.tools.operation : applyRingNormalSurfaces, depthOperationFromExDepthOp, toExDepthOp;
-import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthPlaneOperation, DepthRingOperation;
+import nijigenerate.viewport.depth.tools.operation : ngComputeDepthsFromOps;
 import nijilive;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
 import std.algorithm.comparison : max, min;
@@ -1194,36 +1192,6 @@ private void replaceDepthOpsWithUndo(Node target, ExDepthOp[] nextOps, string re
     ngMarkDepthBoneDirtyForTarget(target, reason);
 }
 
-private float[] computeDepthsFromOps(GridDeformer grid, ExDepthOp[] ops, float[] baseDepths) {
-    auto editor = new DepthMeshEditorOne(grid, false);
-    scope(exit) editor.dispose();
-    if (baseDepths.length == grid.vertices.length) {
-        editor.replaceBaseDepths(baseDepths);
-    } else {
-        editor.clearBaseDepths();
-    }
-    editor.resetWorkingDepths();
-
-    DepthRingOperation[] rings;
-    DepthAttachedPointOperation[] attachedPoints;
-    DepthPlaneOperation[] planes;
-    foreach (op; ops) {
-        auto operation = depthOperationFromExDepthOp(op);
-        if (auto ring = cast(DepthRingOperation)operation) {
-            rings ~= ring;
-        } else if (auto attached = cast(DepthAttachedPointOperation)operation) {
-            attachedPoints ~= attached;
-        } else if (auto plane = cast(DepthPlaneOperation)operation) {
-            planes ~= plane;
-        }
-    }
-
-    applyRingNormalSurfaces(editor, rings);
-    foreach (op; attachedPoints) op.apply(editor);
-    foreach (op; planes) op.apply(editor);
-    return editor.copyEditorDepths();
-}
-
 @EffectApply
 class ListDepthsCommand : ExCommand!(TW!(Node, "target", "DepthMapped target node")) {
     this() { super(_("List Depths"), _("List per-vertex depth values")); }
@@ -1393,7 +1361,7 @@ class ApplyDepthOpsCommand : ExCommand!(TW!(Node, "target", "Depth operation tar
         auto operated = requireDepthOperated(target);
         auto ops = operated.copyDepthOps();
         replaceDepthsWithUndo(target,
-            computeDepthsFromOps(grid, ops, operated.copyDepthOpBaseDepths()),
+            ngComputeDepthsFromOps(grid, ops, operated.copyDepthOpBaseDepths()),
             "Apply Depth Operations");
         return CommandResult(true);
     }

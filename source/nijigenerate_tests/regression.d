@@ -46,7 +46,6 @@ import nijigenerate.commands.depth.map : PsdDepthComposedView, PsdDepthGpuCompos
     ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng, ngPollPsdDepthImportGpu,
     ngPsdDepthImportProgressVisibleForRegression, ngPsdDepthImportResultToDepthDrawSession,
     ngSubmitPsdDepthImportGpu;
-import nijigenerate.commands.depth.psd_dialog : ngPsdDepthDialogContentBudgetAcceptsForRegression;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.depth.bone_status :
@@ -192,8 +191,7 @@ import nijigenerate.windows.command_browser : ngCommandBrowserDifferentialReport
 import nijigenerate.windows.depthdraw : DepthDrawWindow;
 import nijigenerate.windows.base : incPopWindowList, incPushWindowList;
 import nijigenerate.windows.paramsplit : ngSplitParameterBindings;
-import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerState,
-    PsdDepthDialogPartDataCaptureBudget, ngPsdDepthDialogCaptureBudgetAcceptsForRegression;
+import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerState;
 import nijilive;
 import nijilive.core.nodes.deformer.grid;
 import nijilive.core.nodes.drivers;
@@ -4411,14 +4409,6 @@ private void testAllPsdDepthDialogCommands() {
     }
     require(incActionHistory().length == 0,
         "GetPsdDepthDialogPartData must not mutate dialog history");
-    require(ngPsdDepthDialogCaptureBudgetAcceptsForRegression(
-            [PsdDepthDialogPartDataCaptureBudget - 1, 1]) &&
-        !ngPsdDepthDialogCaptureBudgetAcceptsForRegression(
-            [PsdDepthDialogPartDataCaptureBudget, 1]),
-        "PSD dialog part capture must enforce its aggregate retained-buffer budget");
-    require(ngPsdDepthDialogContentBudgetAcceptsForRegression([24 * 1024 * 1024, 24 * 1024 * 1024]) &&
-        !ngPsdDepthDialogContentBudgetAcceptsForRegression([48 * 1024 * 1024, 1]),
-        "PSD dialog MCP serialization must enforce its aggregate binary-content budget");
     dialog.clearDialogPartDataForRegression();
 
     requirePsdDepthDialogCommandRoundTrip(
@@ -8431,12 +8421,29 @@ private void testDepthDrawSourceManifestContracts() {
     xyWindow.depthDrawSession().bindings.length--;
     auto xyApplySummary = xyWindow.applySelectedTargetDepthDraw();
     auto xyDepthsAfterApply = xyGrid.copyDepths();
+    auto xyBaseDepthsAfterApply = xyGrid.copyDepthOpBaseDepths();
+    auto preservedDepthDrawOperations = xyGrid.copyDepthOps();
     require(xyApplySummary.succeeded && xyApplySummary.changedTargets == 1 &&
         xyApplySummary.changedVertices > 0 &&
         xyGrid.copyDepths() != xyDepthsBeforeApply &&
-        xyGrid.copyDepthOps().length == 0 && xyGrid.copyDepthOpBaseDepths().length == 0 &&
+        preservedDepthDrawOperations.length == 1 &&
+        preservedDepthDrawOperations[0].type == ExDepthOpType.AttachedPoint &&
+        preservedDepthDrawOperations[0].index == savedDepthDrawOperation.index &&
+        near(preservedDepthDrawOperations[0].amount, savedDepthDrawOperation.amount) &&
+        xyBaseDepthsAfterApply.length == xyGrid.vertices.length &&
+        near(xyDepthsAfterApply[0], ngDepthTargetClampDepth(
+            xyBaseDepthsAfterApply[0] + savedDepthDrawOperation.amount)) &&
+        nearFloatArray(xyDepthsAfterApply[1 .. $], xyBaseDepthsAfterApply[1 .. $]) &&
         xyWindow.statusText.canFind("Applied DepthDraw"),
-        "DepthDraw apply must replace depths and clear stale saved depth operations in one action group");
+        "DepthDraw apply must replace the operation base and reapply saved depth operations in one action group: " ~
+            "changedTargets=%s changedVertices=%s before=%s base=%s after=%s operations=%s status=%s".format(
+                xyApplySummary.changedTargets,
+                xyApplySummary.changedVertices,
+                xyDepthsBeforeApply,
+                xyBaseDepthsAfterApply,
+                xyDepthsAfterApply,
+                preservedDepthDrawOperations,
+                xyWindow.statusText));
     incActionUndo();
     auto restoredDepthDrawOperations = xyGrid.copyDepthOps();
     require(xyGrid.copyDepths() == xyDepthsBeforeApply &&
@@ -8447,9 +8454,21 @@ private void testDepthDrawSourceManifestContracts() {
         xyGrid.copyDepthOpBaseDepths() == xyDepthsBeforeApply,
         "DepthDraw apply Undo must restore depths, saved operations, and their base depths");
     incActionRedo();
+    auto redoneDepthDrawOperations = xyGrid.copyDepthOps();
     require(xyGrid.copyDepths() == xyDepthsAfterApply &&
-        xyGrid.copyDepthOps().length == 0 && xyGrid.copyDepthOpBaseDepths().length == 0,
-        "DepthDraw apply Redo must restore imported depths without replaying stale operations");
+        redoneDepthDrawOperations.length == 1 &&
+        redoneDepthDrawOperations[0].type == ExDepthOpType.AttachedPoint &&
+        redoneDepthDrawOperations[0].index == savedDepthDrawOperation.index &&
+        near(redoneDepthDrawOperations[0].amount, savedDepthDrawOperation.amount) &&
+        xyGrid.copyDepthOpBaseDepths() == xyBaseDepthsAfterApply,
+        "DepthDraw apply Redo must restore the imported base and reapplied saved operations: " ~
+            "expectedDepths=%s actualDepths=%s expectedBase=%s actualBase=%s expectedOps=%s actualOps=%s".format(
+                xyDepthsAfterApply,
+                xyGrid.copyDepths(),
+                xyBaseDepthsAfterApply,
+                xyGrid.copyDepthOpBaseDepths(),
+                preservedDepthDrawOperations,
+                redoneDepthDrawOperations));
     auto xyGpuDisplay = xyWindow.depthDrawSession().display;
     xyGpuDisplay.useGpuPreview = true;
     require(xyWindow.depthDrawSession().updateDisplayOptions(xyGpuDisplay),
@@ -8506,13 +8525,20 @@ private void testDepthDrawSourceManifestContracts() {
                 fakeDepthDrawGpuPollCount,
                 fakeDepthDrawGpuNotReadyPolls));
         xyGpuApplySummary = xyWindow.pollPendingGpuApply();
+        auto xyGpuExpectedDepths = xyGpuReadback.depths.dup;
+        xyGpuExpectedDepths[savedDepthDrawOperation.index] += savedDepthDrawOperation.amount;
         require(xyGpuApplySummary.succeeded &&
             fakeDepthDrawGpuSubmitCount == 1 &&
             fakeDepthDrawGpuPollCount == 2 &&
-            xyGrid.copyDepths() == xyGpuReadback.depths &&
+            nearFloatArray(xyGrid.copyDepths(), xyGpuExpectedDepths) &&
+            xyGrid.copyDepthOps().length == 1 &&
+            xyGrid.copyDepthOps()[0].type == ExDepthOpType.AttachedPoint &&
+            xyGrid.copyDepthOps()[0].index == savedDepthDrawOperation.index &&
+            near(xyGrid.copyDepthOps()[0].amount, savedDepthDrawOperation.amount) &&
+            xyGrid.copyDepthOpBaseDepths() == xyGpuReadback.depths &&
             xyGrid.copyDepths() != xyGpuDepthsBeforeApply &&
             xyWindow.statusText.canFind("Applied DepthDraw GPU"),
-            "DepthDraw window GPU apply should apply GPU readback through the shared depth command path without CPU fallback");
+            "DepthDraw window GPU apply should use the GPU readback as the base and reapply saved operations");
 
         fakeDepthDrawGpuReadbacks[2] = xyGpuReadback;
         fakeDepthDrawGpuNotReadyPolls = 1;

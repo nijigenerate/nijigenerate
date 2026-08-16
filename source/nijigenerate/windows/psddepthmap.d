@@ -149,47 +149,6 @@ struct PsdDepthDialogOverallPreview {
     ubyte[] rgba;
 }
 
-enum size_t PsdDepthDialogPartDataCaptureBudget = 64 * 1024 * 1024;
-
-private bool reservePsdDepthDialogPartDataBytes(
-    ref size_t retainedBytes,
-    size_t bytes,
-    out string error
-) {
-    if (bytes > PsdDepthDialogPartDataCaptureBudget - retainedBytes) {
-        error = "PSD depth dialog part data exceeds the 64 MiB capture budget";
-        return false;
-    }
-    retainedBytes += bytes;
-    return true;
-}
-
-private bool reservePsdDepthDialogPartDataElements(
-    ref size_t retainedBytes,
-    size_t count,
-    size_t elementBytes,
-    out string error
-) {
-    if (elementBytes == 0 ||
-        count > (PsdDepthDialogPartDataCaptureBudget - retainedBytes) / elementBytes) {
-        error = "PSD depth dialog part data exceeds the 64 MiB capture budget";
-        return false;
-    }
-    retainedBytes += count * elementBytes;
-    return true;
-}
-
-version (CommandBrowserDifferential) {
-    bool ngPsdDepthDialogCaptureBudgetAcceptsForRegression(size_t[] sizes) {
-        size_t retainedBytes;
-        string error;
-        foreach (bytes; sizes) {
-            if (!reservePsdDepthDialogPartDataBytes(retainedBytes, bytes, error)) return false;
-        }
-        return true;
-    }
-}
-
 private __gshared PSDDepthMapWindow activePsdDepthMapWindow;
 
 PSDDepthMapWindow ngActivePsdDepthMapWindow() {
@@ -3307,7 +3266,6 @@ public:
             return false;
         }
 
-        size_t retainedBytes;
         foreach (ref gridResult; preview.grids) {
             if (gridResult.grid is null) continue;
 
@@ -3329,26 +3287,6 @@ public:
             }
             if (!selected) continue;
 
-            if (!reservePsdDepthDialogPartDataElements(
-                    retainedBytes, gridResult.grid.vertices.length, 2 * float.sizeof, error) ||
-                !reservePsdDepthDialogPartDataElements(
-                    retainedBytes, gridResult.depths.length, float.sizeof, error) ||
-                !reservePsdDepthDialogPartDataElements(
-                    retainedBytes, gridResult.baseDepths.length, float.sizeof, error) ||
-                !reservePsdDepthDialogPartDataElements(
-                    retainedBytes, gridResult.winnerLayerPaths.length, string.sizeof, error) ||
-                !reservePsdDepthDialogPartDataElements(
-                    retainedBytes, gridResult.missingVertexMask.length, bool.sizeof, error) ||
-                !reservePsdDepthDialogPartDataBytes(
-                    retainedBytes, gridResult.rawCompositePreviewRgba.length, error)) return false;
-            foreach (ref layer; preview.composedLayers) {
-                if (layer.targetGridUuid != gridResult.grid.uuid) continue;
-                if (!reservePsdDepthDialogPartDataBytes(
-                        retainedBytes, layer.colorRgba.length, error) ||
-                    !reservePsdDepthDialogPartDataBytes(
-                        retainedBytes, layer.depthRgba.length, error)) return false;
-            }
-
             PsdDepthDialogPartData part;
             part.targetGridUuid = gridResult.grid.uuid;
             part.targetGridName = gridResult.grid.name;
@@ -3365,15 +3303,15 @@ public:
                 part.vertexX ~= vertex.x;
                 part.vertexY ~= vertex.y;
             }
-            part.depths = gridResult.depths.dup;
-            part.baseDepths = gridResult.baseDepths.dup;
-            part.winnerLayerPaths = gridResult.winnerLayerPaths.dup;
-            part.missingVertexMask = gridResult.missingVertexMask.dup;
+            part.depths = gridResult.depths;
+            part.baseDepths = gridResult.baseDepths;
+            part.winnerLayerPaths = gridResult.winnerLayerPaths;
+            part.missingVertexMask = gridResult.missingVertexMask;
             part.previewLeft = gridResult.previewLeft;
             part.previewTop = gridResult.previewTop;
             part.previewWidth = gridResult.previewWidth;
             part.previewHeight = gridResult.previewHeight;
-            part.previewRgba = gridResult.rawCompositePreviewRgba.dup;
+            part.previewRgba = gridResult.rawCompositePreviewRgba;
 
             foreach (ref layer; preview.composedLayers) {
                 if (layer.targetGridUuid != gridResult.grid.uuid) continue;
@@ -3392,8 +3330,8 @@ public:
                 layerData.depthEnabled = layer.depthEnabled;
                 layerData.targetGridUuid = layer.targetGridUuid;
                 layerData.depthStats = layer.depthStats;
-                layerData.colorRgba = layer.colorRgba.dup;
-                layerData.depthRgba = layer.depthRgba.dup;
+                layerData.colorRgba = layer.colorRgba;
+                layerData.depthRgba = layer.depthRgba;
                 part.layers ~= layerData;
             }
             result ~= part;
