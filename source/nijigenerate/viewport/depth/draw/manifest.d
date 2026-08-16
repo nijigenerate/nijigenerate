@@ -388,6 +388,7 @@ DepthDrawSession ngDepthDrawSessionFromManifest(JSONValue manifest) {
             jsonString(object.get("mergePolicy", JSONValue("Frontmost")), "binding.mergePolicy"));
         session.bindings ~= binding;
     }
+    session.normalizeGpuPreviewSampling();
     return session;
 }
 

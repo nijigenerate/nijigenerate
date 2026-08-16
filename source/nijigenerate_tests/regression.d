@@ -186,8 +186,9 @@ import nijilive.core.nodes.node : inRegisterNodeType;
 import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
 import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
-import psd.parser : applyMaskFeather, applyMaskSettings, sampleMaskAt;
+import psd.parser : applyMaskFeather, applyMaskSettings, sampleMaskAt, validPsdImageDimensions;
 import psd.rle : decodeRLE, decodeZip;
+import utils.io : readPascalStr, readValue;
 import std.base64 : Base64;
 import std.exception : collectException, enforce;
 import std.algorithm.searching : canFind, countUntil, endsWith, startsWith;
@@ -200,7 +201,7 @@ import std.path : absolutePath, buildNormalizedPath, buildPath, dirName, relativ
 import std.json : JSONType, JSONValue;
 import std.math : cos, isFinite, sin;
 import std.regex : regex, replaceAll;
-import std.stdio : stderr, writeln;
+import std.stdio : File, stderr, writeln;
 import std.string : replace, split, splitLines, strip, stripLeft;
 import std.typecons : tuple;
 
@@ -846,6 +847,15 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     PSD psdDoc = parsePSDDocument(psdPath);
     require(psdDoc.width == 1 && psdDoc.height == 1, "PSD reader should parse generated fixture dimensions");
     require(psdDoc.layers.length == 0, "PSD reader should accept an empty-layer fixture");
+    auto emptyPascalPath = buildPath(fixtureDir, "empty-pascal-name.bin");
+    write(emptyPascalPath, cast(ubyte[])[0, 0, 0, 0, 77]);
+    auto emptyPascalFile = File(emptyPascalPath, "rb");
+    require(emptyPascalFile.readPascalStr(3) == "" && emptyPascalFile.tell() == 4 &&
+        emptyPascalFile.readValue!ubyte == 77,
+        "PSD empty Pascal names must consume all caller-specified padding bytes");
+    require(validPsdImageDimensions(1, 1) && validPsdImageDimensions(0, 0) &&
+        !validPsdImageDimensions(-1, 1) && !validPsdImageDimensions(20_000, 20_000),
+        "PSD image bounds must reject inverted or excessively large decoded allocations");
     auto flatOnlyPsdPath = buildPath(fixtureDir, "minimal-flat-only.psd");
     auto flatOnlyPsd = cast(ubyte[])read(psdPath);
     flatOnlyPsd[34 .. 38] = 0;
@@ -6983,6 +6993,19 @@ private void testDepthDrawDataModelContracts() {
     require(dirtySession.dirtyTargetGridIds() == [43UL],
         "DepthDrawSession sampling updates should dirty only targets bound to the changed layer");
     dirtySession.clearPreviewDirty();
+    auto gpuDisplay = dirtySession.display;
+    gpuDisplay.useGpuPreview = true;
+    require(dirtySession.updateDisplayOptions(gpuDisplay) &&
+        dirtySession.layers[1].convolution == DepthImageConvolution.Median3x3 &&
+        dirtySession.dirtyTargetGridIds() == [42UL, 43UL],
+        "enabling GPU preview should normalize unsupported custom median sampling and dirty every target");
+    dirtySession.clearPreviewDirty();
+    require(dirtySession.updateLayerSampling(
+            "layer-b", DepthImageChannel.B, DepthImageConvolution.MedianCustom, 6, 0.35f) &&
+        dirtySession.layers[1].convolution == DepthImageConvolution.Median3x3 &&
+        dirtySession.dirtyTargetGridIds() == [43UL],
+        "GPU preview should normalize unsupported sampling requested after the mode is already active");
+    dirtySession.clearPreviewDirty();
     require(dirtySession.updateLayerVisibility("layer-b", false, false) &&
         !dirtySession.layers[1].visible && !dirtySession.layers[1].enabled,
         "DepthDrawSession should update layer visibility and enabled state");
@@ -7483,10 +7506,11 @@ private void testDepthDrawSourceManifestContracts() {
         near(restoredLayer.zScale, layer.zScale) && near(restoredLayer.zOffset, layer.zOffset),
         "DepthDraw manifest should preserve XY and Z transforms");
     require(restoredLayer.invert == layer.invert && restoredLayer.channel == layer.channel &&
-        restoredLayer.convolution == layer.convolution && restoredLayer.customRadius == layer.customRadius &&
+        restoredLayer.convolution == DepthImageConvolution.Median3x3 &&
+        restoredLayer.customRadius == layer.customRadius &&
         near(restoredLayer.alphaThreshold, layer.alphaThreshold) &&
         near(restoredLayer.sampleDepthScale, layer.sampleDepthScale),
-        "DepthDraw manifest should preserve sampling settings");
+        "DepthDraw manifest should normalize unsupported sampling when restoring GPU preview state");
     require(restored.sourceIdentity == session.sourceIdentity,
         "DepthDraw manifest should preserve the actual source identity used for project persistence");
     auto restoredBinding = restored.bindings[0];

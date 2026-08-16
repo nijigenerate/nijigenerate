@@ -246,6 +246,9 @@ public:
             int customRadius, float alphaThreshold) {
         auto layer = layerById(layerId);
         if (layer is null) return false;
+        if (display.useGpuPreview && convolution == DepthImageConvolution.MedianCustom) {
+            convolution = DepthImageConvolution.Median3x3;
+        }
         layer.channel = channel;
         layer.convolution = convolution;
         layer.customRadius = customRadius;
@@ -388,9 +391,23 @@ public:
         return false;
     }
 
+    bool normalizeGpuPreviewSampling() {
+        if (!display.useGpuPreview) return false;
+        bool changed;
+        foreach (ref layer; layers) {
+            if (layer.convolution != DepthImageConvolution.MedianCustom) continue;
+            layer.convolution = DepthImageConvolution.Median3x3;
+            markLayerPreviewDirty(layer.id);
+            changed = true;
+        }
+        return changed;
+    }
+
     bool updateDisplayOptions(DepthDrawDisplayOptions nextDisplay) {
-        if (display == nextDisplay) return false;
+        auto displayChanged = display != nextDisplay;
         display = nextDisplay;
+        auto samplingChanged = normalizeGpuPreviewSampling();
+        if (!displayChanged && !samplingChanged) return false;
         markAllPreviewDirty();
         return true;
     }
@@ -500,6 +517,7 @@ DepthDrawReloadStateResult ngDepthDrawCarryReloadState(DepthDrawSession reloaded
         reloaded.selectedGridUuid = previous.selectedGridUuid;
         result.preservedSelectedTarget = true;
     }
+    reloaded.normalizeGpuPreviewSampling();
     reloaded.markAllPreviewDirty();
     return result;
 }

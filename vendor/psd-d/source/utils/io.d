@@ -45,9 +45,9 @@ string peekStr(ref File file, uint length) {
 */
 string readPascalStr(ref File file, uint readTo = 0) {
     uint length = file.readValue!ubyte;
-    uint extra = readTo > 0 ? readTo-length : 0;
+    uint extra = readTo > length ? readTo-length : 0;
     if (length == 0) {
-        file.skip(1);
+        if (extra > 0) file.skip(extra);
         return "";
     }
 

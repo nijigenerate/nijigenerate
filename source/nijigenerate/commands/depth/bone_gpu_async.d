@@ -94,6 +94,31 @@ private struct PendingDepthBoneGpuJob {
     GLsync fence;
 }
 
+private struct IndexedTransformFeedbackBinding {
+    GLint buffer;
+    GLint64 start;
+    GLint64 size;
+}
+
+private IndexedTransformFeedbackBinding captureTransformFeedbackBinding(GLuint index) {
+    IndexedTransformFeedbackBinding state;
+    glGetIntegeri_v(GL_TRANSFORM_FEEDBACK_BUFFER_BINDING, index, &state.buffer);
+    glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_START, index, &state.start);
+    glGetInteger64i_v(GL_TRANSFORM_FEEDBACK_BUFFER_SIZE, index, &state.size);
+    return state;
+}
+
+private void restoreTransformFeedbackBinding(GLuint index, IndexedTransformFeedbackBinding state) {
+    if (state.buffer == 0) {
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, index, 0);
+    } else if (state.size > 0) {
+        glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, index, cast(GLuint)state.buffer,
+            cast(GLintptr)state.start, cast(GLsizeiptr)state.size);
+    } else {
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, index, cast(GLuint)state.buffer);
+    }
+}
+
 private __gshared PendingDepthBoneGpuJob[] pendingJobs;
 
 private enum string VertexSource = q"GLSL
@@ -370,6 +395,8 @@ string[] ngDepthBoneGpuAsyncMissingRequirements() {
     if (glEndTransformFeedback is null) missing ~= "glEndTransformFeedback";
     if (glBindBufferRange is null) missing ~= "glBindBufferRange";
     if (glBindBufferBase is null) missing ~= "glBindBufferBase";
+    if (glGetIntegeri_v is null) missing ~= "glGetIntegeri_v";
+    if (glGetInteger64i_v is null) missing ~= "glGetInteger64i_v";
     if (glGetBufferSubData is null) missing ~= "glGetBufferSubData";
     if (glGenVertexArrays is null) missing ~= "glGenVertexArrays";
     if (glBindVertexArray is null) missing ~= "glBindVertexArray";
@@ -519,6 +546,7 @@ bool ngSubmitDepthBoneGpuAsync(ref DepthBoneGpuDispatchPacket packet, out uint j
         GLint previousTexture0Buffer;
         GLint previousTexture1Buffer;
         GLint previousActiveTexture;
+        GLint previousTransformFeedbackBuffer;
         GLboolean rasterizerDiscardWasEnabled = glIsEnabled(GL_RASTERIZER_DISCARD);
         glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
         glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVertexArray);
@@ -529,7 +557,13 @@ bool ngSubmitDepthBoneGpuAsync(ref DepthBoneGpuDispatchPacket packet, out uint j
         glActiveTexture(GL_TEXTURE1);
         glGetIntegerv(GL_TEXTURE_BINDING_BUFFER, &previousTexture1Buffer);
         glActiveTexture(cast(GLenum)previousActiveTexture);
+        glGetIntegerv(GL_TRANSFORM_FEEDBACK_BUFFER_BINDING, &previousTransformFeedbackBuffer);
+        auto previousTransformFeedback0 = captureTransformFeedbackBinding(0);
+        auto previousTransformFeedback1 = captureTransformFeedbackBinding(1);
         scope(exit) {
+            restoreTransformFeedbackBinding(0, previousTransformFeedback0);
+            restoreTransformFeedbackBinding(1, previousTransformFeedback1);
+            glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, cast(GLuint)previousTransformFeedbackBuffer);
             glBindBuffer(GL_ARRAY_BUFFER, cast(GLuint)previousArrayBuffer);
             glBindVertexArray(cast(GLuint)previousVertexArray);
             glUseProgram(cast(GLuint)previousProgram);
@@ -599,8 +633,6 @@ bool ngSubmitDepthBoneGpuAsync(ref DepthBoneGpuDispatchPacket packet, out uint j
         job.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         glFlush();
 
-        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, 0);
-        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 1, 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_BUFFER, 0);
         glActiveTexture(GL_TEXTURE0);

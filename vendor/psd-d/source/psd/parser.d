@@ -15,6 +15,16 @@ import std.math : isFinite, round, sqrt;
 import std.string;
 import psd.rle;
 
+enum MaxPsdDecodedPixels = 100_000_000UL;
+
+bool validPsdImageDimensions(long width, long height) {
+    if (width < 0 || height < 0) return false;
+    auto unsignedWidth = cast(ulong)width;
+    auto unsignedHeight = cast(ulong)height;
+    if (unsignedWidth == 0 || unsignedHeight == 0) return true;
+    return unsignedWidth <= MaxPsdDecodedPixels / unsignedHeight;
+}
+
 /**
     Parses document
 */
@@ -418,8 +428,13 @@ void parseHeader(ref File file, ref PSD psd) {
     psd.channels = file.readValue!ushort;
 
     // Read rest of header info
-    psd.height = file.readValue!uint;
-    psd.width = file.readValue!uint;
+    auto height = file.readValue!uint;
+    auto width = file.readValue!uint;
+    enforce(height <= int.max && width <= int.max && height > 0 && width > 0 &&
+        validPsdImageDimensions(width, height),
+        "PSD document dimensions exceed the supported decoded image size");
+    psd.height = cast(int)height;
+    psd.width = cast(int)width;
     psd.bitsPerChannel = file.readValue!ushort;
     enforce(psd.bitsPerChannel == 8,
         "Only 8-bit PSD channels are supported (found %s-bit)".format(psd.bitsPerChannel));
@@ -792,6 +807,11 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
             // NOTE: It breaks here WTF???
             layer.bottom = file.readValue!int;
             layer.right = file.readValue!int;
+            auto layerWidth = cast(long)layer.right - cast(long)layer.left;
+            auto layerHeight = cast(long)layer.bottom - cast(long)layer.top;
+            enforce(validPsdImageDimensions(layerWidth, layerHeight),
+                "Invalid or excessively large PSD layer bounds: (%s, %s)-(%s, %s)".format(
+                    layer.left, layer.top, layer.right, layer.bottom));
 
             // Number of channels in the layer.
             // this includes channels for transparency, layer, and vector masks, if any.
