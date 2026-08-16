@@ -99,6 +99,7 @@ import nijigenerate.ext.param;
 import nijigenerate.io.autosave;
 import nijigenerate.io.depthmap_psd;
 import nijigenerate.io.depthimage;
+import nijigenerate.io.psdbudget : ngReservePsdLayerExtraction, PsdMaskExtractionBytesPerPixel;
 import nijigenerate.io.psdlayers : ngPsdLayerGroupStates;
 import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution, DepthSampleExtremeAccumulator,
     DepthSampleResult,
@@ -5642,6 +5643,28 @@ private void testPsdDepthMapImportHelpers() {
             PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdColorBytes),
         "PSD Depth Map color composition must reject aggregate derived buffers beyond the retained budget");
 
+    Layer smallLayerWithLargeMask;
+    smallLayerWithLargeMask.right = 1;
+    smallLayerWithLargeMask.bottom = 1;
+    smallLayerWithLargeMask.layerMask.length = 1;
+    smallLayerWithLargeMask.layerMask[0].right = 8192;
+    smallLayerWithLargeMask.layerMask[0].bottom = 8192;
+    smallLayerWithLargeMask.channels.length = 1;
+    smallLayerWithLargeMask.channels[0].type = ChannelType.LAYER_OR_VECTOR_MASK;
+    ulong maskedLayerBytes;
+    require(!ngReservePsdLayerExtraction(smallLayerWithLargeMask,
+            PsdDepthRetainedDepthLayerBytesPerPixel, PsdDepthMaxRetainedBytes, maskedLayerBytes) &&
+        maskedLayerBytes == 0,
+        "PSD extraction budgeting must reject a document-sized mask before extracting a small layer");
+
+    smallLayerWithLargeMask.layerMask[0].right = 16;
+    smallLayerWithLargeMask.layerMask[0].bottom = 16;
+    require(ngReservePsdLayerExtraction(smallLayerWithLargeMask,
+            PsdDepthRetainedDepthLayerBytesPerPixel, PsdDepthMaxRetainedBytes, maskedLayerBytes) &&
+        maskedLayerBytes == PsdDepthRetainedDepthLayerBytesPerPixel +
+            16UL * 16UL * PsdMaskExtractionBytesPerPixel + 6UL * 17UL * ulong.sizeof,
+        "PSD extraction budgeting should include mask decode, feather buffers, and prefix-sum storage");
+
     auto grid = new ExGridDeformer(incActivePuppet().root);
     grid.name = "psd-depth-grid";
     auto child = new Node(grid);
@@ -8052,6 +8075,14 @@ private void testDepthDrawSourceManifestContracts() {
     }
     require(oversizedPngRejectedBeforeDecode,
         "DepthDraw PNG loading must reject oversized IHDR dimensions before attempting pixel decode");
+    bool oversizedPsdDepthPngRejectedBeforeDecode;
+    try {
+        ngBuildPsdDepthsFromImage(incActivePuppet(), oversizedPngPath, PsdDepthImportSettings.init);
+    } catch (Exception e) {
+        oversizedPsdDepthPngRejectedBeforeDecode = e.msg.canFind("retained image memory budget");
+    }
+    require(oversizedPsdDepthPngRejectedBeforeDecode,
+        "PSD Depth Map PNG import must reject oversized IHDR dimensions before attempting pixel decode");
 
     auto depthDrawWindow = new DepthDrawWindow(pngPath);
     require(depthDrawWindow.loadError.length == 0 && depthDrawWindow.depthDrawSession() !is null &&

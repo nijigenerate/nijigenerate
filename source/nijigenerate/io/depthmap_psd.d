@@ -10,6 +10,8 @@ import nijigenerate.io.depthimage : DepthDrawPruneLayer, DepthDrawSplitLayer, ng
     ngDepthImageCompositeAlpha,
     ngDepthImageCoverageAlphaAt, ngDepthImageCoverageAlphaAtUv, ngDepthImageCoverageReliableAt;
 import nijigenerate.io.psdlayers : ngPsdLayerGroupStates;
+import nijigenerate.io.pngheader : ngInspectPngDimensions;
+import nijigenerate.io.psdbudget : ngReservePsdLayerExtraction;
 import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, DepthSampleConvolution, DepthSamplePoint,
     ngDepthSampleAcceptsAlpha, ngDepthSampleAlphaByte, ngDepthSampleConvolve, ngDepthSampleEffectiveAlpha,
     ngDepthSampleMissingPoint, ngDepthSampleOpacity01, ngDepthSamplePixelDepth, ngDepthSamplePixelDepth01,
@@ -926,8 +928,8 @@ private void loadPsdCompositeSourceLayers(
         auto groupState = groupStates[i];
 
         auto layerPath = uniquePsdLayerPath("%s/%s".format(groupState.path, layer.name), layerPathOccurrences);
-        enforce(ngReservePsdDepthRetainedLayer(layer.width, layer.height,
-            PsdDepthRetainedColorLayerBytesPerPixel, retainedBytes),
+        enforce(ngReservePsdLayerExtraction(layer,
+            PsdDepthRetainedColorLayerBytesPerPixel, PsdDepthMaxRetainedBytes, retainedBytes),
             "PSD Depth Map color layers exceed the retained image memory budget");
         layer.extractLayerImage();
         if (layer.data.length == 0) continue;
@@ -3030,12 +3032,17 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     string flatColorLayerName;
     string flatColorLayerPath;
     if (hasFlatColorSource) {
-        flatColorTexture = ShallowTexture(settings.colorSourcePath, 4);
-        enforce(ngReservePsdDepthRetainedLayer(flatColorTexture.width, flatColorTexture.height,
+        int inspectedWidth;
+        int inspectedHeight;
+        ngInspectPngDimensions(settings.colorSourcePath, inspectedWidth, inspectedHeight);
+        enforce(inspectedWidth == document.width && inspectedHeight == document.height,
+            "Color and depth source dimensions must match for PSD depth composition");
+        enforce(ngReservePsdDepthRetainedLayer(inspectedWidth, inspectedHeight,
             PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdBytes),
             "PSD Depth Map color source exceeds the retained image memory budget");
-        enforce(flatColorTexture.width == document.width && flatColorTexture.height == document.height,
-            "Color and depth source dimensions must match for PSD depth composition");
+        flatColorTexture = ShallowTexture(settings.colorSourcePath, 4);
+        enforce(flatColorTexture.width == inspectedWidth && flatColorTexture.height == inspectedHeight,
+            "Decoded PNG dimensions do not match the IHDR header");
         flatColorLayerName = settings.colorSourcePath.baseName.stripExtension;
         flatColorLayerPath = "/" ~ flatColorLayerName;
     } else if (hasExplicitColorSource && !hasPsdColorSource) {
@@ -3103,8 +3110,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         mapping.layerPath = layerPath;
         mapping.layerName = layer.name;
 
-        enforce(ngReservePsdDepthRetainedLayer(layer.width, layer.height,
-            PsdDepthRetainedDepthLayerBytesPerPixel, retainedPsdBytes),
+        enforce(ngReservePsdLayerExtraction(layer,
+            PsdDepthRetainedDepthLayerBytesPerPixel, PsdDepthMaxRetainedBytes, retainedPsdBytes),
             "PSD Depth Map layers exceed the retained image memory budget");
         layer.extractLayerImage();
         bool hasLayerImage = layer.data.length > 0;
@@ -3439,10 +3446,15 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
     settings.zeroDepthIsMissing = true;
 
     ulong retainedPsdBytes;
-    auto texture = ShallowTexture(path, 4);
-    enforce(ngReservePsdDepthRetainedLayer(texture.width, texture.height,
+    int inspectedDepthWidth;
+    int inspectedDepthHeight;
+    ngInspectPngDimensions(path, inspectedDepthWidth, inspectedDepthHeight);
+    enforce(ngReservePsdDepthRetainedLayer(inspectedDepthWidth, inspectedDepthHeight,
         PsdDepthRetainedDepthLayerBytesPerPixel, retainedPsdBytes),
         "PSD Depth Map source exceeds the retained image memory budget");
+    auto texture = ShallowTexture(path, 4);
+    enforce(texture.width == inspectedDepthWidth && texture.height == inspectedDepthHeight,
+        "Decoded PNG dimensions do not match the IHDR header");
     auto layerName = path.baseName.stripExtension;
     auto layerPath = "/" ~ layerName;
     bool hasExplicitColorSource = settings.colorSourcePath.length > 0;
@@ -3452,12 +3464,17 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
     string flatColorLayerName;
     string flatColorLayerPath;
     if (hasFlatColorSource) {
-        flatColorTexture = ShallowTexture(settings.colorSourcePath, 4);
-        enforce(ngReservePsdDepthRetainedLayer(flatColorTexture.width, flatColorTexture.height,
+        int inspectedColorWidth;
+        int inspectedColorHeight;
+        ngInspectPngDimensions(settings.colorSourcePath, inspectedColorWidth, inspectedColorHeight);
+        enforce(inspectedColorWidth == inspectedDepthWidth && inspectedColorHeight == inspectedDepthHeight,
+            "Color and depth source dimensions must match for 1:1 composition");
+        enforce(ngReservePsdDepthRetainedLayer(inspectedColorWidth, inspectedColorHeight,
             PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdBytes),
             "PSD Depth Map color source exceeds the retained image memory budget");
-        enforce(flatColorTexture.width == texture.width && flatColorTexture.height == texture.height,
-            "Color and depth source dimensions must match for 1:1 composition");
+        flatColorTexture = ShallowTexture(settings.colorSourcePath, 4);
+        enforce(flatColorTexture.width == inspectedColorWidth && flatColorTexture.height == inspectedColorHeight,
+            "Decoded PNG dimensions do not match the IHDR header");
         flatColorLayerName = settings.colorSourcePath.baseName.stripExtension;
         flatColorLayerPath = "/" ~ flatColorLayerName;
     } else if (hasExplicitColorSource && !hasPsdColorSource) {

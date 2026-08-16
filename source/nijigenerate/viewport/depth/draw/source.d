@@ -1,6 +1,8 @@
 module nijigenerate.viewport.depth.draw.source;
 
 import nijigenerate.io.depthimage : ngDepthDrawAlphaMaskFromRgba, ngDepthDrawApplyPsdMaskToAlpha;
+import nijigenerate.io.pngheader : ngInspectPngDimensions;
+import nijigenerate.io.psdbudget : ngReservePsdLayerExtraction;
 import nijigenerate.io.psdlayers : ngPsdLayerGroupStates;
 import nijigenerate.viewport.depth.draw.layer;
 import nijigenerate.viewport.depth.draw.session;
@@ -10,7 +12,6 @@ import std.algorithm : max, min;
 import std.exception : enforce;
 import std.math : lround;
 import std.path : baseName, stripExtension;
-import std.stdio : File;
 import std.string : format;
 
 struct DepthDrawPsdLoadResult {
@@ -61,38 +62,10 @@ bool ngReserveDepthDrawPngRetainedLayer(long width, long height, ref ulong retai
         width, height, DepthDrawPngRetainedBytesPerPixel, DepthDrawMaxPngRetainedBytes, retainedBytes);
 }
 
-private uint pngHeaderUint32(const(ubyte)[] bytes) {
-    enforce(bytes.length == 4, "PNG header integer must contain four bytes");
-    return (cast(uint)bytes[0] << 24) |
-        (cast(uint)bytes[1] << 16) |
-        (cast(uint)bytes[2] << 8) |
-        cast(uint)bytes[3];
-}
-
-private void inspectDepthDrawPngDimensions(string path, out int width, out int height) {
-    auto file = File(path, "rb");
-    ubyte[24] header;
-    auto readHeader = file.rawRead(header[]);
-    enforce(readHeader.length == header.length,
-        "PNG source is too short to contain an IHDR header");
-    enforce(header[0 .. 8] == cast(const(ubyte)[])[
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
-        "PNG source has an invalid signature");
-    enforce(pngHeaderUint32(header[8 .. 12]) == 13 && header[12 .. 16] == cast(const(ubyte)[])"IHDR",
-        "PNG source does not begin with an IHDR chunk");
-    auto headerWidth = pngHeaderUint32(header[16 .. 20]);
-    auto headerHeight = pngHeaderUint32(header[20 .. 24]);
-    enforce(headerWidth > 0 && headerHeight > 0 &&
-        headerWidth <= int.max && headerHeight <= int.max,
-        "PNG source dimensions are invalid");
-    width = cast(int)headerWidth;
-    height = cast(int)headerHeight;
-}
-
 private DepthDrawLayer loadDepthDrawPngLayer(string path, string id, ref ulong retainedBytes) {
     int inspectedWidth;
     int inspectedHeight;
-    inspectDepthDrawPngDimensions(path, inspectedWidth, inspectedHeight);
+    ngInspectPngDimensions(path, inspectedWidth, inspectedHeight);
     enforce(ngReserveDepthDrawPngRetainedLayer(inspectedWidth, inspectedHeight, retainedBytes),
         "PNG layers exceed the DepthDraw retained memory budget");
     auto tex = ShallowTexture(path, 4);
@@ -181,8 +154,8 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         if (!ngDepthDrawPsdLayerHasPixelData(layer)) continue;
         auto groupState = groupStates[i];
 
-        enforce(ngReserveDepthDrawPsdRetainedLayer(
-                layer.width, layer.height, retainedLayerBytes),
+        enforce(ngReservePsdLayerExtraction(layer,
+                DepthDrawPsdRetainedBytesPerPixel, DepthDrawMaxPsdRetainedBytes, retainedLayerBytes),
             "PSD layers exceed the DepthDraw retained memory budget");
         layer.extractLayerImage();
         foreach (ref channel; layer.channels) channel.data = null;
