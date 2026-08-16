@@ -277,7 +277,7 @@ public:
     // configure() provided by AutoMeshReflection mixin; keep MAX_DISTANCE guard in autoMesh
     override 
     string icon() {
-        return "";
+        return "\uf097";
     }
     // IAutoMeshReflect provided by mixin
 };

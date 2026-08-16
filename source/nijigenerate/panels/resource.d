@@ -258,7 +258,7 @@ protected:
             igOpenPopup("###AddResource");
         }
 //        igSameLine();
-//        incButtonColored("\ue872"); //Delete
+//        incButtonColored("\ue92e"); //Delete
 //        igSameLine();
 //        incButtonColored("\ue14d"); //Copy
 //        igSameLine();

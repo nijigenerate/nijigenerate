@@ -256,13 +256,13 @@ private:
 
                 auto armedParam = incArmedParameter();
                 if (armedParam !is null) {
-                    if (incButtonColored("")) {
+                    if (incButtonColored("\ue693")) {
                         auto ctx = new Context(); ctx.nodes([cast(Node)node]); ctx.armedParameters = [armedParam];
                         cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, [cast(Node)node]);
                     }
                     incTooltip(_("Preview Depth Bone Deform"));
                     igSameLine();
-                    if (incButtonColored("")) {
+                    if (incButtonColored("\ue668")) {
                         auto ctx = new Context(); ctx.nodes([cast(Node)node]); ctx.armedParameters = [armedParam];
                         cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, [cast(Node)node]);
                     }

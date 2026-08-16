@@ -79,6 +79,29 @@ private bool psdLayerVisible(ref Layer layer) {
     return (layer.flags & LayerFlags.Visible) == 0;
 }
 
+enum ulong PsdDepthMaxRetainedBytes = 256UL * 1024UL * 1024UL;
+enum ulong PsdDepthRetainedDepthLayerBytesPerPixel = 40;
+enum ulong PsdDepthRetainedColorLayerBytesPerPixel = 8;
+
+bool ngReservePsdDepthRetainedLayer(
+    long width,
+    long height,
+    ulong bytesPerPixel,
+    ref ulong retainedBytes,
+) {
+    if (width <= 0 || height <= 0 || bytesPerPixel == 0) return false;
+    auto unsignedWidth = cast(ulong)width;
+    auto unsignedHeight = cast(ulong)height;
+    if (unsignedWidth > ulong.max / unsignedHeight) return false;
+    auto pixelCount = unsignedWidth * unsignedHeight;
+    if (pixelCount > ulong.max / bytesPerPixel) return false;
+    auto requiredBytes = pixelCount * bytesPerPixel;
+    if (retainedBytes > PsdDepthMaxRetainedBytes ||
+        requiredBytes > PsdDepthMaxRetainedBytes - retainedBytes) return false;
+    retainedBytes += requiredBytes;
+    return true;
+}
+
 bool ngPsdDepthLayerHasPixelData(ref Layer layer) {
     return layer.type == LayerType.Any && (layer.flags & LayerFlags.PixelIrrel) == 0;
 }
@@ -780,8 +803,8 @@ private void setCompositeSourceLayerPixels(
     ubyte[] rgba,
     ubyte[] maskRgba = null
 ) {
-    layer.rgba = rgba.dup;
-    layer.maskRgba = maskRgba.length ? maskRgba.dup : rgba.dup;
+    layer.rgba = rgba;
+    layer.maskRgba = maskRgba.length ? maskRgba : rgba;
     layer.hasPixels = layer.rgba.length > 0;
 }
 
@@ -880,7 +903,8 @@ private ubyte[] flipRgbaY(const(ubyte)[] rgba, int width, int height) {
 private void loadPsdCompositeSourceLayers(
     string sourcePath,
     ref PsdDepthCompositeSource source,
-    ref size_t layerCount
+    ref size_t layerCount,
+    ref ulong retainedBytes,
 ) {
     File file = File(sourcePath);
     scope(exit) file.close();
@@ -900,6 +924,9 @@ private void loadPsdCompositeSourceLayers(
         auto groupState = groupStates[i];
 
         auto layerPath = uniquePsdLayerPath("%s/%s".format(groupState.path, layer.name), layerPathOccurrences);
+        enforce(ngReservePsdDepthRetainedLayer(layer.width, layer.height,
+            PsdDepthRetainedColorLayerBytesPerPixel, retainedBytes),
+            "PSD Depth Map color layers exceed the retained image memory budget");
         layer.extractLayerImage();
         if (layer.data.length == 0) continue;
         auto visible = groupState.visible && psdLayerVisible(layer);
@@ -909,7 +936,8 @@ private void loadPsdCompositeSourceLayers(
         image.top = layer.top;
         image.width = cast(int)layer.width;
         image.height = cast(int)layer.height;
-        image.data = layer.data.dup;
+        image.data = layer.data;
+        layer.data = null;
         if (layer.clipping) {
             clippingBaseByGroup[groupState.path] = psdClippingBaseState(image, visible, opacity);
         } else if (auto clippingBase = groupState.path in clippingBaseByGroup) {
@@ -935,7 +963,6 @@ private void loadPsdCompositeSourceLayers(
         setCompositeSourceLayerPixels(sourceLayer, image.data);
         source.layers ~= sourceLayer;
         layerCount++;
-        layer.data = null;
     }
 }
 
@@ -2460,6 +2487,35 @@ private Candidate[] matchCandidates(
     return best;
 }
 
+private struct CandidateTargetResolution {
+    Node node;
+    Deformable target;
+    bool ambiguous;
+}
+
+private CandidateTargetResolution resolveCandidateTarget(Puppet puppet, Candidate[] candidates) {
+    CandidateTargetResolution result;
+    foreach (candidate; candidates) {
+        auto candidateTarget = containingDepthTarget(candidate.node);
+        if (candidateTarget is null) {
+            if (auto part = cast(Part)candidate.node) candidateTarget = activeArtDepthTarget(puppet, part);
+        }
+        if (candidateTarget is null) {
+            if (result.node is null) result.node = candidate.node;
+            continue;
+        }
+        if (result.target !is null && result.target !is candidateTarget) {
+            result.node = null;
+            result.target = null;
+            result.ambiguous = true;
+            return result;
+        }
+        result.node = candidate.node;
+        result.target = candidateTarget;
+    }
+    return result;
+}
+
 private bool targetHasArtCoverage(Puppet puppet, Deformable target) {
     if (puppet is null || puppet.root is null || target is null) return false;
     foreach (part; puppet.findNodesType!Part(puppet.root)) {
@@ -2964,6 +3020,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     scope(exit) file.close();
     auto document = parseDocument(file);
     scope(exit) destroy(document);
+    ulong retainedPsdBytes;
     bool hasExplicitColorSource = settings.colorSourcePath.length > 0;
     bool hasFlatColorSource = hasExplicitColorSource && settings.colorSourcePath.extension.toLower == ".png";
     bool hasPsdColorSource = hasExplicitColorSource && settings.colorSourcePath.extension.toLower == ".psd";
@@ -2972,6 +3029,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     string flatColorLayerPath;
     if (hasFlatColorSource) {
         flatColorTexture = ShallowTexture(settings.colorSourcePath, 4);
+        enforce(ngReservePsdDepthRetainedLayer(flatColorTexture.width, flatColorTexture.height,
+            PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdBytes),
+            "PSD Depth Map color source exceeds the retained image memory budget");
         enforce(flatColorTexture.width == document.width && flatColorTexture.height == document.height,
             "Color and depth source dimensions must match for PSD depth composition");
         flatColorLayerName = settings.colorSourcePath.baseName.stripExtension;
@@ -3016,7 +3076,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         setCompositeSourceLayerPixels(colorSourceLayer, flatColorTexture.data);
         result.colorSource.layers ~= colorSourceLayer;
     } else if (hasPsdColorSource) {
-        loadPsdCompositeSourceLayers(settings.colorSourcePath, result.colorSource, result.colorLayerCount);
+        loadPsdCompositeSourceLayers(
+            settings.colorSourcePath, result.colorSource, result.colorLayerCount, retainedPsdBytes);
         enforce(result.colorSource.width == document.width && result.colorSource.height == document.height,
             "Color and depth source dimensions must match for PSD depth composition");
     }
@@ -3040,6 +3101,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         mapping.layerPath = layerPath;
         mapping.layerName = layer.name;
 
+        enforce(ngReservePsdDepthRetainedLayer(layer.width, layer.height,
+            PsdDepthRetainedDepthLayerBytesPerPixel, retainedPsdBytes),
+            "PSD Depth Map layers exceed the retained image memory budget");
         layer.extractLayerImage();
         bool hasLayerImage = layer.data.length > 0;
         DepthLayerImage image;
@@ -3053,7 +3117,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
             image.documentWidth = document.width;
             image.documentHeight = document.height;
             image.opacity = effectiveLayerOpacity;
-            image.data = layer.data.dup;
+            image.data = layer.data;
+            layer.data = null;
             if (layer.clipping) {
                 clippingBaseByGroup[groupState.path] = psdClippingBaseState(
                     image, layerVisible, effectiveLayerOpacity);
@@ -3166,24 +3231,27 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                 continue;
             }
 
-            auto candidate = candidates[0];
-            matchedNode = candidate.node;
-            grid = containingDepthTarget(candidate.node);
-            if (grid is null) {
-                if (auto part = cast(Part)candidate.node) grid = activeArtDepthTarget(puppet, part);
-            }
-            mapping.matchedNodeName = candidate.node.name;
-            mapping.matchedNodeUuid = candidate.node.uuid;
-            mapping.ambiguous = candidates.length > 1;
-            if (mapping.ambiguous) {
+            auto resolution = resolveCandidateTarget(puppet, candidates);
+            mapping.ambiguous = resolution.ambiguous;
+            if (resolution.ambiguous) {
                 mapping.status = "Ambiguous";
                 result.ambiguousLayers++;
-            } else {
-                mapping.status = "Matched";
+                result.unmatchedLayers++;
+                result.mappings ~= mapping;
+                if (hasLayerImage) addComposedLayer(result, path, image, settings, layerVisible, false);
+                addCompositionDiagnostic(result, "ambiguous-target",
+                    "Depth layer matches multiple targets and requires a manual binding.", layerPath, layer.name);
+                layer.data = null;
+                continue;
             }
+            matchedNode = resolution.node;
+            grid = resolution.target;
+            mapping.matchedNodeName = matchedNode is null ? null : matchedNode.name;
+            mapping.matchedNodeUuid = matchedNode is null ? 0 : matchedNode.uuid;
+            mapping.status = "Matched";
 
             if (grid is null) {
-                mapping.status = mapping.ambiguous ? "AmbiguousWithoutGrid" : "UnmatchedWithoutGrid";
+                mapping.status = "UnmatchedWithoutGrid";
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 if (hasLayerImage) {
@@ -3368,7 +3436,11 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
     enforce(settings.customRadius >= 1 && settings.customRadius <= 64, "Custom radius must be in [1, 64]");
     settings.zeroDepthIsMissing = true;
 
+    ulong retainedPsdBytes;
     auto texture = ShallowTexture(path, 4);
+    enforce(ngReservePsdDepthRetainedLayer(texture.width, texture.height,
+        PsdDepthRetainedDepthLayerBytesPerPixel, retainedPsdBytes),
+        "PSD Depth Map source exceeds the retained image memory budget");
     auto layerName = path.baseName.stripExtension;
     auto layerPath = "/" ~ layerName;
     bool hasExplicitColorSource = settings.colorSourcePath.length > 0;
@@ -3379,6 +3451,9 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
     string flatColorLayerPath;
     if (hasFlatColorSource) {
         flatColorTexture = ShallowTexture(settings.colorSourcePath, 4);
+        enforce(ngReservePsdDepthRetainedLayer(flatColorTexture.width, flatColorTexture.height,
+            PsdDepthRetainedColorLayerBytesPerPixel, retainedPsdBytes),
+            "PSD Depth Map color source exceeds the retained image memory budget");
         enforce(flatColorTexture.width == texture.width && flatColorTexture.height == texture.height,
             "Color and depth source dimensions must match for 1:1 composition");
         flatColorLayerName = settings.colorSourcePath.baseName.stripExtension;
@@ -3446,7 +3521,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
         setCompositeSourceLayerPixels(colorSourceLayer, flatColorTexture.data);
         result.colorSource.layers ~= colorSourceLayer;
     } else if (hasPsdColorSource) {
-        loadPsdCompositeSourceLayers(settings.colorSourcePath, result.colorSource, result.colorLayerCount);
+        loadPsdCompositeSourceLayers(
+            settings.colorSourcePath, result.colorSource, result.colorLayerCount, retainedPsdBytes);
         enforce(result.colorSource.width == texture.width && result.colorSource.height == texture.height,
             "Color and depth source dimensions must match for N:1 composition");
         setCompositionMode(result, ngPsdDepthCompositionModeForCounts(result.colorLayerCount, result.sourceDepthLayerCount));
@@ -3855,11 +3931,24 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 auto candidates = matchCandidates(puppet, image.layerPath, image.layerName, settings,
                     image.left, image.top, image.width, image.height, texture.width, texture.height, true);
                 if (candidates.length > 0) {
-                    matchedTarget = candidates[0].node;
-                    target = containingDepthTarget(matchedTarget);
-                    if (target is null) {
-                        if (auto part = cast(Part)matchedTarget) target = activeArtDepthTarget(puppet, part);
+                    auto resolution = resolveCandidateTarget(puppet, candidates);
+                    if (resolution.ambiguous) {
+                        PsdDepthLayerMapping colorMapping;
+                        colorMapping.layerPath = image.layerPath;
+                        colorMapping.layerName = image.layerName;
+                        colorMapping.status = "Ambiguous";
+                        colorMapping.ambiguous = true;
+                        result.ambiguousLayers++;
+                        result.unmatchedLayers++;
+                        result.mappings ~= colorMapping;
+                        addCompositionDiagnostic(result, "ambiguous-target",
+                            "Composed layer matches multiple targets and requires a manual binding.",
+                            image.layerPath, image.layerName);
+                        addComposedLayer(result, path, image, settings, true, false);
+                        continue;
                     }
+                    matchedTarget = resolution.node;
+                    target = resolution.target;
                 }
             }
             if (target !is null && matchedTarget !is null) {
@@ -3911,17 +4000,25 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
     } else {
         auto candidates = matchCandidates(puppet, layerPath, layerName, settings);
         if (candidates.length > 0) {
-            auto candidate = candidates[0];
-            matchedNode = candidate.node;
-            grid = containingDepthTarget(candidate.node);
-            if (grid is null) {
-                if (auto part = cast(Part)candidate.node) grid = activeArtDepthTarget(puppet, part);
+            auto resolution = resolveCandidateTarget(puppet, candidates);
+            if (resolution.ambiguous) {
+                mapping.ambiguous = true;
+                mapping.status = "Ambiguous";
+                result.ambiguousLayers++;
+                result.unmatchedLayers++;
+                result.mappings ~= mapping;
+                addCompositionDiagnostic(result, "ambiguous-target",
+                    "Depth source matches multiple targets and requires a manual binding.", layerPath, layerName);
+                auto image = basePngImage();
+                addComposedLayer(result, path, image, settings, true, false);
+                return finishResult();
             }
-            mapping.matchedNodeName = candidate.node.name;
-            mapping.matchedNodeUuid = candidate.node.uuid;
-            mapping.ambiguous = candidates.length > 1;
+            matchedNode = resolution.node;
+            grid = resolution.target;
+            mapping.matchedNodeName = matchedNode is null ? null : matchedNode.name;
+            mapping.matchedNodeUuid = matchedNode is null ? 0 : matchedNode.uuid;
             if (grid is null) {
-                mapping.status = mapping.ambiguous ? "AmbiguousWithoutGrid" : "UnmatchedWithoutGrid";
+                mapping.status = "UnmatchedWithoutGrid";
                 result.unmatchedLayers++;
                 result.mappings ~= mapping;
                 addCompositionDiagnostic(result, "missing-target",
@@ -3930,8 +4027,7 @@ PsdDepthImportResult ngBuildPsdDepthsFromImage(Puppet puppet, string path, PsdDe
                 addComposedLayer(result, path, image, settings, true, true);
                 return finishResult();
             }
-            addDirectMatchedPngTarget(grid, matchedNode, mapping.ambiguous ? "Ambiguous" : "Matched", false);
-            if (mapping.ambiguous) result.ambiguousLayers++;
+            addDirectMatchedPngTarget(grid, matchedNode, "Matched", false);
             return finishResult();
         }
 

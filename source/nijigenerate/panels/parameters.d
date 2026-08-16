@@ -529,7 +529,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
             }
             
             bool isArmed = incArmedParameter() == param;
-            if (incButtonColored(isArmed ? "" : "", ImVec2(24, 24), isArmed ? ImVec4(1f, 0f, 0f, 1f) : colorUndefined)) {
+            if (incButtonColored(isArmed ? "\ue3fa" : "", ImVec2(24, 24), isArmed ? ImVec4(1f, 0f, 0f, 1f) : colorUndefined)) {
                 cmd!(ParameditCommand.ToggleParameterArm)(ctx);
             }
 
@@ -542,7 +542,7 @@ void incParameterViewEditButtons(bool armedParam, bool horizontal)(size_t idx, P
                 igSameLine();
             }
             igBeginDisabled(incAnimationGet() is null);
-                if (incButtonColored("", ImVec2(24, 24))) {
+                if (incButtonColored("\ue990", ImVec2(24, 24))) {
                     cmd!(AnimeditCommand.AddAnimationKeyFrame)(ctx);
                 }
                 incTooltip(_("Add Keyframe"));

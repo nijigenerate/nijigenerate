@@ -166,7 +166,7 @@ public:
         if (editor is null) return;
         auto targets = editor.getTargets();
         igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-            if (incButtonColored(__(" Apply"), ImVec2(0, 26))) {
+            if (incButtonColored(__("\ue668 Apply"), ImVec2(0, 26))) {
                 editor.closeStack();
                 editor.applyToTargets();
                 leaveToModel(targets);

@@ -587,7 +587,7 @@ public:
     // configure() provided by AutoMeshReflection mixin
 
     override
-    string icon() { return ""; }
+    string icon() { return "\ue1c4"; }
     // Presets using UDA
     @AMPreset("Normal parts")
     static void presetNormal(OptimumAutoMeshProcessor p) {

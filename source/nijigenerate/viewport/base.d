@@ -678,7 +678,7 @@ void incViewportTransformHandle() {
     // Editing tip
     incBeginViewportToolArea("AREA_MODE", ImVec2(bounds.z, bounds.w));
         igSetWindowFontScale(1.5);
-            incTextBordered(param ? "" : "");
+    incTextBordered(param ? "\ue3fa" : "");
         igSetWindowFontScale(1);
         incTooltip(param ? _("Editing armed parameter...") : _("Editing base transform..."));
     incEndViewportToolArea();

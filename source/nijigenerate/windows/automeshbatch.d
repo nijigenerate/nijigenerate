@@ -236,7 +236,7 @@ private:
                     igTextColored(ImVec4(0, 0.9, 0, 1), "\ue92f");
                     break;
                 case Status.Failed:
-                    igTextColored(ImVec4(0.9, 0, 0, 1), "\ue000");
+                    igTextColored(ImVec4(0.9, 0, 0, 1), "\uf8b6");
                     break;
                 default:
                 }

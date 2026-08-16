@@ -6,8 +6,8 @@ module nijigenerate.utils;
 */
 string incTypeIdToIcon(string typeId) {
     switch(typeId) {
-        case "Part": return "";
-        case "Composite": return "";
+        case "Part": return "\ue691";
+        case "Composite": return "\ue63b";
         case "Mask": return "\ue14e";
         case "SimplePhysics": return "";
         case "Camera": return "";

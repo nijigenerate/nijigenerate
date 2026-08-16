@@ -139,7 +139,7 @@ public:
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
         igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
             igBeginGroup();
-                if (incButtonColored("", ImVec2(0, 0), isSubPartsMeshVisible ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("\uea0f", ImVec2(0, 0), isSubPartsMeshVisible ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     isSubPartsMeshVisible = !isSubPartsMeshVisible;
                 }
                 incTooltip(_("Toggle mesh visibility"));
@@ -164,7 +164,7 @@ public:
 
                 igSameLine(0, 0);
 
-                if (incButtonColored("")) {
+                if (incButtonColored("\ue8d5")) {
                     foreach (d; incSelectedNodes) {
                         if (auto meshEditor = cast(IncMeshEditorOneDrawable)editor.getEditorFor(d))
                             meshEditor.getMesh().flipVert();
@@ -307,7 +307,7 @@ public:
     void drawConfirmBar() {
         auto target = editor.getTargets();
         igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-            if (incButtonColored(__(" Apply"), ImVec2(0, 26))) {
+            if (incButtonColored(__("\ue668 Apply"), ImVec2(0, 26))) {
                 if (incMeshEditGetIsApplySafe()) {
                     incMeshEditApply();
                 } else {

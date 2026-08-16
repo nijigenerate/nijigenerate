@@ -291,7 +291,7 @@ public:
     override
     void drawOptions() {
         if (!incArmedParameter()) {
-            if(incBeginDropdownMenu("GIZMOS", "")) {
+            if(incBeginDropdownMenu("GIZMOS", "\uefc9")) {
 
                 if (incButtonColored("", ImVec2(0, 0), incShowVertices ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowVertices = !incShowVertices;
@@ -299,13 +299,13 @@ public:
                 incTooltip(incShowVertices ? _("Hide Vertices") : _("Show Vertices"));
                     
                 igSameLine(0, 4);
-                if (incButtonColored("", ImVec2(0, 0), incShowBounds ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("\ue3c6", ImVec2(0, 0), incShowBounds ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowBounds = !incShowBounds;
                 }
                 incTooltip(incShowBounds ? _("Hide Bounds") : _("Show Bounds"));
 
                 igSameLine(0, 4);
-                if (incButtonColored("", ImVec2(0, 0), incShowOrientation ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("\uefc9", ImVec2(0, 0), incShowOrientation ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowOrientation = !incShowOrientation;
                 }
                 incTooltip(incShowOrientation ? _("Hide Orientation Gizmo") : _("Show Orientation Gizmo"));
@@ -321,7 +321,7 @@ public:
                 igSameLine(0, 0);
                 incDummy(ImVec2(4, 0));
                 igSameLine(0, 0);
-                if(incBeginDropdownMenu("COLOR", "", ImVec2(128, 0), ImVec2(float.max, float.max))) {
+            if(incBeginDropdownMenu("COLOR", "\ue40a", ImVec2(128, 0), ImVec2(float.max, float.max))) {
                     import nijilive : inSetClearColor, inGetClearColor;
 
                     // Get clear color

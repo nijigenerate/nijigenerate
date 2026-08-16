@@ -41,8 +41,8 @@ private {
         actionIconMap = [
             "Add": "\ue145",
             "Insert": "\ue15e",
-            "Edit Mesh": "\ue3c9",
-            "Delete": "\ue872",
+            "Edit Mesh": "\uf097",
+            "Delete": "\ue92e",
             "Show": "\ue8f4",
             "Hide": "\ue8f5",
             "Copy": "\ue14d",

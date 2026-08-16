@@ -5449,6 +5449,18 @@ private void testPsdDepthMapImportHelpers() {
         "PSD depth import result must not retain a second composed-layer copy");
     resetCase();
 
+    ulong retainedPsdDepthBytes;
+    require(ngReservePsdDepthRetainedLayer(2048, 2048,
+            PsdDepthRetainedDepthLayerBytesPerPixel, retainedPsdDepthBytes) &&
+        retainedPsdDepthBytes <= PsdDepthMaxRetainedBytes &&
+        !ngReservePsdDepthRetainedLayer(2048, 2048,
+            PsdDepthRetainedDepthLayerBytesPerPixel, retainedPsdDepthBytes),
+        "PSD Depth Map imports must enforce an aggregate retained-image budget across layers");
+    ulong oversizedPsdDepthBytes;
+    require(!ngReservePsdDepthRetainedLayer(long.max, long.max,
+            PsdDepthRetainedDepthLayerBytesPerPixel, oversizedPsdDepthBytes),
+        "PSD Depth Map retained-image budgeting must reject overflowing dimensions before allocation");
+
     auto grid = new ExGridDeformer(incActivePuppet().root);
     grid.name = "psd-depth-grid";
     auto child = new Node(grid);
@@ -5573,6 +5585,29 @@ private void testPsdDepthMapImportHelpers() {
     require(pngImported.mappings.length == 1 && pngImported.mappings[0].matched &&
         pngImported.grids.length == 1 && pngImported.grids[0].grid is pngGrid,
         "PSD depth import dialog source builder should map PNG sources through the existing target mapping path");
+
+    auto ambiguousDepthPath = buildPath(pngFixtureDir, "ambiguous-depth-target.png");
+    writeRegressionPng(ambiguousDepthPath, 255, 255, 255, 2, 2);
+    auto ambiguousGridA = new ExGridDeformer(incActivePuppet().root);
+    ambiguousGridA.name = "ambiguous-depth-target";
+    ambiguousGridA.vertices = Vec2Array([vec2(0, 0)]);
+    auto ambiguousGridB = new ExGridDeformer(incActivePuppet().root);
+    ambiguousGridB.name = "ambiguous-depth-target";
+    ambiguousGridB.vertices = Vec2Array([vec2(0, 0)]);
+    incActivePuppet().root.build();
+    PsdDepthImportSettings ambiguousDepthSettings;
+    ambiguousDepthSettings.convolution = PsdDepthConvolution.Nearest;
+    auto ambiguousDepthImported = ngBuildPsdDepthsFromSource(
+        incActivePuppet(), ambiguousDepthPath, ambiguousDepthSettings);
+    require(ambiguousDepthImported.mappings.length == 1 &&
+        ambiguousDepthImported.mappings[0].ambiguous &&
+        !ambiguousDepthImported.mappings[0].matched &&
+        ambiguousDepthImported.mappings[0].targetGridUuid == 0 &&
+        ambiguousDepthImported.grids.length == 0 &&
+        ambiguousDepthImported.composedLayers.length == 1 &&
+        ambiguousDepthImported.composedLayers[0].targetGridUuid == 0 &&
+        !ambiguousDepthImported.composedLayers[0].enabled,
+        "PSD Depth Map imports must leave equally ranked distinct targets unbound until manually resolved");
 
     auto coloredPngDepthPath = buildPath(pngFixtureDir, "colored-depth-grid.png");
     writeRegressionPng(coloredPngDepthPath, 255, 0, 0, 2, 2);
@@ -19063,6 +19098,49 @@ private void testSettingsPathResolution() {
     require(exists(buildPath("res", "MaterialSymbolsOutlined.ttf")) &&
         !exists(buildPath("res", "MaterialIcons.ttf")),
         "the repository must contain only the current Material Symbols icon font asset");
+
+    uint parseHexCodepoint(string value) {
+        uint result;
+        foreach (ch; value) {
+            uint digit;
+            if (ch >= '0' && ch <= '9') digit = ch - '0';
+            else if (ch >= 'a' && ch <= 'f') digit = ch - 'a' + 10;
+            else if (ch >= 'A' && ch <= 'F') digit = ch - 'A' + 10;
+            else return uint.max;
+            result = result * 16 + digit;
+        }
+        return result;
+    }
+    bool[uint] materialSymbolCodepoints;
+    foreach (line; readText(buildPath("res", "MaterialSymbolsOutlined.codepoints")).splitLines()) {
+        auto fields = line.strip.split;
+        if (fields.length < 2) continue;
+        auto codepoint = parseHexCodepoint(fields[$ - 1]);
+        if (codepoint != uint.max) materialSymbolCodepoints[codepoint] = true;
+    }
+    void requireSupportedIconCodepoint(uint codepoint, string sourcePath) {
+        if (codepoint < 0xE000 || codepoint > 0xF8FF) return;
+        require((codepoint in materialSymbolCodepoints) !is null,
+            "UI source references a private-use glyph missing from Material Symbols: U+%04X in %s"
+                .format(codepoint, sourcePath));
+    }
+    foreach (entry; dirEntries("source", SpanMode.depth)) {
+        if (!entry.isFile || !entry.name.endsWith(".d")) continue;
+        auto sourceText = readText(entry.name);
+        foreach (dchar codepoint; sourceText) {
+            requireSupportedIconCodepoint(codepoint, entry.name);
+        }
+        foreach (i; 0 .. sourceText.length) {
+            if (sourceText[i] != '\\' || i + 5 >= sourceText.length) continue;
+            size_t digits;
+            if (sourceText[i + 1] == 'u') digits = 4;
+            else if (sourceText[i + 1] == 'U') digits = 8;
+            else continue;
+            if (i + 2 + digits > sourceText.length) continue;
+            auto codepoint = parseHexCodepoint(sourceText[i + 2 .. i + 2 + digits]);
+            if (codepoint != uint.max) requireSupportedIconCodepoint(codepoint, entry.name);
+        }
+    }
 
     incSettingsSet("RegressionPathProbe", "ok");
     require(incSettingsGet!string("RegressionPathProbe") == "ok", "settings set/get should round-trip string values");

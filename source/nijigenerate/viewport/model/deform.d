@@ -79,7 +79,7 @@ public:
 
     override
     void drawOptions() {
-        if(incBeginDropdownMenu("GIZMOS", "")) {
+        if(incBeginDropdownMenu("GIZMOS", "\uefc9")) {
             if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                 ngShowDepthBones = !ngShowDepthBones;
                 depthBoneEffectivePivotSelectionChanged(incSelectedNodes());

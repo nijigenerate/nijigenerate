@@ -480,7 +480,7 @@ private:
             igPushStyleVar(ImGuiStyleVar.FrameRounding, 0);
             igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
                 igSetWindowFontScale(0.55);
-                    if (incButtonColored("", ImVec2(16, 16))) {
+                    if (incButtonColored("\ue5cd", ImVec2(16, 16))) {
                         deleted = cast(int)i;
                     }
                 igSetWindowFontScale(1);

@@ -218,7 +218,7 @@ protected:
                 
                 igBeginDisabled(!anim);
                     auto player = incAnimationPlayerGet();
-                    if (incToolbarButton(player.snapToFramerate ? "" : "", 32)) {
+            if (incToolbarButton(player.snapToFramerate ? "\ue899" : "", 32)) {
                         player.snapToFramerate = !player.snapToFramerate;
                     }
                     incTooltip(_("Lock playback to animation framerate"));

@@ -41,7 +41,7 @@ string ngSimpleAuth(ApprovalRequest req) {
                 NotificationPopup.instance().close(pid);
             }
             igSameLine();
-            if (incButtonColored(__(" Approve"))) {
+            if (incButtonColored(__("\ue668 Approve"))) {
                 decision = "approve";
                 NotificationPopup.instance().close(pid);
             }
