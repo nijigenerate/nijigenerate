@@ -13,6 +13,40 @@ import nijilive.core.nodes;
 import nijilive.core.nodes.deformer.grid;
 import nijilive.fmt.serialize;
 import nijilive.math;
+import std.math : isFinite;
+
+private ExDepthOp[] remapIndexBoundDepthOperations(
+    Vec2Array oldVertices,
+    Vec2Array newVertices,
+    ExDepthOp[] operations,
+) {
+    enum float matchingVertexDistanceSquared = 1.0e-8f;
+    ExDepthOp[] result;
+    foreach (operation; operations) {
+        if (operation.type != ExDepthOpType.AttachedPoint) {
+            result ~= operation;
+            continue;
+        }
+        if (operation.index >= oldVertices.length || newVertices.length == 0) continue;
+
+        auto source = oldVertices[operation.index];
+        float bestDistance = float.infinity;
+        size_t bestIndex;
+        bool found;
+        foreach (i, candidate; newVertices) {
+            auto delta = candidate - source;
+            auto distance = delta.x * delta.x + delta.y * delta.y;
+            if (!distance.isFinite || (found && distance >= bestDistance)) continue;
+            bestDistance = distance;
+            bestIndex = i;
+            found = true;
+        }
+        if (!found || bestDistance > matchingVertexDistanceSquared) continue;
+        operation.index = bestIndex;
+        result ~= operation;
+    }
+    return result;
+}
 
 @TypeId("GridDeformer")
 class ExGridDeformer : GridDeformer, DepthMappedNode, DepthOperationMappedNode {
@@ -28,6 +62,7 @@ public:
     void rebuffer(Vec2Array gridPoints) {
         auto oldVertices = vertices.dup;
         auto oldDepths = copyDepths();
+        auto oldOperations = copyDepthOps();
         auto oldOperationBaseDepths = copyDepthOpBaseDepths();
         super.rebuffer(gridPoints);
         if (oldDepths !is null) {
@@ -48,6 +83,7 @@ public:
                 resizeDepthOpBaseDepthsToVertices(vertices.length);
             }
         }
+        replaceDepthOps(remapIndexBoundDepthOperations(oldVertices, vertices, oldOperations));
     }
 
     override

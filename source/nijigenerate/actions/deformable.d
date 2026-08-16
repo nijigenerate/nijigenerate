@@ -7,7 +7,7 @@ import nijigenerate.actions.depthboneinvalidation :
     ngNotifyDepthBoneTargetChanged;
 import nijigenerate;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
-import nijigenerate.ext.nodes.exdepthops : DepthOperationMappedNode;
+import nijigenerate.ext.nodes.exdepthops : DepthOperationMappedNode, ExDepthOp;
 import nijigenerate.ext.param : ExParameterGroup;
 import nijilive;
 import nijilive.math : Vec2Array;
@@ -30,6 +30,7 @@ public:
         vec2[] vertices;
         float[] depths;
         bool hasDepths;
+        ExDepthOp[] depthOperations;
         float[] depthOperationBaseDepths;
         bool hasDepthOperations;
     }
@@ -124,6 +125,7 @@ private:
             result.hasDepths = true;
         }
         if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+            result.depthOperations = depthOperated.copyDepthOps();
             result.depthOperationBaseDepths = depthOperated.copyDepthOpBaseDepths();
             result.hasDepthOperations = true;
         }
@@ -137,8 +139,10 @@ private:
                 depthMapped.replaceDepths(st.depths);
         }
         if (st.hasDepthOperations) {
-            if (auto depthOperated = cast(DepthOperationMappedNode)self)
+            if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+                depthOperated.replaceDepthOps(st.depthOperations);
                 depthOperated.replaceDepthOpBaseDepths(st.depthOperationBaseDepths);
+            }
         }
         self.clearCache();
         import nijigenerate.viewport.vertex : ngRefreshDeformableCommandEditors;
@@ -166,6 +170,7 @@ private:
         vec2[] vertices;
         float[] depths;
         bool hasDepths;
+        ExDepthOp[] depthOperations;
         float[] depthOperationBaseDepths;
         bool hasDepthOperations;
         BindingState[] bindings;
@@ -200,6 +205,7 @@ private:
             result.hasDepths = true;
         }
         if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+            result.depthOperations = depthOperated.copyDepthOps();
             result.depthOperationBaseDepths = depthOperated.copyDepthOpBaseDepths();
             result.hasDepthOperations = true;
         }
@@ -234,8 +240,10 @@ private:
                 depthMapped.replaceDepths(state.depths);
         }
         if (state.hasDepthOperations) {
-            if (auto depthOperated = cast(DepthOperationMappedNode)self)
+            if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+                depthOperated.replaceDepthOps(state.depthOperations);
                 depthOperated.replaceDepthOpBaseDepths(state.depthOperationBaseDepths);
+            }
         }
 
         foreach (bindingState; state.bindings) {

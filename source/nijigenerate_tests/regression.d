@@ -3330,7 +3330,11 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ring.amount = 0.75f;
     ring.width = 0.5f;
     ring.hardness = 0.25f;
-    grid.replaceDepthOps([ring]);
+    ExDepthOp attached;
+    attached.type = ExDepthOpType.AttachedPoint;
+    attached.index = 3;
+    attached.amount = 0.5f;
+    grid.replaceDepthOps([attached, ring]);
     grid.replaceDepthOpBaseDepths([0.1f, 0.2f, 0.3f, 0.4f]);
 
     auto defineAction = new GridDeformerDefineAction("Resize depth grid", grid);
@@ -3343,13 +3347,19 @@ private void testDepthMappedNodeSerializationRoundTrip() {
         vec2(1, 1),
     ]));
     auto definedBaseDepths = grid.copyDepthOpBaseDepths();
+    require(grid.copyDepthOps()[0].index == 5,
+        "grid definition must remap attached depth operations to the same geometric point");
     defineAction.updateNewState();
     defineAction.rollback();
     require(grid.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
         "undoing a grid definition must restore the exact pre-operation base depths");
+    require(grid.copyDepthOps()[0].index == 3,
+        "undoing a grid definition must restore the original attached depth operation index");
     defineAction.redo();
     require(grid.copyDepthOpBaseDepths() == definedBaseDepths,
         "redoing a grid definition must restore the exact resampled pre-operation base depths");
+    require(grid.copyDepthOps()[0].index == 5,
+        "redoing a grid definition must restore the remapped attached depth operation index");
     defineAction.rollback();
 
     auto deformableAction = new DeformableChangeAction("Resize depth grid", grid);
@@ -3362,21 +3372,41 @@ private void testDepthMappedNodeSerializationRoundTrip() {
         vec2(1, 1),
     ]));
     auto changedBaseDepths = grid.copyDepthOpBaseDepths();
+    require(grid.copyDepthOps()[0].index == 5,
+        "deformable topology changes must remap attached depth operations to the same geometric point");
     deformableAction.updateNewState();
     deformableAction.rollback();
     require(grid.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
         "undoing a deformable topology change must restore the exact pre-operation base depths");
+    require(grid.copyDepthOps()[0].index == 3,
+        "undoing a deformable topology change must restore the original attached depth operation index");
     deformableAction.redo();
     require(grid.copyDepthOpBaseDepths() == changedBaseDepths,
         "redoing a deformable topology change must restore the exact resampled pre-operation base depths");
+    require(grid.copyDepthOps()[0].index == 5,
+        "redoing a deformable topology change must restore the remapped attached depth operation index");
     deformableAction.rollback();
+
+    auto removedPointGrid = new ExGridDeformer(incActivePuppet().root);
+    removedPointGrid.rebuffer(Vec2Array([
+        vec2(-1, -1), vec2(1, -1), vec2(-1, 1), vec2(1, 1),
+    ]));
+    removedPointGrid.replaceDepthOps([attached]);
+    removedPointGrid.rebuffer(Vec2Array([
+        vec2(-0.5f, -0.5f), vec2(0.5f, -0.5f), vec2(-0.5f, 0.5f), vec2(0.5f, 0.5f),
+    ]));
+    require(removedPointGrid.copyDepthOps().length == 0,
+        "grid topology changes must clear attached depth operations whose vertex no longer exists");
 
     auto copied = new ExGridDeformer(incActivePuppet().root);
     copied.name = "copied-depth-grid";
     copied.copyDepthsFrom(grid);
     copied.copyDepthOpsFrom(grid);
     require(copied.copyDepths() == [0.0f, 0.25f, -0.5f, 1.0f], "DepthMapped copy should duplicate depths");
-    require(copied.copyDepthOps().length == 1 && copied.copyDepthOps()[0].type == ExDepthOpType.Ring, "DepthOperation copy should duplicate operations");
+    require(copied.copyDepthOps().length == 2 &&
+        copied.copyDepthOps()[0].type == ExDepthOpType.AttachedPoint &&
+        copied.copyDepthOps()[1].type == ExDepthOpType.Ring,
+        "DepthOperation copy should duplicate operations");
     require(copied.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
         "DepthOperation copy should duplicate the pre-operation base depths");
 
@@ -3450,10 +3480,12 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     require(loadedNonFinite.copyDepths() == [0.0f, 0.0f, 0.0f, 0.375f],
         "depth-mapped INX save must serialize NaN and infinities as finite neutral depths");
     auto loadedOps = loaded.copyDepthOps();
-    require(loadedOps.length == 1, "depth-mapped INX round-trip should restore depth operation count");
-    require(loadedOps[0].type == ExDepthOpType.Ring, "depth-mapped INX round-trip should restore operation type");
-    require(nearVec2(loadedOps[0].p0, vec2(-1, 0)) && nearVec2(loadedOps[0].p1, vec2(1, 0)), "depth-mapped INX round-trip should restore ring endpoints");
-    require(near(loadedOps[0].amount, 0.75f) && near(loadedOps[0].width, 0.5f) && near(loadedOps[0].hardness, 0.25f), "depth-mapped INX round-trip should restore ring settings");
+    require(loadedOps.length == 2, "depth-mapped INX round-trip should restore depth operation count");
+    require(loadedOps[0].type == ExDepthOpType.AttachedPoint && loadedOps[0].index == 3,
+        "depth-mapped INX round-trip should restore attached-point operation state");
+    require(loadedOps[1].type == ExDepthOpType.Ring, "depth-mapped INX round-trip should restore operation type");
+    require(nearVec2(loadedOps[1].p0, vec2(-1, 0)) && nearVec2(loadedOps[1].p1, vec2(1, 0)), "depth-mapped INX round-trip should restore ring endpoints");
+    require(near(loadedOps[1].amount, 0.75f) && near(loadedOps[1].width, 0.5f) && near(loadedOps[1].hardness, 0.25f), "depth-mapped INX round-trip should restore ring settings");
     require(loaded.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
         "depth-mapped INX round-trip should restore the pre-operation base depths");
 
