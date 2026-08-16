@@ -1125,18 +1125,17 @@ GroupAction ngDeleteDepthRigReferencesOfNode(Node n, GroupAction group = null) {
                 continue;
             }
             ulong[] kept;
+            bool removedSource;
             foreach (uuid; binding.sourceBoneUuids) {
                 if (uuid in removedUuids) {
                     changed = true;
+                    removedSource = true;
                     continue;
                 }
                 kept ~= uuid;
             }
-            if (kept.length == 0) {
-                if (binding.sourceBoneUuids.length > 0) changed = true;
-                continue;
-            }
-            if (kept.length != binding.sourceBoneUuids.length) {
+            if (removedSource && kept.length == 0) continue;
+            if (removedSource) {
                 binding.sourceBoneUuids = kept;
                 binding.normalizeSourceSettings();
             }

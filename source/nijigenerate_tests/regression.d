@@ -3393,10 +3393,22 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ]));
     removedPointGrid.replaceDepthOps([attached]);
     removedPointGrid.rebuffer(Vec2Array([
-        vec2(-0.5f, -0.5f), vec2(0.5f, -0.5f), vec2(-0.5f, 0.5f), vec2(0.5f, 0.5f),
+        vec2(-0.5f, -0.5f), vec2(0, -0.5f), vec2(0.5f, -0.5f),
+        vec2(-0.5f, 0.5f), vec2(0, 0.5f), vec2(0.5f, 0.5f),
     ]));
     require(removedPointGrid.copyDepthOps().length == 0,
         "grid topology changes must clear attached depth operations whose vertex no longer exists");
+
+    auto movedPointGrid = new ExGridDeformer(incActivePuppet().root);
+    movedPointGrid.rebuffer(Vec2Array([
+        vec2(-1, -1), vec2(1, -1), vec2(-1, 1), vec2(1, 1),
+    ]));
+    movedPointGrid.replaceDepthOps([attached]);
+    movedPointGrid.rebuffer(Vec2Array([
+        vec2(-1.2f, -0.8f), vec2(0.8f, -1.1f), vec2(-0.9f, 1.2f), vec2(1.1f, 0.9f),
+    ]));
+    require(movedPointGrid.copyDepthOps().length == 1 && movedPointGrid.copyDepthOps()[0].index == 3,
+        "moving vertices without changing topology must preserve attached depth operation indices");
 
     auto copied = new ExGridDeformer(incActivePuppet().root);
     copied.name = "copied-depth-grid";
@@ -17182,9 +17194,11 @@ private void testDepthBoneSerializationRoundTrip() {
     resetCase();
     ensureRegressionNodeTypesRegistered();
 
-    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    auto copyContainer = new Node(incActivePuppet().root);
+    copyContainer.name = "serialized-depth-container";
+    auto root = new ExDepthRigRoot(copyContainer);
     root.name = "serialized-depth-root";
-    auto target = new GridDeformer(incActivePuppet().root);
+    auto target = new GridDeformer(copyContainer);
     target.name = "serialized-depth-target";
     auto bone = ngCreateDepthBone(root, "SerializedBone", vec3(1, 2, 3), vec3(4, 5, 6), 0.25f);
     bone.name = "serialized-depth-bone";
@@ -17235,6 +17249,20 @@ private void testDepthBoneSerializationRoundTrip() {
         near(root.bindings[0].sourceSettings[0].weight, 0.25f) &&
         near(root.bindings[0].influenceRule.multipliersByBoneUuid[bone.uuid], 0.4f),
         "duplicated DepthRig state must not alias nested source arrays or influence maps");
+
+    auto copyContext = new Context();
+    copyContext.nodes = [copyContainer];
+    clipboardNodes.length = 0;
+    require((new CopyNodeCommand()).run(copyContext).succeeded && clipboardNodes.length == 1,
+        "copying a common DepthRig ancestor must create one clipboard subtree");
+    auto copiedContainer = clipboardNodes[0];
+    auto ancestorCopiedRoot = cast(ExDepthRigRoot)findNodeRecursive(copiedContainer, "serialized-depth-root'");
+    auto ancestorCopiedTarget = cast(GridDeformer)findNodeRecursive(copiedContainer, "serialized-depth-target'");
+    require(ancestorCopiedRoot !is null && ancestorCopiedTarget !is null &&
+        ancestorCopiedRoot.bindings.length == 1 &&
+        ancestorCopiedRoot.bindings[0].targetUuid == ancestorCopiedTarget.uuid,
+        "copying an ancestor must remap a DepthRig binding to its copied sibling target");
+    clipboardNodes.length = 0;
 
     incActivePuppet().root.build();
     auto fixtureDir = buildPath(tempDir(), "nijigenerate-regression-depthbone");
@@ -17314,19 +17342,28 @@ private void testDepthBoneDeleteCleanupUndoRedo() {
     incActionUndo();
     require(isChildOf(root, boneA) && root.bindings[0].sourceBoneUuids.length == 2,
         "undoing source cleanup must restore the complete binding before target deletion");
+    auto emptyTarget = new GridDeformer(incActivePuppet().root);
+    ExDepthRigBinding emptyBinding;
+    emptyBinding.targetUuid = emptyTarget.uuid;
+    emptyBinding.influenceRule.maxInfluences = 2;
+    root.bindings ~= emptyBinding;
     ctx.nodes = [targetParent];
     require((new DeleteNodeCommand()).run(ctx).succeeded,
         "DeleteNodeCommand should delete a subtree containing a DepthRig target");
-    require(!isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 0,
-        "deleting a target subtree must remove matching DepthRig bindings");
+    require(!isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 1 &&
+        root.bindings[0].targetUuid == emptyTarget.uuid &&
+        root.bindings[0].sourceBoneUuids.length == 0 &&
+        root.bindings[0].influenceRule.maxInfluences == 2,
+        "deleting a target subtree must remove only matching DepthRig bindings and preserve unrelated empty bindings");
 
     incActionUndo();
-    require(isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 1 &&
-        root.bindings[0].targetUuid == target.uuid && root.bindings[0].sourceBoneUuids.length == 2,
+    require(isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 2 &&
+        root.findBindingIndex(target.uuid) >= 0 && root.findBindingIndex(emptyTarget.uuid) >= 0,
         "undoing target deletion must restore both the subtree and its complete DepthRig binding");
     incActionRedo();
-    require(!isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 0,
-        "redoing target deletion must detach the subtree and remove its DepthRig binding again");
+    require(!isChildOf(incActivePuppet().root, targetParent) && root.bindings.length == 1 &&
+        root.bindings[0].targetUuid == emptyTarget.uuid,
+        "redoing target deletion must remove its binding again without dropping an unrelated empty binding");
 }
 
 private void testActionGroupUndoRedo() {

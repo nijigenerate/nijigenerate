@@ -31,6 +31,7 @@ import i18n;
         clipboardNodes.length = 0;
         foreach (node; nodes) {
             auto newNode = node.dup;
+            ngRemapCopiedDepthRigReferences(node, newNode);
             clipboardNodes ~= newNode;
         }
     }

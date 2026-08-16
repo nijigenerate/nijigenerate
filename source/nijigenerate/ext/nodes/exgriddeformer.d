@@ -21,6 +21,7 @@ private ExDepthOp[] remapIndexBoundDepthOperations(
     ExDepthOp[] operations,
 ) {
     enum float matchingVertexDistanceSquared = 1.0e-8f;
+    auto preserveAttachedIndices = oldVertices.length == newVertices.length;
     ExDepthOp[] result;
     foreach (operation; operations) {
         if (operation.type != ExDepthOpType.AttachedPoint) {
@@ -28,6 +29,10 @@ private ExDepthOp[] remapIndexBoundDepthOperations(
             continue;
         }
         if (operation.index >= oldVertices.length || newVertices.length == 0) continue;
+        if (preserveAttachedIndices) {
+            result ~= operation;
+            continue;
+        }
 
         auto source = oldVertices[operation.index];
         float bestDistance = float.infinity;
