@@ -186,7 +186,8 @@ import nijilive.core.nodes.node : inRegisterNodeType;
 import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
 import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
-import psd.parser : applyMaskFeather, applyMaskSettings, sampleMaskAt, validPsdImageDimensions;
+import psd.parser : applyMaskFeather, applyMaskSettings, decodePsdLayerCount, sampleMaskAt,
+    validPsdImageDimensions;
 import psd.rle : decodeRLE, decodeZip;
 import utils.io : readPascalStr, readValue;
 import std.base64 : Base64;
@@ -856,6 +857,12 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     require(validPsdImageDimensions(1, 1) && validPsdImageDimensions(0, 0) &&
         !validPsdImageDimensions(-1, 1) && !validPsdImageDimensions(20_000, 20_000),
         "PSD image bounds must reject inverted or excessively large decoded allocations");
+    uint decodedLayerCount;
+    bool decodedTransparency;
+    require(decodePsdLayerCount(short.min, 2 + 32_768 * 34, decodedLayerCount, decodedTransparency) &&
+        decodedLayerCount == 32_768 && decodedTransparency &&
+        !decodePsdLayerCount(short.min, 34, decodedLayerCount, decodedTransparency),
+        "PSD layer counts must promote -32768 before negation and remain bounded by section length");
     auto flatOnlyPsdPath = buildPath(fixtureDir, "minimal-flat-only.psd");
     auto flatOnlyPsd = cast(ubyte[])read(psdPath);
     flatOnlyPsd[34 .. 38] = 0;
@@ -5858,6 +5865,26 @@ private void testPsdDepthMapImportHelpers() {
         alignedPsdColorCoverage[11] == 192 &&
         alignedPsdColorCoverage[15] == 0,
         "PSD depth import must align explicit PSD color pixels to depth-layer document bounds for coverage");
+    PsdDepthCompositeSourceLayer similarColorA;
+    similarColorA.id = "/color-a";
+    similarColorA.name = "similar-layer";
+    similarColorA.width = 4;
+    similarColorA.height = 4;
+    auto similarColorB = similarColorA;
+    similarColorB.id = "/color-b";
+    PsdDepthCompositeSourceLayer similarDepthA;
+    similarDepthA.id = "/depth-a";
+    similarDepthA.name = "similar-layer";
+    similarDepthA.width = 4;
+    similarDepthA.height = 4;
+    auto similarDepthB = similarDepthA;
+    similarDepthB.id = "/depth-b";
+    ptrdiff_t[] expectedReservedPairing = [0, -1];
+    require(ngPsdDepthPairCompositeSourceLayersForRegression(
+            [similarColorA, similarColorB], [similarDepthA]) == expectedReservedPairing &&
+        ngPsdDepthPairCoverageSourceLayersForRegression(
+            [similarDepthA, similarDepthB], [similarColorA]) == expectedReservedPairing,
+        "paired PSD matching must reserve consumed depth and color candidates in both directions");
     auto richColorPsdPath = localDepthDrawDataPath("Midori-20260621-color.psd");
     auto richDepthPsdPath = localDepthDrawDataPath("Midori-20260621-color-psd-depth.psd");
     if (richColorPsdPath.length && richDepthPsdPath.length) {
@@ -16531,6 +16558,10 @@ private void testDepthBoneUpdateVisualizationState() {
         status.detail.canFind("No parameter drives"),
         "DepthBone visualization should report an unqueueable update instead of waiting forever");
 
+    auto replacementPuppet = new Puppet();
+    require(ngDepthBoneUpdateStatuses(replacementPuppet, true).length == 0 &&
+        ngDepthBoneUpdateStatuses(incActivePuppet(), true).length == 0,
+        "querying a replacement project must discard DepthBone adapter records that retain the old puppet graph");
     ngClearDepthBoneUpdateStatuses();
     require(ngDepthBoneUpdateStatuses(incActivePuppet(), true).length == 0,
         "clearing DepthBone update visualization state should remove every target record");

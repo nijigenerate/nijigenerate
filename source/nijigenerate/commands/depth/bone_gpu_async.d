@@ -7,6 +7,9 @@ import bindbc.opengl;
 import std.algorithm.comparison : min;
 import std.exception : enforce;
 import std.string : toStringz;
+
+// BindBC's selected core profile omits this standardized query token.
+private enum GLenum NG_GL_TEXTURE_BUFFER_BINDING = 0x8C2A;
 }
 
 enum NgDepthBoneGpuAsyncMaxBones = 64u;
@@ -546,11 +549,13 @@ bool ngSubmitDepthBoneGpuAsync(ref DepthBoneGpuDispatchPacket packet, out uint j
         GLint previousTexture0Buffer;
         GLint previousTexture1Buffer;
         GLint previousActiveTexture;
+        GLint previousTextureBuffer;
         GLint previousTransformFeedbackBuffer;
         GLboolean rasterizerDiscardWasEnabled = glIsEnabled(GL_RASTERIZER_DISCARD);
         glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
         glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVertexArray);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousArrayBuffer);
+        glGetIntegerv(NG_GL_TEXTURE_BUFFER_BINDING, &previousTextureBuffer);
         glGetIntegerv(GL_ACTIVE_TEXTURE, &previousActiveTexture);
         glActiveTexture(GL_TEXTURE0);
         glGetIntegerv(GL_TEXTURE_BINDING_BUFFER, &previousTexture0Buffer);
@@ -564,6 +569,7 @@ bool ngSubmitDepthBoneGpuAsync(ref DepthBoneGpuDispatchPacket packet, out uint j
             restoreTransformFeedbackBinding(0, previousTransformFeedback0);
             restoreTransformFeedbackBinding(1, previousTransformFeedback1);
             glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, cast(GLuint)previousTransformFeedbackBuffer);
+            glBindBuffer(GL_TEXTURE_BUFFER, cast(GLuint)previousTextureBuffer);
             glBindBuffer(GL_ARRAY_BUFFER, cast(GLuint)previousArrayBuffer);
             glBindVertexArray(cast(GLuint)previousVertexArray);
             glUseProgram(cast(GLuint)previousProgram);

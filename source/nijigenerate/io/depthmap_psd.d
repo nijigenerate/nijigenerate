@@ -963,10 +963,12 @@ private float compositeSourceLayerMatchScore(PsdDepthCompositeSourceLayer colorL
     return overlap > 0.0f ? overlap : 0.0f;
 }
 
-private ptrdiff_t bestMatchingDepthSourceLayer(PsdDepthCompositeSourceLayer colorLayer, PsdDepthCompositeSourceLayer[] depthLayers) {
+private ptrdiff_t bestMatchingDepthSourceLayer(PsdDepthCompositeSourceLayer colorLayer,
+        PsdDepthCompositeSourceLayer[] depthLayers, const(bool)[] reserved = null) {
     ptrdiff_t bestIndex = -1;
     float bestScore = 0.0f;
     foreach (i, depthLayer; depthLayers) {
+        if (i < reserved.length && reserved[i]) continue;
         auto score = compositeSourceLayerMatchScore(colorLayer, depthLayer);
         if (score > bestScore) {
             bestScore = score;
@@ -1964,11 +1966,13 @@ private bool acceptsDepthPixel(ref DepthLayerImage layer, size_t index, int x, i
 
 private ptrdiff_t bestMatchingColorSourceLayer(
     PsdDepthCompositeSourceLayer depthLayer,
-    PsdDepthCompositeSourceLayer[] colorLayers
+    PsdDepthCompositeSourceLayer[] colorLayers,
+    const(bool)[] reserved = null
 ) {
     ptrdiff_t bestIndex = -1;
     float bestScore = 0.0f;
     foreach (i, colorLayer; colorLayers) {
+        if (i < reserved.length && reserved[i]) continue;
         auto score = compositeSourceLayerMatchScore(colorLayer, depthLayer);
         if (score > bestScore) {
             bestScore = score;
@@ -2018,6 +2022,36 @@ version(CommandBrowserDifferential) {
         image.height = depthHeight;
         attachCompositeSourceCoverage(image, colorLayer);
         return image.coverageData;
+    }
+
+    ptrdiff_t[] ngPsdDepthPairCompositeSourceLayersForRegression(
+        PsdDepthCompositeSourceLayer[] colorLayers,
+        PsdDepthCompositeSourceLayer[] depthLayers
+    ) {
+        bool[] reserved;
+        reserved.length = depthLayers.length;
+        ptrdiff_t[] result;
+        foreach (colorLayer; colorLayers) {
+            auto index = bestMatchingDepthSourceLayer(colorLayer, depthLayers, reserved);
+            result ~= index;
+            if (index >= 0) reserved[cast(size_t)index] = true;
+        }
+        return result;
+    }
+
+    ptrdiff_t[] ngPsdDepthPairCoverageSourceLayersForRegression(
+        PsdDepthCompositeSourceLayer[] depthLayers,
+        PsdDepthCompositeSourceLayer[] colorLayers
+    ) {
+        bool[] reserved;
+        reserved.length = colorLayers.length;
+        ptrdiff_t[] result;
+        foreach (depthLayer; depthLayers) {
+            auto index = bestMatchingColorSourceLayer(depthLayer, colorLayers, reserved);
+            result ~= index;
+            if (index >= 0) reserved[cast(size_t)index] = true;
+        }
+        return result;
     }
 }
 
@@ -2987,6 +3021,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
             "Color and depth source dimensions must match for PSD depth composition");
     }
     DepthLayerImage[] layers;
+    bool[] matchedColorSourceLayers;
+    if (hasPsdColorSource) matchedColorSourceLayers.length = result.colorSource.layers.length;
 
     auto groupStates = ngPsdLayerGroupStates(document.layers);
     size_t[string] layerPathOccurrences;
@@ -3047,8 +3083,10 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
                     true,
                     0
                 );
-                auto colorIndex = bestMatchingColorSourceLayer(depthCandidate, result.colorSource.layers);
+                auto colorIndex = bestMatchingColorSourceLayer(
+                    depthCandidate, result.colorSource.layers, matchedColorSourceLayers);
                 if (colorIndex >= 0) {
+                    matchedColorSourceLayers[cast(size_t)colorIndex] = true;
                     attachCompositeSourceCoverage(image, result.colorSource.layers[cast(size_t)colorIndex]);
                 }
             } else if (hasFlatColorSource) {
@@ -3216,7 +3254,8 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
         bool[] matchedDepthSourceLayers;
         matchedDepthSourceLayers.length = result.depthSource.layers.length;
         foreach (colorLayer; result.colorSource.layers) {
-            auto depthIndex = bestMatchingDepthSourceLayer(colorLayer, result.depthSource.layers);
+            auto depthIndex = bestMatchingDepthSourceLayer(
+                colorLayer, result.depthSource.layers, matchedDepthSourceLayers);
             if (depthIndex < 0) {
                 PsdDepthComposedLayer missingLayer;
                 missingLayer.id = colorLayer.id;

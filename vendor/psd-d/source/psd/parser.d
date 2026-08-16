@@ -25,6 +25,21 @@ bool validPsdImageDimensions(long width, long height) {
     return unsignedWidth <= MaxPsdDecodedPixels / unsignedHeight;
 }
 
+bool decodePsdLayerCount(short encodedCount, uint layerLength, out uint layerCount,
+        out bool hasTransparencyMask) {
+    enum ulong MinimumLayerRecordBytes = 34;
+    auto promotedCount = cast(long)encodedCount;
+    hasTransparencyMask = promotedCount < 0;
+    if (hasTransparencyMask) promotedCount = -promotedCount;
+    if (layerLength < short.sizeof ||
+        cast(ulong)promotedCount > (cast(ulong)layerLength - short.sizeof) / MinimumLayerRecordBytes) {
+        layerCount = 0;
+        return false;
+    }
+    layerCount = cast(uint)promotedCount;
+    return true;
+}
+
 /**
     Parses document
 */
@@ -202,10 +217,14 @@ private double channelMaskFeather(ref Layer layer, short channelType) {
 private ubyte[] featheredMaskData(ref Layer layer, short channelType, ubyte[] data) {
     auto mask = channelMaskGeometry(layer, channelType);
     if (!mask.valid || data.length == 0) return data;
+    auto maskWidth = cast(long)mask.right - cast(long)mask.left;
+    auto maskHeight = cast(long)mask.bottom - cast(long)mask.top;
+    enforce(validPsdImageDimensions(maskWidth, maskHeight),
+        "Invalid or excessively large PSD mask bounds");
     return applyMaskFeather(
         data,
-        mask.right - mask.left,
-        mask.bottom - mask.top,
+        cast(int)maskWidth,
+        cast(int)maskHeight,
         channelMaskFeather(layer, channelType),
         mask.defaultColor
     );
@@ -216,8 +235,10 @@ private void channelDimensions(ref Layer layer, short channelType, out uint widt
     height = layer.height;
     auto mask = channelMaskGeometry(layer, channelType);
     if (mask.valid) {
-        auto maskWidth = mask.right - mask.left;
-        auto maskHeight = mask.bottom - mask.top;
+        auto maskWidth = cast(long)mask.right - cast(long)mask.left;
+        auto maskHeight = cast(long)mask.bottom - cast(long)mask.top;
+        enforce(validPsdImageDimensions(maskWidth, maskHeight),
+            "Invalid or excessively large PSD mask bounds");
         if (maskWidth > 0 && maskHeight > 0) {
             width = cast(uint)maskWidth;
             height = cast(uint)maskHeight;
@@ -251,14 +272,15 @@ public ubyte sampleMaskAt(ref Layer layer, short channelType, const(ubyte)[] dat
             positionRelativeToLayer = layer.layerMask[0].positionRelativeToLayer;
         }
     }
-    auto maskWidth = mask.right - mask.left;
-    auto maskHeight = mask.bottom - mask.top;
+    auto maskWidth = cast(long)mask.right - cast(long)mask.left;
+    auto maskHeight = cast(long)mask.bottom - cast(long)mask.top;
+    if (!validPsdImageDimensions(maskWidth, maskHeight)) return 255;
     ubyte value = mask.defaultColor;
     if (maskWidth <= 0 || maskHeight <= 0) {
         return applyMaskSettings(value, density, disabled, invert);
     }
-    auto x = cast(int)(pixelIndex % layer.width) + (positionRelativeToLayer ? 0 : layer.left) - mask.left;
-    auto y = cast(int)(pixelIndex / layer.width) + (positionRelativeToLayer ? 0 : layer.top) - mask.top;
+    auto x = cast(long)(pixelIndex % layer.width) + (positionRelativeToLayer ? 0 : layer.left) - mask.left;
+    auto y = cast(long)(pixelIndex / layer.width) + (positionRelativeToLayer ? 0 : layer.top) - mask.top;
     if (x >= 0 && y >= 0 && x < maskWidth && y < maskHeight) {
         auto index = cast(size_t)y * cast(size_t)maskWidth + cast(size_t)x;
         if (index < data.length) value = data[index];
@@ -789,11 +811,13 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
         // Read the layer count. If it is a negative number, its absolute value is the number of the layers and the
         // first alpha channel contains the transparency data for the merged result.
         // this will also be reflected in the channelCount of the document.
-        short layerCount = file.readValue!short;
-        layerMaskSection.hasTransparencyMask = (layerCount < 0);
-        if (layerCount < 0) layerCount *= -1;
+        auto encodedLayerCount = file.readValue!short;
+        uint layerCount;
+        enforce(decodePsdLayerCount(encodedLayerCount, layerLength, layerCount,
+            layerMaskSection.hasTransparencyMask),
+            "PSD layer count exceeds the available layer info section");
 
-        layerMaskSection.layerCount = cast(uint)layerCount;
+        layerMaskSection.layerCount = layerCount;
         layerMaskSection.layers = new Layer[layerCount];
 
         foreach(i; 0..layerMaskSection.layers.length) {

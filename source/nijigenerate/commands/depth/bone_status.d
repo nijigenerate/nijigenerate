@@ -487,10 +487,9 @@ DepthBoneUpdateStatus[] ngDepthBoneUpdateStatuses(
     DepthBoneUpdateStatus[] result;
     ulong[] removeKeys;
     foreach (targetKey, ref record; updateRecords) {
-        if (record.root is null || record.target is null ||
-            (puppet !is null && record.puppet !is puppet)) {
-            if (record.root is null || record.target is null)
-                removeKeys ~= targetKey;
+        auto foreignProject = puppet !is null && record.puppet !is puppet;
+        if (record.root is null || record.target is null || foreignProject) {
+            removeKeys ~= targetKey;
             continue;
         }
         AsyncDerivedUpdateSnapshot snapshot;
@@ -524,10 +523,28 @@ DepthBoneUpdateStatus[] ngDepthBoneUpdateStatuses(
         status.labelWorld = record.labelWorld;
         result ~= status;
     }
+    DepthBoneUpdateWorkKey[] removeWorkKeys;
+    Puppet[] removedPuppets;
     foreach (targetKey; removeKeys) {
-        if (auto record = targetKey in updateRecords)
+        if (auto record = targetKey in updateRecords) {
             incAsyncDerivedUpdateForgetTarget(record.progressTarget);
+            if (record.puppet !is null) removedPuppets ~= record.puppet;
+        }
+        foreach (workKey, work; updateWork) {
+            if (work.targetKey == targetKey) removeWorkKeys ~= workKey;
+        }
         updateRecords.remove(targetKey);
+    }
+    foreach (workKey; removeWorkKeys) updateWork.remove(workKey);
+    foreach (removedPuppet; removedPuppets) {
+        bool stillReferenced;
+        foreach (record; updateRecords) {
+            if (record.puppet is removedPuppet) {
+                stillReferenced = true;
+                break;
+            }
+        }
+        if (!stillReferenced) fallbackScopes.remove(removedPuppet);
     }
     return result;
 }
