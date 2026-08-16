@@ -14,7 +14,6 @@
   "layers": [
     {
       "index": 0,
-      "depthImage": "depthdraw-psd-transform-midori-layer-0-depth.png",
       "depthMeta": "depthdraw-psd-transform-midori-layer-0-depth.json",
       "depthRaw": "depthdraw-psd-transform-midori-layer-0-depth-raw.json",
       "meshSummary": "depthdraw-psd-transform-midori-layer-0-mesh-summary.json",

@@ -33,6 +33,9 @@ settings.json
 
 source/nijigenerate/ver.d
 
+# Generated DepthDraw binary fixtures are kept outside the repository.
+source/nijigenerate_tests/fixtures/depthdraw/*-depth.png
+
 .DS_Store
 
 # WiX Install

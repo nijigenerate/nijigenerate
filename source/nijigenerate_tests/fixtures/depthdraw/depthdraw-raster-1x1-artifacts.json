@@ -12,7 +12,6 @@
   "layers": [
     {
       "index": 0,
-      "depthImage": "depthdraw-raster-1x1-layer-0-depth.png",
       "depthMeta": "depthdraw-raster-1x1-layer-0-depth.json",
       "depthRaw": "depthdraw-raster-1x1-layer-0-depth-raw.json",
       "name": "depthdraw-raster-1x1",

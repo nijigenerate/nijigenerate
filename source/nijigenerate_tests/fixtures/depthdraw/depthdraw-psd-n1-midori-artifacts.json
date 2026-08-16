@@ -13,7 +13,6 @@
   "layers": [
     {
       "index": 0,
-      "depthImage": "depthdraw-psd-n1-midori-layer-0-depth.png",
       "depthMeta": "depthdraw-psd-n1-midori-layer-0-depth.json",
       "depthRaw": "depthdraw-psd-n1-midori-layer-0-depth-raw.json",
       "meshSummary": "depthdraw-psd-n1-midori-layer-0-mesh-summary.json",
@@ -121,7 +120,6 @@
     },
     {
       "index": 1,
-      "depthImage": "depthdraw-psd-n1-midori-layer-1-depth.png",
       "depthMeta": "depthdraw-psd-n1-midori-layer-1-depth.json",
       "depthRaw": "depthdraw-psd-n1-midori-layer-1-depth-raw.json",
       "meshSummary": "depthdraw-psd-n1-midori-layer-1-mesh-summary.json",
