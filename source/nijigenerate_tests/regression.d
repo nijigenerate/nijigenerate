@@ -14786,6 +14786,33 @@ private void testDepthBoneInspectorCommandsUndoRedo() {
         "rejected SetDepthBoneConstraint input must not leave partial mutations");
     require(incActionTop() is actionBeforeInvalidConstraint,
         "rejected SetDepthBoneConstraint input must not create an Undo entry");
+
+    foreach (invalidNumericConstraint; [
+        `{"hingeAxis":[0,[],1]}`,
+        `{"rotationLimits":[true]}`,
+        `{"maxStepRadians":"0.1"}`,
+    ]) {
+        auto actionBeforeInvalidNumber = incActionTop();
+        bool invalidNumberRejected;
+        try {
+            cmd!(DepthBoneCommand.SetDepthBoneConstraint)(
+                ctx, bone, invalidNumericConstraint);
+        } catch (Exception) {
+            invalidNumberRejected = true;
+        }
+        require(invalidNumberRejected,
+            "SetDepthBoneConstraint should reject non-numeric constraint values: " ~
+                invalidNumericConstraint);
+        require(bone.constraintType == "hinge" && bone.hingeAxis == vec3(0, 1, 0) &&
+            bone.lockRotation && bone.lockTranslation && !bone.allowParentToTargets &&
+            bone.rotationLimits.length == 2 && near(bone.rotationLimits[0], -0.5f) &&
+            near(bone.rotationLimits[1], 0.5f) && near(bone.maxStepRadians, 0.1f),
+            "rejected numeric constraint input must not leave partial mutations: " ~
+                invalidNumericConstraint);
+        require(incActionTop() is actionBeforeInvalidNumber,
+            "rejected numeric constraint input must not create an Undo entry: " ~
+                invalidNumericConstraint);
+    }
 }
 
 private void testDepthBoneSourceCommandsUndoRedo() {

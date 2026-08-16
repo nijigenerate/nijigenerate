@@ -4349,13 +4349,18 @@ class SetDepthBoneConstraintCommand : ExCommand!(
         if ("hingeAxis" in json.object) {
             auto values = json["hingeAxis"].array;
             enforce(values.length == 3, "hingeAxis must be [x,y,z]");
-            hingeAxis = vec3(jsonNumber(values[0], hingeAxis.x), jsonNumber(values[1], hingeAxis.y), jsonNumber(values[2], hingeAxis.z));
+            hingeAxis = vec3(
+                strictJsonNumber(values[0], "hingeAxis[0]"),
+                strictJsonNumber(values[1], "hingeAxis[1]"),
+                strictJsonNumber(values[2], "hingeAxis[2]"));
         }
         if ("rotationLimits" in json.object) {
             rotationLimits.length = 0;
-            foreach (value; json["rotationLimits"].array) rotationLimits ~= jsonNumber(value, 0);
+            foreach (i, value; json["rotationLimits"].array)
+                rotationLimits ~= strictJsonNumber(value, "rotationLimits[%s]".format(i));
         }
-        if ("maxStepRadians" in json.object) maxStepRadians = jsonNumber(json["maxStepRadians"], maxStepRadians);
+        if ("maxStepRadians" in json.object)
+            maxStepRadians = strictJsonNumber(json["maxStepRadians"], "maxStepRadians");
 
         auto action = new DepthBoneConstraintChangeAction(b);
         b.constraintType = constraintType;
