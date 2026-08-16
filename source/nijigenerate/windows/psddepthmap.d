@@ -6,9 +6,13 @@ import i18n;
 import nijigenerate;
 import nijigenerate.commands;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, PsdDepthGpuComposeWork,
-    ngApplyPsdDepthImportResult, ngCancelPsdDepthImportGpu, ngComposePsdDepthImportResult,
+    ngApplyPsdDepthImportResult, ngCanApplyPsdDepthImportResult, ngCancelPsdDepthImportGpu,
+    ngComposePsdDepthImportResult,
     ngComposePsdDepthTarget, ngPollPsdDepthImportGpu, ngPsdDepthConvolutionToDepthImage,
     ngSubmitPsdDepthImportGpu;
+version (CommandBrowserDifferential) {
+    import nijigenerate.commands.depth.map : ngPsdDepthComposedViewForRegression;
+}
 import nijigenerate.core.actionstack : ActionStackScope, incActionCanRedo, incActionCanUndo,
     ngOpenActionStackScope;
 import nijigenerate.core.shortcut.base : ngSetSelectedNodesProvider;
@@ -143,6 +147,47 @@ struct PsdDepthDialogOverallPreview {
     float maxDepth;
     float[] depths;
     ubyte[] rgba;
+}
+
+enum size_t PsdDepthDialogPartDataCaptureBudget = 64 * 1024 * 1024;
+
+private bool reservePsdDepthDialogPartDataBytes(
+    ref size_t retainedBytes,
+    size_t bytes,
+    out string error
+) {
+    if (bytes > PsdDepthDialogPartDataCaptureBudget - retainedBytes) {
+        error = "PSD depth dialog part data exceeds the 64 MiB capture budget";
+        return false;
+    }
+    retainedBytes += bytes;
+    return true;
+}
+
+private bool reservePsdDepthDialogPartDataElements(
+    ref size_t retainedBytes,
+    size_t count,
+    size_t elementBytes,
+    out string error
+) {
+    if (elementBytes == 0 ||
+        count > (PsdDepthDialogPartDataCaptureBudget - retainedBytes) / elementBytes) {
+        error = "PSD depth dialog part data exceeds the 64 MiB capture budget";
+        return false;
+    }
+    retainedBytes += count * elementBytes;
+    return true;
+}
+
+version (CommandBrowserDifferential) {
+    bool ngPsdDepthDialogCaptureBudgetAcceptsForRegression(size_t[] sizes) {
+        size_t retainedBytes;
+        string error;
+        foreach (bytes; sizes) {
+            if (!reservePsdDepthDialogPartDataBytes(retainedBytes, bytes, error)) return false;
+        }
+        return true;
+    }
 }
 
 private __gshared PSDDepthMapWindow activePsdDepthMapWindow;
@@ -526,6 +571,7 @@ private:
     bool dialogDisplayed;
     PsdDepthDialogLayerState[] pendingLayerStatesAfterRebuild;
     bool[string] alphaDepthGapFillAppliedByLayer;
+    version (CommandBrowserDifferential) bool failNextPreviewCompositionForRegression;
     DepthCamera3D threeDAdjustCamera;
     ulong threeDAdjustCameraTargetUuid;
     int threeDAdjustCameraLeft = int.min;
@@ -668,6 +714,13 @@ private:
         cancelPendingPreviewGpuComposition();
         composedPreview = PsdDepthComposedView.init;
         string composeError;
+        version (CommandBrowserDifferential) {
+            if (failNextPreviewCompositionForRegression) {
+                failNextPreviewCompositionForRegression = false;
+                errorMessage = "Forced PSD depth preview composition failure";
+                return false;
+            }
+        }
         if (!preview.gpuCompositionRequested) {
             if (!ngComposePsdDepthImportResult(preview, composedPreview, composeError)) {
                 errorMessage = composeError.length ? composeError : "PSD depth map composition failed";
@@ -2989,6 +3042,12 @@ private:
             incDialog(__("Error"), errorMessage);
             return false;
         }
+        string validationError;
+        if (!ngCanApplyPsdDepthImportResult(composedPreview, validationError)) {
+            lastApplyErrorMessage = validationError;
+            incDialog(__("Error"), validationError);
+            return false;
+        }
         closeDialogActionScope();
         auto result = ngApplyPsdDepthImportResult(composedPreview);
         if (!result.succeeded) {
@@ -3248,6 +3307,7 @@ public:
             return false;
         }
 
+        size_t retainedBytes;
         foreach (ref gridResult; preview.grids) {
             if (gridResult.grid is null) continue;
 
@@ -3268,6 +3328,26 @@ public:
                 }
             }
             if (!selected) continue;
+
+            if (!reservePsdDepthDialogPartDataElements(
+                    retainedBytes, gridResult.grid.vertices.length, 2 * float.sizeof, error) ||
+                !reservePsdDepthDialogPartDataElements(
+                    retainedBytes, gridResult.depths.length, float.sizeof, error) ||
+                !reservePsdDepthDialogPartDataElements(
+                    retainedBytes, gridResult.baseDepths.length, float.sizeof, error) ||
+                !reservePsdDepthDialogPartDataElements(
+                    retainedBytes, gridResult.winnerLayerPaths.length, string.sizeof, error) ||
+                !reservePsdDepthDialogPartDataElements(
+                    retainedBytes, gridResult.missingVertexMask.length, bool.sizeof, error) ||
+                !reservePsdDepthDialogPartDataBytes(
+                    retainedBytes, gridResult.rawCompositePreviewRgba.length, error)) return false;
+            foreach (ref layer; preview.composedLayers) {
+                if (layer.targetGridUuid != gridResult.grid.uuid) continue;
+                if (!reservePsdDepthDialogPartDataBytes(
+                        retainedBytes, layer.colorRgba.length, error) ||
+                    !reservePsdDepthDialogPartDataBytes(
+                        retainedBytes, layer.depthRgba.length, error)) return false;
+            }
 
             PsdDepthDialogPartData part;
             part.targetGridUuid = gridResult.grid.uuid;
@@ -3408,8 +3488,21 @@ public:
     }
 
     bool applyDialogAlphaDepthGapFill() {
+        if (previewCompositionPending()) return false;
+        auto oldPixels = captureDialogLayerPixels();
+        auto oldApplied = alphaDepthGapFillAppliedByLayer.dup;
+        auto oldComposedPreview = composedPreview;
         applyAlphaDepthGapFill();
-        return errorMessage.length == 0;
+        if (errorMessage.length == 0) return true;
+
+        foreach (pixels; oldPixels) {
+            auto layer = findComposedLayer(pixels.layerPath, pixels.targetGridUuid);
+            if (layer !is null) layer.depthRgba = pixels.depthRgba.dup;
+        }
+        alphaDepthGapFillAppliedByLayer = oldApplied;
+        composedPreview = oldComposedPreview;
+        previewDirty = false;
+        return false;
     }
 
     static bool dialogLayerPixelsEqual(
@@ -3551,6 +3644,14 @@ public:
             preview.composedLayers[0].depthRgba = rebuiltDepthRgba.dup;
             replayAlphaDepthGapFills();
             return true;
+        }
+
+        void failNextPreviewCompositionForRegressionTest() {
+            failNextPreviewCompositionForRegression = true;
+        }
+
+        void useCurrentPreviewForDialogApplyRegression() {
+            composedPreview = ngPsdDepthComposedViewForRegression(preview);
         }
 
         bool prepareDialogApplyForRegression() {

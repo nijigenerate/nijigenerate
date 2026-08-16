@@ -175,6 +175,7 @@ enum AsyncGroupActionState {
     Scheduled,
     Running,
     Completed,
+    Failed,
     Undone,
 }
 
@@ -183,6 +184,7 @@ enum AsyncGroupActionEvent {
     Running,
     Progressed,
     Completed,
+    Failed,
     Canceled,
     Redone,
 }
@@ -202,7 +204,8 @@ private:
 public:
     bool valid() const { return owner_ !is null && generation_ != 0; }
     bool active() const {
-        return valid && owner_.isApplied && owner_.generation == generation_;
+        return valid && owner_.isApplied && owner_.generation == generation_ &&
+            owner_.state != AsyncGroupActionState.Failed;
     }
     bool canceled() const { return valid && !active; }
     bool acceptsCompletion() const { return !valid || active; }
@@ -308,7 +311,7 @@ public:
     }
 
     void markAsyncScheduled(size_t count = 1) {
-        if (!applied || count == 0) return;
+        if (!applied || currentState == AsyncGroupActionState.Failed || count == 0) return;
         pendingCount += count;
         totalCount += count;
         currentState = AsyncGroupActionState.Scheduled;
@@ -316,13 +319,14 @@ public:
     }
 
     void markAsyncRunning() {
-        if (!applied) return;
+        if (!applied || currentState == AsyncGroupActionState.Failed) return;
         currentState = AsyncGroupActionState.Running;
         notifyObservers(AsyncGroupActionEvent.Running);
     }
 
     bool addCompletedAsyncAction(ulong generation, Action action, size_t completed = 1) {
-        if (!applied || generation != currentGeneration || action is null) return false;
+        if (!applied || currentState == AsyncGroupActionState.Failed ||
+            generation != currentGeneration || action is null) return false;
         derivedActions ~= action;
         if (ngAsyncActionCompletedHook !is null) ngAsyncActionCompletedHook(this);
         finishPending(completed);
@@ -336,7 +340,7 @@ public:
     }
 
     void markAsyncFinished(size_t completed = 1) {
-        if (!applied) return;
+        if (!applied || currentState == AsyncGroupActionState.Failed) return;
         finishPending(completed);
         if (pendingCount == 0) {
             currentState = AsyncGroupActionState.Completed;
@@ -344,6 +348,20 @@ public:
         } else {
             notifyObservers(AsyncGroupActionEvent.Progressed);
         }
+    }
+
+    /**
+        Ends the current generation after its derived work fails.
+
+        The primary action remains applied and undoable, but pending work is
+        discarded and the generation stops accepting asynchronous output.
+    */
+    void markAsyncFailed() {
+        if (!applied || currentState == AsyncGroupActionState.Failed) return;
+        currentGeneration++;
+        pendingCount = 0;
+        currentState = AsyncGroupActionState.Failed;
+        notifyObservers(AsyncGroupActionEvent.Failed);
     }
 
     override void rollback() {
@@ -398,6 +416,9 @@ public:
             notifyObservers(currentState == AsyncGroupActionState.Running
                 ? AsyncGroupActionEvent.Running
                 : AsyncGroupActionEvent.Scheduled);
+        } else if (incoming.currentState == AsyncGroupActionState.Failed) {
+            currentState = AsyncGroupActionState.Failed;
+            notifyObservers(AsyncGroupActionEvent.Failed);
         } else if (derivedActions.length > 0) {
             currentState = AsyncGroupActionState.Completed;
             notifyObservers(AsyncGroupActionEvent.Completed);

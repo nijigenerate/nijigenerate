@@ -1756,12 +1756,37 @@ private void cancelSupersededDepthBoneGpuWork(
 }
 
 private void abortDepthBoneGpuRefresh(string statusDetail = null) {
+    struct Owner {
+        AsyncGroupAction action;
+        AsyncActionToken token;
+    }
+    Owner[] owners;
+    void retainOwner(AsyncGroupAction action, AsyncActionToken token) {
+        if (action is null || !token.active) return;
+        foreach (owner; owners) {
+            if (owner.action is action && owner.token.generation == token.generation) return;
+        }
+        owners ~= Owner(action, token);
+    }
+
+    foreach (request; depthBoneDirtyRequests) retainOwner(request.actionSink, request.actionToken);
+    foreach (job; depthBoneAllKeypointJobs) retainOwner(job.actionSink, job.actionToken);
+    foreach (job; depthBoneGpuSubmissionQueue) retainOwner(job.actionSink, job.actionToken);
+    foreach (job; depthBoneGpuRefreshJobs) retainOwner(job.actionSink, job.actionToken);
+    foreach (job; depthBoneGpuCompletedJobs) retainOwner(job.actionSink, job.actionToken);
+
     if (statusDetail.length > 0) ngDepthBoneUpdateAbort(statusDetail);
     foreach (job; depthBoneGpuRefreshJobs) ngCancelDepthBoneGpuAsync(job.jobId);
+    depthBoneDirtyRequests = null;
+    depthBoneAllKeypointJobs = null;
     depthBoneGpuSubmissionQueue = null;
     depthBoneGpuRefreshJobs = null;
     depthBoneGpuCompletedJobs = null;
     canceledDepthBoneGpuBatches = null;
+    foreach (owner; owners) {
+        if (owner.token.active && owner.action.pendingAsyncCount > 0)
+            owner.action.markAsyncFailed();
+    }
 }
 
 private DepthBoneGpuOffsetPacket[] depthBoneGpuBatchPackets(uint batchId) {

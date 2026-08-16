@@ -89,6 +89,9 @@ private:
                 if (remainingWork > 0) activate();
                 else complete();
                 break;
+            case AsyncGroupActionEvent.Failed:
+                closePopup();
+                break;
             case AsyncGroupActionEvent.Canceled:
                 cancel();
                 break;

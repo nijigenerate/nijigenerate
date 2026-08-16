@@ -1032,7 +1032,10 @@ private bool composePsdDepthImportGpu(ref PsdDepthImportResult imported, out str
 
 ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView composed) {
     size_t changedGrids;
-    enforce(composed.imported !is null, "PSD depth import apply requires a composed view");
+    string validationError;
+    if (!ngCanApplyPsdDepthImportResult(composed, validationError)) {
+        return ExCommandResult!JSONValue(false, JSONValue(null), validationError);
+    }
     auto imported = composed.imported;
     foreach (ref gridResult; imported.grids) {
         ngNormalizeDepths(gridResult.depths);
@@ -1041,20 +1044,6 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
     }
 
     if (imported.grids.length > 0) {
-        if (activePsdDepthImportProgress !is null && activePsdDepthImportProgress.isActive) {
-            return ExCommandResult!JSONValue(
-                false,
-                ngPsdDepthImportSummaryToJson(*imported, changedGrids),
-                "PSD depth map import is still finalizing"
-            );
-        }
-        foreach (gridResult; imported.grids) {
-            if (gridResult.skipped || gridResult.grid is null) continue;
-            enforce(gridResult.depths.length == gridResult.grid.vertices.length,
-                "imported depths length must match target vertices");
-            enforce(cast(DepthMappedNode)gridResult.grid !is null,
-                "imported target must support depth maps");
-        }
         ngGuardActionStackScopes();
         auto group = new PsdDepthImportChangeAction();
         ngBeginDepthBoneRefreshActionSink(group);
@@ -1131,6 +1120,30 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
         ngPsdDepthImportSummaryToJson(*imported, changedGrids),
         "PSD depth map imported"
     );
+}
+
+bool ngCanApplyPsdDepthImportResult(PsdDepthComposedView composed, out string error) {
+    error = null;
+    if (composed.imported is null) {
+        error = "PSD depth import apply requires a composed view";
+        return false;
+    }
+    if (activePsdDepthImportProgress !is null && activePsdDepthImportProgress.isActive) {
+        error = "PSD depth map import is still finalizing";
+        return false;
+    }
+    foreach (gridResult; composed.imported.grids) {
+        if (gridResult.skipped || gridResult.grid is null) continue;
+        if (gridResult.depths.length != gridResult.grid.vertices.length) {
+            error = "Imported depths length must match target vertices";
+            return false;
+        }
+        if (cast(DepthMappedNode)gridResult.grid is null) {
+            error = "Imported target must support depth maps";
+            return false;
+        }
+    }
+    return true;
 }
 
 private ExDepthRigBinding[] copyDepthRigBindings(ExDepthRigBinding[] bindings) {

@@ -38,6 +38,7 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     ngHasPendingDepthBoneRefreshForSink,
     ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget,
     ngSetDepthBoneEffectivePivotSelection,
+    ngBeginDepthBoneRefreshActionSink, ngEndDepthBoneRefreshActionSink,
     ngBeginDepthBoneSourceSettingsMerge,
     ngEndDepthBoneSourceSettingsMerge;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, PsdDepthGpuComposeWork,
@@ -45,6 +46,7 @@ import nijigenerate.commands.depth.map : PsdDepthComposedView, PsdDepthGpuCompos
     ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng, ngPollPsdDepthImportGpu,
     ngPsdDepthImportProgressVisibleForRegression, ngPsdDepthImportResultToDepthDrawSession,
     ngSubmitPsdDepthImportGpu;
+import nijigenerate.commands.depth.psd_dialog : ngPsdDepthDialogContentBudgetAcceptsForRegression;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.depth.bone_status :
@@ -188,7 +190,8 @@ import nijigenerate.windows.command_browser : ngCommandBrowserDifferentialReport
 import nijigenerate.windows.depthdraw : DepthDrawWindow;
 import nijigenerate.windows.base : incPopWindowList, incPushWindowList;
 import nijigenerate.windows.paramsplit : ngSplitParameterBindings;
-import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerState;
+import nijigenerate.windows.psddepthmap : PSDDepthMapWindow, PsdDepthDialogLayerState,
+    PsdDepthDialogPartDataCaptureBudget, ngPsdDepthDialogCaptureBudgetAcceptsForRegression;
 import nijilive;
 import nijilive.core.nodes.deformer.grid;
 import nijilive.core.nodes.drivers;
@@ -4379,6 +4382,14 @@ private void testAllPsdDepthDialogCommands() {
     }
     require(incActionHistory().length == 0,
         "GetPsdDepthDialogPartData must not mutate dialog history");
+    require(ngPsdDepthDialogCaptureBudgetAcceptsForRegression(
+            [PsdDepthDialogPartDataCaptureBudget - 1, 1]) &&
+        !ngPsdDepthDialogCaptureBudgetAcceptsForRegression(
+            [PsdDepthDialogPartDataCaptureBudget, 1]),
+        "PSD dialog part capture must enforce its aggregate retained-buffer budget");
+    require(ngPsdDepthDialogContentBudgetAcceptsForRegression([24 * 1024 * 1024, 24 * 1024 * 1024]) &&
+        !ngPsdDepthDialogContentBudgetAcceptsForRegression([48 * 1024 * 1024, 1]),
+        "PSD dialog MCP serialization must enforce its aggregate binary-content budget");
     dialog.clearDialogPartDataForRegression();
 
     requirePsdDepthDialogCommandRoundTrip(
@@ -4624,6 +4635,17 @@ private void testAllPsdDepthDialogCommands() {
     require(dialog.replayDialogCleanupAfterRebuildForRegression(beforeFill[0].depthRgba) &&
         PSDDepthMapWindow.dialogLayerPixelsEqual(afterFill, dialog.captureDialogLayerPixels()),
         "PSD dialog preview rebuilds must replay alpha-depth gap cleanup on rebuilt source pixels");
+    require(cmd!(EditCommand.Undo)(ctx).succeeded &&
+        PSDDepthMapWindow.dialogLayerPixelsEqual(beforeFill, dialog.captureDialogLayerPixels()),
+        "alpha-depth gap regression setup must restore the unfilled pixels");
+    dialog.failNextPreviewCompositionForRegressionTest();
+    auto failedFillResult = cmd!(PsdDepthDialogCommand.FillPsdDepthDialogAlphaDepthGaps)(ctx);
+    require(!failedFillResult.succeeded &&
+        PSDDepthMapWindow.dialogLayerPixelsEqual(beforeFill, dialog.captureDialogLayerPixels()),
+        "failed alpha-depth gap recomposition must roll back every pixel mutation");
+    require(cmd!(EditCommand.Redo)(ctx).succeeded &&
+        PSDDepthMapWindow.dialogLayerPixelsEqual(afterFill, dialog.captureDialogLayerPixels()),
+        "failed alpha-depth gap fill must not consume or replace the existing Redo entry");
 
     auto cancelResult = cmd!(PsdDepthDialogCommand.CancelPsdDepthDialog)(ctx);
     require(cancelResult.succeeded && !dialog.dialogCommandsAvailable(),
@@ -4643,6 +4665,29 @@ private void testAllPsdDepthDialogCommands() {
         "ApplyPsdDepthDialog must apply and close the active command context");
     require(!cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(applyCtx).succeeded,
         "ApplyPsdDepthDialog must reject calls after the dialog closes");
+
+    auto failedApplyDialog = new PSDDepthMapWindow("psd-depth-dialog-failed-apply-regression.png");
+    failedApplyDialog.beginDialogCommandSessionForRegression();
+    failedApplyDialog.setDialogLayerStateForRegression(initialLayer);
+    auto failedApplyCtx = ngBuildExecutionContext();
+    require(cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerVisible)(
+            failedApplyCtx, initialLayer.layerPath, false).succeeded,
+        "failed Apply regression must create dialog-local Undo history");
+    require(failedApplyDialog.setDialogPartDataForRegression(
+            grid, 2, 1, partColorRgba, partDepthRgba, partPreviewRgba, [-0.5f]),
+        "failed Apply regression fixture must install an invalid vertex-depth count");
+    failedApplyDialog.useCurrentPreviewForDialogApplyRegression();
+    auto failedApplyResult = cmd!(PsdDepthDialogCommand.ApplyPsdDepthDialog)(failedApplyCtx);
+    require(!failedApplyResult.succeeded && failedApplyDialog.dialogCommandsAvailable() &&
+        failedApplyDialog.dialogActionScopeActiveForRegression(),
+        "failed Apply must keep the dialog and its isolated action stack active");
+    require(cmd!(EditCommand.Undo)(failedApplyCtx).succeeded,
+        "failed Apply must preserve the dialog-local Undo history");
+    PsdDepthDialogLayerState failedApplyLayer;
+    require(failedApplyDialog.captureDialogLayerState(
+            initialLayer.layerPath, grid.uuid, failedApplyLayer) && failedApplyLayer.visible,
+        "Undo after failed Apply must restore the preceding dialog edit");
+    failedApplyDialog.endDialogCommandSessionForRegression();
 
     auto firstDialog = new PSDDepthMapWindow("first-overlapping-psd-depth-dialog.png");
     auto secondDialog = new PSDDepthMapWindow("second-overlapping-psd-depth-dialog.png");
@@ -6583,8 +6628,9 @@ private void testPsdDepthMapImportHelpers() {
     auto invalidSecondBefore = pngSecondGrid.copyDepths();
     auto invalidHistoryLength = incActionHistory().length;
     auto invalidPngView = ngPsdDepthComposedViewForRegression(invalidPngImport);
-    auto invalidPngApplyError = collectException(ngApplyPsdDepthImportResult(invalidPngView));
-    require(invalidPngApplyError !is null &&
+    auto invalidPngApplyResult = ngApplyPsdDepthImportResult(invalidPngView);
+    require(!invalidPngApplyResult.succeeded &&
+        invalidPngApplyResult.message.canFind("depths length") &&
         pngGrid.copyDepths() == invalidFirstBefore &&
         pngSecondGrid.copyDepths() == invalidSecondBefore &&
         incActionHistory().length == invalidHistoryLength,
@@ -16720,14 +16766,16 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     binding2 = binding;
     binding2.targetUuid = target2.uuid;
     root.bindings = [binding, binding2];
-    param = new ExParameter("DepthGpuSubmitFailureParam", false);
-    param.min = vec2(0, 0);
-    param.max = vec2(1, 0);
-    param.value = vec2(1, 0);
-    incActivePuppet().parameters ~= param;
+    param = new2DParameter("DepthGpuSubmitFailureParam");
+    param.value = vec2(1, 1);
     tx = newValueBinding(param, bone, "transform.t.x");
-    tx.setValue(vec2u(1, 0), 5.0f);
+    tx.setValue(vec2u(2, 2), 5.0f);
+    auto submitFailureOwner = new AsyncGroupAction();
+    ngBeginDepthBoneRefreshActionSink(submitFailureOwner);
     ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "GPU submit failure regression", DepthBoneDirtyScope.AllKeypoints);
+    ngEndDepthBoneRefreshActionSink(submitFailureOwner);
+    require(submitFailureOwner.pendingAsyncCount == 1,
+        "GPU submit failure regression must begin with one owned all-keypoint producer");
     bool submitFailureThrown;
     try {
         ngFlushDepthBoneDirtyImmediate();
@@ -16736,6 +16784,14 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     }
     require(submitFailureThrown, "GPU submit failure must raise a fatal refresh error");
     require(fakeDepthBoneGpuSubmitCount >= 2, "GPU submit failure fixture should attempt both target submissions");
+    require(submitFailureOwner.pendingAsyncCount == 0 &&
+        submitFailureOwner.state == AsyncGroupActionState.Failed &&
+        !ngHasPendingDepthBoneRefreshForSink(submitFailureOwner),
+        "GPU abort must cancel upstream producers and settle their owning action");
+    auto submitCountAfterAbort = fakeDepthBoneGpuSubmitCount;
+    ngFlushDepthBoneDirtyImmediate();
+    require(fakeDepthBoneGpuSubmitCount == submitCountAfterAbort,
+        "GPU abort must not let a retained all-keypoint producer resubmit failed work");
     deformBinding = cast(DeformationParameterBinding)param.getBinding(target, "deform");
     deformBinding2 = cast(DeformationParameterBinding)param.getBinding(target2, "deform");
     require(deformBinding is null && deformBinding2 is null,
@@ -17995,6 +18051,20 @@ private void testAsyncActionGroupUndoRedo() {
     require(progress.isActive, "generic async progress should reactivate for work rescheduled by redo");
     owner.markAsyncFinished();
     require(!progress.isActive, "generic async progress should close when rescheduled work completes");
+    progress.dispose();
+
+    owner = new AsyncGroupAction();
+    owner.markAsyncScheduled();
+    auto failedToken = owner.asyncToken;
+    progress = new AsyncGroupActionProgress(owner, "Failing async test", "Unexpected success");
+    require(progress.isActive && progress.isVisible,
+        "generic async progress should display scheduled work before failure");
+    owner.markAsyncFailed();
+    require(owner.state == AsyncGroupActionState.Failed && owner.pendingAsyncCount == 0 &&
+        failedToken.canceled && !progress.isActive && !progress.isVisible,
+        "generic async failure must settle pending work, reject stale output, and close progress without success");
+    require(!owner.addCompletedAsyncAction(failedToken.generation, primary),
+        "a failed asynchronous generation must reject later completion callbacks");
     progress.dispose();
 
     resetCase();
