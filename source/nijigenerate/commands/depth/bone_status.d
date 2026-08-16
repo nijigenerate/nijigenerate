@@ -4,6 +4,7 @@
 */
 module nijigenerate.commands.depth.bone_status;
 
+import nijigenerate.actions : AsyncActionToken;
 import nijigenerate.core.asyncderivedupdate;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthRigRoot;
 import nijigenerate.project : incActiveProject;
@@ -21,6 +22,7 @@ enum DepthBoneUpdateState {
     Applied,
     Stale,
     Failed,
+    Canceled,
 }
 
 /** Compatibility view used by DepthBone diagnostics and commands. */
@@ -287,7 +289,11 @@ void ngDepthBoneUpdateDetected(
     auto targetKey = statusTargetKey(root, target);
     removePreviousAppliedStatuses(target.puppet(), targetKey);
     auto record = &ensureRecord(root, target);
-    if (!record.progressTarget.valid || !record.detected || hasCurrentWork(*record))
+    AsyncDerivedUpdateSnapshot snapshot;
+    auto ownerCanceled = currentSnapshot(*record, snapshot) &&
+        snapshot.state == AsyncDerivedUpdateState.Canceled;
+    if (!record.progressTarget.valid || !record.detected ||
+        hasCurrentWork(*record) || ownerCanceled)
         beginGeneration(*record);
     record.parameter = parameter;
     record.keypoint = keypoint;
@@ -421,6 +427,17 @@ void ngDepthBoneUpdateBatchCanceled(uint batchId, string detail = null) {
     foreach (key; removeKeys) updateWork.remove(key);
 }
 
+/** Associate this producer target with its generic undo/redo owner. */
+void ngDepthBoneUpdateSetOwnerToken(
+    ExDepthRigRoot root,
+    Node target,
+    AsyncActionToken token,
+) {
+    auto record = statusTargetKey(root, target) in updateRecords;
+    if (record is null || !record.run.valid || !token.valid) return;
+    incAsyncDerivedUpdateSetOwnerToken(record.run, token);
+}
+
 void ngDepthBoneUpdateFailed(
     ExDepthRigRoot root,
     Node target,
@@ -459,7 +476,7 @@ private DepthBoneUpdateState depthBoneState(AsyncDerivedUpdateState state) {
     case AsyncDerivedUpdateState.Applied: return DepthBoneUpdateState.Applied;
     case AsyncDerivedUpdateState.Stale: return DepthBoneUpdateState.Stale;
     case AsyncDerivedUpdateState.Failed: return DepthBoneUpdateState.Failed;
-    case AsyncDerivedUpdateState.Canceled: return DepthBoneUpdateState.Stale;
+    case AsyncDerivedUpdateState.Canceled: return DepthBoneUpdateState.Canceled;
     }
 }
 

@@ -154,6 +154,7 @@ void drawAsyncDerivedUpdateViewportOverlay(
 
     ImDrawList_PushClipRect(drawList, clipMin, clipMax, true);
     foreach (ref const snapshot; snapshots) {
+        if (!incAsyncDerivedUpdateShowsViewportProgress(snapshot)) continue;
         if (hasDisplay(snapshot, AsyncDerivedUpdateDisplay.ViewportOutline) &&
             snapshot.visual.outlineWorld.length > 0)
             drawOutline(snapshot, drawList, viewportOrigin);

@@ -16,6 +16,9 @@ class DepthRigBindingsChangeAction : Action {
     string label;
     bool settleBeforeDispatch;
     Node affectedTarget;
+    ulong mergeSession;
+    ulong mergeSourceUuid;
+    string mergeProperty;
 
     private static ExDepthRigBinding[] copyBindings(ExDepthRigBinding[] bindings) {
         auto result = bindings.dup;
@@ -34,6 +37,9 @@ class DepthRigBindingsChangeAction : Action {
         ExDepthRigBinding[] newBindings,
         bool settleBeforeDispatch = false,
         Node affectedTarget = null,
+        ulong mergeSession = 0,
+        ulong mergeSourceUuid = 0,
+        string mergeProperty = null,
     ) {
         this.label = label;
         this.root = root;
@@ -41,6 +47,9 @@ class DepthRigBindingsChangeAction : Action {
         this.newBindings = copyBindings(newBindings);
         this.settleBeforeDispatch = settleBeforeDispatch;
         this.affectedTarget = affectedTarget;
+        this.mergeSession = mergeSession;
+        this.mergeSourceUuid = mergeSourceUuid;
+        this.mergeProperty = mergeProperty;
         notifyChanged();
     }
 
@@ -63,8 +72,25 @@ class DepthRigBindingsChangeAction : Action {
     string describe() { return label; }
     string describeUndo() { return label; }
     string getName() { return label; }
-    bool merge(Action other) { return false; }
-    bool canMerge(Action other) { return false; }
+    bool merge(Action other) {
+        auto next = cast(DepthRigBindingsChangeAction)other;
+        if (!canMerge(next)) return false;
+        newBindings = copyBindings(next.newBindings);
+        label = next.label;
+        settleBeforeDispatch = settleBeforeDispatch || next.settleBeforeDispatch;
+        return true;
+    }
+
+    bool canMerge(Action other) {
+        auto next = cast(DepthRigBindingsChangeAction)other;
+        return next !is null &&
+            mergeSession != 0 &&
+            mergeSession == next.mergeSession &&
+            root is next.root &&
+            affectedTarget is next.affectedTarget &&
+            mergeSourceUuid == next.mergeSourceUuid &&
+            mergeProperty == next.mergeProperty;
+    }
 }
 
 alias DepthBoneSourceListChangeAction = DepthRigBindingsChangeAction;

@@ -1,6 +1,6 @@
 module nijigenerate.viewport.depth.draw.apply;
 
-import nijigenerate.actions : GroupAction;
+import nijigenerate.actions : AsyncGroupAction, GroupAction;
 import nijigenerate.commands : Context;
 import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink, ngEndDepthBoneRefreshActionSink;
 import nijigenerate.core.actionstack : incActionPush, ngGuardActionStackScopes;
@@ -10,7 +10,7 @@ import nijigenerate.viewport.depth.common.targetview;
 import nijigenerate.viewport.depth.draw.composer;
 import i18n;
 
-private class DepthDrawApplyAction : GroupAction {
+private class DepthDrawApplyAction : AsyncGroupAction {
     override string describe() {
         return _("Applied DepthDraw depth map");
     }

@@ -5,6 +5,7 @@
 module nijigenerate.core.asyncderivedupdate;
 
 import core.time : MonoTime, seconds;
+import nijigenerate.actions : AsyncActionToken;
 import nijilive : vec3;
 import std.algorithm.comparison : min;
 
@@ -133,6 +134,7 @@ private struct RunRecord {
     AsyncDerivedUpdateRunHandle handle;
     AsyncDerivedUpdateOrigin origin;
     AsyncDerivedUpdateTargetHandle[] targets;
+    AsyncActionToken ownerToken;
     bool ended;
 }
 
@@ -185,6 +187,9 @@ AsyncDerivedUpdateScopeId incAsyncDerivedUpdateCreateScope() {
 }
 
 private AsyncDerivedUpdateState targetState(ref TargetRecord target) {
+    if (auto run = target.run.id in runRecords) {
+        if (run.ownerToken.canceled) return AsyncDerivedUpdateState.Canceled;
+    }
     if (target.failed) return AsyncDerivedUpdateState.Failed;
     if (target.canceled) return AsyncDerivedUpdateState.Canceled;
     if (target.runningUnits > 0)
@@ -261,6 +266,25 @@ AsyncDerivedUpdateRunHandle incAsyncDerivedUpdateBeginRun(
     return handle;
 }
 
+/** Attach a run to the undo/redo generation which owns its derived work. */
+void incAsyncDerivedUpdateSetOwnerToken(
+    AsyncDerivedUpdateRunHandle handle,
+    AsyncActionToken token,
+) {
+    auto run = handle.id in runRecords;
+    if (run is null || run.ended || !token.valid) return;
+    run.ownerToken = token;
+    foreach (targetHandle; run.targets) {
+        if (auto target = targetHandle.id in targetRecords)
+            target.changedAt = MonoTime.currTime;
+    }
+}
+
+private bool ownerCanceled(ref TargetRecord target) {
+    auto run = target.run.id in runRecords;
+    return run !is null && run.ownerToken.canceled;
+}
+
 AsyncDerivedUpdateTargetHandle incAsyncDerivedUpdateTrackTarget(
     AsyncDerivedUpdateRunHandle run,
     ref AsyncDerivedUpdateTargetDesc desc,
@@ -330,7 +354,7 @@ void incAsyncDerivedUpdateSetExpected(
 ) {
     auto target = handle.id in targetRecords;
     if (target is null || target.superseded || target.failed ||
-        target.canceled || target.sealed)
+        target.canceled || target.sealed || ownerCanceled(*target))
         return;
     if (units > target.expectedUnits) target.expectedUnits = units;
     target.detected = false;
@@ -357,7 +381,7 @@ AsyncDerivedUpdateWorkHandle incAsyncDerivedUpdateQueue(
 ) {
     auto target = handle.id in targetRecords;
     if (target is null || target.superseded || target.failed ||
-        target.canceled || target.sealed || units == 0)
+        target.canceled || target.sealed || ownerCanceled(*target) || units == 0)
         return AsyncDerivedUpdateWorkHandle.init;
 
     auto workHandle = AsyncDerivedUpdateWorkHandle(takeId(nextWorkId));
@@ -380,7 +404,7 @@ void incAsyncDerivedUpdateStart(AsyncDerivedUpdateWorkHandle handle) {
     auto work = handle.id in workRecords;
     if (work is null || work.state != WorkState.Queued) return;
     auto target = work.target.id in targetRecords;
-    if (target is null || target.superseded) {
+    if (target is null || target.superseded || ownerCanceled(*target)) {
         work.state = WorkState.Stale;
         return;
     }
@@ -397,8 +421,9 @@ void incAsyncDerivedUpdateApplied(AsyncDerivedUpdateWorkHandle handle) {
         (work.state != WorkState.Queued && work.state != WorkState.Running))
         return;
     auto target = work.target.id in targetRecords;
-    if (target is null || target.superseded) {
+    if (target is null || target.superseded || ownerCanceled(*target)) {
         work.state = WorkState.Stale;
+        workRecords.remove(handle.id);
         return;
     }
     leaveInFlight(*target, *work);
@@ -643,6 +668,13 @@ float incAsyncDerivedUpdateProgress(
     return min(1.0f,
         cast(float)snapshot.appliedUnits /
         cast(float)snapshot.expectedUnits);
+}
+
+/** Whether a viewport progress indicator still represents active work. */
+bool incAsyncDerivedUpdateShowsViewportProgress(
+    ref const AsyncDerivedUpdateSnapshot snapshot,
+) {
+    return snapshot.state != AsyncDerivedUpdateState.Canceled;
 }
 
 private void removeTarget(ulong targetId) {

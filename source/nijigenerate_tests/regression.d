@@ -1,6 +1,7 @@
 module nijigenerate_tests.regression;
 
 import nijigenerate.actions;
+import nijigenerate.actions.asyncprogress : AsyncGroupActionProgress;
 import nijigenerate.actions.depthboneinvalidation :
     DepthBoneMutation,
     DepthBoneMutationHook,
@@ -30,12 +31,16 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     ngDepthBoneSourceEffectivePivots, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngDepthRigNodeCurrentScaledDepth,
     ngFlushDepthBoneDirtyImmediate, ngFlushDepthBoneEffectivePivotDirty,
+    ngFlushDepthBoneDirty,
     ngHasPendingDepthBoneEffectivePivotRefresh, ngHasPendingDepthBoneRefresh,
+    ngHasPendingDepthBoneRefreshForSink,
     ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget,
-    ngSetDepthBoneEffectivePivotSelection;
+    ngSetDepthBoneEffectivePivotSelection,
+    ngBeginDepthBoneSourceSettingsMerge,
+    ngEndDepthBoneSourceSettingsMerge;
 import nijigenerate.commands.depth.map : PsdDepthComposedView, ngApplyPsdDepthImportResult,
     ngComposePsdDepthImportResult, ngComposePsdDepthTarget, ngExportPsdDepthComposedSourcePng,
-    ngPsdDepthImportResultToDepthDrawSession;
+    ngPsdDepthImportProgressVisibleForRegression, ngPsdDepthImportResultToDepthDrawSession;
 import nijigenerate.commands.depth.bone_gpu_async : NgDepthBoneGpuAsyncResult, ngClearDepthBoneGpuAsyncTestHooks,
     ngSetDepthBoneGpuAsyncTestHooks;
 import nijigenerate.commands.depth.bone_status :
@@ -546,6 +551,7 @@ private immutable Scenario[] scenarios = [
     Scenario("platform.debug-logging", "Platform/Crash", "Debug logging is gated by build mode and does not crash release builds", automated, "Covers source-level console/debug output guard shared with Windows console write safety."),
 
     Scenario("undo.grouped-actions", "Undo/Redo", "Action groups undo/redo as one unit", automated, "Covered by action-group-undo-redo."),
+    Scenario("undo.async-grouped-actions", "Undo/Redo", "Asynchronous derived actions stay attached to their owner and are canceled and rescheduled across undo/redo", automated, "Covers AsyncGroupAction pending, completed, stale-generation, undo, and redo behavior."),
     Scenario("undo.command-actions", "Undo/Redo", "All mutating commands push undoable actions or explicitly declare non-mutating behavior", automated, "Covers source-level command audit for Action pushes, grouped action pushes, history helpers, and explicitly non-undoable command classes."),
     Scenario("undo.ui-commit-boundaries", "Undo/Redo", "Text edits, drags, sliders, toggles, and dialogs merge or split undo entries at correct commit boundaries", computerUse, "Needs computer-use UI interaction smoke."),
     Scenario("undo.direct-mutation-audit", "Undo/Redo", "Model, parameter, deformer, mesh, and inspector mutations go through actions", automated, "Covers a source-level guard for direct model/parameter/deformation writes in command, panel, window, and viewport layers; targeted fixtures remain in related scenarios."),
@@ -4211,6 +4217,26 @@ private void testPsdDepthImportRefreshesDepthBoneBindings() {
     require(fakeDepthBoneGpuSubmitCount == 2,
         "changing one PSD target must refresh only that target's two parameter keypoints, not the entire DepthRig: %s"
             .format(fakeDepthBoneGpuSubmitCount));
+
+    PsdDepthImportResult canceledImport;
+    PsdDepthGridResult canceledGrid;
+    canceledGrid.grid = targets[0];
+    canceledGrid.depths = targets[0].copyDepths();
+    canceledGrid.depths[0] += 0.25f;
+    canceledImport.grids ~= canceledGrid;
+    fakeDepthBoneGpuNotReadyPolls = 1000;
+    auto canceledResult = applyPsdDepthImportForRegression(canceledImport);
+    require(canceledResult.succeeded, "cancelable PSD depth update should start successfully");
+    ngMcpProcessQueue();
+    require(ngPsdDepthImportProgressVisibleForRegression(),
+        "pending PSD depth work should display its generic async progress notification");
+    require(cast(AsyncGroupAction)incActionTop() !is null,
+        "pending PSD depth work should be owned by the undoable async action");
+    incActionUndo();
+    require(!ngPsdDepthImportProgressVisibleForRegression(),
+        "undoing pending PSD depth work must remove its progress notification immediately");
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngFlushDepthBoneDirtyImmediate();
 }
 
 private void testSimplePhysicsParameterUndoRedo() {
@@ -13466,6 +13492,10 @@ private void testDepthBoneSourceCommandsUndoRedo() {
         `{"weight":0.25,"depthOffset":1.5,"depthScale":2.0,"rotation":0.5}`
     );
     require(settingsResult.succeeded, "SetDepthBoneSourceSettings command should succeed");
+    auto settingsHistoryLabel = incActionTop().describeUndo();
+    require(settingsHistoryLabel.canFind(target.name) &&
+        settingsHistoryLabel.canFind(bone.name),
+        "SetDepthBoneSourceSettings history label should identify its target and source bone");
     auto setting = root.bindings[0].sourceSetting(bone.uuid);
     require(near(setting.weight, 0.25f), "SetDepthBoneSourceSettings should apply weight");
     require(near(setting.depthOffset, 1.5f), "SetDepthBoneSourceSettings should apply depth offset");
@@ -13803,6 +13833,56 @@ private void testDepthRigRootFitZToDepth() {
         && fitDeform.getValue(vec2u(0, 0)).vertexOffsets.length == target.vertices.length
         && fitDeform.getValue(vec2u(1, 0)).vertexOffsets.length == target.vertices.length,
         "Fit Z GPU submissions must write both distinct parameter keypoints without duplication");
+
+    // Undo while the Fit Z derived GPU work is still running. The owner must
+    // cancel both execution and the generic viewport progress immediately.
+    incActionClearHistory();
+    bone.localTransform.translation.vector[2] = originalLocalZ;
+    siblingBone.localTransform.translation.vector[2] = siblingOriginalLocalZ;
+    bone.localTransform.update();
+    siblingBone.localTransform.update();
+    bone.transformChanged();
+    siblingBone.transformChanged();
+    fakeDepthBoneGpuNotReadyPolls = 1000;
+    ngSetDepthBoneGpuAsyncTestHooks(
+        &fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll);
+    require(cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, root).succeeded,
+        "pending Fit Z cancellation fixture should start successfully");
+    ngFlushDepthBoneDirty();
+    auto fitOwner = cast(AsyncGroupAction)incActionTop();
+    require(fitOwner !is null && ngHasPendingDepthBoneRefreshForSink(fitOwner),
+        "pending Fit Z derived work must belong to its async history action");
+    bool foundRunningFitStatus;
+    foreach (status; ngDepthBoneUpdateStatuses(incActivePuppet(), true)) {
+        if (status.root is root && status.target is target)
+            foundRunningFitStatus =
+                status.state == DepthBoneUpdateState.Queued ||
+                status.state == DepthBoneUpdateState.Processing;
+    }
+    require(foundRunningFitStatus,
+        "running Fit Z derived work should expose active generic progress");
+    auto canceledFitToken = fitOwner.asyncToken;
+    incActionUndo();
+    require(!ngHasPendingDepthBoneRefreshForSink(fitOwner),
+        "undoing Fit Z must remove its queued and running derived work");
+    bool foundCanceledFitStatus;
+    foreach (status; ngDepthBoneUpdateStatuses(incActivePuppet(), true)) {
+        if (status.root is root && status.target is target)
+            foundCanceledFitStatus = status.state == DepthBoneUpdateState.Canceled;
+    }
+    require(foundCanceledFitStatus,
+        "undoing Fit Z must retain only a terminal canceled diagnostic status");
+    require(canceledFitToken.canceled,
+        "undoing Fit Z must invalidate the exact async generation token");
+    incActionRedo();
+    require(fitOwner.asyncToken.active && canceledFitToken.canceled,
+        "redoing Fit Z must issue a fresh token without reviving canceled work");
+    require(ngHasPendingDepthBoneRefreshForSink(fitOwner),
+        "redoing Fit Z must schedule fresh derived work under the new token");
+    incActionUndo();
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngFlushDepthBoneDirtyImmediate();
+    ngClearDepthBoneGpuAsyncTestHooks();
 }
 
 private Vec2Array depthBoneYawOffsetsWithChildZ(float childZ) {
@@ -15293,7 +15373,9 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
             "rapid BoneSource offset command should succeed");
         ngFlushDepthBoneDirty();
         require(fakeDepthBoneGpuSubmitCount == 0,
-            "rapid BoneSource edits should settle before dispatching obsolete all-keypoint GPU work");
+            "rapid BoneSource edits should settle before dispatching obsolete all-keypoint GPU work; "
+            ~ "depthOffset=%s submitted=%s".format(
+                depthOffset, fakeDepthBoneGpuSubmitCount));
     }
     auto rapidSourceWorldScale = ngDepthDisplayScaleForTargetsInNodeSpace(
         root, cast(Deformable[])[target, scaleDriverTarget]);
@@ -15980,6 +16062,20 @@ private void testAsyncDerivedUpdateRegistry() {
         && !incAsyncDerivedUpdateTargetSnapshot(target, snapshot, true),
         "a newer generation must supersede the same target without showing unrelated or duplicate records");
 
+    auto registryOwner = new AsyncGroupAction();
+    auto registryToken = registryOwner.asyncToken;
+    incAsyncDerivedUpdateSetOwnerToken(replacementRun, registryToken);
+    auto canceledWork = incAsyncDerivedUpdateQueue(replacement);
+    incAsyncDerivedUpdateStart(canceledWork);
+    registryOwner.rollback();
+    require(incAsyncDerivedUpdateTargetSnapshot(replacement, snapshot, true)
+        && snapshot.state == AsyncDerivedUpdateState.Canceled
+        && !incAsyncDerivedUpdateShowsViewportProgress(snapshot),
+        "generic viewport progress must follow its owner token and stop on undo");
+    registryOwner.redo();
+    require(registryToken.canceled && registryOwner.asyncToken.active,
+        "redo must issue a fresh async token without reactivating the canceled generation");
+
     auto autoMeshUiSource = readText(buildPath(
         regressionRepoRoot(), "source", "nijigenerate", "viewport",
         "vertex", "automesh", "package.d"));
@@ -16367,6 +16463,178 @@ private void testActionGroupUndoRedo() {
     require(nodeA.name == "A" && nodeB.name == "B", "group undo should restore all grouped edits");
     incActionRedo();
     require(nodeA.name == "A1" && nodeB.name == "B1", "group redo should restore all grouped edits");
+}
+
+private void testDepthBoneSourceSettingsActionMerge() {
+    resetCase();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "merge-depth-root";
+    auto target = new GridDeformer(incActivePuppet().root);
+    target.name = "merge-target-grid";
+    auto bone = new ExDepthBone(root);
+    bone.name = "merge-depth-bone";
+    bone.boneId = "MergeBone";
+    incActivePuppet().rescanNodes();
+
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    require(cmd!(DepthBoneCommand.AddDepthBoneSource)(ctx, root, target, bone).succeeded,
+        "source settings merge fixture should add a source");
+    incActionClearHistory();
+
+    ngBeginDepthBoneSourceSettingsMerge(101, "weight");
+    scope(exit) ngEndDepthBoneSourceSettingsMerge();
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx, root, target, bone, `{"weight":0.25}`).succeeded,
+        "first source settings drag update should succeed");
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx, root, target, bone, `{"weight":0.75}`).succeeded,
+        "second source settings drag update should succeed");
+    ngEndDepthBoneSourceSettingsMerge();
+
+    require(incActionHistory().length == 1,
+        "updates from one source settings drag session should merge into one history entry");
+    incActionUndo();
+    require(near(root.bindings[0].sourceSetting(bone.uuid).weight, 1.0f),
+        "merged source settings undo should restore the value from before the drag");
+    incActionRedo();
+    require(near(root.bindings[0].sourceSetting(bone.uuid).weight, 0.75f),
+        "merged source settings redo should restore the final drag value");
+
+    ngBeginDepthBoneSourceSettingsMerge(102, "weight");
+    require(cmd!(DepthBoneCommand.SetDepthBoneSourceSettings)(
+        ctx, root, target, bone, `{"weight":0.5}`).succeeded,
+        "a later source settings drag should succeed");
+    ngEndDepthBoneSourceSettingsMerge();
+    require(incActionHistory().length == 2,
+        "separate source settings drag sessions must remain separate history entries");
+}
+
+private void testAsyncActionGroupUndoRedo() {
+    resetCase();
+
+    auto primaryNode = new Node(incActivePuppet().root);
+    auto derivedNode = new Node(incActivePuppet().root);
+    primaryNode.name = "primary-before";
+    derivedNode.name = "derived-before";
+
+    primaryNode.name = "primary-after";
+    auto primary = new NodeValueChangeAction!(Node, string)(
+        "name", primaryNode, "primary-before", primaryNode.name, &primaryNode.name_);
+    auto owner = new AsyncGroupAction([primary]);
+    AsyncGroupActionEvent[] observedEvents;
+    auto observerId = owner.addObserver((AsyncGroupAction action, AsyncGroupActionEvent event) {
+        observedEvents ~= event;
+    });
+    owner.markAsyncScheduled(2);
+    owner.markAsyncRunning();
+    owner.markAsyncFinished();
+    require(owner.totalAsyncCount == 2 && owner.completedAsyncCount == 1 &&
+        owner.pendingAsyncCount == 1,
+        "async group should expose subsystem-independent progress counters");
+    require(observedEvents.length >= 3 && observedEvents[$ - 1] == AsyncGroupActionEvent.Progressed,
+        "async group observers should receive incremental progress events");
+    auto firstGeneration = owner.generation;
+
+    derivedNode.name = "derived-after";
+    auto derived = new NodeValueChangeAction!(Node, string)(
+        "name", derivedNode, "derived-before", derivedNode.name, &derivedNode.name_);
+    require(owner.addCompletedAsyncAction(firstGeneration, derived),
+        "completed asynchronous action should attach to its owner generation");
+    require(owner.completedAsyncCount == owner.totalAsyncCount &&
+        observedEvents[$ - 1] == AsyncGroupActionEvent.Completed,
+        "async group completion should finish generic progress and notify observers");
+    incActionPush(owner);
+
+    incActionUndo();
+    require(primaryNode.name == "primary-before" && derivedNode.name == "derived-before",
+        "async group undo should revert completed output before its primary operation");
+    require(owner.state == AsyncGroupActionState.Undone,
+        "async group should retain an explicit undone state");
+    require(owner.pendingAsyncCount == 0 && owner.totalAsyncCount == 0 &&
+        observedEvents[$ - 1] == AsyncGroupActionEvent.Canceled,
+        "undo should cancel generic progress immediately without waiting for worker cleanup");
+    require(!owner.addCompletedAsyncAction(firstGeneration, derived),
+        "completion from the canceled generation must be rejected after undo");
+
+    incActionRedo();
+    require(primaryNode.name == "primary-after" && derivedNode.name == "derived-before",
+        "async group redo should replay the primary operation but not stale derived output");
+    require(owner.generation != firstGeneration,
+        "async group redo should use a new asynchronous generation");
+    require(observedEvents[$ - 1] == AsyncGroupActionEvent.Redone,
+        "async group redo should notify progress observers before fresh work is scheduled");
+
+    owner.markAsyncScheduled();
+    derivedNode.name = "derived-redone";
+    auto redoneDerived = new NodeValueChangeAction!(Node, string)(
+        "name", derivedNode, "derived-before", derivedNode.name, &derivedNode.name_);
+    require(owner.addCompletedAsyncAction(owner.generation, redoneDerived),
+        "redo generation should accept freshly completed asynchronous output");
+    incActionUndo();
+    require(primaryNode.name == "primary-before" && derivedNode.name == "derived-before",
+        "second undo should revert asynchronously regenerated output and the primary operation");
+    owner.removeObserver(observerId);
+
+    resetCase();
+    primaryNode = new Node(incActivePuppet().root);
+    primaryNode.name = "progress-before";
+    primaryNode.name = "progress-after";
+    primary = new NodeValueChangeAction!(Node, string)(
+        "name", primaryNode, "progress-before", primaryNode.name, &primaryNode.name_);
+    owner = new AsyncGroupAction([primary]);
+    owner.markAsyncScheduled();
+    auto progress = new AsyncGroupActionProgress(owner, "Running async test");
+    require(progress.isActive, "generic async progress should activate for pending work");
+    require(progress.isVisible, "generic async progress should create a visible notification");
+    incActionPush(owner);
+    incActionUndo();
+    require(!progress.isActive, "generic async progress should close immediately when its action is undone");
+    require(!progress.isVisible, "undo should remove the generic progress notification itself");
+    incActionRedo();
+    owner.markAsyncScheduled();
+    require(progress.isActive, "generic async progress should reactivate for work rescheduled by redo");
+    owner.markAsyncFinished();
+    require(!progress.isActive, "generic async progress should close when rescheduled work completes");
+    progress.dispose();
+
+    resetCase();
+    primaryNode = new Node(incActivePuppet().root);
+    derivedNode = new Node(incActivePuppet().root);
+    primaryNode.name = "merge-primary-0";
+    derivedNode.name = "merge-derived-0";
+
+    primaryNode.name = "merge-primary-1";
+    auto firstPrimary = new NodeValueChangeAction!(Node, string)(
+        "name", primaryNode, "merge-primary-0", primaryNode.name, &primaryNode.name_);
+    auto firstOwner = new AsyncGroupAction([firstPrimary]);
+    derivedNode.name = "merge-derived-1";
+    auto firstDerived = new NodeValueChangeAction!(Node, string)(
+        "name", derivedNode, "merge-derived-0", derivedNode.name, &derivedNode.name_);
+    firstOwner.addCompletedAsyncAction(firstOwner.generation, firstDerived);
+    incActionPush(firstOwner);
+
+    primaryNode.name = "merge-primary-2";
+    auto secondPrimary = new NodeValueChangeAction!(Node, string)(
+        "name", primaryNode, "merge-primary-1", primaryNode.name, &primaryNode.name_);
+    auto secondOwner = new AsyncGroupAction([secondPrimary]);
+    derivedNode.name = "merge-derived-2";
+    auto secondDerived = new NodeValueChangeAction!(Node, string)(
+        "name", derivedNode, "merge-derived-1", derivedNode.name, &derivedNode.name_);
+    secondOwner.addCompletedAsyncAction(secondOwner.generation, secondDerived);
+    incActionPush(secondOwner);
+
+    require(incActionHistory().length == 1,
+        "compatible async groups should merge into one history entry");
+    incActionUndo();
+    require(primaryNode.name == "merge-primary-0" &&
+        derivedNode.name == "merge-derived-0",
+        "merged async group undo should roll back every completed derived generation and the original edit");
+    incActionRedo();
+    require(primaryNode.name == "merge-primary-2" &&
+        derivedNode.name == "merge-derived-0",
+        "merged async group redo should restore only the final primary value and reschedule derived work");
 }
 
 private void testActionHistoryIndexAndModifiedState() {
@@ -18801,6 +19069,8 @@ private string scenarioPrefixForSourceModule(string rel) {
         return scenarioPrefixForCommandModule(rel);
     if (rel.startsWith("core/actionstack.d"))
         return "undo";
+    if (rel.startsWith("core/asyncderivedupdate.d"))
+        return "async";
     if (rel.startsWith("core/cv/") || rel.startsWith("core/math/") || rel.startsWith("core/selector/"))
         return "core";
     if (rel.startsWith("core/shortcut/") || rel.startsWith("core/settings.d"))
@@ -18843,6 +19113,8 @@ private string scenarioPrefixForSourceModule(string rel) {
         return "core";
     if (rel.startsWith("viewport/vertex/automesh/"))
         return "automesh";
+    if (rel.startsWith("viewport/asyncderivedupdateoverlay.d"))
+        return "async";
     if (rel.startsWith("viewport/depth/"))
         return "depth";
     if (rel.startsWith("viewport/common/mesheditor/brushes/"))
@@ -20200,6 +20472,7 @@ private bool runAutomatedScenario(string id) {
         case "depthbone.sources":
             runCase("depthbone-actions-undo-redo", &testDepthBoneActionsUndoRedo);
             runCase("depthbone-source-commands-undo-redo", &testDepthBoneSourceCommandsUndoRedo);
+            runCase("depthbone-source-settings-action-merge", &testDepthBoneSourceSettingsActionMerge);
             runCase("depthbone-source-refresh-ignores-physics", &testDepthBoneSourceRefreshIgnoresPhysicsParameter);
             return true;
         case "depthbone.fit-z":
@@ -20361,6 +20634,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "undo.grouped-actions":
             runCase("action-group-undo-redo", &testActionGroupUndoRedo);
+            return true;
+        case "undo.async-grouped-actions":
+            runCase("async-action-group-undo-redo", &testAsyncActionGroupUndoRedo);
             return true;
         case "undo.action-merge":
             runCase("action-merge-semantics", &testActionMergeSemantics);

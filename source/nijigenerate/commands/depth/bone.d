@@ -8,6 +8,7 @@ import nijigenerate.commands.depth.bone_status :
     ngDepthBoneUpdateAbort,
     ngDepthBoneUpdateApplied,
     ngDepthBoneUpdateBatchCanceled,
+    ngDepthBoneUpdateSetOwnerToken,
     ngDepthBoneUpdateDetected,
     ngDepthBoneUpdateFailed,
     ngDepthBoneUpdatePlanned,
@@ -90,6 +91,7 @@ enum DepthBoneCommand {
 
 shared static this() {
     ngDepthBoneMutationHook = &ngDepthBoneMutationChanged;
+    ngClaimAsyncGroupActionHook = &claimDepthBoneAsyncGroupAction;
 }
 
 Command[DepthBoneCommand] commands;
@@ -1353,15 +1355,37 @@ private struct DepthBoneDirtyRequest {
     uint targetUuid;
     DepthBoneDirtyScope dirtyScope;
     string reason;
-    GroupAction actionSink;
+    AsyncGroupAction actionSink;
     bool settleBeforeDispatch;
+    AsyncActionToken actionToken;
 }
 
 private DepthBoneDirtyRequest[] depthBoneDirtyRequests;
 private ExDepthRigRoot lastDepthBoneDirtyRoot;
 private Parameter lastDepthBoneDirtyParameter;
 private vec2u lastDepthBoneDirtyKeypoint;
-private GroupAction depthBoneRefreshActionSink;
+private AsyncGroupAction depthBoneRefreshActionSink;
+private bool depthBoneRefreshSuppressed;
+private ulong nextDepthBoneSourceSettingsMergeSession = 1;
+private ulong depthBoneSourceSettingsMergeSession;
+private string depthBoneSourceSettingsMergeProperty;
+
+ulong ngCreateDepthBoneSourceSettingsMergeSession() {
+    auto result = nextDepthBoneSourceSettingsMergeSession++;
+    if (nextDepthBoneSourceSettingsMergeSession == 0)
+        nextDepthBoneSourceSettingsMergeSession = 1;
+    return result;
+}
+
+void ngBeginDepthBoneSourceSettingsMerge(ulong session, string property) {
+    depthBoneSourceSettingsMergeSession = session;
+    depthBoneSourceSettingsMergeProperty = property;
+}
+
+void ngEndDepthBoneSourceSettingsMerge() {
+    depthBoneSourceSettingsMergeSession = 0;
+    depthBoneSourceSettingsMergeProperty = null;
+}
 
 private enum size_t DepthBoneAllKeypointsPerFrame = 4;
 private enum size_t DepthBoneGpuSubmissionsPerFrame = 8;
@@ -1377,8 +1401,9 @@ private struct DepthBoneAllKeypointJob {
     bool[string] processed;
     size_t nextIndex;
     string reason;
-    GroupAction actionSink;
+    AsyncGroupAction actionSink;
     size_t settleFrames;
+    AsyncActionToken actionToken;
 }
 
 private DepthBoneAllKeypointJob[] depthBoneAllKeypointJobs;
@@ -1387,27 +1412,30 @@ private struct DepthBoneGpuRefreshJob {
     uint jobId;
     DepthBoneGpuOffsetPacket packet;
     string reason;
-    GroupAction actionSink;
+    AsyncGroupAction actionSink;
     uint batchId;
     size_t batchExpected;
+    AsyncActionToken actionToken;
 }
 
 private struct DepthBoneGpuQueuedJob {
     DepthBoneGpuOffsetPacket packet;
     string reason;
-    GroupAction actionSink;
+    AsyncGroupAction actionSink;
     uint batchId;
     size_t batchExpected;
+    AsyncActionToken actionToken;
 }
 
 private struct DepthBoneGpuCompletedJob {
     DepthBoneGpuOffsetPacket packet;
     string reason;
-    GroupAction actionSink;
+    AsyncGroupAction actionSink;
     uint batchId;
     size_t batchExpected;
     Vec2Array offsets;
     bool valid;
+    AsyncActionToken actionToken;
 }
 
 private DepthBoneGpuQueuedJob[] depthBoneGpuSubmissionQueue;
@@ -1416,24 +1444,39 @@ private DepthBoneGpuCompletedJob[] depthBoneGpuCompletedJobs;
 private bool[uint] canceledDepthBoneGpuBatches;
 private uint nextDepthBoneGpuBatchId = 1;
 
-void ngBeginDepthBoneRefreshActionSink(GroupAction sink) {
+void ngBeginDepthBoneRefreshActionSink(AsyncGroupAction sink) {
+    if (sink is null) return;
+    sink.setLifecycleHandlers(
+        &cancelDepthBoneRefreshForAction,
+        &beginDepthBoneRefreshUndo,
+        &endDepthBoneRefreshUndo,
+        &beginDepthBoneRefreshRedo,
+        &endDepthBoneRefreshRedo);
+    sink.setMergeHandler(&mergeDepthBoneAsyncActions);
     depthBoneRefreshActionSink = sink;
 }
 
-void ngEndDepthBoneRefreshActionSink(GroupAction sink) {
+void ngEndDepthBoneRefreshActionSink(AsyncGroupAction sink) {
     if (depthBoneRefreshActionSink is sink) depthBoneRefreshActionSink = null;
 }
 
-private void pushDepthBoneRefreshAction(GroupAction group) {
+private void pushDepthBoneRefreshAction(
+    GroupAction group,
+    AsyncActionToken token = AsyncActionToken.init,
+) {
     if (group is null || group.empty()) return;
     if (depthBoneRefreshActionSink !is null) {
-        depthBoneRefreshActionSink.addAction(group);
+        if (!token.valid) token = depthBoneRefreshActionSink.asyncToken;
+        if (!token.acceptsCompletion ||
+            !depthBoneRefreshActionSink.addCompletedAsyncAction(
+                token.generation, group))
+            group.rollback();
     } else {
         incActionPush(group);
     }
 }
 
-private bool runWithDepthBoneRefreshActionSink(GroupAction sink, bool delegate() callback) {
+private bool runWithDepthBoneRefreshActionSink(AsyncGroupAction sink, bool delegate() callback) {
     auto previous = depthBoneRefreshActionSink;
     depthBoneRefreshActionSink = sink;
     scope(exit) depthBoneRefreshActionSink = previous;
@@ -1446,19 +1489,29 @@ private bool submitDepthBoneGpuRefreshJob(DepthBoneGpuQueuedJob queued, out stri
     uint jobId;
     if (!ngSubmitDepthBoneGpuAsync(dispatch, jobId, error)) return false;
     depthBoneGpuRefreshJobs ~= DepthBoneGpuRefreshJob(
-        jobId, packet, queued.reason, queued.actionSink, queued.batchId, queued.batchExpected);
+        jobId, packet, queued.reason, queued.actionSink, queued.batchId,
+        queued.batchExpected, queued.actionToken);
+    if (queued.actionSink !is null && queued.actionToken.active)
+        queued.actionSink.markAsyncRunning();
     ngDepthBoneUpdateProcessing(
         queued.batchId, packet.root, cast(Node)packet.target);
     return true;
 }
 
-private void enqueueDepthBoneGpuRefreshBatch(DepthBoneGpuOffsetPacket[] packets, string reason, GroupAction actionSink) {
+private void enqueueDepthBoneGpuRefreshBatch(
+    DepthBoneGpuOffsetPacket[] packets,
+    string reason,
+    AsyncGroupAction actionSink,
+    AsyncActionToken token = AsyncActionToken.init,
+) {
     if (packets.length == 0) return;
+    if (!token.valid && actionSink !is null) token = actionSink.asyncToken;
     auto batchId = nextDepthBoneGpuBatchId++;
     if (nextDepthBoneGpuBatchId == 0) nextDepthBoneGpuBatchId = 1;
     foreach (packet; packets) {
         depthBoneGpuSubmissionQueue ~= DepthBoneGpuQueuedJob(
-            packet, reason, actionSink, batchId, packets.length);
+            packet, reason, actionSink, batchId, packets.length,
+            token);
         ngDepthBoneUpdateQueued(
             batchId,
             packet.root,
@@ -1472,12 +1525,14 @@ private void enqueueDepthBoneGpuRefreshBatch(DepthBoneGpuOffsetPacket[] packets,
 
 private void completeDepthBoneGpuJob(DepthBoneGpuRefreshJob job, Vec2Array offsets, bool valid) {
     depthBoneGpuCompletedJobs ~= DepthBoneGpuCompletedJob(
-        job.packet, job.reason, job.actionSink, job.batchId, job.batchExpected, offsets, valid);
+        job.packet, job.reason, job.actionSink, job.batchId,
+        job.batchExpected, offsets, valid, job.actionToken);
 }
 
 private void completeDepthBoneGpuJob(DepthBoneGpuQueuedJob job, Vec2Array offsets, bool valid) {
     depthBoneGpuCompletedJobs ~= DepthBoneGpuCompletedJob(
-        job.packet, job.reason, job.actionSink, job.batchId, job.batchExpected, offsets, valid);
+        job.packet, job.reason, job.actionSink, job.batchId,
+        job.batchExpected, offsets, valid, job.actionToken);
 }
 
 private bool depthBoneGpuPacketMatchesScope(
@@ -1528,6 +1583,146 @@ private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
         i++;
     }
     cleanupCanceledDepthBoneGpuBatch(batchId);
+}
+
+private void cancelDepthBoneRefreshForAction(AsyncGroupAction action) {
+    if (action is null) return;
+
+    size_t i;
+    while (i < depthBoneDirtyRequests.length) {
+        if (depthBoneDirtyRequests[i].actionSink is action) {
+            depthBoneDirtyRequests = depthBoneDirtyRequests[0 .. i] ~
+                depthBoneDirtyRequests[i + 1 .. $];
+            continue;
+        }
+        i++;
+    }
+
+    i = 0;
+    while (i < depthBoneAllKeypointJobs.length) {
+        if (depthBoneAllKeypointJobs[i].actionSink is action) {
+            depthBoneAllKeypointJobs = depthBoneAllKeypointJobs[0 .. i] ~
+                depthBoneAllKeypointJobs[i + 1 .. $];
+            continue;
+        }
+        i++;
+    }
+
+    bool[uint] batches;
+    foreach (ref job; depthBoneGpuSubmissionQueue) {
+        if (job.actionSink !is action) continue;
+        batches[job.batchId] = true;
+        job.actionSink = null;
+        job.actionToken = AsyncActionToken.init;
+    }
+    foreach (ref job; depthBoneGpuRefreshJobs) {
+        if (job.actionSink !is action) continue;
+        batches[job.batchId] = true;
+        job.actionSink = null;
+        job.actionToken = AsyncActionToken.init;
+    }
+    foreach (ref job; depthBoneGpuCompletedJobs) {
+        if (job.actionSink !is action) continue;
+        batches[job.batchId] = true;
+        job.actionSink = null;
+        job.actionToken = AsyncActionToken.init;
+    }
+    foreach (batchId; batches.byKey)
+        // The owner token supplies the terminal Canceled state. This call only
+        // removes producer work and keeps submitted GPU resources drainable.
+        cancelDepthBoneGpuBatch(batchId);
+}
+
+private void beginDepthBoneRefreshUndo(AsyncGroupAction action) {
+    depthBoneRefreshSuppressed = true;
+}
+
+private void endDepthBoneRefreshUndo(AsyncGroupAction action) {
+    depthBoneRefreshSuppressed = false;
+}
+
+private void beginDepthBoneRefreshRedo(AsyncGroupAction action) {
+    depthBoneRefreshActionSink = action;
+}
+
+private void endDepthBoneRefreshRedo(AsyncGroupAction action) {
+    if (depthBoneRefreshActionSink is action) depthBoneRefreshActionSink = null;
+}
+
+private bool mergeDepthBoneAsyncActions(
+    AsyncGroupAction current,
+    AsyncGroupAction incoming,
+) {
+    if (current is null || incoming is null) return false;
+    cancelDepthBoneRefreshForAction(current);
+    auto token = current.asyncToken;
+
+    foreach (ref request; depthBoneDirtyRequests) {
+        if (request.actionSink is incoming) {
+            request.actionSink = current;
+            request.actionToken = token;
+            setDepthBoneUpdateOwner(
+                request.root, request.targetUuid, token);
+        }
+    }
+    foreach (ref job; depthBoneAllKeypointJobs) {
+        if (job.actionSink is incoming) {
+            job.actionSink = current;
+            job.actionToken = token;
+            setDepthBoneUpdateOwner(job.root, job.targetUuid, token);
+        }
+    }
+    foreach (ref job; depthBoneGpuSubmissionQueue) {
+        if (job.actionSink is incoming) {
+            job.actionSink = current;
+            job.actionToken = token;
+            ngDepthBoneUpdateSetOwnerToken(
+                job.packet.root, cast(Node)job.packet.target, token);
+        }
+    }
+    foreach (ref job; depthBoneGpuRefreshJobs) {
+        if (job.actionSink is incoming) {
+            job.actionSink = current;
+            job.actionToken = token;
+            ngDepthBoneUpdateSetOwnerToken(
+                job.packet.root, cast(Node)job.packet.target, token);
+        }
+    }
+    foreach (ref job; depthBoneGpuCompletedJobs) {
+        if (job.actionSink is incoming) {
+            job.actionSink = current;
+            job.actionToken = token;
+            ngDepthBoneUpdateSetOwnerToken(
+                job.packet.root, cast(Node)job.packet.target, token);
+        }
+    }
+    return true;
+}
+
+private AsyncGroupAction claimDepthBoneAsyncGroupAction(Action action) {
+    size_t unowned;
+    foreach (request; depthBoneDirtyRequests) {
+        if (request.actionSink is null) unowned++;
+    }
+    if (unowned == 0) return null;
+
+    auto owner = new AsyncGroupAction([action]);
+    owner.setLifecycleHandlers(
+        &cancelDepthBoneRefreshForAction,
+        &beginDepthBoneRefreshUndo,
+        &endDepthBoneRefreshUndo,
+        &beginDepthBoneRefreshRedo,
+        &endDepthBoneRefreshRedo);
+    owner.setMergeHandler(&mergeDepthBoneAsyncActions);
+    foreach (ref request; depthBoneDirtyRequests) {
+        if (request.actionSink !is null) continue;
+        request.actionSink = owner;
+        request.actionToken = owner.asyncToken;
+        setDepthBoneUpdateOwner(
+            request.root, request.targetUuid, owner.asyncToken);
+    }
+    owner.markAsyncScheduled(unowned);
+    return owner;
 }
 
 private void cancelSupersededDepthBoneGpuWork(
@@ -1629,7 +1824,8 @@ private void requeueStaleDepthBoneGpuJob(DepthBoneGpuRefreshJob job, string stal
         return;
     }
     retryPacket.staleRetryCount = job.packet.staleRetryCount + 1;
-    enqueueDepthBoneGpuRefreshBatch([retryPacket], job.reason, job.actionSink);
+    enqueueDepthBoneGpuRefreshBatch(
+        [retryPacket], job.reason, job.actionSink, job.actionToken);
     writeDepthBoneGpuFatalLog(
         "Depth Bone GPU async job requeued: target=%s key=(%s,%s) retry=%s/%s".format(
             targetNode.name,
@@ -2093,7 +2289,8 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
     Parameter param;
     vec2u keypoint;
     string reason;
-    GroupAction actionSink;
+    AsyncGroupAction actionSink;
+    AsyncActionToken actionToken;
     DeformationParameterBinding[] deformBindings;
     Vec2Array[] offsetsList;
     ParameterBinding[] created;
@@ -2101,6 +2298,10 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
     size_t expectedBindingWrites;
 
     foreach (job; batch) {
+        if (job.actionSink !is null && !job.actionToken.acceptsCompletion) {
+            cancelDepthBoneGpuBatch(batchId, "Owner operation is no longer active");
+            return false;
+        }
         if (!job.valid) {
             ngDepthBoneUpdateBatchCanceled(
                 batchId, "Depth Bone update batch was discarded because one target became stale");
@@ -2180,6 +2381,7 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
         keypoint = job.packet.keypoint;
         reason = job.reason;
         actionSink = job.actionSink;
+        actionToken = job.actionToken;
         auto existing = param.getBinding(targetNode, "deform");
         auto deformBinding = cast(DeformationParameterBinding)existing;
         if (deformBinding is null) {
@@ -2218,7 +2420,7 @@ private bool applyDepthBoneGpuCompletedBatch(uint batchId) {
         action.updateNewState();
         group.addAction(action);
         runWithDepthBoneRefreshActionSink(actionSink, {
-            pushDepthBoneRefreshAction(group);
+            pushDepthBoneRefreshAction(group, actionToken);
             return true;
         });
         changed = true;
@@ -2349,6 +2551,24 @@ private void markDepthBoneUpdateTargets(
         auto target = puppet.find!Node(cast(uint)binding.targetUuid);
         if (target is null) continue;
         ngDepthBoneUpdateDetected(root, target, parameter, keypoint, reason);
+        if (depthBoneRefreshActionSink !is null)
+            ngDepthBoneUpdateSetOwnerToken(
+                root, target, depthBoneRefreshActionSink.asyncToken);
+    }
+}
+
+private void setDepthBoneUpdateOwner(
+    ExDepthRigRoot root,
+    uint targetUuid,
+    AsyncActionToken token,
+) {
+    auto puppet = incActivePuppet();
+    if (root is null || puppet is null || !token.valid) return;
+    foreach (ref binding; root.bindings) {
+        if (!depthBoneBindingMatchesTarget(root, binding, targetUuid)) continue;
+        auto target = puppet.find!Node(cast(uint)binding.targetUuid);
+        if (target !is null)
+            ngDepthBoneUpdateSetOwnerToken(root, target, token);
     }
 }
 
@@ -2403,6 +2623,7 @@ void ngMarkDepthBoneDirty(
 ) {
     if (root is null) return;
     ngInvalidateDepthBoneEffectivePivotCache(root);
+    if (depthBoneRefreshSuppressed) return;
     markDepthBoneUpdateTargets(
         root, parameter, keypoint, targetUuid, reason);
     if (parameter !is null) {
@@ -2454,7 +2675,12 @@ void ngMarkDepthBoneDirty(
         dirtyScope,
         reason,
         depthBoneRefreshActionSink,
-        settleBeforeDispatch);
+        settleBeforeDispatch,
+        depthBoneRefreshActionSink is null
+            ? AsyncActionToken.init
+            : depthBoneRefreshActionSink.asyncToken);
+    if (depthBoneRefreshActionSink !is null)
+        depthBoneRefreshActionSink.markAsyncScheduled();
 }
 
 void ngMarkDepthBoneDirtyForArmedParameter(
@@ -3161,8 +3387,17 @@ private bool enqueueDepthBoneAllKeypoints(
     foreach (ref job; depthBoneAllKeypointJobs) {
         if (job.root is rigRoot &&
             job.parameter is param &&
-            job.targetUuid == targetUuid &&
-            job.actionSink is depthBoneRefreshActionSink) {
+            job.targetUuid == targetUuid) {
+            if (job.actionSink !is depthBoneRefreshActionSink) {
+                if (job.actionSink !is null && job.actionToken.active)
+                    job.actionSink.markAsyncFinished();
+                job.actionSink = depthBoneRefreshActionSink;
+                job.actionToken = depthBoneRefreshActionSink is null
+                    ? AsyncActionToken.init
+                    : depthBoneRefreshActionSink.asyncToken;
+                setDepthBoneUpdateOwner(
+                    rigRoot, targetUuid, job.actionToken);
+            }
             job.keypoints = keypoints;
             job.processed.clear();
             job.nextIndex = 0;
@@ -3180,6 +3415,9 @@ private bool enqueueDepthBoneAllKeypoints(
     job.reason = reason;
     job.actionSink = depthBoneRefreshActionSink;
     job.settleFrames = settleBeforeDispatch ? 1 : 0;
+    job.actionToken = depthBoneRefreshActionSink is null
+        ? AsyncActionToken.init
+        : depthBoneRefreshActionSink.asyncToken;
     depthBoneAllKeypointJobs ~= job;
     return true;
 }
@@ -4134,13 +4372,20 @@ class SetDepthBoneSourceSettingsCommand : ExCommand!(
             setting.depthOffset,
             setting.depthScale,
             setting.rotation);
+        auto actionLabel = "%s: %s / %s".format(
+            _("Set Depth Bone Source Settings"),
+            target is null ? rigRoot.name : target.name,
+            source.name);
         incActionPush(new DepthBoneSourceListChangeAction(
-            "Set Depth Bone Source Settings",
+            actionLabel,
             rigRoot,
             oldBindings,
             rigRoot.bindings,
             true,
-            target));
+            target,
+            depthBoneSourceSettingsMergeSession,
+            source.uuid,
+            depthBoneSourceSettingsMergeProperty));
         return CommandResult(true);
     }
 }

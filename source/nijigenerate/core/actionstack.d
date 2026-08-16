@@ -102,6 +102,11 @@ void incActionInit() {
 */
 void incActionPush(Action action) {
 
+    if (ngClaimAsyncGroupActionHook !is null) {
+        auto asyncOwner = ngClaimAsyncGroupActionHook(action);
+        if (asyncOwner !is null) action = asyncOwner;
+    }
+
     if (currentGroup[currentLevel] !is null) {
         currentGroup[currentLevel].addAction(action);
     } else {
@@ -123,6 +128,7 @@ void incActionPush(Action action) {
         }
     }
 }
+
 
 /**
     Steps back in the action stack
