@@ -289,28 +289,81 @@ public:
         int targetHeight,
         scope void delegate() drawLayers
     ) {
-        if (!ensureTarget(targetWidth, targetHeight)) return null;
-        ensureShader();
-        ensureBuffers();
-
         GLint previousDrawFbo;
         GLint previousReadFbo;
+        GLint previousRenderbuffer;
+        GLint previousProgram;
+        GLint previousVertexArray;
+        GLint previousArrayBuffer;
+        GLint previousElementArrayBuffer;
+        GLint previousActiveTexture;
+        GLint previousActiveTexture2D;
+        GLint previousTexture0;
         GLint[4] previousViewport;
+        GLint previousDepthFunc;
+        GLint previousBlendEquationRgb;
+        GLint previousBlendEquationAlpha;
+        GLint previousBlendSrcRgb;
+        GLint previousBlendDstRgb;
+        GLint previousBlendSrcAlpha;
+        GLint previousBlendDstAlpha;
+        GLfloat[4] previousClearColor;
+        GLfloat previousClearDepth;
         GLboolean depthEnabled = glIsEnabled(GL_DEPTH_TEST);
         GLboolean cullEnabled = glIsEnabled(GL_CULL_FACE);
         GLboolean blendEnabled = glIsEnabled(GL_BLEND);
         glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDrawFbo);
         glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFbo);
+        glGetIntegerv(GL_RENDERBUFFER_BINDING, &previousRenderbuffer);
+        glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVertexArray);
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousArrayBuffer);
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &previousElementArrayBuffer);
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &previousActiveTexture);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousActiveTexture2D);
+        glActiveTexture(GL_TEXTURE0);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture0);
+        glActiveTexture(cast(GLenum)previousActiveTexture);
         glGetIntegerv(GL_VIEWPORT, previousViewport.ptr);
+        glGetIntegerv(GL_DEPTH_FUNC, &previousDepthFunc);
+        glGetIntegerv(GL_BLEND_EQUATION_RGB, &previousBlendEquationRgb);
+        glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &previousBlendEquationAlpha);
+        glGetIntegerv(GL_BLEND_SRC_RGB, &previousBlendSrcRgb);
+        glGetIntegerv(GL_BLEND_DST_RGB, &previousBlendDstRgb);
+        glGetIntegerv(GL_BLEND_SRC_ALPHA, &previousBlendSrcAlpha);
+        glGetIntegerv(GL_BLEND_DST_ALPHA, &previousBlendDstAlpha);
+        glGetFloatv(GL_COLOR_CLEAR_VALUE, previousClearColor.ptr);
+        glGetFloatv(GL_DEPTH_CLEAR_VALUE, &previousClearDepth);
         scope(exit) {
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cast(GLuint)previousDrawFbo);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, cast(GLuint)previousReadFbo);
+            glBindRenderbuffer(GL_RENDERBUFFER, cast(GLuint)previousRenderbuffer);
             glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+            glDepthFunc(cast(GLenum)previousDepthFunc);
+            glBlendEquationSeparate(
+                cast(GLenum)previousBlendEquationRgb, cast(GLenum)previousBlendEquationAlpha);
+            glBlendFuncSeparate(
+                cast(GLenum)previousBlendSrcRgb, cast(GLenum)previousBlendDstRgb,
+                cast(GLenum)previousBlendSrcAlpha, cast(GLenum)previousBlendDstAlpha);
+            glClearColor(previousClearColor[0], previousClearColor[1],
+                previousClearColor[2], previousClearColor[3]);
+            glClearDepth(previousClearDepth);
             if (depthEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
             if (cullEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
             if (blendEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
-            glBindVertexArray(0);
+            glUseProgram(cast(GLuint)previousProgram);
+            glBindVertexArray(cast(GLuint)previousVertexArray);
+            glBindBuffer(GL_ARRAY_BUFFER, cast(GLuint)previousArrayBuffer);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cast(GLuint)previousElementArrayBuffer);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, cast(GLuint)previousTexture0);
+            glActiveTexture(cast(GLenum)previousActiveTexture);
+            glBindTexture(GL_TEXTURE_2D, cast(GLuint)previousActiveTexture2D);
         }
+
+        if (!ensureTarget(targetWidth, targetHeight)) return null;
+        ensureShader();
+        ensureBuffers();
 
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.getTextureId(), 0);

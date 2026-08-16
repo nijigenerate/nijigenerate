@@ -495,10 +495,8 @@ void main() {
     float extremeDepth = 0.0;
     float medianValues[9];
     int medianCount = 0;
-    for (int dy = -64; dy <= 64; ++dy) {
-        if (dy < -radius || dy > radius) continue;
-        for (int dx = -64; dx <= 64; ++dx) {
-            if (dx < -radius || dx > radius) continue;
+    for (int dy = -radius; dy <= radius; ++dy) {
+        for (int dx = -radius; dx <= radius; ++dx) {
             if (!samplePixel(layerX + dx, layerY + dy, width, height, channel, invert, hasCoverage,
                 useCoverage, threshold, sampleDepth, sampleWeight)) {
                 continue;

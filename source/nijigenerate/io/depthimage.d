@@ -1390,6 +1390,7 @@ private struct DepthDrawHistogramStats {
 
 private enum depthDrawHistogramBins = 16;
 private enum depthDrawHistogramShift = 4;
+enum DepthDrawMaxHistogramIntegralBytes = 320UL * 1024UL * 1024UL;
 private immutable int[2][] depthDrawEightNeighborOffsets = [
     [-1, 0],
     [1, 0],
@@ -1401,12 +1402,24 @@ private immutable int[2][] depthDrawEightNeighborOffsets = [
     [1, 1],
 ];
 
+bool ngDepthDrawHistogramIntegralDimensionsSupported(int width, int height) {
+    if (width < 0 || height < 0) return false;
+    auto columns = cast(ulong)width + 1;
+    auto rows = cast(ulong)height + 1;
+    if (columns > ulong.max / rows) return false;
+    auto cells = columns * rows;
+    enum bytesPerCell = depthDrawHistogramBins * uint.sizeof;
+    return cells <= DepthDrawMaxHistogramIntegralBytes / bytesPerCell;
+}
+
 private DepthDrawHistogramIntegral depthDrawBuildDepthHistogramIntegral(
     const(ubyte)[] depth,
     const(ubyte)[] alphaMask,
     int width,
     int height
 ) {
+    enforce(ngDepthDrawHistogramIntegralDimensionsSupported(width, height),
+        "Depth layer is too large for alpha-depth gap cleanup");
     DepthDrawHistogramIntegral histogram;
     histogram.stride = width + 1;
     auto size = cast(size_t)histogram.stride * cast(size_t)(height + 1);

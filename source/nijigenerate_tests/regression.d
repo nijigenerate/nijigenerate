@@ -189,7 +189,8 @@ import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
 import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
 import psd.parser : applyMaskFeather, applyMaskSettings, decodePsdLayerCount, decodedPsdLayerChannel,
-    reservePsdDecodedLayerChannel, sampleMaskAt, validPsdImageDimensions;
+    reservePsdDecodedLayerChannel, sampleMaskAt, validPsdChannelPayloadRange,
+    validPsdEncodedChannelLength, validPsdImageDimensions;
 import psd.rle : decodeRLE, decodeZip;
 import utils.io : readPascalStr, readValue;
 import std.base64 : Base64;
@@ -881,6 +882,12 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     decodedChannelBytes = 0;
     require(!reservePsdDecodedLayerChannel(400_000_001, decodedChannelCount, decodedChannelBytes),
         "PSD layer extraction must bound aggregate decoded channel bytes before allocation");
+    require(validPsdEncodedChannelLength(1_024, 1_024) &&
+        !validPsdEncodedChannelLength(uint.max, 1) &&
+        validPsdChannelPayloadRange(10, 20, 30) &&
+        !validPsdChannelPayloadRange(10, 21, 30) &&
+        !validPsdChannelPayloadRange(31, 0, 30),
+        "PSD layer extraction must reject oversized or out-of-file encoded channel payloads before allocation");
     auto flatOnlyPsdPath = buildPath(fixtureDir, "minimal-flat-only.psd");
     auto flatOnlyPsd = cast(ubyte[])read(psdPath);
     flatOnlyPsd[34 .. 38] = 0;
@@ -3325,6 +3332,44 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ring.hardness = 0.25f;
     grid.replaceDepthOps([ring]);
     grid.replaceDepthOpBaseDepths([0.1f, 0.2f, 0.3f, 0.4f]);
+
+    auto defineAction = new GridDeformerDefineAction("Resize depth grid", grid);
+    grid.rebuffer(Vec2Array([
+        vec2(-1, -1),
+        vec2(0, -1),
+        vec2(1, -1),
+        vec2(-1, 1),
+        vec2(0, 1),
+        vec2(1, 1),
+    ]));
+    auto definedBaseDepths = grid.copyDepthOpBaseDepths();
+    defineAction.updateNewState();
+    defineAction.rollback();
+    require(grid.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
+        "undoing a grid definition must restore the exact pre-operation base depths");
+    defineAction.redo();
+    require(grid.copyDepthOpBaseDepths() == definedBaseDepths,
+        "redoing a grid definition must restore the exact resampled pre-operation base depths");
+    defineAction.rollback();
+
+    auto deformableAction = new DeformableChangeAction("Resize depth grid", grid);
+    grid.rebuffer(Vec2Array([
+        vec2(-1, -1),
+        vec2(0, -1),
+        vec2(1, -1),
+        vec2(-1, 1),
+        vec2(0, 1),
+        vec2(1, 1),
+    ]));
+    auto changedBaseDepths = grid.copyDepthOpBaseDepths();
+    deformableAction.updateNewState();
+    deformableAction.rollback();
+    require(grid.copyDepthOpBaseDepths() == [0.1f, 0.2f, 0.3f, 0.4f],
+        "undoing a deformable topology change must restore the exact pre-operation base depths");
+    deformableAction.redo();
+    require(grid.copyDepthOpBaseDepths() == changedBaseDepths,
+        "redoing a deformable topology change must restore the exact resampled pre-operation base depths");
+    deformableAction.rollback();
 
     auto copied = new ExGridDeformer(incActivePuppet().root);
     copied.name = "copied-depth-grid";
@@ -6925,6 +6970,11 @@ private void testDepthImageFacadeMatchesPsdDepthSampling() {
 
 private void testDepthDrawDataModelContracts() {
     resetCase();
+
+    require(ngDepthDrawHistogramIntegralDimensionsSupported(2_048, 2_048) &&
+        !ngDepthDrawHistogramIntegralDimensionsSupported(4_096, 4_096) &&
+        !ngDepthDrawHistogramIntegralDimensionsSupported(-1, 1),
+        "DepthDraw alpha-gap cleanup must reject unsafe integral-histogram working sets before allocation");
 
     DepthDrawLayer layer;
     layer.id = "layer-a";
@@ -10659,6 +10709,14 @@ private void testDepthDrawCalculationGateContracts() {
         "OpenGL transform feedback support",
         "DepthDraw GPU backend must keep explicit OpenGL transform feedback requirement diagnostics");
     requireSourceContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "for (int dy = -radius; dy <= radius; ++dy)",
+        "DepthDraw GPU sampling must iterate the requested radius instead of a fixed maximum window");
+    requireSourceNotContains(
+        buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
+        "for (int dy = -64; dy <= 64; ++dy)",
+        "DepthDraw GPU sampling must not retain the fixed maximum-radius loop");
+    requireSourceContains(
         buildPath("source", "nijigenerate", "regression_smoke.d"),
         "project.depthdraw-live-ui-smoke",
         "DepthDraw live UI smoke must have a regression-smoke setup entry point");
@@ -10838,6 +10896,18 @@ private void testDepthDrawCalculationGateContracts() {
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "draw3DAdjustTab(max(120.0f, incAvailableSpace().y))",
         "PSD depth import 3D Adjust tab must be rendered by PSDDepthMapWindow");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "glUseProgram(cast(GLuint)previousProgram)",
+        "PSD depth import 3D preview must restore the caller's OpenGL program");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "glBindVertexArray(cast(GLuint)previousVertexArray)",
+        "PSD depth import 3D preview must restore the caller's OpenGL vertex array");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
+        "glActiveTexture(cast(GLenum)previousActiveTexture)",
+        "PSD depth import 3D preview must restore the caller's active texture unit");
     requireSourceContains(
         buildPath("source", "nijigenerate", "windows", "psddepthmap.d"),
         "draw3DAdjustRelationshipCanvas",

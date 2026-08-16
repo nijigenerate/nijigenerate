@@ -7,6 +7,7 @@ import nijigenerate.actions.depthboneinvalidation :
     ngNotifyDepthBoneTargetChanged;
 import nijigenerate;
 import nijigenerate.ext.nodes.exdepthmapped : DepthMappedNode;
+import nijigenerate.ext.nodes.exdepthops : DepthOperationMappedNode;
 import nijigenerate.ext.param : ExParameterGroup;
 import nijilive;
 import nijilive.math : Vec2Array;
@@ -29,6 +30,8 @@ public:
         vec2[] vertices;
         float[] depths;
         bool hasDepths;
+        float[] depthOperationBaseDepths;
+        bool hasDepthOperations;
     }
 
     Deformable self;
@@ -120,6 +123,10 @@ private:
             result.depths = depthMapped.copyDepths();
             result.hasDepths = true;
         }
+        if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+            result.depthOperationBaseDepths = depthOperated.copyDepthOpBaseDepths();
+            result.hasDepthOperations = true;
+        }
         return result;
     }
 
@@ -128,6 +135,10 @@ private:
         if (st.hasDepths) {
             if (auto depthMapped = cast(DepthMappedNode)self)
                 depthMapped.replaceDepths(st.depths);
+        }
+        if (st.hasDepthOperations) {
+            if (auto depthOperated = cast(DepthOperationMappedNode)self)
+                depthOperated.replaceDepthOpBaseDepths(st.depthOperationBaseDepths);
         }
         self.clearCache();
         import nijigenerate.viewport.vertex : ngRefreshDeformableCommandEditors;
@@ -155,6 +166,8 @@ private:
         vec2[] vertices;
         float[] depths;
         bool hasDepths;
+        float[] depthOperationBaseDepths;
+        bool hasDepthOperations;
         BindingState[] bindings;
     }
 
@@ -186,6 +199,10 @@ private:
             result.depths = depthMapped.copyDepths();
             result.hasDepths = true;
         }
+        if (auto depthOperated = cast(DepthOperationMappedNode)self) {
+            result.depthOperationBaseDepths = depthOperated.copyDepthOpBaseDepths();
+            result.hasDepthOperations = true;
+        }
 
         foreach (param; incActivePuppet().parameters) {
             void captureBinding(Parameter p) {
@@ -215,6 +232,10 @@ private:
         if (state.hasDepths) {
             if (auto depthMapped = cast(DepthMappedNode)self)
                 depthMapped.replaceDepths(state.depths);
+        }
+        if (state.hasDepthOperations) {
+            if (auto depthOperated = cast(DepthOperationMappedNode)self)
+                depthOperated.replaceDepthOpBaseDepths(state.depthOperationBaseDepths);
         }
 
         foreach (bindingState; state.bindings) {

@@ -18,6 +18,8 @@ import psd.rle;
 enum MaxPsdDecodedPixels = 100_000_000UL;
 enum MaxPsdDecodedLayerChannels = 6u;
 enum MaxPsdDecodedLayerChannelBytes = MaxPsdDecodedPixels * 4;
+enum MaxPsdEncodedLayerChannelBytes = MaxPsdDecodedLayerChannelBytes;
+enum PsdEncodedLayerChannelFixedOverhead = 64UL * 1024UL;
 
 bool validPsdImageDimensions(long width, long height) {
     if (width < 0 || height < 0) return false;
@@ -64,6 +66,24 @@ bool reservePsdDecodedLayerChannel(ulong decodedLength, ref uint decodedChannels
     decodedChannels++;
     decodedBytes += decodedLength;
     return true;
+}
+
+bool validPsdEncodedChannelLength(ulong encodedLength, ulong decodedLength, ulong rowTableLength = 0) {
+    if (encodedLength > MaxPsdEncodedLayerChannelBytes) return false;
+    if (decodedLength > MaxPsdEncodedLayerChannelBytes ||
+        rowTableLength > MaxPsdEncodedLayerChannelBytes - decodedLength) return false;
+    auto baseLength = decodedLength + rowTableLength;
+    auto proportionalOverhead = decodedLength / 16;
+    if (proportionalOverhead > MaxPsdEncodedLayerChannelBytes - baseLength) return false;
+    baseLength += proportionalOverhead;
+    auto supportedLength = baseLength > MaxPsdEncodedLayerChannelBytes - PsdEncodedLayerChannelFixedOverhead
+        ? MaxPsdEncodedLayerChannelBytes
+        : baseLength + PsdEncodedLayerChannelFixedOverhead;
+    return encodedLength <= supportedLength;
+}
+
+bool validPsdChannelPayloadRange(ulong payloadOffset, ulong encodedLength, ulong fileLength) {
+    return payloadOffset <= fileLength && encodedLength <= fileLength - payloadOffset;
 }
 
 /**
@@ -356,6 +376,13 @@ void extractLayer(ref Layer layer) {
         const size_t decodedLength = cast(size_t)channelWidth * cast(size_t)channelHeight;
         enforce(reservePsdDecodedLayerChannel(decodedLength, decodedChannels, decodedBytes),
             "PSD layer decoded channel data exceeds the supported memory budget");
+        const ulong rowTableBudget = compressionType == 1
+            ? cast(ulong)channelHeight * ushort.sizeof
+            : 0;
+        enforce(validPsdEncodedChannelLength(encodedLength, decodedLength, rowTableBudget),
+            "PSD layer encoded channel data exceeds the supported memory budget");
+        enforce(validPsdChannelPayloadRange(file.tell(), encodedLength, file.size()),
+            "Truncated PSD channel payload");
         switch(compressionType) {
             //RAW
             case 0:
