@@ -3674,13 +3674,13 @@ void ngFlushDepthBoneDirtyImmediate() {
 private void applyRuleJson(ref ExDepthInfluenceRule rule, string text) {
     auto json = parseJSON(text);
     if ("maxInfluences" in json.object) rule.maxInfluences = cast(uint)json["maxInfluences"].integer;
-    if ("radiusScale" in json.object) rule.radiusScale = cast(float)json["radiusScale"].floating;
-    if ("minimumRadius" in json.object) rule.minimumRadius = cast(float)json["minimumRadius"].floating;
+    if ("radiusScale" in json.object) rule.radiusScale = jsonNumber(json["radiusScale"], rule.radiusScale);
+    if ("minimumRadius" in json.object) rule.minimumRadius = jsonNumber(json["minimumRadius"], rule.minimumRadius);
     if ("falloff" in json.object) rule.falloff = json["falloff"].str;
     if ("multipliersByBoneUuid" in json.object) {
         rule.multipliersByBoneUuid.clear();
         foreach (key, value; json["multipliersByBoneUuid"].object) {
-            rule.multipliersByBoneUuid[key.to!ulong] = cast(float)value.floating;
+            rule.multipliersByBoneUuid[key.to!ulong] = jsonNumber(value, 1.0f);
         }
     }
     if (rule.maxInfluences == 0) rule.maxInfluences = 1;

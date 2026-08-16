@@ -17620,24 +17620,26 @@ private void testDepthBoneInfluenceRuleCommandUndoRedo() {
         ctx,
         root,
         target,
-        `{"maxInfluences":2,"radiusScale":1.5,"minimumRadius":12.0,"falloff":"linear",` ~
-            `"multipliersByBoneUuid":{"123":0.25}}`
+        `{"maxInfluences":2,"radiusScale":1,"minimumRadius":12,"falloff":"linear",` ~
+            `"multipliersByBoneUuid":{"123":1}}`
     );
     require(result.succeeded, "SetDepthBoneInfluenceRule command should succeed");
     require(root.bindings.length == 1, "SetDepthBoneInfluenceRule should create binding for target");
     require(root.bindings[0].influenceRule.maxInfluences == 2, "SetDepthBoneInfluenceRule should apply maxInfluences");
-    require(near(root.bindings[0].influenceRule.radiusScale, 1.5f), "SetDepthBoneInfluenceRule should apply radiusScale");
-    require(near(root.bindings[0].influenceRule.minimumRadius, 12.0f), "SetDepthBoneInfluenceRule should apply minimumRadius");
+    require(near(root.bindings[0].influenceRule.radiusScale, 1.0f),
+        "SetDepthBoneInfluenceRule should accept an integer JSON radiusScale");
+    require(near(root.bindings[0].influenceRule.minimumRadius, 12.0f),
+        "SetDepthBoneInfluenceRule should accept an integer JSON minimumRadius");
     require(root.bindings[0].influenceRule.falloff == "linear", "SetDepthBoneInfluenceRule should apply falloff");
-    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f),
-        "SetDepthBoneInfluenceRule should apply per-bone multipliers");
+    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 1.0f),
+        "SetDepthBoneInfluenceRule should accept integer JSON per-bone multipliers");
 
     auto validRuleHistoryLength = incActionHistory().length;
     auto invalidRuleError = collectException(cmd!(DepthBoneCommand.SetDepthBoneInfluenceRule)(
         ctx, root, target, `{"maxInfluences":3,"multipliersByBoneUuid":{"invalid":0.5}}`));
     require(invalidRuleError !is null && root.bindings.length == 1 &&
         root.bindings[0].influenceRule.maxInfluences == 2 &&
-        near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f) &&
+        near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 1.0f) &&
         incActionHistory().length == validRuleHistoryLength,
         "invalid DepthBone influence JSON must not partially mutate an existing binding or action history");
     auto unboundTarget = new GridDeformer(incActivePuppet().root);
@@ -17659,7 +17661,7 @@ private void testDepthBoneInfluenceRuleCommandUndoRedo() {
         near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.75f),
         "replacing a DepthBone influence map should update the current rule");
     incActionUndo();
-    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 0.25f),
+    require(near(root.bindings[0].influenceRule.multipliersByBoneUuid[123], 1.0f),
         "undo SetDepthBoneInfluenceRule should restore the independent previous influence map");
 
     incActionRedo();
