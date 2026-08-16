@@ -6156,6 +6156,12 @@ private void testPsdDepthMapImportHelpers() {
         partialKeepImported.grids[0].missingVertices > 0 &&
         partialKeepImported.grids[0].sampledVertices > 0,
         "partial SkipGrid fixture must contain both missing and covered vertices");
+    PsdDepthComposedView partialKeepComposed;
+    string partialKeepError;
+    require(ngComposePsdDepthImportResult(partialKeepImported, partialKeepComposed, partialKeepError) &&
+        nearFloatArray(partialKeepImported.grids[0].depths, [1.0f, 1.0f, 1.0f]),
+        "Keep Existing must extrapolate partial coverage from sampled depths instead of retaining depth pits: " ~
+            partialKeepError);
     partialSettings.missingPolicy = PsdDepthMissingPolicy.SkipGrid;
     auto partialSkipImported = ngBuildPsdDepthsFromSource(
         incActivePuppet(), partialDepthPath, partialSettings);

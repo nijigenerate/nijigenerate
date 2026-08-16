@@ -723,11 +723,33 @@ private void applyPsdDepthMissingPolicy(
     ref PsdDepthImportResult imported,
     const(float)[] existingDepths
 ) {
+    Vec2Array vertices;
+    if (composed.grid !is null) vertices = composed.grid.vertices;
     foreach (i, isMissing; composed.missingVertexMask) {
         if (!isMissing) continue;
         final switch (imported.missingPolicy) {
             case PsdDepthMissingPolicy.KeepExisting:
-                if (i < existingDepths.length) composed.depths[i] = existingDepths[i];
+                bool foundSample;
+                float nearestDepth;
+                float nearestDistanceSquared;
+                if (vertices.length == composed.depths.length && i < vertices.length) {
+                    foreach (j, candidateDepth; composed.depths) {
+                        if (j >= composed.missingVertexMask.length || composed.missingVertexMask[j] ||
+                            !candidateDepth.isFinite) continue;
+                        auto dx = vertices[j].x - vertices[i].x;
+                        auto dy = vertices[j].y - vertices[i].y;
+                        auto distanceSquared = dx * dx + dy * dy;
+                        if (foundSample && distanceSquared >= nearestDistanceSquared) continue;
+                        foundSample = true;
+                        nearestDepth = candidateDepth;
+                        nearestDistanceSquared = distanceSquared;
+                    }
+                }
+                if (foundSample) {
+                    composed.depths[i] = nearestDepth;
+                } else if (i < existingDepths.length) {
+                    composed.depths[i] = existingDepths[i];
+                }
                 break;
             case PsdDepthMissingPolicy.SetZero:
                 composed.depths[i] = 0.0f;
