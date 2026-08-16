@@ -126,26 +126,30 @@ private void channelDimensions(ref Layer layer, short channelType, out uint widt
     }
 }
 
-private ubyte maskAt(ref Layer layer, short channelType, const(ubyte)[] data, size_t pixelIndex) {
+public ubyte sampleMaskAt(ref Layer layer, short channelType, const(ubyte)[] data, size_t pixelIndex) {
     if (data.length == 0) return 255;
     auto mask = channelMaskGeometry(layer, channelType);
     if (!mask.valid) return 255;
     bool disabled;
     bool invert;
+    bool positionRelativeToLayer;
     ubyte density = 255;
     if (channelType == ChannelType.LAYER_MASK && layer.layerMask.length > 0) {
         disabled = layer.layerMask[0].disabled;
         invert = layer.layerMask[0].invert;
+        positionRelativeToLayer = layer.layerMask[0].positionRelativeToLayer;
         density = layer.layerMask[0].density;
     } else if (channelType == ChannelType.LAYER_OR_VECTOR_MASK) {
         if (layer.vectorMask.length > 0) {
             disabled = layer.vectorMask[0].disabled;
             invert = layer.vectorMask[0].invert;
             density = layer.vectorMask[0].density;
+            positionRelativeToLayer = layer.vectorMask[0].positionRelativeToLayer;
         } else if (layer.layerMask.length > 0) {
             disabled = layer.layerMask[0].disabled;
             invert = layer.layerMask[0].invert;
             density = layer.layerMask[0].density;
+            positionRelativeToLayer = layer.layerMask[0].positionRelativeToLayer;
         }
     }
     auto maskWidth = mask.right - mask.left;
@@ -154,8 +158,8 @@ private ubyte maskAt(ref Layer layer, short channelType, const(ubyte)[] data, si
     if (maskWidth <= 0 || maskHeight <= 0) {
         return applyMaskSettings(value, density, disabled, invert);
     }
-    auto x = cast(int)(pixelIndex % layer.width) + layer.left - mask.left;
-    auto y = cast(int)(pixelIndex / layer.width) + layer.top - mask.top;
+    auto x = cast(int)(pixelIndex % layer.width) + (positionRelativeToLayer ? 0 : layer.left) - mask.left;
+    auto y = cast(int)(pixelIndex / layer.width) + (positionRelativeToLayer ? 0 : layer.top) - mask.top;
     if (x >= 0 && y >= 0 && x < maskWidth && y < maskHeight) {
         auto index = cast(size_t)y * cast(size_t)maskWidth + cast(size_t)x;
         if (index < data.length) value = data[index];
@@ -268,9 +272,9 @@ void extractLayer(ref Layer layer) {
 
         ubyte a = alpha.length > i ? alpha[i] : 255;
         if (layerOrVectorMask.length > 0)
-            a = applyMask(a, maskAt(layer, ChannelType.LAYER_OR_VECTOR_MASK, layerOrVectorMask, i));
+            a = applyMask(a, sampleMaskAt(layer, ChannelType.LAYER_OR_VECTOR_MASK, layerOrVectorMask, i));
         if (layerMask.length > 0)
-            a = applyMask(a, maskAt(layer, ChannelType.LAYER_MASK, layerMask, i));
+            a = applyMask(a, sampleMaskAt(layer, ChannelType.LAYER_MASK, layerMask, i));
         rgba[j + 3] = a;
     }
 
@@ -638,6 +642,7 @@ template ApplyMaskData(T)
         layerMask.defaultColor = maskData.defaultColor;
         layerMask.disabled = maskData.disabled;
         layerMask.invert = maskData.invert;
+        layerMask.positionRelativeToLayer = maskData.positionRelativeToLayer;
     }
 }
 
@@ -755,6 +760,7 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
                 maskData[0].isVectorMask = (maskFlags & (1u << 3)) != 0;
                 maskData[0].disabled = (maskFlags & (1u << 1)) != 0;
                 maskData[0].invert = (maskFlags & (1u << 2)) != 0;
+                maskData[0].positionRelativeToLayer = (maskFlags & (1u << 0)) != 0;
                 bool maskHasParameters = (maskFlags & (1u << 4)) != 0;
                 if (maskHasParameters && (layerMaskDataLength <= 28))
                 {
@@ -779,6 +785,7 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
                     maskData[1].isVectorMask = (realFlags & (1u << 3)) != 0;
                     maskData[1].disabled = (realFlags & (1u << 1)) != 0;
                     maskData[1].invert = (realFlags & (1u << 2)) != 0;
+                    maskData[1].positionRelativeToLayer = (realFlags & (1u << 0)) != 0;
 
                     // note the OR here. whether the following section has mask parameter data or not is influenced by
                     // the availability of parameter data of the previous mask!

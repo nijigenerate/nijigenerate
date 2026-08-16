@@ -985,6 +985,13 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
                 "PSD depth map import is still finalizing"
             );
         }
+        foreach (gridResult; imported.grids) {
+            if (gridResult.skipped || gridResult.grid is null) continue;
+            enforce(gridResult.depths.length == gridResult.grid.vertices.length,
+                "imported depths length must match target vertices");
+            enforce(cast(DepthMappedNode)gridResult.grid !is null,
+                "imported target must support depth maps");
+        }
         ngGuardActionStackScopes();
         auto group = new PsdDepthImportChangeAction();
         ngBeginDepthBoneRefreshActionSink(group);
@@ -1025,9 +1032,7 @@ ExCommandResult!JSONValue ngApplyPsdDepthImportResult(PsdDepthComposedView compo
         foreach (gridResult; imported.grids) {
             if (gridResult.skipped) continue;
             if (gridResult.grid is null) continue;
-            enforce(gridResult.depths.length == gridResult.grid.vertices.length, "imported depths length must match target vertices");
             auto depthMapped = cast(DepthMappedNode)gridResult.grid;
-            enforce(depthMapped !is null, "imported target must support depth maps");
             auto depthChanged = depthMapped.copyDepths() != gridResult.depths;
             auto depthOperated = cast(DepthOperationMappedNode)gridResult.grid;
             auto hasDepthOps = depthOperated !is null && depthOperated.copyDepthOps().length > 0;

@@ -2,7 +2,7 @@ module nijigenerate.viewport.depth.draw.session;
 
 import nijigenerate.io.depthimage : DepthDrawAlphaDepthGapDetection, DepthDrawAlphaDepthGapFillResult,
     DepthDrawAlphaDepthFocusedRule, DepthImageChannel, DepthImageConvolution, ngDepthDrawAlphaMaskFromRgba,
-    ngDepthDrawBuildLayerContourBandMask, ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba, ngDepthDrawDetectAlphaDepthGaps,
+    ngDepthDrawBuildLayerContourBandMask, ngDepthDrawDecodeDepthPixelsFromRgba, ngDepthDrawDetectAlphaDepthGaps,
     ngDepthDrawInpaintMaskedLayerDepth, ngDepthDrawMedianFillDepth;
 import nijigenerate.viewport.depth.draw.binding;
 import nijigenerate.viewport.depth.draw.coordinate : ngDepthDrawLayerDocumentBounds;
@@ -56,6 +56,35 @@ private DepthDrawLayerCleanupOperation[] cloneCleanupOperations(
         result ~= copy;
     }
     return result;
+}
+
+private bool writeCleanupDepthPixel(ref DepthDrawLayer layer, size_t index, ubyte value) {
+    auto offset = index * 4;
+    bool changed;
+    final switch (layer.channel) {
+        case DepthImageChannel.R:
+            changed = layer.depthPixels[offset] != value;
+            layer.depthPixels[offset] = value;
+            break;
+        case DepthImageChannel.G:
+            changed = layer.depthPixels[offset + 1] != value;
+            layer.depthPixels[offset + 1] = value;
+            break;
+        case DepthImageChannel.B:
+            changed = layer.depthPixels[offset + 2] != value;
+            layer.depthPixels[offset + 2] = value;
+            break;
+        case DepthImageChannel.AverageRGB:
+        case DepthImageChannel.Luminance:
+            changed = layer.depthPixels[offset] != value ||
+                layer.depthPixels[offset + 1] != value ||
+                layer.depthPixels[offset + 2] != value;
+            layer.depthPixels[offset] = value;
+            layer.depthPixels[offset + 1] = value;
+            layer.depthPixels[offset + 2] = value;
+            break;
+    }
+    return changed;
 }
 
 class DepthDrawSession {
@@ -243,7 +272,7 @@ public:
         auto layer = layerById(layerId);
         if (layer is null || !layer.hasDepthPixels()) return summary;
 
-        auto depth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.depthPixels);
+        auto depth = ngDepthDrawDecodeDepthPixelsFromRgba(layer.depthPixels, layer.channel);
         auto alphaMask = layer.alphaMask.length == depth.length
             ? layer.alphaMask.dup
             : ngDepthDrawAlphaMaskFromRgba(layer.depthPixels);
@@ -257,14 +286,8 @@ public:
 
         bool changed;
         foreach (i, value; summary.filled.depth) {
-            auto offset = i * 4;
-            changed = changed ||
-                layer.depthPixels[offset + 0] != value ||
-                layer.depthPixels[offset + 1] != value ||
-                layer.depthPixels[offset + 2] != value;
-            layer.depthPixels[offset + 0] = value;
-            layer.depthPixels[offset + 1] = value;
-            layer.depthPixels[offset + 2] = value;
+            if (!summary.detected.mask[i] || depth[i] == value) continue;
+            changed = writeCleanupDepthPixel(*layer, i, value) || changed;
         }
         layer.alphaMask = alphaMask;
         if (changed) {
@@ -284,7 +307,7 @@ public:
         auto layer = layerById(layerId);
         if (layer is null || !layer.hasDepthPixels()) return summary;
 
-        auto depth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(layer.depthPixels);
+        auto depth = ngDepthDrawDecodeDepthPixelsFromRgba(layer.depthPixels, layer.channel);
         auto mask = layer.alphaMask.length == depth.length
             ? layer.alphaMask.dup
             : ngDepthDrawAlphaMaskFromRgba(layer.depthPixels);
@@ -302,14 +325,8 @@ public:
         }
         bool changed;
         foreach (i, value; repaired.pixels) {
-            auto offset = i * 4;
-            changed = changed ||
-                layer.depthPixels[offset + 0] != value ||
-                layer.depthPixels[offset + 1] != value ||
-                layer.depthPixels[offset + 2] != value;
-            layer.depthPixels[offset + 0] = value;
-            layer.depthPixels[offset + 1] = value;
-            layer.depthPixels[offset + 2] = value;
+            if (!repaired.filledMask[i]) continue;
+            changed = writeCleanupDepthPixel(*layer, i, value) || changed;
         }
         layer.alphaMask = mask;
         if (changed) {

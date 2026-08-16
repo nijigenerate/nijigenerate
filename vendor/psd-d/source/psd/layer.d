@@ -90,6 +90,9 @@ struct LayerMask
     /** Whether this mask is inverted in the PSD. */
     bool invert;
 
+    /** Whether mask coordinates are relative to the layer bounds. */
+    bool positionRelativeToLayer;
+
 	/**
         The mask's default color regions outside the enclosing rectangle.
     */
@@ -150,6 +153,9 @@ struct VectorMask
     /** Whether this mask is inverted in the PSD. */
     bool invert;
 
+    /** Whether mask coordinates are relative to the layer bounds. */
+    bool positionRelativeToLayer;
+
 	/**
         The mask's default color regions outside the enclosing rectangle.
     */
@@ -196,6 +202,9 @@ struct MaskData
 
     /** Whether the mask is inverted. */
     bool invert;
+
+    /** Whether mask coordinates are relative to the layer bounds. */
+    bool positionRelativeToLayer;
 };
 
 /**

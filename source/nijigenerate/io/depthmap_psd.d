@@ -7,6 +7,7 @@ import nijigenerate.io.depthimage : DepthDrawPruneLayer, DepthDrawSplitLayer, ng
     ngDepthDrawDetectAlphaDepthGaps, ngDepthDrawInpaintMaskedLayerDepth, ngDepthDrawMedianFillDepth,
     ngDepthDrawPruneForeignDepthSeeds, ngDepthDrawSeedLayerDepthPixels, ngDepthImageCompositeAlpha,
     ngDepthImageCoverageAlphaAt, ngDepthImageCoverageAlphaAtUv, ngDepthImageCoverageReliableAt;
+import nijigenerate.io.psdlayers : ngPsdLayerGroupStates;
 import nijigenerate.io.depthsample : DepthSampleAggregate, DepthSampleChannel, DepthSampleConvolution, DepthSamplePoint,
     ngDepthSampleAcceptsAlpha, ngDepthSampleAlphaByte, ngDepthSampleConvolve, ngDepthSampleEffectiveAlpha,
     ngDepthSampleMissingPoint, ngDepthSampleOpacity01, ngDepthSamplePixelDepth, ngDepthSamplePixelDepth01,
@@ -883,32 +884,17 @@ private void loadPsdCompositeSourceLayers(
     source.width = document.width;
     source.height = document.height;
 
-    import std.array : join;
-    string[] layerPathSegments;
-    bool[] groupVisibility;
-    float[] groupOpacity;
+    auto groupStates = ngPsdLayerGroupStates(document.layers);
     size_t[string] layerPathOccurrences;
-    string calcSegment;
-    foreach_reverse (layer; document.layers) {
-        if (layer.type != LayerType.Any) {
-            if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
-                layerPathSegments ~= layer.name;
-                groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
-                groupOpacity ~= (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
-            } else if (layerPathSegments.length > 0) {
-                layerPathSegments.length--;
-                groupVisibility.length--;
-                groupOpacity.length--;
-            }
-            calcSegment = layerPathSegments.length > 0 ? "/" ~ layerPathSegments.join("/") : "";
-            continue;
-        }
+    foreach_reverse (i, layer; document.layers) {
+        if (layer.type != LayerType.Any) continue;
+        auto groupState = groupStates[i];
 
-        auto layerPath = uniquePsdLayerPath("%s/%s".format(calcSegment, layer.name), layerPathOccurrences);
+        auto layerPath = uniquePsdLayerPath("%s/%s".format(groupState.path, layer.name), layerPathOccurrences);
         layer.extractLayerImage();
         if (layer.data.length == 0) continue;
-        auto visible = (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
-        auto opacity = (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
+        auto visible = groupState.visible && psdLayerVisible(layer);
+        auto opacity = groupState.opacity * layerOpacity01(layer.opacity);
         auto sourceLayer = makeCompositeSourceLayer(
             layerPath,
             layer.name,
@@ -2308,7 +2294,7 @@ private bool targetHasArtCoverage(Puppet puppet, Deformable target) {
 }
 
 private bool isActiveArtPart(Part part) {
-    return part !is null && (cast(DynamicComposite)part) is null;
+    return part !is null && part.renderEnabled() && (cast(DynamicComposite)part) is null;
 }
 
 private string activeArtLayerName(Part part) {
@@ -2855,33 +2841,17 @@ PsdDepthImportResult ngBuildPsdDepthsFromPSD(Puppet puppet, string path, PsdDept
     }
     DepthLayerImage[] layers;
 
-    import std.array : join;
-    string[] layerPathSegments;
-    bool[] groupVisibility;
-    float[] groupOpacity;
+    auto groupStates = ngPsdLayerGroupStates(document.layers);
     size_t[string] layerPathOccurrences;
-    string calcSegment;
-    foreach_reverse (layer; document.layers) {
-        if (layer.type != LayerType.Any) {
-            if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
-                layerPathSegments ~= layer.name;
-                groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
-                groupOpacity ~= (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
-            } else if (layerPathSegments.length > 0) {
-                layerPathSegments.length--;
-                groupVisibility.length--;
-                groupOpacity.length--;
-            }
-            calcSegment = layerPathSegments.length > 0 ? "/" ~ layerPathSegments.join("/") : "";
-            continue;
-        }
+    foreach_reverse (i, layer; document.layers) {
+        if (layer.type != LayerType.Any) continue;
+        auto groupState = groupStates[i];
 
         result.sourceDepthLayerCount++;
 
-        auto layerPath = uniquePsdLayerPath("%s/%s".format(calcSegment, layer.name), layerPathOccurrences);
-        auto layerVisible = (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);
-        auto effectiveLayerOpacity =
-            (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) * layerOpacity01(layer.opacity);
+        auto layerPath = uniquePsdLayerPath("%s/%s".format(groupState.path, layer.name), layerPathOccurrences);
+        auto layerVisible = groupState.visible && psdLayerVisible(layer);
+        auto effectiveLayerOpacity = groupState.opacity * layerOpacity01(layer.opacity);
         PsdDepthLayerMapping mapping;
         mapping.layerPath = layerPath;
         mapping.layerName = layer.name;

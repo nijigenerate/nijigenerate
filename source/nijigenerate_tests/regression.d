@@ -93,6 +93,7 @@ import nijigenerate.ext.param;
 import nijigenerate.io.autosave;
 import nijigenerate.io.depthmap_psd;
 import nijigenerate.io.depthimage;
+import nijigenerate.io.psdlayers : ngPsdLayerGroupStates;
 import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution, DepthSampleExtremeAccumulator,
     DepthSampleResult,
     DepthSampleWeightedAccumulator, ngDepthSampleAcceptsAlpha, ngDepthSampleAlphaByte,
@@ -183,8 +184,8 @@ import nijigenerate.commands.depth.bone_gpu_async : DepthBoneGpuDispatchPacket;
 import nijilive.core.nodes.node : inRegisterNodeType;
 import nijilive.core.render.scheduler : RenderContext;
 import kra : KRA, parseKRADocument = parseDocument;
-import psd : PSD, parsePSDDocument = parseDocument;
-import psd.parser : applyMaskSettings;
+import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
+import psd.parser : applyMaskSettings, sampleMaskAt;
 import psd.rle : decodeRLE, decodeZip;
 import std.base64 : Base64;
 import std.exception : collectException, enforce;
@@ -890,6 +891,59 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
         applyMaskSettings(0, 128, false, false) == 127 &&
         applyMaskSettings(0, 255, false, true) == 255,
         "PSD layer masks should honor disabled, density, and inversion settings before multiplying alpha");
+    Layer relativeMaskLayer;
+    relativeMaskLayer.left = 10;
+    relativeMaskLayer.top = 20;
+    relativeMaskLayer.right = 12;
+    relativeMaskLayer.bottom = 21;
+    LayerMask relativeMask;
+    relativeMask.left = 0;
+    relativeMask.top = 0;
+    relativeMask.right = 2;
+    relativeMask.bottom = 1;
+    relativeMask.defaultColor = 255;
+    relativeMask.density = 255;
+    relativeMask.positionRelativeToLayer = true;
+    relativeMaskLayer.layerMask = [relativeMask];
+    require(sampleMaskAt(relativeMaskLayer, ChannelType.LAYER_MASK, [cast(ubyte)0, 255], 0) == 0 &&
+        sampleMaskAt(relativeMaskLayer, ChannelType.LAYER_MASK, [cast(ubyte)0, 255], 1) == 255,
+        "PSD masks positioned relative to a layer should sample in layer-local coordinates");
+    relativeMaskLayer.layerMask[0].positionRelativeToLayer = false;
+    require(sampleMaskAt(relativeMaskLayer, ChannelType.LAYER_MASK, [cast(ubyte)0, 255], 0) == 255,
+        "PSD document-positioned masks should sample using the layer document offset");
+
+    Layer groupOpen;
+    groupOpen.type = LayerType.OpenFolder;
+    groupOpen.name = "Hidden";
+    groupOpen.flags = LayerFlags.Visible;
+    groupOpen.opacity = 128;
+    Layer groupedChild;
+    groupedChild.type = LayerType.Any;
+    groupedChild.name = "Child";
+    Layer nestedOpen;
+    nestedOpen.type = LayerType.ClosedFolder;
+    nestedOpen.name = "Nested";
+    nestedOpen.opacity = 128;
+    Layer nestedChild;
+    nestedChild.type = LayerType.Any;
+    nestedChild.name = "Nested Child";
+    Layer divider;
+    divider.type = LayerType.SectionDivider;
+    Layer sibling;
+    sibling.type = LayerType.Any;
+    sibling.name = "Sibling";
+    Layer rootChild;
+    rootChild.type = LayerType.Any;
+    rootChild.name = "Root";
+    auto groupStates = ngPsdLayerGroupStates([
+        groupOpen, groupedChild, nestedOpen, nestedChild, divider, sibling, divider, rootChild
+    ]);
+    require(groupStates[1].path == "/Hidden" && !groupStates[1].visible &&
+        near(groupStates[1].opacity, 128.0f / 255.0f) &&
+        groupStates[3].path == "/Hidden/Nested" && !groupStates[3].visible &&
+        near(groupStates[3].opacity, (128.0f / 255.0f) * (128.0f / 255.0f)) &&
+        groupStates[5].path == "/Hidden" && groupStates[7].path.length == 0,
+        "PSD group paths, visibility, and opacity should follow forward folder/divider nesting");
     auto unsupportedPsdPath = buildPath(fixtureDir, "unsupported-16-bit.psd");
     auto unsupportedPsd = cast(ubyte[])read(psdPath);
     unsupportedPsd[22] = 0;
@@ -5927,6 +5981,7 @@ private void testPsdDepthMapImportHelpers() {
     activeArtPsdGrid.vertices = Vec2Array([vec2(0, 0)]);
     auto activeArtPsdTextureA = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
     auto activeArtPsdTextureB = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
+    auto activeArtPsdHiddenTexture = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
     auto activeArtPsdDynamicTexture = new Texture(cast(ubyte[])[255, 255, 255, 255], 1, 1, 4, 4, false, false);
     MeshData activeArtPsdMesh;
     activeArtPsdMesh.vertices = Vec2Array([
@@ -5946,6 +6001,16 @@ private void testPsdDepthMapImportHelpers() {
     activeArtPsdPartA.name = "active-art-psd-left";
     auto activeArtPsdPartB = new Part(activeArtPsdMesh, [activeArtPsdTextureB], inCreateUUID(), activeArtPsdGrid);
     activeArtPsdPartB.name = "active-art-psd-right";
+    auto activeArtPsdHiddenPart = new Part(activeArtPsdMesh, [activeArtPsdHiddenTexture], inCreateUUID(),
+        activeArtPsdGrid);
+    activeArtPsdHiddenPart.name = "active-art-psd-hidden";
+    activeArtPsdHiddenPart.setEnabled(false);
+    auto activeArtPsdHiddenParent = new Node(activeArtPsdGrid);
+    activeArtPsdHiddenParent.name = "active-art-psd-hidden-parent";
+    activeArtPsdHiddenParent.setEnabled(false);
+    auto activeArtPsdAncestorHiddenPart = new Part(activeArtPsdMesh, [activeArtPsdHiddenTexture], inCreateUUID(),
+        activeArtPsdHiddenParent);
+    activeArtPsdAncestorHiddenPart.name = "active-art-psd-ancestor-hidden";
     auto activeArtPsdDynamic = new DynamicComposite(activeArtPsdGrid);
     activeArtPsdDynamic.name = "active-art-psd-dynamic-composite";
     activeArtPsdDynamic.textures = [activeArtPsdDynamicTexture, null, null];
@@ -5959,15 +6024,19 @@ private void testPsdDepthMapImportHelpers() {
     bool foundActiveArtPsdRight;
     bool foundActiveArtPsdGridLayer;
     bool foundActiveArtPsdDynamic;
+    bool foundActiveArtPsdHidden;
+    bool foundActiveArtPsdAncestorHidden;
     foreach (layer; activeArtPsdImported.composedLayers) {
         if (layer.layerPath == "/active-art-psd-left") foundActiveArtPsdLeft = true;
         if (layer.layerPath == "/active-art-psd-right") foundActiveArtPsdRight = true;
         if (layer.layerPath == "/active-art-psd-grid") foundActiveArtPsdGridLayer = true;
         if (layer.layerPath == "/active-art-psd-dynamic-composite") foundActiveArtPsdDynamic = true;
+        if (layer.layerPath == "/active-art-psd-hidden") foundActiveArtPsdHidden = true;
+        if (layer.layerPath == "/active-art-psd-ancestor-hidden") foundActiveArtPsdAncestorHidden = true;
     }
     require(foundActiveArtPsdLeft && foundActiveArtPsdRight && !foundActiveArtPsdGridLayer &&
-        !foundActiveArtPsdDynamic,
-        "PSD depth import active-target color source should preserve artwork Parts without adding Grid or DynamicComposite outputs");
+        !foundActiveArtPsdDynamic && !foundActiveArtPsdHidden && !foundActiveArtPsdAncestorHidden,
+        "PSD depth import active-target color source should preserve visible artwork Parts without adding hidden, Grid, or DynamicComposite outputs");
 
     auto pngSecondDepthPath = buildPath(pngFixtureDir, "png-depth-second.png");
     writeRegressionPng(pngSecondDepthPath, 255, 255, 255, 4, 4);
@@ -5995,6 +6064,20 @@ private void testPsdDepthMapImportHelpers() {
     combinedPngImport.unmatchedLayers = pngImported.unmatchedLayers + pngSecondImported.unmatchedLayers;
     pngGrid.replaceDepths([0.1f, 0.2f, 0.3f]);
     pngSecondGrid.replaceDepths([0.4f, 0.5f, 0.6f]);
+    auto invalidPngImport = combinedPngImport;
+    invalidPngImport.grids = combinedPngImport.grids.dup;
+    invalidPngImport.grids[0].depths = [0.7f, 0.8f, 0.9f];
+    invalidPngImport.grids[1].depths = [0.1f];
+    auto invalidFirstBefore = pngGrid.copyDepths();
+    auto invalidSecondBefore = pngSecondGrid.copyDepths();
+    auto invalidHistoryLength = incActionHistory().length;
+    auto invalidPngView = ngPsdDepthComposedViewForRegression(invalidPngImport);
+    auto invalidPngApplyError = collectException(ngApplyPsdDepthImportResult(invalidPngView));
+    require(invalidPngApplyError !is null &&
+        pngGrid.copyDepths() == invalidFirstBefore &&
+        pngSecondGrid.copyDepths() == invalidSecondBefore &&
+        incActionHistory().length == invalidHistoryLength,
+        "PSD depth Apply should validate every target before mutating any target or action history");
     auto offsetBaseline = composePsdDepthImportForRegression(combinedPngImport);
     auto canonicalDepthDrawSession = ngPsdDepthImportResultToDepthDrawSession(combinedPngImport);
     auto canonicalFirstView = new DepthTargetView(pngGrid);
@@ -7274,6 +7357,7 @@ private void testDepthDrawSourceManifestContracts() {
     windowGapLayer.height = 5;
     windowGapLayer.bounds.width = 5;
     windowGapLayer.bounds.height = 5;
+    windowGapLayer.channel = DepthImageChannel.B;
     foreach (depth; [
         cast(ubyte)80, 80, 80, 80, 80,
         80, 10, 0, 30, 80,
@@ -7281,8 +7365,8 @@ private void testDepthDrawSourceManifestContracts() {
         80, 80, 0, 80, 80,
         80, 80, 80, 80, 80,
     ]) {
-        windowGapLayer.depthPixels ~= cast(ubyte)depth;
-        windowGapLayer.depthPixels ~= cast(ubyte)depth;
+        windowGapLayer.depthPixels ~= cast(ubyte)17;
+        windowGapLayer.depthPixels ~= cast(ubyte)33;
         windowGapLayer.depthPixels ~= cast(ubyte)depth;
         windowGapLayer.depthPixels ~= cast(ubyte)255;
     }
@@ -7295,11 +7379,16 @@ private void testDepthDrawSourceManifestContracts() {
     selectionWindow.depthDrawSession().bindings = [windowGapBinding];
     require(selectionWindow.selectLayer(windowGapLayer.id),
         "DepthDraw window alpha-depth gap fill test should select the gap layer");
+    auto gapUnaffectedPixelBefore = selectionWindow.depthDrawSession().layers[0].depthPixels[0 .. 4].dup;
+    auto gapFilledRedGreenBefore = selectionWindow.depthDrawSession().layers[0].depthPixels[7 * 4 .. 7 * 4 + 2].dup;
     auto windowGapFill = selectionWindow.applySelectedLayerAlphaDepthGapFill();
     require(windowGapFill.succeeded && windowGapFill.detected.total == 5 && windowGapFill.filled.filled == 5 &&
+        selectionWindow.depthDrawSession().layers[0].depthPixels[0 .. 4] == gapUnaffectedPixelBefore &&
+        selectionWindow.depthDrawSession().layers[0].depthPixels[7 * 4 .. 7 * 4 + 2] == gapFilledRedGreenBefore &&
+        selectionWindow.depthDrawSession().layers[0].depthPixels[7 * 4 + 2] > 0 &&
         selectionWindow.depthDrawSession().isTargetPreviewDirty(windowGapBinding.targetGridUuid) &&
         selectionWindow.statusText.canFind("Filled alpha-depth gaps"),
-        "DepthDraw window alpha-depth gap fill entry point should update the selected layer, dirty preview, and report status");
+        "DepthDraw alpha-depth gap fill should use the selected channel without rewriting unaffected pixels or other channels");
     selectionWindow.depthDrawSession().clearPreviewDirty();
     DepthDrawLayer contourLayer;
     contourLayer.id = "window-contour-layer";
@@ -7308,11 +7397,12 @@ private void testDepthDrawSourceManifestContracts() {
     contourLayer.height = 5;
     contourLayer.bounds.width = 5;
     contourLayer.bounds.height = 5;
+    contourLayer.channel = DepthImageChannel.B;
     foreach (y; 0 .. 5) {
         foreach (x; 0 .. 5) {
             auto depth = cast(ubyte)((x == 0 || x == 4 || y == 0 || y == 4) ? 20 : 100);
-            contourLayer.depthPixels ~= depth;
-            contourLayer.depthPixels ~= depth;
+            contourLayer.depthPixels ~= cast(ubyte)41;
+            contourLayer.depthPixels ~= cast(ubyte)59;
             contourLayer.depthPixels ~= depth;
             contourLayer.depthPixels ~= cast(ubyte)255;
         }
@@ -7326,9 +7416,11 @@ private void testDepthDrawSourceManifestContracts() {
     selectionWindow.depthDrawSession().bindings = [contourBinding];
     require(selectionWindow.selectLayer(contourLayer.id),
         "DepthDraw window contour repair test should select the contour layer");
+    auto contourCenterBefore = selectionWindow.depthDrawSession().layers[0].depthPixels[12 * 4 .. 12 * 4 + 4].dup;
+    auto contourBorderRedGreenBefore = selectionWindow.depthDrawSession().layers[0].depthPixels[0 .. 2].dup;
     auto contourRepair = selectionWindow.repairSelectedLayerContourDepth(1);
-    auto repairedContourDepth = ngDepthDrawDecodeGrayscaleDepthPixelsFromRgba(
-        selectionWindow.depthDrawSession().layers[0].depthPixels);
+    auto repairedContourDepth = ngDepthDrawDecodeDepthPixelsFromRgba(
+        selectionWindow.depthDrawSession().layers[0].depthPixels, DepthImageChannel.B);
     bool repairedContourBorder = true;
     foreach (i, value; repairedContourDepth) {
         auto x = cast(int)(i % 5);
@@ -7340,13 +7432,15 @@ private void testDepthDrawSourceManifestContracts() {
     }
     require(contourRepair.succeeded && contourRepair.contourPixels == 16 && contourRepair.filledPixels > 0 &&
         repairedContourBorder &&
+        selectionWindow.depthDrawSession().layers[0].depthPixels[12 * 4 .. 12 * 4 + 4] == contourCenterBefore &&
+        selectionWindow.depthDrawSession().layers[0].depthPixels[0 .. 2] == contourBorderRedGreenBefore &&
         selectionWindow.depthDrawSession().layers[0].cleanupOperations.length == 1 &&
         selectionWindow.depthDrawSession().layers[0].cleanupOperations[0].kind ==
             DepthDrawLayerCleanupKind.ContourRepair &&
         selectionWindow.depthDrawSession().layers[0].cleanupOperations[0].contourThickness == 1 &&
         selectionWindow.depthDrawSession().isTargetPreviewDirty(contourBinding.targetGridUuid) &&
         selectionWindow.statusText.canFind("Repaired contour depth"),
-        "DepthDraw window contour repair entry point should inpaint contour depth, dirty preview, and report status");
+        "DepthDraw contour repair should use the selected channel without rewriting unaffected pixels or other channels");
     selectionWindow.depthDrawSession().layers = [layer];
     selectionWindow.depthDrawSession().bindings = [binding];
     require(selectionWindow.selectLayer(layer.id) && selectionWindow.selectTargetGrid(binding.targetGridUuid),
@@ -7469,6 +7563,20 @@ private void testDepthDrawSourceManifestContracts() {
 
         fakeDepthDrawGpuReadbacks[3] = xyGpuReadback;
         fakeDepthDrawGpuNotReadyPolls = 1;
+        auto staleGeometryDepths = xyGrid.copyDepths();
+        auto originalVertex = xyGrid.vertices[0];
+        xyGpuApplySummary = xyWindow.applySelectedTargetDepthDraw();
+        require(!xyGpuApplySummary.succeeded && xyWindow.statusText.canFind("pending"),
+            "DepthDraw window stale-geometry fixture should leave a GPU apply pending");
+        xyGrid.vertices[0] = originalVertex + vec2(0.25f, 0.0f);
+        xyGpuApplySummary = xyWindow.pollPendingGpuApply();
+        require(!xyGpuApplySummary.succeeded && xyGrid.copyDepths() == staleGeometryDepths &&
+            xyWindow.statusText.canFind("canceled"),
+            "DepthDraw window GPU apply should reject readback after target geometry changes");
+        xyGrid.vertices[0] = originalVertex;
+
+        fakeDepthDrawGpuReadbacks[4] = xyGpuReadback;
+        fakeDepthDrawGpuNotReadyPolls = 1;
         auto staleReloadDepths = xyGrid.copyDepths();
         xyGpuApplySummary = xyWindow.applySelectedTargetDepthDraw();
         require(!xyGpuApplySummary.succeeded && xyWindow.statusText.canFind("pending"),
@@ -7493,7 +7601,7 @@ private void testDepthDrawSourceManifestContracts() {
             DepthImageConvolution.Median3x3, 3, 0.01f);
         require(closeWindow.selectLayer(layer.id) && closeWindow.selectTargetGrid(xyGrid.uuid),
             "DepthDraw window close fixture should select a GPU apply target");
-        fakeDepthDrawGpuReadbacks[4] = xyGpuReadback;
+        fakeDepthDrawGpuReadbacks[5] = xyGpuReadback;
         fakeDepthDrawGpuNotReadyPolls = 1;
         closeWindow.applySelectedTargetDepthDraw();
         require(ngPendingDepthDrawGpuComposeJobCount() == 1,
@@ -10479,11 +10587,11 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import diagnostics must be reachable from regression smoke");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
-        "maskAt(layer, ChannelType.LAYER_MASK, layerMask, i)",
+        "sampleMaskAt(layer, ChannelType.LAYER_MASK, layerMask, i)",
         "PSD depth import compatibility depends on psd-d applying layer masks into layer alpha");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
-        "maskAt(layer, ChannelType.LAYER_OR_VECTOR_MASK, layerOrVectorMask, i)",
+        "sampleMaskAt(layer, ChannelType.LAYER_OR_VECTOR_MASK, layerOrVectorMask, i)",
         "PSD depth import compatibility depends on psd-d applying vector/user masks into layer alpha");
     requireSourceContains(
         buildPath("vendor", "psd-d", "source", "psd", "parser.d"),
@@ -10507,7 +10615,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import settings must not retain a second composed-layer visibility state");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
-        "uniquePsdLayerPath(\"%s/%s\".format(calcSegment, layer.name), layerPathOccurrences)",
+        "uniquePsdLayerPath(\"%s/%s\".format(groupState.path, layer.name), layerPathOccurrences)",
         "PSD depth import source sessions must preserve group paths and disambiguate duplicate layers");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
@@ -10519,7 +10627,7 @@ private void testDepthDrawCalculationGateContracts() {
         "PSD depth import source sessions must preserve effective layer and ancestor-group opacity");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
-        "groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) && psdLayerVisible(layer);",
+        "auto groupStates = ngPsdLayerGroupStates(document.layers);",
         "PSD depth import must propagate ancestor-group visibility into child layers");
     requireSourceContains(
         buildPath("source", "nijigenerate", "io", "depthmap_psd.d"),
@@ -10831,6 +10939,10 @@ private void testDepthDrawCalculationGateContracts() {
         buildPath("source", "nijigenerate", "viewport", "depth", "draw", "gpu.d"),
         "DepthImageConvolution.MedianCustom",
         "DepthDraw GPU must explicitly reject unsupported custom median convolution instead of silently falling back");
+    requireSourceContains(
+        buildPath("source", "nijigenerate", "windows", "depthdraw.d"),
+        "!ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)i)",
+        "DepthDraw GPU sampling UI must not offer convolution modes rejected by the GPU capability contract");
     requireSourceContains(
         buildPath("source", "nijigenerate_tests", "regression.d"),
         "DepthImageConvolution.Median3x3",

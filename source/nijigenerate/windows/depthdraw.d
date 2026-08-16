@@ -517,6 +517,8 @@ private:
         bool changed;
         if (igBeginCombo(__("Sampling"), ConvolutionNames[index].toStringz)) {
             foreach (i, name; ConvolutionNames) {
+                if (session !is null && session.display.useGpuPreview &&
+                    !ngDepthDrawGpuLayerSampleSupportsConvolution(cast(int)i)) continue;
                 auto selected = i == index;
                 if (igSelectable(name.toStringz, selected)) {
                     convolution = cast(DepthImageConvolution)i;
@@ -969,6 +971,15 @@ public:
         if (session is null || pendingGpuApplySession !is session ||
             pendingGpuApplyRevision != session.targetPreviewRevision(pendingGpuApplyGridUuid) ||
             pendingGpuApplySessionState != ngDepthDrawSessionToManifest(session).toString()) {
+            statusMessage = _("DepthDraw GPU apply was canceled because the session changed");
+            errorMessage = null;
+            clearPendingGpuApply();
+            return summary;
+        }
+        auto currentPacket = ngBuildDepthDrawGpuComposePacket(session, target, documentWidth, documentHeight);
+        if (currentPacket.vertices != pendingGpuApplyJob.packet.vertices ||
+            currentPacket.documentPositions != pendingGpuApplyJob.packet.documentPositions ||
+            currentPacket.baseDepths != pendingGpuApplyJob.packet.baseDepths) {
             statusMessage = _("DepthDraw GPU apply was canceled because the session changed");
             errorMessage = null;
             clearPendingGpuApply();

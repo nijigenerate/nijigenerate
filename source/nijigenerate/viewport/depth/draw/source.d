@@ -1,11 +1,11 @@
 module nijigenerate.viewport.depth.draw.source;
 
 import nijigenerate.io.depthimage : ngDepthDrawAlphaMaskFromRgba, ngDepthDrawApplyPsdMaskToAlpha;
+import nijigenerate.io.psdlayers : ngPsdLayerGroupStates;
 import nijigenerate.viewport.depth.draw.layer;
 import nijigenerate.viewport.depth.draw.session;
 import nijilive : ShallowTexture;
 import psd;
-import std.array : join;
 import std.algorithm : max, min;
 import std.math : lround;
 import std.path : baseName, stripExtension;
@@ -77,35 +77,19 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
     result.session.documentWidth = result.documentWidth;
     result.session.documentHeight = result.documentHeight;
 
-    string[] layerPathSegments;
-    bool[] groupVisibility;
-    float[] groupOpacity;
-    string groupPath;
+    auto groupStates = ngPsdLayerGroupStates(document.layers);
     size_t layerIndex;
     DepthDrawLayer[string] clippingBaseByGroup;
-    foreach_reverse (layer; document.layers) {
-        if (layer.type != LayerType.Any) {
-            if (layer.name != "</Layer set>" && layer.name != "</Layer group>") {
-                layerPathSegments ~= layer.name;
-                groupVisibility ~= (groupVisibility.length == 0 || groupVisibility[$-1]) &&
-                    (layer.flags & LayerFlags.Visible) == 0;
-                groupOpacity ~= (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) *
-                    cast(float)layer.opacity / 255.0f;
-            } else if (layerPathSegments.length > 0) {
-                layerPathSegments.length--;
-                groupVisibility.length--;
-                groupOpacity.length--;
-            }
-            groupPath = layerPathSegments.length > 0 ? "/" ~ layerPathSegments.join("/") : "";
-            continue;
-        }
+    foreach_reverse (i, layer; document.layers) {
+        if (layer.type != LayerType.Any) continue;
+        auto groupState = groupStates[i];
 
         layer.extractLayerImage();
 
         DepthDrawLayer drawLayer;
         drawLayer.id = "psd:%s".format(layerIndex);
         drawLayer.sourcePath = path;
-        drawLayer.layerPath = "%s/%s".format(groupPath, layer.name);
+        drawLayer.layerPath = "%s/%s".format(groupState.path, layer.name);
         drawLayer.displayName = layer.name;
         drawLayer.width = cast(int)layer.width;
         drawLayer.height = cast(int)layer.height;
@@ -113,9 +97,8 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         drawLayer.bounds.top = layer.top;
         drawLayer.bounds.width = cast(int)layer.width;
         drawLayer.bounds.height = cast(int)layer.height;
-        drawLayer.opacity = (groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1]) *
-            cast(float)layer.opacity / 255.0f;
-        drawLayer.visible = (groupVisibility.length == 0 || groupVisibility[$-1]) &&
+        drawLayer.opacity = groupState.opacity * cast(float)layer.opacity / 255.0f;
+        drawLayer.visible = groupState.visible &&
             (layer.flags & LayerFlags.Visible) == 0;
         drawLayer.enabled = drawLayer.visible;
         drawLayer.rgba = layer.data.dup;
@@ -126,10 +109,9 @@ DepthDrawPsdLoadResult ngLoadDepthDrawPsd(string path) {
         // parser Layer.clipping is true for the former. Clipped layers share the
         // effective transparency of the nearest base below them in the same group.
         if (layer.clipping) {
-            clippingBaseByGroup[groupPath] = drawLayer;
-        } else if (auto clippingBase = groupPath in clippingBaseByGroup) {
-            auto sharedGroupOpacity = groupOpacity.length == 0 ? 1.0f : groupOpacity[$-1];
-            ngDepthDrawApplyClippingBaseCoverage(drawLayer, *clippingBase, sharedGroupOpacity);
+            clippingBaseByGroup[groupState.path] = drawLayer;
+        } else if (auto clippingBase = groupState.path in clippingBaseByGroup) {
+            ngDepthDrawApplyClippingBaseCoverage(drawLayer, *clippingBase, groupState.opacity);
         }
 
         result.layers ~= drawLayer;
