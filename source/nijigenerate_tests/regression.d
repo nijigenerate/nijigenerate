@@ -908,6 +908,16 @@ private bool nearVec2(vec2 a, vec2 b) {
     return near(a.x, b.x) && near(a.y, b.y);
 }
 
+private bool nearFloatArray(const(float)[] a, const(float)[] b) {
+    if (a.length != b.length)
+        return false;
+    foreach (i; 0 .. a.length) {
+        if (!near(a[i], b[i]))
+            return false;
+    }
+    return true;
+}
+
 private bool nearVec2Array(Vec2Array a, Vec2Array b) {
     if (a.length != b.length)
         return false;
@@ -3149,6 +3159,31 @@ private void testDepthMappedNodeSerializationRoundTrip() {
     ]));
     require(copied.copyDepths().length == copied.vertices.length, "DepthMapped rebuffer should resize depth array to vertices");
 
+    auto resized = new ExGridDeformer(incActivePuppet().root);
+    resized.rebuffer(Vec2Array([
+        vec2(-1, -1),
+        vec2(1, -1),
+        vec2(-1, 1),
+        vec2(1, 1),
+    ]));
+    resized.replaceDepths([0.0f, 2.0f, 4.0f, 6.0f]);
+    resized.rebuffer(Vec2Array([
+        vec2(-0.5f, -0.5f),
+        vec2(0.5f, -0.5f),
+        vec2(-0.5f, 0.5f),
+        vec2(0.5f, 0.5f),
+    ]));
+    require(nearFloatArray(resized.copyDepths(), [1.5f, 2.5f, 3.5f, 4.5f]),
+        "resizing a grid within its old bounds should bilinearly resample depths");
+    resized.rebuffer(Vec2Array([
+        vec2(-2.0f, -2.0f),
+        vec2(2.0f, -2.0f),
+        vec2(-2.0f, 2.0f),
+        vec2(2.0f, 2.0f),
+    ]));
+    require(nearFloatArray(resized.copyDepths(), [-3.0f, 1.0f, 5.0f, 9.0f]),
+        "expanding a grid should linearly extrapolate depths from its edge cells");
+
     auto nonFiniteGrid = new ExGridDeformer(incActivePuppet().root);
     nonFiniteGrid.name = "non-finite-depth-grid";
     nonFiniteGrid.rebuffer(Vec2Array([
@@ -4422,13 +4457,27 @@ private void testDepthCompositeMapOpsWorkflow() {
     auto ctx = new Context();
     ctx.nodes = [cast(Node)grid];
 
+    float[] coarseAxisX = [-20f, 20f];
+    float[] coarseAxisY = [-10f, 10f];
+    require((new DefineGridCommand(coarseAxisX, coarseAxisY)).run(ctx).succeeded,
+        "depth composite should define a coarse grid first");
+    float[] coarseDepths = [0.0f, 0.2f, 0.6f, 0.8f];
+    require(cmd!(DepthMapCommand.SetDepths)(ctx, grid, coarseDepths).succeeded,
+        "depth composite should set coarse depths matching topology");
+
     float[] axisX = [-20f, 0f, 20f];
     float[] axisY = [-10f, 0f, 10f];
-    require((new DefineGridCommand(axisX, axisY)).run(ctx).succeeded, "depth composite should define a 3x3 grid first");
-    require(grid.vertices.length == 9, "depth composite grid should have nine vertices");
-
+    require((new DefineGridCommand(axisX, axisY)).run(ctx).succeeded,
+        "depth composite should subdivide the grid");
     float[] depths = [0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f];
-    require(cmd!(DepthMapCommand.SetDepths)(ctx, grid, depths).succeeded, "depth composite should set depths matching topology");
+    require(grid.vertices.length == 9 && nearFloatArray(grid.copyDepths(), depths),
+        "grid subdivision should bilinearly resample the existing depth map");
+    incActionUndo();
+    require(grid.vertices.length == 4 && nearFloatArray(grid.copyDepths(), coarseDepths),
+        "undo grid subdivision should restore the coarse grid and depths");
+    incActionRedo();
+    require(grid.vertices.length == 9 && nearFloatArray(grid.copyDepths(), depths),
+        "redo grid subdivision should restore the resampled grid depths");
     require(grid.copyDepths().length == grid.vertices.length, "depth composite depths should match vertex count");
 
     JSONValue[string] attachedFields;

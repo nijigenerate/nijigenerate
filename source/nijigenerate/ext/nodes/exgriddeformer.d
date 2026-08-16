@@ -26,8 +26,18 @@ public:
 
     override
     void rebuffer(Vec2Array gridPoints) {
+        auto oldVertices = vertices.dup;
+        auto oldDepths = copyDepths();
         super.rebuffer(gridPoints);
-        resizeDepthsToVertices(vertices.length);
+        if (oldDepths is null) return;
+
+        float[] resampledDepths;
+        if (ngResampleGridDepths(oldVertices, oldDepths, vertices, resampledDepths)) {
+            replaceDepths(resampledDepths);
+        } else {
+            replaceDepths(oldDepths);
+            resizeDepthsToVertices(vertices.length);
+        }
     }
 
     override
