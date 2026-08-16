@@ -18851,6 +18851,26 @@ private void testActionStackScopeGuard() {
     require(!vertexScope.isActive(), "empty guard should close outer VertexEdit scope");
     require(!oneTimeScope.isActive(), "closing outer scope should also close nested OneTimeDeform scope");
     require(ngActionStackLevel() == 0, "empty guard should restore root action stack level");
+
+    auto rootNode = new Node(incActivePuppet().root);
+    rootNode.name = "before-root-action";
+    rootNode.name = "after-root-action";
+    incActionPush(new NodeValueChangeAction!(Node, string)(
+        "name", rootNode, "before-root-action", rootNode.name, &rootNode.name_));
+    auto clearScope = ngOpenActionStackScope(ActionStackScopeUnit.VertexEdit);
+    require(ngActionStackLevel() == 1 && clearScope.isActive(),
+        "current-level clear fixture should own a nested VertexEdit stack");
+    incActionPushGroup();
+    incActionClearHistory(ActionStackClear.CurrentLevel);
+    require(clearScope.isActive() && ngActionStackScopeActive(ActionStackScopeUnit.VertexEdit) &&
+        ngActionStackLevel() == 1 && ngActionStackGroupDepth() == 0 && incActionHistory().length == 0,
+        "clearing current history must keep its scope able to close and reset an open group");
+    clearScope.close();
+    require(!clearScope.isActive() && ngActionStackLevel() == 0 && incActionHistory().length == 1,
+        "closing a cleared edit scope must restore the root action history");
+    incActionUndo();
+    require(rootNode.name == "before-root-action",
+        "root history must remain undoable after clearing and closing an edit scope");
 }
 
 private void testCommandBaseContracts() {

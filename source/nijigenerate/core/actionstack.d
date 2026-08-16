@@ -330,24 +330,10 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         savedStateValid[currentLevel] = true;
         break;
     case ActionStackClear.CurrentLevel:
-        ActionStackScope[] retainedScopes;
-        foreach (openScope; openScopes) {
-            if (openScope.level >= currentLevel) openScope.active = false;
-            else retainedScopes ~= openScope;
-        }
-        openScopes = retainedScopes;
-        ActionStackScopeUnit[] staleUnits;
-        foreach (activeUnit, activeScope; activeScopes) {
-            if (activeScope.level >= currentLevel) {
-                activeScope.active = false;
-                staleUnits ~= activeUnit;
-            }
-        }
-        foreach (activeUnit; staleUnits)
-            activeScopes.remove(activeUnit);
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
+        groupCount[currentLevel] = 0;
         break;
     default:
     }
