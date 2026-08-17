@@ -202,7 +202,7 @@ import kra : KRA, parseKRADocument = parseDocument;
 import psd : ChannelType, Layer, LayerFlags, LayerMask, LayerType, PSD, parsePSDDocument = parseDocument;
 import psd.parser : applyMaskFeather, applyMaskSettings, decodePsdLayerCount, decodedPsdLayerChannel,
     reservePsdDecodedLayerChannel, sampleMaskAt, validPsdChannelPayloadRange,
-    validPsdEncodedChannelLength, validPsdImageDimensions;
+    validPsdEncodedChannelLength, validPsdImageDimensions, validPsdUnicodeLayerNameLength;
 import psd.rle : decodeRLE, decodeZip;
 import utils.io : readPascalStr, readValue;
 import std.base64 : Base64;
@@ -898,6 +898,12 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
         !validPsdChannelPayloadRange(10, 21, 30) &&
         !validPsdChannelPayloadRange(31, 0, 30),
         "PSD layer extraction must reject oversized or out-of-file encoded channel payloads before allocation");
+    require(validPsdUnicodeLayerNameLength(4, 0) &&
+        validPsdUnicodeLayerNameLength(10, 3) &&
+        !validPsdUnicodeLayerNameLength(3, 0) &&
+        !validPsdUnicodeLayerNameLength(10, 4) &&
+        !validPsdUnicodeLayerNameLength(4, uint.max),
+        "PSD Unicode layer names must fit completely within their additional-info block");
     auto flatOnlyPsdPath = buildPath(fixtureDir, "minimal-flat-only.psd");
     auto flatOnlyPsd = cast(ubyte[])read(psdPath);
     flatOnlyPsd[34 .. 38] = 0;
@@ -4202,6 +4208,17 @@ private void testPsdDepthDialogCommandsUndoRedo() {
     require(dialog.captureDialogSettingsState().settings.invert,
         "redo in the PSD depth dialog stack must restore the changed settings");
 
+    auto contextTarget = new Node(incActivePuppet().root);
+    PsdDepthDialogLayerState initialLayer;
+    initialLayer.layerPath = "/dialog-layer";
+    initialLayer.targetGridUuid = contextTarget.uuid;
+    initialLayer.visible = true;
+    initialLayer.enabled = true;
+    initialLayer.depthEnabled = true;
+    initialLayer.depthOffset = 0.0f;
+    initialLayer.depthScale = 1.0f;
+    dialog.setDialogLayerStateForRegression(initialLayer);
+
     auto updateMapping = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingIgnored)(
         ctx, "/dialog-layer");
     require(updateMapping.succeeded &&
@@ -4215,17 +4232,6 @@ private void testPsdDepthDialogCommandsUndoRedo() {
     require(cmd!(EditCommand.Redo)(ctx).succeeded &&
         "/dialog-layer" in dialog.captureDialogSettingsState().settings.ignoredLayerPaths,
         "Redo must restore the changed Source / Mapping state");
-
-    auto contextTarget = new Node(incActivePuppet().root);
-    PsdDepthDialogLayerState initialLayer;
-    initialLayer.layerPath = "/dialog-layer";
-    initialLayer.targetGridUuid = contextTarget.uuid;
-    initialLayer.visible = true;
-    initialLayer.enabled = true;
-    initialLayer.depthEnabled = true;
-    initialLayer.depthOffset = 0.0f;
-    initialLayer.depthScale = 1.0f;
-    dialog.setDialogLayerStateForRegression(initialLayer);
 
     auto contextWithoutLayer = new Context();
     require(!cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerDepthScale)(
@@ -4560,6 +4566,19 @@ private void testAllPsdDepthDialogCommands() {
             return (initialLayer.layerPath in state.settings.layerTargetGridUuidOverrides) is null;
         },
         "SetPsdDepthDialogLayerMappingTarget");
+    auto historyBeforeUnknownMapping = incActionHistory().length;
+    auto unknownIgnored = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingIgnored)(
+        ctx, "/unknown-layer");
+    auto unknownAutomatic = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingAuto)(
+        ctx, "/unknown-layer");
+    auto unknownTarget = cmd!(PsdDepthDialogCommand.SetPsdDepthDialogLayerMappingTarget)(
+        ctx, "/unknown-layer", cast(Node)grid);
+    auto stateAfterUnknownMapping = dialog.captureDialogSettingsState();
+    require(!unknownIgnored.succeeded && !unknownAutomatic.succeeded && !unknownTarget.succeeded &&
+        "/unknown-layer" !in stateAfterUnknownMapping.settings.ignoredLayerPaths &&
+        "/unknown-layer" !in stateAfterUnknownMapping.settings.layerTargetGridUuidOverrides &&
+        incActionHistory().length == historyBeforeUnknownMapping,
+        "PSD mapping commands must reject unknown layer paths without changing state or history");
     requirePsdDepthDialogCommandRoundTrip(
         ctx,
         cmd!(PsdDepthDialogCommand.SetPsdDepthDialogTargetEnabled)(ctx, false),

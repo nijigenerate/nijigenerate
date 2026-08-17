@@ -86,6 +86,11 @@ bool validPsdChannelPayloadRange(ulong payloadOffset, ulong encodedLength, ulong
     return payloadOffset <= fileLength && encodedLength <= fileLength - payloadOffset;
 }
 
+bool validPsdUnicodeLayerNameLength(uint blockLength, uint characterCount) {
+    return blockLength >= uint.sizeof &&
+        characterCount <= (blockLength - uint.sizeof) / ushort.sizeof;
+}
+
 /**
     Parses document
 */
@@ -1047,14 +1052,20 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
 
             while (toRead > 0)
             {
+                enforce(toRead >= 3 * uint.sizeof,
+                    "Additional Layer Information block header is truncated");
                 const string signature = file.readStr(4);
                 enforce(signature == "8BIM", "Additional Layer Information section seems to be corrupt, signature does not match \"8BIM\". (was \"%s\")".format(signature));
 
                 const string key = file.readStr(4);
 
                 // length needs to be rounded to an even number
-                uint length = file.readValue!uint;
-                length = roundUpToMultiple(length, 2u);
+                const uint dataLength = file.readValue!uint;
+                enforce(dataLength < uint.max,
+                    "Additional Layer Information block length is too large");
+                const uint length = roundUpToMultiple(dataLength, 2u);
+                enforce(length <= toRead - 3 * uint.sizeof,
+                    "Additional Layer Information block exceeds its containing section");
 
                 // read "Section divider setting" to identify whether a layer is a group, or a section divider
                 if (key == "lsct")
@@ -1069,7 +1080,10 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
                 {
                     // PSD Unicode strings store 4 bytes for the number of characters, NOT bytes, followed by
                     // 2-byte UTF16 Unicode data without the terminating null.
+                    enforce(dataLength >= uint.sizeof, "PSD Unicode layer name block is truncated");
                     const uint characterCountWithoutNull = file.readValue!uint;
+                    enforce(validPsdUnicodeLayerNameLength(dataLength, characterCountWithoutNull),
+                        "PSD Unicode layer name exceeds its additional-info block");
                     wstring utf16Name;
                     for (uint c = 0u; c < characterCountWithoutNull; ++c)
                     {

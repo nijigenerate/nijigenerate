@@ -5682,8 +5682,9 @@ msgstr ""
 #~ msgid "Rotation (Z)"
 #~ msgstr "회전 (Z)"
 
-#~ msgid "Show"
-#~ msgstr "표시"
+#: source/nijigenerate/windows/psddepthmap.d:1412
+msgid "Show"
+msgstr "표시"
 
 #~ msgid "Support development via Patreon"
 #~ msgstr "Patreon을 통한 개발 지원"
@@ -5717,3 +5718,999 @@ msgstr ""
 
 #~ msgid "nijigenerate (Nightly)"
 #~ msgstr "nijigenerate (야간 빌드)"
+
+#: source/nijigenerate/actions/depthbone.d:147
+#: source/nijigenerate/actions/depthbone.d:148
+#: source/nijigenerate/panels/inspector/depthbone.d:27
+#: source/nijigenerate/panels/inspector/depthbone.d:76
+msgid "Fit Z to Depth"
+msgstr ""
+
+#: source/nijigenerate/actions/node.d:1153
+msgid "Remove deleted Depth Rig bindings"
+msgstr ""
+
+#: source/nijigenerate/commands/command_scope.d:61
+msgid "Get Current Command Scope"
+msgstr ""
+
+#: source/nijigenerate/commands/command_scope.d:62
+msgid ""
+"Return the active command scope, allowed MCP commands, and commands that "
+"finish or cancel the scope."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:834
+msgid "Fit Z to Depth failed: no usable depth samples were found."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:841
+msgid "Fit Z to Depth updated descendant DepthBone translation.t.z values."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:842
+msgid ""
+"Fit Z to Depth completed; descendant DepthBone translation.t.z values were "
+"already aligned."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:854
+msgid ""
+"Fit Z to Depth failed: no usable depth sample was found for the DepthBone."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:861
+msgid "Fit Z to Depth updated the DepthBone translation.t.z value."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:862
+msgid ""
+"Fit Z to Depth completed; the DepthBone translation.t.z value was already "
+"aligned."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:4268
+msgid "Fit DepthRigRoot Z to Depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:4269
+msgid ""
+"Fit descendant DepthBone translation Z values to their current mapped depths"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:4288
+msgid "Fit DepthBone Z to Depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/bone.d:4289
+msgid "Fit one DepthBone translation Z value to its current mapped depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:68
+msgid "Imported PSD depth map"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:72
+msgid "PSD depth map import was reverted"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:1127
+msgid "Finalizing PSD depth import..."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:1128
+msgid "PSD depth map imported"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:1398
+#: source/nijigenerate/commands/puppet/file.d:544
+msgid "Import PSD Depth Map"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/map.d:1399
+msgid "Import PSD or PNG grayscale depth data into mapped depth targets."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:84
+msgid "Inspect PSD Depth Dialog"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:85
+msgid ""
+"Read the settings, source layers, and target UUIDs of the displayed PSD "
+"depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:299
+msgid "Get PSD Depth Dialog Part Data"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:300
+msgid ""
+"Return composed vertex depths, preview images, and color/depth layer images "
+"for the PSD depth dialog parts selected by Context.nodes."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:658
+msgid "Filled alpha-depth gaps"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:662
+msgid "Alpha-depth gap fill was reverted"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:724
+msgid "Set PSD Depth Color Source"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:724
+msgid "Set the color source used by the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:725
+msgid "Changed PSD depth color source"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:732
+msgid "Set PSD Depth Inversion"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:732
+msgid "Set global depth inversion in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:733
+msgid "Changed PSD depth inversion"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:740
+msgid "Set PSD Back Depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:740
+msgid "Set the back depth in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:741
+msgid "Changed PSD back depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:748
+msgid "Set PSD Front Depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:748
+msgid "Set the front depth in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:749
+msgid "Changed PSD front depth"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:756
+msgid "Set PSD Depth Scale"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:756
+msgid "Set the global depth scale in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:757
+msgid "Changed PSD depth scale"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:769
+msgid "Set PSD Depth Channel"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:769
+msgid "Set the depth channel in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:770
+msgid "Changed PSD depth channel"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:777
+msgid "Set PSD Depth Sampling"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:777
+msgid "Set depth sampling in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:778
+msgid "Changed PSD depth sampling"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:785
+msgid "Set PSD Sampling Radius"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:785
+msgid "Set the custom sampling radius in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:786
+msgid "Changed PSD depth sampling radius"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:797
+msgid "Set PSD Alpha Threshold"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:797
+msgid "Set the alpha threshold in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:798
+msgid "Changed PSD depth alpha threshold"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:811
+msgid "Set PSD Missing Pixel Policy"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:811
+msgid "Set missing-pixel handling in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:812
+msgid "Changed PSD missing depth policy"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:819
+msgid "Set PSD Contour Repair"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:819
+msgid "Set contour repair in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:820
+msgid "Changed PSD contour repair"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:827
+msgid "Set PSD Surface Smoothing"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:827
+msgid "Set surface smoothing in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:828
+msgid "Changed PSD surface smoothing"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:835
+msgid "Set PSD GPU Composition"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:835
+msgid "Set GPU composition in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:836
+msgid "Changed PSD GPU composition"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:843
+msgid "Set PSD Direct Grid Match"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:843
+msgid "Set direct grid-name matching in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:844
+msgid "Changed PSD direct grid matching"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:851
+msgid "Set PSD Problem Layer Filter"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:851
+msgid "Set the problem-layer filter in the displayed PSD depth dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:852
+msgid "Changed PSD problem layer filter"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:887
+msgid "Changed PSD depth layer mapping"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:895
+msgid "Use Automatic PSD Layer Mapping"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:896
+msgid "Return a Source / Mapping layer to automatic target matching."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:905
+msgid "Ignore PSD Source Layer"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:905
+msgid "Ignore a layer in Source / Mapping."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:916
+msgid "Remap PSD Source Layer"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:916
+msgid "Assign a Source / Mapping layer to a specific target."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:928
+msgid "Set PSD Target Enabled"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:929
+msgid "Enable or disable the Context target in Source / Mapping."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:951
+msgid "Changed PSD depth target state"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1003
+msgid "Set PSD Layer Enabled"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1003
+msgid "Enable or disable the selected composed layer."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1004
+msgid "Changed PSD depth layer state"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1011
+msgid "Set PSD Layer Visible"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1011
+msgid "Show or hide the selected layer in 3D Adjust."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1012
+msgid "Changed PSD depth layer visibility"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1019
+msgid "Set PSD Layer Depth Enabled"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1019
+msgid "Enable or attach depth for the selected layer."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1020
+msgid "Changed PSD layer depth attachment"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1027
+msgid "Set PSD Layer Depth Inversion"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1027
+msgid "Invert depth for the selected layer."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1028
+msgid "Changed PSD layer depth inversion"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1035
+msgid "Set PSD Layer Z Scale"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1035
+msgid "Set Z scale for the selected layer."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1036
+msgid "Changed PSD layer depth scale"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1043
+msgid "Set PSD Layer Z Offset"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1043
+msgid "Set Z offset for the selected layer."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1044
+msgid "Changed PSD layer depth offset"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1052
+msgid "Reset PSD Layer Z Transform"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1052
+msgid "Reset inversion, Z scale, and Z offset for the selected layer."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1071
+msgid "Reset PSD layer depth transform"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1080
+msgid "Fill PSD Depth Dialog Alpha-Depth Gaps"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1081
+msgid "Fill alpha-depth gaps in the displayed PSD depth import dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1106
+msgid "Apply PSD Depth Dialog"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1106
+msgid "Apply the displayed PSD depth import dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1126
+msgid "Cancel PSD Depth Dialog"
+msgstr ""
+
+#: source/nijigenerate/commands/depth/psd_dialog.d:1126
+msgid "Cancel the displayed PSD depth import dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/model/set_deform_binding.d:515
+msgid "Set Y Rotation Binding"
+msgstr ""
+
+#: source/nijigenerate/commands/model/set_deform_binding.d:516
+msgid "Set node transform Y rotation binding at current keypoint."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/file.d:544
+msgid "Show \"Import PSD Depth Map\" dialog."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/file.d:552
+msgid "Import PSD Depth Map..."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/file.d:567
+msgid "Open PSD Depth Map Dialog"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/file.d:568
+msgid "Open the PSD depth map import dialog for a specified source path."
+msgstr ""
+
+#: source/nijigenerate/panels/agent.d:1726
+msgid ""
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:32
+msgid ""
+"Set descendant DepthBone translation.t.z values to the scaled depth values "
+"used by Depth Bone deformation."
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:73
+#, c-format, d-format
+msgid "Current Depth: %.2f"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:74
+#, c-format, d-format
+msgid "Root Depth: %.2f"
+msgstr ""
+
+#: source/nijigenerate/panels/inspector/depthbone.d:81
+msgid ""
+"Set translation.t.z to the scaled depth value used by Depth Bone deformation."
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/apply.d:19
+msgid "Applied DepthDraw depth map"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/apply.d:23
+msgid "DepthDraw depth map apply was reverted"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:725
+msgid "Layer Planes"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:726
+msgid "Depth Ranges"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:727
+msgid "Missing Vertices"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:728
+msgid "Winning Layer"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:729
+msgid "Normal Image"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:730
+msgid "Raw Depth"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:731
+msgid "Coverage"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/draw/viewport.d:732
+msgid "GPU Preview"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/mesheditor/action.d:112
+msgid "Changed vertex depths"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/mesheditor/action.d:117
+msgid "Vertex depths were changed"
+msgstr ""
+
+#. drag_click
+#: source/nijigenerate/viewport/depth/tools/directdepth.d:223
+msgid "Adjust Vertex Depth"
+msgstr ""
+
+#. input_circle
+#: source/nijigenerate/viewport/depth/tools/ring.d:86
+msgid "Edit Depth Ring"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/tools/ring.d:107
+msgid "Create depth rings"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/tools/ring.d:112
+msgid "Edit existing depth rings"
+msgstr ""
+
+#: source/nijigenerate/viewport/depth/viewport.d:120
+msgid " Snap"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:31
+msgid "DETECTED"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:32
+msgid "WAIT"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:33
+msgid "RUN"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:35
+msgid "STALE"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:36
+msgid "ERROR"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:37
+msgid "CANCELED"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:74
+#, c-format, d-format
+msgid "Updates  wait:%s  run:%s  ok:%s  stale:%s  error:%s"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:87
+msgid "Updates derived asynchronously from another edit. Click for details."
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:90
+msgid "Derived Updates"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:101
+msgid "Update"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:108
+#, c-format, d-format
+msgid "Operation: %s"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:110
+#, c-format, d-format
+msgid "Reason: %s"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:112
+#, c-format, d-format
+msgid "Retry: %s"
+msgstr ""
+
+#: source/nijigenerate/widgets/asyncderivedupdatedetails.d:114
+#, c-format, d-format
+msgid "Detail: %s"
+msgstr ""
+
+#: source/nijigenerate/widgets/mainmenu.d:104
+msgid "Import PSD or PNG depth sources as deformer depth maps."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:640
+msgid "No active puppet"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:833
+#, c-format, d-format
+msgid "Preview failed: %s"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:837
+#, c-format, d-format
+msgid "GPU/apply failed: %s"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:840
+#: source/nijigenerate/windows/psddepthmap.d:2991
+#: source/nijigenerate/windows/psddepthmap.d:3228
+#: source/nijigenerate/windows/psddepthmap.d:3261
+msgid "GPU preview composition is still running."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:843
+#, c-format, d-format
+msgid ""
+"Composition: %s  %dx%d  color layers: %d  depth layers: %d  composed layers: "
+"%d  scale: %.3f"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:854
+#, c-format, d-format
+msgid "Sources: color=%s(%d) depth=%s(%d)"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:864
+#: source/nijigenerate/windows/psddepthmap.d:866
+#, c-format, d-format
+msgid "%s: %s"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:872
+msgid "No source layers were loaded from the selected depth source."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:875
+#: source/nijigenerate/windows/psddepthmap.d:1883
+msgid ""
+"No mapped targets were found. Remap a source layer to a GridDeformer or "
+"PathDeformer."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:879
+#, c-format, d-format
+msgid "Unsupported target type for layer: %s"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:881
+#, c-format, d-format
+msgid "Mapped target is missing for layer: %s"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:885
+msgid ""
+"GPU Composition is selected. Apply must submit GPU work; CPU fallback is "
+"disabled."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:969
+msgid "Depth Mask Preview"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:969
+msgid "Layer Preview"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1012
+msgid "Matched Node Preview"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1140
+msgid "Missing Target"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1142
+#: source/nijigenerate/windows/psddepthmap.d:1151
+msgid "Auto"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1182
+msgid "Color Source"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1184
+msgid "<active target/art>"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1192
+msgid "Select Color Source"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1193
+msgid "Select Color Source..."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1201
+msgid "Clear Color Source"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1207
+#: source/nijigenerate/windows/psddepthmap.d:1721
+msgid "Invert Depth"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1211
+msgid "Default: white is front and black is back."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1213
+msgid "Back Depth"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1218
+msgid "Front Depth"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1227
+msgid "Imported depth values are multiplied by this scale before applying."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1229
+msgid "Channel"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1234
+msgid "Sampling"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1240
+msgid "Custom Radius"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1246
+msgid "Alpha Threshold"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1251
+msgid "Missing Vertex Pixel"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1256
+msgid "Repair contour band"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1261
+msgid "Smooth wavy surface"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1265
+msgid "Fill alpha-depth gaps"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1270
+msgid "GPU Composition"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1274
+msgid ""
+"When enabled, apply must use the GPU composition path. CPU fallback is "
+"treated as an error."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1276
+msgid "Direct Grid Name Match"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1280
+msgid "Also match PSD layer names directly against GridDeformer names."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1282
+msgid "Only show problem layers"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1293
+msgid "Composite Depth Preview"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1303
+msgid "Raw PSD Depth"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1329
+#: source/nijigenerate/windows/psddepthmap.d:1824
+msgid "Target"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1343
+#: source/nijigenerate/windows/psddepthmap.d:1792
+msgid "Sampled"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1345
+msgid "Missing"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1349
+msgid "Min"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1351
+msgid "Max"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1353
+msgid "Skipped"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1353
+msgid "Will Apply"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1372
+msgid "Others"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1372
+msgid "Unmapped or ignored layers"
+msgstr ""
+
+
+#: source/nijigenerate/windows/psddepthmap.d:1424
+msgid "Enable Depth"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1428
+msgid ""
+"When disabled, use the nearest enabled depth below at each document "
+"coordinate."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1726
+msgid "Z Scale"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1732
+msgid "Z Offset"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1738
+msgid "Reset Z"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1779
+msgid "Target: Others"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1782
+#, c-format, d-format
+msgid "Target: %s"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1787
+msgid "Path"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1788
+msgid "Depth Layer"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1789
+msgid "Matched Node"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1790
+msgid "Remap"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1791
+#: source/nijigenerate/windows/psddepthmap.d:1828
+msgid "Status"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1793
+msgid "Selected"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1794
+#: source/nijigenerate/windows/psddepthmap.d:1825
+msgid "Mask px"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1795
+#: source/nijigenerate/windows/psddepthmap.d:1826
+msgid "Zero px"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1796
+#: source/nijigenerate/windows/psddepthmap.d:1827
+msgid "Range"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1817
+msgid "Composed Source Layers"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1823
+msgid "Source Layer"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1854
+msgid "Bound"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1854
+msgid "Unbound"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1864
+msgid "Targets"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1865
+msgid "Depth Layers"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1904
+msgid "Layers"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1905
+msgid "Composition"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1941
+msgid "Layer"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:1953
+msgid "Attached to depth below"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:2935
+msgid "3D View"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:2936
+msgid "Adjust"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:2974
+msgid "No composed source layers were loaded."
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:3098
+msgid "3D Adjust"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:3103
+msgid "Source / Mapping"
+msgstr ""
+
+#: source/nijigenerate/windows/psddepthmap.d:3464
+msgid "PSD Depth Map Import"
+msgstr ""

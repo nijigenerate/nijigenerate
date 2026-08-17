@@ -864,6 +864,14 @@ private CommandResult applyMappingChange(
     if (dialog is null || !dialog.dialogCommandsAvailable())
         return CommandResult(false, "PSD depth import dialog is not displayed");
     auto oldState = dialog.captureDialogSettingsState();
+    bool layerAvailable;
+    foreach (ref layer; oldState.layers) {
+        if (layer.layerPath != layerPath) continue;
+        layerAvailable = true;
+        break;
+    }
+    if (!layerAvailable)
+        return CommandResult(false, "PSD depth source layer is not available");
     auto nextState = dialog.captureDialogSettingsState();
     nextState.settings.ignoredLayerPaths.remove(layerPath);
     nextState.settings.layerTargetGridUuidOverrides.remove(layerPath);
