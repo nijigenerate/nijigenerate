@@ -152,6 +152,7 @@ Command[] filterCommands(string query, Command exclude = null)
     Command[] filtered;
     foreach (c; all) {
         if (c is null) continue;
+        if (!ngCommandAllowedInCurrentContext(c)) continue;
         if (exclude !is null && c is exclude) continue; // exclude self when needed
         auto lbl = c.label();
         auto eng = deriveEnglishToken(c);
@@ -291,8 +292,8 @@ private:
     {
         import nijigenerate.core.shortcut.base : ngBuildExecutionContext; // wrapper to build Context
         auto ctx = ngBuildExecutionContext();
-        if (c !is null && c.runnable(ctx)) {
-            auto res = c.run(ctx);
+        if (ngCommandAllowedInCurrentContext(c) && c.runnable(ctx)) {
+            auto res = ngRunCommand(c, ctx);
             if (res.succeeded) {
                 paletteClose();
             }

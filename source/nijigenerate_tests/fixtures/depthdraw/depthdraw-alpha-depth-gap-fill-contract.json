@@ -1,0 +1,46 @@
+{
+  "id": "depthdraw-alpha-depth-gap-fill-contract",
+  "generatedBy": "depth-draw",
+  "reference": "C:/Users/siget/src/depth-draw/src/composite/alphaDepthGapFill.js",
+  "generatedCommand": "node -e \"import('file:///C:/Users/siget/src/depth-draw/src/composite/alphaDepthGapFill.js').then(...)\"",
+  "width": 5,
+  "height": 5,
+  "layerIndex": 0,
+  "depthPixels": [
+    80, 80, 80, 80, 80,
+    80, 10, 0, 30, 80,
+    80, 80, 20, 80, 80,
+    80, 80, 0, 80, 80,
+    80, 80, 80, 80, 80
+  ],
+  "alphaMask": [
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1
+  ],
+  "expected": {
+    "detectedMask": [
+      0, 0, 0, 0, 0,
+      0, 1, 1, 1, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 0, 0, 0
+    ],
+    "zero": 2,
+    "depression": 3,
+    "cliff": 5,
+    "focusedAdded": 0,
+    "total": 5,
+    "filledDepth": [
+      80, 80, 80, 80, 80,
+      80, 80, 80, 80, 80,
+      80, 80, 80, 80, 80,
+      80, 80, 80, 80, 80,
+      80, 80, 80, 80, 80
+    ],
+    "filled": 5,
+    "remaining": 0
+  }
+}

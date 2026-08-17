@@ -19,7 +19,7 @@ bool incLockButton(bool* val, string origin) {
     igSameLine(0, 0);
     igPushID(origin.ptr);
         igPushItemWidth(16);
-            incText(((*val ? "\uE897" : "\uE898")));
+            incText(((*val ? "\uE899" : "\uE898")));
             
             if ((clicked = igIsItemClicked(ImGuiMouseButton.Left)) == true) {
                 *val = !*val;

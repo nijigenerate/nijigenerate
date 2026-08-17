@@ -1,0 +1,59 @@
+{
+  "id": "depthdraw-depth-cleanup-contract",
+  "generatedBy": "depth-draw",
+  "reference": "C:/Users/siget/src/depth-draw/src/composite/depthCleanup.js",
+  "generatedCommand": "node -e \"import('file:///C:/Users/siget/src/depth-draw/src/composite/depthCleanup.js').then(...)\"",
+  "width": 5,
+  "height": 5,
+  "maskPixels": [
+    0, 0, 0, 0, 0,
+    0, 1, 1, 1, 0,
+    0, 1, 1, 1, 0,
+    0, 1, 1, 1, 0,
+    0, 0, 0, 0, 0
+  ],
+  "depthPixels": [
+    0, 0, 0, 0, 0,
+    0, 50, 0, 70, 0,
+    0, 60, 0, 80, 0,
+    0, 90, 0, 100, 0,
+    0, 0, 0, 0, 0
+  ],
+  "expected": {
+    "contourBandThickness2": [
+      0, 0, 0, 0, 0,
+      0, 1, 1, 1, 0,
+      0, 1, 1, 1, 0,
+      0, 1, 1, 1, 0,
+      0, 0, 0, 0, 0
+    ],
+    "erodedPositiveThickness1": [
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0
+    ],
+    "inpaintPixels": [
+      0, 0, 0, 0, 0,
+      0, 50, 70, 70, 0,
+      0, 60, 86, 80, 0,
+      0, 90, 90, 100, 0,
+      0, 0, 0, 0, 0
+    ],
+    "inpaintFilledMask": [
+      0, 0, 0, 0, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 0, 0, 0
+    ],
+    "smooth": [
+      0, 0, 0, 0, 0,
+      0, 60, 0, 78, 0,
+      0, 66, 0, 83, 0,
+      0, 72, 0, 88, 0,
+      0, 0, 0, 0, 0
+    ]
+  }
+}

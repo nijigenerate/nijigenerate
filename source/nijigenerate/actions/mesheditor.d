@@ -14,6 +14,7 @@ import nijigenerate.viewport.common.spline;
 import nijigenerate.viewport.model.deform;
 import nijigenerate.viewport.vertex;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation : ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate.viewport.common.mesheditor.tools;
 import nijigenerate;
 import nijigenerate.viewport.common.mesheditor.tools.onetimedeform;
@@ -85,6 +86,14 @@ class DeformationAction  : LazyBoundAction {
                 bindingAdded = true;
             deform = newDeform;
         }
+        notifyChanged();
+    }
+
+    private void notifyChanged() {
+        if (target !is null)
+            target.notifyChange(target, NotifyReason.AttributeChanged);
+        if (deform !is null && param !is null)
+            ngNotifyDepthBoneBindingValueChanged(deform, keypoint);
     }
 
     void clear() {
@@ -149,6 +158,7 @@ class DeformationAction  : LazyBoundAction {
                         self.applyOffsets(offs);
                     }
                 }
+                notifyChanged();
             }
             undoable = false;
         }
@@ -188,6 +198,7 @@ class DeformationAction  : LazyBoundAction {
                         self.applyOffsets(offs);
                     }
                 }
+                notifyChanged();
             }
             undoable = true;
         }

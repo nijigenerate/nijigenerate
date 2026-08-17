@@ -100,6 +100,8 @@ void incMainMenu() {
                     if (igBeginMenu(__("Import"), true)) {
                         ngMenuItemFor!(FileCommand.ShowImportPSDDialog)(ctx);
                         incTooltip(_("Import a standard Photoshop PSD file."));
+                        ngMenuItemFor!(FileCommand.ShowImportPSDDepthMapDialog)(ctx);
+                        incTooltip(_("Import PSD or PNG depth sources as deformer depth maps."));
                         ngMenuItemFor!(FileCommand.ShowImportKRADialog)(ctx);
                         incTooltip(_("Import a standard Krita KRA file."));
 
@@ -201,7 +203,7 @@ void incMainMenu() {
                         auto sc = ngShortcutFor(cmdInst);
                         const(char)* pShortcut = sc.length ? sc.toStringz : null;
                         if (igMenuItem(lbl.toStringz, pShortcut, panel.visible, enabled)) {
-                            cmdInst.run(ctx);
+                            ngRunCommand(cmdInst, ctx);
                         }
                         if (!enabled) {
                             incTooltip(_("Panel is not visible in current edit mode."));

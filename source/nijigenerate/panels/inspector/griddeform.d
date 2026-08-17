@@ -1,11 +1,13 @@
 module nijigenerate.panels.inspector.griddeform;
 
 import nijigenerate.panels.inspector.common;
+import nijigenerate.panels.inspector.depthbone : ngDepthRigRootForTarget;
 import nijigenerate;
 import nijigenerate.widgets;
 import nijigenerate.actions;
 import nijigenerate.commands; // cmd!, Context
-import nijigenerate.commands.depth.bone : DepthBoneDirtyScope, ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForArmedParameter;
+import nijigenerate.commands.depth.bone : ngBeginDepthBoneSourceSettingsMerge,
+    ngCreateDepthBoneSourceSettingsMergeSession, ngEndDepthBoneSourceSettingsMerge;
 import nijigenerate.commands.inspector.apply_node : InspectorNodeApplyCommand;
 import nijigenerate.core.actionstack : incActionPush;
 import nijigenerate.ext.nodes.exdepthbone;
@@ -94,7 +96,7 @@ class NodeInspector(ModelEditSubMode inspectorMode, T: GridDeformer) : BaseInspe
 
 private:
     void drawDepthBoneSources(GridDeformer node, Parameter parameter = null, vec2u cursor = vec2u.init) {
-        auto root = findDepthRigRoot();
+        auto root = ngDepthRigRootForTarget(incActivePuppet(), node);
         if (incBeginCategory(__("Depth Bone Sources"))) {
             if (root is null) {
                 igText(__("No DepthRigRoot."));
@@ -129,19 +131,33 @@ private:
                                     }
                                     igSeparator();
                                     float weight = setting.weight;
-                                    if (igDragFloat(__("Weight"), &weight, 0.01f, 0.0f, 1.0f, "%.3f")) {
+                                    auto weightChanged = igDragFloat(__("Weight"), &weight, 0.01f, 0.0f, 1.0f, "%.3f");
+                                    auto weightSession = depthBoneSourceSettingsMergeSession(root, node, bone, "weight");
+                                    if (weightChanged) {
                                         setting.weight = weight;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "weight", weightSession, parameter, cursor);
                                     }
                                     float depthOffset = setting.depthOffset;
-                                    if (igDragFloat(__("Depth Offset"), &depthOffset, 0.01f, -10.0f, 10.0f, "%.3f")) {
+                                    auto depthOffsetChanged = igDragFloat(__("Depth Offset"), &depthOffset, 0.01f, -10.0f, 10.0f, "%.3f");
+                                    auto depthOffsetSession = depthBoneSourceSettingsMergeSession(root, node, bone, "depthOffset");
+                                    if (depthOffsetChanged) {
                                         setting.depthOffset = depthOffset;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "depthOffset", depthOffsetSession, parameter, cursor);
                                     }
                                     float depthScale = setting.depthScale;
-                                    if (igDragFloat(__("Depth Scale"), &depthScale, 0.01f, 0.01f, 10.0f, "%.3f")) {
+                                    auto depthScaleChanged = igDragFloat(__("Depth Scale"), &depthScale, 0.01f, 0.01f, 10.0f, "%.3f");
+                                    auto depthScaleSession = depthBoneSourceSettingsMergeSession(root, node, bone, "depthScale");
+                                    if (depthScaleChanged) {
                                         setting.depthScale = depthScale;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "depthScale", depthScaleSession, parameter, cursor);
+                                    }
+                                    float rotationDegrees = degrees(setting.rotation);
+                                    auto rotationChanged = igDragFloat(__("Rotation"), &rotationDegrees, 0.01f,
+                                        -float.max, float.max, "%.2f°", ImGuiSliderFlags.NoRoundToFormat);
+                                    auto rotationSession = depthBoneSourceSettingsMergeSession(root, node, bone, "rotation");
+                                    if (rotationChanged) {
+                                        setting.rotation = normalizeDepthBoneSourceRotation(radians(rotationDegrees));
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "rotation", rotationSession, parameter, cursor);
                                     }
                                     igSeparator();
                                     if (igMenuItem(__("Delete"))) {
@@ -170,21 +186,35 @@ private:
 
                                 igSameLine(0, 0);
                                 if (igBeginChild("###DepthBoneSourceDepth", ImVec2(0, 17), false, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.AlwaysAutoResize)) {
-                                    incDummy(ImVec2(-144, 1));
+                                    incDummy(ImVec2(-168, 1));
                                     igSameLine(0, 0);
                                     auto depthOffset = setting.depthOffset;
                                     igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(0, 1));
-                                    igSetNextItemWidth(72);
-                                    if (igDragFloat("###offset", &depthOffset, 0.01f, -10.0f, 10.0f, "o %.2f")) {
+                                    igSetNextItemWidth(56);
+                                    auto depthOffsetChanged = igDragFloat("###offset", &depthOffset, 0.01f, -10.0f, 10.0f, "o %.2f");
+                                    auto depthOffsetSession = depthBoneSourceSettingsMergeSession(root, node, bone, "depthOffset");
+                                    if (depthOffsetChanged) {
                                         setting.depthOffset = depthOffset;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "depthOffset", depthOffsetSession, parameter, cursor);
                                     }
                                     igSameLine(0, 0);
                                     auto depthScale = setting.depthScale;
-                                    igSetNextItemWidth(72);
-                                    if (igDragFloat("###scale", &depthScale, 0.01f, 0.01f, 10.0f, "s %.2f")) {
+                                    igSetNextItemWidth(56);
+                                    auto depthScaleChanged = igDragFloat("###scale", &depthScale, 0.01f, 0.01f, 10.0f, "s %.2f");
+                                    auto depthScaleSession = depthBoneSourceSettingsMergeSession(root, node, bone, "depthScale");
+                                    if (depthScaleChanged) {
                                         setting.depthScale = depthScale;
-                                        if (bone !is null) setDepthBoneSourceSettings(root, node, bone, setting, parameter, cursor);
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "depthScale", depthScaleSession, parameter, cursor);
+                                    }
+                                    igSameLine(0, 0);
+                                    float rotationDegrees = degrees(setting.rotation);
+                                    igSetNextItemWidth(56);
+                                    auto rotationChanged = igDragFloat("###rotation", &rotationDegrees, 0.01f,
+                                        -float.max, float.max, "r %.1f°", ImGuiSliderFlags.NoRoundToFormat);
+                                    auto rotationSession = depthBoneSourceSettingsMergeSession(root, node, bone, "rotation");
+                                    if (rotationChanged) {
+                                        setting.rotation = normalizeDepthBoneSourceRotation(radians(rotationDegrees));
+                                        if (bone !is null) setDepthBoneSourceSettingsInteractive(root, node, bone, setting, "rotation", rotationSession, parameter, cursor);
                                     }
                                     igPopStyleVar();
                                 }
@@ -227,13 +257,13 @@ private:
 
                 auto armedParam = incArmedParameter();
                 if (armedParam !is null) {
-                    if (incButtonColored("")) {
+                    if (incButtonColored("\ue693")) {
                         auto ctx = new Context(); ctx.nodes([cast(Node)node]); ctx.armedParameters = [armedParam];
                         cmd!(DepthBoneCommand.PreviewDepthBoneDeform)(ctx, root, [cast(Node)node]);
                     }
                     incTooltip(_("Preview Depth Bone Deform"));
                     igSameLine();
-                    if (incButtonColored("")) {
+                    if (incButtonColored("\ue668")) {
                         auto ctx = new Context(); ctx.nodes([cast(Node)node]); ctx.armedParameters = [armedParam];
                         cmd!(DepthBoneCommand.ApplyDepthBoneDeform)(ctx, root, [cast(Node)node]);
                     }
@@ -267,22 +297,6 @@ private:
         incEndCategory();
     }
 
-    static ExDepthRigRoot findDepthRigRoot() {
-        auto puppet = incActivePuppet();
-        if (puppet is null || puppet.root is null) return null;
-        ExDepthRigRoot found;
-        void visit(Node n) {
-            if (found !is null || n is null) return;
-            if (auto root = cast(ExDepthRigRoot)n) {
-                found = root;
-                return;
-            }
-            foreach (child; n.children) visit(child);
-        }
-        visit(puppet.root);
-        return found;
-    }
-
     static ExDepthBone findDepthBone(ExDepthRigRoot root, ulong uuid) {
         foreach (bone; root.depthBones()) if (bone.uuid == uuid) return bone;
         return null;
@@ -310,12 +324,8 @@ private:
         }
         binding.sourceBoneUuids = reordered;
         binding.normalizeSourceSettings();
-        incActionPush(new DepthBoneSourceListChangeAction("Reorder Depth Bone Source", root, oldBindings, root.bindings));
-        if (parameter !is null) {
-            ngMarkDepthBoneDirty(root, parameter, cursor, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
-        } else {
-            ngMarkDepthBoneDirtyForArmedParameter(root, "Reorder Depth Bone Source", DepthBoneDirtyScope.AllKeypoints);
-        }
+        incActionPush(new DepthBoneSourceListChangeAction(
+            "Reorder Depth Bone Source", root, oldBindings, root.bindings, false, target));
     }
 
     static void setDepthBoneSourceSettings(ExDepthRigRoot root, Node target, ExDepthBone bone, ExDepthBoneSourceSettings setting, Parameter parameter = null, vec2u cursor = vec2u.init) {
@@ -326,7 +336,47 @@ private:
             root,
             target,
             bone,
-            format(`{"weight":%s,"depthOffset":%s,"depthScale":%s}`, setting.weight, setting.depthOffset, setting.depthScale)
+            format(
+                `{"weight":%s,"depthOffset":%s,"depthScale":%s,"rotation":%s}`,
+                setting.weight,
+                setting.depthOffset,
+                setting.depthScale,
+                setting.rotation,
+            )
         );
+    }
+
+    static ulong[string] depthBoneSourceSettingsMergeSessions;
+
+    static ulong depthBoneSourceSettingsMergeSession(
+        ExDepthRigRoot root,
+        Node target,
+        ExDepthBone bone,
+        string property,
+    ) {
+        if (root is null || target is null || bone is null) return 0;
+        auto key = "%s:%s:%s:%s".format(root.uuid, target.uuid, bone.uuid, property);
+        if (igIsItemActivated())
+            depthBoneSourceSettingsMergeSessions[key] = ngCreateDepthBoneSourceSettingsMergeSession();
+        auto found = key in depthBoneSourceSettingsMergeSessions;
+        auto session = found is null ? 0 : *found;
+        if (igIsItemDeactivatedAfterEdit())
+            depthBoneSourceSettingsMergeSessions.remove(key);
+        return session;
+    }
+
+    static void setDepthBoneSourceSettingsInteractive(
+        ExDepthRigRoot root,
+        Node target,
+        ExDepthBone bone,
+        ExDepthBoneSourceSettings setting,
+        string property,
+        ulong session,
+        Parameter parameter = null,
+        vec2u cursor = vec2u.init,
+    ) {
+        ngBeginDepthBoneSourceSettingsMerge(session, property);
+        scope(exit) ngEndDepthBoneSourceSettingsMerge();
+        setDepthBoneSourceSettings(root, target, bone, setting, parameter, cursor);
     }
 }

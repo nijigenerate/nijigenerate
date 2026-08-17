@@ -1,0 +1,43 @@
+{
+  "generatedBy": "depth-draw",
+  "method": "globalThis.__depthDrawApi.getLayerDepthImage(1) decoded by browser Canvas red channel",
+  "index": 1,
+  "name": "tail",
+  "width": 378,
+  "height": 423,
+  "stats": {
+    "min": 0,
+    "max": 0,
+    "nonZero": 0,
+    "sum": 0,
+    "average": 0
+  },
+  "samples": [
+    {
+      "x": 0,
+      "y": 0,
+      "value": 0
+    },
+    {
+      "x": 189,
+      "y": 211,
+      "value": 0
+    },
+    {
+      "x": 377,
+      "y": 422,
+      "value": 0
+    },
+    {
+      "x": 94,
+      "y": 105,
+      "value": 0
+    },
+    {
+      "x": 283,
+      "y": 317,
+      "value": 0
+    }
+  ],
+  "sha256": "1bbe508733244eb549c9018fa72800b84350bc3d9bfc9a81f25919b3b886e0e5"
+}

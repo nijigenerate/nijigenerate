@@ -51,9 +51,69 @@ jobs:
         # Build the project, with its main file included, without unittests
         dub build --compiler=ldc2 --build=release --config=linux-full
 
+        # Build and run the DepthDraw regression gates for calculation-facing changes
+        dub build --compiler=ldc2 --config=linux-regression-tests
+        out/nijigenerate-regression-tests --only project.depthdraw-compatibility
+        out/nijigenerate-regression-tests --only project.depthdraw-data-model
+        out/nijigenerate-regression-tests --only project.depthdraw-composer
+        out/nijigenerate-regression-tests --only project.depthdraw-fit-z
+        out/nijigenerate-regression-tests --only project.import-psd-depth-map
+        out/nijigenerate-regression-tests --only depth.commands
+        out/nijigenerate-regression-tests --only depth.common-target-view
+        out/nijigenerate-regression-tests --only depth.composite-operation-matrix
+        out/nijigenerate-regression-tests --only depth.edit-scope
+
     - name: "Upload Artifacts"  
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: nijigenerate
         path: out/nijigenerate
+
+  windows-regression-smoke-build:
+    runs-on: windows-2022
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
+      with:
+        compiler: ldc-1.41.0
+
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+
+    - name: CMake version
+      run: cmake --version
+
+    - name: "Clone dependencies & set versions"
+      run: |
+        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
+        git clone https://github.com/nijigenerate/nijilive.git
+        cd i2d-imgui
+        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
+        git submodule update --recursive
+        cd ..
+        dub add-local i2d-imgui/ "0.8.0"
+        dub add-local nijilive/ "0.0.1"
+
+    - name: "Build RegressionSmoke app"
+      run: |
+        function Invoke-VSDevEnvironment {
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+            $installationPath = & $vswhere -prerelease -legacy -latest -property installationPath
+            $Command = Join-Path $installationPath "Common7\Tools\vsdevcmd.bat"
+          & "${env:COMSPEC}" /s /c "`"$Command`" -no_logo && set" | Foreach-Object {
+                if ($_ -match '^([^=]+)=(.*)') {
+                    [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+                }
+            }
+        }
+        Invoke-VSDevEnvironment
+
+        # Generate version metadata and Windows resources required by the build.
+        dub build --config=meta
+
+        # Compile-check live UI smoke entry points without running GUI computer-use scenarios.
+        dub build --compiler=ldc2 --config=win32-regression-smoke

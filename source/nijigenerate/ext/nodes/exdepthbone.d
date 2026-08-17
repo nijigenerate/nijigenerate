@@ -13,6 +13,7 @@ import nijilive.math;
 
 import std.algorithm.searching : countUntil;
 import std.exception : enforce;
+import std.math : fmod, isFinite, PI;
 
 enum ExDepthTargetKind {
     Grid,
@@ -84,6 +85,7 @@ struct ExDepthBoneSourceSettings {
     float weight = 1.0f;
     float depthOffset = 0.0f;
     float depthScale = 1.0f;
+    float rotation = 0.0f;
 
     void serialize(S)(ref S serializer) const {
         auto state = serializer.structBegin();
@@ -95,6 +97,9 @@ struct ExDepthBoneSourceSettings {
         serializer.serializeValue(depthOffset);
         serializer.putKey("depthScale");
         serializer.serializeValue(depthScale);
+        serializer.putKey("rotation");
+        auto normalizedRotation = normalizeDepthBoneSourceRotation(rotation);
+        serializer.serializeValue(normalizedRotation);
         serializer.structEnd(state);
     }
 
@@ -111,8 +116,21 @@ struct ExDepthBoneSourceSettings {
         if (!data["depthScale"].isEmpty) {
             if (auto exc = data["depthScale"].deserializeValue(depthScale)) return exc;
         }
+        if (!data["rotation"].isEmpty) {
+            if (auto exc = data["rotation"].deserializeValue(rotation)) return exc;
+        }
+        rotation = normalizeDepthBoneSourceRotation(rotation);
         return null;
     }
+}
+
+float normalizeDepthBoneSourceRotation(float rotation) {
+    if (!rotation.isFinite) return 0.0f;
+    enum float Pi = cast(float)PI;
+    enum float TwoPi = cast(float)(PI * 2.0);
+    auto normalized = cast(float)fmod(rotation + Pi, TwoPi);
+    if (normalized < 0.0f) normalized += TwoPi;
+    return normalized - Pi;
 }
 
 struct ExDepthRigBinding {
@@ -141,12 +159,15 @@ struct ExDepthRigBinding {
     void normalizeSourceSettings() {
         ExDepthBoneSourceSettings[] normalized;
         foreach (uuid; sourceBoneUuids) {
-            normalized ~= sourceSetting(uuid);
+            auto setting = sourceSetting(uuid);
+            setting.rotation = normalizeDepthBoneSourceRotation(setting.rotation);
+            normalized ~= setting;
         }
         sourceSettings = normalized;
     }
 
     void setSourceSetting(ExDepthBoneSourceSettings setting) {
+        setting.rotation = normalizeDepthBoneSourceRotation(setting.rotation);
         auto index = sourceBoneUuids.countUntil(setting.boneUuid);
         if (index < 0) sourceBoneUuids ~= setting.boneUuid;
 
@@ -199,6 +220,29 @@ struct ExDepthRigBinding {
     }
 }
 
+private ulong remapDepthRigUuid(ulong uuid, ulong[ulong] uuidMap) {
+    if (auto remapped = uuid in uuidMap) return *remapped;
+    return uuid;
+}
+
+private ExDepthRigBinding copyDepthRigBinding(
+    ref ExDepthRigBinding source,
+    ulong[ulong] uuidMap,
+) {
+    ExDepthRigBinding result = source;
+    result.targetUuid = remapDepthRigUuid(source.targetUuid, uuidMap);
+    result.sourceBoneUuids = source.sourceBoneUuids.dup;
+    foreach (ref uuid; result.sourceBoneUuids)
+        uuid = remapDepthRigUuid(uuid, uuidMap);
+    result.sourceSettings = source.sourceSettings.dup;
+    foreach (ref setting; result.sourceSettings)
+        setting.boneUuid = remapDepthRigUuid(setting.boneUuid, uuidMap);
+    result.influenceRule.multipliersByBoneUuid = null;
+    foreach (uuid, multiplier; source.influenceRule.multipliersByBoneUuid)
+        result.influenceRule.multipliersByBoneUuid[remapDepthRigUuid(uuid, uuidMap)] = multiplier;
+    return result;
+}
+
 @TypeId("DepthBone")
 class ExDepthBone : Node {
 public:
@@ -222,6 +266,24 @@ public:
     override
     string typeId() {
         return "DepthBone";
+    }
+
+    override
+    void copyFrom(Node src, bool clone = false, bool deepCopy = true) {
+        super.copyFrom(src, clone, deepCopy);
+        auto source = cast(ExDepthBone)src;
+        if (source is null) return;
+        boneId = source.boneId;
+        restHead = source.restHead;
+        restTail = source.restTail;
+        restRoll = source.restRoll;
+        constraintType = source.constraintType;
+        hingeAxis = source.hingeAxis;
+        lockRotation = source.lockRotation;
+        lockTranslation = source.lockTranslation;
+        allowParentToTargets = source.allowParentToTargets;
+        rotationLimits = source.rotationLimits.dup;
+        maxStepRadians = source.maxStepRadians;
     }
 
 protected:
@@ -311,6 +373,14 @@ public:
         return "DepthRigRoot";
     }
 
+    override
+    void copyFrom(Node src, bool clone = false, bool deepCopy = true) {
+        super.copyFrom(src, clone, deepCopy);
+        auto source = cast(ExDepthRigRoot)src;
+        if (source is null) return;
+        ngRemapCopiedDepthRigReferences(source, this);
+    }
+
     ExDepthBone[] depthBones() {
         ExDepthBone[] result;
 
@@ -362,6 +432,7 @@ public:
             import std.algorithm.mutation : remove;
             binding.sourceBoneUuids = binding.sourceBoneUuids.remove(cast(size_t)sourceIndex);
         }
+        binding.influenceRule.multipliersByBoneUuid.remove(bone.uuid);
         binding.normalizeSourceSettings();
         if (binding.sourceBoneUuids.length == 0) {
             import std.algorithm.mutation : remove;
@@ -396,6 +467,44 @@ protected:
     }
 }
 
+void ngRemapCopiedDepthRigReferences(Node sourceRoot, Node copiedRoot) {
+    ngRemapCopiedDepthRigReferences([sourceRoot], [copiedRoot]);
+}
+
+void ngRemapCopiedDepthRigReferences(Node[] sourceRoots, Node[] copiedRoots) {
+    if (sourceRoots.length != copiedRoots.length) return;
+
+    ulong[ulong] uuidMap;
+    void collectUuidMap(Node sourceNode, Node copiedNode) {
+        if (sourceNode is null || copiedNode is null) return;
+        uuidMap[sourceNode.uuid] = copiedNode.uuid;
+        auto childCount = sourceNode.children.length < copiedNode.children.length
+            ? sourceNode.children.length
+            : copiedNode.children.length;
+        foreach (i; 0 .. childCount)
+            collectUuidMap(sourceNode.children[i], copiedNode.children[i]);
+    }
+    foreach (i; 0 .. sourceRoots.length)
+        collectUuidMap(sourceRoots[i], copiedRoots[i]);
+
+    void copyRigBindings(Node sourceNode, Node copiedNode) {
+        auto sourceRig = cast(ExDepthRigRoot)sourceNode;
+        auto copiedRig = cast(ExDepthRigRoot)copiedNode;
+        if (sourceRig !is null && copiedRig !is null) {
+            copiedRig.bindings.length = 0;
+            foreach (ref binding; sourceRig.bindings)
+                copiedRig.bindings ~= copyDepthRigBinding(binding, uuidMap);
+        }
+        auto childCount = sourceNode.children.length < copiedNode.children.length
+            ? sourceNode.children.length
+            : copiedNode.children.length;
+        foreach (i; 0 .. childCount)
+            copyRigBindings(sourceNode.children[i], copiedNode.children[i]);
+    }
+    foreach (i; 0 .. sourceRoots.length)
+        copyRigBindings(sourceRoots[i], copiedRoots[i]);
+}
+
 ExDepthBone ngCreateDepthBone(Node parent, string boneId, vec3 restHead, vec3 restTail, float restRoll = 0.0f) {
     auto bone = new ExDepthBone(parent);
     bone.name = boneId;
@@ -424,8 +533,8 @@ void ngAddStandardDepthSkeleton(ExDepthRigRoot root, float scale = 1.0f) {
         hasBounds = size.x > 1e-4f && size.y > 1e-4f;
     }
     if (!hasBounds) {
-        auto halfWidth = 180.0f * scale;
-        auto halfHeight = 300.0f * scale;
+        auto halfWidth = 180.0f;
+        auto halfHeight = 300.0f;
         bounds = vec4(-halfWidth, -halfHeight, halfWidth, halfHeight);
     }
 

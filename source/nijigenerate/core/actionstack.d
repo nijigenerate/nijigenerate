@@ -26,8 +26,10 @@ private {
     size_t[] actionIndex;
     // Tracks the action index last marked as "saved" per level
     size_t[] savedIndex;
+    bool[] savedStateValid;
     size_t maxUndoHistory;
     ActionStackScope[ActionStackScopeUnit] activeScopes;
+    ActionStackScope[] openScopes;
     void function(ActionStackScopeUnit)[ActionStackScopeUnit] scopeCloseHandlers;
 }
 
@@ -43,32 +45,45 @@ public:
         incActionPushStack();
         level = currentLevel;
         active = true;
+        openScopes ~= this;
     }
 
     void close() {
         if (!active) return;
 
-        auto closeUnit = unit;
-        if (unit != ActionStackScopeUnit.Manual) {
-            ActionStackScopeUnit[] staleUnits;
-            foreach (activeUnit, activeScope; activeScopes) {
-                if (activeScope.level >= level) {
-                    activeScope.active = false;
-                    staleUnits ~= activeUnit;
+        ActionStackScopeUnit[] closedUnits;
+        ActionStackScope[] retainedScopes;
+        foreach (openScope; openScopes) {
+            if (openScope.level < level) {
+                retainedScopes ~= openScope;
+                continue;
+            }
+            openScope.active = false;
+            bool haveUnit;
+            foreach (closedUnit; closedUnits) {
+                if (closedUnit == openScope.unit) {
+                    haveUnit = true;
+                    break;
                 }
             }
-            foreach (activeUnit; staleUnits)
-                activeScopes.remove(activeUnit);
+            if (!haveUnit) closedUnits ~= openScope.unit;
+            if (openScope.unit != ActionStackScopeUnit.Manual) {
+                if (auto registered = openScope.unit in activeScopes) {
+                    if (*registered is openScope) activeScopes.remove(openScope.unit);
+                }
+            }
         }
+        openScopes = retainedScopes;
 
         while (currentLevel >= level && currentLevel > 0) {
             ngFlushActionStackGroups();
             incActionPopStack();
         }
-        active = false;
 
-        if (auto handler = closeUnit in scopeCloseHandlers)
-            (*handler)(closeUnit);
+        foreach (closedUnit; closedUnits) {
+            if (auto handler = closedUnit in scopeCloseHandlers)
+                (*handler)(closedUnit);
+        }
     }
 
     bool isActive() {
@@ -95,12 +110,44 @@ void incActionInit() {
     currentGroup.length = currentLevel + 1;
     groupCount.length = currentLevel + 1;
     savedIndex.length = currentLevel + 1;
+    savedStateValid.length = currentLevel + 1;
+    savedStateValid[currentLevel] = true;
+    ngAsyncActionCompletedHook = &incActionAsyncCompletionChanged;
+}
+
+private bool actionContains(Action entry, Action target) {
+    if (entry is target) return true;
+    auto group = cast(GroupAction)entry;
+    if (group is null) return false;
+    foreach (child; group.actions) {
+        if (actionContains(child, target)) return true;
+    }
+    return false;
+}
+
+private void incActionAsyncCompletionChanged(AsyncGroupAction owner) {
+    foreach (level, history; actions) {
+        if (level >= savedStateValid.length || !savedStateValid[level]) continue;
+        foreach (index, entry; history) {
+            if (!actionContains(entry, owner)) continue;
+            // Only saved snapshots which already included this owner are
+            // changed in place by its asynchronous completion.
+            if (level < savedIndex.length && index < savedIndex[level])
+                savedStateValid[level] = false;
+            break;
+        }
+    }
 }
 
 /**
     Pushes a new action to the stack
 */
 void incActionPush(Action action) {
+
+    if (ngClaimAsyncGroupActionHook !is null) {
+        auto asyncOwner = ngClaimAsyncGroupActionHook(action);
+        if (asyncOwner !is null) action = asyncOwner;
+    }
 
     if (currentGroup[currentLevel] !is null) {
         currentGroup[currentLevel].addAction(action);
@@ -123,6 +170,7 @@ void incActionPush(Action action) {
         }
     }
 }
+
 
 /**
     Steps back in the action stack
@@ -263,8 +311,8 @@ void incActionSetIndex(size_t index) {
 void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
     switch (target) {
     case ActionStackClear.All:
-        foreach (activeScope; activeScopes.byValue)
-            activeScope.active = false;
+        foreach (openScope; openScopes) openScope.active = false;
+        openScopes = null;
         activeScopes.clear();
         currentLevel = 0;
         actions.length = currentLevel + 1;
@@ -273,25 +321,22 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         currentGroup.length = currentLevel + 1;
         groupCount.length = currentLevel + 1;
         savedIndex.length = currentLevel + 1;
+        savedStateValid.length = currentLevel + 1;
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
         // Newly cleared history equals saved state
         savedIndex[currentLevel] = 0;
+        savedStateValid[currentLevel] = true;
         break;
     case ActionStackClear.CurrentLevel:
-        ActionStackScopeUnit[] staleUnits;
-        foreach (activeUnit, activeScope; activeScopes) {
-            if (activeScope.level >= currentLevel) {
-                activeScope.active = false;
-                staleUnits ~= activeUnit;
-            }
-        }
-        foreach (activeUnit; staleUnits)
-            activeScopes.remove(activeUnit);
         actions[currentLevel].length = 0;
         actionPointer[currentLevel] = 0;
-        currentGroup[currentLevel] = null;
+        // Keep the ownership of an open group. Its owner may be an asynchronous
+        // operation which must still be able to close the group after history is
+        // cleared. Discard the actions accumulated so far, and collect any later
+        // writeback into a fresh group.
+        currentGroup[currentLevel] = groupCount[currentLevel] > 0 ? new GroupAction() : null;
         break;
     default:
     }
@@ -309,6 +354,7 @@ void incActionPushGroup() {
 }
 
 void incActionPopGroup() {
+    if (groupCount[currentLevel] <= 0) return;
     groupCount[currentLevel] -= 1;
     if (groupCount[currentLevel] == 0 && currentGroup[currentLevel]) {
         auto group = currentGroup[currentLevel];
@@ -336,7 +382,9 @@ void incActionPushStack() {
     currentGroup.length = currentLevel + 1;
     groupCount.length = currentLevel + 1;
     savedIndex.length = currentLevel + 1;
+    savedStateValid.length = currentLevel + 1;
     savedIndex[currentLevel] = 0;
+    savedStateValid[currentLevel] = true;
 }
 
 ActionStackScope ngOpenActionStackScope(ActionStackScopeUnit unit = ActionStackScopeUnit.Manual) {
@@ -400,6 +448,7 @@ void incActionPopStack() {
         currentGroup.length = currentLevel + 1;
         groupCount.length = currentLevel + 1;
         savedIndex.length = currentLevel + 1;
+        savedStateValid.length = currentLevel + 1;
     }
 }
 
@@ -413,7 +462,9 @@ bool incIsActionStackEmpty() {
 void incActionMarkSaved() {
     // Ensure array is sized
     if (savedIndex.length <= currentLevel) savedIndex.length = currentLevel + 1;
+    if (savedStateValid.length <= currentLevel) savedStateValid.length = currentLevel + 1;
     savedIndex[currentLevel] = actionPointer[currentLevel];
+    savedStateValid[currentLevel] = true;
 }
 
 /**
@@ -422,5 +473,12 @@ void incActionMarkSaved() {
 bool incActionIsModified() {
     // If arrays are mismatched, consider modified only if pointers differ from 0
     size_t saved = (savedIndex.length > currentLevel) ? savedIndex[currentLevel] : 0;
-    return actionPointer[currentLevel] != saved;
+    bool valid = savedStateValid.length > currentLevel && savedStateValid[currentLevel];
+    return !valid || actionPointer[currentLevel] != saved;
+}
+
+/** Marks the current saved snapshot stale after a non-pointer state change. */
+void incActionInvalidateSavedState() {
+    if (savedStateValid.length <= currentLevel) savedStateValid.length = currentLevel + 1;
+    savedStateValid[currentLevel] = false;
 }

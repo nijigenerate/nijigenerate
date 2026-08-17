@@ -7,6 +7,10 @@ module nijigenerate.actions.binding;
 
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation :
+    ngNotifyDepthBoneBindingAllValuesChanged,
+    ngNotifyDepthBoneBindingStructureChanged,
+    ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate;
 import nijilive;
 import std.format;
@@ -16,9 +20,6 @@ import std.algorithm;
 import std.algorithm.mutation;
 import std.array;
 import i18n;
-
-alias DepthBoneBindingValueChangeHook = void function(Parameter parameter, Node target, string bindingName, vec2u keypoint);
-__gshared DepthBoneBindingValueChangeHook ngDepthBoneBindingValueChangeHook;
 
 private {
     T cloneActionValue(T)(T value) {
@@ -50,19 +51,19 @@ private {
         }
     }
 
-    void notifyDepthBoneBindingValueChanged(ParameterBinding binding, int pointx, int pointy) {
-        if (ngDepthBoneBindingValueChangeHook is null) return;
-        auto valueBinding = cast(ValueParameterBinding)binding;
-        if (valueBinding is null) return;
-        auto target = cast(Node)valueBinding.getTarget().target;
-        if (target is null) return;
-        ngDepthBoneBindingValueChangeHook(valueBinding.parameter, target, valueBinding.getName(), vec2u(cast(uint)pointx, cast(uint)pointy));
-    }
-
-    void notifyBindingValueChanged(ParameterBinding binding, int pointx, int pointy) {
+    void notifyBindingValueChanged(
+        ParameterBinding binding,
+        int pointx,
+        int pointy,
+        bool notifyDepthBone,
+    ) {
         if (auto target = cast(Node)binding.getTarget().target)
             target.notifyChange(target, NotifyReason.AttributeChanged);
-        notifyDepthBoneBindingValueChanged(binding, pointx, pointy);
+        if (notifyDepthBone) {
+            ngNotifyDepthBoneBindingValueChanged(
+                binding,
+                vec2u(cast(uint)pointx, cast(uint)pointy));
+        }
     }
 }
 
@@ -73,15 +74,19 @@ class ParameterBindingAddRemoveAction(bool added = true) : Action {
 public:
     Parameter        parent;
     ParameterBinding self;
+    bool notifyDepthBone;
 
     void notifyChange(ParameterBinding self) {
         if (auto node = cast(Node)self.getTarget().target)
             node.notifyChange(node, NotifyReason.StructureChanged);
+        if (notifyDepthBone)
+            ngNotifyDepthBoneBindingStructureChanged(self);
     }
 
-    this(Parameter parent, ParameterBinding self) {
+    this(Parameter parent, ParameterBinding self, bool notifyDepthBone = true) {
         this.parent = parent;
         this.self   = self;
+        this.notifyDepthBone = notifyDepthBone;
         notifyChange(self);
     }
 
@@ -200,7 +205,9 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
         }
     }
 
-    void updateNewState() {}
+    void updateNewState() {
+        ngNotifyDepthBoneBindingAllValuesChanged(self);
+    }
     void clear() {}
 
     /**
@@ -211,6 +218,7 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
             swap(values, self.values);
             swap(isSet, self.isSet_);
             undoable = false;
+            ngNotifyDepthBoneBindingAllValuesChanged(self);
         }
     }
 
@@ -222,6 +230,7 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
             swap(values, self.values);
             swap(isSet, self.isSet_);
             undoable = true;
+            ngNotifyDepthBoneBindingAllValuesChanged(self);
         }
     }
 
@@ -279,8 +288,16 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
     bool isSet;
     bool undoable;
     bool _dirty;
+    bool notifyDepthBone;
 
-    this(string name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+    this(
+        string name,
+        TBinding self,
+        int pointx,
+        int pointy,
+        void delegate() update = null,
+        bool notifyDepthBone = true,
+    ) {
         this.name  = name;
         this.self  = self;
         this.pointx = pointx;
@@ -289,13 +306,21 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
         this.isSet  = self.isSet_[pointx][pointy];
         this.undoable = true;
         this._dirty = false;
+        this.notifyDepthBone = notifyDepthBone;
         if (update !is null) {
             update();
             updateNewState();
         }
     }
 
-    this(int name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+    this(
+        int name,
+        TBinding self,
+        int pointx,
+        int pointy,
+        void delegate() update = null,
+        bool notifyDepthBone = true,
+    ) {
         this.name  = to!string(name);
         this.self  = self;
         this.pointx = pointx;
@@ -304,6 +329,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
         this.isSet  = self.isSet_[pointx][pointy];
         this.undoable = true;
         this._dirty = false;
+        this.notifyDepthBone = notifyDepthBone;
         if (update !is null) {
             update();
             updateNewState();
@@ -312,7 +338,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
 
     void markAsDirty() { _dirty = true; }
     void updateNewState() {
-        notifyBindingValueChanged(self, pointx, pointy);
+        notifyBindingValueChanged(self, pointx, pointy, notifyDepthBone);
     }
     void clear() { _dirty = false; }
 
@@ -329,7 +355,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             swap(self.isSet_[pointx][pointy], isSet);
             self.reInterpolate();
             undoable = false;
-            notifyBindingValueChanged(self, pointx, pointy);
+            notifyBindingValueChanged(self, pointx, pointy, notifyDepthBone);
         }
     }
 
@@ -342,7 +368,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             swap(self.isSet_[pointx][pointy], isSet);
             self.reInterpolate();
             undoable = true;
-            notifyBindingValueChanged(self, pointx, pointy);
+            notifyBindingValueChanged(self, pointx, pointy, notifyDepthBone);
         }
     }
 
@@ -395,8 +421,16 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
     bool[] isSet;
     bool undoable;
     bool _dirty;
+    bool notifyDepthBone;
 
-    this(string name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+    this(
+        string name,
+        TBinding self,
+        int pointx,
+        int pointy,
+        void delegate() update = null,
+        bool notifyDepthBone = true,
+    ) {
         this.name  = name;
         this.self  = self;
         this.pointx = pointx;
@@ -405,21 +439,29 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
         this.isSet  = self.map!((s)=>s.isSet_[pointx][pointy]).array;
         this.undoable = true;
         this._dirty = false;
+        this.notifyDepthBone = notifyDepthBone;
         if (update !is null) {
             update();
             updateNewState();
         }
     }
 
-    this(int name, TBinding self, int pointx, int pointy, void delegate() update = null) {
+    this(
+        int name,
+        TBinding self,
+        int pointx,
+        int pointy,
+        void delegate() update = null,
+        bool notifyDepthBone = true,
+    ) {
         this.name  = to!string(name);
-        this(this.name, self, pointx, pointy, update);
+        this(this.name, self, pointx, pointy, update, notifyDepthBone);
     }
 
     void markAsDirty() { _dirty = true; }
     void updateNewState() {
         foreach (b; self) {
-            notifyBindingValueChanged(b, pointx, pointy);
+            notifyBindingValueChanged(b, pointx, pointy, notifyDepthBone);
         }
     }
     void clear() { _dirty = false; }
@@ -440,7 +482,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             }
             undoable = false;
             foreach (b; self) {
-                notifyBindingValueChanged(b, pointx, pointy);
+                notifyBindingValueChanged(b, pointx, pointy, notifyDepthBone);
             }
         }
     }
@@ -457,7 +499,7 @@ class ParameterBindingValueChangeAction(T, TBinding)  : LazyBoundAction if (is(T
             }
             undoable = true;
             foreach (b; self) {
-                notifyBindingValueChanged(b, pointx, pointy);
+                notifyBindingValueChanged(b, pointx, pointy, notifyDepthBone);
             }
         }
     }

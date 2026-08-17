@@ -2,7 +2,8 @@ module nijigenerate.panels.inspector.depthbone;
 
 import nijigenerate;
 import nijigenerate.commands;
-import nijigenerate.commands.depth.bone : ngMarkDepthBoneDirtyAllKeypointsForArmedParameter;
+import nijigenerate.commands.depth.bone : ngDepthRigNodeCurrentScaledDepth,
+    ngMarkDepthBoneDirtyAllKeypointsForArmedParameter;
 import nijigenerate.ext;
 import nijigenerate.panels.inspector.common;
 import nijigenerate.widgets;
@@ -10,6 +11,33 @@ import nijilive;
 import i18n;
 import std.conv;
 import std.string;
+
+/**
+    Resolves the DepthRigRoot shown by a target inspector.
+
+    A root that already binds the target takes precedence over the first root in
+    hierarchy order. The hierarchy fallback preserves the existing behavior for
+    unbound targets, where the first edit creates their initial binding.
+*/
+ExDepthRigRoot ngDepthRigRootForTarget(Puppet puppet, Node target) {
+    if (puppet is null || puppet.root is null) return null;
+
+    ExDepthRigRoot firstRoot;
+    ExDepthRigRoot boundRoot;
+    void visit(Node node) {
+        if (node is null || boundRoot !is null) return;
+        if (auto root = cast(ExDepthRigRoot)node) {
+            if (firstRoot is null) firstRoot = root;
+            if (target !is null && root.findBindingIndex(target.uuid) >= 0) {
+                boundRoot = root;
+                return;
+            }
+        }
+        foreach (child; node.children) visit(child);
+    }
+    visit(puppet.root);
+    return boundRoot !is null ? boundRoot : firstRoot;
+}
 
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRigRoot) : BaseInspector!(mode, T) {
     this(T[] nodes, ModelEditSubMode subMode) {
@@ -23,6 +51,12 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRi
         if (incBeginCategory(__("Depth Rig"))) {
             igText(__("Bones: %d"), cast(int)root.depthBones().length);
             igText(__("Bindings: %d"), cast(int)root.bindings.length);
+            if (igButton(__("Fit Z to Depth"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                foreach (target; targets)
+                    cmd!(DepthBoneCommand.FitDepthRigRootZToDepth)(ctx, target);
+            }
+            incTooltip(_("Set descendant DepthBone translation.t.z values to the scaled depth values used by Depth Bone deformation."));
             if (igButton(__("Add Standard Skeleton"))) {
                 auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
                 cmd!(DepthBoneCommand.AddStandardDepthSkeleton)(ctx, root, 1.0f);
@@ -58,6 +92,20 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthBo
                 }
             }
             incTooltip(_("Force refresh all Depth Bone target keypoints"));
+
+            float localDepthZ;
+            float rootDepthZ;
+            auto hasDepth = ngDepthRigNodeCurrentScaledDepth(bone, localDepthZ, rootDepthZ);
+            if (hasDepth) {
+                igText(__("Current Depth: %.2f"), localDepthZ);
+                igText(__("Root Depth: %.2f"), rootDepthZ);
+            }
+            if (igButton(__("Fit Z to Depth"))) {
+                auto ctx = new Context(); ctx.inspectors = [this]; ctx.nodes(cast(Node[])targets);
+                foreach (target; targets)
+                    cmd!(DepthBoneCommand.FitDepthBoneZToDepth)(ctx, target);
+            }
+            incTooltip(_("Set translation.t.z to the scaled depth value used by Depth Bone deformation."));
 
             float[3] head = [bone.restHead.x, bone.restHead.y, bone.restHead.z];
             float[3] tail = [bone.restTail.x, bone.restTail.y, bone.restTail.z];

@@ -28,11 +28,23 @@ import i18n;
     Node[] clipboardNodes;
 
     void copyToClipboard(Node[] nodes) {
-        clipboardNodes.length = 0;
+        Node[] roots;
         foreach (node; nodes) {
-            auto newNode = node.dup;
-            clipboardNodes ~= newNode;
+            if (node is null || roots.canFind(node)) continue;
+            bool hasSelectedAncestor;
+            for (auto parent = node.parent; parent !is null; parent = parent.parent) {
+                if (nodes.canFind(parent)) {
+                    hasSelectedAncestor = true;
+                    break;
+                }
+            }
+            if (!hasSelectedAncestor) roots ~= node;
         }
+        clipboardNodes.length = 0;
+        foreach (node; roots) {
+            clipboardNodes ~= node.dup;
+        }
+        ngRemapCopiedDepthRigReferences(roots, clipboardNodes);
     }
 
     void pasteFromClipboard(Node parent) {

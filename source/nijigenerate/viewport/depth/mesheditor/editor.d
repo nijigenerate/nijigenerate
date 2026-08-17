@@ -18,6 +18,8 @@ import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.camera;
+import nijigenerate.viewport.depth.common.session;
+import nijigenerate.viewport.depth.common.targetview : DepthTargetView, ngDepthDisplayScaleForTargetsInNodeSpace;
 import nijigenerate.viewport.depth.mesheditor.action;
 import nijigenerate.viewport.depth.mesheditor.node;
 import nijigenerate.viewport.depth.renderer;
@@ -42,9 +44,11 @@ private:
     vec2 dragStartLocal;
     float dragStartMouseY;
     bool draggingOperation;
+    bool[DepthMeshEditorOne] directDepthDirty;
     DepthTextureMeshRenderer renderer;
     ActionStackScope actionScope;
     bool buildRenderResources;
+    DepthViewSession viewSession;
 
     bool editable(Node node) {
         auto ok = cast(GridDeformer)node !is null;
@@ -63,9 +67,13 @@ private:
         foreach (op; saved) loaded ~= depthOperationFromExDepthOp(op);
         operations[editor] = loaded;
 
-        // depth-ops are the editable source. Rebuild working depths from the
-        // operation list so saved depths do not get applied a second time.
-        editor.clearBaseDepths();
+        auto baseDepths = operated.copyDepthOpBaseDepths();
+        if (baseDepths.length == editor.getTarget().vertices.length) {
+            editor.replaceBaseDepths(baseDepths);
+        } else {
+            // Older files stored operation-only depths without a separate base.
+            editor.clearBaseDepths();
+        }
         recompute(editor);
     }
 
@@ -81,6 +89,17 @@ private:
             foreach (op; operations[editor]) {
                 saved.array ~= ngDepthOpToJson(toExDepthOp(op));
             }
+        }
+        return saved;
+    }
+
+    JSONValue targetOperationsToJson(DepthMeshEditorOne editor) {
+        JSONValue saved = JSONValue.emptyArray;
+        if (editor is null) return saved;
+        auto operated = cast(DepthOperationMappedNode)editor.getTarget();
+        if (operated is null) return saved;
+        foreach (op; operated.copyDepthOps()) {
+            saved.array ~= ngDepthOpToJson(op);
         }
         return saved;
     }
@@ -104,6 +123,7 @@ public:
 public:
     this(bool buildRenderResources = true) {
         this.buildRenderResources = buildRenderResources;
+        viewSession = new DepthViewSession();
         if (buildRenderResources)
             renderer = new DepthTextureMeshRenderer();
         actionScope = ngOpenActionStackScope(ActionStackScopeUnit.DepthEdit);
@@ -118,6 +138,7 @@ public:
         foreach (editor; editors.byValue) editor.dispose();
         editors.clear();
         operations.clear();
+        if (viewSession !is null) viewSession.clear();
     }
 
     void closeStack() {
@@ -129,9 +150,11 @@ public:
 
     void setTargets(Node[] targets) {
         DepthMeshEditorOne[GridDeformer] next;
+        Deformable[] nextViewTargets;
         foreach (node; targets) {
             if (!editable(node)) continue;
             auto grid = cast(GridDeformer)node;
+            nextViewTargets ~= grid;
             if (grid in editors) {
                 next[grid] = editors[grid];
             } else {
@@ -143,6 +166,7 @@ public:
         foreach (grid, editor; editors) {
             if (!(grid in next)) {
                 operations.remove(editor);
+                directDepthDirty.remove(editor);
                 if (selectedOperationEditor is editor) {
                     selectedOperationEditor = null;
                     selectedOperationIndex = -1;
@@ -151,6 +175,35 @@ public:
             }
         }
         editors = next;
+        if (viewSession !is null) {
+            viewSession.setTargets(nextViewTargets);
+            Deformable[] displayTargets;
+            auto puppet = incActivePuppet();
+            if (puppet !is null) {
+                foreach (grid; puppet.findNodesType!GridDeformer(puppet.root)) {
+                    auto mapped = cast(DepthMappedNode)grid;
+                    if (mapped !is null && mapped.copyDepths().length > 0) displayTargets ~= grid;
+                }
+            }
+            if (displayTargets.length == 0) displayTargets = nextViewTargets;
+            viewSession.setDepthDisplayScale(ngDepthDisplayScaleForTargetsInNodeSpace(
+                puppet is null ? null : puppet.root,
+                displayTargets));
+            foreach (grid, editor; editors) {
+                editor.bindTargetView(viewSession.targetByGrid(grid.uuid));
+                if (editor in operations) recompute(editor);
+            }
+        }
+    }
+
+    DepthViewSession depthViewSession() {
+        return viewSession;
+    }
+
+    DepthTargetView targetViewFor(DepthMeshEditorOne editor) {
+        if (editor is null || viewSession is null) return null;
+        auto target = editor.getTarget();
+        return target is null ? null : viewSession.targetByGrid(target.uuid);
     }
 
     GridDeformer[] getTargets() {
@@ -170,17 +223,33 @@ public:
         foreach (editor; editors.byValue) {
             editor.resetFromTarget();
             replaceOperations(editor, null);
+            directDepthDirty.remove(editor);
             loadOperationsFromTarget(editor);
         }
+        if (viewSession !is null) viewSession.resetFromTargets();
     }
 
     void applyToTargets() {
         incActionPushGroup();
         foreach (editor; editors.byValue) {
             auto ctx = new Context();
-            cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), operationsToJson(editor));
-            cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+            auto nextOperations = operationsToJson(editor);
+            auto targetOperations = targetOperationsToJson(editor);
+            auto operationsChanged = nextOperations != targetOperations;
+            if (editor in directDepthDirty) {
+                // Direct vertex edits bake the current preview. Keeping the
+                // operation recipe would make a later reload apply it again.
+                if (targetOperations.array.length > 0) {
+                    cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), JSONValue.emptyArray);
+                }
+                cmd!(DepthMapCommand.SetDepths)(ctx, editor.targetNode(), editor.copyEditorDepths());
+                directDepthDirty.remove(editor);
+            } else if (operationsChanged) {
+                cmd!(DepthMapCommand.SetDepthOps)(ctx, editor.targetNode(), nextOperations);
+                cmd!(DepthMapCommand.ApplyDepthOps)(ctx, editor.targetNode());
+            }
             editor.resetFromTarget();
+            syncOperationsFromTarget(editor);
         }
         incActionPopGroup();
     }
@@ -266,6 +335,44 @@ public:
         recompute(editor);
     }
 
+    void markDirectDepthDirty(DepthMeshEditorOne editor) {
+        if (editor is null) return;
+        directDepthDirty[editor] = true;
+    }
+
+    bool isDirectDepthDirty(DepthMeshEditorOne editor) {
+        return editor !is null && (editor in directDepthDirty) !is null;
+    }
+
+    void replaceDirectDepths(DepthMeshEditorOne editor, float[] nextDepths) {
+        if (editor is null) return;
+        editor.replaceEditorDepths(nextDepths);
+        markDirectDepthDirty(editor);
+    }
+
+    void beginDirectDepthEdit(DepthMeshEditorOne editor) {
+        if (editor is null) return;
+        markDirectDepthDirty(editor);
+    }
+
+    void replaceDepthState(
+        DepthMeshEditorOne editor,
+        float[] depths,
+        float[] baseDepths,
+        DepthOperation[] nextOperations,
+        bool dirty
+    ) {
+        if (editor is null) return;
+        editor.replaceBaseDepths(baseDepths);
+        replaceOperations(editor, nextOperations);
+        editor.replaceEditorDepths(depths);
+        if (dirty) {
+            directDepthDirty[editor] = true;
+        } else {
+            directDepthDirty.remove(editor);
+        }
+    }
+
     void appendOperation(DepthMeshEditorOne editor, DepthOperation operation) {
         if (editor is null || operation is null) return;
         operations[editor] ~= operation;
@@ -303,7 +410,14 @@ public:
         return list[selectedOperationIndex];
     }
 
-    bool findOperationHit(vec2 mouse, ref DepthCamera3D depthCamera, out DepthMeshEditorOne hitEditor, out ptrdiff_t hitIndex, out DepthOperationHandle hitHandle) {
+    bool findOperationHit(
+        vec2 mouse,
+        ref DepthCamera3D depthCamera,
+        out DepthMeshEditorOne hitEditor,
+        out ptrdiff_t hitIndex,
+        out DepthOperationHandle hitHandle,
+        bool delegate(DepthOperation) filter = null
+    ) {
         float bestDistance = float.max;
         hitEditor = null;
         hitIndex = -1;
@@ -311,6 +425,7 @@ public:
         foreach (editor; editors.byValue) {
             if (!(editor in operations)) continue;
             foreach (i, op; operations[editor]) {
+                if (filter !is null && !filter(op)) continue;
                 float distance;
                 auto handle = op.hit(editor, mouse, depthCamera, 14.0f / max(0.01f, incViewportZoom), distance);
                 if (handle == DepthOperationHandle.None || distance >= bestDistance) continue;
@@ -323,11 +438,16 @@ public:
         return hitEditor !is null;
     }
 
-    bool beginOperationDrag(vec2 mouse, float mouseY, ref DepthCamera3D depthCamera) {
+    bool beginOperationDrag(
+        vec2 mouse,
+        float mouseY,
+        ref DepthCamera3D depthCamera,
+        bool delegate(DepthOperation) filter = null
+    ) {
         DepthMeshEditorOne hitEditor;
         ptrdiff_t hitIndex;
         DepthOperationHandle hitHandle;
-        if (!findOperationHit(mouse, depthCamera, hitEditor, hitIndex, hitHandle)) return false;
+        if (!findOperationHit(mouse, depthCamera, hitEditor, hitIndex, hitHandle, filter)) return false;
 
         selectedOperationEditor = hitEditor;
         selectedOperationIndex = hitIndex;

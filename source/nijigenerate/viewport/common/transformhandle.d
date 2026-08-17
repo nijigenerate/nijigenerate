@@ -2,6 +2,7 @@ module nijigenerate.viewport.common.transformhandle;
 
 import nijigenerate.actions;
 import nijigenerate.ext.nodes.excamera : ExCamera;
+import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigRoot;
 import nijilive;
 import std.algorithm : max, min;
 import std.math : abs;
@@ -55,6 +56,13 @@ private class DefaultViewportTransformHandleAdapter : ViewportTransformHandleAda
                 &node.localTransform.scale.vector[1]
             );
         }
+    }
+}
+
+private class NodeOriginViewportTransformHandleAdapter : DefaultViewportTransformHandleAdapter {
+    override vec4 bounds(Node node) {
+        auto origin = (node.transform.matrix * vec4(0, 0, 0, 1)).xy;
+        return vec4(origin.x, origin.y, origin.x, origin.y);
     }
 }
 
@@ -174,6 +182,7 @@ public:
 
 private {
     ViewportTransformHandleAdapter defaultAdapter;
+    ViewportTransformHandleAdapter nodeOriginAdapter;
     ViewportTransformHandleAdapter cameraAdapter;
     Node lastAdapterNode;
     ViewportTransformHandleAdapter lastAdapter;
@@ -192,9 +201,11 @@ ViewportTransformHandleAdapter ngViewportTransformHandleAdapter(Node node) {
 private ViewportTransformHandleAdapter createAdapter(Node node) {
     if (defaultAdapter is null) {
         defaultAdapter = new DefaultViewportTransformHandleAdapter();
+        nodeOriginAdapter = new NodeOriginViewportTransformHandleAdapter();
         cameraAdapter = new CameraViewportTransformHandleAdapter();
     }
     if (cast(ExCamera)node) return cameraAdapter;
+    if (cast(ExDepthBone)node || cast(ExDepthRigRoot)node) return nodeOriginAdapter;
     return defaultAdapter;
 }
 

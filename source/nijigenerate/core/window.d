@@ -13,6 +13,7 @@ import nijigenerate.core.path;
 import nijigenerate.core.font;
 import nijigenerate.core.dpi;
 import nijigenerate.core.tasks;
+import nijigenerate.core.asyncderivedupdate : incAsyncDerivedUpdateUpdate;
 import nijigenerate.widgets.dialog;
 import nijigenerate.widgets.modal;
 import nijigenerate.widgets.button;
@@ -42,6 +43,11 @@ version(OSX) {
 
 version(linux) {
     import dportals;
+}
+
+/** Canonical nijigenerate UI accent green with caller-controlled opacity. */
+ImVec4 incUiAccentColor(float alpha = 1.0f) {
+    return ImVec4(0.36f, 0.45f, 0.35f, alpha);
 }
 
 version(Windows) {
@@ -539,7 +545,7 @@ void incInitStyling() {
     
     igStyleColorsLight(style);
     // Accent palette based on green and neutral tones
-    ImVec4 accentGreen = ImVec4(0.36f, 0.45f, 0.35f, 1.00f); // primary green accent
+    ImVec4 accentGreen = incUiAccentColor();                  // primary green accent
     ImVec4 darkGreen = ImVec4(0.18f, 0.23f, 0.18f, 1.00f);   // darker green accent
     ImVec4 lightGreen = ImVec4(0.67f, 0.75f, 0.63f, 1.00f);  // lighter green accent
     ImVec4 black = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);       // near-black text
@@ -836,6 +842,7 @@ void incBeginLoop() {
         if (stepAfterEvent) break;
     }
 
+    incAsyncDerivedUpdateUpdate();
     incTaskUpdate();
 
     // Begin loop post-event

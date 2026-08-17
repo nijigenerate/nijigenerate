@@ -218,7 +218,7 @@ protected:
                         incTextShadowed(_("Create Project"));
                         incDummy(ImVec2(0, 2));
                         igIndent();
-                            if (incTextLinkWithIcon("", _("New..."))) {
+                    if (incTextLinkWithIcon("\ue674", _("New..."))) {
                                 incNewProjectAsk();
                                 this.close();
                             }
@@ -294,7 +294,7 @@ protected:
                             }
                             /*                            
                             static if (INC_INFO_DISCORD_URI.length > 0) {
-                                if (incTextLinkWithIcon("", _("Join our Discord"))) {
+                    if (incTextLinkWithIcon("\ue0cb", _("Join our Discord"))) {
                                     incOpenLink(INC_INFO_DISCORD_URI);
                                 }
                             }

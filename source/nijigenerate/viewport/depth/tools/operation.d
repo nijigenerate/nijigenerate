@@ -11,6 +11,7 @@ import nijigenerate.core.dbg;
 import nijigenerate.ext.nodes.exdepthops;
 import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.mesheditor.node;
+import nijigenerate.viewport.depth.renderer;
 import nijilive;
 import std.algorithm : clamp, max, min, sort;
 import std.format : format;
@@ -76,6 +77,12 @@ void drawDepthPoint(vec2 point, vec4 color, float size) {
     if (depthEnabled) glEnable(GL_DEPTH_TEST);
 }
 
+void drawDepthPoint(DepthMeshEditorOne editor, vec2 localPoint, float depth, ref DepthCamera3D depthCamera, vec4 color, float size) {
+    auto renderer = new DepthTargetRenderer();
+    auto point = renderer.buildPoint(localPoint, depth, editor.depthDisplayScale(), depthCamera, size);
+    drawDepthPoint(point.point, color, point.size);
+}
+
 class DepthAttachedPointOperation : DepthOperation {
     size_t index;
     float amount;
@@ -101,10 +108,8 @@ class DepthAttachedPointOperation : DepthOperation {
         bool hotBody = hotHandle == DepthOperationHandle.Body;
         auto color = depthOperationColor(amount, selected || hotAmount);
         drawDepthLinePoints(base, projected, color, hotAmount ? 3.0f : 1.8f);
-        if (selected || hotBody || hotAmount) {
-            drawDepthPoint(base, hotBody ? DepthOperationAmountColor : DepthOperationHandleColor, hotBody ? 13 : 8);
-        }
-        drawDepthPoint(projected, hotAmount ? DepthOperationAmountColor : color, hotAmount ? 15 : (selected ? 13 : 9));
+        drawDepthPoint(editor, point, 0, depthCamera, hotBody ? DepthOperationAmountColor : DepthOperationHandleColor, hotBody ? 13 : 8);
+        drawDepthPoint(editor, point, amount, depthCamera, hotAmount ? DepthOperationAmountColor : color, hotAmount ? 15 : (selected ? 13 : 9));
     }
 
     override DepthOperationHandle hit(DepthMeshEditorOne editor, vec2 mouse, ref DepthCamera3D depthCamera, float radius, out float distance) {
@@ -587,6 +592,36 @@ void applyRingNormalSurfaces(DepthMeshEditorOne editor, DepthRingOperation[] rin
     applyRingFamilySurface(editor, vertical, 'y');
 }
 
+float[] ngComputeDepthsFromOps(GridDeformer grid, ExDepthOp[] ops, const(float)[] baseDepths) {
+    auto editor = new DepthMeshEditorOne(grid, false);
+    scope(exit) editor.dispose();
+    if (baseDepths.length == grid.vertices.length) {
+        editor.replaceBaseDepths(baseDepths.dup);
+    } else {
+        editor.clearBaseDepths();
+    }
+    editor.resetWorkingDepths();
+
+    DepthRingOperation[] rings;
+    DepthAttachedPointOperation[] attachedPoints;
+    DepthPlaneOperation[] planes;
+    foreach (op; ops) {
+        auto operation = depthOperationFromExDepthOp(op);
+        if (auto ring = cast(DepthRingOperation)operation) {
+            rings ~= ring;
+        } else if (auto attached = cast(DepthAttachedPointOperation)operation) {
+            attachedPoints ~= attached;
+        } else if (auto plane = cast(DepthPlaneOperation)operation) {
+            planes ~= plane;
+        }
+    }
+
+    applyRingNormalSurfaces(editor, rings);
+    foreach (op; attachedPoints) op.apply(editor);
+    foreach (op; planes) op.apply(editor);
+    return editor.copyEditorDepths();
+}
+
 float ringBaseDepthAt(DepthMeshEditorOne editor, DepthRingOperation op, float ratio) {
     auto d0 = editor.depthAtLocalPoint(op.p0);
     auto d1 = editor.depthAtLocalPoint(op.p1);
@@ -709,7 +744,9 @@ void applyPlaneFlatten(DepthMeshEditorOne editor, vec2 center, float radiusX, fl
 }
 
 void drawDepthLine(DepthMeshEditorOne editor, vec2 p0, vec2 p1, ref DepthCamera3D depthCamera, vec4 color, float width = 2.5f) {
-    drawDepthLinePoints(editor.projectLocalPoint(p0, 0, depthCamera), editor.projectLocalPoint(p1, 0, depthCamera), color, width);
+    auto renderer = new DepthTargetRenderer();
+    auto line = renderer.buildLine(p0, p1, 0.0f, editor.depthDisplayScale(), depthCamera);
+    drawDepthLinePoints(line.p0, line.p1, color, width);
 }
 
 void drawDepthLinePoints(vec2 p0, vec2 p1, vec4 color, float width = 2.5f) {
@@ -729,19 +766,10 @@ void drawDepthEllipse(DepthMeshEditorOne editor, vec2 center, float radiusX, flo
     GLboolean depthEnabled = glIsEnabled(GL_DEPTH_TEST);
     glDisable(GL_DEPTH_TEST);
     Vec3Array points;
-    auto angle = angleDeg * 3.14159265358979323846f / 180.0f;
-    auto ux = vec2(cos(angle), sin(angle));
-    auto uy = vec2(-sin(angle), cos(angle));
-    enum segments = 48;
-    foreach (i; 0 .. segments) {
-        auto a0 = cast(float)i / segments * 2.0f * 3.14159265358979323846f;
-        auto a1 = cast(float)(i + 1) / segments * 2.0f * 3.14159265358979323846f;
-        auto l0 = center + ux * (cos(a0) * radiusX) + uy * (sin(a0) * radiusY);
-        auto l1 = center + ux * (cos(a1) * radiusX) + uy * (sin(a1) * radiusY);
-        auto w0 = editor.projectLocalPoint(l0, depth, depthCamera);
-        auto w1 = editor.projectLocalPoint(l1, depth, depthCamera);
-        points ~= vec3(w0.x, w0.y, 0);
-        points ~= vec3(w1.x, w1.y, 0);
+    auto renderer = new DepthTargetRenderer();
+    foreach (line; renderer.buildEllipseLines(center, radiusX, radiusY, angleDeg, depth, editor.depthDisplayScale(), depthCamera)) {
+        points ~= vec3(line.p0.x, line.p0.y, 0);
+        points ~= vec3(line.p1.x, line.p1.y, 0);
     }
     inDbgSetBuffer(points);
     inDbgLineWidth(width);

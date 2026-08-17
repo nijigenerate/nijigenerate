@@ -8,6 +8,10 @@
 module nijigenerate.actions.node;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation :
+    DepthBoneMutationKind,
+    ngNotifyDepthBoneTargetChanged;
+import nijigenerate.actions.depthbone : ngCopyDepthRigBindings;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.actions.binding : ParameterBindingAllValueChangeAction;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigBinding, ExDepthRigRoot;
@@ -30,6 +34,33 @@ import std.algorithm;
 import std.range:zip;
 import std.array;
 import std.math : abs;
+
+private void notifyDepthBoneNodeTransform(Node node, string reason = "Target Transform") {
+    ngNotifyDepthBoneTargetChanged(
+        node,
+        DepthBoneMutationKind.TargetTransform,
+        reason);
+}
+
+private bool isNodeTransformActionName(string name) {
+    switch (name) {
+        case "X":
+        case "Y":
+        case "Z":
+        case "translationX":
+        case "translationY":
+        case "translationZ":
+        case "rotationX":
+        case "rotationY":
+        case "rotationZ":
+        case "scaleX":
+        case "scaleY":
+        case "lockToRoot":
+            return true;
+        default:
+            return false;
+    }
+}
 /**
     An action that happens when a node is changed
 */
@@ -117,6 +148,8 @@ public:
             newTransform[sn.uuid] = sn.localTransform;
         }
         incActivePuppet().rescanNodes();
+        foreach (node; nodes)
+            notifyDepthBoneNodeTransform(node, "Node Hierarchy");
     
         // Set visual name
         if (nodes.length == 1) descrName = nodes[0].name;
@@ -147,6 +180,8 @@ public:
             }
         }
         incActivePuppet().rescanNodes();
+        foreach (node; nodes)
+            notifyDepthBoneNodeTransform(node, "Node Hierarchy");
     }
 
     /**
@@ -170,6 +205,8 @@ public:
             }
         }
         incActivePuppet().rescanNodes();
+        foreach (node; nodes)
+            notifyDepthBoneNodeTransform(node, "Node Hierarchy");
     }
 
     /**
@@ -218,6 +255,8 @@ public:
 
         foreach (node; affectedNodes)
             newTransforms[node.uuid] = node.localTransform;
+        foreach (node; affectedNodes)
+            notifyDepthBoneNodeTransform(node, "Centralize Node");
     }
 
     private void collect(Node node) {
@@ -232,6 +271,7 @@ public:
                 node.localTransform = *transform;
                 node.transformChanged();
                 node.notifyChange(node, NotifyReason.Transformed);
+                notifyDepthBoneNodeTransform(node, "Centralize Node");
             }
         }
     }
@@ -1065,51 +1105,41 @@ GroupAction incDeleteWeldedLinksOfNode(Node n, GroupAction group = null) {
     return group;
 }
 
-GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
+GroupAction ngDeleteDepthRigReferencesOfNode(Node n, GroupAction group = null) {
     if (n is null || incActivePuppet() is null) return group;
 
-    ExDepthBone[] removedBones;
-    void collectRemovedBones(Node node) {
-        if (auto bone = cast(ExDepthBone)node) removedBones ~= bone;
-        foreach (child; node.children) collectRemovedBones(child);
-    }
-    collectRemovedBones(n);
-    if (removedBones.length == 0) return group;
-
     bool[ulong] removedUuids;
-    foreach (bone; removedBones) removedUuids[bone.uuid] = true;
-
-    ExDepthRigRoot[ulong] roots;
-    foreach (bone; removedBones) {
-        auto cursor = bone.parent;
-        while (cursor !is null) {
-            if (auto root = cast(ExDepthRigRoot)cursor) {
-                roots[root.uuid] = root;
-                break;
-            }
-            cursor = cursor.parent;
-        }
+    void collectRemovedUuids(Node node) {
+        removedUuids[node.uuid] = true;
+        foreach (child; node.children) collectRemovedUuids(child);
     }
+    collectRemovedUuids(n);
 
-    foreach (root; roots.byValue) {
-        auto oldBindings = root.bindings.dup;
+    foreach (root; incActivePuppet().findNodesType!ExDepthRigRoot(incActivePuppet().root)) {
+        if (root.uuid in removedUuids) continue;
+        auto oldBindings = ngCopyDepthRigBindings(root.bindings);
         ExDepthRigBinding[] newBindings;
         bool changed = false;
         foreach (binding; root.bindings) {
+            if (binding.targetUuid in removedUuids) {
+                changed = true;
+                continue;
+            }
             ulong[] kept;
+            bool removedSource;
             foreach (uuid; binding.sourceBoneUuids) {
                 if (uuid in removedUuids) {
                     changed = true;
+                    removedSource = true;
                     continue;
                 }
                 kept ~= uuid;
             }
-            if (kept.length == 0) {
-                if (binding.sourceBoneUuids.length > 0) changed = true;
-                continue;
-            }
-            if (kept.length != binding.sourceBoneUuids.length) {
+            if (removedSource && kept.length == 0) continue;
+            if (removedSource) {
                 binding.sourceBoneUuids = kept;
+                foreach (uuid, _; removedUuids)
+                    binding.influenceRule.multipliersByBoneUuid.remove(uuid);
                 binding.normalizeSourceSettings();
             }
             newBindings ~= binding;
@@ -1119,7 +1149,8 @@ GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
             root.bindings = newBindings;
             if (group is null)
                 group = new GroupAction();
-            group.addAction(new DepthBoneSourceListChangeAction("Remove deleted Depth Bone Sources", root, oldBindings, root.bindings));
+            group.addAction(new DepthBoneSourceListChangeAction(
+                _("Remove deleted Depth Rig bindings"), root, oldBindings, root.bindings));
         }
     }
 
@@ -1131,7 +1162,7 @@ GroupAction ngDeleteDepthBoneSourcesOfNode(Node n, GroupAction group = null) {
 void incDeleteChildWithHistory(Node n) {
     auto group = incDeleteMaskOfNode(n);
     group = incDeleteWeldedLinksOfNode(n, group);
-    group = ngDeleteDepthBoneSourcesOfNode(n, group);
+    group = ngDeleteDepthRigReferencesOfNode(n, group);
     if (group !is null) {
         group.addAction(new NodeMoveAction(
             [n],
@@ -1157,7 +1188,7 @@ void incDeleteChildrenWithHistory(Node[] ns) {
     foreach (n; ns) {
         group = incDeleteMaskOfNode(n, group);
         group = incDeleteWeldedLinksOfNode(n, group);
-        group = ngDeleteDepthBoneSourcesOfNode(n, group);
+        group = ngDeleteDepthRigReferencesOfNode(n, group);
     }
     if (group !is null) {
         // Push action to stack
@@ -1196,6 +1227,8 @@ public:
         this.newValue = newValue;
         this.valuePtr = valuePtr;
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        if (isNodeTransformActionName(name))
+            notifyDepthBoneNodeTransform(node);
     }
 
     /**
@@ -1204,6 +1237,8 @@ public:
     void rollback() {
         *valuePtr = oldValue;
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        if (isNodeTransformActionName(name))
+            notifyDepthBoneNodeTransform(node);
     }
 
     /**
@@ -1212,6 +1247,8 @@ public:
     void redo() {
         *valuePtr = newValue;
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        if (isNodeTransformActionName(name))
+            notifyDepthBoneNodeTransform(node);
     }
 
     /**
@@ -1274,8 +1311,11 @@ public:
         this.oldValue = oldValue;
         this.newValue = newValue;
         this.valuePtr = valuePtr;
-        foreach (n; node)
+        foreach (n; node) {
             n.notifyChange(n, NotifyReason.AttributeChanged);
+            if (isNodeTransformActionName(name))
+                notifyDepthBoneNodeTransform(n);
+        }
     }
 
     /**
@@ -1285,6 +1325,8 @@ public:
         foreach (i; 0..node.length) {
             *(valuePtr[i]) = oldValue[i];
             node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+            if (isNodeTransformActionName(name))
+                notifyDepthBoneNodeTransform(node[i]);
         }
     }
 
@@ -1295,6 +1337,8 @@ public:
         foreach (i; 0..node.length) {
             *(valuePtr[i]) = newValue[i];
             node[i].notifyChange(node[i], NotifyReason.AttributeChanged);
+            if (isNodeTransformActionName(name))
+                notifyDepthBoneNodeTransform(node[i]);
         }
     }
 

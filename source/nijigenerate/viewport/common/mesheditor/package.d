@@ -158,10 +158,10 @@ public:
                 auto info = incGetToolInfo();
                 foreach (i; info) {
                     if (i.viewportTools(deformOnly, getToolMode(), editors)) {
-                        import nijigenerate.commands.base : Context;
+                        import nijigenerate.commands.base : Context, ngRunCommand;
                         import nijigenerate.commands.mesheditor.tool : ensureSelectToolModeCommand;
                         auto ctx = new Context();
-                        ensureSelectToolModeCommand(i.mode()).run(ctx);
+                        ngRunCommand(ensureSelectToolModeCommand(i.mode()), ctx);
                     }
                 }
 

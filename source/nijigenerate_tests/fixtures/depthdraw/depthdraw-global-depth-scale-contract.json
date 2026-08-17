@@ -1,0 +1,116 @@
+{
+  "id": "depthdraw-global-depth-scale-contract",
+  "generatedBy": "depth-draw",
+  "referenceRoot": "C:/Users/siget/src/depth-draw",
+  "referenceFunctions": [
+    "src/depth/core.js:createDepthCore().scaleDepthValueAroundCenter",
+    "src/depth/core.js:createDepthCore().applyGlobalDepthScale"
+  ],
+  "cases": [
+    {
+      "depth": 0,
+      "scale": 1.5,
+      "center": 182.33332028250035,
+      "expected": 0
+    },
+    {
+      "depth": 1,
+      "scale": 1.5,
+      "center": 182.33332028250035,
+      "expected": 1
+    },
+    {
+      "depth": 80,
+      "scale": 1.5,
+      "center": 182.33332028250035,
+      "expected": 29
+    },
+    {
+      "depth": 182,
+      "scale": 1.5,
+      "center": 182.33332028250035,
+      "expected": 182
+    },
+    {
+      "depth": 220,
+      "scale": 1.5,
+      "center": 182.33332028250035,
+      "expected": 239
+    },
+    {
+      "depth": 255,
+      "scale": 1.5,
+      "center": 182.33332028250035,
+      "expected": 255
+    },
+    {
+      "depth": 80,
+      "scale": 1,
+      "center": 182.33332028250035,
+      "expected": 80
+    },
+    {
+      "depth": 80,
+      "scale": "NaN",
+      "center": 182.33332028250035,
+      "expected": 80
+    },
+    {
+      "depth": 80,
+      "scale": 1.5,
+      "center": 0,
+      "expected": 80
+    }
+  ],
+  "pixels": [
+    0,
+    1,
+    80,
+    120,
+    182,
+    183,
+    220,
+    255
+  ],
+  "mask": [
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1
+  ],
+  "scale": 1.5,
+  "expected": {
+    "applyGlobalDepthScale": {
+      "pixels": [
+        0,
+        1,
+        43,
+        0,
+        196,
+        198,
+        253,
+        255
+      ],
+      "centroid": 153.5,
+      "count": 6
+    },
+    "applyGlobalDepthScaleNoMask": {
+      "pixels": [
+        0,
+        1,
+        46,
+        106,
+        199,
+        200,
+        255,
+        255
+      ],
+      "centroid": 148.71428571428572,
+      "count": 7
+    }
+  }
+}

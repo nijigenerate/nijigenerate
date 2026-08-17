@@ -79,6 +79,12 @@ public:
     void drawTools() { };
     void drawOptions() { };
     void drawConfirmBar() {};
+    void drawOverlay(
+        ImDrawList* drawList,
+        ImVec2 viewportOrigin,
+        ImRect viewportRect,
+    ) {};
+    uint asyncDerivedUpdateViewportChannel() { return 0; }
 
     void update(ImGuiIO* io, Camera camera) { }
     void withdraw() { };
@@ -117,6 +123,18 @@ public:
     mixin(use("drawTools"));
     mixin(use("drawOptions"));
     mixin(use("drawConfirmBar"));
+    mixin(use!uint("asyncDerivedUpdateViewportChannel"));
+
+    override
+    void drawOverlay(
+        ImDrawList* drawList,
+        ImVec2 viewportOrigin,
+        ImRect viewportRect,
+    ) {
+        if (_subView) {
+            _subView.drawOverlay(drawList, viewportOrigin, viewportRect);
+        }
+    }
 
     override
     void update(ImGuiIO* io, Camera camera) {
@@ -357,6 +375,17 @@ MainViewport incViewport() {
         viewport = new MainViewport;
     }
     return viewport;
+}
+
+void ngPresentTemporaryViewport(Viewport next) {
+    auto mainViewport = incViewport();
+    mainViewport.withdraw();
+    mainViewport.subView = next;
+    if (next !is null) {
+        next.selectionChanged(incSelectedNodes());
+        next.armedParameterChanged(incArmedParameter());
+        next.present();
+    }
 }
 
 
@@ -649,7 +678,7 @@ void incViewportTransformHandle() {
     // Editing tip
     incBeginViewportToolArea("AREA_MODE", ImVec2(bounds.z, bounds.w));
         igSetWindowFontScale(1.5);
-            incTextBordered(param ? "" : "");
+    incTextBordered(param ? "\ue3fa" : "");
         igSetWindowFontScale(1);
         incTooltip(param ? _("Editing armed parameter...") : _("Editing base transform..."));
     incEndViewportToolArea();
@@ -784,7 +813,8 @@ void incViewportTransformHandle() {
                 incGetDragPrevValueOnHandle(btn, name, prevValue);
                 mpos = incInputGetMousePosition();
                 incSetDragPrevPosOnHandle(btn, name, mpos);
-                auto origin = -vec2(selectedNode.transform.translation.vector[0..2]);
+                auto nodeOrigin = (selectedNode.transform.matrix * vec4(0, 0, 0, 1)).xy;
+                auto origin = -nodeOrigin;
                 mpos    -= origin;
                 prevPos -= origin;
 

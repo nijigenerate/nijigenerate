@@ -43,7 +43,7 @@ private {
     ubyte[] OPEN_DYSLEXIC = cast(ubyte[])import("OpenDyslexic.otf");
     ubyte[] NOTO = cast(ubyte[])import("NotoSans-Regular.ttf");
     ubyte[] NOTO_CJK = cast(ubyte[])import("NotoSansCJK-Regular.ttc");
-    ubyte[] ICONS = cast(ubyte[])import("MaterialIcons.ttf");
+    ubyte[] MATERIAL_SYMBOLS = cast(ubyte[])import("MaterialSymbolsOutlined.ttf");
 }
 
 /**
@@ -119,13 +119,14 @@ void incInitFonts() {
         );
 
         _incAddFontData(
-            "Icons", 
-            ICONS, 
-            32, 
+            "Material Symbols",
+            MATERIAL_SYMBOLS,
+            32,
             [
-                cast(ImWchar)0xE000, 
-                cast(ImWchar)0xF23B
-            ].ptr, 
+                cast(ImWchar)0xE000,
+                cast(ImWchar)0xF8FF,
+                cast(ImWchar)0
+            ].ptr,
             ImVec2(0, 2)
         );
     ImFontAtlas_Build(atlas);

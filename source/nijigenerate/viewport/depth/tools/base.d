@@ -16,6 +16,7 @@ import nijigenerate.viewport.depth.mesheditor.editor;
 import nijigenerate.viewport.depth.mesheditor.node;
 import nijigenerate.viewport.depth.viewport : DepthEditViewport;
 import nijigenerate.widgets.button;
+import nijigenerate.widgets.drag;
 import nijigenerate.widgets.tooltip;
 import nijilive;
 import std.algorithm : max;
@@ -58,6 +59,25 @@ abstract class DepthEditTool {
 
     DepthMeshEditorOne nearestVertexFromScreenMouse(ImGuiIO* io, Camera camera, DepthEditViewport viewport, out ptrdiff_t index) {
         return nearestVertexFromScreenMouse(io, camera, viewport, float.max, index);
+    }
+
+    protected bool drawOptionDrag(
+        string id,
+        float* value,
+        float adjustSpeed,
+        float minValue,
+        float maxValue,
+        string fmt,
+        bool sameLineAfter = true
+    ) {
+        igPushID(id.ptr, id.ptr + id.length);
+        igPushItemWidth(72);
+        auto changed = incDragFloat(id, value, adjustSpeed, minValue, maxValue, fmt, ImGuiSliderFlags.NoRoundToFormat);
+        igPopItemWidth();
+        igPopID();
+        incTooltip(id);
+        if (sameLineAfter) igSameLine(0, 4);
+        return changed;
     }
 
     bool drawToolButton(DepthToolMode activeMode) {

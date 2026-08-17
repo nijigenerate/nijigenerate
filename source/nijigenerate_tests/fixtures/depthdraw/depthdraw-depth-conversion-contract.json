@@ -1,0 +1,36 @@
+{
+  "id": "depthdraw-depth-conversion-contract",
+  "generatedBy": "depth-draw",
+  "referenceRoot": "C:/Users/siget/src/depth-draw",
+  "referenceFunctions": [
+    "src/composite/depthSources.js:depthPixelsFromImageData",
+    "src/app/externalApi.js:decodeGrayscaleDepthPixels",
+    "src/app/externalApi.js:clampByte"
+  ],
+  "rgba": [
+    0, 0, 0, 255,
+    255, 128, 0, 255,
+    10, 20, 30, 0,
+    1, 2, 3, 255,
+    100, 101, 102, 255,
+    250, 250, 255, 64
+  ],
+  "expected": {
+    "depthPixelsFromImageData": [
+      0,
+      255,
+      10,
+      1,
+      100,
+      250
+    ],
+    "decodeGrayscaleDepthPixels": [
+      0,
+      128,
+      0,
+      2,
+      101,
+      252
+    ]
+  }
+}

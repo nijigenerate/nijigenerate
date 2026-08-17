@@ -8,6 +8,7 @@ module nijigenerate.actions.depth;
 
 import i18n;
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation;
 import nijigenerate.ext.nodes.exdepthmapped;
 import nijigenerate.ext.nodes.exdepthops;
 import nijilive.core.nodes;
@@ -19,6 +20,7 @@ private:
     DepthMappedNode depthMapped;
     float[] oldDepths;
     float[] newDepths;
+    string reason;
 
     float[] capture() {
         return depthMapped.copyDepths();
@@ -27,11 +29,13 @@ private:
     void apply(float[] depths) {
         depthMapped.replaceDepths(depths);
         node.notifyChange(node, NotifyReason.AttributeChanged);
+        ngNotifyDepthBoneTargetChanged(node, DepthBoneMutationKind.TargetDepth, reason);
     }
 
 public:
-    this(Node node) {
+    this(Node node, string reason = "Depth Map") {
         this.node = node;
+        this.reason = reason;
         this.depthMapped = cast(DepthMappedNode)node;
         assert(this.depthMapped !is null);
         this.oldDepths = capture();
@@ -76,17 +80,23 @@ public:
 
 class DepthOperationMappedChangeAction : LazyBoundAction {
 private:
-    Node node;
-    DepthOperationMappedNode depthOperated;
-    ExDepthOp[] oldOperations;
-    ExDepthOp[] newOperations;
-
-    ExDepthOp[] capture() {
-        return depthOperated.copyDepthOps();
+    struct State {
+        ExDepthOp[] operations;
+        float[] baseDepths;
     }
 
-    void apply(ExDepthOp[] operations) {
-        depthOperated.replaceDepthOps(operations);
+    Node node;
+    DepthOperationMappedNode depthOperated;
+    State oldState;
+    State newState;
+
+    State capture() {
+        return State(depthOperated.copyDepthOps(), depthOperated.copyDepthOpBaseDepths());
+    }
+
+    void apply(State state) {
+        depthOperated.replaceDepthOps(state.operations);
+        depthOperated.replaceDepthOpBaseDepths(state.baseDepths);
         node.notifyChange(node, NotifyReason.AttributeChanged);
     }
 
@@ -95,12 +105,12 @@ public:
         this.node = node;
         this.depthOperated = cast(DepthOperationMappedNode)node;
         assert(this.depthOperated !is null);
-        this.oldOperations = capture();
+        this.oldState = capture();
     }
 
     override
     void updateNewState() {
-        newOperations = capture();
+        newState = capture();
     }
 
     override
@@ -108,12 +118,12 @@ public:
 
     override
     void rollback() {
-        apply(oldOperations);
+        apply(oldState);
     }
 
     override
     void redo() {
-        apply(newOperations);
+        apply(newState);
     }
 
     override
@@ -133,4 +143,18 @@ public:
 
     override bool merge(Action other) { return false; }
     override bool canMerge(Action other) { return false; }
+}
+
+DepthOperationMappedChangeAction ngClearDepthOperationsChangeAction(Node node) {
+    auto depthOperated = cast(DepthOperationMappedNode)node;
+    if (depthOperated is null) return null;
+    if (depthOperated.copyDepthOps().length == 0 &&
+        depthOperated.copyDepthOpBaseDepths().length == 0) return null;
+
+    auto action = new DepthOperationMappedChangeAction(node);
+    depthOperated.replaceDepthOps(null);
+    depthOperated.replaceDepthOpBaseDepths(null);
+    node.notifyChange(node, NotifyReason.AttributeChanged);
+    action.updateNewState();
+    return action;
 }

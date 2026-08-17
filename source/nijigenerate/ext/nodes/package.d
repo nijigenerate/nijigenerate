@@ -13,10 +13,12 @@ public import nijigenerate.ext.nodes.exdepthmapped;
 public import nijigenerate.ext.nodes.exdepthops;
 public import nijigenerate.ext.nodes.exdepthbone;
 public import nijigenerate.ext.nodes.exgriddeformer;
+public import nijigenerate.ext.nodes.expathdeformer;
 
 void incInitExtNodes() {
     incRegisterExPart();
     incRegisterExCamera();
     ngRegisterExDepthBoneNodes();
     ngRegisterExGridDeformer();
+    ngRegisterExPathDeformer();
 }

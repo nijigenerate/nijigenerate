@@ -10,6 +10,8 @@ import bindbc.imgui;
 import i18n;
 import nijigenerate;
 import nijigenerate.core.input;
+import nijigenerate.core.asyncderivedupdate :
+    AsyncDerivedUpdateViewportChannel;
 import nijigenerate.viewport.base;
 import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.mesheditor;
@@ -23,7 +25,7 @@ import std.algorithm : clamp, max;
 class DepthEditViewport : Viewport {
 private:
     Node[] selection;
-    DepthToolMode toolMode = DepthToolMode.Select;
+    DepthToolMode toolMode = DepthToolMode.DirectDepth;
     DepthMeshEditor editor;
     DepthCamera3D depthCamera;
     DepthBrushSettings brush;
@@ -39,20 +41,21 @@ private:
     }
 
     bool updateDepthCamera(ImGuiIO* io) {
-        bool changed = false;
-        if (io.MouseDown[1] && !io.KeyShift && incInputIsDragRequested(ImGuiMouseButton.Right)) {
-            depthCamera.yaw -= io.MouseDelta.x * 0.01f;
-            depthCamera.pitch = clamp(depthCamera.pitch + io.MouseDelta.y * 0.01f, -1.35f, 1.35f);
-            changed = true;
-        }
-        if (io.MouseWheel != 0) {
-            depthCamera.zoom = clamp(depthCamera.zoom * (1 + io.MouseWheel * 0.08f), 0.1f, 8.0f);
-            changed = true;
-        }
-        return changed;
+        return updateDepthCamera3D(
+            depthCamera,
+            io,
+            io.MouseDown[1] && !io.KeyShift && incInputIsDragRequested(ImGuiMouseButton.Right),
+            false,
+            io.MouseWheel != 0
+        );
     }
 
 public:
+    override
+    uint asyncDerivedUpdateViewportChannel() {
+        return cast(uint)AsyncDerivedUpdateViewportChannel.Depth;
+    }
+
     override
     void present() {
         editor = new DepthMeshEditor();
@@ -103,9 +106,18 @@ public:
         return depthCamera;
     }
 
+    void drawDepthOperationOptions() {
+        if (editor is null) return;
+        if (incBeginDropdownMenu("DEPTH_DEFORMERS", "Depth", ImVec2(280, 0), ImVec2(360, float.max))) {
+            editor.drawOperationOptions();
+            incEndDropdownMenu();
+        }
+        incTooltip(_("Depth Deformers"));
+    }
+
     void drawDepthOptions() {
         igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
-        if (incButtonColored(__(" Snap"), ImVec2(0, 0), brush.snapToGrid ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+        if (incButtonColored(__(" Snap"), ImVec2(0, 0), brush.snapToGrid ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
             brush.snapToGrid = !brush.snapToGrid;
         }
         incTooltip(brush.snapToGrid ? _("Snap tool points to grid vertices") : _("Use free tool points"));
@@ -142,13 +154,11 @@ public:
     void drawOptions() {
         drawDepthOptions();
         if (auto tool = activeTool()) {
-            igSeparator();
+            igSameLine(0, 6);
             tool.drawOptions(this);
         }
-        if (editor !is null) {
-            igSeparator();
-            editor.drawOperationOptions();
-        }
+        igSameLine(0, 6);
+        drawDepthOperationOptions();
     }
 
     override
@@ -156,7 +166,7 @@ public:
         if (editor is null) return;
         auto targets = editor.getTargets();
         igPushStyleVar(ImGuiStyleVar.FramePadding, ImVec2(16, 4));
-            if (incButtonColored(__(" Apply"), ImVec2(0, 26))) {
+            if (incButtonColored(__("\ue668 Apply"), ImVec2(0, 26))) {
                 editor.closeStack();
                 editor.applyToTargets();
                 leaveToModel(targets);

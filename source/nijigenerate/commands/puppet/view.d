@@ -46,7 +46,7 @@ class ShowSaveScreenshotDialogCommand : ExCommand!() {
             auto cmd = cast(SaveScreenshotCommand)commands[ViewCommand.SaveScreenshot];
             if (cmd) {
                 cmd.filename = filename;
-                return cmd.run(ctx);
+                return ngRunCommand(cmd, ctx);
             }
         }
         return CommandResult(false, "Screenshot save canceled");
@@ -557,7 +557,7 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
 
 @ShortcutHidden
 class CaptureLiveScreenshotCommand : ExCommand!(
-    TW!(JSONValue, "overlayObjects", "Optional overlay objects. Use [{\"uuid\": 123, \"overlay\": \"bounds\"|\"mesh\"}] or [{\"123\": \"bounds\"|\"mesh\"}].")
+    TW!(JSONValue, "overlayObjects", "Optional overlay objects. Use [{\"uuid\": 123, \"overlay\": \"bounds\"|\"mesh\"}] or [{\"123\": \"bounds\"|\"mesh\"}].", false, CommandJsonSchema.overlayObjects)
 ) {
     this() {
         super(_("Capture Live Screenshot"), _("Capture current live viewport and return an MCP image content item with mimeType image/png."));

@@ -17,7 +17,6 @@ import nijigenerate.viewport.depth.mesheditor;
 import nijigenerate.viewport.depth.tools.base;
 import nijigenerate.viewport.depth.tools.operation;
 import nijigenerate.viewport.depth.viewport : DepthEditViewport;
-import nijigenerate.widgets.drag;
 import nijilive;
 import std.algorithm : max;
 import std.math : abs;
@@ -65,7 +64,7 @@ private:
 
 public:
     override DepthToolMode mode() { return DepthToolMode.Plane; }
-    override const(char)* icon() { return __(""); }
+    override const(char)* icon() { return "\uF507"; } // collapse_content
     override string tooltip() { return _("Flatten Depth Plane"); }
 
     override
@@ -77,11 +76,11 @@ public:
     override
     void drawOptions(DepthEditViewport viewport) {
         auto settings = &viewport.brushSettings();
-        incDragFloat("Target", &settings.amount, 0.01f, -2.0f, 2.0f, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Radius X", &settings.radiusX, 1.0f, 1.0f, 1000.0f, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Radius Y", &settings.radiusY, 1.0f, 1.0f, 1000.0f, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Angle", &settings.angle, 1.0f, -180.0f, 180.0f, "%.0f", ImGuiSliderFlags.NoRoundToFormat);
-        incDragFloat("Flatten", &settings.flattenStrength, 0.01f, 0.0f, 1.0f, "%.2f", ImGuiSliderFlags.NoRoundToFormat);
+        drawOptionDrag("Target", &settings.amount, 0.01f, -2.0f, 2.0f, "%.2f");
+        drawOptionDrag("Radius X", &settings.radiusX, 1.0f, 1.0f, 1000.0f, "%.0f");
+        drawOptionDrag("Radius Y", &settings.radiusY, 1.0f, 1.0f, 1000.0f, "%.0f");
+        drawOptionDrag("Angle", &settings.angle, 1.0f, -180.0f, 180.0f, "%.0f");
+        drawOptionDrag("Flatten", &settings.flattenStrength, 0.01f, 0.0f, 1.0f, "%.2f", false);
     }
 
     override

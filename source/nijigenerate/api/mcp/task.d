@@ -21,6 +21,7 @@ void ngMcpInitTask() {
 // Enqueue a command run request
 void ngMcpEnqueueAction(void delegate() action)
 {
+    if (gQueueMutex is null) ngMcpInitTask();
     synchronized (gQueueMutex) gQueue ~= EnqueuedCommand(action);
 }
 
@@ -36,7 +37,7 @@ void ngMcpProcessQueue() {
 
     foreach (item; items) {
         if (item.action !is null) {
-            try item.action(); catch (Exception) {}
+            item.action();
         }
     }
 }

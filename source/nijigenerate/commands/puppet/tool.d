@@ -29,7 +29,7 @@ class ShowImportSessionDataDialogCommand : ExCommand!() {
             auto cmd = cast(ImportSessionDataCommand)commands[ToolCommand.ImportSessionData];
             if (cmd) {
                 cmd.path = path;
-                return cmd.run(ctx);
+                return ngRunCommand(cmd, ctx);
             }
         }
         return CommandResult(false, "Import canceled");

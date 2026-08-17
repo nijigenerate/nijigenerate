@@ -75,17 +75,23 @@ private {
     void ngINPExportPruneDepthRigNodes(Puppet puppet) {
         bool[uint] removedNodeUuids;
 
-        void collectRemoved(Node node) {
-            removedNodeUuids[node.uuid] = true;
-            foreach(child; node.children) {
-                collectRemoved(child);
-            }
-        }
-
         void pruneNode(ref Node node) {
             foreach(child; node.children.dup) {
                 if (ngINPExportShouldExcludeNode(child)) {
-                    collectRemoved(child);
+                    auto offset = child.getIndexInParent();
+                    void promoteChildren(Node excluded) {
+                        removedNodeUuids[excluded.uuid] = true;
+                        foreach (descendant; excluded.children.dup) {
+                            if (ngINPExportShouldExcludeNode(descendant)) {
+                                promoteChildren(descendant);
+                            } else {
+                                descendant.reparent(node, offset++, false);
+                                descendant.transformChanged();
+                                pruneNode(descendant);
+                            }
+                        }
+                    }
+                    promoteChildren(child);
                     child.parent = null;
                 } else {
                     pruneNode(child);
@@ -126,6 +132,13 @@ private {
             Node node;
             Node parent;
             ptrdiff_t index;
+            Transform localTransform;
+        }
+        struct PromotedNode {
+            Node node;
+            Node parent;
+            ptrdiff_t index;
+            Transform localTransform;
         }
         struct BindingSnapshot {
             Parameter parameter;
@@ -133,22 +146,36 @@ private {
         }
 
         DetachedNode[] detachedNodes;
+        PromotedNode[] promotedNodes;
         BindingSnapshot[] bindingSnapshots;
         bool[uint] removedNodeUuids;
 
-        void collectRemoved(Node node) {
-            removedNodeUuids[node.uuid] = true;
-            foreach(child; node.children)
-                collectRemoved(child);
-        }
-
-        void collectDetached(Node parent) {
-            foreach (i, child; parent.children) {
+        void prepareNode(Node parent) {
+            foreach (originalIndex, child; parent.children.dup) {
                 if (ngINPExportShouldExcludeNode(child)) {
-                    detachedNodes ~= DetachedNode(child, parent, cast(ptrdiff_t)i);
-                    collectRemoved(child);
+                    auto offset = child.getIndexInParent();
+                    detachedNodes ~= DetachedNode(
+                        child, parent, cast(ptrdiff_t)originalIndex, child.localTransform);
+                    void promoteChildren(Node excluded) {
+                        removedNodeUuids[excluded.uuid] = true;
+                        foreach (descendantIndex, descendant; excluded.children.dup) {
+                            if (ngINPExportShouldExcludeNode(descendant)) {
+                                promoteChildren(descendant);
+                            } else {
+                                promotedNodes ~= PromotedNode(
+                                    descendant,
+                                    excluded,
+                                    cast(ptrdiff_t)descendantIndex,
+                                    descendant.localTransform);
+                                descendant.reparent(parent, offset++, false);
+                                descendant.transformChanged();
+                                prepareNode(descendant);
+                            }
+                        }
+                    }
+                    promoteChildren(child);
                 } else {
-                    collectDetached(child);
+                    prepareNode(child);
                 }
             }
         }
@@ -173,12 +200,20 @@ private {
         void restore() {
             foreach (snapshot; bindingSnapshots)
                 snapshot.parameter.bindings = snapshot.bindings;
-            foreach (detached; detachedNodes)
+            foreach (promoted; promotedNodes) {
+                promoted.node.reparent(promoted.parent, cast(ulong)promoted.index, true);
+                promoted.node.localTransform = promoted.localTransform;
+                promoted.node.transformChanged();
+            }
+            foreach (detached; detachedNodes) {
                 detached.node.reparent(detached.parent, cast(ulong)detached.index, true);
+                detached.node.localTransform = detached.localTransform;
+                detached.node.transformChanged();
+            }
             puppet.rescanNodes();
         }
 
-        collectDetached(puppet.root);
+        prepareNode(puppet.root);
         if (detachedNodes.length == 0)
             return inWriteINPPuppetMemory(puppet);
 

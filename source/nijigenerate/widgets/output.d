@@ -20,6 +20,7 @@ import nijigenerate.panels.parameters;
 import nijigenerate.panels.nodes;
 import nijigenerate.ext;
 import nijigenerate.core.input;
+import nijigenerate.commands.binding.base : ngBindingIsSetAt;
 import nijigenerate.commands.parameter.base;
 
 private {
@@ -413,13 +414,13 @@ protected:
         case ResourceType.Binding:
             auto binding = to!ParameterBinding(res);
             if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
-                isActive = binding.isSet(incParamPoint());
+                isActive = ngBindingIsSetAt(binding, incParamPoint());
             }
             break;
         default:
         }
 
-        if (igSelectable("%s%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), isActive? "":"", res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
+        if (igSelectable("%s%s%s".format(noIcon? "": incTypeIdToIcon(res.typeId), isActive? "\ue3fa":"", res.name).toStringz, selected, ImGuiSelectableFlags.AllowDoubleClick, ImVec2(0, 20))) {
             if (isNode) {
                 node = to!Node(res);
                 incSelectNode(node);
@@ -762,7 +763,7 @@ protected:
         bool isActive = false;
         auto binding = to!ParameterBinding(res);
         if (incArmedParameter() && incArmedParameter().bindings.canFind(binding)) {
-            isActive = binding.isSet(incParamPoint());
+            isActive = ngBindingIsSetAt(binding, incParamPoint());
         }
         igGetItemRectMin(&widgetMinPos);
         if (igSelectable("%s%s%s".format(isActive? "\ue5de": "", getTransformText(res.name), isActive? "\ue5df": "").toStringz, false, ImGuiSelectableFlags.None, ImVec2(0, 16))) {

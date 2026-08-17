@@ -1,0 +1,226 @@
+{
+  "id": "depthdraw-psd-n1-midori-artifacts",
+  "generatedBy": "depth-draw",
+  "referenceRoot": "C:/Users/siget/src/depth-draw",
+  "referenceModel": "psd:Midori-20260621-color:Midori-20260621-color-psd-depth.png",
+  "referenceCommands": [
+    "globalThis.__depthDrawApi.loadModel(\"psd:Midori-20260621-color:Midori-20260621-color-psd-depth.png\")",
+    "globalThis.__depthDrawApi.getCompositeSource()",
+    "globalThis.__depthDrawApi.getLayerDepthImage(0..1)",
+    "globalThis.__depthDrawApi.getLayerMesh(0..1)"
+  ],
+  "composite": "depthdraw-psd-n1-midori-composite.json",
+  "layers": [
+    {
+      "index": 0,
+      "depthMeta": "depthdraw-psd-n1-midori-layer-0-depth.json",
+      "depthRaw": "depthdraw-psd-n1-midori-layer-0-depth-raw.json",
+      "meshSummary": "depthdraw-psd-n1-midori-layer-0-mesh-summary.json",
+      "name": "animal_ears",
+      "left": 508,
+      "top": 21,
+      "width": 275,
+      "height": 151,
+      "rawStats": {
+        "min": 0,
+        "max": 201,
+        "nonZero": 9933,
+        "sum": 1140501,
+        "average": 27.465406381697772,
+        "sha256": "904322cce77926dc46881e83e827a3388b54052c4fee215b38d9e0ba08f19f8a",
+        "samples": [
+          {
+            "x": 0,
+            "y": 0,
+            "value": 0
+          },
+          {
+            "x": 137,
+            "y": 75,
+            "value": 0
+          },
+          {
+            "x": 274,
+            "y": 150,
+            "value": 0
+          },
+          {
+            "x": 68,
+            "y": 37,
+            "value": 0
+          },
+          {
+            "x": 206,
+            "y": 113,
+            "value": 0
+          }
+        ]
+      },
+      "meshStats": {
+        "vertexCount": 10488,
+        "counts": {
+          "positions": 31464,
+          "uvs": 20976,
+          "normals": 31464,
+          "indices": 13410
+        },
+        "sha256": {
+          "positions": "a5556fe849bd577a434f7945fbf7cd49d37426b6a6454033ba1778415579e936",
+          "uvs": "39cf4fc954438bfcd2197d2256ca83f932a59c56e143a260830cbc1860d8c3f2",
+          "normals": "0bdb8c8baaa7510f3f145347d9806559397ebfb34241afaa36c6f09f43aaef19",
+          "indices": "71b1f4ea0276edbc0b843a980b263aaabc34fdcc7a2adeae9b2faf9077162e69"
+        },
+        "samples": {
+          "positions": [
+            -0.1028146967291832,
+            0.48358091711997986,
+            0,
+            -0.10125097632408142,
+            0.48358091711997986,
+            0,
+            -0.09968725591897964,
+            0.48358091711997986,
+            0
+          ],
+          "uvs": [
+            0.001818181830458343,
+            0.996688723564148,
+            0.00909090880304575,
+            0.996688723564148,
+            0.016363635659217834,
+            0.996688723564148
+          ],
+          "normals": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "indices": [
+            102,
+            240,
+            103,
+            103,
+            240,
+            241,
+            103,
+            241,
+            104,
+            104,
+            241,
+            242
+          ]
+        }
+      }
+    },
+    {
+      "index": 1,
+      "depthMeta": "depthdraw-psd-n1-midori-layer-1-depth.json",
+      "depthRaw": "depthdraw-psd-n1-midori-layer-1-depth-raw.json",
+      "meshSummary": "depthdraw-psd-n1-midori-layer-1-mesh-summary.json",
+      "name": "tail",
+      "left": 606,
+      "top": 463,
+      "width": 378,
+      "height": 423,
+      "rawStats": {
+        "min": 0,
+        "max": 0,
+        "nonZero": 0,
+        "sum": 0,
+        "average": 0,
+        "sha256": "1bbe508733244eb549c9018fa72800b84350bc3d9bfc9a81f25919b3b886e0e5",
+        "samples": [
+          {
+            "x": 0,
+            "y": 0,
+            "value": 0
+          },
+          {
+            "x": 189,
+            "y": 211,
+            "value": 0
+          },
+          {
+            "x": 377,
+            "y": 422,
+            "value": 0
+          },
+          {
+            "x": 94,
+            "y": 105,
+            "value": 0
+          },
+          {
+            "x": 283,
+            "y": 317,
+            "value": 0
+          }
+        ]
+      },
+      "meshStats": {
+        "vertexCount": 40068,
+        "counts": {
+          "positions": 120204,
+          "uvs": 80136,
+          "normals": 120204,
+          "indices": 0
+        },
+        "sha256": {
+          "positions": "28fe2f7041fc4d6874dac63a44bc20d5ca56fb80e4637b8d99c94f3124c117c3",
+          "uvs": "191d00d878549a7ab62feffb1996a50d97be8a04c3dc75c58d61c5cd3484c2a0",
+          "normals": "3b70b7bce24824abca466a804d0c76251671acfbf6564b7620c269814c7ccc2f",
+          "indices": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "samples": {
+          "positions": [
+            -0.02619233727455139,
+            0.13799843192100525,
+            0,
+            -0.024628616869449615,
+            0.13799843192100525,
+            0,
+            -0.02306489460170269,
+            0.13799843192100525,
+            0
+          ],
+          "uvs": [
+            0.0013227512827143073,
+            0.9988179802894592,
+            0.006613756529986858,
+            0.9988179802894592,
+            0.011904762126505375,
+            0.9988179802894592
+          ],
+          "normals": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "indices": []
+        }
+      }
+    }
+  ],
+  "expected": {
+    "sourceMode": "psd",
+    "mode": "N:1",
+    "width": 1280,
+    "height": 1280,
+    "layerCount": 2,
+    "compositeLayerCount": 19,
+    "globalDepthScale": 1,
+    "globalDepthCentroid": 170.36401422513407
+  }
+}

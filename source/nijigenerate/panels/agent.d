@@ -573,7 +573,7 @@ private:
         const float padY = 7;
         float contentW = w - style.ScrollbarSize - (padX * 2) - style.ItemSpacing.x;
         if (contentW < 48) contentW = 48;
-        float contentH = measureConversationLines(view, contentW, true, "\ue7fd: ");
+        float contentH = measureConversationLines(view, contentW, true, "\uf0d3: ");
         float bubbleW = contentW + (padX * 2);
         float bubbleH = contentH + (padY * 2);
 
@@ -602,9 +602,9 @@ private:
         igSetCursorPos(ImVec2(startCursor.x + padX, startCursor.y + padY));
         if (tv.trimmed) {
             LineHeightCache tmp;
-            renderClippedLines(view, contentW, blk.ver, tmp, true, "\ue7fd: ", &col);
+            renderClippedLines(view, contentW, blk.ver, tmp, true, "\uf0d3: ", &col);
         } else {
-            renderClippedLines(view, contentW, blk.ver, blk.cache, true, "\ue7fd: ", &col, blk.dirtyFrom);
+            renderClippedLines(view, contentW, blk.ver, blk.cache, true, "\uf0d3: ", &col, blk.dirtyFrom);
             blk.dirtyFrom = size_t.max;
         }
         igSetCursorPos(ImVec2(startCursor.x, startCursor.y + bubbleH + style.ItemSpacing.y));
@@ -620,7 +620,7 @@ private:
         bool open = igTreeNodeEx(labelId, flags);
         float labelSpacing = igGetTreeNodeToLabelSpacing();
         igSameLine(0, labelSpacing);
-        igTextColored(c, "\ue86c");
+        igTextColored(c, "\uf0be");
         igSameLine(0, 4);
         igTextUnformatted(labelVis.toStringz());
         if (open) {
@@ -1723,7 +1723,7 @@ protected:
                 }
             }
         } else {
-            if (incButtonColored(_("\ue5c9").toStringz(), ImVec2(sendBtnW, 0))) {
+            if (incButtonColored(_("\ue888").toStringz(), ImVec2(sendBtnW, 0))) {
                 enqueueCommand("cancel");
             }
         }

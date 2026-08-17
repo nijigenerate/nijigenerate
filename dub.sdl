@@ -16,7 +16,7 @@ subPackage {
 	importPaths "source"
 	sourceFiles "source/njc/*.d"
 }
-dependency "psd-d" version="~>0.6.1"
+dependency "psd-d" path="vendor/psd-d"
 dependency "inmath" version="1.0.6"
 dependency "kra-d" repository="git+https://github.com/inochi2d/kra-d.git" version="6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42"
 dependency "tinyfiledialogs" version="~>0.10.1"
@@ -60,6 +60,21 @@ configuration "regression-tests" {
 	lflags "-L/opt/homebrew/opt/openssl@3/lib" platform="osx-aarch64"
 }
 
+configuration "linux-regression-tests" {
+	platforms "linux"
+	dependency "dportals" version="~>0.1.0"
+	targetType "executable"
+	targetName "nijigenerate-regression-tests"
+	targetPath "out"
+	workingDirectory "out"
+	mainSourceFile "source/nijigenerate_tests/regression.d"
+	sourcePaths "source"
+	importPaths "source"
+	excludedSourceFiles "source/app.d" "source/njc/*.d"
+	subConfiguration "nijilive" "queue-backend"
+	versions "HaveMCP" "CommandBrowserDifferential"
+}
+
 // Linux build
 configuration "linux-full" {
 
@@ -67,7 +82,7 @@ configuration "linux-full" {
 	dependency "dportals" version="~>0.1.0"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 }
 
 // macOS build
@@ -76,7 +91,7 @@ configuration "osx-full" {
 	targetType "executable"
 	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 
@@ -91,7 +106,7 @@ configuration "osx-regression-smoke" {
 	targetType "executable"
 	targetPath "out/nijigenerate.app/Contents/MacOS"
 	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
-	versions "HaveMCP" "RegressionSmoke"
+	versions "HaveMCP" "RegressionSmoke" "InDoesRender"
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 
@@ -106,7 +121,16 @@ configuration "win32-full" {
 	platforms "windows"
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_staticCRT"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
+	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
+	sourceFiles "build-aux\\windows\\nijigenerate.res"
+}
+
+configuration "win32-regression-smoke" {
+	platforms "windows"
+	targetType "executable"
+	subConfiguration "i2d-imgui" "dynamic_dynamicCRT"
+	versions "HaveMCP" "RegressionSmoke" "InDoesRender"
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 }
@@ -118,7 +142,7 @@ configuration "linux-nightly" {
 	targetType "executable"
 	subConfiguration "i2d-imgui" "static_dynamicCRT"
 	versions "InNightly"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 }
 
 // macOS nightly build
@@ -130,7 +154,7 @@ configuration "osx-nightly" {
 	dflags "-force-dwarf-frame-section=false"
 	lflags "-rpath" "@executable_path/../Frameworks" "-rpath" "@executable_path/."
 	versions "InNightly"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 
   // ln -s /usr/local/Cellar/openssl@3/3.* ./openssl_3
   lflags "-L./openssl_3/lib" platform="osx-x86_64"
@@ -146,5 +170,5 @@ configuration "win32-nightly" {
 	lflags "/SUBSYSTEM:windows" "/ENTRY:mainCRTStartup" platform="windows-dmd"
 	sourceFiles "build-aux\\windows\\nijigenerate.res"
 	versions "InNightly"
-	versions "HaveMCP"
+	versions "HaveMCP" "InDoesRender"
 }

@@ -6,6 +6,7 @@ import nijilive.core.nodes.common;
 //import nijigenerate.core;
 import nijigenerate.core.settings;
 import nijigenerate.core.tasks;
+import nijigenerate.core.asyncderivedupdate;
 import nijigenerate.core.window;
 import nijigenerate.core.actionstack;
 import nijigenerate.actions : Action;
@@ -36,6 +37,13 @@ import bindbc.imgui;
     A project
 */
 class Project {
+    this() {
+        derivedUpdateScope = incAsyncDerivedUpdateCreateScope();
+    }
+
+    /** Scope for updates derived asynchronously from edits in this project. */
+    AsyncDerivedUpdateScopeId derivedUpdateScope;
+
     /**
         The puppet in the project
     */
@@ -240,7 +248,10 @@ void incNewProject() {
     if (activeProject && activeProject.path.length > 0) incReleaseLockfile();
     incClearImguiData();
 
-    if (activeProject) activeProject.path = "";
+    if (activeProject) {
+        activeProject.path = "";
+        incAsyncDerivedUpdateClearScope(activeProject.derivedUpdateScope);
+    }
     editMode_ = EditMode.ModelEdit;
 //    import nijigenerate.viewport : incViewportReset;
     
@@ -535,6 +546,8 @@ Project incActiveProject() {
 }
 
 Project ngCreateHeadlessRegressionProject() {
+    if (activeProject)
+        incAsyncDerivedUpdateClearScope(activeProject.derivedUpdateScope);
     activeProject = new Project;
     activeProject.puppet = new ExPuppet;
     incInitAnimationPlayer(activeProject.puppet);

@@ -7,6 +7,8 @@
 */
 module nijigenerate.viewport.anim;
 import nijigenerate.core.input;
+import nijigenerate.core.asyncderivedupdate :
+    AsyncDerivedUpdateViewportChannel;
 import nijigenerate;
 import nijigenerate.viewport.base;
 
@@ -21,6 +23,12 @@ class AnimationViewport : Viewport {
 protected:
     bool alwaysUpdateMode = false;
 public:
+
+    override
+    uint asyncDerivedUpdateViewportChannel() {
+        return cast(uint)AsyncDerivedUpdateViewportChannel.Model;
+    }
+
     override
     void draw(Camera camera) { 
         incActivePuppet.update();

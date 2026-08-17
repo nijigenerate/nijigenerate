@@ -62,3 +62,66 @@ public:
     override bool merge(Action other) { return false; }
     override bool canMerge(Action other) { return false; }
 }
+
+class DepthEditorDepthChangeAction : LazyBoundAction {
+private:
+    DepthMeshEditor editor;
+    DepthMeshEditorOne target;
+    float[] oldDepths;
+    float[] oldBaseDepths;
+    DepthOperation[] oldOperations;
+    bool oldDirectDepthDirty;
+    float[] newDepths;
+    float[] newBaseDepths;
+    DepthOperation[] newOperations;
+    bool newDirectDepthDirty;
+
+public:
+    this(DepthMeshEditor editor, DepthMeshEditorOne target) {
+        this.editor = editor;
+        this.target = target;
+        this.oldDepths = target.copyEditorDepths();
+        this.oldBaseDepths = target.baseDepths.dup;
+        this.oldOperations = editor.copyOperations(target);
+        this.oldDirectDepthDirty = editor.isDirectDepthDirty(target);
+    }
+
+    override
+    void updateNewState() {
+        newDepths = target.copyEditorDepths();
+        newBaseDepths = target.baseDepths.dup;
+        newOperations = editor.copyOperations(target);
+        newDirectDepthDirty = editor.isDirectDepthDirty(target);
+    }
+
+    override
+    void clear() { }
+
+    override
+    void rollback() {
+        editor.replaceDepthState(target, oldDepths, oldBaseDepths, oldOperations, oldDirectDepthDirty);
+    }
+
+    override
+    void redo() {
+        editor.replaceDepthState(target, newDepths, newBaseDepths, newOperations, newDirectDepthDirty);
+    }
+
+    override
+    string describe() {
+        return _("Changed vertex depths");
+    }
+
+    override
+    string describeUndo() {
+        return _("Vertex depths were changed");
+    }
+
+    override
+    string getName() {
+        return this.stringof;
+    }
+
+    override bool merge(Action other) { return false; }
+    override bool canMerge(Action other) { return false; }
+}

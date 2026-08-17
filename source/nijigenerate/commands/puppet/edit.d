@@ -8,6 +8,7 @@ import nijigenerate.windows.settings;  // SettingsWindow class
 import nijigenerate.windows.command_browser; // CommandBrowserWindow class
 import i18n;
 
+@CommandScopes!(GlobalCommandScope)()
 class UndoCommand : ExCommand!() {
     this() { super(_("Undo"), _("Undo last action")); }
     override
@@ -18,6 +19,7 @@ class UndoCommand : ExCommand!() {
     override bool runnable(Context ctx) { return incActionCanUndo(); }
 }
 
+@CommandScopes!(GlobalCommandScope)()
 class RedoCommand : ExCommand!() {
     this() { super(_("Redo"), _("Redo previously undone action")); }
     override

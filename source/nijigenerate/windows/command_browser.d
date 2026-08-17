@@ -8,7 +8,8 @@ import nijigenerate.widgets; // incBeginCategory helpers
 import nijigenerate.widgets.controller : incController;
 import nijigenerate.widgets.inputtext : incInputText;
 import nijigenerate.commands; // AllCommandMaps
-import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult, ExCommandResult, ngCommandIdFromKey;
+import nijigenerate.commands.base : BaseExArgsOf, TW, CreateResult, DeleteResult, LoadResult,
+    ExCommandResult, ngCommandAllowedInCurrentContext, ngCommandIdFromKey, ngRunCommand;
 import nijigenerate.commands.viewport.palette : filterCommands; // shared filtering
 import nijigenerate.core.shortcut.base : ngBuildExecutionContext;
 import nijigenerate.project : incActivePuppet;
@@ -929,7 +930,10 @@ protected:
         }
 
         // Filter commands
-        Command[] filteredCmds = filterCommands(filterText);
+        Command[] filteredCmds;
+        foreach (command; filterCommands(filterText)) {
+            if (ngCommandAllowedInCurrentContext(command)) filteredCmds ~= command;
+        }
         CommandInfo[] filtered;
         foreach (c; filteredCmds) {
             auto p = c in gCommandInfosByCmd;
@@ -1068,7 +1072,11 @@ protected:
                     }
                     CommandResult res;
                     try {
-                        res = selectedCmd.run(ctx);
+                        if (!ngCommandAllowedInCurrentContext(selectedCmd)) {
+                            res = CommandResult(false, "Command is not available in the current context");
+                        } else {
+                            res = ngRunCommand(selectedCmd, ctx);
+                        }
                         lastHasResult = true;
                         lastSucceeded = res.succeeded;
                         lastMessage = res.message;

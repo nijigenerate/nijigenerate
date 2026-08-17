@@ -161,3 +161,276 @@ public:
 
     bool empty() { return actions.length == 0; }
 }
+
+/** Lets asynchronous subsystems replace a newly pushed action with an owner group. */
+alias ClaimAsyncGroupActionHook = AsyncGroupAction function(Action action);
+__gshared ClaimAsyncGroupActionHook ngClaimAsyncGroupActionHook;
+
+/** Notifies the history owner when an applied async action gains derived state. */
+alias AsyncActionCompletedHook = void function(AsyncGroupAction action);
+__gshared AsyncActionCompletedHook ngAsyncActionCompletedHook;
+
+enum AsyncGroupActionState {
+    Idle,
+    Scheduled,
+    Running,
+    Completed,
+    Failed,
+    Undone,
+}
+
+enum AsyncGroupActionEvent {
+    Scheduled,
+    Running,
+    Progressed,
+    Completed,
+    Failed,
+    Canceled,
+    Redone,
+}
+
+/**
+ * Identifies one applied generation of an AsyncGroupAction.
+ *
+ * Schedulers and progress registries keep this value instead of implementing
+ * their own undo observers. A token becomes canceled automatically when its
+ * owner is undone or advances to another generation on redo.
+ */
+struct AsyncActionToken {
+private:
+    AsyncGroupAction owner_;
+    ulong generation_;
+
+public:
+    bool valid() const { return owner_ !is null && generation_ != 0; }
+    bool active() const {
+        return valid && owner_.isApplied && owner_.generation == generation_ &&
+            owner_.state != AsyncGroupActionState.Failed;
+    }
+    bool canceled() const { return valid && !active; }
+    bool acceptsCompletion() const { return !valid || active; }
+    ulong generation() const { return generation_; }
+}
+
+/**
+    A group whose derived work is completed asynchronously.
+
+    Primary actions stay in GroupAction.actions. Actions produced by the
+    asynchronous work are kept separately so undo can cancel pending work,
+    roll back completed output, and then roll back the operation which caused
+    that work. Redo deliberately does not replay the old derived actions; it
+    redoes the primary operation and lets the owner schedule fresh work.
+*/
+class AsyncGroupAction : GroupAction {
+public:
+    alias LifecycleHandler = void function(AsyncGroupAction action);
+    alias MergeHandler = bool function(AsyncGroupAction current, AsyncGroupAction incoming);
+    alias Observer = void delegate(AsyncGroupAction action, AsyncGroupActionEvent event);
+
+private:
+    struct ObserverEntry {
+        ulong id;
+        Observer observer;
+    }
+
+    Action[] derivedActions;
+    LifecycleHandler cancelHandler;
+    LifecycleHandler beginUndoHandler;
+    LifecycleHandler endUndoHandler;
+    LifecycleHandler beginRedoHandler;
+    LifecycleHandler endRedoHandler;
+    MergeHandler mergeHandler;
+    AsyncGroupActionState currentState = AsyncGroupActionState.Idle;
+    ulong currentGeneration = 1;
+    size_t pendingCount;
+    size_t totalCount;
+    size_t completedCount;
+    bool applied = true;
+    ObserverEntry[] observers;
+    ulong nextObserverId = 1;
+
+    void notifyObservers(AsyncGroupActionEvent event) {
+        auto snapshot = observers.dup;
+        foreach (entry; snapshot) {
+            if (entry.observer !is null) entry.observer(this, event);
+        }
+    }
+
+    size_t finishPending(size_t completed) {
+        auto finished = min(completed, pendingCount);
+        pendingCount -= finished;
+        completedCount += finished;
+        return finished;
+    }
+
+public:
+    this(Action[] actions = []) {
+        super(actions);
+    }
+
+    void setLifecycleHandlers(
+        LifecycleHandler cancel,
+        LifecycleHandler beginUndo,
+        LifecycleHandler endUndo,
+        LifecycleHandler beginRedo,
+        LifecycleHandler endRedo,
+    ) {
+        cancelHandler = cancel;
+        beginUndoHandler = beginUndo;
+        endUndoHandler = endUndo;
+        beginRedoHandler = beginRedo;
+        endRedoHandler = endRedo;
+    }
+
+    void setMergeHandler(MergeHandler handler) {
+        mergeHandler = handler;
+    }
+
+    ulong addObserver(Observer observer) {
+        if (observer is null) return 0;
+        auto id = nextObserverId++;
+        if (nextObserverId == 0) nextObserverId = 1;
+        observers ~= ObserverEntry(id, observer);
+        return id;
+    }
+
+    void removeObserver(ulong id) {
+        if (id == 0) return;
+        observers = observers.filter!(entry => entry.id != id).array;
+    }
+
+    ulong generation() const { return currentGeneration; }
+    AsyncGroupActionState state() const { return currentState; }
+    bool isApplied() const { return applied; }
+    size_t pendingAsyncCount() const { return pendingCount; }
+    size_t totalAsyncCount() const { return totalCount; }
+    size_t completedAsyncCount() const { return completedCount; }
+    const(Action)[] completedAsyncActions() const { return derivedActions; }
+    AsyncActionToken asyncToken() {
+        return AsyncActionToken(this, currentGeneration);
+    }
+
+    void markAsyncScheduled(size_t count = 1) {
+        if (!applied || currentState == AsyncGroupActionState.Failed || count == 0) return;
+        pendingCount += count;
+        totalCount += count;
+        currentState = AsyncGroupActionState.Scheduled;
+        notifyObservers(AsyncGroupActionEvent.Scheduled);
+    }
+
+    void markAsyncRunning() {
+        if (!applied || currentState == AsyncGroupActionState.Failed) return;
+        currentState = AsyncGroupActionState.Running;
+        notifyObservers(AsyncGroupActionEvent.Running);
+    }
+
+    bool addCompletedAsyncAction(ulong generation, Action action, size_t completed = 1) {
+        if (!applied || currentState == AsyncGroupActionState.Failed ||
+            generation != currentGeneration || action is null) return false;
+        derivedActions ~= action;
+        if (ngAsyncActionCompletedHook !is null) ngAsyncActionCompletedHook(this);
+        finishPending(completed);
+        currentState = pendingCount == 0
+            ? AsyncGroupActionState.Completed
+            : AsyncGroupActionState.Running;
+        notifyObservers(pendingCount == 0
+            ? AsyncGroupActionEvent.Completed
+            : AsyncGroupActionEvent.Progressed);
+        return true;
+    }
+
+    void markAsyncFinished(size_t completed = 1) {
+        if (!applied || currentState == AsyncGroupActionState.Failed) return;
+        finishPending(completed);
+        if (pendingCount == 0) {
+            currentState = AsyncGroupActionState.Completed;
+            notifyObservers(AsyncGroupActionEvent.Completed);
+        } else {
+            notifyObservers(AsyncGroupActionEvent.Progressed);
+        }
+    }
+
+    /**
+        Ends the current generation after its derived work fails.
+
+        The primary action remains applied and undoable, but pending work is
+        discarded and the generation stops accepting asynchronous output.
+    */
+    void markAsyncFailed() {
+        if (!applied || currentState == AsyncGroupActionState.Failed) return;
+        currentGeneration++;
+        pendingCount = 0;
+        currentState = AsyncGroupActionState.Failed;
+        notifyObservers(AsyncGroupActionEvent.Failed);
+    }
+
+    override void rollback() {
+        if (!applied) return;
+        if (cancelHandler !is null) cancelHandler(this);
+        currentGeneration++;
+        pendingCount = 0;
+        totalCount = 0;
+        completedCount = 0;
+        foreach_reverse (action; derivedActions) action.rollback();
+        derivedActions.length = 0;
+        if (beginUndoHandler !is null) beginUndoHandler(this);
+        scope(exit) {
+            if (endUndoHandler !is null) endUndoHandler(this);
+        }
+        super.rollback();
+        applied = false;
+        currentState = AsyncGroupActionState.Undone;
+        notifyObservers(AsyncGroupActionEvent.Canceled);
+    }
+
+    override void redo() {
+        if (applied) return;
+        currentGeneration++;
+        pendingCount = 0;
+        totalCount = 0;
+        completedCount = 0;
+        derivedActions.length = 0;
+        applied = true;
+        currentState = AsyncGroupActionState.Idle;
+        notifyObservers(AsyncGroupActionEvent.Redone);
+        if (beginRedoHandler !is null) beginRedoHandler(this);
+        scope(exit) {
+            if (endRedoHandler !is null) endRedoHandler(this);
+        }
+        super.redo();
+    }
+
+    override bool merge(Action other) {
+        auto incoming = cast(AsyncGroupAction)other;
+        if (!canMerge(incoming)) return false;
+        if (mergeHandler !is null && !mergeHandler(this, incoming)) return false;
+        if (!super.merge(incoming)) return false;
+        derivedActions ~= incoming.derivedActions;
+        pendingCount = incoming.pendingCount;
+        totalCount = incoming.totalCount;
+        completedCount = incoming.completedCount;
+        if (pendingCount > 0) {
+            currentState = incoming.currentState == AsyncGroupActionState.Running
+                ? AsyncGroupActionState.Running
+                : AsyncGroupActionState.Scheduled;
+            notifyObservers(currentState == AsyncGroupActionState.Running
+                ? AsyncGroupActionEvent.Running
+                : AsyncGroupActionEvent.Scheduled);
+        } else if (incoming.currentState == AsyncGroupActionState.Failed) {
+            currentState = AsyncGroupActionState.Failed;
+            notifyObservers(AsyncGroupActionEvent.Failed);
+        } else if (derivedActions.length > 0) {
+            currentState = AsyncGroupActionState.Completed;
+            notifyObservers(AsyncGroupActionEvent.Completed);
+        }
+        return true;
+    }
+
+    override bool canMerge(Action other) {
+        auto incoming = cast(AsyncGroupAction)other;
+        return incoming !is null &&
+            applied && incoming.applied &&
+            mergeHandler is incoming.mergeHandler &&
+            super.canMerge(incoming);
+    }
+}

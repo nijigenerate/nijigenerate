@@ -13,6 +13,14 @@ import nijigenerate.widgets;
 import nijigenerate.widgets.viewport;
 import nijigenerate.core;
 import nijigenerate.core.window : incViewportGetBackgroundColor;
+import nijigenerate.viewport.asyncderivedupdateoverlay :
+    drawAsyncDerivedUpdateViewportOverlay;
+import nijigenerate.widgets.asyncderivedupdatedetails :
+    drawAsyncDerivedUpdateDetailsUi;
+import nijigenerate.core.asyncderivedupdate :
+    AsyncDerivedUpdateSnapshot,
+    incAsyncDerivedUpdateSnapshots;
+import nijigenerate.project : incActiveProject;
 import nijigenerate.core.colorbleed;
 import nijigenerate.panels;
 import nijigenerate.actions;
@@ -161,6 +169,29 @@ protected:
                 ImVec2(1-(0.5/width), (0.5/height)), 
                 0xFFFFFFFF,
             );
+
+            // Draw screen-space overlays in the same phase and DrawList as the
+            // viewport image.  Child tool areas must never reach back into a
+            // parent/sibling DrawList while ImGui is building their contents.
+            viewport.drawOverlay(
+                drawList,
+                igGetCurrentWindow().InnerRect.Max,
+                rect,
+            );
+            auto derivedUpdateChannel =
+                viewport.asyncDerivedUpdateViewportChannel();
+            auto project = incActiveProject();
+            AsyncDerivedUpdateSnapshot[] derivedUpdateSnapshots;
+            if (project !is null && derivedUpdateChannel != 0) {
+                derivedUpdateSnapshots = incAsyncDerivedUpdateSnapshots(
+                    project.derivedUpdateScope,
+                    derivedUpdateChannel);
+                drawAsyncDerivedUpdateViewportOverlay(
+                    derivedUpdateSnapshots,
+                    drawList,
+                    igGetCurrentWindow().InnerRect.Max,
+                    rect);
+            }
             igItemAdd(rect, igGetID("###VIEWPORT_DISP"));
             
             // Popup right click menu
@@ -205,6 +236,9 @@ protected:
                 incEndViewportToolArea();
 
                 incBeginViewportToolArea("ConfirmArea", ImGuiDir.Left, ImGuiDir.Down, false);
+                    if (project !is null && derivedUpdateChannel != 0) {
+                        drawAsyncDerivedUpdateDetailsUi(derivedUpdateSnapshots);
+                    }
                     viewport.drawConfirmBar();
                 incEndViewportToolArea();
                 if (incEditMode == EditMode.ModelEdit && ngModelEditSubMode() == ModelEditSubMode.Layout)

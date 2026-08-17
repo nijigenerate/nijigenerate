@@ -499,9 +499,63 @@ class SetTRSBindingCommand : ExCommand!(
     }
 }
 
+/**
+    Set a node transform Y-rotation value binding at the current keypoint.
+
+    This is separate from SetTRSBindingCommand because that command's
+    rotationDegrees field intentionally targets the conventional Z rotation.
+ */
+@ShortcutHidden
+@EffectBindingEdit
+class SetRotationYBindingCommand : ExCommand!(
+    TW!(float, "rotationRadians", "Node transform Y rotation binding in radians.")
+) {
+    this(float rotationRadians = 0) {
+        super(
+            _("Set Y Rotation Binding"),
+            _("Set node transform Y rotation binding at current keypoint."),
+            rotationRadians
+        );
+    }
+
+    override bool runnable(Context ctx) {
+        bool hasParam = (ctx.hasArmedParameters && ctx.armedParameters.length > 0) ||
+            (ctx.hasParameters && ctx.parameters.length > 0) || incArmedParameter() !is null;
+        if (!hasParam) return false;
+        Node[] nodes = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
+        foreach (node; nodes) if (node !is null) return true;
+        return false;
+    }
+
+    override CommandResult run(Context ctx) {
+        if (!runnable(ctx)) return CommandResult(false, "No applicable parameters or nodes");
+
+        Parameter param;
+        vec2u kp;
+        size_t paramIndex;
+        auto contextResult = ngResolveSetDeformBindingParameter(ctx, param, kp, paramIndex);
+        if (!contextResult.succeeded) return contextResult;
+
+        Node[] nodes = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
+        if (nodes.length == 0) return CommandResult(false, "No target nodes");
+
+        auto group = new GroupAction();
+        ParameterBinding[] allCreated;
+        if (!ngSetTRSValueBinding(param, kp, nodes, "transform.r.y", rotationRadians, group, allCreated))
+            return CommandResult(false, "No bindings updated");
+
+        if (!group.empty()) incActionPush(group);
+        ngFinalizeSetDeformBindingContext(param);
+        if (allCreated.length > 0)
+            return new CreateResult!ParameterBinding(true, allCreated);
+        return CommandResult(true);
+    }
+}
+
 enum ModelCommand {
     SetDeformBinding,
     SetTRSBinding,
+    SetRotationYBinding,
 }
 
 Command[ModelCommand] commands;
@@ -511,4 +565,5 @@ void ngInitCommands(T)() if (is(T == ModelCommand))
     // Register with benign defaults; actual args supplied at call-time
     mixin(registerCommand!(ModelCommand.SetDeformBinding, "deform", null));
     mixin(registerCommand!(ModelCommand.SetTRSBinding));
+    mixin(registerCommand!(ModelCommand.SetRotationYBinding));
 }

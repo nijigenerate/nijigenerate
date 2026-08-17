@@ -538,6 +538,46 @@ class ShowImportPSDDialogCommand : ExCommand!() {
     }
 }
 
+@McpHidden
+@GuiDialog
+class ShowImportPSDDepthMapDialogCommand : ExCommand!() {
+    this() { super(_("Import PSD Depth Map"), _("Show \"Import PSD Depth Map\" dialog.")); }
+
+    override
+    CommandResult run(Context ctx) {
+        const TFD_Filter[] filters = [
+            { ["*.psd", "*.png"], "Depth Source (*.psd, *.png)" }
+        ];
+
+        string path = incShowImportDialog(filters, _("Import PSD Depth Map..."));
+        if (path.length) {
+            incPushWindow(new PSDDepthMapWindow(path));
+            return CommandResult(true);
+        }
+        return CommandResult(false, "Import canceled");
+    }
+}
+
+@ShortcutHidden
+@GuiDialog
+class OpenPSDDepthMapDialogCommand :
+    ExCommand!(TW!(string, "path", "Path to the PSD or PNG depth source to open in the dialog")) {
+    this(string path) {
+        super(
+            _("Open PSD Depth Map Dialog"),
+            _("Open the PSD depth map import dialog for a specified source path."),
+            path
+        );
+    }
+
+    override
+    CommandResult run(Context ctx) {
+        if (!path.length) return CommandResult(false, "Path not provided");
+        incPushWindow(new PSDDepthMapWindow(path));
+        return CommandResult(true);
+    }
+}
+
 @ShortcutHidden
 @EffectImport
 class ImportPSDCommand : ExCommand!(
@@ -1194,6 +1234,8 @@ enum FileCommand {
     SaveFile,
     ShowSaveFileAsDialog,
     ShowImportPSDDialog,
+    ShowImportPSDDepthMapDialog,
+    OpenPSDDepthMapDialog,
     ImportPSD,
     ShowImportKRADialog,
     ImportKRA,
@@ -1236,6 +1278,7 @@ void ngInitCommands(T)() if (is(T == FileCommand))
     // Provide benign defaults; actual values are supplied at call-time (e.g., MCP, dialogs)
     mixin(registerCommand!(FileCommand.OpenFile, ""));
     mixin(registerCommand!(FileCommand.SaveFile, ""));
+    mixin(registerCommand!(FileCommand.OpenPSDDepthMapDialog, ""));
     mixin(registerCommand!(FileCommand.ImportPSD, "", true, "DynamicComposite"));
     mixin(registerCommand!(FileCommand.ImportKRA, "", true, "DynamicComposite"));
     mixin(registerCommand!(FileCommand.ImportINP, ""));

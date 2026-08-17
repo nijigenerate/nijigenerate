@@ -138,6 +138,7 @@ struct AutoMeshKey {
 // Template: Apply AutoMesh command per processor type
 template ApplyAutoMeshPT(alias PT)
 {
+    @CommandScopes!(NormalCommandScope)()
     @EffectApply
     class ApplyAutoMeshPT : ExCommand!()
     {
@@ -185,7 +186,7 @@ template ApplyAutoMeshPT(alias PT)
             bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
             if (!onMain) {
                 auto self = this;
-                return ngRunInMainThread!CommandResult({ return self.run(ctx); });
+                return ngRunInMainThread!CommandResult({ return ngRunCommand(self, ctx); });
             }
 
             // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.
@@ -365,7 +366,9 @@ Command ensureApplyAutoMeshCommand(string id)
         enum pid_ = AMProcInfo!(PT).id;
         static if (pid_.length) {
             if (pid_ == id) {
-                auto cmd = cast(Command) new ApplyAutoMeshPT!PT();
+                auto typedCommand = new ApplyAutoMeshPT!PT();
+                ngRegisterCommandMeta(typedCommand);
+                auto cmd = cast(Command)typedCommand;
                 autoMeshApplyCommands[key] = cmd; return cmd;
             }
         }
@@ -379,7 +382,9 @@ void ngInitCommands(T)() if (is(T == AutoMeshKey))
     size_t before = 0; foreach (_k, _v; autoMeshApplyCommands) ++before;
     static foreach (PT; AutoMeshProcessorTypes) {{
         enum pid = AMProcInfo!(PT).id;
-        autoMeshApplyCommands[AutoMeshKey(pid)] = cast(Command) new ApplyAutoMeshPT!PT();
+        auto command = new ApplyAutoMeshPT!PT();
+        ngRegisterCommandMeta(command);
+        autoMeshApplyCommands[AutoMeshKey(pid)] = cast(Command)command;
     }}
     size_t after = 0; foreach (_k, _v; autoMeshApplyCommands) ++after;
     cmdLog("[CMD] AutoMeshKey init: before=%s after=%s", before, after);

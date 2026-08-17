@@ -13,6 +13,46 @@ import nijilive.core.nodes;
 import nijilive.core.nodes.deformer.grid;
 import nijilive.fmt.serialize;
 import nijilive.math;
+import std.math : isFinite;
+
+ExDepthOp[] ngRemapGridIndexBoundDepthOperations(
+    Vec2Array oldVertices,
+    Vec2Array newVertices,
+    ExDepthOp[] operations,
+    bool preserveSameCount = true,
+) {
+    enum float matchingVertexDistanceSquared = 1.0e-8f;
+    auto preserveAttachedIndices = preserveSameCount && oldVertices.length == newVertices.length;
+    ExDepthOp[] result;
+    foreach (operation; operations) {
+        if (operation.type != ExDepthOpType.AttachedPoint) {
+            result ~= operation;
+            continue;
+        }
+        if (operation.index >= oldVertices.length || newVertices.length == 0) continue;
+        if (preserveAttachedIndices) {
+            result ~= operation;
+            continue;
+        }
+
+        auto source = oldVertices[operation.index];
+        float bestDistance = float.infinity;
+        size_t bestIndex;
+        bool found;
+        foreach (i, candidate; newVertices) {
+            auto delta = candidate - source;
+            auto distance = delta.x * delta.x + delta.y * delta.y;
+            if (!distance.isFinite || (found && distance >= bestDistance)) continue;
+            bestDistance = distance;
+            bestIndex = i;
+            found = true;
+        }
+        if (!found || bestDistance > matchingVertexDistanceSquared) continue;
+        operation.index = bestIndex;
+        result ~= operation;
+    }
+    return result;
+}
 
 @TypeId("GridDeformer")
 class ExGridDeformer : GridDeformer, DepthMappedNode, DepthOperationMappedNode {
@@ -26,8 +66,30 @@ public:
 
     override
     void rebuffer(Vec2Array gridPoints) {
+        auto oldVertices = vertices.dup;
+        auto oldDepths = copyDepths();
+        auto oldOperations = copyDepthOps();
+        auto oldOperationBaseDepths = copyDepthOpBaseDepths();
         super.rebuffer(gridPoints);
-        resizeDepthsToVertices(vertices.length);
+        if (oldDepths !is null) {
+            float[] resampledDepths;
+            if (ngResampleGridDepths(oldVertices, oldDepths, vertices, resampledDepths)) {
+                replaceDepths(resampledDepths);
+            } else {
+                replaceDepths(oldDepths);
+                resizeDepthsToVertices(vertices.length);
+            }
+        }
+        if (oldOperationBaseDepths !is null) {
+            float[] resampledBaseDepths;
+            if (ngResampleGridDepths(oldVertices, oldOperationBaseDepths, vertices, resampledBaseDepths)) {
+                replaceDepthOpBaseDepths(resampledBaseDepths);
+            } else {
+                replaceDepthOpBaseDepths(oldOperationBaseDepths);
+                resizeDepthOpBaseDepthsToVertices(vertices.length);
+            }
+        }
+        replaceDepthOps(ngRemapGridIndexBoundDepthOperations(oldVertices, vertices, oldOperations));
     }
 
     override
@@ -36,6 +98,7 @@ public:
         copyDepthsFrom(src);
         copyDepthOpsFrom(src);
         resizeDepthsToVertices(vertices.length);
+        resizeDepthOpBaseDepthsToVertices(vertices.length);
     }
 
     override
@@ -49,7 +112,11 @@ public:
     SerdeException deserializeFromFghj(Fghj data) {
         if (auto exc = super.deserializeFromFghj(data)) return exc;
         if (auto exc = deserializeDepths(data, vertices.length)) return exc;
-        return deserializeDepthOps(data);
+        if (auto exc = deserializeDepthOps(data)) return exc;
+        if (depthOpBaseDepths.length > 0 && depthOpBaseDepths.length != vertices.length) {
+            return new SerdeException("depth-op-base-depths length must match vertices length");
+        }
+        return null;
     }
 }
 

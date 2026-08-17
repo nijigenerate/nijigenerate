@@ -6,7 +6,11 @@
     Authors: Luna Nielsen
 */
 module nijigenerate.viewport.model.deform;
+
+import nijigenerate.actions.depthboneinvalidation : ngNotifyDepthBoneBindingValueChanged;
 import nijigenerate.viewport.model.mesheditor;
+import nijigenerate.viewport.model.depthboneoverlay : depthBoneEffectivePivotSelectionChanged,
+    drawDepthBones;
 import nijigenerate.viewport.base;
 import nijigenerate.core.input;
 import nijigenerate.core.dbg;
@@ -39,59 +43,6 @@ public:
             foreach (root; findDepthRoots()) {
                 drawDepthBones(root, findDepthRoot(selectedDepthBone) is root ? selectedDepthBone : null);
             }
-        }
-    }
-
-    void drawDepthBones(ExDepthRigRoot root, ExDepthBone selectedBone = null) {
-        if (root is null) return;
-        Vec3Array lines;
-        Vec3Array selectedLines;
-        Vec3Array points;
-        Vec3Array selectedPoints;
-        auto rootToLocal = root.transform.matrix.inverse;
-
-        vec3 bonePoint(ExDepthBone bone) {
-            auto world = bone.transform.translation;
-            return (rootToLocal * vec4(world.x, world.y, world.z, 1)).xyz;
-        }
-
-        foreach (bone; root.depthBones()) {
-            auto point = bonePoint(bone);
-            if (bone is selectedBone) {
-                selectedPoints ~= point;
-            } else {
-                points ~= point;
-            }
-
-            if (auto parentBone = cast(ExDepthBone)bone.parent) {
-                auto parentPoint = bonePoint(parentBone);
-                if (bone is selectedBone || parentBone is selectedBone) {
-                    selectedLines ~= parentPoint;
-                    selectedLines ~= point;
-                } else {
-                    lines ~= parentPoint;
-                    lines ~= point;
-                }
-            }
-        }
-        if (lines.length > 0) {
-            inDbgSetBuffer(lines);
-            inDbgDrawLines(vec4(0.55, 0.75, 1.0, 1), root.transform.matrix);
-        }
-        if (selectedLines.length > 0) {
-            inDbgSetBuffer(selectedLines);
-            inDbgDrawLines(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
-        }
-        if (points.length > 0) {
-            inDbgPointsSize(4);
-            inDbgSetBuffer(points);
-            inDbgDrawPoints(vec4(0.55, 0.75, 1.0, 1), root.transform.matrix);
-        }
-        if (selectedPoints.length > 0) {
-            inDbgPointsSize(10);
-            inDbgSetBuffer(selectedPoints);
-            inDbgDrawPoints(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
-            inDbgPointsSize(4);
         }
     }
 
@@ -128,9 +79,10 @@ public:
 
     override
     void drawOptions() {
-        if(incBeginDropdownMenu("GIZMOS", "")) {
+        if(incBeginDropdownMenu("GIZMOS", "\uefc9")) {
             if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                 ngShowDepthBones = !ngShowDepthBones;
+                depthBoneEffectivePivotSelectionChanged(incSelectedNodes());
             }
             incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
             incEndDropdownMenu();
@@ -149,7 +101,9 @@ public:
             foreach (d; incSelectedNodes()) {
                 if (auto deformable = cast(Deformable)d) {
                     auto deform = cast(DeformationParameterBinding)parameter.getOrAddBinding(deformable, "deform");
-                    deform.update(parameter.findClosestKeypoint(), editor.getEditorFor(deformable).getOffsets());
+                    auto keypoint = parameter.findClosestKeypoint();
+                    deform.update(keypoint, editor.getEditorFor(deformable).getOffsets());
+                    ngNotifyDepthBoneBindingValueChanged(deform, keypoint);
                 }
             }
         }
@@ -157,8 +111,14 @@ public:
 
     override
     void selectionChanged(Node[] nodes) {
+        depthBoneEffectivePivotSelectionChanged(nodes);
         editor = null;
         paramValueChanged();
+    }
+
+    override
+    void withdraw() {
+        depthBoneEffectivePivotSelectionChanged(null);
     }
  
     override

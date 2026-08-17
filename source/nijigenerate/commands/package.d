@@ -1,5 +1,6 @@
 module nijigenerate.commands;
 public import nijigenerate.commands.base;
+public import nijigenerate.commands.command_scope;
 public import nijigenerate.commands.binding.binding;
 public import nijigenerate.commands.node.node;
 public import nijigenerate.commands.node.dynamic;
@@ -27,6 +28,7 @@ public import nijigenerate.commands.model.set_deform_binding;
 public import nijigenerate.commands.depth.bone;
 public import nijigenerate.commands.depth.editor;
 public import nijigenerate.commands.depth.map;
+public import nijigenerate.commands.depth.psd_dialog;
 static import nijigenerate.viewport.common.mesheditor.tools.enums;
 
 import std.meta : AliasSeq;
@@ -39,6 +41,7 @@ version(CMD_LOG) private void cmdLog(T...)(T args) { writefln(args); }
 else             private void cmdLog(T...)(T args) {}
 
 alias AllCommandMaps = AliasSeq!(
+    nijigenerate.commands.command_scope.commands,
     nijigenerate.commands.binding.binding.commands,
     nijigenerate.commands.node.node.commands,
     nijigenerate.commands.parameter.animedit.commands,
@@ -71,6 +74,7 @@ alias AllCommandMaps = AliasSeq!(
     nijigenerate.commands.depth.bone.commands,
     nijigenerate.commands.depth.editor.commands,
     nijigenerate.commands.depth.map.commands,
+    nijigenerate.commands.depth.psd_dialog.commands,
 );
 //pragma(msg, "[CT] AllCommandMaps includes typed AutoMesh only");
 
@@ -163,6 +167,8 @@ private void ngInitCommandMap(alias AA)() {
 
     static if (is(K == nijigenerate.commands.binding.binding.BindingCommand))
         nijigenerate.commands.binding.binding.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.command_scope.CommandScopeCommand))
+        nijigenerate.commands.command_scope.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.node.node.NodeCommand))
         nijigenerate.commands.node.node.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.parameter.animedit.AnimeditCommand))
@@ -231,6 +237,8 @@ private void ngInitCommandMap(alias AA)() {
         nijigenerate.commands.depth.editor.ngInitCommands!K();
     else static if (is(K == nijigenerate.commands.depth.map.DepthMapCommand))
         nijigenerate.commands.depth.map.ngInitCommands!K();
+    else static if (is(K == nijigenerate.commands.depth.psd_dialog.PsdDepthDialogCommand))
+        nijigenerate.commands.depth.psd_dialog.ngInitCommands!K();
     else
         static assert(0, "No command initializer dispatch for key type: " ~ K.stringof);
 }
@@ -350,6 +358,9 @@ CommandResult cmd(alias id, A...)(ref Context ctx, auto ref A args) {
     enforce(p !is null, "No registered command for id: " ~ id.stringof ~ " (key type: " ~ typeof(id).stringof ~ ")");
 
     Command base = *p;
+    if (!ngCommandAllowedInCurrentContext(base)) {
+        return CommandResult(false, "Command is not available in the current command scope");
+    }
 
     // 2) Resolve the concrete command type associated with this id at compile-time
     enum _idName  = __traits(identifier, id);   // e.g., "Add1DParameter"
@@ -367,5 +378,5 @@ CommandResult cmd(alias id, A...)(ref Context ctx, auto ref A args) {
     _applyArgs!(C, A)(inst, args);
 
     // 4) Run and return result
-    return inst.run(ctx);
+    return ngRunCommand(inst, ctx);
 }

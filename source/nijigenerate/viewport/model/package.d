@@ -7,6 +7,11 @@
 */
 module nijigenerate.viewport.model;
 import nijigenerate.viewport.model.deform;
+import nijigenerate.viewport.model.depthboneoverlay : depthBoneEffectivePivotSelectionChanged,
+    drawDepthBones;
+import nijigenerate.core.asyncderivedupdate :
+    AsyncDerivedUpdateViewportChannel;
+import nijigenerate.commands.depth.bone : ngFlushDepthBoneEffectivePivotDirty;
 import nijigenerate.widgets.tooltip;
 import nijigenerate.widgets.label;
 import nijigenerate.widgets.texture;
@@ -51,58 +56,14 @@ ViewporMenuSortMode incViewportModelMenuSortMode = ViewporMenuSortMode.ZSort;
 
 class ModelLayoutViewport : Viewport {
 public:
-    void drawDepthBones(ExDepthRigRoot root, ExDepthBone selectedBone = null) {
-        if (root is null) return;
+    override
+    void selectionChanged(Node[] nodes) {
+        depthBoneEffectivePivotSelectionChanged(nodes);
+    }
 
-        Vec3Array lines;
-        Vec3Array selectedLines;
-        Vec3Array points;
-        Vec3Array selectedPoints;
-        auto rootToLocal = root.transform.matrix.inverse;
-
-        vec3 bonePoint(ExDepthBone bone) {
-            auto world = bone.transform.translation;
-            return (rootToLocal * vec4(world.x, world.y, world.z, 1)).xyz;
-        }
-
-        foreach (bone; root.depthBones()) {
-            auto point = bonePoint(bone);
-            if (bone is selectedBone) {
-                selectedPoints ~= point;
-            } else {
-                points ~= point;
-            }
-
-            if (auto parentBone = cast(ExDepthBone)bone.parent) {
-                auto parentPoint = bonePoint(parentBone);
-                if (bone is selectedBone || parentBone is selectedBone) {
-                    selectedLines ~= parentPoint;
-                    selectedLines ~= point;
-                } else {
-                    lines ~= parentPoint;
-                    lines ~= point;
-                }
-            }
-        }
-        if (lines.length > 0) {
-            inDbgSetBuffer(lines);
-            inDbgDrawLines(vec4(0.55, 0.75, 1.0, 1), root.transform.matrix);
-        }
-        if (selectedLines.length > 0) {
-            inDbgSetBuffer(selectedLines);
-            inDbgDrawLines(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
-        }
-        if (points.length > 0) {
-            inDbgPointsSize(4);
-            inDbgSetBuffer(points);
-            inDbgDrawPoints(vec4(0.55, 0.75, 1.0, 1), root.transform.matrix);
-        }
-        if (selectedPoints.length > 0) {
-            inDbgPointsSize(10);
-            inDbgSetBuffer(selectedPoints);
-            inDbgDrawPoints(vec4(1.0, 0.9, 0.2, 1), root.transform.matrix);
-            inDbgPointsSize(4);
-        }
+    override
+    void withdraw() {
+        depthBoneEffectivePivotSelectionChanged(null);
     }
 
     ExDepthRigRoot findDepthRoot(ExDepthBone bone) {
@@ -296,6 +257,11 @@ private:
 
 public:
 
+    override
+    uint asyncDerivedUpdateViewportChannel() {
+        return cast(uint)AsyncDerivedUpdateViewportChannel.Model;
+    }
+
     this() {
         activeSubMode = ModelEditSubMode.Layout;
         _subView = createSubView(activeSubMode);
@@ -306,6 +272,9 @@ public:
         syncSubView();
 
         incActivePuppet.update();
+        // Parameter and node notifications are complete here. Refresh only the
+        // coalesced selected-pivot cache before the viewport consumes it.
+        ngFlushDepthBoneEffectivePivotDirty();
         incActivePuppet.draw();
         auto onion = OnionSlice.singleton();
         onion.draw();
@@ -322,7 +291,7 @@ public:
     override
     void drawOptions() {
         if (!incArmedParameter()) {
-            if(incBeginDropdownMenu("GIZMOS", "")) {
+            if(incBeginDropdownMenu("GIZMOS", "\uefc9")) {
 
                 if (incButtonColored("", ImVec2(0, 0), incShowVertices ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowVertices = !incShowVertices;
@@ -330,13 +299,13 @@ public:
                 incTooltip(incShowVertices ? _("Hide Vertices") : _("Show Vertices"));
                     
                 igSameLine(0, 4);
-                if (incButtonColored("", ImVec2(0, 0), incShowBounds ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("\ue3c6", ImVec2(0, 0), incShowBounds ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowBounds = !incShowBounds;
                 }
                 incTooltip(incShowBounds ? _("Hide Bounds") : _("Show Bounds"));
 
                 igSameLine(0, 4);
-                if (incButtonColored("", ImVec2(0, 0), incShowOrientation ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+                if (incButtonColored("\uefc9", ImVec2(0, 0), incShowOrientation ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     incShowOrientation = !incShowOrientation;
                 }
                 incTooltip(incShowOrientation ? _("Hide Orientation Gizmo") : _("Show Orientation Gizmo"));
@@ -344,6 +313,7 @@ public:
                 igSameLine(0, 4);
                 if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
                     ngShowDepthBones = !ngShowDepthBones;
+                    depthBoneEffectivePivotSelectionChanged(incSelectedNodes());
                 }
                 incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
 
@@ -351,7 +321,7 @@ public:
                 igSameLine(0, 0);
                 incDummy(ImVec2(4, 0));
                 igSameLine(0, 0);
-                if(incBeginDropdownMenu("COLOR", "", ImVec2(128, 0), ImVec2(float.max, float.max))) {
+            if(incBeginDropdownMenu("COLOR", "\ue40a", ImVec2(128, 0), ImVec2(float.max, float.max))) {
                     import nijilive : inSetClearColor, inGetClearColor;
 
                     // Get clear color
@@ -386,7 +356,6 @@ public:
  
     override
     void drawConfirmBar() {
-
         // If parameter is armed we should *not* show the edit mesh button
         if (ngModelEditSubMode() != ModelEditSubMode.Layout) return;
 

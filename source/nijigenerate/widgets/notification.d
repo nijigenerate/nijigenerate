@@ -10,6 +10,7 @@ private:
         ulong id;
         float remaining;
         bool infinite;
+        bool closed;
         char* messagez;
         void delegate(ImGuiIO* io) callback;
     }
@@ -29,6 +30,7 @@ public:
     // Return latest message text for status bar; empty if none or callback-only
     string status() {
         foreach_reverse (it; items) {
+            if (it.closed) continue;
             if (it.messagez !is null) return cast(string)(it.messagez.fromStringz);
         }
         return "";
@@ -68,6 +70,7 @@ public:
 
         // Draw from newest (back) to oldest (front), stacking downward
         foreach_reverse (idx, it; items) {
+            if (it.closed) continue;
             ImGuiWindowFlags flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
                                      ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings |
                                      ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.AlwaysAutoResize;
@@ -85,8 +88,7 @@ public:
                     igText(it.messagez);
                     igSameLine();
                     if (incButtonColored("\ue5cd", ImVec2(20, 20))) {
-                        // Mark as expired immediately
-                        items[idx].remaining = 0;
+                        items[idx].closed = true;
                     }
                 }
             }
@@ -102,6 +104,7 @@ public:
         float dt = igGetIO().DeltaTime;
         Item[] kept;
         foreach (it; items) {
+            if (it.closed) continue;
             if (!it.infinite) it.remaining -= dt;
             if (it.infinite || it.remaining > 0) kept ~= it;
         }
@@ -119,8 +122,13 @@ public:
 
     // Close a specific popup by id
     void close(ulong id) {
-        Item[] kept;
-        foreach (it; items) if (it.id != id) kept ~= it;
-        items = kept;
+        foreach (ref it; items) {
+            if (it.id == id) it.closed = true;
+        }
+    }
+
+    bool isOpen(ulong id) const {
+        foreach (it; items) if (it.id == id && !it.closed) return true;
+        return false;
     }
 }

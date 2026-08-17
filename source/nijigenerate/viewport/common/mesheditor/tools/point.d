@@ -485,7 +485,7 @@ class ToolInfoImpl(T: PointTool) : ToolInfoBase!(T) {
     override
     VertexToolMode mode() { return VertexToolMode.Points; }
     override
-    string icon() { return ""; }
+    string icon() { return "\uf097"; }
     override
     string description() { return _("Vertex Tool"); }
 

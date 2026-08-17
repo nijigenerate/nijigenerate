@@ -1,6 +1,7 @@
 module nijigenerate.actions.depthbone;
 
 import nijigenerate.actions;
+import nijigenerate.actions.depthboneinvalidation : ngNotifyDepthBoneRigChanged;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijilive;
 import nijilive.math;
@@ -8,39 +9,147 @@ import nijilive.math;
 import i18n;
 import std.format : format;
 
+ExDepthRigBinding[] ngCopyDepthRigBindings(ExDepthRigBinding[] bindings) {
+    auto result = bindings.dup;
+    foreach (ref binding; result) {
+        binding.sourceBoneUuids = binding.sourceBoneUuids.dup;
+        binding.sourceSettings = binding.sourceSettings.dup;
+        binding.influenceRule.multipliersByBoneUuid = binding.influenceRule.multipliersByBoneUuid.dup;
+    }
+    return result;
+}
+
 class DepthRigBindingsChangeAction : Action {
     ExDepthRigRoot root;
     ExDepthRigBinding[] oldBindings;
     ExDepthRigBinding[] newBindings;
     string label;
+    bool settleBeforeDispatch;
+    Node affectedTarget;
+    ulong mergeSession;
+    ulong mergeSourceUuid;
+    string mergeProperty;
 
-    this(string label, ExDepthRigRoot root, ExDepthRigBinding[] oldBindings, ExDepthRigBinding[] newBindings) {
+    this(
+        string label,
+        ExDepthRigRoot root,
+        ExDepthRigBinding[] oldBindings,
+        ExDepthRigBinding[] newBindings,
+        bool settleBeforeDispatch = false,
+        Node affectedTarget = null,
+        ulong mergeSession = 0,
+        ulong mergeSourceUuid = 0,
+        string mergeProperty = null,
+    ) {
         this.label = label;
         this.root = root;
-        this.oldBindings = oldBindings.dup;
-        this.newBindings = newBindings.dup;
+        this.oldBindings = ngCopyDepthRigBindings(oldBindings);
+        this.newBindings = ngCopyDepthRigBindings(newBindings);
+        this.settleBeforeDispatch = settleBeforeDispatch;
+        this.affectedTarget = affectedTarget;
+        this.mergeSession = mergeSession;
+        this.mergeSourceUuid = mergeSourceUuid;
+        this.mergeProperty = mergeProperty;
+        notifyChanged();
+    }
+
+    private void notifyChanged() {
         root.notifyChange(root, NotifyReason.AttributeChanged);
+        ngNotifyDepthBoneRigChanged(
+            root, label, settleBeforeDispatch, affectedTarget);
     }
 
     void rollback() {
-        root.bindings = oldBindings.dup;
-        root.notifyChange(root, NotifyReason.AttributeChanged);
+        root.bindings = ngCopyDepthRigBindings(oldBindings);
+        notifyChanged();
     }
 
     void redo() {
-        root.bindings = newBindings.dup;
-        root.notifyChange(root, NotifyReason.AttributeChanged);
+        root.bindings = ngCopyDepthRigBindings(newBindings);
+        notifyChanged();
     }
 
     string describe() { return label; }
     string describeUndo() { return label; }
     string getName() { return label; }
-    bool merge(Action other) { return false; }
-    bool canMerge(Action other) { return false; }
+    bool merge(Action other) {
+        auto next = cast(DepthRigBindingsChangeAction)other;
+        if (!canMerge(next)) return false;
+        newBindings = ngCopyDepthRigBindings(next.newBindings);
+        label = next.label;
+        settleBeforeDispatch = settleBeforeDispatch || next.settleBeforeDispatch;
+        return true;
+    }
+
+    bool canMerge(Action other) {
+        auto next = cast(DepthRigBindingsChangeAction)other;
+        return next !is null &&
+            mergeSession != 0 &&
+            mergeSession == next.mergeSession &&
+            root is next.root &&
+            affectedTarget is next.affectedTarget &&
+            mergeSourceUuid == next.mergeSourceUuid &&
+            mergeProperty == next.mergeProperty;
+    }
 }
 
 alias DepthBoneSourceListChangeAction = DepthRigBindingsChangeAction;
 alias DepthBoneBindingRuleChangeAction = DepthRigBindingsChangeAction;
+
+/**
+ * Applies every translation Z changed by one Fit Z to Depth operation as a
+ * single semantic mutation.  A root fit can touch many bones, but generated
+ * deform output depends on the completed rig pose, not on its intermediate
+ * per-bone states.
+ */
+class DepthBoneFitZChangeAction : Action {
+    ExDepthRigRoot root;
+    ExDepthBone[] bones;
+    float[] oldValues;
+    float[] newValues;
+
+    this(
+        ExDepthRigRoot root,
+        ExDepthBone[] bones,
+        float[] oldValues,
+        float[] newValues,
+    ) {
+        assert(root !is null);
+        assert(bones.length == oldValues.length);
+        assert(bones.length == newValues.length);
+        this.root = root;
+        this.bones = bones.dup;
+        this.oldValues = oldValues.dup;
+        this.newValues = newValues.dup;
+        notifyChanged();
+    }
+
+    private void notifyChanged() {
+        foreach (bone; bones) {
+            if (bone !is null)
+                bone.notifyChange(bone, NotifyReason.AttributeChanged);
+        }
+        ngNotifyDepthBoneRigChanged(root, "Fit Z to Depth");
+    }
+
+    private void apply(float[] values) {
+        foreach (i, bone; bones) {
+            if (bone is null) continue;
+            bone.localTransform.translation.vector[2] = values[i];
+            bone.localTransform.update();
+            bone.transformChanged();
+        }
+        notifyChanged();
+    }
+
+    void rollback() { apply(oldValues); }
+    void redo() { apply(newValues); }
+    string describe() { return _("Fit Z to Depth"); }
+    string describeUndo() { return _("Fit Z to Depth"); }
+    string getName() { return "DepthBoneFitZChangeAction"; }
+    bool merge(Action other) { return false; }
+    bool canMerge(Action other) { return false; }
+}
 
 class DepthBoneRestChangeAction : Action {
     ExDepthBone bone;
@@ -59,14 +168,19 @@ class DepthBoneRestChangeAction : Action {
         this.newHead = newHead;
         this.newTail = newTail;
         this.newRoll = newRoll;
+        notifyChanged();
+    }
+
+    private void notifyChanged() {
         bone.notifyChange(bone, NotifyReason.AttributeChanged);
+        ngNotifyDepthBoneRigChanged(bone, "Depth Bone Rest");
     }
 
     void apply(vec3 head, vec3 tail, float roll) {
         bone.restHead = head;
         bone.restTail = tail;
         bone.restRoll = roll;
-        bone.notifyChange(bone, NotifyReason.AttributeChanged);
+        notifyChanged();
     }
 
     void rollback() { apply(oldHead, oldTail, oldRoll); }
@@ -118,7 +232,12 @@ class DepthBoneConstraintChangeAction : Action {
         newAllowParentToTargets = bone.allowParentToTargets;
         newRotationLimits = bone.rotationLimits.dup;
         newMaxStepRadians = bone.maxStepRadians;
+        notifyChanged();
+    }
+
+    private void notifyChanged() {
         bone.notifyChange(bone, NotifyReason.AttributeChanged);
+        ngNotifyDepthBoneRigChanged(bone, "Depth Bone Constraint");
     }
 
     void apply(string constraintType, vec3 hingeAxis, bool lockRotation, bool lockTranslation, bool allowParentToTargets, float[] rotationLimits, float maxStepRadians) {
@@ -129,7 +248,7 @@ class DepthBoneConstraintChangeAction : Action {
         bone.allowParentToTargets = allowParentToTargets;
         bone.rotationLimits = rotationLimits.dup;
         bone.maxStepRadians = maxStepRadians;
-        bone.notifyChange(bone, NotifyReason.AttributeChanged);
+        notifyChanged();
     }
 
     void rollback() { apply(oldConstraintType, oldHingeAxis, oldLockRotation, oldLockTranslation, oldAllowParentToTargets, oldRotationLimits, oldMaxStepRadians); }
