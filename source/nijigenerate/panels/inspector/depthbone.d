@@ -12,6 +12,33 @@ import i18n;
 import std.conv;
 import std.string;
 
+/**
+    Resolves the DepthRigRoot shown by a target inspector.
+
+    A root that already binds the target takes precedence over the first root in
+    hierarchy order. The hierarchy fallback preserves the existing behavior for
+    unbound targets, where the first edit creates their initial binding.
+*/
+ExDepthRigRoot ngDepthRigRootForTarget(Puppet puppet, Node target) {
+    if (puppet is null || puppet.root is null) return null;
+
+    ExDepthRigRoot firstRoot;
+    ExDepthRigRoot boundRoot;
+    void visit(Node node) {
+        if (node is null || boundRoot !is null) return;
+        if (auto root = cast(ExDepthRigRoot)node) {
+            if (firstRoot is null) firstRoot = root;
+            if (target !is null && root.findBindingIndex(target.uuid) >= 0) {
+                boundRoot = root;
+                return;
+            }
+        }
+        foreach (child; node.children) visit(child);
+    }
+    visit(puppet.root);
+    return boundRoot !is null ? boundRoot : firstRoot;
+}
+
 class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: ExDepthRigRoot) : BaseInspector!(mode, T) {
     this(T[] nodes, ModelEditSubMode subMode) {
         super(nodes, subMode);

@@ -1,6 +1,7 @@
 module nijigenerate.panels.inspector.pathdeform;
 
 import nijigenerate.panels.inspector.common;
+import nijigenerate.panels.inspector.depthbone : ngDepthRigRootForTarget;
 import nijigenerate;
 import nijigenerate.widgets;
 import nijigenerate.utils;
@@ -215,7 +216,7 @@ private:
     }
 
     void drawDepthBoneSources(PathDeformer node, Parameter parameter = null, vec2u cursor = vec2u.init) {
-        auto root = findDepthRigRoot();
+        auto root = ngDepthRigRootForTarget(incActivePuppet(), node);
         if (incBeginCategory(__("Depth Bone Sources"))) {
             if (root is null) {
                 igText(__("No DepthRigRoot."));
@@ -414,22 +415,6 @@ private:
             }
         }
         incEndCategory();
-    }
-
-    static ExDepthRigRoot findDepthRigRoot() {
-        auto puppet = incActivePuppet();
-        if (puppet is null || puppet.root is null) return null;
-        ExDepthRigRoot found;
-        void visit(Node n) {
-            if (found !is null || n is null) return;
-            if (auto root = cast(ExDepthRigRoot)n) {
-                found = root;
-                return;
-            }
-            foreach (child; n.children) visit(child);
-        }
-        visit(puppet.root);
-        return found;
     }
 
     static ExDepthBone findDepthBone(ExDepthRigRoot root, ulong uuid) {

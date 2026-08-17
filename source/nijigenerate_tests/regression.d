@@ -112,6 +112,7 @@ import nijigenerate.io.depthsample : DepthSampleChannel, DepthSampleConvolution,
 import nijigenerate.io.inpexport;
 import nijigenerate.project;
 import nijigenerate.panels.parameters : incParamPoint;
+import nijigenerate.panels.inspector.depthbone : ngDepthRigRootForTarget;
 import nijigenerate.viewport.common.mesh : IncMesh;
 import nijigenerate.viewport.base : incViewport;
 import meshNodeOps = nijigenerate.viewport.common.mesheditor.operations.node;
@@ -13576,10 +13577,38 @@ private void testDepthBoneInspectorCommandsUndoRedo() {
 
     auto root = new ExDepthRigRoot(incActivePuppet().root);
     root.name = "depth-root";
+    auto secondRoot = new ExDepthRigRoot(incActivePuppet().root);
+    secondRoot.name = "depth-root-2";
+    auto gridTarget = new ExGridDeformer(incActivePuppet().root);
+    gridTarget.name = "depth-root-grid-target";
+    auto pathTarget = new ExPathDeformer(incActivePuppet().root);
+    pathTarget.name = "depth-root-path-target";
+    auto unboundTarget = new ExGridDeformer(incActivePuppet().root);
+    unboundTarget.name = "depth-root-unbound-target";
+    ExDepthRigBinding gridBinding;
+    gridBinding.targetUuid = gridTarget.uuid;
+    gridBinding.targetKind = ExDepthTargetKind.Grid;
+    secondRoot.bindings = [gridBinding];
+    ExDepthRigBinding pathBinding;
+    pathBinding.targetUuid = pathTarget.uuid;
+    pathBinding.targetKind = ExDepthTargetKind.Path;
+    root.bindings = [pathBinding];
     auto bone = new ExDepthBone(root);
     bone.name = "depth-bone";
     bone.boneId = "Bone";
     incActivePuppet().rescanNodes();
+
+    auto firstBindingCount = root.bindings.length;
+    auto secondBindingCount = secondRoot.bindings.length;
+    require(ngDepthRigRootForTarget(incActivePuppet(), gridTarget) is secondRoot,
+        "GridDeformer inspector must resolve the DepthRigRoot that binds its target");
+    require(ngDepthRigRootForTarget(incActivePuppet(), pathTarget) is root,
+        "PathDeformer inspector must resolve the DepthRigRoot that binds its target");
+    require(ngDepthRigRootForTarget(incActivePuppet(), unboundTarget) is root,
+        "an unbound target must retain the first-root fallback used to create its initial binding");
+    require(root.bindings.length == firstBindingCount &&
+        secondRoot.bindings.length == secondBindingCount,
+        "resolving an inspector DepthRigRoot must not mutate bindings");
 
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
