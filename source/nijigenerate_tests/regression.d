@@ -78,6 +78,7 @@ import nijigenerate.commands.puppet.tool : AttemptRepairPuppetCommand, GenerateF
 import nijigenerate.commands.viewport.control;
 import nijigenerate.commands.viewport.palette;
 import nijigenerate.commands.vertex.define_mesh;
+import nijigenerate.ext.nodes.expart : ExPart;
 import nijigenerate.atlas.packer : TexturePacker;
 import nijigenerate.core.colorbleed : incColorBleedPixels;
 import nijigenerate.core.asyncderivedupdate;
@@ -119,7 +120,8 @@ import meshDrawableOps = nijigenerate.viewport.vertex.mesheditor.drawable;
 import nijigenerate.viewport.depth.camera : DepthBrushSettings, DepthCamera3D, projectDepthPoint, unprojectDepthPoint;
 import nijigenerate.viewport.depth.common : DepthTargetView, DepthViewSession,
     ngDepthDisplayScaleForTargets, ngDepthDisplayScaleForTargetsInNodeSpace, ngDepthTargetClampDepth;
-import nijigenerate.viewport.depth.renderer : DepthTargetOffscreenMaxPixels, DepthTargetRenderer,
+import nijigenerate.viewport.depth.renderer : DepthTargetOffscreenMaxPixels, DepthTargetOffscreenTextureRenderer,
+    DepthTargetRenderer,
     ngDepthTargetOffscreenTextureSize;
 import nijigenerate.viewport.depth.draw : DepthDrawBinding, DepthDrawLayer, DepthDrawRect, DepthDrawSession,
     DepthMergePolicy, DepthDrawComposeResult, DepthDrawLayerCleanupKind, DepthDrawLayerCleanupOperation,
@@ -5419,6 +5421,19 @@ private void testDepthTargetViewContracts() {
     require(view.getIndices().length == 12, "DepthTargetView should build rectangular grid triangle indices");
     require(view.boundsMin() == vec2(-20f, -10f) && view.boundsMax() == vec2(20f, 10f),
         "DepthTargetView should compute target bounds from vertices");
+
+    auto equalDepthChildA = new ExPart(grid);
+    equalDepthChildA.name = "equal-depth-child-a";
+    auto equalDepthChildB = new ExPart(grid);
+    equalDepthChildB.name = "equal-depth-child-b";
+    grid.zSort = 1.0f;
+    equalDepthChildA.zSort = -1.0f;
+    equalDepthChildB.zSort = -1.0f;
+    auto equalDepthDrawables = DepthTargetOffscreenTextureRenderer.drawableChildren(grid);
+    require(equalDepthDrawables.length == 2 &&
+        equalDepthDrawables[0] is equalDepthChildA &&
+        equalDepthDrawables[1] is equalDepthChildB,
+        "depth offscreen drawables with equal zSort must preserve hierarchy traversal order");
 
     auto depthScalePeer = new ExGridDeformer(incActivePuppet().root);
     depthScalePeer.name = "depth-target-view-scale-peer";
@@ -15510,6 +15525,61 @@ private void testDepthBoneGpuAllKeypointsDispatch() {
     require(loadedBinding !is null, "GPU writeback fixture should persist deform binding");
     auto loadedOffsets = loadedBinding.getValue(vec2u(1, 0)).vertexOffsets;
     require(loadedOffsets.length == loadedTarget.vertices.length, "GPU writeback fixture should persist offset count");
+
+    resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuPollCount = 0;
+    fakeDepthBoneGpuCancelCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 100;
+    root = new ExDepthRigRoot(incActivePuppet().root);
+    root.name = "gpu-queued-stale-root";
+    bone = ngCreateDepthBone(root, "GpuQueuedStaleBone", vec3(0, 0, 0), vec3(0, 100, 0));
+    ExGridDeformer[] queuedTargets;
+    ExDepthRigBinding[] queuedBindings;
+    foreach (i; 0 .. 9) {
+        auto queuedTarget = new ExGridDeformer(incActivePuppet().root);
+        queuedTarget.name = "gpu-queued-stale-grid-%s".format(i);
+        queuedTarget.rebuffer(Vec2Array([
+            vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100),
+        ]));
+        ExDepthRigBinding queuedBinding;
+        queuedBinding.targetUuid = queuedTarget.uuid;
+        queuedBinding.targetKind = ExDepthTargetKind.Grid;
+        queuedBinding.sourceBoneUuids = [cast(ulong)bone.uuid];
+        queuedBindings ~= queuedBinding;
+        queuedTargets ~= queuedTarget;
+    }
+    root.bindings = queuedBindings;
+    param = new ExParameter("DepthGpuQueuedStaleParam", false);
+    param.min = vec2(0, 0);
+    param.max = vec2(1, 0);
+    param.value = vec2(1, 0);
+    incActivePuppet().parameters ~= param;
+    tx = newValueBinding(param, bone, "transform.t.x");
+    tx.setValue(vec2u(1, 0), 5.0f);
+    ngMarkDepthBoneDirty(root, param, vec2u(1, 0),
+        "GPU queued stale owner regression", DepthBoneDirtyScope.Keypoint);
+    auto oldRootName = root.name;
+    root.name = "gpu-queued-stale-root-renamed";
+    incActionPush(new NodeValueChangeAction!(Node, string)(
+        "name", root, oldRootName, root.name, &root.name_));
+    auto queuedOwner = cast(AsyncGroupAction)incActionHistory()[$ - 1];
+    require(queuedOwner !is null && queuedOwner.pendingAsyncCount == 1,
+        "queued stale fixture should attach one pending refresh to its initiating action");
+    ngFlushDepthBoneDirty();
+    require(fakeDepthBoneGpuSubmitCount == 8 && ngHasPendingDepthBoneRefresh(),
+        "queued stale fixture should leave the ninth target waiting for GPU submission");
+    queuedTargets[$ - 1].parent = null;
+    incActivePuppet().rescanNodes();
+    ngFlushDepthBoneDirtyImmediate();
+    require(queuedOwner.pendingAsyncCount == 0 &&
+        queuedOwner.state == AsyncGroupActionState.Completed,
+        "discarding a stale queued batch must settle its initiating action");
+    require(fakeDepthBoneGpuCancelCount == 8 && !ngHasPendingDepthBoneRefresh(),
+        "discarding a stale queued batch must cancel submitted siblings and drain the queue");
 
     resetCase();
     fakeDepthBoneGpuNextJobId = 1;

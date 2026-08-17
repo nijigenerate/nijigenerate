@@ -1590,13 +1590,32 @@ private void cleanupCanceledDepthBoneGpuBatch(uint batchId) {
     if (!depthBoneGpuBatchHasPendingWork(batchId)) canceledDepthBoneGpuBatches.remove(batchId);
 }
 
-private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
+private void cancelDepthBoneGpuBatch(
+    uint batchId,
+    string statusDetail = null,
+    bool settleOwners = true,
+) {
+    struct Owner {
+        AsyncGroupAction action;
+        AsyncActionToken token;
+    }
+    Owner[] owners;
+    void retainOwner(AsyncGroupAction action, AsyncActionToken token) {
+        if (!settleOwners || action is null || !token.acceptsCompletion) return;
+        foreach (owner; owners) {
+            if (owner.action is action && owner.token.generation == token.generation) return;
+        }
+        owners ~= Owner(action, token);
+    }
+
     canceledDepthBoneGpuBatches[batchId] = true;
     ngDepthBoneUpdateBatchCanceled(batchId, statusDetail);
 
     size_t i;
     while (i < depthBoneGpuSubmissionQueue.length) {
         if (depthBoneGpuSubmissionQueue[i].batchId == batchId) {
+            retainOwner(depthBoneGpuSubmissionQueue[i].actionSink,
+                depthBoneGpuSubmissionQueue[i].actionToken);
             depthBoneGpuSubmissionQueue =
                 depthBoneGpuSubmissionQueue[0 .. i] ~ depthBoneGpuSubmissionQueue[i + 1 .. $];
             continue;
@@ -1607,6 +1626,8 @@ private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
     i = 0;
     while (i < depthBoneGpuRefreshJobs.length) {
         if (depthBoneGpuRefreshJobs[i].batchId == batchId) {
+            retainOwner(depthBoneGpuRefreshJobs[i].actionSink,
+                depthBoneGpuRefreshJobs[i].actionToken);
             ngCancelDepthBoneGpuAsync(depthBoneGpuRefreshJobs[i].jobId);
             depthBoneGpuRefreshJobs =
                 depthBoneGpuRefreshJobs[0 .. i] ~ depthBoneGpuRefreshJobs[i + 1 .. $];
@@ -1618,6 +1639,8 @@ private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
     i = 0;
     while (i < depthBoneGpuCompletedJobs.length) {
         if (depthBoneGpuCompletedJobs[i].batchId == batchId) {
+            retainOwner(depthBoneGpuCompletedJobs[i].actionSink,
+                depthBoneGpuCompletedJobs[i].actionToken);
             depthBoneGpuCompletedJobs =
                 depthBoneGpuCompletedJobs[0 .. i] ~ depthBoneGpuCompletedJobs[i + 1 .. $];
             continue;
@@ -1625,6 +1648,7 @@ private void cancelDepthBoneGpuBatch(uint batchId, string statusDetail = null) {
         i++;
     }
     cleanupCanceledDepthBoneGpuBatch(batchId);
+    foreach (owner; owners) finishCanceledDepthBoneGpuTask(owner.action, owner.token);
 }
 
 private void cancelDepthBoneRefreshForAction(AsyncGroupAction action) {
@@ -1879,7 +1903,8 @@ private void requeueStaleDepthBoneGpuBatch(DepthBoneGpuRefreshJob job, string st
     cancelDepthBoneGpuBatch(job.batchId,
         retryPackets.length == originalPackets.length && retryPackets.length > 0
             ? "Stale batch is being regenerated"
-            : "Stale batch could not be regenerated");
+            : "Stale batch could not be regenerated",
+        false);
     if (retryPackets.length != originalPackets.length || retryPackets.length == 0) {
         writeDepthBoneGpuFatalLog("Depth Bone GPU stale batch retry failed: %s".format(failure));
         finishCanceledDepthBoneGpuTask(job.actionSink, job.actionToken);

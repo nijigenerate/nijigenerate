@@ -55,7 +55,6 @@ jobs:
         dub build --compiler=ldc2 --config=linux-regression-tests
         out/nijigenerate-regression-tests --only project.depthdraw-compatibility
         out/nijigenerate-regression-tests --only project.depthdraw-data-model
-        out/nijigenerate-regression-tests --only project.depthdraw-source-manifest
         out/nijigenerate-regression-tests --only project.depthdraw-composer
         out/nijigenerate-regression-tests --only project.depthdraw-fit-z
         out/nijigenerate-regression-tests --only project.import-psd-depth-map

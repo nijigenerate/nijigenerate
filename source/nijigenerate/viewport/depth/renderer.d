@@ -11,6 +11,7 @@ import nijigenerate.viewport.depth.camera;
 import nijigenerate.viewport.depth.common.targetview;
 import nijilive;
 import std.algorithm : max, min, sort;
+import std.algorithm.mutation : SwapStrategy;
 import std.array : array;
 import std.math : ceil, cos, floor, isFinite, sin, sqrt;
 
@@ -514,7 +515,7 @@ public:
         }
 
         findSubDrawable(target);
-        sort!((a, b) => a.zSort > b.zSort)(subParts);
+        sort!((a, b) => a.zSort > b.zSort, SwapStrategy.stable)(subParts);
         return subParts;
     }
 
