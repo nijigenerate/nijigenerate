@@ -3637,9 +3637,39 @@ private bool hasRootAllKeypointsRequest(DepthBoneDirtyRequest[] requests, DepthB
 }
 
 void ngFlushDepthBoneDirty() {
+    try {
+        flushDepthBoneDirty();
+    } catch (Exception error) {
+        abortDepthBoneGpuRefresh(error.msg);
+        throw error;
+    }
+}
+
+// Frame updates report recoverable refresh failures without exiting the editor.
+// Explicit command/immediate callers retain the throwing API above.
+bool ngFlushDepthBoneDirtyForFrame() {
+    try {
+        ngFlushDepthBoneDirty();
+        return true;
+    } catch (Exception error) {
+        writeDepthBoneGpuFatalLog(error.msg);
+        incSetStatus(_("Depth Bone update failed: %s").format(error.msg));
+        return false;
+    }
+}
+
+private void flushDepthBoneDirty() {
     if (depthBoneDirtyRequests.length > 0) {
         auto requests = depthBoneDirtyRequests;
         depthBoneDirtyRequests.length = 0;
+        // These owners are no longer in the queue inspected by the abort path.
+        scope(failure) {
+            foreach (request; requests) {
+                if (request.actionSink !is null && request.actionToken.active &&
+                    request.actionSink.pendingAsyncCount > 0)
+                    request.actionSink.markAsyncFailed();
+            }
+        }
         depthBoneDebugLog("[DepthBoneRefresh] flush: requests=%s", requests.length);
         DepthBoneDirtyRequest[] processed;
         foreach (request; requests) {

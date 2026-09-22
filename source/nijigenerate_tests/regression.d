@@ -33,7 +33,7 @@ import nijigenerate.commands.depth.bone : DepthBoneGpuBoneStride, DepthBoneGpuMa
     ngDepthBoneSourceEffectivePivots, ngDepthBoneGpuSupported,
     ngDepthBoneGpuSupportDiagnostic, ngDepthRigNodeCurrentScaledDepth,
     ngFlushDepthBoneDirtyImmediate, ngFlushDepthBoneEffectivePivotDirty,
-    ngFlushDepthBoneDirty,
+    ngFlushDepthBoneDirty, ngFlushDepthBoneDirtyForFrame,
     ngHasPendingDepthBoneEffectivePivotRefresh, ngHasPendingDepthBoneRefresh,
     ngHasPendingDepthBoneRefreshForSink,
     ngMarkDepthBoneDirty, ngMarkDepthBoneDirtyForTarget,
@@ -17009,6 +17009,126 @@ private void testDepthBoneSerializationRoundTrip() {
     require(loadedBinding.influenceRule.falloff == "linear", "DepthBone influence falloff should round-trip");
 }
 
+private void testDepthBoneConversionCleanupUndoRedo() {
+    import nijigenerate.actions.depthbone : ngCopyDepthRigBindings;
+
+    resetCase();
+    fakeDepthBoneGpuNextJobId = 1;
+    fakeDepthBoneGpuJobVertexCounts = null;
+    fakeDepthBoneGpuSubmitCount = 0;
+    fakeDepthBoneGpuSubmitFailAfter = 0;
+    fakeDepthBoneGpuNotReadyPolls = 0;
+    ngSetDepthBoneGpuAsyncTestHooks(
+        &fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll, &fakeDepthBoneGpuCancel);
+    scope(exit) ngClearDepthBoneGpuAsyncTestHooks();
+
+    auto root = new ExDepthRigRoot(incActivePuppet().root);
+    auto target = new ExGridDeformer(incActivePuppet().root);
+    target.name = "Eye::G::R";
+    target.rebuffer(Vec2Array([vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100)]));
+    auto sibling = new ExGridDeformer(incActivePuppet().root);
+    sibling.rebuffer(target.vertices.dup);
+    auto bone = ngCreateDepthBone(root, "Head", vec3(0, 0, 0), vec3(0, 100, 0));
+    root.addBoneSource(target, ExDepthTargetKind.Grid, bone);
+    root.addBoneSource(sibling, ExDepthTargetKind.Grid, bone);
+    root.bindings[0].sourceSettings[0].depthOffset = 0.25f;
+    root.bindings[0].influenceRule.multipliersByBoneUuid[bone.uuid] = 0.75f;
+    auto original = ngCopyDepthRigBindings(root.bindings);
+    auto param = new ExParameter("conversion-depth", false);
+    incActivePuppet().parameters ~= param;
+    auto tx = newValueBinding(param, bone, "transform.t.x");
+    tx.setValue(vec2u(1, 0), 5.0f);
+
+    // Reproduce conversion while a previously scheduled all-keypoint refresh is pending.
+    ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "Before conversion", DepthBoneDirtyScope.AllKeypoints);
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.nodes = [target];
+    auto result = (new ConvertToCommand("Node")).run(ctx);
+    require(result.succeeded, "DepthRig target conversion must succeed");
+    auto converted = result.created[0];
+    require(converted.uuid == target.uuid && cast(Deformable)converted is null,
+        "conversion fixture must retain the UUID but remove deformability");
+    require(root.bindings == original[1 .. $],
+        "conversion must remove only the incompatible target's rig binding");
+    ngFlushDepthBoneDirtyImmediate();
+    require(param.getBinding(sibling, "deform") !is null,
+        "pending refresh must still update the unaffected target after conversion");
+
+    incActionUndo();
+    require(incActivePuppet().find!Node(target.uuid) is target && root.bindings == original,
+        "undo conversion must restore the original target and all source settings");
+    ngFlushDepthBoneDirtyImmediate();
+    DepthBoneGpuOffsetPacket restoredPacket;
+    string restoredPacketError;
+    require(ngBuildDepthBoneGpuOffsetPacket(
+        root, &root.bindings[0], target, param, vec2u(1, 0), restoredPacket, restoredPacketError),
+        "restored target must accept DepthBone refresh again: " ~ restoredPacketError);
+    incActionRedo();
+    require(incActivePuppet().find!Node(target.uuid) is converted && root.bindings == original[1 .. $],
+        "redo conversion must remove the incompatible rig target again");
+    ngFlushDepthBoneDirtyImmediate();
+
+    ctx.nodes = [converted];
+    require((new DeleteNodeCommand()).run(ctx).succeeded, "deleting the converted node must succeed");
+    ngFlushDepthBoneDirtyImmediate();
+    incActionUndo();
+    require(root.bindings == original[1 .. $], "undo deletion must not restore an invalid rig binding");
+    incActionUndo();
+    require(root.bindings == original && incActivePuppet().find!Node(target.uuid) is target,
+        "undo deletion and conversion must restore the complete original rig");
+    ngFlushDepthBoneDirtyImmediate();
+}
+
+private void testDepthBoneFrameFailureRecovery() {
+    import nijigenerate.core.tasks : incGetStatus;
+
+    foreach (scopeKind; [DepthBoneDirtyScope.Keypoint, DepthBoneDirtyScope.AllKeypoints]) {
+        resetCase();
+        fakeDepthBoneGpuNextJobId = 1;
+        fakeDepthBoneGpuJobVertexCounts = null;
+        fakeDepthBoneGpuSubmitCount = 0;
+        fakeDepthBoneGpuSubmitFailAfter = 0;
+        fakeDepthBoneGpuNotReadyPolls = 0;
+        ngSetDepthBoneGpuAsyncTestHooks(
+            &fakeDepthBoneGpuSupported, &fakeDepthBoneGpuSubmit, &fakeDepthBoneGpuPoll, &fakeDepthBoneGpuCancel);
+        scope(exit) ngClearDepthBoneGpuAsyncTestHooks();
+
+        auto root = new ExDepthRigRoot(incActivePuppet().root);
+        auto target = new ExGridDeformer(incActivePuppet().root);
+        target.rebuffer(Vec2Array([vec2(-10, 0), vec2(10, 0), vec2(-10, 100), vec2(10, 100)]));
+        auto invalid = new Node(incActivePuppet().root);
+        auto bone = ngCreateDepthBone(root, "Head", vec3(0, 0, 0), vec3(0, 100, 0));
+        root.addBoneSource(target, ExDepthTargetKind.Grid, bone);
+        // Simulate a stale binding from an older project or an interrupted mutation.
+        root.addBoneSource(invalid, ExDepthTargetKind.Grid, bone);
+        auto param = new ExParameter("frame-failure-depth", false);
+        incActivePuppet().parameters ~= param;
+        auto tx = newValueBinding(param, bone, "transform.t.x");
+        tx.setValue(vec2u(1, 0), 5.0f);
+        auto owner = new AsyncGroupAction();
+        ngBeginDepthBoneRefreshActionSink(owner);
+        ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "Invalid target regression", scopeKind);
+        ngEndDepthBoneRefreshActionSink(owner);
+
+        require(!ngFlushDepthBoneDirtyForFrame(), "frame refresh must report a recoverable packet failure");
+        require(!ngHasPendingDepthBoneRefresh() && owner.pendingAsyncCount == 0 &&
+            owner.state == AsyncGroupActionState.Failed,
+            "failed refresh must discard producers and settle the owning action");
+        require(incGetStatus().canFind("missing or not deformable"),
+            "frame refresh must expose the error instead of silently swallowing it");
+        require(param.getBinding(target, "deform") is null,
+            "packet failure must not apply a partial target batch");
+        require(ngFlushDepthBoneDirtyForFrame(), "the next idle frame must not retry failed work");
+
+        root.removeBoneSource(invalid, bone);
+        ngMarkDepthBoneDirty(root, param, vec2u(1, 0), "Retry repaired rig", scopeKind);
+        ngFlushDepthBoneDirtyImmediate();
+        require(param.getBinding(target, "deform") !is null && !ngHasPendingDepthBoneRefresh(),
+            "fresh updates must work after repairing the failed rig");
+    }
+}
+
 private void testDepthBoneDeleteCleanupUndoRedo() {
     resetCase();
 
@@ -21314,6 +21434,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.gpu-all-keypoints":
             runCase("depthbone-gpu-all-keypoints-dispatch", &testDepthBoneGpuAllKeypointsDispatch);
+            runCase("depthbone-frame-failure-recovery", &testDepthBoneFrameFailureRecovery);
             return true;
         case "depthbone.overlay-selection":
             runCase("depthbone-overlay-selection-geometry", &testDepthBoneOverlaySelectionGeometry);
@@ -21329,6 +21450,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "depthbone.cleanup":
             runCase("depthbone-delete-cleanup-undo-redo", &testDepthBoneDeleteCleanupUndoRedo);
+            runCase("depthbone-conversion-cleanup-undo-redo", &testDepthBoneConversionCleanupUndoRedo);
             return true;
         case "part.mask-mode":
             runCase("mask-source-mode-undo-redo", &testMaskSourceModeUndoRedo);

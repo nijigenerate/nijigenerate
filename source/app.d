@@ -25,7 +25,7 @@ import nijigenerate.core.shortcut;               // package re-exports base
 import nijigenerate.core.shortcut.base : ngLoadShortcutsFromSettings; // load persisted shortcuts
 import nijigenerate.core.shortcut.defaults : ngRegisterDefaultShortcuts;
 import nijigenerate.commands : ngInitAllCommands; // explicit commands init to avoid ctor cycles
-import nijigenerate.commands.depth.bone : ngFlushDepthBoneDirty;
+import nijigenerate.commands.depth.bone : ngFlushDepthBoneDirtyForFrame;
 import nijigenerate.core.i18n;
 import nijigenerate.io;
 import nijigenerate.io.autosave;
@@ -241,7 +241,7 @@ void incUpdate() {
             incUpdatePanels();
             incUpdateWindows();
             incStatusUpdate();
-            ngFlushDepthBoneDirty();
+            ngFlushDepthBoneDirtyForFrame();
         }
     incEndLoop();
 }
@@ -265,7 +265,7 @@ void incUpdateNoEv() {
             incUpdatePanels();
             incUpdateWindows();
             incStatusUpdate();
-            ngFlushDepthBoneDirty();
+            ngFlushDepthBoneDirtyForFrame();
         }
     incEndLoop();
 }

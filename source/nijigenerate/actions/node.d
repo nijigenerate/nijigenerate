@@ -10,11 +10,12 @@ import nijigenerate.core.actionstack;
 import nijigenerate.actions;
 import nijigenerate.actions.depthboneinvalidation :
     DepthBoneMutationKind,
+    ngNotifyDepthBoneRigChanged,
     ngNotifyDepthBoneTargetChanged;
 import nijigenerate.actions.depthbone : ngCopyDepthRigBindings;
 import nijigenerate.actions.parameter : ParameterChangeBindingsValueAction;
 import nijigenerate.actions.binding : ParameterBindingAllValueChangeAction;
-import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigBinding, ExDepthRigRoot;
+import nijigenerate.ext.nodes.exdepthbone : ExDepthBone, ExDepthRigBinding, ExDepthRigRoot, ExDepthTargetKind;
 import nijigenerate;
 import nijilive;
 import nijilive.math : Vec2Array;
@@ -22,6 +23,7 @@ import nijilive.core.param.binding : DeformationParameterBinding;
 import nijilive.core.nodes.deformable : Deformable;
 import nijilive.core.nodes.drawable : Drawable;
 import nijilive.core.nodes.deformer.grid : GridDeformer;
+import nijilive.core.nodes.deformer.path : PathDeformer;
 import nijilive.math : vec2;
 import nijilive.core.nodes.composite.projectable : Projectable;
 import std.format;
@@ -420,6 +422,45 @@ public:
     bool deepCopy;
     ParameterChangeBindingsValueAction[] bindingReorderActions;
 
+    private struct DepthRigBindingReplacement {
+        ExDepthRigRoot root;
+        ExDepthRigBinding[] before;
+        ExDepthRigBinding[] after;
+    }
+    private DepthRigBindingReplacement[] depthRigBindingReplacements;
+
+    private void captureDepthRigBindings() {
+        auto puppet = incActivePuppet();
+        if (puppet is null) return;
+        foreach (root; puppet.findNodesType!ExDepthRigRoot(puppet.root)) {
+            if (root.findBindingIndex(srcNode.uuid) < 0) continue;
+            auto before = ngCopyDepthRigBindings(root.bindings);
+            ExDepthRigBinding[] after;
+            foreach (binding; ngCopyDepthRigBindings(before)) {
+                if (binding.targetUuid == srcNode.uuid) {
+                    // Only Grid and Path nodes can remain DepthRig targets.
+                    if (cast(GridDeformer)toNode !is null)
+                        binding.targetKind = ExDepthTargetKind.Grid;
+                    else if (cast(PathDeformer)toNode !is null)
+                        binding.targetKind = ExDepthTargetKind.Path;
+                    else
+                        continue;
+                    binding.targetUuid = toNode.uuid;
+                }
+                after ~= binding;
+            }
+            depthRigBindingReplacements ~= DepthRigBindingReplacement(root, before, after);
+        }
+    }
+
+    private void applyDepthRigBindings(bool forward) {
+        foreach (ref change; depthRigBindingReplacements) {
+            change.root.bindings = ngCopyDepthRigBindings(forward ? change.after : change.before);
+            change.root.notifyChange(change.root, NotifyReason.AttributeChanged);
+            ngNotifyDepthBoneRigChanged(change.root, "Node Type Conversion");
+        }
+    }
+
     private static float nonZeroScale(float value) {
         return abs(value) < 0.0001f ? 1.0f : value;
     }
@@ -489,8 +530,11 @@ public:
         // Set visual name
         descrName = src.name;
 
+        captureDepthRigBindings();
         if (toNode.parent is null)
             redo();
+        else
+            applyDepthRigBindings(true);
 
         updateParameterBindings(true);
     }
@@ -525,6 +569,7 @@ public:
         } else
             srcNode.notifyChange(srcNode, NotifyReason.StructureChanged);
     
+        applyDepthRigBindings(false);
         if (incNodeInSelection(toNode)) {
             incRemoveSelectNode(toNode);
             incAddSelectNode(srcNode);
@@ -561,6 +606,7 @@ public:
         } else
             toNode.notifyChange(toNode, NotifyReason.StructureChanged);
 
+        applyDepthRigBindings(true);
         if (incNodeInSelection(srcNode)) {
             incRemoveSelectNode(srcNode);
             incAddSelectNode(toNode);
