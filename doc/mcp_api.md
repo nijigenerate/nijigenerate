@@ -98,6 +98,17 @@ resource://nijigenerate/bindings/get?parameter=123&target=456&name=deform
   - `applyRotation=true` is required to write an explicit zero rotation.
   - Use `context.parameterValue` to choose the parameter key position.
 
+- `ModelCommand_SetRotationXBinding` / `ModelCommand_SetRotationYBinding`
+  - Sets `transform.r.x` / `transform.r.y` value bindings on target nodes, including Parts.
+  - `rotationRadians` is in radians; zero explicitly resets the selected key's rotation binding.
+  - Set `context.nodes`, `context.parameters`, and `context.parameterValue` to choose targets and an existing key.
+  - Creates missing bindings and supports undo/redo.
+  - Example njc call (replace UUIDs and the key value with your model's values):
+
+```powershell
+njc tools call ModelCommand_SetRotationXBinding --json '{"rotationRadians":0.2,"context":{"nodes":[456],"parameters":[123],"parameterValue":[1]}}'
+```
+
 ## Screenshot Tools
 
 - `ViewCommand_CaptureLiveScreenshot`

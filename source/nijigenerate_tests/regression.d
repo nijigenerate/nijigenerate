@@ -13338,6 +13338,43 @@ private void testParameterTRSBindingModelCommandUndoRedo() {
     require(rz !is null && near(rz.getValue(vec2u(2, 2)), cast(float)(45.0 * 3.14159265358979323846 / 180.0)), "redo SetTRSBindingCommand should restore rotation binding");
 }
 
+private void testParameterRotationXBindingPartUndoRedo() {
+    resetCase();
+
+    auto param = new2DParameter("RotationXBinding");
+    auto part = newMeshPart("rotation-x-binding-target");
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.parameters = [param];
+    ctx.nodes = [part];
+    ctx.parameterValue = param.getKeypointValue(vec2u(2, 2));
+
+    require((new SetRotationXBindingCommand(0.4f)).run(ctx).succeeded,
+        "X rotation should create a Part binding using parameter-axis values");
+    auto rx = cast(ValueParameterBinding)param.getBinding(part, "transform.r.x");
+    require(rx !is null && near(rx.getValue(vec2u(2, 2)), 0.4f),
+        "X rotation should write radians to the requested key");
+    require(param.getBinding(part, "transform.r.y") is null && param.getBinding(part, "transform.r.z") is null,
+        "X rotation should not create bindings for other axes");
+
+    incActionUndo();
+    require(param.getBinding(part, "transform.r.x") is null,
+        "Undo should remove the newly created X rotation binding");
+    incActionRedo();
+    rx = cast(ValueParameterBinding)param.getBinding(part, "transform.r.x");
+    require(rx !is null && near(rx.getValue(vec2u(2, 2)), 0.4f),
+        "Redo should restore the X rotation binding and value");
+
+    require((new SetRotationXBindingCommand(0)).run(ctx).succeeded,
+        "X rotation should accept an explicit zero on an existing binding");
+    require(param.getBinding(part, "transform.r.x") is rx && near(rx.getValue(vec2u(2, 2)), 0),
+        "Setting zero should update the existing binding");
+    incActionUndo();
+    require(near(rx.getValue(vec2u(2, 2)), 0.4f), "Undo should restore the previous X rotation");
+    incActionRedo();
+    require(near(rx.getValue(vec2u(2, 2)), 0), "Redo should restore zero X rotation");
+}
+
 private void testParameterDeformBindingModelCommandUndoRedo() {
     resetCase();
 
@@ -21500,12 +21537,14 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "parameter.binding-trs":
             runCase("parameter-trs-binding-model-command-undo-redo", &testParameterTRSBindingModelCommandUndoRedo);
+            runCase("parameter-rotation-x-binding-part-undo-redo", &testParameterRotationXBindingPartUndoRedo);
             return true;
         case "parameter.binding-deform":
             runCase("parameter-deform-binding-model-command-undo-redo", &testParameterDeformBindingModelCommandUndoRedo);
             return true;
         case "parameter.binding-model":
             runCase("parameter-trs-binding-model-command-undo-redo", &testParameterTRSBindingModelCommandUndoRedo);
+            runCase("parameter-rotation-x-binding-part-undo-redo", &testParameterRotationXBindingPartUndoRedo);
             runCase("parameter-deform-binding-model-command-undo-redo", &testParameterDeformBindingModelCommandUndoRedo);
             return true;
         case "parameter.mesh-binding-composite":
