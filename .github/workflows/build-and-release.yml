@@ -65,15 +65,9 @@ jobs:
         ./gentl.sh
       
     - name: "Clone dependencies & set versions"
-      run: |
-        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/nijigenerate/nijilive.git
-        cd i2d-imgui
-        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
-        git submodule update --recursive
-        cd ..
-        dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.0.1"
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
 
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v2
@@ -125,15 +119,9 @@ jobs:
         path: out/i18n/
       
     - name: "Clone dependencies & set versions"
-      run: |
-        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/nijigenerate/nijilive.git
-        cd i2d-imgui
-        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
-        git submodule update --recursive
-        cd ..
-        dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.0.1"
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
         
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v2
@@ -199,7 +187,11 @@ jobs:
             out/nijigenerate-win32-x86_64.zip
 
   macOS-build:
-    runs-on: macos-14
+    # Preserve the ARM64 app and native /opt/homebrew dependencies.
+    runs-on: macos-15
+    env:
+      # Keep the previous runner's deployment floor for CMake-built libraries.
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
 
     steps:
     - uses: actions/checkout@v3
@@ -208,12 +200,11 @@ jobs:
         compiler: ldc-1.41.0
   
     - name: "Prepare for DMG packing"
-      continue-on-error: true
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
         brew update
-        brew install create-dmg gettext
+        brew install create-dmg gettext openssl@3
 
     - name: "Remove conflicting brew packages"
       continue-on-error: true
@@ -240,20 +231,28 @@ jobs:
         ./gentl.sh
       
     - name: "Clone dependencies & set versions"
-      run: |
-        git clone https://github.com/inochi2d/i2d-imgui.git --recurse-submodules
-        git clone https://github.com/nijigenerate/nijilive.git
-        cd i2d-imgui
-        git checkout c6a78f4a7510fd31a86998b7ceedfc2916ecfae0
-        git submodule update --recursive
-        cd ..
-        dub add-local i2d-imgui/ "0.8.0"
-        dub add-local nijilive/ "0.0.1"
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
 
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v2
       with:
         cmake-version: '3.31'
+
+    - name: 'Verify macOS build prerequisites'
+      run: |
+        test "$(uname -m)" = arm64
+        test "$(brew --prefix)" = /opt/homebrew
+        xcrun --find clang
+        xcrun --show-sdk-path
+        ldc2 --version
+        dub --version
+        cmake --version
+        command -v create-dmg
+        command -v msgfmt
+        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
 
     - name: 'Build nijigenerate'
       env:
@@ -270,6 +269,19 @@ jobs:
         echo "Bundling app..."
         ./build-aux/osx/osxbundle.sh
 
+    - name: 'Verify macOS bundle'
+      run: |
+        app=out/nijigenerate.app/Contents
+        test -s "$app/MacOS/nijigenerate"
+        test -s "$app/Info.plist"
+        test -s "$app/Frameworks/libSDL2.dylib"
+        test -s "$app/Frameworks/libfreetype.dylib"
+        test -s "$app/Frameworks/cimgui.dylib"
+        for binary in "$app/MacOS/nijigenerate" "$app/Frameworks/"*.dylib; do
+          lipo -verify_arch arm64 "$binary"
+          otool -L "$binary"
+        done
+
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
       with:
@@ -281,6 +293,8 @@ jobs:
     - name: 'Build DMG'
       run: |
         ./build-aux/osx/gendmg.sh
+        test -s out/Install_nijigenerate.dmg
+        hdiutil verify out/Install_nijigenerate.dmg
 
     - name: Make Artifact of build
       uses: actions/upload-artifact@v4
