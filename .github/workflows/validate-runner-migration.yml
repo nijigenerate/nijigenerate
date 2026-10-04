@@ -7,149 +7,6 @@ on:
 permissions:
   contents: read
 jobs:
-  build-resources:
-    runs-on: ubuntu-22.04
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        ref: aa4f7b054870a107a929a63744e9771f48d7475f
-    - name: Install dependencies
-      run: 'sudo apt-get update
-
-        sudo apt-get install gettext
-
-        mkdir out/
-
-        '
-    - name: Generate i18n
-      run: '# Build translations
-
-        mkdir otl/
-
-
-        sudo chmod +x ./gentl.sh
-
-        ./gentl.sh
-
-
-        cp out/* otl/
-
-        '
-    - name: Make Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: translations
-        path: otl/*
-        retention-days: 1
-    timeout-minutes: 30
-  linux-zip:
-    runs-on: ubuntu-22.04
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        ref: aa4f7b054870a107a929a63744e9771f48d7475f
-    - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
-      with:
-        compiler: ldc-1.41.0
-    - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v2
-      with:
-        cmake-version: '3.31'
-    - name: CMake version
-      run: cmake --version
-    - name: Get build dependencies
-      run: 'sudo apt-get update
-
-        sudo apt install libsdl2-dev libfreetype6-dev gettext
-
-        '
-    - name: Generate i18n
-      run: 'sudo chmod +x ./gentl.sh
-
-        ./gentl.sh
-
-        '
-    - name: Clone dependencies & set versions
-      shell: bash
-      timeout-minutes: 10
-      run: bash ./build-aux/clone-ci-dependencies.sh
-    - name: Build nijigenerate
-      run: "# Build metadata (like version information and icons)\ndub build --config=meta\n\n# Build the project, with its\
-        \ main file included, without unittests\ndub build --compiler=ldc2 --config=linux-nightly\n  \n"
-    - name: Archive Zip
-      uses: thedoctor0/zip-release@main
-      with:
-        type: zip
-        filename: nijigenerate-linux-x86_64.zip
-        directory: out/
-        path: '*'
-    timeout-minutes: 30
-  windows:
-    runs-on: windows-2022
-    needs: build-resources
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        ref: aa4f7b054870a107a929a63744e9771f48d7475f
-    - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
-      with:
-        compiler: ldc-1.41.0
-    - name: Download translations
-      uses: actions/download-artifact@v4
-      with:
-        name: translations
-        path: out/i18n/
-    - name: Clone dependencies & set versions
-      shell: bash
-      timeout-minutes: 10
-      run: bash ./build-aux/clone-ci-dependencies.sh
-    - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v2
-      with:
-        cmake-version: '3.31'
-    - name: CMake version
-      run: cmake --version
-    - name: Build nijigenerate
-      run: "function Invoke-VSDevEnvironment {\n$vswhere = \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\\
-        vswhere.exe\"\n    $installationPath = & $vswhere -prerelease -legacy -latest -property installationPath\n    $Command\
-        \ = Join-Path $installationPath \"Common7\\Tools\\vsdevcmd.bat\"\n  & \"${env:COMSPEC}\" /s /c \"`\"$Command`\" -no_logo\
-        \ && set\" | Foreach-Object {\n        if ($_ -match '^([^=]+)=(.*)') {\n            [System.Environment]::SetEnvironmentVariable($matches[1],\
-        \ $matches[2])\n        }\n    }\n}\nInvoke-VSDevEnvironment\nRemove-Item 'C:/Strawberry' -Recurse\n\n# Build metadata\
-        \ (like version information and icons)\ndub build --config=meta\n\n# Build the project, with its main file included,\
-        \ without unittests\ndub build --compiler=ldc2 --config=win32-nightly\n"
-    - name: Archive Zip
-      uses: thedoctor0/zip-release@main
-      with:
-        type: zip
-        filename: nijigenerate-win32-x86_64.zip
-        directory: out/
-        path: '*'
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
-    - name: Build MSI
-      run: 'cd build-aux/windows/wix
-
-
-        # Install required dependency
-
-        mkdir packages/
-
-        nuget install WixToolset.UI.wixext -version 4.0.0 -OutputDirectory packages/
-
-
-        # Build solution
-
-        msbuild "nijigenerate.sln" -property:Configuration=Release
-
-
-        # Copy installer out
-
-        mv "bin/Release/nijigenerate.msi" "../../../out/nijigenerate-win32-x86_64.msi"
-
-        cd ../../../
-
-        '
-    timeout-minutes: 30
   macOS-dmg:
     runs-on: macos-15
     env:
@@ -157,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+        ref: f0de096c9e7470adeb581a3f7fcd9f7df66b3ba8
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0
@@ -169,6 +26,12 @@ jobs:
         brew update
 
         brew install create-dmg gettext openssl@3
+
+        # Deimos detects the binding ABI through pkg-config, then the openssl CLI.
+
+        echo "/opt/homebrew/opt/openssl@3/bin" >> "$GITHUB_PATH"
+
+        echo "PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@3/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
         '
     - name: Remove conflicting brew packages
@@ -198,29 +61,10 @@ jobs:
       with:
         cmake-version: '3.31'
     - name: Verify macOS build prerequisites
-      run: 'test "$(uname -m)" = arm64
-
-        test "$(brew --prefix)" = /opt/homebrew
-
-        xcrun --find clang
-
-        xcrun --show-sdk-path
-
-        ldc2 --version
-
-        dub --version
-
-        cmake --version
-
-        command -v create-dmg
-
-        command -v msgfmt
-
-        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
-
-        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
-
-        '
+      run: "test \"$(uname -m)\" = arm64\ntest \"$(brew --prefix)\" = /opt/homebrew\nxcrun --find clang\nxcrun --show-sdk-path\n\
+        ldc2 --version\ndub --version\ncmake --version\ncommand -v create-dmg\ncommand -v msgfmt\ntest -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib\n\
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib\nopenssl version\ncase \"$(pkg-config --modversion openssl)\"\
+        \ in\n  3.*) ;;\n  *) echo \"OpenSSL bindings must detect the linked OpenSSL 3 ABI\" >&2; exit 1 ;;\nesac\n"
     - name: Build nijigenerate
       env:
         DFLAGS: -g -force-dwarf-frame-section=false
@@ -266,7 +110,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+        ref: f0de096c9e7470adeb581a3f7fcd9f7df66b3ba8
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0
@@ -278,6 +122,12 @@ jobs:
         brew update
 
         brew install create-dmg gettext openssl@3
+
+        # Deimos detects the binding ABI through pkg-config, then the openssl CLI.
+
+        echo "/opt/homebrew/opt/openssl@3/bin" >> "$GITHUB_PATH"
+
+        echo "PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@3/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
         '
     - name: Remove conflicting brew packages
@@ -307,29 +157,10 @@ jobs:
       with:
         cmake-version: '3.31'
     - name: Verify macOS build prerequisites
-      run: 'test "$(uname -m)" = arm64
-
-        test "$(brew --prefix)" = /opt/homebrew
-
-        xcrun --find clang
-
-        xcrun --show-sdk-path
-
-        ldc2 --version
-
-        dub --version
-
-        cmake --version
-
-        command -v create-dmg
-
-        command -v msgfmt
-
-        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
-
-        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
-
-        '
+      run: "test \"$(uname -m)\" = arm64\ntest \"$(brew --prefix)\" = /opt/homebrew\nxcrun --find clang\nxcrun --show-sdk-path\n\
+        ldc2 --version\ndub --version\ncmake --version\ncommand -v create-dmg\ncommand -v msgfmt\ntest -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib\n\
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib\nopenssl version\ncase \"$(pkg-config --modversion openssl)\"\
+        \ in\n  3.*) ;;\n  *) echo \"OpenSSL bindings must detect the linked OpenSSL 3 ABI\" >&2; exit 1 ;;\nesac\n"
     - name: Build nijigenerate
       env:
         DFLAGS: -force-dwarf-frame-section=false
@@ -396,7 +227,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+        ref: f0de096c9e7470adeb581a3f7fcd9f7df66b3ba8
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0
@@ -408,6 +239,12 @@ jobs:
         brew update
 
         brew install create-dmg gettext openssl@3
+
+        # Deimos detects the binding ABI through pkg-config, then the openssl CLI.
+
+        echo "/opt/homebrew/opt/openssl@3/bin" >> "$GITHUB_PATH"
+
+        echo "PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@3/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
         '
     - name: Remove conflicting brew packages
@@ -437,29 +274,10 @@ jobs:
       with:
         cmake-version: '3.31'
     - name: Verify macOS build prerequisites
-      run: 'test "$(uname -m)" = arm64
-
-        test "$(brew --prefix)" = /opt/homebrew
-
-        xcrun --find clang
-
-        xcrun --show-sdk-path
-
-        ldc2 --version
-
-        dub --version
-
-        cmake --version
-
-        command -v create-dmg
-
-        command -v msgfmt
-
-        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
-
-        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
-
-        '
+      run: "test \"$(uname -m)\" = arm64\ntest \"$(brew --prefix)\" = /opt/homebrew\nxcrun --find clang\nxcrun --show-sdk-path\n\
+        ldc2 --version\ndub --version\ncmake --version\ncommand -v create-dmg\ncommand -v msgfmt\ntest -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib\n\
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib\nopenssl version\ncase \"$(pkg-config --modversion openssl)\"\
+        \ in\n  3.*) ;;\n  *) echo \"OpenSSL bindings must detect the linked OpenSSL 3 ABI\" >&2; exit 1 ;;\nesac\n"
     - name: Build nijigenerate
       env:
         DFLAGS: -force-dwarf-frame-section=false
@@ -507,4 +325,3 @@ jobs:
 
         unzip -t out/nijigenerate-macOS.zip'
     timeout-minutes: 30
-
