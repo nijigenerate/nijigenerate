@@ -1,0 +1,510 @@
+# Temporary validation of the runner migration; no release or tag writes.
+name: Validate runner migration
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/validate-runner-migration.yml]
+permissions:
+  contents: read
+jobs:
+  build-resources:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+    - name: Install dependencies
+      run: 'sudo apt-get update
+
+        sudo apt-get install gettext
+
+        mkdir out/
+
+        '
+    - name: Generate i18n
+      run: '# Build translations
+
+        mkdir otl/
+
+
+        sudo chmod +x ./gentl.sh
+
+        ./gentl.sh
+
+
+        cp out/* otl/
+
+        '
+    - name: Make Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: translations
+        path: otl/*
+        retention-days: 1
+    timeout-minutes: 30
+  linux-zip:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+    - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
+      with:
+        compiler: ldc-1.41.0
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    - name: CMake version
+      run: cmake --version
+    - name: Get build dependencies
+      run: 'sudo apt-get update
+
+        sudo apt install libsdl2-dev libfreetype6-dev gettext
+
+        '
+    - name: Generate i18n
+      run: 'sudo chmod +x ./gentl.sh
+
+        ./gentl.sh
+
+        '
+    - name: Clone dependencies & set versions
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
+    - name: Build nijigenerate
+      run: "# Build metadata (like version information and icons)\ndub build --config=meta\n\n# Build the project, with its\
+        \ main file included, without unittests\ndub build --compiler=ldc2 --config=linux-nightly\n  \n"
+    - name: Archive Zip
+      uses: thedoctor0/zip-release@main
+      with:
+        type: zip
+        filename: nijigenerate-linux-x86_64.zip
+        directory: out/
+        path: '*'
+    timeout-minutes: 30
+  windows:
+    runs-on: windows-2022
+    needs: build-resources
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+    - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
+      with:
+        compiler: ldc-1.41.0
+    - name: Download translations
+      uses: actions/download-artifact@v4
+      with:
+        name: translations
+        path: out/i18n/
+    - name: Clone dependencies & set versions
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    - name: CMake version
+      run: cmake --version
+    - name: Build nijigenerate
+      run: "function Invoke-VSDevEnvironment {\n$vswhere = \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\\
+        vswhere.exe\"\n    $installationPath = & $vswhere -prerelease -legacy -latest -property installationPath\n    $Command\
+        \ = Join-Path $installationPath \"Common7\\Tools\\vsdevcmd.bat\"\n  & \"${env:COMSPEC}\" /s /c \"`\"$Command`\" -no_logo\
+        \ && set\" | Foreach-Object {\n        if ($_ -match '^([^=]+)=(.*)') {\n            [System.Environment]::SetEnvironmentVariable($matches[1],\
+        \ $matches[2])\n        }\n    }\n}\nInvoke-VSDevEnvironment\nRemove-Item 'C:/Strawberry' -Recurse\n\n# Build metadata\
+        \ (like version information and icons)\ndub build --config=meta\n\n# Build the project, with its main file included,\
+        \ without unittests\ndub build --compiler=ldc2 --config=win32-nightly\n"
+    - name: Archive Zip
+      uses: thedoctor0/zip-release@main
+      with:
+        type: zip
+        filename: nijigenerate-win32-x86_64.zip
+        directory: out/
+        path: '*'
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.1
+    - name: Build MSI
+      run: 'cd build-aux/windows/wix
+
+
+        # Install required dependency
+
+        mkdir packages/
+
+        nuget install WixToolset.UI.wixext -version 4.0.0 -OutputDirectory packages/
+
+
+        # Build solution
+
+        msbuild "nijigenerate.sln" -property:Configuration=Release
+
+
+        # Copy installer out
+
+        mv "bin/Release/nijigenerate.msi" "../../../out/nijigenerate-win32-x86_64.msi"
+
+        cd ../../../
+
+        '
+    timeout-minutes: 30
+  macOS-dmg:
+    runs-on: macos-15
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+    - uses: dlang-community/setup-dlang@v1.4.0
+      with:
+        compiler: ldc-1.41.0
+    - name: Prepare for DMG packing
+      run: 'export HOMEBREW_NO_INSTALL_CLEANUP=1
+
+        export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+
+        brew update
+
+        brew install create-dmg gettext openssl@3
+
+        '
+    - name: Remove conflicting brew packages
+      continue-on-error: true
+      run: '# Remove conflicting brew items
+
+        brew remove --ignore-dependencies libpng brotli harfbuzz
+
+        '
+    - name: Remove final conflicting files
+      continue-on-error: true
+      run: "# Delete fake harfbuzz if need be\nif [ -f \"/usr/local/lib/libharfbuzz.dylib\" ]; then\n  sudo rm -r /usr/local/lib/libharfbuzz.dylib\n\
+        fi\n\n# And the .a for it as well\nif [ -f \"/usr/local/lib/libharfbuzz.a\" ]; then\n  sudo rm -r /usr/local/lib/libharfbuzz.a\n\
+        fi\n"
+    - name: Generate i18n
+      run: 'sudo chmod +x ./gentl.sh
+
+        ./gentl.sh
+
+        '
+    - name: Clone dependencies & set versions
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    - name: Verify macOS build prerequisites
+      run: 'test "$(uname -m)" = arm64
+
+        test "$(brew --prefix)" = /opt/homebrew
+
+        xcrun --find clang
+
+        xcrun --show-sdk-path
+
+        ldc2 --version
+
+        dub --version
+
+        cmake --version
+
+        command -v create-dmg
+
+        command -v msgfmt
+
+        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
+
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
+
+        '
+    - name: Build nijigenerate
+      env:
+        DFLAGS: -g -force-dwarf-frame-section=false
+      run: '
+
+        # Build metadata (like version information and icons)
+
+        dub build --config=meta
+
+
+        # Build ARM64 version only
+
+        echo "Building arm64 binary..."
+
+        dub build --config=osx-nightly --arch=arm64-apple-macos
+
+
+        # Bundle app
+
+        echo "Bundling app..."
+
+        ./build-aux/osx/osxbundle.sh
+
+        '
+    - name: Verify macOS bundle
+      run: "app=out/nijigenerate.app/Contents\ntest -s \"$app/MacOS/nijigenerate\"\ntest -s \"$app/Info.plist\"\ntest -s \"\
+        $app/Frameworks/libSDL2.dylib\"\ntest -s \"$app/Frameworks/libfreetype.dylib\"\ntest -s \"$app/Frameworks/cimgui.dylib\"\
+        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo -verify_arch arm64 \"$binary\"\
+        \n  otool -L \"$binary\"\ndone\n"
+    - name: Build DMG
+      run: './build-aux/osx/gendmg.sh
+
+        test -s out/Install_nijigenerate.dmg
+
+        hdiutil verify out/Install_nijigenerate.dmg
+
+        '
+    timeout-minutes: 30
+  macos-release:
+    runs-on: macos-15
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+    - uses: dlang-community/setup-dlang@v1.4.0
+      with:
+        compiler: ldc-1.41.0
+    - name: Prepare for DMG packing
+      run: 'export HOMEBREW_NO_INSTALL_CLEANUP=1
+
+        export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+
+        brew update
+
+        brew install create-dmg gettext openssl@3
+
+        '
+    - name: Remove conflicting brew packages
+      continue-on-error: true
+      run: '# Remove conflicting brew items
+
+        brew remove --ignore-dependencies libpng brotli harfbuzz
+
+        '
+    - name: Remove final conflicting files
+      continue-on-error: true
+      run: "# Delete fake harfbuzz if need be\nif [ -f \"/usr/local/lib/libharfbuzz.dylib\" ]; then\n  sudo rm -r /usr/local/lib/libharfbuzz.dylib\n\
+        fi\n\n# And the .a for it as well\nif [ -f \"/usr/local/lib/libharfbuzz.a\" ]; then\n  sudo rm -r /usr/local/lib/libharfbuzz.a\n\
+        fi\n"
+    - name: Generate i18n
+      run: 'sudo chmod +x ./gentl.sh
+
+        ./gentl.sh
+
+        '
+    - name: Clone dependencies & set versions
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    - name: Verify macOS build prerequisites
+      run: 'test "$(uname -m)" = arm64
+
+        test "$(brew --prefix)" = /opt/homebrew
+
+        xcrun --find clang
+
+        xcrun --show-sdk-path
+
+        ldc2 --version
+
+        dub --version
+
+        cmake --version
+
+        command -v create-dmg
+
+        command -v msgfmt
+
+        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
+
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
+
+        '
+    - name: Build nijigenerate
+      env:
+        DFLAGS: -force-dwarf-frame-section=false
+      run: '# Build metadata (like version information and icons)
+
+        dub build --config=meta
+
+
+        # Build ARM64 version only
+
+        echo "Building arm64 binary..."
+
+        dub build --build=release --config=osx-full --arch=arm64-apple-macos
+
+
+        # Bundle app
+
+        echo "Bundling app..."
+
+        ./build-aux/osx/osxbundle.sh
+
+        '
+    - name: Verify macOS bundle
+      run: "app=out/nijigenerate.app/Contents\ntest -s \"$app/MacOS/nijigenerate\"\ntest -s \"$app/Info.plist\"\ntest -s \"\
+        $app/Frameworks/libSDL2.dylib\"\ntest -s \"$app/Frameworks/libfreetype.dylib\"\ntest -s \"$app/Frameworks/cimgui.dylib\"\
+        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo -verify_arch arm64 \"$binary\"\
+        \n  otool -L \"$binary\"\ndone\n"
+    - name: Archive Zip
+      uses: thedoctor0/zip-release@main
+      with:
+        type: zip
+        filename: nijigenerate-macOS.zip
+        directory: out/
+        path: '*'
+    - name: Build DMG
+      run: './build-aux/osx/gendmg.sh
+
+        test -s out/Install_nijigenerate.dmg
+
+        hdiutil verify out/Install_nijigenerate.dmg
+
+        '
+    - name: Make Artifact of build
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-osx
+        path: 'out/nijigenerate-macOS.zip
+
+          out/Install_nijigenerate.dmg
+
+          version.txt
+
+          '
+        retention-days: 1
+    - name: Verify release ZIP
+      run: 'test -s out/nijigenerate-macOS.zip
+
+        unzip -t out/nijigenerate-macOS.zip'
+    timeout-minutes: 30
+  macos-candidate:
+    runs-on: macos-15
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: aa4f7b054870a107a929a63744e9771f48d7475f
+    - uses: dlang-community/setup-dlang@v1.4.0
+      with:
+        compiler: ldc-1.41.0
+    - name: Prepare for DMG packing
+      run: 'export HOMEBREW_NO_INSTALL_CLEANUP=1
+
+        export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+
+        brew update
+
+        brew install create-dmg gettext openssl@3
+
+        '
+    - name: Remove conflicting brew packages
+      continue-on-error: true
+      run: '# Remove conflicting brew items
+
+        brew remove --ignore-dependencies libpng brotli harfbuzz
+
+        '
+    - name: Remove final conflicting files
+      continue-on-error: true
+      run: "# Delete fake harfbuzz if need be\nif [ -f \"/usr/local/lib/libharfbuzz.dylib\" ]; then\n  sudo rm -r /usr/local/lib/libharfbuzz.dylib\n\
+        fi\n\n# And the .a for it as well\nif [ -f \"/usr/local/lib/libharfbuzz.a\" ]; then\n  sudo rm -r /usr/local/lib/libharfbuzz.a\n\
+        fi\n"
+    - name: Generate i18n
+      run: 'sudo chmod +x ./gentl.sh
+
+        ./gentl.sh
+
+        '
+    - name: Clone dependencies & set versions
+      shell: bash
+      timeout-minutes: 10
+      run: bash ./build-aux/clone-ci-dependencies.sh
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
+    - name: Verify macOS build prerequisites
+      run: 'test "$(uname -m)" = arm64
+
+        test "$(brew --prefix)" = /opt/homebrew
+
+        xcrun --find clang
+
+        xcrun --show-sdk-path
+
+        ldc2 --version
+
+        dub --version
+
+        cmake --version
+
+        command -v create-dmg
+
+        command -v msgfmt
+
+        test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
+
+        test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
+
+        '
+    - name: Build nijigenerate
+      env:
+        DFLAGS: -force-dwarf-frame-section=false
+      run: '# Build metadata (like version information and icons)
+
+        dub build --config=meta
+
+
+        # Build ARM64 version only
+
+        echo "Building arm64 binary..."
+
+        dub build --build=release --config=osx-full --arch=arm64-apple-macos
+
+
+        # Bundle app
+
+        echo "Bundling app..."
+
+        ./build-aux/osx/osxbundle.sh
+
+        '
+    - name: Verify macOS bundle
+      run: "app=out/nijigenerate.app/Contents\ntest -s \"$app/MacOS/nijigenerate\"\ntest -s \"$app/Info.plist\"\ntest -s \"\
+        $app/Frameworks/libSDL2.dylib\"\ntest -s \"$app/Frameworks/libfreetype.dylib\"\ntest -s \"$app/Frameworks/cimgui.dylib\"\
+        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo -verify_arch arm64 \"$binary\"\
+        \n  otool -L \"$binary\"\ndone\n"
+    - name: Archive Zip
+      uses: thedoctor0/zip-release@main
+      with:
+        type: zip
+        filename: nijigenerate-macOS.zip
+        directory: out/
+        path: '*'
+    - name: Build DMG
+      run: './build-aux/osx/gendmg.sh
+
+        test -s out/Install_nijigenerate.dmg
+
+        hdiutil verify out/Install_nijigenerate.dmg
+
+        '
+    - name: Verify release ZIP
+      run: 'test -s out/nijigenerate-macOS.zip
+
+        unzip -t out/nijigenerate-macOS.zip'
+    timeout-minutes: 30
+
