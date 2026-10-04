@@ -204,6 +204,9 @@ jobs:
         export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
         brew update
         brew install create-dmg gettext openssl@3
+        # Deimos detects the binding ABI through pkg-config, then the openssl CLI.
+        echo "/opt/homebrew/opt/openssl@3/bin" >> "$GITHUB_PATH"
+        echo "PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@3/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
     - name: "Remove conflicting brew packages"
       continue-on-error: true
@@ -252,6 +255,11 @@ jobs:
         command -v msgfmt
         test -f /opt/homebrew/opt/openssl@3/lib/libssl.dylib
         test -f /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib
+        openssl version
+        case "$(pkg-config --modversion openssl)" in
+          3.*) ;;
+          *) echo "OpenSSL bindings must detect the linked OpenSSL 3 ABI" >&2; exit 1 ;;
+        esac
 
     - name: 'Build nijigenerate'
       env:
