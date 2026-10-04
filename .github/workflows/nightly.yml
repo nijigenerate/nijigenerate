@@ -286,7 +286,7 @@ jobs:
         test -s "$app/Frameworks/libfreetype.dylib"
         test -s "$app/Frameworks/cimgui.dylib"
         for binary in "$app/MacOS/nijigenerate" "$app/Frameworks/"*.dylib; do
-          lipo -verify_arch arm64 "$binary"
+          lipo "$binary" -verify_arch arm64
           otool -L "$binary"
         done
 

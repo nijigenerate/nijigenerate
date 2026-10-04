@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: f0de096c9e7470adeb581a3f7fcd9f7df66b3ba8
+        ref: ${{ github.sha }}
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0
@@ -92,8 +92,8 @@ jobs:
     - name: Verify macOS bundle
       run: "app=out/nijigenerate.app/Contents\ntest -s \"$app/MacOS/nijigenerate\"\ntest -s \"$app/Info.plist\"\ntest -s \"\
         $app/Frameworks/libSDL2.dylib\"\ntest -s \"$app/Frameworks/libfreetype.dylib\"\ntest -s \"$app/Frameworks/cimgui.dylib\"\
-        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo -verify_arch arm64 \"$binary\"\
-        \n  otool -L \"$binary\"\ndone\n"
+        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo \"$binary\" -verify_arch arm64\n\
+        \  otool -L \"$binary\"\ndone\n"
     - name: Build DMG
       run: './build-aux/osx/gendmg.sh
 
@@ -110,7 +110,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: f0de096c9e7470adeb581a3f7fcd9f7df66b3ba8
+        ref: ${{ github.sha }}
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0
@@ -186,8 +186,8 @@ jobs:
     - name: Verify macOS bundle
       run: "app=out/nijigenerate.app/Contents\ntest -s \"$app/MacOS/nijigenerate\"\ntest -s \"$app/Info.plist\"\ntest -s \"\
         $app/Frameworks/libSDL2.dylib\"\ntest -s \"$app/Frameworks/libfreetype.dylib\"\ntest -s \"$app/Frameworks/cimgui.dylib\"\
-        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo -verify_arch arm64 \"$binary\"\
-        \n  otool -L \"$binary\"\ndone\n"
+        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo \"$binary\" -verify_arch arm64\n\
+        \  otool -L \"$binary\"\ndone\n"
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
       with:
@@ -227,7 +227,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: f0de096c9e7470adeb581a3f7fcd9f7df66b3ba8
+        ref: ${{ github.sha }}
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0
@@ -303,8 +303,8 @@ jobs:
     - name: Verify macOS bundle
       run: "app=out/nijigenerate.app/Contents\ntest -s \"$app/MacOS/nijigenerate\"\ntest -s \"$app/Info.plist\"\ntest -s \"\
         $app/Frameworks/libSDL2.dylib\"\ntest -s \"$app/Frameworks/libfreetype.dylib\"\ntest -s \"$app/Frameworks/cimgui.dylib\"\
-        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo -verify_arch arm64 \"$binary\"\
-        \n  otool -L \"$binary\"\ndone\n"
+        \nfor binary in \"$app/MacOS/nijigenerate\" \"$app/Frameworks/\"*.dylib; do\n  lipo \"$binary\" -verify_arch arm64\n\
+        \  otool -L \"$binary\"\ndone\n"
     - name: Archive Zip
       uses: thedoctor0/zip-release@main
       with:
