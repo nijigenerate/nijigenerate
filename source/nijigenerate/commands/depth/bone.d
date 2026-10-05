@@ -2215,6 +2215,8 @@ private bool gridPropagationStopper(
     }
     if (cursor !is ancestor) return false;
     foreach_reverse (intermediate; intermediates) {
+        // A nested Grid stores residual Bone offsets; keep collecting outer Grid influence.
+        if (cast(GridDeformer)intermediate !is null) continue;
         if (!intermediate.mustPropagate()) {
             stopper = intermediate;
             break;
