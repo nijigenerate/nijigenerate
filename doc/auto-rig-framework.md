@@ -104,7 +104,7 @@ C:\opt\ldc-1.41\bin\dub.exe build --root=tests --compiler=C:\opt\ldc-1.41\bin\ld
 .\out\autorig-framework-tests.exe
 ```
 
-`DeterministicRigProcessor` now registers stage-local OSQP face projection and
+`AnimeFrontViewRigProcessor` now registers stage-local OSQP face projection and
 grid-depth fitting presets, plus a projection-to-editor workflow using the
 existing undoable deformation command. See [OSQP integration](osqp-integration.md)
 for inputs, build requirements, checks and the remaining full-rig migration.

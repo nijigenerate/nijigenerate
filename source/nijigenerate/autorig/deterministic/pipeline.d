@@ -11,24 +11,24 @@ AutoRigTaskSpec[] ngRigPipelineTasks() {
     auto model = AutoRigPortSpec("model",AutoRigValueKind.Path);
     auto materials = AutoRigPortSpec("materials",AutoRigValueKind.Json);
     AutoRigTaskSpec[] result = [
-        AutoRigTaskSpec("observe-model","Observe imported model",null,
+        AutoRigTaskSpec("observe-model",ngAutoRigMessage("Observe imported model"),null,
             [AutoRigPortSpec("options",AutoRigValueKind.Json)], [state,model,materials],null),
-        AutoRigTaskSpec("compile-rig","Derive evidence and compile rig",null,
+        AutoRigTaskSpec("compile-rig",ngAutoRigMessage("Derive evidence and compile rig"),null,
             [state,materials,AutoRigPortSpec("options",AutoRigValueKind.Json)],[program,state],null)
     ];
-    foreach (id, label; ["mesh-parts":"Prepare Part meshes", "build-native-rig":"Build anatomical rig",
-        "prepare-source-groups":"Prepare source groups and facial composites",
-        "prepare-feature-composites":"Mesh eye and mouth mechanism composites",
-        "prepare-shoulders":"Measure proximal shoulder contours",
-        "weld-shoulders":"Connect matching native shoulder meshes",
-        "register-source-uv":"Register source texture placement",
-        "validate-depth-inputs":"Validate stored and effective depth",
-        "apply-shape-corrections":"Apply fixed-foot and near-cheek corrections",
-        "bake-depth-angles":"Bake face and body angles", "apply-rig-controls":"Apply local rig controls"])
+    foreach (id, label; ["mesh-parts":ngAutoRigMessage("Prepare Part meshes"), "build-native-rig":ngAutoRigMessage("Build anatomical rig"),
+        "prepare-source-groups":ngAutoRigMessage("Prepare source groups and facial composites"),
+        "prepare-feature-composites":ngAutoRigMessage("Mesh eye and mouth mechanism composites"),
+        "prepare-shoulders":ngAutoRigMessage("Measure proximal shoulder contours"),
+        "weld-shoulders":ngAutoRigMessage("Connect matching native shoulder meshes"),
+        "register-source-uv":ngAutoRigMessage("Register source texture placement"),
+        "validate-depth-inputs":ngAutoRigMessage("Validate stored and effective depth"),
+        "apply-shape-corrections":ngAutoRigMessage("Apply fixed-foot and near-cheek corrections"),
+        "bake-depth-angles":ngAutoRigMessage("Bake face and body angles"), "apply-rig-controls":ngAutoRigMessage("Apply local rig controls")])
         result ~= AutoRigTaskSpec(id,label,null,[state,program,model],[state,model],null);
-    result ~= AutoRigTaskSpec("verify-saved-rig","Verify saved rig",null,[state,program,model],
+    result ~= AutoRigTaskSpec("verify-saved-rig",ngAutoRigMessage("Verify saved rig"),null,[state,program,model],
         [AutoRigPortSpec("report",AutoRigValueKind.Json)],null);
-    result ~= AutoRigTaskSpec("compile-domain-layout","Compile shared source domains",null,[state,program,model],
+    result ~= AutoRigTaskSpec("compile-domain-layout",ngAutoRigMessage("Compile shared source domains"),null,[state,program,model],
         [state,program,model],null);
     foreach (ref entry; result) if (entry.id == "apply-rig-controls" || entry.id == "validate-depth-inputs" ||
         entry.id == "bake-depth-angles" || entry.id == "apply-shape-corrections" ||
@@ -38,10 +38,10 @@ AutoRigTaskSpec[] ngRigPipelineTasks() {
 
 AutoRigWorkflowSpec ngRigModelWorkflow(string provider) {
     AutoRigWorkflowSpec result;
-    result.id = "model-to-rig"; result.label = "Imported model to anatomical rig";
+    result.id = "model-to-rig"; result.label = ngAutoRigMessage("Imported model to anatomical rig");
     result.preferred = true;
     result.inputDefaults["options"] = AutoRigValue.jsonValue(JSONValue(cast(JSONValue[string])null));
-    result.description = "Observe, derive, mesh, build, bake, control and verify the imported model.";
+    result.description = ngAutoRigMessage("Observe, derive, mesh, build, bake, control and verify the imported model.");
     result.inputs = [AutoRigPortSpec("options",AutoRigValueKind.Json)];
     result.outputs = [AutoRigPortSpec("model",AutoRigValueKind.Path),AutoRigPortSpec("report",AutoRigValueKind.Json)];
     result.steps = [AutoRigWorkflowStep("source",provider,"observe-model"),AutoRigWorkflowStep("compile",provider,"compile-rig"),

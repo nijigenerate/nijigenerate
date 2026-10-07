@@ -7,7 +7,7 @@ import i18n;
 import nijigenerate : EditMode;
 import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread;
 import nijigenerate.autorig;
-import nijigenerate.autorig.deterministic.processor : DeterministicRigProcessor;
+import nijigenerate.autorig.deterministic.processor : AnimeFrontViewRigProcessor;
 import nijigenerate.autorig.deterministic.editor : ngApplyFaceProjection;
 import nijigenerate.autorig.deterministic.native : ngRigNativeStage;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialRoleCandidates;
@@ -17,7 +17,7 @@ import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.core.path : incGetAppConfigPath;
 import nijigenerate.panels : Panel, incPanel, incAddPanel, incFindPanelByName;
 import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
-import nijigenerate.widgets : incButtonColored, incInputText;
+import nijigenerate.widgets : incButtonColored, incInputText, incInputTextMultiline;
 import std.algorithm.sorting : sort;
 import std.conv : to;
 import std.file : read;
@@ -25,6 +25,7 @@ import std.json : parseJSON, JSONValue;
 import std.path : buildPath;
 import std.string : toStringz;
 import std.math : sin;
+import std.format : format;
 
 private AutoRigSessionManager sharedSessions;
 
@@ -53,9 +54,10 @@ AutoRigSessionManager ngAutoRigSessionManager() {
         sharedSessions.setEditorDispatcher((void delegate() action) {
             runActionOnMainThread(action);
         });
-        sharedSessions.registerProcessor(new DeterministicRigProcessor(
+        sharedSessions.registerProcessor(new AnimeFrontViewRigProcessor(
               (projection, target, context) => ngApplyFaceProjection(projection, target, context),
               (stage, state, program, model, context) => ngRigNativeStage(stage, state, program, model, context)));
+        sharedSessions.registerProcessorAlias("deterministic-rig", "anime-front-view-rig");
     }
     return sharedSessions;
 }
@@ -72,6 +74,12 @@ private:
     string selectedWorkflowId;
     string[string] inputDrafts;
     string[string] inputObserved;
+    struct ContextDraft {
+        string name;
+        string value;
+        AutoRigValueKind kind = AutoRigValueKind.Path;
+    }
+    ContextDraft[string] contextDrafts;
     Thread worker;
     AutoRigWorkflowRun activeRun;
     string lastError;
@@ -114,8 +122,8 @@ private:
 
     string presetLabel(AutoRigWorkflowPreset preset) {
         auto owner = ngAutoRigSessionManager().processor(preset.providerId);
-        return owner.displayName() ~ " / " ~
-            (preset.spec.label.length ? preset.spec.label : preset.spec.id);
+        return _(owner.displayName()) ~ " / " ~
+            (preset.spec.label.length ? _(preset.spec.label) : preset.spec.id);
     }
 
     void renderPresetPicker() {
@@ -135,7 +143,7 @@ private:
         foreach (preset; presets)
             if (preset.providerId == selectedProviderId && preset.spec.id == selectedWorkflowId) {
                 selectedLabel = presetLabel(preset);
-                description = preset.spec.description;
+                description = _(preset.spec.description);
             }
 
         ImVec2 space;
@@ -154,18 +162,17 @@ private:
         }
         igSameLine();
         igBeginDisabled(!presets.length || worker !is null);
-        if (incButtonColored("\ue037", ImVec2(24, 24))) {
+        if (incButtonColored("+", ImVec2(24, 24))) {
             try {
                 auto run = workflowManager().create(selectedProviderId, selectedWorkflowId);
                 runs ~= run;
-                startRun(run);
                 synchronized (this) lastError = null;
             } catch (Exception error) {
                 synchronized (this) lastError = error.msg;
             }
         }
         igEndDisabled();
-        if (igIsItemHovered()) igSetTooltip("%s", _("Run workflow on the imported model").toStringz());
+        if (igIsItemHovered()) igSetTooltip("%s", _("Add workflow session").toStringz());
         if (description.length) igTextWrapped("%s", description.toStringz());
     }
 
@@ -182,20 +189,114 @@ private:
         }
     }
 
-    void applyInput(IAutoRigInputContext context, AutoRigPortSpec port, string draft) {
-        final switch (port.kind) {
+    string valueKindLabel(AutoRigValueKind kind) {
+        final switch (kind) {
+            case AutoRigValueKind.FileName: return _("File name");
+            case AutoRigValueKind.Path: return _("File path");
+            case AutoRigValueKind.Json: return _("JSON");
+            case AutoRigValueKind.Blob: return _("Binary data");
+        }
+    }
+
+    AutoRigValue draftValue(AutoRigValueKind kind, string draft) {
+        final switch (kind) {
             case AutoRigValueKind.FileName:
-                context.setValue(port.id, AutoRigValue.fileName(draft));
-                break;
+                return AutoRigValue.fileName(draft);
             case AutoRigValueKind.Path:
-                context.setValue(port.id, AutoRigValue.path(draft));
-                break;
+                return AutoRigValue.path(draft);
             case AutoRigValueKind.Json:
-                context.setValue(port.id, AutoRigValue.jsonValue(parseJSON(draft)));
-                break;
+                return AutoRigValue.jsonValue(parseJSON(draft));
             case AutoRigValueKind.Blob:
-                context.setValue(port.id, AutoRigValue.blob(cast(ubyte[])read(draft)));
-                break;
+                return AutoRigValue.blob(cast(ubyte[])read(draft));
+        }
+    }
+
+    void applyInput(IAutoRigInputContext context, AutoRigPortSpec port, string draft) {
+        context.setValue(port.id, draftValue(port.kind, draft));
+    }
+
+    void renderSessionValue(AutoRigWorkflowRun run, string name, AutoRigValueKind kind,
+        string current, bool contextValue) {
+        auto key = draftKey(run, contextValue ? "session-context" : "workflow-input", name);
+        if ((key in inputDrafts) is null || (key in inputObserved) !is null &&
+            inputObserved[key] != current && inputDrafts[key] == inputObserved[key]) inputDrafts[key] = current;
+        inputObserved[key] = current;
+        igPushID(key.toStringz());
+        igTextUnformatted((name ~ " (" ~ valueKindLabel(kind) ~ ")").toStringz());
+        auto draft = inputDrafts[key];
+        if (kind == AutoRigValueKind.Json) incInputTextMultiline("##value", draft, ImVec2(0, 80));
+        else incInputText("##value", draft);
+        inputDrafts[key] = draft;
+        if (incButtonColored(__("Apply"))) {
+            try {
+                auto value = draftValue(kind, draft);
+                if (contextValue) run.setContextValue(name, value);
+                else run.setInput(name, value);
+                synchronized (this) lastError = null;
+            } catch (Exception error) {
+                synchronized (this) lastError = error.msg;
+            }
+        }
+        igPopID();
+    }
+
+    void renderSessionConfiguration(AutoRigWorkflowRun run) {
+        igBeginDisabled(worker !is null);
+        scope(exit) igEndDisabled();
+        if (run.renderInputUI()) return;
+        if (igTreeNodeEx(__("Workflow arguments"), ImGuiTreeNodeFlags.DefaultOpen)) {
+            foreach (port; run.inputPorts()) {
+                if (port.description.length) igTextWrapped("%s", _(port.description).toStringz());
+                auto current = run.hasInput(port.id) ? inputText(run.input(port.id)) : "";
+                renderSessionValue(run, port.id, port.kind, current, false);
+            }
+            igTreePop();
+        }
+        if (igTreeNode(__("Session context / artifacts"))) {
+            auto names = run.session().contextNames();
+            names.sort();
+            foreach (name; names) {
+                auto value = run.session().contextValue(name);
+                renderSessionValue(run, name, value.kind, inputText(value), true);
+                if (value.kind == AutoRigValueKind.Blob)
+                    igTextUnformatted(format(_("%s bytes"), value.bytes.length).toStringz());
+            }
+            auto draft = run.id() in contextDrafts;
+            if (draft is null) { contextDrafts[run.id()] = ContextDraft.init; draft = run.id() in contextDrafts; }
+            incInputText(_("Name"), draft.name);
+            if (igBeginCombo(__("Type"), valueKindLabel(draft.kind).toStringz())) {
+                foreach (kind; [AutoRigValueKind.Path, AutoRigValueKind.Json,
+                    AutoRigValueKind.Blob, AutoRigValueKind.FileName]) {
+                    if (igSelectable(valueKindLabel(kind).toStringz(), kind == draft.kind)) draft.kind = kind;
+                }
+                igEndCombo();
+            }
+            incInputText(_("Value / artifact path"), draft.value);
+            igTextWrapped("%s", _("Path references an artifact; Blob imports file contents; Json stores structured data.").toStringz());
+            if (incButtonColored(__("Add context value"))) {
+                try {
+                    run.setContextValue(draft.name, draftValue(draft.kind, draft.value));
+                    *draft = ContextDraft.init;
+                    synchronized (this) lastError = null;
+                } catch (Exception error) {
+                    synchronized (this) lastError = error.msg;
+                }
+            }
+            igTreePop();
+        }
+    }
+
+    void renderSessionOutput(AutoRigWorkflowRun run) {
+        if (!igTreeNode(__("Workflow output"))) return;
+        scope(exit) igTreePop();
+        if (run.renderOutputUI()) return;
+        foreach (port; run.outputPorts()) {
+            igTextUnformatted(port.id.toStringz());
+            if (!run.hasOutput(port.id)) igTextUnformatted(_("Waiting for output").toStringz());
+            else {
+                auto artifact = run.outputArtifact(port.id);
+                igTextWrapped("%s", artifact.storagePath.toStringz());
+            }
         }
     }
 
@@ -203,8 +304,8 @@ private:
         auto context = run.session().inputContext(taskId);
         foreach (port; context.ports()) {
             igPushID(port.id.toStringz());
-            igTextUnformatted((port.id ~ " (" ~ port.kind.to!string ~ ")").toStringz());
-            if (port.description.length) igTextUnformatted(port.description.toStringz());
+            igTextUnformatted((port.id ~ " (" ~ valueKindLabel(port.kind) ~ ")").toStringz());
+            if (port.description.length) igTextUnformatted(_(port.description).toStringz());
             if (context.isConnected(port.id)) {
                 auto value = !context.hasValue(port.id) ? _("Waiting for dependency") :
                     port.kind == AutoRigValueKind.Json ? _("JSON artifact ready") : inputText(context.value(port.id));
@@ -319,7 +420,7 @@ private:
         auto state = run.session().task(taskId).state;
         igPushID(step.id.toStringz());
         auto spec = run.session().taskSpec(taskId);
-        auto title = spec.label.length ? spec.label : step.id;
+        auto title = spec.label.length ? _(spec.label) : step.id;
         bool open = renderStateTree(title, state.to!string, "task", ImGuiTreeNodeFlags.None);
         igSameLine();
         igBeginDisabled(worker !is null);
@@ -387,13 +488,15 @@ private:
     void renderRun(AutoRigWorkflowRun run) {
         igPushID(run.id().toStringz());
         auto snapshot = run.snapshot();
-        auto label = snapshot.workflowId ~ " #" ~ run.id()[0 .. 8];
+        auto label = _(run.displayName()) ~ " #" ~ run.id()[0 .. 8];
         bool open = renderStateTree(label, snapshot.state.to!string, "run", ImGuiTreeNodeFlags.DefaultOpen);
         igSameLine();
         igBeginDisabled(worker !is null);
         if (incButtonColored("\ue037", ImVec2(24, 24))) startRun(run);
         igEndDisabled();
         if (open) {
+            renderSessionConfiguration(run);
+            renderSessionOutput(run);
             foreach (step; run.orderedSteps()) renderTask(run, step);
             igTreePop();
         }
@@ -429,12 +532,13 @@ public:
         startRun(run,stepId); return run.id();
     }
 
-    string executeImportedModel(JSONValue options) {
+    string executeImportedModel(JSONValue options, JSONValue context) {
         finishWorker();
         import std.exception : enforce;
         enforce(worker is null,"An AutoRig workflow is already running");
-        auto run = workflowManager().create("deterministic-rig","model-to-rig");
+        auto run = workflowManager().create("anime-front-view-rig","model-to-rig");
         run.setInput("options",AutoRigValue.jsonValue(options));
+        run.setContext(context);
         runs ~= run; startRun(run); return run.id();
     }
 

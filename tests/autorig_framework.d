@@ -8,7 +8,10 @@ import std.file : exists, readText;
 import std.json : JSONValue, parseJSON;
 import std.path : buildPath;
 
-private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRigOutputViewer {
+private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRigOutputViewer,
+    IAutoRigSessionEditor, IAutoRigSessionViewer {
+    bool sawSessionEditor;
+    bool sawSessionViewer;
     int prepareCalls;
     int finishCalls;
     int editorCalls;
@@ -17,6 +20,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
     bool cyclic;
     bool invalidWorkflow;
     bool cancelPrepare;
+    bool checkContext;
     AutoRigSession cancelSession;
     string lastUITaskId;
     string lastUIInstanceId;
@@ -25,6 +29,23 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
 
     override string procId() { return "test-rig"; }
     override string displayName() { return "Test rig"; }
+
+    override void configureSession(string workflowId, IAutoRigSessionEditContext context) {
+        assert(workflowId == "prepare-only" && context.workflowId() == workflowId);
+        assert(context.runId().length && context.canEdit());
+        assert(context.hasInput("source") && context.input("source").json.integer == 4);
+        context.setContextValue("ui", AutoRigValue.jsonValue(JSONValue(7)));
+        sawSessionEditor = true;
+    }
+
+    override void viewSession(string workflowId, IAutoRigSessionViewContext context) {
+        assert(workflowId == "prepare-only" && context.workflowId() == workflowId);
+        assert(context.contextValue("ui").json.integer == 7);
+        assert(context.outputPorts().length == 1 && context.hasOutput("data"));
+        assert(context.output("data").json.integer == 5);
+        assert(exists(context.outputArtifact("data").storagePath));
+        sawSessionViewer = true;
+    }
 
     override AutoRigWorkflowSpec[] workflows() {
         AutoRigWorkflowSpec cross;
@@ -113,6 +134,21 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
         Fiber.yield();
         context.runOnMainThread({ ++editorCalls; });
         if (taskId == "prepare") {
+            if (checkContext) {
+                assert(context.contextValue("artifact").text == "reference.json");
+                auto metadata = context.contextValue("metadata").json;
+                assert(metadata["label"].str == "original");
+                metadata["label"] = JSONValue("task edit");
+                assert(context.contextValue("metadata").json["label"].str == "original");
+                auto bytes = context.contextValue("bytes").readBlob();
+                assert(bytes == [cast(ubyte)1, 2]);
+                bytes[0] = 9;
+                assert(context.contextValue("bytes").readBlob()[0] == 1);
+                bool rejected;
+                try cancelSession.setContextValue("artifact", AutoRigValue.path("changed"));
+                catch (Exception error) rejected = true;
+                assert(rejected);
+            }
             ++prepareCalls;
             auto source = context.input("source").json.integer;
             context.previewJson("progress", JSONValue(source));
@@ -229,7 +265,61 @@ private class OtherRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRi
     }
 }
 
-void main() {
+private void testSessionContext() {
+    auto processor = new TestRigProcessor();
+    processor.checkContext = true;
+    auto manager = new AutoRigSessionManager(buildPath("out", "autorig-session-context-runs"));
+    manager.registerProcessor(processor);
+    manager.registerProcessorAlias("previous-test-rig", "test-rig");
+    assert(manager.processor("previous-test-rig") is processor);
+    assert(manager.listProcessors().length == 1);
+    auto workflows = new AutoRigWorkflowManager(manager);
+    auto run = workflows.create("test-rig", "prepare-only");
+    processor.cancelSession = run.session();
+    run.setInput("source", AutoRigValue.jsonValue(JSONValue(4)));
+    auto source = run.input("source");
+    assert(source.json.integer == 4 && run.inputPorts().length == 1);
+    auto metadata = JSONValue(["label": JSONValue("original")]);
+    run.setContextValue("metadata", AutoRigValue.jsonValue(metadata));
+    metadata["label"] = JSONValue("caller edit");
+    run.setContextValue("bytes", AutoRigValue.blob([cast(ubyte)1, 2]));
+    run.setContextValue("artifact", AutoRigValue.path("reference.json"));
+    assert(run.renderInputUI() && processor.sawSessionEditor);
+    auto worker = new Thread({ run.execute(); });
+    worker.start(); worker.join();
+    assert(run.output("data").json.integer == 5);
+    assert(run.renderOutputUI() && processor.sawSessionViewer);
+    bool rejectedWorkerUI;
+    auto uiWorker = new Thread({
+        try run.renderInputUI();
+        catch (Exception error) rejectedWorkerUI = true;
+    });
+    uiWorker.start(); uiWorker.join();
+    assert(rejectedWorkerUI);
+    auto id = run.id();
+    workflows.close(id);
+    auto restored = workflows.reopen(id);
+    processor.cancelSession = restored.session();
+    assert(restored.input("source").json.integer == 4);
+    assert(restored.session().contextValue("bytes").readBlob() == [cast(ubyte)1, 2]);
+    assert(restored.session().contextValue("metadata").json["label"].str == "original");
+    auto calls = processor.prepareCalls;
+    restored.execute();
+    assert(processor.prepareCalls == calls);
+    restored.setContextValue("artifact", AutoRigValue.path("reference.json"));
+    assert(restored.session().task(restored.stepTaskId("prepare")).state == AutoRigTaskState.Stale);
+    workflows.close(id);
+    restored = workflows.reopen(id);
+    processor.cancelSession = restored.session();
+    assert(restored.session().task(restored.stepTaskId("prepare")).state == AutoRigTaskState.Stale);
+    restored.execute();
+    assert(processor.prepareCalls == calls + 1);
+    import std.stdio : writeln;
+    writeln("AutoRig session context checks passed");
+}
+
+void main(string[] args) {
+    if (args.length > 1 && args[1] == "--context-only") { testSessionContext(); return; }
     auto threadedProcessor = new TestRigProcessor();
     auto threadedManager = new AutoRigSessionManager(buildPath("out", "autorig-tests"));
     threadedManager.registerProcessor(threadedProcessor);

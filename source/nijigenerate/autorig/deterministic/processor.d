@@ -47,7 +47,7 @@ private JSONValue pointsJson(RigPoint[] value) {
 }
 
 /** Deterministic rig computation tasks; each port is an inspectable artifact. */
-class DeterministicRigProcessor : AutoRigProcessor {
+class AnimeFrontViewRigProcessor : AutoRigProcessor {
     private JSONValue delegate(JSONValue, JSONValue, AutoRigTaskContext) applyProjection;
     private RigNativeStage nativeStage;
 
@@ -56,20 +56,20 @@ class DeterministicRigProcessor : AutoRigProcessor {
         this.applyProjection = applyProjection;
         this.nativeStage = nativeStage;
     }
-    override string procId() { return "deterministic-rig"; }
-    override string displayName() { return "Deterministic Rig"; }
+    override string procId() { return "anime-front-view-rig"; }
+    override string displayName() { return ngAutoRigMessage("Anime Front View Rig"); }
 
     override AutoRigTaskSpec[] tasks() {
         AutoRigTaskSpec[] result;
-        foreach (id, label; ["preserve-face-orientation": "Preserve face orientation",
-            "fit-grid-depth": "Fit grid depth", "solve-scaffold": "Solve anatomical scaffold",
-            "sample-anatomical-depth": "Sample anatomical depth", "evaluate-template": "Evaluate surface template"]) {
+        foreach (id, label; ["preserve-face-orientation": ngAutoRigMessage("Preserve face orientation"),
+            "fit-grid-depth": ngAutoRigMessage("Fit grid depth"), "solve-scaffold": ngAutoRigMessage("Solve anatomical scaffold"),
+            "sample-anatomical-depth": ngAutoRigMessage("Sample anatomical depth"), "evaluate-template": ngAutoRigMessage("Evaluate surface template")]) {
             result ~= AutoRigTaskSpec(id, label, null,
                 [AutoRigPortSpec("request", AutoRigValueKind.Json)],
                 [AutoRigPortSpec("result", AutoRigValueKind.Json)], null);
         }
         if (applyProjection !is null)
-            result ~= AutoRigTaskSpec("apply-face-projection", "Apply face projection", null,
+            result ~= AutoRigTaskSpec("apply-face-projection", ngAutoRigMessage("Apply face projection"), null,
                 [AutoRigPortSpec("projection", AutoRigValueKind.Json), AutoRigPortSpec("target", AutoRigValueKind.Json)],
                 [AutoRigPortSpec("result", AutoRigValueKind.Json)], null);
         if (nativeStage !is null) result ~= ngRigPipelineTasks();

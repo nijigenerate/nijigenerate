@@ -14,6 +14,9 @@ import std.uuid : randomUUID;
 /** Values exchanged between tasks. FileName is a name, while Path identifies a resource. */
 enum AutoRigValueKind { FileName, Path, Json, Blob }
 
+/** Marks message IDs for gettext extraction without localizing worker data. */
+string ngAutoRigMessage(string message) { return message; }
+
 struct AutoRigValue {
     AutoRigValueKind kind;
     string text;
@@ -200,6 +203,35 @@ interface IAutoRigOutputViewer {
     void viewOutput(string taskId, IAutoRigOutputContext context);
 }
 
+/** Read-only session UI contract; values are returned as owned copies. */
+interface IAutoRigSessionViewContext {
+    string runId();
+    string workflowId();
+    AutoRigPortSpec[] inputPorts();
+    bool hasInput(string portId);
+    AutoRigValue input(string portId);
+    string[] contextNames();
+    AutoRigValue contextValue(string name);
+    AutoRigPortSpec[] outputPorts();
+    bool hasOutput(string portId);
+    AutoRigValue output(string portId);
+    AutoRigArtifact outputArtifact(string portId);
+}
+
+interface IAutoRigSessionEditContext : IAutoRigSessionViewContext {
+    bool canEdit();
+    void setInput(string portId, AutoRigValue value);
+    void setContextValue(string name, AutoRigValue value);
+}
+
+interface IAutoRigSessionEditor {
+    void configureSession(string workflowId, IAutoRigSessionEditContext context);
+}
+
+interface IAutoRigSessionViewer {
+    void viewSession(string workflowId, IAutoRigSessionViewContext context);
+}
+
 /** Processor implementations share D code and expose each program as a task function. */
 abstract class AutoRigProcessor {
     abstract string procId();
@@ -207,6 +239,20 @@ abstract class AutoRigProcessor {
     abstract AutoRigTaskSpec[] tasks();
     AutoRigWorkflowSpec[] workflows() { return null; }
     abstract void executeTask(string taskId, AutoRigTaskContext context);
+
+    bool renderSessionInputUI(string workflowId, IAutoRigSessionEditContext context) {
+        auto ui = cast(IAutoRigSessionEditor)this;
+        if (ui is null) return false;
+        ui.configureSession(workflowId, context);
+        return true;
+    }
+
+    bool renderSessionOutputUI(string workflowId, IAutoRigSessionViewContext context) {
+        auto ui = cast(IAutoRigSessionViewer)this;
+        if (ui is null) return false;
+        ui.viewSession(workflowId, context);
+        return true;
+    }
 
     bool renderInputUI(string taskId, IAutoRigInputContext context) {
         auto ui = cast(IAutoRigInputEditor)this;
@@ -237,6 +283,7 @@ private:
     void delegate(AutoRigArtifact) onPreview;
     AutoRigEditorDispatcher editorDispatcher;
     string reportedFailure;
+    AutoRigValue[string] sessionValues;
 
     this(AutoRigTaskSpec spec, string directory, AutoRigValue[string] inputs,
         bool delegate() canceled, void delegate(AutoRigArtifact) onPreview,
@@ -266,6 +313,15 @@ private:
     }
 
 public:
+    /** Named session data and artifact references, owned by this task attempt. */
+    AutoRigValue contextValue(string name) {
+        auto value = name in sessionValues;
+        enforce(value !is null, "Missing AutoRig session context: " ~ name);
+        return copyValue(*value);
+    }
+
+    string[] contextNames() { return sessionValues.keys; }
+
     AutoRigValue input(string portId) {
         auto found = portId in inputs;
         enforce(found !is null, "Missing AutoRig input: " ~ portId);
@@ -396,6 +452,7 @@ private:
     AutoRigEditorDispatcher editorDispatcher;
     shared bool cancelRequested;
     bool busy;
+    AutoRigValue[string] sessionValues;
 
     this(AutoRigProcessor processor, string id, string directory,
         AutoRigTaskActionBoundary actionBoundary, AutoRigEditorDispatcher editorDispatcher) {
@@ -525,6 +582,8 @@ private:
                     snapshots[taskId] = current;
                 }
             }, editorDispatcher);
+        synchronized (this) foreach (name, value; sessionValues)
+            context.sessionValues[name] = copyValue(value);
         try {
             void executeInFiber() {
                 auto fiber = new Fiber({ processor.executeTask(taskId, context); },
@@ -648,6 +707,40 @@ public:
     string processorId() { return processor.procId(); }
     bool isBusy() { synchronized (this) return busy; }
     bool isCanceled() { return atomicLoad(cancelRequested); }
+
+    void setContextValue(string name, AutoRigValue value) {
+        synchronized (this) {
+            enforce(!busy, "Cannot change AutoRig context during execution");
+            enforce(name.length > 0, "AutoRig context name is empty");
+            sessionValues[name] = copyValue(value);
+            foreach (taskId, ref snapshot; snapshots) {
+                if (snapshot.state == AutoRigTaskState.Succeeded) snapshot.state = AutoRigTaskState.Stale;
+            }
+            committedOutputs = null;
+        }
+    }
+
+    AutoRigValue contextValue(string name) {
+        synchronized (this) {
+            auto value = name in sessionValues;
+            enforce(value !is null, "Missing AutoRig session context: " ~ name);
+            return copyValue(*value);
+        }
+    }
+
+    string[] contextNames() { synchronized (this) return sessionValues.keys; }
+
+    void invalidateTask(string taskId) {
+        synchronized (this) {
+            enforce(!busy, "Cannot invalidate AutoRig tasks during execution");
+            enforce((taskId in specs) !is null, "Unknown AutoRig task");
+            invalidateDependents(taskId);
+            committedOutputs.remove(taskId);
+            auto snapshot = snapshots[taskId];
+            snapshot.state = AutoRigTaskState.Stale;
+            snapshots[taskId] = snapshot;
+        }
+    }
 
     void setInput(string taskId, string portId, AutoRigValue value) {
         synchronized (this) {
@@ -871,6 +964,7 @@ class AutoRigSessionManager {
 private:
     string root;
     AutoRigProcessor[string] processors;
+    string[string] processorAliases;
     AutoRigSession[string] sessions;
     AutoRigTaskActionBoundary actionBoundary;
     AutoRigEditorDispatcher editorDispatcher;
@@ -885,6 +979,13 @@ public:
         enforce(processor !is null && safeId(processor.procId()), "Invalid AutoRig processor");
         enforce((processor.procId() in processors) is null, "Duplicate AutoRig processor");
         processors[processor.procId()] = processor;
+    }
+
+    void registerProcessorAlias(string previousId, string currentId) {
+        enforce(safeId(previousId) && (previousId in processors) is null &&
+            (previousId in processorAliases) is null, "Invalid or duplicate AutoRig processor alias");
+        enforce((currentId in processors) !is null, "Unknown AutoRig processor alias target");
+        processorAliases[previousId] = currentId;
     }
 
     void setTaskActionBoundary(AutoRigTaskActionBoundary boundary) {
@@ -926,6 +1027,7 @@ public:
     }
 
     AutoRigProcessor processor(string processorId) {
+        if (auto currentId = processorId in processorAliases) processorId = *currentId;
         auto found = processorId in processors;
         enforce(found !is null, "Unknown AutoRig processor");
         return *found;

@@ -15,11 +15,11 @@ import nijigenerate.widgets.dialog;
 import nijigenerate.utils.repair;
 import std.json : JSONValue;
 
-private __gshared string delegate(JSONValue) autoRigExecute;
+private __gshared string delegate(JSONValue, JSONValue) autoRigExecute;
 private __gshared JSONValue delegate(string) autoRigStatus;
 private __gshared string delegate(string,string) autoRigResume;
 
-void ngSetAutoRigCommandHandlers(string delegate(JSONValue) execute, JSONValue delegate(string) status,
+void ngSetAutoRigCommandHandlers(string delegate(JSONValue, JSONValue) execute, JSONValue delegate(string) status,
     string delegate(string,string) resume) {
     autoRigExecute = execute; autoRigStatus = status; autoRigResume = resume;
 }
@@ -177,13 +177,17 @@ class AnimEditModeCommand : ExCommand!() {
 }
 
 @EffectStructuralEdit
-class ExecuteAutoRigCommand : ExCommand!(TW!(string,"options","AutoRig options JSON; defaults to an empty object.")) {
-    this(string options = "{}") { super(_("Execute AutoRig"),_("Run AutoRig on the imported model."),options); }
+class ExecuteAutoRigCommand : ExCommand!(TW!(string,"options","AutoRig options JSON; defaults to an empty object."),
+    TW!(string,"context","Named session values: {name: {kind: Path|Json|Blob|FileName, value: ...}}.")) {
+    this(string options = "{}", string context = "{}") {
+        super(_("Execute AutoRig"),_("Run AutoRig on the imported model."),options,context);
+    }
     override CommandResult run(Context ctx) {
         if (!ctx.hasPuppet || ctx.puppet is null) return CommandResult(false,"No imported model is open");
         import std.json : parseJSON, JSONValue;
         if (autoRigExecute is null) return CommandResult(false,"AutoRig panel is unavailable");
-        auto id = autoRigExecute(parseJSON(options.length ? options : "{}"));
+        auto id = autoRigExecute(parseJSON(options.length ? options : "{}"),
+            parseJSON(context.length ? context : "{}"));
         return new ExCommandResult!JSONValue(true,JSONValue(["run_id":JSONValue(id)]));
     }
 }

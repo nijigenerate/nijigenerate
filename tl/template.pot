@@ -6394,3 +6394,260 @@ msgstr ""
 #: source/nijigenerate/windows/psddepthmap.d:3464
 msgid "PSD Depth Map Import"
 msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:141
+msgid "No workflows registered"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:175
+msgid "Add workflow session"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:194
+msgid "File name"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:195
+msgid "File path"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:196
+msgid "JSON"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:197
+msgid "Binary data"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:247
+msgid "Workflow arguments"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:255
+msgid "Session context / artifacts"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:262
+#, c-format
+msgid "%s bytes"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:274
+msgid "Value / artifact path"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:275
+msgid ""
+"Path references an artifact; Blob imports file contents; Json stores "
+"structured data."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:276
+msgid "Add context value"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:290
+msgid "Workflow output"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:295
+msgid "Waiting for output"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:310
+msgid "Waiting for dependency"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:311
+#: source/nijigenerate/panels/autorig.d:344
+msgid "JSON artifact ready"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:345
+msgid "Binary artifact"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:350
+msgid "Preview: "
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:350
+msgid "File: "
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:358
+msgid "Observe the model first to configure material roles."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:385
+msgid ""
+"Materials are classified automatically from names, hierarchy, clipping and "
+"alpha support. These overrides are optional. Static keeps the material "
+"unrigged."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:386
+msgid "Show unresolved only"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:393
+#: source/nijigenerate/panels/autorig.d:396
+msgid "Choose role"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:405
+msgid "Apply material roles"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:430
+msgid "Input"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:457
+msgid "Running"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:461
+msgid "Completed"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:465
+msgid "Failed"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:469
+msgid "Canceled"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:473
+msgid "Needs rerun"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:477
+msgid "Pending"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:560
+msgid "AutoRig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:60
+msgid "Anime Front View Rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:64
+msgid "Preserve face orientation"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:65
+msgid "Fit grid depth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:65
+msgid "Solve anatomical scaffold"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:66
+msgid "Sample anatomical depth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:66
+msgid "Evaluate surface template"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:72
+msgid "Apply face projection"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:14
+msgid "Observe imported model"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:16
+msgid "Derive evidence and compile rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:19
+msgid "Prepare Part meshes"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:19
+msgid "Build anatomical rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:20
+msgid "Prepare source groups and facial composites"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:21
+msgid "Mesh eye and mouth mechanism composites"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:22
+msgid "Measure proximal shoulder contours"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:23
+msgid "Connect matching native shoulder meshes"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:24
+msgid "Register source texture placement"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:25
+msgid "Validate stored and effective depth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:26
+msgid "Apply fixed-foot and near-cheek corrections"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:27
+msgid "Bake face and body angles"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:27
+msgid "Apply local rig controls"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:29
+msgid "Verify saved rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:31
+msgid "Compile shared source domains"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:41
+msgid "Imported model to anatomical rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:44
+msgid ""
+"Observe, derive, mesh, build, bake, control and verify the imported model."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:183
+msgid "Execute AutoRig"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:183
+msgid "Run AutoRig on the imported model."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:196
+msgid "AutoRig Status"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:196
+msgid "Read AutoRig workflow progress."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "Resume AutoRig"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "Resume a saved AutoRig workflow."
+msgstr ""

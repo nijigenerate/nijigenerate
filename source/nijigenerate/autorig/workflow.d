@@ -35,6 +35,7 @@ private string instanceId(string stepId, string taskId) {
 
 private class WorkflowProcessor : AutoRigProcessor {
     string providerId;
+    AutoRigProcessor provider;
     AutoRigWorkflowSpec workflow;
     AutoRigTaskSpec[] flattened;
     AutoRigProcessor[string] owners;
@@ -43,7 +44,8 @@ private class WorkflowProcessor : AutoRigProcessor {
     string[string][string] includedTasks;
 
     this(AutoRigSessionManager manager, string providerId, AutoRigWorkflowSpec workflow) {
-        this.providerId = providerId;
+        provider = manager.processor(providerId);
+        this.providerId = provider.procId();
         this.workflow = workflow;
         enforce(workflow.id.length && workflow.steps.length, "Empty AutoRig workflow");
         AutoRigWorkflowStep[string] steps;
@@ -188,7 +190,35 @@ private class WorkflowProcessor : AutoRigProcessor {
 }
 
 /** Workflow control is a view of one session, not a second run. */
-class AutoRigWorkflowRun {
+private JSONValue storedValue(AutoRigValue value) {
+    JSONValue[string] stored;
+    stored["kind"] = JSONValue(value.kind.to!string);
+    final switch (value.kind) {
+        case AutoRigValueKind.Json:
+            stored["value"] = value.text.length ? parseJSON(readText(value.text)) : parseJSON(value.json.toString());
+            break;
+        case AutoRigValueKind.Blob: stored["value"] = JSONValue(value.readBlob()); break;
+        case AutoRigValueKind.FileName:
+        case AutoRigValueKind.Path: stored["value"] = JSONValue(value.text); break;
+    }
+    return JSONValue(stored);
+}
+
+private AutoRigValue restoredValue(JSONValue stored) {
+    AutoRigValue value;
+    value.kind = stored["kind"].str.to!AutoRigValueKind;
+    final switch (value.kind) {
+        case AutoRigValueKind.Json: value.json = stored["value"]; break;
+        case AutoRigValueKind.Blob:
+            foreach (entry; stored["value"].array) value.bytes ~= entry.integer.to!ubyte;
+            break;
+        case AutoRigValueKind.FileName:
+        case AutoRigValueKind.Path: value.text = stored["value"].str; break;
+    }
+    return value;
+}
+
+class AutoRigWorkflowRun : IAutoRigSessionEditContext {
 private:
     AutoRigSession session_;
     WorkflowProcessor processor;
@@ -213,13 +243,72 @@ private:
             steps[step.id] = JSONValue(processor.selectedTaskIds[step.id]);
         record["steps"] = JSONValue(steps);
         record["inputs"] = JSONValue(suppliedInputs);
+        JSONValue[string] context;
+        foreach (name; session_.contextNames()) context[name] = storedValue(session_.contextValue(name));
+        record["context"] = JSONValue(context);
+        JSONValue[] staleTasks;
+        foreach (task; processor.flattened)
+            if (session_.task(task.id).state == AutoRigTaskState.Stale) staleTasks ~= JSONValue(task.id);
+        record["staleTasks"] = JSONValue(staleTasks);
         write(buildPath(directory(), "workflow.json"), JSONValue(record).toString());
     }
 
 public:
     string id() { return session_.id(); }
+    string runId() { return id(); }
+    string workflowId() { return processor.workflow.id; }
+    string displayName() { return processor.workflow.label.length ? processor.workflow.label : workflowId(); }
+    bool canEdit() { return !session_.isBusy(); }
+    string[] contextNames() { return session_.contextNames(); }
+    AutoRigValue contextValue(string name) { return session_.contextValue(name); }
+    AutoRigPortSpec[] outputPorts() { return processor.workflow.outputs.dup; }
+    bool hasOutput(string portId) {
+        foreach (binding; processor.workflow.outputBindings)
+            if (binding.workflowOutput == portId)
+                return session_.outputContext(stepTaskId(binding.sourceStep)).hasValue(binding.sourcePort);
+        return false;
+    }
+    AutoRigArtifact outputArtifact(string portId) {
+        foreach (binding; processor.workflow.outputBindings)
+            if (binding.workflowOutput == portId)
+                return session_.outputArtifact(stepTaskId(binding.sourceStep), binding.sourcePort);
+        throw new Exception("Unknown workflow output");
+    }
+    bool renderInputUI() {
+        requireUIThread();
+        return processor.provider.renderSessionInputUI(workflowId(), this);
+    }
+    bool renderOutputUI() {
+        requireUIThread();
+        return processor.provider.renderSessionOutputUI(workflowId(), this);
+    }
+
+private:
+    void requireUIThread() {
+        import core.thread : Thread;
+        enforce(Thread.getThis() !is null && Thread.getThis().isMainThread,
+            "AutoRig session UI must run on the main thread");
+    }
+
+public:
     string directory() { return session_.directory(); }
     AutoRigSession session() { return session_; }
+    AutoRigPortSpec[] inputPorts() { return processor.workflow.inputs.dup; }
+    bool hasInput(string portId) { return (portId in suppliedInputs) !is null; }
+    AutoRigValue input(string portId) {
+        auto value = portId in suppliedInputs;
+        enforce(value !is null, "Missing AutoRig workflow input: " ~ portId);
+        return restoredValue(parseJSON(value.toString()));
+    }
+    void setContextValue(string name, AutoRigValue value) {
+        session_.setContextValue(name, value);
+        writeRecord();
+    }
+    void setContext(JSONValue values) {
+        import std.json : JSONType;
+        enforce(values.type == JSONType.object, "AutoRig session context must be an object");
+        foreach (name, value; values.object) setContextValue(name, restoredValue(value));
+    }
     string stepTaskId(string stepId) {
         auto found = stepId in processor.selectedTaskIds;
         enforce(found !is null, "Unknown workflow step");
@@ -257,22 +346,7 @@ public:
             if (binding.workflowInput == portId)
                 session_.setInput(processor.targetId(binding.targetStep, binding.targetTask),
                     binding.targetPort, value);
-        JSONValue[string] stored;
-        stored["kind"] = JSONValue(value.kind.to!string);
-        final switch (value.kind) {
-            case AutoRigValueKind.Json:
-                stored["value"] = value.text.length ? parseJSON(readText(value.text)) :
-                    parseJSON(value.json.toString());
-                break;
-            case AutoRigValueKind.Blob:
-                stored["value"] = JSONValue(value.readBlob());
-                break;
-            case AutoRigValueKind.FileName:
-            case AutoRigValueKind.Path:
-                stored["value"] = JSONValue(value.text);
-                break;
-        }
-        suppliedInputs[portId] = JSONValue(stored);
+        suppliedInputs[portId] = storedValue(value);
         writeRecord();
     }
 
@@ -392,19 +466,14 @@ public:
         auto run = new AutoRigWorkflowRun(session,adapter);
         foreach (portId,value; spec.inputDefaults) run.setInput(portId,value);
         if (auto inputs = "inputs" in record.object) foreach (portId,stored; inputs.object) {
-            AutoRigValue value;
-            value.kind = stored["kind"].str.to!AutoRigValueKind;
-            final switch (value.kind) {
-                case AutoRigValueKind.Json: value.json = stored["value"]; break;
-                case AutoRigValueKind.Blob:
-                    foreach (entry; stored["value"].array) value.bytes ~= entry.integer.to!ubyte;
-                    break;
-                case AutoRigValueKind.FileName:
-                case AutoRigValueKind.Path: value.text = stored["value"].str; break;
-            }
-            run.setInput(portId,value);
+            run.setInput(portId,restoredValue(stored));
         }
-        session.restoreCommittedOutputs(); run.writeRecord(); runs[runId] = run; return run;
+        if (auto context = "context" in record.object) foreach (name, stored; context.object)
+            run.setContextValue(name, restoredValue(stored));
+        session.restoreCommittedOutputs();
+        if (auto staleTasks = "staleTasks" in record.object)
+            foreach (task; staleTasks.array) session.invalidateTask(task.str);
+        run.writeRecord(); runs[runId] = run; return run;
     }
 
     void close(string runId) {

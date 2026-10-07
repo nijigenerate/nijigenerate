@@ -262,7 +262,7 @@ void ngTestRigPipeline() {
         assert(isFinite(ngRigNumber(cheekObservation["maximum_local_residual"])));
 
     string[] stages;
-    auto processor = new DeterministicRigProcessor(null,
+    auto processor = new AnimeFrontViewRigProcessor(null,
         (string stage, JSONValue state, JSONValue plan, string model, AutoRigTaskContext context) {
             assert(Fiber.getThis() !is null);
             stages ~= stage;
@@ -314,7 +314,7 @@ void ngTestRigPipeline() {
 
     string[] attempts;
     bool failControls = true;
-    auto failingProcessor = new DeterministicRigProcessor(null,
+    auto failingProcessor = new AnimeFrontViewRigProcessor(null,
         (string stage, JSONValue state, JSONValue plan, string model, AutoRigTaskContext context) {
             attempts ~= stage;
             if (stage == "observe-model") state = ngTestModelObservation();

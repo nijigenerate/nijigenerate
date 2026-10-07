@@ -142,7 +142,7 @@ void main(string[] args) {
     catch (Exception) { rejected = true; }
     assert(rejected);
     bool applied;
-    auto processor = new DeterministicRigProcessor(
+    auto processor = new AnimeFrontViewRigProcessor(
         (JSONValue projection, JSONValue target, AutoRigTaskContext context) {
             assert(projection["correctedMinimumJacobian"].floating >= .0549);
             assert(target["nodeId"].integer == 123);
