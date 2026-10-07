@@ -165,3 +165,14 @@ Run the standalone solver and pipeline regression checks from the development
 PowerShell with `./build-aux/test-autorig.ps1`. The script compiles current sources
 and stops on compile, link or test failure. Owned JSON checkpoints preserve double
 values during reloading and do not change the process-wide numeric locale.
+# Imported source groups and resource updates
+
+AutoRig removes disabled or fully transparent source subtrees from its model during source-group
+preparation. This excludes PSD reference artwork without changing the PSD file; removal uses the
+command framework and participates in the stage's rollback. Visible eye and mouth groups retain
+DynamicComposite and native Grid AutoMesh. Other visible source groups use GridDeformer.
+
+Each committed stage emits a structural notification. The Resources panel rebinds its root listener
+when the model or root changes and refreshes every search-history entry, including the displayed one.
+`ToolCommand_GetAutoRigStatus.resource_view` compares that displayed cache to a fresh selector result
+without refreshing the cache, reporting missing, stale, and duplicate node entries.

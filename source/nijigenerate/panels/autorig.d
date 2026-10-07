@@ -621,6 +621,8 @@ public:
             memory["gc_free_bytes"] = JSONValue(cast(ulong)gc.freeSize);
             auto result = JSONValue(["run_id":JSONValue(runId),"state":JSONValue(snapshot.state.to!string),
                 "message":JSONValue(snapshot.message),"steps":JSONValue(steps),"memory":memory]);
+            import nijigenerate.panels.resource : ngResourcePanelReadback;
+            result["resource_view"] = ngResourcePanelReadback();
             auto compileTask = run.session().task(run.stepTaskId("compile"));
             JSONValue[] compileProfile;
             foreach (artifact; compileTask.artifacts)

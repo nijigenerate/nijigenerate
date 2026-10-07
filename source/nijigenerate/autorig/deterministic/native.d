@@ -13,7 +13,8 @@ import std.digest : toHexString;
 import nijigenerate.commands.base : Context, Command, CommandResult, ExCommandResult, CreateResult, ngRunCommand;
 import nijigenerate.commands.puppet.view : CaptureLiveScreenshotCommand;
 import nijigenerate.commands.viewport.control : FitViewportToModelCommand;
-import nijigenerate.commands.node.node : InsertNodeCommandT, AddNodeCommandT, ConvertToCommandT, MoveNodeCommand;
+import nijigenerate.commands.node.node : InsertNodeCommandT, AddNodeCommandT, ConvertToCommandT, MoveNodeCommand,
+    DeleteNodeCommand;
 import nijigenerate.commands.model.set_deform_binding : SetDeformBindingCommand;
 import nijigenerate.commands.binding.binding : RemoveBindingCommand;
 import nijigenerate.commands.parameter.param : Add2DParameterCommand;
@@ -33,7 +34,7 @@ import nijigenerate.project : incActivePuppet, ngRestorePuppetMemory;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.ext : ExPart, ExPuppet;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthRigRoot;
-import nijilive : Node, Puppet, Part, Composite, Deformable, inWriteINPPuppetMemory, inGetCamera;
+import nijilive : Node, Puppet, Part, Composite, Deformable, NotifyReason, inWriteINPPuppetMemory, inGetCamera;
 import nijigenerate.viewport.base : incViewportTargetPosition, incViewportTargetZoom, incViewportZoom;
 import nijilive.core.nodes.composite.projectable : Projectable;
 import nijilive.math : vec2, vec2u, vec3, vec4, mat4;
@@ -395,6 +396,36 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
 
 /** Prepare imported layer groups without retaining editor objects in the worker Fiber. */
 private JSONValue prepareSourceGroups(JSONValue state, AutoRigTaskContext task) {
+    bool[uint] excluded;
+    JSONValue[] removed;
+    task.runOnMainThread({
+        auto puppet = incActivePuppet();
+        Node[] hidden;
+        void collect(Node node) {
+            bool disabled = !node.getEnabled();
+            if (auto drawable = cast(Projectable)node) disabled = disabled || drawable.opacity == 0;
+            if (node !is puppet.root && disabled) { hidden ~= node; return; }
+            foreach (child; node.children) collect(child);
+        }
+        void record(Node node) {
+            excluded[node.uuid] = true;
+            foreach (child; node.children) record(child);
+        }
+        collect(puppet.root);
+        foreach (node; hidden) {
+            record(node);
+            removed ~= JSONValue(["uuid":JSONValue(node.uuid),"name":JSONValue(node.name)]);
+        }
+        if (hidden.length) command(new DeleteNodeCommand(true),editorContext(hidden));
+    });
+    JSONValue[] materials, groups;
+    foreach (material; state["materials"].array)
+        if ((uuid(material["uuid"]) in excluded) is null) materials ~= material;
+    foreach (group; state["groups"].array)
+        if ((uuid(group["uuid"]) in excluded) is null) groups ~= group;
+    state["materials"] = JSONValue(materials);
+    state["groups"] = JSONValue(groups);
+    state["excluded_hidden_sources"] = JSONValue(removed);
     auto sourceGroups = "groups" in state.object;
     JSONValue[] prepared;
     if (sourceGroups is null) return state;
@@ -415,8 +446,7 @@ private JSONValue prepareSourceGroups(JSONValue state, AutoRigTaskContext task) 
                 if (candidate == feature) eye = true;
             onlyEyes = onlyEyes && eye; onlyMouth = onlyMouth && feature.startsWith("mouth");
         }
-        if (!hasMaterial) continue;
-        string desired = onlyEyes || onlyMouth ? "DynamicComposite" : "GridDeformer";
+        string desired = hasMaterial && (onlyEyes || onlyMouth) ? "DynamicComposite" : "GridDeformer";
         task.runOnMainThread({
             auto puppet = incActivePuppet();
             auto node = puppet.find!Node(uuid(group["uuid"]));
@@ -433,10 +463,12 @@ private JSONValue prepareSourceGroups(JSONValue state, AutoRigTaskContext task) 
             uint[] after; foreach (child; node.children) after ~= child.uuid;
             enforce(children == after,"Source group conversion changed child order");
         });
-        prepared ~= JSONValue(["uuid":group["uuid"],"type":JSONValue(desired)]);
+        prepared ~= JSONValue(["uuid":group["uuid"],"type":JSONValue(desired),
+            "active":JSONValue(hasMaterial),
+            "feature":JSONValue(hasMaterial && onlyEyes ? "eye" : hasMaterial && onlyMouth ? "mouth" : "")]);
     }
     // Children are meshed first so a parent reads their completed geometry.
-    foreach_reverse (group; prepared) if (group["type"].str == "GridDeformer") {
+    foreach_reverse (group; prepared) if (group["active"].boolean && group["type"].str == "GridDeformer") {
         auto processor = new GridAutoMeshProcessor();
         processor.maskThreshold = 1; processor.margin = 0; processor.xSegments = 10; processor.ySegments = 10;
         processor.scaleX = null; processor.scaleY = null;
@@ -575,6 +607,11 @@ private JSONValue prepareFeatureComposites(JSONValue state, JSONValue program, A
             Node commonComposite;
             for (auto candidate = first.parent; candidate !is null && candidate !is puppet.root; candidate = candidate.parent) {
                 if (candidate.typeId != "DynamicComposite") continue;
+                bool featureGroup;
+                foreach (source; state["prepared_groups"].array)
+                    if (uuid(source["uuid"]) == candidate.uuid &&
+                        source["feature"].str == (name == "Mouth" ? "mouth" : "eye")) featureGroup = true;
+                if (!featureGroup) continue;
                 bool common = true;
                 foreach (id; ids) {
                     bool contained;
@@ -620,7 +657,8 @@ private JSONValue prepareFeatureComposites(JSONValue state, JSONValue program, A
             result = result.waitForCompletion(); enforce(result.succeeded,result.message);
             task.runOnMainThread({
                 auto composite = cast(Projectable)incActivePuppet().find!Node(id);
-                enforce(composite !is null && !composite.autoResizedMesh,"Feature composite did not retain its native generated mesh");
+                enforce(composite !is null && !composite.autoResizedMesh,
+                    "Feature composite did not retain its native generated mesh");
                 composites ~= JSONValue(["uuid":JSONValue(id),"name":JSONValue(name),"parts":JSONValue(ids),
                     "mapping":textureMapping(composite),"margin":JSONValue(margin),"segments":JSONValue(10)]);
             });
@@ -890,26 +928,23 @@ private JSONValue buildRig(JSONValue state, JSONValue program, AutoRigTaskContex
                         enforce(*previous == domain,"Imported group grid spans incompatible semantic surfaces");
                         continue;
                     }
-                    Point2[] depthField, samplePoints;
-                    foreach (depth; ngRigNumbers(target["depth"])) {
-                        Point2 point = [depth,0.]; depthField ~= point;
-                    }
+                    Point2[] samplePoints;
                     foreach (vertex; (cast(Deformable)node).vertices)
                         samplePoints ~= toRoot(node,vertex.x,vertex.y);
                     auto xs = ngRigNumbers(target["xs"]), ys = ngRigNumbers(target["ys"]);
                     double x0 = xs[0], y0 = ys[0], width = xs[$-1]-x0, height = ys[$-1]-y0;
                     enforce(width>0 && height>0,"Semantic surface has degenerate bounds");
-                    foreach (ref x; xs) x = (x-x0)/width;
-                    foreach (ref y; ys) y = (y-y0)/height;
                     foreach (ref point; samplePoints) {
                         auto frame = ngRigNumbers(target["parent_to_root"]);
-                        point[0] = (point[0]-frame[2]-x0)/width; point[1] = (point[1]-frame[5]-y0)/height;
+                        point[0] -= frame[2]; point[1] -= frame[5];
                     }
-                    auto sampled = ngRigSampleGrid(depthField,xs,ys,samplePoints);
+                    // Match reference_fields.sample: group margins retain the
+                    // nearest semantic boundary depth outside the carrier axes.
+                    auto sampled = ngRigSampleRegisteredDepth(xs,ys,ngRigNumbers(target["depth"]),samplePoints);
                     float[] depths;
                     foreach (value; sampled) {
-                        enforce(isFinite(value[0]),"Imported group surface depth is nonfinite");
-                        depths ~= cast(float)value[0];
+                        enforce(isFinite(value),"Imported group surface depth is nonfinite");
+                        depths ~= cast(float)value;
                     }
                     auto setDepth = new SetDepthsCommand(); setDepth.target = node; setDepth.depths = depths;
                     command(setDepth,editorContext());
@@ -1718,6 +1753,8 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
     settleDepthRefresh(task);
     ubyte[] snapshot;
     task.runOnMainThread({
+        auto puppet = incActivePuppet();
+        puppet.root.notifyChange(puppet.root,NotifyReason.StructureChanged);
         snapshot = inWriteINPPuppetMemory(incActivePuppet());
         state["editor_signature"] = JSONValue(editorSignature(incActivePuppet()));
         liveRigSignatures[task.sessionId()] = state["editor_signature"].str;

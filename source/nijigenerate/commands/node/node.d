@@ -169,7 +169,11 @@ class SetNodeNameCommand : ExCommand!(TW!(string[], "newNames", "New node names.
 
 @EffectDelete
 class DeleteNodeCommand : ExCommand!() {
-    this() { super(null, _("Delete Node")); }
+    private bool explicitNodes;
+    this(bool explicitNodes = false) {
+        super(null, _("Delete Node"));
+        this.explicitNodes = explicitNodes;
+    }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
@@ -177,7 +181,9 @@ class DeleteNodeCommand : ExCommand!() {
 
         auto n = ctx.nodes[0];
         auto selected = incSelectedNodes();
-        if (selected.length > 1) {
+        if (explicitNodes) {
+            incDeleteChildrenWithHistory(ctx.nodes);
+        } else if (selected.length > 1) {
             incDeleteChildrenWithHistory(selected);
             incSelectNode(null);
         } else {
