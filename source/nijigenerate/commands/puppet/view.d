@@ -546,9 +546,14 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
             if (!incCaptureLiveViewport(width, height, textureData, message))
                 return CommandResult(false, message);
             
-            Texture outTexture = new Texture(null, width, height);
-            outTexture.setData(textureData);
-            outTexture.save(file);
+            import imagefmt : write_image, IF_ERROR;
+            // Capture already returns straight RGBA. Encoding it directly
+            // avoids another alpha division and changing renderer texture state.
+            auto error = write_image(file, width, height, textureData, 4);
+            if (error) {
+                import std.conv : to;
+                return CommandResult(false, "PNG encode failed: " ~ IF_ERROR[error].to!string);
+            }
             return CommandResult(true);
         }
         return CommandResult(false, "Filename not set");

@@ -32,7 +32,8 @@ void ngMcpProcessQueue() {
     synchronized (gQueueMutex) {
         if (gQueue.length == 0) return;
         items = gQueue;
-        gQueue.length = 0;
+        // Detach the drained storage: an enqueue during dispatch must not overwrite it.
+        gQueue = null;
     }
 
     foreach (item; items) {

@@ -1,0 +1,405 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "arm",
+  "version": "1.0.0",
+  "family": "articulated_sweep",
+  "label": "肩・肘・手首の関節掃引格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "root",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "肩socket"
+    },
+    {
+      "id": "joint",
+      "uv": [
+        0.5,
+        0.5
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "肘中心"
+    },
+    {
+      "id": "end",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "手首中心"
+    },
+    {
+      "id": "bend_side",
+      "uv": [
+        0.1,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "曲げ側を決める局所方向"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "shoulder",
+        "v": 0,
+        "landmark_roles": [
+          "root"
+        ]
+      },
+      {
+        "id": "upper_arm_max",
+        "v": 0.2,
+        "landmark_roles": []
+      },
+      {
+        "id": "joint_before",
+        "v": 0.4,
+        "landmark_roles": []
+      },
+      {
+        "id": "joint_center",
+        "v": 0.5,
+        "landmark_roles": [
+          "joint"
+        ]
+      },
+      {
+        "id": "joint_after",
+        "v": 0.6,
+        "landmark_roles": []
+      },
+      {
+        "id": "forearm_max",
+        "v": 0.76,
+        "landmark_roles": []
+      },
+      {
+        "id": "wrist",
+        "v": 1,
+        "landmark_roles": [
+          "end"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "swept_surface",
+        "depth": "limb_depth",
+        "depth_profile": [
+          [
+            0,
+            0.9
+          ],
+          [
+            0.2,
+            1
+          ],
+          [
+            0.4,
+            0.7
+          ],
+          [
+            0.5,
+            0.65
+          ],
+          [
+            0.6,
+            0.72
+          ],
+          [
+            0.76,
+            0.85
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "radius_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "exponent": 0.5,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.5
+        ],
+        "radius": [
+          0.3,
+          0.17
+        ],
+        "height": "joint_relief",
+        "rotation_degrees": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "limb_depth",
+      "default": 0.24,
+      "min": 0.03,
+      "max": 0.65,
+      "unit": "bounds_width",
+      "meaning": "断面の奥行き"
+    },
+    {
+      "id": "joint_relief",
+      "default": 0.012,
+      "min": -0.03,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "関節帯の局所的な厚み"
+    },
+    {
+      "id": "joint_outline",
+      "default": 0.02,
+      "min": 0,
+      "max": 0.12,
+      "unit": "bounds_width",
+      "meaning": "関節帯の回転後輪郭保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "root",
+      "region": {
+        "u": [
+          0.15,
+          0.85
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "shoulder_socket",
+      "mode": "joint",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "end",
+      "region": {
+        "u": [
+          0.2,
+          0.8
+        ],
+        "v": [
+          1,
+          1
+        ]
+      },
+      "host_role": "hand_wrist",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "two_bone_chain",
+      "kind": "joint_chain",
+      "inputs": [
+        "root_rotation",
+        "joint_flexion",
+        "twist",
+        "end_target"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.1,
+        0.5
+      ],
+      "radius": [
+        0.3,
+        0.23
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "joint_outline",
+      "driver": {
+        "axis": "pitch",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.9,
+        0.5
+      ],
+      "radius": [
+        0.3,
+        0.23
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "joint_outline",
+      "driver": {
+        "axis": "pitch",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0",
+        "v1"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "root",
+      "joint",
+      "end"
+    ],
+    "optional": [
+      "bend_side"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "two_bone_IK",
+      "fixed_bone_length_constraint",
+      "joint_volume_preservation"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "本版の回転はchart単体。二節IK・関節長保持・局所曲げはplannedで、rig済み四肢だとは扱わない。",
+    "骨sideを素材L/R接尾辞から推定せず、既存骨と中立の対応で確定する。"
+  ]
+}

@@ -1,0 +1,355 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "shoulder",
+  "version": "1.0.0",
+  "family": "joint_transition",
+  "label": "胸郭から上腕へつなぐ肩patch",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "socket",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "胸郭側の肩socket"
+    },
+    {
+      "id": "cap_peak",
+      "uv": [
+        0.5,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "肩の膨らみ頂部"
+    },
+    {
+      "id": "arm_entry",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "上腕入口"
+    },
+    {
+      "id": "armpit",
+      "uv": [
+        0,
+        0.6
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "接合しない脇の自由境界候補"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "torso_socket",
+        "v": 0,
+        "landmark_roles": [
+          "socket"
+        ]
+      },
+      {
+        "id": "cap",
+        "v": 0.5,
+        "landmark_roles": [
+          "cap_peak"
+        ]
+      },
+      {
+        "id": "upper_arm",
+        "v": 1,
+        "landmark_roles": [
+          "arm_entry"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "swept_surface",
+        "depth": "shoulder_depth",
+        "depth_profile": [
+          [
+            0,
+            0.75
+          ],
+          [
+            0.5,
+            1.1
+          ],
+          [
+            1,
+            0.7
+          ]
+        ],
+        "center_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "radius_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "exponent": 0.5,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.45
+        ],
+        "radius": [
+          0.4,
+          0.45
+        ],
+        "height": "cap_relief",
+        "rotation_degrees": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "shoulder_depth",
+      "default": 0.2,
+      "min": 0.04,
+      "max": 0.6,
+      "unit": "bounds_width",
+      "meaning": "肩断面の奥行き"
+    },
+    {
+      "id": "cap_relief",
+      "default": 0.045,
+      "min": 0,
+      "max": 0.15,
+      "unit": "bounds_width",
+      "meaning": "肩capの丸み"
+    },
+    {
+      "id": "cap_keep",
+      "default": 0.025,
+      "min": 0,
+      "max": 0.12,
+      "unit": "bounds_width",
+      "meaning": "回転後の外側輪郭保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "torso",
+      "region": {
+        "u": [
+          0.15,
+          0.85
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "torso_socket",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "upper_arm",
+      "region": {
+        "u": [
+          0.15,
+          0.85
+        ],
+        "v": [
+          1,
+          1
+        ]
+      },
+      "host_role": "arm_root",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "armpit_free",
+      "region": {
+        "u": [
+          0,
+          0.15
+        ],
+        "v": [
+          0.25,
+          0.8
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "clavicle_arm",
+      "kind": "joint_chain",
+      "inputs": [
+        "clavicle",
+        "upper_arm"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.84,
+        0.5
+      ],
+      "radius": [
+        0.3,
+        0.48
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "cap_keep",
+      "driver": {
+        "axis": "pitch",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0",
+        "v1"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "socket",
+      "arm_entry"
+    ],
+    "optional": [
+      "cap_peak",
+      "armpit"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "脇の自由面を全体Weldingで拘束しない。関節軸駆動の補正はplanned、本previewのpitchはchart全体の回転入力。"
+  ]
+}

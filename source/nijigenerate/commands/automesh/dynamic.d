@@ -142,8 +142,10 @@ template ApplyAutoMeshPT(alias PT)
     @EffectApply
     class ApplyAutoMeshPT : ExCommand!()
     {
-        this() {
+        private AutoMeshProcessor explicitProcessor;
+        this(AutoMeshProcessor processor = null) {
             super(_("Apply AutoMesh (%s)").format(AMProcInfo!(PT).name), _("Apply AutoMesh to selected nodes"));
+            explicitProcessor = processor;
         }
         override bool runnable(Context ctx) {
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
@@ -153,9 +155,16 @@ template ApplyAutoMeshPT(alias PT)
             return false;
         }
         override CommandResult run(Context ctx) {
+            bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
+            if (!onMain) {
+                auto self = this;
+                return ngRunInMainThread!CommandResult({ return ngRunCommand(self, ctx); });
+            }
             if (!runnable(ctx)) return CommandResult(false, "No drawable nodes");
-            AutoMeshProcessor chosen = null;
-            foreach (processor; ngAutoMeshProcessors) {
+            AutoMeshProcessor chosen = explicitProcessor;
+            if (chosen !is null && cast(PT)chosen is null)
+                return CommandResult(false, "AutoMesh processor type mismatch");
+            if (chosen is null) foreach (processor; ngAutoMeshProcessors) {
                 if (cast(PT)processor) {
                     chosen = processor; 
                     break;
@@ -182,12 +191,6 @@ template ApplyAutoMeshPT(alias PT)
                 }
             }
             if (targets.length == 0) return CommandResult(false, "No deformable targets");
-
-            bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
-            if (!onMain) {
-                auto self = this;
-                return ngRunInMainThread!CommandResult({ return ngRunCommand(self, ctx); });
-            }
 
             // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.
             AlphaInput[uint] alphaInputs;

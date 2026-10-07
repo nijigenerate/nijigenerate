@@ -265,8 +265,13 @@ class SetDeformBindingCommand : ExCommand!(
     TW!(string,  "bindingName", "Binding name. Must be 'deform'."),
     TW!(float[], "values",      "Flattened deformation offsets: [dx0,dy0, dx1,dy1, ...]")
 ) {
-    this(string bname, float[] vals) {
+    private bool createZeroBinding;
+    private bool notifyDepthBone;
+
+    this(string bname, float[] vals, bool createZeroBinding = false, bool notifyDepthBone = true) {
         super(_("Set Deform Binding"), _("Set deform binding offsets at current keypoint."), bname, vals);
+        this.createZeroBinding = createZeroBinding;
+        this.notifyDepthBone = notifyDepthBone;
     }
 
     override bool runnable(Context ctx) {
@@ -313,7 +318,7 @@ class SetDeformBindingCommand : ExCommand!(
                 auto existing = ngFindBindingByTarget(param, n, bindingName);
                 if (existing !is null && cast(DeformationParameterBinding)existing is null)
                     continue;
-                if (existing is null && ngAllOffsetsZero(offsets))
+                if (existing is null && ngAllOffsetsZero(offsets) && !createZeroBinding)
                     continue;
                 editorNodes ~= n;
             }
@@ -385,7 +390,8 @@ class SetDeformBindingCommand : ExCommand!(
                 allCreated ~= nb;
             }
             if (deformBindings.length > 0) {
-                auto action = new ParameterChangeBindingsValueAction(_("Set Deform Binding"), param, cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y);
+                auto action = new ParameterChangeBindingsValueAction(_("Set Deform Binding"), param,
+                    cast(ParameterBinding[])deformBindings, cast(int)kp.x, cast(int)kp.y, notifyDepthBone);
                 foreach (i, b; deformBindings) {
                     b.update(kp, normalizedOffsets[i]);
                 }

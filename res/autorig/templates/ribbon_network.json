@@ -1,0 +1,344 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "ribbon_network",
+  "version": "1.0.0",
+  "family": "band_network",
+  "label": "結び目・ループ・自由帯のネットワーク用chart",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "root_a",
+      "uv": [
+        0.25,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "neutral_hint"
+      ],
+      "meaning": "帯aの取付点"
+    },
+    {
+      "id": "root_b",
+      "uv": [
+        0.75,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "neutral_hint"
+      ],
+      "meaning": "帯bの取付点"
+    },
+    {
+      "id": "loop_a",
+      "uv": [
+        0.25,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "帯aの中心線基準"
+    },
+    {
+      "id": "loop_b",
+      "uv": [
+        0.75,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "帯bの中心線基準"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "root",
+        "v": 0,
+        "landmark_roles": [
+          "root_a",
+          "root_b"
+        ]
+      },
+      {
+        "id": "upper_loop",
+        "v": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "loop_mid",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_loop",
+        "v": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "free_ends",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "edge",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "band_a_outer",
+        "u": 0.08,
+        "landmark_roles": []
+      },
+      {
+        "id": "band_a_inner",
+        "u": 0.44,
+        "landmark_roles": []
+      },
+      {
+        "id": "separator",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "band_b_inner",
+        "u": 0.56,
+        "landmark_roles": []
+      },
+      {
+        "id": "band_b_outer",
+        "u": 0.92,
+        "landmark_roles": []
+      },
+      {
+        "id": "edge_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "ribbon_network",
+        "ribbons": [
+          {
+            "support": [
+              0.08,
+              0,
+              0.44,
+              1
+            ],
+            "depth": "band_roundness",
+            "depth_profile": [
+              [
+                0,
+                0.5
+              ],
+              [
+                0.5,
+                1
+              ],
+              [
+                1,
+                0.3
+              ]
+            ],
+            "center_depth_profile": [
+              [
+                0,
+                0
+              ],
+              [
+                0.5,
+                "loop_lift"
+              ],
+              [
+                1,
+                0
+              ]
+            ]
+          },
+          {
+            "support": [
+              0.56,
+              0,
+              0.92,
+              1
+            ],
+            "depth": "band_roundness",
+            "depth_profile": [
+              [
+                0,
+                0.5
+              ],
+              [
+                0.5,
+                1
+              ],
+              [
+                1,
+                0.3
+              ]
+            ],
+            "center_depth_profile": [
+              [
+                0,
+                0
+              ],
+              [
+                0.5,
+                "loop_lift"
+              ],
+              [
+                1,
+                0
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "band_roundness",
+      "default": 0.012,
+      "min": 0,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "帯断面の浅い膨らみ"
+    },
+    {
+      "id": "loop_lift",
+      "default": 0.08,
+      "min": -0.2,
+      "max": 0.35,
+      "unit": "bounds_width",
+      "meaning": "帯の中間が前後へ浮く量"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "root_a",
+      "region": {
+        "u": [
+          0.08,
+          0.44
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "knot_or_support",
+      "mode": "fixed_band",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "root_b",
+      "region": {
+        "u": [
+          0.56,
+          0.92
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "knot_or_support",
+      "mode": "fixed_band",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "network_motion",
+      "kind": "network_motion",
+      "inputs": [
+        "root_frames",
+        "bend",
+        "twist",
+        "crossing_order"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [],
+  "hints": {
+    "required": [
+      "root_a",
+      "root_b"
+    ],
+    "optional": [
+      "loop_a",
+      "loop_b"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "knot_topology",
+      "loop_closure_constraints",
+      "crossing_order_solver",
+      "multi_chart_network"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "本実行データは交差しない2本の矩形帯chartのdepth評価。結び目、ループ閉鎖、交差networkを解決したという意味ではない。",
+    "同一uvで異なる深度を要求する帯の重複はkernelが拒否する。一般的なリボンには複数chart登録と交差情報が必要。"
+  ]
+}

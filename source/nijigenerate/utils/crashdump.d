@@ -71,9 +71,14 @@ version(Windows) {
     private string getDesktopDir() {
         import core.sys.windows.windows : HWND_DESKTOP, MAX_PATH;
         import core.sys.windows.shlobj : CSIDL_DESKTOP, SHGetSpecialFolderPath;
-        wstring desktopDir = new wstring(MAX_PATH);
-        SHGetSpecialFolderPath(HWND_DESKTOP, cast(wchar*)desktopDir.ptr, CSIDL_DESKTOP, FALSE);
-        return (cast(wstring)fromStringz!wchar(desktopDir.ptr)).toUTF8;
+        import std.file : exists;
+        wchar[MAX_PATH] desktopDir = 0;
+        if (SHGetSpecialFolderPath(HWND_DESKTOP, desktopDir.ptr, CSIDL_DESKTOP, FALSE)) {
+            auto path = fromStringz!wchar(desktopDir.ptr).toUTF8;
+            if (path.length && exists(path)) return path;
+        }
+        // An unavailable special folder must not prevent crash-handler initialization.
+        return environment.get("TEMP", environment.get("TMP", "."));
     }
 
     private void ShowMessageBox(string message, string title) {

@@ -1,0 +1,56 @@
+{
+  "schema_version": "rig-material-roles/1",
+  "version": "2.1.0",
+  "role_evidence": "name candidates; requires visual and spatial review before fitting",
+  "rules": [
+    {"id":"face", "pattern":"^(face|head)(?:_skin)?$", "owner":"head", "chart":"face", "usage":"anatomy"},
+    {"id":"face_feature", "pattern":"^(sclera|iris|pupil|eye|lash|eyelash|lid|brow|eyebrow|nose|mouth|lip)(_|$)", "owner":"head", "chart":"face", "usage":"feature"},
+    {"id":"neck", "pattern":"^neck$", "owner":"torso", "chart":"neck", "usage":"anatomy"},
+    {"id":"torso", "pattern":"^(body|torso|chest|chest_skin|pelvis)$", "owner":"torso", "chart":"body", "usage":"anatomy"},
+    {"id":"bodice", "pattern":"^(bodice|collar)(_|$)", "owner":"torso", "chart":"topwear_front", "usage":"covering"},
+    {"id":"waistwear", "pattern":"^corset(_|$)", "owner":"torso", "chart":"topwear_waist", "usage":"covering"},
+    {"id":"arm", "pattern":"^(arm|upperarm|forearm|arm_upper|arm_lower)(_|$)", "owner":"arm:{side}", "chart":"skin", "usage":"anatomy", "side":true},
+    {"id":"hand", "pattern":"^hand(_|$)", "owner":"arm:{side}", "chart":"hand", "usage":"terminal", "side":true},
+    {"id":"leg", "pattern":"^(leg|thigh|shin)(_|$)", "owner":"leg:{side}", "chart":"skin", "usage":"anatomy", "side":true},
+    {"id":"foot", "pattern":"^(foot|shoe)(_|$)", "owner":"leg:{side}", "chart":"foot", "usage":"terminal", "side":true},
+    {"id":"sleeve", "pattern":"^(sleeve|cuff)(_|$)", "owner":"arm:{side}", "chart":"sleeve", "usage":"garment", "side":true},
+    {"id":"thigh_accessory", "pattern":"^garter(_|$)", "owner":"leg:{side}", "chart":"attachment:thigh", "usage":"attachment", "side":true},
+    {"id":"ankle_accessory", "pattern":"^ankle(_|$)", "owner":"leg:{side}", "chart":"attachment:ankle", "usage":"attachment", "side":true},
+    {"id":"skirt", "pattern":"^skirt(?!_back)(_|$)", "owner":"torso", "chart":"skirt", "usage":"garment"},
+    {"id":"skirt_back", "pattern":"^(train|back_skirt|skirt_back)(_|$)", "owner":"torso", "chart":"skirt_back:{side}", "usage":"garment", "side":true},
+    {"id":"apron", "pattern":"^apron(_|$)", "owner":"torso", "chart":"apron", "usage":"garment"},
+    {"id":"shoulder", "pattern":"^shoulder(_|$)", "owner":"arm:{side}", "chart":"shoulder", "usage":"covering", "side":true},
+    {"id":"hair_back", "pattern":"^hair_back(_|$)", "owner":"head", "chart":"hair:back", "usage":"free_surface"},
+    {"id":"hair_front", "pattern":"^(bangs|hair_fringe|hair_front)(_|$)", "owner":"head", "chart":"hair:front", "usage":"free_surface"},
+    {"id":"hair_side", "pattern":"^(hair_side|hair_cheek)(_|$)", "owner":"head", "chart":"hair:{side}", "usage":"free_surface", "side":true},
+    {"id":"ear", "pattern":"^(ear|rabbit_ear|animal_ear)(_|$)", "owner":"head", "chart":"ear:{side}", "usage":"appendage", "side":true},
+    {"id":"headwear", "pattern":"^(headband|headwear|head_bow|head_tassel|cap)(_|$)", "owner":"head", "chart":"headwear", "usage":"attachment"},
+    {"id":"tail", "pattern":"^tail(_|$)", "owner":"torso", "chart":"tail", "usage":"appendage"},
+    {"id":"chest_accessory", "pattern":"^(neck|chest|body|torso)_(bow|flower|chain|tassel|ribbon)(_|$)", "owner":"torso", "chart":"attachment:chest", "usage":"attachment"},
+    {"id":"pelvis_accessory", "pattern":"^(waist|hip)_(bow|flower|chain|tassel|ribbon)(_|$)", "owner":"torso", "chart":"attachment:pelvis", "usage":"attachment"}
+  ],
+  "decorator_prefixes": ["shadow_", "shade_", "highlight_", "pattern_", "outline_"],
+  "receivers": [
+    {"pattern":"(^|_)face$", "owner":"head", "chart":"face"},
+    {"pattern":"(^|_)neck$", "owner":"torso", "chart":"neck"},
+    {"pattern":"(^|_)leg_(?P<side>l|r|left|right)$", "owner":"leg:{side}", "chart":"skin"},
+    {"pattern":"(^|_)train_(?P<side>l|r|left|right)$", "owner":"torso", "chart":"skirt_back:{side}"}
+  ],
+  "hanging_attachment_pattern":"(^|_)(tassel|ribbon|chain)(_|$)",
+  "facial_feature_patterns":{
+    "sclera":"(^|_)(sclera|eye_white)(_|$)",
+    "iris":"(^|_)(iris|pupil)(_|$)",
+    "upper":"(^|_)(lash_upper|upper_lash|upper_lid)(_|$)",
+    "lower":"(^|_)(lash_lower|lower_lash|lower_lid)(_|$)",
+    "corner":"(^|_)(eye_corner|canthus)(_|$)",
+    "fold":"(^|_)(lid_fold|eyelid_fold)(_|$)",
+    "tip":"(^|_)(lash_tip|eyelash_tip)(_|$)",
+    "nose":"(^|_)nose(_|$)",
+    "mouth":"(^|_)(mouth|lips)(_|$)"
+  },
+  "local_mechanisms": [
+    {"pattern":"^(sclera|iris|pupil|eye|lash|eyelash|lid)(_|$)", "kind":"eye", "side":true},
+    {"pattern":"^(mouth|lip)(_|$)", "kind":"mouth", "side":false},
+    {"pattern":"(^|_)(bow|chain|tassel|flower)(_|$)", "kind":"attachment_network", "side":false}
+  ]
+}

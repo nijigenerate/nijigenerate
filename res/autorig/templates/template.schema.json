@@ -1,0 +1,867 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/deterministic-rig/semantic-grid-template.schema.json",
+  "title": "Semantic grid template version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "family",
+    "label",
+    "frame",
+    "landmarks",
+    "guide_grid",
+    "geometry",
+    "tunables",
+    "attachment_slots",
+    "drivers",
+    "correction_rules",
+    "hints",
+    "validation",
+    "capabilities",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "semantic-grid-template/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "family": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "u",
+        "v",
+        "depth_units",
+        "angle_unit"
+      ],
+      "properties": {
+        "u": {
+          "type": "string"
+        },
+        "v": {
+          "type": "string"
+        },
+        "depth_units": {
+          "const": "bounds_width"
+        },
+        "angle_unit": {
+          "const": "degree"
+        }
+      }
+    },
+    "landmarks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/landmark"
+      }
+    },
+    "guide_grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rows",
+        "columns",
+        "patches"
+      ],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/row"
+          }
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/column"
+          }
+        },
+        "patches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "region",
+              "purpose",
+              "implementation"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "region": {
+                "$ref": "#/$defs/region"
+              },
+              "purpose": {
+                "type": "string"
+              },
+              "implementation": {
+                "enum": [
+                  "metadata_only"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "representation",
+        "depth_mode",
+        "operators"
+      ],
+      "properties": {
+        "representation": {
+          "const": "front_chart"
+        },
+        "depth_mode": {
+          "enum": [
+            "independent",
+            "residual",
+            "host_offset"
+          ]
+        },
+        "operators": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/operator"
+          }
+        }
+      }
+    },
+    "tunables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "default",
+          "min",
+          "max",
+          "unit",
+          "meaning"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "default": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "unit": {
+            "enum": [
+              "bounds_width",
+              "ratio",
+              "degree",
+              "cycles"
+            ]
+          },
+          "meaning": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "attachment_slots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "region",
+          "host_role",
+          "mode",
+          "implementation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "region": {
+            "$ref": "#/$defs/region"
+          },
+          "host_role": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "shared_seam",
+              "fixed_band",
+              "surface_follow",
+              "sliding_band",
+              "joint",
+              "free_edge"
+            ]
+          },
+          "implementation": {
+            "const": "metadata_only"
+          }
+        }
+      }
+    },
+    "drivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "inputs",
+          "implementation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "rigid_rotation",
+              "joint_chain",
+              "boundary_gap",
+              "bend_twist",
+              "cloth_contact",
+              "surface_follow",
+              "network_motion",
+              "rigid_contact"
+            ]
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "implementation": {
+            "enum": [
+              "implemented",
+              "planned"
+            ]
+          }
+        }
+      }
+    },
+    "correction_rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/correction"
+      }
+    },
+    "hints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "optional"
+      ],
+      "properties": {
+        "required": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "optional": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "neutral_tolerance_width",
+        "landmark_tolerance_width",
+        "minimum_signed_cell_area",
+        "max_depth_width",
+        "require_monotone_grid_axes",
+        "require_no_new_cell_inversion",
+        "require_resolved_hints_for_source_fit",
+        "forbid_hidden_surface_claim"
+      ],
+      "properties": {
+        "neutral_tolerance_width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "landmark_tolerance_width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minimum_signed_cell_area": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_depth_width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "require_monotone_grid_axes": {
+          "const": true
+        },
+        "require_no_new_cell_inversion": {
+          "const": true
+        },
+        "require_resolved_hints_for_source_fit": {
+          "const": true
+        },
+        "forbid_hidden_surface_claim": {
+          "const": true
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implemented",
+        "planned",
+        "required_runtime_inputs"
+      ],
+      "properties": {
+        "implemented": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "planned": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_runtime_inputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "number_or_parameter": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        }
+      ]
+    },
+    "vec2": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "number"
+      }
+    },
+    "uv": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "profile": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          {
+            "$ref": "#/$defs/number_or_parameter"
+          }
+        ],
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "u",
+        "v"
+      ],
+      "properties": {
+        "u": {
+          "$ref": "#/$defs/uv"
+        },
+        "v": {
+          "$ref": "#/$defs/uv"
+        }
+      }
+    },
+    "landmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "uv",
+        "required",
+        "candidate_sources",
+        "meaning"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "uv": {
+          "$ref": "#/$defs/uv"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "candidate_sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "alpha_extremum",
+              "alpha_contour",
+              "distance_field",
+              "centerline",
+              "existing_bone",
+              "existing_attachment",
+              "part_registration",
+              "neutral_hint"
+            ]
+          }
+        },
+        "meaning": {
+          "type": "string"
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "v",
+        "landmark_roles"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "v": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "landmark_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "u",
+        "landmark_roles"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "u": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "landmark_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "operator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "depth"
+          ],
+          "properties": {
+            "type": {
+              "const": "section_surface"
+            },
+            "depth": {
+              "$ref": "#/$defs/number_or_parameter"
+            },
+            "depth_profile": {
+              "$ref": "#/$defs/profile"
+            },
+            "center_u": {
+              "type": "number"
+            },
+            "radius_u": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "exponent": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "base": {
+              "$ref": "#/$defs/number_or_parameter"
+            },
+            "cross_section": {
+              "enum": [
+                "ellipse",
+                "angular"
+              ]
+            },
+            "theta_degrees": {
+              "$ref": "#/$defs/vec2"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "depth"
+          ],
+          "properties": {
+            "type": {
+              "const": "swept_surface"
+            },
+            "depth": {
+              "$ref": "#/$defs/number_or_parameter"
+            },
+            "depth_profile": {
+              "$ref": "#/$defs/profile"
+            },
+            "center_u_profile": {
+              "$ref": "#/$defs/profile"
+            },
+            "radius_u_profile": {
+              "$ref": "#/$defs/profile"
+            },
+            "center_depth_profile": {
+              "$ref": "#/$defs/profile"
+            },
+            "exponent": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "cross_section": {
+              "enum": [
+                "ellipse",
+                "flat"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "center",
+            "radius",
+            "height"
+          ],
+          "properties": {
+            "type": {
+              "const": "compact_relief"
+            },
+            "center": {
+              "$ref": "#/$defs/uv"
+            },
+            "radius": {
+              "$ref": "#/$defs/vec2"
+            },
+            "height": {
+              "$ref": "#/$defs/number_or_parameter"
+            },
+            "rotation_degrees": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "offset"
+          ],
+          "properties": {
+            "type": {
+              "const": "host_offset"
+            },
+            "offset": {
+              "$ref": "#/$defs/number_or_parameter"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "amplitude",
+            "axis"
+          ],
+          "properties": {
+            "type": {
+              "const": "bend"
+            },
+            "amplitude": {
+              "$ref": "#/$defs/number_or_parameter"
+            },
+            "axis": {
+              "enum": [
+                "u",
+                "v"
+              ]
+            },
+            "power": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "origin": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "amplitude",
+            "axis",
+            "frequency"
+          ],
+          "properties": {
+            "type": {
+              "const": "wave"
+            },
+            "amplitude": {
+              "$ref": "#/$defs/number_or_parameter"
+            },
+            "axis": {
+              "enum": [
+                "u",
+                "v"
+              ]
+            },
+            "frequency": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "phase": {
+              "type": "number"
+            },
+            "fade_axis": {
+              "enum": [
+                "u",
+                "v",
+                null
+              ]
+            },
+            "fade_power": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ribbons"
+          ],
+          "properties": {
+            "type": {
+              "const": "ribbon_network"
+            },
+            "ribbons": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "support",
+                  "depth"
+                ],
+                "properties": {
+                  "support": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "depth": {
+                    "$ref": "#/$defs/number_or_parameter"
+                  },
+                  "depth_profile": {
+                    "$ref": "#/$defs/profile"
+                  },
+                  "center_depth_profile": {
+                    "$ref": "#/$defs/profile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "center",
+        "radius",
+        "direction",
+        "amplitude",
+        "driver",
+        "pin_edges"
+      ],
+      "properties": {
+        "type": {
+          "const": "local"
+        },
+        "center": {
+          "$ref": "#/$defs/uv"
+        },
+        "radius": {
+          "$ref": "#/$defs/vec2"
+        },
+        "direction": {
+          "$ref": "#/$defs/vec2"
+        },
+        "amplitude": {
+          "$ref": "#/$defs/number_or_parameter"
+        },
+        "driver": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "axis",
+            "basis",
+            "scale"
+          ],
+          "properties": {
+            "axis": {
+              "enum": [
+                "yaw",
+                "pitch",
+                "roll"
+              ]
+            },
+            "basis": {
+              "enum": [
+                "linear",
+                "sin",
+                "sin2",
+                "positive_sin"
+              ]
+            },
+            "scale": {
+              "type": "number"
+            }
+          }
+        },
+        "pin_edges": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "u0",
+              "u1",
+              "v0",
+              "v1"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -528,6 +528,7 @@ private void _ngMcpStart(string host, ushort port) {
 
             auto toolDesc = v.description();
             auto cmdInst = v; // capture concrete instance for execution
+            auto commandKey = k;
             auto newBaseName = ngCommandIdFromKey(k);
             string[] baseNames = [newBaseName];
 
@@ -694,7 +695,7 @@ private void _ngMcpStart(string host, ushort port) {
                             // 2) Apply command-specific parameters (top-level)
                             alias K = typeof(k);
                             static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                                if (k == m) {{
+                                if (commandKey == m) {{
                                     enum _mName  = __traits(identifier, m);
                                     enum _typeName = _mName ~ "Command";
                                     static if (__traits(compiles, mixin(_typeName))) {
@@ -713,7 +714,7 @@ private void _ngMcpStart(string host, ushort port) {
                                 CommandResult concreteResult;
                                 bool concreteHandled = false;
                                 static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                                    if (k == m) {{
+                                    if (commandKey == m) {{
                                         enum _mName  = __traits(identifier, m);
                                         enum _typeName = _mName ~ "Command";
                                         static if (__traits(compiles, mixin(_typeName))) {
@@ -907,7 +908,11 @@ private void _ngMcpStart(string host, ushort port) {
     auto t = new Thread({
         installNativeCrashDumpThreadHandler();
         mcpLog("[MCP] server thread entering start() ...");
-        server.start();
+        try { server.start(); }
+        catch (Throwable error) {
+            import std.stdio : stderr;
+            stderr.writefln("MCP server failed: %s",error);
+        }
         mcpLog("[MCP] server thread exited start()");
     });
     gServerThread = t;

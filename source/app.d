@@ -16,6 +16,7 @@ import nijigenerate.core;
 import nijigenerate.core.settings;
 import nijigenerate.utils.crashdump;
 import nijigenerate.panels;
+import nijigenerate.panels.autorig : ngAutoRigStopAll;
 import nijigenerate.panels.resource;
 import nijigenerate.windows;
 import nijigenerate.widgets;
@@ -89,6 +90,7 @@ int main(string[] args)
         void stopBackgroundServices() {
             if (backgroundServicesStopped) return;
             backgroundServicesStopped = true;
+            ngAutoRigStopAll();
             version(HaveMCP) ngMcpStop();
             ngAcpStopAll();
         }
@@ -153,14 +155,22 @@ int main(string[] args)
                     stopBackgroundServices();
                     return 1;
                 }
-            } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
+            } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) {
+                // Opening may defer to the autosave dialog or fail. The viewport
+                // still needs a valid project while either case is resolved.
+                incNewProject();
+                incOpenProject(args[1]);
+            }
             else {
                 incNewProject();
 
                 // TODO: Replace with first-time welcome screen
                 incPushWindow(new WelcomeWindow());
             }
-        } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) incOpenProject(args[1]);
+        } else if (incSettingsGet!bool("hasDoneQuickSetup", false) && args.length > 1) {
+            incNewProject();
+            incOpenProject(args[1]);
+        }
         else {
             incNewProject();
 

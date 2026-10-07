@@ -1,0 +1,361 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "tube",
+  "version": "1.0.0",
+  "family": "curved_sweep",
+  "label": "中心線と先細りを持つ管・尾・毛束",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "root",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "管の根元"
+    },
+    {
+      "id": "mid",
+      "uv": [
+        0.5,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "中心線の中間基準"
+    },
+    {
+      "id": "tip",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "管の先端"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "root",
+        "v": 0,
+        "landmark_roles": [
+          "root"
+        ]
+      },
+      {
+        "id": "bend_a",
+        "v": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "mid",
+        "v": 0.5,
+        "landmark_roles": [
+          "mid"
+        ]
+      },
+      {
+        "id": "bend_b",
+        "v": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "tip",
+        "v": 1,
+        "landmark_roles": [
+          "tip"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "swept_surface",
+        "depth": "tube_depth",
+        "depth_profile": [
+          [
+            0,
+            1
+          ],
+          [
+            0.3,
+            0.9
+          ],
+          [
+            0.7,
+            0.65
+          ],
+          [
+            1,
+            0.05
+          ]
+        ],
+        "center_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "radius_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "exponent": 0.5,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "bend",
+        "amplitude": "tube_curve",
+        "axis": "v",
+        "power": 2,
+        "origin": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "tube_depth",
+      "default": 0.35,
+      "min": 0.01,
+      "max": 0.8,
+      "unit": "bounds_width",
+      "meaning": "管の奥行き半径"
+    },
+    {
+      "id": "tube_curve",
+      "default": 0.05,
+      "min": -0.4,
+      "max": 0.4,
+      "unit": "bounds_width",
+      "meaning": "中立中心線の前後への反り"
+    },
+    {
+      "id": "tube_width_keep",
+      "default": 0.015,
+      "min": 0,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "回転後の局所幅保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "root",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "support_joint",
+      "mode": "joint",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "tip",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          1,
+          1
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "curve_motion",
+      "kind": "bend_twist",
+      "inputs": [
+        "root_frame",
+        "bend",
+        "twist"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.12,
+        0.62
+      ],
+      "radius": [
+        0.27,
+        0.4
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "tube_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.88,
+        0.62
+      ],
+      "radius": [
+        0.27,
+        0.4
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "tube_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "root",
+      "tip"
+    ],
+    "optional": [
+      "mid"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "parallel_transport_frame",
+      "full_tube_surface",
+      "curve_collision"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "TPS fitによる中立中心線の曲がりを前面chartへ当て込む。3D曲線に断面を運ぶ全周tubeは未実装。"
+  ]
+}

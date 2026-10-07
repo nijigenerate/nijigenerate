@@ -77,8 +77,11 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
 class MoveNodeCommand : ExCommand!(
         TW!(Node, "newParent", "new parent node"), 
         TW!(ulong, "index", "index in new parent node")) {
-    this(Node newParent, ulong index) {
+    private bool explicitNodes;
+
+    this(Node newParent, ulong index, bool explicitNodes = false) {
         super(null, _("Move Node "), newParent, index);
+        this.explicitNodes = explicitNodes;
     }
 
     override
@@ -87,7 +90,7 @@ class MoveNodeCommand : ExCommand!(
         auto selectedNodes = incSelectedNodes();
         Node[] movingNodes = null;
         try {
-            if (ctx.nodes.length > 1) {
+            if (explicitNodes || ctx.nodes.length > 1) {
                 movingNodes = ctx.nodes;
             } else {
                 auto child = ctx.nodes[0];

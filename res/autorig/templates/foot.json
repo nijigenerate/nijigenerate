@@ -1,0 +1,383 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "foot",
+  "version": "1.0.0",
+  "family": "contact_surface",
+  "label": "踵・甲・前足部・爪先の格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "heel",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "踵"
+    },
+    {
+      "id": "ankle",
+      "uv": [
+        0.5,
+        0.23
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "足首投影位置"
+    },
+    {
+      "id": "toe",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "爪先方向"
+    },
+    {
+      "id": "inner_arch",
+      "uv": [
+        0.1,
+        0.45
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "土踏まず側"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "heel",
+        "v": 0,
+        "landmark_roles": [
+          "heel"
+        ]
+      },
+      {
+        "id": "ankle_projection",
+        "v": 0.23,
+        "landmark_roles": [
+          "ankle"
+        ]
+      },
+      {
+        "id": "arch",
+        "v": 0.45,
+        "landmark_roles": []
+      },
+      {
+        "id": "ball",
+        "v": 0.72,
+        "landmark_roles": []
+      },
+      {
+        "id": "toe",
+        "v": 1,
+        "landmark_roles": [
+          "toe"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "swept_surface",
+        "depth": "foot_depth",
+        "depth_profile": [
+          [
+            0,
+            0.75
+          ],
+          [
+            0.23,
+            1
+          ],
+          [
+            0.45,
+            0.9
+          ],
+          [
+            0.72,
+            0.65
+          ],
+          [
+            1,
+            0.25
+          ]
+        ],
+        "center_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "radius_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "exponent": 0.5,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.35
+        ],
+        "radius": [
+          0.36,
+          0.25
+        ],
+        "height": "instep_relief",
+        "rotation_degrees": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "foot_depth",
+      "default": 0.13,
+      "min": 0.01,
+      "max": 0.4,
+      "unit": "bounds_width",
+      "meaning": "足の基本厚み"
+    },
+    {
+      "id": "instep_relief",
+      "default": 0.045,
+      "min": 0,
+      "max": 0.18,
+      "unit": "bounds_width",
+      "meaning": "甲の高さ"
+    },
+    {
+      "id": "toe_width_keep",
+      "default": 0.015,
+      "min": 0,
+      "max": 0.08,
+      "unit": "bounds_width",
+      "meaning": "回転時の前足部幅保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "ankle",
+      "region": {
+        "u": [
+          0.3,
+          0.7
+        ],
+        "v": [
+          0.15,
+          0.3
+        ]
+      },
+      "host_role": "leg_end",
+      "mode": "joint",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "sole",
+      "region": {
+        "u": [
+          0.05,
+          0.95
+        ],
+        "v": [
+          0,
+          1
+        ]
+      },
+      "host_role": "ground",
+      "mode": "sliding_band",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "foot_contact",
+      "kind": "rigid_contact",
+      "inputs": [
+        "heel_contact",
+        "toe_contact",
+        "ankle_rotation"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.1,
+        0.82
+      ],
+      "radius": [
+        0.25,
+        0.28
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "toe_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.9,
+        0.82
+      ],
+      "radius": [
+        0.25,
+        0.28
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "toe_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "heel",
+      "ankle",
+      "toe"
+    ],
+    "optional": [
+      "inner_arch"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "sole_chart",
+      "ground_contact",
+      "heel_toe_pivot"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "足底、接地、踵/爪先pivotはplanned。上面chartのdepthと回転だけで接地を保証しない。"
+  ]
+}

@@ -1,0 +1,392 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "hanging_sheet",
+  "version": "1.0.0",
+  "family": "rooted_sheet",
+  "label": "根元弧から自由端へ延びる面・髪・トレーン",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "root_a",
+      "uv": [
+        0,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "付根弧の一端"
+    },
+    {
+      "id": "root_b",
+      "uv": [
+        1,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "付根弧の反対端"
+    },
+    {
+      "id": "tip",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "自由端方向"
+    },
+    {
+      "id": "bend_point",
+      "uv": [
+        0.5,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "曲率変化帯"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "root",
+        "v": 0,
+        "landmark_roles": [
+          "root_a",
+          "root_b"
+        ]
+      },
+      {
+        "id": "transition",
+        "v": 0.2,
+        "landmark_roles": []
+      },
+      {
+        "id": "bend_band",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower",
+        "v": 0.8,
+        "landmark_roles": []
+      },
+      {
+        "id": "free_end",
+        "v": 1,
+        "landmark_roles": [
+          "tip"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "swept_surface",
+        "depth": "sheet_roundness",
+        "depth_profile": [
+          [
+            0,
+            0.4
+          ],
+          [
+            0.25,
+            0.8
+          ],
+          [
+            0.6,
+            1
+          ],
+          [
+            1,
+            0.6
+          ]
+        ],
+        "center_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "radius_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "exponent": 0.5,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "bend",
+        "amplitude": "sheet_curve",
+        "axis": "v",
+        "power": 2,
+        "origin": 0
+      },
+      {
+        "type": "wave",
+        "amplitude": "sheet_fold",
+        "axis": "u",
+        "frequency": 2,
+        "phase": 0,
+        "fade_axis": "v",
+        "fade_power": 2
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "sheet_roundness",
+      "default": 0.07,
+      "min": 0,
+      "max": 0.3,
+      "unit": "bounds_width",
+      "meaning": "断面の丸み"
+    },
+    {
+      "id": "sheet_curve",
+      "default": 0.1,
+      "min": -0.35,
+      "max": 0.35,
+      "unit": "bounds_width",
+      "meaning": "根元から自由端への反り"
+    },
+    {
+      "id": "sheet_fold",
+      "default": 0.008,
+      "min": 0,
+      "max": 0.07,
+      "unit": "bounds_width",
+      "meaning": "低周波の折目"
+    },
+    {
+      "id": "tip_width_keep",
+      "default": 0.015,
+      "min": 0,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "自由端幅の局所保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "root",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "support_surface",
+      "mode": "fixed_band",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "tip",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          1,
+          1
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "free_sheet",
+      "kind": "bend_twist",
+      "inputs": [
+        "root_frame",
+        "bend",
+        "twist",
+        "gravity"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.1,
+        0.86
+      ],
+      "radius": [
+        0.25,
+        0.3
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "tip_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.9,
+        0.86
+      ],
+      "radius": [
+        0.25,
+        0.3
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "tip_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "root_a",
+      "root_b",
+      "tip"
+    ],
+    "optional": [
+      "bend_point"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "host_tangent_transport",
+      "sheet_contact",
+      "dynamic_sheet"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "髪・前掛け・トレーンという名前で数式を分岐しない。異なる付着先と係数を適合させる。"
+  ]
+}
