@@ -12,7 +12,7 @@ import nijigenerate.autorig.deterministic.editor : ngApplyFaceProjection;
 import nijigenerate.autorig.deterministic.native : ngRigNativeStage;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialRoleCandidates;
 import nijigenerate.autorig.deterministic.templates : ngRigMaterialRoles;
-import std.string : endsWith;
+import std.string : endsWith, startsWith;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.core.path : incGetAppConfigPath;
 import nijigenerate.panels : Panel, incPanel, incAddPanel, incFindPanelByName;
@@ -24,7 +24,6 @@ import std.file : read;
 import std.json : parseJSON, JSONValue;
 import std.path : buildPath;
 import std.string : toStringz;
-import std.math : sin;
 import std.format : format;
 
 private AutoRigSessionManager sharedSessions;
@@ -74,6 +73,8 @@ private:
     string selectedWorkflowId;
     string[string] inputDrafts;
     string[string] inputObserved;
+    struct InputTextCache { ulong revision; string text; }
+    InputTextCache[string] inputTextCache;
     struct ContextDraft {
         string name;
         string value;
@@ -89,6 +90,7 @@ private:
         bool unresolvedOnly = true;
     }
     MaterialDraft[string] materialDrafts;
+    string[] materialRoleChoices;
 
     AutoRigWorkflowManager workflowManager() {
         if (workflows is null) workflows = new AutoRigWorkflowManager(ngAutoRigSessionManager());
@@ -146,6 +148,19 @@ private:
                 description = _(preset.spec.description);
             }
 
+        igBeginDisabled(!presets.length || worker !is null);
+        if (incButtonColored("+", ImVec2(24, 24))) {
+            try {
+                auto run = workflowManager().create(selectedProviderId, selectedWorkflowId);
+                runs ~= run;
+                synchronized (this) lastError = null;
+            } catch (Exception error) {
+                synchronized (this) lastError = error.msg;
+            }
+        }
+        igEndDisabled();
+        if (igIsItemHovered()) igSetTooltip("%s", _("Add workflow session").toStringz());
+        igSameLine();
         ImVec2 space;
         igGetContentRegionAvail(&space);
         igSetNextItemWidth(space.x > 40 ? space.x - 34 : 1);
@@ -160,19 +175,6 @@ private:
             }
             igEndCombo();
         }
-        igSameLine();
-        igBeginDisabled(!presets.length || worker !is null);
-        if (incButtonColored("+", ImVec2(24, 24))) {
-            try {
-                auto run = workflowManager().create(selectedProviderId, selectedWorkflowId);
-                runs ~= run;
-                synchronized (this) lastError = null;
-            } catch (Exception error) {
-                synchronized (this) lastError = error.msg;
-            }
-        }
-        igEndDisabled();
-        if (igIsItemHovered()) igSetTooltip("%s", _("Add workflow session").toStringz());
         if (description.length) igTextWrapped("%s", description.toStringz());
     }
 
@@ -187,6 +189,14 @@ private:
             case AutoRigValueKind.Json: return value.json.toString();
             case AutoRigValueKind.Blob: return value.text;
         }
+    }
+
+    string cachedInputText(string key, ulong revision, string delegate() load) {
+        auto cached = key in inputTextCache;
+        if (cached is null || cached.revision != revision) {
+            inputTextCache[key] = InputTextCache(revision, load());
+        }
+        return inputTextCache[key].text;
     }
 
     string valueKindLabel(AutoRigValueKind kind) {
@@ -247,7 +257,9 @@ private:
         if (igTreeNodeEx(__("Workflow arguments"), ImGuiTreeNodeFlags.DefaultOpen)) {
             foreach (port; run.inputPorts()) {
                 if (port.description.length) igTextWrapped("%s", _(port.description).toStringz());
-                auto current = run.hasInput(port.id) ? inputText(run.input(port.id)) : "";
+                auto key = draftKey(run, "workflow-input", port.id);
+                auto current = cachedInputText(key, run.inputRevision(),
+                    () => run.hasInput(port.id) ? inputText(run.input(port.id)) : "");
                 renderSessionValue(run, port.id, port.kind, current, false);
             }
             igTreePop();
@@ -256,10 +268,13 @@ private:
             auto names = run.session().contextNames();
             names.sort();
             foreach (name; names) {
-                auto value = run.session().contextValue(name);
-                renderSessionValue(run, name, value.kind, inputText(value), true);
-                if (value.kind == AutoRigValueKind.Blob)
-                    igTextUnformatted(format(_("%s bytes"), value.bytes.length).toStringz());
+                auto info = run.session().contextInfo(name);
+                auto key = draftKey(run, "session-context", name);
+                auto current = cachedInputText(key, info.revision,
+                    () => info.kind == AutoRigValueKind.Json ? inputText(run.contextValue(name)) : info.text);
+                renderSessionValue(run, name, info.kind, current, true);
+                if (info.kind == AutoRigValueKind.Blob)
+                    igTextUnformatted(format(_("%s bytes"), info.byteLength).toStringz());
             }
             auto draft = run.id() in contextDrafts;
             if (draft is null) { contextDrafts[run.id()] = ContextDraft.init; draft = run.id() in contextDrafts; }
@@ -295,7 +310,11 @@ private:
             if (!run.hasOutput(port.id)) igTextUnformatted(_("Waiting for output").toStringz());
             else {
                 auto artifact = run.outputArtifact(port.id);
-                igTextWrapped("%s", artifact.storagePath.toStringz());
+                auto label = port.kind == AutoRigValueKind.Json ? _("JSON artifact ready") :
+                    port.kind == AutoRigValueKind.Blob ? _("Binary artifact") : artifact.value.text;
+                igTextUnformatted(label.toStringz());
+                if (port.kind == AutoRigValueKind.Blob)
+                    igTextUnformatted(format(_("%s bytes"), artifact.byteLength).toStringz());
             }
         }
     }
@@ -308,11 +327,13 @@ private:
             if (port.description.length) igTextUnformatted(_(port.description).toStringz());
             if (context.isConnected(port.id)) {
                 auto value = !context.hasValue(port.id) ? _("Waiting for dependency") :
-                    port.kind == AutoRigValueKind.Json ? _("JSON artifact ready") : inputText(context.value(port.id));
+                    port.kind == AutoRigValueKind.Json ? _("JSON artifact ready") :
+                    port.kind == AutoRigValueKind.Blob ? _("Binary artifact") : inputText(context.value(port.id));
                 igTextUnformatted(value.toStringz());
             } else {
                 auto key = draftKey(run, taskId, port.id);
-                auto current = context.hasValue(port.id) ? inputText(context.value(port.id)) : "";
+                auto current = cachedInputText(key, run.session().inputRevision(taskId),
+                    () => context.hasValue(port.id) ? inputText(context.value(port.id)) : "");
                 if ((key in inputDrafts) is null ||
                     (key in inputObserved) !is null && inputObserved[key] != current &&
                     inputDrafts[key] == inputObserved[key])
@@ -347,7 +368,7 @@ private:
             }
         }
         foreach (artifact; context.snapshot().artifacts) {
-            auto label = (artifact.preview ? _("Preview: ") : _("File: ")) ~ artifact.storagePath;
+            auto label = (artifact.preview ? _("Preview: ") : _("Output")) ~ " " ~ artifact.portId;
             igTextUnformatted(label.toStringz());
         }
     }
@@ -358,7 +379,7 @@ private:
             igTextUnformatted(_("Observe the model first to configure material roles.").toStringz());
             return;
         }
-        auto source = run.session().task(run.stepTaskId("source"));
+        auto source = run.session().task(run.stepTaskId("source"), false);
         auto cached = run.id() in materialDrafts;
         if (cached is null || cached.attempt != source.attempt) {
             MaterialDraft draft;
@@ -380,8 +401,10 @@ private:
             materialDrafts[run.id()] = draft;
             cached = run.id() in materialDrafts;
         }
-        string[] choices = ["", "static"];
-        foreach (rule; ngRigMaterialRoles()["rules"].array) choices ~= rule["id"].str;
+        if (!materialRoleChoices.length) {
+            materialRoleChoices = ["", "static"];
+            foreach (rule; ngRigMaterialRoles()["rules"].array) materialRoleChoices ~= rule["id"].str;
+        }
         igTextWrapped("%s", _("Materials are classified automatically from names, hierarchy, clipping and alpha support. These overrides are optional. Static keeps the material unrigged.").toStringz());
         igCheckbox(_("Show unresolved only").toStringz(), &cached.unresolvedOnly);
         if (igBeginChild("##MaterialRoles", ImVec2(0, 240))) {
@@ -392,7 +415,7 @@ private:
                 if (igIsItemHovered()) igSetTooltip("%s", path.toStringz());
                 auto label = cached.roles[i].length ? cached.roles[i] : _("Choose role");
                 if (igBeginCombo("##role", label.toStringz())) {
-                    foreach (choice; choices) {
+                    foreach (choice; materialRoleChoices) {
                         auto display = choice.length ? choice : _("Choose role");
                         if (igSelectable(display.toStringz(), choice == cached.roles[i])) cached.roles[i] = choice;
                     }
@@ -417,15 +440,16 @@ private:
 
     void renderTask(AutoRigWorkflowRun run, AutoRigWorkflowStep step) {
         auto taskId = run.stepTaskId(step.id);
-        auto state = run.session().task(taskId).state;
+        auto task = run.session().task(taskId, false);
+        auto state = task.state;
         igPushID(step.id.toStringz());
         auto spec = run.session().taskSpec(taskId);
         auto title = spec.label.length ? _(spec.label) : step.id;
-        bool open = renderStateTree(title, state.to!string, "task", ImGuiTreeNodeFlags.None);
-        igSameLine();
         igBeginDisabled(worker !is null);
         if (incButtonColored("\ue037", ImVec2(24, 24))) startRun(run, step.id);
         igEndDisabled();
+        igSameLine();
+        bool open = renderStateTree(title, state.to!string, "task", ImGuiTreeNodeFlags.None);
         if (open) {
             if (igTreeNodeEx(__("Input"), ImGuiTreeNodeFlags.DefaultOpen)) {
                 igBeginDisabled(worker !is null);
@@ -438,7 +462,7 @@ private:
                 if (!run.session().renderOutputUI(taskId)) renderDefaultOutputs(run, taskId);
                 igTreePop();
             }
-            auto message = run.session().task(taskId).message;
+            auto message = task.message;
             if (message.length) igTextWrapped("%s", message.toStringz());
             igTreePop();
         }
@@ -446,67 +470,88 @@ private:
     }
 
     bool renderStateTree(string title, string state, string id, ImGuiTreeNodeFlags flags) {
-        ImVec4 color = *igGetStyleColorVec4(ImGuiCol.Text);
-        string marker, status;
+        ImVec4 color;
+        string icon, status;
         switch (state) {
             case "Running":
-                auto phase = igGetTime();
-                float pulse = cast(float)(.75 + .25 * sin(phase * 4));
-                color = ImVec4(.35f * pulse, .75f * pulse, 1f * pulse, 1);
-                marker = ["[|] ", "[/] ", "[-] ", "[\\] "][cast(size_t)(phase * 8) % 4];
-                status = _("Running");
+                color = ImVec4(0, 0.4, 0.8, 1);
+                icon = "\ue1c4"; status = _("Running");
                 break;
             case "Succeeded":
-                color = ImVec4(.35f, .85f, .45f, 1);
-                marker = "[OK] "; status = _("Completed");
+                color = ImVec4(0, 0.9, 0, 1);
+                icon = "\ue92f"; status = _("Completed");
                 break;
             case "Failed":
-                color = ImVec4(1, .4f, .35f, 1);
-                marker = "[!] "; status = _("Failed");
+                color = ImVec4(0.9, 0, 0, 1);
+                icon = "\uf8b6"; status = _("Failed");
                 break;
             case "Canceled":
-                color = ImVec4(.95f, .7f, .3f, 1);
-                marker = "[-] "; status = _("Canceled");
+                color = ImVec4(0.8, 0.4, 0, 1);
+                icon = "\ue5c9"; status = _("Canceled");
                 break;
             case "Stale":
-                color = ImVec4(.95f, .7f, .3f, 1);
-                marker = "[~] "; status = _("Needs rerun");
+                color = ImVec4(0.8, 0.4, 0, 1);
+                icon = "\uef4a"; status = _("Needs rerun");
                 break;
             default:
-                color = *igGetStyleColorVec4(ImGuiCol.TextDisabled);
-                marker = "[ ] "; status = _("Pending");
+                color = ImVec4(0.8, 0.4, 0, 1);
+                icon = "\uef4a"; status = _("Pending");
                 break;
         }
-        // A stable ID preserves the expanded state while the status animates or changes.
-        auto label = marker ~ title ~ " [" ~ status ~ "]###" ~ id;
-        igPushStyleColor(ImGuiCol.Text, color);
-        bool open = igTreeNodeEx(label.toStringz(), flags);
-        igPopStyleColor();
-        return open;
+        // Match AutoMeshBatch's status symbols and colors, with stable tree IDs.
+        igTextColored(color, "%s", icon.toStringz());
+        if (igIsItemHovered()) igSetTooltip("%s", status.toStringz());
+        igSameLine(0, 0);
+        auto label = title ~ "###" ~ id;
+        return igTreeNodeEx(label.toStringz(), flags);
     }
 
-    void renderRun(AutoRigWorkflowRun run) {
+    bool renderRun(AutoRigWorkflowRun run) {
         igPushID(run.id().toStringz());
-        auto snapshot = run.snapshot();
+        scope(exit) igPopID();
+        auto snapshot = run.snapshot(false);
         auto label = _(run.displayName()) ~ " #" ~ run.id()[0 .. 8];
-        bool open = renderStateTree(label, snapshot.state.to!string, "run", ImGuiTreeNodeFlags.DefaultOpen);
-        igSameLine();
-        igBeginDisabled(worker !is null);
-        if (incButtonColored("\ue037", ImVec2(24, 24))) startRun(run);
+        igBeginDisabled(activeRun is run || run.session().isBusy());
+        bool remove = incButtonColored("\ue872##delete", ImVec2(24, 24));
         igEndDisabled();
+        if (igIsItemHovered()) igSetTooltip("%s", _("Delete session").toStringz());
+        if (remove) return true;
+        igSameLine();
+        bool running = worker !is null && activeRun is run;
+        igBeginDisabled(worker !is null && !running || running && run.session().isCanceled());
+        if (incButtonColored(running ? "\ue5c9" : "\ue037", ImVec2(24, 24))) {
+            if (running) run.cancel();
+            else startRun(run);
+        }
+        igEndDisabled();
+        if (igIsItemHovered()) igSetTooltip("%s", (running ? _("Cancel") : _("Run batch")).toStringz());
+        igSameLine();
+        bool open = renderStateTree(label, snapshot.state.to!string, "run", ImGuiTreeNodeFlags.DefaultOpen);
         if (open) {
             renderSessionConfiguration(run);
             renderSessionOutput(run);
             foreach (step; run.orderedSteps()) renderTask(run, step);
             igTreePop();
         }
-        igPopID();
+        return false;
+    }
+
+    void removeRun(string runId) {
+        workflowManager().remove(runId);
+        AutoRigWorkflowRun[] remaining;
+        foreach (run; runs) if (run.id() != runId) remaining ~= run;
+        runs = remaining;
+        materialDrafts.remove(runId);
+        contextDrafts.remove(runId);
+        foreach (key; inputDrafts.keys) if (key.startsWith(runId ~ "/")) inputDrafts.remove(key);
+        foreach (key; inputObserved.keys) if (key.startsWith(runId ~ "/")) inputObserved.remove(key);
+        foreach (key; inputTextCache.keys) if (key.startsWith(runId ~ "/")) inputTextCache.remove(key);
     }
 
 protected:
     override void onInit() {
         import nijigenerate.commands.puppet.tool : ngSetAutoRigCommandHandlers;
-        ngSetAutoRigCommandHandlers(&executeImportedModel,&runStatus,&resumeWorkflow);
+        ngSetAutoRigCommandHandlers(&executeImportedModel,&runStatus,&resumeWorkflow,&removeRun);
     }
 
     override void onUpdate() {
@@ -516,9 +561,11 @@ protected:
         synchronized (this) error = lastError;
         if (error.length) igTextWrapped("%s", error.toStringz());
         igSeparator();
+        string removedRun;
         if (igBeginChild("##AutoRigSessions", ImVec2(0, 0)))
-            foreach (run; runs) renderRun(run);
+            foreach (run; runs) if (renderRun(run)) removedRun = run.id();
         igEndChild();
+        if (removedRun.length) removeRun(removedRun);
     }
 
 public:
@@ -543,6 +590,24 @@ public:
     }
 
     JSONValue runStatus(string runId) {
+        import core.memory : GC;
+        if (!runId.length) {
+            auto gc = GC.stats();
+            ulong jsonBytes, blobBytes, cpuBytes;
+            bool busy;
+            foreach (run; runs) {
+                auto info = run.session().memoryInfo();
+                jsonBytes += info["json_bytes"].uinteger;
+                blobBytes += info["blob_bytes"].uinteger;
+                cpuBytes += info["cpu_bytes"].uinteger;
+                busy = busy || run.session().isBusy();
+            }
+            return JSONValue(["state":JSONValue(busy ? "Running" : "Idle"),
+                "memory":JSONValue(["json_bytes":JSONValue(jsonBytes),"blob_bytes":JSONValue(blobBytes),
+                    "cpu_bytes":JSONValue(cpuBytes),
+                    "gc_used_bytes":JSONValue(cast(ulong)gc.usedSize),
+                    "gc_free_bytes":JSONValue(cast(ulong)gc.freeSize)])]);
+        }
         foreach (run; runs) if (run.id() == runId) {
             auto snapshot = run.snapshot(); JSONValue[] steps;
             foreach (step; run.orderedSteps()) {
@@ -550,8 +615,30 @@ public:
                 steps ~= JSONValue(["id":JSONValue(step.id),"state":JSONValue(state.state.to!string),
                     "attempt":JSONValue(state.attempt),"message":JSONValue(state.message)]);
             }
-            return JSONValue(["run_id":JSONValue(runId),"state":JSONValue(snapshot.state.to!string),
-                "message":JSONValue(snapshot.message),"steps":JSONValue(steps)]);
+            auto gc = GC.stats();
+            auto memory = run.session().memoryInfo();
+            memory["gc_used_bytes"] = JSONValue(cast(ulong)gc.usedSize);
+            memory["gc_free_bytes"] = JSONValue(cast(ulong)gc.freeSize);
+            auto result = JSONValue(["run_id":JSONValue(runId),"state":JSONValue(snapshot.state.to!string),
+                "message":JSONValue(snapshot.message),"steps":JSONValue(steps),"memory":memory]);
+            auto compileTask = run.session().task(run.stepTaskId("compile"));
+            JSONValue[] compileProfile;
+            foreach (artifact; compileTask.artifacts)
+                if (artifact.preview && artifact.portId == "compile-profile")
+                    compileProfile ~= artifact.value.json;
+            if (compileProfile.length) result["compile_profile"] = JSONValue(compileProfile);
+            auto verifyId = run.stepTaskId("verify");
+            if (!run.session().isBusy() && run.session().hasOutput(verifyId,"report")) {
+                auto report = run.session().output(verifyId,"report").json;
+                JSONValue[string] summary;
+                foreach (key; ["passed","error","readback_verified","finish_stages",
+                    "all_finish_stages_succeeded","numerical_stages_passed","rig_complete"])
+                    if (auto entry = key in report.object) summary[key] = *entry;
+                if (auto findings = "numerical_findings" in report.object)
+                    summary["numerical_findings_count"] = JSONValue(cast(ulong) (*findings).array.length);
+                result["verification"] = JSONValue(summary);
+            }
+            return result;
         }
         throw new Exception("Unknown AutoRig workflow run: " ~ runId);
     }

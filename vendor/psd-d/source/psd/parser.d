@@ -1070,10 +1070,14 @@ LayerMaskSection* parseLayer(ref File file, ref PSD psd, ulong sectionOffset, ui
                 // read "Section divider setting" to identify whether a layer is a group, or a section divider
                 if (key == "lsct")
                 {
+                    enforce(dataLength >= 4u, "PSD section divider block is truncated");
                     layer.type = cast(LayerType)file.readValue!uint;
-
-                    // skip the rest of the data
-                    file.skip(length - 4u);
+                    // The divider blend key overrides the ordinary group record.
+                    if (dataLength >= 12u) {
+                        enforce(file.readStr(4) == "8BIM", "Invalid PSD section divider blend signature");
+                        layer.blendModeKey = cast(BlendingMode)file.readStr(4);
+                        file.skip(length - 12u);
+                    } else file.skip(length - 4u);
                 }
                 // read Unicode layer name
                 else if (key == "luni")

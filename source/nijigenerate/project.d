@@ -487,6 +487,24 @@ void incImportINP(string file) {
     incFreeMemory();
 }
 
+/** Restore an owned native model snapshot without changing the project path. */
+void ngRestorePuppetMemory(ubyte[] data) {
+    import core.thread : Thread;
+    import std.exception : enforce;
+    enforce(Thread.getThis() !is null && Thread.getThis().isMainThread,
+        "Model restoration requires the main thread");
+    auto restored = inLoadINPPuppet!ExPuppet(data);
+    enforce(restored !is null, "Could not restore model snapshot");
+    incAsyncDerivedUpdateClearScope(activeProject.derivedUpdateScope);
+    incSelectNode(null);
+    incDisarmParameter();
+    activeProject.puppet = restored;
+    restored.root.build();
+    foreach (func; loadCallbacks) func(restored);
+    incInitAnimationPlayer(restored);
+    incActionClearHistory();
+}
+
 /**
     Exports an nijilive Puppet
 */

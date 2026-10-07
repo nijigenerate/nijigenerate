@@ -6651,3 +6651,11 @@ msgstr ""
 #: source/nijigenerate/commands/puppet/tool.d:208
 msgid "Resume a saved AutoRig workflow."
 msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Verify rig"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Delete session"
+msgstr ""

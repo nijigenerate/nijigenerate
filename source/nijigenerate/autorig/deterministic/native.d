@@ -10,9 +10,8 @@ import nijigenerate.autorig.deterministic.registered : ngRigSampleRegisteredDept
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput;
 import std.digest.sha : sha256Of;
 import std.digest : toHexString;
-import nijigenerate.commands.base : Context, Command, CommandResult, CreateResult, ngRunCommand;
-import nijigenerate.commands.puppet.file : SaveFileCommand;
-import nijigenerate.commands.puppet.view : SaveScreenshotCommand;
+import nijigenerate.commands.base : Context, Command, CommandResult, ExCommandResult, CreateResult, ngRunCommand;
+import nijigenerate.commands.puppet.view : CaptureLiveScreenshotCommand;
 import nijigenerate.commands.viewport.control : FitViewportToModelCommand;
 import nijigenerate.commands.node.node : InsertNodeCommandT, AddNodeCommandT, ConvertToCommandT, MoveNodeCommand;
 import nijigenerate.commands.model.set_deform_binding : SetDeformBindingCommand;
@@ -30,11 +29,11 @@ import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
 import nijigenerate.viewport.vertex.automesh.optimum : OptimumAutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.grid : GridAutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : AMProcessor;
-import nijigenerate.project : incActivePuppet, incOpenProject;
+import nijigenerate.project : incActivePuppet, ngRestorePuppetMemory;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.ext : ExPart, ExPuppet;
 import nijigenerate.ext.nodes.exdepthbone : ExDepthRigRoot;
-import nijilive : Node, Puppet, Part, Composite, Deformable, inLoadPuppet, inGetCamera;
+import nijilive : Node, Puppet, Part, Composite, Deformable, inWriteINPPuppetMemory, inGetCamera;
 import nijigenerate.viewport.base : incViewportTargetPosition, incViewportTargetZoom, incViewportZoom;
 import nijilive.core.nodes.composite.projectable : Projectable;
 import nijilive.math : vec2, vec2u, vec3, vec4, mat4;
@@ -49,8 +48,11 @@ import nijilive : Parameter;
 import std.math : isFinite, abs, ceil, sqrt, rint;
 import std.algorithm : min, max, canFind;
 import std.string : startsWith, endsWith;
-import std.file : exists, getSize;
+import std.base64 : Base64;
 import core.thread : Thread;
+
+// Accessed exclusively on the editor thread; distinguishes retries from user edits.
+private string[string] liveRigSignatures;
 
 @AMProcessor("autorig-part", "AutoRig Part", 500)
 private class RigPartMeshProcessor : OptimumAutoMeshProcessor {
@@ -160,8 +162,8 @@ private JSONValue verifySourceFrames(JSONValue state, AutoRigTaskContext task) {
 }
 
 private JSONValue renderFrame(AutoRigTaskContext task, string name, JSONValue cameraFrame = JSONValue.init) {
-    auto path = task.previewPath(name,".png");
     JSONValue frame;
+    ubyte[] pixels;
     task.runOnMainThread({
         auto camera = inGetCamera();
         auto position = camera.position, scale = camera.scale; auto rotation = camera.rotation;
@@ -177,11 +179,13 @@ private JSONValue renderFrame(AutoRigTaskContext task, string name, JSONValue ca
         } else command(new FitViewportToModelCommand(),editorContext());
         frame = JSONValue(["position":JSONValue([camera.position.x,camera.position.y]),
             "scale":JSONValue([camera.scale.x,camera.scale.y]),"rotation":JSONValue(camera.rotation)]);
-        command(new SaveScreenshotCommand(path),editorContext());
+        auto result = cast(ExCommandResult!JSONValue)command(new CaptureLiveScreenshotCommand(),editorContext());
+        enforce(result !is null, "Could not capture rig preview");
+        pixels = Base64.decode(result.result["content"][0]["data"].str);
     });
-    enforce(exists(path) && getSize(path)>0,"Rig preview was not written");
-    task.publishPreview(name,path,"image/png");
-    return JSONValue(["path":JSONValue(path),"camera":frame,"sha256":JSONValue(ngRigFileDigest(path))]);
+    task.previewBlob(name,pixels,"image/png");
+    return JSONValue(["data":JSONValue(Base64.encode(pixels)),"camera":frame,
+        "sha256":JSONValue(sha256Of(pixels).toHexString.idup)]);
 }
 
 private JSONValue renderValidation(JSONValue state, AutoRigTaskContext task) {
@@ -189,8 +193,9 @@ private JSONValue renderValidation(JSONValue state, AutoRigTaskContext task) {
     if (baseline is null) return JSONValue(["applicable":JSONValue(false),"reason":JSONValue("Optional rendering disabled")]);
     import imagefmt : read_image;
     auto neutral = renderFrame(task,"saved-neutral",(*baseline)["camera"]);
-    enforce(ngRigFileDigest((*baseline)["path"].str) == (*baseline)["sha256"].str,"Neutral render ownership mismatch");
-    auto source = read_image((*baseline)["path"].str,4), saved = read_image(neutral["path"].str,4);
+    auto sourceBytes = Base64.decode((*baseline)["data"].str);
+    enforce(sha256Of(sourceBytes).toHexString.idup == (*baseline)["sha256"].str,"Neutral render ownership mismatch");
+    auto source = read_image(sourceBytes,4), saved = read_image(Base64.decode(neutral["data"].str),4);
     scope(exit) { source.free(); saved.free(); }
     enforce(source.e == 0 && saved.e == 0 && source.w == saved.w && source.h == saved.h &&
         source.buf8.length>0 && source.buf8.length == saved.buf8.length,"Neutral preview dimensions changed");
@@ -687,6 +692,37 @@ private JSONValue buildRig(JSONValue state, JSONValue program, AutoRigTaskContex
         auto puppet = incActivePuppet();
         auto root = create(new AddNodeCommandT!(true)("DepthRigRoot","::AutoRig"),editorContext([puppet.root]));
         root.name = "AutoRig::DepthRig";
+        if (humanoid) {
+            // Match InitialTree.prepare_units: anatomy hosted inside a rendering
+            // unit needs a propagating Composite rather than a deformation endpoint.
+            uint[] hosted;
+            foreach (definition; program["hierarchy"]["groups"].array)
+                if (auto node = "node" in definition["parent"].object) hosted ~= uuid(*node);
+            foreach (id, parent; program["hierarchy"]["surface_parents"].object)
+                if (auto node = "node" in parent.object) hosted ~= uuid(*node);
+            if (program["hierarchy"]["face_origin"].type != JSONType.null_)
+                hosted ~= uuid(program["hierarchy"]["face_origin"]);
+            JSONValue[] converted;
+            foreach (id, units; program["hierarchy"]["render_units"].object) foreach (unitId; units.array) {
+                auto unit = puppet.find!Node(uuid(unitId));
+                if (unit is null || unit.typeId != "DynamicComposite") continue;
+                bool contains;
+                foreach (origin; hosted)
+                    for (auto cursor = puppet.find!Node(origin); cursor !is null; cursor = cursor.parent)
+                        if (cursor is unit) contains = true;
+                if (!contains) continue;
+                auto before = parseJSON(inToJson(unit));
+                auto composite = cast(Composite)create(new ConvertToCommandT!true("Composite"),editorContext([unit]));
+                enforce(composite !is null && composite.uuid == uuid(unitId) && composite.propagateMeshGroup,
+                    "Origin composite did not preserve identity and propagate deformation");
+                auto after = parseJSON(inToJson(composite));
+                foreach (key; ["blend_mode", "opacity", "masks"])
+                    enforce(ngRigGet(before,key) == ngRigGet(after,key),
+                        "Origin composite conversion changed " ~ key);
+                converted ~= unitId;
+            }
+            state["origin_composites"] = JSONValue(converted);
+        }
         Node[string] bones;
         double[string] poseOrigins;
         if (humanoid) foreach (bone; program["scaffold"]["bones"].array) {
@@ -1633,37 +1669,35 @@ private JSONValue verifyRig(JSONValue state, JSONValue program, AutoRigTaskConte
     return report;
 }
 
-/** Checkpoints are restored before each mutating attempt, making retries idempotent. */
-JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, string model,
+/** Model snapshots are retained in memory and restored only for retries or rollback. */
+JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, ubyte[] model,
     AutoRigTaskContext task) {
     ngRigCheckpoint(task);
     if (stage == "observe-model") state = observeModel(state,task);
     else {
-        enforce(exists(model), "Missing committed rig checkpoint");
-        enforce(ngRigFileDigest(model) == state["model_sha256"].str, "Rig checkpoint hash mismatch");
+        enforce(model.length > 0, "Missing committed model snapshot");
+        enforce(sha256Of(model).toHexString.idup == state["model_sha256"].str, "Model snapshot hash mismatch");
         task.runOnMainThread({
             auto current = incActivePuppet();
-            bool unchanged = current !is null && current.root.uuid == uuid(state["rootId"]) &&
-                editorSignature(current) == state["editor_signature"].str;
-            if (!unchanged && current !is null && current.root.uuid == uuid(state["rootId"])) {
-                auto saved = inLoadPuppet!ExPuppet(model);
-                unchanged = saved !is null && editorSignature(current) == editorSignature(saved);
-                if (!unchanged && saved !is null) {
-                    task.previewJson("checkpoint-current",parseJSON(inToJson(current)));
-                    task.previewJson("checkpoint-saved",parseJSON(inToJson(saved)));
-                }
+            enforce(current !is null && current.root.uuid == uuid(state["rootId"]),
+                "Active model changed since the previous AutoRig stage");
+            auto signature = editorSignature(current);
+            if (signature != state["editor_signature"].str) {
+                auto expected = task.sessionId() in liveRigSignatures;
+                enforce(expected !is null && signature == *expected,
+                    "Editor model changed since the previous AutoRig stage; regenerate its observation");
+                ngRestorePuppetMemory(model);
             }
-            enforce(unchanged,
-                "Editor model changed since the previous AutoRig stage; regenerate its observation");
-            enforce(incOpenProject(model), "Could not restore rig checkpoint");
-            enforce(incActivePuppet().root.uuid == uuid(state["rootId"]), "Rig checkpoint root mismatch");
         });
     }
     if (stage == "verify-saved-rig") return verifyRig(state,program,task);
     bool grouped;
     task.runOnMainThread({ incActionPushGroup(); grouped = true; });
     scope(exit) if (grouped) task.runOnMainThread({ incActionPopGroup(); });
-    scope(failure) if (model.length) task.runOnMainThread({ incOpenProject(model); });
+    scope(failure) if (model.length) task.runOnMainThread({
+        ngRestorePuppetMemory(model);
+        liveRigSignatures[task.sessionId()] = editorSignature(incActivePuppet());
+    });
     if (stage == "mesh-parts") state = meshParts(state,program,task);
     else if (stage == "prepare-shoulders") state["shoulder_pairs"] = ngRigPrepareShoulders(state,program,task);
     else if (stage == "prepare-source-groups") state = prepareSourceGroups(state,task);
@@ -1679,16 +1713,14 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, str
     else enforce(stage == "observe-model", "Unknown native rig stage: " ~ stage);
     ngRigCheckpoint(task);
     settleDepthRefresh(task);
-    auto destination = task.outputPath("model",".inx");
+    ubyte[] snapshot;
     task.runOnMainThread({
-        command(new SaveFileCommand(destination),editorContext());
-        enforce(exists(destination) && getSize(destination)>0, "Native rig checkpoint was not saved");
-        auto saved = inLoadPuppet!ExPuppet(destination);
-        enforce(saved !is null && saved.root.uuid == incActivePuppet().root.uuid, "Saved rig checkpoint readback failed");
+        snapshot = inWriteINPPuppetMemory(incActivePuppet());
         state["editor_signature"] = JSONValue(editorSignature(incActivePuppet()));
+        liveRigSignatures[task.sessionId()] = state["editor_signature"].str;
     });
-    state["model_sha256"] = JSONValue(ngRigFileDigest(destination));
+    state["model_sha256"] = JSONValue(sha256Of(snapshot).toHexString.idup);
     state["completed_stage"] = JSONValue(stage);
-    task.publishPath("model",destination);
+    task.publishBlob("model",snapshot);
     return state;
 }

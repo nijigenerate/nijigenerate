@@ -2,6 +2,7 @@ module nijigenerate.autorig.deterministic.evidence;
 
 import nijigenerate.autorig.deterministic.contracts;
 import nijigenerate.autorig.deterministic.templates;
+import nijigenerate.autorig.deterministic.neck : ngRigInferNeckBase;
 import std.json : JSONValue;
 import std.algorithm : sort, min, max;
 import std.array : array;
@@ -100,8 +101,12 @@ string ngRigMaterialFeature(string name, string[] ancestors = null) {
 }
 
 /** Exact nearest-alpha queries without an additional solver or spatial library. */
-private class AlphaSupportIndex {
-    private struct Entry { Point2 point; size_t left = size_t.max, right = size_t.max; }
+package(nijigenerate.autorig) class AlphaSupportIndex {
+    private struct Entry {
+        Point2 point;
+        double[4] bounds;
+        size_t left = size_t.max, right = size_t.max;
+    }
     private Entry[] entries;
     private size_t root;
     this(Point2[] points) { root = build(points.dup,0); }
@@ -109,24 +114,43 @@ private class AlphaSupportIndex {
         if (!points.length) return size_t.max;
         points.sort!((a,b) => a[axis] < b[axis]);
         size_t middle = points.length/2, id = entries.length;
-        entries ~= Entry(points[middle]);
+        auto point = points[middle];
+        entries ~= Entry(point,[point[0],point[1],point[0],point[1]]);
         auto left = build(points[0 .. middle],1-axis);
         auto right = build(points[middle+1 .. $],1-axis);
         entries[id].left = left; entries[id].right = right;
+        foreach (child; [left,right]) if (child != size_t.max) {
+            auto bounds = entries[child].bounds;
+            entries[id].bounds[0] = min(entries[id].bounds[0],bounds[0]);
+            entries[id].bounds[1] = min(entries[id].bounds[1],bounds[1]);
+            entries[id].bounds[2] = max(entries[id].bounds[2],bounds[2]);
+            entries[id].bounds[3] = max(entries[id].bounds[3],bounds[3]);
+        }
         return id;
     }
     double distance(Point2 query) {
         double best = double.infinity;
-        void visit(size_t id, size_t axis) {
+        double lowerBound(size_t id) {
+            if (id == size_t.max) return double.infinity;
+            auto bounds = entries[id].bounds;
+            double dx = max(0.,max(bounds[0]-query[0],query[0]-bounds[2]));
+            double dy = max(0.,max(bounds[1]-query[1],query[1]-bounds[3]));
+            return dx*dx+dy*dy;
+        }
+        void visit(size_t id) {
             if (id == size_t.max) return;
             auto node = entries[id];
             double dx = query[0]-node.point[0], dy = query[1]-node.point[1];
             best = min(best,dx*dx+dy*dy);
-            double delta = query[axis]-node.point[axis];
-            visit(delta<0 ? node.left : node.right,1-axis);
-            if (delta*delta<=best) visit(delta<0 ? node.right : node.left,1-axis);
+            // Use exact subtree bounds, including the node itself. Plane-only
+            // pruning visits most points when ornament roots lie outside a cloud.
+            auto leftDistance = lowerBound(node.left), rightDistance = lowerBound(node.right);
+            size_t near = leftDistance <= rightDistance ? node.left : node.right;
+            size_t far = leftDistance <= rightDistance ? node.right : node.left;
+            if (min(leftDistance,rightDistance)<=best) visit(near);
+            if (max(leftDistance,rightDistance)<=best) visit(far);
         }
-        visit(root,0); return sqrt(best);
+        visit(root); return sqrt(best);
     }
 }
 
@@ -348,8 +372,10 @@ JSONValue ngRigDeriveEvidence(JSONValue observation) {
             "weight":JSONValue(1.), "method":JSONValue("PSD alpha quantile section")]);
     }
     put("head_top",ngRigMeasuredSection(face,0)); put("head_root",ngRigMeasuredSection(face,1));
-    auto neckBase = neck.length ? ngRigMeasuredSection(neck,.9) : ngRigMeasuredSection(torso,.02);
-    put("neck_base",neckBase,neck.length ? "measured" : "prior");
+    auto neckInference = ngRigInferNeckBase(face,neck,select(["torso"]),select(["bodice","waistwear"]));
+    auto neckBase = ngRigPoint(neckInference["xy"]);
+    put("neck_base",neckBase,neckInference["provenance"].str);
+    landmarks["neck_base"]["method"] = neckInference["method"];
     foreach (side; ["R","L"]) {
         auto arm = select(["arm"],side,center), hand = select(["hand"],side,center);
         if (!arm.length) arm = select(["sleeve"],side,center);
@@ -412,6 +438,7 @@ JSONValue ngRigDeriveEvidence(JSONValue observation) {
         "radii":JSONValue([shoulderWidth*.45,norm(torsoAxis)/2])]);
     JSONValue[] identity = [JSONValue([1.,0.,0.]),JSONValue([0.,1.,0.]),JSONValue([0.,0.,1.])];
     auto result = JSONValue(["kind":JSONValue("humanoid"),"landmarks":JSONValue(landmarks),
+        "neck_inference":neckInference,
         "volumes":JSONValue(volumes), "limb_radii":JSONValue(radii),"source_to_model":JSONValue(identity),
         "observation_sha256":JSONValue(ngRigDigest(observation)),"source_sha256":observation["source_sha256"]]);
     foreach (family; ["arm","leg"]) result["limb_radii"][family ~ ":both"] = JSONValue(

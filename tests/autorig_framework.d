@@ -43,7 +43,8 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
         assert(context.contextValue("ui").json.integer == 7);
         assert(context.outputPorts().length == 1 && context.hasOutput("data"));
         assert(context.output("data").json.integer == 5);
-        assert(exists(context.outputArtifact("data").storagePath));
+        assert(context.outputArtifact("data").storagePath.length == 0);
+        assert(context.outputArtifact("data").value.json.integer == 5);
         sawSessionViewer = true;
     }
 
@@ -148,6 +149,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
                 try cancelSession.setContextValue("artifact", AutoRigValue.path("changed"));
                 catch (Exception error) rejected = true;
                 assert(rejected);
+                context.previewBlob("image", [cast(ubyte)3, 4], "image/png");
             }
             ++prepareCalls;
             auto source = context.input("source").json.integer;
@@ -277,17 +279,38 @@ private void testSessionContext() {
     auto run = workflows.create("test-rig", "prepare-only");
     processor.cancelSession = run.session();
     run.setInput("source", AutoRigValue.jsonValue(JSONValue(4)));
+    auto inputRevision = run.inputRevision();
+    assert(inputRevision > 0);
+    auto taskInputRevision = run.session().inputRevision(run.stepTaskId("prepare"));
+    assert(taskInputRevision > 0);
+    run.setInput("source", AutoRigValue.jsonValue(JSONValue(4)));
+    assert(run.inputRevision() > inputRevision);
+    assert(run.session().inputRevision(run.stepTaskId("prepare")) > taskInputRevision);
     auto source = run.input("source");
     assert(source.json.integer == 4 && run.inputPorts().length == 1);
     auto metadata = JSONValue(["label": JSONValue("original")]);
     run.setContextValue("metadata", AutoRigValue.jsonValue(metadata));
     metadata["label"] = JSONValue("caller edit");
     run.setContextValue("bytes", AutoRigValue.blob([cast(ubyte)1, 2]));
+    auto info = run.session().contextInfo("bytes");
+    assert(info.kind == AutoRigValueKind.Blob && info.byteLength == 2 && info.text.length == 0);
+    auto revision = info.revision;
+    run.setContextValue("bytes", AutoRigValue.blob([cast(ubyte)1, 2]));
+    assert(run.session().contextInfo("bytes").revision > revision);
     run.setContextValue("artifact", AutoRigValue.path("reference.json"));
     assert(run.renderInputUI() && processor.sawSessionEditor);
     auto worker = new Thread({ run.execute(); });
     worker.start(); worker.join();
     assert(run.output("data").json.integer == 5);
+    assert(!exists(run.directory()));
+    auto artifact = run.outputArtifact("data");
+    assert(artifact.value.json.integer == 5 && artifact.storagePath.length == 0);
+    auto previews = run.session().task(run.stepTaskId("prepare")).artifacts;
+    assert(previews[0].preview && previews[0].value.readBlob() == [cast(ubyte)3, 4]);
+    assert(previews[0].storagePath.length == 0 && previews[0].mediaType == "image/png");
+    assert(previews[1].preview && previews[1].value.json.integer == 4);
+    assert(run.snapshot(false).steps["prepare"].artifacts.length == 0);
+    assert(run.snapshot().steps["prepare"].artifacts.length > 0);
     assert(run.renderOutputUI() && processor.sawSessionViewer);
     bool rejectedWorkerUI;
     auto uiWorker = new Thread({
@@ -314,11 +337,52 @@ private void testSessionContext() {
     assert(restored.session().task(restored.stepTaskId("prepare")).state == AutoRigTaskState.Stale);
     restored.execute();
     assert(processor.prepareCalls == calls + 1);
+    workflows.remove(id);
+    bool deleted;
+    try workflows.reopen(id);
+    catch (Exception error) deleted = true;
+    assert(deleted);
+    bool unregistered;
+    try manager.get(id);
+    catch (Exception error) unregistered = true;
+    assert(unregistered);
+    auto closed = workflows.create("test-rig", "prepare-only");
+    auto closedId = closed.id();
+    workflows.close(closedId);
+    workflows.remove(closedId);
+    deleted = false;
+    try workflows.reopen(closedId);
+    catch (Exception error) deleted = true;
+    assert(deleted);
     import std.stdio : writeln;
     writeln("AutoRig session context checks passed");
 }
 
+private void benchmarkUIMetadata() {
+    import std.datetime.stopwatch : StopWatch;
+    import std.stdio : writefln;
+    auto manager = new AutoRigSessionManager(buildPath("out", "autorig-ui-benchmark"));
+    manager.registerProcessor(new TestRigProcessor());
+    auto session = manager.create("test-rig");
+    enum size_t payloadSize = 16 * 1024 * 1024;
+    session.setContextValue("model", AutoRigValue.blob(new ubyte[payloadSize]));
+    size_t copied, metadata;
+    auto oldTimer = StopWatch(); oldTimer.start();
+    foreach (i; 0 .. 32) copied += session.contextValue("model").bytes.length;
+    oldTimer.stop();
+    auto newTimer = StopWatch(); newTimer.start();
+    foreach (i; 0 .. 32) metadata += session.contextInfo("model").byteLength;
+    newTimer.stop();
+    assert(copied == metadata && copied == 32 * payloadSize);
+    assert(!exists(session.directory()));
+    writefln("UI payload lookup, 32 reads of 16 MiB: copied=%s us; metadata=%s us; eliminated=%s MiB",
+        oldTimer.peek.total!"usecs", newTimer.peek.total!"usecs", copied / (1024 * 1024));
+}
+
 void main(string[] args) {
+    if (args.length > 1 && args[1] == "--ui-performance") {
+        testSessionContext(); benchmarkUIMetadata(); return;
+    }
     if (args.length > 1 && args[1] == "--context-only") { testSessionContext(); return; }
     auto threadedProcessor = new TestRigProcessor();
     auto threadedManager = new AutoRigSessionManager(buildPath("out", "autorig-tests"));

@@ -9,10 +9,11 @@ import nijigenerate.autorig.deterministic.surface;
 import nijigenerate.autorig.deterministic.evidence;
 import nijigenerate.autorig.deterministic.program;
 import nijigenerate.autorig.deterministic.pipeline;
+import nijigenerate.autorig.deterministic.storage;
 import std.exception : enforce;
 import std.json : JSONValue, JSONType;
 import std.math : isFinite;
-import std.file : copy;
+import std.datetime.stopwatch : StopWatch, AutoStart;
 
 private double number(JSONValue value) {
     enforce(value.type == JSONType.integer || value.type == JSONType.uinteger || value.type == JSONType.float_,
@@ -84,30 +85,47 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
     override void executeTask(string taskId, AutoRigTaskContext context) {
         if (taskId == "observe-model") {
             enforce(nativeStage !is null,"Model observation is unavailable");
-            auto state = nativeStage(taskId,context.input("options").json,JSONValue.init,"",context);
+            auto state = nativeStage(taskId,context.input("options").json,JSONValue.init,null,context);
             JSONValue[] materials;
             foreach (material; state["materials"].array)
                 materials ~= JSONValue(["name":material["name"],"path":material["path"],"active":material["active"]]);
             context.publishJson("materials",JSONValue(materials));
-            context.publishJson("state",state);
+            auto storage = ngRigStateStorage(context);
+            auto snapshot = storage.snapshot(state,true);
+            context.publishJson("observation",storage.artifact(snapshot,"materials"));
+            context.publishJson("state",snapshot);
             return;
         }
         if (taskId == "compile-rig") {
-            auto state = context.input("state").json;
+            auto timer = StopWatch(AutoStart.yes);
+            void phase(string name) {
+                context.previewJson("compile-profile",JSONValue(["phase":JSONValue(name),
+                    "elapsed_ms":JSONValue(timer.peek.total!"msecs")]));
+            }
+            phase("restore-input");
+            auto storage = ngRigStateStorage(context);
+            auto state = storage.restore(context.input("state").json);
+            phase("classify-materials");
             auto observation = ngRigClassifyMaterials(state,context.input("options").json,context);
             ngRigCheckpoint(context);
+            phase("derive-evidence");
             auto evidence = ngRigDeriveEvidence(observation);
+            phase("compile-program");
             auto program = ngRigCompileProgram(observation,evidence);
             state = observation; state["evidence"] = evidence;
-            context.publishJson("program",program); context.publishJson("state",state);
+            phase("retain-artifacts");
+            context.publishJson("evidence",evidence);
+            context.publishJson("program",program); context.publishJson("state",storage.snapshot(state));
+            phase("completed");
             return;
         }
         foreach (entry; ngRigPipelineTasks()) if (taskId == entry.id) {
             enforce(nativeStage !is null,"Native rig application is unavailable");
-            auto state = context.input("state").json;
+            auto storage = ngRigStateStorage(context);
+            auto state = storage.restore(context.input("state").json);
             JSONValue result;
             try {
-                result = nativeStage(taskId,state,context.input("program").json,context.input("model").text,context);
+                result = nativeStage(taskId,state,context.input("program").json,context.input("model").readBlob(),context);
                 if (taskId == "compile-domain-layout") context.publishJson("program",ngRigCompileProgram(result,result["evidence"]));
                 if (entry.retainFailureOutputs && taskId != "verify-saved-rig") {
                     auto attempts = ngRigGet(state,"finish_stages",JSONValue(cast(JSONValue[])null)).array.dup;
@@ -124,8 +142,7 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
                 else {
                     // The native stage rolls back before throwing. Preserve that owned checkpoint.
                     result = state; result["finish_stages"] = JSONValue(attempts);
-                    auto destination = context.outputPath("model",".inx");
-                    copy(context.input("model").text,destination); context.publishPath("model",destination);
+                    context.publishBlob("model",context.input("model").readBlob());
                 }
                 context.reportFailure(error.msg);
             }
@@ -145,7 +162,8 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
                 result["rig_complete"] = JSONValue(false);
                 if (!complete) context.reportFailure("One or more finishing stages failed; inspect the completion report");
             }
-            context.publishJson(taskId == "verify-saved-rig" ? "report" : "state",result);
+            context.publishJson(taskId == "verify-saved-rig" ? "report" : "state",
+                taskId == "verify-saved-rig" ? result : storage.snapshot(result));
             return;
         }
         if (taskId == "apply-face-projection") {

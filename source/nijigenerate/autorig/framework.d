@@ -5,7 +5,7 @@ import core.memory : pageSize;
 import core.thread.fiber : Fiber;
 import std.conv : to;
 import std.exception : enforce;
-import std.file : exists, mkdirRecurse, read, readText, write, dirEntries, SpanMode;
+import std.file : exists, read, readText;
 import std.json : JSONValue, JSONType;
 import nijigenerate.autorig.json : parseJSON = ngParseAutoRigJson;
 import std.path : absolutePath, buildPath, baseName, asNormalizedPath;
@@ -22,6 +22,9 @@ struct AutoRigValue {
     string text;
     JSONValue json;
     ubyte[] bytes;
+private:
+    string encodedJson;
+public:
 
     static AutoRigValue fileName(string value) {
         return AutoRigValue(AutoRigValueKind.FileName, value);
@@ -38,6 +41,15 @@ struct AutoRigValue {
         return result;
     }
 
+    private static AutoRigValue jsonSnapshot(JSONValue value) {
+        AutoRigValue result;
+        result.kind = AutoRigValueKind.Json;
+        // Retain pointer-free text instead of millions of GC-scanned JSON nodes.
+        // Consumers still receive an independently owned, exact-double JSON tree.
+        result.encodedJson = value.toString();
+        return result;
+    }
+
     static AutoRigValue blob(ubyte[] value) {
         AutoRigValue result;
         result.kind = AutoRigValueKind.Blob;
@@ -49,6 +61,19 @@ struct AutoRigValue {
         enforce(kind == AutoRigValueKind.Blob, "AutoRig value is not a blob");
         return text.length ? cast(ubyte[])read(text) : bytes.dup;
     }
+}
+
+/** Lightweight UI metadata; reading it never copies JSON or binary payloads. */
+struct AutoRigValueInfo {
+    AutoRigValueKind kind;
+    string text;
+    size_t byteLength;
+    ulong revision;
+}
+
+private AutoRigValueInfo valueInfo(AutoRigValue value, ulong revision) {
+    return AutoRigValueInfo(value.kind, value.text,
+        value.encodedJson.length ? value.encodedJson.length : value.bytes.length, revision);
 }
 
 private JSONValue copyJson(JSONValue value) {
@@ -70,11 +95,14 @@ private AutoRigValue copyValue(AutoRigValue value) {
         case AutoRigValueKind.FileName: return AutoRigValue.fileName(value.text);
         case AutoRigValueKind.Path: return AutoRigValue.path(value.text);
         case AutoRigValueKind.Json: return AutoRigValue.jsonValue(value.text.length ?
-            parseJSON(readText(value.text)) : copyJson(value.json));
+            parseJSON(readText(value.text)) : value.encodedJson.length ?
+            parseJSON(value.encodedJson) : copyJson(value.json));
         case AutoRigValueKind.Blob:
             return value.text.length ? value : AutoRigValue.blob(value.bytes);
     }
 }
+
+AutoRigValue ngCopyAutoRigValue(AutoRigValue value) { return copyValue(value); }
 
 /** Wraps one actual task invocation in the host editor's undo boundary. */
 alias AutoRigTaskActionBoundary = void delegate(string taskId, void delegate() execute);
@@ -163,6 +191,12 @@ struct AutoRigArtifact {
     string viewHint;
     bool committed;
     bool preview;
+private:
+    AutoRigValue value_;
+public:
+    @property AutoRigValue value() { return copyValue(value_); }
+    private @property void value(AutoRigValue item) { value_ = item; }
+    @property size_t byteLength() { return valueInfo(value_, 0).byteLength; }
 }
 
 struct AutoRigTaskSnapshot {
@@ -269,6 +303,12 @@ abstract class AutoRigProcessor {
     }
 }
 
+/** Session-owned CPU data. Implementations synchronize metadata reads and own their buffers. */
+interface AutoRigWorkspace {
+    JSONValue memoryInfo();
+    void dispose();
+}
+
 /** A task sees logical port names; the session owns output locations and lifetimes. */
 class AutoRigTaskContext {
 private:
@@ -283,7 +323,9 @@ private:
     void delegate(AutoRigArtifact) onPreview;
     AutoRigEditorDispatcher editorDispatcher;
     string reportedFailure;
+    string sessionId_;
     AutoRigValue[string] sessionValues;
+    AutoRigWorkspace delegate(string, AutoRigWorkspace delegate()) workspaceProvider;
 
     this(AutoRigTaskSpec spec, string directory, AutoRigValue[string] inputs,
         bool delegate() canceled, void delegate(AutoRigArtifact) onPreview,
@@ -310,9 +352,16 @@ private:
         outputs[port.id] = value;
         artifacts[port.id] = AutoRigArtifact(spec.id, port.id, 0, value.kind,
             storagePath, port.mediaType, port.viewHint, false, false);
+        artifacts[port.id].value = value;
     }
 
 public:
+    string sessionId() { return sessionId_; }
+    /** Only the executing worker uses workspace data; the UI reads metadata only. */
+    AutoRigWorkspace workspace(string name, AutoRigWorkspace delegate() create) {
+        enforce(workspaceProvider !is null, "AutoRig workspace is unavailable");
+        return workspaceProvider(name, create);
+    }
     /** Named session data and artifact references, owned by this task attempt. */
     AutoRigValue contextValue(string name) {
         auto value = name in sessionValues;
@@ -362,41 +411,31 @@ public:
     void publishFileName(string portId, string name) {
         auto port = requireOutput(portId, AutoRigValueKind.FileName);
         enforce(safeFileName(name), "Invalid AutoRig file name");
-        auto location = buildPath(attemptDirectory, portId ~ ".name");
-        write(location, name);
-        publish(port, AutoRigValue.fileName(name), location);
+        publish(port, AutoRigValue.fileName(name), null);
     }
 
     void publishJson(string portId, JSONValue value) {
-        auto port = requireOutput(portId, AutoRigValueKind.Json);
-        auto location = buildPath(attemptDirectory, portId == "result" ? "output-result.json" : portId ~ ".json");
-        write(location, value.toString());
-        AutoRigValue stored;
-        stored.kind = AutoRigValueKind.Json;
-        stored.text = location;
-        publish(port, stored, location);
+        publish(requireOutput(portId, AutoRigValueKind.Json), AutoRigValue.jsonSnapshot(value), null);
     }
 
     void publishBlob(string portId, ubyte[] value) {
-        auto port = requireOutput(portId, AutoRigValueKind.Blob);
-        auto location = buildPath(attemptDirectory, portId ~ ".blob");
-        write(location, value);
-        AutoRigValue stored;
-        stored.kind = AutoRigValueKind.Blob;
-        stored.text = location;
-        publish(port, stored, location);
+        publish(requireOutput(portId, AutoRigValueKind.Blob), AutoRigValue.blob(value), null);
     }
 
     void previewJson(string id, JSONValue value, string mediaType = "application/json") {
-        auto location = previewPath(id, ".json");
-        write(location, value.toString());
-        publishPreview(id, location, mediaType);
+        previewValue(id, AutoRigValue.jsonSnapshot(value), mediaType);
     }
 
     void previewBlob(string id, ubyte[] value, string mediaType = "application/octet-stream") {
-        auto location = previewPath(id, ".blob");
-        write(location, value);
-        publishPreview(id, location, mediaType);
+        previewValue(id, AutoRigValue.blob(value), mediaType);
+    }
+
+    private void previewValue(string id, AutoRigValue value, string mediaType) {
+        enforce(safeId(id), "Invalid AutoRig preview name");
+        AutoRigArtifact artifact;
+        artifact.taskId = spec.id; artifact.portId = id; artifact.kind = value.kind;
+        artifact.mediaType = mediaType; artifact.preview = true; artifact.value = value;
+        if (onPreview !is null) onPreview(artifact);
     }
 
     string previewPath(string id, string extension) {
@@ -453,6 +492,9 @@ private:
     shared bool cancelRequested;
     bool busy;
     AutoRigValue[string] sessionValues;
+    ulong[string] inputRevisions;
+    ulong contextRevision_;
+    AutoRigWorkspace[string] workspaces;
 
     this(AutoRigProcessor processor, string id, string directory,
         AutoRigTaskActionBoundary actionBoundary, AutoRigEditorDispatcher editorDispatcher) {
@@ -496,7 +538,6 @@ private:
         }
         ubyte[string] visits;
         foreach (taskId; specs.keys) validateDependencies(taskId, visits);
-        mkdirRecurse(directory_);
     }
 
     void validateDependencies(string taskId, ref ubyte[string] visits) {
@@ -548,10 +589,9 @@ private:
             enforce(source !is null, "AutoRig dependency has no outputs: " ~ connection.sourceTask);
             auto value = connection.sourceOutput in *source;
             enforce(value !is null, "AutoRig dependency output missing: " ~ connection.sourceOutput);
-            // Committed JSON artifacts are loaded into owned memory only when
-            // the task consumes them, rather than retaining each full stage.
-            inputs[connection.input] = value.kind == AutoRigValueKind.Json && value.text.length ?
-                *value : copyValue(*value);
+            // Task input() returns an owned copy. The private input table can
+            // reference committed storage without duplicating a whole model/tree.
+            inputs[connection.input] = *value;
         }
         foreach (port; spec.inputs) {
             auto value = port.id in inputs;
@@ -571,7 +611,6 @@ private:
             snapshots[taskId] = snapshot;
         }
         auto attemptDirectory = buildPath(directory_, taskId, "attempt-" ~ snapshot.attempt.to!string);
-        mkdirRecurse(attemptDirectory);
         auto context = new AutoRigTaskContext(spec, attemptDirectory, inputs,
             { return atomicLoad(cancelRequested); },
             (AutoRigArtifact artifact) {
@@ -582,6 +621,28 @@ private:
                     snapshots[taskId] = current;
                 }
             }, editorDispatcher);
+        context.sessionId_ = id_;
+        context.workspaceProvider = (string name, AutoRigWorkspace delegate() create) {
+            synchronized (this) {
+                if (auto existing = name in workspaces) return *existing;
+                auto workspace = create();
+                enforce(workspace !is null, "AutoRig workspace factory returned null");
+                workspaces[name] = workspace;
+                return workspace;
+            }
+        };
+        // Completed command closures must not retain an attempt's dependency
+        // payloads or callbacks after the session commits its independent outputs.
+        scope(exit) {
+            context.inputs = null;
+            context.outputs = null;
+            context.artifacts = null;
+            context.sessionValues = null;
+            context.workspaceProvider = null;
+            context.onPreview = null;
+            context.canceled = null;
+            context.editorDispatcher = null;
+        }
         synchronized (this) foreach (name, value; sessionValues)
             context.sessionValues[name] = copyValue(value);
         try {
@@ -619,93 +680,60 @@ private:
             snapshot.artifacts ~= item;
         }
         synchronized (this) snapshots[taskId] = snapshot;
-        writeSnapshot(snapshot);
         enforce(snapshot.state == AutoRigTaskState.Succeeded ||
             spec.retainFailureOutputs && (taskId in committedOutputs) !is null,
             "AutoRig task " ~ taskId ~ " failed: " ~ snapshot.message);
     }
 
-    void writeSnapshot(AutoRigTaskSnapshot snapshot) {
-        JSONValue[string] record;
-        record["taskId"] = JSONValue(snapshot.taskId);
-        record["attempt"] = JSONValue(cast(int)snapshot.attempt);
-        record["state"] = JSONValue(snapshot.state.to!string);
-        record["message"] = JSONValue(snapshot.message);
-        JSONValue[] artifacts;
-        foreach (artifact; snapshot.artifacts) {
-            JSONValue[string] row;
-            row["portId"] = JSONValue(artifact.portId);
-            row["kind"] = JSONValue(artifact.kind.to!string);
-            row["path"] = JSONValue(artifact.storagePath);
-            row["mediaType"] = JSONValue(artifact.mediaType);
-            row["viewHint"] = JSONValue(artifact.viewHint);
-            row["committed"] = JSONValue(artifact.committed);
-            row["preview"] = JSONValue(artifact.preview);
-            artifacts ~= JSONValue(row);
-        }
-        record["artifacts"] = JSONValue(artifacts);
-        write(buildPath(directory_, snapshot.taskId, "attempt-" ~ snapshot.attempt.to!string,
-            "result.json"), JSONValue(record).toString());
-    }
-
 public:
+    /** Outputs remain owned by the live session; reopening requires no disk read. */
     void restoreCommittedOutputs() {
-        enforce(!busy,"Cannot restore an executing AutoRig session");
-        foreach (taskId,spec; specs) {
-            auto taskDirectory = buildPath(directory_,taskId);
-            if (!exists(taskDirectory)) continue;
-            uint latest; string recordPath;
-            foreach (entry; dirEntries(taskDirectory,SpanMode.shallow)) if (entry.isDir) {
-                auto name = baseName(entry.name);
-                import std.string : startsWith;
-                if (!name.startsWith("attempt-")) continue;
-                uint attempt; try { attempt = name[8 .. $].to!uint; } catch (Exception) { continue; }
-                auto candidate = buildPath(entry.name,"result.json");
-                if (attempt>latest && exists(candidate)) { latest = attempt; recordPath = candidate; }
-            }
-            if (!recordPath.length) continue;
-            auto record = parseJSON(readText(recordPath));
-            enforce(record["taskId"].str == taskId,"Restored task identity mismatch");
-            AutoRigTaskSnapshot snapshot = snapshots[taskId]; snapshot.attempt = latest;
-            snapshot.state = record["state"].str.to!AutoRigTaskState; snapshot.message = record["message"].str;
-            AutoRigValue[string] outputs;
-            foreach (entry; record["artifacts"].array) {
-                auto path = entry["path"].str;
-                auto normalized = absolutePath(path).asNormalizedPath.to!string;
-                auto prefix = absolutePath(directory_).asNormalizedPath.to!string;
-                enforce(normalized.length>prefix.length && normalized[0 .. prefix.length] == prefix &&
-                    (normalized[prefix.length] == '/' || normalized[prefix.length] == '\\'),
-                    "Restored artifact escapes its session directory");
-                AutoRigArtifact artifact;
-                artifact.taskId = taskId; artifact.portId = entry["portId"].str; artifact.attempt = latest;
-                artifact.kind = entry["kind"].str.to!AutoRigValueKind; artifact.storagePath = path;
-                artifact.mediaType = entry["mediaType"].str; artifact.viewHint = entry["viewHint"].str;
-                artifact.preview = entry["preview"].boolean; artifact.committed = entry["committed"].boolean;
-                snapshot.artifacts ~= artifact;
-                if (artifact.preview || !artifact.committed || !exists(path)) continue;
-                // Older sessions overwrote a JSON result port with the task snapshot.
-                // Such an artifact must be recomputed instead of consumed as output.
-                if (artifact.kind == AutoRigValueKind.Json &&
-                    normalized == absolutePath(recordPath).asNormalizedPath.to!string) continue;
-                enforce(hasPort(spec.outputs,artifact.portId) && portKind(spec.outputs,artifact.portId) == artifact.kind,
-                    "Restored artifact differs from its task specification");
-                AutoRigValue value; value.kind = artifact.kind;
-                value.text = artifact.kind == AutoRigValueKind.FileName ? readText(path) : path;
-                outputs[artifact.portId] = value;
-            }
-            bool complete = true;
-            foreach (port; spec.outputs) if (port.required && (port.id in outputs) is null) complete = false;
-            if (complete && (snapshot.state == AutoRigTaskState.Succeeded ||
-                snapshot.state == AutoRigTaskState.Failed && spec.retainFailureOutputs)) committedOutputs[taskId] = outputs;
-            else if (snapshot.state == AutoRigTaskState.Succeeded) snapshot.state = AutoRigTaskState.Stale;
-            snapshots[taskId] = snapshot;
-        }
+        enforce(!busy, "Cannot restore an executing AutoRig session");
     }
 
     string id() { return id_; }
     string directory() { return directory_; }
     string processorId() { return processor.procId(); }
     bool isBusy() { synchronized (this) return busy; }
+
+    /** Retained artifact payload sizes, without copying or parsing the payloads. */
+    JSONValue memoryInfo() {
+        synchronized (this) {
+            ulong jsonBytes, blobBytes, previewBytes, cpuBytes;
+            JSONValue[] entries;
+            foreach (id, snapshot; snapshots) foreach (artifact; snapshot.artifacts) {
+                auto size = artifact.byteLength;
+                if (artifact.kind == AutoRigValueKind.Json) jsonBytes += size;
+                if (artifact.kind == AutoRigValueKind.Blob) blobBytes += size;
+                if (artifact.preview) previewBytes += size;
+                entries ~= JSONValue(["task":JSONValue(id), "port":JSONValue(artifact.portId),
+                    "kind":JSONValue(artifact.kind.to!string), "preview":JSONValue(artifact.preview),
+                    "bytes":JSONValue(cast(ulong)size)]);
+            }
+            JSONValue[string] workspaceInfo;
+            foreach (name, workspace; workspaces) {
+                auto info = workspace.memoryInfo();
+                workspaceInfo[name] = info;
+                jsonBytes += info["json_bytes"].uinteger;
+                cpuBytes += info["cpu_bytes"].uinteger;
+            }
+            return JSONValue(["json_bytes":JSONValue(jsonBytes), "blob_bytes":JSONValue(blobBytes),
+                "cpu_bytes":JSONValue(cpuBytes), "workspaces":JSONValue(workspaceInfo),
+                "preview_bytes":JSONValue(previewBytes), "artifacts":JSONValue(entries)]);
+        }
+    }
+    /** Release payloads even when an old command retains a reference to this session. */
+    void dispose() {
+        synchronized (this) {
+            enforce(!busy, "Cannot dispose a running AutoRig session");
+            foreach (workspace; workspaces) workspace.dispose();
+            workspaces = null;
+            committedOutputs = null;
+            suppliedInputs = null;
+            sessionValues = null;
+            foreach (ref snapshot; snapshots) snapshot.artifacts = null;
+        }
+    }
     bool isCanceled() { return atomicLoad(cancelRequested); }
 
     void setContextValue(string name, AutoRigValue value) {
@@ -713,6 +741,7 @@ public:
             enforce(!busy, "Cannot change AutoRig context during execution");
             enforce(name.length > 0, "AutoRig context name is empty");
             sessionValues[name] = copyValue(value);
+            ++contextRevision_;
             foreach (taskId, ref snapshot; snapshots) {
                 if (snapshot.state == AutoRigTaskState.Succeeded) snapshot.state = AutoRigTaskState.Stale;
             }
@@ -729,6 +758,18 @@ public:
     }
 
     string[] contextNames() { synchronized (this) return sessionValues.keys; }
+
+    AutoRigValueInfo contextInfo(string name) {
+        synchronized (this) {
+            auto value = name in sessionValues;
+            enforce(value !is null, "Missing AutoRig session context: " ~ name);
+            return valueInfo(*value, contextRevision_);
+        }
+    }
+
+    ulong inputRevision(string taskId) {
+        synchronized (this) return inputRevisions.get(taskId, 0);
+    }
 
     void invalidateTask(string taskId) {
         synchronized (this) {
@@ -751,6 +792,7 @@ public:
             foreach (connection; spec.connections)
                 enforce(connection.input != portId, "Connected AutoRig input cannot be supplied directly");
             suppliedInputs[taskId][portId] = copyValue(value);
+            ++inputRevisions[taskId];
             if (snapshots[taskId].state == AutoRigTaskState.Succeeded)
                 invalidateDependents(taskId);
             committedOutputs.remove(taskId);
@@ -784,12 +826,12 @@ public:
 
     void cancel() { atomicStore(cancelRequested, true); }
 
-    AutoRigTaskSnapshot task(string taskId) {
+    AutoRigTaskSnapshot task(string taskId, bool includeArtifacts = true) {
         synchronized (this) {
             auto found = taskId in snapshots;
             enforce(found !is null, "Unknown AutoRig task");
             auto result = *found;
-            result.artifacts = result.artifacts.dup;
+            result.artifacts = includeArtifacts ? result.artifacts.dup : null;
             return result;
         }
     }
@@ -871,7 +913,6 @@ public:
             enforce(found !is null, "Unknown AutoRig task");
             foreach (artifact; found.artifacts)
                 if (artifact.portId == portId && artifact.committed && !artifact.preview) {
-                    enforce(exists(artifact.storagePath), "AutoRig source artifact is missing");
                     return artifact;
                 }
             throw new Exception("Unknown committed AutoRig artifact: " ~ portId);
@@ -966,6 +1007,7 @@ private:
     AutoRigProcessor[string] processors;
     string[string] processorAliases;
     AutoRigSession[string] sessions;
+    AutoRigSession[string] closedSessions;
     AutoRigTaskActionBoundary actionBoundary;
     AutoRigEditorDispatcher editorDispatcher;
 
@@ -1020,10 +1062,13 @@ public:
     }
 
     AutoRigSession reopenWithProcessor(AutoRigProcessor processor, string runId) {
-        enforce(safeId(runId) && exists(buildPath(root,runId,"workflow.json")),"Unknown saved AutoRig run");
-        enforce((runId in sessions) is null,"AutoRig run is already open");
-        auto session = new AutoRigSession(processor,runId,buildPath(root,runId),actionBoundary,editorDispatcher);
-        sessions[runId] = session; return session;
+        auto found = runId in closedSessions;
+        enforce(found !is null && (runId in sessions) is null, "Unknown closed AutoRig session");
+        auto session = *found;
+        enforce(session.processorId() == processor.procId(), "AutoRig processor identity mismatch");
+        closedSessions.remove(runId);
+        sessions[runId] = session;
+        return session;
     }
 
     AutoRigProcessor processor(string processorId) {
@@ -1044,6 +1089,18 @@ public:
     void close(string runId) {
         auto session = get(runId);
         enforce(!session.isBusy(), "Cannot close a running AutoRig session");
+        closedSessions[runId] = session;
         sessions.remove(runId);
+    }
+
+    void remove(string runId) {
+        auto active = runId in sessions;
+        auto closed = runId in closedSessions;
+        enforce(active !is null || closed !is null, "Unknown AutoRig session");
+        auto session = active !is null ? *active : *closed;
+        enforce(!session.isBusy(), "Cannot delete a running AutoRig session");
+        session.dispose();
+        sessions.remove(runId);
+        closedSessions.remove(runId);
     }
 }

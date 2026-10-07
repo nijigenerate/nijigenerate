@@ -3,7 +3,7 @@ module nijigenerate.autorig.workflow;
 import nijigenerate.autorig.framework;
 import std.conv : to;
 import std.exception : enforce;
-import std.file : write, readText;
+import std.file : readText;
 import std.json : JSONValue;
 import nijigenerate.autorig.json : parseJSON = ngParseAutoRigJson;
 import std.path : buildPath;
@@ -223,14 +223,18 @@ private:
     AutoRigSession session_;
     WorkflowProcessor processor;
     JSONValue[string] suppliedInputs;
+    JSONValue record;
+    ulong inputRevision_;
+    AutoRigWorkflowStep[] orderedSteps_;
 
     this(AutoRigSession session, WorkflowProcessor processor) {
         session_ = session;
         this.processor = processor;
-        writeRecord();
+        orderedSteps();
+        updateRecord();
     }
 
-    void writeRecord() {
+    void updateRecord() {
         JSONValue[string] record;
         record["runId"] = JSONValue(id());
         record["providerId"] = JSONValue(processor.providerId);
@@ -250,7 +254,7 @@ private:
         foreach (task; processor.flattened)
             if (session_.task(task.id).state == AutoRigTaskState.Stale) staleTasks ~= JSONValue(task.id);
         record["staleTasks"] = JSONValue(staleTasks);
-        write(buildPath(directory(), "workflow.json"), JSONValue(record).toString());
+        this.record = JSONValue(record);
     }
 
 public:
@@ -295,14 +299,15 @@ public:
     AutoRigSession session() { return session_; }
     AutoRigPortSpec[] inputPorts() { return processor.workflow.inputs.dup; }
     bool hasInput(string portId) { return (portId in suppliedInputs) !is null; }
+    ulong inputRevision() { return inputRevision_; }
     AutoRigValue input(string portId) {
         auto value = portId in suppliedInputs;
         enforce(value !is null, "Missing AutoRig workflow input: " ~ portId);
-        return restoredValue(parseJSON(value.toString()));
+        return ngCopyAutoRigValue(restoredValue(*value));
     }
     void setContextValue(string name, AutoRigValue value) {
         session_.setContextValue(name, value);
-        writeRecord();
+        updateRecord();
     }
     void setContext(JSONValue values) {
         import std.json : JSONType;
@@ -316,6 +321,7 @@ public:
     }
 
     AutoRigWorkflowStep[] orderedSteps() {
+        if (orderedSteps_.length) return orderedSteps_.dup;
         size_t[string] selectedIndices;
         foreach (index, step; processor.workflow.steps)
             selectedIndices[stepTaskId(step.id)] = index;
@@ -335,7 +341,8 @@ public:
                 result ~= processor.workflow.steps[*index];
         }
         foreach (step; processor.workflow.steps) visit(stepTaskId(step.id));
-        return result;
+        orderedSteps_ = result;
+        return result.dup;
     }
 
     void setInput(string portId, AutoRigValue value) {
@@ -347,7 +354,8 @@ public:
                 session_.setInput(processor.targetId(binding.targetStep, binding.targetTask),
                     binding.targetPort, value);
         suppliedInputs[portId] = storedValue(value);
-        writeRecord();
+        ++inputRevision_;
+        updateRecord();
     }
 
     void execute(bool force = false) {
@@ -356,20 +364,20 @@ public:
         try {
             session_.executeGroup(selected, force);
         } catch (Exception error) {
-            writeRecord();
+            updateRecord();
             throw error;
         }
-        writeRecord();
+        updateRecord();
     }
 
     void executeStep(string stepId, bool force = false) {
         try {
             session_.execute(stepTaskId(stepId), force);
         } catch (Exception error) {
-            writeRecord();
+            updateRecord();
             throw error;
         }
-        writeRecord();
+        updateRecord();
     }
 
     void cancel() { session_.cancel(); }
@@ -381,7 +389,7 @@ public:
         throw new Exception("Unknown workflow output");
     }
 
-    AutoRigWorkflowSnapshot snapshot() {
+    AutoRigWorkflowSnapshot snapshot(bool includeArtifacts = true) {
         AutoRigWorkflowSnapshot result;
         result.runId = id();
         result.providerId = processor.providerId;
@@ -389,12 +397,12 @@ public:
         result.state = session_.isBusy() ? AutoRigWorkflowState.Running : AutoRigWorkflowState.Pending;
         bool allSucceeded = true;
         foreach (step; processor.workflow.steps) {
-            result.steps[step.id] = session_.task(stepTaskId(step.id));
+            result.steps[step.id] = session_.task(stepTaskId(step.id), includeArtifacts);
             auto task = result.steps[step.id];
             if (task.state != AutoRigTaskState.Succeeded) allSucceeded = false;
         }
         foreach (taskSpec; processor.flattened) {
-            auto task = session_.task(taskSpec.id);
+            auto task = session_.task(taskSpec.id, false);
             if (task.state == AutoRigTaskState.Failed) {
                 result.state = AutoRigWorkflowState.Failed;
                 result.message = task.message;
@@ -413,6 +421,7 @@ class AutoRigWorkflowManager {
 private:
     AutoRigSessionManager sessions;
     AutoRigWorkflowRun[string] runs;
+    AutoRigWorkflowRun[string] closedRuns;
 
 public:
     this(AutoRigSessionManager sessions) { this.sessions = sessions; }
@@ -451,34 +460,25 @@ public:
 
     AutoRigWorkflowRun reopen(string runId) {
         if (auto known = runId in runs) return *known;
-        import std.uuid : UUID;
-        enforce(UUID(runId).toString() == runId,"Invalid saved AutoRig run UUID");
-        auto record = parseJSON(readText(buildPath(sessions.rootDirectory(),runId,"workflow.json")));
-        enforce(record["runId"].str == runId,"Saved workflow identity mismatch");
-        AutoRigWorkflowSpec spec; bool found;
-        foreach (workflow; sessions.processor(record["providerId"].str).workflows())
-            if (workflow.id == record["workflowId"].str) { spec = workflow; found = true; }
-        enforce(found,"Saved AutoRig workflow is no longer registered");
-        auto adapter = new WorkflowProcessor(sessions,record["providerId"].str,spec);
-        foreach (step; spec.steps) enforce(record["steps"][step.id].str == adapter.selectedTaskIds[step.id],
-            "Saved workflow graph differs from the current workflow");
-        auto session = sessions.reopenWithProcessor(adapter,runId);
-        auto run = new AutoRigWorkflowRun(session,adapter);
-        foreach (portId,value; spec.inputDefaults) run.setInput(portId,value);
-        if (auto inputs = "inputs" in record.object) foreach (portId,stored; inputs.object) {
-            run.setInput(portId,restoredValue(stored));
-        }
-        if (auto context = "context" in record.object) foreach (name, stored; context.object)
-            run.setContextValue(name, restoredValue(stored));
-        session.restoreCommittedOutputs();
-        if (auto staleTasks = "staleTasks" in record.object)
-            foreach (task; staleTasks.array) session.invalidateTask(task.str);
-        run.writeRecord(); runs[runId] = run; return run;
+        auto saved = runId in closedRuns;
+        enforce(saved !is null, "AutoRig session is no longer available in memory");
+        auto run = *saved;
+        sessions.reopenWithProcessor(run.processor, runId);
+        closedRuns.remove(runId);
+        runs[runId] = run;
+        return run;
     }
 
     void close(string runId) {
-        get(runId);
+        closedRuns[runId] = get(runId);
         sessions.close(runId);
         runs.remove(runId);
+    }
+
+    void remove(string runId) {
+        enforce((runId in runs) !is null || (runId in closedRuns) !is null, "Unknown AutoRig workflow run");
+        sessions.remove(runId);
+        runs.remove(runId);
+        closedRuns.remove(runId);
     }
 }

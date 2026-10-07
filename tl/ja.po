@@ -7017,3 +7017,11 @@ msgstr "自動リグを再開"
 #: source/nijigenerate/commands/puppet/tool.d:208
 msgid "Resume a saved AutoRig workflow."
 msgstr "保存済みの自動リグワークフローを再開します。"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Verify rig"
+msgstr "リグを検証"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Delete session"
+msgstr "セッションを削除"

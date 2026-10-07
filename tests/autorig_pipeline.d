@@ -263,13 +263,13 @@ void ngTestRigPipeline() {
 
     string[] stages;
     auto processor = new AnimeFrontViewRigProcessor(null,
-        (string stage, JSONValue state, JSONValue plan, string model, AutoRigTaskContext context) {
+        (string stage, JSONValue state, JSONValue plan, ubyte[] model, AutoRigTaskContext context) {
             assert(Fiber.getThis() !is null);
             stages ~= stage;
             if (stage == "observe-model") state = parseJSON(ngTestModelObservation().toString());
             else assert(plan["scaffold"]["bones"].array.length == 21);
             if (stage == "verify-saved-rig") return JSONValue(["passed":JSONValue(true)]);
-            auto file = context.outputPath("model",".inx"); write(file,"synthetic checkpoint"); context.publishPath("model",file);
+            context.publishBlob("model",[cast(ubyte)1,2,3]);
             return state;
         });
     auto sessions = new AutoRigSessionManager(buildPath(tempDir(),"autorig-pipeline-" ~ randomUUID().toString()));
@@ -287,19 +287,20 @@ void ngTestRigPipeline() {
     assert(stages == ["observe-model","prepare-source-groups","prepare-shoulders","mesh-parts","register-source-uv",
         "prepare-feature-composites","compile-domain-layout","build-native-rig","weld-shoulders",
         "apply-rig-controls","validate-depth-inputs","bake-depth-angles","apply-shape-corrections","verify-saved-rig"]);
-    assert(run.output("report").json["passed"].boolean && run.output("model").text.length>0);
+    assert(run.output("report").json["passed"].boolean && run.output("model").readBlob().length>0);
     auto detached = run.session().output(run.stepTaskId("source"),"state").json;
-    auto originalCoordinate = ngRigNumber(detached["materials"][0]["cloud"][0][0]);
-    detached["materials"][0]["cloud"][0][0] = JSONValue(123456.);
-    assert(ngRigNumber(run.session().output(run.stepTaskId("source"),"state").json[
-        "materials"][0]["cloud"][0][0]) == originalCoordinate);
+    assert(("materials" in detached.object) is null);
+    auto originalReference = detached["artifact_refs"]["materials"].str;
+    detached["artifact_refs"]["materials"] = JSONValue("detached-reader-edit");
+    assert(run.session().output(run.stepTaskId("source"),"state").json[
+        "artifact_refs"]["materials"].str == originalReference);
+    auto observationMetadata = run.session().output(run.stepTaskId("source"),"observation").json;
+    assert(("cloud" in observationMetadata[0].object) is null);
     auto completedCount = stages.length;
     run.execute();
     assert(stages.length == completedCount);
-    auto restoredSessions = new AutoRigSessionManager(sessions.rootDirectory());
-    restoredSessions.registerProcessor(processor);
-    auto restoredWorkflows = new AutoRigWorkflowManager(restoredSessions);
-    auto restored = restoredWorkflows.reopen(run.id());
+    workflows.close(run.id());
+    auto restored = workflows.reopen(run.id());
     assert(restored.id() == run.id() && restored.snapshot().state == AutoRigWorkflowState.Succeeded);
     assert(restored.session().inputContext(restored.stepTaskId("source")).value("options").json["render"].boolean);
     restored.execute();
@@ -315,12 +316,12 @@ void ngTestRigPipeline() {
     string[] attempts;
     bool failControls = true;
     auto failingProcessor = new AnimeFrontViewRigProcessor(null,
-        (string stage, JSONValue state, JSONValue plan, string model, AutoRigTaskContext context) {
+        (string stage, JSONValue state, JSONValue plan, ubyte[] model, AutoRigTaskContext context) {
             attempts ~= stage;
             if (stage == "observe-model") state = ngTestModelObservation();
             if (stage == "apply-rig-controls" && failControls) throw new Exception("synthetic local-control failure");
             if (stage == "verify-saved-rig") return JSONValue(["passed":JSONValue(true)]);
-            auto file = context.outputPath("model",".inx"); write(file,"synthetic checkpoint"); context.publishPath("model",file);
+            context.publishBlob("model",[cast(ubyte)1,2,3]);
             return state;
         });
     auto diagnosticSessions = new AutoRigSessionManager(buildPath(tempDir(),"autorig-finish-" ~ randomUUID().toString()));

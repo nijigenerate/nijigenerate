@@ -18,10 +18,12 @@ import std.json : JSONValue;
 private __gshared string delegate(JSONValue, JSONValue) autoRigExecute;
 private __gshared JSONValue delegate(string) autoRigStatus;
 private __gshared string delegate(string,string) autoRigResume;
+private __gshared void delegate(string) autoRigRemove;
 
 void ngSetAutoRigCommandHandlers(string delegate(JSONValue, JSONValue) execute, JSONValue delegate(string) status,
-    string delegate(string,string) resume) {
+    string delegate(string,string) resume, void delegate(string) remove = null) {
     autoRigExecute = execute; autoRigStatus = status; autoRigResume = resume;
+    autoRigRemove = remove;
 }
 
 @McpHidden
@@ -195,9 +197,45 @@ class ExecuteAutoRigCommand : ExCommand!(TW!(string,"options","AutoRig options J
 class GetAutoRigStatusCommand : ExCommand!(TW!(string,"runId","AutoRig run UUID.")) {
     this(string runId = "") { super(_("AutoRig Status"),_("Read AutoRig workflow progress."),runId); }
     override CommandResult run(Context ctx) {
-        import std.json : JSONValue;
         if (autoRigStatus is null) return CommandResult(false,"AutoRig panel is unavailable");
         return new ExCommandResult!JSONValue(true,autoRigStatus(runId));
+    }
+}
+
+class GetAutoRigMemoryStatusCommand : ExCommand!(TW!(string,"runId","AutoRig run UUID; empty measures all panel sessions."),
+    TW!(bool,"collectGarbage","Explicitly collect unused memory for a stopped session before measuring.")) {
+    this(string runId = "", bool collectGarbage = false) {
+        super(_("AutoRig memory status"),_("Read retained artifact sizes and garbage collector memory."),
+            runId,collectGarbage);
+    }
+    override CommandResult run(Context ctx) {
+        import std.json : JSONValue;
+        if (autoRigStatus is null) return CommandResult(false,"AutoRig panel is unavailable");
+        auto status = autoRigStatus(runId);
+        if (collectGarbage) {
+            if (status["state"].str == "Running") return CommandResult(false,"AutoRig is still running");
+            import core.memory : GC;
+            import std.datetime.stopwatch : StopWatch;
+            auto timer = StopWatch(); timer.start();
+            GC.collect();
+            timer.stop();
+            auto memory = GC.stats();
+            status["memory"]["gc_used_after_collection_bytes"] = JSONValue(cast(ulong)memory.usedSize);
+            status["memory"]["gc_free_after_collection_bytes"] = JSONValue(cast(ulong)memory.freeSize);
+            status["memory"]["collection_microseconds"] = JSONValue(timer.peek.total!"usecs");
+        }
+        return new ExCommandResult!JSONValue(true,status);
+    }
+}
+
+class DeleteAutoRigSessionCommand : ExCommand!(TW!(string,"runId","Stopped AutoRig session UUID.")) {
+    this(string runId = "") {
+        super(_("Delete AutoRig session"),_("Delete the session artifacts while keeping the editor model."),runId);
+    }
+    override CommandResult run(Context ctx) {
+        if (autoRigRemove is null) return CommandResult(false,"AutoRig panel is unavailable");
+        autoRigRemove(runId);
+        return CommandResult(true);
     }
 }
 
@@ -227,6 +265,8 @@ enum ToolCommand {
     AnimEditMode,
     ExecuteAutoRig,
     GetAutoRigStatus,
+    GetAutoRigMemoryStatus,
+    DeleteAutoRigSession,
     ResumeAutoRig,
 }
 

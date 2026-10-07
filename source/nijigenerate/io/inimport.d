@@ -15,6 +15,7 @@ import i18n;
 import std.format;
 import nijigenerate.io;
 import mir.serde;
+import std.exception : enforce;
 
 struct IncImportSettings {
     bool keepStructure = true;
@@ -31,6 +32,11 @@ class IncImportLayer(T) {
     bool hidden;
     bool isLayerGroup;
     BlendMode blendMode;
+    bool clipped;
+    bool passThrough;
+
+    @serdeIgnore
+    IncImportLayer!T clippingBase;
 
     @serdeIgnore
     Traits!T.Layer imageLayerRef;
@@ -49,6 +55,10 @@ class IncImportLayer(T) {
         this.name = imageLayerRef.name;
         this.isLayerGroup = isGroup;
         this.index = index;
+        static if (__traits(hasMember, Traits!T, "isClippingLayer"))
+            clipped = Traits!T.isClippingLayer(layer);
+        static if (__traits(hasMember, Traits!T, "isPassThroughGroup"))
+            passThrough = isGroup && Traits!T.isPassThroughGroup(layer);
 
         switch(layer.blendModeKey) {
             case Traits!T.BlendingMode.Normal: blendMode = BlendMode.Normal; break;
@@ -128,6 +138,18 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
 
     }
 
+    // Resolve each clipping chain from its base within the sibling scope.
+    void resolveClipping(IncImportLayer!T[] siblings) {
+        IncImportLayer!T base;
+        foreach_reverse (layer; siblings) {
+            if (layer.clipped) {
+                enforce(base !is null, "PSD clipping layer has no base: " ~ layer.getLayerPath());
+                layer.clippingBase = base;
+            } else base = layer;
+            resolveClipping(layer.children);
+        }
+    }
+    resolveClipping(outLayers);
     return outLayers;
 }
 
@@ -187,13 +209,19 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
         IncImportLayer!T[] layers = incBuildLayerLayout!T(doc);
         vec2i docCenter = vec2i(doc.width/2, doc.height/2);
         Puppet puppet = new ExPuppet();
+        Node[IncImportLayer!T] importedNodes;
 
         void recurseAdd(Node parent, IncImportLayer!T layer) {
             
             Node child;
             if (layer.isLayerGroup) {
-                if (settings.keepStructure)
-                    child = inInstantiateNode(settings.layerGroupNodeType, cast(Node)null);
+                if (settings.keepStructure) {
+                    if (layer.passThrough)
+                        enforce(layer.imageLayerRef.opacity == 255,
+                            "Pass-through group opacity needs an inherited opacity adapter: " ~ layer.getLayerPath());
+                    child = inInstantiateNode(layer.passThrough ? "Node" : settings.layerGroupNodeType,
+                        cast(Node)null);
+                }
             } else {
                 
                 layer.imageLayerRef.extractLayerImage();
@@ -220,6 +248,7 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
 
             // If `keepStructure` is disabled, `child` will be null, so we check for that
             if (child) {
+                importedNodes[layer] = child;
                 child.name = layer.name;
                 child.zSort = -(cast(float)layer.index);
                 child.reparent(parent, 0);
@@ -246,6 +275,17 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
 
         foreach(layer; layers) {
             recurseAdd(puppet.root, layer);
+        }
+
+        // Restore PSD clipping as native masks before exposing the imported model.
+        // The processor can then use only model data, without reopening the PSD.
+        foreach (layer, node; importedNodes) if (layer.clippingBase !is null) {
+            auto part = cast(Part)node;
+            auto base = layer.clippingBase in importedNodes;
+            auto drawable = base is null ? null : cast(Drawable)*base;
+            enforce(part !is null && drawable !is null,
+                "PSD clipping needs a Part and drawable base: " ~ layer.getLayerPath());
+            part.masks ~= MaskBinding(drawable.uuid, MaskingMode.Mask, drawable);
         }
 
         puppet.populateTextureSlots();

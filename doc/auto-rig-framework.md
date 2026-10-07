@@ -1,5 +1,16 @@
 # AutoRig processor and session framework
 
+## Current memory ownership
+
+AutoRig sessions now keep model snapshots, JSON, binary artifacts and previews
+in memory. Task publication does not write files or create run directories.
+The native model port is a `Blob` snapshot produced by the engine memory API;
+it is restored through the engine memory loader for retry or rollback. PNG
+previews are captured through `CaptureLiveScreenshotCommand` and retained as
+bytes. Session close/reopen is supported within the same application process;
+disk-based recovery and automatic model saving have been removed. The original
+disk-storage design described below is superseded by this ownership model.
+
 This document describes the first D framework for built-in AutoRig processors. A processor contains shared implementation code and exposes its programs as named task functions. The first intended processor is a D port of `nijigenerate-deterministic-rig`.
 
 Processors may also publish workflow presets. A workflow connects task calls from its provider or other registered processors. The workflow manager lists these presets and creates one `AutoRigSession` when a user invokes one.

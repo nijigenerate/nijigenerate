@@ -3,18 +3,20 @@ module nijigenerate.autorig.deterministic.pipeline;
 import nijigenerate.autorig.framework;
 import std.json : JSONValue;
 
-alias RigNativeStage = JSONValue delegate(string, JSONValue, JSONValue, string, AutoRigTaskContext);
+alias RigNativeStage = JSONValue delegate(string, JSONValue, JSONValue, ubyte[], AutoRigTaskContext);
 
 AutoRigTaskSpec[] ngRigPipelineTasks() {
     auto state = AutoRigPortSpec("state",AutoRigValueKind.Json);
     auto program = AutoRigPortSpec("program",AutoRigValueKind.Json);
-    auto model = AutoRigPortSpec("model",AutoRigValueKind.Path);
+    auto model = AutoRigPortSpec("model",AutoRigValueKind.Blob);
     auto materials = AutoRigPortSpec("materials",AutoRigValueKind.Json);
     AutoRigTaskSpec[] result = [
         AutoRigTaskSpec("observe-model",ngAutoRigMessage("Observe imported model"),null,
-            [AutoRigPortSpec("options",AutoRigValueKind.Json)], [state,model,materials],null),
+            [AutoRigPortSpec("options",AutoRigValueKind.Json)],
+            [state,model,materials,AutoRigPortSpec("observation",AutoRigValueKind.Json)],null),
         AutoRigTaskSpec("compile-rig",ngAutoRigMessage("Derive evidence and compile rig"),null,
-            [state,materials,AutoRigPortSpec("options",AutoRigValueKind.Json)],[program,state],null)
+            [state,materials,AutoRigPortSpec("options",AutoRigValueKind.Json)],
+            [program,state,AutoRigPortSpec("evidence",AutoRigValueKind.Json)],null)
     ];
     foreach (id, label; ["mesh-parts":ngAutoRigMessage("Prepare Part meshes"), "build-native-rig":ngAutoRigMessage("Build anatomical rig"),
         "prepare-source-groups":ngAutoRigMessage("Prepare source groups and facial composites"),
@@ -26,7 +28,7 @@ AutoRigTaskSpec[] ngRigPipelineTasks() {
         "apply-shape-corrections":ngAutoRigMessage("Apply fixed-foot and near-cheek corrections"),
         "bake-depth-angles":ngAutoRigMessage("Bake face and body angles"), "apply-rig-controls":ngAutoRigMessage("Apply local rig controls")])
         result ~= AutoRigTaskSpec(id,label,null,[state,program,model],[state,model],null);
-    result ~= AutoRigTaskSpec("verify-saved-rig",ngAutoRigMessage("Verify saved rig"),null,[state,program,model],
+    result ~= AutoRigTaskSpec("verify-saved-rig",ngAutoRigMessage("Verify rig"),null,[state,program,model],
         [AutoRigPortSpec("report",AutoRigValueKind.Json)],null);
     result ~= AutoRigTaskSpec("compile-domain-layout",ngAutoRigMessage("Compile shared source domains"),null,[state,program,model],
         [state,program,model],null);
@@ -43,7 +45,7 @@ AutoRigWorkflowSpec ngRigModelWorkflow(string provider) {
     result.inputDefaults["options"] = AutoRigValue.jsonValue(JSONValue(cast(JSONValue[string])null));
     result.description = ngAutoRigMessage("Observe, derive, mesh, build, bake, control and verify the imported model.");
     result.inputs = [AutoRigPortSpec("options",AutoRigValueKind.Json)];
-    result.outputs = [AutoRigPortSpec("model",AutoRigValueKind.Path),AutoRigPortSpec("report",AutoRigValueKind.Json)];
+    result.outputs = [AutoRigPortSpec("model",AutoRigValueKind.Blob),AutoRigPortSpec("report",AutoRigValueKind.Json)];
     result.steps = [AutoRigWorkflowStep("source",provider,"observe-model"),AutoRigWorkflowStep("compile",provider,"compile-rig"),
         AutoRigWorkflowStep("groups",provider,"prepare-source-groups"),
         AutoRigWorkflowStep("shoulders",provider,"prepare-shoulders"),
