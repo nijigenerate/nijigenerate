@@ -75,10 +75,34 @@ private Point3[] profile(Point2[] cloud, Point2 origin, Point2 down, Point2 tang
     return rows;
 }
 
+/** The eye line defines orientation; asymmetric alpha edges only define head extent. */
+JSONValue ngRigInferHeadFrame(Point2[] face, Point2 eyeRight, Point2 eyeLeft) {
+    Point2 origin = [(eyeRight[0]+eyeLeft[0])/2, (eyeRight[1]+eyeLeft[1])/2];
+    Point2 tangent = [eyeLeft[0]-eyeRight[0], eyeLeft[1]-eyeRight[1]];
+    double span = sqrt(tangent[0]*tangent[0]+tangent[1]*tangent[1]);
+    enforce(span > 0 && tangent[0] > 0, "Invalid paired eye frame");
+    tangent[] /= span;
+    Point2 down = [-tangent[1], tangent[0]];
+    double[] stations;
+    foreach (point; face) stations ~= (point[0]-origin[0])*down[0]+(point[1]-origin[1])*down[1];
+    auto low = quantile(stations, .01), high = quantile(stations, .99);
+    enforce(high > low, "Degenerate head extent");
+    return JSONValue(["origin":JSONValue(origin[]), "tangent":JSONValue(tangent[]),
+        "normal":JSONValue([-down[0],-down[1]]),
+        "head_top":JSONValue([origin[0]+low*down[0],origin[1]+low*down[1]]),
+        "head_root":JSONValue([origin[0]+high*down[0],origin[1]+high*down[1]]),
+        "method":JSONValue("paired_eye_axis_and_projected_face_extent")]);
+}
+
 /** Python riglib.neck parity: observe narrow skin and its transition into the torso. */
-JSONValue ngRigInferNeckBase(Point2[] face, Point2[] neck, Point2[] torso, Point2[] garments = null) {
+JSONValue ngRigInferNeckBase(Point2[] face, Point2[] neck, Point2[] torso, Point2[] garments = null,
+    JSONValue headFrame = JSONValue.init) {
+    import nijigenerate.autorig.deterministic.contracts : ngRigPoint;
+    import std.json : JSONType;
     enforce(face.length > 0, "Neck inference needs head support");
-    auto origin = section(face, 1), top = section(face, 0);
+    bool sharedFrame = headFrame.type != JSONType.null_;
+    auto origin = sharedFrame ? ngRigPoint(headFrame["head_root"]) : section(face, 1);
+    auto top = sharedFrame ? ngRigPoint(headFrame["head_top"]) : section(face, 0);
     Point2 down = [origin[0] - top[0], origin[1] - top[1]];
     double height = sqrt(down[0] * down[0] + down[1] * down[1]);
     enforce(height > 0, "Degenerate head frame");
@@ -97,7 +121,13 @@ JSONValue ngRigInferNeckBase(Point2[] face, Point2[] neck, Point2[] torso, Point
         Point3[] rows, JSONValue score, string provenance) {
         JSONValue[] samples;
         foreach (row; rows) samples ~= JSONValue(row[]);
-        return JSONValue(["xy":JSONValue(point[]), "method":JSONValue(method),
+        auto measured = point;
+        if (sharedFrame) {
+            auto station = project(point,origin,down,tangent)[0];
+            point = [origin[0]+station*down[0],origin[1]+station*down[1]];
+        }
+        return JSONValue(["xy":JSONValue(point[]), "observed_xy":JSONValue(measured[]),
+            "head_axis_constrained":JSONValue(sharedFrame), "method":JSONValue(method),
             "structure":JSONValue(structure), "body_support":JSONValue(torso.length ? "skin" : "garment"),
             "frame":frame, "head_height":JSONValue(height), "head_width":JSONValue(width),
             "narrow_width":JSONValue(narrow), "width_profile":JSONValue(samples),

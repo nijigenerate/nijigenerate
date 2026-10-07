@@ -132,6 +132,17 @@ real PSD-derived cloud JSON. Run status exposes `compile_profile` phase start
 times in milliseconds for input restoration, material classification, evidence
 derivation, program compilation and artifact retention.
 
+Head and Neck share a facial coordinate frame derived from the paired eye
+canthi. Face alpha quantiles determine head extent along that frame, rather than
+turning asymmetric forehead/chin sections into a head roll. Neck width-profile
+inference retains its measured attachment station on the same axis, with the
+unconstrained measurement recorded as `observed_xy`. After the shoulder fit the
+scaffold enforces Neck/Head collinearity and reconstructs the torso stations.
+This is necessary because the native terminal Head direction follows the
+Neck-to-Head node positions, not its serialized `restTail` direction.
+`tests/autorig_head_neck.d` compares both observation and solved scaffold points
+against the Python implementation using real PSD-derived inputs.
+
 Committed JSON and JSON previews retain serialized text in memory rather than
 large trees of GC-scanned arrays and objects. Task readers restore independent
 JSON trees with exact double precision. Private dependency tables share committed

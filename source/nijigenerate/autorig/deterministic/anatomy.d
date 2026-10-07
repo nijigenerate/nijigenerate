@@ -100,8 +100,20 @@ JSONValue ngRigSolveScaffold(JSONValue evidence, JSONValue prior) {
         foreach (column; 0 .. independent.length) foreach (axis; 0 .. 2)
             p[axis] += basis[i][column]*solved[column][axis];
         fitted ~= p;
-        points[role] = JSONValue(p[]);
-        residuals[role] = JSONValue(length(subtract(p, source[i])));
+    }
+    // Native terminal Head axes follow Neck -> Head positions. Preserve the
+    // observed neck station on the shared facial axis after the shoulder fit.
+    auto headRoot = fitted[index["head_root"]], headTop = fitted[index["head_top"]];
+    auto headDown = subtract(headRoot,headTop); headDown[] /= length(headDown);
+    auto unconstrainedNeck = fitted[index["neck_base"]];
+    double neckStation = dot(subtract(unconstrainedNeck,headRoot),headDown);
+    enforce(neckStation > 0, "Neck attachment must be below Head along the facial axis");
+    foreach (axis; 0 .. 2) fitted[index["neck_base"]][axis] = headRoot[axis]+neckStation*headDown[axis];
+    foreach (role, fraction; fractions) foreach (axis; 0 .. 2)
+        fitted[index[role]][axis] = (1-fraction)*fitted[index[start]][axis]+fraction*fitted[index[end]][axis];
+    foreach (i, role; roles) {
+        points[role] = JSONValue(fitted[i][]);
+        residuals[role] = JSONValue(length(subtract(fitted[i],source[i])));
     }
     Point2 feet;
     foreach (axis; 0 .. 2) feet[axis] = (fitted[index["foot_tip.L"]][axis]+fitted[index["foot_tip.R"]][axis])/2;

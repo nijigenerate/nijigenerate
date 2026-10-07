@@ -1447,7 +1447,10 @@ private JSONValue verifyRig(JSONValue state, JSONValue program, AutoRigTaskConte
                         auto actualPoint = parameter.unmapValue(vec2(parameter.axisPoints[0][x],parameter.axisPoints[1][y]));
                         if (abs(actualPoint.x-point[0])>1e-6 || abs(actualPoint.y-point[1])>1e-6) continue;
                         auto index = vec2u(cast(uint)x,cast(uint)y);
-                        enforce(binding.isSet(index) && abs(binding.getValue(index)-ngRigNumber(value["value"]))<1e-6,
+                        // The command stores native float values. Compare to the
+                        // same conversion, not an unrepresentable double target.
+                        auto expected = cast(float)ngRigNumber(value["value"]);
+                        enforce(binding.isSet(index) && abs(binding.getValue(index)-expected)<1e-6,
                             "Saved native driver value changed"); matched = true;
                     }
                     enforce(matched,"Saved native driver axis changed");

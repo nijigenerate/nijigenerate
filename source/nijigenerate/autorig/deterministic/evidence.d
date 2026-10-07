@@ -2,7 +2,8 @@ module nijigenerate.autorig.deterministic.evidence;
 
 import nijigenerate.autorig.deterministic.contracts;
 import nijigenerate.autorig.deterministic.templates;
-import nijigenerate.autorig.deterministic.neck : ngRigInferNeckBase;
+import nijigenerate.autorig.deterministic.neck : ngRigInferNeckBase, ngRigInferHeadFrame;
+import nijigenerate.autorig.deterministic.registered : ngRigFacialLandmarks;
 import std.json : JSONValue;
 import std.algorithm : sort, min, max;
 import std.array : array;
@@ -371,8 +372,11 @@ JSONValue ngRigDeriveEvidence(JSONValue observation) {
         landmarks[role] = JSONValue(["xy":JSONValue(p[]),"provenance":JSONValue(provenance),
             "weight":JSONValue(1.), "method":JSONValue("PSD alpha quantile section")]);
     }
-    put("head_top",ngRigMeasuredSection(face,0)); put("head_root",ngRigMeasuredSection(face,1));
-    auto neckInference = ngRigInferNeckBase(face,neck,select(["torso"]),select(["bodice","waistwear"]));
+    auto facial = ngRigFacialLandmarks(observation);
+    auto headFrame = ngRigInferHeadFrame(face,midpoint(facial["eye_r_inner"],facial["eye_r_outer"]),
+        midpoint(facial["eye_l_inner"],facial["eye_l_outer"]));
+    put("head_top",ngRigPoint(headFrame["head_top"])); put("head_root",ngRigPoint(headFrame["head_root"]));
+    auto neckInference = ngRigInferNeckBase(face,neck,select(["torso"]),select(["bodice","waistwear"]),headFrame);
     auto neckBase = ngRigPoint(neckInference["xy"]);
     put("neck_base",neckBase,neckInference["provenance"].str);
     landmarks["neck_base"]["method"] = neckInference["method"];
@@ -438,7 +442,7 @@ JSONValue ngRigDeriveEvidence(JSONValue observation) {
         "radii":JSONValue([shoulderWidth*.45,norm(torsoAxis)/2])]);
     JSONValue[] identity = [JSONValue([1.,0.,0.]),JSONValue([0.,1.,0.]),JSONValue([0.,0.,1.])];
     auto result = JSONValue(["kind":JSONValue("humanoid"),"landmarks":JSONValue(landmarks),
-        "neck_inference":neckInference,
+        "neck_inference":neckInference, "head_frame":headFrame,
         "volumes":JSONValue(volumes), "limb_radii":JSONValue(radii),"source_to_model":JSONValue(identity),
         "observation_sha256":JSONValue(ngRigDigest(observation)),"source_sha256":observation["source_sha256"]]);
     foreach (family; ["arm","leg"]) result["limb_radii"][family ~ ":both"] = JSONValue(

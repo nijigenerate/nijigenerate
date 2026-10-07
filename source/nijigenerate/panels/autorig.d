@@ -634,8 +634,13 @@ public:
                 foreach (key; ["passed","error","readback_verified","finish_stages",
                     "all_finish_stages_succeeded","numerical_stages_passed","rig_complete"])
                     if (auto entry = key in report.object) summary[key] = *entry;
-                if (auto findings = "numerical_findings" in report.object)
+                if (auto findings = "numerical_findings" in report.object) {
                     summary["numerical_findings_count"] = JSONValue(cast(ulong) (*findings).array.length);
+                    // Keep status diagnostics bounded without copying the full validation report.
+                    import std.algorithm : min;
+                    auto entries = (*findings).array;
+                    summary["numerical_findings"] = JSONValue(entries[0 .. min(entries.length, 32)].dup);
+                }
                 result["verification"] = JSONValue(summary);
             }
             return result;
