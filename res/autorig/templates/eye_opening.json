@@ -1,0 +1,297 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "eye_opening",
+  "version": "1.0.0",
+  "family": "boundary_patch",
+  "label": "上下境界と目尻を共有する眼の局所格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "canthus_a",
+      "uv": [
+        0,
+        0.5
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "一方の共有目尻/目頭"
+    },
+    {
+      "id": "canthus_b",
+      "uv": [
+        1,
+        0.5
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "反対の共有目尻/目頭"
+    },
+    {
+      "id": "upper_center",
+      "uv": [
+        0.5,
+        0.35
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "上側開口境界中央"
+    },
+    {
+      "id": "lower_center",
+      "uv": [
+        0.5,
+        0.65
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "下側開口境界中央"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "upper_support",
+        "v": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "upper_rim",
+        "v": 0.2,
+        "landmark_roles": []
+      },
+      {
+        "id": "upper_opening",
+        "v": 0.35,
+        "landmark_roles": []
+      },
+      {
+        "id": "opening_center",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_opening",
+        "v": 0.65,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_rim",
+        "v": 0.8,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_support",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "canthus_a",
+        "u": 0,
+        "landmark_roles": [
+          "canthus_a"
+        ]
+      },
+      {
+        "id": "outer_quarter",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "inner_quarter",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "canthus_b",
+        "u": 1,
+        "landmark_roles": [
+          "canthus_b"
+        ]
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "residual",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "patch_depth",
+        "depth_profile": [
+          [
+            0,
+            0.3
+          ],
+          [
+            0.5,
+            1
+          ],
+          [
+            1,
+            0.3
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.5
+        ],
+        "radius": [
+          0.5,
+          0.5
+        ],
+        "height": "opening_recess",
+        "rotation_degrees": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "patch_depth",
+      "default": 0.025,
+      "min": 0,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "host面へ載る局所厚み"
+    },
+    {
+      "id": "opening_recess",
+      "default": -0.012,
+      "min": -0.05,
+      "max": 0,
+      "unit": "bounds_width",
+      "meaning": "開口内部の局所奥行き"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "canthus_a",
+      "region": {
+        "u": [
+          0,
+          0
+        ],
+        "v": [
+          0.5,
+          0.5
+        ]
+      },
+      "host_role": "head_eye_patch",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "canthus_b",
+      "region": {
+        "u": [
+          1,
+          1
+        ],
+        "v": [
+          0.5,
+          0.5
+        ]
+      },
+      "host_role": "head_eye_patch",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "closure",
+      "kind": "boundary_gap",
+      "inputs": [
+        "closure",
+        "expression"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [],
+  "hints": {
+    "required": [
+      "canthus_a",
+      "canthus_b",
+      "upper_center",
+      "lower_center"
+    ],
+    "optional": []
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "shared_canthus_boundary_solver",
+      "iris_aperture_clip"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "開眼の局所深度patchだけを実行する。閉眼driverと虹彩clipはplannedであり、このJSONを読んだだけでは動作しない。",
+    "両canthusで上下曲線の共有を要求する。閉眼で端点を平均位置へ移動しない。"
+  ]
+}

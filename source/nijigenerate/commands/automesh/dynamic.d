@@ -76,10 +76,12 @@ private class AutoMeshProgressState {
     private size_t done_;
     private string currentName_;
     private bool canceled_;
+    private bool delegate() parentCanceled;
 
-    this(size_t total) {
+    this(size_t total, bool delegate() parentCanceled = null) {
         lock = new Mutex();
         this.total = total;
+        this.parentCanceled = parentCanceled;
     }
 
     void beginTarget(string name) {
@@ -101,6 +103,7 @@ private class AutoMeshProgressState {
     }
 
     bool canceled() {
+        if (parentCanceled !is null && parentCanceled()) requestCancel();
         synchronized (lock) {
             return canceled_;
         }
@@ -142,8 +145,12 @@ template ApplyAutoMeshPT(alias PT)
     @EffectApply
     class ApplyAutoMeshPT : ExCommand!()
     {
-        this() {
+        private AutoMeshProcessor explicitProcessor;
+        private bool delegate() parentCanceled;
+        this(AutoMeshProcessor processor = null, bool delegate() parentCanceled = null) {
             super(_("Apply AutoMesh (%s)").format(AMProcInfo!(PT).name), _("Apply AutoMesh to selected nodes"));
+            explicitProcessor = processor;
+            this.parentCanceled = parentCanceled;
         }
         override bool runnable(Context ctx) {
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
@@ -153,9 +160,16 @@ template ApplyAutoMeshPT(alias PT)
             return false;
         }
         override CommandResult run(Context ctx) {
+            bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
+            if (!onMain) {
+                auto self = this;
+                return ngRunInMainThread!CommandResult({ return ngRunCommand(self, ctx); });
+            }
             if (!runnable(ctx)) return CommandResult(false, "No drawable nodes");
-            AutoMeshProcessor chosen = null;
-            foreach (processor; ngAutoMeshProcessors) {
+            AutoMeshProcessor chosen = explicitProcessor;
+            if (chosen !is null && cast(PT)chosen is null)
+                return CommandResult(false, "AutoMesh processor type mismatch");
+            if (chosen is null) foreach (processor; ngAutoMeshProcessors) {
                 if (cast(PT)processor) {
                     chosen = processor; 
                     break;
@@ -183,12 +197,6 @@ template ApplyAutoMeshPT(alias PT)
             }
             if (targets.length == 0) return CommandResult(false, "No deformable targets");
 
-            bool onMain = (Thread.getThis is null) ? true : Thread.getThis.isMainThread;
-            if (!onMain) {
-                auto self = this;
-                return ngRunInMainThread!CommandResult({ return ngRunCommand(self, ctx); });
-            }
-
             // Build all alpha inputs on the main thread. Worker threads must not read GPU textures.
             AlphaInput[uint] alphaInputs;
             foreach (t; targets) {
@@ -196,7 +204,7 @@ template ApplyAutoMeshPT(alias PT)
             }
 
             auto asyncResult = new AutoMeshApplyResult();
-            auto progress = new AutoMeshProgressState(targets.length);
+            auto progress = new AutoMeshProgressState(targets.length, parentCanceled);
             string procName = chosen.displayName();
             ulong popupId = NotificationPopup.instance().popup((ImGuiIO* io) {
                 import nijigenerate.widgets : incButtonColored;
@@ -281,6 +289,7 @@ template ApplyAutoMeshPT(alias PT)
                         ngMcpEnqueueAction({
                             if (currentApplyError().length) return;
                             scope(exit) progress.completeTarget();
+                            if (progress.canceled()) return;
 
                             if (resultMesh.vertices.length == 0) {
                                 recordApplyError(_("AutoMesh generated empty mesh for %s").format(target.name));
@@ -318,7 +327,10 @@ template ApplyAutoMeshPT(alias PT)
                     setAutoMeshAlphaInputCache(&alphaInputs);
                     scope(exit) clearAutoMeshAlphaInputCache(&alphaInputs);
                     auto fib = new Fiber(&work);
-                    while (fib.state != Fiber.State.TERM) fib.call();
+                    while (fib.state != Fiber.State.TERM) {
+                        if (progress.canceled()) break;
+                        fib.call();
+                    }
                 } catch (Throwable e) {
                     workerError = e.msg;
                 }

@@ -77,8 +77,11 @@ class InsertNodeCommandT(bool exposeClassName = true) : ExCommand!(
 class MoveNodeCommand : ExCommand!(
         TW!(Node, "newParent", "new parent node"), 
         TW!(ulong, "index", "index in new parent node")) {
-    this(Node newParent, ulong index) {
+    private bool explicitNodes;
+
+    this(Node newParent, ulong index, bool explicitNodes = false) {
         super(null, _("Move Node "), newParent, index);
+        this.explicitNodes = explicitNodes;
     }
 
     override
@@ -87,7 +90,7 @@ class MoveNodeCommand : ExCommand!(
         auto selectedNodes = incSelectedNodes();
         Node[] movingNodes = null;
         try {
-            if (ctx.nodes.length > 1) {
+            if (explicitNodes || ctx.nodes.length > 1) {
                 movingNodes = ctx.nodes;
             } else {
                 auto child = ctx.nodes[0];
@@ -166,7 +169,11 @@ class SetNodeNameCommand : ExCommand!(TW!(string[], "newNames", "New node names.
 
 @EffectDelete
 class DeleteNodeCommand : ExCommand!() {
-    this() { super(null, _("Delete Node")); }
+    private bool explicitNodes;
+    this(bool explicitNodes = false) {
+        super(null, _("Delete Node"));
+        this.explicitNodes = explicitNodes;
+    }
     override
     CommandResult run(Context ctx) {
         if (!ctx.hasNodes || ctx.nodes.length == 0)
@@ -174,7 +181,9 @@ class DeleteNodeCommand : ExCommand!() {
 
         auto n = ctx.nodes[0];
         auto selected = incSelectedNodes();
-        if (selected.length > 1) {
+        if (explicitNodes) {
+            incDeleteChildrenWithHistory(ctx.nodes);
+        } else if (selected.length > 1) {
             incDeleteChildrenWithHistory(selected);
             incSelectNode(null);
         } else {

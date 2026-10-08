@@ -1,0 +1,215 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "rigid_panel",
+  "version": "1.0.0",
+  "family": "rigid_surface",
+  "label": "取付点を持つ硬い薄板・金具のchart",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "attachment",
+      "uv": [
+        0.5,
+        0.2
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "neutral_hint"
+      ],
+      "meaning": "支持点または金具の取付点"
+    },
+    {
+      "id": "center",
+      "uv": [
+        0.5,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "distance_field",
+        "neutral_hint"
+      ],
+      "meaning": "剛体領域の中心"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "upper",
+        "v": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "attachment",
+        "v": 0.2,
+        "landmark_roles": [
+          "attachment"
+        ]
+      },
+      {
+        "id": "center",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "panel_relief",
+        "depth_profile": [
+          [
+            0,
+            0.3
+          ],
+          [
+            0.5,
+            1
+          ],
+          [
+            1,
+            0.3
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "panel_relief",
+      "default": 0.025,
+      "min": 0,
+      "max": 0.15,
+      "unit": "bounds_width",
+      "meaning": "剛体patchの浅い表面形状"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "support",
+      "region": {
+        "u": [
+          0.45,
+          0.55
+        ],
+        "v": [
+          0.15,
+          0.25
+        ]
+      },
+      "host_role": "attachment_point",
+      "mode": "joint",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "support_motion",
+      "kind": "rigid_contact",
+      "inputs": [
+        "support_frame",
+        "hinge_angle"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [],
+  "hints": {
+    "required": [
+      "attachment"
+    ],
+    "optional": [
+      "center"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "rigid_attachment_constraint",
+      "rigid_contact"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "単体の剛体回転のみ実装。鎖との連結や支持点拘束、接触はplanned。"
+  ]
+}

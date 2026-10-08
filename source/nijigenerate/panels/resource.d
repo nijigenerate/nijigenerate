@@ -24,6 +24,7 @@ import nijigenerate.widgets;
 import nijigenerate.widgets.output;
 import nijigenerate.commands.node.base;
 import fghj;
+import std.json : JSONValue;
 //import std.stdio;
 
 private {
@@ -59,6 +60,33 @@ void incDumpResourcePanelPath(Puppet puppet) {
 void ngInitResourcePanel() {
 //    incRegisterLoadFunc(&incLoadResourcePanel);
     incRegisterSaveFunc(&incDumpResourcePanelPath);
+}
+
+/** Read the displayed cache without refreshing it, for structural UI verification. */
+JSONValue ngResourcePanelReadback() {
+    if (singleton.history.length == 0) return JSONValue(["initialized":JSONValue(false)]);
+    auto view = singleton.history[singleton.historyIndex];
+    auto selector = new Selector();
+    selector.build(view.command ~ (singleton.armedParameter ? ", Binding:active" : ""));
+    bool[uint] expected;
+    foreach (resource; selector.run())
+        if (resource.type == ResourceType.Node) expected[resource.uuid] = true;
+    bool[uint] displayed;
+    ulong stale, duplicates;
+    foreach (resource; view.store.nodes) if (resource.type == ResourceType.Node) {
+        if (resource.uuid in displayed) ++duplicates;
+        displayed[resource.uuid] = true;
+        auto node = to!Node(resource);
+        if (singleton.activePuppet is null || singleton.activePuppet.find!Node(node.uuid) !is node) ++stale;
+    }
+    ulong missing;
+    foreach (id; expected.keys) if ((id in displayed) is null) ++missing;
+    return JSONValue(["initialized":JSONValue(true),"history_index":JSONValue(singleton.historyIndex),
+        "history_count":JSONValue(singleton.history.length),"filter":JSONValue(view.command),
+        "expected_nodes":JSONValue(expected.length),"displayed_nodes":JSONValue(displayed.length),
+        "missing_nodes":JSONValue(missing),"stale_nodes":JSONValue(stale),"duplicate_nodes":JSONValue(duplicates),
+        "observing_current_root":JSONValue(singleton.activePuppet !is null &&
+            singleton.observedRoot is singleton.activePuppet.root)]);
 }
 
 @TypeId("ResourcePanel")
@@ -148,11 +176,12 @@ package:
     bool forceUpdatePreview = false;
     uint historyIndex = 0;
     Puppet activePuppet;
+    Node observedRoot;
     Parameter armedParameter;
     ViewOutput views;
 
 protected:
-    void execFilter(View view) {
+    void execFilter(View view, bool refreshViews = true) {
         Selector selector = new Selector();
         selector.build(view.command ~ (armedParameter? ", Binding:active": ""));
         Resource[] nodes = selector.run();
@@ -161,7 +190,7 @@ protected:
         view.store.setResources(nodes);
         if (view.output is null)
             view.output = new IconTreeOutput(view.store, this);
-        views.refresh(nodes);
+        if (refreshViews && views !is null) views.refresh(nodes);
     }
 
     void notifyChange(Node target, NotifyReason reason) {
@@ -174,18 +203,19 @@ protected:
     void onUpdate() {
         incRunPendingParameterUiCommand();
 
-        if (incActivePuppet() != activePuppet) {
+        auto currentPuppet = incActivePuppet();
+        auto currentRoot = currentPuppet is null ? null : currentPuppet.root;
+        if (currentPuppet != activePuppet || currentRoot !is observedRoot) {
+            if (observedRoot !is null) observedRoot.removeNotifyListener(&notifyChange);
             activePuppet = incActivePuppet();
-            if (activePuppet) {
-                Node rootNode = activePuppet.root;
-                rootNode.addNotifyListener(&notifyChange);
-            }
+            observedRoot = currentRoot;
+            if (observedRoot !is null) observedRoot.addNotifyListener(&notifyChange);
             foreach (item; history) {
                 item.output.reset();
             }
             if (views)
                 views.reset();
-            incLoadResourcePanel(activePuppet);
+            if (activePuppet !is null) incLoadResourcePanel(activePuppet);
             forceUpdatePreview = true;
         }
         if (incArmedParameter() != armedParameter) {
@@ -200,7 +230,10 @@ protected:
             execFilter(history[$-1]);
         }
         if (forceUpdatePreview) {
-            execFilter(history[$-1]);
+            // Every history entry owns node proxies; replace all of them after
+            // structural changes, including the entry currently displayed.
+            foreach (view; history) execFilter(view, false);
+            views.refresh(history[historyIndex].store.nodes);
             forceUpdatePreview = false;
         }
         // temp variables

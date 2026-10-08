@@ -193,10 +193,12 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
     T[][] values;
     bool[][] isSet;
     bool undoable = true;
+    bool notifyDepthBone;
 
-    this(string name, TBinding self, void delegate() update = null) {
+    this(string name, TBinding self, void delegate() update = null, bool notifyDepthBone = true) {
         this.name = name;
         this.self = self;
+        this.notifyDepthBone = notifyDepthBone;
         values = duplicate!T(self.values);
         isSet  = duplicate!bool(self.isSet_);
         if (update !is null) {
@@ -206,7 +208,7 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
     }
 
     void updateNewState() {
-        ngNotifyDepthBoneBindingAllValuesChanged(self);
+        if (notifyDepthBone) ngNotifyDepthBoneBindingAllValuesChanged(self);
     }
     void clear() {}
 
@@ -218,7 +220,7 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
             swap(values, self.values);
             swap(isSet, self.isSet_);
             undoable = false;
-            ngNotifyDepthBoneBindingAllValuesChanged(self);
+            if (notifyDepthBone) ngNotifyDepthBoneBindingAllValuesChanged(self);
         }
     }
 
@@ -230,7 +232,7 @@ class ParameterBindingAllValueChangeAction(T)  : LazyBoundAction {
             swap(values, self.values);
             swap(isSet, self.isSet_);
             undoable = true;
-            ngNotifyDepthBoneBindingAllValuesChanged(self);
+            if (notifyDepthBone) ngNotifyDepthBoneBindingAllValuesChanged(self);
         }
     }
 

@@ -252,28 +252,50 @@ public:
     }
 }
 
-void incUpdateWeldedPoints(Drawable drawable) {
-    foreach (welded; drawable.welded) {
-        auto weldedVertsAoS = welded.target.vertices.toArray();
-        ptrdiff_t[] indices;
-        foreach (i, v; drawable.vertices) {
-            auto vv = drawable.transform.matrix * vec4(v, 0, 1);
-            ptrdiff_t bestIndex = -1;
-            float bestDist = float.max;
-            foreach (idx, candidate; weldedVertsAoS) {
-                auto candidateWorld = welded.target.transform.matrix * vec4(candidate, 0, 1);
-                auto dist = candidateWorld.distance(vv);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestIndex = cast(ptrdiff_t)idx;
-                }
-            }
-            if (bestIndex != -1 && bestDist < 4)
-                indices ~= bestIndex;
-            else
-                indices ~= -1;
-        }
-        incActionPush(new DrawableChangeWeldingAction(drawable, welded.target, indices, welded.weight));
+private bool refiningWeldingMesh;
+
+size_t ngRefineWeldingSeams(Drawable first, Drawable second) {
+    import nijigenerate.core.math.welding : ngRefineWeldingMesh;
+    import nijigenerate.core.math.mesh : applyMeshToTarget;
+    import nijilive.math : Vec2Array, vec3u, vec4;
+    if (refiningWeldingMesh || first is null || second is null || first is second) return 0;
+    auto coarse = first.vertices.length <= second.vertices.length ? first : second;
+    auto fine = coarse is first ? second : first;
+    if (cast(Part)coarse is null || cast(Part)fine is null) return 0;
+    vec2[] coarseWorld, coarseLocal, fineWorld;
+    foreach (vertex; coarse.vertices) {
+        coarseLocal ~= vertex;
+        coarseWorld ~= (coarse.transform.matrix * vec4(vertex, 0, 1)).xy;
+    }
+    foreach (vertex; fine.vertices)
+        fineWorld ~= (fine.transform.matrix * vec4(vertex, 0, 1)).xy;
+    auto refinement = ngRefineWeldingMesh(fineWorld, fine.getMesh().indices,
+        coarseWorld, coarseLocal, coarse.getMesh().indices, coarse.transform.matrix.inverse);
+    if (!refinement.addedVertices) return 0;
+    refiningWeldingMesh = true;
+    scope(exit) refiningWeldingMesh = false;
+    auto mesh = new IncMesh(coarse.getMesh());
+    mesh.vertices.length = 0;
+    vec3u[] triangles;
+    for (size_t i = 0; i < refinement.indices.length; i += 3)
+        triangles ~= vec3u(refinement.indices[i], refinement.indices[i + 1], refinement.indices[i + 2]);
+    mesh.importVertsAndTris(Vec2Array(refinement.vertices), triangles);
+    foreach (i; 0 .. coarse.vertices.length) mesh.vertices[i].originalIndex = i;
+    mesh.refresh();
+    // Resample existing keys; adding a stitch does not edit the authored bone motion.
+    applyMeshToTarget(coarse, mesh.vertices, &mesh, true);
+    return refinement.addedVertices;
+}
+
+void incUpdateWeldedPoints(Drawable drawable, const(ptrdiff_t)[] remap) {
+    import nijigenerate.core.math.welding : ngRemapWeldingLinks;
+    foreach (welded; drawable.welded.dup) {
+        auto counter = welded.target.welded.countUntil!(a => a.target == drawable);
+        if (counter < 0) continue;
+        auto updated = ngRemapWeldingLinks(welded.indices, welded.target.welded[counter].indices,
+            remap, drawable.vertices.length);
+        incActionPush(new DrawableChangeWeldingAction(drawable, welded.target,
+            updated.forward, welded.weight, updated.reverse));
     }
 }
 

@@ -86,6 +86,7 @@ private:
         iVertices.length = data.vertices.length;
         foreach(idx, vertex; data.vertices) {
             iVertices[idx] = new MeshVertex((matrix * vec4(vertex, 0, 1)).xy, []);
+            if (reset) iVertices[idx].originalIndex = idx;
             if (!reset) iVertices[idx].groupId = 2;
         }
 
@@ -353,6 +354,10 @@ public:
     void import_(ref MeshData mesh) {
         data = &mesh;
         mImport(mesh);
+    }
+
+    bool isBasedOn(ref MeshData mesh) const {
+        return data is &mesh;
     }
 
     final
@@ -648,6 +653,15 @@ public:
         newMesh.changed = true;
         newMesh.vertices.length = 0;
         newMesh.importVertsAndTris(vtx, tris);
+        bool[] used;
+        used.length = vertices.length;
+        foreach (vertex; newMesh.vertices) foreach (i, original; vertices) {
+            if (!used[i] && vertex.position == original.position) {
+                vertex.originalIndex = original.originalIndex;
+                used[i] = true;
+                break;
+            }
+        }
         newMesh.refresh();
         debug(delaunay) writeln("==== autoTriangulate done ====");
         return newMesh;

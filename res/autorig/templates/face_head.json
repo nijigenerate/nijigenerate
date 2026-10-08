@@ -1,0 +1,712 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "face_head",
+  "version": "1.0.0",
+  "family": "anatomical_surface",
+  "label": "顔・頭部の意味付き基準格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "crown",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "頭頂"
+    },
+    {
+      "id": "eye_a",
+      "uv": [
+        0.3,
+        0.36
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "一方の眼中心。人体左右は別の側規約で解決"
+    },
+    {
+      "id": "eye_b",
+      "uv": [
+        0.7,
+        0.36
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "反対の眼中心"
+    },
+    {
+      "id": "bridge",
+      "uv": [
+        0.5,
+        0.24
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "鼻根"
+    },
+    {
+      "id": "nose_tip",
+      "uv": [
+        0.5,
+        0.55
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "鼻先または鼻底の適合基準"
+    },
+    {
+      "id": "mouth_a",
+      "uv": [
+        0.4,
+        0.69
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "一方の口角"
+    },
+    {
+      "id": "mouth_b",
+      "uv": [
+        0.6,
+        0.69
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "反対の口角"
+    },
+    {
+      "id": "jaw_a",
+      "uv": [
+        0.1,
+        0.87
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "一方の顎角"
+    },
+    {
+      "id": "jaw_b",
+      "uv": [
+        0.9,
+        0.87
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "反対の顎角"
+    },
+    {
+      "id": "chin",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "顎先"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "crown",
+        "v": 0,
+        "landmark_roles": [
+          "crown"
+        ]
+      },
+      {
+        "id": "forehead",
+        "v": 0.14,
+        "landmark_roles": []
+      },
+      {
+        "id": "brow_bridge",
+        "v": 0.24,
+        "landmark_roles": [
+          "bridge"
+        ]
+      },
+      {
+        "id": "upper_lid",
+        "v": 0.3,
+        "landmark_roles": []
+      },
+      {
+        "id": "eye_line",
+        "v": 0.36,
+        "landmark_roles": [
+          "eye_a",
+          "eye_b"
+        ]
+      },
+      {
+        "id": "lower_lid",
+        "v": 0.43,
+        "landmark_roles": []
+      },
+      {
+        "id": "nose",
+        "v": 0.55,
+        "landmark_roles": [
+          "nose_tip"
+        ]
+      },
+      {
+        "id": "mouth",
+        "v": 0.69,
+        "landmark_roles": [
+          "mouth_a",
+          "mouth_b"
+        ]
+      },
+      {
+        "id": "lower_lip",
+        "v": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "jaw_angle",
+        "v": 0.87,
+        "landmark_roles": [
+          "jaw_a",
+          "jaw_b"
+        ]
+      },
+      {
+        "id": "chin",
+        "v": 1,
+        "landmark_roles": [
+          "chin"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "contour_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "cheek_side_a",
+        "u": 0.1,
+        "landmark_roles": []
+      },
+      {
+        "id": "outer_eye_a",
+        "u": 0.2,
+        "landmark_roles": []
+      },
+      {
+        "id": "eye_axis_a",
+        "u": 0.3,
+        "landmark_roles": [
+          "eye_a"
+        ]
+      },
+      {
+        "id": "inner_eye_a",
+        "u": 0.4,
+        "landmark_roles": []
+      },
+      {
+        "id": "midline",
+        "u": 0.5,
+        "landmark_roles": [
+          "bridge",
+          "nose_tip",
+          "chin"
+        ]
+      },
+      {
+        "id": "inner_eye_b",
+        "u": 0.6,
+        "landmark_roles": []
+      },
+      {
+        "id": "eye_axis_b",
+        "u": 0.7,
+        "landmark_roles": [
+          "eye_b"
+        ]
+      },
+      {
+        "id": "outer_eye_b",
+        "u": 0.8,
+        "landmark_roles": []
+      },
+      {
+        "id": "cheek_side_b",
+        "u": 0.9,
+        "landmark_roles": []
+      },
+      {
+        "id": "contour_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": [
+      {
+        "id": "eye_a_patch",
+        "region": {
+          "u": [
+            0.12,
+            0.45
+          ],
+          "v": [
+            0.26,
+            0.46
+          ]
+        },
+        "purpose": "眼の局所patch登録域",
+        "implementation": "metadata_only"
+      },
+      {
+        "id": "eye_b_patch",
+        "region": {
+          "u": [
+            0.55,
+            0.88
+          ],
+          "v": [
+            0.26,
+            0.46
+          ]
+        },
+        "purpose": "反対眼の局所patch登録域",
+        "implementation": "metadata_only"
+      },
+      {
+        "id": "mouth_patch",
+        "region": {
+          "u": [
+            0.32,
+            0.68
+          ],
+          "v": [
+            0.6,
+            0.79
+          ]
+        },
+        "purpose": "口の局所patch登録域",
+        "implementation": "metadata_only"
+      }
+    ]
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "head_depth",
+        "depth_profile": [
+          [
+            0,
+            0.65
+          ],
+          [
+            0.2,
+            1
+          ],
+          [
+            0.55,
+            0.9
+          ],
+          [
+            0.8,
+            0.7
+          ],
+          [
+            1,
+            0.25
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.3,
+          0.36
+        ],
+        "radius": [
+          0.15,
+          0.13
+        ],
+        "height": "orbital_depth",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.7,
+          0.36
+        ],
+        "radius": [
+          0.15,
+          0.13
+        ],
+        "height": "orbital_depth",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.26,
+          0.57
+        ],
+        "radius": [
+          0.23,
+          0.21
+        ],
+        "height": "cheek_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.74,
+          0.57
+        ],
+        "radius": [
+          0.23,
+          0.21
+        ],
+        "height": "cheek_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.5
+        ],
+        "radius": [
+          0.085,
+          0.2
+        ],
+        "height": "bridge_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.57
+        ],
+        "radius": [
+          0.1,
+          0.085
+        ],
+        "height": "nose_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.7
+        ],
+        "radius": [
+          0.2,
+          0.12
+        ],
+        "height": "mouth_relief",
+        "rotation_degrees": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "head_depth",
+      "default": 0.28,
+      "min": 0.05,
+      "max": 0.6,
+      "unit": "bounds_width",
+      "meaning": "頭蓋の基本奥行き"
+    },
+    {
+      "id": "orbital_depth",
+      "default": -0.035,
+      "min": -0.1,
+      "max": 0,
+      "unit": "bounds_width",
+      "meaning": "眼窩のくぼみ"
+    },
+    {
+      "id": "cheek_relief",
+      "default": 0.025,
+      "min": 0,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "頬の局所的な張り"
+    },
+    {
+      "id": "bridge_relief",
+      "default": 0.012,
+      "min": 0,
+      "max": 0.05,
+      "unit": "bounds_width",
+      "meaning": "鼻根から鼻梁への低い隆起"
+    },
+    {
+      "id": "nose_relief",
+      "default": 0.045,
+      "min": 0,
+      "max": 0.12,
+      "unit": "bounds_width",
+      "meaning": "鼻先の局所隆起"
+    },
+    {
+      "id": "mouth_relief",
+      "default": 0.008,
+      "min": -0.02,
+      "max": 0.04,
+      "unit": "bounds_width",
+      "meaning": "口周囲の浅い面"
+    },
+    {
+      "id": "near_jaw_keep",
+      "default": 0.025,
+      "min": 0,
+      "max": 0.12,
+      "unit": "bounds_width",
+      "meaning": "回転時に近側顎幅を残す量"
+    },
+    {
+      "id": "chin_pitch",
+      "default": 0.012,
+      "min": -0.06,
+      "max": 0.06,
+      "unit": "bounds_width",
+      "meaning": "pitchに対する顎帯の局所調整"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "neck_attachment",
+      "region": {
+        "u": [
+          0.35,
+          0.65
+        ],
+        "v": [
+          0.93,
+          1
+        ]
+      },
+      "host_role": "neck_upper",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "ear_a",
+      "region": {
+        "u": [
+          0,
+          0.1
+        ],
+        "v": [
+          0.3,
+          0.64
+        ]
+      },
+      "host_role": "ear_root",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "ear_b",
+      "region": {
+        "u": [
+          0.9,
+          1
+        ],
+        "v": [
+          0.3,
+          0.64
+        ]
+      },
+      "host_role": "ear_root",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.12,
+        0.78
+      ],
+      "radius": [
+        0.28,
+        0.28
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "near_jaw_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "positive_sin",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v1"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.88,
+        0.78
+      ],
+      "radius": [
+        0.28,
+        0.28
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "near_jaw_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "positive_sin",
+        "scale": -1
+      },
+      "pin_edges": [
+        "v1"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.5,
+        0.87
+      ],
+      "radius": [
+        0.32,
+        0.18
+      ],
+      "direction": [
+        0,
+        1
+      ],
+      "amplitude": "chin_pitch",
+      "driver": {
+        "axis": "pitch",
+        "basis": "sin",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v1"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "eye_a",
+      "eye_b",
+      "nose_tip",
+      "chin"
+    ],
+    "optional": [
+      "crown",
+      "bridge",
+      "mouth_a",
+      "mouth_b",
+      "jaw_a",
+      "jaw_b"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "pose_calibrated_near_far_classification"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "近側顎ruleの符号は標準chartのyaw規約による。実モデルの軸校正前に素材suffixから採用しない。",
+    "眼・口の局所patchは定義のみ。開閉・clipと頭回転の合成は本front chart previewに含めない。"
+  ]
+}

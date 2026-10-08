@@ -1,3 +1,9 @@
 [submodule "res/flatpak/shared-modules"]
 	path = build-aux/linux/flatpak/shared-modules
 	url = https://github.com/flathub/shared-modules.git
+[submodule "vendor/osqp"]
+	path = vendor/osqp
+	url = https://github.com/osqp/osqp.git
+[submodule "vendor/qdldl"]
+	path = vendor/qdldl
+	url = https://github.com/osqp/qdldl.git

@@ -17,6 +17,14 @@ subPackage {
 	sourceFiles "source/njc/*.d"
 }
 dependency "psd-d" path="vendor/psd-d"
+// Build pinned native solver sources locally; configuration never fetches dependencies.
+preBuildCommands "cmake -S build-aux/osqp -B build/osqp -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=out/osqp"
+preBuildCommands "cmake --build build/osqp --config Release"
+preBuildCommands "cmake --install build/osqp --config Release"
+libs "nijigenerate_osqp" "osqpstatic"
+lflags "/LIBPATH:out/osqp/lib" platform="windows"
+lflags "-Lout/osqp/lib" platform="posix"
+libs "m" "rt" "dl" platform="linux"
 dependency "inmath" version="1.0.6"
 dependency "kra-d" repository="git+https://github.com/inochi2d/kra-d.git" version="6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42"
 dependency "tinyfiledialogs" version="~>0.10.1"

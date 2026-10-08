@@ -18,6 +18,7 @@ module nijigenerate.api.mcp.server;
  */
 
 import core.thread : Thread;
+import core.atomic : atomicLoad, atomicStore;
 import std.json;
 import std.array : array, join, split;
 import std.conv : to;
@@ -208,6 +209,7 @@ private string _mcpListTypedMembers()() {
 
 private __gshared bool gServerStarted = false;
 private __gshared Thread gServerThread;
+private shared bool gServerThreadExited;
 private __gshared string gServerHost = "127.0.0.1";
 private __gshared ushort gServerPort = 8088;
 private __gshared bool gServerEnabled = false;
@@ -236,6 +238,7 @@ private Command _resolveCommandByString(string id) {
 
 // Internal: start server (assumes not started)
 private void _ngMcpStart(string host, ushort port) {
+    clearExitedMcpServer();
     if (gServerStarted) return;
     ngMcpInitTask();
     gServerStarted = true;
@@ -528,6 +531,7 @@ private void _ngMcpStart(string host, ushort port) {
 
             auto toolDesc = v.description();
             auto cmdInst = v; // capture concrete instance for execution
+            auto commandKey = k;
             auto newBaseName = ngCommandIdFromKey(k);
             string[] baseNames = [newBaseName];
 
@@ -689,12 +693,17 @@ private void _ngMcpStart(string host, ushort port) {
                         mcpLog("[MCP] call %s: %s", toolNameLocal, payload.toString());
                         auto payloadCopy = payload;
                         auto commandResult = ngRunInMainThread!CommandResult({
+                            import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+                            import nijigenerate.commands.puppet.tool : GetAutoRigStatusCommand;
+                            bool editorOwned = ngMcpExternalCommandsBlocked();
+                            if (editorOwned && cast(GetAutoRigStatusCommand)cmdInst is null)
+                                return CommandResult(false, "AutoRig is running; external commands are blocked");
                             // 1) Build context from payload
-                            auto ctx = buildContextFromPayload(payloadCopy);
+                            auto ctx = editorOwned ? new Context() : buildContextFromPayload(payloadCopy);
                             // 2) Apply command-specific parameters (top-level)
                             alias K = typeof(k);
                             static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                                if (k == m) {{
+                                if (commandKey == m) {{
                                     enum _mName  = __traits(identifier, m);
                                     enum _typeName = _mName ~ "Command";
                                     static if (__traits(compiles, mixin(_typeName))) {
@@ -707,13 +716,14 @@ private void _ngMcpStart(string host, ushort port) {
                             }}
 
                             // 3) Run the captured command instance with the prepared context
+                            if (editorOwned) return cmdInst.run(ctx);
                             ngMcpPrepareActionScopeForCurrentMode(toolNameLocal);
                             scope(exit) ngMcpFinishActionBoundary();
                             if (cmdInst !is null && cmdInst.runnable(ctx)) {
                                 CommandResult concreteResult;
                                 bool concreteHandled = false;
                                 static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
-                                    if (k == m) {{
+                                    if (commandKey == m) {{
                                         enum _mName  = __traits(identifier, m);
                                         enum _typeName = _mName ~ "Command";
                                         static if (__traits(compiles, mixin(_typeName))) {
@@ -904,10 +914,16 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
+    atomicStore(gServerThreadExited, false);
     auto t = new Thread({
+        scope(exit) atomicStore(gServerThreadExited, true);
         installNativeCrashDumpThreadHandler();
         mcpLog("[MCP] server thread entering start() ...");
-        server.start();
+        try { server.start(); }
+        catch (Throwable error) {
+            import std.stdio : stderr;
+            stderr.writefln("MCP server failed: %s",error);
+        }
         mcpLog("[MCP] server thread exited start()");
     });
     gServerThread = t;
@@ -1128,8 +1144,28 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088) {
     _ngMcpStart(host, port);
 }
 
+/** Release a terminated server on the main thread, including failed startup. */
+private void clearExitedMcpServer() {
+    if (!atomicLoad(gServerThreadExited) || gServerThread is null || gServerThread.isRunning()) return;
+    gServerThread.join();
+    gServerThread = null;
+    gServerInstance = null;
+    gTransport = null;
+    gNotifyResourcesFind = null;
+    gNotifyResourceByUuid = null;
+    gNotifyBindingByDescriptor = null;
+    gServerStarted = false;
+    gServerEnabled = false;
+}
+
+bool ngMcpIsRunning() {
+    clearExitedMcpServer();
+    return gServerStarted;
+}
+
 // Public: stop MCP server if running
 void ngMcpStop() {
+    clearExitedMcpServer();
     if (!gServerStarted) { mcpLog("[MCP] stop requested but server not started"); return; }
     gServerEnabled = false;
     if (gServerInstance !is null) {
@@ -1164,6 +1200,9 @@ void ngMcpStop() {
         gServerThread = null;
         gServerInstance = null;
         gTransport = null;
+        gNotifyResourcesFind = null;
+        gNotifyResourceByUuid = null;
+        gNotifyBindingByDescriptor = null;
         gServerStarted = false;
         mcpLog("[MCP] server state cleared (stopped=true)");
     } else {
@@ -1173,6 +1212,7 @@ void ngMcpStop() {
 
 // Public: apply settings without per-frame polling
 void ngMcpApplySettings(bool enabled, string host, ushort port) {
+    clearExitedMcpServer();
     mcpLog("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
     if (!enabled) {
         if (gServerStarted) {

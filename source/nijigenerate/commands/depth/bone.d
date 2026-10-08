@@ -45,6 +45,7 @@ import std.json : JSONType, JSONValue, parseJSON;
 import std.math : abs, cos, isFinite, sin, sqrt;
 import std.conv : to;
 import std.string : format, startsWith;
+import core.thread : Thread;
 
 private enum EnableDepthBoneDebugLog = false;
 enum DepthBoneGpuBoneStride = 24u;
@@ -1097,6 +1098,20 @@ private RuntimeDepthBone[ulong] buildDepthRigRuntime(ExDepthRigRoot root, Parame
     }
 
     return runtime;
+}
+
+/** Copy the native bone's XYZ-to-XY projection for a recorded parameter key. */
+double[] ngDepthBoneKeyProjection(ExDepthRigRoot root, ulong boneUuid, Parameter parameter, vec2u key) {
+    enforce(Thread.getThis is null || Thread.getThis.isMainThread,"Depth projection requires the editor thread");
+    auto runtime = buildDepthRigRuntime(root,parameter,key);
+    auto bone = boneUuid in runtime;
+    enforce(bone !is null,"Depth projection bone is missing");
+    auto matrix = (*bone).skinMatrix;
+    double[] result;
+    foreach (point; [vec4(1,0,0,0),vec4(0,1,0,0),vec4(0,0,1,0),vec4(0,0,0,1)]) {
+        auto projected = matrix*point; result ~= projected.x; result ~= projected.y;
+    }
+    return result;
 }
 
 private mat4 depthBoneNoYawSkinMatrix(RuntimeDepthBone bone) {
@@ -4210,7 +4225,12 @@ private ExDepthBone findStandardDepthBone(ExDepthRigRoot root, string boneId) {
 class AddStandardDepthParametersCommand : ExCommand!(
     TW!(Node, "root", "DepthRigRoot node")
 ) {
-    this() { super(_("Add Standard Depth Parameters"), _("Create standard face/body parameters and depth bone bindings")); }
+    private JSONValue bindingDefinitions;
+
+    this(JSONValue bindingDefinitions = JSONValue.init) {
+        super(_("Add Standard Depth Parameters"), _("Create standard face/body parameters and depth bone bindings"));
+        this.bindingDefinitions = bindingDefinitions;
+    }
 
     override CommandResult run(Context ctx) {
         auto rigRoot = requireRoot(root);
@@ -4218,6 +4238,42 @@ class AddStandardDepthParametersCommand : ExCommand!(
         enforce(puppet !is null, "No active puppet");
 
         auto bindingSpecs = standardDepthBoneBindingSpecs();
+        if (bindingDefinitions.type != JSONType.null_) {
+            bindingSpecs = null;
+            enforce(bindingDefinitions.type == JSONType.array,"Explicit depth drivers must be an array");
+            foreach (definition; bindingDefinitions.array) {
+                StandardDepthBoneBindingSpec spec;
+                spec.parameterName = definition["parameter"].str; spec.boneId = definition["bone"].str;
+                spec.bindingName = definition["binding"].str;
+                enforce(spec.bindingName == "transform.r.x" || spec.bindingName == "transform.r.y" ||
+                    spec.bindingName == "transform.r.z" || spec.bindingName == "transform.t.x" ||
+                    spec.bindingName == "transform.t.y","Unsupported explicit depth driver");
+                foreach (point; definition["values"].array) {
+                    auto coordinate = point["key"].array;
+                    enforce(coordinate.length == 2,"Depth driver requires a two-dimensional parameter key");
+                    auto x = strictJsonNumber(coordinate[0],"driver key X"), y = strictJsonNumber(coordinate[1],"driver key Y");
+                    auto value = strictJsonNumber(point["value"],"driver value");
+                    enforce(x>=-1 && x<=1 && y>=-1 && y<=1 && isFinite(value),"Invalid explicit depth driver value");
+                    spec.values ~= StandardDepthBindingValue(vec2(x,y),value);
+                }
+                enforce(spec.values.length>0,"Explicit depth driver has no keys"); bindingSpecs ~= spec;
+            }
+            // The original TRS authoring command writes both translation axes.
+            // Preserve its explicit zero counterpart when the template has one axis.
+            foreach (spec; bindingSpecs.dup) {
+                if (spec.bindingName != "transform.t.x" && spec.bindingName != "transform.t.y") continue;
+                auto counterpart = spec.bindingName == "transform.t.x" ? "transform.t.y" : "transform.t.x";
+                bool present;
+                foreach (other; bindingSpecs) if (other.parameterName == spec.parameterName &&
+                    other.boneId == spec.boneId && other.bindingName == counterpart) present = true;
+                if (present) continue;
+                StandardDepthBoneBindingSpec zero;
+                zero.parameterName = spec.parameterName; zero.boneId = spec.boneId;
+                zero.bindingName = counterpart;
+                foreach (value; spec.values) zero.values ~= StandardDepthBindingValue(value.paramValue,0.0f);
+                bindingSpecs ~= zero;
+            }
+        }
         ExDepthBone[string] bonesById;
         foreach (bindingSpec; bindingSpecs) {
             if (bindingSpec.boneId in bonesById) continue;

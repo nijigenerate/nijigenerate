@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-07 14:46+0900\n"
+"POT-Creation-Date: 2026-10-08 15:26+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -661,6 +661,7 @@ msgstr ""
 #. Also handle NFS or I/O errors
 #. Only reached for genuine early failures (before completion)
 #. Write error
+#. Also handle NFS or I/O errors
 #: source/nijigenerate/core/settings.d:37
 #: source/nijigenerate/panels/agent.d:373
 #: source/nijigenerate/panels/inspector/part.d:57
@@ -697,6 +698,9 @@ msgstr ""
 #: source/nijigenerate/windows/inpexport.d:376
 #: source/nijigenerate/widgets/output.d:237
 #: source/nijigenerate/widgets/output.d:271
+#: source/nijigenerate/commands/puppet/tool.d:67
+#: source/nijigenerate/project.d:328 source/nijigenerate/project.d:343
+#: source/nijigenerate/project.d:436 source/nijigenerate/project.d:502
 msgid "Error"
 msgstr ""
 
@@ -1450,6 +1454,7 @@ msgstr ""
 #: source/nijigenerate/commands/puppet/file.d:764
 #: source/nijigenerate/windows/welcome.d:232
 #: source/nijigenerate/windows/inpexport.d:209
+#: source/nijigenerate/commands/puppet/tool.d:40
 msgid "Import..."
 msgstr ""
 
@@ -2204,6 +2209,7 @@ msgid ""
 msgstr ""
 
 #: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:468
+#: source/nijigenerate/project.d:503
 msgid "Import failed..."
 msgstr ""
 
@@ -2256,11 +2262,11 @@ msgid ""
 msgstr ""
 
 #. incViewportPresentMode(editMode_);
-#: source/nijigenerate/project.d:269
+#: source/nijigenerate/project.d:269 source/nijigenerate/project.d:280
 msgid "New Project"
 msgstr ""
 
-#: source/nijigenerate/project.d:327
+#: source/nijigenerate/project.d:327 source/nijigenerate/project.d:338
 #, c-format, d-format
 msgid ""
 "Please report this file to the developers:\n"
@@ -2268,66 +2274,66 @@ msgid ""
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:354
+#: source/nijigenerate/project.d:354 source/nijigenerate/project.d:365
 #, c-format, d-format
 msgid "%s opened successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:398
+#: source/nijigenerate/project.d:398 source/nijigenerate/project.d:431
 #, c-format, d-format
 msgid "%s saved successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:401
+#: source/nijigenerate/project.d:401 source/nijigenerate/project.d:435
 #, c-format, d-format
 msgid "Failed to save %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:437
+#: source/nijigenerate/project.d:437 source/nijigenerate/project.d:472
 #, c-format, d-format
 msgid ""
 "The following errors occured during file loading\n"
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:447
+#: source/nijigenerate/project.d:447 source/nijigenerate/project.d:482
 msgid "Folder import completed with errors..."
 msgstr ""
 
-#: source/nijigenerate/project.d:448
+#: source/nijigenerate/project.d:448 source/nijigenerate/project.d:483
 msgid "Folder import completed..."
 msgstr ""
 
-#: source/nijigenerate/project.d:496
+#: source/nijigenerate/project.d:496 source/nijigenerate/project.d:569
 msgid "Mipmap generation completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:511
+#: source/nijigenerate/project.d:511 source/nijigenerate/project.d:584
 msgid "Texture bleeding completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:938
+#: source/nijigenerate/project.d:938 source/nijigenerate/project.d:1013
 #, c-format, d-format
 msgid "Undo %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:974
+#: source/nijigenerate/project.d:974 source/nijigenerate/project.d:1049
 msgid "Rename Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:974
+#: source/nijigenerate/project.d:974 source/nijigenerate/project.d:1049
 msgid "Save Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:998
+#: source/nijigenerate/project.d:998 source/nijigenerate/project.d:1073
 msgid "Delete Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:1156
+#: source/nijigenerate/project.d:1156 source/nijigenerate/project.d:1231
 msgid "Animation keyframe was edited"
 msgstr ""
 
-#: source/nijigenerate/project.d:1160
+#: source/nijigenerate/project.d:1160 source/nijigenerate/project.d:1235
 msgid "Undo animation keyframe edit"
 msgstr ""
 
@@ -3884,62 +3890,78 @@ msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:20
 #: source/nijigenerate/commands/puppet/tool.d:41
+#: source/nijigenerate/commands/puppet/tool.d:32
+#: source/nijigenerate/commands/puppet/tool.d:53
 msgid "Import Inochi Session Data"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:20
+#: source/nijigenerate/commands/puppet/tool.d:32
 msgid "Shows \"Import Session Data\" dialog."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:41
+#: source/nijigenerate/commands/puppet/tool.d:53
 msgid "Import INP Session Data."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:51
+#: source/nijigenerate/commands/puppet/tool.d:63
 msgid "Successfully overwrote Inochi Session tracking data..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:55
+#: source/nijigenerate/commands/puppet/tool.d:67
 msgid "There was no Inochi Session data to import!"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:67
+#: source/nijigenerate/commands/puppet/tool.d:79
 msgid "Premultiply textures"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:67
+#: source/nijigenerate/commands/puppet/tool.d:79
 msgid "Premultiply texture."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:80
+#: source/nijigenerate/commands/puppet/tool.d:92
 msgid "Bleed textures..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:80
+#: source/nijigenerate/commands/puppet/tool.d:92
 msgid "Bleed texture."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:91
+#: source/nijigenerate/commands/puppet/tool.d:103
 msgid "Generate Mipmaps..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:91
+#: source/nijigenerate/commands/puppet/tool.d:103
 msgid "Generate mipmaps."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:102
+#: source/nijigenerate/commands/puppet/tool.d:114
 msgid "Generate fake layer name info..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:102
+#: source/nijigenerate/commands/puppet/tool.d:114
 msgid "Generate fake layer name."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:120
+#: source/nijigenerate/commands/puppet/tool.d:132
 msgid "Attempt full repair..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:132
+#: source/nijigenerate/commands/puppet/tool.d:144
 msgid "Regenerate Node IDs"
 msgstr ""
 
@@ -3947,20 +3969,24 @@ msgstr ""
 #: source/nijigenerate/commands/puppet/tool.d:143
 #: source/nijigenerate/widgets/mainmenu.d:382
 #: source/nijigenerate/widgets/mainmenu.d:390
+#: source/nijigenerate/commands/puppet/tool.d:155
 msgid "Edit Puppet"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:143
+#: source/nijigenerate/commands/puppet/tool.d:155
 msgid "Switch to model-edit mode"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:157
 #: source/nijigenerate/widgets/mainmenu.d:392
 #: source/nijigenerate/widgets/mainmenu.d:399
+#: source/nijigenerate/commands/puppet/tool.d:169
 msgid "Edit Animation"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:157
+#: source/nijigenerate/commands/puppet/tool.d:169
 msgid "Switch to anim-edit mode"
 msgstr ""
 
@@ -6393,4 +6419,314 @@ msgstr ""
 
 #: source/nijigenerate/windows/psddepthmap.d:3464
 msgid "PSD Depth Map Import"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:141
+msgid "No workflows registered"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:175
+msgid "Add workflow session"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:194
+msgid "File name"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:195
+msgid "File path"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:196
+msgid "JSON"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:197
+msgid "Binary data"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:247
+msgid "Workflow arguments"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:255
+msgid "Session context / artifacts"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:262
+#, c-format
+msgid "%s bytes"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:274
+msgid "Value / artifact path"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:275
+msgid ""
+"Path references an artifact; Blob imports file contents; Json stores "
+"structured data."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:276
+msgid "Add context value"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:290
+msgid "Workflow output"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:295
+msgid "Waiting for output"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:310
+msgid "Waiting for dependency"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:311
+#: source/nijigenerate/panels/autorig.d:344
+msgid "JSON artifact ready"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:345
+msgid "Binary artifact"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:350
+msgid "Preview: "
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:350
+msgid "File: "
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:358
+msgid "Observe the model first to configure material roles."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:385
+msgid ""
+"Materials are classified automatically from names, hierarchy, clipping and "
+"alpha support. These overrides are optional. Static keeps the material "
+"unrigged."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:386
+msgid "Show unresolved only"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:393
+#: source/nijigenerate/panels/autorig.d:396
+msgid "Choose role"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:405
+msgid "Apply material roles"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:430
+msgid "Input"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:457
+msgid "Running"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:461
+msgid "Completed"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:465
+msgid "Failed"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:469
+msgid "Canceled"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:473
+msgid "Needs rerun"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:477
+msgid "Pending"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:560
+msgid "AutoRig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:60
+msgid "Anime Front View Rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:64
+msgid "Preserve face orientation"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:65
+msgid "Fit grid depth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:65
+msgid "Solve anatomical scaffold"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:66
+msgid "Sample anatomical depth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:66
+msgid "Evaluate surface template"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/processor.d:72
+msgid "Apply face projection"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:14
+msgid "Observe imported model"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:16
+msgid "Derive evidence and compile rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:19
+msgid "Prepare Part meshes"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:19
+msgid "Build anatomical rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:20
+msgid "Prepare source groups and facial composites"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:21
+msgid "Mesh eye and mouth mechanism composites"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:22
+msgid "Measure proximal shoulder contours"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:23
+msgid "Connect matching native shoulder meshes"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:24
+msgid "Register source texture placement"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:25
+msgid "Validate stored and effective depth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:26
+msgid "Apply fixed-foot and near-cheek corrections"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:27
+msgid "Bake face and body angles"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:27
+msgid "Apply local rig controls"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:29
+msgid "Verify saved rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:31
+msgid "Compile shared source domains"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:41
+msgid "Imported model to anatomical rig"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:44
+msgid ""
+"Observe, derive, mesh, build, bake, control and verify the imported model."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:183
+#: source/nijigenerate/commands/puppet/tool.d:185
+msgid "Execute AutoRig"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:183
+#: source/nijigenerate/commands/puppet/tool.d:185
+msgid "Run AutoRig on the imported model."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:196
+#: source/nijigenerate/commands/puppet/tool.d:198
+msgid "AutoRig Status"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:196
+#: source/nijigenerate/commands/puppet/tool.d:198
+msgid "Read AutoRig workflow progress."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+#: source/nijigenerate/commands/puppet/tool.d:246
+msgid "Resume AutoRig"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+#: source/nijigenerate/commands/puppet/tool.d:246
+msgid "Resume a saved AutoRig workflow."
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Verify rig"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Delete session"
+msgstr ""
+
+#: source/nijigenerate/project.d source/nijigenerate/project.d:373
+#, c-format
+msgid ""
+"Recovered %s nonfinite deformation components while loading this model. "
+"Missing components were reconstructed from nearby finite mesh samples; valid "
+"values were preserved. The original file was not changed."
+msgstr ""
+
+#: source/nijigenerate/project.d source/nijigenerate/project.d:378
+#, c-format
+msgid ""
+"Removed %s inconsistent Welding vertex mappings while loading this model. "
+"Reciprocal mappings were preserved. The original file was not changed."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "AutoRig memory status"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "Read retained artifact sizes and garbage collector memory."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:233
+msgid "Delete AutoRig session"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:233
+msgid "Delete the session artifacts while keeping the editor model."
+msgstr ""
+
+#: source/nijigenerate/project.d:383
+msgid "Warning"
+msgstr ""
+
+#: source/nijigenerate/project.d:530
+msgid "Restore model checkpoint"
 msgstr ""

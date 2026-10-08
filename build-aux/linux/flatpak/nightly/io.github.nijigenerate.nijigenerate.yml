@@ -42,6 +42,8 @@ modules:
         dub build --compiler=ldc2 --config=linux-nightly --debug=InExperimental
       - install -Dm 755 ./out/nijigenerate /app/bin/nijigenerate
       - install -Dm644 ./out/*.mo /app/bin
+      - mkdir -p /app/share/licenses/nijigenerate
+      - cp -R ./out/osqp/share/licenses/. /app/share/licenses/nijigenerate/
       # Metadata
       - install -Dm644 ./build-aux/linux/flatpak/nightly/io.github.nijigenerate.nijigenerate.metainfo.xml /app/share/metainfo/io.github.nijigenerate.nijigenerate.metainfo.xml
       - install -Dm644 ./build-aux/linux/flatpak/nightly/io.github.nijigenerate.nijigenerate.desktop /app/share/applications/io.github.nijigenerate.nijigenerate.desktop

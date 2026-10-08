@@ -1,0 +1,335 @@
+{
+  "schema_version": "semantic-template-manifest/1",
+  "version": "1.0.0",
+  "purpose": "全体構造のsurface候補を組み立てる意味格子ライブラリ。Partごとの独立generator選択を必須としない。",
+  "template_schema": "template.schema.json",
+  "template_schema_sha256": "d08e3b2d6c1ded78c43e084ca7e9a27c86f5941029141823d0190b8c7e666821",
+  "template_files": [
+    "face_head.json",
+    "eye_opening.json",
+    "mouth_opening.json",
+    "torso.json",
+    "neck.json",
+    "shoulder.json",
+    "arm.json",
+    "leg.json",
+    "hand.json",
+    "foot.json",
+    "skirt.json",
+    "sleeve.json",
+    "hanging_sheet.json",
+    "tube.json",
+    "leaf.json",
+    "ribbon_network.json",
+    "frill.json",
+    "surface_layer.json",
+    "rigid_panel.json"
+  ],
+  "templates": [
+    {
+      "id": "face_head",
+      "version": "1.0.0",
+      "family": "anatomical_surface",
+      "file": "face_head.json",
+      "sha256": "588d5621204aa57cf9a5968ea0cbe65ba6510eb08adf9d8d76c2541487764b3a",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "eye_opening",
+      "version": "1.0.0",
+      "family": "boundary_patch",
+      "file": "eye_opening.json",
+      "sha256": "cc2e0e4120b830345906ee17632b25a663b346883025d9f09c1e0bf53f88b6de",
+      "representation": "front_chart",
+      "depth_mode": "residual",
+      "operators": [
+        "section_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "mouth_opening",
+      "version": "1.0.0",
+      "family": "boundary_patch",
+      "file": "mouth_opening.json",
+      "sha256": "b74158ed77f93c5c715fee40df880ae2af77dcdf69e04061ecc3338f73b260c4",
+      "representation": "front_chart",
+      "depth_mode": "residual",
+      "operators": [
+        "section_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "torso",
+      "version": "1.0.0",
+      "family": "anatomical_surface",
+      "file": "torso.json",
+      "sha256": "7f2b0af43d72be32bf86384c6a40a7c7914635b61aa232b889a0b27161ceb06b",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface",
+        "compact_relief",
+        "bend"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "neck",
+      "version": "1.0.0",
+      "family": "anatomical_surface",
+      "file": "neck.json",
+      "sha256": "aeaa7d5cfcbb63d0159005131fb8e1d6f10aa58419f91927b2a05aa90850b474",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface",
+        "bend"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "shoulder",
+      "version": "1.0.0",
+      "family": "joint_transition",
+      "file": "shoulder.json",
+      "sha256": "1a86aea2208880d0b26418667d1921a9672dba1e9a302c1840988a52ab0e38df",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "arm",
+      "version": "1.0.0",
+      "family": "articulated_sweep",
+      "file": "arm.json",
+      "sha256": "c3e9020f2a40ef554e20e49a1ff7daca506862fcc57f564c642c49147b19acf2",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "leg",
+      "version": "1.0.0",
+      "family": "articulated_sweep",
+      "file": "leg.json",
+      "sha256": "a9b3de95f13a8704a028dfd58996a048b406e4cd5f0b7a936e022a7f71240439",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "hand",
+      "version": "1.0.0",
+      "family": "branched_surface",
+      "file": "hand.json",
+      "sha256": "bf061039707c99674c460d09d3d2df07de777171cb4e6e73ee7248e68e8d4e38",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface",
+        "compact_relief",
+        "bend"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "foot",
+      "version": "1.0.0",
+      "family": "contact_surface",
+      "file": "foot.json",
+      "sha256": "422436dc9557f7c32b188bdbc020733d0f867e6b932678c84455305eb9647378",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "compact_relief"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "skirt",
+      "version": "1.0.0",
+      "family": "circumferential_shell",
+      "file": "skirt.json",
+      "sha256": "348bc39fbcc8698fd291eea16ccd40f3766976454c3a3d3957e85423652e9c95",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface",
+        "bend",
+        "wave"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "sleeve",
+      "version": "1.0.0",
+      "family": "inflated_tube",
+      "file": "sleeve.json",
+      "sha256": "3de480f00c771d55f36a46717fe9bdd35e3c8a11ca1aff970e72fe48882b89da",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "wave"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "hanging_sheet",
+      "version": "1.0.0",
+      "family": "rooted_sheet",
+      "file": "hanging_sheet.json",
+      "sha256": "e609bba1d2d5a19075901ea008f308b59005c88b08b70cc66ae8cccf30e7cff8",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "bend",
+        "wave"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "tube",
+      "version": "1.0.0",
+      "family": "curved_sweep",
+      "file": "tube.json",
+      "sha256": "f70f86a4988ab5588f22662df9c8e02fd121a0747f683e9e2160df538787b858",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "bend"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "leaf",
+      "version": "1.0.0",
+      "family": "ridged_patch",
+      "file": "leaf.json",
+      "sha256": "b839c7138488732b3a1883520b1dbedec351da4eb05ed980665fa86b0a993565",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface",
+        "compact_relief",
+        "bend"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "ribbon_network",
+      "version": "1.0.0",
+      "family": "band_network",
+      "file": "ribbon_network.json",
+      "sha256": "9453dade4032074578553a536906fa3577c2daae9a2d2b7200594043fdc0e4bc",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "ribbon_network"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "frill",
+      "version": "1.0.0",
+      "family": "seam_strip",
+      "file": "frill.json",
+      "sha256": "bb979503a1e24c90b04b932f5620b3cfa6ba85e0cb06ecd5e79d1392e5e9e372",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "swept_surface",
+        "bend",
+        "wave"
+      ],
+      "required_runtime_inputs": []
+    },
+    {
+      "id": "surface_layer",
+      "version": "1.0.0",
+      "family": "host_attached",
+      "file": "surface_layer.json",
+      "sha256": "a2df829e0c5e3ec4f478fb7ec3e98375deaa2ad53ada29625a357dbe3b0cefbd",
+      "representation": "front_chart",
+      "depth_mode": "host_offset",
+      "operators": [
+        "host_offset"
+      ],
+      "required_runtime_inputs": [
+        "host_depth"
+      ]
+    },
+    {
+      "id": "rigid_panel",
+      "version": "1.0.0",
+      "family": "rigid_surface",
+      "file": "rigid_panel.json",
+      "sha256": "aa6dd70dd13334c60c87f3ca29fafc526d3a1c223bb6ad96cca98bb0c99618e5",
+      "representation": "front_chart",
+      "depth_mode": "independent",
+      "operators": [
+        "section_surface"
+      ],
+      "required_runtime_inputs": []
+    }
+  ],
+  "structure_files": [
+    "../structures/character.json"
+  ],
+  "operator_contract": {
+    "implemented_in": "scripts/riglib/geometry.py",
+    "depth": [
+      "section_surface",
+      "swept_surface",
+      "compact_relief",
+      "host_offset",
+      "bend",
+      "wave",
+      "ribbon_network"
+    ],
+    "correction": [
+      "local"
+    ],
+    "units": {
+      "u_v": "0..1",
+      "depth": "source bounds width",
+      "correction_amplitude": "source bounds width",
+      "public_angles": "degree"
+    },
+    "host_offset": "スカラーdepth加算。法線offset実装とは異なる。",
+    "ribbon_network": "重複のない矩形帯front chart。全network topology・交差解決は未実装。"
+  },
+  "capability_scope": "19構造族の可視front chartで深度と剛体回転と局所2D補正を評価できる。全rigの接合・接触・IK・物理・clipを実装した意味ではない。",
+  "validation_evidence": {
+    "json_schema": "template.schema.jsonに対して構造keyword検証を実施。意味整合は別検査。",
+    "kernel_smoke": "19templateのguide UV→depth→100px scale→4姿勢→補正がfinite、中立投影bit一致。surface_layerにはsynthetic host_depth=0を明示投入した試験。",
+    "source_fit_verified": false,
+    "rig_quality_verified": false,
+    "model_mutated": false
+  }
+}

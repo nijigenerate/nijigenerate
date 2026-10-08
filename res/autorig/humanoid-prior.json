@@ -1,0 +1,46 @@
+{
+  "schema_version":"rig-humanoid-prior/1", "version":"2.3.0",
+  "scope":"front-chart anime humanoid; shape priors are not measured depth",
+  "depth_axis":"positive viewer-facing; calibrated native yaw",
+  "depth_ratios":{"head":0.8,"torso":0.65,"limb":0.8,"skirt":0.5},
+  "grid_step_body_height":0.015,
+  "mesh_step_body_height":0.015,
+  "bounds_padding_body_height":0.002,
+  "minimum_grid_segments":8,
+  "maximum_grid_segments":64,
+  "bone_graph":[
+    ["Pelvis",null,"pelvis","waist"],
+    ["Spine","Pelvis","waist","chest"],
+    ["Chest","Spine","chest","neck_base"],
+    ["Neck","Chest","neck_base","head_root"],
+    ["Head","Neck","head_root","head_top"],
+    ["Clavicle.L","Chest","neck_base","shoulder.L"],
+    ["UpperArm.L","Clavicle.L","shoulder.L","elbow.L"],
+    ["Forearm.L","UpperArm.L","elbow.L","wrist.L"],
+    ["Hand.L","Forearm.L","wrist.L","hand_tip.L"],
+    ["Clavicle.R","Chest","neck_base","shoulder.R"],
+    ["UpperArm.R","Clavicle.R","shoulder.R","elbow.R"],
+    ["Forearm.R","UpperArm.R","elbow.R","wrist.R"],
+    ["Hand.R","Forearm.R","wrist.R","hand_tip.R"],
+    ["Thigh.L","Pelvis","hip.L","knee.L"],
+    ["Shin.L","Thigh.L","knee.L","ankle.L"],
+    ["Foot.L","Shin.L","ankle.L","foot_tip.L"],
+    ["Thigh.R","Pelvis","hip.R","knee.R"],
+    ["Shin.R","Thigh.R","knee.R","ankle.R"],
+    ["Foot.R","Shin.R","ankle.R","foot_tip.R"]
+  ],
+  "torso_axis":{
+    "model":"straight_rest_axis_with_measured_longitudinal_stations",
+    "start":"neck_base", "end":"pelvis",
+    "end_attachment":["hip.L","hip.R"],
+    "stations":["chest","waist"],
+    "minimum_station_gap":0.01,
+    "observation_policy":"garment section centers constrain longitudinal station only; transverse garment asymmetry is not spine curvature"
+  },
+  "joint_constraints":[
+    {"terms":{"pelvis":1,"hip.L":-0.5,"hip.R":-0.5},"weight":0.3},
+    {"terms":{"neck_base":1,"shoulder.L":-0.5,"shoulder.R":-0.5},"weight":0.05}
+  ],
+  "drivers":{"head_yaw_degrees":22,"head_pitch_degrees":15,"head_roll_degrees":12,"body_yaw_degrees":12,"body_pitch_degrees":8,"body_roll_degrees":7,"arm_degrees":15,"elbow_degrees":18,"leg_degrees":7,"knee_degrees":8},
+  "acceptance":{"joint_fit_max_relative_residual":0.025,"neutral_pixel_mae":1.0,"minimum_area_ratio":0.02}
+}

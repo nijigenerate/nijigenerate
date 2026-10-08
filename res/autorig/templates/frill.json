@@ -1,0 +1,313 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "frill",
+  "version": "1.0.0",
+  "family": "seam_strip",
+  "label": "縫合線から自由外縁へ広がるフリル",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "seam_a",
+      "uv": [
+        0,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "縫合線の一端"
+    },
+    {
+      "id": "seam_b",
+      "uv": [
+        1,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "縫合線の反対端"
+    },
+    {
+      "id": "outer_mid",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "自由外縁の中央"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "seam",
+        "v": 0,
+        "landmark_roles": [
+          "seam_a",
+          "seam_b"
+        ]
+      },
+      {
+        "id": "transition",
+        "v": 0.2,
+        "landmark_roles": []
+      },
+      {
+        "id": "middle",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "outer_band",
+        "v": 0.8,
+        "landmark_roles": []
+      },
+      {
+        "id": "free_edge",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "swept_surface",
+        "depth": "strip_roundness",
+        "depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            0.5,
+            0.6
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "center_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "radius_u_profile": [
+          [
+            0,
+            0.5
+          ],
+          [
+            1,
+            0.5
+          ]
+        ],
+        "center_depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "exponent": 0.5,
+        "cross_section": "flat"
+      },
+      {
+        "type": "bend",
+        "amplitude": "frill_lift",
+        "axis": "v",
+        "power": 2,
+        "origin": 0
+      },
+      {
+        "type": "wave",
+        "amplitude": "frill_wave",
+        "axis": "u",
+        "frequency": 4,
+        "phase": 0,
+        "fade_axis": "v",
+        "fade_power": 2
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "strip_roundness",
+      "default": 0.008,
+      "min": 0,
+      "max": 0.05,
+      "unit": "bounds_width",
+      "meaning": "帯の浅い厚み"
+    },
+    {
+      "id": "frill_lift",
+      "default": 0.06,
+      "min": -0.2,
+      "max": 0.3,
+      "unit": "bounds_width",
+      "meaning": "縫合線から外縁への立上り"
+    },
+    {
+      "id": "frill_wave",
+      "default": 0.025,
+      "min": 0,
+      "max": 0.15,
+      "unit": "bounds_width",
+      "meaning": "波の深度振幅"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "seam",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "support_seam",
+      "mode": "fixed_band",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "free_edge",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          1,
+          1
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "frill_motion",
+      "kind": "cloth_contact",
+      "inputs": [
+        "support_seam",
+        "bend",
+        "gravity"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [],
+  "hints": {
+    "required": [
+      "seam_a",
+      "seam_b"
+    ],
+    "optional": [
+      "outer_mid"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "seam_curve_transport",
+      "excess_length_constraint"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "波の位相と周波数はtemplateの版固定値。印刷や明暗からひだを発明せず中立輪郭・支持線に合わせる。"
+  ]
+}

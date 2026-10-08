@@ -839,6 +839,8 @@ public:
     Drawable target;
     ptrdiff_t[] weldedVertexIndices;
     float weight;
+    ptrdiff_t[] counterVertexIndices;
+    float counterWeight;
 
     /**
         Creates a new node change action
@@ -863,11 +865,19 @@ public:
         }
 
         this.weight = weight;
-        this.weldedVertexIndices = weldedVertexIndices;
+        this.weldedVertexIndices = weldedVertexIndices.dup;
+        auto counterIndex = target.welded.countUntil!(a => a.target == drawable);
+        if (counterIndex >= 0) {
+            counterVertexIndices = target.welded[counterIndex].indices.dup;
+            counterWeight = target.welded[counterIndex].weight;
+        }
 
         if (addAction) {
             offset = drawable.welded.length;
             drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+            counterIndex = target.welded.countUntil!(a => a.target == drawable);
+            counterVertexIndices = target.welded[counterIndex].indices.dup;
+            counterWeight = target.welded[counterIndex].weight;
 
         } else {
             drawable.removeWeldedTarget(target);
@@ -882,7 +892,7 @@ public:
         if (addAction) {
             drawable.removeWeldedTarget(target);
         } else {
-            drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+            restoreLinks();
         }
         incActivePuppet().rescanNodes();
     }
@@ -892,11 +902,20 @@ public:
     */
     void redo() {
         if (addAction) {
-            drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+            restoreLinks();
         } else {
             drawable.removeWeldedTarget(target);
         }
         incActivePuppet().rescanNodes();
+    }
+
+    private void restoreLinks() {
+        drawable.addWeldedTarget(target, weldedVertexIndices, weight);
+        auto own = drawable.welded.countUntil!(a => a.target == target);
+        auto counter = target.welded.countUntil!(a => a.target == drawable);
+        drawable.welded[own].weight = weight;
+        target.welded[counter].indices = counterVertexIndices.dup;
+        target.welded[counter].weight = counterWeight;
     }
 
     /**
@@ -939,8 +958,8 @@ public:
         Previous parent of node
     */
     Drawable drawable;
-    Drawable.WeldingLink* link;
-    Drawable.WeldingLink* counterLink;
+    Drawable target;
+    bool valid;
     float oldWeight;
     float newWeight;
     float oldCounterWeight;
@@ -953,30 +972,29 @@ public:
     /**
         Creates a new node change action
     */
-    this(Drawable drawable, Drawable target, ptrdiff_t[] weldedVertexIndices, float weight) {
+    this(Drawable drawable, Drawable target, ptrdiff_t[] weldedVertexIndices, float weight,
+        ptrdiff_t[] counterVertexIndices = null, bool rematch = false) {
         this.drawable = drawable;
+        this.target = target;
         auto index = drawable.welded.countUntil!((a)=>a.target == target)();
         auto counterIndex = target.welded.countUntil!((a)=>a.target == drawable);
         if (index >= 0 && counterIndex >= 0) {
-            link = &(drawable.welded[index]);
-            counterLink = &(target.welded[counterIndex]);
+            auto link = &(drawable.welded[index]);
+            auto counterLink = &(target.welded[counterIndex]);
 
-            ptrdiff_t[] counterWeldedVertexIndices;
-            counterWeldedVertexIndices.length = target.vertices.length;
-            counterWeldedVertexIndices[0..$] = -1;
-            foreach (i, ind; weldedVertexIndices) {
-                if (ind != -1)
-                    counterWeldedVertexIndices[ind] = i;
-            }
+            auto counterWeldedVertexIndices = counterVertexIndices !is null ? counterVertexIndices.dup :
+                (rematch ? drawable.counterWeldingIndices(target, weldedVertexIndices) :
+                    drawable.updatedCounterWeldingIndices(target, weldedVertexIndices));
 
             oldWeight = link.weight;
             newWeight = weight;
             oldCounterWeight = counterLink.weight;
             newCounterWeight = 1 - weight;
-            oldIndices = link.indices[];
-            oldCounterIndices = counterLink.indices[];
-            newIndices = weldedVertexIndices;
+            oldIndices = link.indices.dup;
+            oldCounterIndices = counterLink.indices.dup;
+            newIndices = weldedVertexIndices.dup;
             newCounterIndices = counterWeldedVertexIndices;
+            valid = true;
             redo();
         }
     }
@@ -985,11 +1003,15 @@ public:
         Rollback
     */
     void rollback() {
-        if (link) {
+        auto index = drawable.welded.countUntil!(a => a.target == target);
+        auto counterIndex = target.welded.countUntil!(a => a.target == drawable);
+        if (valid && index >= 0 && counterIndex >= 0) {
+            auto link = &(drawable.welded[index]);
+            auto counterLink = &(target.welded[counterIndex]);
             link.weight = oldWeight;
-            link.indices = oldIndices;
+            link.indices = oldIndices.dup;
             counterLink.weight = oldCounterWeight;
-            counterLink.indices = oldCounterIndices;
+            counterLink.indices = oldCounterIndices.dup;
         }
     }
 
@@ -997,11 +1019,15 @@ public:
         Redo
     */
     void redo() {
-        if (link) {
+        auto index = drawable.welded.countUntil!(a => a.target == target);
+        auto counterIndex = target.welded.countUntil!(a => a.target == drawable);
+        if (valid && index >= 0 && counterIndex >= 0) {
+            auto link = &(drawable.welded[index]);
+            auto counterLink = &(target.welded[counterIndex]);
             link.weight = newWeight;
-            link.indices = newIndices;
+            link.indices = newIndices.dup;
             counterLink.weight = newCounterWeight;
-            counterLink.indices = newCounterIndices;
+            counterLink.indices = newCounterIndices.dup;
         }
     }
 
@@ -1009,14 +1035,14 @@ public:
         Describe the action
     */
     string describe() {
-        return _("links of %s and %s are changed.").format(drawable.name, link.target.name);
+        return _("links of %s and %s are changed.").format(drawable.name, target.name);
     }
 
     /**
         Describe the action
     */
     string describeUndo() {
-        return _("links of %s and %s are restored.").format(drawable.name, link.target.name);
+        return _("links of %s and %s are restored.").format(drawable.name, target.name);
     }
 
     /**

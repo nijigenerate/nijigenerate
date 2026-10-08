@@ -479,7 +479,9 @@ class OpenFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
     override
     LoadResult!Puppet run(Context ctx) {
         if (file) {
-            incOpenProject(file);
+            if (!incOpenProject(file)) {
+                return new LoadResult!Puppet(false, null, "Puppet could not be loaded");
+            }
             auto puppet = incActivePuppet();
             return new LoadResult!Puppet(true, puppet ? [puppet] : null, "Puppet loaded");
         }
@@ -507,7 +509,7 @@ class SaveFileCommand : ExCommand!(TW!(string, "file", "specifies file path.")) 
 
     override
     CommandResult run(Context ctx) {
-        if (file) { incSaveProject(file); return CommandResult(true); }
+        if (file) { return CommandResult(incSaveProject(file)); }
         return CommandResult(false, "File path not provided");
     }
 

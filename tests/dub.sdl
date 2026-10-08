@@ -1,0 +1,9 @@
+name "autorig-framework-tests"
+description "Standalone AutoRig framework checks"
+targetType "executable"
+targetName "autorig-framework-tests"
+targetPath "../out"
+sourcePaths
+sourceFiles "autorig_framework.d" "../source/nijigenerate/autorig/framework.d" "../source/nijigenerate/autorig/workflow.d" "../source/nijigenerate/autorig/package.d"
+importPaths "../source"
+sourceFiles "../source/nijigenerate/autorig/json.d"

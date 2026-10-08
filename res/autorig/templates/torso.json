@@ -1,0 +1,466 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "torso",
+  "version": "1.0.0",
+  "family": "anatomical_surface",
+  "label": "胸郭・腰・骨盤を共有する胴体格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "neck_base",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "existing_attachment",
+        "neutral_hint"
+      ],
+      "meaning": "首基部"
+    },
+    {
+      "id": "shoulder_a",
+      "uv": [
+        0.08,
+        0.12
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "一方の肩socket"
+    },
+    {
+      "id": "shoulder_b",
+      "uv": [
+        0.92,
+        0.12
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "反対の肩socket"
+    },
+    {
+      "id": "waist_center",
+      "uv": [
+        0.5,
+        0.66
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_contour",
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "腰中央"
+    },
+    {
+      "id": "pelvis_center",
+      "uv": [
+        0.5,
+        0.82
+      ],
+      "required": false,
+      "candidate_sources": [
+        "existing_bone",
+        "neutral_hint"
+      ],
+      "meaning": "骨盤中央"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "neck_base",
+        "v": 0,
+        "landmark_roles": [
+          "neck_base"
+        ]
+      },
+      {
+        "id": "clavicle",
+        "v": 0.12,
+        "landmark_roles": [
+          "shoulder_a",
+          "shoulder_b"
+        ]
+      },
+      {
+        "id": "upper_chest",
+        "v": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "chest_peak",
+        "v": 0.38,
+        "landmark_roles": []
+      },
+      {
+        "id": "under_chest",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "waist",
+        "v": 0.66,
+        "landmark_roles": [
+          "waist_center"
+        ]
+      },
+      {
+        "id": "pelvis",
+        "v": 0.82,
+        "landmark_roles": [
+          "pelvis_center"
+        ]
+      },
+      {
+        "id": "limb_roots",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "lateral_a",
+        "u": 0.15,
+        "landmark_roles": []
+      },
+      {
+        "id": "front_a",
+        "u": 0.32,
+        "landmark_roles": []
+      },
+      {
+        "id": "midline",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "front_b",
+        "u": 0.68,
+        "landmark_roles": []
+      },
+      {
+        "id": "lateral_b",
+        "u": 0.85,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "torso_depth",
+        "depth_profile": [
+          [
+            0,
+            0.45
+          ],
+          [
+            0.12,
+            0.7
+          ],
+          [
+            0.3,
+            1
+          ],
+          [
+            0.5,
+            0.85
+          ],
+          [
+            0.66,
+            0.65
+          ],
+          [
+            0.82,
+            0.9
+          ],
+          [
+            1,
+            0.75
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.32,
+          0.38
+        ],
+        "radius": [
+          0.19,
+          0.19
+        ],
+        "height": "paired_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.68,
+          0.38
+        ],
+        "radius": [
+          0.19,
+          0.19
+        ],
+        "height": "paired_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "bend",
+        "amplitude": "center_curve",
+        "axis": "v",
+        "power": 2,
+        "origin": 0.5
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "torso_depth",
+      "default": 0.23,
+      "min": 0.05,
+      "max": 0.6,
+      "unit": "bounds_width",
+      "meaning": "胸郭を基準にした胴体厚"
+    },
+    {
+      "id": "paired_relief",
+      "default": 0.045,
+      "min": 0,
+      "max": 0.18,
+      "unit": "bounds_width",
+      "meaning": "左右の局所体積。宿主で一度だけ加える"
+    },
+    {
+      "id": "center_curve",
+      "default": 0.015,
+      "min": -0.12,
+      "max": 0.12,
+      "unit": "bounds_width",
+      "meaning": "縦方向の基準面の反り"
+    },
+    {
+      "id": "waist_keep",
+      "default": 0.018,
+      "min": 0,
+      "max": 0.08,
+      "unit": "bounds_width",
+      "meaning": "回転時の腰輪郭補正"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "neck",
+      "region": {
+        "u": [
+          0.35,
+          0.65
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "neck_base",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "shoulder_a",
+      "region": {
+        "u": [
+          0,
+          0.15
+        ],
+        "v": [
+          0.08,
+          0.22
+        ]
+      },
+      "host_role": "arm_root",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "shoulder_b",
+      "region": {
+        "u": [
+          0.85,
+          1
+        ],
+        "v": [
+          0.08,
+          0.22
+        ]
+      },
+      "host_role": "arm_root",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "pelvis",
+      "region": {
+        "u": [
+          0.15,
+          0.85
+        ],
+        "v": [
+          0.82,
+          1
+        ]
+      },
+      "host_role": "pelvis",
+      "mode": "fixed_band",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "spine_chain",
+      "kind": "joint_chain",
+      "inputs": [
+        "pelvis",
+        "spine",
+        "chest"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.1,
+        0.66
+      ],
+      "radius": [
+        0.22,
+        0.24
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "waist_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "positive_sin",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v1"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.9,
+        0.66
+      ],
+      "radius": [
+        0.22,
+        0.24
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "waist_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "positive_sin",
+        "scale": -1
+      },
+      "pin_edges": [
+        "v1"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "neck_base",
+      "shoulder_a",
+      "shoulder_b",
+      "waist_center"
+    ],
+    "optional": [
+      "pelvis_center"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "shared_torso_clothing_surface"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "paired_reliefは基礎宿主の一成分。skinと衣服へ同じ隆起を二重生成しない。"
+  ]
+}

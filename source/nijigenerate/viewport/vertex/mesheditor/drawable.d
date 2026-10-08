@@ -111,9 +111,6 @@ public:
         if (axes.length > 0) {
             target.getMesh.gridAxes = axes;
         }
-        foreach (welded; target.welded) {
-            incRegisterWeldedPoints(target, welded.target);
-        }
     }
 
     override

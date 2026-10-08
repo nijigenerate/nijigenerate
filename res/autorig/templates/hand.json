@@ -1,0 +1,352 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "hand",
+  "version": "1.0.0",
+  "family": "branched_surface",
+  "label": "手首・手掌・指付根の格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "wrist",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_bone",
+        "existing_attachment",
+        "neutral_hint"
+      ],
+      "meaning": "手首中央"
+    },
+    {
+      "id": "palm_center",
+      "uv": [
+        0.5,
+        0.58
+      ],
+      "required": true,
+      "candidate_sources": [
+        "distance_field",
+        "neutral_hint"
+      ],
+      "meaning": "掌中央"
+    },
+    {
+      "id": "thumb_side",
+      "uv": [
+        0,
+        0.55
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "親指側"
+    },
+    {
+      "id": "tip_center",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "見える指の先端群の基準"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "wrist",
+        "v": 0,
+        "landmark_roles": [
+          "wrist"
+        ]
+      },
+      {
+        "id": "palm_base",
+        "v": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "palm_center",
+        "v": 0.58,
+        "landmark_roles": [
+          "palm_center"
+        ]
+      },
+      {
+        "id": "finger_roots",
+        "v": 0.82,
+        "landmark_roles": []
+      },
+      {
+        "id": "visible_tips",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "palm_depth",
+        "depth_profile": [
+          [
+            0,
+            0.4
+          ],
+          [
+            0.25,
+            0.85
+          ],
+          [
+            0.58,
+            1
+          ],
+          [
+            0.82,
+            0.65
+          ],
+          [
+            1,
+            0.25
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.25,
+          0.45
+        ],
+        "radius": [
+          0.23,
+          0.32
+        ],
+        "height": "thumb_base_relief",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "bend",
+        "amplitude": "palm_cup",
+        "axis": "u",
+        "power": 2,
+        "origin": 0.5
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "palm_depth",
+      "default": 0.1,
+      "min": 0.01,
+      "max": 0.3,
+      "unit": "bounds_width",
+      "meaning": "掌の厚み"
+    },
+    {
+      "id": "thumb_base_relief",
+      "default": 0.035,
+      "min": 0,
+      "max": 0.12,
+      "unit": "bounds_width",
+      "meaning": "親指付根の局所厚み"
+    },
+    {
+      "id": "palm_cup",
+      "default": 0.02,
+      "min": -0.1,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "掌の反り"
+    },
+    {
+      "id": "palm_width_keep",
+      "default": 0.015,
+      "min": 0,
+      "max": 0.08,
+      "unit": "bounds_width",
+      "meaning": "回転時の掌幅保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "wrist",
+      "region": {
+        "u": [
+          0.3,
+          0.7
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "arm_end",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "finger_branches",
+      "kind": "joint_chain",
+      "inputs": [
+        "finger_flexion",
+        "finger_spread"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.1,
+        0.6
+      ],
+      "radius": [
+        0.22,
+        0.4
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "palm_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.9,
+        0.6
+      ],
+      "radius": [
+        0.22,
+        0.4
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "palm_width_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "wrist",
+      "palm_center"
+    ],
+    "optional": [
+      "thumb_side",
+      "tip_center"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "alpha_branch_topology",
+      "finger_joint_chains"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "指分岐は本versionではmetadataのみ。分離していない指素材を独立して動かせたとは扱わない。"
+  ]
+}

@@ -1,0 +1,373 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "leaf",
+  "version": "1.0.0",
+  "family": "ridged_patch",
+  "label": "根元・中央稜線・左右縁・先端を持つ耳や葉状面",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "root",
+      "uv": [
+        0.5,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "neutral_hint"
+      ],
+      "meaning": "根元中央"
+    },
+    {
+      "id": "ridge_mid",
+      "uv": [
+        0.5,
+        0.5
+      ],
+      "required": false,
+      "candidate_sources": [
+        "centerline",
+        "neutral_hint"
+      ],
+      "meaning": "中央稜線"
+    },
+    {
+      "id": "tip",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "先端"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "root",
+        "v": 0,
+        "landmark_roles": [
+          "root"
+        ]
+      },
+      {
+        "id": "lower",
+        "v": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "ridge_mid",
+        "v": 0.5,
+        "landmark_roles": [
+          "ridge_mid"
+        ]
+      },
+      {
+        "id": "upper",
+        "v": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "tip",
+        "v": 1,
+        "landmark_roles": [
+          "tip"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "edge_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "slope_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "ridge",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "slope_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "edge_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "leaf_depth",
+        "depth_profile": [
+          [
+            0,
+            0.35
+          ],
+          [
+            0.25,
+            0.8
+          ],
+          [
+            0.5,
+            1
+          ],
+          [
+            0.75,
+            0.7
+          ],
+          [
+            1,
+            0.02
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.48
+        ],
+        "radius": [
+          0.17,
+          0.45
+        ],
+        "height": "ridge_height",
+        "rotation_degrees": 0
+      },
+      {
+        "type": "bend",
+        "amplitude": "leaf_curve",
+        "axis": "v",
+        "power": 2,
+        "origin": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "leaf_depth",
+      "default": 0.07,
+      "min": 0,
+      "max": 0.3,
+      "unit": "bounds_width",
+      "meaning": "面の左右断面の膨らみ"
+    },
+    {
+      "id": "ridge_height",
+      "default": 0.045,
+      "min": 0,
+      "max": 0.2,
+      "unit": "bounds_width",
+      "meaning": "中央稜線の高さ"
+    },
+    {
+      "id": "leaf_curve",
+      "default": 0.04,
+      "min": -0.3,
+      "max": 0.3,
+      "unit": "bounds_width",
+      "meaning": "根元から先端への反り"
+    },
+    {
+      "id": "edge_keep",
+      "default": 0.01,
+      "min": 0,
+      "max": 0.08,
+      "unit": "bounds_width",
+      "meaning": "回転後の外縁保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "root",
+      "region": {
+        "u": [
+          0.2,
+          0.8
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "support_surface",
+      "mode": "joint",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "edge_a",
+      "region": {
+        "u": [
+          0,
+          0
+        ],
+        "v": [
+          0,
+          1
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "edge_b",
+      "region": {
+        "u": [
+          1,
+          1
+        ],
+        "v": [
+          0,
+          1
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "leaf_motion",
+      "kind": "bend_twist",
+      "inputs": [
+        "root_rotation",
+        "bend",
+        "twist"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.12,
+        0.6
+      ],
+      "radius": [
+        0.24,
+        0.4
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "edge_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.88,
+        0.6
+      ],
+      "radius": [
+        0.24,
+        0.4
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "edge_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0",
+        "v1"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "root",
+      "tip"
+    ],
+    "optional": [
+      "ridge_mid"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "thin_shell_contact"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "厚い動物耳と薄い葉で同じoperatorを用い、厚み・稜線・固定範囲を変える。長い耳の全周や裏面textureは本版に含めない。"
+  ]
+}

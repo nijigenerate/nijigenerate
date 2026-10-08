@@ -257,6 +257,7 @@ private immutable Scenario[] scenarios = [
     Scenario("simplephysics.composite-settings-matrix", "SimplePhysics", "SimplePhysics model, map, local, gravity, length, frequency, and damping settings undo/redo", automated, "Expands the matrix into a direct scenario for SimplePhysics setting combinations."),
 
     Scenario("project.new-open-save", "Project/File", "New, open, save, save-as, close, dirty state, and recent-file behavior", automated, "Covers headless-safe save/open command paths, file creation, dirty-state clearing, and model round-trip."),
+    Scenario("project.memory-restore", "Project/File", "Native memory snapshot rollback preserves dirty state and project identity", automated, "Covers dirty and clean memory snapshot restores without changing the project path."),
     Scenario("project.composite-command-roundtrip", "Project/File", "Command-created nodes, parameters, bindings, mesh/deformer state, save, reopen, and resource-visible type preservation", automated, "Covers a cross-feature command workflow persisted through native INX and reloaded through OpenFileCommand."),
     Scenario("project.composite-image-merge-export", "Project/File", "Generated image import, merge, INP export/import, and native reopen preserve parts and parameters", automated, "Covers image-backed project creation followed by merge/export/reimport transitions."),
     Scenario("project.file-dialogs", "Project/File", "Open, save, save-as, import, merge, and export dialog command entrypoints", computerUse, "Needs UI dialog smoke with cancellable and accepted paths."),
@@ -864,6 +865,47 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     PSD psdDoc = parsePSDDocument(psdPath);
     require(psdDoc.width == 1 && psdDoc.height == 1, "PSD reader should parse generated fixture dimensions");
     require(psdDoc.layers.length == 0, "PSD reader should accept an empty-layer fixture");
+    import nijigenerate.io.inimport : incBuildLayerLayout, IncImportLayer, IncImportSettings,
+        ngCreateImportGroupNode, ngApplyImportLayerClipping;
+    auto baseLayer = Layer.init;
+    baseLayer.name = "Base";
+    baseLayer.clipping = true;
+    auto clippedA = baseLayer;
+    clippedA.name = "Clipped A";
+    clippedA.clipping = false;
+    auto clippedB = clippedA;
+    clippedB.name = "Clipped B";
+    auto clippingDoc = psdDoc;
+    clippingDoc.layers = [clippedB, clippedA, baseLayer];
+    auto clippingLayout = incBuildLayerLayout(clippingDoc);
+    require(clippingLayout.length == 3 && clippingLayout[0].name == "Base" &&
+        clippingLayout[1].clippingBase is clippingLayout[0] &&
+        clippingLayout[2].clippingBase is clippingLayout[0],
+        "PSD clipping siblings must resolve bottom-to-top with one shared base");
+    auto groupBase = new IncImportLayer!PSD(baseLayer, true);
+    groupBase.clippingReceiver = true;
+    auto clippedGroup = new IncImportLayer!PSD(clippedA, true);
+    clippedGroup.clippingBase = groupBase;
+    foreach (keepStructure; [true, false]) {
+        auto settings = IncImportSettings(keepStructure, "Node");
+        auto baseNode = ngCreateImportGroupNode(groupBase, settings);
+        auto clippedNode = ngCreateImportGroupNode(clippedGroup, settings);
+        require(cast(Part)baseNode !is null && cast(Part)clippedNode !is null,
+            "Clipping groups require native render surfaces with either folder setting");
+        Node[IncImportLayer!PSD] nodes;
+        nodes[groupBase] = baseNode;
+        nodes[clippedGroup] = clippedNode;
+        ngApplyImportLayerClipping(nodes);
+        require((cast(Part)clippedNode).masks.length == 1 &&
+            (cast(Part)clippedNode).masks[0].maskSrcUUID == baseNode.uuid,
+            "A clipped group must use the rendered base group alpha");
+    }
+    auto translucentLayer = baseLayer;
+    translucentLayer.opacity = 128;
+    auto translucentGroup = new IncImportLayer!PSD(translucentLayer, true);
+    translucentGroup.passThrough = true;
+    require(cast(Composite)ngCreateImportGroupNode(translucentGroup, IncImportSettings(true, "Node")) !is null,
+        "Translucent pass-through folders must use an opacity-capable adapter");
     auto emptyPascalPath = buildPath(fixtureDir, "empty-pascal-name.bin");
     write(emptyPascalPath, cast(ubyte[])[0, 0, 0, 0, 77]);
     auto emptyPascalFile = File(emptyPascalPath, "rb");
@@ -1312,6 +1354,234 @@ private void testMaskSourceModeUndoRedo() {
 
     incActionRedo();
     require(target.masks[0].mode == MaskingMode.DodgeMask, "mask mode redo should restore new mode");
+}
+
+private void testCoincidentWeldingVertexSamples() {
+    resetCase();
+    auto part = newMeshPart("coincident-seam");
+    auto original = part.getMesh();
+    MeshData data;
+    data.vertices = Vec2Array([original.vertices[0].toVector(), original.vertices[1].toVector(),
+        original.vertices[2].toVector(), original.vertices[0].toVector()]);
+    data.uvs = Vec2Array([original.uvs[0].toVector(), original.uvs[1].toVector(),
+        original.uvs[2].toVector(), original.uvs[0].toVector()]);
+    data.indices = original.indices.dup ~ [cast(ushort)3, cast(ushort)1, cast(ushort)2];
+    part.rebuffer(data);
+    auto param = new2DParameter("Coincident samples");
+    auto binding = cast(DeformationParameterBinding)param.createBinding(part, "deform", false);
+    param.addBinding(binding);
+    auto offsets = Vec2Array([vec2(1, 2), vec2(3, 4), vec2(5, 6), vec2(21, 22)]);
+    binding.setValue(vec2u(0, 0), Deformation(offsets));
+    import nijigenerate.viewport.common.mesh : IncMesh;
+    import nijigenerate.core.math.mesh : applyMeshToTarget;
+    auto mesh = new IncMesh(part.getMesh());
+    applyMeshToTarget(part, mesh.vertices, &mesh, true);
+    foreach (i, offset; offsets)
+        require(binding.values[0][0].vertexOffsets[i].toVector() == offset.toVector(),
+            "Coincident mesh vertices must retain their distinct authored deformation samples: " ~
+            i.to!string ~ " expected " ~ offset.to!string ~ " got " ~
+            binding.values[0][0].vertexOffsets[i].to!string);
+}
+
+private void testRejectedMeshResamplingGroupCleanup() {
+    resetCase();
+    auto part = newMeshPart("rejected-resampling");
+    auto data = part.getMesh();
+    data.indices = null;
+    part.rebuffer(data);
+    auto param = new2DParameter("Rejected resampling");
+    auto binding = cast(DeformationParameterBinding)param.createBinding(part, "deform", false);
+    param.addBinding(binding);
+    binding.setValue(vec2u(0, 0), Deformation(Vec2Array([
+        vec2(1, 2), vec2(3, 4), vec2(5, 6)])));
+    import nijigenerate.viewport.common.mesh : IncMesh;
+    import nijigenerate.core.math.mesh : applyMeshToTarget;
+    import nijigenerate.core.actionstack : ngActionStackGroupDepth;
+    auto depth = ngActionStackGroupDepth();
+    bool rejected;
+    try applyMeshToTarget(part, [vec2(10, 10), vec2(20, 10), vec2(10, 20)], cast(IncMesh*)null);
+    catch (Exception error) rejected = error.msg.canFind("No finite nondegenerate triangle");
+    require(rejected, "Invalid source triangles must reject deformation resampling");
+    require(ngActionStackGroupDepth() == depth, "Rejected mesh resampling must close its action group");
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.nodes = [part];
+    require((new SetNodeNameCommand(["after-rejection"])).run(ctx).succeeded, "Subsequent edit should succeed");
+    incActionUndo();
+    require(part.name == "rejected-resampling", "Subsequent edits must remain independently undoable");
+}
+
+private void testPuppetMemoryRestoreDirtyState() {
+    resetCase();
+    import nijilive : inWriteINPPuppetMemory;
+    import nijigenerate.project : ngRestorePuppetMemory;
+    auto snapshot = inWriteINPPuppetMemory(incActivePuppet());
+    auto originalPath = incActiveProject().path;
+    incActionInvalidateSavedState();
+    ngRestorePuppetMemory(snapshot);
+    require(incActionIsModified(), "Snapshot rollback must retain unsaved changes");
+    require(incActiveProject().path == originalPath, "Snapshot rollback must retain the project path");
+    incActionMarkSaved();
+    ngRestorePuppetMemory(snapshot);
+    require(!incActionIsModified(), "Restoring an unchanged clean snapshot must remain clean");
+
+    resetCase();
+    auto originalPuppet = incActivePuppet();
+    auto ctx = new Context();
+    ctx.puppet = originalPuppet;
+    auto node = (new AddNodeCommand("Node")).run(ctx).created[0];
+    ctx.nodes = [node];
+    require((new SetNodeNameCommand(["before-checkpoint"])).run(ctx).succeeded, "Pre-rig edit should succeed");
+    auto checkpoint = inWriteINPPuppetMemory(originalPuppet);
+    incActionPushGroup();
+    require((new SetNodeNameCommand(["partial-stage"])).run(ctx).succeeded, "Partial stage edit should succeed");
+    ngRestorePuppetMemory(checkpoint);
+    incActionPopGroup();
+    require(findDirectNode(incActivePuppet(), "before-checkpoint") !is null, "Rollback should restore checkpoint content");
+    incActionUndo();
+    require(incActivePuppet() is originalPuppet && node.name == "before-checkpoint",
+        "Undoing checkpoint rollback must restore the original object identities and undo partial edits");
+    incActionUndo();
+    require(node.name != "before-checkpoint", "Pre-rig undo history must remain usable after rollback");
+    incActionRedo();
+    incActionRedo();
+    require(incActivePuppet() !is originalPuppet && findDirectNode(incActivePuppet(), "before-checkpoint") !is null,
+        "Redo must restore the replacement model and checkpoint content");
+    ctx.puppet = incActivePuppet();
+    ctx.nodes = [findDirectNode(ctx.puppet, "before-checkpoint")];
+    require((new SetNodeNameCommand(["latest-saved"])).run(ctx).succeeded, "New saved content should differ from checkpoint");
+    incActionMarkSaved();
+    ngRestorePuppetMemory(checkpoint);
+    require(incActionIsModified(), "Restoring different content must not mark an older checkpoint saved");
+}
+
+private void testRigClippingVisibility() {
+    resetCase();
+    import nijigenerate.autorig.deterministic.native : ngRigMaterialIsActive;
+    auto base = newMeshPart("clipping-base");
+    auto clipped = newMeshPart("clipped");
+    clipped.masks = [MaskBinding(base.uuid, MaskingMode.Mask, base)];
+    require(ngRigMaterialIsActive(clipped), "Visible clipping chain must remain active");
+    base.setEnabled(false);
+    require(!ngRigMaterialIsActive(clipped), "A hidden clipping base must disable its clipped material");
+    base.setEnabled(true);
+    base.opacity = 0;
+    require(!ngRigMaterialIsActive(clipped), "A transparent clipping base must disable its clipped material");
+    base.opacity = 1;
+    base.masks = [MaskBinding(clipped.uuid, MaskingMode.Mask, clipped)];
+    require(!ngRigMaterialIsActive(clipped), "Cyclic clipping chains must not recurse indefinitely");
+    import nijigenerate.autorig.deterministic.evidence : ngRigPropagateClippingVisibility;
+    JSONValue[] materials = [
+        JSONValue(["uuid":JSONValue(3), "receiver":JSONValue(2), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(1), "active":JSONValue(false)]),
+        JSONValue(["uuid":JSONValue(2), "receiver":JSONValue(1), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(4), "active":JSONValue(true)])
+    ];
+    ngRigPropagateClippingVisibility(materials);
+    require(!materials[0]["active"].boolean && !materials[2]["active"].boolean &&
+        materials[3]["active"].boolean, "Empty base alpha must propagate through an unordered clipping chain");
+    import nijigenerate.autorig.deterministic.evidence : ngRigResolveGroupReceivers;
+    JSONValue[] grouped = [
+        JSONValue(["uuid":JSONValue(11), "active":JSONValue(true), "source_order":JSONValue(2),
+            "ancestor_ids":JSONValue([10])]),
+        JSONValue(["uuid":JSONValue(12), "active":JSONValue(true), "source_order":JSONValue(1),
+            "ancestor_ids":JSONValue([10])]),
+        JSONValue(["uuid":JSONValue(13), "active":JSONValue(true), "source_order":JSONValue(3),
+            "receiver":JSONValue(10)])
+    ];
+    JSONValue[] receiverGroups = [JSONValue(["uuid":JSONValue(10)])];
+    ngRigResolveGroupReceivers(grouped, receiverGroups);
+    require(grouped[2]["receiver"].integer == 12 && grouped[2]["mask_receiver"].integer == 10,
+        "Group receiver classification must resolve to a source material and retain the native mask surface");
+    grouped[1]["static"] = JSONValue(true);
+    grouped[0]["static"] = JSONValue(false);
+    ngRigResolveGroupReceivers(grouped, receiverGroups, true);
+    require(grouped[2]["receiver"].integer == 11,
+        "Group receiver selection must skip a descendant classified as static");
+    import nijigenerate.autorig.deterministic.evidence : ngRigPropagateClippingStatic;
+    JSONValue[] staticChain = [
+        JSONValue(["uuid":JSONValue(3), "receiver":JSONValue(2), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(1), "static":JSONValue(true), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(2), "receiver":JSONValue(1), "active":JSONValue(true)])
+    ];
+    ngRigPropagateClippingStatic(staticChain, null);
+    require(staticChain[0]["static"].boolean && staticChain[2]["static"].boolean,
+        "Static direct receivers must propagate through an unordered clipping chain");
+    grouped[1]["static"] = JSONValue(false);
+    grouped[1]["receiver"] = JSONValue(1);
+    grouped ~= staticChain[1];
+    ngRigPropagateClippingStatic(grouped, receiverGroups);
+    require(grouped[1]["static"].boolean && grouped[2]["receiver"].integer == 11 &&
+        ("static" in grouped[2].object) is null,
+        "A folder alias must fall back when its first descendant has a static direct receiver");
+    grouped[0]["active"] = JSONValue(false);
+    grouped[1]["active"] = JSONValue(false);
+    grouped[2]["receiver"] = JSONValue(10);
+    ngRigResolveGroupReceivers(grouped, receiverGroups);
+    require(!grouped[2]["active"].boolean, "An empty receiver group must disable its clipped material");
+    base.masks = null;
+    auto group = new DynamicComposite(incActivePuppet().root);
+    group.name = "clip-render-surface";
+    group.masks = [MaskBinding(base.uuid, MaskingMode.Mask, base)];
+    clipped.reparent(group, 0);
+    auto context = new Context();
+    context.puppet = incActivePuppet();
+    context.nodes = [group];
+    auto converted = (new ConvertToCommand("Composite")).run(context);
+    require(converted.succeeded, "A clipping surface must convert directly to Composite");
+    auto composite = cast(Composite)converted.created[0];
+    require(composite !is null && composite.uuid == group.uuid && composite.masks.length == 1 &&
+        composite.masks[0].maskSrcUUID == base.uuid,
+        "Clipping surface conversion must retain identity and masks");
+    base.setEnabled(false);
+    require(!ngRigMaterialIsActive(clipped), "Ancestor clipping masks must participate in effective visibility");
+}
+
+private void testAutoMeshParentCancellation() {
+    resetCase();
+    import core.thread : Thread;
+    import core.atomic : atomicLoad, atomicStore;
+    import core.thread.fiber : Fiber;
+    import core.time : msecs;
+    import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
+    import nijigenerate.viewport.vertex.automesh.grid : GridAutoMeshProcessor;
+    import nijigenerate.viewport.common.mesh : IncMesh;
+    class CancellationProbe : GridAutoMeshProcessor {
+        shared int calls;
+        override IncMesh autoMesh(Deformable target, IncMesh mesh, bool mirrorHoriz = false,
+            float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+            atomicStore(calls, 1);
+            Fiber.yield();
+            atomicStore(calls, 2);
+            return mesh;
+        }
+    }
+    auto processor = new CancellationProbe();
+    auto part = newMeshPart("cancel-probe");
+    auto context = new Context();
+    context.puppet = incActivePuppet();
+    context.nodes = [part];
+    auto command = new ApplyAutoMeshPT!GridAutoMeshProcessor(processor,
+        { return atomicLoad(processor.calls) > 0; });
+    auto pending = command.run(context);
+    shared bool done;
+    CommandResult completed;
+    auto waiter = new Thread({
+        completed = pending.waitForCompletion();
+        atomicStore(done, true);
+    });
+    waiter.start();
+    foreach (_; 0 .. 500) {
+        ngMcpProcessQueue();
+        if (atomicLoad(done)) break;
+        Thread.sleep(10.msecs);
+    }
+    require(atomicLoad(done), "Canceled AutoMesh must finish without waiting for the mesh computation");
+    waiter.join();
+    require(!completed.succeeded && completed.message.canFind("canceled"),
+        "Parent cancellation must be propagated to the AutoMesh result");
+    require(atomicLoad(processor.calls) == 1, "Canceled AutoMesh must not resume its suspended computation");
+    require(part.vertices.length == 3, "Canceled AutoMesh must not apply queued mesh changes");
 }
 
 private void testWeldingUndoRedo() {
@@ -2037,6 +2307,28 @@ private void testNativeSavePathOverwriteAndReload() {
     require((new OpenFileCommand(savePath)).run(ctx).succeeded, "reload overwritten native save should succeed");
     require(findDirectNode(incActivePuppet(), "first-saved-node") !is null, "reload should preserve first saved node");
     require(findDirectNode(incActivePuppet(), "second-saved-node") !is null, "reload should include overwritten second node");
+
+    // A nonempty directory at the destination forces the final rename to fail.
+    auto puppet = incActivePuppet();
+    auto preservedPath = incProjectPath();
+    remove(savePath);
+    mkdirRecurse(savePath);
+    write(buildPath(savePath, "sentinel"), "preserve");
+    ctx.puppet = puppet;
+    ctx.nodes = [findDirectNode(puppet, "second-saved-node")];
+    require((new SetNodeNameCommand(["unsaved-node"])).run(ctx).succeeded, "unsaved edit should succeed");
+    import nijigenerate.io.save : incFileSave, CloseAskHandler;
+    require(!incFileSave(), "Save action must report a failed final rename");
+    require(incActionIsModified() && incProjectPath() == preservedPath && incActivePuppet() is puppet,
+        "Failed save must preserve the dirty model and its project path");
+    class ObservedCloseHandler : CloseAskHandler {
+        bool closed;
+        override void onProjectClose() { closed = true; }
+    }
+    auto closeHandler = new ObservedCloseHandler();
+    closeHandler.onClickYes();
+    require(!closeHandler.closed && incActivePuppet() is puppet && incActionIsModified(),
+        "Save-before-close must keep the project open when saving fails");
 }
 
 private void testProjectCameraViewportRoundTrip() {
@@ -18411,6 +18703,40 @@ private void testMcpTaskQueueMainThreadDispatch() {
     require(done && thrown, "ngRunInMainThread should propagate queued delegate exceptions");
 }
 
+private void testMcpFailedStartupRetry() {
+    import std.socket : TcpSocket, InternetAddress;
+    import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpStop, ngMcpIsRunning;
+    import core.thread : Thread;
+    import core.time : msecs;
+    ngMcpStop();
+    scope(exit) ngMcpStop();
+    auto occupied = new TcpSocket();
+    scope(exit) occupied.close();
+    occupied.bind(new InternetAddress("127.0.0.1", 0));
+    occupied.listen(1);
+    auto port = (cast(InternetAddress)occupied.localAddress).port;
+    ngMcpApplySettings(true, "127.0.0.1", port);
+    foreach (_; 0 .. 500) {
+        if (!ngMcpIsRunning()) break;
+        Thread.sleep(10.msecs);
+    }
+    require(!ngMcpIsRunning(), "An occupied port must leave MCP stopped after the failed thread exits");
+    occupied.close();
+    ngMcpApplySettings(true, "127.0.0.1", port);
+    bool connected;
+    foreach (_; 0 .. 500) {
+        auto client = new TcpSocket();
+        try {
+            client.connect(new InternetAddress("127.0.0.1", port));
+            connected = true;
+        } catch (Exception error) {}
+        client.close();
+        if (connected || !ngMcpIsRunning()) break;
+        Thread.sleep(10.msecs);
+    }
+    require(connected && ngMcpIsRunning(), "Applying the same settings must retry successfully once the port is free");
+}
+
 private void testApiTransportAndServerContracts() {
     auto req = ApprovalRequest(
         "req-1",
@@ -21167,6 +21493,9 @@ private bool runAutomatedScenario(string id) {
         case "project.new-open-save":
             runCase("project-new-save-open-command-paths", &testProjectNewSaveOpenCommandPaths);
             return true;
+        case "project.memory-restore":
+            runCase("memory-restore-preserves-dirty-state", &testPuppetMemoryRestoreDirtyState);
+            return true;
         case "project.composite-command-roundtrip":
             runCase("project-composite-command-roundtrip", &testProjectCompositeCommandRoundTrip);
             return true;
@@ -21238,6 +21567,8 @@ private bool runAutomatedScenario(string id) {
         case "io.psd-reader":
         case "io.kra-reader":
             runCase("psd-kra-reader-import-merge-fixtures", &testPSDAndKRAReaderImportMergeFixtures);
+            runCase("rig-clipping-visibility", &testRigClippingVisibility);
+            runCase("automesh-parent-cancellation", &testAutoMeshParentCancellation);
             return true;
         case "project.texture-maintenance":
             runCase("project-texture-maintenance-commands", &testProjectTextureMaintenanceCommands);
@@ -21367,6 +21698,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "core.math-triangle":
             runCase("core-math-triangle-invariants", &testCoreMathTriangleInvariants);
+            runCase("rejected-mesh-resampling-group-cleanup", &testRejectedMeshResamplingGroupCleanup);
             return true;
         case "core.math-skeletonize":
             runCase("core-math-skeletonize-invariants", &testCoreMathSkeletonizeInvariants);
@@ -21493,6 +21825,7 @@ private bool runAutomatedScenario(string id) {
             runCase("mask-source-mode-undo-redo", &testMaskSourceModeUndoRedo);
             return true;
         case "part.welding":
+            runCase("coincident-welding-samples", &testCoincidentWeldingVertexSamples);
             runCase("welding-undo-redo", &testWeldingUndoRedo);
             return true;
         case "part.welding-runtime":
@@ -21701,6 +22034,7 @@ private bool runAutomatedScenario(string id) {
             runCase("mcp-task-queue-main-thread-dispatch", &testMcpTaskQueueMainThreadDispatch);
             return true;
         case "api.mcp-server":
+            runCase("mcp-failed-startup-retry", &testMcpFailedStartupRetry);
             runCase("api-transport-server-contracts", &testApiTransportAndServerContracts);
             runCase("mcp-resource-listing-context-helpers", &testMcpResourceListingAndContextHelpers);
             runCase("mcp-task-queue-main-thread-dispatch", &testMcpTaskQueueMainThreadDispatch);

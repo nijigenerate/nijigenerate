@@ -1,0 +1,302 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "mouth_opening",
+  "version": "1.0.0",
+  "family": "boundary_patch",
+  "label": "口角・上下唇・内部面の局所格子",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "corner_a",
+      "uv": [
+        0,
+        0.5
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "一方の口角"
+    },
+    {
+      "id": "corner_b",
+      "uv": [
+        1,
+        0.5
+      ],
+      "required": true,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "反対の口角"
+    },
+    {
+      "id": "upper_lip_center",
+      "uv": [
+        0.5,
+        0.28
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "上唇中央"
+    },
+    {
+      "id": "lower_lip_center",
+      "uv": [
+        0.5,
+        0.76
+      ],
+      "required": false,
+      "candidate_sources": [
+        "neutral_hint",
+        "part_registration"
+      ],
+      "meaning": "下唇中央"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "upper_support",
+        "v": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "upper_lip",
+        "v": 0.28,
+        "landmark_roles": []
+      },
+      {
+        "id": "upper_opening",
+        "v": 0.42,
+        "landmark_roles": []
+      },
+      {
+        "id": "opening_center",
+        "v": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_opening",
+        "v": 0.6,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_lip",
+        "v": 0.76,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_support",
+        "v": 1,
+        "landmark_roles": []
+      }
+    ],
+    "columns": [
+      {
+        "id": "corner_a",
+        "u": 0,
+        "landmark_roles": [
+          "corner_a"
+        ]
+      },
+      {
+        "id": "quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "corner_b",
+        "u": 1,
+        "landmark_roles": [
+          "corner_b"
+        ]
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "residual",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "lip_base",
+        "depth_profile": [
+          [
+            0,
+            0
+          ],
+          [
+            0.3,
+            1
+          ],
+          [
+            0.7,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "ellipse"
+      },
+      {
+        "type": "compact_relief",
+        "center": [
+          0.5,
+          0.52
+        ],
+        "radius": [
+          0.47,
+          0.3
+        ],
+        "height": "cavity_depth",
+        "rotation_degrees": 0
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "lip_base",
+      "default": 0.012,
+      "min": 0,
+      "max": 0.08,
+      "unit": "bounds_width",
+      "meaning": "唇周囲の局所厚み"
+    },
+    {
+      "id": "cavity_depth",
+      "default": -0.06,
+      "min": -0.25,
+      "max": 0,
+      "unit": "bounds_width",
+      "meaning": "口腔patchの局所奥行き"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "corner_a",
+      "region": {
+        "u": [
+          0,
+          0
+        ],
+        "v": [
+          0.5,
+          0.5
+        ]
+      },
+      "host_role": "head_mouth_patch",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "corner_b",
+      "region": {
+        "u": [
+          1,
+          1
+        ],
+        "v": [
+          0.5,
+          0.5
+        ]
+      },
+      "host_role": "head_mouth_patch",
+      "mode": "shared_seam",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "open_expression",
+      "kind": "boundary_gap",
+      "inputs": [
+        "open",
+        "expression"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [],
+  "hints": {
+    "required": [
+      "corner_a",
+      "corner_b"
+    ],
+    "optional": [
+      "upper_lip_center",
+      "lower_lip_center"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "lip_boundary_solver",
+      "teeth_tongue_layer_composition",
+      "mouth_clip"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "唇・口腔の局所深度だけをpreviewする。開口、舌・歯の独立素材、clipの合成は未実装。"
+  ]
+}

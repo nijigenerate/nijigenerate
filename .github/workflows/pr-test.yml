@@ -18,9 +18,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
         compiler: ldc-1.41.0
+
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.31'
 
     - name: "Get build dependencies"
       run: |
@@ -54,6 +61,15 @@ jobs:
         # Build and run the DepthDraw regression gates for calculation-facing changes
         dub build --compiler=ldc2 --config=linux-regression-tests
         out/nijigenerate-regression-tests --only project.depthdraw-compatibility
+        out/nijigenerate-regression-tests --only io.psd-reader
+        out/nijigenerate-regression-tests --only io.save-native
+        out/nijigenerate-regression-tests --only project.memory-restore
+        out/nijigenerate-regression-tests --only part.welding
+        out/nijigenerate-regression-tests --only core.math-triangle
+        out/nijigenerate-regression-tests --only api.mcp-server
+        dub run --compiler=ldc2 --root=tests
+        dub run --compiler=ldc2 --root=tests/autorig-storage
+        dub run --compiler=ldc2 --root=tests/autorig-solver
         out/nijigenerate-regression-tests --only project.depthdraw-data-model
         out/nijigenerate-regression-tests --only project.depthdraw-composer
         out/nijigenerate-regression-tests --only project.depthdraw-fit-z
@@ -75,6 +91,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
         compiler: ldc-1.41.0
@@ -117,3 +135,6 @@ jobs:
 
         # Compile-check live UI smoke entry points without running GUI computer-use scenarios.
         dub build --compiler=ldc2 --config=win32-regression-smoke
+        dub run --compiler=ldc2 --root=tests
+        dub run --compiler=ldc2 --root=tests/autorig-storage
+        dub run --compiler=ldc2 --root=tests/autorig-solver

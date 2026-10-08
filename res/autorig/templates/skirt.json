@@ -1,0 +1,388 @@
+{
+  "schema_version": "semantic-grid-template/1",
+  "id": "skirt",
+  "version": "1.0.0",
+  "family": "circumferential_shell",
+  "label": "腰輪・広がり・裾を持つスカート前面chart",
+  "frame": {
+    "u": "中立素材の局所横方向。画面左右と人体左右は同一視しない。",
+    "v": "意味付き基準線の始点から終点。中立素材へのfitで傾きと非対称を保持。",
+    "depth_units": "bounds_width",
+    "angle_unit": "degree"
+  },
+  "landmarks": [
+    {
+      "id": "waist_a",
+      "uv": [
+        0,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "腰帯の一端"
+    },
+    {
+      "id": "waist_b",
+      "uv": [
+        1,
+        0
+      ],
+      "required": true,
+      "candidate_sources": [
+        "existing_attachment",
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "腰帯の反対端"
+    },
+    {
+      "id": "hem_a",
+      "uv": [
+        0,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "裾の一端"
+    },
+    {
+      "id": "hem_b",
+      "uv": [
+        1,
+        1
+      ],
+      "required": true,
+      "candidate_sources": [
+        "alpha_extremum",
+        "neutral_hint"
+      ],
+      "meaning": "裾の反対端"
+    },
+    {
+      "id": "hem_center",
+      "uv": [
+        0.5,
+        1
+      ],
+      "required": false,
+      "candidate_sources": [
+        "alpha_contour",
+        "neutral_hint"
+      ],
+      "meaning": "非対称な裾の中央"
+    }
+  ],
+  "guide_grid": {
+    "rows": [
+      {
+        "id": "waist",
+        "v": 0,
+        "landmark_roles": [
+          "waist_a",
+          "waist_b"
+        ]
+      },
+      {
+        "id": "flare_start",
+        "v": 0.2,
+        "landmark_roles": []
+      },
+      {
+        "id": "upper_panel",
+        "v": 0.4,
+        "landmark_roles": []
+      },
+      {
+        "id": "lower_panel",
+        "v": 0.72,
+        "landmark_roles": []
+      },
+      {
+        "id": "hem",
+        "v": 1,
+        "landmark_roles": [
+          "hem_a",
+          "hem_b"
+        ]
+      }
+    ],
+    "columns": [
+      {
+        "id": "side_a",
+        "u": 0,
+        "landmark_roles": []
+      },
+      {
+        "id": "front_quarter_a",
+        "u": 0.25,
+        "landmark_roles": []
+      },
+      {
+        "id": "front_center",
+        "u": 0.5,
+        "landmark_roles": []
+      },
+      {
+        "id": "front_quarter_b",
+        "u": 0.75,
+        "landmark_roles": []
+      },
+      {
+        "id": "side_b",
+        "u": 1,
+        "landmark_roles": []
+      }
+    ],
+    "patches": []
+  },
+  "geometry": {
+    "representation": "front_chart",
+    "depth_mode": "independent",
+    "operators": [
+      {
+        "type": "section_surface",
+        "depth": "skirt_depth",
+        "depth_profile": [
+          [
+            0,
+            0.45
+          ],
+          [
+            0.2,
+            0.6
+          ],
+          [
+            0.4,
+            0.78
+          ],
+          [
+            0.72,
+            0.92
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "center_u": 0.5,
+        "radius_u": 0.5,
+        "exponent": 0.5,
+        "base": 0,
+        "cross_section": "angular",
+        "theta_degrees": [
+          -90,
+          90
+        ]
+      },
+      {
+        "type": "bend",
+        "amplitude": "panel_curve",
+        "axis": "v",
+        "power": 2,
+        "origin": 0
+      },
+      {
+        "type": "wave",
+        "amplitude": "pleat_relief",
+        "axis": "u",
+        "frequency": 4,
+        "phase": 0,
+        "fade_axis": "v",
+        "fade_power": 2
+      }
+    ]
+  },
+  "tunables": [
+    {
+      "id": "skirt_depth",
+      "default": 0.28,
+      "min": 0.04,
+      "max": 0.7,
+      "unit": "bounds_width",
+      "meaning": "裾を基準とした前後の半幅"
+    },
+    {
+      "id": "panel_curve",
+      "default": 0.03,
+      "min": -0.2,
+      "max": 0.25,
+      "unit": "bounds_width",
+      "meaning": "腰から裾への前後の反り"
+    },
+    {
+      "id": "pleat_relief",
+      "default": 0.012,
+      "min": 0,
+      "max": 0.08,
+      "unit": "bounds_width",
+      "meaning": "低周波プリーツの深度振幅"
+    },
+    {
+      "id": "hem_keep",
+      "default": 0.02,
+      "min": 0,
+      "max": 0.1,
+      "unit": "bounds_width",
+      "meaning": "回転後の裾輪郭保持"
+    }
+  ],
+  "attachment_slots": [
+    {
+      "id": "waist",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          0,
+          0
+        ]
+      },
+      "host_role": "pelvis_waist",
+      "mode": "fixed_band",
+      "implementation": "metadata_only"
+    },
+    {
+      "id": "hem",
+      "region": {
+        "u": [
+          0,
+          1
+        ],
+        "v": [
+          1,
+          1
+        ]
+      },
+      "host_role": "none",
+      "mode": "free_edge",
+      "implementation": "metadata_only"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "chart_rotation",
+      "kind": "rigid_rotation",
+      "inputs": [
+        "yaw",
+        "pitch",
+        "roll"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "cloth",
+      "kind": "cloth_contact",
+      "inputs": [
+        "pelvis",
+        "leg_contact",
+        "gravity",
+        "dynamic_input"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "correction_rules": [
+    {
+      "type": "local",
+      "center": [
+        0.12,
+        0.82
+      ],
+      "radius": [
+        0.25,
+        0.32
+      ],
+      "direction": [
+        -1,
+        0
+      ],
+      "amplitude": "hem_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    },
+    {
+      "type": "local",
+      "center": [
+        0.88,
+        0.82
+      ],
+      "radius": [
+        0.25,
+        0.32
+      ],
+      "direction": [
+        1,
+        0
+      ],
+      "amplitude": "hem_keep",
+      "driver": {
+        "axis": "yaw",
+        "basis": "sin2",
+        "scale": 1
+      },
+      "pin_edges": [
+        "v0"
+      ]
+    }
+  ],
+  "hints": {
+    "required": [
+      "waist_a",
+      "waist_b",
+      "hem_a",
+      "hem_b"
+    ],
+    "optional": [
+      "hem_center"
+    ]
+  },
+  "validation": {
+    "neutral_tolerance_width": 1e-7,
+    "landmark_tolerance_width": 0.005,
+    "minimum_signed_cell_area": 1e-12,
+    "max_depth_width": 2,
+    "require_monotone_grid_axes": true,
+    "require_no_new_cell_inversion": true,
+    "require_resolved_hints_for_source_fit": true,
+    "forbid_hidden_surface_claim": true
+  },
+  "capabilities": {
+    "implemented": [
+      "front_chart_depth",
+      "guide_grid_from_bounds_or_supplied_landmarks",
+      "rigid_chart_rotation",
+      "local_pose_correction"
+    ],
+    "planned": [
+      "automatic_semantic_landmark_extraction",
+      "attachment_constraint_solver",
+      "host_contact_solver",
+      "NJC_compiler",
+      "rear_and_side_charts",
+      "cloth_contact",
+      "fixed_timestep_cloth"
+    ],
+    "required_runtime_inputs": []
+  },
+  "limitations": [
+    "深度既定値は版固定の事前値であり、中立画像から観測した真の奥行きではない。",
+    "本版は可視front chartのfit・深度・剛体回転・局所補正の計算である。接合slotは宣言のみで、骨接合・contact・物理を解いたとは扱わない。",
+    "各chartを単独回転したpreviewは全rigの合成結果ではない。未提供の裏面や隠れた塗り面は生成しない。",
+    "本版はtheta=-90..90の可視前面のみ。全周、裏面素材、脚contact、揺れはplanned。裾丈の非対称は中立fitで維持する。"
+  ]
+}

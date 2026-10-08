@@ -6760,3 +6760,298 @@ msgstr ""
 #: source/nijigenerate/windows/psddepthmap.d:3464
 msgid "PSD Depth Map Import"
 msgstr ""
+
+#: source/nijigenerate/panels/autorig.d:141
+msgid "No workflows registered"
+msgstr "ワークフローが登録されていません"
+
+#: source/nijigenerate/panels/autorig.d:175
+msgid "Add workflow session"
+msgstr "ワークフローのセッションを追加"
+
+#: source/nijigenerate/panels/autorig.d:194
+msgid "File name"
+msgstr "ファイル名"
+
+#: source/nijigenerate/panels/autorig.d:195
+msgid "File path"
+msgstr "ファイルパス"
+
+#: source/nijigenerate/panels/autorig.d:196
+msgid "JSON"
+msgstr "JSON"
+
+#: source/nijigenerate/panels/autorig.d:197
+msgid "Binary data"
+msgstr "バイナリデータ"
+
+#: source/nijigenerate/panels/autorig.d:247
+msgid "Workflow arguments"
+msgstr "ワークフロー全体の引数"
+
+#: source/nijigenerate/panels/autorig.d:255
+msgid "Session context / artifacts"
+msgstr "セッションのコンテキスト・アーティファクト"
+
+#: source/nijigenerate/panels/autorig.d:262
+#, c-format
+msgid "%s bytes"
+msgstr "%s バイト"
+
+#: source/nijigenerate/panels/autorig.d:274
+msgid "Value / artifact path"
+msgstr "値・アーティファクトのパス"
+
+#: source/nijigenerate/panels/autorig.d:275
+msgid ""
+"Path references an artifact; Blob imports file contents; Json stores "
+"structured data."
+msgstr "ファイルパスはアーティファクトを参照し、バイナリデータはファイルの内容を取り込み、JSONは構造化データを保存します。"
+
+#: source/nijigenerate/panels/autorig.d:276
+msgid "Add context value"
+msgstr "コンテキストの値を追加"
+
+#: source/nijigenerate/panels/autorig.d:290
+msgid "Workflow output"
+msgstr "ワークフローの出力"
+
+#: source/nijigenerate/panels/autorig.d:295
+msgid "Waiting for output"
+msgstr "出力を待機中"
+
+#: source/nijigenerate/panels/autorig.d:310
+msgid "Waiting for dependency"
+msgstr "依存タスクを待機中"
+
+#: source/nijigenerate/panels/autorig.d:311
+#: source/nijigenerate/panels/autorig.d:344
+msgid "JSON artifact ready"
+msgstr "JSONアーティファクトを取得済み"
+
+#: source/nijigenerate/panels/autorig.d:345
+msgid "Binary artifact"
+msgstr "バイナリアーティファクト"
+
+#: source/nijigenerate/panels/autorig.d:350
+msgid "Preview: "
+msgstr "プレビュー: "
+
+#: source/nijigenerate/panels/autorig.d:350
+msgid "File: "
+msgstr "ファイル: "
+
+#: source/nijigenerate/panels/autorig.d:358
+msgid "Observe the model first to configure material roles."
+msgstr "マテリアルの役割を設定するには、先にモデルの観測を実行してください。"
+
+#: source/nijigenerate/panels/autorig.d:385
+msgid ""
+"Materials are classified automatically from names, hierarchy, clipping and "
+"alpha support. These overrides are optional. Static keeps the material "
+"unrigged."
+msgstr "マテリアルは名前、階層、クリッピング、アルファ領域から自動分類されます。役割の上書きは任意です。staticを選ぶとリグを適用しません。"
+
+#: source/nijigenerate/panels/autorig.d:386
+msgid "Show unresolved only"
+msgstr "未確定のものだけ表示"
+
+#: source/nijigenerate/panels/autorig.d:393
+#: source/nijigenerate/panels/autorig.d:396
+msgid "Choose role"
+msgstr "役割を選択"
+
+#: source/nijigenerate/panels/autorig.d:405
+msgid "Apply material roles"
+msgstr "マテリアルの役割を適用"
+
+#: source/nijigenerate/panels/autorig.d:430
+msgid "Input"
+msgstr "入力"
+
+#: source/nijigenerate/panels/autorig.d:457
+msgid "Running"
+msgstr "実行中"
+
+#: source/nijigenerate/panels/autorig.d:461
+msgid "Completed"
+msgstr "完了"
+
+#: source/nijigenerate/panels/autorig.d:465
+msgid "Failed"
+msgstr "失敗"
+
+#: source/nijigenerate/panels/autorig.d:469
+msgid "Canceled"
+msgstr "キャンセル済み"
+
+#: source/nijigenerate/panels/autorig.d:473
+msgid "Needs rerun"
+msgstr "再実行が必要"
+
+#: source/nijigenerate/panels/autorig.d:477
+msgid "Pending"
+msgstr "未実行"
+
+#: source/nijigenerate/panels/autorig.d:560
+msgid "AutoRig"
+msgstr "自動リグ"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:60
+msgid "Anime Front View Rig"
+msgstr "アニメ正面立ち絵リグ"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:64
+msgid "Preserve face orientation"
+msgstr "顔の向きを保持"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:65
+msgid "Fit grid depth"
+msgstr "グリッドの深度をフィット"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:65
+msgid "Solve anatomical scaffold"
+msgstr "解剖学的な骨格を求解"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:66
+msgid "Sample anatomical depth"
+msgstr "解剖学的な深度をサンプリング"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:66
+msgid "Evaluate surface template"
+msgstr "サーフェステンプレートを評価"
+
+#: source/nijigenerate/autorig/deterministic/processor.d:72
+msgid "Apply face projection"
+msgstr "顔の投影を適用"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:14
+msgid "Observe imported model"
+msgstr "インポート済みモデルを観測"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:16
+msgid "Derive evidence and compile rig"
+msgstr "根拠を導出してリグを構築"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:19
+msgid "Prepare Part meshes"
+msgstr "Partのメッシュを準備"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:19
+msgid "Build anatomical rig"
+msgstr "解剖学的なリグを構築"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:20
+msgid "Prepare source groups and facial composites"
+msgstr "元のグループと顔のコンポジットを準備"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:21
+msgid "Mesh eye and mouth mechanism composites"
+msgstr "目・口の機構コンポジットをメッシュ化"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:22
+msgid "Measure proximal shoulder contours"
+msgstr "肩の付け根の輪郭を計測"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:23
+msgid "Connect matching native shoulder meshes"
+msgstr "対応する肩のネイティブメッシュを接続"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:24
+msgid "Register source texture placement"
+msgstr "元のテクスチャ配置を登録"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:25
+msgid "Validate stored and effective depth"
+msgstr "保存された深度と実効深度を検証"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:26
+msgid "Apply fixed-foot and near-cheek corrections"
+msgstr "足の固定と手前側の頬の補正を適用"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:27
+msgid "Bake face and body angles"
+msgstr "顔と体の角度をベイク"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:27
+msgid "Apply local rig controls"
+msgstr "局所リグ制御を適用"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:29
+msgid "Verify saved rig"
+msgstr "保存済みリグを検証"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:31
+msgid "Compile shared source domains"
+msgstr "共有する元の領域を構築"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:41
+msgid "Imported model to anatomical rig"
+msgstr "インポート済みモデルから解剖学的リグを生成"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d:44
+msgid ""
+"Observe, derive, mesh, build, bake, control and verify the imported model."
+msgstr "インポート済みモデルの観測、根拠の導出、メッシュ化、リグ構築、ベイク、制御、検証を行います。"
+
+#: source/nijigenerate/commands/puppet/tool.d:183
+msgid "Execute AutoRig"
+msgstr "自動リグを実行"
+
+#: source/nijigenerate/commands/puppet/tool.d:183
+msgid "Run AutoRig on the imported model."
+msgstr "インポート済みモデルに自動リグを実行します。"
+
+#: source/nijigenerate/commands/puppet/tool.d:196
+msgid "AutoRig Status"
+msgstr "自動リグの状態"
+
+#: source/nijigenerate/commands/puppet/tool.d:196
+msgid "Read AutoRig workflow progress."
+msgstr "自動リグのワークフローの進捗を取得します。"
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "Resume AutoRig"
+msgstr "自動リグを再開"
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "Resume a saved AutoRig workflow."
+msgstr "保存済みの自動リグワークフローを再開します。"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Verify rig"
+msgstr "リグを検証"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Delete session"
+msgstr "セッションを削除"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "AutoRig memory status"
+msgstr "自動リグのメモリ使用状況"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "Read retained artifact sizes and garbage collector memory."
+msgstr "保持中のアーティファクトのサイズとガベージコレクタのメモリ使用状況を確認します。"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "Delete AutoRig session"
+msgstr "自動リグセッションを削除"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "Delete the session artifacts while keeping the editor model."
+msgstr "編集中のモデルを保持し、セッションのアーティファクトを削除します。"
+
+#: source/nijigenerate/project.d
+#, c-format
+msgid "Recovered %s nonfinite deformation components while loading this model. Missing components were reconstructed from nearby finite mesh samples; valid values were preserved. The original file was not changed."
+msgstr "モデルの読み込み時に、変形データの非有限値 %s 成分を復旧しました。欠損成分は近傍の正常なメッシュ値から補間し、正常な値は保持しています。元のファイルは変更していません。"
+
+#: source/nijigenerate/project.d
+#, c-format
+msgid "Removed %s inconsistent Welding vertex mappings while loading this model. Reciprocal mappings were preserved. The original file was not changed."
+msgstr "モデルの読み込み時に、整合しないWeldingの頂点対応を%s件除去しました。相互に一致する対応は保持しました。元のファイルは変更していません。"
+
+#: source/nijigenerate/project.d
+msgid "Restore model checkpoint"
+msgstr "モデルのチェックポイントを復元"

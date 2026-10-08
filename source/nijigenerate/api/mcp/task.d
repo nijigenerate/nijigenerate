@@ -13,6 +13,16 @@ private struct EnqueuedCommand { void delegate() action; }
 
 private __gshared EnqueuedCommand[] gQueue;
 private __gshared Mutex gQueueMutex;
+private bool externalCommandsBlocked;
+
+/** Main-thread editor ownership gate; queued internal worker actions remain runnable. */
+void ngMcpSetExternalCommandsBlocked(bool blocked) {
+    externalCommandsBlocked = blocked;
+}
+
+bool ngMcpExternalCommandsBlocked() {
+    return externalCommandsBlocked;
+}
 
 void ngMcpInitTask() {
     if (gQueueMutex is null) gQueueMutex = new Mutex();
@@ -32,7 +42,8 @@ void ngMcpProcessQueue() {
     synchronized (gQueueMutex) {
         if (gQueue.length == 0) return;
         items = gQueue;
-        gQueue.length = 0;
+        // Detach the drained storage: an enqueue during dispatch must not overwrite it.
+        gQueue = null;
     }
 
     foreach (item; items) {

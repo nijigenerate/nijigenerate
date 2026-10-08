@@ -29,6 +29,8 @@ struct Traits(T: psd.PSD) {
     static bool isVisible(Layer layer) { return (layer.flags & psd.LayerFlags.Visible) == 0; }
     static bool isGroupStart(Layer layer) { return !layer.type == psd.LayerType.Any; }
     static bool isGroupEnd(Layer layer) { return layer.name == "</Layer set>" || layer.name == "</Layer group>"; }
+    static bool isClippingLayer(Layer layer) { return !layer.clipping; }
+    static bool isPassThroughGroup(Layer layer) { return layer.blendModeKey == psd.BlendingMode.PassThrough; }
     alias parseDocument = psd.parseDocument;
     alias BlendingMode = psd.BlendingMode;
 }
