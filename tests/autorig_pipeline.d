@@ -350,7 +350,7 @@ void ngTestRigPipeline() {
     auto input = run.session().inputContext(run.stepTaskId("source"));
     assert(input.hasValue("options") && input.value("options").json.object.length == 0);
     run.setInput("options",AutoRigValue.jsonValue(JSONValue(["render":JSONValue(true)])));
-    assert(run.orderedSteps().length == 15);
+    assert(run.orderedSteps().length == 16);
     run.execute();
     assert(run.snapshot().state == AutoRigWorkflowState.Succeeded);
     // The picker deliberately has no UUID; display names come from the actual review output.
@@ -360,7 +360,8 @@ void ngTestRigPipeline() {
     assert(ngRigReviewMaterialNames(run.session().output(run.stepTaskId("source"),"materials").json).length == 0);
     assert(stages == ["observe-model","prepare-source-groups","prepare-shoulders","mesh-parts","register-source-uv",
         "prepare-feature-composites","compile-domain-layout","build-native-rig","weld-shoulders",
-        "apply-rig-controls","validate-depth-inputs","bake-depth-angles","apply-shape-corrections","verify-saved-rig"]);
+        "apply-rig-controls","validate-depth-inputs","bake-depth-angles","apply-shape-corrections",
+        "apply-secondary-physics","verify-saved-rig"]);
     assert(run.output("report").json["passed"].boolean && run.output("model").readBlob().length>0);
     auto detached = run.session().output(run.stepTaskId("source"),"state").json;
     assert(("materials" in detached.object) is null);
@@ -396,7 +397,7 @@ void ngTestRigPipeline() {
     assert(run.session().task(run.stepTaskId("source"),false).attempt == sourceAttempt);
     assert(run.session().task(run.stepTaskId("compile"),false).attempt == compileAttempt);
     assert(stages[previousStages .. $] == ["weld-shoulders","apply-rig-controls","validate-depth-inputs",
-        "bake-depth-angles","apply-shape-corrections","verify-saved-rig"]);
+        "bake-depth-angles","apply-shape-corrections","apply-secondary-physics","verify-saved-rig"]);
 
     string[] attempts;
     bool failControls = true;
@@ -416,7 +417,8 @@ void ngTestRigPipeline() {
     diagnosticRun.execute();
     assert(diagnosticRun.snapshot().state == AutoRigWorkflowState.Failed);
     assert(diagnosticRun.session().task(diagnosticRun.stepTaskId("controls")).state == AutoRigTaskState.Failed);
-    assert(attempts[$-4 .. $] == ["validate-depth-inputs","bake-depth-angles","apply-shape-corrections","verify-saved-rig"]);
+    assert(attempts[$-5 .. $] == ["validate-depth-inputs","bake-depth-angles","apply-shape-corrections",
+        "apply-secondary-physics","verify-saved-rig"]);
     auto completion = diagnosticRun.output("report").json;
     assert(!completion["all_finish_stages_succeeded"].boolean && !completion["rig_complete"].boolean);
     assert(completion["finish_stages"].array[0]["error"].str == "synthetic local-control failure");
