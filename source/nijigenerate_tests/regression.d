@@ -257,6 +257,7 @@ private immutable Scenario[] scenarios = [
     Scenario("simplephysics.composite-settings-matrix", "SimplePhysics", "SimplePhysics model, map, local, gravity, length, frequency, and damping settings undo/redo", automated, "Expands the matrix into a direct scenario for SimplePhysics setting combinations."),
 
     Scenario("project.new-open-save", "Project/File", "New, open, save, save-as, close, dirty state, and recent-file behavior", automated, "Covers headless-safe save/open command paths, file creation, dirty-state clearing, and model round-trip."),
+    Scenario("project.memory-restore", "Project/File", "Native memory snapshot rollback preserves dirty state and project identity", automated, "Covers dirty and clean memory snapshot restores without changing the project path."),
     Scenario("project.composite-command-roundtrip", "Project/File", "Command-created nodes, parameters, bindings, mesh/deformer state, save, reopen, and resource-visible type preservation", automated, "Covers a cross-feature command workflow persisted through native INX and reloaded through OpenFileCommand."),
     Scenario("project.composite-image-merge-export", "Project/File", "Generated image import, merge, INP export/import, and native reopen preserve parts and parameters", automated, "Covers image-backed project creation followed by merge/export/reimport transitions."),
     Scenario("project.file-dialogs", "Project/File", "Open, save, save-as, import, merge, and export dialog command entrypoints", computerUse, "Needs UI dialog smoke with cancellable and accepted paths."),
@@ -864,6 +865,22 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     PSD psdDoc = parsePSDDocument(psdPath);
     require(psdDoc.width == 1 && psdDoc.height == 1, "PSD reader should parse generated fixture dimensions");
     require(psdDoc.layers.length == 0, "PSD reader should accept an empty-layer fixture");
+    import nijigenerate.io.inimport : incBuildLayerLayout;
+    auto baseLayer = Layer.init;
+    baseLayer.name = "Base";
+    baseLayer.clipping = true;
+    auto clippedA = baseLayer;
+    clippedA.name = "Clipped A";
+    clippedA.clipping = false;
+    auto clippedB = clippedA;
+    clippedB.name = "Clipped B";
+    auto clippingDoc = psdDoc;
+    clippingDoc.layers = [clippedB, clippedA, baseLayer];
+    auto clippingLayout = incBuildLayerLayout(clippingDoc);
+    require(clippingLayout.length == 3 && clippingLayout[0].name == "Base" &&
+        clippingLayout[1].clippingBase is clippingLayout[0] &&
+        clippingLayout[2].clippingBase is clippingLayout[0],
+        "PSD clipping siblings must resolve bottom-to-top with one shared base");
     auto emptyPascalPath = buildPath(fixtureDir, "empty-pascal-name.bin");
     write(emptyPascalPath, cast(ubyte[])[0, 0, 0, 0, 77]);
     auto emptyPascalFile = File(emptyPascalPath, "rb");
@@ -1312,6 +1329,48 @@ private void testMaskSourceModeUndoRedo() {
 
     incActionRedo();
     require(target.masks[0].mode == MaskingMode.DodgeMask, "mask mode redo should restore new mode");
+}
+
+private void testCoincidentWeldingVertexSamples() {
+    resetCase();
+    auto part = newMeshPart("coincident-seam");
+    auto original = part.getMesh();
+    MeshData data;
+    data.vertices = Vec2Array([original.vertices[0].toVector(), original.vertices[1].toVector(),
+        original.vertices[2].toVector(), original.vertices[0].toVector()]);
+    data.uvs = Vec2Array([original.uvs[0].toVector(), original.uvs[1].toVector(),
+        original.uvs[2].toVector(), original.uvs[0].toVector()]);
+    data.indices = original.indices.dup ~ [cast(ushort)3, cast(ushort)1, cast(ushort)2];
+    part.rebuffer(data);
+    auto param = new2DParameter("Coincident samples");
+    auto binding = cast(DeformationParameterBinding)param.createBinding(part, "deform", false);
+    param.addBinding(binding);
+    auto offsets = Vec2Array([vec2(1, 2), vec2(3, 4), vec2(5, 6), vec2(21, 22)]);
+    binding.setValue(vec2u(0, 0), Deformation(offsets));
+    import nijigenerate.viewport.common.mesh : IncMesh;
+    import nijigenerate.core.math.mesh : applyMeshToTarget;
+    auto mesh = new IncMesh(part.getMesh());
+    applyMeshToTarget(part, mesh.vertices, &mesh, true);
+    foreach (i, offset; offsets)
+        require(binding.values[0][0].vertexOffsets[i].toVector() == offset.toVector(),
+            "Coincident mesh vertices must retain their distinct authored deformation samples: " ~
+            i.to!string ~ " expected " ~ offset.to!string ~ " got " ~
+            binding.values[0][0].vertexOffsets[i].to!string);
+}
+
+private void testPuppetMemoryRestoreDirtyState() {
+    resetCase();
+    import nijilive : inWriteINPPuppetMemory;
+    import nijigenerate.project : ngRestorePuppetMemory;
+    auto snapshot = inWriteINPPuppetMemory(incActivePuppet());
+    auto originalPath = incActiveProject().path;
+    incActionInvalidateSavedState();
+    ngRestorePuppetMemory(snapshot);
+    require(incActionIsModified(), "Snapshot rollback must retain unsaved changes");
+    require(incActiveProject().path == originalPath, "Snapshot rollback must retain the project path");
+    incActionMarkSaved();
+    ngRestorePuppetMemory(snapshot);
+    require(!incActionIsModified(), "Restoring an unchanged clean snapshot must remain clean");
 }
 
 private void testWeldingUndoRedo() {
@@ -21167,6 +21226,9 @@ private bool runAutomatedScenario(string id) {
         case "project.new-open-save":
             runCase("project-new-save-open-command-paths", &testProjectNewSaveOpenCommandPaths);
             return true;
+        case "project.memory-restore":
+            runCase("memory-restore-preserves-dirty-state", &testPuppetMemoryRestoreDirtyState);
+            return true;
         case "project.composite-command-roundtrip":
             runCase("project-composite-command-roundtrip", &testProjectCompositeCommandRoundTrip);
             return true;
@@ -21493,6 +21555,7 @@ private bool runAutomatedScenario(string id) {
             runCase("mask-source-mode-undo-redo", &testMaskSourceModeUndoRedo);
             return true;
         case "part.welding":
+            runCase("coincident-welding-samples", &testCoincidentWeldingVertexSamples);
             runCase("welding-undo-redo", &testWeldingUndoRedo);
             return true;
         case "part.welding-runtime":

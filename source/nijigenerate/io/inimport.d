@@ -141,7 +141,7 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
     // Resolve each clipping chain from its base within the sibling scope.
     void resolveClipping(IncImportLayer!T[] siblings) {
         IncImportLayer!T base;
-        foreach_reverse (layer; siblings) {
+        foreach (layer; siblings) {
             if (layer.clipped) {
                 enforce(base !is null, "PSD clipping layer has no base: " ~ layer.getLayerPath());
                 layer.clippingBase = base;

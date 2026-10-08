@@ -130,10 +130,19 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh, bool preserveDept
     if (preserveDepthBoneBindings) {
         originalIndices.length = vertices.length;
         originalIndices[] = -1;
+        foreach (oldIndex, newIndex; weldingRemap) {
+            if (newIndex >= 0) originalIndices[newIndex] = cast(ptrdiff_t)oldIndex;
+        }
         foreach (i, vertex; vertices) {
+            if (originalIndices[i] >= 0) continue;
+            static if (is(T : Drawable)) continue;
             auto point = position(vertex);
             foreach (j, original; target.vertices) {
-                if (point == original) { originalIndices[i] = cast(ptrdiff_t)j; break; }
+                if (weldingRemap[j] < 0 && point == original) {
+                    originalIndices[i] = cast(ptrdiff_t)j;
+                    weldingRemap[j] = cast(ptrdiff_t)i;
+                    break;
+                }
             }
         }
     }
@@ -145,10 +154,11 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh, bool preserveDept
         if (preserveDepthBoneBindings) {
             PreservedBinding snapshot;
             snapshot.binding = deformBinding;
-            snapshot.values = deformBinding.values.dup;
-            foreach (x, ref row; snapshot.values) {
-                row = row.dup;
-                foreach (ref value; row) value.vertexOffsets = value.vertexOffsets.dup;
+            snapshot.values.length = deformBinding.values.length;
+            foreach (x, row; deformBinding.values) {
+                snapshot.values[x].length = row.length;
+                foreach (y, value; row)
+                    snapshot.values[x][y].vertexOffsets = value.vertexOffsets.dup;
             }
             preservedBindings ~= snapshot;
         }

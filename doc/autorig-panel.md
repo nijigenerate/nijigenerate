@@ -26,6 +26,8 @@ automatically. Role overrides in the compile input are optional.
 The workflow play button retries failed tasks and resumes pending or stale tasks
 while preserving completed stages. Individual step buttons
 explicitly retry the selected step and invalidate downstream results.
+Execution opens a modal progress view that blocks manual model edits and
+shortcuts until the worker stops. Its cancel button remains available.
 Connected JSON and output JSON display artifact availability,
 rather than copying and formatting the full data every frame.
 

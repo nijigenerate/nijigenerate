@@ -1124,6 +1124,9 @@ private JSONValue weldShoulders(JSONValue state, AutoRigTaskContext task) {
             auto source = cast(Part)puppet.find!Node(uuid(pair["source"]));
             auto target = cast(Part)puppet.find!Node(uuid(pair["target"]));
             enforce(source !is null && target !is null,"Shoulder welding Part disappeared");
+            import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
+            auto added = ngRefineWeldingSeams(source, target);
+            pair["refined_vertices"] = JSONValue(added);
             beforeSource = textureMapping(source); beforeTarget = textureMapping(target);
             foreach (p; ngRigPoints(beforeSource["vertices"])) {
                 auto point = source.transform.matrix*vec4(cast(float)p[0],cast(float)p[1],0,1);

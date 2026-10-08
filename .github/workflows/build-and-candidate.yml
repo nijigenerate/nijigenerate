@@ -20,6 +20,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     
     - name: 'Install dependencies'
       run: |
@@ -49,6 +51,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
         compiler: ldc-1.41.0
@@ -107,6 +111,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
       with:
         compiler: ldc-1.41.0
@@ -194,6 +200,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     - uses: dlang-community/setup-dlang@v1.4.0
       with:
         compiler: ldc-1.41.0

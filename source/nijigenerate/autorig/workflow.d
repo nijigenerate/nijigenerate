@@ -3,10 +3,7 @@ module nijigenerate.autorig.workflow;
 import nijigenerate.autorig.framework;
 import std.conv : to;
 import std.exception : enforce;
-import std.file : readText;
 import std.json : JSONValue;
-import nijigenerate.autorig.json : parseJSON = ngParseAutoRigJson;
-import std.path : buildPath;
 
 enum AutoRigWorkflowState { Pending, Running, Succeeded, Failed, Canceled }
 
@@ -189,21 +186,6 @@ private class WorkflowProcessor : AutoRigProcessor {
     }
 }
 
-/** Workflow control is a view of one session, not a second run. */
-private JSONValue storedValue(AutoRigValue value) {
-    JSONValue[string] stored;
-    stored["kind"] = JSONValue(value.kind.to!string);
-    final switch (value.kind) {
-        case AutoRigValueKind.Json:
-            stored["value"] = value.text.length ? parseJSON(readText(value.text)) : parseJSON(value.json.toString());
-            break;
-        case AutoRigValueKind.Blob: stored["value"] = JSONValue(value.readBlob()); break;
-        case AutoRigValueKind.FileName:
-        case AutoRigValueKind.Path: stored["value"] = JSONValue(value.text); break;
-    }
-    return JSONValue(stored);
-}
-
 private AutoRigValue restoredValue(JSONValue stored) {
     AutoRigValue value;
     value.kind = stored["kind"].str.to!AutoRigValueKind;
@@ -222,8 +204,7 @@ class AutoRigWorkflowRun : IAutoRigSessionEditContext {
 private:
     AutoRigSession session_;
     WorkflowProcessor processor;
-    JSONValue[string] suppliedInputs;
-    JSONValue record;
+    AutoRigValue[string] suppliedInputs;
     ulong inputRevision_;
     AutoRigWorkflowStep[] orderedSteps_;
 
@@ -231,30 +212,6 @@ private:
         session_ = session;
         this.processor = processor;
         orderedSteps();
-        updateRecord();
-    }
-
-    void updateRecord() {
-        JSONValue[string] record;
-        record["runId"] = JSONValue(id());
-        record["providerId"] = JSONValue(processor.providerId);
-        record["workflowId"] = JSONValue(processor.workflow.id);
-        auto current = snapshot();
-        record["state"] = JSONValue(current.state.to!string);
-        record["message"] = JSONValue(current.message);
-        JSONValue[string] steps;
-        foreach (step; processor.workflow.steps)
-            steps[step.id] = JSONValue(processor.selectedTaskIds[step.id]);
-        record["steps"] = JSONValue(steps);
-        record["inputs"] = JSONValue(suppliedInputs);
-        JSONValue[string] context;
-        foreach (name; session_.contextNames()) context[name] = storedValue(session_.contextValue(name));
-        record["context"] = JSONValue(context);
-        JSONValue[] staleTasks;
-        foreach (task; processor.flattened)
-            if (session_.task(task.id).state == AutoRigTaskState.Stale) staleTasks ~= JSONValue(task.id);
-        record["staleTasks"] = JSONValue(staleTasks);
-        this.record = JSONValue(record);
     }
 
 public:
@@ -303,11 +260,10 @@ public:
     AutoRigValue input(string portId) {
         auto value = portId in suppliedInputs;
         enforce(value !is null, "Missing AutoRig workflow input: " ~ portId);
-        return ngCopyAutoRigValue(restoredValue(*value));
+        return ngCopyAutoRigValue(*value);
     }
     void setContextValue(string name, AutoRigValue value) {
         session_.setContextValue(name, value);
-        updateRecord();
     }
     void setContext(JSONValue values) {
         import std.json : JSONType;
@@ -353,31 +309,18 @@ public:
             if (binding.workflowInput == portId)
                 session_.setInput(processor.targetId(binding.targetStep, binding.targetTask),
                     binding.targetPort, value);
-        suppliedInputs[portId] = storedValue(value);
+        suppliedInputs[portId] = ngCopyAutoRigValue(value);
         ++inputRevision_;
-        updateRecord();
     }
 
     void execute(bool force = false) {
         string[] selected;
         foreach (step; orderedSteps()) selected ~= stepTaskId(step.id);
-        try {
-            session_.executeGroup(selected, force);
-        } catch (Exception error) {
-            updateRecord();
-            throw error;
-        }
-        updateRecord();
+        session_.executeGroup(selected, force);
     }
 
     void executeStep(string stepId, bool force = false) {
-        try {
-            session_.execute(stepTaskId(stepId), force);
-        } catch (Exception error) {
-            updateRecord();
-            throw error;
-        }
-        updateRecord();
+        session_.execute(stepTaskId(stepId), force);
     }
 
     void cancel() { session_.cancel(); }
@@ -394,7 +337,8 @@ public:
         result.runId = id();
         result.providerId = processor.providerId;
         result.workflowId = processor.workflow.id;
-        result.state = session_.isBusy() ? AutoRigWorkflowState.Running : AutoRigWorkflowState.Pending;
+        auto running = session_.isBusy();
+        result.state = running ? AutoRigWorkflowState.Running : AutoRigWorkflowState.Pending;
         bool allSucceeded = true;
         foreach (step; processor.workflow.steps) {
             result.steps[step.id] = session_.task(stepTaskId(step.id), includeArtifacts);
@@ -404,15 +348,17 @@ public:
         foreach (taskSpec; processor.flattened) {
             auto task = session_.task(taskSpec.id, false);
             if (task.state == AutoRigTaskState.Failed) {
-                result.state = AutoRigWorkflowState.Failed;
+                if (!running) result.state = AutoRigWorkflowState.Failed;
                 result.message = task.message;
             } else if (task.state == AutoRigTaskState.Canceled) {
-                result.state = AutoRigWorkflowState.Canceled;
+                if (!running) result.state = AutoRigWorkflowState.Canceled;
                 result.message = task.message;
             }
         }
-        if (session_.isCanceled()) result.state = AutoRigWorkflowState.Canceled;
-        else if (allSucceeded) result.state = AutoRigWorkflowState.Succeeded;
+        if (!running) {
+            if (session_.isCanceled()) result.state = AutoRigWorkflowState.Canceled;
+            else if (allSucceeded) result.state = AutoRigWorkflowState.Succeeded;
+        }
         return result;
     }
 }

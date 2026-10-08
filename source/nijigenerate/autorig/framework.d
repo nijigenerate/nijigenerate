@@ -793,7 +793,7 @@ public:
                 enforce(connection.input != portId, "Connected AutoRig input cannot be supplied directly");
             suppliedInputs[taskId][portId] = copyValue(value);
             ++inputRevisions[taskId];
-            if (snapshots[taskId].state == AutoRigTaskState.Succeeded)
+            if ((taskId in committedOutputs) !is null)
                 invalidateDependents(taskId);
             committedOutputs.remove(taskId);
             auto snapshot = snapshots[taskId];

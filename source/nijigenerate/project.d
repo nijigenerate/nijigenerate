@@ -517,6 +517,7 @@ void ngRestorePuppetMemory(ubyte[] data) {
     import std.exception : enforce;
     enforce(Thread.getThis() !is null && Thread.getThis().isMainThread,
         "Model restoration requires the main thread");
+    auto wasModified = incActionIsModified();
     auto restored = inLoadINPPuppet!ExPuppet(data);
     enforce(restored !is null, "Could not restore model snapshot");
     incAsyncDerivedUpdateClearScope(activeProject.derivedUpdateScope);
@@ -527,6 +528,7 @@ void ngRestorePuppetMemory(ubyte[] data) {
     foreach (func; loadCallbacks) func(restored);
     incInitAnimationPlayer(restored);
     incActionClearHistory();
+    if (wasModified) incActionInvalidateSavedState();
 }
 
 /**

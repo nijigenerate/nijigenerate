@@ -26,6 +26,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
     string lastUIInstanceId;
     bool sawConnectedInput;
     bool sawOutputArtifact;
+    AutoRigWorkflowRun runningWorkflow;
 
     override string procId() { return "test-rig"; }
     override string displayName() { return "Test rig"; }
@@ -135,6 +136,8 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
         Fiber.yield();
         context.runOnMainThread({ ++editorCalls; });
         if (taskId == "prepare") {
+            if (runningWorkflow !is null)
+                assert(runningWorkflow.snapshot(false).state == AutoRigWorkflowState.Running);
             if (checkContext) {
                 assert(context.contextValue("artifact").text == "reference.json");
                 auto metadata = context.contextValue("metadata").json;
@@ -381,7 +384,44 @@ private void benchmarkUIMetadata() {
         oldTimer.peek.total!"usecs", newTimer.peek.total!"usecs", copied / (1024 * 1024));
 }
 
+private class CheckpointRigProcessor : AutoRigProcessor {
+    override string procId() { return "checkpoint-test"; }
+    override string displayName() { return "Checkpoint test"; }
+    override AutoRigTaskSpec[] tasks() {
+        auto source = AutoRigTaskSpec("source", "Source", null,
+            [AutoRigPortSpec("input", AutoRigValueKind.Json)],
+            [AutoRigPortSpec("data", AutoRigValueKind.Json)]);
+        source.retainFailureOutputs = true;
+        return [source, AutoRigTaskSpec("consumer", "Consumer", null,
+            [AutoRigPortSpec("input", AutoRigValueKind.Json)],
+            [AutoRigPortSpec("result", AutoRigValueKind.Json)],
+            [AutoRigConnection("input", "source", "data")])];
+    }
+    override void executeTask(string taskId, AutoRigTaskContext context) {
+        if (taskId == "source") {
+            context.publishJson("data", context.input("input").json);
+            context.reportFailure("Retained test checkpoint");
+        } else context.publishJson("result", context.input("input").json);
+    }
+}
+
+private void testChangedFailureCheckpoint() {
+    auto manager = new AutoRigSessionManager(buildPath("out", "autorig-checkpoint-tests"));
+    manager.registerProcessor(new CheckpointRigProcessor());
+    auto session = manager.create("checkpoint-test");
+    session.setInput("source", "input", AutoRigValue.jsonValue(JSONValue(1)));
+    session.execute("consumer");
+    assert(session.task("source").state == AutoRigTaskState.Failed);
+    assert(session.output("consumer", "result").json.integer == 1);
+    session.setInput("source", "input", AutoRigValue.jsonValue(JSONValue(2)));
+    assert(session.task("consumer").state == AutoRigTaskState.Stale);
+    session.execute("consumer");
+    assert(session.output("consumer", "result").json.integer == 2);
+    assert(session.task("source").attempt == 2);
+}
+
 void main(string[] args) {
+    testChangedFailureCheckpoint();
     if (args.length > 1 && args[1] == "--ui-performance") {
         testSessionContext(); benchmarkUIMetadata(); return;
     }
@@ -570,6 +610,15 @@ void main(string[] args) {
     retry.execute();
     assert(processor.prepareCalls == prepareCalls);
     assert(retry.output("result").readBlob() == [cast(ubyte)13]);
+    other.fail = true;
+    try retry.executeStep("consume", true);
+    catch (Exception error) {}
+    assert(retry.snapshot().state == AutoRigWorkflowState.Failed);
+    other.fail = false;
+    processor.runningWorkflow = retry;
+    retry.execute(true);
+    processor.runningWorkflow = null;
+    assert(retry.snapshot().state == AutoRigWorkflowState.Succeeded);
     workflows.close(retry.id());
 
     other.cancelNow = true;

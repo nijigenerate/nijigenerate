@@ -18,6 +18,7 @@ import nijigenerate.core.path : incGetAppConfigPath;
 import nijigenerate.panels : Panel, incPanel, incAddPanel, incFindPanelByName;
 import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 import nijigenerate.widgets : incButtonColored, incInputText, incInputTextMultiline;
+import nijigenerate.widgets.modal : Modal, incModalAdd, incModalCloseTop;
 import std.algorithm.sorting : sort;
 import std.conv : to;
 import std.file : read;
@@ -27,6 +28,28 @@ import std.string : toStringz;
 import std.format : format;
 
 private AutoRigSessionManager sharedSessions;
+
+private class AutoRigProgressWindow : Modal {
+    AutoRigPanel owner;
+    AutoRigWorkflowRun run;
+
+    this(AutoRigPanel owner, AutoRigWorkflowRun run) {
+        super(_("AutoRig"), false);
+        this.owner = owner;
+        this.run = run;
+        flags |= ImGuiWindowFlags.AlwaysAutoResize;
+    }
+
+    protected override void onUpdate() {
+        owner.finishWorker();
+        if (owner.worker is null) {
+            igCloseCurrentPopup();
+            incModalCloseTop();
+            return;
+        }
+        owner.renderRun(run);
+    }
+}
 
 private void runActionOnMainThread(void delegate() action) {
     auto current = Thread.getThis();
@@ -120,6 +143,7 @@ private:
             }
         });
         worker.start();
+        incModalAdd(new AutoRigProgressWindow(this, run));
     }
 
     string presetLabel(AutoRigWorkflowPreset preset) {
@@ -429,9 +453,11 @@ private:
             auto options = context.value("options").json;
             JSONValue[string] overrides;
             if (auto previous = "materials" in options.object) overrides = previous.object;
-            foreach (i, path; cached.paths) if (cached.roles[i].length) {
-                overrides[path] = cached.roles[i] == "static" ? JSONValue(["static":JSONValue(true)]) :
-                    JSONValue(["role":JSONValue(cached.roles[i])]);
+            foreach (i, path; cached.paths) {
+                if (cached.roles[i].length) {
+                    overrides[path] = cached.roles[i] == "static" ? JSONValue(["static":JSONValue(true)]) :
+                        JSONValue(["role":JSONValue(cached.roles[i])]);
+                } else overrides.remove(path);
             }
             options["materials"] = JSONValue(overrides);
             context.setValue("options", AutoRigValue.jsonValue(options));

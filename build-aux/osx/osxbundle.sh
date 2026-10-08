@@ -31,6 +31,7 @@ mv -n out/*.mo out/nijigenerate.app/Contents/Resources/i18n/
 # Copy license info to SharedSupport
 cp res/*-LICENSE out/nijigenerate.app/Contents/SharedSupport/
 cp LICENSE out/nijigenerate.app/Contents/SharedSupport/LICENSE
+cp -R out/osqp/share/licenses out/nijigenerate.app/Contents/SharedSupport/solver-licenses
 
 
 # Create icons dir
