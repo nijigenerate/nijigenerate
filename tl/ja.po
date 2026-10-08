@@ -7055,3 +7055,601 @@ msgstr "モデルの読み込み時に、整合しないWeldingの頂点対応�
 #: source/nijigenerate/project.d
 msgid "Restore model checkpoint"
 msgstr "モデルのチェックポイントを復元"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Previous"
+msgstr "前へ"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Result details"
+msgstr "結果の詳細"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Waiting for task result"
+msgstr "タスクの結果待ち"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Enable or disable individual operations, then rerun this task and its dependents."
+msgstr "個々の処理を有効・無効にして、このタスクと後続を再実行できます。"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Apply and rerun downstream"
+msgstr "適用して後続を再実行"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Previous result. Settings changed; rerun to update it."
+msgstr "前回の結果です。設定が変更されたため、再実行すると更新されます。"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Not classified yet"
+msgstr "まだ分類されていません"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Inspect the actual classification and its evidence. Disabling rigging keeps the artwork static. Only edited rows become overrides."
+msgstr "実際の分類と根拠を確認できます。リグを無効にした素材は静止画として残ります。編集した項目だけを上書きします。"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Filter materials"
+msgstr "素材を絞り込む"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Disable rigging for this material"
+msgstr "この素材のリグを無効にする"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Feature"
+msgstr "顔の部位"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Model side"
+msgstr "モデルの左右"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Reset to automatic"
+msgstr "自動判定に戻す"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Unapplied changes"
+msgstr "未適用の変更があります"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "None"
+msgstr "なし"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Operation settings are edited beside the task result below."
+msgstr "個別処理の設定は下のタスク結果で編集できます。"
+
+#: source/nijigenerate/panels/autorig.d
+#, c-format
+msgid "From %s / %s (attempt %s)"
+msgstr "入力元: %s / %s（実行 %s 回目）"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Anatomical landmarks"
+msgstr "解剖ランドマーク"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Edit measured landmark positions in model coordinates. The scaffold is solved again from these inputs."
+msgstr "モデル座標で推定ランドマークの位置を編集できます。この入力から骨格を再計算します。"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Added"
+msgstr "追加"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Removed"
+msgstr "削除"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Modified"
+msgstr "変更"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Material classification"
+msgstr "素材の分類"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Model changes"
+msgstr "モデルの変更内容"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Changed fields"
+msgstr "変更された項目"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Before"
+msgstr "変更前"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "After"
+msgstr "変更後"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Anatomical scaffold"
+msgstr "解剖骨格"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Rig targets and bone assignments"
+msgstr "リグ対象とボーンの割り当て"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Planned hierarchy"
+msgstr "構築する階層"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Classification evidence"
+msgstr "分類の根拠"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Bone head position"
+msgstr "ボーンの始点"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Bone tail position"
+msgstr "ボーンの終点"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Bone rest angle"
+msgstr "ボーンの基準角度"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Parameter bindings"
+msgstr "パラメータのバインディング"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Apply review settings"
+msgstr "確認・修正内容を適用"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Explicit review setting"
+msgstr "明示した修正設定"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Material name and parent hierarchy"
+msgstr "素材名と親階層から判定"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Background detected from alpha extent"
+msgstr "アルファの広がりから背景と判定"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Inherited from clipping receiver"
+msgstr "クリッピング先の分類を継承"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Local mechanism without anatomical support"
+msgstr "解剖部位を持たない局所的な仕組み"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Nearest anatomical alpha support"
+msgstr "アルファ形状が最も近い解剖部位から判定"
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Preceding stage result"
+msgstr "入力元の処理結果"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Material"
+msgstr "素材"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Role"
+msgstr "役割"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Rigging"
+msgstr "リグ処理"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Changed item"
+msgstr "変更項目"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Bone"
+msgstr "ボーン"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Parent"
+msgstr "親"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Bones"
+msgstr "ボーン数"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Group"
+msgstr "グループ"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Node type"
+msgstr "ノードの種類"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Position"
+msgstr "位置"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Vertices"
+msgstr "頂点数"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Triangles"
+msgstr "三角形数"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mesh bounds"
+msgstr "メッシュの範囲"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Inherit parent motion"
+msgstr "親の動きを継承"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Clipping masks"
+msgstr "クリッピングマスク"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Minimum"
+msgstr "最小値"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Default value"
+msgstr "初期値"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Horizontal keys"
+msgstr "横軸のキー"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Vertical keys"
+msgstr "縦軸のキー"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Baked keys"
+msgstr "ベイクしたキー数"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Intermediate samples"
+msgstr "中間値の検査数"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Check"
+msgstr "検査項目"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Result"
+msgstr "結果"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Verification"
+msgstr "検証"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Numerical rig verification"
+msgstr "リグの数値検証"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Visual review"
+msgstr "見た目の確認"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Required"
+msgstr "必要"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Depth verification"
+msgstr "深度の検証"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Depth units"
+msgstr "深度の単位"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Verified"
+msgstr "確認済み"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Observed depth scale"
+msgstr "観測した深度倍率"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Planned depth scale"
+msgstr "計画した深度倍率"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Depth surfaces"
+msgstr "深度面の数"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Not applicable"
+msgstr "対象外"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Unresolved target"
+msgstr "対象が未確定"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Static artwork"
+msgstr "変形しない素材"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "keys"
+msgstr "キー"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mesh or deformation values"
+msgstr "メッシュ・変形値"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Previous values"
+msgstr "変更前の値"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Updated values"
+msgstr "変更後の値"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "No model changes"
+msgstr "モデルの変更なし"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Parameter binding"
+msgstr "パラメータの割り当て"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Shoulder welding"
+msgstr "肩のWelding"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Clipping mask"
+msgstr "クリッピングマスク"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Draw order"
+msgstr "描画順"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+#, c-format
+msgid " (%s keys)"
+msgstr "（%sキー）"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Face"
+msgstr "顔"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Facial feature"
+msgstr "顔の部品"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Neck"
+msgstr "首"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Torso"
+msgstr "胴体"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Arm"
+msgstr "腕"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Hand"
+msgstr "手"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Leg"
+msgstr "脚"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Foot"
+msgstr "足"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Sleeve"
+msgstr "袖"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper clothing"
+msgstr "上半身の衣服"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Waist clothing"
+msgstr "腰の衣服"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Thigh accessory"
+msgstr "太ももの装飾"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Ankle accessory"
+msgstr "足首の装飾"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Front skirt"
+msgstr "スカート前面"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Back skirt"
+msgstr "スカート背面"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Apron"
+msgstr "エプロン"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Shoulder"
+msgstr "肩"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Ear"
+msgstr "耳"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Head accessory"
+msgstr "頭の装飾"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Tail"
+msgstr "尾"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Chest accessory"
+msgstr "胸の装飾"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Hip accessory"
+msgstr "腰の装飾"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Local mechanism"
+msgstr "局所的な仕組み"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Background"
+msgstr "背景"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Front hair"
+msgstr "前髪"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Side hair"
+msgstr "横髪"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Back hair"
+msgstr "後ろ髪"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eye white"
+msgstr "白目"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Iris"
+msgstr "虹彩"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper eyelid"
+msgstr "上まぶた"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Lower eyelid"
+msgstr "下まぶた"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eye corner"
+msgstr "目頭・目尻"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eyebrow"
+msgstr "眉"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eyelid fold"
+msgstr "まぶたの折り目"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Nose"
+msgstr "鼻"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mouth"
+msgstr "口"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Tongue"
+msgstr "舌"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper teeth"
+msgstr "上の歯"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Lower teeth"
+msgstr "下の歯"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mouth outline"
+msgstr "口の輪郭"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper lip"
+msgstr "上唇"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Lower lip"
+msgstr "下唇"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Disabled by user"
+msgstr "設定で無効"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "No matching seam"
+msgstr "対応する継ぎ目なし"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Matching seam"
+msgstr "対応する継ぎ目あり"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "No matching vertices"
+msgstr "対応する頂点なし"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Applied and verified"
+msgstr "適用・検証済み"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Model left"
+msgstr "モデルの左"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Model right"
+msgstr "モデルの右"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Both sides"
+msgstr "左右両方"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Grid deformer"
+msgstr "グリッドデフォーマ"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Dynamic composite"
+msgstr "DynamicComposite"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Capture source appearance for verification"
+msgstr "検証用に処理前の見た目を記録"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Material classification and landmark positions are edited in the compile task."
+msgstr "素材の分類と基準点の位置は「根拠を導出してリグを構築」で編集します。"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "The resulting rig is applied to the editor model. Inspect task changes and verification below."
+msgstr "結果のリグは編集モデルに適用されています。各タスクの変更内容と検証結果を確認してください。"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Source capture is configured in workflow arguments; classification is edited in the compile task."
+msgstr "処理前の記録はワークフロー引数、分類は「根拠を導出してリグを構築」で設定します。"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upstream processing result"
+msgstr "前段の処理結果"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Rig plan"
+msgstr "リグの構築計画"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Model checkpoint"
+msgstr "モデルの途中状態"
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Input from preceding task"
+msgstr "前段のタスクからの入力"

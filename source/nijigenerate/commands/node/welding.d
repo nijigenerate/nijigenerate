@@ -22,14 +22,17 @@ class AddWeldingCommand : ExCommand!(
     TW!(Drawable, "target", "Target drawable"),
     TW!(float, "weight", "Welding weight")
 ) {
-    this(Drawable target, float weight) {
+    private bool refineSeams;
+
+    this(Drawable target, float weight, bool refineSeams = true) {
         super(_("Add Welding"), _("Add welding link"), target, weight);
+        this.refineSeams = refineSeams;
     }
     override CommandResult run(Context ctx) {
         enforce(ctx.hasNodes && ctx.nodes.length > 0, "No source drawable in context");
         auto drawable = cast(Drawable)ctx.nodes[0];
         enforce(drawable !is null, "Context node is not a Drawable");
-        incRegisterWeldedPoints(drawable, target, weight);
+        incRegisterWeldedPoints(drawable, target, weight, refineSeams);
         return CommandResult(true);
     }
 }

@@ -29,7 +29,8 @@ JSONValue ngRigCompileProgram(JSONValue observation, JSONValue evidence) {
             double position = (xs[xs.length/2]+xs[(xs.length-1)/2])/2;
             targets ~= JSONValue(["part":material["uuid"],"path":material["path"],
                 "owner":material["owner"],"chart":material["chart"],
-                "role":material["role"],"side":JSONValue(position<center ? "R" : "L")]);
+                "role":material["role"],"side":JSONValue(ngRigString(material,"side_override","").length ?
+                    material["side_override"].str : position<center ? "R" : "L")]);
         }
         enforce(targets.length>0,"No active local rig materials");
         auto result = JSONValue(["schema_version":JSONValue("rig-native-program-d/1"),
@@ -79,6 +80,8 @@ JSONValue ngRigCompileProgram(JSONValue observation, JSONValue evidence) {
             double fraction = cast(double)left/cloud.length;
             if (fraction>.15 && fraction<.85) side = "Both";
         }
+        auto sideOverride = ngRigString(material,"side_override",ngRigString(grouping,"side_override",""));
+        if (sideOverride.length) side = sideOverride;
         auto owner = grouping["owner"].str.replace("{side}",side.toLower);
         auto chart = grouping["chart"].str.replace("{side}",side.toLower);
         if (owner == "torso" && chart == "neck") chart = "body";

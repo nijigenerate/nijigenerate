@@ -107,8 +107,13 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
     IncImportLayer!T[] outLayers;
 
     IncImportLayer!T[] groupStack;
+    auto orderedLayers = Traits!T.layers(document);
+    enum topToBottom = () {
+        static if (__traits(hasMember, Traits!T, "layersTopToBottom")) return Traits!T.layersTopToBottom;
+        else return false;
+    }();
     int index = 0;
-    foreach(layer; Traits!T.layers(document)) {
+    foreach(layer; orderedLayers) {
         index--;
         if (Traits!T.isGroupEnd(layer)) {
             if (groupStack.length == 1) {
@@ -146,7 +151,8 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
     // Resolve each clipping chain from its base within the sibling scope.
     void resolveClipping(IncImportLayer!T[] siblings) {
         IncImportLayer!T base;
-        foreach (layer; siblings) {
+        foreach (offset; 0 .. siblings.length) {
+            auto layer = siblings[topToBottom ? $ - 1 - offset : offset];
             if (layer.clipped) {
                 enforce(base !is null, "PSD clipping layer has no base: " ~ layer.getLayerPath());
                 layer.clippingBase = base;

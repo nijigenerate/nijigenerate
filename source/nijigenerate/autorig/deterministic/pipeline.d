@@ -35,7 +35,12 @@ AutoRigTaskSpec[] ngRigPipelineTasks() {
     foreach (ref entry; result) if (entry.id == "apply-rig-controls" || entry.id == "validate-depth-inputs" ||
         entry.id == "bake-depth-angles" || entry.id == "apply-shape-corrections" ||
         entry.id == "verify-saved-rig") entry.retainFailureOutputs = true;
-    foreach (ref entry; result) entry.ownsActionBoundary = entry.id != "compile-rig";
+    foreach (ref entry; result) {
+        entry.ownsActionBoundary = entry.id != "compile-rig";
+        entry.outputs ~= AutoRigPortSpec("review",AutoRigValueKind.Json,false);
+        if (entry.id == "apply-rig-controls" || entry.id == "weld-shoulders")
+            entry.inputs ~= AutoRigPortSpec("review",AutoRigValueKind.Json,false);
+    }
     return result;
 }
 

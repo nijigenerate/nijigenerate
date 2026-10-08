@@ -373,6 +373,8 @@ public:
 
     string[] contextNames() { return sessionValues.keys; }
 
+    bool hasInput(string portId) { return (portId in inputs) !is null; }
+
     AutoRigValue input(string portId) {
         auto found = portId in inputs;
         enforce(found !is null, "Missing AutoRig input: " ~ portId);

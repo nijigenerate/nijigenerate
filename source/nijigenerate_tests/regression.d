@@ -878,10 +878,64 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     auto clippingDoc = psdDoc;
     clippingDoc.layers = [clippedB, clippedA, baseLayer];
     auto clippingLayout = incBuildLayerLayout(clippingDoc);
-    require(clippingLayout.length == 3 && clippingLayout[0].name == "Base" &&
-        clippingLayout[1].clippingBase is clippingLayout[0] &&
-        clippingLayout[2].clippingBase is clippingLayout[0],
+    require(clippingLayout.length == 3 && clippingLayout[2].name == "Base" &&
+        clippingLayout[1].clippingBase is clippingLayout[2] &&
+        clippingLayout[0].clippingBase is clippingLayout[2] &&
+        clippingLayout[0].index > clippingLayout[2].index,
         "PSD clipping siblings must resolve bottom-to-top with one shared base");
+    auto folder = baseLayer;
+    folder.name = "CLIP face";
+    folder.type = LayerType.OpenFolder;
+    auto clippingDivider = baseLayer;
+    clippingDivider.name = "Exporter-specific divider name";
+    clippingDivider.type = LayerType.SectionDivider;
+    foreach (bottomToTop; [false, true]) {
+        clippingDoc.layers = [folder, clippedB, clippedA, baseLayer, clippingDivider];
+        if (bottomToTop) {
+            import std.algorithm.mutation : reverse;
+            clippingDoc.layers.reverse;
+        }
+        auto originalRecords = clippingDoc.layers.dup;
+        auto grouped = incBuildLayerLayout(clippingDoc);
+        require(grouped.length == 1 && grouped[0].name == "CLIP face" && grouped[0].children.length == 3 &&
+            grouped[0].children[0].clippingBase is grouped[0].children[2] &&
+            grouped[0].children[1].clippingBase is grouped[0].children[2],
+            "PSD folder clipping must use its own base in either record-stream direction");
+        require(clippingDoc.layers == originalRecords, "PSD layout must not reverse the source document in place");
+    }
+    clippingDoc.layers = [folder, clippedA, baseLayer];
+    auto unclosedFolderError = collectException(incBuildLayerLayout(clippingDoc));
+    require(unclosedFolderError !is null && unclosedFolderError.msg.canFind("balanced hierarchy"),
+        "An unbalanced PSD folder must fail instead of guessing its hierarchy");
+    clippingDoc.layers = [clippedA];
+    auto missingClippingBaseError = collectException(incBuildLayerLayout(clippingDoc));
+    require(missingClippingBaseError !is null && missingClippingBaseError.msg.canFind("no base"),
+        "A genuinely missing clipping base must not be replaced by a guessed receiver");
+    clippingDoc.layers = [folder, clippedA, clippingDivider, baseLayer];
+    auto outsideClippingBaseError = collectException(incBuildLayerLayout(clippingDoc));
+    require(outsideClippingBaseError !is null && outsideClippingBaseError.msg.canFind("no base"),
+        "PSD clipping must never borrow a base from outside its sibling folder");
+    import std.process : environment;
+    auto actualClippingFixture = environment.get("NIJIGENERATE_PSD_CLIPPING_FIXTURE", "");
+    size_t expectedClippingLinks;
+    if (actualClippingFixture.length) {
+        auto actualDocument = parsePSDDocument(actualClippingFixture);
+        auto actualLayout = incBuildLayerLayout(actualDocument);
+        size_t clippingLinks;
+        void checkClipping(IncImportLayer!PSD[] siblings) {
+            foreach (layer; siblings) {
+                if (layer.clipped) {
+                    require(layer.clippingBase !is null && layer.clippingBase.parent is layer.parent,
+                        "Actual PSD clipped artwork must resolve a base in its own folder");
+                    ++clippingLinks;
+                }
+                checkClipping(layer.children);
+            }
+        }
+        checkClipping(actualLayout);
+        require(clippingLinks > 0, "Actual PSD fixture must exercise clipping links");
+        expectedClippingLinks = clippingLinks;
+    }
     auto groupBase = new IncImportLayer!PSD(baseLayer, true);
     groupBase.clippingReceiver = true;
     auto clippedGroup = new IncImportLayer!PSD(clippedA, true);
@@ -1127,6 +1181,26 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     auto ctx = new Context();
     require((new ImportPSDCommand(psdPath)).run(ctx).succeeded, "ImportPSDCommand should accept generated PSD fixture");
     require(incActivePuppet() !is null, "PSD import should leave an active puppet");
+    if (actualClippingFixture.length) {
+        require((new ImportPSDCommand(actualClippingFixture)).run(ctx).succeeded,
+            "ImportPSDCommand should load the actual clipping fixture");
+        size_t importedParts, importedMasks;
+        void checkImported(Node node) {
+            if (auto part = cast(Part)node) {
+                ++importedParts;
+                foreach (mask; part.masks) {
+                    require(mask.maskSrc !is null && mask.maskSrcUUID == mask.maskSrc.uuid,
+                        "Imported clipping must reference an existing native drawable");
+                    ++importedMasks;
+                }
+            }
+            foreach (child; node.children) checkImported(child);
+        }
+        checkImported(incActivePuppet().root);
+        require(importedParts > 0 && importedMasks == expectedClippingLinks,
+            "Actual PSD import must complete with every clipping link preserved as a native mask");
+        writeln("Actual PSD: imported ", importedParts, " Parts and ", importedMasks, " clipping masks");
+    }
 
     require((new ImportKRACommand(kraPath)).run(ctx).succeeded, "ImportKRACommand should accept generated KRA fixture");
     require(incActivePuppet() !is null, "KRA import should leave an active puppet");
@@ -1622,6 +1696,58 @@ private void testWeldingUndoRedo() {
     incActionRedo();
     require(drawable.welded.length == 0, "welding remove redo should remove link again");
     require(target.welded.length == 0, "welding remove redo should remove counter link again");
+}
+
+private void testPreparedWeldingMesh() {
+    resetCase();
+    import nijigenerate.commands.node.welding : AddWeldingCommand;
+    auto source = newMeshPart("prepared-seam");
+    auto target = newMeshPart("dense-seam");
+    MeshData coarse;
+    coarse.vertices = Vec2Array([vec2(0, 0), vec2(20, 0), vec2(0, 20)]);
+    coarse.uvs = Vec2Array([vec2(0, 0), vec2(1, 0), vec2(0, 1)]);
+    coarse.indices = [0, 1, 2];
+    source.rebuffer(coarse);
+    MeshData dense;
+    dense.vertices = Vec2Array([vec2(0, 0), vec2(10, 0), vec2(20, 0), vec2(0, 20)]);
+    dense.uvs = Vec2Array([vec2(0, 0), vec2(0.5, 0), vec2(1, 0), vec2(0, 1)]);
+    dense.indices = [0, 1, 3, 1, 2, 3];
+    target.rebuffer(dense);
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.nodes = [source];
+    require((new AddWeldingCommand(target, 0, false)).run(ctx).succeeded,
+        "Welding on a prepared mesh must succeed");
+    require(source.vertices.length == 3 && source.getMesh().indices == coarse.indices,
+        "Prepared welding must not insert vertices after correspondence prediction");
+    require(source.welded[0].indices == [0, 2, 3], "Prepared welding must retain predicted correspondences");
+    incActionUndo();
+    require(source.welded.length == 0 && target.welded.length == 0,
+        "Prepared welding must remain undoable");
+    require((new AddWeldingCommand(target, 0)).run(ctx).succeeded,
+        "Ordinary welding must still refine a missing seam sample");
+    require(source.vertices.length == 4, "Ordinary welding must retain automatic seam refinement");
+
+    // A second shoulder can refine the shared body and invalidate a previously recorded link size.
+    auto left = newMeshPart("second-shoulder");
+    MeshData leftMesh;
+    leftMesh.vertices = Vec2Array([vec2(0, 0), vec2(5, 0), vec2(20, 0), vec2(0, 20)]);
+    leftMesh.uvs = Vec2Array([vec2(0, 0), vec2(0.25, 0), vec2(1, 0), vec2(0, 1)]);
+    leftMesh.indices = [0, 1, 3, 1, 2, 3];
+    left.rebuffer(leftMesh);
+    auto previousCount = source.welded[0].indices.length;
+    import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
+    require(ngRefineWeldingSeams(source, left) > 0, "Second shoulder must add a shared body sample");
+    require(source.welded[0].indices.length > previousCount,
+        "Shared body refinement must update existing welding indices");
+    auto preparedCount = source.vertices.length;
+    require((new AddWeldingCommand(target, 0, false)).run(ctx).succeeded,
+        "First shoulder must match the fully prepared shared mesh");
+    auto predicted = source.welded[0].indices.dup;
+    require((new AddWeldingCommand(left, 0, false)).run(ctx).succeeded,
+        "Second prepared shoulder must succeed");
+    require(source.vertices.length == preparedCount && source.welded[0].indices == predicted,
+        "Creating the second prepared link must preserve the first shoulder prediction");
 }
 
 private void testWeldingRuntimeDeformation() {
@@ -21827,6 +21953,7 @@ private bool runAutomatedScenario(string id) {
         case "part.welding":
             runCase("coincident-welding-samples", &testCoincidentWeldingVertexSamples);
             runCase("welding-undo-redo", &testWeldingUndoRedo);
+            runCase("prepared-welding-mesh", &testPreparedWeldingMesh);
             return true;
         case "part.welding-runtime":
             runCase("welding-runtime-deformation", &testWeldingRuntimeDeformation);

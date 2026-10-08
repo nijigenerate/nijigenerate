@@ -12,6 +12,11 @@ JSONValue ngAutoRigWorkflowDiagnostics(AutoRigWorkflowRun run) {
     JSONValue[string] result;
     foreach (step; run.orderedSteps()) {
         auto taskId = run.stepTaskId(step.id);
+        if (step.id == "weld" && !run.session().isBusy()) {
+            foreach (artifact; run.session().task(taskId).artifacts)
+                if (artifact.preview && artifact.portId == "welding-correspondence-mismatch")
+                    result["welding_correspondence_mismatch"] = artifact.value.json;
+        }
         if (step.id == "compile") {
             JSONValue[] profile;
             foreach (artifact; run.session().task(taskId).artifacts)
