@@ -65,6 +65,7 @@ jobs:
         out/nijigenerate-regression-tests --only io.save-native
         out/nijigenerate-regression-tests --only project.memory-restore
         out/nijigenerate-regression-tests --only part.welding
+        out/nijigenerate-regression-tests --only core.math-triangle
         out/nijigenerate-regression-tests --only project.depthdraw-data-model
         out/nijigenerate-regression-tests --only project.depthdraw-composer
         out/nijigenerate-regression-tests --only project.depthdraw-fit-z

@@ -1383,6 +1383,34 @@ private void testCoincidentWeldingVertexSamples() {
             binding.values[0][0].vertexOffsets[i].to!string);
 }
 
+private void testRejectedMeshResamplingGroupCleanup() {
+    resetCase();
+    auto part = newMeshPart("rejected-resampling");
+    auto data = part.getMesh();
+    data.indices = null;
+    part.rebuffer(data);
+    auto param = new2DParameter("Rejected resampling");
+    auto binding = cast(DeformationParameterBinding)param.createBinding(part, "deform", false);
+    param.addBinding(binding);
+    binding.setValue(vec2u(0, 0), Deformation(Vec2Array([
+        vec2(1, 2), vec2(3, 4), vec2(5, 6)])));
+    import nijigenerate.viewport.common.mesh : IncMesh;
+    import nijigenerate.core.math.mesh : applyMeshToTarget;
+    import nijigenerate.core.actionstack : ngActionStackGroupDepth;
+    auto depth = ngActionStackGroupDepth();
+    bool rejected;
+    try applyMeshToTarget(part, [vec2(10, 10), vec2(20, 10), vec2(10, 20)], cast(IncMesh*)null);
+    catch (Exception error) rejected = error.msg.canFind("No finite nondegenerate triangle");
+    require(rejected, "Invalid source triangles must reject deformation resampling");
+    require(ngActionStackGroupDepth() == depth, "Rejected mesh resampling must close its action group");
+    auto ctx = new Context();
+    ctx.puppet = incActivePuppet();
+    ctx.nodes = [part];
+    require((new SetNodeNameCommand(["after-rejection"])).run(ctx).succeeded, "Subsequent edit should succeed");
+    incActionUndo();
+    require(part.name == "rejected-resampling", "Subsequent edits must remain independently undoable");
+}
+
 private void testPuppetMemoryRestoreDirtyState() {
     resetCase();
     import nijilive : inWriteINPPuppetMemory;
@@ -21607,6 +21635,7 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "core.math-triangle":
             runCase("core-math-triangle-invariants", &testCoreMathTriangleInvariants);
+            runCase("rejected-mesh-resampling-group-cleanup", &testRejectedMeshResamplingGroupCleanup);
             return true;
         case "core.math-skeletonize":
             runCase("core-math-skeletonize-invariants", &testCoreMathSkeletonizeInvariants);

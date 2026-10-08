@@ -452,9 +452,12 @@ public:
         enforce(reserved !is null && *reserved == path && exists(path),
             "AutoRig preview path was not allocated or written");
         reservedPreviews.remove(id);
-        if (onPreview !is null)
-            onPreview(AutoRigArtifact(spec.id, id, 0, AutoRigValueKind.Path,
-                path, mediaType, null, false, true));
+        if (onPreview !is null) {
+            auto artifact = AutoRigArtifact(spec.id, id, 0, AutoRigValueKind.Path,
+                path, mediaType, null, false, true);
+            artifact.value = AutoRigValue.path(path);
+            onPreview(artifact);
+        }
     }
 }
 
@@ -821,19 +824,39 @@ public:
             busy = true;
         }
         scope(exit) {
-            synchronized (this) busy = false;
+            synchronized (this) {
+                // Acknowledge cancellation only after this execution has stopped.
+                // A request made before the worker enters executeGroup must survive startup.
+                atomicStore(cancelRequested, false);
+                busy = false;
+            }
         }
-        atomicStore(cancelRequested, false);
+        // Retry failed dependencies once per execution, including those hidden
+        // behind a succeeded step that consumed a retained failure checkpoint.
+        synchronized (this) {
+            bool[string] inspected;
+            void prepare(string taskId) {
+                enforce((taskId in specs) !is null, "Unknown AutoRig task: " ~ taskId);
+                if ((taskId in inspected) !is null) return;
+                inspected[taskId] = true;
+                auto spec = specs[taskId];
+                foreach (dependency; spec.dependencies) prepare(dependency);
+                foreach (connection; spec.connections) prepare(connection.sourceTask);
+                if (snapshots[taskId].state == AutoRigTaskState.Failed) {
+                    invalidateDependents(taskId);
+                    committedOutputs.remove(taskId);
+                    snapshots[taskId].state = AutoRigTaskState.Stale;
+                }
+            }
+            foreach (taskId; taskIds) prepare(taskId);
+        }
         bool[string] visiting;
         foreach (taskId; taskIds) {
-            // Retained failure artifacts serve dependencies, but explicitly selected
-            // failed tasks must retry when the user resumes the workflow.
-            bool retry = task(taskId).state == AutoRigTaskState.Failed;
-            runTask(taskId, visiting, force || retry);
+            runTask(taskId, visiting, force);
         }
     }
 
-    void cancel() { atomicStore(cancelRequested, true); }
+    void cancel() { synchronized (this) atomicStore(cancelRequested, true); }
 
     AutoRigTaskSnapshot task(string taskId, bool includeArtifacts = true) {
         synchronized (this) {

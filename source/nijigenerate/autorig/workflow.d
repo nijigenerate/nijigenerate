@@ -434,9 +434,19 @@ public:
         enforce(found, "Unknown AutoRig workflow preset");
         auto adapter = new WorkflowProcessor(sessions, providerId, spec);
         auto session = sessions.createWithProcessor(adapter, sessions.rootDirectory());
+        scope(failure) sessions.remove(session.id());
         auto run = new AutoRigWorkflowRun(session, adapter);
         foreach (portId, value; spec.inputDefaults) run.setInput(portId, value);
         runs[run.id()] = run;
+        return run;
+    }
+
+    AutoRigWorkflowRun createConfigured(string providerId, string workflowId,
+        AutoRigValue[string] inputs, JSONValue context) {
+        auto run = create(providerId, workflowId);
+        scope(failure) remove(run.id());
+        foreach (portId, value; inputs) run.setInput(portId, value);
+        run.setContext(context);
         return run;
     }
 

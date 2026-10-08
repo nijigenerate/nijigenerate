@@ -83,6 +83,7 @@ bool isConnectedTo(MeshVertex* self, MeshVertex* other) {
 
 void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh, bool preserveDepthBoneBindings = false) {
     incActionPushGroup();
+    scope(exit) incActionPopGroup();
     // Apply the model
     auto action = Applier!T.changeAction(target);
     auto weldingRemap = new ptrdiff_t[target.vertices.length];
@@ -224,7 +225,6 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh, bool preserveDept
             foreach (i, vertex; (*mesh).vertices) vertex.originalIndex = i;
         }
     }
-    incActionPopGroup();
 }
 
 // Same as applyMeshToTarget but does not record an Action to the history.

@@ -193,6 +193,9 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
             mkdirRecurse(location.dirName);
             write(location, value.to!string);
             context.publishPath("model", location);
+            auto preview = context.previewPath("path-preview", ".txt");
+            write(preview, "preview");
+            context.publishPreview("path-preview", preview, "text/plain");
         } else {
             throw new Exception("Unknown test task");
         }
@@ -398,6 +401,7 @@ private void benchmarkUIMetadata() {
 }
 
 private class CheckpointRigProcessor : AutoRigProcessor {
+    bool fail = true;
     override string procId() { return "checkpoint-test"; }
     override string displayName() { return "Checkpoint test"; }
     override AutoRigWorkflowSpec[] workflows() {
@@ -422,14 +426,15 @@ private class CheckpointRigProcessor : AutoRigProcessor {
     override void executeTask(string taskId, AutoRigTaskContext context) {
         if (taskId == "source") {
             context.publishJson("data", context.input("input").json);
-            context.reportFailure("Retained test checkpoint");
+            if (fail) context.reportFailure("Retained test checkpoint");
         } else context.publishJson("result", context.input("input").json);
     }
 }
 
 private void testChangedFailureCheckpoint() {
     auto manager = new AutoRigSessionManager(buildPath("out", "autorig-checkpoint-tests"));
-    manager.registerProcessor(new CheckpointRigProcessor());
+    auto processor = new CheckpointRigProcessor();
+    manager.registerProcessor(processor);
     auto session = manager.create("checkpoint-test");
     session.setInput("source", "input", AutoRigValue.jsonValue(JSONValue(1)));
     session.execute("consumer");
@@ -446,10 +451,84 @@ private void testChangedFailureCheckpoint() {
     run.execute();
     assert(run.snapshot().steps["consumer"].state == AutoRigTaskState.Succeeded);
     assert(run.snapshot().state == AutoRigWorkflowState.Failed);
+    run.execute(true);
+    assert(run.session().task("8_consumer_source").attempt == 2);
+    assert(run.snapshot().state == AutoRigWorkflowState.Failed);
+    processor.fail = false;
+    run.execute();
+    assert(run.snapshot().state == AutoRigWorkflowState.Succeeded);
+    assert(run.session().task("8_consumer_source").attempt == 3);
+    assert(run.output("result").json.integer == 3);
+}
+
+private void testFailedRequestSetup() {
+    auto manager = new AutoRigSessionManager(buildPath("out", "autorig-setup-tests"));
+    manager.registerProcessor(new CheckpointRigProcessor());
+    class ObservedManager : AutoRigWorkflowManager {
+        AutoRigWorkflowRun created;
+        this() { super(manager); }
+        override AutoRigWorkflowRun create(string providerId, string workflowId) {
+            created = super.create(providerId, workflowId);
+            return created;
+        }
+    }
+    auto workflows = new ObservedManager();
+    foreach (context; [JSONValue([1]),
+        JSONValue(["bad":JSONValue(["kind":JSONValue("Json")])])]) {
+        bool rejected;
+        try workflows.createConfigured("checkpoint-test", "checkpoint-workflow",
+            ["input":AutoRigValue.jsonValue(JSONValue(42))], context);
+        catch (Exception error) rejected = true;
+        assert(rejected);
+        bool absent;
+        try workflows.get(workflows.created.id());
+        catch (Exception error) absent = true;
+        assert(absent);
+        absent = false;
+        try manager.get(workflows.created.id());
+        catch (Exception error) absent = true;
+        assert(absent);
+        assert(workflows.created.session().memoryInfo()["json_bytes"].uinteger == 0);
+    }
+}
+
+private void testStartupCancellation() {
+    auto processor = new TestRigProcessor();
+    auto manager = new AutoRigSessionManager(buildPath("out", "autorig-startup-tests"));
+    manager.registerProcessor(processor);
+    auto run = manager.create("test-rig");
+    run.setInput("prepare", "source", AutoRigValue.jsonValue(JSONValue(1)));
+    run.cancel();
+    bool canceled;
+    try run.execute("prepare");
+    catch (Exception error) canceled = error.msg.canFind("canceled");
+    assert(canceled && processor.prepareCalls == 0 && !run.isBusy());
+    run.execute("prepare");
+    assert(run.task("prepare").state == AutoRigTaskState.Succeeded);
+    import core.sync.semaphore : Semaphore;
+    auto entered = new Semaphore(), released = new Semaphore();
+    manager.setEditorDispatcher((void delegate() action) {
+        entered.notify(); released.wait(); action();
+    });
+    auto threaded = manager.create("test-rig");
+    threaded.setInput("prepare", "source", AutoRigValue.jsonValue(JSONValue(1)));
+    auto worker = new Thread({
+        try threaded.execute("prepare");
+        catch (Exception error) {}
+    });
+    worker.start();
+    entered.wait();
+    assert(threaded.isBusy());
+    threaded.cancel();
+    released.notify();
+    worker.join();
+    assert(threaded.task("prepare").state == AutoRigTaskState.Canceled && !threaded.isBusy());
 }
 
 void main(string[] args) {
     testChangedFailureCheckpoint();
+    testFailedRequestSetup();
+    testStartupCancellation();
     if (args.length > 1 && args[1] == "--ui-performance") {
         testSessionContext(); benchmarkUIMetadata(); return;
     }
@@ -632,6 +711,14 @@ void main(string[] args) {
     auto ownedPath = allKinds.session().output(allKinds.stepTaskId("path"), "model").text;
     auto ownedDirectory = allKinds.session().directory();
     assert(exists(ownedPath));
+    bool foundPreview;
+    foreach (artifact; allKinds.session().task(allKinds.stepTaskId("path")).artifacts) {
+        if (!artifact.preview) continue;
+        assert(artifact.kind == AutoRigValueKind.Path && artifact.value.kind == AutoRigValueKind.Path);
+        assert(artifact.value.text == artifact.storagePath && exists(artifact.value.text));
+        foundPreview = true;
+    }
+    assert(foundPreview);
     workflows.close(allKinds.id());
     workflows.remove(allKinds.id());
     assert(!exists(ownedPath) && !exists(ownedDirectory));

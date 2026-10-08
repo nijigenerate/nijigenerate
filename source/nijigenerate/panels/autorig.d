@@ -620,9 +620,8 @@ public:
         finishWorker();
         import std.exception : enforce;
         enforce(worker is null,"An AutoRig workflow is already running");
-        auto run = workflowManager().create("anime-front-view-rig","model-to-rig");
-        run.setInput("options",AutoRigValue.jsonValue(options));
-        run.setContext(context);
+        auto run = workflowManager().createConfigured("anime-front-view-rig","model-to-rig",
+            ["options":AutoRigValue.jsonValue(options)],context);
         runs ~= run; startRun(run); return run.id();
     }
 
