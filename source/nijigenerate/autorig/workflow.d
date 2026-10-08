@@ -469,4 +469,11 @@ public:
         runs.remove(runId);
         closedRuns.remove(runId);
     }
+
+    void disposeAll() {
+        foreach (run; runs) enforce(!run.session().isBusy(), "Cannot dispose a running AutoRig workflow");
+        foreach (run; closedRuns) enforce(!run.session().isBusy(), "Cannot dispose a running AutoRig workflow");
+        foreach (runId; runs.keys) remove(runId);
+        foreach (runId; closedRuns.keys) remove(runId);
+    }
 }

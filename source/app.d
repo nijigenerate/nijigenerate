@@ -41,7 +41,8 @@ version(RegressionSmoke) import nijigenerate.regression_smoke :
     ngRegressionSmokeFailed,
     ngRegressionSmokeFailureMessage,
     ngSetupRegressionSmokeScenario;
-version(HaveMCP) import nijigenerate.api.mcp : ngMcpProcessQueue, ngMcpLoadSettings, ngMcpStop;
+import nijigenerate.api.mcp.task : ngMcpProcessQueue;
+version(HaveMCP) import nijigenerate.api.mcp : ngMcpLoadSettings, ngMcpStop;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
 
@@ -244,8 +245,8 @@ void incUpdate() {
         if (incShouldProcess()) {
 
             incHandleShortcuts();
-            // Process any queued MCP commands on the main thread
-            version(HaveMCP) ngMcpProcessQueue();
+            // Process editor dispatches used by AutoRig and optional API services.
+            ngMcpProcessQueue();
             incMainMenu();
 
             incUpdatePanels();

@@ -672,21 +672,31 @@ public:
     }
 
     void stop() {
-        if (worker is null) return;
-        if (activeRun !is null) activeRun.cancel();
-        while (worker.isRunning()) {
-            ngMcpProcessQueue();
-            Thread.sleep(1.msecs);
+        if (worker !is null) {
+            if (activeRun !is null) activeRun.cancel();
+            while (worker.isRunning()) {
+                ngMcpProcessQueue();
+                Thread.sleep(1.msecs);
+            }
+            worker.join();
         }
-        worker.join();
         worker = null;
         activeRun = null;
+        ngMcpSetExternalCommandsBlocked(false);
+        if (workflows !is null) workflows.disposeAll();
+        runs = null;
+        inputDrafts = null;
+        inputObserved = null;
+        inputTextCache = null;
+        contextDrafts = null;
+        materialDrafts = null;
     }
 }
 
 void ngAutoRigStopAll() {
     auto panel = cast(AutoRigPanel)incFindPanelByName("AutoRig");
     if (panel !is null) panel.stop();
+    if (sharedSessions !is null) sharedSessions.disposeAll();
 }
 
 mixin incPanel!AutoRigPanel;

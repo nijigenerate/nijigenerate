@@ -64,6 +64,31 @@ void ngRigResolveGroupReceivers(ref JSONValue[] materials, JSONValue[] groups, b
     }
 }
 
+/** Reconcile static receivers and folder aliases after material classification. */
+void ngRigPropagateClippingStatic(ref JSONValue[] materials, JSONValue[] groups) {
+    size_t[ulong] indices;
+    foreach (i, material; materials) indices[ngRigUnsigned(material["uuid"])] = i;
+    bool changed;
+    do {
+        bool[] previous;
+        foreach (material; materials)
+            previous ~= ngRigGet(material,"static",JSONValue(false)).boolean;
+        foreach (ref material; materials) {
+            auto receiver = "receiver" in material.object;
+            if (receiver is null) continue;
+            // Folder aliases must choose another deforming descendant before becoming static.
+            auto originalReceiver = ngRigGet(material,"mask_receiver",*receiver);
+            auto index = ngRigUnsigned(originalReceiver) in indices;
+            if (index !is null && ngRigGet(materials[*index],"static",JSONValue(false)).boolean)
+                material["static"] = JSONValue(true);
+        }
+        ngRigResolveGroupReceivers(materials,groups,true);
+        changed = false;
+        foreach (i, material; materials)
+            if (previous[i] != ngRigGet(material,"static",JSONValue(false)).boolean) changed = true;
+    } while (changed);
+}
+
 private string nameTokens(string name) {
     while (name.length && name[$-1] == '\0') name = name[0 .. $-1];
     while (name.length && (name[0] == '*' || name[0] == '#' || name[0] == ' ')) name = name[1 .. $];
@@ -313,8 +338,8 @@ JSONValue ngRigClassifyMaterials(JSONValue observation, JSONValue options, AutoR
         }
     }
     // Imported clipping links replace PSD clipping_base_id as the receiver evidence.
-    ngRigResolveGroupReceivers(materials,
-        ngRigGet(observation,"groups",JSONValue(cast(JSONValue[])null)).array,true);
+    ngRigPropagateClippingStatic(materials,
+        ngRigGet(observation,"groups",JSONValue(cast(JSONValue[])null)).array);
     size_t[uint] byId;
     foreach (i, material; materials) byId[cast(uint)ngRigNumber(material["uuid"])] = i;
     bool[] visiting = new bool[materials.length], resolved = new bool[materials.length];

@@ -1441,6 +1441,22 @@ private void testRigClippingVisibility() {
     ngRigResolveGroupReceivers(grouped, receiverGroups, true);
     require(grouped[2]["receiver"].integer == 11,
         "Group receiver selection must skip a descendant classified as static");
+    import nijigenerate.autorig.deterministic.evidence : ngRigPropagateClippingStatic;
+    JSONValue[] staticChain = [
+        JSONValue(["uuid":JSONValue(3), "receiver":JSONValue(2), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(1), "static":JSONValue(true), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(2), "receiver":JSONValue(1), "active":JSONValue(true)])
+    ];
+    ngRigPropagateClippingStatic(staticChain, null);
+    require(staticChain[0]["static"].boolean && staticChain[2]["static"].boolean,
+        "Static direct receivers must propagate through an unordered clipping chain");
+    grouped[1]["static"] = JSONValue(false);
+    grouped[1]["receiver"] = JSONValue(1);
+    grouped ~= staticChain[1];
+    ngRigPropagateClippingStatic(grouped, receiverGroups);
+    require(grouped[1]["static"].boolean && grouped[2]["receiver"].integer == 11 &&
+        ("static" in grouped[2].object) is null,
+        "A folder alias must fall back when its first descendant has a static direct receiver");
     grouped[0]["active"] = JSONValue(false);
     grouped[1]["active"] = JSONValue(false);
     grouped[2]["receiver"] = JSONValue(10);
@@ -2234,6 +2250,28 @@ private void testNativeSavePathOverwriteAndReload() {
     require((new OpenFileCommand(savePath)).run(ctx).succeeded, "reload overwritten native save should succeed");
     require(findDirectNode(incActivePuppet(), "first-saved-node") !is null, "reload should preserve first saved node");
     require(findDirectNode(incActivePuppet(), "second-saved-node") !is null, "reload should include overwritten second node");
+
+    // A nonempty directory at the destination forces the final rename to fail.
+    auto puppet = incActivePuppet();
+    auto preservedPath = incProjectPath();
+    remove(savePath);
+    mkdirRecurse(savePath);
+    write(buildPath(savePath, "sentinel"), "preserve");
+    ctx.puppet = puppet;
+    ctx.nodes = [findDirectNode(puppet, "second-saved-node")];
+    require((new SetNodeNameCommand(["unsaved-node"])).run(ctx).succeeded, "unsaved edit should succeed");
+    import nijigenerate.io.save : incFileSave, CloseAskHandler;
+    require(!incFileSave(), "Save action must report a failed final rename");
+    require(incActionIsModified() && incProjectPath() == preservedPath && incActivePuppet() is puppet,
+        "Failed save must preserve the dirty model and its project path");
+    class ObservedCloseHandler : CloseAskHandler {
+        bool closed;
+        override void onProjectClose() { closed = true; }
+    }
+    auto closeHandler = new ObservedCloseHandler();
+    closeHandler.onClickYes();
+    require(!closeHandler.closed && incActivePuppet() is puppet && incActionIsModified(),
+        "Save-before-close must keep the project open when saving fails");
 }
 
 private void testProjectCameraViewportRoundTrip() {

@@ -636,6 +636,21 @@ void main(string[] args) {
     workflows.remove(allKinds.id());
     assert(!exists(ownedPath) && !exists(ownedDirectory));
 
+    auto activeOwned = workflows.create("test-rig", "all-value-kinds");
+    activeOwned.setInput("source", AutoRigValue.jsonValue(JSONValue(1)));
+    activeOwned.execute();
+    auto closedOwned = workflows.create("test-rig", "all-value-kinds");
+    closedOwned.setInput("source", AutoRigValue.jsonValue(JSONValue(2)));
+    closedOwned.execute();
+    workflows.close(closedOwned.id());
+    auto activeDirectory = activeOwned.directory(), closedDirectory = closedOwned.directory();
+    assert(exists(activeDirectory) && exists(closedDirectory));
+    workflows.disposeAll();
+    manager.disposeAll();
+    assert(!exists(activeDirectory) && !exists(closedDirectory));
+    workflows.disposeAll();
+    manager.disposeAll();
+
     other.fail = true;
     auto retry = workflows.create("test-rig", "cross-plugin");
     retry.setInput("source", AutoRigValue.jsonValue(JSONValue(12)));

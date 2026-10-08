@@ -1112,4 +1112,11 @@ public:
         sessions.remove(runId);
         closedSessions.remove(runId);
     }
+
+    void disposeAll() {
+        foreach (session; sessions) enforce(!session.isBusy(), "Cannot dispose a running AutoRig session");
+        foreach (session; closedSessions) enforce(!session.isBusy(), "Cannot dispose a running AutoRig session");
+        foreach (runId; sessions.keys) remove(runId);
+        foreach (runId; closedSessions.keys) remove(runId);
+    }
 }

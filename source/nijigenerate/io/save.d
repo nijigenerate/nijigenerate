@@ -44,8 +44,7 @@ bool incFileSave() {
     if (incProjectPath.length > 0) {
         // TODO: do backups on every save?
 
-        incSaveProject(incProjectPath);
-        return true;
+        return incSaveProject(incProjectPath);
     } else {
         const TFD_Filter[] filters = [
             { ["*.inx"], "nijigenerate Project (*.inx)" }
@@ -53,8 +52,7 @@ bool incFileSave() {
 
         string file = incShowSaveDialog(filters, "", _("Save..."));
         if (file) {
-            incSaveProject(file);
-            return true;
+            return incSaveProject(file);
         }
     }
     return false;
