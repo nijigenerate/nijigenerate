@@ -84,7 +84,7 @@ private:
         uint attempt, compiledAttempt;
         ulong revision;
         string[] names, paths, roles, features, sides, reasons;
-        bool[] disabled, changed, reset;
+        bool[] disabled, changed, reset, active;
         bool unresolvedOnly;
         string filter;
         string[] landmarks, landmarkReasons;
@@ -604,8 +604,10 @@ private:
                     if (auto chosen = "role" in entry.object) role = chosen.str;
                     feature = ngRigString(*entry,"feature",feature); side = ngRigString(*entry,"side",side);
                 }
+                disabled = disabled || !material["active"].boolean;
                 draft.names ~= name; draft.paths ~= path; draft.roles ~= role;
                 draft.features ~= feature; draft.sides ~= side; draft.disabled ~= disabled;
+                draft.active ~= material["active"].boolean;
                 draft.reasons ~= ngRigReviewEvidenceLabel(ngRigString(material,"semantic_source",""),(message) => _(message)) ~
                     " / " ~ ngRigString(material,"owner","") ~ " / " ~ ngRigString(material,"chart","");
                 draft.changed ~= false; draft.reset ~= false;
@@ -640,15 +642,17 @@ private:
                     foreach (choice; materialRoleChoices) {
                         auto display = choice.length ? ngRigReviewClassLabel(choice,(message) => _(message)) : _("Choose role");
                         if (igSelectable(display.toStringz(), choice == cached.roles[i])) {
-                            cached.roles[i] = choice; cached.changed[i] = true; cached.reset[i] = !choice.length;
+                            cached.roles[i] = choice; cached.changed[i] = true; cached.reset[i] = false;
                         }
                     }
                     igEndCombo();
                 }
                 igTableNextColumn();
+                igBeginDisabled(!cached.active[i]);
                 if (igCheckbox("##static",&cached.disabled[i])) {
                     cached.changed[i] = true; cached.reset[i] = false;
                 }
+                igEndDisabled();
                 auto featureLabel = ngRigReviewClassLabel(cached.features[i],(message) => _(message));
                 igTableNextColumn(); igSetNextItemWidth(150);
                 if (igBeginCombo("##feature",featureLabel.toStringz())) {

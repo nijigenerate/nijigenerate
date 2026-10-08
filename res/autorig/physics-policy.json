@@ -1,0 +1,19 @@
+{
+  "schema_version": "rig-physics-policy/1",
+  "version": "1.0.0",
+  "alpha_threshold": 32,
+  "anchor_band_fraction": 0.16,
+  "limb_protection_radius_scale": 1.15,
+  "minimum_free_fraction": 0.025,
+  "attachment_distance_fraction": 0.12,
+  "profiles": {
+    "hanging": {"amplitude_ratio": [0.22, 0.14], "frequency": 1.55},
+    "sheet": {"amplitude_ratio": [0.28, 0.18], "frequency": 1.25},
+    "hair": {"amplitude_ratio": [0.32, 0.21], "frequency": 1.7},
+    "ear": {"amplitude_ratio": [0.30, 0.19], "frequency": 1.9},
+    "sleeve": {"amplitude_ratio": [0.10, 0.07], "frequency": 1.55},
+    "frill": {"amplitude_ratio": [0.20, 0.13], "frequency": 1.75}
+  },
+  "settings": {"gravity": 1.0, "angle_damping": 0.2, "length_damping": 0.2, "output_scale": [1.0, 1.0]},
+  "authority": "Versioned structural priors, not measured material mass or stiffness. Anatomy and fitted coverings never receive secondary motion."
+}

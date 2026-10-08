@@ -45,6 +45,26 @@ struct Traits(T: psd.PSD) {
         if (!validHierarchy(result)) {
             result.reverse;
             enforce(validHierarchy(result), "PSD folder records do not form a balanced hierarchy");
+        } else {
+            bool hasFolders;
+            foreach (layer; result) if (layer.type == LayerType.OpenFolder || layer.type == LayerType.ClosedFolder ||
+                layer.type == LayerType.SectionDivider) hasFolders = true;
+            if (!hasFolders) {
+                bool validClipping(Layer[] records) {
+                    bool hasBase;
+                    foreach_reverse (layer; records) {
+                        if (isClippingLayer(layer)) { if (!hasBase) return false; }
+                        else hasBase = true;
+                    }
+                    return true;
+                }
+                // Ambiguous streams retain the declared PSD order. Reverse only
+                // when clipping constraints prove that the original order is invalid.
+                if (!validClipping(result)) {
+                    auto reversed = result.dup; reversed.reverse;
+                    if (validClipping(reversed)) result = reversed;
+                }
+            }
         }
         return result;
     }

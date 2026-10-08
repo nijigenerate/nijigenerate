@@ -7332,3 +7332,7 @@ msgstr ""
 #: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
 msgid "Input from preceding task"
 msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Apply secondary physics"
+msgstr ""

@@ -4,6 +4,10 @@ import nijigenerate.autorig.framework : AutoRigTaskContext;
 import nijigenerate.autorig.deterministic.contracts;
 import nijigenerate.autorig.deterministic.observation;
 import nijigenerate.autorig.deterministic.controls;
+import nijigenerate.autorig.deterministic.physics;
+import nijigenerate.commands.node.simplephysics;
+import nijigenerate.commands.parameter.paramedit : SetArmedParameterAndKeypointCommand;
+import nijilive.core.nodes.drivers : SimplePhysics, PhysicsModel, ParamMapMode;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature, ngRigPropagateClippingVisibility,
     ngRigResolveGroupReceivers;
 import nijigenerate.autorig.deterministic.geometry;
@@ -140,6 +144,7 @@ private JSONValue reviewModel(AutoRigTaskContext task) {
                     digest = hash.finish().toHexString.idup;
                 } else digest = ngRigDigest(parseJSON(inToJson(binding)));
                 auto entry = JSONValue(["target":JSONValue(binding.getTarget().target.uuid),
+                    "target_name":JSONValue(binding.getTarget().target.name),
                     "property":JSONValue(binding.getName()), "authored_keys":JSONValue(keyCount),
                     "content_sha256":JSONValue(digest)]);
                 if (cast(DeformationParameterBinding)binding !is null)
@@ -1906,6 +1911,122 @@ private JSONValue verifyRig(JSONValue state, JSONValue program, AutoRigTaskConte
     return report;
 }
 
+private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskContext task) {
+    if (ngRigString(program,"kind","humanoid") != "humanoid") return state;
+    RigPhysicsAsset[ulong] assets;
+    auto structure = ngRigPhysicsStructure(state,program,assets,task);
+    RigPhysicsMesh[ulong] meshes;
+    double[6][ulong] transforms;
+    task.runOnMainThread({
+        auto puppet = incActivePuppet();
+        foreach (parameter; puppet.parameters) parameter.value = parameter.defaults;
+        puppet.enableDrivers = false; puppet.update();
+        double[6] world(Node node) {
+            if (auto existing = node.uuid in transforms) return *existing;
+            auto local = node.localTransform;
+            enforce(local.rotation.x == 0 && local.rotation.y == 0 && !node.pinToMesh,
+                "Unsupported neutral physics coordinate frame");
+            import std.math : sin, cos;
+            auto angle = cast(double)local.rotation.z, c = cos(angle), s = sin(angle);
+            double[6] result = [c*local.scale.x,-s*local.scale.y,local.translation.x,
+                s*local.scale.x,c*local.scale.y,local.translation.y];
+            if (node.parent !is null && !node.lockToRoot) {
+                auto parent = world(node.parent);
+                auto x = ngRigPhysicsTransform(parent,[result[0],result[3]],true);
+                auto y = ngRigPhysicsTransform(parent,[result[1],result[4]],true);
+                auto origin = ngRigPhysicsTransform(parent,[result[2],result[5]]);
+                result = [x[0],y[0],origin[0],x[1],y[1],origin[1]];
+            }
+            transforms[node.uuid] = result; return result;
+        }
+        foreach (id,asset; assets) {
+            auto part = cast(Part)puppet.find!Node(cast(uint)id);
+            enforce(part !is null && part.getMesh().origin == vec2(0,0),"Physics requires a zero-origin Part mesh");
+            RigPhysicsMesh mesh;
+            foreach (vertex; part.getMesh().vertices) mesh.vertices ~= [cast(double)vertex.x,cast(double)vertex.y];
+            foreach (index; part.getMesh().indices) mesh.indices ~= index;
+            mesh.toModel = world(part); meshes[id] = mesh;
+        }
+        auto root = cast(ExDepthRigRoot)puppet.find!Node(uuid(state["rigRoot"]));
+        enforce(root !is null,"Physics anatomical rig is missing");
+        foreach (bone; root.depthBones()) world(bone);
+    });
+    auto plan = ngRigCompilePhysicsOperations(structure,assets,meshes,task);
+    auto before = reviewModel(task); auto policy = plan["policy"];
+    JSONValue[string] identities;
+    foreach (group; plan["groups"].array) {
+        uint parameterId;
+        task.runOnMainThread({
+            auto puppet = incActivePuppet();
+            foreach (parameter; puppet.parameters) enforce(parameter.name != group["name"].str,
+                "Unowned Physics parameter name collision: " ~ group["name"].str);
+            auto created = cast(CreateResult!Parameter)command(new Add2DParameterCommand(-1,1),editorContext());
+            enforce(created !is null && created.created.length == 1,"Could not create physics parameter");
+            auto parameter = created.created[0]; parameter.name = group["name"].str;
+            parameter.min = vec2(-1,-1); parameter.max = vec2(1,1);
+            parameter.axisPoints[0] = [0.0f,0.5f,1.0f]; parameter.axisPoints[1] = [0.0f,0.5f,1.0f];
+            parameter.defaults = vec2(0,0); parameter.value = parameter.defaults; parameterId = parameter.uuid;
+            auto context = editorContext(); context.armedParameters = [parameter];
+            context.parameterValue = vec2(0,0); context.hasParameterValue = true;
+            command(new SetArmedParameterAndKeypointCommand(),context);
+        });
+        foreach (operation; group["operations"].array) {
+            ngRigCheckpoint(task); auto offsets = nativeNumbers(operation["values"]); auto key = ngRigPoint(operation["key"]);
+            task.runOnMainThread({
+                auto puppet = incActivePuppet(); auto part = puppet.find!Node(uuid(operation["target"]));
+                auto parameter = puppet.findParameter(parameterId); auto context = editorContext([part]);
+                context.parameters = [parameter]; context.hasExplicitKeyPoint = true;
+                context.keyPoint = vec2u(cast(uint)(key[0]+1),cast(uint)(key[1]+1));
+                command(new SetDeformBindingCommand("deform",offsets,true),context);
+                auto binding = cast(DeformationParameterBinding)parameter.getBinding(part,"deform");
+                enforce(binding !is null && binding.isSet(context.keyPoint),"Missing physics key");
+                auto actual = binding.getValue(context.keyPoint).vertexOffsets;
+                enforce(actual.length*2 == offsets.length,"Physics binding vertex count differs");
+                auto mesh = meshes[ngRigUnsigned(operation["target"])];
+                import std.math : nextUp;
+                foreach (i,value; actual) foreach (axis; 0 .. 2) {
+                    auto coordinate = cast(float)(abs(mesh.vertices[i][axis])+abs(offsets[i*2+axis]));
+                    auto tolerance = max(1e-4,2.*(nextUp(coordinate)-coordinate));
+                    enforce(abs((axis == 0 ? value.x : value.y)-offsets[i*2+axis])<=tolerance,
+                        "Physics key readback differs");
+                }
+            });
+        }
+        task.runOnMainThread({
+            auto puppet = incActivePuppet(); auto root = cast(ExDepthRigRoot)puppet.find!Node(uuid(state["rigRoot"]));
+            Node parent;
+            foreach (bone; root.depthBones()) if (bone.boneId == group["parent_bone"].str) parent = bone;
+            enforce(parent !is null,"Physics support bone is missing");
+            auto physics = cast(SimplePhysics)create(new AddNodeCommandT!(true)("SimplePhysics",""),editorContext([parent]));
+            enforce(physics !is null,"Could not create SimplePhysics"); physics.name = group["name"].str;
+            auto context = editorContext([physics]); context.inspectors = [new NINode([physics],ModelEditSubMode.Layout)];
+            auto anchor = ngRigPhysicsTransform(ngRigPhysicsInverse(transforms[parent.uuid]),ngRigPoint(group["fixed"]));
+            auto x = new TranslationXCommand(); x.value = cast(float)anchor[0]; command(x,context);
+            auto y = new TranslationYCommand(); y.value = cast(float)anchor[1]; command(y,context);
+            command(new SetSimplePhysicsParameterCommand(puppet.findParameter(parameterId)),context);
+            command(new SetSimplePhysicsModelTypeCommand(PhysicsModel.SpringPendulum),context);
+            command(new SetSimplePhysicsMapModeCommand(ParamMapMode.XY),context);
+            command(new SetSimplePhysicsLocalOnlyCommand(false),context);
+            command(new SetSimplePhysicsGravityCommand(cast(float)ngRigNumber(policy["settings"]["gravity"])),context);
+            command(new SetSimplePhysicsLengthCommand(cast(float)ngRigNumber(group["length"])),context);
+            command(new SetSimplePhysicsFrequencyCommand(cast(float)ngRigNumber(policy["profiles"][group["profile"].str]["frequency"])),context);
+            command(new SetSimplePhysicsAngleDampingCommand(cast(float)ngRigNumber(policy["settings"]["angle_damping"])),context);
+            command(new SetSimplePhysicsLengthDampingCommand(cast(float)ngRigNumber(policy["settings"]["length_damping"])),context);
+            command(new SetSimplePhysicsOutputScaleXCommand(cast(float)ngRigNumber(policy["settings"]["output_scale"][0])),context);
+            command(new SetSimplePhysicsOutputScaleYCommand(cast(float)ngRigNumber(policy["settings"]["output_scale"][1])),context);
+            identities[group["id"].str] = JSONValue(["parameter":JSONValue(parameterId),"simple_physics":JSONValue(physics.uuid),
+                "readback":parseJSON(inToJson(physics))]);
+        });
+    }
+    auto after = reviewModel(task); JSONValue[string] previous;
+    foreach (item; before.array) previous[item["id"].str] = item;
+    foreach (item; after.array) if (auto original = item["id"].str in previous)
+        enforce(ngRigDigest(item) == ngRigDigest(*original),"Physics changed an existing node or unrelated binding");
+    state["physics_structure"] = structure; state["physics_program"] = plan;
+    state["physics_identities"] = JSONValue(identities);
+    return state;
+}
+
 /** Model snapshots are retained in memory and restored only for retries or rollback. */
 JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, ubyte[] model,
     AutoRigTaskContext task) {
@@ -1952,6 +2073,7 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
     else if (stage == "bake-depth-angles") state = bakeAngles(state,task);
     else if (stage == "apply-rig-controls") state = applyControls(state,task);
     else if (stage == "apply-shape-corrections") state = applyCheekCorrections(state,program,task);
+    else if (stage == "apply-secondary-physics") state = applyPhysics(state,program,task);
     else enforce(stage == "observe-model", "Unknown native rig stage: " ~ stage);
     ngRigCheckpoint(task);
     settleDepthRefresh(task);

@@ -7653,3 +7653,7 @@ msgstr "モデルの途中状態"
 #: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
 msgid "Input from preceding task"
 msgstr "前段のタスクからの入力"
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Apply secondary physics"
+msgstr "揺れ物の物理演算を適用"
