@@ -74,7 +74,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
         internal.id = "finish-internal";
         internal.label = "Finish with internal dependency";
         internal.inputs = [AutoRigPortSpec("source", AutoRigValueKind.Json)];
-        internal.outputs = [AutoRigPortSpec("model", AutoRigValueKind.Path)];
+        internal.outputs = [AutoRigPortSpec("model", AutoRigValueKind.Blob)];
         internal.steps = [AutoRigWorkflowStep("finish", "test-rig", "finish")];
         internal.inputBindings = [AutoRigWorkflowInputBinding("source", "finish", "prepare", "source")];
         internal.outputBindings = [AutoRigWorkflowOutputBinding("model", "finish", "model")];
@@ -121,7 +121,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
                     AutoRigPortSpec("name", AutoRigValueKind.FileName)], null),
             AutoRigTaskSpec("finish", "Finish", ["prepare"],
                 [AutoRigPortSpec("data", AutoRigValueKind.Json)],
-                [AutoRigPortSpec("model", AutoRigValueKind.Path)],
+                [AutoRigPortSpec("model", AutoRigValueKind.Blob)],
                 [AutoRigConnection("data", "prepare", "data")]),
             AutoRigTaskSpec("emit-path", "Emit path", null,
                 [AutoRigPortSpec("source", AutoRigValueKind.Json)],
@@ -166,14 +166,15 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
             ++finishCalls;
             auto value = context.input("data").json.integer;
             if (failFinish) throw new Exception("expected failure");
-            auto location = context.outputPath("model", ".txt");
-            import std.file : write;
-            write(location, value.to!string);
-            context.publishPath("model", location);
+            context.publishBlob("model", cast(ubyte[])value.to!string.dup);
         } else if (taskId == "emit-path") {
             auto value = context.input("source").json.integer;
             auto location = context.outputPath("model", ".txt");
-            import std.file : write;
+            // This fixture explicitly supplies an external file; the framework
+            // does not create directories or persist task artifacts itself.
+            import std.file : write, mkdirRecurse;
+            import std.path : dirName;
+            mkdirRecurse(location.dirName);
             write(location, value.to!string);
             context.publishPath("model", location);
         } else {
@@ -201,7 +202,8 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
             auto snapshot = context.snapshot();
             sawOutputArtifact = snapshot.state == AutoRigTaskState.Succeeded &&
                 snapshot.artifacts.length > 0 && context.hasValue("data") &&
-                exists(context.artifact("data").storagePath);
+                context.artifact("data").storagePath.length == 0 &&
+                context.artifact("data").value.json.integer > 0;
         }
     }
 }
@@ -435,11 +437,12 @@ void main(string[] args) {
     assert(actionEvents == ["begin:prepare", "end:prepare", "begin:finish", "end:finish"]);
     assert(processor.editorCalls == 2 && editorDispatches == 2);
     assert(processor.prepareCalls == 1 && processor.finishCalls == 1);
-    assert(readText(run.output("finish", "model").text) == "3");
+    assert(cast(string)run.output("finish", "model").readBlob() == "3");
     assert(run.task("prepare").artifacts.length == 4);
     assert(run.task("prepare").artifacts[0].preview);
-    assert(exists(run.task("prepare").artifacts[0].storagePath));
-    assert(exists(run.task("finish").artifacts[0].storagePath));
+    assert(run.task("prepare").artifacts[0].storagePath.length == 0);
+    assert(run.task("finish").artifacts[0].storagePath.length == 0);
+    assert(!exists(run.directory()));
     assert(run.output("prepare", "binary").readBlob() == [cast(ubyte)0, 1, 2]);
     assert(run.output("prepare", "name").text == "source.txt");
 
@@ -451,7 +454,7 @@ void main(string[] args) {
     assert(run.task("finish").state == AutoRigTaskState.Stale);
     run.execute("finish");
     assert(processor.prepareCalls == 2 && processor.finishCalls == 2);
-    assert(readText(run.output("finish", "model").text) == "7");
+    assert(cast(string)run.output("finish", "model").readBlob() == "7");
     assert(run.task("prepare").attempt == 2);
 
     processor.failFinish = true;
@@ -462,8 +465,8 @@ void main(string[] args) {
     assert(actionEvents == ["begin:finish", "end:finish"]);
     assert(failed && run.task("finish").state == AutoRigTaskState.Failed);
     assert(run.task("finish").attempt == 3);
-    assert(exists(buildPath(run.directory(), "finish", "attempt-3", "result.json")));
-    assert(exists(buildPath(run.directory(), "finish", "attempt-2", "model.txt")));
+    assert(run.task("finish").message.length > 0);
+    assert(!exists(run.directory()));
 
     processor.failFinish = false;
     processor.cancelPrepare = true;
@@ -475,7 +478,7 @@ void main(string[] args) {
     assert(canceled && run.task("prepare").state == AutoRigTaskState.Canceled);
     processor.cancelPrepare = false;
     run.execute("finish");
-    assert(readText(run.output("finish", "model").text) == "9");
+    assert(cast(string)run.output("finish", "model").readBlob() == "9");
     manager.close(run.id());
 
     auto cyclicProcessor = new TestRigProcessor();
@@ -506,7 +509,7 @@ void main(string[] args) {
     assert(cross.session().id() == cross.id());
     assert(cross.session().directory() == cross.directory());
     assert(manager.get(cross.id()) is cross.session());
-    assert(exists(buildPath(cross.directory(), "workflow.json")));
+    assert(!exists(cross.directory()));
     assert(cross.session().task(cross.stepTaskId("prepare")).state == AutoRigTaskState.Succeeded);
     assert(cross.session().task(cross.stepTaskId("consume")).state == AutoRigTaskState.Succeeded);
     assert(cross.session().renderInputUI(cross.stepTaskId("prepare")));
@@ -516,9 +519,8 @@ void main(string[] args) {
     assert(cross.session().renderInputUI(cross.stepTaskId("consume")) && other.sawConnectedInput);
     assert(cross.session().renderOutputUI(cross.stepTaskId("consume")) && other.sawOutput);
     assert(other.lastUITaskId == "consume");
-    auto workflowRecord = parseJSON(readText(buildPath(cross.directory(), "workflow.json")));
-    assert(workflowRecord["runId"].str == cross.id());
-    assert(workflowRecord["steps"].object["prepare"].str == cross.stepTaskId("prepare"));
+    assert(cross.snapshot().runId == cross.id());
+    assert(cross.snapshot().steps["prepare"].taskId == cross.stepTaskId("prepare"));
     auto previousCalls = other.calls;
     cross.execute();
     assert(other.calls == previousCalls);
@@ -541,7 +543,7 @@ void main(string[] args) {
     auto internal = workflows.create("test-rig", "finish-internal");
     internal.setInput("source", AutoRigValue.jsonValue(JSONValue(14)));
     internal.execute();
-    assert(readText(internal.output("model").text) == "15");
+    assert(cast(string)internal.output("model").readBlob() == "15");
     assert(internal.session().task("6_finish_prepare").state == AutoRigTaskState.Succeeded);
     workflows.close(internal.id());
 
