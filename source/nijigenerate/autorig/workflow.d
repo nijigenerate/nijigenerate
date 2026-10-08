@@ -3,9 +3,40 @@ module nijigenerate.autorig.workflow;
 import nijigenerate.autorig.framework;
 import std.conv : to;
 import std.exception : enforce;
-import std.json : JSONValue;
+import std.json : JSONValue, JSONType;
 
 enum AutoRigWorkflowState { Pending, Running, Succeeded, Failed, Canceled }
+
+/** Optional native-rig diagnostics; generic workflows need neither step nor output. */
+JSONValue ngAutoRigWorkflowDiagnostics(AutoRigWorkflowRun run) {
+    JSONValue[string] result;
+    foreach (step; run.orderedSteps()) {
+        auto taskId = run.stepTaskId(step.id);
+        if (step.id == "compile") {
+            JSONValue[] profile;
+            foreach (artifact; run.session().task(taskId).artifacts)
+                if (artifact.preview && artifact.portId == "compile-profile") profile ~= artifact.value.json;
+            if (profile.length) result["compile_profile"] = JSONValue(profile);
+        }
+        if (step.id != "verify" || run.session().isBusy() || !run.session().hasOutput(taskId,"report")) continue;
+        auto report = run.session().output(taskId,"report").json;
+        if (report.type != JSONType.object) continue;
+        JSONValue[string] summary;
+        foreach (key; ["passed","error","readback_verified","finish_stages",
+            "all_finish_stages_succeeded","numerical_stages_passed","rig_complete"])
+            if (auto entry = key in report.object) summary[key] = *entry;
+        if (auto findings = "numerical_findings" in report.object) {
+            if (findings.type == JSONType.array) {
+                import std.algorithm : min;
+                auto entries = findings.array;
+                summary["numerical_findings_count"] = JSONValue(cast(ulong)entries.length);
+                summary["numerical_findings"] = JSONValue(entries[0 .. min(entries.length, 32)].dup);
+            }
+        }
+        result["verification"] = JSONValue(summary);
+    }
+    return JSONValue(result);
+}
 
 struct AutoRigWorkflowPreset {
     string providerId;

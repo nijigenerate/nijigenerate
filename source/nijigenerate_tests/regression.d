@@ -1417,6 +1417,40 @@ private void testRigClippingVisibility() {
     ngRigPropagateClippingVisibility(materials);
     require(!materials[0]["active"].boolean && !materials[2]["active"].boolean &&
         materials[3]["active"].boolean, "Empty base alpha must propagate through an unordered clipping chain");
+    import nijigenerate.autorig.deterministic.evidence : ngRigResolveGroupReceivers;
+    JSONValue[] grouped = [
+        JSONValue(["uuid":JSONValue(11), "active":JSONValue(true), "source_order":JSONValue(2),
+            "ancestor_ids":JSONValue([10])]),
+        JSONValue(["uuid":JSONValue(12), "active":JSONValue(true), "source_order":JSONValue(1),
+            "ancestor_ids":JSONValue([10])]),
+        JSONValue(["uuid":JSONValue(13), "active":JSONValue(true), "source_order":JSONValue(3),
+            "receiver":JSONValue(10)])
+    ];
+    JSONValue[] receiverGroups = [JSONValue(["uuid":JSONValue(10)])];
+    ngRigResolveGroupReceivers(grouped, receiverGroups);
+    require(grouped[2]["receiver"].integer == 12 && grouped[2]["mask_receiver"].integer == 10,
+        "Group receiver classification must resolve to a source material and retain the native mask surface");
+    grouped[0]["active"] = JSONValue(false);
+    grouped[1]["active"] = JSONValue(false);
+    grouped[2]["receiver"] = JSONValue(10);
+    ngRigResolveGroupReceivers(grouped, receiverGroups);
+    require(!grouped[2]["active"].boolean, "An empty receiver group must disable its clipped material");
+    base.masks = null;
+    auto group = new DynamicComposite(incActivePuppet().root);
+    group.name = "clip-render-surface";
+    group.masks = [MaskBinding(base.uuid, MaskingMode.Mask, base)];
+    clipped.reparent(group, 0);
+    auto context = new Context();
+    context.puppet = incActivePuppet();
+    context.nodes = [group];
+    auto converted = (new ConvertToCommand("Composite")).run(context);
+    require(converted.succeeded, "A clipping surface must convert directly to Composite");
+    auto composite = cast(Composite)converted.created[0];
+    require(composite !is null && composite.uuid == group.uuid && composite.masks.length == 1 &&
+        composite.masks[0].maskSrcUUID == base.uuid,
+        "Clipping surface conversion must retain identity and masks");
+    base.setEnabled(false);
+    require(!ngRigMaterialIsActive(clipped), "Ancestor clipping masks must participate in effective visibility");
 }
 
 private void testAutoMeshParentCancellation() {

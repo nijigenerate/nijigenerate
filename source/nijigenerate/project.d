@@ -415,7 +415,7 @@ bool incSaveProject(string path, string autosaveStamp = "") {
         if (isAutosave) {
             incAddPrevAutosave(finalPath);
         } else {
-            activeProject.path = finalPath;
+            activeProject.path = path;
             incAddPrevProject(finalPath);
         }
 

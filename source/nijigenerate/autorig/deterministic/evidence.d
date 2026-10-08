@@ -32,6 +32,33 @@ void ngRigPropagateClippingVisibility(ref JSONValue[] materials) {
     } while (changed);
 }
 
+/** Resolve a rendered folder receiver to its first active material in PSD source order. */
+void ngRigResolveGroupReceivers(ref JSONValue[] materials, JSONValue[] groups) {
+    bool[ulong] materialIds, groupIds;
+    foreach (material; materials) materialIds[ngRigUnsigned(material["uuid"])] = true;
+    foreach (group; groups) groupIds[ngRigUnsigned(group["uuid"])] = true;
+    foreach (ref material; materials) {
+        auto receiver = "receiver" in material.object;
+        if (receiver is null) continue;
+        auto id = ngRigUnsigned(*receiver);
+        if ((id in materialIds) !is null || (id in groupIds) is null) continue;
+        JSONValue selected;
+        double order = double.infinity;
+        foreach (candidate; materials) {
+            if (!candidate["active"].boolean) continue;
+            auto ancestors = "ancestor_ids" in candidate.object;
+            if (ancestors is null) continue;
+            bool belongs;
+            foreach (ancestor; ancestors.array) if (ngRigUnsigned(ancestor) == id) belongs = true;
+            auto candidateOrder = ngRigNumber(candidate["source_order"]);
+            if (belongs && candidateOrder < order) { selected = candidate["uuid"]; order = candidateOrder; }
+        }
+        material["mask_receiver"] = *receiver;
+        if (order == double.infinity) material["active"] = JSONValue(false);
+        else material["receiver"] = selected;
+    }
+}
+
 private string nameTokens(string name) {
     while (name.length && name[$-1] == '\0') name = name[0 .. $-1];
     while (name.length && (name[0] == '*' || name[0] == '#' || name[0] == ' ')) name = name[1 .. $];

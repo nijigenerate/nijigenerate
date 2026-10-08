@@ -4,7 +4,8 @@ import nijigenerate.autorig.framework : AutoRigTaskContext;
 import nijigenerate.autorig.deterministic.contracts;
 import nijigenerate.autorig.deterministic.observation;
 import nijigenerate.autorig.deterministic.controls;
-import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature, ngRigPropagateClippingVisibility;
+import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature, ngRigPropagateClippingVisibility,
+    ngRigResolveGroupReceivers;
 import nijigenerate.autorig.deterministic.geometry;
 import nijigenerate.autorig.deterministic.registered : ngRigSampleRegisteredDepth;
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput;
@@ -66,10 +67,11 @@ bool ngRigMaterialIsActive(Part part) {
         for (auto node = cast(Node)current; node !is null; node = node.parent) {
             if (!node.getEnabled()) return false;
             if (auto composite = cast(Projectable)node) if (composite.opacity <= 0) return false;
+            if (auto surface = cast(Part)node) foreach (mask; surface.masks) if (mask.mode == MaskingMode.Mask) {
+                if (!active(incActivePuppet().find!Node(mask.maskSrcUUID))) return false;
+                break;
+            }
         }
-        if (auto material = cast(Part)current)
-            foreach (mask; material.masks) if (mask.mode == MaskingMode.Mask)
-                return active(incActivePuppet().find!Node(mask.maskSrcUUID));
         return true;
     }
     return active(part);
@@ -318,6 +320,15 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
         enforce(puppet !is null, "No imported model is open");
         rootId = puppet.root.uuid;
         signature = editorSignature(puppet);
+        bool[uint] clippingSurfaces;
+        void collectClipping(Node node) {
+            if (auto part = cast(Part)node) foreach (mask; part.masks) if (mask.mode == MaskingMode.Mask) {
+                clippingSurfaces[node.uuid] = true;
+                clippingSurfaces[mask.maskSrcUUID] = true;
+            }
+            foreach (child; node.children) collectClipping(child);
+        }
+        collectClipping(puppet.root);
         foreach (parameter; puppet.parameters)
             enforce(parameter.value == parameter.defaults, "Model must be at its default pose before AutoRig");
         void visit(Node node) {
@@ -326,7 +337,8 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
             if (node.typeId == "Part") ids ~= node.uuid;
             else if (node !is puppet.root && node.children.length) groups ~= JSONValue([
                 "uuid":JSONValue(node.uuid),"name":JSONValue(node.name),
-                "parent":JSONValue(node.parent.uuid),"source_order":JSONValue(sourceOrders[node.uuid])]);
+                "parent":JSONValue(node.parent.uuid),"source_order":JSONValue(sourceOrders[node.uuid]),
+                "clipping_surface":JSONValue((node.uuid in clippingSurfaces) !is null)]);
             foreach (child; node.children) visit(child);
         }
         visit(puppet.root);
@@ -378,8 +390,11 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
             auto parentMatrix = puppet.root.transform.matrix.inverse * part.parent.transform.matrix;
             auto px = parentMatrix*vec4(1,0,0,0), py = parentMatrix*vec4(0,1,0,0), po = parentMatrix*vec4(0,0,0,1);
             record["parent_to_root"] = JSONValue([px.x,py.x,po.x,px.y,py.y,po.y]);
-            foreach (mask; part.masks) if (mask.mode == MaskingMode.Mask) {
-                record["receiver"] = JSONValue(mask.maskSrcUUID); break;
+            bool foundReceiver;
+            for (Node cursor = part; cursor !is null && !foundReceiver; cursor = cursor.parent) {
+                if (auto surface = cast(Part)cursor) foreach (mask; surface.masks) if (mask.mode == MaskingMode.Mask) {
+                    record["receiver"] = JSONValue(mask.maskSrcUUID); foundReceiver = true; break;
+                }
             }
         });
         auto cloud = ngRigTextureSupport(pixels,width,height,rootMesh,40000,task);
@@ -398,6 +413,7 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
         record["active"] = JSONValue(record["active"].boolean && cloud.length>0);
         materials ~= record;
     }
+    ngRigResolveGroupReceivers(materials, groups);
     ngRigPropagateClippingVisibility(materials);
     auto result = JSONValue(["schema_version":JSONValue("rig-model-observation-d/1"),"rootId":JSONValue(rootId),
         "materials":JSONValue(materials),"groups":JSONValue(groups),"options":options]);
@@ -463,7 +479,8 @@ private JSONValue prepareSourceGroups(JSONValue state, AutoRigTaskContext task) 
                 if (candidate == feature) eye = true;
             onlyEyes = onlyEyes && eye; onlyMouth = onlyMouth && feature.startsWith("mouth");
         }
-        string desired = hasMaterial && (onlyEyes || onlyMouth) ? "DynamicComposite" : "GridDeformer";
+        string desired = hasMaterial && (onlyEyes || onlyMouth) ? "DynamicComposite" :
+            ngRigGet(group,"clipping_surface",JSONValue(false)).boolean ? "Composite" : "GridDeformer";
         task.runOnMainThread({
             auto puppet = incActivePuppet();
             auto node = puppet.find!Node(uuid(group["uuid"]));
@@ -472,7 +489,8 @@ private JSONValue prepareSourceGroups(JSONValue state, AutoRigTaskContext task) 
             uint[] children;
             foreach (child; node.children) children ~= child.uuid;
             if (node.typeId != desired) {
-                if (node.typeId != "Node") node = create(new ConvertToCommandT!true("Node"),editorContext([node]));
+                if (node.typeId != "Node" && desired == "GridDeformer")
+                    node = create(new ConvertToCommandT!true("Node"),editorContext([node]));
                 node = create(new ConvertToCommandT!true(desired),editorContext([node]));
             }
             enforce(node.uuid == uuid(group["uuid"]) && node.parent.uuid == uuid(group["parent"]) &&

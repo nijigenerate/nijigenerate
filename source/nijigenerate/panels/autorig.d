@@ -660,28 +660,7 @@ public:
                 "message":JSONValue(snapshot.message),"steps":JSONValue(steps),"memory":memory]);
             import nijigenerate.panels.resource : ngResourcePanelReadback;
             result["resource_view"] = ngResourcePanelReadback();
-            auto compileTask = run.session().task(run.stepTaskId("compile"));
-            JSONValue[] compileProfile;
-            foreach (artifact; compileTask.artifacts)
-                if (artifact.preview && artifact.portId == "compile-profile")
-                    compileProfile ~= artifact.value.json;
-            if (compileProfile.length) result["compile_profile"] = JSONValue(compileProfile);
-            auto verifyId = run.stepTaskId("verify");
-            if (!run.session().isBusy() && run.session().hasOutput(verifyId,"report")) {
-                auto report = run.session().output(verifyId,"report").json;
-                JSONValue[string] summary;
-                foreach (key; ["passed","error","readback_verified","finish_stages",
-                    "all_finish_stages_succeeded","numerical_stages_passed","rig_complete"])
-                    if (auto entry = key in report.object) summary[key] = *entry;
-                if (auto findings = "numerical_findings" in report.object) {
-                    summary["numerical_findings_count"] = JSONValue(cast(ulong) (*findings).array.length);
-                    // Keep status diagnostics bounded without copying the full validation report.
-                    import std.algorithm : min;
-                    auto entries = (*findings).array;
-                    summary["numerical_findings"] = JSONValue(entries[0 .. min(entries.length, 32)].dup);
-                }
-                result["verification"] = JSONValue(summary);
-            }
+            foreach (key, value; ngAutoRigWorkflowDiagnostics(run).object) result[key] = value;
             return result;
         }
         throw new Exception("Unknown AutoRig workflow run: " ~ runId);

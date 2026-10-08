@@ -174,7 +174,10 @@ values during reloading and do not change the process-wide numeric locale.
 AutoRig removes disabled or fully transparent source subtrees from its model during source-group
 preparation. This excludes PSD reference artwork without changing the PSD file; removal uses the
 command framework and participates in the stage's rollback. Visible eye and mouth groups retain
-DynamicComposite and native Grid AutoMesh. Other visible source groups use GridDeformer.
+DynamicComposite and native Grid AutoMesh. Other visible source groups use GridDeformer,
+except clipping surfaces, which require a Composite to retain their rendered mask alpha.
+Group receivers resolve to the first active descendant material in PSD source order for
+semantic classification; the native mask still refers to the complete group surface.
 
 Each committed stage emits a structural notification. The Resources panel rebinds its root listener
 when the model or root changes and refreshes every search-history entry, including the displayed one.

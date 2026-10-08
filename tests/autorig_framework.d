@@ -598,6 +598,7 @@ void main(string[] args) {
     workflows.close(cross.id());
 
     auto simple = workflows.create("test-rig", "prepare-only");
+    assert(ngAutoRigWorkflowDiagnostics(simple).object.length == 0);
     simple.setInput("source", AutoRigValue.jsonValue(JSONValue(10)));
     simple.execute();
     assert(simple.output("data").json.integer == 11);
