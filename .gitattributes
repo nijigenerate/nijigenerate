@@ -1,0 +1,4 @@
+# Embedded AutoRig resources have fixed byte hashes.
+res/autorig/**/*.json text eol=lf
+# The original registered anatomical resource is hashed with CRLF line endings.
+res/autorig/reference-humanoid.registered.json text eol=crlf
