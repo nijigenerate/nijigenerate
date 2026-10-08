@@ -165,20 +165,18 @@ void main(string[] args) {
     run.execute("apply-face-projection");
     assert(applied && run.outputContext("apply-face-projection").value("result").json["applied"].boolean);
     assert(run.task("apply-face-projection").state == AutoRigTaskState.Succeeded);
-    write(buildPath(run.directory(),"workflow.json"),"{}");
-    auto reopenedSessions = new AutoRigSessionManager(sessions.rootDirectory());
-    auto restored = reopenedSessions.reopenWithProcessor(processor,run.id());
+    import std.file : exists;
+    assert(!exists(run.directory()));
+    sessions.close(run.id());
+    auto restored = sessions.reopenWithProcessor(processor,run.id());
     restored.restoreCommittedOutputs();
     assert(restored.task("apply-face-projection").state == AutoRigTaskState.Succeeded);
     assert(restored.outputContext("apply-face-projection").value("result").json["applied"].boolean);
-    auto taskRecordPath = buildPath(run.directory(),"apply-face-projection","attempt-1","result.json");
-    auto taskRecord = ngParseAutoRigJson(readText(taskRecordPath));
-    foreach (ref artifact; taskRecord["artifacts"].array)
-        if (artifact["portId"].str == "result") artifact["path"] = JSONValue(taskRecordPath);
-    write(taskRecordPath,taskRecord.toString());
-    auto legacySessions = new AutoRigSessionManager(sessions.rootDirectory());
-    auto legacy = legacySessions.reopenWithProcessor(processor,run.id());
-    legacy.restoreCommittedOutputs();
-    assert(legacy.task("apply-face-projection").state == AutoRigTaskState.Stale);
+    assert(!exists(run.directory()));
+    auto restartedSessions = new AutoRigSessionManager(sessions.rootDirectory());
+    bool rejectedRestart;
+    try { restartedSessions.reopenWithProcessor(processor,run.id()); }
+    catch (Exception error) { rejectedRestart = true; }
+    assert(rejectedRestart);
     writeln("AutoRig OSQP and face projection checks passed");
 }
