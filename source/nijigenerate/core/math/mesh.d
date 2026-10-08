@@ -13,8 +13,8 @@ import nijilive;
 private {
     struct Applier(T: Drawable) {
         static auto changeAction(T target) { return new DrawableChangeAction(target.name, target); }
-        static void postApply(T target) {
-            incUpdateWeldedPoints(target);
+        static void postApply(T target, const(ptrdiff_t)[] remap) {
+            incUpdateWeldedPoints(target, remap);
         }
         static void rebuffer(V, M)(T target, V vertices, M data = null) {
             target.rebuffer(*data);
@@ -23,7 +23,7 @@ private {
 
     struct Applier(T: Deformable) if (!is(T: Drawable)) {
         static auto changeAction(T target)  { return new DeformableChangeAction(target.name, target); }
-        static void postApply(T target) { }
+        static void postApply(T target, const(ptrdiff_t)[] remap) { }
         // Overload for Vec2Array directly
         static void rebuffer(M)(T target, Vec2Array vertices, M* data = null) {
             target.rebuffer(vertices);
@@ -44,6 +44,7 @@ struct MeshVertex {
     vec2 position;
     MeshVertex*[] connections;
     uint groupId = 1;
+    size_t originalIndex = size_t.max;
 }
 
 void connect(MeshVertex* self, MeshVertex* other) {
@@ -80,10 +81,33 @@ bool isConnectedTo(MeshVertex* self, MeshVertex* other) {
 }
 
 
-void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
+void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh, bool preserveDepthBoneBindings = false) {
     incActionPushGroup();
     // Apply the model
     auto action = Applier!T.changeAction(target);
+    auto weldingRemap = new ptrdiff_t[target.vertices.length];
+    weldingRemap[] = -1;
+    static if (is(T : Drawable)) {
+        bool haveIdentity;
+        static if (__traits(compiles, (*mesh).isBasedOn(target.getMesh()))) {
+            haveIdentity = mesh !is null && (*mesh).isBasedOn(target.getMesh());
+        }
+        foreach (j, vertex; vertices) {
+            static if (is(typeof(vertex) == MeshVertex*)) {
+                if (haveIdentity) {
+                    if (vertex.originalIndex < weldingRemap.length)
+                        weldingRemap[vertex.originalIndex] = cast(ptrdiff_t)j;
+                    continue;
+                }
+            }
+            foreach (i, original; target.vertices) {
+                if (weldingRemap[i] < 0 && position(vertex) == original) {
+                    weldingRemap[i] = cast(ptrdiff_t)j;
+                    break;
+                }
+            }
+        }
+    }
     MeshData data;
 
     if (mesh) {
@@ -97,11 +121,37 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
     }
 
     DeformationParameterBinding[] deformers;
+    struct PreservedBinding {
+        DeformationParameterBinding binding;
+        Deformation[][] values;
+    }
+    PreservedBinding[] preservedBindings;
+    ptrdiff_t[] originalIndices;
+    if (preserveDepthBoneBindings) {
+        originalIndices.length = vertices.length;
+        originalIndices[] = -1;
+        foreach (i, vertex; vertices) {
+            auto point = position(vertex);
+            foreach (j, original; target.vertices) {
+                if (point == original) { originalIndices[i] = cast(ptrdiff_t)j; break; }
+            }
+        }
+    }
 
     void alterDeform(ParameterBinding binding) {
         auto deformBinding = cast(DeformationParameterBinding)binding;
         if (!deformBinding)
             return;
+        if (preserveDepthBoneBindings) {
+            PreservedBinding snapshot;
+            snapshot.binding = deformBinding;
+            snapshot.values = deformBinding.values.dup;
+            foreach (x, ref row; snapshot.values) {
+                row = row.dup;
+                foreach (ref value; row) value.vertexOffsets = value.vertexOffsets.dup;
+            }
+            preservedBindings ~= snapshot;
+        }
         foreach (uint x; 0..cast(uint)deformBinding.values.length) {
             foreach (uint y; 0..cast(uint)deformBinding.values[x].length) {
                 auto deform = deformBinding.values[x][y];
@@ -121,14 +171,16 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
         if (auto group = cast(ExParameterGroup)param) {
             foreach(x, ref xparam; group.children) {
                 ParameterBinding binding = xparam.getBinding(target, "deform");
-                if (binding)
-                    action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", xparam, null));
+                if (auto deformBinding = cast(DeformationParameterBinding)binding)
+                    action.addAction(new ParameterBindingAllValueChangeAction!Deformation(
+                        "Deformation recalculation on mesh update", deformBinding, null, !preserveDepthBoneBindings));
                 alterDeform(binding);
             }
         } else {
             ParameterBinding binding = param.getBinding(target, "deform");
-            if (binding)
-                action.addAction(new ParameterChangeBindingsAction("Deformation recalculation on mesh update", param, null));
+            if (auto deformBinding = cast(DeformationParameterBinding)binding)
+                action.addAction(new ParameterBindingAllValueChangeAction!Deformation(
+                    "Deformation recalculation on mesh update", deformBinding, null, !preserveDepthBoneBindings));
             alterDeform(binding);
         }
     }
@@ -141,13 +193,27 @@ void applyMeshToTarget(T, V, M)(T target, V vertices, M* mesh) {
     foreach (deformBinding; deformers) {
         deformBinding.reInterpolate();
     }
+    // Exact existing samples must not be resampled through overlapping triangles.
+    foreach (snapshot; preservedBindings) {
+        foreach (x, row; snapshot.values) foreach (y, value; row) {
+            foreach (i, original; originalIndices) {
+                if (original >= 0 && original < value.vertexOffsets.length)
+                    snapshot.binding.values[x][y].vertexOffsets[i] = value.vertexOffsets[original];
+            }
+        }
+    }
 
     target.notifyChange(target, NotifyReason.StructureChanged);
 
     action.updateNewState();
     incActionPush(action);
 
-    Applier!T.postApply(target);
+    Applier!T.postApply(target, weldingRemap);
+    static if (__traits(compiles, (*mesh).isBasedOn(target.getMesh()))) {
+        if (mesh !is null && (*mesh).isBasedOn(target.getMesh())) {
+            foreach (i, vertex; (*mesh).vertices) vertex.originalIndex = i;
+        }
+    }
     incActionPopGroup();
 }
 
@@ -204,5 +270,4 @@ void applyMeshToTargetNoRecord(T, V, M)(T target, V vertices, M* mesh) {
     }
 
     target.notifyChange(target, NotifyReason.StructureChanged);
-    Applier!T.postApply(target);
 }

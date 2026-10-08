@@ -581,21 +581,22 @@ class NodeInspector(ModelEditSubMode mode: ModelEditSubMode.Layout, T: Part) : B
 import nijigenerate.core.math.vertex : position;
 
 ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
-    ptrdiff_t[] indices;
-    auto counterVerts = counterDrawable.vertices.toArray();
-    foreach (i, v; node.vertices) {
-        auto vv = (node.transform.matrix * vec4(position(v), 0, 1)).xy;
-        auto minDistance = counterVerts.enumerate.minElement!(
-            (a)=>((counterDrawable.transform.matrix * vec4(a.value, 0, 1))).xy.distance(vv)
-        )();
-        auto dist = (counterDrawable.transform.matrix * vec4(minDistance.value, 0, 1)).xy.distance(vv);
-        if (dist < 4) {
-            indices ~= minDistance.index;
-        } else {
-            indices ~= -1;
-        }
-    }
-    incActionPush(new DrawableAddWeldingAction(node, counterDrawable, indices, weight));
+    import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
+    import nijigenerate.core.math.welding : ngMatchWeldingVertices;
+    import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
+    incActionPushGroup();
+    scope(exit) incActionPopGroup();
+    ngRefineWeldingSeams(node, counterDrawable);
+    vec2[] source, target;
+    foreach (vertex; node.vertices)
+        source ~= (node.transform.matrix * vec4(vertex, 0, 1)).xy;
+    foreach (vertex; counterDrawable.vertices)
+        target ~= (counterDrawable.transform.matrix * vec4(vertex, 0, 1)).xy;
+    auto indices = ngMatchWeldingVertices(source, target);
+    if (node.isWeldedBy(counterDrawable))
+        incActionPush(new DrawableChangeWeldingAction(node, counterDrawable, indices, weight, null, true));
+    else
+        incActionPush(new DrawableAddWeldingAction(node, counterDrawable, indices, weight));
     return indices;
 }
 

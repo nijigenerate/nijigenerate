@@ -365,21 +365,36 @@ bool incOpenProject(string mainPath, string backupPath) {
     incSetStatus(_("%s opened successfully.").format(activeProject.path));
     incSetWindowTitle(activeProject.path.baseName);
 
+    import nijilive.fmt.serialize : inLastLoadDiagnostics;
+    if (inLastLoadDiagnostics.recoveredComponents || inLastLoadDiagnostics.repairedWeldingMappings) {
+        import std.array : join;
+        incActionInvalidateSavedState();
+        string message;
+        if (inLastLoadDiagnostics.recoveredComponents) message = _("Recovered %s nonfinite deformation components while loading this model. " ~
+            "Missing components were reconstructed from nearby finite mesh samples; valid values were preserved. The original file was not changed.")
+            .format(inLastLoadDiagnostics.recoveredComponents);
+        if (inLastLoadDiagnostics.repairedWeldingMappings) {
+            if (message.length) message ~= "\n\n";
+            message ~= _("Removed %s inconsistent Welding vertex mappings while loading this model. " ~
+                "Reciprocal mappings were preserved. The original file was not changed.")
+                .format(inLastLoadDiagnostics.repairedWeldingMappings);
+        }
+        auto examples = inLastLoadDiagnostics.warnings[0 .. min(3, inLastLoadDiagnostics.warnings.length)];
+        incDialog(__("Warning"), message ~ "\n\n" ~ examples.join("\n"), DialogLevel.Warning);
+    }
+
     return true;
 }
 
-void incSaveProject(string path, string autosaveStamp = "") {
+bool incSaveProject(string path, string autosaveStamp = "") {
     import std.path : setExtension, baseName;
     try {
         string finalPath;
         bool isAutosave = autosaveStamp.length > 0 ? true : false;
         if (isAutosave) {
             finalPath = path ~ "_" ~ autosaveStamp ~ ".inx";
-            incAddPrevAutosave(finalPath);
         } else {
             finalPath = path.setExtension(".inx");
-            activeProject.path = path;
-            incAddPrevProject(finalPath);
         }
 
         // Remember to populate texture slots otherwise things will break real bad!
@@ -397,6 +412,13 @@ void incSaveProject(string path, string autosaveStamp = "") {
         inWriteINPPuppet(incActivePuppet(), swapPath);
         rename(swapPath, finalPath);
 
+        if (isAutosave) {
+            incAddPrevAutosave(finalPath);
+        } else {
+            activeProject.path = finalPath;
+            incAddPrevProject(finalPath);
+        }
+
         // Update modified state only for manual saves
         if (!isAutosave) {
             incActionMarkSaved();
@@ -408,9 +430,11 @@ void incSaveProject(string path, string autosaveStamp = "") {
 
         incSetStatus(_("%s saved successfully.").format(activeProject.path));
         incSetWindowTitle(activeProject.path.baseName);
+        return true;
     } catch(Exception ex) {
         incSetStatus(_("Failed to save %s").format(activeProject.path));
         incDialog(__("Error"), ex.msg);
+        return false;
     }
 }
 

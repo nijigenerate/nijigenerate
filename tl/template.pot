@@ -6659,3 +6659,13 @@ msgstr ""
 #: source/nijigenerate/panels/autorig.d
 msgid "Delete session"
 msgstr ""
+
+#: source/nijigenerate/project.d
+#, c-format
+msgid "Recovered %s nonfinite deformation components while loading this model. Missing components were reconstructed from nearby finite mesh samples; valid values were preserved. The original file was not changed."
+msgstr ""
+
+#: source/nijigenerate/project.d
+#, c-format
+msgid "Removed %s inconsistent Welding vertex mappings while loading this model. Reciprocal mappings were preserved. The original file was not changed."
+msgstr ""

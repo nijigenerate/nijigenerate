@@ -7025,3 +7025,13 @@ msgstr "リグを検証"
 #: source/nijigenerate/panels/autorig.d
 msgid "Delete session"
 msgstr "セッションを削除"
+
+#: source/nijigenerate/project.d
+#, c-format
+msgid "Recovered %s nonfinite deformation components while loading this model. Missing components were reconstructed from nearby finite mesh samples; valid values were preserved. The original file was not changed."
+msgstr "モデルの読み込み時に、変形データの非有限値 %s 成分を復旧しました。欠損成分は近傍の正常なメッシュ値から補間し、正常な値は保持しています。元のファイルは変更していません。"
+
+#: source/nijigenerate/project.d
+#, c-format
+msgid "Removed %s inconsistent Welding vertex mappings while loading this model. Reciprocal mappings were preserved. The original file was not changed."
+msgstr "モデルの読み込み時に、整合しないWeldingの頂点対応を%s件除去しました。相互に一致する対応は保持しました。元のファイルは変更していません。"
