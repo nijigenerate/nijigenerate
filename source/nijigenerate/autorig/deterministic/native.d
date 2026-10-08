@@ -1342,7 +1342,7 @@ private JSONValue weldShoulders(JSONValue state, AutoRigTaskContext task) {
             auto source = cast(Part)puppet.find!Node(uuid(pair["source"]));
             auto target = cast(Part)puppet.find!Node(uuid(pair["target"]));
             // The mesh was refined before predicting correspondences; preserve that snapshot.
-            command(new AddWeldingCommand(target,0,false),editorContext([source]));
+            command(new AddWeldingCommand(target,0),editorContext([source]));
             bool found;
             foreach (link; source.welded) if (link.target is target) {
                 if (link.indices != indices || link.weight != 0) {

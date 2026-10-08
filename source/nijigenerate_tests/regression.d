@@ -1713,10 +1713,13 @@ private void testPreparedWeldingMesh() {
     dense.uvs = Vec2Array([vec2(0, 0), vec2(0.5, 0), vec2(1, 0), vec2(0, 1)]);
     dense.indices = [0, 1, 3, 1, 2, 3];
     target.rebuffer(dense);
+    import nijilive.fmt.serialize : inToJson;
+    auto sourceMeshBefore = inToJson(source.getMesh());
+    auto targetMeshBefore = inToJson(target.getMesh());
     auto ctx = new Context();
     ctx.puppet = incActivePuppet();
     ctx.nodes = [source];
-    require((new AddWeldingCommand(target, 0, false)).run(ctx).succeeded,
+    require((new AddWeldingCommand(target, 0)).run(ctx).succeeded,
         "Welding on a prepared mesh must succeed");
     require(source.vertices.length == 3 && source.getMesh().indices == coarse.indices,
         "Prepared welding must not insert vertices after correspondence prediction");
@@ -1725,8 +1728,14 @@ private void testPreparedWeldingMesh() {
     require(source.welded.length == 0 && target.welded.length == 0,
         "Prepared welding must remain undoable");
     require((new AddWeldingCommand(target, 0)).run(ctx).succeeded,
-        "Ordinary welding must still refine a missing seam sample");
-    require(source.vertices.length == 4, "Ordinary welding must retain automatic seam refinement");
+        "Ordinary welding must register existing mesh correspondences");
+    require(inToJson(source.getMesh()) == sourceMeshBefore &&
+        inToJson(target.getMesh()) == targetMeshBefore,
+        "Ordinary welding must preserve both meshes, including missing seam samples");
+    import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
+    require(ngRefineWeldingSeams(source, target) > 0,
+        "AutoRig mesh preparation must explicitly insert missing seam samples");
+    require(source.vertices.length == 4, "Explicit mesh preparation must refine the seam");
 
     // A second shoulder can refine the shared body and invalidate a previously recorded link size.
     auto left = newMeshPart("second-shoulder");
@@ -1736,15 +1745,14 @@ private void testPreparedWeldingMesh() {
     leftMesh.indices = [0, 1, 3, 1, 2, 3];
     left.rebuffer(leftMesh);
     auto previousCount = source.welded[0].indices.length;
-    import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
     require(ngRefineWeldingSeams(source, left) > 0, "Second shoulder must add a shared body sample");
     require(source.welded[0].indices.length > previousCount,
         "Shared body refinement must update existing welding indices");
     auto preparedCount = source.vertices.length;
-    require((new AddWeldingCommand(target, 0, false)).run(ctx).succeeded,
+    require((new AddWeldingCommand(target, 0)).run(ctx).succeeded,
         "First shoulder must match the fully prepared shared mesh");
     auto predicted = source.welded[0].indices.dup;
-    require((new AddWeldingCommand(left, 0, false)).run(ctx).succeeded,
+    require((new AddWeldingCommand(left, 0)).run(ctx).succeeded,
         "Second prepared shoulder must succeed");
     require(source.vertices.length == preparedCount && source.welded[0].indices == predicted,
         "Creating the second prepared link must preserve the first shoulder prediction");
@@ -21957,6 +21965,8 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "part.welding-runtime":
             runCase("welding-runtime-deformation", &testWeldingRuntimeDeformation);
+            import nijigenerate_tests.welding : ngTestWelding;
+            runCase("welding-index-recovery-and-detachment", &ngTestWelding);
             return true;
         case "parameter.lifecycle":
         case "parameter.groups":
