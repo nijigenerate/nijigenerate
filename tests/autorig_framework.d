@@ -73,6 +73,11 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
         simple.steps = [AutoRigWorkflowStep("prepare", "test-rig", "prepare")];
         simple.inputBindings = [AutoRigWorkflowInputBinding("source", "prepare", null, "source")];
         simple.outputBindings = [AutoRigWorkflowOutputBinding("data", "prepare", "data")];
+        auto diagnostics = simple;
+        diagnostics.id = "verify-without-report";
+        diagnostics.steps = [AutoRigWorkflowStep("verify", "test-rig", "prepare")];
+        diagnostics.inputBindings = [AutoRigWorkflowInputBinding("source", "verify", null, "source")];
+        diagnostics.outputBindings = [AutoRigWorkflowOutputBinding("data", "verify", "data")];
         AutoRigWorkflowSpec internal;
         internal.id = "finish-internal";
         internal.label = "Finish with internal dependency";
@@ -114,7 +119,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
             invalid.inputs = simple.inputs.dup ~ AutoRigPortSpec("unused", AutoRigValueKind.Json);
             return [cross, simple, internal, artifacts, invalid];
         }
-        return [cross, simple, internal, artifacts];
+        return [cross, simple, internal, artifacts, diagnostics];
     }
 
     override AutoRigTaskSpec[] tasks() {
@@ -603,6 +608,11 @@ void main(string[] args) {
     simple.execute();
     assert(simple.output("data").json.integer == 11);
     workflows.close(simple.id());
+    auto diagnostics = workflows.create("test-rig", "verify-without-report");
+    diagnostics.setInput("source", AutoRigValue.jsonValue(JSONValue(5)));
+    diagnostics.execute();
+    assert(ngAutoRigWorkflowDiagnostics(diagnostics).object.length == 0);
+    workflows.remove(diagnostics.id());
 
     auto internal = workflows.create("test-rig", "finish-internal");
     internal.setInput("source", AutoRigValue.jsonValue(JSONValue(14)));
@@ -619,7 +629,12 @@ void main(string[] args) {
     auto summary = allKinds.output("summary").json;
     assert(summary["data"].integer == 8 && summary["byteCount"].integer == 3);
     assert(summary["name"].str == "source.txt" && summary["model"].str == "7");
+    auto ownedPath = allKinds.session().output(allKinds.stepTaskId("path"), "model").text;
+    auto ownedDirectory = allKinds.session().directory();
+    assert(exists(ownedPath));
     workflows.close(allKinds.id());
+    workflows.remove(allKinds.id());
+    assert(!exists(ownedPath) && !exists(ownedDirectory));
 
     other.fail = true;
     auto retry = workflows.create("test-rig", "cross-plugin");

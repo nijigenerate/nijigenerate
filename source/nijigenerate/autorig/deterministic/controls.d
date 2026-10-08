@@ -171,7 +171,9 @@ double[] ngRigProjectControlOrientation(Point2[] rest, JSONValue triangles, doub
         problem.lower ~= .004; problem.upper ~= double.infinity;
     }
     ngRigCheckpoint(context);
-    auto result = ngSolveQuadratic(problem,SolverOptions(30000,1e-8,30,true));
+    auto result = ngSolveQuadratic(problem,SolverOptions(30000,1e-8,30,true),
+        { return context !is null && context.isCanceled(); });
+    ngRigCheckpoint(context);
     enforce(result.solved() && result.constraintViolation<1e-6,"Native control orientation projection failed");
     auto projected = offsets.dup;
     foreach (i,p; rest) projected[i*2+1] = result.solution[i]-p[1];

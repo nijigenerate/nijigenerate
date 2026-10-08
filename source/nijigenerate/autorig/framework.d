@@ -726,6 +726,15 @@ public:
     void dispose() {
         synchronized (this) {
             enforce(!busy, "Cannot dispose a running AutoRig session");
+            import std.file : exists, isDir, isSymlink, rmdirRecurse;
+            import std.path : absolutePath, baseName;
+            auto ownedDirectory = absolutePath(directory_);
+            enforce(ownedDirectory.baseName == id_, "Invalid AutoRig session directory");
+            if (exists(ownedDirectory)) {
+                enforce(isDir(ownedDirectory) && !isSymlink(ownedDirectory),
+                    "AutoRig session directory must be an owned directory");
+                rmdirRecurse(ownedDirectory);
+            }
             foreach (workspace; workspaces) workspace.dispose();
             workspaces = null;
             committedOutputs = null;

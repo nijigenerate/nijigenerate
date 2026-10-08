@@ -33,19 +33,21 @@ void ngRigPropagateClippingVisibility(ref JSONValue[] materials) {
 }
 
 /** Resolve a rendered folder receiver to its first active material in PSD source order. */
-void ngRigResolveGroupReceivers(ref JSONValue[] materials, JSONValue[] groups) {
+void ngRigResolveGroupReceivers(ref JSONValue[] materials, JSONValue[] groups, bool classified = false) {
     bool[ulong] materialIds, groupIds;
     foreach (material; materials) materialIds[ngRigUnsigned(material["uuid"])] = true;
     foreach (group; groups) groupIds[ngRigUnsigned(group["uuid"])] = true;
     foreach (ref material; materials) {
         auto receiver = "receiver" in material.object;
         if (receiver is null) continue;
-        auto id = ngRigUnsigned(*receiver);
+        auto originalReceiver = ngRigGet(material,"mask_receiver",*receiver);
+        auto id = ngRigUnsigned(originalReceiver);
         if ((id in materialIds) !is null || (id in groupIds) is null) continue;
         JSONValue selected;
         double order = double.infinity;
         foreach (candidate; materials) {
             if (!candidate["active"].boolean) continue;
+            if (classified && ngRigGet(candidate,"static",JSONValue(false)).boolean) continue;
             auto ancestors = "ancestor_ids" in candidate.object;
             if (ancestors is null) continue;
             bool belongs;
@@ -53,8 +55,11 @@ void ngRigResolveGroupReceivers(ref JSONValue[] materials, JSONValue[] groups) {
             auto candidateOrder = ngRigNumber(candidate["source_order"]);
             if (belongs && candidateOrder < order) { selected = candidate["uuid"]; order = candidateOrder; }
         }
-        material["mask_receiver"] = *receiver;
-        if (order == double.infinity) material["active"] = JSONValue(false);
+        material["mask_receiver"] = originalReceiver;
+        if (order == double.infinity) {
+            if (classified) material["static"] = JSONValue(true);
+            else material["active"] = JSONValue(false);
+        }
         else material["receiver"] = selected;
     }
 }
@@ -308,6 +313,8 @@ JSONValue ngRigClassifyMaterials(JSONValue observation, JSONValue options, AutoR
         }
     }
     // Imported clipping links replace PSD clipping_base_id as the receiver evidence.
+    ngRigResolveGroupReceivers(materials,
+        ngRigGet(observation,"groups",JSONValue(cast(JSONValue[])null)).array,true);
     size_t[uint] byId;
     foreach (i, material; materials) byId[cast(uint)ngRigNumber(material["uuid"])] = i;
     bool[] visiting = new bool[materials.length], resolved = new bool[materials.length];

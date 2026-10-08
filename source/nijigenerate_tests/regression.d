@@ -900,6 +900,12 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
             (cast(Part)clippedNode).masks[0].maskSrcUUID == baseNode.uuid,
             "A clipped group must use the rendered base group alpha");
     }
+    auto translucentLayer = baseLayer;
+    translucentLayer.opacity = 128;
+    auto translucentGroup = new IncImportLayer!PSD(translucentLayer, true);
+    translucentGroup.passThrough = true;
+    require(cast(Composite)ngCreateImportGroupNode(translucentGroup, IncImportSettings(true, "Node")) !is null,
+        "Translucent pass-through folders must use an opacity-capable adapter");
     auto emptyPascalPath = buildPath(fixtureDir, "empty-pascal-name.bin");
     write(emptyPascalPath, cast(ubyte[])[0, 0, 0, 0, 77]);
     auto emptyPascalFile = File(emptyPascalPath, "rb");
@@ -1430,6 +1436,11 @@ private void testRigClippingVisibility() {
     ngRigResolveGroupReceivers(grouped, receiverGroups);
     require(grouped[2]["receiver"].integer == 12 && grouped[2]["mask_receiver"].integer == 10,
         "Group receiver classification must resolve to a source material and retain the native mask surface");
+    grouped[1]["static"] = JSONValue(true);
+    grouped[0]["static"] = JSONValue(false);
+    ngRigResolveGroupReceivers(grouped, receiverGroups, true);
+    require(grouped[2]["receiver"].integer == 11,
+        "Group receiver selection must skip a descendant classified as static");
     grouped[0]["active"] = JSONValue(false);
     grouped[1]["active"] = JSONValue(false);
     grouped[2]["receiver"] = JSONValue(10);

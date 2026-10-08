@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-07 14:46+0900\n"
+"POT-Creation-Date: 2026-10-08 11:20+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -697,6 +697,7 @@ msgstr ""
 #: source/nijigenerate/windows/inpexport.d:376
 #: source/nijigenerate/widgets/output.d:237
 #: source/nijigenerate/widgets/output.d:271
+#: source/nijigenerate/commands/puppet/tool.d:67
 msgid "Error"
 msgstr ""
 
@@ -1450,6 +1451,7 @@ msgstr ""
 #: source/nijigenerate/commands/puppet/file.d:764
 #: source/nijigenerate/windows/welcome.d:232
 #: source/nijigenerate/windows/inpexport.d:209
+#: source/nijigenerate/commands/puppet/tool.d:40
 msgid "Import..."
 msgstr ""
 
@@ -3884,62 +3886,78 @@ msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:20
 #: source/nijigenerate/commands/puppet/tool.d:41
+#: source/nijigenerate/commands/puppet/tool.d:32
+#: source/nijigenerate/commands/puppet/tool.d:53
 msgid "Import Inochi Session Data"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:20
+#: source/nijigenerate/commands/puppet/tool.d:32
 msgid "Shows \"Import Session Data\" dialog."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:41
+#: source/nijigenerate/commands/puppet/tool.d:53
 msgid "Import INP Session Data."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:51
+#: source/nijigenerate/commands/puppet/tool.d:63
 msgid "Successfully overwrote Inochi Session tracking data..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:55
+#: source/nijigenerate/commands/puppet/tool.d:67
 msgid "There was no Inochi Session data to import!"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:67
+#: source/nijigenerate/commands/puppet/tool.d:79
 msgid "Premultiply textures"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:67
+#: source/nijigenerate/commands/puppet/tool.d:79
 msgid "Premultiply texture."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:80
+#: source/nijigenerate/commands/puppet/tool.d:92
 msgid "Bleed textures..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:80
+#: source/nijigenerate/commands/puppet/tool.d:92
 msgid "Bleed texture."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:91
+#: source/nijigenerate/commands/puppet/tool.d:103
 msgid "Generate Mipmaps..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:91
+#: source/nijigenerate/commands/puppet/tool.d:103
 msgid "Generate mipmaps."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:102
+#: source/nijigenerate/commands/puppet/tool.d:114
 msgid "Generate fake layer name info..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:102
+#: source/nijigenerate/commands/puppet/tool.d:114
 msgid "Generate fake layer name."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:120
+#: source/nijigenerate/commands/puppet/tool.d:132
 msgid "Attempt full repair..."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:132
+#: source/nijigenerate/commands/puppet/tool.d:144
 msgid "Regenerate Node IDs"
 msgstr ""
 
@@ -3947,20 +3965,24 @@ msgstr ""
 #: source/nijigenerate/commands/puppet/tool.d:143
 #: source/nijigenerate/widgets/mainmenu.d:382
 #: source/nijigenerate/widgets/mainmenu.d:390
+#: source/nijigenerate/commands/puppet/tool.d:155
 msgid "Edit Puppet"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:143
+#: source/nijigenerate/commands/puppet/tool.d:155
 msgid "Switch to model-edit mode"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:157
 #: source/nijigenerate/widgets/mainmenu.d:392
 #: source/nijigenerate/widgets/mainmenu.d:399
+#: source/nijigenerate/commands/puppet/tool.d:169
 msgid "Edit Animation"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:157
+#: source/nijigenerate/commands/puppet/tool.d:169
 msgid "Switch to anim-edit mode"
 msgstr ""
 
@@ -6629,26 +6651,32 @@ msgid ""
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:183
+#: source/nijigenerate/commands/puppet/tool.d:185
 msgid "Execute AutoRig"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:183
+#: source/nijigenerate/commands/puppet/tool.d:185
 msgid "Run AutoRig on the imported model."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:196
+#: source/nijigenerate/commands/puppet/tool.d:198
 msgid "AutoRig Status"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:196
+#: source/nijigenerate/commands/puppet/tool.d:198
 msgid "Read AutoRig workflow progress."
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:208
+#: source/nijigenerate/commands/puppet/tool.d:246
 msgid "Resume AutoRig"
 msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:208
+#: source/nijigenerate/commands/puppet/tool.d:246
 msgid "Resume a saved AutoRig workflow."
 msgstr ""
 
@@ -6662,10 +6690,31 @@ msgstr ""
 
 #: source/nijigenerate/project.d
 #, c-format
-msgid "Recovered %s nonfinite deformation components while loading this model. Missing components were reconstructed from nearby finite mesh samples; valid values were preserved. The original file was not changed."
+msgid ""
+"Recovered %s nonfinite deformation components while loading this model. "
+"Missing components were reconstructed from nearby finite mesh samples; valid "
+"values were preserved. The original file was not changed."
 msgstr ""
 
 #: source/nijigenerate/project.d
 #, c-format
-msgid "Removed %s inconsistent Welding vertex mappings while loading this model. Reciprocal mappings were preserved. The original file was not changed."
+msgid ""
+"Removed %s inconsistent Welding vertex mappings while loading this model. "
+"Reciprocal mappings were preserved. The original file was not changed."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "AutoRig memory status"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:208
+msgid "Read retained artifact sizes and garbage collector memory."
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:233
+msgid "Delete AutoRig session"
+msgstr ""
+
+#: source/nijigenerate/commands/puppet/tool.d:233
+msgid "Delete the session artifacts while keeping the editor model."
 msgstr ""

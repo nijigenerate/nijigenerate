@@ -206,9 +206,8 @@ Node ngCreateImportGroupNode(T)(IncImportLayer!T layer, IncImportSettings settin
     if (layer.requiresClippingSurface())
         return inInstantiateNode("DynamicComposite", cast(Node)null);
     if (!settings.keepStructure) return null;
-    if (layer.passThrough)
-        enforce(layer.imageLayerRef.opacity == 255,
-            "Pass-through group opacity needs an inherited opacity adapter: " ~ layer.getLayerPath());
+    if (layer.passThrough && layer.imageLayerRef.opacity < 255)
+        return inInstantiateNode("Composite", cast(Node)null);
     return inInstantiateNode(layer.passThrough ? "Node" : settings.layerGroupNodeType, cast(Node)null);
 }
 

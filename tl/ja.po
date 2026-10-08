@@ -7026,6 +7026,22 @@ msgstr "リグを検証"
 msgid "Delete session"
 msgstr "セッションを削除"
 
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "AutoRig memory status"
+msgstr "自動リグのメモリ使用状況"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "Read retained artifact sizes and garbage collector memory."
+msgstr "保持中のアーティファクトのサイズとガベージコレクタのメモリ使用状況を確認します。"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "Delete AutoRig session"
+msgstr "自動リグセッションを削除"
+
+#: source/nijigenerate/commands/puppet/tool.d
+msgid "Delete the session artifacts while keeping the editor model."
+msgstr "編集中のモデルを保持し、セッションのアーティファクトを削除します。"
+
 #: source/nijigenerate/project.d
 #, c-format
 msgid "Recovered %s nonfinite deformation components while loading this model. Missing components were reconstructed from nearby finite mesh samples; valid values were preserved. The original file was not changed."

@@ -413,6 +413,7 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
         record["active"] = JSONValue(record["active"].boolean && cloud.length>0);
         materials ~= record;
     }
+    ngRigPropagateClippingVisibility(materials);
     ngRigResolveGroupReceivers(materials, groups);
     ngRigPropagateClippingVisibility(materials);
     auto result = JSONValue(["schema_version":JSONValue("rig-model-observation-d/1"),"rootId":JSONValue(rootId),

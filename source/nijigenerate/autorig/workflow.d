@@ -18,7 +18,11 @@ JSONValue ngAutoRigWorkflowDiagnostics(AutoRigWorkflowRun run) {
                 if (artifact.preview && artifact.portId == "compile-profile") profile ~= artifact.value.json;
             if (profile.length) result["compile_profile"] = JSONValue(profile);
         }
-        if (step.id != "verify" || run.session().isBusy() || !run.session().hasOutput(taskId,"report")) continue;
+        if (step.id != "verify" || run.session().isBusy()) continue;
+        bool reportPort;
+        foreach (output; run.session().taskSpec(taskId).outputs)
+            if (output.id == "report" && output.kind == AutoRigValueKind.Json) reportPort = true;
+        if (!reportPort || !run.session().hasOutput(taskId,"report")) continue;
         auto report = run.session().output(taskId,"report").json;
         if (report.type != JSONType.object) continue;
         JSONValue[string] summary;
