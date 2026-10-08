@@ -511,24 +511,44 @@ void incImportINP(string file) {
     incFreeMemory();
 }
 
-/** Restore an owned native model snapshot without changing the project path. */
+private void activateRestoredPuppet(Puppet puppet) {
+    incAsyncDerivedUpdateClearScope(activeProject.derivedUpdateScope);
+    incSelectNode(null);
+    incDisarmParameter();
+    activeProject.puppet = puppet;
+    puppet.root.build();
+    foreach (func; loadCallbacks) func(puppet);
+    incInitAnimationPlayer(puppet);
+}
+
+/** Retain object identity so older actions still target their original model after undo. */
+private class PuppetMemoryRestoreAction : Action {
+    Puppet before, after;
+    this(Puppet before, Puppet after) { this.before = before; this.after = after; }
+    override void rollback() { activateRestoredPuppet(before); }
+    override void redo() { activateRestoredPuppet(after); }
+    override string getName() { return _("Restore model checkpoint"); }
+    override string describe() { return getName(); }
+    override string describeUndo() { return getName(); }
+    override bool merge(Action other) { return false; }
+    override bool canMerge(Action other) { return false; }
+}
+
+/** Restore an owned native model snapshot as an undoable model replacement. */
 void ngRestorePuppetMemory(ubyte[] data) {
     import core.thread : Thread;
     import std.exception : enforce;
     enforce(Thread.getThis() !is null && Thread.getThis().isMainThread,
         "Model restoration requires the main thread");
     auto wasModified = incActionIsModified();
+    auto previous = incActivePuppet();
+    bool unchanged = !wasModified && inWriteINPPuppetMemory(previous) == data;
     auto restored = inLoadINPPuppet!ExPuppet(data);
     enforce(restored !is null, "Could not restore model snapshot");
-    incAsyncDerivedUpdateClearScope(activeProject.derivedUpdateScope);
-    incSelectNode(null);
-    incDisarmParameter();
-    activeProject.puppet = restored;
-    restored.root.build();
-    foreach (func; loadCallbacks) func(restored);
-    incInitAnimationPlayer(restored);
-    incActionClearHistory();
-    if (wasModified) incActionInvalidateSavedState();
+    auto action = new PuppetMemoryRestoreAction(previous, restored);
+    action.redo();
+    incActionPush(action);
+    if (unchanged) incActionMarkSaved();
 }
 
 /**

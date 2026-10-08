@@ -1,0 +1,7 @@
+name "autorig-storage-tests"
+targetType "executable"
+targetName "autorig-storage-tests"
+targetPath "../../out"
+sourcePaths
+sourceFiles "../autorig_state_storage.d" "../../source/nijigenerate/autorig/framework.d" "../../source/nijigenerate/autorig/json.d" "../../source/nijigenerate/autorig/deterministic/storage.d" "../../source/nijigenerate/autorig/deterministic/contracts.d"
+importPaths "../../source"

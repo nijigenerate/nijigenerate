@@ -65,13 +65,6 @@ AutoRigSessionManager ngAutoRigSessionManager() {
     if (sharedSessions is null) {
         sharedSessions = new AutoRigSessionManager(buildPath(incGetAppConfigPath(), "autorig", "runs"));
         sharedSessions.setTaskActionBoundary((string taskId, void delegate() execute) {
-            foreach (stage; ["observe-model","prepare-source-groups","mesh-parts","register-source-uv","build-native-rig","bake-depth-angles",
-                "prepare-shoulders","prepare-feature-composites","compile-domain-layout","weld-shoulders",
-                "apply-rig-controls","apply-shape-corrections",
-                "validate-depth-inputs","verify-saved-rig"]) if (taskId.endsWith(stage)) {
-                // These stages restore a checkpoint, then own their action group.
-                execute(); return;
-            }
             runActionOnMainThread({ incActionPushGroup(); });
             scope(exit) runActionOnMainThread({ incActionPopGroup(); });
             execute();
@@ -132,7 +125,7 @@ private:
         }
     }
 
-    void startRun(AutoRigWorkflowRun run, string stepId = null) {
+    void startRun(AutoRigWorkflowRun run, string stepId = null, bool force = true) {
         finishWorker();
         if (worker !is null) return;
         lastError = null;
@@ -141,7 +134,7 @@ private:
             installNativeCrashDumpThreadHandler();
             try {
                 if (stepId.length) run.executeStep(stepId, true);
-                else run.execute(false);
+                else run.execute(force);
             } catch (Throwable error) {
                 synchronized (this) lastError = error.msg;
             }
@@ -613,7 +606,7 @@ public:
         auto run = workflowManager().reopen(runId); bool present;
         foreach (existing; runs) if (existing.id() == run.id()) present = true;
         if (!present) runs ~= run;
-        startRun(run,stepId); return run.id();
+        startRun(run,stepId,false); return run.id();
     }
 
     string executeImportedModel(JSONValue options, JSONValue context) {
@@ -622,7 +615,7 @@ public:
         enforce(worker is null,"An AutoRig workflow is already running");
         auto run = workflowManager().createConfigured("anime-front-view-rig","model-to-rig",
             ["options":AutoRigValue.jsonValue(options)],context);
-        runs ~= run; startRun(run); return run.id();
+        runs ~= run; startRun(run,null,false); return run.id();
     }
 
     JSONValue runStatus(string runId) {

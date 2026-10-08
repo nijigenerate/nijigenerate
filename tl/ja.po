@@ -7051,3 +7051,7 @@ msgstr "モデルの読み込み時に、変形データの非有限値 %s 成�
 #, c-format
 msgid "Removed %s inconsistent Welding vertex mappings while loading this model. Reciprocal mappings were preserved. The original file was not changed."
 msgstr "モデルの読み込み時に、整合しないWeldingの頂点対応を%s件除去しました。相互に一致する対応は保持しました。元のファイルは変更していません。"
+
+#: source/nijigenerate/project.d
+msgid "Restore model checkpoint"
+msgstr "モデルのチェックポイントを復元"

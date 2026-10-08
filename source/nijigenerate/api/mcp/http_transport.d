@@ -460,6 +460,11 @@ private:
 public:
 
     void run() {
+        scope(exit) {
+            atomicStore(running, false);
+            atomicStore(loopExited, true);
+            performStopListening();
+        }
         import std.stdio : writefln;
         httpLog("[MCP/HTTP] run(): binding on %s:%s", host, port);
         auto router = new URLRouter;
@@ -481,11 +486,6 @@ public:
         listener = listenHTTP(settings, router);
 
         atomicStore(running, true);
-        scope(exit) {
-            atomicStore(running, false);
-            atomicStore(loopExited, true);
-            performStopListening();
-        }
 
         if (atomicLoad(shouldExit)) {
             performShutdownOnEventLoop();

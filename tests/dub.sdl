@@ -6,3 +6,4 @@ targetPath "../out"
 sourcePaths
 sourceFiles "autorig_framework.d" "../source/nijigenerate/autorig/framework.d" "../source/nijigenerate/autorig/workflow.d" "../source/nijigenerate/autorig/package.d"
 importPaths "../source"
+sourceFiles "../source/nijigenerate/autorig/json.d"

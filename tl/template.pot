@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-08 11:20+0900\n"
+"POT-Creation-Date: 2026-10-08 15:26+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -661,6 +661,7 @@ msgstr ""
 #. Also handle NFS or I/O errors
 #. Only reached for genuine early failures (before completion)
 #. Write error
+#. Also handle NFS or I/O errors
 #: source/nijigenerate/core/settings.d:37
 #: source/nijigenerate/panels/agent.d:373
 #: source/nijigenerate/panels/inspector/part.d:57
@@ -698,6 +699,8 @@ msgstr ""
 #: source/nijigenerate/widgets/output.d:237
 #: source/nijigenerate/widgets/output.d:271
 #: source/nijigenerate/commands/puppet/tool.d:67
+#: source/nijigenerate/project.d:328 source/nijigenerate/project.d:343
+#: source/nijigenerate/project.d:436 source/nijigenerate/project.d:502
 msgid "Error"
 msgstr ""
 
@@ -2206,6 +2209,7 @@ msgid ""
 msgstr ""
 
 #: source/nijigenerate/io/inimport.d:265 source/nijigenerate/project.d:468
+#: source/nijigenerate/project.d:503
 msgid "Import failed..."
 msgstr ""
 
@@ -2258,11 +2262,11 @@ msgid ""
 msgstr ""
 
 #. incViewportPresentMode(editMode_);
-#: source/nijigenerate/project.d:269
+#: source/nijigenerate/project.d:269 source/nijigenerate/project.d:280
 msgid "New Project"
 msgstr ""
 
-#: source/nijigenerate/project.d:327
+#: source/nijigenerate/project.d:327 source/nijigenerate/project.d:338
 #, c-format, d-format
 msgid ""
 "Please report this file to the developers:\n"
@@ -2270,66 +2274,66 @@ msgid ""
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:354
+#: source/nijigenerate/project.d:354 source/nijigenerate/project.d:365
 #, c-format, d-format
 msgid "%s opened successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:398
+#: source/nijigenerate/project.d:398 source/nijigenerate/project.d:431
 #, c-format, d-format
 msgid "%s saved successfully."
 msgstr ""
 
-#: source/nijigenerate/project.d:401
+#: source/nijigenerate/project.d:401 source/nijigenerate/project.d:435
 #, c-format, d-format
 msgid "Failed to save %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:437
+#: source/nijigenerate/project.d:437 source/nijigenerate/project.d:472
 #, c-format, d-format
 msgid ""
 "The following errors occured during file loading\n"
 "%s"
 msgstr ""
 
-#: source/nijigenerate/project.d:447
+#: source/nijigenerate/project.d:447 source/nijigenerate/project.d:482
 msgid "Folder import completed with errors..."
 msgstr ""
 
-#: source/nijigenerate/project.d:448
+#: source/nijigenerate/project.d:448 source/nijigenerate/project.d:483
 msgid "Folder import completed..."
 msgstr ""
 
-#: source/nijigenerate/project.d:496
+#: source/nijigenerate/project.d:496 source/nijigenerate/project.d:569
 msgid "Mipmap generation completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:511
+#: source/nijigenerate/project.d:511 source/nijigenerate/project.d:584
 msgid "Texture bleeding completed."
 msgstr ""
 
-#: source/nijigenerate/project.d:938
+#: source/nijigenerate/project.d:938 source/nijigenerate/project.d:1013
 #, c-format, d-format
 msgid "Undo %s"
 msgstr ""
 
-#: source/nijigenerate/project.d:974
+#: source/nijigenerate/project.d:974 source/nijigenerate/project.d:1049
 msgid "Rename Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:974
+#: source/nijigenerate/project.d:974 source/nijigenerate/project.d:1049
 msgid "Save Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:998
+#: source/nijigenerate/project.d:998 source/nijigenerate/project.d:1073
 msgid "Delete Animation"
 msgstr ""
 
-#: source/nijigenerate/project.d:1156
+#: source/nijigenerate/project.d:1156 source/nijigenerate/project.d:1231
 msgid "Animation keyframe was edited"
 msgstr ""
 
-#: source/nijigenerate/project.d:1160
+#: source/nijigenerate/project.d:1160 source/nijigenerate/project.d:1235
 msgid "Undo animation keyframe edit"
 msgstr ""
 
@@ -6688,7 +6692,7 @@ msgstr ""
 msgid "Delete session"
 msgstr ""
 
-#: source/nijigenerate/project.d
+#: source/nijigenerate/project.d source/nijigenerate/project.d:373
 #, c-format
 msgid ""
 "Recovered %s nonfinite deformation components while loading this model. "
@@ -6696,7 +6700,7 @@ msgid ""
 "values were preserved. The original file was not changed."
 msgstr ""
 
-#: source/nijigenerate/project.d
+#: source/nijigenerate/project.d source/nijigenerate/project.d:378
 #, c-format
 msgid ""
 "Removed %s inconsistent Welding vertex mappings while loading this model. "
@@ -6717,4 +6721,12 @@ msgstr ""
 
 #: source/nijigenerate/commands/puppet/tool.d:233
 msgid "Delete the session artifacts while keeping the editor model."
+msgstr ""
+
+#: source/nijigenerate/project.d:383
+msgid "Warning"
+msgstr ""
+
+#: source/nijigenerate/project.d:530
+msgid "Restore model checkpoint"
 msgstr ""

@@ -66,6 +66,10 @@ jobs:
         out/nijigenerate-regression-tests --only project.memory-restore
         out/nijigenerate-regression-tests --only part.welding
         out/nijigenerate-regression-tests --only core.math-triangle
+        out/nijigenerate-regression-tests --only api.mcp-server
+        dub run --compiler=ldc2 --root=tests
+        dub run --compiler=ldc2 --root=tests/autorig-storage
+        dub run --compiler=ldc2 --root=tests/autorig-solver
         out/nijigenerate-regression-tests --only project.depthdraw-data-model
         out/nijigenerate-regression-tests --only project.depthdraw-composer
         out/nijigenerate-regression-tests --only project.depthdraw-fit-z
@@ -131,3 +135,6 @@ jobs:
 
         # Compile-check live UI smoke entry points without running GUI computer-use scenarios.
         dub build --compiler=ldc2 --config=win32-regression-smoke
+        dub run --compiler=ldc2 --root=tests
+        dub run --compiler=ldc2 --root=tests/autorig-storage
+        dub run --compiler=ldc2 --root=tests/autorig-solver

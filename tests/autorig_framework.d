@@ -409,8 +409,10 @@ private class CheckpointRigProcessor : AutoRigProcessor {
         workflow.id = "checkpoint-workflow";
         workflow.label = "Checkpoint workflow";
         workflow.inputs = [AutoRigPortSpec("input", AutoRigValueKind.Json)];
+        workflow.outputs = [AutoRigPortSpec("result", AutoRigValueKind.Json)];
         workflow.steps = [AutoRigWorkflowStep("consumer", procId(), "consumer")];
         workflow.inputBindings = [AutoRigWorkflowInputBinding("input", "consumer", "source", "input")];
+        workflow.outputBindings = [AutoRigWorkflowOutputBinding("result", "consumer", "result")];
         return [workflow];
     }
     override AutoRigTaskSpec[] tasks() {
@@ -503,8 +505,13 @@ private void testStartupCancellation() {
     try run.execute("prepare");
     catch (Exception error) canceled = error.msg.canFind("canceled");
     assert(canceled && processor.prepareCalls == 0 && !run.isBusy());
+    assert(run.task("prepare").state == AutoRigTaskState.Canceled);
     run.execute("prepare");
     assert(run.task("prepare").state == AutoRigTaskState.Succeeded);
+    run.cancel();
+    try run.execute("prepare", true);
+    catch (Exception error) {}
+    assert(run.task("prepare").state == AutoRigTaskState.Canceled);
     import core.sync.semaphore : Semaphore;
     auto entered = new Semaphore(), released = new Semaphore();
     manager.setEditorDispatcher((void delegate() action) {
@@ -523,12 +530,48 @@ private void testStartupCancellation() {
     released.notify();
     worker.join();
     assert(threaded.task("prepare").state == AutoRigTaskState.Canceled && !threaded.isBusy());
+    auto workflows = new AutoRigWorkflowManager(manager);
+    auto workflow = workflows.create("test-rig", "prepare-only");
+    workflow.setInput("source", AutoRigValue.jsonValue(JSONValue(1)));
+    workflow.cancel();
+    try workflow.execute();
+    catch (Exception error) {}
+    assert(workflow.snapshot().state == AutoRigWorkflowState.Canceled);
+}
+
+private void testExplicitActionBoundaryOwnership() {
+    class StageNamedProcessor : AutoRigProcessor {
+        bool owns;
+        int mutations;
+        override string procId() { return "third-party"; }
+        override string displayName() { return "Third party"; }
+        override AutoRigTaskSpec[] tasks() {
+            auto spec = AutoRigTaskSpec("mesh-parts", "Third party mesh");
+            spec.ownsActionBoundary = owns;
+            return [spec];
+        }
+        override void executeTask(string taskId, AutoRigTaskContext context) {
+            context.runOnMainThread({ ++mutations; });
+            context.runOnMainThread({ ++mutations; });
+        }
+    }
+    foreach (owns; [false, true]) {
+        auto manager = new AutoRigSessionManager("out/boundary-ownership-tests");
+        auto processor = new StageNamedProcessor();
+        processor.owns = owns;
+        int boundaries;
+        manager.setTaskActionBoundary((string taskId, void delegate() execute) { ++boundaries; execute(); });
+        manager.registerProcessor(processor);
+        manager.create(processor.procId()).execute("mesh-parts");
+        assert(processor.mutations == 2 && boundaries == (owns ? 0 : 1));
+    }
 }
 
 void main(string[] args) {
     testChangedFailureCheckpoint();
     testFailedRequestSetup();
     testStartupCancellation();
+    testExplicitActionBoundaryOwnership();
     if (args.length > 1 && args[1] == "--ui-performance") {
         testSessionContext(); benchmarkUIMetadata(); return;
     }
@@ -640,7 +683,7 @@ void main(string[] args) {
     auto other = new OtherRigProcessor();
     manager.registerProcessor(other);
     auto workflows = new AutoRigWorkflowManager(manager);
-    assert(workflows.listPresets().length == 4);
+    assert(workflows.listPresets().length == 5);
     auto cross = workflows.create("test-rig", "cross-plugin");
     assert(cross.orderedSteps().length == 2);
     assert(cross.orderedSteps()[0].id == "prepare" && cross.orderedSteps()[1].id == "consume");

@@ -26,8 +26,10 @@ private class StorageProcessor : AutoRigProcessor {
 }
 
 void main(string[] args) {
-    assert(args.length == 2, "Pass a real PSD-derived cloud JSON path");
-    auto input = ngParseAutoRigJson(readText(args[1]));
+    assert(args.length <= 2, "Optionally pass a real PSD-derived cloud JSON path");
+    auto input = args.length == 2 ? ngParseAutoRigJson(readText(args[1])) :
+        JSONValue(["face":JSONValue([[0.,0.],[1.,0.],[0.,1.]]),
+            "body":JSONValue([[0.,1.],[2.,1.],[0.,3.]])]);
     JSONValue[] materials;
     ulong id;
     foreach (name, cloud; input.object)
@@ -62,16 +64,22 @@ void main(string[] args) {
         }
     });
     worker.start(); worker.join();
-    // Fresh observations have their own support identity; an old checkpoint
-    // restores its original generation even after a later observation.
-    auto refreshed = storage.snapshot(source,true);
-    assert(refreshed["artifact_refs"] != initial["artifact_refs"]);
+    foreach (_; 0 .. 20) {
+        auto refreshed = storage.snapshot(source,true);
+        assert(refreshed["artifact_refs"] == initial["artifact_refs"]);
+        assert(storage.memoryInfo() == baseline, "Fresh identical observations must reuse CPU support and metadata");
+    }
+    auto changedSource = storage.restore(initial);
+    changedSource["materials"][0]["cloud"][0][0] = JSONValue(-999.);
+    auto changedCheckpoint = storage.snapshot(changedSource,true);
+    assert(changedCheckpoint["artifact_refs"] != initial["artifact_refs"]);
+    assert(storage.restore(changedCheckpoint)["materials"][0]["cloud"][0][0].floating == -999.);
     auto originalGeneration = storage.snapshot(storage.restore(initial));
     assert(originalGeneration["artifact_refs"] == initial["artifact_refs"]);
     storage.dispose();
     assert(storage.memoryInfo()["json_bytes"].uinteger == 0);
     assert(storage.memoryInfo()["cpu_bytes"].uinteger == 0);
-    writefln("Real source JSON: %s bytes; retained metadata: %s bytes; CPU arrays: %s bytes; 14 state references; ownership and worker round trips passed",
+    writefln("Source JSON: %s bytes; retained metadata: %s bytes; CPU arrays: %s bytes; 14 state references; ownership and worker round trips passed",
         originalBytes,info["json_bytes"].uinteger,info["cpu_bytes"].uinteger);
     auto processor = new StorageProcessor(); processor.source = source;
     auto manager = new AutoRigSessionManager("out/state-storage-no-files");

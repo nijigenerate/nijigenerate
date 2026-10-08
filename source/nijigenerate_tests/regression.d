@@ -1424,6 +1424,35 @@ private void testPuppetMemoryRestoreDirtyState() {
     incActionMarkSaved();
     ngRestorePuppetMemory(snapshot);
     require(!incActionIsModified(), "Restoring an unchanged clean snapshot must remain clean");
+
+    resetCase();
+    auto originalPuppet = incActivePuppet();
+    auto ctx = new Context();
+    ctx.puppet = originalPuppet;
+    auto node = (new AddNodeCommand("Node")).run(ctx).created[0];
+    ctx.nodes = [node];
+    require((new SetNodeNameCommand(["before-checkpoint"])).run(ctx).succeeded, "Pre-rig edit should succeed");
+    auto checkpoint = inWriteINPPuppetMemory(originalPuppet);
+    incActionPushGroup();
+    require((new SetNodeNameCommand(["partial-stage"])).run(ctx).succeeded, "Partial stage edit should succeed");
+    ngRestorePuppetMemory(checkpoint);
+    incActionPopGroup();
+    require(findDirectNode(incActivePuppet(), "before-checkpoint") !is null, "Rollback should restore checkpoint content");
+    incActionUndo();
+    require(incActivePuppet() is originalPuppet && node.name == "before-checkpoint",
+        "Undoing checkpoint rollback must restore the original object identities and undo partial edits");
+    incActionUndo();
+    require(node.name != "before-checkpoint", "Pre-rig undo history must remain usable after rollback");
+    incActionRedo();
+    incActionRedo();
+    require(incActivePuppet() !is originalPuppet && findDirectNode(incActivePuppet(), "before-checkpoint") !is null,
+        "Redo must restore the replacement model and checkpoint content");
+    ctx.puppet = incActivePuppet();
+    ctx.nodes = [findDirectNode(ctx.puppet, "before-checkpoint")];
+    require((new SetNodeNameCommand(["latest-saved"])).run(ctx).succeeded, "New saved content should differ from checkpoint");
+    incActionMarkSaved();
+    ngRestorePuppetMemory(checkpoint);
+    require(incActionIsModified(), "Restoring different content must not mark an older checkpoint saved");
 }
 
 private void testRigClippingVisibility() {
@@ -18674,6 +18703,40 @@ private void testMcpTaskQueueMainThreadDispatch() {
     require(done && thrown, "ngRunInMainThread should propagate queued delegate exceptions");
 }
 
+private void testMcpFailedStartupRetry() {
+    import std.socket : TcpSocket, InternetAddress;
+    import nijigenerate.api.mcp.server : ngMcpApplySettings, ngMcpStop, ngMcpIsRunning;
+    import core.thread : Thread;
+    import core.time : msecs;
+    ngMcpStop();
+    scope(exit) ngMcpStop();
+    auto occupied = new TcpSocket();
+    scope(exit) occupied.close();
+    occupied.bind(new InternetAddress("127.0.0.1", 0));
+    occupied.listen(1);
+    auto port = (cast(InternetAddress)occupied.localAddress).port;
+    ngMcpApplySettings(true, "127.0.0.1", port);
+    foreach (_; 0 .. 500) {
+        if (!ngMcpIsRunning()) break;
+        Thread.sleep(10.msecs);
+    }
+    require(!ngMcpIsRunning(), "An occupied port must leave MCP stopped after the failed thread exits");
+    occupied.close();
+    ngMcpApplySettings(true, "127.0.0.1", port);
+    bool connected;
+    foreach (_; 0 .. 500) {
+        auto client = new TcpSocket();
+        try {
+            client.connect(new InternetAddress("127.0.0.1", port));
+            connected = true;
+        } catch (Exception error) {}
+        client.close();
+        if (connected || !ngMcpIsRunning()) break;
+        Thread.sleep(10.msecs);
+    }
+    require(connected && ngMcpIsRunning(), "Applying the same settings must retry successfully once the port is free");
+}
+
 private void testApiTransportAndServerContracts() {
     auto req = ApprovalRequest(
         "req-1",
@@ -21971,6 +22034,7 @@ private bool runAutomatedScenario(string id) {
             runCase("mcp-task-queue-main-thread-dispatch", &testMcpTaskQueueMainThreadDispatch);
             return true;
         case "api.mcp-server":
+            runCase("mcp-failed-startup-retry", &testMcpFailedStartupRetry);
             runCase("api-transport-server-contracts", &testApiTransportAndServerContracts);
             runCase("mcp-resource-listing-context-helpers", &testMcpResourceListingAndContextHelpers);
             runCase("mcp-task-queue-main-thread-dispatch", &testMcpTaskQueueMainThreadDispatch);

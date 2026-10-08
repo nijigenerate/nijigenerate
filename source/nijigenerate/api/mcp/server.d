@@ -18,6 +18,7 @@ module nijigenerate.api.mcp.server;
  */
 
 import core.thread : Thread;
+import core.atomic : atomicLoad, atomicStore;
 import std.json;
 import std.array : array, join, split;
 import std.conv : to;
@@ -208,6 +209,7 @@ private string _mcpListTypedMembers()() {
 
 private __gshared bool gServerStarted = false;
 private __gshared Thread gServerThread;
+private shared bool gServerThreadExited;
 private __gshared string gServerHost = "127.0.0.1";
 private __gshared ushort gServerPort = 8088;
 private __gshared bool gServerEnabled = false;
@@ -236,6 +238,7 @@ private Command _resolveCommandByString(string id) {
 
 // Internal: start server (assumes not started)
 private void _ngMcpStart(string host, ushort port) {
+    clearExitedMcpServer();
     if (gServerStarted) return;
     ngMcpInitTask();
     gServerStarted = true;
@@ -911,7 +914,9 @@ private void _ngMcpStart(string host, ushort port) {
         }
     );
 
+    atomicStore(gServerThreadExited, false);
     auto t = new Thread({
+        scope(exit) atomicStore(gServerThreadExited, true);
         installNativeCrashDumpThreadHandler();
         mcpLog("[MCP] server thread entering start() ...");
         try { server.start(); }
@@ -1139,8 +1144,28 @@ void ngMcpInit(string host = "127.0.0.1", ushort port = 8088) {
     _ngMcpStart(host, port);
 }
 
+/** Release a terminated server on the main thread, including failed startup. */
+private void clearExitedMcpServer() {
+    if (!atomicLoad(gServerThreadExited) || gServerThread is null || gServerThread.isRunning()) return;
+    gServerThread.join();
+    gServerThread = null;
+    gServerInstance = null;
+    gTransport = null;
+    gNotifyResourcesFind = null;
+    gNotifyResourceByUuid = null;
+    gNotifyBindingByDescriptor = null;
+    gServerStarted = false;
+    gServerEnabled = false;
+}
+
+bool ngMcpIsRunning() {
+    clearExitedMcpServer();
+    return gServerStarted;
+}
+
 // Public: stop MCP server if running
 void ngMcpStop() {
+    clearExitedMcpServer();
     if (!gServerStarted) { mcpLog("[MCP] stop requested but server not started"); return; }
     gServerEnabled = false;
     if (gServerInstance !is null) {
@@ -1175,6 +1200,9 @@ void ngMcpStop() {
         gServerThread = null;
         gServerInstance = null;
         gTransport = null;
+        gNotifyResourcesFind = null;
+        gNotifyResourceByUuid = null;
+        gNotifyBindingByDescriptor = null;
         gServerStarted = false;
         mcpLog("[MCP] server state cleared (stopped=true)");
     } else {
@@ -1184,6 +1212,7 @@ void ngMcpStop() {
 
 // Public: apply settings without per-frame polling
 void ngMcpApplySettings(bool enabled, string host, ushort port) {
+    clearExitedMcpServer();
     mcpLog("[MCP] apply settings: enabled=%s host=%s port=%s (running=%s h=%s p=%s)", enabled, host, port, gServerStarted, gServerHost, gServerPort);
     if (!enabled) {
         if (gServerStarted) {

@@ -134,6 +134,8 @@ struct AutoRigTaskSpec {
     AutoRigConnection[] connections;
     // A failed stage may explicitly publish a rollback checkpoint for later diagnostics.
     bool retainFailureOutputs;
+    // Explicit opt-in for processors that establish their own editor action group.
+    bool ownsActionBoundary;
 }
 
 /** A workflow preset wires task calls, including calls to other processors. */
@@ -654,7 +656,7 @@ private:
                     pageSize * Fiber.defaultStackPages * 4);
                 while (fiber.state != Fiber.State.TERM) fiber.call();
             }
-            if (actionBoundary !is null)
+            if (actionBoundary !is null && !spec.ownsActionBoundary)
                 actionBoundary(taskId, &executeInFiber);
             else
                 executeInFiber();
@@ -818,19 +820,30 @@ public:
         executeGroup([taskId], force);
     }
 
+    private void finishExecution(string[] taskIds, ref uint[string] initialAttempts) {
+        synchronized (this) {
+            if (atomicLoad(cancelRequested)) foreach (taskId; taskIds) {
+                if ((taskId in snapshots) is null) continue;
+                if (snapshots[taskId].state == AutoRigTaskState.Succeeded &&
+                    snapshots[taskId].attempt > initialAttempts.get(taskId,0)) continue;
+                snapshots[taskId].state = AutoRigTaskState.Canceled;
+                snapshots[taskId].message = "AutoRig run canceled";
+            }
+            // Acknowledge only a stopped execution; preserve requests made before startup.
+            atomicStore(cancelRequested, false);
+            busy = false;
+        }
+    }
+
     void executeGroup(string[] taskIds, bool force = false) {
+        uint[string] initialAttempts;
         synchronized (this) {
             enforce(!busy, "AutoRig session is already executing");
+            foreach (taskId; taskIds)
+                if (auto snapshot = taskId in snapshots) initialAttempts[taskId] = snapshot.attempt;
             busy = true;
         }
-        scope(exit) {
-            synchronized (this) {
-                // Acknowledge cancellation only after this execution has stopped.
-                // A request made before the worker enters executeGroup must survive startup.
-                atomicStore(cancelRequested, false);
-                busy = false;
-            }
-        }
+        scope(exit) finishExecution(taskIds,initialAttempts);
         // Retry failed dependencies once per execution, including those hidden
         // behind a succeeded step that consumed a retained failure checkpoint.
         synchronized (this) {

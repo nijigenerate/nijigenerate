@@ -6,7 +6,7 @@ import nijigenerate.autorig.json : ngParseAutoRigJson;
 import std.json : JSONValue, JSONType;
 import std.exception : enforce;
 import std.conv : to;
-import std.digest.sha : sha256Of;
+import std.digest.sha : sha256Of, SHA256;
 import std.digest : toHexString;
 
 /** Python-style artifact separation: numeric source support is CPU workspace
@@ -22,7 +22,6 @@ private:
     string[string] artifacts;
     string[string] names;
     string[ulong] currentSupports;
-    ulong generation;
 
     string retain(string name, JSONValue value) {
         auto encoded = value.toString();
@@ -46,8 +45,21 @@ private:
                     foreach (entry; value.array) runs ~= ngRigUnsigned(entry);
                     support.runs[key] = runs.idup;
                 }
-            auto token = (++generation).to!string;
-            supports[token] = support;
+            // Re-observing identical support reuses storage while changed support
+            // stays available to older checkpoints by its content identity.
+            SHA256 hash;
+            foreach (key; ["cloud", "landmark_cloud", "draw_order_cloud"])
+                if (auto points = key in support.points) {
+                    hash.put(cast(const(ubyte)[])(key ~ ":" ~ points.length.to!string ~ ":"));
+                    hash.put(cast(const(ubyte)[])*points);
+                }
+            foreach (key; ["alpha_runs_32", "alpha_runs_128"])
+                if (auto runs = key in support.runs) {
+                    hash.put(cast(const(ubyte)[])(key ~ ":" ~ runs.length.to!string ~ ":"));
+                    hash.put(cast(const(ubyte)[])*runs);
+                }
+            auto token = hash.finish().toHexString.idup;
+            if ((token in supports) is null) supports[token] = support;
             currentSupports[materialId] = token;
             result["_source_support"] = JSONValue(token);
         } else {
