@@ -865,7 +865,8 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
     PSD psdDoc = parsePSDDocument(psdPath);
     require(psdDoc.width == 1 && psdDoc.height == 1, "PSD reader should parse generated fixture dimensions");
     require(psdDoc.layers.length == 0, "PSD reader should accept an empty-layer fixture");
-    import nijigenerate.io.inimport : incBuildLayerLayout;
+    import nijigenerate.io.inimport : incBuildLayerLayout, IncImportLayer, IncImportSettings,
+        ngCreateImportGroupNode, ngApplyImportLayerClipping;
     auto baseLayer = Layer.init;
     baseLayer.name = "Base";
     baseLayer.clipping = true;
@@ -881,6 +882,24 @@ private void testPSDAndKRAReaderImportMergeFixtures() {
         clippingLayout[1].clippingBase is clippingLayout[0] &&
         clippingLayout[2].clippingBase is clippingLayout[0],
         "PSD clipping siblings must resolve bottom-to-top with one shared base");
+    auto groupBase = new IncImportLayer!PSD(baseLayer, true);
+    groupBase.clippingReceiver = true;
+    auto clippedGroup = new IncImportLayer!PSD(clippedA, true);
+    clippedGroup.clippingBase = groupBase;
+    foreach (keepStructure; [true, false]) {
+        auto settings = IncImportSettings(keepStructure, "Node");
+        auto baseNode = ngCreateImportGroupNode(groupBase, settings);
+        auto clippedNode = ngCreateImportGroupNode(clippedGroup, settings);
+        require(cast(Part)baseNode !is null && cast(Part)clippedNode !is null,
+            "Clipping groups require native render surfaces with either folder setting");
+        Node[IncImportLayer!PSD] nodes;
+        nodes[groupBase] = baseNode;
+        nodes[clippedGroup] = clippedNode;
+        ngApplyImportLayerClipping(nodes);
+        require((cast(Part)clippedNode).masks.length == 1 &&
+            (cast(Part)clippedNode).masks[0].maskSrcUUID == baseNode.uuid,
+            "A clipped group must use the rendered base group alpha");
+    }
     auto emptyPascalPath = buildPath(fixtureDir, "empty-pascal-name.bin");
     write(emptyPascalPath, cast(ubyte[])[0, 0, 0, 0, 77]);
     auto emptyPascalFile = File(emptyPascalPath, "rb");
@@ -1388,6 +1407,16 @@ private void testRigClippingVisibility() {
     base.opacity = 1;
     base.masks = [MaskBinding(clipped.uuid, MaskingMode.Mask, clipped)];
     require(!ngRigMaterialIsActive(clipped), "Cyclic clipping chains must not recurse indefinitely");
+    import nijigenerate.autorig.deterministic.evidence : ngRigPropagateClippingVisibility;
+    JSONValue[] materials = [
+        JSONValue(["uuid":JSONValue(3), "receiver":JSONValue(2), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(1), "active":JSONValue(false)]),
+        JSONValue(["uuid":JSONValue(2), "receiver":JSONValue(1), "active":JSONValue(true)]),
+        JSONValue(["uuid":JSONValue(4), "active":JSONValue(true)])
+    ];
+    ngRigPropagateClippingVisibility(materials);
+    require(!materials[0]["active"].boolean && !materials[2]["active"].boolean &&
+        materials[3]["active"].boolean, "Empty base alpha must propagate through an unordered clipping chain");
 }
 
 private void testAutoMeshParentCancellation() {

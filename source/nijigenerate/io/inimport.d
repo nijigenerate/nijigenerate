@@ -34,6 +34,11 @@ class IncImportLayer(T) {
     BlendMode blendMode;
     bool clipped;
     bool passThrough;
+    bool clippingReceiver;
+
+    bool requiresClippingSurface() {
+        return isLayerGroup && (clipped || clippingReceiver);
+    }
 
     @serdeIgnore
     IncImportLayer!T clippingBase;
@@ -145,6 +150,7 @@ IncImportLayer!(T)[] incBuildLayerLayout(T)(T document) {
             if (layer.clipped) {
                 enforce(base !is null, "PSD clipping layer has no base: " ~ layer.getLayerPath());
                 layer.clippingBase = base;
+                base.clippingReceiver = true;
             } else base = layer;
             resolveClipping(layer.children);
         }
@@ -196,6 +202,27 @@ class LoadHandler(T) : ImportKeepHandler {
     }
 }
 
+Node ngCreateImportGroupNode(T)(IncImportLayer!T layer, IncImportSettings settings) {
+    if (layer.requiresClippingSurface())
+        return inInstantiateNode("DynamicComposite", cast(Node)null);
+    if (!settings.keepStructure) return null;
+    if (layer.passThrough)
+        enforce(layer.imageLayerRef.opacity == 255,
+            "Pass-through group opacity needs an inherited opacity adapter: " ~ layer.getLayerPath());
+    return inInstantiateNode(layer.passThrough ? "Node" : settings.layerGroupNodeType, cast(Node)null);
+}
+
+void ngApplyImportLayerClipping(T)(Node[IncImportLayer!T] importedNodes) {
+    foreach (layer, node; importedNodes) if (layer.clippingBase !is null) {
+        auto part = cast(Part)node;
+        auto base = layer.clippingBase in importedNodes;
+        auto drawable = base is null ? null : cast(Drawable)*base;
+        enforce(part !is null && drawable !is null,
+            "PSD clipping needs a Part and drawable base: " ~ layer.getLayerPath());
+        part.masks ~= MaskBinding(drawable.uuid, MaskingMode.Mask, drawable);
+    }
+}
+
 /**
     Imports a image file of type `T`.
     Note: You should invoke incAskImport!T for UI interaction.
@@ -215,13 +242,8 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
             
             Node child;
             if (layer.isLayerGroup) {
-                if (settings.keepStructure) {
-                    if (layer.passThrough)
-                        enforce(layer.imageLayerRef.opacity == 255,
-                            "Pass-through group opacity needs an inherited opacity adapter: " ~ layer.getLayerPath());
-                    child = inInstantiateNode(layer.passThrough ? "Node" : settings.layerGroupNodeType,
-                        cast(Node)null);
-                }
+                // Retain a rendered group alpha where clipping needs it, even in flattened imports.
+                child = ngCreateImportGroupNode(layer, settings);
             } else {
                 
                 layer.imageLayerRef.extractLayerImage();
@@ -279,14 +301,7 @@ void incImport(T)(string file, IncImportSettings settings = IncImportSettings.in
 
         // Restore PSD clipping as native masks before exposing the imported model.
         // The processor can then use only model data, without reopening the PSD.
-        foreach (layer, node; importedNodes) if (layer.clippingBase !is null) {
-            auto part = cast(Part)node;
-            auto base = layer.clippingBase in importedNodes;
-            auto drawable = base is null ? null : cast(Drawable)*base;
-            enforce(part !is null && drawable !is null,
-                "PSD clipping needs a Part and drawable base: " ~ layer.getLayerPath());
-            part.masks ~= MaskBinding(drawable.uuid, MaskingMode.Mask, drawable);
-        }
+        ngApplyImportLayerClipping(importedNodes);
 
         puppet.populateTextureSlots();
         puppet.root.transformChanged();

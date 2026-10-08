@@ -4,6 +4,7 @@ import nijigenerate.autorig;
 import core.thread : Thread;
 import core.thread.fiber : Fiber;
 import std.conv : to;
+import std.algorithm.searching : canFind;
 import std.file : exists, readText;
 import std.json : JSONValue, parseJSON;
 import std.path : buildPath;
@@ -19,6 +20,7 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
     bool failFinish;
     bool cyclic;
     bool invalidWorkflow;
+    bool unboundWorkflowInput;
     bool cancelPrepare;
     bool checkContext;
     AutoRigSession cancelSession;
@@ -104,6 +106,12 @@ private class TestRigProcessor : AutoRigProcessor, IAutoRigInputEditor, IAutoRig
             auto invalid = cross;
             invalid.id = "invalid-kind";
             invalid.connections = [AutoRigWorkflowConnection("prepare", "binary", "consume", null, "data")];
+            return [cross, simple, internal, artifacts, invalid];
+        }
+        if (unboundWorkflowInput) {
+            auto invalid = simple;
+            invalid.id = "unbound-input";
+            invalid.inputs = simple.inputs.dup ~ AutoRigPortSpec("unused", AutoRigValueKind.Json);
             return [cross, simple, internal, artifacts, invalid];
         }
         return [cross, simple, internal, artifacts];
@@ -654,4 +662,10 @@ void main(string[] args) {
     try workflows.create("test-rig", "invalid-kind");
     catch (Exception error) rejectedKind = true;
     assert(rejectedKind);
+    processor.invalidWorkflow = false;
+    processor.unboundWorkflowInput = true;
+    bool rejectedInput;
+    try workflows.create("test-rig", "unbound-input");
+    catch (Exception error) rejectedInput = error.msg.canFind("Missing required workflow input binding: unused");
+    assert(rejectedInput);
 }

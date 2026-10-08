@@ -13,6 +13,25 @@ import std.regex : regex, matchFirst, replaceAll;
 import std.string : toLower, replace, split, join, startsWith;
 import nijigenerate.autorig.framework : AutoRigTaskContext;
 
+/** Propagate receiver inactivity after alpha support has been observed for all Parts. */
+void ngRigPropagateClippingVisibility(ref JSONValue[] materials) {
+    size_t[ulong] indices;
+    foreach (i, material; materials) indices[ngRigUnsigned(material["uuid"])] = i;
+    bool changed;
+    do {
+        changed = false;
+        foreach (ref material; materials) if (material["active"].boolean) {
+            if (auto receiver = "receiver" in material.object) {
+                auto index = ngRigUnsigned(*receiver) in indices;
+                if (index !is null && !materials[*index]["active"].boolean) {
+                    material["active"] = JSONValue(false);
+                    changed = true;
+                }
+            }
+        }
+    } while (changed);
+}
+
 private string nameTokens(string name) {
     while (name.length && name[$-1] == '\0') name = name[0 .. $-1];
     while (name.length && (name[0] == '*' || name[0] == '#' || name[0] == ' ')) name = name[1 .. $];

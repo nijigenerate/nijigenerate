@@ -4,7 +4,7 @@ import nijigenerate.autorig.framework : AutoRigTaskContext;
 import nijigenerate.autorig.deterministic.contracts;
 import nijigenerate.autorig.deterministic.observation;
 import nijigenerate.autorig.deterministic.controls;
-import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature;
+import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature, ngRigPropagateClippingVisibility;
 import nijigenerate.autorig.deterministic.geometry;
 import nijigenerate.autorig.deterministic.registered : ngRigSampleRegisteredDepth;
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput;
@@ -398,6 +398,7 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
         record["active"] = JSONValue(record["active"].boolean && cloud.length>0);
         materials ~= record;
     }
+    ngRigPropagateClippingVisibility(materials);
     auto result = JSONValue(["schema_version":JSONValue("rig-model-observation-d/1"),"rootId":JSONValue(rootId),
         "materials":JSONValue(materials),"groups":JSONValue(groups),"options":options]);
     task.runOnMainThread({

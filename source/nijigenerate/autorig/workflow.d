@@ -80,6 +80,7 @@ private class WorkflowProcessor : AutoRigProcessor {
             replaceTask(task);
         }
         bool[string] bound;
+        bool[string] boundPublicInputs;
         foreach (binding; workflow.inputBindings) {
             auto publicPort = port(workflow.inputs, binding.workflowInput);
             auto target = targetId(binding.targetStep, binding.targetTask);
@@ -88,7 +89,11 @@ private class WorkflowProcessor : AutoRigProcessor {
             auto key = target ~ ":" ~ binding.targetPort;
             enforce((key in bound) is null, "Duplicate AutoRig workflow input binding");
             bound[key] = true;
+            boundPublicInputs[binding.workflowInput] = true;
         }
+        foreach (publicPort; workflow.inputs)
+            enforce(!publicPort.required || (publicPort.id in boundPublicInputs) !is null,
+                "Missing required workflow input binding: " ~ publicPort.id);
         bool[string] outputs;
         foreach (binding; workflow.outputBindings) {
             auto publicPort = port(workflow.outputs, binding.workflowOutput);
