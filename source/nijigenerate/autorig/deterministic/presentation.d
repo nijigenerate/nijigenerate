@@ -142,7 +142,7 @@ RigReviewTable[] ngRigReviewTables(JSONValue report, string[ulong] names = null,
                         auto text = id.type == JSONType.null_ ? "" : name(id);
                         if (field == "bindings") text ~= format(" / %s / %s %s / %s",
                             entry["property"].str,numericText(entry["authored_keys"]),t(ngAutoRigMessage("keys")),
-                            numericText(entry["maximum_offset"]));
+                            numericText(ngRigGet(entry,"maximum_offset")));
                         entries ~= text;
                     }
                     return entries.length ? entries.join("\n") : "—";

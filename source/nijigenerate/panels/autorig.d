@@ -284,6 +284,8 @@ private:
                         cached = run.id() in workflowOptionsDrafts;
                     }
                     if (igCheckbox(_("Capture source appearance for verification").toStringz(),&cached.previews)) {
+                        // Compile edits are task-local; preserve them when updating a shared workflow option.
+                        cached.options = run.session().inputContext(run.stepTaskId("compile")).value("options").json;
                         cached.options["render"] = JSONValue(cached.previews);
                         run.setInput("options",AutoRigValue.jsonValue(cached.options));
                     }
@@ -490,8 +492,12 @@ private:
                 if (run.session().hasOutput(sourceId,"review"))
                     materialNames = ngRigReviewMaterialNames(run.session().output(sourceId,"review").json);
             }
-            foreach (artifact; run.session().task(taskId).artifacts) {
-                if (artifact.portId == "review" || artifact.portId == "review-layout")
+            auto artifacts = run.session().task(taskId).artifacts;
+            bool hasReport;
+            foreach (artifact; artifacts) if (artifact.portId == "report") hasReport = true;
+            foreach (artifact; artifacts) {
+                if (artifact.portId == "report" || artifact.portId == "review-layout" ||
+                    artifact.portId == "review" && !hasReport)
                     draft.tables ~= ngRigReviewTables(ngCopyAutoRigValue(artifact.value).json,
                         materialNames.dup,(message) => _(message));
                 if (artifact.portId == "review-operations")
@@ -705,6 +711,10 @@ private:
                 auto entry = path in overrides;
                 auto row = entry is null ? JSONValue(cast(JSONValue[string])null) : JSONValue(entry.object.dup);
                 if (cached.roles[i].length) row["role"] = JSONValue(cached.roles[i]);
+                else {
+                    auto fields = row.object;
+                    fields.remove("role"); row = JSONValue(fields);
+                }
                 row["static"] = JSONValue(cached.disabled[i]); row["feature"] = JSONValue(cached.features[i]);
                 row["side"] = JSONValue(cached.sides[i]); overrides[path] = row;
             }

@@ -122,12 +122,13 @@ private JSONValue reviewModel(AutoRigTaskContext task) {
             JSONValue[] bindings;
             foreach (binding; parameter.bindings) {
                 string digest; size_t keyCount; double maximumOffset = 0;
+                foreach (y; 0 .. parameter.axisPoints[1].length) foreach (x; 0 .. parameter.axisPoints[0].length)
+                    if (binding.isSet(vec2u(cast(uint)x,cast(uint)y))) ++keyCount;
                 if (auto deformation = cast(DeformationParameterBinding)binding) {
                     SHA256 hash;
                     foreach (y; 0 .. parameter.axisPoints[1].length) foreach (x; 0 .. parameter.axisPoints[0].length) {
                         auto index = vec2u(cast(uint)x,cast(uint)y);
                         if (!binding.isSet(index)) continue;
-                        ++keyCount;
                         uint[2] coordinates = [cast(uint)x,cast(uint)y];
                         hash.put(cast(const(ubyte)[])coordinates[]);
                         auto offsets = deformation.getValue(index).vertexOffsets;
@@ -138,10 +139,12 @@ private JSONValue reviewModel(AutoRigTaskContext task) {
                     }
                     digest = hash.finish().toHexString.idup;
                 } else digest = ngRigDigest(parseJSON(inToJson(binding)));
-                bindings ~= JSONValue(["target":JSONValue(binding.getTarget().target.uuid),
+                auto entry = JSONValue(["target":JSONValue(binding.getTarget().target.uuid),
                     "property":JSONValue(binding.getName()), "authored_keys":JSONValue(keyCount),
-                    "maximum_offset":JSONValue(maximumOffset),
                     "content_sha256":JSONValue(digest)]);
+                if (cast(DeformationParameterBinding)binding !is null)
+                    entry["maximum_offset"] = JSONValue(maximumOffset);
+                bindings ~= entry;
             }
             items ~= JSONValue(["id":JSONValue("parameter:" ~ parameter.uuid.to!string),
                 "name":JSONValue(parameter.name), "bindings":JSONValue(bindings),
