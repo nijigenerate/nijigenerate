@@ -690,8 +690,13 @@ private void _ngMcpStart(string host, ushort port) {
                         mcpLog("[MCP] call %s: %s", toolNameLocal, payload.toString());
                         auto payloadCopy = payload;
                         auto commandResult = ngRunInMainThread!CommandResult({
+                            import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+                            import nijigenerate.commands.puppet.tool : GetAutoRigStatusCommand;
+                            bool editorOwned = ngMcpExternalCommandsBlocked();
+                            if (editorOwned && cast(GetAutoRigStatusCommand)cmdInst is null)
+                                return CommandResult(false, "AutoRig is running; external commands are blocked");
                             // 1) Build context from payload
-                            auto ctx = buildContextFromPayload(payloadCopy);
+                            auto ctx = editorOwned ? new Context() : buildContextFromPayload(payloadCopy);
                             // 2) Apply command-specific parameters (top-level)
                             alias K = typeof(k);
                             static if (is(K == enum)) static foreach (m; EnumMembers!K) {{
@@ -708,6 +713,7 @@ private void _ngMcpStart(string host, ushort port) {
                             }}
 
                             // 3) Run the captured command instance with the prepared context
+                            if (editorOwned) return cmdInst.run(ctx);
                             ngMcpPrepareActionScopeForCurrentMode(toolNameLocal);
                             scope(exit) ngMcpFinishActionBoundary();
                             if (cmdInst !is null && cmdInst.runnable(ctx)) {

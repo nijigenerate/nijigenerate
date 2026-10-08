@@ -387,6 +387,15 @@ private void benchmarkUIMetadata() {
 private class CheckpointRigProcessor : AutoRigProcessor {
     override string procId() { return "checkpoint-test"; }
     override string displayName() { return "Checkpoint test"; }
+    override AutoRigWorkflowSpec[] workflows() {
+        AutoRigWorkflowSpec workflow;
+        workflow.id = "checkpoint-workflow";
+        workflow.label = "Checkpoint workflow";
+        workflow.inputs = [AutoRigPortSpec("input", AutoRigValueKind.Json)];
+        workflow.steps = [AutoRigWorkflowStep("consumer", procId(), "consumer")];
+        workflow.inputBindings = [AutoRigWorkflowInputBinding("input", "consumer", "source", "input")];
+        return [workflow];
+    }
     override AutoRigTaskSpec[] tasks() {
         auto source = AutoRigTaskSpec("source", "Source", null,
             [AutoRigPortSpec("input", AutoRigValueKind.Json)],
@@ -418,6 +427,12 @@ private void testChangedFailureCheckpoint() {
     session.execute("consumer");
     assert(session.output("consumer", "result").json.integer == 2);
     assert(session.task("source").attempt == 2);
+    auto workflows = new AutoRigWorkflowManager(manager);
+    auto run = workflows.create("checkpoint-test", "checkpoint-workflow");
+    run.setInput("input", AutoRigValue.jsonValue(JSONValue(3)));
+    run.execute();
+    assert(run.snapshot().steps["consumer"].state == AutoRigTaskState.Succeeded);
+    assert(run.snapshot().state == AutoRigWorkflowState.Failed);
 }
 
 void main(string[] args) {

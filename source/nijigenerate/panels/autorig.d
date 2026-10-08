@@ -5,7 +5,7 @@ import core.thread : Thread;
 import core.time : msecs;
 import i18n;
 import nijigenerate : EditMode;
-import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread;
+import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread, ngMcpSetExternalCommandsBlocked;
 import nijigenerate.autorig;
 import nijigenerate.autorig.deterministic.processor : AnimeFrontViewRigProcessor;
 import nijigenerate.autorig.deterministic.editor : ngApplyFaceProjection;
@@ -43,6 +43,9 @@ private class AutoRigProgressWindow : Modal {
     protected override void onUpdate() {
         owner.finishWorker();
         if (owner.worker is null) {
+            // Closed modal slots remain allocated; release the completed session.
+            run = null;
+            owner = null;
             igCloseCurrentPopup();
             incModalCloseTop();
             return;
@@ -125,6 +128,7 @@ private:
             worker.join();
             worker = null;
             activeRun = null;
+            ngMcpSetExternalCommandsBlocked(false);
         }
     }
 
@@ -142,7 +146,14 @@ private:
                 synchronized (this) lastError = error.msg;
             }
         });
-        worker.start();
+        ngMcpSetExternalCommandsBlocked(true);
+        try worker.start();
+        catch (Throwable error) {
+            ngMcpSetExternalCommandsBlocked(false);
+            worker = null;
+            activeRun = null;
+            throw error;
+        }
         incModalAdd(new AutoRigProgressWindow(this, run));
     }
 

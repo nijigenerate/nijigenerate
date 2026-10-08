@@ -348,9 +348,11 @@ public:
         foreach (taskSpec; processor.flattened) {
             auto task = session_.task(taskSpec.id, false);
             if (task.state == AutoRigTaskState.Failed) {
+                allSucceeded = false;
                 if (!running) result.state = AutoRigWorkflowState.Failed;
                 result.message = task.message;
             } else if (task.state == AutoRigTaskState.Canceled) {
+                allSucceeded = false;
                 if (!running) result.state = AutoRigWorkflowState.Canceled;
                 result.message = task.message;
             }

@@ -27,7 +27,9 @@ The workflow play button retries failed tasks and resumes pending or stale tasks
 while preserving completed stages. Individual step buttons
 explicitly retry the selected step and invalidate downstream results.
 Execution opens a modal progress view that blocks manual model edits and
-shortcuts until the worker stops. Its cancel button remains available.
+shortcuts until the worker stops. MCP commands are also rejected during execution,
+except for the AutoRig status query. Its cancel button remains available and
+propagates cancellation to nested AutoMesh work before further mesh application.
 Connected JSON and output JSON display artifact availability,
 rather than copying and formatting the full data every frame.
 

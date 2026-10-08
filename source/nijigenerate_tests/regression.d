@@ -1373,6 +1373,70 @@ private void testPuppetMemoryRestoreDirtyState() {
     require(!incActionIsModified(), "Restoring an unchanged clean snapshot must remain clean");
 }
 
+private void testRigClippingVisibility() {
+    resetCase();
+    import nijigenerate.autorig.deterministic.native : ngRigMaterialIsActive;
+    auto base = newMeshPart("clipping-base");
+    auto clipped = newMeshPart("clipped");
+    clipped.masks = [MaskBinding(base.uuid, MaskingMode.Mask, base)];
+    require(ngRigMaterialIsActive(clipped), "Visible clipping chain must remain active");
+    base.setEnabled(false);
+    require(!ngRigMaterialIsActive(clipped), "A hidden clipping base must disable its clipped material");
+    base.setEnabled(true);
+    base.opacity = 0;
+    require(!ngRigMaterialIsActive(clipped), "A transparent clipping base must disable its clipped material");
+    base.opacity = 1;
+    base.masks = [MaskBinding(clipped.uuid, MaskingMode.Mask, clipped)];
+    require(!ngRigMaterialIsActive(clipped), "Cyclic clipping chains must not recurse indefinitely");
+}
+
+private void testAutoMeshParentCancellation() {
+    resetCase();
+    import core.thread : Thread;
+    import core.atomic : atomicLoad, atomicStore;
+    import core.thread.fiber : Fiber;
+    import core.time : msecs;
+    import nijigenerate.commands.automesh.dynamic : ApplyAutoMeshPT;
+    import nijigenerate.viewport.vertex.automesh.grid : GridAutoMeshProcessor;
+    import nijigenerate.viewport.common.mesh : IncMesh;
+    class CancellationProbe : GridAutoMeshProcessor {
+        shared int calls;
+        override IncMesh autoMesh(Deformable target, IncMesh mesh, bool mirrorHoriz = false,
+            float axisHoriz = 0, bool mirrorVert = false, float axisVert = 0) {
+            atomicStore(calls, 1);
+            Fiber.yield();
+            atomicStore(calls, 2);
+            return mesh;
+        }
+    }
+    auto processor = new CancellationProbe();
+    auto part = newMeshPart("cancel-probe");
+    auto context = new Context();
+    context.puppet = incActivePuppet();
+    context.nodes = [part];
+    auto command = new ApplyAutoMeshPT!GridAutoMeshProcessor(processor,
+        { return atomicLoad(processor.calls) > 0; });
+    auto pending = command.run(context);
+    shared bool done;
+    CommandResult completed;
+    auto waiter = new Thread({
+        completed = pending.waitForCompletion();
+        atomicStore(done, true);
+    });
+    waiter.start();
+    foreach (_; 0 .. 500) {
+        ngMcpProcessQueue();
+        if (atomicLoad(done)) break;
+        Thread.sleep(10.msecs);
+    }
+    require(atomicLoad(done), "Canceled AutoMesh must finish without waiting for the mesh computation");
+    waiter.join();
+    require(!completed.succeeded && completed.message.canFind("canceled"),
+        "Parent cancellation must be propagated to the AutoMesh result");
+    require(atomicLoad(processor.calls) == 1, "Canceled AutoMesh must not resume its suspended computation");
+    require(part.vertices.length == 3, "Canceled AutoMesh must not apply queued mesh changes");
+}
+
 private void testWeldingUndoRedo() {
     resetCase();
 
@@ -21300,6 +21364,8 @@ private bool runAutomatedScenario(string id) {
         case "io.psd-reader":
         case "io.kra-reader":
             runCase("psd-kra-reader-import-merge-fixtures", &testPSDAndKRAReaderImportMergeFixtures);
+            runCase("rig-clipping-visibility", &testRigClippingVisibility);
+            runCase("automesh-parent-cancellation", &testAutoMeshParentCancellation);
             return true;
         case "project.texture-maintenance":
             runCase("project-texture-maintenance-commands", &testProjectTextureMaintenanceCommands);

@@ -55,6 +55,26 @@ import core.thread : Thread;
 // Accessed exclusively on the editor thread; distinguishes retries from user edits.
 private string[string] liveRigSignatures;
 
+/** Effective visibility includes the receiver of a PSD clipping chain. */
+bool ngRigMaterialIsActive(Part part) {
+    bool[uint] visiting;
+    bool active(Node current) {
+        if (current is null || (current.uuid in visiting) !is null) return false;
+        visiting[current.uuid] = true;
+        scope(exit) visiting.remove(current.uuid);
+        if (auto material = cast(Part)current) if (material.opacity <= 0) return false;
+        for (auto node = cast(Node)current; node !is null; node = node.parent) {
+            if (!node.getEnabled()) return false;
+            if (auto composite = cast(Projectable)node) if (composite.opacity <= 0) return false;
+        }
+        if (auto material = cast(Part)current)
+            foreach (mask; material.masks) if (mask.mode == MaskingMode.Mask)
+                return active(incActivePuppet().find!Node(mask.maskSrcUUID));
+        return true;
+    }
+    return active(part);
+}
+
 @AMProcessor("autorig-part", "AutoRig Part", 500)
 private class RigPartMeshProcessor : OptimumAutoMeshProcessor {
     this(float spacing, float divisions = 12, float[] scales = null, bool shoulder = false) {
@@ -347,11 +367,7 @@ private JSONValue observeModel(JSONValue options, AutoRigTaskContext task) {
                 if (node !is part) { ancestors = [node.name] ~ ancestors; ancestorIds = [node.uuid] ~ ancestorIds; }
             }
             if (auto imported = cast(ExPart)part) if (imported.layerPath.length) path = imported.layerPath;
-            bool active = part.opacity>0;
-            for (auto node = cast(Node)part; node !is null; node = node.parent) {
-                active = active && node.getEnabled();
-                if (auto composite = cast(Projectable)node) active = active && composite.opacity>0;
-            }
+            bool active = ngRigMaterialIsActive(part);
             record = JSONValue(["name":JSONValue(part.name),"path":JSONValue(path),"uuid":JSONValue(id),
                 "source_order":JSONValue(sourceOrders[id]),
                 "active":JSONValue(active),"bounds":JSONValue(bounds[]),"source_mapping":mapping,
@@ -476,7 +492,7 @@ private JSONValue prepareSourceGroups(JSONValue state, AutoRigTaskContext task) 
         CommandResult result;
         task.runOnMainThread({
             auto node = incActivePuppet().find!Node(uuid(group["uuid"]));
-            result = command(new ApplyAutoMeshPT!GridAutoMeshProcessor(processor),editorContext([node]));
+            result = command(new ApplyAutoMeshPT!GridAutoMeshProcessor(processor, &task.isCanceled),editorContext([node]));
         });
         result = result.waitForCompletion(); enforce(result.succeeded,result.message);
     }
@@ -525,7 +541,7 @@ private JSONValue meshParts(JSONValue state, JSONValue program, AutoRigTaskConte
         task.runOnMainThread({
             Node[] parts;
             foreach (id; group.ids) parts ~= incActivePuppet().find!Node(id);
-            result = command(new ApplyAutoMeshPT!OptimumAutoMeshProcessor(processor),editorContext(parts));
+            result = command(new ApplyAutoMeshPT!OptimumAutoMeshProcessor(processor, &task.isCanceled),editorContext(parts));
         });
         result = result.waitForCompletion(); enforce(result.succeeded,result.message);
         configurations ~= JSONValue(["parts":JSONValue(group.ids),"min_distance":JSONValue(group.spacing),
@@ -652,7 +668,7 @@ private JSONValue prepareFeatureComposites(JSONValue state, JSONValue program, A
             processor.maskThreshold = 1; processor.xSegments = 10; processor.ySegments = 10; processor.margin = margin;
             processor.ngPostParamWrite("margin");
             CommandResult result;
-            task.runOnMainThread({ result = command(new ApplyAutoMeshPT!GridAutoMeshProcessor(processor),
+            task.runOnMainThread({ result = command(new ApplyAutoMeshPT!GridAutoMeshProcessor(processor, &task.isCanceled),
                 editorContext([incActivePuppet().find!Node(id)])); });
             result = result.waitForCompletion(); enforce(result.succeeded,result.message);
             task.runOnMainThread({
@@ -980,7 +996,7 @@ private JSONValue buildRig(JSONValue state, JSONValue program, AutoRigTaskContex
                 CommandResult applied;
                 task.runOnMainThread({
                     auto grid=incActivePuppet().find!Node(gridId);
-                    applied=command(new ApplyAutoMeshPT!GridAutoMeshProcessor(processor),editorContext([grid]));
+                    applied=command(new ApplyAutoMeshPT!GridAutoMeshProcessor(processor, &task.isCanceled),editorContext([grid]));
                 });
                 applied=applied.waitForCompletion(); enforce(applied.succeeded,applied.message);
             }

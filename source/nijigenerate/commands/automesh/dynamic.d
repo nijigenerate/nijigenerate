@@ -76,10 +76,12 @@ private class AutoMeshProgressState {
     private size_t done_;
     private string currentName_;
     private bool canceled_;
+    private bool delegate() parentCanceled;
 
-    this(size_t total) {
+    this(size_t total, bool delegate() parentCanceled = null) {
         lock = new Mutex();
         this.total = total;
+        this.parentCanceled = parentCanceled;
     }
 
     void beginTarget(string name) {
@@ -101,6 +103,7 @@ private class AutoMeshProgressState {
     }
 
     bool canceled() {
+        if (parentCanceled !is null && parentCanceled()) requestCancel();
         synchronized (lock) {
             return canceled_;
         }
@@ -143,9 +146,11 @@ template ApplyAutoMeshPT(alias PT)
     class ApplyAutoMeshPT : ExCommand!()
     {
         private AutoMeshProcessor explicitProcessor;
-        this(AutoMeshProcessor processor = null) {
+        private bool delegate() parentCanceled;
+        this(AutoMeshProcessor processor = null, bool delegate() parentCanceled = null) {
             super(_("Apply AutoMesh (%s)").format(AMProcInfo!(PT).name), _("Apply AutoMesh to selected nodes"));
             explicitProcessor = processor;
+            this.parentCanceled = parentCanceled;
         }
         override bool runnable(Context ctx) {
             Node[] ns = ctx.hasNodes ? ctx.nodes : incSelectedNodes();
@@ -199,7 +204,7 @@ template ApplyAutoMeshPT(alias PT)
             }
 
             auto asyncResult = new AutoMeshApplyResult();
-            auto progress = new AutoMeshProgressState(targets.length);
+            auto progress = new AutoMeshProgressState(targets.length, parentCanceled);
             string procName = chosen.displayName();
             ulong popupId = NotificationPopup.instance().popup((ImGuiIO* io) {
                 import nijigenerate.widgets : incButtonColored;
@@ -284,6 +289,7 @@ template ApplyAutoMeshPT(alias PT)
                         ngMcpEnqueueAction({
                             if (currentApplyError().length) return;
                             scope(exit) progress.completeTarget();
+                            if (progress.canceled()) return;
 
                             if (resultMesh.vertices.length == 0) {
                                 recordApplyError(_("AutoMesh generated empty mesh for %s").format(target.name));
@@ -321,7 +327,10 @@ template ApplyAutoMeshPT(alias PT)
                     setAutoMeshAlphaInputCache(&alphaInputs);
                     scope(exit) clearAutoMeshAlphaInputCache(&alphaInputs);
                     auto fib = new Fiber(&work);
-                    while (fib.state != Fiber.State.TERM) fib.call();
+                    while (fib.state != Fiber.State.TERM) {
+                        if (progress.canceled()) break;
+                        fib.call();
+                    }
                 } catch (Throwable e) {
                     workerError = e.msg;
                 }
