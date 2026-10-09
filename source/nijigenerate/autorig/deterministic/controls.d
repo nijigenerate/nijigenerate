@@ -639,7 +639,8 @@ JSONValue ngRigCompileCheekCorrections(JSONValue state, JSONValue program, AutoR
     enforce((skin in targets) !is null && materials[skin]["role"].str == "face",
         "Cheek correction needs the hierarchy face origin");
     Frame[] eyes; Frame mouthFrame; bool hasMouth;
-    foreach (mechanism; state["controls"]["mechanisms"].array) {
+    auto geometry = ngRigGet(state,"control_geometry",state["controls"]);
+    foreach (mechanism; geometry["mechanisms"].array) {
         if (mechanism["name"].str.endsWith("::Blink")) {
             auto curves = mechanism["contact_curves"]; Frame eye;
             eye.origin = ngRigPoint(curves["frame_origin"]); eye.tangent = ngRigPoint(curves["frame_tangent"]);

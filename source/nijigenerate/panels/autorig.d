@@ -5,54 +5,34 @@ import core.thread : Thread;
 import core.time : msecs;
 import i18n;
 import nijigenerate : EditMode;
-import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread, ngMcpSetExternalCommandsBlocked;
+import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread, ngMcpSetExternalCommandsBlocked,
+    ngMcpExternalCommandsBlocked;
 import nijigenerate.autorig;
 import nijigenerate.autorig.deterministic.processor : AnimeFrontViewRigProcessor;
 import nijigenerate.autorig.deterministic.editor : ngApplyFaceProjection;
 import nijigenerate.autorig.deterministic.native : ngRigNativeStage;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialRoleCandidates;
 import nijigenerate.autorig.deterministic.templates : ngRigMaterialRoles;
-import std.string : endsWith, startsWith;
+import nijigenerate.autorig.deterministic.contracts : ngRigGet, ngRigString, ngRigPoint, ngRigUnsigned, ngRigNumber;
+import nijigenerate.autorig.deterministic.presentation;
+import nijigenerate.autorig.deterministic.review : RigMaterialField, ngRigEditedMaterialOverride,
+    ngRigMaterialForcedStatic, ngRigMaterialStaticPreference;
+import std.string : endsWith, startsWith, toLower;
+import std.algorithm.searching : canFind;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.core.path : incGetAppConfigPath;
 import nijigenerate.panels : Panel, incPanel, incAddPanel, incFindPanelByName;
 import nijigenerate.utils.crashdump : installNativeCrashDumpThreadHandler;
 import nijigenerate.widgets : incButtonColored, incInputText, incInputTextMultiline;
-import nijigenerate.widgets.modal : Modal, incModalAdd, incModalCloseTop;
 import std.algorithm.sorting : sort;
 import std.conv : to;
 import std.file : read;
-import std.json : parseJSON, JSONValue;
+import std.json : parseJSON, JSONValue, JSONType;
 import std.path : buildPath;
 import std.string : toStringz;
 import std.format : format;
 
 private AutoRigSessionManager sharedSessions;
-
-private class AutoRigProgressWindow : Modal {
-    AutoRigPanel owner;
-    AutoRigWorkflowRun run;
-
-    this(AutoRigPanel owner, AutoRigWorkflowRun run) {
-        super(_("AutoRig"), false);
-        this.owner = owner;
-        this.run = run;
-        flags |= ImGuiWindowFlags.AlwaysAutoResize;
-    }
-
-    protected override void onUpdate() {
-        owner.finishWorker();
-        if (owner.worker is null) {
-            // Closed modal slots remain allocated; release the completed session.
-            run = null;
-            owner = null;
-            igCloseCurrentPopup();
-            incModalCloseTop();
-            return;
-        }
-        owner.renderRun(run);
-    }
-}
 
 private void runActionOnMainThread(void delegate() action) {
     auto current = Thread.getThis();
@@ -102,14 +82,32 @@ private:
     ContextDraft[string] contextDrafts;
     Thread worker;
     AutoRigWorkflowRun activeRun;
+    uint controlledRoot;
+    bool previousDriversEnabled;
     string lastError;
     struct MaterialDraft {
-        uint attempt;
-        string[] names, paths, roles;
-        bool unresolvedOnly = true;
+        uint attempt, compiledAttempt;
+        ulong revision;
+        string[] names, paths, roles, features, sides, reasons, semanticSources;
+        bool[] disabled, changed, reset, active, forcedStatic, requestedStatic;
+        ubyte[] editedFields;
+        bool unresolvedOnly;
+        string filter;
+        string[] landmarks, landmarkReasons;
+        double[] landmarkX, landmarkY;
+        bool[] landmarkChanged, landmarkReset;
     }
     MaterialDraft[string] materialDrafts;
     string[] materialRoleChoices;
+    struct ReviewDraft {
+        uint attempt;
+        RigReviewTable[] tables;
+        string[] operationIds, operationLabels;
+        bool[] enabled;
+    }
+    ReviewDraft[string] reviewDrafts;
+    struct WorkflowOptionsDraft { ulong revision; JSONValue options; bool previews; }
+    WorkflowOptionsDraft[string] workflowOptionsDrafts;
 
     AutoRigWorkflowManager workflowManager() {
         if (workflows is null) workflows = new AutoRigWorkflowManager(ngAutoRigSessionManager());
@@ -122,7 +120,16 @@ private:
             worker = null;
             activeRun = null;
             ngMcpSetExternalCommandsBlocked(false);
+            restoreDriverState();
         }
+    }
+
+    void restoreDriverState() {
+        import nijigenerate.project : incActivePuppet, incArmedParameter;
+        auto puppet = incActivePuppet();
+        if (puppet !is null && puppet.root.uuid == controlledRoot && incArmedParameter() is null)
+            puppet.enableDrivers = previousDriversEnabled;
+        controlledRoot = 0;
     }
 
     void startRun(AutoRigWorkflowRun run, string stepId = null, bool force = true) {
@@ -130,6 +137,11 @@ private:
         if (worker !is null) return;
         lastError = null;
         activeRun = run;
+        import nijigenerate.project : incActivePuppet;
+        auto puppet = incActivePuppet();
+        controlledRoot = puppet is null ? 0 : puppet.root.uuid;
+        previousDriversEnabled = puppet !is null && puppet.enableDrivers;
+        if (puppet !is null) puppet.enableDrivers = false;
         worker = new Thread({
             installNativeCrashDumpThreadHandler();
             try {
@@ -145,9 +157,9 @@ private:
             ngMcpSetExternalCommandsBlocked(false);
             worker = null;
             activeRun = null;
+            restoreDriverState();
             throw error;
         }
-        incModalAdd(new AutoRigProgressWindow(this, run));
     }
 
     string presetLabel(AutoRigWorkflowPreset preset) {
@@ -284,6 +296,23 @@ private:
         if (run.renderInputUI()) return;
         if (igTreeNodeEx(__("Workflow arguments"), ImGuiTreeNodeFlags.DefaultOpen)) {
             foreach (port; run.inputPorts()) {
+                if (run.workflowId() == "model-to-rig" && port.id == "options") {
+                    auto cached = run.id() in workflowOptionsDrafts;
+                    if (cached is null || cached.revision != run.inputRevision()) {
+                        auto options = run.input("options").json;
+                        workflowOptionsDrafts[run.id()] = WorkflowOptionsDraft(run.inputRevision(),options,
+                            ngRigGet(options,"render",JSONValue(false)).boolean);
+                        cached = run.id() in workflowOptionsDrafts;
+                    }
+                    if (igCheckbox(_("Capture source appearance for verification").toStringz(),&cached.previews)) {
+                        // Compile edits are task-local; preserve them when updating a shared workflow option.
+                        cached.options = run.session().inputContext(run.stepTaskId("compile")).value("options").json;
+                        cached.options["render"] = JSONValue(cached.previews);
+                        run.setInput("options",AutoRigValue.jsonValue(cached.options));
+                    }
+                    igTextWrapped("%s",_("Material classification and landmark positions are edited in the compile task.").toStringz());
+                    continue;
+                }
                 if (port.description.length) igTextWrapped("%s", _(port.description).toStringz());
                 auto key = draftKey(run, "workflow-input", port.id);
                 auto current = cachedInputText(key, run.inputRevision(),
@@ -333,6 +362,10 @@ private:
         if (!igTreeNode(__("Workflow output"))) return;
         scope(exit) igTreePop();
         if (run.renderOutputUI()) return;
+        if (run.workflowId() == "model-to-rig") {
+            igTextWrapped("%s",_("The resulting rig is applied to the editor model. Inspect task changes and verification below.").toStringz());
+            return;
+        }
         foreach (port; run.outputPorts()) {
             igTextUnformatted(port.id.toStringz());
             if (!run.hasOutput(port.id)) igTextUnformatted(_("Waiting for output").toStringz());
@@ -350,14 +383,49 @@ private:
     void renderDefaultInputs(AutoRigWorkflowRun run, string taskId) {
         auto context = run.session().inputContext(taskId);
         foreach (port; context.ports()) {
+            bool builtIn = run.workflowId() == "model-to-rig";
+            if (builtIn && port.id == "options") {
+                igTextWrapped("%s",_("Source capture is configured in workflow arguments; classification is edited in the compile task.").toStringz());
+                continue;
+            }
+            if (port.id == "review") {
+                igTextWrapped("%s",_("Operation settings are edited beside the task result below.").toStringz());
+                continue;
+            }
             igPushID(port.id.toStringz());
-            igTextUnformatted((port.id ~ " (" ~ valueKindLabel(port.kind) ~ ")").toStringz());
+            auto label = !builtIn ? port.id ~ " (" ~ valueKindLabel(port.kind) ~ ")" :
+                port.id == "state" ? _("Upstream processing result") : port.id == "program" ? _("Rig plan") :
+                port.id == "model" ? _("Model checkpoint") : port.id == "materials" ? _("Material classification") : port.id;
+            igTextUnformatted(label.toStringz());
             if (port.description.length) igTextUnformatted(_(port.description).toStringz());
             if (context.isConnected(port.id)) {
                 auto value = !context.hasValue(port.id) ? _("Waiting for dependency") :
-                    port.kind == AutoRigValueKind.Json ? _("JSON artifact ready") :
+                    port.kind == AutoRigValueKind.Json ? builtIn ? _("Input from preceding task") : _("JSON artifact ready") :
                     port.kind == AutoRigValueKind.Blob ? _("Binary artifact") : inputText(context.value(port.id));
                 igTextUnformatted(value.toStringz());
+                foreach (connection; run.session().taskSpec(taskId).connections) if (connection.input == port.id) {
+                    auto source = run.session().task(connection.sourceTask,false);
+                    auto sourceSpec = run.session().taskSpec(connection.sourceTask);
+                    igTextWrapped("%s",format(_("From %s / %s (attempt %s)"),_(sourceSpec.label),
+                        connection.sourceOutput,source.attempt).toStringz());
+                    bool hasReview;
+                    foreach (output; sourceSpec.outputs) if (output.id == "review") hasReview = true;
+                    if (hasReview && igTreeNode(__("Preceding stage result"))) {
+                        auto cacheKey = draftKey(run,connection.sourceTask,"input-review");
+                        auto cached = cacheKey in reviewDrafts;
+                        if (worker is null && (cached is null || cached.attempt != source.attempt)) {
+                            ReviewDraft draft; draft.attempt = source.attempt;
+                            foreach (artifact; run.session().task(connection.sourceTask).artifacts)
+                                if (artifact.portId == "review" || artifact.portId == "review-layout")
+                                    draft.tables ~= ngRigReviewTables(ngCopyAutoRigValue(artifact.value).json,
+                                        null,(message) => _(message));
+                            reviewDrafts[cacheKey] = draft; cached = cacheKey in reviewDrafts;
+                        }
+                        if (cached !is null && cached.tables.length) renderReviewTables(cached.tables);
+                        else igTextUnformatted(_("Waiting for task result").toStringz());
+                        igTreePop();
+                    }
+                }
             } else {
                 auto key = draftKey(run, taskId, port.id);
                 auto current = cachedInputText(key, run.session().inputRevision(taskId),
@@ -401,6 +469,114 @@ private:
         }
     }
 
+    void renderReviewTables(ref RigReviewTable[] tables) {
+        import std.algorithm : min;
+        foreach (index,ref table; tables) {
+            igPushID(cast(int)index);
+            igTextUnformatted(table.title.toStringz());
+            auto pages = (table.rows.length + 31) / 32;
+            if (table.page >= pages) table.page = 0;
+            if (pages > 1) {
+                if (incButtonColored(__("Previous")) && table.page) --table.page;
+                igSameLine(); if (incButtonColored(__("Next")) && table.page + 1 < pages) ++table.page;
+                igSameLine(); igText("%u / %u",cast(uint)table.page + 1,cast(uint)pages);
+            }
+            auto flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable |
+                ImGuiTableFlags.ScrollX | ImGuiTableFlags.SizingFixedFit;
+            if (igBeginTable("##Review",cast(int)table.columns.length,flags)) {
+                foreach (column; table.columns) igTableSetupColumn(column.toStringz());
+                igTableHeadersRow();
+                foreach (i; table.page * 32 .. min(table.rows.length,(table.page + 1) * 32)) {
+                    igTableNextRow();
+                    foreach (cell; table.rows[i]) { igTableNextColumn(); igTextUnformatted(cell.toStringz()); }
+                }
+                igEndTable();
+            }
+            igSeparator(); igPopID();
+        }
+    }
+
+    bool renderRigOutput(AutoRigWorkflowRun run, string taskId) {
+        auto spec = run.session().taskSpec(taskId);
+        bool supported;
+        foreach (port; spec.outputs) if (port.id == "review") supported = true;
+        if (!supported) return false;
+        auto task = run.session().task(taskId,false);
+        auto key = draftKey(run,taskId,"review");
+        auto cached = key in reviewDrafts;
+        // Decode the small review artifact once per completed attempt, never per frame.
+        if (worker is null && (cached is null || cached.attempt != task.attempt)) {
+            ReviewDraft draft; draft.attempt = task.attempt;
+            string[ulong] materialNames;
+            if (run.workflowId() == "model-to-rig") {
+                auto sourceId = run.stepTaskId("source");
+                if (run.session().hasOutput(sourceId,"review"))
+                    materialNames = ngRigReviewMaterialNames(run.session().output(sourceId,"review").json);
+            }
+            auto artifacts = run.session().task(taskId).artifacts;
+            bool hasReport;
+            foreach (artifact; artifacts) if (artifact.portId == "report") hasReport = true;
+            foreach (artifact; artifacts) {
+                if (artifact.portId == "report" || artifact.portId == "review-layout" ||
+                    artifact.portId == "review" && !hasReport)
+                    draft.tables ~= ngRigReviewTables(ngCopyAutoRigValue(artifact.value).json,
+                        materialNames.dup,(message) => _(message));
+                if (artifact.portId == "review-operations")
+                    foreach (operation; ngCopyAutoRigValue(artifact.value).json.array) {
+                        draft.operationIds ~= operation["id"].str;
+                        auto plan = operation["plan"]; string targets;
+                        foreach (field; ["part","source","target"]) if (auto target = field in plan.object) {
+                            auto id = target.type == JSONType.uinteger ? target.uinteger : cast(ulong)target.integer;
+                            auto name = id in materialNames;
+                            targets ~= (targets.length ? " → " : "") ~ (name is null ? _("Unresolved target") : *name);
+                        }
+                        auto operationId = operation["id"].str;
+                        auto parameter = ngRigString(plan,"parameter","");
+                        auto kind = operationId.startsWith("mechanism:") ? _("Parameter") :
+                            operationId.startsWith("control:") ? _("Parameter binding") :
+                            operationId.startsWith("weld:") ? _("Shoulder welding") :
+                            operationId.startsWith("mask:") ? _("Clipping mask") : _("Draw order");
+                        auto description = kind ~ ": " ~ parameter ~ (parameter.length && targets.length ? " / " : "") ~ targets;
+                        if (auto keys = "keys" in plan.object) description ~= format(_(" (%s keys)"),ngRigUnsigned(*keys));
+                        if (auto zsort = "relative_zsort" in plan.object)
+                            description ~= format(" (%.2f)",ngRigNumber(*zsort));
+                        draft.operationLabels ~= description;
+                        draft.enabled ~= operation["enabled"].boolean;
+                    }
+            }
+            reviewDrafts[key] = draft; cached = key in reviewDrafts;
+        }
+        if (cached is null) { igTextUnformatted(_("Waiting for task result").toStringz()); return true; }
+        if (cached.operationIds.length) {
+            igTextWrapped("%s",_("Enable or disable individual operations, then rerun this task and its dependents.").toStringz());
+            igBeginDisabled(worker !is null);
+            if (igBeginChild("##Operations",ImVec2(0,200))) foreach (i,id; cached.operationIds) {
+                igPushID(id.toStringz());
+                igCheckbox("##enabled",&cached.enabled[i]); igSameLine();
+                igTextWrapped("%s",cached.operationLabels[i].toStringz()); igPopID();
+            }
+            igEndChild();
+            if (incButtonColored(__("Apply and rerun downstream"))) {
+                JSONValue[] disabled;
+                foreach (i,id; cached.operationIds) if (!cached.enabled[i]) disabled ~= JSONValue(id);
+                try {
+                    auto context = run.session().inputContext(taskId);
+                    auto settings = context.hasValue("review") ? context.value("review").json :
+                        JSONValue(cast(JSONValue[string])null);
+                    settings["disabled"] = JSONValue(disabled);
+                    context.setValue("review",AutoRigValue.jsonValue(settings));
+                    startRun(run,null,false);
+                } catch (Exception error) { synchronized (this) lastError = error.msg; }
+            }
+            igEndDisabled();
+        }
+        if (task.state == AutoRigTaskState.Stale)
+            igTextWrapped("%s",_("Previous result. Settings changed; rerun to update it.").toStringz());
+        if (cached.tables.length) renderReviewTables(cached.tables);
+        else igTextUnformatted(_("Waiting for task result").toStringz());
+        return true;
+    }
+
     void renderMaterialRoles(AutoRigWorkflowRun run, string taskId) {
         auto context = run.session().inputContext(taskId);
         if (!context.hasValue("materials")) {
@@ -408,64 +584,184 @@ private:
             return;
         }
         auto source = run.session().task(run.stepTaskId("source"), false);
+        auto compiled = run.session().task(taskId,false);
+        auto revision = run.session().inputRevision(taskId);
         auto cached = run.id() in materialDrafts;
-        if (cached is null || cached.attempt != source.attempt) {
+        if (cached is null || cached.attempt != source.attempt || cached.compiledAttempt != compiled.attempt ||
+            cached.revision != revision) {
             MaterialDraft draft;
             draft.attempt = source.attempt;
+            draft.compiledAttempt = compiled.attempt; draft.revision = revision;
             // Acquire one owned snapshot per observation, never one per UI frame.
             auto materials = context.value("materials").json;
+            foreach (artifact; run.session().task(taskId).artifacts) if (artifact.portId == "review") {
+                auto report = ngCopyAutoRigValue(artifact.value).json;
+                if (auto classification = "classification" in report.object) materials = *classification;
+            }
             auto options = context.value("options").json;
+            foreach (artifact; run.session().task(taskId).artifacts) if (artifact.portId == "evidence") {
+                auto evidence = ngCopyAutoRigValue(artifact.value).json;
+                if (auto landmarks = "landmarks" in evidence.object) {
+                    auto names = landmarks.object.keys; names.sort;
+                    foreach (name; names) {
+                        auto item = (*landmarks)[name]; auto point = ngRigPoint(item["xy"]);
+                        if (auto overrides = "landmarks" in options.object)
+                            if (auto overridePoint = name in overrides.object) point = ngRigPoint(*overridePoint);
+                        draft.landmarks ~= name; draft.landmarkX ~= point[0]; draft.landmarkY ~= point[1];
+                        draft.landmarkReasons ~= ngRigString(item,"method",ngRigString(item,"provenance",""));
+                        draft.landmarkChanged ~= false; draft.landmarkReset ~= false;
+                    }
+                }
+            }
             foreach (material; materials.array) {
-                if (!material["active"].boolean) continue;
                 auto name = material["name"].str, path = material["path"].str;
                 auto candidates = ngRigMaterialRoleCandidates(name);
-                string role = candidates.length == 1 ? candidates[0] : "";
+                string role = ngRigString(material,"role",candidates.length == 1 ? candidates[0] : "");
+                auto feature = ngRigString(material,"feature","");
+                auto side = ngRigString(material,"side_override","");
+                bool disabled = ngRigMaterialStaticPreference(material);
                 if (auto overrides = "materials" in options.object) if (auto entry = path in overrides.object) {
-                    if (auto stationary = "static" in entry.object) if (stationary.boolean) role = "static";
-                    if (role != "static") if (auto chosen = "role" in entry.object) role = chosen.str;
+                    if (auto stationary = "static" in entry.object) disabled = stationary.boolean;
+                    if (auto chosen = "role" in entry.object) role = chosen.str;
+                    feature = ngRigString(*entry,"feature",feature); side = ngRigString(*entry,"side",side);
                 }
+                auto semanticSource = ngRigString(material,"semantic_source");
+                bool forcedStatic = ngRigMaterialForcedStatic(material["active"].boolean,role,semanticSource);
+                draft.requestedStatic ~= disabled;
+                draft.semanticSources ~= semanticSource;
+                disabled = disabled || forcedStatic;
                 draft.names ~= name; draft.paths ~= path; draft.roles ~= role;
+                draft.features ~= feature; draft.sides ~= side; draft.disabled ~= disabled;
+                draft.active ~= material["active"].boolean;
+                draft.forcedStatic ~= forcedStatic;
+                draft.reasons ~= ngRigReviewEvidenceLabel(ngRigString(material,"semantic_source",""),(message) => _(message)) ~
+                    " / " ~ ngRigString(material,"owner","") ~ " / " ~ ngRigString(material,"chart","");
+                draft.changed ~= false; draft.reset ~= false;
+                draft.editedFields ~= 0;
             }
             materialDrafts[run.id()] = draft;
             cached = run.id() in materialDrafts;
         }
         if (!materialRoleChoices.length) {
-            materialRoleChoices = ["", "static"];
+            materialRoleChoices = [""];
             foreach (rule; ngRigMaterialRoles()["rules"].array) materialRoleChoices ~= rule["id"].str;
         }
-        igTextWrapped("%s", _("Materials are classified automatically from names, hierarchy, clipping and alpha support. These overrides are optional. Static keeps the material unrigged.").toStringz());
+        igTextWrapped("%s", _("Inspect the actual classification and its evidence. Disabling rigging keeps the artwork static. Only edited rows become overrides.").toStringz());
         igCheckbox(_("Show unresolved only").toStringz(), &cached.unresolvedOnly);
+        incInputText(_("Filter materials"),cached.filter);
         if (igBeginChild("##MaterialRoles", ImVec2(0, 240))) {
+            if (igBeginTable("##MaterialClassification",6,ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders |
+                ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollX | ImGuiTableFlags.SizingFixedFit)) {
+            foreach (header; [_("Material"),_("Role"),_("Static artwork"),_("Feature"),_("Model side"),
+                _("Classification evidence")]) igTableSetupColumn(header.toStringz());
+            igTableHeadersRow();
             foreach (i, path; cached.paths) {
                 if (cached.unresolvedOnly && cached.roles[i].length) continue;
+                if (cached.filter.length && !path.toLower.canFind(cached.filter.toLower) &&
+                    !cached.names[i].toLower.canFind(cached.filter.toLower)) continue;
                 igPushID(path.toStringz());
+                igTableNextRow(); igTableNextColumn();
                 igTextUnformatted(cached.names[i].toStringz());
                 if (igIsItemHovered()) igSetTooltip("%s", path.toStringz());
-                auto label = cached.roles[i].length ? cached.roles[i] : _("Choose role");
+                igTableNextColumn(); igSetNextItemWidth(150);
+                auto label = cached.roles[i].length ? ngRigReviewClassLabel(cached.roles[i],(message) => _(message)) : _("Choose role");
                 if (igBeginCombo("##role", label.toStringz())) {
                     foreach (choice; materialRoleChoices) {
-                        auto display = choice.length ? choice : _("Choose role");
-                        if (igSelectable(display.toStringz(), choice == cached.roles[i])) cached.roles[i] = choice;
+                        auto display = choice.length ? ngRigReviewClassLabel(choice,(message) => _(message)) : _("Choose role");
+                        if (igSelectable(display.toStringz(), choice == cached.roles[i])) {
+                            cached.roles[i] = choice; cached.changed[i] = true; cached.reset[i] = false;
+                            cached.editedFields[i] |= RigMaterialField.role;
+                            cached.forcedStatic[i] = ngRigMaterialForcedStatic(cached.active[i],choice,
+                                cached.semanticSources[i]);
+                            cached.disabled[i] = cached.forcedStatic[i] || cached.requestedStatic[i];
+                        }
                     }
                     igEndCombo();
                 }
+                igTableNextColumn();
+                igBeginDisabled(cached.forcedStatic[i]);
+                if (igCheckbox("##static",&cached.disabled[i])) {
+                    cached.requestedStatic[i] = cached.disabled[i];
+                    cached.changed[i] = true; cached.reset[i] = false;
+                    cached.editedFields[i] |= RigMaterialField.stationary;
+                }
+                igEndDisabled();
+                auto featureLabel = ngRigReviewClassLabel(cached.features[i],(message) => _(message));
+                igTableNextColumn(); igSetNextItemWidth(150);
+                if (igBeginCombo("##feature",featureLabel.toStringz())) {
+                    foreach (feature; ["", "mouth", "mouth_tongue", "mouth_upper_teeth", "mouth_lower_teeth",
+                        "mouth_outline", "mouth_upper_lip", "mouth_lower_lip", "brow", "sclera", "iris", "corner",
+                        "upper", "lower", "fold", "nose"])
+                        if (igSelectable(ngRigReviewClassLabel(feature,(message) => _(message)).toStringz(),
+                            feature == cached.features[i])) {
+                            cached.features[i] = feature; cached.changed[i] = true; cached.reset[i] = false;
+                            cached.editedFields[i] |= RigMaterialField.feature;
+                        }
+                    igEndCombo();
+                }
+                igTableNextColumn(); igSetNextItemWidth(110);
+                if (igBeginCombo("##side",cached.sides[i].length ? ngRigReviewClassLabel(cached.sides[i],(message) => _(message)).toStringz() :
+                    _("Automatic").toStringz())) {
+                    foreach (side; ["","L","R"]) if (igSelectable(side.length ? ngRigReviewClassLabel(side,(message) => _(message)).toStringz() :
+                        _("Automatic").toStringz(),side == cached.sides[i])) {
+                        cached.sides[i] = side; cached.changed[i] = true; cached.reset[i] = false;
+                        cached.editedFields[i] |= RigMaterialField.side;
+                    }
+                    igEndCombo();
+                }
+                igTableNextColumn(); igTextUnformatted(cached.reasons[i].toStringz());
+                if (incButtonColored(__("Reset to automatic"))) { cached.changed[i] = true; cached.reset[i] = true; }
+                if (cached.changed[i]) igTextUnformatted(_("Unapplied changes").toStringz());
                 igPopID();
+            }
+            igEndTable();
             }
         }
         igEndChild();
-        if (incButtonColored(_("Apply material roles").toStringz())) {
+        if (cached.landmarks.length && igTreeNode(__("Anatomical landmarks"))) {
+            igTextWrapped("%s",_("Edit measured landmark positions in model coordinates. The scaffold is solved again from these inputs.").toStringz());
+            foreach (i,name; cached.landmarks) {
+                igPushID(name.toStringz());
+                igTextUnformatted(name.toStringz());
+                if (igInputDouble("X",&cached.landmarkX[i])) {
+                    cached.landmarkChanged[i] = true; cached.landmarkReset[i] = false;
+                }
+                if (igInputDouble("Y",&cached.landmarkY[i])) {
+                    cached.landmarkChanged[i] = true; cached.landmarkReset[i] = false;
+                }
+                igTextWrapped("%s",cached.landmarkReasons[i].toStringz());
+                if (incButtonColored(__("Reset to automatic"))) {
+                    cached.landmarkChanged[i] = true; cached.landmarkReset[i] = true;
+                }
+                if (cached.landmarkChanged[i]) igTextUnformatted(_("Unapplied changes").toStringz());
+                igPopID();
+            }
+            igTreePop();
+        }
+        bool apply = incButtonColored(_("Apply review settings").toStringz());
+        igSameLine(); bool rerun = incButtonColored(__("Apply and rerun downstream"));
+        if (apply || rerun) try {
             auto options = context.value("options").json;
             JSONValue[string] overrides;
             if (auto previous = "materials" in options.object) overrides = previous.object;
             foreach (i, path; cached.paths) {
-                if (cached.roles[i].length) {
-                    overrides[path] = cached.roles[i] == "static" ? JSONValue(["static":JSONValue(true)]) :
-                        JSONValue(["role":JSONValue(cached.roles[i])]);
-                } else overrides.remove(path);
+                if (!cached.changed[i]) continue;
+                if (cached.reset[i]) { overrides.remove(path); continue; }
+                auto entry = path in overrides;
+                overrides[path] = ngRigEditedMaterialOverride(entry is null ? JSONValue.init : *entry,
+                    cached.editedFields[i],cached.roles[i],cached.disabled[i],cached.features[i],cached.sides[i]);
             }
             options["materials"] = JSONValue(overrides);
+            JSONValue[string] landmarks;
+            if (auto previous = "landmarks" in options.object) landmarks = previous.object.dup;
+            foreach (i,name; cached.landmarks) if (cached.landmarkChanged[i]) {
+                if (cached.landmarkReset[i]) landmarks.remove(name);
+                else landmarks[name] = JSONValue([cached.landmarkX[i],cached.landmarkY[i]]);
+            }
+            options["landmarks"] = JSONValue(landmarks);
             context.setValue("options", AutoRigValue.jsonValue(options));
-        }
+            if (rerun) startRun(run,null,false);
+        } catch (Exception error) { synchronized (this) lastError = error.msg; }
     }
 
     void renderTask(AutoRigWorkflowRun run, AutoRigWorkflowStep step) {
@@ -489,7 +785,7 @@ private:
                 igTreePop();
             }
             if (igTreeNodeEx(__("Output"), ImGuiTreeNodeFlags.DefaultOpen)) {
-                if (!run.session().renderOutputUI(taskId)) renderDefaultOutputs(run, taskId);
+                if (!renderRigOutput(run,taskId) && !run.session().renderOutputUI(taskId)) renderDefaultOutputs(run, taskId);
                 igTreePop();
             }
             auto message = task.message;
@@ -572,7 +868,9 @@ private:
         foreach (run; runs) if (run.id() != runId) remaining ~= run;
         runs = remaining;
         materialDrafts.remove(runId);
+        foreach (key; reviewDrafts.keys) if (key.startsWith(runId ~ "/")) reviewDrafts.remove(key);
         contextDrafts.remove(runId);
+        workflowOptionsDrafts.remove(runId);
         foreach (key; inputDrafts.keys) if (key.startsWith(runId ~ "/")) inputDrafts.remove(key);
         foreach (key; inputObserved.keys) if (key.startsWith(runId ~ "/")) inputObserved.remove(key);
         foreach (key; inputTextCache.keys) if (key.startsWith(runId ~ "/")) inputTextCache.remove(key);
@@ -619,6 +917,7 @@ public:
     }
 
     JSONValue runStatus(string runId) {
+        finishWorker();
         import core.memory : GC;
         if (!runId.length) {
             auto gc = GC.stats();
@@ -650,6 +949,13 @@ public:
             memory["gc_free_bytes"] = JSONValue(cast(ulong)gc.freeSize);
             auto result = JSONValue(["run_id":JSONValue(runId),"state":JSONValue(snapshot.state.to!string),
                 "message":JSONValue(snapshot.message),"steps":JSONValue(steps),"memory":memory]);
+            import nijigenerate.project : incActivePuppet, incArmedParameter;
+            auto puppet = incActivePuppet();
+            result["editor"] = JSONValue(["panel_visible":JSONValue(visible),
+                "worker_active":JSONValue(worker !is null),
+                "commands_blocked":JSONValue(ngMcpExternalCommandsBlocked()),
+                "drivers_enabled":JSONValue(puppet !is null && puppet.enableDrivers),
+                "armed_parameter":JSONValue(incArmedParameter() is null ? 0u : incArmedParameter().uuid)]);
             import nijigenerate.panels.resource : ngResourcePanelReadback;
             result["resource_view"] = ngResourcePanelReadback();
             foreach (key, value; ngAutoRigWorkflowDiagnostics(run).object) result[key] = value;
@@ -675,6 +981,7 @@ public:
         worker = null;
         activeRun = null;
         ngMcpSetExternalCommandsBlocked(false);
+        restoreDriverState();
         if (workflows !is null) workflows.disposeAll();
         runs = null;
         inputDrafts = null;
@@ -682,6 +989,8 @@ public:
         inputTextCache = null;
         contextDrafts = null;
         materialDrafts = null;
+        reviewDrafts = null;
+        workflowOptionsDrafts = null;
     }
 }
 
@@ -689,6 +998,12 @@ void ngAutoRigStopAll() {
     auto panel = cast(AutoRigPanel)incFindPanelByName("AutoRig");
     if (panel !is null) panel.stop();
     if (sharedSessions !is null) sharedSessions.disposeAll();
+}
+
+/** Reap completed workers even when their panel is hidden or inactive. */
+void ngAutoRigPollWorker() {
+    auto panel = cast(AutoRigPanel)incFindPanelByName("AutoRig");
+    if (panel !is null) panel.finishWorker();
 }
 
 mixin incPanel!AutoRigPanel;

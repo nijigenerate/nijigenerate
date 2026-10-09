@@ -6730,3 +6730,609 @@ msgstr ""
 #: source/nijigenerate/project.d:530
 msgid "Restore model checkpoint"
 msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Previous"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Result details"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Waiting for task result"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Enable or disable individual operations, then rerun this task and its dependents."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Apply and rerun downstream"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Previous result. Settings changed; rerun to update it."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Not classified yet"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Inspect the actual classification and its evidence. Disabling rigging keeps the artwork static. Only edited rows become overrides."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Filter materials"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Disable rigging for this material"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Feature"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Model side"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Reset to automatic"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Unapplied changes"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "None"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Operation settings are edited beside the task result below."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+#, c-format
+msgid "From %s / %s (attempt %s)"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Anatomical landmarks"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Edit measured landmark positions in model coordinates. The scaffold is solved again from these inputs."
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Added"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Removed"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Modified"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Material classification"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Model changes"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Changed fields"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Before"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "After"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Anatomical scaffold"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Rig targets and bone assignments"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Planned hierarchy"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Classification evidence"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Bone head position"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Bone tail position"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Bone rest angle"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Parameter bindings"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Apply review settings"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Explicit review setting"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Material name and parent hierarchy"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Background detected from alpha extent"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Inherited from clipping receiver"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Local mechanism without anatomical support"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Nearest anatomical alpha support"
+msgstr ""
+
+#: source/nijigenerate/panels/autorig.d
+msgid "Preceding stage result"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Material"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Role"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Rigging"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Changed item"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Bone"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Parent"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Bones"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Group"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Node type"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Position"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Vertices"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Triangles"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mesh bounds"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Inherit parent motion"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Clipping masks"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Minimum"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Maximum"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Default value"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Horizontal keys"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Vertical keys"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Baked keys"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Intermediate samples"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Check"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Result"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Verification"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Numerical rig verification"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Visual review"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Required"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Depth verification"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Depth units"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Verified"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Observed depth scale"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Planned depth scale"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Depth surfaces"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Not applicable"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Unresolved target"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Static artwork"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "keys"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mesh or deformation values"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Previous values"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Updated values"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "No model changes"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Parameter binding"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Shoulder welding"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Clipping mask"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Draw order"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+#, c-format
+msgid " (%s keys)"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Face"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Facial feature"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Neck"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Torso"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Arm"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Hand"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Leg"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Foot"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Sleeve"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper clothing"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Waist clothing"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Thigh accessory"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Ankle accessory"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Front skirt"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Back skirt"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Apron"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Shoulder"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Ear"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Head accessory"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Tail"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Chest accessory"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Hip accessory"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Local mechanism"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Background"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Front hair"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Side hair"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Back hair"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eye white"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Iris"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper eyelid"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Lower eyelid"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eye corner"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eyebrow"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Eyelid fold"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Nose"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mouth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Tongue"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper teeth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Lower teeth"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Mouth outline"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upper lip"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Lower lip"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Disabled by user"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "No matching seam"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Matching seam"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "No matching vertices"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Applied and verified"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Model left"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Model right"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Both sides"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Grid deformer"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Dynamic composite"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Capture source appearance for verification"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Material classification and landmark positions are edited in the compile task."
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "The resulting rig is applied to the editor model. Inspect task changes and verification below."
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Source capture is configured in workflow arguments; classification is edited in the compile task."
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Upstream processing result"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Rig plan"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Model checkpoint"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/presentation.d source/nijigenerate/panels/autorig.d
+msgid "Input from preceding task"
+msgstr ""
+
+#: source/nijigenerate/autorig/deterministic/pipeline.d
+msgid "Apply secondary physics"
+msgstr ""

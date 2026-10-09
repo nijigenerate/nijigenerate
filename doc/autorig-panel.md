@@ -26,9 +26,9 @@ automatically. Role overrides in the compile input are optional.
 The workflow play button retries failed tasks and resumes pending or stale tasks
 while preserving completed stages. Individual step buttons
 explicitly retry the selected step and invalidate downstream results.
-Execution opens a modal progress view that blocks manual model edits and
-shortcuts until the worker stops. MCP commands are also rejected during execution,
-except for the AutoRig status query. Its cancel button remains available and
+Execution displays task status in the existing AutoRig panel, without opening
+a separate progress dialog. MCP commands are rejected during execution,
+except for the AutoRig status query. The session's cancel button remains available and
 propagates cancellation to nested AutoMesh work before further mesh application.
 Connected JSON and output JSON display artifact availability,
 rather than copying and formatting the full data every frame.
@@ -183,3 +183,43 @@ Each committed stage emits a structural notification. The Resources panel rebind
 when the model or root changes and refreshes every search-history entry, including the displayed one.
 `ToolCommand_GetAutoRigStatus.resource_view` compares that displayed cache to a fresh selector result
 without refreshing the cache, reporting missing, stale, and duplicate node entries.
+
+# Inspect, edit, and replay task results
+
+Each native task now has a small `review` JSON output separate from its model and state
+checkpoints. The panel displays material roles, facial feature classes, classification evidence,
+carrier/bone assignments, the fitted scaffold, and planned hierarchy. Native mutations report
+added, removed, and modified nodes and parameters, with changed fields and before/after values.
+Mesh and depth payloads are represented by counts and content hashes; textures and dense
+deformation arrays are never retained in the review output. Changes describe this task's
+checkpoint, rather than a new comparison against the currently edited model.
+
+The compile task's input editor starts with the **actual completed classification**, including
+clipping and spatial inheritance. Edit roles, facial features, or an explicit model side; disable
+rigging for a material to keep its artwork static. Only edited rows become overrides. Anatomical
+landmarks can be edited in model coordinates and passed back through the existing scaffold
+solver. Resetting an item removes its explicit override and restores automatic inference.
+
+Welding and local control results expose individual operations with enable checkboxes. Local
+control settings can exclude an entire parameter, individual material bindings, iris masks,
+or draw-order changes. The filtered plan is the plan retained for downstream verification.
+Disabling a shoulder pair prevents seam refinement and welding, and records `disabled_by_user`.
+
+**Apply and rerun downstream** changes only the relevant task input, invalidates its dependents,
+and resumes the workflow without forcing successful predecessors. Native replay restores the
+upstream model checkpoint before applying the revised plan, so removed operations do not remain
+in the model. An editor change made outside AutoRig still triggers the existing ownership guard.
+Previously displayed results remain labeled stale until replay completes. Task Play continues
+to rerun the individual task; workflow Play continues to force a complete run.
+
+The UI decodes compact review artifacts once per completed attempt. Expanded result lists are
+paged in groups of 32; raw model, texture, and observation JSON is not reparsed on every frame.
+All review settings, outputs, and checkpoints remain in memory.
+
+The panel presents these artifacts as domain-specific tables rather than JSON trees. Classification
+rows use readable role/feature names and editable controls. Change rows show target names,
+changed properties, and before/after values; internal hashes and UUIDs are not displayed.
+Bone and hierarchy tables expose parent relationships, endpoints, and rest angles. Operations
+are labeled by parameter and material names rather than serialized plans. Verification shows
+explicit checks and findings, including the remaining need for visual review. Result tables
+page 32 rows at a time; the workflow input offers a source-capture checkbox instead of raw options.

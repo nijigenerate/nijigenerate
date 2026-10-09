@@ -8,6 +8,9 @@ import nijigenerate.autorig.deterministic.observation;
 import nijigenerate.autorig.deterministic.geometry : ngRigSourceUVRegistration, ngRigVerifySourceUV,
     ngRigClosestTriangleWeights, ngRigSameTextureMapping, ngRigValidateGrid;
 import nijigenerate.autorig.deterministic.processor;
+import nijigenerate.autorig.deterministic.review;
+import nijigenerate.autorig.deterministic.presentation;
+import nijigenerate.autorig.deterministic.physics;
 import nijigenerate.autorig.framework;
 import nijigenerate.autorig.workflow;
 import core.thread.fiber : Fiber;
@@ -42,7 +45,124 @@ JSONValue ngTestModelObservation() {
         "options":JSONValue(cast(JSONValue[string])null),"materials":JSONValue(materials)]);
 }
 
+private void testReviewPlan() {
+    auto key = JSONValue(["offsets":JSONValue([0.,1.]),"key":JSONValue([0,0])]);
+    auto operation = JSONValue(["part":JSONValue(41),"keys":JSONValue([key])]);
+    auto plan = JSONValue(["mechanisms":JSONValue([JSONValue(["name":JSONValue("Eye::Blink"),
+        "axisX":JSONValue([0.,1.]),"axisY":JSONValue([0.,1.]),"operations":JSONValue([operation])])]),
+        "masks":JSONValue([JSONValue(["part":JSONValue(41),"source":JSONValue(42)])]),
+        "draw_order":JSONValue([JSONValue(["part":JSONValue(41),"relative_zsort":JSONValue(2.)])])]);
+    JSONValue operations;
+    auto filtered = ngRigReviewControls(plan,JSONValue(["disabled":JSONValue(["control:Eye::Blink:41",
+        "mask:41:42"])]),operations);
+    assert(filtered["mechanisms"].array.length == 0 && filtered["masks"].array.length == 0);
+    assert(filtered["draw_order"].array.length == 1);
+    assert(plan["mechanisms"].array.length == 1 && plan["masks"].array.length == 1);
+    assert(operations.array.length == 4 && !operations[1]["enabled"].boolean);
+    assert(("offsets" in operations[1]["plan"].object) is null);
+    filtered = ngRigReviewControls(plan,JSONValue.init,operations);
+    assert(filtered == plan);
+    auto changes = ngRigReviewChanges(JSONValue([JSONValue(["id":JSONValue("node:1"),"name":JSONValue("old")])]),
+        JSONValue([JSONValue(["id":JSONValue("node:1"),"name":JSONValue("new")]),
+            JSONValue(["id":JSONValue("node:2"),"name":JSONValue("added")])]));
+    assert(changes.array.length == 2 && changes[0]["change"].str == "modified" &&
+        changes[0]["before"]["name"].str == "old" && changes[1]["change"].str == "added");
+    auto removed = ngRigReviewChanges(JSONValue([JSONValue(["id":JSONValue("node:1")])]),
+        JSONValue(cast(JSONValue[])null));
+    assert(removed[0]["change"].str == "removed");
+    auto tableReport = JSONValue(["changes":changes]);
+    auto tables = ngRigReviewTables(tableReport);
+    assert(tables.length == 1 && tables[0].columns.length == 5);
+    assert(tables[0].rows[0] == ["new","Modified","Name","old","new"]);
+    assert(tables[0].rows[1][0] == "added" && tables[0].rows[1][1] == "Added");
+    auto classification = JSONValue(["classification":JSONValue([JSONValue(["uuid":JSONValue(41),
+        "name":JSONValue("Eye white R"),"active":JSONValue(true),"static":JSONValue(false),
+        "role":JSONValue("face_feature"),"feature":JSONValue("sclera"),
+        "semantic_source":JSONValue("imported_clipping_receiver"),"content_sha256":JSONValue("internal-secret")])])]);
+    tables = ngRigReviewTables(classification);
+    assert(tables[0].rows[0] == ["Eye white R","Facial feature","Eye white","Enabled",
+        "Inherited from clipping receiver"]);
+    foreach (row; tables[0].rows) foreach (cell; row) assert(cell != "internal-secret");
+    auto bones = JSONValue(["scaffold":JSONValue(["bones":JSONValue([JSONValue(["id":JSONValue("Head"),
+        "parent":JSONValue("Neck"),"head":JSONValue([0.,1.,2.]),"tail":JSONValue([3.,4.,5.]),
+        "rest_roll":JSONValue(0.)])])])]);
+    tables = ngRigReviewTables(bones);
+    assert(tables[0].rows[0][0] == "Head" && tables[0].rows[0][1] == "Neck");
+    assert(tables[0].rows[0][2] == "0.00, 1.00, 2.00");
+    auto previousWelding = JSONValue(["target":JSONValue(41),"target_name":JSONValue("Eye white R"),
+        "paired_vertices":JSONValue(3),"weight":JSONValue(.5),"indices_sha256":JSONValue("previous")]);
+    auto updatedWelding = JSONValue(previousWelding.object.dup);
+    updatedWelding["indices_sha256"] = JSONValue("updated");
+    auto weldingChanges = ngRigReviewChanges(
+        JSONValue([JSONValue(["id":JSONValue("node:1"),"name":JSONValue("old"),
+            "welding":JSONValue([previousWelding])])]),
+        JSONValue([JSONValue(["id":JSONValue("node:1"),"name":JSONValue("old"),
+            "welding":JSONValue([updatedWelding])])]));
+    tables = ngRigReviewTables(JSONValue(["changes":weldingChanges]));
+    assert(tables[0].rows[0][3] != tables[0].rows[0][4]);
+    assert(tables[0].rows[0][4] == "Eye white R / 3 Paired vertices / Weight 0.50 / Correspondence updated");
+    auto previousBinding = JSONValue(["target":JSONValue(41),"target_name":JSONValue("Eye white R"),
+        "property":JSONValue("opacity"),"authored_keys":JSONValue(3),"maximum_offset":JSONValue(1.),
+        "content_sha256":JSONValue("previous")]);
+    auto updatedBinding = JSONValue(previousBinding.object.dup);
+    updatedBinding["content_sha256"] = JSONValue("updated");
+    auto bindingChanges = ngRigReviewChanges(
+        JSONValue([JSONValue(["id":JSONValue("parameter:1"),"name":JSONValue("Opacity"),
+            "bindings":JSONValue([previousBinding])])]),
+        JSONValue([JSONValue(["id":JSONValue("parameter:1"),"name":JSONValue("Opacity"),
+            "bindings":JSONValue([updatedBinding])])]));
+    tables = ngRigReviewTables(JSONValue(["changes":bindingChanges]));
+    assert(tables[0].rows[0][3] != tables[0].rows[0][4]);
+    assert(tables[0].rows[0][4] == "Eye white R / opacity / 3 keys / 1.00 / Updated values");
+    assert(!ngRigMaterialForcedStatic(true,"torso",""));
+    assert(ngRigMaterialForcedStatic(true,"background",""));
+    assert(ngRigMaterialForcedStatic(false,"torso",""));
+    assert(ngRigMaterialForcedStatic(true,"ear","full_body_backdrop_alpha_perimeter"));
+    assert(!ngRigMaterialForcedStatic(true,"torso","full_body_backdrop_alpha_perimeter"));
+    auto material = JSONValue(["uuid":JSONValue(41),"name":JSONValue("test"),
+        "path":JSONValue("/test"),"support_candidates":JSONValue([previousBinding,updatedBinding])]);
+    auto compact = ngRigClassificationReview(JSONValue(["materials":JSONValue([material])]),JSONValue.init);
+    assert(("support_candidates" in compact["classification"][0].object) is null);
+    assert(material["support_candidates"].array.length == 2);
+    auto observation = ngTestModelObservation();
+    observation["materials"][0]["name"] = JSONValue("background");
+    observation["materials"][0]["path"] = JSONValue("/background");
+    auto facePath = observation["materials"][0]["path"].str;
+    auto backgroundOverride = JSONValue(cast(JSONValue[string])null);
+    auto classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([
+        facePath:backgroundOverride])]));
+    auto background = classified["materials"][0];
+    assert(background["static"].boolean && !ngRigMaterialStaticPreference(background));
+    auto faceOverride = ngRigEditedMaterialOverride(backgroundOverride,RigMaterialField.role,
+        "face",false,"","");
+    classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([facePath:faceOverride])]));
+    assert(!classified["materials"][0]["static"].boolean);
+    // An explicit checkbox override remains independent of the role constraint.
+    faceOverride = ngRigEditedMaterialOverride(faceOverride,RigMaterialField.stationary,"face",true,"","");
+    classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([facePath:faceOverride])]));
+    assert(classified["materials"][0]["static"].boolean);
+    assert(ngRigMaterialStaticPreference(classified["materials"][0]));
+    observation = ngTestModelObservation();
+    Point2[] backdropCloud = [[-100.,0.],[100.,0.],[100.,160.],[-100.,160.]];
+    observation["materials"] = JSONValue(observation["materials"].array ~ JSONValue([
+        "uuid":JSONValue(19),"name":JSONValue("ear_large"),"path":JSONValue("/ear_large"),
+        "active":JSONValue(true),"cloud":ngRigPointsJson(backdropCloud),
+        "opaque_perimeter_coverage":JSONValue(1.)]));
+    classified = ngRigClassifyMaterials(observation,observation["options"]);
+    auto backdrop = classified["materials"].array[$-1];
+    assert(backdrop["static"].boolean && backdrop["semantic_source"].str == "full_body_backdrop_alpha_perimeter");
+    assert(!ngRigMaterialStaticPreference(backdrop));
+    foreach (role; ["face","ear"]) {
+        auto overrideRole = ngRigEditedMaterialOverride(JSONValue.init,RigMaterialField.role,role,false,"","");
+        classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([
+            "/ear_large":overrideRole])]));
+        auto actualStatic = classified["materials"].array[$-1]["static"].boolean;
+        assert(actualStatic == ngRigMaterialForcedStatic(true,role,backdrop["semantic_source"].str));
+    }
+}
+
 void ngTestRigPipeline() {
+    testReviewPlan();
     // A landmark-aligned narrow cell remains valid relative to its own rest area.
     Point2[] narrow = [[0.,0.],[.0002,0.],[10.,0.],[0.,1.],[.0002,1.],[10.,1.]];
     auto narrowCheck = ngRigValidateGrid(narrow,3,.02,narrow);
@@ -72,6 +192,50 @@ void ngTestRigPipeline() {
     inherited = ngRigClassifyMaterials(unknownSource,unknownSource["options"]);
     assert(inherited["materials"].array[$-1]["role"].str == "torso");
     auto observation = ngRigClassifyMaterials(original,original["options"]);
+    auto classifiedReview = ngRigClassificationReview(observation,JSONValue.init);
+    assert(classifiedReview["classification"].array.length == original["materials"].array.length);
+    assert(classifiedReview["classification"][0]["role"].str == "face");
+    assert(("cloud" in classifiedReview["classification"][0].object) is null);
+    auto corrected = ngRigClassifyMaterials(original,JSONValue(["materials":JSONValue([
+        "/iris_r":JSONValue(["role":JSONValue("face_feature"),"feature":JSONValue("upper"),
+            "side":JSONValue("L")])])]));
+    assert(corrected["materials"][13]["feature"].str == "upper");
+    assert(corrected["materials"][13]["side_hint"].str == "L");
+    auto correctedPlan = ngRigCompileProgram(corrected,ngRigDeriveEvidence(corrected));
+    assert(correctedPlan["carriers"][13]["side"].str == "L");
+    auto clippedObservation = ngTestModelObservation();
+    clippedObservation["materials"][13]["receiver"] = JSONValue(12);
+    auto featureCleared = ngRigClassifyMaterials(clippedObservation,JSONValue(["materials":JSONValue([
+        "/iris_r":JSONValue(["feature":JSONValue("")])])]));
+    assert(featureCleared["materials"][13]["feature"].str == "");
+    auto receiverSide = ngRigClassifyMaterials(clippedObservation,JSONValue(["materials":JSONValue([
+        "/sclera_r":JSONValue(["side":JSONValue("L")]),
+        "/iris_r":JSONValue(["feature":JSONValue("iris")])])]));
+    assert(("side_override" in receiverSide["materials"][13].object) is null);
+    auto receiverSidePlan = ngRigCompileProgram(receiverSide,ngRigDeriveEvidence(receiverSide));
+    assert(receiverSidePlan["carriers"][11]["side"].str == "L");
+    assert(receiverSidePlan["carriers"][13]["side"].str == "L");
+    unknown["receiver"] = JSONValue(12);
+    unknownSource["materials"].array[$-1] = unknown;
+    auto edited = ngRigEditedMaterialOverride(JSONValue.init,RigMaterialField.side,"",false,"","L");
+    assert(edited.object.length == 1 && edited["side"].str == "L");
+    auto sideOnly = ngRigClassifyMaterials(unknownSource,JSONValue(["materials":JSONValue([
+        unknown["path"].str:edited])]));
+    assert(sideOnly["materials"].array[$-1]["feature"].str == "sclera");
+    edited = ngRigEditedMaterialOverride(edited,RigMaterialField.stationary,"",true,"","");
+    assert(edited.object.length == 2 && ("feature" in edited.object) is null);
+    edited = ngRigEditedMaterialOverride(edited,RigMaterialField.feature,"",true,"","");
+    auto explicitlyCleared = ngRigClassifyMaterials(unknownSource,JSONValue(["materials":JSONValue([
+        unknown["path"].str:edited])]));
+    assert(explicitlyCleared["materials"].array[$-1]["feature"].str == "");
+    // Clearing a role preserves independently edited fields.
+    edited["role"] = JSONValue("face_feature");
+    edited = ngRigEditedMaterialOverride(edited,RigMaterialField.role,"",false,"iris","R");
+    assert(("role" in edited.object) is null && edited["side"].str == "L" && edited["static"].boolean);
+    auto landmarkOptions = JSONValue(["landmarks":JSONValue([
+        "head_top":JSONValue([-1.,-1.])])]);
+    auto landmarkObservation = ngRigClassifyMaterials(original,landmarkOptions);
+    assert(ngRigPoint(ngRigDeriveEvidence(landmarkObservation)["landmarks"]["head_top"]["xy"]) == [-1.,-1.]);
     auto stationary = ngRigClassifyMaterials(original,JSONValue(["materials":JSONValue([
         "/face":JSONValue(["static":JSONValue(true)])])]));
     assert(stationary["materials"][0]["static"].boolean);
@@ -182,6 +346,22 @@ void ngTestRigPipeline() {
     auto alphaMaterial = JSONValue(["texture_size":JSONValue([2,2]),"source_root_mapping":mesh,
         "alpha_runs_128":ngRigAlphaRuns(rgba,128)]);
     assert(ngRigAlphaCoverage(alphaMaterial,[[2.5,3.5],[4.5,3.5]]) == .5);
+    alphaMaterial["alpha_runs_32"] = ngRigAlphaRuns(rgba,32);
+    auto physicsAlpha = ngRigPhysicsAsset(alphaMaterial);
+    assert(physicsAlpha.affineMapping && physicsAlpha.points.length == cloud.length);
+    foreach (i,p; physicsAlpha.points) foreach (axis; 0 .. 2) assert(abs(p[axis]-cloud[i][axis])<1e-10);
+    alphaMaterial["source_root_mapping"] = reloadedMesh;
+    physicsAlpha = ngRigPhysicsAsset(alphaMaterial);
+    auto warpedCloud = ngRigTextureSupport(rgba,2,2,reloadedMesh);
+    assert(!physicsAlpha.affineMapping && physicsAlpha.points == warpedCloud);
+    auto croppedMesh = parseJSON(mesh.toString());
+    croppedMesh["triangles"] = JSONValue(triangles[0 .. 1]);
+    alphaMaterial["source_root_mapping"] = croppedMesh;
+    physicsAlpha = ngRigPhysicsAsset(alphaMaterial);
+    auto croppedCloud = ngRigTextureSupport(rgba,2,2,croppedMesh);
+    assert(physicsAlpha.points.length == croppedCloud.length);
+    foreach (i,p; physicsAlpha.points) foreach (axis; 0 .. 2) assert(abs(p[axis]-croppedCloud[i][axis])<1e-10);
+    assert(physicsAlpha.points.length == 3 && !physicsAlpha.mask[3]);
     ubyte[] padded = new ubyte[6*4*4];
     foreach (y; 1 .. 3) foreach (x; 1 .. 5) padded[(y*6+x)*4+3] = 255;
     auto contourMaterial = JSONValue(["texture_size":JSONValue([6,4]),
@@ -250,6 +430,26 @@ void ngTestRigPipeline() {
     cheekState["native_head_keys"] = JSONValue(headKeys);
     cheekState["depth_angle_program_sha256"] = JSONValue(ngRigDigest(JSONValue(headKeys)));
     auto cheekReport = ngRigCompileCheekCorrections(cheekState,program);
+    auto disabledControlState = JSONValue(cheekState.object.dup);
+    disabledControlState["control_geometry"] = ngRigControlGeometry(controls);
+    string[] disabledMechanisms;
+    foreach (mechanism; controls["mechanisms"].array)
+        disabledMechanisms ~= "mechanism:" ~ mechanism["name"].str;
+    JSONValue reviewedOperations;
+    disabledControlState["controls"] = ngRigReviewControls(controls,
+        JSONValue(["disabled":JSONValue(disabledMechanisms)]),reviewedOperations);
+    assert(disabledControlState["controls"]["mechanisms"].array.length == 0);
+    foreach (mechanism; disabledControlState["control_geometry"]["mechanisms"].array)
+        assert(("operations" in mechanism.object) is null);
+    auto disabledControlCheek = ngRigCompileCheekCorrections(disabledControlState,program);
+    assert(disabledControlCheek == cheekReport);
+    string[] disabledBindings;
+    foreach (mechanism; controls["mechanisms"].array) foreach (operation; mechanism["operations"].array)
+        disabledBindings ~= ngRigReviewOperationId("control",operation,mechanism["name"].str);
+    disabledControlState["controls"] = ngRigReviewControls(controls,
+        JSONValue(["disabled":JSONValue(disabledBindings)]),reviewedOperations);
+    assert(disabledControlState["controls"]["mechanisms"].array.length == 0);
+    assert(ngRigCompileCheekCorrections(disabledControlState,program) == cheekReport);
     assert(ngRigDigest(cheekReport) == ngRigDigest(ngParseAutoRigJson(cheekReport.toString())));
     assert(cheekReport["applicable"].boolean && cheekReport["operations"].array.length == 3);
     foreach (operation; cheekReport["operations"].array) {
@@ -281,12 +481,18 @@ void ngTestRigPipeline() {
     auto input = run.session().inputContext(run.stepTaskId("source"));
     assert(input.hasValue("options") && input.value("options").json.object.length == 0);
     run.setInput("options",AutoRigValue.jsonValue(JSONValue(["render":JSONValue(true)])));
-    assert(run.orderedSteps().length == 15);
+    assert(run.orderedSteps().length == 16);
     run.execute();
     assert(run.snapshot().state == AutoRigWorkflowState.Succeeded);
+    // The picker deliberately has no UUID; display names come from the actual review output.
+    assert(("uuid" in run.session().output(run.stepTaskId("source"),"materials").json.array[0].object) is null);
+    auto sourceNames = ngRigReviewMaterialNames(run.session().output(run.stepTaskId("source"),"review").json);
+    assert(sourceNames.length == original["materials"].array.length && sourceNames[1] == "/face");
+    assert(ngRigReviewMaterialNames(run.session().output(run.stepTaskId("source"),"materials").json).length == 0);
     assert(stages == ["observe-model","prepare-source-groups","prepare-shoulders","mesh-parts","register-source-uv",
         "prepare-feature-composites","compile-domain-layout","build-native-rig","weld-shoulders",
-        "apply-rig-controls","validate-depth-inputs","bake-depth-angles","apply-shape-corrections","verify-saved-rig"]);
+        "apply-rig-controls","validate-depth-inputs","bake-depth-angles","apply-shape-corrections",
+        "apply-secondary-physics","verify-saved-rig"]);
     assert(run.output("report").json["passed"].boolean && run.output("model").readBlob().length>0);
     auto detached = run.session().output(run.stepTaskId("source"),"state").json;
     assert(("materials" in detached.object) is null);
@@ -312,6 +518,17 @@ void ngTestRigPipeline() {
     assert(run.session().task(run.stepTaskId("source")).attempt == sourceAttempt);
     assert(run.session().outputContext(run.stepTaskId("compile")).value("program").json["carriers"].array.length
         == original["materials"].array.length-1);
+    assert(run.session().output(run.stepTaskId("compile"),"review").json["classification"][13]["static"].boolean);
+    run.execute();
+    auto previousStages = stages.length;
+    auto compileAttempt = run.session().task(run.stepTaskId("compile"),false).attempt;
+    run.session().setInput(run.stepTaskId("weld"),"review",AutoRigValue.jsonValue(
+        JSONValue(["disabled":JSONValue(["weld:1:2"])])));
+    run.execute();
+    assert(run.session().task(run.stepTaskId("source"),false).attempt == sourceAttempt);
+    assert(run.session().task(run.stepTaskId("compile"),false).attempt == compileAttempt);
+    assert(stages[previousStages .. $] == ["weld-shoulders","apply-rig-controls","validate-depth-inputs",
+        "bake-depth-angles","apply-shape-corrections","apply-secondary-physics","verify-saved-rig"]);
 
     string[] attempts;
     bool failControls = true;
@@ -331,7 +548,8 @@ void ngTestRigPipeline() {
     diagnosticRun.execute();
     assert(diagnosticRun.snapshot().state == AutoRigWorkflowState.Failed);
     assert(diagnosticRun.session().task(diagnosticRun.stepTaskId("controls")).state == AutoRigTaskState.Failed);
-    assert(attempts[$-4 .. $] == ["validate-depth-inputs","bake-depth-angles","apply-shape-corrections","verify-saved-rig"]);
+    assert(attempts[$-5 .. $] == ["validate-depth-inputs","bake-depth-angles","apply-shape-corrections",
+        "apply-secondary-physics","verify-saved-rig"]);
     auto completion = diagnosticRun.output("report").json;
     assert(!completion["all_finish_stages_succeeded"].boolean && !completion["rig_complete"].boolean);
     assert(completion["finish_stages"].array[0]["error"].str == "synthetic local-control failure");

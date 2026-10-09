@@ -157,7 +157,10 @@ void incUpdatePanels() {
         // Don't render panels that aren't active
         if (!panel.isActive()) continue;
 
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        igBeginDisabled(ngMcpExternalCommandsBlocked() && panel.name != "AutoRig");
         panel.update();
+        igEndDisabled();
     }
 }
 

@@ -583,10 +583,8 @@ import nijigenerate.core.math.vertex : position;
 ptrdiff_t[] incRegisterWeldedPoints(Drawable node, Drawable counterDrawable, float weight = 0.5) {
     import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
     import nijigenerate.core.math.welding : ngMatchWeldingVertices;
-    import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
     incActionPushGroup();
     scope(exit) incActionPopGroup();
-    ngRefineWeldingSeams(node, counterDrawable);
     vec2[] source, target;
     foreach (vertex; node.vertices)
         source ~= (node.transform.matrix * vec4(vertex, 0, 1)).xy;

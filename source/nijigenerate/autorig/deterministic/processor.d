@@ -10,6 +10,7 @@ import nijigenerate.autorig.deterministic.evidence;
 import nijigenerate.autorig.deterministic.program;
 import nijigenerate.autorig.deterministic.pipeline;
 import nijigenerate.autorig.deterministic.storage;
+import nijigenerate.autorig.deterministic.review;
 import std.exception : enforce;
 import std.json : JSONValue, JSONType;
 import std.math : isFinite;
@@ -90,6 +91,7 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
             foreach (material; state["materials"].array)
                 materials ~= JSONValue(["name":material["name"],"path":material["path"],"active":material["active"]]);
             context.publishJson("materials",JSONValue(materials));
+            context.publishJson("review",ngRigClassificationReview(state,JSONValue.init));
             auto storage = ngRigStateStorage(context);
             auto snapshot = storage.snapshot(state,true);
             context.publishJson("observation",storage.artifact(snapshot,"materials"));
@@ -112,6 +114,7 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
             auto evidence = ngRigDeriveEvidence(observation);
             phase("compile-program");
             auto program = ngRigCompileProgram(observation,evidence);
+            context.publishJson("review",ngRigClassificationReview(observation,program));
             state = observation; state["evidence"] = evidence;
             phase("retain-artifacts");
             context.publishJson("evidence",evidence);
@@ -126,7 +129,11 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
             JSONValue result;
             try {
                 result = nativeStage(taskId,state,context.input("program").json,context.input("model").readBlob(),context);
-                if (taskId == "compile-domain-layout") context.publishJson("program",ngRigCompileProgram(result,result["evidence"]));
+                if (taskId == "compile-domain-layout") {
+                    auto layout = ngRigCompileProgram(result,result["evidence"]);
+                    context.publishJson("program",layout);
+                    context.previewJson("review-layout",ngRigClassificationReview(result,layout));
+                }
                 if (entry.retainFailureOutputs && taskId != "verify-saved-rig") {
                     auto attempts = ngRigGet(state,"finish_stages",JSONValue(cast(JSONValue[])null)).array.dup;
                     attempts ~= JSONValue(["stage":JSONValue(taskId),"succeeded":JSONValue(true)]);

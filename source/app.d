@@ -16,7 +16,7 @@ import nijigenerate.core;
 import nijigenerate.core.settings;
 import nijigenerate.utils.crashdump;
 import nijigenerate.panels;
-import nijigenerate.panels.autorig : ngAutoRigStopAll;
+import nijigenerate.panels.autorig : ngAutoRigStopAll, ngAutoRigPollWorker;
 import nijigenerate.panels.resource;
 import nijigenerate.windows;
 import nijigenerate.widgets;
@@ -41,7 +41,7 @@ version(RegressionSmoke) import nijigenerate.regression_smoke :
     ngRegressionSmokeFailed,
     ngRegressionSmokeFailureMessage,
     ngSetupRegressionSmokeScenario;
-import nijigenerate.api.mcp.task : ngMcpProcessQueue;
+import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngMcpExternalCommandsBlocked;
 version(HaveMCP) import nijigenerate.api.mcp : ngMcpLoadSettings, ngMcpStop;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
@@ -233,6 +233,7 @@ int main(string[] args)
     Update
 */
 void incUpdate() {
+    ngAutoRigPollWorker();
 
     // Update nijilive
     incAnimationUpdate();
@@ -247,10 +248,15 @@ void incUpdate() {
             incHandleShortcuts();
             // Process editor dispatches used by AutoRig and optional API services.
             ngMcpProcessQueue();
+            ngAutoRigPollWorker();
+            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incMainMenu();
+            igEndDisabled();
 
             incUpdatePanels();
+            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incUpdateWindows();
+            igEndDisabled();
             incStatusUpdate();
             ngFlushDepthBoneDirtyForFrame();
         }
@@ -261,6 +267,7 @@ void incUpdate() {
     Update without any event polling
 */
 void incUpdateNoEv() {
+    ngAutoRigPollWorker();
 
     // Update nijilive
     incAnimationUpdate();
@@ -271,10 +278,14 @@ void incUpdateNoEv() {
         if (incShouldProcess()) {
 
             incHandleShortcuts();
+            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incMainMenu();
+            igEndDisabled();
 
             incUpdatePanels();
+            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incUpdateWindows();
+            igEndDisabled();
             incStatusUpdate();
             ngFlushDepthBoneDirtyForFrame();
         }

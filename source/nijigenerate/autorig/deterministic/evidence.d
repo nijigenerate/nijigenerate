@@ -288,6 +288,18 @@ JSONValue ngRigClassifyMaterials(JSONValue observation, JSONValue options, AutoR
         auto feature = ngRigMaterialFeature(original["name"].str,ancestors);
         if (role == "pelvis_accessory") feature = "";
         auto overrideRecord = original["path"].str in overrides.object;
+        if (overrideRecord !is null) {
+            feature = ngRigString(*overrideRecord,"feature",feature);
+            import std.algorithm : canFind;
+            enforce(["", "mouth", "mouth_tongue", "mouth_upper_teeth", "mouth_lower_teeth", "mouth_outline",
+                "mouth_upper_lip", "mouth_lower_lip", "brow", "sclera", "iris", "corner", "upper", "lower",
+                "fold", "nose"].canFind(feature), "Unknown material feature override: " ~ feature);
+            if (auto side = "side" in overrideRecord.object) {
+                auto sideOverride = side.str;
+                enforce(["","L","R"].canFind(sideOverride),"Unknown model side override");
+                record["side_override"] = JSONValue(sideOverride);
+            }
+        }
         bool overridden = overrideRecord !is null && "role" in (*overrideRecord).object;
         if (overrideRecord !is null && "role" in (*overrideRecord).object) {
             role = (*overrideRecord)["role"].str;
@@ -352,7 +364,10 @@ JSONValue ngRigClassifyMaterials(JSONValue observation, JSONValue options, AutoR
                 auto role = materials[*target]["role"].str;
                 if (role.length && role != "background") {
                     materials[i]["role"] = JSONValue(role);
-                    if (!materials[i]["feature"].str.length) materials[i]["feature"] = materials[*target]["feature"];
+                    auto featureOverride = materials[i]["path"].str in overrides.object;
+                    bool explicitFeature = featureOverride !is null && ("feature" in featureOverride.object) !is null;
+                    if (!explicitFeature && !materials[i]["feature"].str.length)
+                        materials[i]["feature"] = materials[*target]["feature"];
                     materials[i]["semantic_source"] = JSONValue("imported_clipping_receiver");
                 }
             }

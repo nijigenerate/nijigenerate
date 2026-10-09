@@ -4,12 +4,18 @@ import nijigenerate.autorig.framework : AutoRigTaskContext;
 import nijigenerate.autorig.deterministic.contracts;
 import nijigenerate.autorig.deterministic.observation;
 import nijigenerate.autorig.deterministic.controls;
+import nijigenerate.autorig.deterministic.physics;
+import nijigenerate.commands.node.simplephysics;
+import nijigenerate.commands.parameter.paramedit : SetArmedParameterAndKeypointCommand, SetParameterKeypointCommand;
+import nijilive.core.nodes.drivers : SimplePhysics, PhysicsModel, ParamMapMode;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature, ngRigPropagateClippingVisibility,
     ngRigResolveGroupReceivers;
 import nijigenerate.autorig.deterministic.geometry;
+import nijigenerate.autorig.deterministic.review;
+import std.conv : to;
 import nijigenerate.autorig.deterministic.registered : ngRigSampleRegisteredDepth;
 import nijigenerate.viewport.vertex.automesh.common : getAlphaInput;
-import std.digest.sha : sha256Of;
+import std.digest.sha : sha256Of, SHA256;
 import std.digest : toHexString;
 import nijigenerate.commands.base : Context, Command, CommandResult, ExCommandResult, CreateResult, ngRunCommand;
 import nijigenerate.commands.puppet.view : CaptureLiveScreenshotCommand;
@@ -34,7 +40,7 @@ import nijigenerate.viewport.vertex.automesh.meta : AMProcessor;
 import nijigenerate.project : incActivePuppet, ngRestorePuppetMemory;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
 import nijigenerate.ext : ExPart, ExPuppet;
-import nijigenerate.ext.nodes.exdepthbone : ExDepthRigRoot;
+import nijigenerate.ext.nodes.exdepthbone : ExDepthRigRoot, ExDepthBone;
 import nijilive : Node, Puppet, Part, Composite, Deformable, NotifyReason, inWriteINPPuppetMemory, inGetCamera;
 import nijigenerate.viewport.base : incViewportTargetPosition, incViewportTargetZoom, incViewportZoom;
 import nijilive.core.nodes.composite.projectable : Projectable;
@@ -55,6 +61,108 @@ import core.thread : Thread;
 
 // Accessed exclusively on the editor thread; distinguishes retries from user edits.
 private string[string] liveRigSignatures;
+
+private JSONValue reviewSettings(AutoRigTaskContext task) {
+    return task.hasInput("review") ? task.input("review").json : JSONValue.init;
+}
+
+private JSONValue reviewVertexBounds(V)(V vertices) {
+    if (!vertices.length) return JSONValue.init;
+    double[4] bounds = [double.infinity,double.infinity,-double.infinity,-double.infinity];
+    foreach (point; vertices) {
+        bounds[0] = min(bounds[0],point.x); bounds[1] = min(bounds[1],point.y);
+        bounds[2] = max(bounds[2],point.x); bounds[3] = max(bounds[3],point.y);
+    }
+    return JSONValue(bounds[]);
+}
+
+private JSONValue reviewModel(AutoRigTaskContext task) {
+    JSONValue[] items;
+    task.runOnMainThread({
+        auto puppet = incActivePuppet();
+        void visit(Node node) {
+            auto local = node.localTransform;
+            auto item = JSONValue(["id":JSONValue("node:" ~ node.uuid.to!string), "name":JSONValue(node.name),
+                "type":JSONValue(node.typeId), "parent":JSONValue(node.parent is null ? 0u : node.parent.uuid),
+                "parent_name":JSONValue(node.parent is null ? "" : node.parent.name),
+                "enabled":JSONValue(node.getEnabled()), "zsort":JSONValue(node.relZSort),
+                "translation":JSONValue([local.translation.x,local.translation.y,local.translation.z]),
+                "rotation":JSONValue([local.rotation.x,local.rotation.y,local.rotation.z]),
+                "scale":JSONValue([local.scale.x,local.scale.y])]);
+            if (auto bone = cast(ExDepthBone)node) {
+                item["bone"] = JSONValue(bone.boneId);
+                item["rest_head"] = JSONValue([bone.restHead.x,bone.restHead.y,bone.restHead.z]);
+                item["rest_tail"] = JSONValue([bone.restTail.x,bone.restTail.y,bone.restTail.z]);
+                item["rest_roll"] = JSONValue(bone.restRoll);
+                item["inherit_parent"] = JSONValue(bone.allowParentToTargets);
+            }
+            if (auto part = cast(Part)node) {
+                auto mesh = part.getMesh();
+                item["vertices"] = JSONValue(mesh.vertices.length);
+                item["vertex_bounds"] = reviewVertexBounds(mesh.vertices);
+                item["triangles"] = JSONValue(mesh.indices.length / 3);
+                item["vertices_sha256"] = JSONValue(sha256Of(cast(const(ubyte)[])mesh.vertices.toArray()).toHexString.idup);
+                item["uv_sha256"] = JSONValue(sha256Of(cast(const(ubyte)[])mesh.uvs.toArray()).toHexString.idup);
+                item["indices_sha256"] = JSONValue(sha256Of(cast(const(ubyte)[])mesh.indices).toHexString.idup);
+                item["opacity"] = JSONValue(part.opacity);
+                JSONValue[] masks, welds;
+                foreach (mask; part.masks) masks ~= JSONValue(["source":JSONValue(mask.maskSrcUUID),
+                    "mode":JSONValue(mask.mode.to!string)]);
+                foreach (weld; part.welded) welds ~= JSONValue(["target":JSONValue(weld.target is null ? 0u : weld.target.uuid),
+                    "target_name":JSONValue(weld.target is null ? "" : weld.target.name),
+                    "paired_vertices":JSONValue(weld.indices.length),
+                    "weight":JSONValue(weld.weight), "indices_sha256":JSONValue(ngRigDigest(JSONValue(weld.indices)))]);
+                item["masks"] = JSONValue(masks); item["welding"] = JSONValue(welds);
+            } else if (auto deformable = cast(Deformable)node) {
+                item["vertices"] = JSONValue(deformable.vertices.length);
+                item["vertex_bounds"] = reviewVertexBounds(deformable.vertices);
+                item["vertices_sha256"] = JSONValue(sha256Of(cast(const(ubyte)[])deformable.vertices.toArray()).toHexString.idup);
+            }
+            if (auto mapped = cast(DepthMappedNode)node)
+                item["depth_sha256"] = JSONValue(sha256Of(cast(const(ubyte)[])mapped.copyDepths()).toHexString.idup);
+            items ~= item;
+            foreach (child; node.children) visit(child);
+        }
+        visit(puppet.root);
+        foreach (parameter; puppet.parameters) {
+            JSONValue[] bindings;
+            foreach (binding; parameter.bindings) {
+                string digest; size_t keyCount; double maximumOffset = 0;
+                foreach (y; 0 .. parameter.axisPoints[1].length) foreach (x; 0 .. parameter.axisPoints[0].length)
+                    if (binding.isSet(vec2u(cast(uint)x,cast(uint)y))) ++keyCount;
+                if (auto deformation = cast(DeformationParameterBinding)binding) {
+                    SHA256 hash;
+                    foreach (y; 0 .. parameter.axisPoints[1].length) foreach (x; 0 .. parameter.axisPoints[0].length) {
+                        auto index = vec2u(cast(uint)x,cast(uint)y);
+                        if (!binding.isSet(index)) continue;
+                        uint[2] coordinates = [cast(uint)x,cast(uint)y];
+                        hash.put(cast(const(ubyte)[])coordinates[]);
+                        auto offsets = deformation.getValue(index).vertexOffsets;
+                        foreach (point; offsets) maximumOffset = max(maximumOffset,max(abs(point.x),abs(point.y)));
+                        static if (__traits(compiles, offsets.toArray()))
+                            hash.put(cast(const(ubyte)[])offsets.toArray());
+                        else hash.put(cast(const(ubyte)[])offsets);
+                    }
+                    digest = hash.finish().toHexString.idup;
+                } else digest = ngRigDigest(parseJSON(inToJson(binding)));
+                auto entry = JSONValue(["target":JSONValue(binding.getTarget().target.uuid),
+                    "target_name":JSONValue(binding.getTarget().target.name),
+                    "property":JSONValue(binding.getName()), "authored_keys":JSONValue(keyCount),
+                    "content_sha256":JSONValue(digest)]);
+                if (cast(DeformationParameterBinding)binding !is null)
+                    entry["maximum_offset"] = JSONValue(maximumOffset);
+                bindings ~= entry;
+            }
+            items ~= JSONValue(["id":JSONValue("parameter:" ~ parameter.uuid.to!string),
+                "name":JSONValue(parameter.name), "bindings":JSONValue(bindings),
+                "minimum":JSONValue([parameter.min.x,parameter.min.y]),
+                "maximum":JSONValue([parameter.max.x,parameter.max.y]),
+                "default":JSONValue([parameter.defaults.x,parameter.defaults.y]),
+                "axisX":JSONValue(parameter.axisPoints[0]), "axisY":JSONValue(parameter.axisPoints[1])]);
+        }
+    });
+    return JSONValue(items);
+}
 
 /** Effective visibility includes the receiver of a PSD clipping chain. */
 bool ngRigMaterialIsActive(Part part) {
@@ -1092,6 +1200,10 @@ private JSONValue buildRig(JSONValue state, JSONValue program, AutoRigTaskContex
 
 private JSONValue applyControls(JSONValue state, AutoRigTaskContext task) {
     auto controls = ngRigCompileControls(state,task);
+    state["control_geometry"] = ngRigControlGeometry(controls);
+    JSONValue operations;
+    controls = ngRigReviewControls(controls,reviewSettings(task),operations);
+    task.previewJson("review-operations",operations);
     foreach (mechanism; controls["mechanisms"].array) {
         uint parameterId;
         task.runOnMainThread({
@@ -1150,8 +1262,54 @@ private JSONValue applyControls(JSONValue state, AutoRigTaskContext task) {
 
 private JSONValue weldShoulders(JSONValue state, AutoRigTaskContext task) {
     auto pairs = ngRigGet(state,"shoulder_pairs",JSONValue(cast(JSONValue[])null)).array.dup;
+    JSONValue[] operations;
+    auto settings = reviewSettings(task);
+    foreach (pair; pairs) operations ~= JSONValue(["id":JSONValue(ngRigReviewOperationId("weld",pair)),
+        "enabled":JSONValue(ngRigReviewEnabled(settings,ngRigReviewOperationId("weld",pair))),
+        "plan":ngRigReviewCompact(pair)]);
+    task.previewJson("review-operations",JSONValue(operations));
     foreach (ref pair; pairs) {
+        if (!ngRigReviewEnabled(settings,ngRigReviewOperationId("weld",pair))) {
+            pair["status"] = JSONValue("disabled_by_user"); continue;
+        }
         if (!pair["matching"].boolean) { pair["status"] = JSONValue("not_matching"); continue; }
+        ngRigCheckpoint(task);
+        task.runOnMainThread({
+            auto puppet = incActivePuppet();
+            auto source = cast(Part)puppet.find!Node(uuid(pair["source"]));
+            auto target = cast(Part)puppet.find!Node(uuid(pair["target"]));
+            enforce(source !is null && target !is null,"Shoulder welding Part disappeared");
+            import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
+            auto originalSource = textureMapping(source), originalTarget = textureMapping(target);
+            auto added = ngRefineWeldingSeams(source, target);
+            pair["refined_vertices"] = JSONValue(added);
+            auto beforeSource = textureMapping(source), beforeTarget = textureMapping(target);
+            // Refinement adds seam samples; it must preserve all original samples and their UV frame.
+            foreach (meshes; [[originalSource, beforeSource], [originalTarget, beforeTarget]]) {
+                enforce(meshes[1]["vertices"].array.length >= meshes[0]["vertices"].array.length,
+                    "Shoulder refinement removed original vertices");
+                foreach (field; ["vertices", "uv"]) foreach (i, sample; meshes[0][field].array)
+                    enforce(sample == meshes[1][field].array[i], "Shoulder refinement changed an original sample");
+                ngRigVerifySourceUV(meshes[0], meshes[1]);
+            }
+            // Keep subsequent checks and controls on the intentionally refined mesh, not the pre-weld mesh.
+            auto targets = state["targets"].array.dup;
+            foreach (ref entry; targets) foreach (part; [source, target]) if (uuid(entry["part"]) == part.uuid) {
+                auto original = part is source ? originalSource : originalTarget;
+                enforce(sameTextureMapping(entry["mapping"], original),
+                    "Shoulder mesh changed before refinement");
+                entry["mapping"] = part is source ? beforeSource : beforeTarget;
+                Point2[] world;
+                foreach (p; ngRigPoints(entry["mapping"]["vertices"])) world ~= toRoot(part,p[0],p[1]);
+                entry["world"] = ngRigPointsJson(world);
+            }
+            state["targets"] = JSONValue(targets);
+        });
+    }
+    // Finish every shared mesh edit before predicting or creating any shoulder link.
+    foreach (ref pair; pairs) {
+        if (!ngRigReviewEnabled(settings,ngRigReviewOperationId("weld",pair)) || !pair["matching"].boolean)
+            continue;
         ngRigCheckpoint(task);
         Point2[] sourcePoints, targetPoints;
         JSONValue beforeSource, beforeTarget;
@@ -1160,9 +1318,6 @@ private JSONValue weldShoulders(JSONValue state, AutoRigTaskContext task) {
             auto source = cast(Part)puppet.find!Node(uuid(pair["source"]));
             auto target = cast(Part)puppet.find!Node(uuid(pair["target"]));
             enforce(source !is null && target !is null,"Shoulder welding Part disappeared");
-            import nijigenerate.viewport.common.mesheditor.operations.impl : ngRefineWeldingSeams;
-            auto added = ngRefineWeldingSeams(source, target);
-            pair["refined_vertices"] = JSONValue(added);
             beforeSource = textureMapping(source); beforeTarget = textureMapping(target);
             foreach (p; ngRigPoints(beforeSource["vertices"])) {
                 auto point = source.transform.matrix*vec4(cast(float)p[0],cast(float)p[1],0,1);
@@ -1189,9 +1344,19 @@ private JSONValue weldShoulders(JSONValue state, AutoRigTaskContext task) {
             auto puppet = incActivePuppet();
             auto source = cast(Part)puppet.find!Node(uuid(pair["source"]));
             auto target = cast(Part)puppet.find!Node(uuid(pair["target"]));
+            // The mesh was refined before predicting correspondences; preserve that snapshot.
             command(new AddWeldingCommand(target,0),editorContext([source]));
             bool found;
             foreach (link; source.welded) if (link.target is target) {
+                if (link.indices != indices || link.weight != 0) {
+                    task.previewJson("welding-correspondence-mismatch",JSONValue([
+                        "source":pair["source"],"target":pair["target"],
+                        "predicted":JSONValue(indices),"actual":JSONValue(link.indices),
+                        "source_vertices_before":JSONValue(beforeSource["vertices"].array.length),
+                        "source_vertices_after":JSONValue(source.vertices.length),
+                        "target_vertices_before":JSONValue(beforeTarget["vertices"].array.length),
+                        "target_vertices_after":JSONValue(target.vertices.length)]));
+                }
                 enforce(link.indices == indices && link.weight == 0,"Native shoulder correspondence differs from prediction");
                 found = true;
             }
@@ -1700,7 +1865,10 @@ private JSONValue verifyRig(JSONValue state, JSONValue program, AutoRigTaskConte
             bool found;
             foreach (link; source.welded) if (link.target is target) {
                 auto expected = ngRigNumbers(pair["indices"]);
-                enforce(link.indices.length == expected.length && link.weight == 0,"Saved shoulder link has changed");
+                enforce(link.indices.length == expected.length && link.weight == 0,
+                    "Saved shoulder link has changed: source=" ~ source.uuid.to!string ~
+                    " target=" ~ target.uuid.to!string ~ " expected_vertices=" ~ expected.length.to!string ~
+                    " actual_vertices=" ~ link.indices.length.to!string ~ " weight=" ~ link.weight.to!string);
                 foreach (i,value; link.indices) enforce(value == expected[i],"Saved shoulder correspondence has changed");
                 found = true;
             }
@@ -1746,6 +1914,124 @@ private JSONValue verifyRig(JSONValue state, JSONValue program, AutoRigTaskConte
     return report;
 }
 
+private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskContext task) {
+    if (ngRigString(program,"kind","humanoid") != "humanoid") return state;
+    RigPhysicsAsset[ulong] assets;
+    auto structure = ngRigPhysicsStructure(state,program,assets,task);
+    RigPhysicsMesh[ulong] meshes;
+    double[6][ulong] transforms;
+    task.runOnMainThread({
+        auto puppet = incActivePuppet();
+        foreach (parameter; puppet.parameters) parameter.value = parameter.defaults;
+        puppet.enableDrivers = false; puppet.update();
+        double[6] world(Node node) {
+            if (node is puppet.root) return [1.,0.,0.,0.,1.,0.];
+            if (auto existing = node.uuid in transforms) return *existing;
+            auto local = node.localTransform;
+            enforce(local.rotation.x == 0 && local.rotation.y == 0 && !node.pinToMesh,
+                "Unsupported neutral physics coordinate frame");
+            import std.math : sin, cos;
+            auto angle = cast(double)local.rotation.z, c = cos(angle), s = sin(angle);
+            double[6] result = [c*local.scale.x,-s*local.scale.y,local.translation.x,
+                s*local.scale.x,c*local.scale.y,local.translation.y];
+            if (node.parent !is null && !node.lockToRoot) {
+                auto parent = world(node.parent);
+                auto x = ngRigPhysicsTransform(parent,[result[0],result[3]],true);
+                auto y = ngRigPhysicsTransform(parent,[result[1],result[4]],true);
+                auto origin = ngRigPhysicsTransform(parent,[result[2],result[5]]);
+                result = [x[0],y[0],origin[0],x[1],y[1],origin[1]];
+            }
+            transforms[node.uuid] = result; return result;
+        }
+        foreach (id,asset; assets) {
+            auto part = cast(Part)puppet.find!Node(cast(uint)id);
+            enforce(part !is null && part.getMesh().origin == vec2(0,0),"Physics requires a zero-origin Part mesh");
+            RigPhysicsMesh mesh;
+            foreach (vertex; part.getMesh().vertices) mesh.vertices ~= [cast(double)vertex.x,cast(double)vertex.y];
+            foreach (uv; part.getMesh().uvs) mesh.uv ~= [cast(double)uv.x,cast(double)uv.y];
+            foreach (index; part.getMesh().indices) mesh.indices ~= index;
+            mesh.toModel = world(part); meshes[id] = mesh;
+        }
+        auto root = cast(ExDepthRigRoot)puppet.find!Node(uuid(state["rigRoot"]));
+        enforce(root !is null,"Physics anatomical rig is missing");
+        foreach (bone; root.depthBones()) world(bone);
+    });
+    auto plan = ngRigCompilePhysicsOperations(structure,assets,meshes,task);
+    auto before = reviewModel(task); auto policy = plan["policy"];
+    JSONValue[string] identities;
+    foreach (group; plan["groups"].array) {
+        uint parameterId;
+        task.runOnMainThread({
+            auto puppet = incActivePuppet();
+            foreach (parameter; puppet.parameters) enforce(parameter.name != group["name"].str,
+                "Unowned Physics parameter name collision: " ~ group["name"].str);
+            auto created = cast(CreateResult!Parameter)command(new Add2DParameterCommand(-1,1),editorContext());
+            enforce(created !is null && created.created.length == 1,"Could not create physics parameter");
+            auto parameter = created.created[0]; parameter.name = group["name"].str;
+            parameter.min = vec2(-1,-1); parameter.max = vec2(1,1);
+            parameter.axisPoints[0] = [0.0f,0.5f,1.0f]; parameter.axisPoints[1] = [0.0f,0.5f,1.0f];
+            parameter.defaults = vec2(0,0); parameter.value = parameter.defaults; parameterId = parameter.uuid;
+            auto context = editorContext(); context.parameters = [parameter];
+            context.parameterValue = vec2(0,0); context.hasParameterValue = true;
+            command(new SetParameterKeypointCommand(),context);
+        });
+        foreach (operation; group["operations"].array) {
+            ngRigCheckpoint(task); auto offsets = nativeNumbers(operation["values"]); auto key = ngRigPoint(operation["key"]);
+            task.runOnMainThread({
+                auto puppet = incActivePuppet(); auto part = puppet.find!Node(uuid(operation["target"]));
+                auto parameter = puppet.findParameter(parameterId); auto context = editorContext([part]);
+                context.parameters = [parameter]; context.hasExplicitKeyPoint = true;
+                context.keyPoint = vec2u(cast(uint)(key[0]+1),cast(uint)(key[1]+1));
+                command(new SetDeformBindingCommand("deform",offsets,true),context);
+                auto binding = cast(DeformationParameterBinding)parameter.getBinding(part,"deform");
+                enforce(binding !is null && binding.isSet(context.keyPoint),"Missing physics key");
+                auto actual = binding.getValue(context.keyPoint).vertexOffsets;
+                enforce(actual.length*2 == offsets.length,"Physics binding vertex count differs");
+                auto mesh = meshes[ngRigUnsigned(operation["target"])];
+                import std.math : nextUp;
+                foreach (i,value; actual) foreach (axis; 0 .. 2) {
+                    auto coordinate = cast(float)(abs(mesh.vertices[i][axis])+abs(offsets[i*2+axis]));
+                    auto tolerance = max(1e-4,2.*(nextUp(coordinate)-coordinate));
+                    enforce(abs((axis == 0 ? value.x : value.y)-offsets[i*2+axis])<=tolerance,
+                        "Physics key readback differs");
+                }
+            });
+        }
+        task.runOnMainThread({
+            auto puppet = incActivePuppet(); auto root = cast(ExDepthRigRoot)puppet.find!Node(uuid(state["rigRoot"]));
+            Node parent;
+            foreach (bone; root.depthBones()) if (bone.boneId == group["parent_bone"].str) parent = bone;
+            enforce(parent !is null,"Physics support bone is missing");
+            auto physics = cast(SimplePhysics)create(new AddNodeCommandT!(true)("SimplePhysics",""),editorContext([parent]));
+            enforce(physics !is null,"Could not create SimplePhysics"); physics.name = group["name"].str;
+            auto context = editorContext([physics]); context.inspectors = [new NINode([physics],ModelEditSubMode.Layout)];
+            auto anchor = ngRigPhysicsTransform(ngRigPhysicsInverse(transforms[parent.uuid]),ngRigPoint(group["fixed"]));
+            auto x = new TranslationXCommand(); x.value = cast(float)anchor[0]; command(x,context);
+            auto y = new TranslationYCommand(); y.value = cast(float)anchor[1]; command(y,context);
+            command(new SetSimplePhysicsParameterCommand(puppet.findParameter(parameterId)),context);
+            command(new SetSimplePhysicsModelTypeCommand(PhysicsModel.SpringPendulum),context);
+            command(new SetSimplePhysicsMapModeCommand(ParamMapMode.XY),context);
+            command(new SetSimplePhysicsLocalOnlyCommand(false),context);
+            command(new SetSimplePhysicsGravityCommand(cast(float)ngRigNumber(policy["settings"]["gravity"])),context);
+            command(new SetSimplePhysicsLengthCommand(cast(float)ngRigNumber(group["length"])),context);
+            command(new SetSimplePhysicsFrequencyCommand(cast(float)ngRigNumber(policy["profiles"][group["profile"].str]["frequency"])),context);
+            command(new SetSimplePhysicsAngleDampingCommand(cast(float)ngRigNumber(policy["settings"]["angle_damping"])),context);
+            command(new SetSimplePhysicsLengthDampingCommand(cast(float)ngRigNumber(policy["settings"]["length_damping"])),context);
+            command(new SetSimplePhysicsOutputScaleXCommand(cast(float)ngRigNumber(policy["settings"]["output_scale"][0])),context);
+            command(new SetSimplePhysicsOutputScaleYCommand(cast(float)ngRigNumber(policy["settings"]["output_scale"][1])),context);
+            identities[group["id"].str] = JSONValue(["parameter":JSONValue(parameterId),"simple_physics":JSONValue(physics.uuid),
+                "readback":parseJSON(inToJson(physics))]);
+        });
+    }
+    auto after = reviewModel(task); JSONValue[string] previous;
+    foreach (item; before.array) previous[item["id"].str] = item;
+    foreach (item; after.array) if (auto original = item["id"].str in previous)
+        enforce(ngRigDigest(item) == ngRigDigest(*original),"Physics changed an existing node or unrelated binding");
+    state["physics_structure"] = structure; state["physics_program"] = ngRigReviewCompact(plan);
+    state["physics_identities"] = JSONValue(identities);
+    return state;
+}
+
 /** Model snapshots are retained in memory and restored only for retries or rollback. */
 JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, ubyte[] model,
     AutoRigTaskContext task) {
@@ -1767,7 +2053,12 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
             }
         });
     }
-    if (stage == "verify-saved-rig") return verifyRig(state,program,task);
+    if (stage == "verify-saved-rig") {
+        auto result = verifyRig(state,program,task);
+        task.publishJson("review",ngRigReviewCompact(result));
+        return result;
+    }
+    auto before = reviewModel(task);
     bool grouped;
     task.runOnMainThread({ incActionPushGroup(); grouped = true; });
     scope(exit) if (grouped) task.runOnMainThread({ incActionPopGroup(); });
@@ -1787,6 +2078,7 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
     else if (stage == "bake-depth-angles") state = bakeAngles(state,task);
     else if (stage == "apply-rig-controls") state = applyControls(state,task);
     else if (stage == "apply-shape-corrections") state = applyCheekCorrections(state,program,task);
+    else if (stage == "apply-secondary-physics") state = applyPhysics(state,program,task);
     else enforce(stage == "observe-model", "Unknown native rig stage: " ~ stage);
     ngRigCheckpoint(task);
     settleDepthRefresh(task);
@@ -1800,6 +2092,14 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
     });
     state["model_sha256"] = JSONValue(sha256Of(snapshot).toHexString.idup);
     state["completed_stage"] = JSONValue(stage);
+    JSONValue[string] details;
+    foreach (key; ["prepared_groups", "feature_composites", "origin_composites", "source_group_grids",
+        "shoulder_pairs", "source_uv_registration", "depth_validation", "shape_corrections", "fixed_foot_corrections"])
+        if (auto value = key in state.object) details[key] = ngRigReviewCompact(*value);
+    auto review = JSONValue(["stage":JSONValue(stage), "changes":ngRigReviewChanges(before,reviewModel(task)),
+        "details":JSONValue(details)]);
+    // Observation has a dedicated classification artifact in the processor.
+    if (stage != "observe-model") task.publishJson("review",review);
     task.publishBlob("model",snapshot);
     return state;
 }

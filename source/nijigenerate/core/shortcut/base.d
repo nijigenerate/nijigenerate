@@ -173,6 +173,8 @@ private Context buildExecutionContext()
 // Handle shortcut inputs each frame: find first matching and execute
 void incHandleShortcuts()
 {
+    import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+    if (ngMcpExternalCommandsBlocked()) return;
     import nijigenerate.widgets.modal : incModalIsOpen;
     if (incModalIsOpen()) return;
     if (gShortcutCaptureActive) return;

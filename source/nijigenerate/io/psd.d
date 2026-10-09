@@ -19,16 +19,60 @@ import nijigenerate.io;
 import mir.serde;
 import nijigenerate.io.inimport;
 import std.algorithm.mutation;
+import std.exception : enforce;
 
 import psd;
 
 struct Traits(T: psd.PSD) {
     alias Layer = psd.Layer;
     alias LayerType = psd.LayerType;
-    static auto layers(T document) { return document.layers.reverse; }
+    enum layersTopToBottom = true;
+    static auto layers(T document) {
+        // Some exporters store the entire record stream bottom-to-top. Accept a
+        // direction only when every folder header/divider forms a balanced hierarchy.
+        auto result = document.layers.dup;
+        bool validHierarchy(Layer[] records) {
+            size_t depth;
+            foreach (layer; records) {
+                if (layer.type == LayerType.OpenFolder || layer.type == LayerType.ClosedFolder) ++depth;
+                else if (layer.type == LayerType.SectionDivider) {
+                    if (!depth) return false;
+                    --depth;
+                }
+            }
+            return depth == 0;
+        }
+        if (!validHierarchy(result)) {
+            result.reverse;
+            enforce(validHierarchy(result), "PSD folder records do not form a balanced hierarchy");
+        } else {
+            bool hasFolders;
+            foreach (layer; result) if (layer.type == LayerType.OpenFolder || layer.type == LayerType.ClosedFolder ||
+                layer.type == LayerType.SectionDivider) hasFolders = true;
+            if (!hasFolders) {
+                bool validClipping(Layer[] records) {
+                    bool hasBase;
+                    foreach_reverse (layer; records) {
+                        if (isClippingLayer(layer)) { if (!hasBase) return false; }
+                        else hasBase = true;
+                    }
+                    return true;
+                }
+                // Ambiguous streams retain the declared PSD order. Reverse only
+                // when clipping constraints prove that the original order is invalid.
+                if (!validClipping(result)) {
+                    auto reversed = result.dup; reversed.reverse;
+                    if (validClipping(reversed)) result = reversed;
+                }
+            }
+        }
+        return result;
+    }
     static bool isVisible(Layer layer) { return (layer.flags & psd.LayerFlags.Visible) == 0; }
-    static bool isGroupStart(Layer layer) { return !layer.type == psd.LayerType.Any; }
-    static bool isGroupEnd(Layer layer) { return layer.name == "</Layer set>" || layer.name == "</Layer group>"; }
+    static bool isGroupStart(Layer layer) {
+        return layer.type == LayerType.OpenFolder || layer.type == LayerType.ClosedFolder;
+    }
+    static bool isGroupEnd(Layer layer) { return layer.type == LayerType.SectionDivider; }
     static bool isClippingLayer(Layer layer) { return !layer.clipping; }
     static bool isPassThroughGroup(Layer layer) { return layer.blendModeKey == psd.BlendingMode.PassThrough; }
     alias parseDocument = psd.parseDocument;

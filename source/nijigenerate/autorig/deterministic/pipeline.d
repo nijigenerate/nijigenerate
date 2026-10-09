@@ -26,6 +26,7 @@ AutoRigTaskSpec[] ngRigPipelineTasks() {
         "register-source-uv":ngAutoRigMessage("Register source texture placement"),
         "validate-depth-inputs":ngAutoRigMessage("Validate stored and effective depth"),
         "apply-shape-corrections":ngAutoRigMessage("Apply fixed-foot and near-cheek corrections"),
+        "apply-secondary-physics":ngAutoRigMessage("Apply secondary physics"),
         "bake-depth-angles":ngAutoRigMessage("Bake face and body angles"), "apply-rig-controls":ngAutoRigMessage("Apply local rig controls")])
         result ~= AutoRigTaskSpec(id,label,null,[state,program,model],[state,model],null);
     result ~= AutoRigTaskSpec("verify-saved-rig",ngAutoRigMessage("Verify rig"),null,[state,program,model],
@@ -34,8 +35,13 @@ AutoRigTaskSpec[] ngRigPipelineTasks() {
         [state,program,model],null);
     foreach (ref entry; result) if (entry.id == "apply-rig-controls" || entry.id == "validate-depth-inputs" ||
         entry.id == "bake-depth-angles" || entry.id == "apply-shape-corrections" ||
-        entry.id == "verify-saved-rig") entry.retainFailureOutputs = true;
-    foreach (ref entry; result) entry.ownsActionBoundary = entry.id != "compile-rig";
+        entry.id == "apply-secondary-physics" || entry.id == "verify-saved-rig") entry.retainFailureOutputs = true;
+    foreach (ref entry; result) {
+        entry.ownsActionBoundary = entry.id != "compile-rig";
+        entry.outputs ~= AutoRigPortSpec("review",AutoRigValueKind.Json,false);
+        if (entry.id == "apply-rig-controls" || entry.id == "weld-shoulders")
+            entry.inputs ~= AutoRigPortSpec("review",AutoRigValueKind.Json,false);
+    }
     return result;
 }
 
@@ -58,6 +64,7 @@ AutoRigWorkflowSpec ngRigModelWorkflow(string provider) {
         AutoRigWorkflowStep("controls",provider,"apply-rig-controls"),
         AutoRigWorkflowStep("depth",provider,"validate-depth-inputs"),AutoRigWorkflowStep("bake",provider,"bake-depth-angles"),
         AutoRigWorkflowStep("corrections",provider,"apply-shape-corrections"),
+        AutoRigWorkflowStep("physics",provider,"apply-secondary-physics"),
         AutoRigWorkflowStep("verify",provider,"verify-saved-rig")];
     result.inputBindings = [AutoRigWorkflowInputBinding("options","source","","options")];
     result.inputBindings ~= AutoRigWorkflowInputBinding("options","compile","","options");
@@ -68,12 +75,12 @@ AutoRigWorkflowSpec ngRigModelWorkflow(string provider) {
     connect("source","materials","compile","materials");
     connect("compile","state","groups","state"); connect("source","model","groups","model");
     foreach (step; ["groups","shoulders","mesh","uv","composites","layout"]) connect("compile","program",step,"program");
-    foreach (step; ["build","weld","controls","depth","bake","corrections","verify"]) connect("layout","program",step,"program");
+    foreach (step; ["build","weld","controls","depth","bake","corrections","physics","verify"]) connect("layout","program",step,"program");
     string previous = "groups";
-    foreach (step; ["shoulders","mesh","uv","composites","layout","build","weld","controls","depth","bake","corrections","verify"]) {
+    foreach (step; ["shoulders","mesh","uv","composites","layout","build","weld","controls","depth","bake","corrections","physics","verify"]) {
         connect(previous,"state",step,"state"); connect(previous,"model",step,"model"); previous = step;
     }
-    result.outputBindings = [AutoRigWorkflowOutputBinding("model","corrections","model"),
+    result.outputBindings = [AutoRigWorkflowOutputBinding("model","physics","model"),
         AutoRigWorkflowOutputBinding("report","verify","report")];
     return result;
 }
