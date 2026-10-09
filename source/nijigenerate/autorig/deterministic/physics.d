@@ -20,10 +20,12 @@ struct RigPhysicsAsset {
     bool[] mask;
     size_t width, height;
     double[6] pixelToModel;
+    bool affineMapping;
 }
 
 struct RigPhysicsMesh {
     Point2[] vertices;
+    Point2[] uv;
     uint[] indices;
     // Row-major neutral affine transform: xx, xy, tx, yx, yy, ty.
     double[6] toModel;
@@ -151,13 +153,20 @@ JSONValue ngRigPhysicsStructure(JSONValue state, JSONValue program,
         auto chart = owner ~ "/" ~ role["chart"].str.replace("{side}",tag);
         row["owner"] = JSONValue(owner); row["chart"] = JSONValue(chart);
         row["usage"] = role["usage"]; row["rule"] = role["id"]; row["side"] = JSONValue(tag);
-        materials[id] = row; assets[id] = ngRigPhysicsAsset(material,task);
+        if (auto receiver = "receiver" in material.object)
+            row["usage"] = JSONValue("decoration");
+        else {
+            auto current = currentRole(material["name"].str);
+            if (current.type != JSONType.null_ && current["usage"].str == "decoration")
+                row["usage"] = current["usage"];
+        }
+        materials[id] = row;
     }
     auto ids = materials.keys.sort.array;
     JSONValue[] inventory, candidates; size_t[ulong] inventoryIndex;
     foreach (id; ids) {
         ngRigCheckpoint(task);
-        auto m = materials[id], p = assets[id].points;
+        auto m = materials[id];
         auto usage = m["usage"].str, owner = m["owner"].str, name = m["name"].str.toLower;
         inventoryIndex[id] = inventory.length;
         auto row = JSONValue(["target":JSONValue(id),"name":m["name"],"owner":m["owner"],
@@ -169,7 +178,6 @@ JSONValue ngRigPhysicsStructure(JSONValue state, JSONValue program,
         }
         bool matches(string pattern) { return !matchFirst(name,regex(pattern)).empty; }
         bool mixed = usage == "anatomy" && owner.startsWith("arm:") && matches("sleeve|cloth|frill");
-        if (!p.length) { exclude("Empty alpha"); continue; }
         auto current = currentRole(m["name"].str);
         if (current.type != JSONType.null_ && ["anatomy","terminal","feature"].canFind(current["usage"].str) && !mixed) {
             exclude("Human body/terminal/feature candidate protected by current anatomy rules, including stale garment classifications"); continue;
@@ -178,6 +186,14 @@ JSONValue ngRigPhysicsStructure(JSONValue state, JSONValue program,
             exclude("Human body, joints, hands/fingers, feet/shoes or face: skeleton motion only"); continue;
         }
         if (usage == "decoration") { exclude("Receiver decoration handled with its supported surface"); continue; }
+        if (usage == "covering" && !owner.startsWith("arm:") && !owner.startsWith("leg:")) {
+            exclude("Fitted torso/neck covering; no automatic chest/body sway"); continue;
+        }
+        assets[id] = ngRigPhysicsAsset(m,task);
+        auto p = assets[id].points;
+        bool included;
+        scope(exit) if (!included) assets.remove(id);
+        if (!p.length) { exclude("Empty alpha"); continue; }
         auto rule = m["rule"].str;
         string profile = "hanging", pattern = "one_end", bone;
         JSONValue limb; Point2 fixed, a, b, c, supportAxis; bool hasAxis;
@@ -279,15 +295,29 @@ JSONValue ngRigPhysicsStructure(JSONValue state, JSONValue program,
         row["decision"] = JSONValue("include"); row["reason"] = JSONValue("Anatomical support with local free region");
         row["pattern"] = JSONValue(pattern); row["profile"] = JSONValue(profile);
         spec["targets"] = JSONValue([JSONValue(id)]); candidates ~= spec;
+        included = true;
     }
     foreach (id; ids) if (materials[id]["usage"].str == "decoration") {
+        auto receiver = ngRigGet(materials[id],"receiver"); ulong[] visited;
+        while (receiver.type != JSONType.null_) {
+            auto receiverId = ngRigUnsigned(receiver);
+            if (visited.canFind(receiverId)) break;
+            visited ~= receiverId;
+            auto material = receiverId in materials;
+            if (material is null || (*material)["usage"].str != "decoration") break;
+            auto next = ngRigGet(*material,"receiver");
+            if (next.type == JSONType.null_) break;
+            receiver = next;
+        }
         size_t selected = size_t.max, largest;
-        foreach (i,spec; candidates) if (materials[ngRigUnsigned(spec["target"])]["chart"].str == materials[id]["chart"].str &&
+        foreach (i,spec; candidates) if (receiver.type != JSONType.null_ ? receiver == spec["target"] :
+            materials[ngRigUnsigned(spec["target"])]["chart"].str == materials[id]["chart"].str &&
             ["sheet","hair","sleeve"].canFind(spec["profile"].str)) {
             auto count = assets[ngRigUnsigned(spec["target"])].points.length;
             if (selected == size_t.max || count>largest) { selected = i; largest = count; }
         }
         if (selected != size_t.max) {
+            assets[id] = ngRigPhysicsAsset(materials[id],task);
             candidates[selected]["targets"].array ~= JSONValue(id);
             auto row = inventory[inventoryIndex[id]]; row["decision"] = JSONValue("carried");
             row["reason"] = JSONValue("Primary observed receiver field"); row["carrier"] = candidates[selected]["id"];
@@ -404,10 +434,45 @@ RigPhysicsAsset ngRigPhysicsAsset(JSONValue material, AutoRigTaskContext task = 
     foreach (i,p; uv) { design ~= [p[0]*width,p[1]*height,1.]; values ~= vertices[i][].dup; }
     auto fitted = ngRigLeastSquares(design,values);
     result.pixelToModel = [fitted[0][0],fitted[1][0],fitted[2][0],fitted[0][1],fitted[1][1],fitted[2][1]];
+    result.affineMapping = true;
+    foreach (i,p; uv) {
+        auto mapped = ngRigPhysicsTransform(result.pixelToModel,[p[0]*width,p[1]*height]);
+        foreach (axis; 0 .. 2)
+            result.affineMapping &= abs(mapped[axis]-vertices[i][axis])<=1e-8*max(1.,abs(vertices[i][axis]));
+    }
+    struct Triangle { size_t[3] ids; Point2 a, b, c; double determinant; }
+    Triangle[] triangles;
+    foreach (face; mapping["triangles"].array) {
+        auto ids = ngRigNumbers(face); enforce(ids.length == 3,"Invalid physics UV triangle");
+        Triangle triangle;
+        foreach (i,id; ids) {
+            enforce(id>=0 && id<vertices.length && id==cast(size_t)id,"Physics UV index outside mesh");
+            triangle.ids[i] = cast(size_t)id;
+        }
+        triangle.a = uv[triangle.ids[0]]; triangle.b = sub(uv[triangle.ids[1]],triangle.a);
+        triangle.c = sub(uv[triangle.ids[2]],triangle.a);
+        triangle.determinant = triangle.b[0]*triangle.c[1]-triangle.b[1]*triangle.c[0];
+        if (abs(triangle.determinant)>=1e-14) triangles ~= triangle;
+    }
+    enforce(triangles.length>0,"Physics material has no valid UV triangles");
     foreach (y; 0 .. height) {
         if (y%64 == 0) ngRigCheckpoint(task);
-        foreach (x; 0 .. width) if (result.mask[y*width+x])
-            result.points ~= ngRigPhysicsTransform(result.pixelToModel,[x+.5,y+.5]);
+        foreach (x; 0 .. width) if (result.mask[y*width+x]) {
+            Point2 pixel = [(x+.5)/width,(y+.5)/height]; bool covered;
+            foreach (triangle; triangles) {
+                auto q = sub(pixel,triangle.a);
+                auto v = (q[0]*triangle.c[1]-q[1]*triangle.c[0])/triangle.determinant;
+                auto w = (triangle.b[0]*q[1]-triangle.b[1]*q[0])/triangle.determinant;
+                if (v < -1e-8 || w < -1e-8 || v+w > 1+1e-8) continue;
+                Point2 point;
+                foreach (axis; 0 .. 2) point[axis] = (1-v-w)*vertices[triangle.ids[0]][axis]+
+                    v*vertices[triangle.ids[1]][axis]+w*vertices[triangle.ids[2]][axis];
+                result.points ~= result.affineMapping ?
+                    ngRigPhysicsTransform(result.pixelToModel,[x+.5,y+.5]) : point;
+                covered = true; break;
+            }
+            result.mask[y*width+x] = covered;
+        }
     }
     return result;
 }
@@ -479,11 +544,17 @@ JSONValue ngRigCompilePhysicsOperations(ref JSONValue structure, RigPhysicsAsset
             auto cloudWeights = ngRigPhysicsWeights(dense,asset.points,policy);
             auto fixedMask = new bool[asset.mask.length]; size_t cloudIndex;
             foreach (i,occupied; asset.mask) if (occupied) fixedMask[i] = cloudWeights[cloudIndex++]<=1e-12;
-            auto modelToPixel = ngRigPhysicsInverse(asset.pixelToModel); bool[] fixedVertices = new bool[p.length];
+            auto modelToPixel = asset.affineMapping ? ngRigPhysicsInverse(asset.pixelToModel) : [1.,0.,0.,0.,1.,0.];
+            bool[] fixedVertices = new bool[p.length];
             for (size_t i; i<mesh.indices.length; i+=3) {
                 Point2[3] q;
                 foreach (j; 0 .. 3) {
-                    q[j] = ngRigPhysicsTransform(modelToPixel,p[mesh.indices[i+j]]);
+                    auto vertex = mesh.indices[i+j];
+                    if (asset.affineMapping) q[j] = ngRigPhysicsTransform(modelToPixel,p[vertex]);
+                    else {
+                        enforce(mesh.uv.length == mesh.vertices.length,"Physics UV count differs from mesh");
+                        q[j] = [mesh.uv[vertex][0]*asset.width,mesh.uv[vertex][1]*asset.height];
+                    }
                     q[j][0] -= .5; q[j][1] -= .5;
                 }
                 // Python rasterizes in a clipped face-local box, which affects truncation.

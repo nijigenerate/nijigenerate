@@ -6,6 +6,22 @@ import std.conv : to;
 import std.exception : enforce;
 import std.algorithm : sort;
 
+enum RigMaterialField : ubyte { role = 1, stationary = 2, feature = 4, side = 8 }
+
+/** Merge only edited UI fields; an empty role restores automatic role inference. */
+JSONValue ngRigEditedMaterialOverride(JSONValue previous, ubyte fields, string role,
+    bool stationary, string feature, string side) {
+    auto row = previous.type == JSONType.object ? previous.object.dup : cast(JSONValue[string])null;
+    if (fields & RigMaterialField.role) {
+        if (role.length) row["role"] = JSONValue(role);
+        else row.remove("role");
+    }
+    if (fields & RigMaterialField.stationary) row["static"] = JSONValue(stationary);
+    if (fields & RigMaterialField.feature) row["feature"] = JSONValue(feature);
+    if (fields & RigMaterialField.side) row["side"] = JSONValue(side);
+    return JSONValue(row);
+}
+
 /** Small, independent review artifacts never retain textures or dense vertex fields. */
 JSONValue ngRigReviewCompact(JSONValue value, size_t depth = 0) {
     if (value.type == JSONType.array) {

@@ -6,7 +6,7 @@ import nijigenerate.autorig.deterministic.observation;
 import nijigenerate.autorig.deterministic.controls;
 import nijigenerate.autorig.deterministic.physics;
 import nijigenerate.commands.node.simplephysics;
-import nijigenerate.commands.parameter.paramedit : SetArmedParameterAndKeypointCommand;
+import nijigenerate.commands.parameter.paramedit : SetArmedParameterAndKeypointCommand, SetParameterKeypointCommand;
 import nijilive.core.nodes.drivers : SimplePhysics, PhysicsModel, ParamMapMode;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialFeature, ngRigPropagateClippingVisibility,
     ngRigResolveGroupReceivers;
@@ -109,6 +109,8 @@ private JSONValue reviewModel(AutoRigTaskContext task) {
                 foreach (mask; part.masks) masks ~= JSONValue(["source":JSONValue(mask.maskSrcUUID),
                     "mode":JSONValue(mask.mode.to!string)]);
                 foreach (weld; part.welded) welds ~= JSONValue(["target":JSONValue(weld.target is null ? 0u : weld.target.uuid),
+                    "target_name":JSONValue(weld.target is null ? "" : weld.target.name),
+                    "paired_vertices":JSONValue(weld.indices.length),
                     "weight":JSONValue(weld.weight), "indices_sha256":JSONValue(ngRigDigest(JSONValue(weld.indices)))]);
                 item["masks"] = JSONValue(masks); item["welding"] = JSONValue(welds);
             } else if (auto deformable = cast(Deformable)node) {
@@ -1922,6 +1924,7 @@ private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskCo
         foreach (parameter; puppet.parameters) parameter.value = parameter.defaults;
         puppet.enableDrivers = false; puppet.update();
         double[6] world(Node node) {
+            if (node is puppet.root) return [1.,0.,0.,0.,1.,0.];
             if (auto existing = node.uuid in transforms) return *existing;
             auto local = node.localTransform;
             enforce(local.rotation.x == 0 && local.rotation.y == 0 && !node.pinToMesh,
@@ -1944,6 +1947,7 @@ private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskCo
             enforce(part !is null && part.getMesh().origin == vec2(0,0),"Physics requires a zero-origin Part mesh");
             RigPhysicsMesh mesh;
             foreach (vertex; part.getMesh().vertices) mesh.vertices ~= [cast(double)vertex.x,cast(double)vertex.y];
+            foreach (uv; part.getMesh().uvs) mesh.uv ~= [cast(double)uv.x,cast(double)uv.y];
             foreach (index; part.getMesh().indices) mesh.indices ~= index;
             mesh.toModel = world(part); meshes[id] = mesh;
         }
@@ -1966,9 +1970,9 @@ private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskCo
             parameter.min = vec2(-1,-1); parameter.max = vec2(1,1);
             parameter.axisPoints[0] = [0.0f,0.5f,1.0f]; parameter.axisPoints[1] = [0.0f,0.5f,1.0f];
             parameter.defaults = vec2(0,0); parameter.value = parameter.defaults; parameterId = parameter.uuid;
-            auto context = editorContext(); context.armedParameters = [parameter];
+            auto context = editorContext(); context.parameters = [parameter];
             context.parameterValue = vec2(0,0); context.hasParameterValue = true;
-            command(new SetArmedParameterAndKeypointCommand(),context);
+            command(new SetParameterKeypointCommand(),context);
         });
         foreach (operation; group["operations"].array) {
             ngRigCheckpoint(task); auto offsets = nativeNumbers(operation["values"]); auto key = ngRigPoint(operation["key"]);
@@ -2022,7 +2026,7 @@ private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskCo
     foreach (item; before.array) previous[item["id"].str] = item;
     foreach (item; after.array) if (auto original = item["id"].str in previous)
         enforce(ngRigDigest(item) == ngRigDigest(*original),"Physics changed an existing node or unrelated binding");
-    state["physics_structure"] = structure; state["physics_program"] = plan;
+    state["physics_structure"] = structure; state["physics_program"] = ngRigReviewCompact(plan);
     state["physics_identities"] = JSONValue(identities);
     return state;
 }

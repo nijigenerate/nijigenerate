@@ -5,7 +5,8 @@ import core.thread : Thread;
 import core.time : msecs;
 import i18n;
 import nijigenerate : EditMode;
-import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread, ngMcpSetExternalCommandsBlocked;
+import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread, ngMcpSetExternalCommandsBlocked,
+    ngMcpExternalCommandsBlocked;
 import nijigenerate.autorig;
 import nijigenerate.autorig.deterministic.processor : AnimeFrontViewRigProcessor;
 import nijigenerate.autorig.deterministic.editor : ngApplyFaceProjection;
@@ -14,6 +15,7 @@ import nijigenerate.autorig.deterministic.evidence : ngRigMaterialRoleCandidates
 import nijigenerate.autorig.deterministic.templates : ngRigMaterialRoles;
 import nijigenerate.autorig.deterministic.contracts : ngRigGet, ngRigString, ngRigPoint, ngRigUnsigned, ngRigNumber;
 import nijigenerate.autorig.deterministic.presentation;
+import nijigenerate.autorig.deterministic.review : RigMaterialField, ngRigEditedMaterialOverride;
 import std.string : endsWith, startsWith, toLower;
 import std.algorithm.searching : canFind;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
@@ -79,12 +81,15 @@ private:
     ContextDraft[string] contextDrafts;
     Thread worker;
     AutoRigWorkflowRun activeRun;
+    uint controlledRoot;
+    bool previousDriversEnabled;
     string lastError;
     struct MaterialDraft {
         uint attempt, compiledAttempt;
         ulong revision;
         string[] names, paths, roles, features, sides, reasons;
-        bool[] disabled, changed, reset, active;
+        bool[] disabled, changed, reset, active, forcedStatic;
+        ubyte[] editedFields;
         bool unresolvedOnly;
         string filter;
         string[] landmarks, landmarkReasons;
@@ -114,7 +119,16 @@ private:
             worker = null;
             activeRun = null;
             ngMcpSetExternalCommandsBlocked(false);
+            restoreDriverState();
         }
+    }
+
+    void restoreDriverState() {
+        import nijigenerate.project : incActivePuppet, incArmedParameter;
+        auto puppet = incActivePuppet();
+        if (puppet !is null && puppet.root.uuid == controlledRoot && incArmedParameter() is null)
+            puppet.enableDrivers = previousDriversEnabled;
+        controlledRoot = 0;
     }
 
     void startRun(AutoRigWorkflowRun run, string stepId = null, bool force = true) {
@@ -122,6 +136,11 @@ private:
         if (worker !is null) return;
         lastError = null;
         activeRun = run;
+        import nijigenerate.project : incActivePuppet;
+        auto puppet = incActivePuppet();
+        controlledRoot = puppet is null ? 0 : puppet.root.uuid;
+        previousDriversEnabled = puppet !is null && puppet.enableDrivers;
+        if (puppet !is null) puppet.enableDrivers = false;
         worker = new Thread({
             installNativeCrashDumpThreadHandler();
             try {
@@ -137,6 +156,7 @@ private:
             ngMcpSetExternalCommandsBlocked(false);
             worker = null;
             activeRun = null;
+            restoreDriverState();
             throw error;
         }
     }
@@ -604,13 +624,17 @@ private:
                     if (auto chosen = "role" in entry.object) role = chosen.str;
                     feature = ngRigString(*entry,"feature",feature); side = ngRigString(*entry,"side",side);
                 }
-                disabled = disabled || !material["active"].boolean;
+                bool forcedStatic = !material["active"].boolean || role == "background" ||
+                    ngRigString(material,"semantic_source") == "full_body_backdrop_alpha_perimeter";
+                disabled = disabled || forcedStatic;
                 draft.names ~= name; draft.paths ~= path; draft.roles ~= role;
                 draft.features ~= feature; draft.sides ~= side; draft.disabled ~= disabled;
                 draft.active ~= material["active"].boolean;
+                draft.forcedStatic ~= forcedStatic;
                 draft.reasons ~= ngRigReviewEvidenceLabel(ngRigString(material,"semantic_source",""),(message) => _(message)) ~
                     " / " ~ ngRigString(material,"owner","") ~ " / " ~ ngRigString(material,"chart","");
                 draft.changed ~= false; draft.reset ~= false;
+                draft.editedFields ~= 0;
             }
             materialDrafts[run.id()] = draft;
             cached = run.id() in materialDrafts;
@@ -643,14 +667,16 @@ private:
                         auto display = choice.length ? ngRigReviewClassLabel(choice,(message) => _(message)) : _("Choose role");
                         if (igSelectable(display.toStringz(), choice == cached.roles[i])) {
                             cached.roles[i] = choice; cached.changed[i] = true; cached.reset[i] = false;
+                            cached.editedFields[i] |= RigMaterialField.role;
                         }
                     }
                     igEndCombo();
                 }
                 igTableNextColumn();
-                igBeginDisabled(!cached.active[i]);
+                igBeginDisabled(cached.forcedStatic[i]);
                 if (igCheckbox("##static",&cached.disabled[i])) {
                     cached.changed[i] = true; cached.reset[i] = false;
+                    cached.editedFields[i] |= RigMaterialField.stationary;
                 }
                 igEndDisabled();
                 auto featureLabel = ngRigReviewClassLabel(cached.features[i],(message) => _(message));
@@ -662,6 +688,7 @@ private:
                         if (igSelectable(ngRigReviewClassLabel(feature,(message) => _(message)).toStringz(),
                             feature == cached.features[i])) {
                             cached.features[i] = feature; cached.changed[i] = true; cached.reset[i] = false;
+                            cached.editedFields[i] |= RigMaterialField.feature;
                         }
                     igEndCombo();
                 }
@@ -671,6 +698,7 @@ private:
                     foreach (side; ["","L","R"]) if (igSelectable(side.length ? ngRigReviewClassLabel(side,(message) => _(message)).toStringz() :
                         _("Automatic").toStringz(),side == cached.sides[i])) {
                         cached.sides[i] = side; cached.changed[i] = true; cached.reset[i] = false;
+                        cached.editedFields[i] |= RigMaterialField.side;
                     }
                     igEndCombo();
                 }
@@ -713,14 +741,8 @@ private:
                 if (!cached.changed[i]) continue;
                 if (cached.reset[i]) { overrides.remove(path); continue; }
                 auto entry = path in overrides;
-                auto row = entry is null ? JSONValue(cast(JSONValue[string])null) : JSONValue(entry.object.dup);
-                if (cached.roles[i].length) row["role"] = JSONValue(cached.roles[i]);
-                else {
-                    auto fields = row.object;
-                    fields.remove("role"); row = JSONValue(fields);
-                }
-                row["static"] = JSONValue(cached.disabled[i]); row["feature"] = JSONValue(cached.features[i]);
-                row["side"] = JSONValue(cached.sides[i]); overrides[path] = row;
+                overrides[path] = ngRigEditedMaterialOverride(entry is null ? JSONValue.init : *entry,
+                    cached.editedFields[i],cached.roles[i],cached.disabled[i],cached.features[i],cached.sides[i]);
             }
             options["materials"] = JSONValue(overrides);
             JSONValue[string] landmarks;
@@ -888,6 +910,7 @@ public:
     }
 
     JSONValue runStatus(string runId) {
+        finishWorker();
         import core.memory : GC;
         if (!runId.length) {
             auto gc = GC.stats();
@@ -919,6 +942,13 @@ public:
             memory["gc_free_bytes"] = JSONValue(cast(ulong)gc.freeSize);
             auto result = JSONValue(["run_id":JSONValue(runId),"state":JSONValue(snapshot.state.to!string),
                 "message":JSONValue(snapshot.message),"steps":JSONValue(steps),"memory":memory]);
+            import nijigenerate.project : incActivePuppet, incArmedParameter;
+            auto puppet = incActivePuppet();
+            result["editor"] = JSONValue(["panel_visible":JSONValue(visible),
+                "worker_active":JSONValue(worker !is null),
+                "commands_blocked":JSONValue(ngMcpExternalCommandsBlocked()),
+                "drivers_enabled":JSONValue(puppet !is null && puppet.enableDrivers),
+                "armed_parameter":JSONValue(incArmedParameter() is null ? 0u : incArmedParameter().uuid)]);
             import nijigenerate.panels.resource : ngResourcePanelReadback;
             result["resource_view"] = ngResourcePanelReadback();
             foreach (key, value; ngAutoRigWorkflowDiagnostics(run).object) result[key] = value;
@@ -944,6 +974,7 @@ public:
         worker = null;
         activeRun = null;
         ngMcpSetExternalCommandsBlocked(false);
+        restoreDriverState();
         if (workflows !is null) workflows.disposeAll();
         runs = null;
         inputDrafts = null;
@@ -960,6 +991,12 @@ void ngAutoRigStopAll() {
     auto panel = cast(AutoRigPanel)incFindPanelByName("AutoRig");
     if (panel !is null) panel.stop();
     if (sharedSessions !is null) sharedSessions.disposeAll();
+}
+
+/** Reap completed workers even when their panel is hidden or inactive. */
+void ngAutoRigPollWorker() {
+    auto panel = cast(AutoRigPanel)incFindPanelByName("AutoRig");
+    if (panel !is null) panel.finishWorker();
 }
 
 mixin incPanel!AutoRigPanel;

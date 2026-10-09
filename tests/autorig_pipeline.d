@@ -10,6 +10,7 @@ import nijigenerate.autorig.deterministic.geometry : ngRigSourceUVRegistration, 
 import nijigenerate.autorig.deterministic.processor;
 import nijigenerate.autorig.deterministic.review;
 import nijigenerate.autorig.deterministic.presentation;
+import nijigenerate.autorig.deterministic.physics;
 import nijigenerate.autorig.framework;
 import nijigenerate.autorig.workflow;
 import core.thread.fiber : Fiber;
@@ -88,6 +89,18 @@ private void testReviewPlan() {
     tables = ngRigReviewTables(bones);
     assert(tables[0].rows[0][0] == "Head" && tables[0].rows[0][1] == "Neck");
     assert(tables[0].rows[0][2] == "0.00, 1.00, 2.00");
+    auto previousWelding = JSONValue(["target":JSONValue(41),"target_name":JSONValue("Eye white R"),
+        "paired_vertices":JSONValue(3),"weight":JSONValue(.5),"indices_sha256":JSONValue("previous")]);
+    auto updatedWelding = JSONValue(previousWelding.object.dup);
+    updatedWelding["indices_sha256"] = JSONValue("updated");
+    auto weldingChanges = ngRigReviewChanges(
+        JSONValue([JSONValue(["id":JSONValue("node:1"),"name":JSONValue("old"),
+            "welding":JSONValue([previousWelding])])]),
+        JSONValue([JSONValue(["id":JSONValue("node:1"),"name":JSONValue("old"),
+            "welding":JSONValue([updatedWelding])])]));
+    tables = ngRigReviewTables(JSONValue(["changes":weldingChanges]));
+    assert(tables[0].rows[0][3] != tables[0].rows[0][4]);
+    assert(tables[0].rows[0][4] == "Eye white R / 3 Paired vertices / Weight 0.50 / Correspondence updated");
 }
 
 void ngTestRigPipeline() {
@@ -137,6 +150,23 @@ void ngTestRigPipeline() {
     auto featureCleared = ngRigClassifyMaterials(clippedObservation,JSONValue(["materials":JSONValue([
         "/iris_r":JSONValue(["feature":JSONValue("")])])]));
     assert(featureCleared["materials"][13]["feature"].str == "");
+    unknown["receiver"] = JSONValue(12);
+    unknownSource["materials"].array[$-1] = unknown;
+    auto edited = ngRigEditedMaterialOverride(JSONValue.init,RigMaterialField.side,"",false,"","L");
+    assert(edited.object.length == 1 && edited["side"].str == "L");
+    auto sideOnly = ngRigClassifyMaterials(unknownSource,JSONValue(["materials":JSONValue([
+        unknown["path"].str:edited])]));
+    assert(sideOnly["materials"].array[$-1]["feature"].str == "sclera");
+    edited = ngRigEditedMaterialOverride(edited,RigMaterialField.stationary,"",true,"","");
+    assert(edited.object.length == 2 && ("feature" in edited.object) is null);
+    edited = ngRigEditedMaterialOverride(edited,RigMaterialField.feature,"",true,"","");
+    auto explicitlyCleared = ngRigClassifyMaterials(unknownSource,JSONValue(["materials":JSONValue([
+        unknown["path"].str:edited])]));
+    assert(explicitlyCleared["materials"].array[$-1]["feature"].str == "");
+    // Clearing a role preserves independently edited fields.
+    edited["role"] = JSONValue("face_feature");
+    edited = ngRigEditedMaterialOverride(edited,RigMaterialField.role,"",false,"iris","R");
+    assert(("role" in edited.object) is null && edited["side"].str == "L" && edited["static"].boolean);
     auto landmarkOptions = JSONValue(["landmarks":JSONValue([
         "head_top":JSONValue([-1.,-1.])])]);
     auto landmarkObservation = ngRigClassifyMaterials(original,landmarkOptions);
@@ -251,6 +281,22 @@ void ngTestRigPipeline() {
     auto alphaMaterial = JSONValue(["texture_size":JSONValue([2,2]),"source_root_mapping":mesh,
         "alpha_runs_128":ngRigAlphaRuns(rgba,128)]);
     assert(ngRigAlphaCoverage(alphaMaterial,[[2.5,3.5],[4.5,3.5]]) == .5);
+    alphaMaterial["alpha_runs_32"] = ngRigAlphaRuns(rgba,32);
+    auto physicsAlpha = ngRigPhysicsAsset(alphaMaterial);
+    assert(physicsAlpha.affineMapping && physicsAlpha.points.length == cloud.length);
+    foreach (i,p; physicsAlpha.points) foreach (axis; 0 .. 2) assert(abs(p[axis]-cloud[i][axis])<1e-10);
+    alphaMaterial["source_root_mapping"] = reloadedMesh;
+    physicsAlpha = ngRigPhysicsAsset(alphaMaterial);
+    auto warpedCloud = ngRigTextureSupport(rgba,2,2,reloadedMesh);
+    assert(!physicsAlpha.affineMapping && physicsAlpha.points == warpedCloud);
+    auto croppedMesh = parseJSON(mesh.toString());
+    croppedMesh["triangles"] = JSONValue(triangles[0 .. 1]);
+    alphaMaterial["source_root_mapping"] = croppedMesh;
+    physicsAlpha = ngRigPhysicsAsset(alphaMaterial);
+    auto croppedCloud = ngRigTextureSupport(rgba,2,2,croppedMesh);
+    assert(physicsAlpha.points.length == croppedCloud.length);
+    foreach (i,p; physicsAlpha.points) foreach (axis; 0 .. 2) assert(abs(p[axis]-croppedCloud[i][axis])<1e-10);
+    assert(physicsAlpha.points.length == 3 && !physicsAlpha.mask[3]);
     ubyte[] padded = new ubyte[6*4*4];
     foreach (y; 1 .. 3) foreach (x; 1 .. 5) padded[(y*6+x)*4+3] = 255;
     auto contourMaterial = JSONValue(["texture_size":JSONValue([6,4]),

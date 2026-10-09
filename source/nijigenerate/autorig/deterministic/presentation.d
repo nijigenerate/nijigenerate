@@ -134,7 +134,7 @@ RigReviewTable[] ngRigReviewTables(JSONValue report, string[ulong] names = null,
                 visible = true;
             }
             foreach (field; ["bindings","welding","masks"]) if (auto change = field in row["fields"].object) {
-                auto summary(JSONValue items) {
+                auto summary(JSONValue items, bool updated = false) {
                     if (items.type != JSONType.array) return "—";
                     string[] entries;
                     foreach (entry; items.array) {
@@ -143,12 +143,21 @@ RigReviewTable[] ngRigReviewTables(JSONValue report, string[ulong] names = null,
                         if (field == "bindings") text ~= format(" / %s / %s %s / %s",
                             entry["property"].str,numericText(entry["authored_keys"]),t(ngAutoRigMessage("keys")),
                             numericText(ngRigGet(entry,"maximum_offset")));
+                        if (field == "welding") {
+                            text ~= " / " ~ numericText(ngRigGet(entry,"paired_vertices")) ~ " " ~
+                                t(ngAutoRigMessage("Paired vertices")) ~ " / " ~
+                                t(ngAutoRigMessage("Weight")) ~ " " ~ numericText(ngRigGet(entry,"weight"));
+                            if (updated) foreach (previous; (*change)["before"].array)
+                                if (previous["target"] == entry["target"] &&
+                                    ngRigGet(previous,"indices_sha256") != ngRigGet(entry,"indices_sha256"))
+                                    text ~= " / " ~ t(ngAutoRigMessage("Correspondence updated"));
+                        }
                         entries ~= text;
                     }
                     return entries.length ? entries.join("\n") : "—";
                 }
                 table.rows ~= [target,t(ngAutoRigMessage("Modified")),ngRigReviewFieldLabel(field,translate),
-                    summary((*change)["before"]),summary((*change)["after"])]; visible = true;
+                    summary((*change)["before"]),summary((*change)["after"],true)]; visible = true;
             }
             if (!visible) table.rows ~= [target,t(ngAutoRigMessage("Modified")),
                 t(ngAutoRigMessage("Mesh or deformation values")),t(ngAutoRigMessage("Previous values")),

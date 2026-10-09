@@ -65,6 +65,8 @@ protected:
 
     override
     void onUpdate() {
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        bool interactionAllowed = !ngMcpExternalCommandsBlocked();
 
         auto io = igGetIO();
         auto camera = inGetCamera();
@@ -86,6 +88,10 @@ protected:
         currSize = ImVec2(clamp(currSize.x, 128, float.max), clamp(currSize.y, 128, float.max));
         
         foreach(btn; 0..cast(int)ImGuiMouseButton.COUNT) {
+            if (!interactionAllowed) {
+                incEndDrag(btn); incEndDragInViewport(btn);
+                continue;
+            }
             if (!incStartedDrag(btn)) {
                 if (io.MouseDown[btn]) {
                     if (igIsWindowHovered(ImGuiHoveredFlags.ChildWindows)) {
@@ -118,7 +124,8 @@ protected:
             // viewport.
             ImGuiHoveredFlags winFlags = ImGuiHoveredFlags.None;
             if (actingInViewport) winFlags |= ImGuiHoveredFlags.ChildWindows | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem;
-            if (igIsWindowHovered(winFlags)) {
+            if (!interactionAllowed) actingInViewport = false;
+            else if (igIsWindowHovered(winFlags)) {
                 actingInViewport = igIsMouseDown(ImGuiMouseButton.Left) ||
                     igIsMouseDown(ImGuiMouseButton.Middle) ||
                     igIsMouseDown(ImGuiMouseButton.Right);
@@ -196,7 +203,7 @@ protected:
             
             // Popup right click menu
             igPushStyleVar(ImGuiStyleVar.WindowPadding, priorWindowPadding);
-            if (viewport.hasMenu()) {
+            if (interactionAllowed && viewport.hasMenu()) {
                 static ImVec2 downPos;
                 ImVec2 currPos;
                 if (igIsItemHovered()) {
@@ -241,7 +248,7 @@ protected:
                     }
                     viewport.drawConfirmBar();
                 incEndViewportToolArea();
-                if (incEditMode == EditMode.ModelEdit && ngModelEditSubMode() == ModelEditSubMode.Layout)
+                if (interactionAllowed && incEditMode == EditMode.ModelEdit && ngModelEditSubMode() == ModelEditSubMode.Layout)
                     incViewportTransformHandle();
             //igPopStyleVar();
 
