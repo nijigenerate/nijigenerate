@@ -14,6 +14,7 @@ sourceFiles "../../source/nijigenerate/autorig/json.d" "../../source/nijigenerat
 sourceFiles "../../source/nijigenerate/autorig/deterministic/hierarchy.d"
 sourceFiles "../../source/nijigenerate/autorig/deterministic/review.d"
 sourceFiles "../../source/nijigenerate/autorig/deterministic/presentation.d"
+sourceFiles "../../source/nijigenerate/autorig/deterministic/physics.d"
 dflags "-mscrtlib=msvcrt" platform="windows-ldc"
 libs "nijigenerate_osqp" "osqpstatic"
 lflags "/LIBPATH:${PACKAGE_DIR}/../../out/osqp/lib" platform="windows"
