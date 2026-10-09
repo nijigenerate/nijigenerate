@@ -248,7 +248,7 @@ private:
     size_t completedCount;
     bool applied = true;
     bool replayCompleted;
-    bool replayedByCheckpoint;
+    bool[Action] delegatedCompletions;
     bool recordsCompletionOrder;
     Action[] completionOrder;
     private static __gshared AsyncGroupAction checkpointRecorder;
@@ -367,7 +367,7 @@ public:
         derivedActions ~= action;
         if (checkpointRecorder !is null) {
             checkpointRecorder.completionOrder ~= action;
-            if (checkpointRecorder !is this) replayedByCheckpoint = true;
+            if (checkpointRecorder !is this) delegatedCompletions[action] = true;
         }
         if (ngAsyncActionCompletedHook !is null) ngAsyncActionCompletedHook(this);
         finishPending(completed);
@@ -412,18 +412,19 @@ public:
         pendingCount = 0;
         totalCount = 0;
         completedCount = 0;
-        if (!replayCompleted && !replayedByCheckpoint)
-            foreach_reverse (action; derivedActions) action.rollback();
+        if (!replayCompleted)
+            foreach_reverse (action; derivedActions)
+                if (action !in delegatedCompletions) action.rollback();
         if (beginUndoHandler !is null) beginUndoHandler(this);
         scope(exit) {
             if (endUndoHandler !is null) endUndoHandler(this);
         }
-        if (replayCompleted && !replayedByCheckpoint) {
-            foreach_reverse (action; completionOrder) action.rollback();
+        if (replayCompleted) {
+            foreach_reverse (action; completionOrder)
+                if (action !in delegatedCompletions) action.rollback();
         } else {
-            if (replayCompleted && !replayedByCheckpoint)
-                foreach_reverse (action; derivedActions) action.rollback();
-            if (!replayCompleted) derivedActions = null;
+            derivedActions = null;
+            delegatedCompletions = null;
             super.rollback();
         }
         applied = false;
@@ -445,8 +446,9 @@ public:
         scope(exit) {
             if (endRedoHandler !is null) endRedoHandler(this);
         }
-        if (replayCompleted && !replayedByCheckpoint) {
-            foreach (action; completionOrder) action.redo();
+        if (replayCompleted) {
+            foreach (action; completionOrder)
+                if (action !in delegatedCompletions) action.redo();
             currentState = AsyncGroupActionState.Completed;
         } else super.redo();
     }
@@ -480,6 +482,8 @@ public:
     override bool canMerge(Action other) {
         auto incoming = cast(AsyncGroupAction)other;
         return incoming !is null &&
+            !replayCompleted && !incoming.replayCompleted &&
+            !recordsCompletionOrder && !incoming.recordsCompletionOrder &&
             applied && incoming.applied &&
             mergeHandler is incoming.mergeHandler &&
             super.canMerge(incoming);

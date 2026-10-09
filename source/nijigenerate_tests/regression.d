@@ -17896,6 +17896,60 @@ private void testAsyncActionGroupUndoRedo() {
     ordered.redo();
     require(orderedNode.name == "last", "checkpoint redo must not replay earlier generated output after later edits");
 
+    auto firstCheckpoint = new AsyncGroupAction();
+    auto secondCheckpoint = new AsyncGroupAction();
+    auto firstOutput = new Node(incActivePuppet().root);
+    auto secondOutput = new Node(incActivePuppet().root);
+    firstOutput.name = "first-after";
+    secondOutput.name = "second-after";
+    firstCheckpoint.markAsyncScheduled();
+    secondCheckpoint.markAsyncScheduled();
+    firstCheckpoint.addCompletedAsyncAction(firstCheckpoint.generation,
+        new NodeValueChangeAction!(Node, string)(
+            "name", firstOutput, "first-before", firstOutput.name, &firstOutput.name_));
+    secondCheckpoint.addCompletedAsyncAction(secondCheckpoint.generation,
+        new NodeValueChangeAction!(Node, string)(
+            "name", secondOutput, "second-before", secondOutput.name, &secondOutput.name_));
+    firstCheckpoint.retainCompletedResults();
+    secondCheckpoint.retainCompletedResults();
+    require(!firstCheckpoint.canMerge(secondCheckpoint) && !firstCheckpoint.merge(secondCheckpoint),
+        "retained checkpoints must preserve their independent replay sequences");
+    secondCheckpoint.rollback();
+    firstCheckpoint.rollback();
+    require(firstOutput.name == "first-before" && secondOutput.name == "second-before",
+        "separate retained checkpoints must undo both generated outputs");
+    firstCheckpoint.redo();
+    secondCheckpoint.redo();
+    require(firstOutput.name == "first-after" && secondOutput.name == "second-after",
+        "separate retained checkpoints must redo both generated outputs");
+
+    auto earlierOwner = new AsyncGroupAction();
+    earlierOwner.markAsyncScheduled(2);
+    firstOutput.name = "early-after";
+    earlierOwner.addCompletedAsyncAction(earlierOwner.generation,
+        new NodeValueChangeAction!(Node, string)(
+            "name", firstOutput, "early-before", firstOutput.name, &firstOutput.name_));
+    auto partialCheckpoint = new AsyncGroupAction();
+    partialCheckpoint.beginCheckpointRecording();
+    secondOutput.name = "late-after";
+    earlierOwner.addCompletedAsyncAction(earlierOwner.generation,
+        new NodeValueChangeAction!(Node, string)(
+            "name", secondOutput, "late-before", secondOutput.name, &secondOutput.name_));
+    partialCheckpoint.retainCompletedResults();
+    partialCheckpoint.endCheckpointRecording();
+    partialCheckpoint.rollback();
+    require(firstOutput.name == "early-after" && secondOutput.name == "late-before",
+        "a checkpoint must undo only the async completion it recorded");
+    partialCheckpoint.redo();
+    require(secondOutput.name == "late-after", "a delegated completion must support checkpoint redo");
+    partialCheckpoint.rollback();
+    earlierOwner.rollback();
+    require(firstOutput.name == "early-before" && secondOutput.name == "late-before",
+        "undoing the older owner must still undo its nondelegated completion");
+    earlierOwner.redo();
+    require(firstOutput.name == "early-before" && secondOutput.name == "late-before",
+        "ordinary redo must not restore discarded async completions");
+
     resetCase();
     primaryNode = new Node(incActivePuppet().root);
     primaryNode.name = "progress-before";
