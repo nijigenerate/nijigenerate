@@ -1,0 +1,9 @@
+name "deformation-interpolation-tests"
+targetType "executable"
+targetName "deformation-interpolation-tests"
+targetPath "../../out"
+sourcePaths
+sourceFiles "../deformation_interpolation.d"
+dependency "nijilive" version="~>0.0.1"
+subConfiguration "nijilive" "full"
+dflags "-mscrtlib=msvcrt" platform="windows-ldc"

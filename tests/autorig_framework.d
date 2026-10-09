@@ -583,9 +583,34 @@ private void testBlobOwnership() {
     auto editedCopy = ngCopyAutoRigValue(workerValue);
     workerValue.bytes[0] = 6;
     assert(editedCopy.readBlob()[0] == 7);
+    stored = AutoRigValue.init;
+    workerValue = AutoRigValue.init;
+    editedCopy = AutoRigValue.init;
+    import core.memory : GC;
+    GC.collect();
+    assert(readOnlyBytes == [cast(ubyte)1, 2, 3]);
+}
+
+private void testWorkerBlobRelease() {
+    import core.memory : GC;
+    GC.collect();
+    auto baseline = ngAutoRigNativeBlobMemoryInfo();
+    void releaseOnWorker() {
+        auto worker = new Thread({
+            auto value = AutoRigValue.blob(new ubyte[1024 * 1024]);
+            assert(value.readBlob().length == 1024 * 1024);
+        });
+        worker.start();
+        worker.join();
+    }
+    releaseOnWorker();
+    GC.collect();
+    GC.collect();
+    assert(ngAutoRigNativeBlobMemoryInfo() == baseline);
 }
 
 void main(string[] args) {
+    testWorkerBlobRelease();
     testBlobOwnership();
     testChangedFailureCheckpoint();
     testFailedRequestSetup();
