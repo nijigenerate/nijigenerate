@@ -87,6 +87,18 @@ string ngRigReviewOperationId(string kind, JSONValue operation, string name = ""
     return kind ~ ":" ~ (name.length ? name ~ ":" : "") ~ part;
 }
 
+/** Observed feature frames remain available when authored controls are disabled. */
+JSONValue ngRigControlGeometry(JSONValue controls) {
+    JSONValue[] mechanisms;
+    foreach (mechanism; controls["mechanisms"].array) {
+        JSONValue[string] frame = ["name":mechanism["name"]];
+        foreach (key; ["contact_curves","source_frame"])
+            if (auto value = key in mechanism.object) frame[key] = *value;
+        if (frame.length>1) mechanisms ~= JSONValue(frame);
+    }
+    return JSONValue(["mechanisms":JSONValue(mechanisms)]);
+}
+
 /** Filter the compiled plan before mutation; verification consumes this same filtered plan. */
 JSONValue ngRigReviewControls(JSONValue controls, JSONValue review, out JSONValue operations) {
     JSONValue[] rows, mechanisms;

@@ -1200,6 +1200,7 @@ private JSONValue buildRig(JSONValue state, JSONValue program, AutoRigTaskContex
 
 private JSONValue applyControls(JSONValue state, AutoRigTaskContext task) {
     auto controls = ngRigCompileControls(state,task);
+    state["control_geometry"] = ngRigControlGeometry(controls);
     JSONValue operations;
     controls = ngRigReviewControls(controls,reviewSettings(task),operations);
     task.previewJson("review-operations",operations);

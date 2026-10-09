@@ -372,6 +372,26 @@ void ngTestRigPipeline() {
     cheekState["native_head_keys"] = JSONValue(headKeys);
     cheekState["depth_angle_program_sha256"] = JSONValue(ngRigDigest(JSONValue(headKeys)));
     auto cheekReport = ngRigCompileCheekCorrections(cheekState,program);
+    auto disabledControlState = JSONValue(cheekState.object.dup);
+    disabledControlState["control_geometry"] = ngRigControlGeometry(controls);
+    string[] disabledMechanisms;
+    foreach (mechanism; controls["mechanisms"].array)
+        disabledMechanisms ~= "mechanism:" ~ mechanism["name"].str;
+    JSONValue reviewedOperations;
+    disabledControlState["controls"] = ngRigReviewControls(controls,
+        JSONValue(["disabled":JSONValue(disabledMechanisms)]),reviewedOperations);
+    assert(disabledControlState["controls"]["mechanisms"].array.length == 0);
+    foreach (mechanism; disabledControlState["control_geometry"]["mechanisms"].array)
+        assert(("operations" in mechanism.object) is null);
+    auto disabledControlCheek = ngRigCompileCheekCorrections(disabledControlState,program);
+    assert(disabledControlCheek == cheekReport);
+    string[] disabledBindings;
+    foreach (mechanism; controls["mechanisms"].array) foreach (operation; mechanism["operations"].array)
+        disabledBindings ~= ngRigReviewOperationId("control",operation,mechanism["name"].str);
+    disabledControlState["controls"] = ngRigReviewControls(controls,
+        JSONValue(["disabled":JSONValue(disabledBindings)]),reviewedOperations);
+    assert(disabledControlState["controls"]["mechanisms"].array.length == 0);
+    assert(ngRigCompileCheekCorrections(disabledControlState,program) == cheekReport);
     assert(ngRigDigest(cheekReport) == ngRigDigest(ngParseAutoRigJson(cheekReport.toString())));
     assert(cheekReport["applicable"].boolean && cheekReport["operations"].array.length == 3);
     foreach (operation; cheekReport["operations"].array) {
