@@ -9,7 +9,8 @@ import std.algorithm : sort;
 enum RigMaterialField : ubyte { role = 1, stationary = 2, feature = 4, side = 8 }
 
 bool ngRigMaterialForcedStatic(bool active, string role, string semanticSource) {
-    return !active || role == "background" || semanticSource == "full_body_backdrop_alpha_perimeter";
+    return !active || role == "background" || semanticSource == "full_body_backdrop_alpha_perimeter" &&
+        (role == "ear" || role.length == 0);
 }
 
 /** Automatic constraints are not an explicit checkbox preference. */

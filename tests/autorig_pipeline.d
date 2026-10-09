@@ -117,7 +117,8 @@ private void testReviewPlan() {
     assert(!ngRigMaterialForcedStatic(true,"torso",""));
     assert(ngRigMaterialForcedStatic(true,"background",""));
     assert(ngRigMaterialForcedStatic(false,"torso",""));
-    assert(ngRigMaterialForcedStatic(true,"torso","full_body_backdrop_alpha_perimeter"));
+    assert(ngRigMaterialForcedStatic(true,"ear","full_body_backdrop_alpha_perimeter"));
+    assert(!ngRigMaterialForcedStatic(true,"torso","full_body_backdrop_alpha_perimeter"));
     auto material = JSONValue(["uuid":JSONValue(41),"name":JSONValue("test"),
         "path":JSONValue("/test"),"support_candidates":JSONValue([previousBinding,updatedBinding])]);
     auto compact = ngRigClassificationReview(JSONValue(["materials":JSONValue([material])]),JSONValue.init);
@@ -141,6 +142,23 @@ private void testReviewPlan() {
     classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([facePath:faceOverride])]));
     assert(classified["materials"][0]["static"].boolean);
     assert(ngRigMaterialStaticPreference(classified["materials"][0]));
+    observation = ngTestModelObservation();
+    Point2[] backdropCloud = [[-100.,0.],[100.,0.],[100.,160.],[-100.,160.]];
+    observation["materials"] = JSONValue(observation["materials"].array ~ JSONValue([
+        "uuid":JSONValue(19),"name":JSONValue("ear_large"),"path":JSONValue("/ear_large"),
+        "active":JSONValue(true),"cloud":ngRigPointsJson(backdropCloud),
+        "opaque_perimeter_coverage":JSONValue(1.)]));
+    classified = ngRigClassifyMaterials(observation,observation["options"]);
+    auto backdrop = classified["materials"].array[$-1];
+    assert(backdrop["static"].boolean && backdrop["semantic_source"].str == "full_body_backdrop_alpha_perimeter");
+    assert(!ngRigMaterialStaticPreference(backdrop));
+    foreach (role; ["face","ear"]) {
+        auto overrideRole = ngRigEditedMaterialOverride(JSONValue.init,RigMaterialField.role,role,false,"","");
+        classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([
+            "/ear_large":overrideRole])]));
+        auto actualStatic = classified["materials"].array[$-1]["static"].boolean;
+        assert(actualStatic == ngRigMaterialForcedStatic(true,role,backdrop["semantic_source"].str));
+    }
 }
 
 void ngTestRigPipeline() {
