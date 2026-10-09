@@ -101,6 +101,28 @@ private void testReviewPlan() {
     tables = ngRigReviewTables(JSONValue(["changes":weldingChanges]));
     assert(tables[0].rows[0][3] != tables[0].rows[0][4]);
     assert(tables[0].rows[0][4] == "Eye white R / 3 Paired vertices / Weight 0.50 / Correspondence updated");
+    auto previousBinding = JSONValue(["target":JSONValue(41),"target_name":JSONValue("Eye white R"),
+        "property":JSONValue("opacity"),"authored_keys":JSONValue(3),"maximum_offset":JSONValue(1.),
+        "content_sha256":JSONValue("previous")]);
+    auto updatedBinding = JSONValue(previousBinding.object.dup);
+    updatedBinding["content_sha256"] = JSONValue("updated");
+    auto bindingChanges = ngRigReviewChanges(
+        JSONValue([JSONValue(["id":JSONValue("parameter:1"),"name":JSONValue("Opacity"),
+            "bindings":JSONValue([previousBinding])])]),
+        JSONValue([JSONValue(["id":JSONValue("parameter:1"),"name":JSONValue("Opacity"),
+            "bindings":JSONValue([updatedBinding])])]));
+    tables = ngRigReviewTables(JSONValue(["changes":bindingChanges]));
+    assert(tables[0].rows[0][3] != tables[0].rows[0][4]);
+    assert(tables[0].rows[0][4] == "Eye white R / opacity / 3 keys / 1.00 / Updated values");
+    assert(!ngRigMaterialForcedStatic(true,"torso",""));
+    assert(ngRigMaterialForcedStatic(true,"background",""));
+    assert(ngRigMaterialForcedStatic(false,"torso",""));
+    assert(ngRigMaterialForcedStatic(true,"torso","full_body_backdrop_alpha_perimeter"));
+    auto material = JSONValue(["uuid":JSONValue(41),"name":JSONValue("test"),
+        "path":JSONValue("/test"),"support_candidates":JSONValue([previousBinding,updatedBinding])]);
+    auto compact = ngRigClassificationReview(JSONValue(["materials":JSONValue([material])]),JSONValue.init);
+    assert(("support_candidates" in compact["classification"][0].object) is null);
+    assert(material["support_candidates"].array.length == 2);
 }
 
 void ngTestRigPipeline() {

@@ -8,6 +8,10 @@ import std.algorithm : sort;
 
 enum RigMaterialField : ubyte { role = 1, stationary = 2, feature = 4, side = 8 }
 
+bool ngRigMaterialForcedStatic(bool active, string role, string semanticSource) {
+    return !active || role == "background" || semanticSource == "full_body_backdrop_alpha_perimeter";
+}
+
 /** Merge only edited UI fields; an empty role restores automatic role inference. */
 JSONValue ngRigEditedMaterialOverride(JSONValue previous, ubyte fields, string role,
     bool stationary, string feature, string side) {
@@ -51,7 +55,7 @@ JSONValue ngRigClassificationReview(JSONValue observation, JSONValue program) {
     foreach (material; observation["materials"].array) {
         JSONValue[string] row;
         foreach (key; ["uuid", "name", "path", "active", "static", "role", "feature", "side_hint", "side_override",
-            "owner", "chart", "semantic_source", "support_part", "support_candidates", "receiver"])
+            "owner", "chart", "semantic_source", "support_part", "receiver"])
             if (auto value = key in material.object) row[key] = ngRigReviewCompact(*value);
         rows ~= JSONValue(row);
     }

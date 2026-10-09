@@ -15,7 +15,8 @@ import nijigenerate.autorig.deterministic.evidence : ngRigMaterialRoleCandidates
 import nijigenerate.autorig.deterministic.templates : ngRigMaterialRoles;
 import nijigenerate.autorig.deterministic.contracts : ngRigGet, ngRigString, ngRigPoint, ngRigUnsigned, ngRigNumber;
 import nijigenerate.autorig.deterministic.presentation;
-import nijigenerate.autorig.deterministic.review : RigMaterialField, ngRigEditedMaterialOverride;
+import nijigenerate.autorig.deterministic.review : RigMaterialField, ngRigEditedMaterialOverride,
+    ngRigMaterialForcedStatic;
 import std.string : endsWith, startsWith, toLower;
 import std.algorithm.searching : canFind;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
@@ -87,8 +88,8 @@ private:
     struct MaterialDraft {
         uint attempt, compiledAttempt;
         ulong revision;
-        string[] names, paths, roles, features, sides, reasons;
-        bool[] disabled, changed, reset, active, forcedStatic;
+        string[] names, paths, roles, features, sides, reasons, semanticSources;
+        bool[] disabled, changed, reset, active, forcedStatic, requestedStatic;
         ubyte[] editedFields;
         bool unresolvedOnly;
         string filter;
@@ -624,8 +625,10 @@ private:
                     if (auto chosen = "role" in entry.object) role = chosen.str;
                     feature = ngRigString(*entry,"feature",feature); side = ngRigString(*entry,"side",side);
                 }
-                bool forcedStatic = !material["active"].boolean || role == "background" ||
-                    ngRigString(material,"semantic_source") == "full_body_backdrop_alpha_perimeter";
+                auto semanticSource = ngRigString(material,"semantic_source");
+                bool forcedStatic = ngRigMaterialForcedStatic(material["active"].boolean,role,semanticSource);
+                draft.requestedStatic ~= disabled;
+                draft.semanticSources ~= semanticSource;
                 disabled = disabled || forcedStatic;
                 draft.names ~= name; draft.paths ~= path; draft.roles ~= role;
                 draft.features ~= feature; draft.sides ~= side; draft.disabled ~= disabled;
@@ -668,6 +671,9 @@ private:
                         if (igSelectable(display.toStringz(), choice == cached.roles[i])) {
                             cached.roles[i] = choice; cached.changed[i] = true; cached.reset[i] = false;
                             cached.editedFields[i] |= RigMaterialField.role;
+                            cached.forcedStatic[i] = ngRigMaterialForcedStatic(cached.active[i],choice,
+                                cached.semanticSources[i]);
+                            cached.disabled[i] = cached.forcedStatic[i] || cached.requestedStatic[i];
                         }
                     }
                     igEndCombo();
@@ -675,6 +681,7 @@ private:
                 igTableNextColumn();
                 igBeginDisabled(cached.forcedStatic[i]);
                 if (igCheckbox("##static",&cached.disabled[i])) {
+                    cached.requestedStatic[i] = cached.disabled[i];
                     cached.changed[i] = true; cached.reset[i] = false;
                     cached.editedFields[i] |= RigMaterialField.stationary;
                 }

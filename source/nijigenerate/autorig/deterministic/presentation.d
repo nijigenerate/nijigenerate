@@ -143,6 +143,10 @@ RigReviewTable[] ngRigReviewTables(JSONValue report, string[ulong] names = null,
                         if (field == "bindings") text ~= format(" / %s / %s %s / %s",
                             entry["property"].str,numericText(entry["authored_keys"]),t(ngAutoRigMessage("keys")),
                             numericText(ngRigGet(entry,"maximum_offset")));
+                        if (field == "bindings" && updated) foreach (previous; (*change)["before"].array)
+                            if (previous["target"] == entry["target"] && previous["property"] == entry["property"] &&
+                                ngRigGet(previous,"content_sha256") != ngRigGet(entry,"content_sha256"))
+                                text ~= " / " ~ t(ngAutoRigMessage("Updated values"));
                         if (field == "welding") {
                             text ~= " / " ~ numericText(ngRigGet(entry,"paired_vertices")) ~ " " ~
                                 t(ngAutoRigMessage("Paired vertices")) ~ " / " ~
