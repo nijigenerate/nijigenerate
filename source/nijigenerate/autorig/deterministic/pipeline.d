@@ -3,7 +3,7 @@ module nijigenerate.autorig.deterministic.pipeline;
 import nijigenerate.autorig.framework;
 import std.json : JSONValue;
 
-alias RigNativeStage = JSONValue delegate(string, JSONValue, JSONValue, ubyte[], AutoRigTaskContext);
+alias RigNativeStage = JSONValue delegate(string, JSONValue, JSONValue, const(ubyte)[], AutoRigTaskContext);
 
 AutoRigTaskSpec[] ngRigPipelineTasks() {
     auto state = AutoRigPortSpec("state",AutoRigValueKind.Json);

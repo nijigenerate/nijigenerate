@@ -212,12 +212,21 @@ class GetAutoRigMemoryStatusCommand : ExCommand!(TW!(string,"runId","AutoRig run
         import std.json : JSONValue;
         if (autoRigStatus is null) return CommandResult(false,"AutoRig panel is unavailable");
         auto status = autoRigStatus(runId);
+        import nijigenerate.core.actionstack : ngActionHistoryMemoryInfo;
+        status["undo"] = ngActionHistoryMemoryInfo();
+        import nijilive.core.render.shared_deform_buffer : ngSharedRenderAtlasMemoryInfo;
+        auto atlas = ngSharedRenderAtlasMemoryInfo();
+        status["render_atlas"] = JSONValue(["deformation_registrations":JSONValue(atlas[0]),
+            "vertex_registrations":JSONValue(atlas[1]),"uv_registrations":JSONValue(atlas[2]),
+            "deformation_bytes":JSONValue(atlas[3]),"vertex_bytes":JSONValue(atlas[4]),
+            "uv_bytes":JSONValue(atlas[5])]);
         if (collectGarbage) {
             if (status["state"].str == "Running") return CommandResult(false,"AutoRig is still running");
             import core.memory : GC;
             import std.datetime.stopwatch : StopWatch;
             auto timer = StopWatch(); timer.start();
             GC.collect();
+            GC.minimize();
             timer.stop();
             auto memory = GC.stats();
             status["memory"]["gc_used_after_collection_bytes"] = JSONValue(cast(ulong)memory.usedSize);

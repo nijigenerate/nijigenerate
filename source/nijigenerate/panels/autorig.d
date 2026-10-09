@@ -10,7 +10,7 @@ import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngRunInMainThread, ngMcpSe
 import nijigenerate.autorig;
 import nijigenerate.autorig.deterministic.processor : AnimeFrontViewRigProcessor;
 import nijigenerate.autorig.deterministic.editor : ngApplyFaceProjection;
-import nijigenerate.autorig.deterministic.native : ngRigNativeStage;
+import nijigenerate.autorig.deterministic.native : ngRigNativeStage, ngRigForgetNativeSession;
 import nijigenerate.autorig.deterministic.evidence : ngRigMaterialRoleCandidates;
 import nijigenerate.autorig.deterministic.templates : ngRigMaterialRoles;
 import nijigenerate.autorig.deterministic.contracts : ngRigGet, ngRigString, ngRigPoint, ngRigUnsigned, ngRigNumber;
@@ -81,6 +81,7 @@ private:
     }
     ContextDraft[string] contextDrafts;
     Thread worker;
+    bool reclaimSessionMemory;
     AutoRigWorkflowRun activeRun;
     uint controlledRoot;
     bool previousDriversEnabled;
@@ -119,8 +120,17 @@ private:
             worker.join();
             worker = null;
             activeRun = null;
+            reclaimSessionMemory = true;
             ngMcpSetExternalCommandsBlocked(false);
             restoreDriverState();
+        }
+        if (worker is null && reclaimSessionMemory) {
+            // Collect after the worker has joined or deletion has unwound.
+            // Collection alone leaves free GC pools committed to the process.
+            reclaimSessionMemory = false;
+            import core.memory : GC;
+            GC.collect();
+            GC.minimize();
         }
     }
 
@@ -864,6 +874,7 @@ private:
 
     void removeRun(string runId) {
         workflowManager().remove(runId);
+        ngRigForgetNativeSession(runId);
         AutoRigWorkflowRun[] remaining;
         foreach (run; runs) if (run.id() != runId) remaining ~= run;
         runs = remaining;
@@ -874,6 +885,7 @@ private:
         foreach (key; inputDrafts.keys) if (key.startsWith(runId ~ "/")) inputDrafts.remove(key);
         foreach (key; inputObserved.keys) if (key.startsWith(runId ~ "/")) inputObserved.remove(key);
         foreach (key; inputTextCache.keys) if (key.startsWith(runId ~ "/")) inputTextCache.remove(key);
+        reclaimSessionMemory = true;
     }
 
 protected:
@@ -983,6 +995,7 @@ public:
         ngMcpSetExternalCommandsBlocked(false);
         restoreDriverState();
         if (workflows !is null) workflows.disposeAll();
+        ngRigForgetNativeSession();
         runs = null;
         inputDrafts = null;
         inputObserved = null;

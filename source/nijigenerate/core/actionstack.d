@@ -9,6 +9,7 @@ module nijigenerate.core.actionstack;
 import nijigenerate.core.settings;
 import nijigenerate.actions;
 import nijilive;
+import std.json : JSONValue;
 
 enum ActionStackScopeUnit {
     Manual,
@@ -217,6 +218,43 @@ Action[] incActionHistory() {
     return actions[currentLevel];
 }
 
+/** Read-only accounting of action objects and copied deformation binding values.
+    Model, texture and mesh references are excluded from these payload totals. */
+JSONValue ngActionHistoryMemoryInfo() {
+    import core.memory : GC;
+    ulong objects, objectBytes, bindingBytes, groups;
+    bool[Object] seen;
+    ulong[string] types;
+    void visit(Action action) {
+        auto object = cast(Object)action;
+        if (object is null || object in seen) return;
+        seen[object] = true;
+        ++objects;
+        objectBytes += GC.query(cast(void*)object).size;
+        ++types[object.classinfo.name];
+        if (auto group = cast(GroupAction)action) {
+            ++groups;
+            foreach (child; group.actions) visit(child);
+        }
+        if (auto owner = cast(AsyncGroupAction)action)
+            foreach (child; owner.completedAsyncActions) visit(cast(Action)child);
+        if (auto value = cast(ParameterBindingValueChangeAction!(Deformation, DeformationParameterBinding))action)
+            bindingBytes += value.value.vertexOffsets.length * 2 * float.sizeof;
+        if (auto values = cast(ParameterBindingAllValueChangeAction!Deformation)action)
+            foreach (row; values.values) foreach (value; row)
+                bindingBytes += value.vertexOffsets.length * 2 * float.sizeof;
+    }
+    foreach (history; actions) foreach (action; history) visit(action);
+    foreach (group; currentGroup) visit(group);
+    JSONValue[string] counts;
+    foreach (name, count; types) counts[name] = JSONValue(count);
+    return JSONValue(["history_entries":JSONValue(cast(ulong)actions[currentLevel].length),
+        "undo_index":JSONValue(cast(ulong)actionPointer[currentLevel]),
+        "action_count":JSONValue(objects),"groups":JSONValue(groups),
+        "action_object_allocation_bytes":JSONValue(objectBytes),
+        "binding_snapshot_bytes":JSONValue(bindingBytes),"types":JSONValue(counts)]);
+}
+
 /**
     Index of the current action
 */
@@ -315,14 +353,14 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         openScopes = null;
         activeScopes.clear();
         currentLevel = 0;
-        actions.length = currentLevel + 1;
+        actions = [cast(Action[])null];
         actionPointer.length = currentLevel + 1;
         actionIndex.length = currentLevel + 1;
-        currentGroup.length = currentLevel + 1;
+        currentGroup = [cast(GroupAction)null];
         groupCount.length = currentLevel + 1;
         savedIndex.length = currentLevel + 1;
         savedStateValid.length = currentLevel + 1;
-        actions[currentLevel].length = 0;
+        actions[currentLevel] = null;
         actionPointer[currentLevel] = 0;
         currentGroup[currentLevel] = null;
         // Newly cleared history equals saved state
@@ -330,7 +368,7 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
         savedStateValid[currentLevel] = true;
         break;
     case ActionStackClear.CurrentLevel:
-        actions[currentLevel].length = 0;
+        actions[currentLevel] = null;
         actionPointer[currentLevel] = 0;
         // Keep the ownership of an open group. Its owner may be an asynchronous
         // operation which must still be able to close the group after history is
@@ -347,9 +385,9 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
     Subsequent Action is added to GroupAction.
     GroupAction is added to action stack when incActionPopGroup is called.
 */
-void incActionPushGroup() {
+void incActionPushGroup(GroupAction owner = null) {
     if (!currentGroup[currentLevel])
-        currentGroup[currentLevel] = new GroupAction();
+        currentGroup[currentLevel] = owner !is null ? owner : new GroupAction();
     groupCount[currentLevel] += 1;
 }
 
@@ -441,6 +479,9 @@ size_t ngActionStackLevel() {
 
 void incActionPopStack() {
     if (currentLevel > 0) {
+        // Release discarded entries before retaining the shorter backing arrays.
+        actions[currentLevel] = null;
+        currentGroup[currentLevel] = null;
         -- currentLevel;
         actions.length = currentLevel + 1;
         actionPointer.length = currentLevel + 1;

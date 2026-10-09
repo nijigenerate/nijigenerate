@@ -21,10 +21,24 @@ struct AutoRigValue {
     AutoRigValueKind kind;
     string text;
     JSONValue json;
-    ubyte[] bytes;
 private:
+    ubyte[] mutableBytes;
+    immutable(ubyte)[] immutableBytes;
     string encodedJson;
 public:
+
+    /** Materialize an owned mutable view only for callers that edit raw bytes. */
+    @property ref ubyte[] bytes() {
+        if (immutableBytes !is null) {
+            mutableBytes = immutableBytes.dup;
+            immutableBytes = null;
+        }
+        return mutableBytes;
+    }
+
+    private size_t blobByteLength() const {
+        return immutableBytes !is null ? immutableBytes.length : mutableBytes.length;
+    }
 
     static AutoRigValue fileName(string value) {
         return AutoRigValue(AutoRigValueKind.FileName, value);
@@ -53,13 +67,22 @@ public:
     static AutoRigValue blob(ubyte[] value) {
         AutoRigValue result;
         result.kind = AutoRigValueKind.Blob;
-        result.bytes = value.dup;
+        // Immutable payloads can cross worker boundaries without sharing mutable arrays.
+        result.immutableBytes = value.idup;
         return result;
     }
 
     ubyte[] readBlob() {
         enforce(kind == AutoRigValueKind.Blob, "AutoRig value is not a blob");
-        return text.length ? cast(ubyte[])read(text) : bytes.dup;
+        return text.length ? cast(ubyte[])read(text) :
+            immutableBytes !is null ? immutableBytes.dup : mutableBytes.dup;
+    }
+
+    /** A read-only task can share the snapshot without copying its entire payload. */
+    immutable(ubyte)[] readImmutableBlob() {
+        enforce(kind == AutoRigValueKind.Blob, "AutoRig value is not a blob");
+        return text.length ? (cast(ubyte[])read(text)).idup :
+            immutableBytes !is null ? immutableBytes : mutableBytes.idup;
     }
 }
 
@@ -73,7 +96,7 @@ struct AutoRigValueInfo {
 
 private AutoRigValueInfo valueInfo(AutoRigValue value, ulong revision) {
     return AutoRigValueInfo(value.kind, value.text,
-        value.encodedJson.length ? value.encodedJson.length : value.bytes.length, revision);
+        value.encodedJson.length ? value.encodedJson.length : value.blobByteLength(), revision);
 }
 
 private JSONValue copyJson(JSONValue value) {
@@ -98,7 +121,7 @@ private AutoRigValue copyValue(AutoRigValue value) {
             parseJSON(readText(value.text)) : value.encodedJson.length ?
             parseJSON(value.encodedJson) : copyJson(value.json));
         case AutoRigValueKind.Blob:
-            return value.text.length ? value : AutoRigValue.blob(value.bytes);
+            return value.text.length || value.immutableBytes !is null ? value : AutoRigValue.blob(value.mutableBytes);
     }
 }
 

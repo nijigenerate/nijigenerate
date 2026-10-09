@@ -567,7 +567,26 @@ private void testExplicitActionBoundaryOwnership() {
     }
 }
 
+private void testBlobOwnership() {
+    ubyte[] source = [1, 2, 3];
+    auto stored = AutoRigValue.blob(source);
+    source[0] = 9;
+    assert(stored.readBlob() == [cast(ubyte)1, 2, 3]);
+    auto workerValue = ngCopyAutoRigValue(stored);
+    auto readOnlyBytes = workerValue.readImmutableBlob();
+    auto workerBytes = workerValue.readBlob();
+    workerBytes[0] = 8;
+    assert(stored.readBlob()[0] == 1);
+    workerValue.bytes[0] = 7;
+    assert(workerValue.readBlob()[0] == 7 && stored.readBlob()[0] == 1);
+    assert(readOnlyBytes[0] == 1);
+    auto editedCopy = ngCopyAutoRigValue(workerValue);
+    workerValue.bytes[0] = 6;
+    assert(editedCopy.readBlob()[0] == 7);
+}
+
 void main(string[] args) {
+    testBlobOwnership();
     testChangedFailureCheckpoint();
     testFailedRequestSetup();
     testStartupCancellation();
