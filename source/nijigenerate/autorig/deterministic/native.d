@@ -2065,9 +2065,22 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, con
         return result;
     }
     auto before = reviewModel(task);
-    bool grouped;
-    task.runOnMainThread({ incActionPushGroup(); grouped = true; });
-    scope(exit) if (grouped) task.runOnMainThread({ incActionPopGroup(); });
+    import nijigenerate.actions : AsyncGroupAction;
+    import nijigenerate.commands.depth.bone : ngBeginDepthBoneRefreshActionSink,
+        ngEndDepthBoneRefreshActionSink;
+    AsyncGroupAction owner;
+    task.runOnMainThread({
+        owner = new AsyncGroupAction();
+        incActionPushGroup(owner);
+        ngBeginDepthBoneRefreshActionSink(owner);
+        owner.beginCheckpointRecording();
+    });
+    scope(exit) task.runOnMainThread({
+        owner.endCheckpointRecording();
+        ngEndDepthBoneRefreshActionSink(owner);
+        incActionPopGroup();
+    });
+    scope(success) task.runOnMainThread({ owner.retainCompletedResults(); });
     scope(failure) if (model.length) task.runOnMainThread({
         ngRestorePuppetMemory(model.dup);
         liveRigSignatures[task.sessionId()] = editorSignature(incActivePuppet());

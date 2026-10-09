@@ -236,6 +236,8 @@ JSONValue ngActionHistoryMemoryInfo() {
             ++groups;
             foreach (child; group.actions) visit(child);
         }
+        if (auto owner = cast(AsyncGroupAction)action)
+            foreach (child; owner.completedAsyncActions) visit(cast(Action)child);
         if (auto value = cast(ParameterBindingValueChangeAction!(Deformation, DeformationParameterBinding))action)
             bindingBytes += value.value.vertexOffsets.length * 2 * float.sizeof;
         if (auto values = cast(ParameterBindingAllValueChangeAction!Deformation)action)
@@ -383,9 +385,9 @@ void incActionClearHistory(ActionStackClear target = ActionStackClear.All) {
     Subsequent Action is added to GroupAction.
     GroupAction is added to action stack when incActionPopGroup is called.
 */
-void incActionPushGroup() {
+void incActionPushGroup(GroupAction owner = null) {
     if (!currentGroup[currentLevel])
-        currentGroup[currentLevel] = new GroupAction();
+        currentGroup[currentLevel] = owner !is null ? owner : new GroupAction();
     groupCount[currentLevel] += 1;
 }
 

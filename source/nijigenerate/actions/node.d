@@ -79,6 +79,8 @@ public:
     */
     size_t parentOffset;
     float[uint] zSort;
+    float[uint] originalRelativeSort;
+    float[uint] newRelativeSort;
 
     /**
         Previous parent of node
@@ -128,6 +130,7 @@ public:
                 prevParents[sn.uuid] = sn.parent;
                 prevOffsets[sn.uuid] = sn.getIndexInParent();
                 zSort[sn.uuid] = sn.zSort;
+                originalRelativeSort[sn.uuid] = sn.relZSort;
             }
 
             // Set relative position
@@ -148,6 +151,7 @@ public:
             } else sn.parent = null;
             if (sn.uuid in prevParents && prevParents[sn.uuid]) prevParents[sn.uuid].notifyChange(sn, NotifyReason.StructureChanged);
             newTransform[sn.uuid] = sn.localTransform;
+            newRelativeSort[sn.uuid] = sn.relZSort;
         }
         incActivePuppet().rescanNodes();
         foreach (node; nodes)
@@ -167,7 +171,7 @@ public:
                 if (!sn.lockToRoot()) sn.setRelativeTo(prevParents[sn.uuid]);
                 sn.reparent(prevParents[sn.uuid], prevOffsets[sn.uuid], true);
                 if (sn.uuid in zSort) {
-                    sn.zSort = zSort[sn.uuid] - prevParents[sn.uuid].zSort();
+                    sn.zSort = originalRelativeSort[sn.uuid];
                 }
                 sn.localTransform = originalTransform[sn.uuid];
                 sn.transformChanged();
@@ -194,9 +198,7 @@ public:
             if (newParent) {
                 if (!sn.lockToRoot()) sn.setRelativeTo(newParent);
                 sn.reparent(newParent, parentOffset, true);
-                if (sn.uuid in zSort) {
-                    sn.zSort = zSort[sn.uuid] - newParent.zSort();
-                }
+                sn.zSort = newRelativeSort[sn.uuid];
                 sn.localTransform = newTransform[sn.uuid];
                 sn.transformChanged();
                 sn.notifyChange(sn, NotifyReason.StructureChanged);
@@ -1134,13 +1136,17 @@ void incAddChildWithHistory(Node n, Node to, string name=null) {
     if (to is null) to = incActivePuppet().root;
 
     // Push action to stack
-    incActionPush(new NodeMoveAction(
+    auto action = new NodeMoveAction(
         [n],
         to
-    ));
+    );
+    incActionPush(action);
 
     n.insertInto(to, Node.OFFSET_START);
     n.localTransform.clear();
+    // Creation initializes the local frame after attachment; redo needs that frame.
+    action.newTransform[n.uuid] = n.localTransform;
+    action.newRelativeSort[n.uuid] = n.relZSort;
     if (name is null) n.name = _("Unnamed ")~_(n.typeId());
     else n.name = name;
     incActivePuppet().rescanNodes();

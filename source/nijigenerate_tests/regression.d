@@ -2800,6 +2800,9 @@ private void testNodeCommandMoveUndoRedo() {
     parentA.name = "parentA";
     parentB.name = "parentB";
     child.name = "child";
+    parentA.zSort = 10;
+    parentB.zSort = 30;
+    child.zSort = 7;
 
     auto ctx = new Context();
     ctx.nodes = [child];
@@ -2807,14 +2810,30 @@ private void testNodeCommandMoveUndoRedo() {
     require((new MoveNodeCommand(parentB, 0)).run(ctx).succeeded, "MoveNodeCommand should succeed");
     require(child.parent is parentB, "MoveNodeCommand should reparent node");
     require(isChildOf(parentB, child), "MoveNodeCommand should insert node into new parent");
+    auto movedSort = child.relZSort;
+    parentA.zSort = 20;
+    parentB.zSort = 40;
 
     incActionUndo();
     require(child.parent is parentA, "undo MoveNodeCommand should restore old parent");
     require(isChildOf(parentA, child), "undo MoveNodeCommand should restore child list");
+    require(child.relZSort == 7, "undo should restore the saved relative draw order");
 
     incActionRedo();
     require(child.parent is parentB, "redo MoveNodeCommand should restore new parent");
     require(isChildOf(parentB, child), "redo MoveNodeCommand should restore new child list");
+    require(child.relZSort == movedSort, "redo should restore draw order without recomputing parent offsets");
+
+    parentB.localTransform.translation = vec3(15, -20, 4);
+    parentB.localTransform.update();
+    auto created = new Node(cast(Node)null);
+    incAddChildWithHistory(created, parentB, "created-frame");
+    auto createdFrame = created.localTransform;
+    auto createdSort = created.relZSort;
+    incActionUndo();
+    incActionRedo();
+    require(created.localTransform == createdFrame, "redo creation should restore the initialized local frame");
+    require(created.relZSort == createdSort, "redo creation should preserve the initialized relative draw order");
 }
 
 private vec3 nodeWorldTranslation(Node node) {
@@ -17819,10 +17838,63 @@ private void testAsyncActionGroupUndoRedo() {
         "redo generation should accept freshly completed asynchronous output");
     require(incActionIsModified(),
         "derived output completed after save must invalidate the saved snapshot without moving the history pointer");
+    owner.retainCompletedResults();
     incActionUndo();
     require(primaryNode.name == "primary-before" && derivedNode.name == "derived-before",
         "second undo should revert asynchronously regenerated output and the primary operation");
     owner.removeObserver(observerId);
+
+    // A completed pipeline checkpoint preserves output identities used by later actions.
+    incActionRedo();
+    require(primaryNode.name == "primary-after" && derivedNode.name == "derived-redone",
+        "completed checkpoint redo should restore the original derived action output");
+    incActionUndo();
+    incActionRedo();
+    require(derivedNode.name == "derived-redone",
+        "completed checkpoint output should survive repeated undo and redo");
+    auto inner = new AsyncGroupAction([primary]);
+    inner.markAsyncScheduled();
+    require(inner.addCompletedAsyncAction(inner.generation, redoneDerived),
+        "nested checkpoint should attach its completed output");
+    auto outer = new AsyncGroupAction([new GroupAction([inner])]);
+    outer.retainCompletedResults();
+    outer.rollback();
+    outer.redo();
+    require(inner.replaysCompletedResults && derivedNode.name == "derived-redone",
+        "sealing a task checkpoint should preserve nested asynchronous output identities");
+    auto outputOnly = new AsyncGroupAction();
+    outputOnly.markAsyncScheduled();
+    require(outputOnly.addCompletedAsyncAction(outputOnly.generation, redoneDerived),
+        "output-only checkpoint should attach its completed output");
+    require(!outputOnly.empty(), "completed generated output must not be discarded as an empty history group");
+    outputOnly.retainCompletedResults();
+    incActionPush(outputOnly);
+    incActionUndo();
+    incActionRedo();
+    require(derivedNode.name == "derived-redone", "output-only checkpoint should support undo and redo");
+    auto ordered = new AsyncGroupAction();
+    ordered.beginCheckpointRecording();
+    auto orderedNode = new Node(incActivePuppet().root);
+    orderedNode.name = "first";
+    ordered.addAction(new NodeValueChangeAction!(Node, string)(
+        "name", orderedNode, "before", "first", &orderedNode.name_));
+    auto nested = new AsyncGroupAction();
+    ordered.addAction(nested);
+    nested.markAsyncScheduled();
+    orderedNode.name = "generated";
+    require(nested.addCompletedAsyncAction(nested.generation,
+        new NodeValueChangeAction!(Node, string)(
+            "name", orderedNode, "first", "generated", &orderedNode.name_)),
+        "nested writeback should be recorded in the enclosing checkpoint");
+    orderedNode.name = "last";
+    ordered.addAction(new NodeValueChangeAction!(Node, string)(
+        "name", orderedNode, "generated", "last", &orderedNode.name_));
+    ordered.retainCompletedResults();
+    ordered.endCheckpointRecording();
+    ordered.rollback();
+    require(orderedNode.name == "before", "checkpoint undo should reverse interleaved writeback and primary edits");
+    ordered.redo();
+    require(orderedNode.name == "last", "checkpoint redo must not replay earlier generated output after later edits");
 
     resetCase();
     primaryNode = new Node(incActivePuppet().root);

@@ -1387,7 +1387,7 @@ private ExDepthRigRoot lastDepthBoneDirtyRoot;
 private Parameter lastDepthBoneDirtyParameter;
 private vec2u lastDepthBoneDirtyKeypoint;
 private AsyncGroupAction depthBoneRefreshActionSink;
-private bool depthBoneRefreshSuppressed;
+private size_t depthBoneRefreshSuppressed;
 private ulong nextDepthBoneSourceSettingsMergeSession = 1;
 private ulong depthBoneSourceSettingsMergeSession;
 private string depthBoneSourceSettingsMergeProperty;
@@ -1712,19 +1712,21 @@ private void cancelDepthBoneRefreshForAction(AsyncGroupAction action) {
 }
 
 private void beginDepthBoneRefreshUndo(AsyncGroupAction action) {
-    depthBoneRefreshSuppressed = true;
+    ++depthBoneRefreshSuppressed;
 }
 
 private void endDepthBoneRefreshUndo(AsyncGroupAction action) {
-    depthBoneRefreshSuppressed = false;
+    --depthBoneRefreshSuppressed;
 }
 
 private void beginDepthBoneRefreshRedo(AsyncGroupAction action) {
     depthBoneRefreshActionSink = action;
+    if (action.replaysCompletedResults) ++depthBoneRefreshSuppressed;
 }
 
 private void endDepthBoneRefreshRedo(AsyncGroupAction action) {
     if (depthBoneRefreshActionSink is action) depthBoneRefreshActionSink = null;
+    if (action.replaysCompletedResults) --depthBoneRefreshSuppressed;
 }
 
 private bool mergeDepthBoneAsyncActions(

@@ -218,8 +218,9 @@ public:
     Primary actions stay in GroupAction.actions. Actions produced by the
     asynchronous work are kept separately so undo can cancel pending work,
     roll back completed output, and then roll back the operation which caused
-    that work. Redo deliberately does not replay the old derived actions; it
-    redoes the primary operation and lets the owner schedule fresh work.
+    that work. By default redo redoes the primary operation and lets the owner
+    schedule fresh work. Completed pipeline checkpoints can retain their output
+    identities and replay both the primary operation and its saved output.
 */
 class AsyncGroupAction : GroupAction {
 public:
@@ -246,6 +247,11 @@ private:
     size_t totalCount;
     size_t completedCount;
     bool applied = true;
+    bool replayCompleted;
+    bool replayedByCheckpoint;
+    bool recordsCompletionOrder;
+    Action[] completionOrder;
+    private static __gshared AsyncGroupAction checkpointRecorder;
     ObserverEntry[] observers;
     ulong nextObserverId = 1;
 
@@ -302,6 +308,37 @@ public:
     ulong generation() const { return currentGeneration; }
     AsyncGroupActionState state() const { return currentState; }
     bool isApplied() const { return applied; }
+    bool replaysCompletedResults() const { return replayCompleted; }
+    override bool empty() { return actions.length == 0 && derivedActions.length == 0; }
+    /** Record primary edits and GPU writebacks in their actual execution order. */
+    void beginCheckpointRecording() {
+        import std.exception : enforce;
+        enforce(checkpointRecorder is null, "An asynchronous checkpoint is already recording");
+        recordsCompletionOrder = true;
+        completionOrder = actions.dup;
+        checkpointRecorder = this;
+    }
+    void endCheckpointRecording() {
+        if (checkpointRecorder is this) checkpointRecorder = null;
+    }
+    override void addAction(Action action) {
+        super.addAction(action);
+        if (recordsCompletionOrder) completionOrder ~= action;
+    }
+    /** Completed pipeline checkpoints replay their saved output with its original identities. */
+    void retainCompletedResults() {
+        import std.exception : enforce;
+        enforce(pendingCount == 0, "Cannot retain results of unfinished asynchronous work");
+        void retain(Action child) {
+            if (auto owner = cast(AsyncGroupAction)child) owner.retainCompletedResults();
+            else if (auto group = cast(GroupAction)child)
+                foreach (item; group.actions) retain(item);
+        }
+        foreach (child; actions) retain(child);
+        foreach (child; derivedActions) retain(child);
+        if (!recordsCompletionOrder) completionOrder = actions ~ derivedActions;
+        replayCompleted = true;
+    }
     size_t pendingAsyncCount() const { return pendingCount; }
     size_t totalAsyncCount() const { return totalCount; }
     size_t completedAsyncCount() const { return completedCount; }
@@ -328,6 +365,10 @@ public:
         if (!applied || currentState == AsyncGroupActionState.Failed ||
             generation != currentGeneration || action is null) return false;
         derivedActions ~= action;
+        if (checkpointRecorder !is null) {
+            checkpointRecorder.completionOrder ~= action;
+            if (checkpointRecorder !is this) replayedByCheckpoint = true;
+        }
         if (ngAsyncActionCompletedHook !is null) ngAsyncActionCompletedHook(this);
         finishPending(completed);
         currentState = pendingCount == 0
@@ -371,13 +412,20 @@ public:
         pendingCount = 0;
         totalCount = 0;
         completedCount = 0;
-        foreach_reverse (action; derivedActions) action.rollback();
-        derivedActions.length = 0;
+        if (!replayCompleted && !replayedByCheckpoint)
+            foreach_reverse (action; derivedActions) action.rollback();
         if (beginUndoHandler !is null) beginUndoHandler(this);
         scope(exit) {
             if (endUndoHandler !is null) endUndoHandler(this);
         }
-        super.rollback();
+        if (replayCompleted && !replayedByCheckpoint) {
+            foreach_reverse (action; completionOrder) action.rollback();
+        } else {
+            if (replayCompleted && !replayedByCheckpoint)
+                foreach_reverse (action; derivedActions) action.rollback();
+            if (!replayCompleted) derivedActions = null;
+            super.rollback();
+        }
         applied = false;
         currentState = AsyncGroupActionState.Undone;
         notifyObservers(AsyncGroupActionEvent.Canceled);
@@ -389,7 +437,7 @@ public:
         pendingCount = 0;
         totalCount = 0;
         completedCount = 0;
-        derivedActions.length = 0;
+        if (!replayCompleted) derivedActions = null;
         applied = true;
         currentState = AsyncGroupActionState.Idle;
         notifyObservers(AsyncGroupActionEvent.Redone);
@@ -397,7 +445,10 @@ public:
         scope(exit) {
             if (endRedoHandler !is null) endRedoHandler(this);
         }
-        super.redo();
+        if (replayCompleted && !replayedByCheckpoint) {
+            foreach (action; completionOrder) action.redo();
+            currentState = AsyncGroupActionState.Completed;
+        } else super.redo();
     }
 
     override bool merge(Action other) {
