@@ -16,7 +16,7 @@ import nijigenerate.autorig.deterministic.templates : ngRigMaterialRoles;
 import nijigenerate.autorig.deterministic.contracts : ngRigGet, ngRigString, ngRigPoint, ngRigUnsigned, ngRigNumber;
 import nijigenerate.autorig.deterministic.presentation;
 import nijigenerate.autorig.deterministic.review : RigMaterialField, ngRigEditedMaterialOverride,
-    ngRigMaterialForcedStatic;
+    ngRigMaterialForcedStatic, ngRigMaterialStaticPreference;
 import std.string : endsWith, startsWith, toLower;
 import std.algorithm.searching : canFind;
 import nijigenerate.core.actionstack : incActionPushGroup, incActionPopGroup;
@@ -619,7 +619,7 @@ private:
                 string role = ngRigString(material,"role",candidates.length == 1 ? candidates[0] : "");
                 auto feature = ngRigString(material,"feature","");
                 auto side = ngRigString(material,"side_override","");
-                bool disabled = ngRigGet(material,"static",JSONValue(!material["active"].boolean)).boolean;
+                bool disabled = ngRigMaterialStaticPreference(material);
                 if (auto overrides = "materials" in options.object) if (auto entry = path in overrides.object) {
                     if (auto stationary = "static" in entry.object) disabled = stationary.boolean;
                     if (auto chosen = "role" in entry.object) role = chosen.str;

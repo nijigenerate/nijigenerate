@@ -123,6 +123,24 @@ private void testReviewPlan() {
     auto compact = ngRigClassificationReview(JSONValue(["materials":JSONValue([material])]),JSONValue.init);
     assert(("support_candidates" in compact["classification"][0].object) is null);
     assert(material["support_candidates"].array.length == 2);
+    auto observation = ngTestModelObservation();
+    observation["materials"][0]["name"] = JSONValue("background");
+    observation["materials"][0]["path"] = JSONValue("/background");
+    auto facePath = observation["materials"][0]["path"].str;
+    auto backgroundOverride = JSONValue(cast(JSONValue[string])null);
+    auto classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([
+        facePath:backgroundOverride])]));
+    auto background = classified["materials"][0];
+    assert(background["static"].boolean && !ngRigMaterialStaticPreference(background));
+    auto faceOverride = ngRigEditedMaterialOverride(backgroundOverride,RigMaterialField.role,
+        "face",false,"","");
+    classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([facePath:faceOverride])]));
+    assert(!classified["materials"][0]["static"].boolean);
+    // An explicit checkbox override remains independent of the role constraint.
+    faceOverride = ngRigEditedMaterialOverride(faceOverride,RigMaterialField.stationary,"face",true,"","");
+    classified = ngRigClassifyMaterials(observation,JSONValue(["materials":JSONValue([facePath:faceOverride])]));
+    assert(classified["materials"][0]["static"].boolean);
+    assert(ngRigMaterialStaticPreference(classified["materials"][0]));
 }
 
 void ngTestRigPipeline() {

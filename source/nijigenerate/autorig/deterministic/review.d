@@ -12,6 +12,12 @@ bool ngRigMaterialForcedStatic(bool active, string role, string semanticSource) 
     return !active || role == "background" || semanticSource == "full_body_backdrop_alpha_perimeter";
 }
 
+/** Automatic constraints are not an explicit checkbox preference. */
+bool ngRigMaterialStaticPreference(JSONValue material) {
+    return !ngRigMaterialForcedStatic(material["active"].boolean,ngRigString(material,"role"),
+        ngRigString(material,"semantic_source")) && ngRigGet(material,"static",JSONValue(false)).boolean;
+}
+
 /** Merge only edited UI fields; an empty role restores automatic role inference. */
 JSONValue ngRigEditedMaterialOverride(JSONValue previous, ubyte fields, string role,
     bool stationary, string feature, string side) {
