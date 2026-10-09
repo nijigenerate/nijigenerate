@@ -150,6 +150,13 @@ void ngTestRigPipeline() {
     auto featureCleared = ngRigClassifyMaterials(clippedObservation,JSONValue(["materials":JSONValue([
         "/iris_r":JSONValue(["feature":JSONValue("")])])]));
     assert(featureCleared["materials"][13]["feature"].str == "");
+    auto receiverSide = ngRigClassifyMaterials(clippedObservation,JSONValue(["materials":JSONValue([
+        "/sclera_r":JSONValue(["side":JSONValue("L")]),
+        "/iris_r":JSONValue(["feature":JSONValue("iris")])])]));
+    assert(("side_override" in receiverSide["materials"][13].object) is null);
+    auto receiverSidePlan = ngRigCompileProgram(receiverSide,ngRigDeriveEvidence(receiverSide));
+    assert(receiverSidePlan["carriers"][11]["side"].str == "L");
+    assert(receiverSidePlan["carriers"][13]["side"].str == "L");
     unknown["receiver"] = JSONValue(12);
     unknownSource["materials"].array[$-1] = unknown;
     auto edited = ngRigEditedMaterialOverride(JSONValue.init,RigMaterialField.side,"",false,"","L");

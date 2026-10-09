@@ -455,11 +455,30 @@ RigPhysicsAsset ngRigPhysicsAsset(JSONValue material, AutoRigTaskContext task = 
         if (abs(triangle.determinant)>=1e-14) triangles ~= triangle;
     }
     enforce(triangles.length>0,"Physics material has no valid UV triangles");
+    // Keep native triangle order in each cell, including overlapping UV islands.
+    size_t divisions = min(cast(size_t)ceil(sqrt(cast(double)triangles.length)),128);
+    size_t columns = min(width,divisions), rows = min(height,divisions);
+    auto cells = new size_t[][columns*rows];
+    size_t cell(double coordinate, size_t count) {
+        return cast(size_t)clamp(floor(coordinate*count),0.,cast(double)(count-1));
+    }
+    foreach (index,triangle; triangles) {
+        Point2 b = [triangle.a[0]+triangle.b[0],triangle.a[1]+triangle.b[1]];
+        Point2 c = [triangle.a[0]+triangle.c[0],triangle.a[1]+triangle.c[1]];
+        double padding = 4e-8*max(1.,abs(triangle.b[0]),abs(triangle.b[1]),
+            abs(triangle.c[0]),abs(triangle.c[1]));
+        size_t x0 = cell(min(triangle.a[0],b[0],c[0])-padding,columns);
+        size_t x1 = cell(max(triangle.a[0],b[0],c[0])+padding,columns);
+        size_t y0 = cell(min(triangle.a[1],b[1],c[1])-padding,rows);
+        size_t y1 = cell(max(triangle.a[1],b[1],c[1])+padding,rows);
+        foreach (y; y0 .. y1+1) foreach (x; x0 .. x1+1) cells[y*columns+x] ~= index;
+    }
     foreach (y; 0 .. height) {
         if (y%64 == 0) ngRigCheckpoint(task);
         foreach (x; 0 .. width) if (result.mask[y*width+x]) {
             Point2 pixel = [(x+.5)/width,(y+.5)/height]; bool covered;
-            foreach (triangle; triangles) {
+            foreach (index; cells[cell(pixel[1],rows)*columns+cell(pixel[0],columns)]) {
+                auto triangle = triangles[index];
                 auto q = sub(pixel,triangle.a);
                 auto v = (q[0]*triangle.c[1]-q[1]*triangle.c[0])/triangle.determinant;
                 auto w = (triangle.b[0]*q[1]-triangle.b[1]*q[0])/triangle.determinant;

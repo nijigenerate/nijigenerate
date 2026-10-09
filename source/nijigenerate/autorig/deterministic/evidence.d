@@ -294,9 +294,11 @@ JSONValue ngRigClassifyMaterials(JSONValue observation, JSONValue options, AutoR
             enforce(["", "mouth", "mouth_tongue", "mouth_upper_teeth", "mouth_lower_teeth", "mouth_outline",
                 "mouth_upper_lip", "mouth_lower_lip", "brow", "sclera", "iris", "corner", "upper", "lower",
                 "fold", "nose"].canFind(feature), "Unknown material feature override: " ~ feature);
-            auto sideOverride = ngRigString(*overrideRecord,"side","");
-            enforce(sideOverride == "" || sideOverride == "L" || sideOverride == "R", "Unknown model side override");
-            record["side_override"] = JSONValue(sideOverride);
+            if (auto side = "side" in overrideRecord.object) {
+                auto sideOverride = side.str;
+                enforce(["","L","R"].canFind(sideOverride),"Unknown model side override");
+                record["side_override"] = JSONValue(sideOverride);
+            }
         }
         bool overridden = overrideRecord !is null && "role" in (*overrideRecord).object;
         if (overrideRecord !is null && "role" in (*overrideRecord).object) {
