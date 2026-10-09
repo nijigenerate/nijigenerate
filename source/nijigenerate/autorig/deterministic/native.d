@@ -62,6 +62,12 @@ import core.thread : Thread;
 // Accessed exclusively on the editor thread; distinguishes retries from user edits.
 private string[string] liveRigSignatures;
 
+/** Main-thread session cleanup; signatures must not outlive deleted sessions. */
+void ngRigForgetNativeSession(string sessionId = null) {
+    if (sessionId.length) liveRigSignatures.remove(sessionId);
+    else liveRigSignatures = null;
+}
+
 private JSONValue reviewSettings(AutoRigTaskContext task) {
     return task.hasInput("review") ? task.input("review").json : JSONValue.init;
 }
@@ -2033,7 +2039,7 @@ private JSONValue applyPhysics(JSONValue state, JSONValue program, AutoRigTaskCo
 }
 
 /** Model snapshots are retained in memory and restored only for retries or rollback. */
-JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, ubyte[] model,
+JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, const(ubyte)[] model,
     AutoRigTaskContext task) {
     ngRigCheckpoint(task);
     if (stage == "observe-model") state = observeModel(state,task);
@@ -2049,7 +2055,7 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
                 auto expected = task.sessionId() in liveRigSignatures;
                 enforce(expected !is null && signature == *expected,
                     "Editor model changed since the previous AutoRig stage; regenerate its observation");
-                ngRestorePuppetMemory(model);
+                ngRestorePuppetMemory(model.dup);
             }
         });
     }
@@ -2063,7 +2069,7 @@ JSONValue ngRigNativeStage(string stage, JSONValue state, JSONValue program, uby
     task.runOnMainThread({ incActionPushGroup(); grouped = true; });
     scope(exit) if (grouped) task.runOnMainThread({ incActionPopGroup(); });
     scope(failure) if (model.length) task.runOnMainThread({
-        ngRestorePuppetMemory(model);
+        ngRestorePuppetMemory(model.dup);
         liveRigSignatures[task.sessionId()] = editorSignature(incActivePuppet());
     });
     if (stage == "mesh-parts") state = meshParts(state,program,task);

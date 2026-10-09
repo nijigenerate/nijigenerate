@@ -128,7 +128,8 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
             auto state = storage.restore(context.input("state").json);
             JSONValue result;
             try {
-                result = nativeStage(taskId,state,context.input("program").json,context.input("model").readBlob(),context);
+                result = nativeStage(taskId,state,context.input("program").json,
+                    context.input("model").readImmutableBlob(),context);
                 if (taskId == "compile-domain-layout") {
                     auto layout = ngRigCompileProgram(result,result["evidence"]);
                     context.publishJson("program",layout);

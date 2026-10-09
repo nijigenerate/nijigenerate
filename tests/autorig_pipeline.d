@@ -463,7 +463,7 @@ void ngTestRigPipeline() {
 
     string[] stages;
     auto processor = new AnimeFrontViewRigProcessor(null,
-        (string stage, JSONValue state, JSONValue plan, ubyte[] model, AutoRigTaskContext context) {
+        (string stage, JSONValue state, JSONValue plan, const(ubyte)[] model, AutoRigTaskContext context) {
             assert(Fiber.getThis() !is null);
             stages ~= stage;
             if (stage == "observe-model") state = parseJSON(ngTestModelObservation().toString());
@@ -533,7 +533,7 @@ void ngTestRigPipeline() {
     string[] attempts;
     bool failControls = true;
     auto failingProcessor = new AnimeFrontViewRigProcessor(null,
-        (string stage, JSONValue state, JSONValue plan, ubyte[] model, AutoRigTaskContext context) {
+        (string stage, JSONValue state, JSONValue plan, const(ubyte)[] model, AutoRigTaskContext context) {
             attempts ~= stage;
             if (stage == "observe-model") state = ngTestModelObservation();
             if (stage == "apply-rig-controls" && failControls) throw new Exception("synthetic local-control failure");
