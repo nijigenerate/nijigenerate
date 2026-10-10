@@ -584,6 +584,10 @@ class CaptureLiveScreenshotCommand : ExCommand!(
         Parameter captureParam;
         vec2 restoreValue;
         bool restoreCaptureParam = ctx.hasParameterValue;
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (restoreCaptureParam && ngMcpExternalCommandsBlocked())
+            return ExCommandResult!JSONValue(false, JSONValue.init,
+                "AutoRig is running; parameterized screenshots are blocked");
         auto capturePuppet = incActivePuppet();
         if (!applyScreenshotParameterContext(ctx, captureParam, restoreValue, message))
             return ExCommandResult!JSONValue(false, JSONValue.init, message);

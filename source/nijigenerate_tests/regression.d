@@ -18075,6 +18075,29 @@ private void testAutoRigPresentationCommands() {
         require(error.msg == "expected boundary failure", "unexpected boundary error");
     }
     require(!ngCommandAllowedInCurrentContext(edit), "internal editing access must close on failure");
+    import nijigenerate.commands.depth.psd_dialog : PsdDepthDialogCommandScope;
+    import nijigenerate.commands.puppet.tool : GetAutoRigStatusCommand;
+    import nijigenerate.commands.base : ngPushCommandScope, ngCommandScope;
+    auto statusCommand = new GetAutoRigStatusCommand();
+    ngRegisterCommandMeta(statusCommand);
+    auto dialogScope = ngPushCommandScope(ngCommandScope!PsdDepthDialogCommandScope());
+    require(ngCommandAllowedInCurrentContext(statusCommand), "status polling must survive a modal editing scope");
+    require(ngRunCommand(zoomReset, ctx).succeeded, "navigation must survive a modal editing scope");
+    require(!ngCommandAllowedInCurrentContext(edit), "modal navigation must not admit editing");
+    dialogScope.close();
+    auto screenshotContext = new Context();
+    screenshotContext.parameterValue = vec2(1, 0);
+    auto captureResult = ngRunCommand(new CaptureLiveScreenshotCommand(), screenshotContext);
+    require(!captureResult.succeeded && captureResult.message.canFind("parameterized screenshots are blocked"),
+        "parameterized capture must be rejected before changing the model or touching the renderer");
+    import nijigenerate.windows.base : Window;
+    class EditingWindowProbe : Window {
+        this() { super("Editing window probe"); }
+        override protected void onUpdate() {}
+    }
+    auto editingWindow = new EditingWindowProbe();
+    editingWindow.close();
+    require(editingWindow.isVisible(), "closing an editing window must be blocked while AutoRig owns history");
     require(ngRunCommand(zoomReset, ctx).succeeded, "camera zoom reset must run while AutoRig owns editing");
     require(ngRunCommand(positionReset, ctx).succeeded, "camera pan reset must run while AutoRig owns editing");
     require(incViewportTargetZoom == 1 && incViewportTargetPosition == vec2(0), "camera resets must apply");
@@ -18105,6 +18128,8 @@ private void testAutoRigPresentationCommands() {
     require(probe.notifications == 0, "browsing must not initialize editing tools during AutoRig");
     require(probe.parameterNotifications == 0, "AutoRig parameter arming must not initialize browsing edit targets");
     ngMcpSetExternalCommandsBlocked(false);
+    editingWindow.close();
+    require(!editingWindow.isVisible(), "editing windows must close normally after AutoRig");
     navigationView.selectionChanged(incSelectedNodes());
     navigationView.armedParameterChanged(null);
     require(probe.notifications == 1 && probe.selected == [node], "selection must reach editing tools after AutoRig");

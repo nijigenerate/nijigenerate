@@ -700,6 +700,14 @@ private void _ngMcpStart(string host, ushort port) {
                             bool presentation = ngIsPresentationCommand(cmdInst);
                             if (editorOwned && !ngCommandAllowedInCurrentContext(cmdInst))
                                 return CommandResult(false, "AutoRig is running; external commands are blocked");
+                            if (editorOwned && cast(CaptureLiveScreenshotCommand)cmdInst !is null &&
+                                payloadCopy.type == JSONType.object) {
+                                auto suppliedContext = "context" in payloadCopy.object;
+                                if (suppliedContext !is null && suppliedContext.type == JSONType.object &&
+                                    "parameterValue" in suppliedContext.object)
+                                    return CommandResult(false,
+                                        "AutoRig is running; parameterized screenshots are blocked");
+                            }
                             // 1) Build context from payload
                             auto ctx = editorOwned ? new Context() : buildContextFromPayload(payloadCopy);
                             if (editorOwned && presentation) {

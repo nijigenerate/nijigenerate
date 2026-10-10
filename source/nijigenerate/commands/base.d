@@ -597,7 +597,10 @@ bool ngCommandAllowedInCurrentContext(Command command) {
     if (command is null) return false;
     auto metadata = ngLookupCommandMeta(command);
     import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
-    if (ngMcpExternalCommandsBlocked() && !autoRigEditorAction && !metadata.presentationOnly) return false;
+    if (ngMcpExternalCommandsBlocked()) {
+        if (metadata.presentationOnly) return true;
+        if (!autoRigEditorAction) return false;
+    }
     return ngCurrentCommandScope().permits(metadata);
 }
 
