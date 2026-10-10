@@ -3,6 +3,20 @@ import nijigenerate.core;
 import nijigenerate.widgets;
 import bindbc.imgui;
 
+private bool readOnlyCategoryContents;
+
+/** Keep category expansion available while the contained property editors are read-only. */
+void ngWithReadOnlyCategoryContents(void delegate() draw) {
+    auto previous = readOnlyCategoryContents;
+    readOnlyCategoryContents = true;
+    igBeginDisabled();
+    scope(exit) {
+        igEndDisabled();
+        readOnlyCategoryContents = previous;
+    }
+    draw();
+}
+
 private {
     struct CategoryData {
         bool open;
@@ -178,6 +192,8 @@ bool incBeginCategory(const(char)* title, ImVec4 color, IncCategoryFlags flags =
         igUnindent();
     } else {
         bool defaultClosed = (data.flags & IncCategoryFlags.DefaultClosed) == IncCategoryFlags.DefaultClosed;
+        if (readOnlyCategoryContents) igEndDisabled();
+        scope(exit) if (readOnlyCategoryContents) igBeginDisabled();
         data.open = igTreeNodeEx(title, defaultClosed ? 
             ImGuiTreeNodeFlags.NoTreePushOnOpen | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.AllowItemOverlap:
             ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.NoTreePushOnOpen | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.AllowItemOverlap

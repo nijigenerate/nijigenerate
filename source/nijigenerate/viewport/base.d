@@ -87,6 +87,7 @@ public:
     uint asyncDerivedUpdateViewportChannel() { return 0; }
 
     void update(ImGuiIO* io, Camera camera) { }
+    void updatePresentation(ImGuiIO* io, Camera camera) { }
     void withdraw() { };
     void present() { };
     void menu() { };
@@ -143,6 +144,10 @@ public:
         }
     }
 
+    override void updatePresentation(ImGuiIO* io, Camera camera) {
+        if (_subView) _subView.updatePresentation(io, camera);
+    }
+
     mixin(use("withdraw"));
     mixin(use("present"));
     mixin(use("menu"));
@@ -171,6 +176,28 @@ public:
 }
 
 class MainViewport : DelegationViewport {
+    private bool selectionDeferred;
+    private bool parameterDeferred;
+
+    override void selectionChanged(Node[] nodes) {
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (ngMcpExternalCommandsBlocked()) {
+            selectionDeferred = true;
+            return;
+        }
+        selectionDeferred = false;
+        super.selectionChanged(nodes);
+    }
+
+    override void armedParameterChanged(Parameter parameter) {
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (ngMcpExternalCommandsBlocked()) {
+            parameterDeferred = true;
+            return;
+        }
+        parameterDeferred = false;
+        super.armedParameterChanged(parameter);
+    }
 
     this() {
         EditMode mode = incEditMode();
@@ -178,6 +205,9 @@ class MainViewport : DelegationViewport {
     }
 
     void draw() { 
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (selectionDeferred && !ngMcpExternalCommandsBlocked()) selectionChanged(incSelectedNodes());
+        if (parameterDeferred && !ngMcpExternalCommandsBlocked()) armedParameterChanged(incArmedParameter());
         auto camera = inGetCamera();
         bool differenceActive = prepareDifferenceAggregation(camera);
         inBeginScene();
@@ -229,7 +259,10 @@ class MainViewport : DelegationViewport {
         incInputSetViewportMouse(pos.x-mpos.x, pos.y-mpos.y);        
     };
 
-    void update(bool localOnly = false) { 
+    void update(bool localOnly = false, bool presentationOnly = false) {
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (selectionDeferred && !ngMcpExternalCommandsBlocked()) selectionChanged(incSelectedNodes());
+        if (parameterDeferred && !ngMcpExternalCommandsBlocked()) armedParameterChanged(incArmedParameter());
         ImGuiIO io;
         incMirrorIO(&io);
         auto camera = inGetCamera();
@@ -237,7 +270,8 @@ class MainViewport : DelegationViewport {
         // First update viewport movement
         if (!localOnly) incViewportMovement(&io, camera);
 
-        (cast(Viewport)this).update(&io, camera);        
+        if (presentationOnly) (cast(Viewport)this).updatePresentation(&io, camera);
+        else (cast(Viewport)this).update(&io, camera);
     };
 
 

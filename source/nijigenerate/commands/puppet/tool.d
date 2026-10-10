@@ -194,6 +194,7 @@ class ExecuteAutoRigCommand : ExCommand!(TW!(string,"options","AutoRig options J
     }
 }
 
+@PresentationOnly()
 class GetAutoRigStatusCommand : ExCommand!(TW!(string,"runId","AutoRig run UUID.")) {
     this(string runId = "") { super(_("AutoRig Status"),_("Read AutoRig workflow progress."),runId); }
     override CommandResult run(Context ctx) {

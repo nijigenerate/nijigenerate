@@ -34,6 +34,7 @@ protected:
     abstract void onUpdate();
     ImGuiWindowFlags flags;
     EditMode activeModes = EditMode.ALL;
+    bool supportsReadOnlyInteraction;
 
     void onBeginUpdate() {
 
@@ -120,7 +121,12 @@ public:
     */
     final void update() {
         this.onBeginUpdate();
-            if (drewContents) this.onUpdate();
+            if (drewContents) {
+                import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+                igBeginDisabled(ngMcpExternalCommandsBlocked() && !supportsReadOnlyInteraction);
+                this.onUpdate();
+                igEndDisabled();
+            }
         this.onEndUpdate();
     }
 
@@ -157,10 +163,7 @@ void incUpdatePanels() {
         // Don't render panels that aren't active
         if (!panel.isActive()) continue;
 
-        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
-        igBeginDisabled(ngMcpExternalCommandsBlocked() && panel.name != "AutoRig");
         panel.update();
-        igEndDisabled();
     }
 }
 

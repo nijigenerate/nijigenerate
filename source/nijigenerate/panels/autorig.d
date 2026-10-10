@@ -50,7 +50,8 @@ AutoRigSessionManager ngAutoRigSessionManager() {
             execute();
         });
         sharedSessions.setEditorDispatcher((void delegate() action) {
-            runActionOnMainThread(action);
+            import nijigenerate.commands.base : ngRunAutoRigEditorAction;
+            runActionOnMainThread({ ngRunAutoRigEditorAction(action); });
         });
         sharedSessions.registerProcessor(new AnimeFrontViewRigProcessor(
               (projection, target, context) => ngApplyFaceProjection(projection, target, context),
@@ -978,6 +979,7 @@ public:
 
     this() {
         super("AutoRig", _("AutoRig"), true);
+        supportsReadOnlyInteraction = true;
         activeModes = EditMode.ModelEdit;
     }
 

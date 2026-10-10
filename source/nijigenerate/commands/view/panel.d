@@ -6,6 +6,7 @@ import nijigenerate.core.settings;
 import i18n;
 
 /// Toggle visibility for a given Panel instance.
+@PresentationOnly()
 class TogglePanelVisibilityCommand : ExCommand!(TW!(Panel, "panel", "target panel to toggle")) {
     this() { super(null, _("Toggle visibility of the specified panel"), cast(Panel)null); }
 

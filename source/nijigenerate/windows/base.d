@@ -32,17 +32,20 @@ protected:
 
     void onBeginUpdate() {
         if (imName is null) this.setTitle(name);
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        // Closing an editing window can finalize its action stack scope.
+        bool* open = ngMcpExternalCommandsBlocked() ? null : &visible;
         version(NoUIScaling) {
             igSetNextWindowClass(windowClass);
             drewWindow = incBegin(
                 imName,
-                &visible, 
+                open,
                 incIsWayland() ? flags : flags | ImGuiWindowFlags.NoDecoration
             );
         } else version(UseUIScaling) {
             drewWindow = incBegin(
                 imName,
-                &visible, 
+                open,
                 flags
             );
         }
@@ -70,6 +73,8 @@ public:
     }
 
     final void close() {
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (ngMcpExternalCommandsBlocked()) return;
         this.visible = false;
     }
 
@@ -90,7 +95,10 @@ public:
 
         igPushItemFlag(ImGuiItemFlags.Disabled, disabled);
             this.onBeginUpdate();
+                import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+                igBeginDisabled(ngMcpExternalCommandsBlocked());
                 this.onUpdate();
+                igEndDisabled();
             this.onEndUpdate();
         igPopItemFlag();
 
