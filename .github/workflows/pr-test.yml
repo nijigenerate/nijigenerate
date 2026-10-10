@@ -70,6 +70,7 @@ jobs:
         dub run --compiler=ldc2 --root=tests
         dub run --compiler=ldc2 --root=tests/autorig-storage
         dub run --compiler=ldc2 --root=tests/autorig-solver
+        dub run --compiler=ldc2 --root=tests/deformation-interpolation
         out/nijigenerate-regression-tests --only project.depthdraw-data-model
         out/nijigenerate-regression-tests --only project.depthdraw-composer
         out/nijigenerate-regression-tests --only project.depthdraw-fit-z
@@ -138,3 +139,4 @@ jobs:
         dub run --compiler=ldc2 --root=tests
         dub run --compiler=ldc2 --root=tests/autorig-storage
         dub run --compiler=ldc2 --root=tests/autorig-solver
+        dub run --compiler=ldc2 --root=tests/deformation-interpolation

@@ -74,7 +74,11 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
             result ~= AutoRigTaskSpec("apply-face-projection", ngAutoRigMessage("Apply face projection"), null,
                 [AutoRigPortSpec("projection", AutoRigValueKind.Json), AutoRigPortSpec("target", AutoRigValueKind.Json)],
                 [AutoRigPortSpec("result", AutoRigValueKind.Json)], null);
-        if (nativeStage !is null) result ~= ngRigPipelineTasks();
+        if (nativeStage !is null) {
+            auto pipeline = ngRigPipelineTasks();
+            foreach (ref task; pipeline) task.reclaimScratchMemory = true;
+            result ~= pipeline;
+        }
         return result;
     }
 
@@ -129,7 +133,7 @@ class AnimeFrontViewRigProcessor : AutoRigProcessor {
             JSONValue result;
             try {
                 result = nativeStage(taskId,state,context.input("program").json,
-                    context.input("model").readImmutableBlob(),context);
+                    context.input("model").borrowTaskBlob(),context);
                 if (taskId == "compile-domain-layout") {
                     auto layout = ngRigCompileProgram(result,result["evidence"]);
                     context.publishJson("program",layout);

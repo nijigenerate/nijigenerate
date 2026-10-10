@@ -1,7 +1,10 @@
 module nijigenerate.autorig.framework;
 
-import core.atomic : atomicLoad, atomicStore;
+import core.atomic : atomicLoad, atomicStore, atomicOp, cas;
+import core.exception : onOutOfMemoryError;
 import core.memory : pageSize;
+import core.stdc.stdlib : malloc, free;
+import core.stdc.string : memcpy;
 import core.thread.fiber : Fiber;
 import std.conv : to;
 import std.exception : enforce;
@@ -10,6 +13,67 @@ import std.json : JSONValue, JSONType;
 import nijigenerate.autorig.json : parseJSON = ngParseAutoRigJson;
 import std.path : absolutePath, buildPath, baseName, asNormalizedPath;
 import std.uuid : randomUUID;
+import std.typecons : Rebindable;
+
+private shared ulong nativeBlobBytes, nativeBlobCount;
+private shared ulong nativeBlobAllocationPressure;
+
+private void collectScratchMemory() {
+    import core.memory : GC;
+    atomicStore(nativeBlobAllocationPressure, 0UL);
+    GC.collect();
+}
+
+private void accountNativeBlobAllocation(size_t byteLength) {
+    // Native allocations must also prompt collection of unreachable owners.
+    // Retained owners and task inputs remain ordinary GC roots.
+    enum ulong collectionThreshold = 64 * 1024 * 1024;
+    auto pressure = atomicOp!"+="(nativeBlobAllocationPressure, cast(ulong)byteLength);
+    while (pressure >= collectionThreshold) {
+        if (cas(&nativeBlobAllocationPressure, pressure, 0UL)) {
+            import core.memory : GC;
+            GC.collect();
+            break;
+        }
+        pressure = atomicLoad(nativeBlobAllocationPressure);
+    }
+}
+
+// Binary payloads contain no D pointers. Their sealed owner stays in every value copy.
+private final class NativeBlobPayload {
+    private immutable(ubyte)* pointer;
+    private size_t length_;
+    private bool registered;
+
+    this(const(ubyte)[] source) {
+        if (source.length) {
+            auto memory = malloc(source.length);
+            if (memory is null) onOutOfMemoryError();
+            memcpy(memory, source.ptr, source.length);
+            pointer = cast(immutable(ubyte)*)memory;
+        }
+        length_ = source.length;
+        atomicOp!"+="(nativeBlobBytes, cast(ulong)length_);
+        atomicOp!"+="(nativeBlobCount, 1UL);
+        registered = true;
+    }
+
+    @property size_t byteLength() const { return length_; }
+    @property immutable(ubyte)[] data() const { return pointer[0 .. length_]; }
+
+    ~this() @nogc nothrow {
+        free(cast(void*)pointer);
+        if (registered) {
+            atomicOp!"-="(nativeBlobBytes, cast(ulong)length_);
+            atomicOp!"-="(nativeBlobCount, 1UL);
+        }
+    }
+}
+
+/** Read-only accounting of native binary payload ownership. */
+ulong[2] ngAutoRigNativeBlobMemoryInfo() {
+    return [atomicLoad(nativeBlobCount), atomicLoad(nativeBlobBytes)];
+}
 
 /** Values exchanged between tasks. FileName is a name, while Path identifies a resource. */
 enum AutoRigValueKind { FileName, Path, Json, Blob }
@@ -23,21 +87,21 @@ struct AutoRigValue {
     JSONValue json;
 private:
     ubyte[] mutableBytes;
-    immutable(ubyte)[] immutableBytes;
+    Rebindable!(immutable(NativeBlobPayload)) nativePayload;
     string encodedJson;
 public:
 
     /** Materialize an owned mutable view only for callers that edit raw bytes. */
     @property ref ubyte[] bytes() {
-        if (immutableBytes !is null) {
-            mutableBytes = immutableBytes.dup;
-            immutableBytes = null;
+        if (nativePayload.get !is null) {
+            mutableBytes = nativePayload.data.dup;
+            nativePayload = null;
         }
         return mutableBytes;
     }
 
     private size_t blobByteLength() const {
-        return immutableBytes !is null ? immutableBytes.length : mutableBytes.length;
+        return nativePayload.get !is null ? nativePayload.byteLength : mutableBytes.length;
     }
 
     static AutoRigValue fileName(string value) {
@@ -68,21 +132,30 @@ public:
         AutoRigValue result;
         result.kind = AutoRigValueKind.Blob;
         // Immutable payloads can cross worker boundaries without sharing mutable arrays.
-        result.immutableBytes = value.idup;
+        // The unpublished owner has no mutable aliases after this freeze.
+        accountNativeBlobAllocation(value.length);
+        result.nativePayload = cast(immutable(NativeBlobPayload))new NativeBlobPayload(value);
         return result;
     }
 
     ubyte[] readBlob() {
         enforce(kind == AutoRigValueKind.Blob, "AutoRig value is not a blob");
         return text.length ? cast(ubyte[])read(text) :
-            immutableBytes !is null ? immutableBytes.dup : mutableBytes.dup;
+            nativePayload.get !is null ? nativePayload.data.dup : mutableBytes.dup;
     }
 
-    /** A read-only task can share the snapshot without copying its entire payload. */
+    /** Borrow only while the task input context owns this value, never across task completion. */
+    package(nijigenerate.autorig) immutable(ubyte)[] borrowTaskBlob() {
+        enforce(kind == AutoRigValueKind.Blob, "AutoRig value is not a blob");
+        return text.length ? (cast(ubyte[])read(text)).idup :
+            nativePayload.get !is null ? nativePayload.data : mutableBytes.idup;
+    }
+
+    /** Return an independently managed immutable array, valid after the value is dropped. */
     immutable(ubyte)[] readImmutableBlob() {
         enforce(kind == AutoRigValueKind.Blob, "AutoRig value is not a blob");
         return text.length ? (cast(ubyte[])read(text)).idup :
-            immutableBytes !is null ? immutableBytes : mutableBytes.idup;
+            nativePayload.get !is null ? nativePayload.data.idup : mutableBytes.idup;
     }
 }
 
@@ -121,7 +194,7 @@ private AutoRigValue copyValue(AutoRigValue value) {
             parseJSON(readText(value.text)) : value.encodedJson.length ?
             parseJSON(value.encodedJson) : copyJson(value.json));
         case AutoRigValueKind.Blob:
-            return value.text.length || value.immutableBytes !is null ? value : AutoRigValue.blob(value.mutableBytes);
+            return value.text.length || value.nativePayload.get !is null ? value : AutoRigValue.blob(value.mutableBytes);
     }
 }
 
@@ -159,6 +232,8 @@ struct AutoRigTaskSpec {
     bool retainFailureOutputs;
     // Explicit opt-in for processors that establish their own editor action group.
     bool ownsActionBoundary;
+    // Reclaim large temporary trees after the task has released its input context.
+    bool reclaimScratchMemory;
 }
 
 /** A workflow preset wires task calls, including calls to other processors. */
@@ -641,6 +716,9 @@ private:
             snapshots[taskId] = snapshot;
         }
         auto attemptDirectory = buildPath(directory_, taskId, "attempt-" ~ snapshot.attempt.to!string);
+        scope(exit) if (spec.reclaimScratchMemory) {
+            collectScratchMemory();
+        }
         auto context = new AutoRigTaskContext(spec, attemptDirectory, inputs,
             { return atomicLoad(cancelRequested); },
             (AutoRigArtifact artifact) {

@@ -233,6 +233,10 @@ class GetAutoRigMemoryStatusCommand : ExCommand!(TW!(string,"runId","AutoRig run
             status["memory"]["gc_free_after_collection_bytes"] = JSONValue(cast(ulong)memory.freeSize);
             status["memory"]["collection_microseconds"] = JSONValue(timer.peek.total!"usecs");
         }
+        import nijigenerate.autorig.framework : ngAutoRigNativeBlobMemoryInfo;
+        auto nativeBlobs = ngAutoRigNativeBlobMemoryInfo();
+        status["process_memory"] = JSONValue(["native_blob_count": JSONValue(nativeBlobs[0]),
+            "native_blob_bytes": JSONValue(nativeBlobs[1])]);
         return new ExCommandResult!JSONValue(true,status);
     }
 }
