@@ -235,8 +235,8 @@ class GetAutoRigMemoryStatusCommand : ExCommand!(TW!(string,"runId","AutoRig run
         }
         import nijigenerate.autorig.framework : ngAutoRigNativeBlobMemoryInfo;
         auto nativeBlobs = ngAutoRigNativeBlobMemoryInfo();
-        status["memory"]["native_blob_count"] = JSONValue(nativeBlobs[0]);
-        status["memory"]["native_blob_bytes"] = JSONValue(nativeBlobs[1]);
+        status["process_memory"] = JSONValue(["native_blob_count": JSONValue(nativeBlobs[0]),
+            "native_blob_bytes": JSONValue(nativeBlobs[1])]);
         return new ExCommandResult!JSONValue(true,status);
     }
 }

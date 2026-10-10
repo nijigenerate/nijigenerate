@@ -591,6 +591,73 @@ private void testBlobOwnership() {
     assert(readOnlyBytes == [cast(ubyte)1, 2, 3]);
 }
 
+private void testDependencyScratchCollection() {
+    import core.memory : GC;
+    class FailingChainProcessor : AutoRigProcessor {
+        AutoRigSession session;
+        bool cancelFirst;
+        int calls;
+        override string procId() { return "failing-chain"; }
+        override string displayName() { return "Failing chain"; }
+        override AutoRigTaskSpec[] tasks() {
+            AutoRigTaskSpec[] result;
+            foreach (i; 0 .. 8) {
+                auto spec = AutoRigTaskSpec(i.to!string, "Stage");
+                spec.reclaimScratchMemory = true;
+                if (i) spec.dependencies = [(i - 1).to!string];
+                result ~= spec;
+            }
+            return result;
+        }
+        override void executeTask(string taskId, AutoRigTaskContext context) {
+            ++calls;
+            if (cancelFirst) session.cancel();
+            else throw new Exception("First stage failed");
+        }
+    }
+    foreach (cancelFirst; [false, true]) {
+        auto manager = new AutoRigSessionManager("out/scratch-dependency-tests");
+        auto processor = new FailingChainProcessor();
+        processor.cancelFirst = cancelFirst;
+        manager.registerProcessor(processor);
+        processor.session = manager.create(processor.procId());
+        GC.collect();
+        auto collections = GC.profileStats().numCollections;
+        bool failed;
+        try processor.session.execute("7");
+        catch (Exception error) failed = true;
+        assert(failed && processor.calls == 1);
+        assert(GC.profileStats().numCollections == collections + 1,
+            "Waiting downstream tasks must not collect on dependency failure or cancellation");
+        foreach (i; 1 .. 8) assert(processor.session.task(i.to!string).attempt == 0);
+        manager.disposeAll();
+    }
+}
+
+private void testNativeBlobPressure() {
+    import core.memory : GC;
+    auto worker = new Thread({
+        auto source = new ubyte[4 * 1024 * 1024];
+        source[0] = 37;
+        auto retained = AutoRigValue.blob(source);
+        GC.collect();
+        auto baseline = ngAutoRigNativeBlobMemoryInfo();
+        auto collections = GC.profileStats().numCollections;
+        foreach (i; 0 .. 40) {
+            auto value = AutoRigValue.blob(source);
+            assert(value.kind == AutoRigValueKind.Blob);
+        }
+        assert(GC.profileStats().numCollections > collections,
+            "Replacing native blobs must apply allocation pressure without processor opt-in");
+        assert(ngAutoRigNativeBlobMemoryInfo()[1] < baseline[1] + 128 * 1024 * 1024,
+            "Unreachable native payloads must not accumulate across replacements");
+        assert(retained.readImmutableBlob()[0] == 37,
+            "Pressure-driven collection must preserve retained payloads");
+    });
+    worker.start();
+    worker.join();
+}
+
 private void testWorkerBlobRelease() {
     import core.memory : GC;
     GC.collect();
@@ -610,6 +677,9 @@ private void testWorkerBlobRelease() {
 }
 
 void main(string[] args) {
+    if (args.length > 1 && args[1] == "--native-pressure") { testNativeBlobPressure(); return; }
+    testNativeBlobPressure();
+    testDependencyScratchCollection();
     testWorkerBlobRelease();
     testBlobOwnership();
     testChangedFailureCheckpoint();

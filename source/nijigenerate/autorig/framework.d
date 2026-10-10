@@ -1,6 +1,6 @@
 module nijigenerate.autorig.framework;
 
-import core.atomic : atomicLoad, atomicStore, atomicOp;
+import core.atomic : atomicLoad, atomicStore, atomicOp, cas;
 import core.exception : onOutOfMemoryError;
 import core.memory : pageSize;
 import core.stdc.stdlib : malloc, free;
@@ -16,6 +16,28 @@ import std.uuid : randomUUID;
 import std.typecons : Rebindable;
 
 private shared ulong nativeBlobBytes, nativeBlobCount;
+private shared ulong nativeBlobAllocationPressure;
+
+private void collectScratchMemory() {
+    import core.memory : GC;
+    atomicStore(nativeBlobAllocationPressure, 0UL);
+    GC.collect();
+}
+
+private void accountNativeBlobAllocation(size_t byteLength) {
+    // Native allocations must also prompt collection of unreachable owners.
+    // Retained owners and task inputs remain ordinary GC roots.
+    enum ulong collectionThreshold = 64 * 1024 * 1024;
+    auto pressure = atomicOp!"+="(nativeBlobAllocationPressure, cast(ulong)byteLength);
+    while (pressure >= collectionThreshold) {
+        if (cas(&nativeBlobAllocationPressure, pressure, 0UL)) {
+            import core.memory : GC;
+            GC.collect();
+            break;
+        }
+        pressure = atomicLoad(nativeBlobAllocationPressure);
+    }
+}
 
 // Binary payloads contain no D pointers. Their sealed owner stays in every value copy.
 private final class NativeBlobPayload {
@@ -111,6 +133,7 @@ public:
         result.kind = AutoRigValueKind.Blob;
         // Immutable payloads can cross worker boundaries without sharing mutable arrays.
         // The unpublished owner has no mutable aliases after this freeze.
+        accountNativeBlobAllocation(value.length);
         result.nativePayload = cast(immutable(NativeBlobPayload))new NativeBlobPayload(value);
         return result;
     }
@@ -660,10 +683,6 @@ private:
         visiting[taskId] = true;
         scope(exit) visiting.remove(taskId);
         auto spec = specs[taskId];
-        scope(exit) if (spec.reclaimScratchMemory) {
-            import core.memory : GC;
-            GC.collect();
-        }
         foreach (dependency; spec.dependencies) runTask(dependency, visiting, false);
         foreach (connection; spec.connections) runTask(connection.sourceTask, visiting, false);
         enforce(!atomicLoad(cancelRequested), "AutoRig run canceled");
@@ -697,6 +716,9 @@ private:
             snapshots[taskId] = snapshot;
         }
         auto attemptDirectory = buildPath(directory_, taskId, "attempt-" ~ snapshot.attempt.to!string);
+        scope(exit) if (spec.reclaimScratchMemory) {
+            collectScratchMemory();
+        }
         auto context = new AutoRigTaskContext(spec, attemptDirectory, inputs,
             { return atomicLoad(cancelRequested); },
             (AutoRigArtifact artifact) {
