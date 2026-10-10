@@ -497,6 +497,7 @@ private immutable Scenario[] scenarios = [
     Scenario("simplephysics.composite-roundtrip", "SimplePhysics", "SimplePhysics parameter assignment, settings edits, undo/redo, save, reopen, and parameter reference restoration", automated, "Covers a chained SimplePhysics command workflow persisted through native INX."),
 
     Scenario("viewport.navigation", "Viewport/UI", "Zoom, pan, focus, reset, fit model, reset position, reset zoom, mirror, and background controls", computerUse, "Needs UI smoke."),
+    Scenario("viewport.autorig-presentation", "Viewport/UI", "AutoRig preserves presentation commands while excluding model edits", automated, "Covers camera/layout command admission and model-edit exclusion during AutoRig ownership."),
     Scenario("viewport.model-mode", "Viewport/UI", "Model viewport layout/deform mode switching and selected editor delegation", computerUse, "Needs UI smoke."),
     Scenario("viewport.animation-mode", "Viewport/UI", "Animation viewport mode, playback preview, and animation editor delegation", computerUse, "Needs UI smoke."),
     Scenario("viewport.depth-mode", "Viewport/UI", "Depth viewport mode, camera, editor delegation, and depth renderer integration", computerUse, "Needs UI smoke."),
@@ -18024,6 +18025,92 @@ private void testAsyncActionGroupUndoRedo() {
         "merged async group redo should restore only the final primary value and reschedule derived work");
 }
 
+private void testAutoRigPresentationCommands() {
+    import nijigenerate.commands.base : ngIsPresentationCommand, ngRegisterCommandMeta,
+        ngCommandAllowedInCurrentContext, ngRunAutoRigEditorAction, ngRunCommand;
+    import nijigenerate.api.mcp.task : ngMcpSetExternalCommandsBlocked;
+    import nijigenerate.commands.viewport.control : ResetViewportZoomCommand,
+        ResetViewportPositionCommand, FitViewportToModelCommand, TogglePhysicsCommand,
+        ResetParametersCommand, OpenAutomeshBatchingCommand;
+    import nijigenerate.commands.puppet.view : SetDefaultLayoutCommand, CaptureLiveScreenshotCommand;
+    import nijigenerate.commands.view.panel : TogglePanelVisibilityCommand;
+    import nijigenerate.commands.puppet.edit : UndoCommand;
+    import nijigenerate.viewport.base : incViewportTargetZoom, incViewportTargetPosition;
+    import nijigenerate.viewport.depth.viewport : DepthEditViewport;
+    import bindbc.imgui : ImGuiIO;
+    resetCase();
+    bool presentation(C)() {
+        auto command = new C();
+        ngRegisterCommandMeta(command);
+        return ngIsPresentationCommand(command);
+    }
+    require(presentation!ResetViewportZoomCommand(), "zoom reset must remain available");
+    require(presentation!ResetViewportPositionCommand(), "pan reset must remain available");
+    require(presentation!FitViewportToModelCommand(), "camera fit must remain available");
+    require(presentation!SetDefaultLayoutCommand(), "layout must remain available");
+    require(presentation!TogglePanelVisibilityCommand(), "panel visibility must remain available");
+    require(presentation!CaptureLiveScreenshotCommand(), "capture must remain available");
+    require(!ngIsPresentationCommand(new UndoCommand()), "undo must not enter the running transaction");
+    require(!ngIsPresentationCommand(new ResetParametersCommand()), "parameters must remain protected");
+    require(!ngIsPresentationCommand(new TogglePhysicsCommand()), "AutoRig must own physics driver state");
+    require(!ngIsPresentationCommand(new OpenAutomeshBatchingCommand()), "competing mesh edits must be blocked");
+    incViewportTargetZoom = 0.5f;
+    incViewportTargetPosition = vec2(20, 30);
+    auto ctx = new Context();
+    auto zoomReset = new ResetViewportZoomCommand();
+    auto positionReset = new ResetViewportPositionCommand();
+    ngMcpSetExternalCommandsBlocked(true);
+    scope(exit) ngMcpSetExternalCommandsBlocked(false);
+    auto edit = new ResetParametersCommand();
+    require(!ngCommandAllowedInCurrentContext(edit), "unannotated commands must be blocked at the shared gate");
+    require(!ngRunCommand(edit, ctx).succeeded, "direct command dispatch must also reject editing");
+    ngRunAutoRigEditorAction({
+        require(ngCommandAllowedInCurrentContext(edit), "internal AutoRig actions must retain editing access");
+    });
+    require(!ngCommandAllowedInCurrentContext(edit), "internal editing access must not escape the callback");
+    try {
+        ngRunAutoRigEditorAction({ throw new Exception("expected boundary failure"); });
+        require(false, "boundary failure must propagate");
+    } catch (Exception error) {
+        require(error.msg == "expected boundary failure", "unexpected boundary error");
+    }
+    require(!ngCommandAllowedInCurrentContext(edit), "internal editing access must close on failure");
+    require(ngRunCommand(zoomReset, ctx).succeeded, "camera zoom reset must run while AutoRig owns editing");
+    require(ngRunCommand(positionReset, ctx).succeeded, "camera pan reset must run while AutoRig owns editing");
+    require(incViewportTargetZoom == 1 && incViewportTargetPosition == vec2(0), "camera resets must apply");
+    auto depthView = new DepthEditViewport();
+    ImGuiIO input;
+    input.MouseWheel = 1;
+    depthView.updatePresentation(&input, null);
+    require(depthView.depthCameraState().zoom > 1, "depth navigation must run without an editing tool or editor");
+    import nijigenerate.viewport.base : MainViewport, Viewport;
+    class SelectionProbe : Viewport {
+        uint notifications;
+        uint parameterNotifications;
+        Node[] selected;
+        override void selectionChanged(Node[] nodes) {
+            notifications++;
+            selected = nodes;
+        }
+        override void armedParameterChanged(Parameter parameter) { parameterNotifications++; }
+    }
+    auto navigationView = new MainViewport();
+    auto probe = new SelectionProbe();
+    navigationView.subView = probe;
+    auto node = new Node(incActivePuppet().root);
+    incSelectNode(node);
+    navigationView.selectionChanged([node]);
+    navigationView.armedParameterChanged(null);
+    require(incSelectedNodes() == [node], "browsing selection must remain available during AutoRig");
+    require(probe.notifications == 0, "browsing must not initialize editing tools during AutoRig");
+    require(probe.parameterNotifications == 0, "AutoRig parameter arming must not initialize browsing edit targets");
+    ngMcpSetExternalCommandsBlocked(false);
+    navigationView.selectionChanged(incSelectedNodes());
+    navigationView.armedParameterChanged(null);
+    require(probe.notifications == 1 && probe.selected == [node], "selection must reach editing tools after AutoRig");
+    require(probe.parameterNotifications == 1, "parameter notifications must resume after AutoRig");
+}
+
 private void testActionHistoryIndexAndModifiedState() {
     resetCase();
 
@@ -22199,6 +22286,9 @@ private bool runAutomatedScenario(string id) {
         case "viewport.action-history":
         case "panels.action-history":
             runCase("action-history-index-modified-state", &testActionHistoryIndexAndModifiedState);
+            return true;
+        case "viewport.autorig-presentation":
+            runCase("autorig-presentation-commands", &testAutoRigPresentationCommands);
             return true;
         case "viewport.settings-command-composite":
             runCase("viewport-settings-command-composite", &testViewportSettingsCommandCompositeWorkflow);

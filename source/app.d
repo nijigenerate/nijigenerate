@@ -41,7 +41,7 @@ version(RegressionSmoke) import nijigenerate.regression_smoke :
     ngRegressionSmokeFailed,
     ngRegressionSmokeFailureMessage,
     ngSetupRegressionSmokeScenario;
-import nijigenerate.api.mcp.task : ngMcpProcessQueue, ngMcpExternalCommandsBlocked;
+import nijigenerate.api.mcp.task : ngMcpProcessQueue;
 version(HaveMCP) import nijigenerate.api.mcp : ngMcpLoadSettings, ngMcpStop;
 import nijigenerate.panels.agent : ngAcpStopAll;
 import i18n;
@@ -249,14 +249,10 @@ void incUpdate() {
             // Process editor dispatches used by AutoRig and optional API services.
             ngMcpProcessQueue();
             ngAutoRigPollWorker();
-            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incMainMenu();
-            igEndDisabled();
 
             incUpdatePanels();
-            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incUpdateWindows();
-            igEndDisabled();
             incStatusUpdate();
             ngFlushDepthBoneDirtyForFrame();
         }
@@ -278,14 +274,10 @@ void incUpdateNoEv() {
         if (incShouldProcess()) {
 
             incHandleShortcuts();
-            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incMainMenu();
-            igEndDisabled();
 
             incUpdatePanels();
-            igBeginDisabled(ngMcpExternalCommandsBlocked());
             incUpdateWindows();
-            igEndDisabled();
             incStatusUpdate();
             ngFlushDepthBoneDirtyForFrame();
         }

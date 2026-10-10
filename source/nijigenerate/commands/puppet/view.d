@@ -20,6 +20,7 @@ import std.json : JSONType, JSONValue;
 @McpHidden
 @GuiLayout
 @EffectLayoutReset
+@PresentationOnly()
 class SetDefaultLayoutCommand : ExCommand!() {
     this() { super(_("Reset Layout"), _("Set default layout of panels.")); }
 
@@ -561,6 +562,7 @@ class SaveScreenshotCommand : ExCommand!(TW!(string, "filename", "file path to s
 }
 
 @ShortcutHidden
+@PresentationOnly()
 class CaptureLiveScreenshotCommand : ExCommand!(
     TW!(JSONValue, "overlayObjects", "Optional overlay objects. Use [{\"uuid\": 123, \"overlay\": \"bounds\"|\"mesh\"}] or [{\"123\": \"bounds\"|\"mesh\"}].", false, CommandJsonSchema.overlayObjects)
 ) {
@@ -630,6 +632,7 @@ class CaptureLiveScreenshotCommand : ExCommand!(
     }
 }
 
+@PresentationOnly()
 class ShowStatusForNerdsCommand : ExCommand!() {
     this() { super(_("Show Stats for Nerds"), _("Show status for nerds.")); }
     override

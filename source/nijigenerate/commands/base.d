@@ -232,12 +232,32 @@ enum EffectTextureRegenerate = IrreversibleEffectMeta(CommandIrreversibleEffect.
 enum EffectRepair = IrreversibleEffectMeta(CommandIrreversibleEffect.repair);
 enum EffectLayoutReset = IrreversibleEffectMeta(CommandIrreversibleEffect.layoutReset);
 
+/** A command that only changes presentation or reads status, without editing model state. */
+struct PresentationOnly {}
+
 struct CommandMetadata {
     bool shortcutRunnable = true;
     bool mcpExposed = true;
     CommandGuiDisplay guiDisplay = CommandGuiDisplay.none;
     CommandIrreversibleEffect irreversibleEffect = CommandIrreversibleEffect.none;
     CommandScope[string] scopes;
+    bool presentationOnly;
+}
+
+private bool autoRigEditorAction;
+
+/** Only the main-thread AutoRig dispatcher may enter this internal editing boundary. */
+void ngRunAutoRigEditorAction(void delegate() action) {
+    import core.thread : Thread;
+    enforce(Thread.getThis().isMainThread, "AutoRig editing must run on the main thread");
+    auto previous = autoRigEditorAction;
+    autoRigEditorAction = true;
+    scope(exit) autoRigEditorAction = previous;
+    action();
+}
+
+bool ngIsPresentationCommand(Command command) {
+    return command !is null && ngLookupCommandMeta(command).presentationOnly;
 }
 
 private __gshared CommandMetadata[string] gCommandMetadataByTypeName;
@@ -372,7 +392,8 @@ void ngRegisterCommandMeta(C)(C cmd) if (is(C : Command)) {
         _mcpExposureOf!C() != CommandMcpExposure.hidden,
         _guiDisplayOf!C(),
         _irreversibleEffectOf!C(),
-        _commandScopesOf!C()
+        _commandScopesOf!C(),
+        _presentationOnlyOf!C()
     );
 }
 
@@ -382,6 +403,13 @@ private CommandMetadata ngLookupCommandMeta(Command cmd) {
         return *p;
     }
     return CommandMetadata.init;
+}
+
+private bool _presentationOnlyOf(C)() {
+    static foreach (attr; __traits(getAttributes, C)) {
+        static if (is(typeof(attr) == PresentationOnly)) return true;
+    }
+    return false;
 }
 
 // Append enum choices to description for UI/MCP exposure
@@ -568,6 +596,8 @@ interface Command {
 bool ngCommandAllowedInCurrentContext(Command command) {
     if (command is null) return false;
     auto metadata = ngLookupCommandMeta(command);
+    import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+    if (ngMcpExternalCommandsBlocked() && !autoRigEditorAction && !metadata.presentationOnly) return false;
     return ngCurrentCommandScope().permits(metadata);
 }
 

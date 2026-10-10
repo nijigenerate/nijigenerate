@@ -195,4 +195,8 @@ public:
         if (!consumed) updateDepthCamera(io);
         if (editor !is null) editor.update(io, camera);
     }
+
+    override void updatePresentation(ImGuiIO* io, Camera camera) {
+        updateDepthCamera(io);
+    }
 }

@@ -34,6 +34,8 @@ import std.format;
 import std.path;
 
 void incMainMenu() {
+    import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+    bool editingAllowed = !ngMcpExternalCommandsBlocked();
     auto io = igGetIO();
         Context ctx = new Context();
         ctx.puppet = incActivePuppet();
@@ -61,7 +63,7 @@ void incMainMenu() {
                 
                 igSeparator();
 
-                if (igBeginMenu(__("File"), true)) {
+                if (igBeginMenu(__("File"), editingAllowed)) {
                     ngMenuItemFor!(FileCommand.NewFile)(ctx);
 
                     ngMenuItemFor!(FileCommand.ShowOpenFileDialog)(ctx);
@@ -151,7 +153,7 @@ void incMainMenu() {
                     igEndMenu();
                 }
                 
-                if (igBeginMenu(__("Edit"), true)) {
+                if (igBeginMenu(__("Edit"), editingAllowed)) {
                     ngMenuItemFor!(EditCommand.Undo)(ctx, false, incActionCanUndo());
                     ngMenuItemFor!(EditCommand.Redo)(ctx, false, incActionCanRedo());
                     
@@ -237,7 +239,7 @@ void incMainMenu() {
                     igEndMenu();
                 }
 
-                if (igBeginMenu(__("Tools"), true)) {
+                if (igBeginMenu(__("Tools"), editingAllowed)) {
 
                     igTextColored(ImVec4(0.7, 0.5, 0.5, 1), __("Puppet Data"));
                     igSeparator();
@@ -365,6 +367,7 @@ void incMainMenu() {
             incText(statsText);
         }
         igSetNextItemWidth (avail.x - tabBarWidth);
+        igBeginDisabled(!editingAllowed);
         igBeginTabBar("###ModeTab");
             if(incEditMode != EditMode.VertexEdit && incEditMode != EditMode.DepthEdit) {
                 auto mode = incEditMode; // snapshot for this frame
@@ -401,6 +404,7 @@ void incMainMenu() {
                 incTooltip(_("Edit Animation"));
             }
         igEndTabBar();
+        igEndDisabled();
         igEndMainMenuBar();
 
         // For quick-setup stuff

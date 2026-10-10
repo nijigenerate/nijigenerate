@@ -31,6 +31,7 @@ import i18n;
 import nijigenerate.commands;
 import nijigenerate.commands.node.dynamic : ensureAddNodeCommand, ensureInsertNodeCommand;
 import nijigenerate.commands.node.base;
+import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
 
 private {
     // Follow selection toggle (panel-local, default disabled)
@@ -477,15 +478,15 @@ protected:
                             pendingFocus = false;
                         }
 
-                        if (igIsItemClicked(ImGuiMouseButton.Right)) {
+                        if (!ngMcpExternalCommandsBlocked() && igIsItemClicked(ImGuiMouseButton.Right)) {
                             igOpenPopup("NodeActionsPopup");
                         }
 
-                        incNodeActionsPopup!("NodeActionsPopup", isRoot)(n);
+                        if (!ngMcpExternalCommandsBlocked()) incNodeActionsPopup!("NodeActionsPopup", isRoot)(n);
                     igEndGroup();
 
                     static if (!isRoot) {
-                        if(igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
+                        if(!ngMcpExternalCommandsBlocked() && igBeginDragDropSource(ImGuiDragDropFlags.SourceAllowNullID)) {
                             igSetDragDropPayload("_PUPPETNTREE", cast(void*)&n, (&n).sizeof, ImGuiCond.Always);
                             if (selectedNodes.length > 1) {
                                 incDragdropNodeList(selectedNodes);
@@ -497,7 +498,7 @@ protected:
                     }
             igPopID();
 
-            if(igBeginDragDropTarget()) {
+            if(!ngMcpExternalCommandsBlocked() && igBeginDragDropTarget()) {
                 scope(exit) igEndDragDropTarget();
                 const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                 if (payload !is null) {
@@ -529,7 +530,7 @@ protected:
                     igTableSetColumnIndex(0);
                     igInvisibleButton("###TARGET", ImVec2(128, 4));
 
-                    if(igBeginDragDropTarget()) {
+                    if(!ngMcpExternalCommandsBlocked() && igBeginDragDropTarget()) {
                         scope(exit) igEndDragDropTarget();
                         const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                         if (payload !is null) {
@@ -691,12 +692,14 @@ protected:
         
         if (incEditMode() == EditMode.ModelEdit) {
             auto selected = incSelectedNodes();
+            igBeginDisabled(ngMcpExternalCommandsBlocked());
             if (incButtonColored("", ImVec2(24, 24))) {
                 foreach(payloadNode; selected) incDeleteChildWithHistory(payloadNode);
                 // should clean up selection, prevents unexpected behaviour
                 incSelectNode(null);
             }
             incTooltip(_("Delete selected nodes"));
+            igEndDisabled();
 
             igSameLine(0, 2);
             if (incButtonColored("\ue164##SortNodeOrder", ImVec2(24, 24), revserseOrder ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
@@ -710,7 +713,7 @@ protected:
             }
             incTooltip(_("Follow Selection"));
 
-            if(igBeginDragDropTarget()) {
+            if(!ngMcpExternalCommandsBlocked() && igBeginDragDropTarget()) {
                 scope(exit) igEndDragDropTarget();
                 const(ImGuiPayload)* payload = igAcceptDragDropPayload("_PUPPETNTREE");
                 if (payload !is null) {
@@ -739,6 +742,7 @@ public:
 
     this() {
         super("Nodes", _("Nodes"), true);
+        supportsReadOnlyInteraction = true;
         flags |= ImGuiWindowFlags.NoScrollbar;
         activeModes = EditMode.ModelEdit;
     }

@@ -88,7 +88,7 @@ protected:
         currSize = ImVec2(clamp(currSize.x, 128, float.max), clamp(currSize.y, 128, float.max));
         
         foreach(btn; 0..cast(int)ImGuiMouseButton.COUNT) {
-            if (!interactionAllowed) {
+            if (!interactionAllowed && btn != ImGuiMouseButton.Right) {
                 incEndDrag(btn); incEndDragInViewport(btn);
                 continue;
             }
@@ -124,13 +124,12 @@ protected:
             // viewport.
             ImGuiHoveredFlags winFlags = ImGuiHoveredFlags.None;
             if (actingInViewport) winFlags |= ImGuiHoveredFlags.ChildWindows | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem;
-            if (!interactionAllowed) actingInViewport = false;
-            else if (igIsWindowHovered(winFlags)) {
+            if (igIsWindowHovered(winFlags)) {
                 actingInViewport = igIsMouseDown(ImGuiMouseButton.Left) ||
                     igIsMouseDown(ImGuiMouseButton.Middle) ||
                     igIsMouseDown(ImGuiMouseButton.Right);
-                viewport.update();
-            } else if (incViewport.alwaysUpdate()) {
+                viewport.update(false, !interactionAllowed);
+            } else if (interactionAllowed && incViewport.alwaysUpdate()) {
                 viewport.update(true);
             }
 
@@ -230,6 +229,7 @@ protected:
             igPopStyleVar();
 
             //igPushStyleVar(ImGuiStyleVar.FrameBorderSize, 0);
+                igBeginDisabled(!interactionAllowed);
                 incBeginViewportToolArea("ToolArea", ImGuiDir.Left);
                     igPushStyleVar_Vec2(ImGuiStyleVar.FramePadding, ImVec2(6, 6));
                         viewport.drawTools();
@@ -248,6 +248,7 @@ protected:
                     }
                     viewport.drawConfirmBar();
                 incEndViewportToolArea();
+                igEndDisabled();
                 if (interactionAllowed && incEditMode == EditMode.ModelEdit && ngModelEditSubMode() == ModelEditSubMode.Layout)
                     incViewportTransformHandle();
             //igPopStyleVar();
@@ -271,7 +272,7 @@ protected:
         );
 
         // FILE DRAG & DROP
-        if (igBeginDragDropTarget()) {
+        if (interactionAllowed && igBeginDragDropTarget()) {
             const(ImGuiPayload)* payload = igAcceptDragDropPayload("__PARTS_DROP");
             if (payload !is null) {
                 string[] files = *cast(string[]*)payload.Data;
@@ -391,12 +392,14 @@ protected:
 
             igSameLine();
 
+            igBeginDisabled(!interactionAllowed);
             if (incButtonColored("", ImVec2(32, 0), incActivePuppet().enableDrivers ? ImVec4.init : ImVec4(0.6f, 0.6f, 0.6f, 1f))) {
                 auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
                 cmd!(ViewportCommand.TogglePhysics)(ctx);
             }
             incTooltip(_("Enable physics"));
+            igEndDisabled();
 
             igSameLine(0, 0);
 
@@ -409,6 +412,7 @@ protected:
 
             igSameLine();
 
+            igBeginDisabled(!interactionAllowed);
             if (incButtonColored("", ImVec2(32, 0), ImVec4.init)) {
                 auto ctx = new Context;
                 if (incActivePuppet() !is null) ctx.puppet = incActivePuppet();
@@ -442,6 +446,7 @@ protected:
                 cmd!(ViewportCommand.OpenAutomeshBatching)(ctx);
             }
             incTooltip(_("Automesh Batching"));
+            igEndDisabled();
 
         }
         igEndChild();
@@ -455,6 +460,7 @@ protected:
 public:
     this() {
         super("Viewport", _("Viewport"), true);
+        supportsReadOnlyInteraction = true;
         this.alwaysVisible = true;
     }
 

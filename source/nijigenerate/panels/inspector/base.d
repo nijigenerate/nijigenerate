@@ -159,6 +159,7 @@ public:
 
     this() {
         super("Inspector", _("Inspector"), true);
+        supportsReadOnlyInteraction = true;
         activeModes = EditMode.ModelEdit;
         initInspectors();
     }

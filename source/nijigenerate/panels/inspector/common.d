@@ -120,6 +120,13 @@ public:
     }
     override
     void inspect(Parameter parameter = null, vec2u cursor = vec2u.init) {
+        import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+        if (ngMcpExternalCommandsBlocked()) {
+            ngWithReadOnlyCategoryContents({ inspectContents(parameter, cursor); });
+        } else inspectContents(parameter, cursor);
+    }
+
+    private void inspectContents(Parameter parameter, vec2u cursor) {
         auto mode = ngModelEditSubMode();
         if (targets.length == 1) {
             if (mode == ModelEditSubMode.Layout) {

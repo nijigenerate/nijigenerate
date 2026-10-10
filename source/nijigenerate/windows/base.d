@@ -90,7 +90,10 @@ public:
 
         igPushItemFlag(ImGuiItemFlags.Disabled, disabled);
             this.onBeginUpdate();
+                import nijigenerate.api.mcp.task : ngMcpExternalCommandsBlocked;
+                igBeginDisabled(ngMcpExternalCommandsBlocked());
                 this.onUpdate();
+                igEndDisabled();
             this.onEndUpdate();
         igPopItemFlag();
 

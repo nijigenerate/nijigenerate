@@ -74,6 +74,7 @@ private void pushFlipPairActionIfChanged(FlipPair[] oldPairs) {
     }
 }
 
+@PresentationOnly()
 class ToggleMirrorViewCommand : ExCommand!() {
     this() { super(_("Toggle mirror view.")); }
     override CommandResult run(Context ctx) {
@@ -83,6 +84,7 @@ class ToggleMirrorViewCommand : ExCommand!() {
     }
 }
 
+@PresentationOnly()
 class ToggleOnionSliceCommand : ExCommand!() {
     this() { super(_("Toggle onion slice overlay.")); }
     override CommandResult run(Context ctx) {
@@ -101,6 +103,7 @@ class TogglePhysicsCommand : ExCommand!() {
     }
 }
 
+@PresentationOnly()
 class TogglePostProcessCommand : ExCommand!() {
     this() { super(_("Toggle post processing.")); }
     override CommandResult run(Context ctx) {
@@ -210,6 +213,7 @@ class OpenAutomeshBatchingCommand : ExCommand!() {
     }
 }
 
+@PresentationOnly()
 class ResetViewportZoomCommand : ExCommand!() {
     this() { super(_("Reset viewport zoom to 1.0.")); }
     override CommandResult run(Context ctx) {
@@ -218,6 +222,7 @@ class ResetViewportZoomCommand : ExCommand!() {
     }
 }
 
+@PresentationOnly()
 class ResetViewportPositionCommand : ExCommand!() {
     this() { super(_("Reset viewport position to origin.")); }
     override CommandResult run(Context ctx) {
@@ -228,6 +233,7 @@ class ResetViewportPositionCommand : ExCommand!() {
 
 @ShortcutHidden
 @EffectLayoutReset
+@PresentationOnly()
 class FitViewportToModelCommand : ExCommand!() {
     this() { super(_("Fit viewport to model."), _("Reset viewport center and zoom so the current puppet bounds fit inside the viewport.")); }
     override CommandResult run(Context ctx) {
