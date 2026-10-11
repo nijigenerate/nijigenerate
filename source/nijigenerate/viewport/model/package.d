@@ -275,8 +275,12 @@ public:
         // Parameter and node notifications are complete here. Refresh only the
         // coalesced selected-pivot cache before the viewport consumes it.
         ngFlushDepthBoneEffectivePivotDirty();
-        incActivePuppet.draw();
         auto onion = OnionSlice.singleton();
+        // Capture the keypoint that this frame renders, regardless of which controller changed it.
+        if (onion.enabled() && incArmedParameter()) {
+            onion.capture(incArmedParameter().findClosestKeypoint());
+        }
+        incActivePuppet.draw();
         onion.draw();
 
         super.draw(camera);
