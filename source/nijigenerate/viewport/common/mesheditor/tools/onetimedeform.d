@@ -26,6 +26,31 @@ import bindbc.imgui;
 import std.algorithm;
 import std.array;
 import std.math : isFinite;
+import nijilive.core.render.scheduler : TaskScheduler, TaskOrder, TaskKind;
+
+// Captured targets retain their original parent. They must be scheduled through
+// that parent only, otherwise composite render scopes are opened twice.
+class OneTimeDeformer(T) : T if (is(T == GridDeformer) || is(T == PathDeformer)) {
+    this(Node parent) {
+        super(parent);
+    }
+
+    override void registerRenderTasks(TaskScheduler scheduler) {
+        if (scheduler is null) return;
+        // Run the filter's CPU phases without traversing borrowed children.
+        // Grid and path deformers do not emit render commands themselves.
+        scheduler.addTask(TaskOrder.Init, TaskKind.Init, &runBeginTask);
+        scheduler.addTask(TaskOrder.PreProcess, TaskKind.PreProcess, &runPreProcessTask);
+        // Deformable requires Post0 even without installed filters. These two
+        // types have no Dynamic task; later post stages depend on their filters.
+        scheduler.addTask(TaskOrder.Post0, TaskKind.PostProcess, &runPostTask0);
+        if (postProcessFilters.canFind!(filter => filter[0] == 1))
+            scheduler.addTask(TaskOrder.Post1, TaskKind.PostProcess, &runPostTask1);
+        if (postProcessFilters.canFind!(filter => filter[0] == 2))
+            scheduler.addTask(TaskOrder.Post2, TaskKind.PostProcess, &runPostTask2);
+        scheduler.addTask(TaskOrder.Final, TaskKind.Finalize, &runFinalTask);
+    }
+}
 
 enum SubToolMode {
     Select,
@@ -133,7 +158,7 @@ private {
             if (filter is null || cast(T)filter is null) {
                 if (filter)
                     forceFinalize(currTarget);
-                filter = new T(incActivePuppet().root);
+                filter = new OneTimeDeformer!T(incActivePuppet().root);
                 vertImpl = new IncMeshEditorOneFor!(T, EditMode.VertexEdit);
                 vertImpl.vertexColor = vec4(0, 1, 1, 1);
                 vertImpl.edgeColor   = vec4(0, 1, 1, 1);
