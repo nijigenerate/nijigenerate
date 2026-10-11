@@ -19750,6 +19750,147 @@ private void testMeshEditorMirrorSymmetryContracts() {
     require(containsX(grid.vertices, rightMoved.x), "redo should restore mirrored counterpart column");
 }
 
+private void testOneTimeDeformerSchedulesCapturedTargetsOnce() {
+    import std.meta : AliasSeq;
+    import nijigenerate.viewport.common.mesheditor.tools.onetimedeform : OneTimeDeformer;
+    import nijilive.core.render.scheduler : TaskScheduler;
+
+    class CountingNode : Node {
+        size_t registrations;
+        this(Node parent) {
+            super(parent);
+        }
+        override void registerRenderTasks(TaskScheduler scheduler) {
+            registrations++;
+            super.registerRenderTasks(scheduler);
+        }
+    }
+
+    foreach (T; AliasSeq!(GridDeformer, PathDeformer)) {
+        resetCase();
+        auto root = incActivePuppet().root;
+        auto target = new GridDeformer(root);
+        auto child = new CountingNode(target);
+        auto filter = new OneTimeDeformer!T(root);
+        filter.captureTarget(target);
+        auto scheduler = new TaskScheduler();
+        root.registerRenderTasks(scheduler);
+        require(child.registrations == 1, "captured descendants must register render tasks only once");
+        require(target.parent is root, "one-time capture must preserve the target's original parent");
+        require(filter.children.length == 1 && filter.children[0] is target,
+            "task registration must restore the captured targets for deformation and baking");
+        scheduler.clearTasks();
+        root.registerRenderTasks(scheduler);
+        require(child.registrations == 2, "rebuilding tasks must not duplicate captured descendants");
+        filter.releaseTarget(target);
+        require(filter.children.length == 0, "captured targets must remain releasable after scheduling");
+    }
+}
+
+private class OneTimePhaseProbe(T) : T {
+    string[] phases;
+    this(Node parent) { super(parent); }
+    auto filterCounts() { return tuple(preProcessFilters.length, postProcessFilters.length); }
+    void addPostFilters() {
+        foreach (stage; 0 .. 3) {
+            Filter hook = tuple(stage,
+                delegate(Node node, Vec2Array points, Vec2Array deform, mat4* matrix) {
+                    return tuple(Vec2Array.init, cast(mat4*)null, false);
+                });
+            postProcessFilters ~= hook;
+        }
+    }
+    override protected void runBeginTask(ref RenderContext ctx) {
+        phases ~= "init";
+        super.runBeginTask(ctx);
+    }
+    override protected void runPreProcessTask(ref RenderContext ctx) {
+        phases ~= "pre";
+        super.runPreProcessTask(ctx);
+    }
+    override protected void runDynamicTask(ref RenderContext ctx) {
+        phases ~= "dynamic";
+        super.runDynamicTask(ctx);
+    }
+    override protected void runPostTaskImpl(size_t priority, ref RenderContext ctx) {
+        phases ~= "post" ~ priority.to!string;
+        super.runPostTaskImpl(priority, ctx);
+    }
+    override protected void runFinalTask(ref RenderContext ctx) {
+        phases ~= "final";
+        super.runFinalTask(ctx);
+    }
+}
+
+private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters) {
+    import nijilive.core.render.scheduler : TaskScheduler, TaskOrder, TaskKind;
+
+    resetCase();
+    auto root = incActivePuppet().root;
+    auto filter = new OneTimePhaseProbe!T(root);
+    auto target = new OneTimePhaseProbe!GridDeformer(root);
+    auto vertices = Vec2Array([vec2(0, 0), vec2(10, 0), vec2(0, 10), vec2(10, 10)]);
+    target.rebuffer(vertices.dup);
+    Vec2Array offsets;
+    static if (is(T : GridDeformer)) {
+        filter.rebuffer(vertices.dup);
+        filter.switchDynamic(dynamic);
+        offsets = Vec2Array([vec2(0, 0), vec2(4, 2), vec2(0, 0), vec2(4, 2)]);
+    } else {
+        filter.rebuffer(Vec2Array([vec2(0, 0), vec2(10, 0)]));
+        offsets = Vec2Array([vec2(0, 0), vec2(0, 5)]);
+    }
+    if (postFilters)
+        filter.addPostFilters();
+    auto originalFilters = target.filterCounts();
+    auto parameterCount = incActivePuppet().parameters.length;
+    filter.captureTarget(target);
+    auto scheduler = new TaskScheduler();
+    RenderContext ctx;
+    foreach (frame; 0 .. 2) {
+        scheduler.clearTasks();
+        root.registerRenderTasks(scheduler);
+        scheduler.addTask(TaskOrder.Parameters, TaskKind.Parameters,
+            (ref RenderContext context) { filter.deformation = offsets.dup; });
+        scheduler.execute(ctx);
+    }
+    auto result = tuple(filter.phases.dup, target.deformation.dup);
+    require(!nearVec2Array(target.deformation, Vec2Array([vec2(0), vec2(0), vec2(0), vec2(0)])),
+        "captured target fixture must exercise a nonzero grid/path deformation");
+    require(target.parent is root && nearVec2Array(target.vertices, vertices),
+        "one-time updates must preserve target hierarchy and base vertices");
+    require(incActivePuppet().parameters.length == parameterCount,
+        "render task registration must not add parameters");
+    filter.releaseTarget(target);
+    require(target.filterCounts() == originalFilters && filter.children.length == 0,
+        "release must remove only the temporary filter hooks");
+    scheduler.clearTasks();
+    root.registerRenderTasks(scheduler);
+    scheduler.execute(ctx);
+    require(nearVec2Array(target.deformation, Vec2Array([vec2(0), vec2(0), vec2(0), vec2(0)])),
+        "released targets must return to their unfiltered deformation");
+    return result;
+}
+
+private void testOneTimeDeformerPreservesUpdatePhasesAndDeformation() {
+    import std.meta : AliasSeq;
+    import nijigenerate.viewport.common.mesheditor.tools.onetimedeform : OneTimeDeformer;
+
+    foreach (T; AliasSeq!(GridDeformer, PathDeformer)) {
+        foreach (dynamic; [false, true]) {
+            foreach (postFilters; [false, true]) {
+                auto reference = oneTimeFilterSnapshot!T(dynamic, postFilters);
+                auto actual = oneTimeFilterSnapshot!(OneTimeDeformer!T)(dynamic, postFilters);
+                require(actual[0] == reference[0], "temporary filters must preserve the original CPU task phases: " ~
+                    T.stringof ~ " dynamic=" ~ dynamic.to!string ~ " postFilters=" ~ postFilters.to!string ~
+                    " reference=" ~ reference[0].to!string ~ " actual=" ~ actual[0].to!string);
+                require(nearVec2Array(actual[1], reference[1]),
+                    "temporary filters must preserve the original grid/path deformation results");
+            }
+        }
+    }
+}
+
 private void testGridDeformerToolVirtualMeshApplyUndoRedo() {
     import nijigenerate.viewport.common.mesheditor.tools.grid : GridTool;
 
@@ -22040,6 +22181,8 @@ private bool runAutomatedScenario(string id) {
             runCase("mesh-editor-mirror-symmetry-contracts", &testMeshEditorMirrorSymmetryContracts);
             return true;
         case "deform.grid-tool":
+            runCase("onetime-deformer-captured-target-task-registration", &testOneTimeDeformerSchedulesCapturedTargetsOnce);
+            runCase("onetime-deformer-update-and-release-equivalence", &testOneTimeDeformerPreservesUpdatePhasesAndDeformation);
             runCase("grid-deformer-tool-virtual-mesh-apply-undo-redo", &testGridDeformerToolVirtualMeshApplyUndoRedo);
             return true;
         case "deform.path-tool":
