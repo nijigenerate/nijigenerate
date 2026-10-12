@@ -436,19 +436,20 @@ private {
             impl.getTool().setToolMode(impl.getToolMode(), impl);
         }
 
-        void leaveSubTool(SubToolMode current) {
+        void leaveSubTool(SubToolMode current, bool recordTransientAction = true) {
             if (!active()) return;
             final switch (current) {
             case SubToolMode.Select:
                 break;
             case SubToolMode.Vertex:
                 if (vertImpl) {
-                    vertImpl.pushDeformAction();
+                    if (recordTransientAction)
+                        vertImpl.pushDeformAction();
                     applyVertexToolToFilter();
                 }
                 break;
             case SubToolMode.Deform:
-                if (defImpl)
+                if (defImpl && recordTransientAction)
                     defImpl.pushDeformAction();
                 break;
             }
@@ -805,7 +806,9 @@ public:
     void finalizeToolMode(IncMeshEditorOne impl) {
         if (acquired) {
             auto session = ngOneTimeDeformScope();
-            session.leaveSubTool(mode);
+            // An external scope close has already popped the transient action stack.
+            // Apply the filter without pushing its actions onto the root stack.
+            session.leaveSubTool(mode, session.actionScope !is null);
             session.closeActionScope();
 
             // Persist filter deformation into children as an undoable parameter action,

@@ -810,6 +810,7 @@ void incBeginLoop() {
     SDL_Event event;
     static SDL_Event deferredMouseRelease;
     static bool hasDeferredMouseRelease;
+    static uint heldMouseButtons;
 
     bool sawHeldMouseMotion = false;
     while (hasDeferredMouseRelease || SDL_PollEvent(&event)) {
@@ -839,8 +840,18 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
-                if (event.type == SDL_EventType.SDL_MOUSEMOTION && event.motion.state != 0)
+                if (event.type == SDL_EventType.SDL_MOUSEMOTION &&
+                    (event.motion.state != 0 || heldMouseButtons != 0))
                     sawHeldMouseMotion = true;
+                if ((event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
+                     event.type == SDL_EventType.SDL_MOUSEBUTTONUP) &&
+                    event.button.button > 0 && event.button.button <= 32) {
+                    uint mask = 1u << (event.button.button - 1);
+                    if (event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN)
+                        heldMouseButtons |= mask;
+                    else
+                        heldMouseButtons &= ~mask;
+                }
                 // A press and a release each need a UI pass. Held motion is
                 // batched, then rendered before its release on the next pass.
                 stepAfterEvent =
