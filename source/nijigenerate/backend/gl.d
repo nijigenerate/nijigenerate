@@ -28,6 +28,8 @@ private {
     uint g_VboHandle = 0, g_ElementsHandle = 0;
 
     ImVec2 g_EventMousePos;
+    bool g_MousePositionEventThisFrame;
+    uint g_EventMouseButtons;
     bool g_DebugComputerUseMouse = false;
     bool g_DebugComputerUseMouseInitialized = false;
     uint g_ComputerUseTraceFrames;
@@ -86,6 +88,7 @@ private ImVec2 incGLBackendScaleMousePos(int x, int y) {
 
 private void incGLBackendRememberEventMousePos(int x, int y) {
     g_EventMousePos = incGLBackendScaleMousePos(x, y);
+    g_MousePositionEventThisFrame = true;
 }
 
 private bool incGLBackendDebugComputerUseMouse() {
@@ -141,6 +144,20 @@ void ngGLBackendPlatformNewFrame() {
     auto context = igGetCurrentContext();
     auto firstPlatformEvent = context.InputEventsQueue.Size;
     ImGui_ImplSDL2_NewFrame();
+
+    // The platform fallback polls the physical cursor, which need not follow
+    // application-targeted input. Keep queued event coordinates authoritative
+    // throughout a click or drag, including its release frame.
+    if (g_MousePositionEventThisFrame || g_EventMouseButtons != 0) {
+        auto queue = &context.InputEventsQueue;
+        int writeIndex = firstPlatformEvent;
+        foreach (index; firstPlatformEvent .. queue.Size) {
+            if (queue.Data[index].Type != ImGuiInputEventType.MousePos)
+                queue.Data[writeIndex++] = queue.Data[index];
+        }
+        queue.Size = writeIndex;
+    }
+    g_MousePositionEventThisFrame = false;
 
     version (UseUIScaling) {
         version (OSX) { }
@@ -212,6 +229,13 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
         case SDL_EventType.SDL_MOUSEBUTTONUP:
             g_ComputerUseTraceFrames = 8;
             incGLBackendRememberEventMousePos(event.button.x, event.button.y);
+            if (event.button.button > 0 && event.button.button <= 32) {
+                uint mask = 1u << (event.button.button - 1);
+                if (event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN) g_EventMouseButtons |= mask;
+                else g_EventMouseButtons &= ~mask;
+            }
+            // Click events can arrive without a preceding mouse-motion event.
+            ImGuiIO_AddMousePosEvent(igGetIO(), g_EventMousePos.x, g_EventMousePos.y);
             if (incGLBackendDebugComputerUseMouse()) {
                 import std.string : format;
                 incGLBackendLog(("[CUAMouse] frame=%d tick=%u button timestamp=%u type=%u " ~
