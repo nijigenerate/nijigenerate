@@ -116,17 +116,6 @@ class NodeSelect : Tool, Draggable {
 
         impl.vtxAtMouse = impl.getVertexFromPoint(impl.mousePos);
 
-        import nijigenerate.backend.gl : ngGLBackendDebugComputerUseMouse, ngGLBackendTraceEditorMouse;
-        if (ngGLBackendDebugComputerUseMouse() &&
-            (io.MouseDown[0] || igIsMouseReleased(ImGuiMouseButton.Left))) {
-            import std.string : format;
-            ngGLBackendTraceEditorMouse(
-                "tool=%s target=%s deform=%s clicked=%s released=%s mouse=%s last=%s selected=%s".format(
-                    this.classinfo.name, impl.getTarget().name, impl.deformOnly,
-                    igIsMouseClicked(ImGuiMouseButton.Left, false), igIsMouseReleased(ImGuiMouseButton.Left),
-                    impl.mousePos, impl.lastMousePos, impl.selected));
-        }
-
         return 0;
     }
 

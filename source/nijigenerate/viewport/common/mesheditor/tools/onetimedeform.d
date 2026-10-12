@@ -902,9 +902,6 @@ public:
     override 
     int peek(ImGuiIO* io, IncMeshEditorOne impl) {
         if (incInputIsKeyPressed(ImGuiKey.Tab)) {
-            import nijigenerate.backend.gl : ngGLBackendTraceEditorMouse;
-            import std.string : format;
-            ngGLBackendTraceEditorMouse("one-time tab mode=%s acquired=%s".format(mode, acquired));
             return OneTimeDeformActionID.SwitchMode;
         }
 
@@ -1007,9 +1004,6 @@ public:
             sessionForAction.switchModeConsumed = false;
 
         if (action == OneTimeDeformActionID.SwitchMode) {
-            import nijigenerate.backend.gl : ngGLBackendTraceEditorMouse;
-            import std.string : format;
-            ngGLBackendTraceEditorMouse("one-time switch mode=%s consumed=%s".format(mode, sessionForAction.switchModeConsumed));
             if (sessionForAction.switchModeConsumed)
                 return false;
             sessionForAction.switchModeConsumed = true;

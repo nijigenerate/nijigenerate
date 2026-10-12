@@ -712,13 +712,10 @@ void incBeginLoopNoEv() {
     // Start the Dear ImGui frame
     incGLBackendNewFrame();
     ngGLBackendPlatformNewFrame();
-    ngGLBackendTraceMouse("before-new-frame");
 
     // Do our DPI pre-processing
     igNewFrame();
-    ngGLBackendTraceMouse("after-new-frame");
     incGLBackendBeginRender();
-    ngGLBackendTraceMouse("render");
 
     version(linux) dpUpdate();
 

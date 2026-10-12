@@ -465,13 +465,6 @@ class PointTool : NodeSelect {
     }
 
     override bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
-        if (io.MouseDown[0]) {
-            import nijigenerate.backend.gl : ngGLBackendTraceEditorMouse;
-            import std.string : format;
-            ngGLBackendTraceEditorMouse("point action=%s dragging=%s originInViewport=%s requested=%s selecting=%s".format(
-                action, isDragging, incDragStartedInViewport(ImGuiMouseButton.Left),
-                incInputIsDragRequested(ImGuiMouseButton.Left), impl.isSelecting));
-        }
         super.update(io, impl, action, changed);
         if (impl.deformOnly)
             updateDeformEdit(io, impl, action, changed);

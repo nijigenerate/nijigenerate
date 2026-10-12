@@ -10,7 +10,6 @@ import nijigenerate.core.dpi;
 import bindbc.opengl;
 import bindbc.imgui;
 import core.stdc.stdio;
-import core.stdc.stdlib : getenv;
 import inmath;
 import bindbc.sdl;
 import nijilive : inGetRenderImage;
@@ -30,9 +29,6 @@ private {
     ImVec2 g_EventMousePos;
     bool g_MousePositionEventThisFrame;
     uint g_EventMouseButtons;
-    bool g_DebugComputerUseMouse = false;
-    bool g_DebugComputerUseMouseInitialized = false;
-    uint g_ComputerUseTraceFrames;
 }
 
 // Functions
@@ -97,59 +93,6 @@ private void incGLBackendRememberEventMousePos(uint windowID, int x, int y) {
     }
     g_EventMousePos = incGLBackendScaleMousePos(x, y);
     g_MousePositionEventThisFrame = true;
-}
-
-private bool incGLBackendDebugComputerUseMouse() {
-    if (!g_DebugComputerUseMouseInitialized) {
-        g_DebugComputerUseMouse = getenv("NIJIGENERATE_DEBUG_CUA_MOUSE") !is null;
-        g_DebugComputerUseMouseInitialized = true;
-    }
-    return g_DebugComputerUseMouse;
-}
-
-bool ngGLBackendDebugComputerUseMouse() {
-    return incGLBackendDebugComputerUseMouse();
-}
-
-private void incGLBackendLog(string message) {
-    if (auto path = getenv("NIJIGENERATE_CUA_MOUSE_LOG")) {
-        if (auto file = fopen(path, "ab")) {
-            fwrite(message.ptr, 1, message.length, file);
-            fclose(file);
-        }
-    }
-    version (Windows) {
-        import core.sys.windows.winbase : OutputDebugStringA;
-        import std.string : toStringz;
-        OutputDebugStringA(message.toStringz);
-    } else {
-        fprintf(stderr, "%.*s", cast(int)message.length, message.ptr);
-    }
-}
-
-// Trace input phases without changing event processing or mouse state.
-void ngGLBackendTraceEditorMouse(string message) {
-    if (!incGLBackendDebugComputerUseMouse()) return;
-    import std.string : format;
-    incGLBackendLog("[CUAEditor] frame=%d %s\n".format(igGetFrameCount(), message));
-}
-
-void ngGLBackendTraceMouse(string phase) {
-    if (!incGLBackendDebugComputerUseMouse() || g_ComputerUseTraceFrames == 0) return;
-    import std.string : format;
-    auto io = igGetIO();
-    int x, y;
-    auto buttons = SDL_GetMouseState(&x, &y);
-    incGLBackendLog(("[CUAMouse] frame=%d tick=%u phase=%s pos=(%.1f,%.1f) " ~
-        "delta=(%.1f,%.1f) down=%d clicked=%d released=%d origin=(%.1f,%.1f) " ~
-        "sdl=(%d,%d,%u) event=(%.1f,%.1f) scale=%.2f active=%u hovered=%u queued=%d\n").format(
-        igGetFrameCount(), SDL_GetTicks(), phase, io.MousePos.x, io.MousePos.y,
-        io.MouseDelta.x, io.MouseDelta.y, io.MouseDown[0], igIsMouseClicked(ImGuiMouseButton.Left, false),
-        igIsMouseReleased(ImGuiMouseButton.Left), io.MouseClickedPos[0].x, io.MouseClickedPos[0].y,
-        x, y, buttons, g_EventMousePos.x, g_EventMousePos.y, incGetUIScale(),
-        igGetCurrentContext().ActiveId, igGetCurrentContext().HoveredId,
-        igGetCurrentContext().InputEventsQueue.Size));
-    if (phase == "render") --g_ComputerUseTraceFrames;
 }
 
 void ngGLBackendPlatformNewFrame() {
@@ -218,28 +161,12 @@ void incGLBackendBeginRender() {
 
 bool incGLBackendProcessEvent(const(SDL_Event)* event) {
     switch(event.type) {
-        case SDL_EventType.SDL_KEYDOWN:
-        case SDL_EventType.SDL_KEYUP:
-            if (incGLBackendDebugComputerUseMouse()) {
-                import std.string : format;
-                incGLBackendLog("[CUAKey] frame=%d type=%u symbol=%d scancode=%d\n".format(
-                    igGetFrameCount(), event.type, event.key.keysym.sym, event.key.keysym.scancode));
-            }
-            break;
         case SDL_EventType.SDL_MOUSEMOTION:
-            g_ComputerUseTraceFrames = 8;
             incGLBackendRememberEventMousePos(event.motion.windowID, event.motion.x, event.motion.y);
-            if (incGLBackendDebugComputerUseMouse()) {
-                import std.string : format;
-                incGLBackendLog("[CUAMouse] frame=%d tick=%u motion timestamp=%u x=%d y=%d state=%u\n".format(
-                    igGetFrameCount(), SDL_GetTicks(), event.motion.timestamp,
-                    event.motion.x, event.motion.y, event.motion.state));
-            }
             break;
 
         case SDL_EventType.SDL_MOUSEBUTTONDOWN:
         case SDL_EventType.SDL_MOUSEBUTTONUP:
-            g_ComputerUseTraceFrames = 8;
             incGLBackendRememberEventMousePos(event.button.windowID, event.button.x, event.button.y);
             if (event.button.button > 0 && event.button.button <= 32) {
                 uint mask = 1u << (event.button.button - 1);
@@ -248,13 +175,6 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
             }
             // Click events can arrive without a preceding mouse-motion event.
             ImGuiIO_AddMousePosEvent(igGetIO(), g_EventMousePos.x, g_EventMousePos.y);
-            if (incGLBackendDebugComputerUseMouse()) {
-                import std.string : format;
-                incGLBackendLog(("[CUAMouse] frame=%d tick=%u button timestamp=%u type=%u " ~
-                    "button=%u state=%u x=%d y=%d\n").format(
-                    igGetFrameCount(), SDL_GetTicks(), event.button.timestamp, event.type,
-                    event.button.button, event.button.state, event.button.x, event.button.y));
-            }
             break;
 
         default:
