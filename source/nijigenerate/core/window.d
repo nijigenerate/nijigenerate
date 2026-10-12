@@ -857,7 +857,7 @@ void incBeginLoop() {
                 stepAfterEvent =
                     event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
                     event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
-                    event.type == SDL_EventType.SDL_KEYDOWN ||
+                    (event.type == SDL_EventType.SDL_KEYDOWN && event.key.repeat == 0) ||
                     event.type == SDL_EventType.SDL_KEYUP;
                 break;
         }

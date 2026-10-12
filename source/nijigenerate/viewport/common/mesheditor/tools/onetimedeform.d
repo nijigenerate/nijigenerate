@@ -865,7 +865,13 @@ public:
                 session.cleanupTarget(impl, true);
                 incViewportNodeDeformNotifyParamValueChanged();
             } else if (session.filter) {
+                if (param) {
+                    if (auto filterBinding = param.getBinding(cast(Node)session.filter, "deform"))
+                        param.removeBinding(filterBinding);
+                }
                 session.cleanupTarget(impl, true);
+                if (param)
+                    incViewportNodeDeformNotifyParamValueChanged();
             }
             impl.pushDeformAction();
         }

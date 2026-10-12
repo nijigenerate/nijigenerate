@@ -107,6 +107,10 @@ private bool incGLBackendDebugComputerUseMouse() {
     return g_DebugComputerUseMouse;
 }
 
+bool ngGLBackendDebugComputerUseMouse() {
+    return incGLBackendDebugComputerUseMouse();
+}
+
 private void incGLBackendLog(string message) {
     if (auto path = getenv("NIJIGENERATE_CUA_MOUSE_LOG")) {
         if (auto file = fopen(path, "ab")) {
