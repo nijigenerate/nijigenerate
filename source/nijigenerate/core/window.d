@@ -712,12 +712,14 @@ void incFinishFileDrag() {
 void incBeginLoopNoEv() {
     // Start the Dear ImGui frame
     incGLBackendNewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    incGLBackendApplyEventMousePosition();
+    ngGLBackendPlatformNewFrame();
+    ngGLBackendTraceMouse("before-new-frame");
 
     // Do our DPI pre-processing
     igNewFrame();
+    ngGLBackendTraceMouse("after-new-frame");
     incGLBackendBeginRender();
+    ngGLBackendTraceMouse("render");
 
     version(linux) dpUpdate();
 
@@ -830,12 +832,14 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
-                if (stepSyntheticMouse) {
-                    stepAfterEvent =
-                        event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
-                        event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
-                        event.type == SDL_EventType.SDL_MOUSEMOTION;
-                }
+                // Preserve a UI pass for each drag phase. This ImGui version can
+                // otherwise consume motion and release together, skipping held motion.
+                // Keep unpressed motion batched unless full CUA stepping is requested.
+                stepAfterEvent =
+                    event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
+                    event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
+                    (event.type == SDL_EventType.SDL_MOUSEMOTION &&
+                        (event.motion.state != 0 || stepSyntheticMouse));
                 break;
         }
 

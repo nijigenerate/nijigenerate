@@ -27,10 +27,10 @@ private {
     GLuint g_AttribLocationVtxPos = 0, g_AttribLocationVtxUV = 0, g_AttribLocationVtxColor = 0; // Vertex attributes location
     uint g_VboHandle = 0, g_ElementsHandle = 0;
 
-    bool g_HasEventMousePos = false;
     ImVec2 g_EventMousePos;
     bool g_DebugComputerUseMouse = false;
     bool g_DebugComputerUseMouseInitialized = false;
+    uint g_ComputerUseTraceFrames;
 }
 
 // Functions
@@ -86,7 +86,6 @@ private ImVec2 incGLBackendScaleMousePos(int x, int y) {
 
 private void incGLBackendRememberEventMousePos(int x, int y) {
     g_EventMousePos = incGLBackendScaleMousePos(x, y);
-    g_HasEventMousePos = true;
 }
 
 private bool incGLBackendDebugComputerUseMouse() {
@@ -98,6 +97,12 @@ private bool incGLBackendDebugComputerUseMouse() {
 }
 
 private void incGLBackendLog(string message) {
+    if (auto path = getenv("NIJIGENERATE_CUA_MOUSE_LOG")) {
+        if (auto file = fopen(path, "ab")) {
+            fwrite(message.ptr, 1, message.length, file);
+            fclose(file);
+        }
+    }
     version (Windows) {
         import core.sys.windows.winbase : OutputDebugStringA;
         import std.string : toStringz;
@@ -107,11 +112,47 @@ private void incGLBackendLog(string message) {
     }
 }
 
-void incGLBackendApplyEventMousePosition() {
-    if (!g_HasEventMousePos) return;
-
+// Trace input phases without changing event processing or mouse state.
+void ngGLBackendTraceMouse(string phase) {
+    if (!incGLBackendDebugComputerUseMouse() || g_ComputerUseTraceFrames == 0) return;
+    import std.string : format;
     auto io = igGetIO();
-    io.MousePos = g_EventMousePos;
+    int x, y;
+    auto buttons = SDL_GetMouseState(&x, &y);
+    incGLBackendLog(("[CUAMouse] frame=%d tick=%u phase=%s pos=(%.1f,%.1f) " ~
+        "delta=(%.1f,%.1f) down=%d clicked=%d released=%d origin=(%.1f,%.1f) " ~
+        "sdl=(%d,%d,%u) event=(%.1f,%.1f) scale=%.2f active=%u hovered=%u queued=%d\n").format(
+        igGetFrameCount(), SDL_GetTicks(), phase, io.MousePos.x, io.MousePos.y,
+        io.MouseDelta.x, io.MouseDelta.y, io.MouseDown[0], igIsMouseClicked(ImGuiMouseButton.Left, false),
+        igIsMouseReleased(ImGuiMouseButton.Left), io.MouseClickedPos[0].x, io.MouseClickedPos[0].y,
+        x, y, buttons, g_EventMousePos.x, g_EventMousePos.y, incGetUIScale(),
+        igGetCurrentContext().ActiveId, igGetCurrentContext().HoveredId,
+        igGetCurrentContext().InputEventsQueue.Size));
+    if (phase == "render") --g_ComputerUseTraceFrames;
+}
+
+void ngGLBackendPlatformNewFrame() {
+    auto context = igGetCurrentContext();
+    auto firstPlatformEvent = context.InputEventsQueue.Size;
+    ImGui_ImplSDL2_NewFrame();
+
+    version (UseUIScaling) {
+        version (OSX) { }
+        else {
+            // SDL's focus fallback queues physical coordinates. Scale only the events
+            // it just appended; motion events already in the queue are scaled below.
+            // Keep the leave-window sentinel and ImGui's input ordering intact.
+            float uiScale = incGetUIScale();
+            foreach (index; firstPlatformEvent .. context.InputEventsQueue.Size) {
+                auto event = &context.InputEventsQueue.Data[index];
+                if (event.Type == ImGuiInputEventType.MousePos &&
+                    event.MousePos.PosX != -float.max && event.MousePos.PosY != -float.max) {
+                    event.MousePos.PosX /= uiScale;
+                    event.MousePos.PosY /= uiScale;
+                }
+            }
+        }
+    }
 }
 
 void incGLBackendBeginRender() {
@@ -121,7 +162,6 @@ void incGLBackendBeginRender() {
             
         } else {
             float uiScale = incGetUIScale();
-            auto io = igGetIO();
             auto vp = igGetMainViewport();
 
             vp.WorkSize.x = ceil(cast(double)vp.WorkSize.x/cast(double)uiScale);
@@ -137,18 +177,6 @@ void incGLBackendBeginRender() {
             // This only works with scaling up to 200%, after which it breaks
             vp.WorkSize.y -= (26+10)*(uiScale-1);
             
-            int mx, my;
-            version(UseUIScaling) {
-                SDL_GetMouseState(&mx, &my);
-                io.MousePos.x = (cast(float)mx)/uiScale;
-                io.MousePos.y = (cast(float)my)/uiScale;
-            } else {
-                int wx, wy;
-                SDL_GetGlobalMouseState(&mx, &my);
-                SDL_GetWindowPosition(cast(SDL_Window*)vp.PlatformHandle, &wx, &wy);
-                io.MousePos.x = cast(float)(mx-wx)/uiScale;
-                io.MousePos.y = cast(float)(my-wy)/uiScale;
-            }
         }
     }
 }
@@ -156,19 +184,26 @@ void incGLBackendBeginRender() {
 bool incGLBackendProcessEvent(const(SDL_Event)* event) {
     switch(event.type) {
         case SDL_EventType.SDL_MOUSEMOTION:
+            g_ComputerUseTraceFrames = 8;
             incGLBackendRememberEventMousePos(event.motion.x, event.motion.y);
             if (incGLBackendDebugComputerUseMouse()) {
                 import std.string : format;
-                incGLBackendLog("[CUAMouse] motion x=%d y=%d state=%u\n".format(event.motion.x, event.motion.y, event.motion.state));
+                incGLBackendLog("[CUAMouse] frame=%d tick=%u motion timestamp=%u x=%d y=%d state=%u\n".format(
+                    igGetFrameCount(), SDL_GetTicks(), event.motion.timestamp,
+                    event.motion.x, event.motion.y, event.motion.state));
             }
             break;
 
         case SDL_EventType.SDL_MOUSEBUTTONDOWN:
         case SDL_EventType.SDL_MOUSEBUTTONUP:
+            g_ComputerUseTraceFrames = 8;
             incGLBackendRememberEventMousePos(event.button.x, event.button.y);
             if (incGLBackendDebugComputerUseMouse()) {
                 import std.string : format;
-                incGLBackendLog("[CUAMouse] button type=%u button=%u state=%u x=%d y=%d\n".format(event.type, event.button.button, event.button.state, event.button.x, event.button.y));
+                incGLBackendLog(("[CUAMouse] frame=%d tick=%u button timestamp=%u type=%u " ~
+                    "button=%u state=%u x=%d y=%d\n").format(
+                    igGetFrameCount(), SDL_GetTicks(), event.button.timestamp, event.type,
+                    event.button.button, event.button.state, event.button.x, event.button.y));
             }
             break;
 
@@ -193,6 +228,14 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
                         cast(float)event.motion.y/uiScale
                     );
                     return true;
+
+                case SDL_EventType.SDL_MOUSEBUTTONDOWN:
+                case SDL_EventType.SDL_MOUSEBUTTONUP:
+                    // A synthetic click may arrive without a preceding motion event.
+                    // Queue its position before the button transition, never flatten IO.
+                    auto pos = incGLBackendScaleMousePos(event.button.x, event.button.y);
+                    ImGuiIO_AddMousePosEvent(igGetIO(), pos.x, pos.y);
+                    return ImGui_ImplSDL2_ProcessEvent(event);
                 
                 default:
                     return ImGui_ImplSDL2_ProcessEvent(event);

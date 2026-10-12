@@ -108,7 +108,7 @@ bool incInputIsPopupRequested() {
 bool incInputIsDragRequested(ImGuiMouseButton btn = ImGuiMouseButton.Right) {
     ImVec2 dragDelta;
     igGetMouseDragDelta(&dragDelta, btn);
-    return abs(dragDelta.x) > 0.1f && abs(dragDelta.y) > 0.1f;
+    return abs(dragDelta.x) > 0.1f || abs(dragDelta.y) > 0.1f;
 }
 
 /**
