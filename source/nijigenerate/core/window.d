@@ -787,6 +787,7 @@ void incSetDefaultLayout() {
     igDockBuilderDockWindow("###Nodes", dockIDNodes);
     igDockBuilderDockWindow("###Inspector", dockIDInspector);
     igDockBuilderDockWindow("###Tool Settings", dockIDToolSettings);
+    igDockBuilderDockWindow("###AutoRig", dockIDToolSettings);
     igDockBuilderDockWindow("###History", dockIDHistory);
     igDockBuilderDockWindow("###Scene", dockIDHistory);
     igDockBuilderDockWindow("###Timeline", dockIDTimeline);
