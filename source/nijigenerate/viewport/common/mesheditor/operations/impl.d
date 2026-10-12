@@ -94,11 +94,7 @@ public:
             assert(0);
         }
 
-        if (isSelecting) {
-            newSelected = getInRect(selectOrigin, mousePos, groupId);
-            mutateSelection = io.KeyShift;
-            invertSelection = io.KeyCtrl;
-        }
+        updateSelectionPreview(io);
 
         return updateChanged(changed);
     }
