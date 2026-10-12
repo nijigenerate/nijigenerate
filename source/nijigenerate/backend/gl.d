@@ -86,7 +86,15 @@ private ImVec2 incGLBackendScaleMousePos(int x, int y) {
     }
 }
 
-private void incGLBackendRememberEventMousePos(int x, int y) {
+private void incGLBackendRememberEventMousePos(uint windowID, int x, int y) {
+    if (igGetIO().ConfigFlags & ImGuiConfigFlags.ViewportsEnable) {
+        if (auto window = SDL_GetWindowFromID(windowID)) {
+            int windowX, windowY;
+            SDL_GetWindowPosition(window, &windowX, &windowY);
+            x += windowX;
+            y += windowY;
+        }
+    }
     g_EventMousePos = incGLBackendScaleMousePos(x, y);
     g_MousePositionEventThisFrame = true;
 }
@@ -216,7 +224,7 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
             break;
         case SDL_EventType.SDL_MOUSEMOTION:
             g_ComputerUseTraceFrames = 8;
-            incGLBackendRememberEventMousePos(event.motion.x, event.motion.y);
+            incGLBackendRememberEventMousePos(event.motion.windowID, event.motion.x, event.motion.y);
             if (incGLBackendDebugComputerUseMouse()) {
                 import std.string : format;
                 incGLBackendLog("[CUAMouse] frame=%d tick=%u motion timestamp=%u x=%d y=%d state=%u\n".format(
@@ -228,7 +236,7 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
         case SDL_EventType.SDL_MOUSEBUTTONDOWN:
         case SDL_EventType.SDL_MOUSEBUTTONUP:
             g_ComputerUseTraceFrames = 8;
-            incGLBackendRememberEventMousePos(event.button.x, event.button.y);
+            incGLBackendRememberEventMousePos(event.button.windowID, event.button.x, event.button.y);
             if (event.button.button > 0 && event.button.button <= 32) {
                 uint mask = 1u << (event.button.button - 1);
                 if (event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN) g_EventMouseButtons |= mask;
@@ -259,20 +267,13 @@ bool incGLBackendProcessEvent(const(SDL_Event)* event) {
 
                 // For UI Scaling we want to send in our own scaled UI inputs
                 case SDL_EventType.SDL_MOUSEMOTION:
-                    float uiScale = incGetUIScale();
-                    ImGuiIO_AddMousePosEvent(
-                        igGetIO(), 
-                        cast(float)event.motion.x/uiScale, 
-                        cast(float)event.motion.y/uiScale
-                    );
+                    ImGuiIO_AddMousePosEvent(igGetIO(), g_EventMousePos.x, g_EventMousePos.y);
                     return true;
 
                 case SDL_EventType.SDL_MOUSEBUTTONDOWN:
                 case SDL_EventType.SDL_MOUSEBUTTONUP:
                     // A synthetic click may arrive without a preceding motion event.
                     // Queue its position before the button transition, never flatten IO.
-                    auto pos = incGLBackendScaleMousePos(event.button.x, event.button.y);
-                    ImGuiIO_AddMousePosEvent(igGetIO(), pos.x, pos.y);
                     return ImGui_ImplSDL2_ProcessEvent(event);
                 
                 default:
