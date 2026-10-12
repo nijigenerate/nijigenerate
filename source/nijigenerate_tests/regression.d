@@ -19863,7 +19863,7 @@ private class OneTimePhaseProbe(T) : T {
 }
 
 private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters,
-    ulong[] selected = null, ulong[] mirrored = null) {
+    ulong[] selected = null, ulong[] mirrored = null, bool captureSecond = false) {
     import nijilive.core.render.scheduler : TaskScheduler, TaskOrder, TaskKind;
     import nijigenerate.viewport.common.mesheditor.tools.onetimedeform : OneTimeDeformer;
 
@@ -19873,6 +19873,11 @@ private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters,
     auto target = new OneTimePhaseProbe!GridDeformer(root);
     auto vertices = Vec2Array([vec2(0, 0), vec2(10, 0), vec2(0, 10), vec2(10, 10)]);
     target.rebuffer(vertices.dup);
+    OneTimePhaseProbe!GridDeformer second;
+    if (captureSecond) {
+        second = new OneTimePhaseProbe!GridDeformer(root);
+        second.rebuffer(vertices.dup);
+    }
     Vec2Array offsets;
     static if (is(T : GridDeformer)) {
         filter.rebuffer(vertices.dup);
@@ -19887,6 +19892,8 @@ private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters,
     auto originalFilters = target.filterCounts();
     auto parameterCount = incActivePuppet().parameters.length;
     filter.captureTarget(target);
+    if (second !is null)
+        filter.captureTarget(second);
     static if (is(T == OneTimeDeformer!GridDeformer) || is(T == OneTimeDeformer!PathDeformer))
         filter.setSelectedVertices(target, selected, mirrored);
     auto scheduler = new TaskScheduler();
@@ -19898,7 +19905,8 @@ private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters,
             (ref RenderContext context) { filter.deformation = offsets.dup; });
         scheduler.execute(ctx);
     }
-    auto result = tuple(filter.phases.dup, target.deformation.dup);
+    auto result = tuple(filter.phases.dup, target.deformation.dup,
+        second is null ? Vec2Array.init : second.deformation.dup);
     require(!nearVec2Array(target.deformation, Vec2Array([vec2(0), vec2(0), vec2(0), vec2(0)])),
         "captured target fixture must exercise a nonzero grid/path deformation");
     require(target.parent is root && nearVec2Array(target.vertices, vertices),
@@ -19906,6 +19914,8 @@ private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters,
     require(incActivePuppet().parameters.length == parameterCount,
         "render task registration must not add parameters");
     filter.releaseTarget(target);
+    if (second !is null)
+        filter.releaseTarget(second);
     require(target.filterCounts() == originalFilters && filter.children.length == 0,
         "release must remove only the temporary filter hooks");
     scheduler.clearTasks();
@@ -19943,6 +19953,15 @@ private void testOneTimeDeformerSelectedVertices() {
         auto all = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false)[1];
         auto selected = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false, [1])[1];
         auto mirrored = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false, [1], [3])[1];
+        auto bothUnselected = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false,
+            null, null, true);
+        auto otherTargetUnselected = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false,
+            [1], null, true);
+        require(nearVec2Array(bothUnselected[1], bothUnselected[2]),
+            "one-time filter without vertex selection must deform every target: " ~ T.stringof);
+        foreach (offset; otherTargetUnselected[2])
+            require(nearVec2(offset, vec2(0)),
+                "one-time filter must leave unselected targets unchanged: " ~ T.stringof);
         foreach (index; 0 .. all.length) {
             require(nearVec2(selected[index], index == 1 ? all[index] : vec2(0)),
                 "one-time filter must deform only selected vertices: " ~ T.stringof);

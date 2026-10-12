@@ -71,11 +71,14 @@ public:
         Node target, Vec2Array origVertices, Vec2Array origDeformation, mat4* origTransform
     ) {
         ulong[] selected;
+        bool selectionActive;
         synchronized (this) {
+            // Any selected target restricts deformation across all captured targets.
+            selectionActive = selectedVerticesByTarget.length != 0;
             if (auto vertices = target in selectedVerticesByTarget)
                 selected = (*vertices).dup;
         }
-        if (selected.length == 0)
+        if (!selectionActive)
             return super.deformChildren(target, origVertices, origDeformation, origTransform);
 
         auto original = origDeformation.dup;
@@ -771,6 +774,7 @@ class OneTimeDeformBase :  NodeSelect {
     SubToolMode appliedMode = SubToolMode.Vertex; // last applied UI/impl state
     bool acquired = false;
     bool selectingTargetVertices = false;
+    bool subToolGestureActive = false;
 
     enum OneTimeDeformActionID {
         SwitchMode = 10_000,
@@ -786,6 +790,21 @@ class OneTimeDeformBase :  NodeSelect {
 
 class OneTimeDeform(T) : OneTimeDeformBase {
 private:
+    bool subToolIsDragging() {
+        if (!acquired) return false;
+        auto session = ngActiveOneTimeDeformScope();
+        if (session is null) return false;
+        IncMeshEditorOne editor;
+        final switch (mode) {
+        case SubToolMode.Select: return false;
+        case SubToolMode.Vertex: editor = session.vertImpl; break;
+        case SubToolMode.Deform: editor = session.defImpl; break;
+        }
+        if (editor is null) return false;
+        auto tool = cast(NodeSelect)editor.getTool();
+        return editor.isSelecting || (tool !is null && tool.isDragging);
+    }
+
     void switchSubTool(SubToolMode next) {
         if (mode == next) return;
         auto session = ngOneTimeDeformScope();
@@ -863,6 +882,7 @@ public:
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
         super.setToolMode(toolMode, impl);
         selectingTargetVertices = false;
+        subToolGestureActive = false;
         ngEnsureOneTimeDeformCallbacks();
         auto session = ngOneTimeDeformScope();
         session.initialize!T(impl.getTarget());
@@ -970,14 +990,26 @@ public:
 
     override 
     int peek(ImGuiIO* io, IncMeshEditorOne impl) {
-        if (incInputIsKeyPressed(ImGuiKey.Tab)) {
+        if (incInputIsKeyPressed(ImGuiKey.Tab) &&
+            !subToolGestureActive && !selectingTargetVertices) {
             return OneTimeDeformActionID.SwitchMode;
         }
 
-        if (io.KeyAlt || selectingTargetVertices || impl.isSelecting) {
+        // A subtool owns a mouse gesture until release, even if Alt changes mid-drag.
+        bool released = incInputIsMouseReleased(ImGuiMouseButton.Left);
+        scope(exit) if (released) subToolGestureActive = false;
+        if (subToolGestureActive && !igIsMouseDown(ImGuiMouseButton.Left) && !released)
+            subToolGestureActive = false;
+        if (!subToolGestureActive && !io.KeyAlt && !selectingTargetVertices &&
+            mode != SubToolMode.Select && igIsMouseClicked(ImGuiMouseButton.Left))
+            subToolGestureActive = true;
+
+        if (!subToolGestureActive && !subToolIsDragging() &&
+            (io.KeyAlt || selectingTargetVertices || impl.isSelecting)) {
             super.peek(io, impl);
-            if (incInputIsMouseReleased(ImGuiMouseButton.Left)) {
-                super.onDragEnd(impl.mousePos, impl);
+            if (released && (selectingTargetVertices || impl.isSelecting)) {
+                if (impl.isSelecting)
+                    super.onDragEnd(impl.mousePos, impl);
                 selectingTargetVertices = false;
                 return OneTimeDeformActionID.EndTargetSelection;
             }
@@ -1068,7 +1100,7 @@ public:
 
     override bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         incStatusTooltip(_("Switch Mode"), _("TAB"));
-        incStatusTooltip(_("Select vertices"), _("Alt+Left Mouse"));
+        incStatusTooltip(_("Select vertices"), _("ALT"));
 
         bool updateSharedSubTool(OneTimeDeformScope session, SubToolMode subMode, int subAction, bool delegate(out bool) evaluate, out bool subChanged) {
             auto frame = igGetFrameCount();
@@ -1114,8 +1146,10 @@ public:
                 if (impl.vtxAtMouse != ulong(-1)) {
                     if (impl.isSelected(impl.vtxAtMouse))
                         impl.maybeSelectOne = impl.vtxAtMouse;
-                    else
+                    else {
                         impl.selectOne(impl.vtxAtMouse);
+                        impl.updateMirrorSelected();
+                    }
                 } else {
                     impl.deselectAll();
                 }
@@ -1129,8 +1163,10 @@ public:
                 impl.isSelecting = true;
                 break;
             case OneTimeDeformActionID.EndTargetSelection:
-                if (impl.maybeSelectOne != ulong(-1))
+                if (impl.maybeSelectOne != ulong(-1)) {
                     impl.selectOne(impl.maybeSelectOne);
+                    impl.updateMirrorSelected();
+                }
                 impl.maybeSelectOne = ulong(-1);
                 break;
             case OneTimeDeformActionID.ContinueTargetSelection:
