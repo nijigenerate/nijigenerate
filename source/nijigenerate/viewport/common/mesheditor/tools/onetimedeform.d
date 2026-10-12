@@ -26,7 +26,7 @@ import bindbc.opengl;
 import bindbc.imgui;
 import std.algorithm;
 import std.array;
-import std.math : isFinite;
+import std.math : abs, isFinite;
 import nijilive.core.render.scheduler : TaskScheduler, TaskOrder, TaskKind;
 
 // Captured targets retain their original parent. They must be scheduled through
@@ -100,7 +100,7 @@ private {
         SaveBindingBackup[] saveBackups;
         ActionStackScope actionScope = null;
         bool explicitScopeClose = false;
-        bool hasEdits = false;
+        Vec2Array[Deformable] initialTargetDeformations;
 
     public:
         Node filterNode() {
@@ -184,6 +184,7 @@ private {
                 if (filterNode().children.length == 0) {
                     filterNode().reparent(null, 0);
                     filter = null;
+                    initialTargetDeformations = null;
                 }
                 incViewportNodeDeformNotifyParamValueChanged();
             }
@@ -209,7 +210,7 @@ private {
                 defActionId = NodeSelect.SelectActionID.None;
                 setup!(T);
                 currentMode = SubToolMode.Vertex;
-                hasEdits = false;
+                initialTargetDeformations = null;
                 invalidatePeekCache();
                 // Register mapping for this filter
                 gFilterEditors[filter] = defImpl;
@@ -325,6 +326,23 @@ private {
             return applied;
         }
 
+        bool hasTargetChanges() {
+            foreach (child; filterNode().children) {
+                auto target = cast(Deformable)child;
+                if (target is null)
+                    continue;
+                auto original = target in initialTargetDeformations;
+                if (original is null || (*original).length != target.deformation.length)
+                    return true;
+                foreach (i, value; target.deformation) {
+                    if (abs(value.x - (*original)[i].x) > 0.0001f ||
+                        abs(value.y - (*original)[i].y) > 0.0001f)
+                        return true;
+                }
+            }
+            return false;
+        }
+
         void detachForSave(Puppet puppet) {
             auto node = filterNode();
             if (node is null || node.puppet !is puppet)
@@ -414,7 +432,7 @@ private {
                     gFilterEditors.remove(filter);
                 node.reparent(null, 0);
                 filter = null;
-                hasEdits = false;
+                initialTargetDeformations = null;
                 switchModeConsumed = false;
                 invalidatePeekCache();
                 closeActionScope();
@@ -787,6 +805,8 @@ public:
         if (session.defImpl && !session.defImpl.getFilterTargets().canFind(impl.getTarget()))
             session.defImpl.addFilterTarget(impl.getTarget());
         if ((cast(T)session.filter).children.countUntil(impl.getTarget()) < 0) {
+            if (auto target = cast(Deformable)impl.getTarget())
+                session.initialTargetDeformations[target] = target.deformation.dup;
             session.filter.captureTarget(impl.getTarget());
             // captureTarget changes the filter mesh. The inner editors were
             // created before capture, so refresh them before any subtool uses
@@ -814,7 +834,7 @@ public:
             // Persist filter deformation into children as an undoable parameter action,
             // then release filter targets and clean up.
             auto param = incArmedParameter();
-            if (session.filter && param && session.hasEdits) {
+            if (session.filter && param && session.hasTargetChanges()) {
                 auto kp = param.findClosestKeypoint();
                 ParameterBinding[] bindings;
                 foreach (child; session.filterNode().children) {
@@ -1038,7 +1058,6 @@ public:
                     return session.vertImpl.getTool().update(io, session.vertImpl, action, localChanged);
                 }, changed);
                 // When vertex count or map updates, transfer deformation to the current shape accurately
-                session.hasEdits = session.hasEdits || changed || session.vertImpl.vertexMapDirty;
                 if (session.vertImpl.vertexMapDirty)
                     session.applyVertexToolToFilter();
                 return result;
@@ -1050,7 +1069,6 @@ public:
                 bool result = updateSharedSubTool(session, mode, action, (out bool localChanged) {
                     return session.defImpl.getTool().update(io, session.defImpl, action, localChanged);
                 }, changed);
-                session.hasEdits = session.hasEdits || changed;
                 if (changed) {
                     auto parameter = incArmedParameter();
                     if (parameter) {

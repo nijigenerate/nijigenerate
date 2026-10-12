@@ -412,12 +412,16 @@ class BezierDeformTool : NodeSelect {
         // Apply the first motion while starting the gesture. Sparse input may have
         // no second motion before release, so deferring this would lose the stroke.
         if (action == SelectActionID.StartDrag && onDragStart(impl.mousePos, impl)) {
-            if (lockedPoint != ulong(-1))
-                action = BezierDeformActionID.Rotate;
-            else if (io.KeyShift || _isShiftMode)
-                action = BezierDeformActionID.StartShiftTransform;
-            else
-                action = BezierDeformActionID.StartTransform;
+            if (impl.selected.length == 1 && pathDragTarget != lockedPoint) {
+                if (lockedPoint != ulong(-1))
+                    action = BezierDeformActionID.Rotate;
+                else if (io.KeyShift || _isShiftMode)
+                    action = BezierDeformActionID.StartShiftTransform;
+                else
+                    action = BezierDeformActionID.StartTransform;
+            } else {
+                action = SelectActionID.None;
+            }
             preDragging = true;
         }
 
