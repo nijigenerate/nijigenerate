@@ -27,13 +27,73 @@ import bindbc.imgui;
 import std.algorithm;
 import std.array;
 import std.math : abs, isFinite;
+import std.typecons : Tuple;
 import nijilive.core.render.scheduler : TaskScheduler, TaskOrder, TaskKind;
 
 // Captured targets retain their original parent. They must be scheduled through
 // that parent only, otherwise composite render scopes are opened twice.
 class OneTimeDeformer(T) : T if (is(T == GridDeformer) || is(T == PathDeformer)) {
+private:
+    ulong[][Node] selectedVerticesByTarget;
+
+public:
     this(Node parent) {
         super(parent);
+    }
+
+    bool setSelectedVertices(Node target, ulong[] selected, ulong[] mirrored = null) {
+        ulong[] next = selected.dup;
+        foreach (index; mirrored) {
+            if (!next.canFind(index))
+                next ~= index;
+        }
+        synchronized (this) {
+            auto previous = target in selectedVerticesByTarget;
+            if (next.length == 0) {
+                if (previous !is null) {
+                    selectedVerticesByTarget.remove(target);
+                    return true;
+                }
+            } else if (previous is null || *previous != next) {
+                selectedVerticesByTarget[target] = next;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    override void releaseTarget(Node target) {
+        setSelectedVertices(target, null);
+        super.releaseTarget(target);
+    }
+
+    override Tuple!(Vec2Array, mat4*, bool) deformChildren(
+        Node target, Vec2Array origVertices, Vec2Array origDeformation, mat4* origTransform
+    ) {
+        ulong[] selected;
+        synchronized (this) {
+            if (auto vertices = target in selectedVerticesByTarget)
+                selected = (*vertices).dup;
+        }
+        if (selected.length == 0)
+            return super.deformChildren(target, origVertices, origDeformation, origTransform);
+
+        auto original = origDeformation.dup;
+        auto result = super.deformChildren(target, origVertices, origDeformation, origTransform);
+        if (result[0].length != original.length || result[0].length != origVertices.length)
+            return result;
+
+        bool[] included;
+        included.length = result[0].length;
+        foreach (index; selected) {
+            if (index < included.length)
+                included[index] = true;
+        }
+        foreach (index; 0 .. included.length) {
+            if (!included[index])
+                result[0][index] = original[index];
+        }
+        return result;
     }
 
     override void registerRenderTasks(TaskScheduler scheduler) {
@@ -710,9 +770,15 @@ class OneTimeDeformBase :  NodeSelect {
     SubToolMode prevMode = SubToolMode.Vertex;
     SubToolMode appliedMode = SubToolMode.Vertex; // last applied UI/impl state
     bool acquired = false;
+    bool selectingTargetVertices = false;
 
     enum OneTimeDeformActionID {
         SwitchMode = 10_000,
+        SelectTargetVertex,
+        ToggleTargetVertex,
+        SelectTargetArea,
+        ContinueTargetSelection,
+        EndTargetSelection,
         End
     }
 
@@ -796,6 +862,7 @@ public:
     override
     void setToolMode(VertexToolMode toolMode, IncMeshEditorOne impl) {
         super.setToolMode(toolMode, impl);
+        selectingTargetVertices = false;
         ngEnsureOneTimeDeformCallbacks();
         auto session = ngOneTimeDeformScope();
         session.initialize!T(impl.getTarget());
@@ -816,6 +883,8 @@ public:
                 session.defImpl.setToolMode(session.defImpl.getToolMode());
             }
         }
+        (cast(OneTimeDeformer!T)session.filter).setSelectedVertices(
+            impl.getTarget(), impl.selected, impl.mirrorSelected);
         impl.getDeformAction();
         session.begin();
         mode = SubToolMode.Vertex;
@@ -905,6 +974,26 @@ public:
             return OneTimeDeformActionID.SwitchMode;
         }
 
+        if (io.KeyAlt || selectingTargetVertices || impl.isSelecting) {
+            super.peek(io, impl);
+            if (incInputIsMouseReleased(ImGuiMouseButton.Left)) {
+                super.onDragEnd(impl.mousePos, impl);
+                selectingTargetVertices = false;
+                return OneTimeDeformActionID.EndTargetSelection;
+            }
+            if (igIsMouseClicked(ImGuiMouseButton.Left)) {
+                selectingTargetVertices = true;
+                impl.maybeSelectOne = ulong(-1);
+                if (impl.vtxAtMouse != ulong(-1)) {
+                    if (io.KeyShift)
+                        return OneTimeDeformActionID.ToggleTargetVertex;
+                    return OneTimeDeformActionID.SelectTargetVertex;
+                }
+                return OneTimeDeformActionID.SelectTargetArea;
+            }
+            return OneTimeDeformActionID.ContinueTargetSelection;
+        }
+
         int peekSharedSubTool(OneTimeDeformScope session, SubToolMode subMode, int delegate() evaluate) {
             auto frame = igGetFrameCount();
             if (session.cachedPeekFrame == frame && session.cachedPeekMode == subMode)
@@ -950,6 +1039,16 @@ public:
             if (a == OneTimeDeformActionID.SwitchMode)
                 return OneTimeDeformActionID.SwitchMode;
         }
+        foreach (a; actions) {
+            if (a == OneTimeDeformActionID.ToggleTargetVertex ||
+                a == OneTimeDeformActionID.SelectTargetVertex)
+                return a;
+        }
+        foreach (a; actions) {
+            if (a >= OneTimeDeformActionID.SelectTargetArea &&
+                a <= OneTimeDeformActionID.EndTargetSelection)
+                return a;
+        }
 
         auto session = ngActiveOneTimeDeformScope();
         final switch (mode) {
@@ -969,6 +1068,7 @@ public:
 
     override bool update(ImGuiIO* io, IncMeshEditorOne impl, int action, out bool changed) {
         incStatusTooltip(_("Switch Mode"), _("TAB"));
+        incStatusTooltip(_("Select vertices"), _("Alt+Left Mouse"));
 
         bool updateSharedSubTool(OneTimeDeformScope session, SubToolMode subMode, int subAction, bool delegate(out bool) evaluate, out bool subChanged) {
             auto frame = igGetFrameCount();
@@ -981,6 +1081,10 @@ public:
 
             bool localChanged = false;
             auto result = evaluate(localChanged);
+            if (subMode == SubToolMode.Vertex && session.vertImpl)
+                session.vertImpl.updateSelectionPreview(io);
+            else if (subMode == SubToolMode.Deform && session.defImpl)
+                session.defImpl.updateSelectionPreview(io);
             session.cachedUpdateFrame = frame;
             session.cachedUpdateMode = subMode;
             session.cachedUpdateAction = subAction;
@@ -1002,6 +1106,45 @@ public:
         auto sessionForAction = ngOneTimeDeformScope();
         if (action != OneTimeDeformActionID.SwitchMode)
             sessionForAction.switchModeConsumed = false;
+
+        if (action >= OneTimeDeformActionID.SelectTargetVertex &&
+            action <= OneTimeDeformActionID.EndTargetSelection) {
+            switch (action) {
+            case OneTimeDeformActionID.SelectTargetVertex:
+                if (impl.vtxAtMouse != ulong(-1)) {
+                    if (impl.isSelected(impl.vtxAtMouse))
+                        impl.maybeSelectOne = impl.vtxAtMouse;
+                    else
+                        impl.selectOne(impl.vtxAtMouse);
+                } else {
+                    impl.deselectAll();
+                }
+                break;
+            case OneTimeDeformActionID.ToggleTargetVertex:
+                if (impl.vtxAtMouse != ulong(-1))
+                    impl.toggleSelect(impl.vtxAtMouse);
+                break;
+            case OneTimeDeformActionID.SelectTargetArea:
+                impl.selectOrigin = impl.mousePos;
+                impl.isSelecting = true;
+                break;
+            case OneTimeDeformActionID.EndTargetSelection:
+                if (impl.maybeSelectOne != ulong(-1))
+                    impl.selectOne(impl.maybeSelectOne);
+                impl.maybeSelectOne = ulong(-1);
+                break;
+            case OneTimeDeformActionID.ContinueTargetSelection:
+                break;
+            default:
+                assert(false);
+            }
+            impl.updateSelectionPreview(io);
+            if (acquired && sessionForAction.filter &&
+                (cast(OneTimeDeformer!T)sessionForAction.filter).setSelectedVertices(
+                    impl.getTarget(), impl.selected, impl.mirrorSelected))
+                incActivePuppet().update();
+            return false;
+        }
 
         if (action == OneTimeDeformActionID.SwitchMode) {
             if (sessionForAction.switchModeConsumed)

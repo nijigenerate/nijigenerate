@@ -19862,8 +19862,10 @@ private class OneTimePhaseProbe(T) : T {
     }
 }
 
-private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters) {
+private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters,
+    ulong[] selected = null, ulong[] mirrored = null) {
     import nijilive.core.render.scheduler : TaskScheduler, TaskOrder, TaskKind;
+    import nijigenerate.viewport.common.mesheditor.tools.onetimedeform : OneTimeDeformer;
 
     resetCase();
     auto root = incActivePuppet().root;
@@ -19885,6 +19887,8 @@ private auto oneTimeFilterSnapshot(T)(bool dynamic, bool postFilters) {
     auto originalFilters = target.filterCounts();
     auto parameterCount = incActivePuppet().parameters.length;
     filter.captureTarget(target);
+    static if (is(T == OneTimeDeformer!GridDeformer) || is(T == OneTimeDeformer!PathDeformer))
+        filter.setSelectedVertices(target, selected, mirrored);
     auto scheduler = new TaskScheduler();
     RenderContext ctx;
     foreach (frame; 0 .. 2) {
@@ -19927,6 +19931,23 @@ private void testOneTimeDeformerPreservesUpdatePhasesAndDeformation() {
                 require(nearVec2Array(actual[1], reference[1]),
                     "temporary filters must preserve the original grid/path deformation results");
             }
+        }
+    }
+}
+
+private void testOneTimeDeformerSelectedVertices() {
+    import std.meta : AliasSeq;
+    import nijigenerate.viewport.common.mesheditor.tools.onetimedeform : OneTimeDeformer;
+
+    foreach (T; AliasSeq!(GridDeformer, PathDeformer)) {
+        auto all = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false)[1];
+        auto selected = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false, [1])[1];
+        auto mirrored = oneTimeFilterSnapshot!(OneTimeDeformer!T)(false, false, [1], [3])[1];
+        foreach (index; 0 .. all.length) {
+            require(nearVec2(selected[index], index == 1 ? all[index] : vec2(0)),
+                "one-time filter must deform only selected vertices: " ~ T.stringof);
+            require(nearVec2(mirrored[index], index == 1 || index == 3 ? all[index] : vec2(0)),
+                "one-time filter must include mirrored selected vertices: " ~ T.stringof);
         }
     }
 }
@@ -22227,6 +22248,7 @@ private bool runAutomatedScenario(string id) {
         case "deform.grid-tool":
             runCase("onetime-deformer-captured-target-task-registration", &testOneTimeDeformerSchedulesCapturedTargetsOnce);
             runCase("onetime-deformer-update-and-release-equivalence", &testOneTimeDeformerPreservesUpdatePhasesAndDeformation);
+            runCase("onetime-deformer-selected-vertex-mask", &testOneTimeDeformerSelectedVertices);
             runCase("grid-deformer-tool-virtual-mesh-apply-undo-redo", &testGridDeformerToolVirtualMeshApplyUndoRedo);
             return true;
         case "deform.path-tool":

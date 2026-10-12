@@ -143,6 +143,7 @@ class NodeSelect : Tool, Draggable {
     bool onDragEnd(vec2 mousePos, IncMeshEditorOne impl) {
         isDragging = false;
         if (impl.isSelecting) {
+            impl.updateSelectionPreview(igGetIO());
             if (impl.mutateSelection) {
                 if (!impl.invertSelection) {
                     foreach(v; impl.newSelected) {

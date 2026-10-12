@@ -74,6 +74,13 @@ public:
     vec2 selectOrigin;
     IncMesh previewMesh;
 
+    void updateSelectionPreview(ImGuiIO* io) {
+        if (!isSelecting) return;
+        newSelected = getInRect(selectOrigin, mousePos, getGroupId());
+        mutateSelection = io.KeyShift;
+        invertSelection = io.KeyCtrl;
+    }
+
     bool deforming = false;
     float meshEditAOE = 4;
 
