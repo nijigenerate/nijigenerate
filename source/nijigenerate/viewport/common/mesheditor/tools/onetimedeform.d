@@ -837,9 +837,15 @@ public:
             if (session.filter && param && session.hasTargetChanges()) {
                 auto kp = param.findClosestKeypoint();
                 ParameterBinding[] bindings;
+                ParameterBinding[] addedBindings;
                 foreach (child; session.filterNode().children) {
                     if (auto deformable = cast(Deformable)child) {
-                        auto b = param.getOrAddBinding(deformable, "deform");
+                        auto b = param.getBinding(deformable, "deform");
+                        if (b is null) {
+                            b = param.getOrAddBinding(deformable, "deform");
+                            if (b !is null)
+                                addedBindings ~= b;
+                        }
                         if (b !is null)
                             bindings ~= b;
                     }
@@ -854,7 +860,16 @@ public:
                     // deformers reproduce the final one-time edit result.
                     session.applyToTargetsWithFitting(param, kp);
                     persistAction.updateNewState();
-                    incActionPush(persistAction);
+                    if (addedBindings.length > 0) {
+                        import nijigenerate.actions.binding : ParameterBindingAddAction;
+                        auto group = new GroupAction();
+                        foreach (binding; addedBindings)
+                            group.addAction(new ParameterBindingAddAction(param, binding));
+                        group.addAction(persistAction);
+                        incActionPush(group);
+                    } else {
+                        incActionPush(persistAction);
+                    }
                 } else {
                     foreach (child; session.filterNode().children.dup)
                         session.filter.releaseTarget(child);
