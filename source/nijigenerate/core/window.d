@@ -369,7 +369,7 @@ void incCreateContext() {
         incInitDPIScaling();
     }
 
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;                         // Enable Keyboard Navigation
+    io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;                         // Enable Keyboard Navigation
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     incGLBackendInit(null);
 
