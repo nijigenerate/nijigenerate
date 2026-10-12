@@ -129,25 +129,35 @@ private {
             if (explicitScopeClose) return;
             actionScope = null;
             IncMeshEditorOne[] affectedEditors;
+            IncMeshEditorOne editorToFinalize;
             if (defImpl) {
                 foreach (target; defImpl.getFilterTargets()) {
                     auto editor = ngGetEditorFor(target);
                     auto tool = editor ? cast(OneTimeDeformBase)editor.getTool() : null;
                     if (tool) {
-                        tool.acquired = false;
-                        tool.mode = SubToolMode.Select;
-                        tool.appliedMode = SubToolMode.Select;
                         affectedEditors ~= editor;
+                        if (editorToFinalize is null && tool.acquired)
+                            editorToFinalize = editor;
                     }
                 }
             }
-            cleanupTarget(null, true);
+            // An external scope guard runs before the editor switches tools.
+            // Commit the active filter while its target and parameter still exist.
+            if (editorToFinalize)
+                editorToFinalize.finalizeToolMode();
+            if (filter)
+                cleanupTarget(null, true);
             if (filter is null)
                 activeScope = null;
-            // Undo may close the one-time scope while its toolbar tool is still
-            // selected. Move those editors to a usable tool after cleanup.
-            foreach (editor; affectedEditors)
+            foreach (editor; affectedEditors) {
+                auto tool = cast(OneTimeDeformBase)editor.getTool();
+                if (tool) {
+                    tool.acquired = false;
+                    tool.mode = SubToolMode.Select;
+                    tool.appliedMode = SubToolMode.Select;
+                }
                 editor.setToolMode(VertexToolMode.Points);
+            }
         }
 
         void forceFinalize(Node target) {
@@ -1128,15 +1138,15 @@ class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
             tool.setSubToolMode(SubToolMode.Deform, editor);
         }
         incTooltip(_("Transform path"));
-        igSameLine(0, 4);
-
-        // Reuse the current path editor's rotation and along-path controls.
-        auto subEditor = tool.mode == SubToolMode.Deform ? session.defImpl : session.vertImpl;
-        IncMeshEditorOne[Node] subEditors;
-        subEditors[subEditor.getTarget()] = subEditor;
-        auto info = ngGetToolInfoOf(VertexToolMode.BezierDeform);
-        if (info !is null)
-            info.displayToolOptions(subEditor.deformOnly, VertexToolMode.BezierDeform, subEditors);
+        if (tool.mode == SubToolMode.Deform && session.defImpl) {
+            igSameLine(0, 4);
+            // Rotation and along-path movement act on the deformation editor.
+            IncMeshEditorOne[Node] subEditors;
+            subEditors[session.defImpl.getTarget()] = session.defImpl;
+            auto info = ngGetToolInfoOf(VertexToolMode.BezierDeform);
+            if (info !is null)
+                info.displayToolOptions(session.defImpl.deformOnly, VertexToolMode.BezierDeform, subEditors);
+        }
         return false;
     }
     override

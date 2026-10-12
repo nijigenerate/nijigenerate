@@ -24,7 +24,6 @@ import nijigenerate.io.autosave;
 import nijigenerate.io.save;
 import i18n;
 import std.stdio : writefln;
-import core.stdc.stdlib : getenv;
 
 version(OSX) {
     enum const(char)*[] SDL_VERSIONS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
@@ -809,15 +808,23 @@ void incSetDefaultLayout() {
 */
 void incBeginLoop() {
     SDL_Event event;
-    static bool stepSyntheticMouseInitialized;
-    static bool stepSyntheticMouse;
+    static SDL_Event deferredMouseRelease;
+    static bool hasDeferredMouseRelease;
 
-    if (!stepSyntheticMouseInitialized) {
-        stepSyntheticMouse = getenv("NIJIGENERATE_STEP_CUA_MOUSE") !is null;
-        stepSyntheticMouseInitialized = true;
-    }
-
-    while(SDL_PollEvent(&event)) {
+    bool sawHeldMouseMotion = false;
+    while (hasDeferredMouseRelease || SDL_PollEvent(&event)) {
+        if (hasDeferredMouseRelease) {
+            event = deferredMouseRelease;
+            hasDeferredMouseRelease = false;
+        }
+        // Let ImGui observe the final held motion before the release clears it.
+        // Batch earlier motion events so a physical high-rate mouse cannot
+        // postpone button-up behind one rendered frame per event.
+        if (event.type == SDL_EventType.SDL_MOUSEBUTTONUP && sawHeldMouseMotion) {
+            deferredMouseRelease = event;
+            hasDeferredMouseRelease = true;
+            break;
+        }
         bool stepAfterEvent = false;
 
         switch(event.type) {
@@ -832,16 +839,15 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
-                // Preserve a UI pass for each drag phase. This ImGui version can
-                // otherwise consume motion and release together, skipping held motion.
-                // Keep unpressed motion batched unless full CUA stepping is requested.
+                if (event.type == SDL_EventType.SDL_MOUSEMOTION && event.motion.state != 0)
+                    sawHeldMouseMotion = true;
+                // A press and a release each need a UI pass. Held motion is
+                // batched, then rendered before its release on the next pass.
                 stepAfterEvent =
                     event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
                     event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
                     event.type == SDL_EventType.SDL_KEYDOWN ||
-                    event.type == SDL_EventType.SDL_KEYUP ||
-                    (event.type == SDL_EventType.SDL_MOUSEMOTION &&
-                        (event.motion.state != 0 || stepSyntheticMouse));
+                    event.type == SDL_EventType.SDL_KEYUP;
                 break;
         }
 
