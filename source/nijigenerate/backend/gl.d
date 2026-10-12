@@ -113,6 +113,12 @@ private void incGLBackendLog(string message) {
 }
 
 // Trace input phases without changing event processing or mouse state.
+void ngGLBackendTraceEditorMouse(string message) {
+    if (!incGLBackendDebugComputerUseMouse()) return;
+    import std.string : format;
+    incGLBackendLog("[CUAEditor] frame=%d %s\n".format(igGetFrameCount(), message));
+}
+
 void ngGLBackendTraceMouse(string phase) {
     if (!incGLBackendDebugComputerUseMouse() || g_ComputerUseTraceFrames == 0) return;
     import std.string : format;
@@ -183,6 +189,14 @@ void incGLBackendBeginRender() {
 
 bool incGLBackendProcessEvent(const(SDL_Event)* event) {
     switch(event.type) {
+        case SDL_EventType.SDL_KEYDOWN:
+        case SDL_EventType.SDL_KEYUP:
+            if (incGLBackendDebugComputerUseMouse()) {
+                import std.string : format;
+                incGLBackendLog("[CUAKey] frame=%d type=%u symbol=%d scancode=%d\n".format(
+                    igGetFrameCount(), event.type, event.key.keysym.sym, event.key.keysym.scancode));
+            }
+            break;
         case SDL_EventType.SDL_MOUSEMOTION:
             g_ComputerUseTraceFrames = 8;
             incGLBackendRememberEventMousePos(event.motion.x, event.motion.y);

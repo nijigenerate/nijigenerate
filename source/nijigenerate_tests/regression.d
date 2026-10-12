@@ -20000,8 +20000,9 @@ private void testPathDeformerToolApplyUndoRedo() {
     op.selectOne(middle);
     op.lastMousePos = vec2(0, 0);
     op.mousePos = vec2(0, 20);
-    require(tool.onDragStart(op.lastMousePos, op), "BezierDeformTool should start dragging a selected point");
-    require(tool.onDragUpdate(op.mousePos, op), "BezierDeformTool should move a selected point during drag");
+    import nijigenerate.viewport.common.mesheditor.tools.select : NodeSelect;
+    tool.updateVertexEdit(null, op, NodeSelect.SelectActionID.StartDrag, changed);
+    require(changed, "a single motion must move the selected point on the drag-start update");
     require(tool.onDragEnd(op.mousePos, op), "BezierDeformTool should finish dragging a selected point");
     bool operationContainsMovedPoint = false;
     foreach (v; op.vertices) {

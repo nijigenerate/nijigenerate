@@ -838,6 +838,8 @@ void incBeginLoop() {
                 stepAfterEvent =
                     event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
                     event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
+                    event.type == SDL_EventType.SDL_KEYDOWN ||
+                    event.type == SDL_EventType.SDL_KEYUP ||
                     (event.type == SDL_EventType.SDL_MOUSEMOTION &&
                         (event.motion.state != 0 || stepSyntheticMouse));
                 break;

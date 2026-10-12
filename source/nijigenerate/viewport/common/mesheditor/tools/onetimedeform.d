@@ -2,6 +2,7 @@ module nijigenerate.viewport.common.mesheditor.tools.onetimedeform;
 
 import nijigenerate.viewport.common.mesheditor.tools.enums;
 import nijigenerate.viewport.common.mesheditor.tools.base;
+import nijigenerate.viewport.common.mesheditor.tools : ngGetToolInfoOf;
 import nijigenerate.viewport.common.mesheditor.tools.select;
 import nijigenerate.viewport.common.mesheditor.tools.grid : GridTool;
 import nijigenerate.viewport.common.mesheditor.operations;
@@ -127,9 +128,26 @@ private {
         void onActionScopeClosed() {
             if (explicitScopeClose) return;
             actionScope = null;
+            IncMeshEditorOne[] affectedEditors;
+            if (defImpl) {
+                foreach (target; defImpl.getFilterTargets()) {
+                    auto editor = ngGetEditorFor(target);
+                    auto tool = editor ? cast(OneTimeDeformBase)editor.getTool() : null;
+                    if (tool) {
+                        tool.acquired = false;
+                        tool.mode = SubToolMode.Select;
+                        tool.appliedMode = SubToolMode.Select;
+                        affectedEditors ~= editor;
+                    }
+                }
+            }
             cleanupTarget(null, true);
             if (filter is null)
                 activeScope = null;
+            // Undo may close the one-time scope while its toolbar tool is still
+            // selected. Move those editors to a usable tool after cleanup.
+            foreach (editor; affectedEditors)
+                editor.setToolMode(VertexToolMode.Points);
         }
 
         void forceFinalize(Node target) {
@@ -643,6 +661,13 @@ private {
 }
 
 class OneTimeDeformBase :  NodeSelect {
+    void setSubToolMode(SubToolMode next, IncMeshEditorOne impl) {
+        if (mode == next || mode == SubToolMode.Select) return;
+        auto session = ngOneTimeDeformScope();
+        session.switchModeConsumed = false;
+        bool changed;
+        update(igGetIO(), impl, OneTimeDeformActionID.SwitchMode, changed);
+    }
     SubToolMode mode;
     SubToolMode prevMode = SubToolMode.Vertex;
     SubToolMode appliedMode = SubToolMode.Vertex; // last applied UI/impl state
@@ -812,6 +837,9 @@ public:
     override 
     int peek(ImGuiIO* io, IncMeshEditorOne impl) {
         if (incInputIsKeyPressed(ImGuiKey.Tab)) {
+            import nijigenerate.backend.gl : ngGLBackendTraceEditorMouse;
+            import std.string : format;
+            ngGLBackendTraceEditorMouse("one-time tab mode=%s acquired=%s".format(mode, acquired));
             return OneTimeDeformActionID.SwitchMode;
         }
 
@@ -914,6 +942,9 @@ public:
             sessionForAction.switchModeConsumed = false;
 
         if (action == OneTimeDeformActionID.SwitchMode) {
+            import nijigenerate.backend.gl : ngGLBackendTraceEditorMouse;
+            import std.string : format;
+            ngGLBackendTraceEditorMouse("one-time switch mode=%s consumed=%s".format(mode, sessionForAction.switchModeConsumed));
             if (sessionForAction.switchModeConsumed)
                 return false;
             sessionForAction.switchModeConsumed = true;
@@ -1040,6 +1071,29 @@ public:
 }
 
 class ToolInfoImpl(T: OneTimeDeform!GridDeformer) : ToolInfoBase!(T) {
+    override bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
+        if (editors.length == 0) return false;
+        auto editor = editors.values()[0];
+        auto tool = cast(OneTimeDeformBase)editor.getTool();
+        auto session = ngActiveOneTimeDeformScope();
+        if (tool is null || session is null || !session.active()) return false;
+
+        igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
+        igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
+        scope(exit) igPopStyleVar(2);
+        if (incButtonColored("", ImVec2(0, 0), tool.mode == SubToolMode.Vertex ?
+            colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+            tool.setSubToolMode(SubToolMode.Vertex, editor);
+        }
+        incTooltip(_("Grid Vertex Tool"));
+        igSameLine(0, 0);
+        if (incButtonColored("", ImVec2(0, 0), tool.mode == SubToolMode.Deform ?
+            colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+            tool.setSubToolMode(SubToolMode.Deform, editor);
+        }
+        incTooltip(_("Grid deformation"));
+        return false;
+    }
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         if (deformOnly)
@@ -1053,6 +1107,38 @@ class ToolInfoImpl(T: OneTimeDeform!GridDeformer) : ToolInfoBase!(T) {
 }
 
 class ToolInfoImpl(T: OneTimeDeform!PathDeformer) : ToolInfoBase!(T) {
+    override bool displayToolOptions(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
+        if (editors.length == 0) return false;
+        auto editor = editors.values()[0];
+        auto tool = cast(OneTimeDeformBase)editor.getTool();
+        auto session = ngActiveOneTimeDeformScope();
+        if (tool is null || session is null || !session.active()) return false;
+
+        igPushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0));
+        igPushStyleVar(ImGuiStyleVar.WindowPadding, ImVec2(4, 4));
+        scope(exit) igPopStyleVar(2);
+        if (incButtonColored("", ImVec2(0, 0), tool.mode == SubToolMode.Vertex ?
+            colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+            tool.setSubToolMode(SubToolMode.Vertex, editor);
+        }
+        incTooltip(_("Define paths"));
+        igSameLine(0, 0);
+        if (incButtonColored("", ImVec2(0, 0), tool.mode == SubToolMode.Deform ?
+            colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
+            tool.setSubToolMode(SubToolMode.Deform, editor);
+        }
+        incTooltip(_("Transform path"));
+        igSameLine(0, 4);
+
+        // Reuse the current path editor's rotation and along-path controls.
+        auto subEditor = tool.mode == SubToolMode.Deform ? session.defImpl : session.vertImpl;
+        IncMeshEditorOne[Node] subEditors;
+        subEditors[subEditor.getTarget()] = subEditor;
+        auto info = ngGetToolInfoOf(VertexToolMode.BezierDeform);
+        if (info !is null)
+            info.displayToolOptions(subEditor.deformOnly, VertexToolMode.BezierDeform, subEditors);
+        return false;
+    }
     override
     bool viewportTools(bool deformOnly, VertexToolMode toolMode, IncMeshEditorOne[Node] editors) {
         if (deformOnly)

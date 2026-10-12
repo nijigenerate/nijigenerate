@@ -129,7 +129,11 @@ protected:
                     igIsMouseDown(ImGuiMouseButton.Middle) ||
                     igIsMouseDown(ImGuiMouseButton.Right);
                 viewport.update(false, !interactionAllowed);
-            } else if (interactionAllowed && incViewport.alwaysUpdate()) {
+            } else if (interactionAllowed && (incViewport.alwaysUpdate() ||
+                (igIsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) &&
+                    igIsKeyPressed(ImGuiKey.Tab)))) {
+                // Tab navigation disables mouse hover for this frame. Keep the
+                // focused viewport's tool shortcut reachable during that frame.
                 viewport.update(true);
             }
 

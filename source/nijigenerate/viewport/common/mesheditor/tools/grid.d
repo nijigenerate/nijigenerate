@@ -116,6 +116,9 @@ private:
     int numCut = 3;
     vec2 dragOrigin;
     vec2 dragEnd;
+    private vec2 pressOrigin;
+    private ulong pressVertex = ulong(-1);
+    private bool hasPressOrigin;
     int dragTargetXIndex = 0;
     int dragTargetYIndex = 0;
 
@@ -170,6 +173,7 @@ private:
         isDragging = false;
         impl.isSelecting = false;
         impl.deselectAll();
+        hasPressOrigin = false;
     }
 
     override
@@ -189,7 +193,8 @@ private:
             return false;
         }
 
-        auto vtxAtMouse = impl.getVerticesByIndex([impl.vtxAtMouse])[0];
+        auto startVertex = hasPressOrigin ? pressVertex : impl.vtxAtMouse;
+        auto vtxAtMouse = impl.getVerticesByIndex([startVertex])[0];
         if (vtxAtMouse) {
             if (mesh.axes.length != 2) {
                 currentAction = GridActionID.End;
@@ -197,7 +202,7 @@ private:
             }
 
             currentAction = mesh.axes.length == 2 ? GridActionID.TranslateFree : GridActionID.End;
-            vtxAtMouse = impl.getVerticesByIndex([impl.vtxAtMouse])[0];
+            vtxAtMouse = impl.getVerticesByIndex([startVertex])[0];
             dragOrigin = vtxAtMouse.position;
 
             float threshold = selectRadius/incViewportZoom;
@@ -240,7 +245,9 @@ private:
             return true;
         } else if (mesh.axes.length < 2 || mesh.vertices.length == 0) {
             currentAction = GridActionID.Create;
-            dragOrigin = mousePos;
+            // Drag recognition can occur on the only motion event in a stroke.
+            // The rectangle must still begin at the original button-down position.
+            dragOrigin = hasPressOrigin ? pressOrigin : mousePos;
             return true;
         }
         return false;
@@ -339,7 +346,12 @@ private:
             isDragging = false;
         }
 
-        if (igIsMouseClicked(ImGuiMouseButton.Left)) impl.maybeSelectOne = ulong(-1);
+        if (igIsMouseClicked(ImGuiMouseButton.Left)) {
+            impl.maybeSelectOne = ulong(-1);
+            pressOrigin = impl.mousePos;
+            pressVertex = impl.vtxAtMouse;
+            hasPressOrigin = true;
+        }
 
         incStatusTooltip(_("Drag to define 2x2 mesh"), _("Left Mouse"));
         incStatusTooltip(_("Add/remove key points to axes"), _("Left Mouse"));

@@ -362,7 +362,7 @@ class BezierDeformTool : NodeSelect {
             impl.deselectAll();
             lockedPoint    = ulong(-1);
         } else if (action == BezierDeformActionID.TranslatePoint || action == BezierDeformActionID.StartTransform) {
-            onDragUpdate(impl.mousePos, impl);
+            changed = onDragUpdate(impl.mousePos, impl) || changed;
         }
 
         // Left click selection
@@ -389,7 +389,8 @@ class BezierDeformTool : NodeSelect {
 
         // Dragging
         if (action == SelectActionID.StartDrag) {
-            onDragStart(impl.mousePos, impl);
+            if (onDragStart(impl.mousePos, impl))
+                changed = onDragUpdate(impl.mousePos, impl) || changed;
         }
 
         if (changed) impl.refreshMesh();
@@ -407,6 +408,18 @@ class BezierDeformTool : NodeSelect {
 
         if (!impl.hasAction())
             impl.getCleanDeformAction();
+
+        // Apply the first motion while starting the gesture. Sparse input may have
+        // no second motion before release, so deferring this would lose the stroke.
+        if (action == SelectActionID.StartDrag && onDragStart(impl.mousePos, impl)) {
+            if (lockedPoint != ulong(-1))
+                action = BezierDeformActionID.Rotate;
+            else if (io.KeyShift || _isShiftMode)
+                action = BezierDeformActionID.StartShiftTransform;
+            else
+                action = BezierDeformActionID.StartTransform;
+            preDragging = true;
+        }
 
         if (action == BezierDeformActionID.StartTransform || action == BezierDeformActionID.StartShiftTransform) {
             auto deform = (cast(MeshEditorAction!DeformationAction)(impl.getDeformAction()));
