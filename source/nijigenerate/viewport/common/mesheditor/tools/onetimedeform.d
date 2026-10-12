@@ -100,6 +100,7 @@ private {
         SaveBindingBackup[] saveBackups;
         ActionStackScope actionScope = null;
         bool explicitScopeClose = false;
+        bool hasEdits = false;
 
     public:
         Node filterNode() {
@@ -156,7 +157,13 @@ private {
                     tool.mode = SubToolMode.Select;
                     tool.appliedMode = SubToolMode.Select;
                 }
-                editor.setToolMode(VertexToolMode.Points);
+            }
+            if (affectedEditors.length > 0) {
+                if (auto parentEditor = incViewportModelDeformGetEditor())
+                    parentEditor.setToolMode(VertexToolMode.Points);
+                else
+                    foreach (editor; affectedEditors)
+                        editor.setToolMode(VertexToolMode.Points);
             }
         }
 
@@ -202,6 +209,7 @@ private {
                 defActionId = NodeSelect.SelectActionID.None;
                 setup!(T);
                 currentMode = SubToolMode.Vertex;
+                hasEdits = false;
                 invalidatePeekCache();
                 // Register mapping for this filter
                 gFilterEditors[filter] = defImpl;
@@ -406,6 +414,7 @@ private {
                     gFilterEditors.remove(filter);
                 node.reparent(null, 0);
                 filter = null;
+                hasEdits = false;
                 switchModeConsumed = false;
                 invalidatePeekCache();
                 closeActionScope();
@@ -802,7 +811,7 @@ public:
             // Persist filter deformation into children as an undoable parameter action,
             // then release filter targets and clean up.
             auto param = incArmedParameter();
-            if (session.filter && param) {
+            if (session.filter && param && session.hasEdits) {
                 auto kp = param.findClosestKeypoint();
                 ParameterBinding[] bindings;
                 foreach (child; session.filterNode().children) {
@@ -832,6 +841,8 @@ public:
 
                 session.cleanupTarget(impl, true);
                 incViewportNodeDeformNotifyParamValueChanged();
+            } else if (session.filter) {
+                session.cleanupTarget(impl, true);
             }
             impl.pushDeformAction();
         }
@@ -1024,6 +1035,7 @@ public:
                     return session.vertImpl.getTool().update(io, session.vertImpl, action, localChanged);
                 }, changed);
                 // When vertex count or map updates, transfer deformation to the current shape accurately
+                session.hasEdits = session.hasEdits || changed || session.vertImpl.vertexMapDirty;
                 if (session.vertImpl.vertexMapDirty)
                     session.applyVertexToolToFilter();
                 return result;
@@ -1035,6 +1047,7 @@ public:
                 bool result = updateSharedSubTool(session, mode, action, (out bool localChanged) {
                     return session.defImpl.getTool().update(io, session.defImpl, action, localChanged);
                 }, changed);
+                session.hasEdits = session.hasEdits || changed;
                 if (changed) {
                     auto parameter = incArmedParameter();
                     if (parameter) {

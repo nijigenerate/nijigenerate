@@ -377,7 +377,8 @@ void incMainMenu() {
                 static EditMode tabSelected = EditMode.ModelEdit;
                 ImGuiTabItemFlags modelFlags = ImGuiTabItemFlags.None;
                 ImGuiTabItemFlags animFlags  = ImGuiTabItemFlags.None;
-                if (tabSelected != mode) {
+                bool syncExternalMode = tabSelected != mode;
+                if (syncExternalMode) {
                     if (mode == EditMode.ModelEdit) modelFlags = ImGuiTabItemFlags.SetSelected;
                     else if (mode == EditMode.AnimEdit) animFlags = ImGuiTabItemFlags.SetSelected;
                     tabSelected = mode;
@@ -389,7 +390,7 @@ void incMainMenu() {
                 if (modelTabVisible) {
                     igEndTabItem();
                 }
-                if (modelTabClicked && mode != EditMode.ModelEdit)
+                if ((modelTabClicked || (modelTabVisible && !syncExternalMode)) && mode != EditMode.ModelEdit)
                     incSetEditMode(EditMode.ModelEdit);
                 incTooltip(_("Edit Puppet"));
 
@@ -398,7 +399,7 @@ void incMainMenu() {
                 if (animTabVisible) {
                     igEndTabItem();
                 }
-                if (animTabClicked && mode != EditMode.AnimEdit)
+                if ((animTabClicked || (animTabVisible && !syncExternalMode)) && mode != EditMode.AnimEdit)
                     incSetEditMode(EditMode.AnimEdit);
                 incTooltip(_("Edit Animation"));
             }
