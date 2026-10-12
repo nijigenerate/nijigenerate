@@ -384,23 +384,22 @@ void incMainMenu() {
                 }
 
                 // Render tabs
-                if (igBeginTabItem(("" ~ _("Edit Puppet")).toStringz, null, modelFlags)) {
-                    // If user clicked this tab this frame, switch mode once.
-                    if (mode != EditMode.ModelEdit) {
-                        incSetEditMode(EditMode.ModelEdit);
-                        tabSelected = EditMode.ModelEdit;
-                    }
+                bool modelTabVisible = igBeginTabItem(("" ~ _("Edit Puppet")).toStringz, null, modelFlags);
+                bool modelTabClicked = igIsItemClicked(ImGuiMouseButton.Left);
+                if (modelTabVisible) {
                     igEndTabItem();
                 }
+                if (modelTabClicked && mode != EditMode.ModelEdit)
+                    incSetEditMode(EditMode.ModelEdit);
                 incTooltip(_("Edit Puppet"));
 
-                if (igBeginTabItem(("" ~ _("Edit Animation")).toStringz, null, animFlags)) {
-                    if (mode != EditMode.AnimEdit) {
-                        incSetEditMode(EditMode.AnimEdit);
-                        tabSelected = EditMode.AnimEdit;
-                    }
+                bool animTabVisible = igBeginTabItem(("" ~ _("Edit Animation")).toStringz, null, animFlags);
+                bool animTabClicked = igIsItemClicked(ImGuiMouseButton.Left);
+                if (animTabVisible) {
                     igEndTabItem();
                 }
+                if (animTabClicked && mode != EditMode.AnimEdit)
+                    incSetEditMode(EditMode.AnimEdit);
                 incTooltip(_("Edit Animation"));
             }
         igEndTabBar();
