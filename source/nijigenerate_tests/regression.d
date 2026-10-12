@@ -187,6 +187,7 @@ import nijigenerate.viewport.depth.mesheditor : DepthMeshEditor;
 import nijigenerate.viewport.depth.tools.operation : DepthAttachedPointOperation, DepthOperationColor, DepthOperationNegativeColor, DepthOperationNegativeSelectedColor, DepthOperationPositiveColor, DepthOperationPositiveSelectedColor, DepthOperationSelectedColor, DepthPlaneOperation, DepthRingOperation, depthOperationColor, depthToolRound, distanceToSegment;
 import nijigenerate.viewport.common.transformhandle : ngViewportTransformHandleAdapter;
 import nijigenerate.viewport.model.depthboneoverlay : buildDepthBoneOverlayGeometry;
+import nijigenerate.viewport.model.onionslice : OnionSliceGeometry;
 import nijigenerate.viewport.vertex : ngActiveAutoMeshProcessor, ngAutoMeshProcessors;
 import nijigenerate.viewport.vertex.automesh : AutoMeshProcessor;
 import nijigenerate.viewport.vertex.automesh.meta : IAutoMeshReflect;
@@ -516,6 +517,7 @@ private immutable Scenario[] scenarios = [
     Scenario("render.camera", "Rendering", "Camera projection, viewport crop, and camera-driven export", automated, "Covers camera node projection plus PNG/TGA export command paths and output dimensions; JPEG and pixel golden coverage remain in project.export-jpeg/render.blend-modes/postprocess."),
     Scenario("render.composite-camera-texture-export", "Rendering", "Texture-backed part, camera export, texture slot rebuild, and native save/reopen", automated, "Covers render-adjacent asset lifecycle composed with camera export."),
     Scenario("render.onion-slice", "Rendering", "Onion skin, slice visualization, and model viewport postprocess flags", computerUse, "Needs computer-use render snapshot fixture."),
+    Scenario("render.onion-slice-geometry", "Rendering", "Captured onion geometry retains model size and position across viewport changes", automated, "Covers capture zoom, pan, mirror, rotation, and independent history geometry."),
     Scenario("render.texture-lifecycle", "Rendering", "Texture upload, reload, disposal, atlas slot reuse, and missing texture fallbacks", automated, "Covers headless texture replacement, slot rebuild, missing-source rejection, and explicit disposal; backend upload smoke remains in render.backend-gl-sdl."),
 
     Scenario("settings.shortcuts", "Settings/Shortcuts", "Shortcut create, update, clear, conflict, save/load", automated, "Covers command registry shortcut conflict handling and settings-backed save/load."),
@@ -1260,6 +1262,44 @@ private bool nearVec3(vec3 a, vec3 b) {
 
 private bool nearVec4(vec4 a, vec4 b) {
     return near(a.x, b.x) && near(a.y, b.y) && near(a.z, b.z) && near(a.w, b.w);
+}
+
+private void testOnionSliceCaptureGeometry() {
+    auto worldMin = vec2(-850, -2200);
+    auto worldMax = vec2(1200, 2600);
+    auto projection = mat4.orthographic(-900f, 900f, 650f, -650f, -100f, 100f);
+    foreach (zoom; [0.24f, 1.0f, 2.0f]) {
+        foreach (mirror; [1.0f, -1.0f]) {
+            auto captureCamera = projection * mat4.scaling(zoom * mirror, zoom, 1) *
+                mat4.translation(-133.91f, 172.45f, 0);
+            auto capturedRender = captureCamera * mat4.scaling(1 / zoom, 1 / zoom, 1);
+            auto area = rect(worldMin.x * zoom, worldMin.y * zoom,
+                (worldMax.x - worldMin.x) * zoom, (worldMax.y - worldMin.y) * zoom);
+            auto vertices = Vec2Array([vec2(area.left, area.top), vec2(area.left, area.bottom),
+                vec2(area.right, area.top), vec2(area.right, area.bottom)]);
+            auto originalVertices = vertices.dup;
+            auto geometry = OnionSliceGeometry(vertices, captureCamera, capturedRender, mat4.identity);
+            require(nearVec2Array(vertices, originalVertices),
+                "capturing onion bounds must not mutate the shared snapshot vertices");
+            require(near(geometry.area.left, area.left) && near(geometry.area.top, area.top)
+                && near(geometry.area.width, area.width) && near(geometry.area.height, area.height),
+                "onion bounds must include all four snapshot vertices");
+            foreach (view; [captureCamera, projection * mat4.scaling(-0.8f, 0.8f, 1) *
+                mat4.zRotation(0.3f) * mat4.translation(300f, -200f, 0)]) {
+                auto actualMin = geometry.matrix(view) * vec4(area.left, area.top, 0, 1);
+                auto actualMax = geometry.matrix(view) * vec4(area.right, area.bottom, 0, 1);
+                require(nearVec2(actualMin.xy, (view * vec4(worldMin, 0, 1)).xy)
+                    && nearVec2(actualMax.xy, (view * vec4(worldMax, 0, 1)).xy),
+                    "onion images must cover the captured model extent after zoom, pan, mirror, or rotation");
+            }
+            auto previous = geometry;
+            geometry = OnionSliceGeometry(rect(0, 0, 100, 100), captureCamera,
+                capturedRender, mat4.translation(120, 80, 0));
+            require(nearVec2((previous.matrix(captureCamera) * vec4(area.left, area.top, 0, 1)).xy,
+                (captureCamera * vec4(worldMin, 0, 1)).xy),
+                "capturing another pose must not move or resize the previous onion image");
+        }
+    }
 }
 
 private bool nearVec2(vec2 a, vec2 b) {
@@ -22179,6 +22219,9 @@ private bool runAutomatedScenario(string id) {
             return true;
         case "mesh.mirror-symmetry":
             runCase("mesh-editor-mirror-symmetry-contracts", &testMeshEditorMirrorSymmetryContracts);
+            return true;
+        case "render.onion-slice-geometry":
+            runCase("onion-slice-capture-geometry", &testOnionSliceCaptureGeometry);
             return true;
         case "deform.grid-tool":
             runCase("onetime-deformer-captured-target-task-registration", &testOneTimeDeformerSchedulesCapturedTargetsOnce);

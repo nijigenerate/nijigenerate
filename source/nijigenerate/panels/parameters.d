@@ -19,7 +19,6 @@ import nijigenerate.ext.param;
 import nijigenerate.viewport.common.mesheditor;
 import nijigenerate.viewport.common.mesh;
 import nijigenerate.windows.flipconfig;
-import nijigenerate.viewport.model.onionslice;
 import nijigenerate.utils.transform;
 import nijigenerate;
 import std.string;
@@ -634,9 +633,6 @@ void incParameterView(bool armedParam=false, bool showCategory = true, bool fixe
 
             if (incController("###CONTROLLER", param, ImVec2(width, height), incArmedParameter() == param, *grabParam)) {
                 if (incArmedParameter() == param) {
-                    auto onion = OnionSlice.singleton;
-                    onion.capture(cParamPoint);
-
                     incViewportNodeDeformNotifyParamValueChanged();
                     paramPointChanged(param);
                 }
