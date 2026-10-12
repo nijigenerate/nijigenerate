@@ -255,17 +255,42 @@ class MeshEditorAction(T)  : LazyBoundAction {
     Parameter      param;
     vec2u  oldKeypoint;
     vec2u  newKeypoint;
-    SubToolMode[] oldSubToolMode;
-    SubToolMode[] newSubToolMode;
+    struct SubToolModeSnapshot {
+        Node target;
+        SubToolMode mode;
+    }
+    SubToolModeSnapshot[] oldSubToolModes;
+    SubToolModeSnapshot[] newSubToolModes;
+
+    SubToolModeSnapshot[] captureSubToolModes() {
+        SubToolModeSnapshot[] modes;
+        if (self is null) return modes;
+        foreach (target; self.getFilterTargets()) {
+            auto editor = ngGetEditorFor(target);
+            auto tool = editor ? cast(OneTimeDeformBase)editor.getTool() : null;
+            if (tool) modes ~= SubToolModeSnapshot(target, tool.mode);
+        }
+        return modes;
+    }
+
+    void restoreSubToolModes(SubToolModeSnapshot[] modes) {
+        if (self is null) return;
+        foreach (target; self.getFilterTargets()) {
+            foreach (snapshot; modes) {
+                if (snapshot.target !is target) continue;
+                auto editor = ngGetEditorFor(target);
+                auto tool = editor ? cast(OneTimeDeformBase)editor.getTool() : null;
+                if (tool) tool.mode = snapshot.mode;
+                break;
+            }
+        }
+    }
 
     this(Node target, T action = null) {
         this.target = target;
         this.clear();
         this.action = action;
-        auto filterTargets = self ? self.getFilterTargets(): [];
-        if (filterTargets.length > 0) {
-            oldSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-        }
+        oldSubToolModes = captureSubToolModes();
     }
 
     void setAction(T action) {
@@ -287,10 +312,7 @@ class MeshEditorAction(T)  : LazyBoundAction {
         if (self !is null) {
             newKeypoint = param.findClosestKeypoint();
         }
-        auto filterTargets = self ? self.getFilterTargets(): [];
-        if (filterTargets.length > 0) {
-            newSubToolMode = filterTargets.map!(t=>(cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode).array();
-        }
+        newSubToolModes = captureSubToolModes();
     }
 
     void clear() {
@@ -326,12 +348,7 @@ class MeshEditorAction(T)  : LazyBoundAction {
                 param.pushIOffset(param.getKeypointValue(oldKeypoint), ParamMergeMode.Forced);
                 self.forceResetAction();
             }
-            auto filterTargets = self ? self.getFilterTargets(): [];
-            if (filterTargets.length > 0) {
-                foreach (i, t; filterTargets) {
-                    (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = oldSubToolMode[i];
-                }
-            }
+            restoreSubToolModes(oldSubToolModes);
         }
     }
 
@@ -351,12 +368,7 @@ class MeshEditorAction(T)  : LazyBoundAction {
                 param.pushIOffset(param.getKeypointValue(newKeypoint), ParamMergeMode.Forced);
                 self.forceResetAction();
             }
-            auto filterTargets = self ? self.getFilterTargets(): [];
-            if (filterTargets.length > 0) {
-                foreach (i, t; filterTargets) {
-                    (cast(OneTimeDeformBase)ngGetEditorFor(t).getTool()).mode = newSubToolMode[i];
-                }
-            }
+            restoreSubToolModes(newSubToolModes);
         }
     }
 

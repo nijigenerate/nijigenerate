@@ -24,7 +24,6 @@ import nijigenerate.io.autosave;
 import nijigenerate.io.save;
 import i18n;
 import std.stdio : writefln;
-import core.stdc.stdlib : getenv;
 
 version(OSX) {
     enum const(char)*[] SDL_VERSIONS = ["libSDL2.dylib", "libSDL2-2.0.dylib", "libSDL2-2.0.0.dylib"];
@@ -370,7 +369,7 @@ void incCreateContext() {
         incInitDPIScaling();
     }
 
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;                         // Enable Keyboard Navigation
+    io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;                         // Enable Keyboard Navigation
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     incGLBackendInit(null);
 
@@ -712,8 +711,7 @@ void incFinishFileDrag() {
 void incBeginLoopNoEv() {
     // Start the Dear ImGui frame
     incGLBackendNewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    incGLBackendApplyEventMousePosition();
+    ngGLBackendPlatformNewFrame();
 
     // Do our DPI pre-processing
     igNewFrame();
@@ -807,15 +805,24 @@ void incSetDefaultLayout() {
 */
 void incBeginLoop() {
     SDL_Event event;
-    static bool stepSyntheticMouseInitialized;
-    static bool stepSyntheticMouse;
+    static SDL_Event deferredMouseRelease;
+    static bool hasDeferredMouseRelease;
+    static uint heldMouseButtons;
 
-    if (!stepSyntheticMouseInitialized) {
-        stepSyntheticMouse = getenv("NIJIGENERATE_STEP_CUA_MOUSE") !is null;
-        stepSyntheticMouseInitialized = true;
-    }
-
-    while(SDL_PollEvent(&event)) {
+    bool sawHeldMouseMotion = false;
+    while (hasDeferredMouseRelease || SDL_PollEvent(&event)) {
+        if (hasDeferredMouseRelease) {
+            event = deferredMouseRelease;
+            hasDeferredMouseRelease = false;
+        }
+        // Let ImGui observe the final held motion before the release clears it.
+        // Batch earlier motion events so a physical high-rate mouse cannot
+        // postpone button-up behind one rendered frame per event.
+        if (event.type == SDL_EventType.SDL_MOUSEBUTTONUP && sawHeldMouseMotion) {
+            deferredMouseRelease = event;
+            hasDeferredMouseRelease = true;
+            break;
+        }
         bool stepAfterEvent = false;
 
         switch(event.type) {
@@ -830,12 +837,25 @@ void incBeginLoop() {
             
             default: 
                 incGLBackendProcessEvent(&event);
-                if (stepSyntheticMouse) {
-                    stepAfterEvent =
-                        event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
-                        event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
-                        event.type == SDL_EventType.SDL_MOUSEMOTION;
+                if (event.type == SDL_EventType.SDL_MOUSEMOTION &&
+                    (event.motion.state != 0 || heldMouseButtons != 0))
+                    sawHeldMouseMotion = true;
+                if ((event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
+                     event.type == SDL_EventType.SDL_MOUSEBUTTONUP) &&
+                    event.button.button > 0 && event.button.button <= 32) {
+                    uint mask = 1u << (event.button.button - 1);
+                    if (event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN)
+                        heldMouseButtons |= mask;
+                    else
+                        heldMouseButtons &= ~mask;
                 }
+                // A press and a release each need a UI pass. Held motion is
+                // batched, then rendered before its release on the next pass.
+                stepAfterEvent =
+                    event.type == SDL_EventType.SDL_MOUSEBUTTONDOWN ||
+                    event.type == SDL_EventType.SDL_MOUSEBUTTONUP ||
+                    (event.type == SDL_EventType.SDL_KEYDOWN && event.key.repeat == 0) ||
+                    event.type == SDL_EventType.SDL_KEYUP;
                 break;
         }
 

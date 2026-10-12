@@ -16,11 +16,8 @@ import nijigenerate.core.input;
 import nijigenerate.core.dbg;
 import nijigenerate.ext.nodes.exdepthbone;
 import nijigenerate.project;
-import nijigenerate.widgets.button;
-import nijigenerate.widgets.tooltip;
 import nijilive;
 import bindbc.imgui;
-import i18n;
 
 class DeformationViewport : Viewport {
 public:
@@ -79,15 +76,6 @@ public:
 
     override
     void drawOptions() {
-        if(incBeginDropdownMenu("GIZMOS", "\uefc9")) {
-            if (incButtonColored("\ue8ef", ImVec2(0, 0), ngShowDepthBones ? colorUndefined : ImVec4(0.6, 0.6, 0.6, 1))) {
-                ngShowDepthBones = !ngShowDepthBones;
-                depthBoneEffectivePivotSelectionChanged(incSelectedNodes());
-            }
-            incTooltip(ngShowDepthBones ? _("Hide Depth Bones") : _("Show Depth Bones"));
-            incEndDropdownMenu();
-        }
-
         if (editor) {
             editor.displayToolOptions();
         }

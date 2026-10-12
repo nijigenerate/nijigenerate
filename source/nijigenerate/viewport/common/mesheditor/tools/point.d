@@ -418,7 +418,8 @@ class PointTool : NodeSelect {
 
         // Dragging
         if (action == SelectActionID.StartDrag) {
-            onDragStart(impl.mousePos, impl);
+            if (onDragStart(impl.mousePos, impl))
+                changed = onDragUpdate(impl.mousePos, impl) || changed;
         }
 
         if (action == PointActionID.Translate)
