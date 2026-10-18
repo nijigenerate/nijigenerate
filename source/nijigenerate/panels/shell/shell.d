@@ -18,6 +18,7 @@ import nijigenerate.core.selector;
 import nijigenerate.core.selector.resource: Resource, ResourceInfo, ResourceType;
 import nijigenerate.panels;
 import nijigenerate.utils;
+import nijigenerate.utils.link;
 import nijigenerate.widgets;
 import nijigenerate.panels.shell;
 import nijigenerate.widgets.output;
@@ -67,9 +68,17 @@ protected:
             nextCommand = null;
         }
         ImVec2 avail = incAvailableSpace();
-        if (incInputText("(Command)", avail.x, command) || forceUpdatePreview) {
+        // Input with inline help button on the right
+        ImVec2 helpSize = ImVec2(20, 0);
+        float inputWidth = avail.x - (helpSize.x + igGetStyle().ItemSpacing.x);
+        if (inputWidth < 50) inputWidth = avail.x; // fallback if space is too narrow
+        if (incInputText("(Command)", inputWidth, command) || forceUpdatePreview) {
             updatePreview();
             forceUpdatePreview = false;
+        }
+        igSameLine();
+        if (incButtonColored("?", helpSize)) {
+            incOpenLink("https://github.com/nijigenerate/nijigenerate/tree/main/doc/shell.md");
         }
         if (igIsKeyPressed(ImGuiKey.Enter)) {
             string newCommand = (cast(string)this.command).dup;
