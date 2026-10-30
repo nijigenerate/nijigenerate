@@ -1,0 +1,329 @@
+{
+  "scope": "current selected D dependency source + local native runtime/solver/SDL/Boost inputs",
+  "dependencies": [
+    {
+      "id": "dub:aurora-directx",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\aurora-directx\\12.1.2+10.0.17763.0\\aurora-directx",
+      "version": "12.1.2+10.0.17763.0",
+      "license_expression": "BSL-1.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:bindbc-loader",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\bindbc-loader\\1.0.3\\bindbc-loader",
+      "version": "1.0.3",
+      "license_expression": "Boost",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:bindbc-sdl",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\bindbc-sdl\\1.1.3\\bindbc-sdl",
+      "version": "1.1.3",
+      "license_expression": "Boost",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:ddbus",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\ddbus\\3.0.0-beta.2\\ddbus",
+      "version": "3.0.0-beta.2",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:diet-ng",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\diet-ng\\1.8.4\\diet-ng",
+      "version": "1.8.4",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:dportals",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\dportals\\0.1.0\\dportals",
+      "version": "0.1.0",
+      "license_expression": "BSD 2-clause",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:dunit",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\dunit\\1.0.16\\dunit",
+      "version": "1.0.16",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:during",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\during\\0.3.0\\during",
+      "version": "0.3.0",
+      "license_expression": "BSL-1.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:dxml",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\dxml\\0.4.5\\dxml",
+      "version": "0.4.5",
+      "license_expression": "BSL-1.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:eventcore",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\eventcore\\0.9.37\\eventcore",
+      "version": "0.9.37",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:fghj",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\fghj\\1.0.2\\fghj",
+      "version": "1.0.2",
+      "license_expression": "BSL-1.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:i18n-d",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\i18n-d\\1.0.2\\i18n-d",
+      "version": "1.0.2",
+      "license_expression": "BSD 2-clause",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:i2d-imgui",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\i2d-imgui\\0.8.0\\i2d-imgui",
+      "version": "0.8.0",
+      "license_expression": "Boost",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:i2d-opengl",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\i2d-opengl\\1.0.0\\i2d-opengl",
+      "version": "1.0.0",
+      "license_expression": "Boost",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:imagefmt",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\imagefmt\\2.1.2\\imagefmt",
+      "version": "2.1.2",
+      "license_expression": "BSD-2-clause",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:inmath",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\inmath\\1.0.6\\inmath",
+      "version": "1.0.6",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:kra-d",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\kra-d\\6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42\\kra-d",
+      "version": {
+        "version": "6a0bd415c2bb948e4414e9e3b9d2113f1bf21e42",
+        "repository": "git+https://github.com/inochi2d/kra-d.git"
+      },
+      "license_expression": "BSD 2-clause",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:mcp",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\mcp\\1.0.1\\mcp",
+      "version": "1.0.1",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:mir-algorithm",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\mir-algorithm\\3.22.4\\mir-algorithm",
+      "version": "3.22.4",
+      "license_expression": "Apache-2.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:mir-core",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\mir-core\\1.7.3\\mir-core",
+      "version": "1.7.3",
+      "license_expression": "Apache-2.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:mir-linux-kernel",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\mir-linux-kernel\\1.2.1\\mir-linux-kernel",
+      "version": "1.2.1",
+      "license_expression": "BSL-1.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:nijilive",
+      "root": "C:\\Users\\siget\\src\\nijigenerate\\nijilive",
+      "version": "0.0.1",
+      "license_expression": "BSD 2-clause",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:openssl",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\openssl\\3.4.0\\openssl",
+      "version": "3.4.0",
+      "license_expression": "OpenSSL or SSLeay",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:openssl-static",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\openssl-static\\1.0.5+3.0.8\\openssl-static",
+      "version": "1.0.5+3.0.8",
+      "license_expression": "Apache-2.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:silly",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\silly\\1.1.1\\silly",
+      "version": "1.1.1",
+      "license_expression": "ISC",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:stdx-allocator",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\stdx-allocator\\2.77.5\\stdx-allocator",
+      "version": "2.77.5",
+      "license_expression": "Boost",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:taggedalgebraic",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\taggedalgebraic\\1.0.1\\taggedalgebraic",
+      "version": "1.0.1",
+      "license_expression": "BSL-1.0",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:tinyfiledialogs",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\tinyfiledialogs\\0.10.1\\tinyfiledialogs",
+      "version": "0.10.1",
+      "license_expression": "Zlib",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-container",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-container\\1.7.0\\vibe-container",
+      "version": "1.7.0",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-core",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-core\\2.13.1\\vibe-core",
+      "version": "2.13.1",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-d",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-d\\0.10.2\\vibe-d",
+      "version": "0.10.2",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-http",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-http\\1.3.1\\vibe-http",
+      "version": "1.3.1",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-inet",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-inet\\1.2.0\\vibe-inet",
+      "version": "1.2.0",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-serialization",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-serialization\\1.1.2\\vibe-serialization",
+      "version": "1.1.2",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "dub:vibe-stream",
+      "root": "C:\\Users\\siget\\AppData\\Local\\dub\\packages\\vibe-stream\\1.3.0\\vibe-stream",
+      "version": "1.3.0",
+      "license_expression": "MIT",
+      "provenance": "current dub.selections.json; existing selected independent source only"
+    },
+    {
+      "id": "native:psd-d",
+      "root": "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\vendor\\psd-d",
+      "version": "current local dependency",
+      "license_expression": "BSD 2-clause",
+      "provenance": "current local source snapshot; no VCS identity inferred"
+    },
+    {
+      "id": "native:nicxlive",
+      "root": "C:\\Users\\siget\\src\\nijigenerate\\nicxlive",
+      "version": "current local source snapshot",
+      "license_expression": "BSD-2-Clause (project declaration)",
+      "provenance": "current local source snapshot; no VCS identity inferred"
+    },
+    {
+      "id": "native:osqp",
+      "root": "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\vendor\\osqp",
+      "version": "1.0.0 (current integration declaration)",
+      "license_expression": "Apache-2.0",
+      "provenance": "current local source snapshot; no VCS identity inferred"
+    },
+    {
+      "id": "native:qdldl",
+      "root": "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\vendor\\qdldl",
+      "version": "0.1.8 (current integration declaration)",
+      "license_expression": "Apache-2.0",
+      "provenance": "current local source snapshot; no VCS identity inferred"
+    },
+    {
+      "id": "native:boost-json",
+      "root": "C:\\Users\\siget\\vcpkg\\installed\\x64-windows\\share\\boost-json",
+      "version": "boost-json:x64-windows@1.90.0 4b15bf86ed80bd9691c8d9a24dfe3edf19448ddd27dd0c45811ea4c6f56c0d91",
+      "license_expression": "BSL-1.0 (installed package copyright)",
+      "provenance": "current installed SPDX metadata"
+    },
+    {
+      "id": "native:boost-context",
+      "root": "C:\\Users\\siget\\vcpkg\\installed\\x64-windows\\share\\boost-context",
+      "version": "boost-context:x64-windows@1.90.0 7be35da1768f622aaeb61f3e5b48eac7fbd5fdcbaa767ff6ca6ac6d695c86fe3",
+      "license_expression": "BSL-1.0 (installed package copyright)",
+      "provenance": "current installed SPDX metadata"
+    },
+    {
+      "id": "native:boost-headers",
+      "root": "C:\\Users\\siget\\vcpkg\\installed\\x64-windows\\include\\boost",
+      "version": "1.90.0 (current installed Boost packages)",
+      "license_expression": "BSL-1.0",
+      "license_files": [
+        "C:\\Users\\siget\\vcpkg\\installed\\x64-windows\\share\\boost-json\\copyright"
+      ],
+      "provenance": "current installed header tree; bundled notices retained in hashed source"
+    },
+    {
+      "id": "native:sdl3",
+      "root": "C:\\Users\\siget\\src\\nijigenerate\\nijiexpose\\build\\native\\_deps\\sdl3_binary-src",
+      "version": "3.2.28 (current SDL_version.h)",
+      "license_expression": "Zlib (current LICENSE.txt)",
+      "provenance": "existing local official binary package"
+    }
+  ],
+  "artifacts": [
+    "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\dub.selections.json",
+    "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\dub.sdl",
+    "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\cmake\\NativeDependencies.cmake",
+    "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\out\\osqp\\lib\\nijigenerate_osqp.lib",
+    "C:\\Users\\siget\\src\\nijigenerate\\nijigenerate\\out\\osqp\\lib\\osqpstatic.lib",
+    "C:\\Users\\siget\\src\\nijigenerate\\nijiexpose\\build\\native\\_deps\\sdl3_binary-src\\lib\\x64\\SDL3.lib",
+    "C:\\Users\\siget\\src\\nijigenerate\\nijiexpose\\build\\native\\_deps\\sdl3_binary-src\\lib\\x64\\SDL3.dll",
+    "C:\\Users\\siget\\vcpkg\\installed\\x64-windows\\debug\\lib\\boost_json-vc143-mt-gd-x64-1_90.lib",
+    "C:\\Users\\siget\\vcpkg\\installed\\x64-windows\\debug\\lib\\boost_context-vc143-mt-gd-x64-1_90.lib"
+  ],
+  "limitations": [
+    "Declared license strings are recorded, not a legal opinion.",
+    "Embedded third-party notices remain in hashed source; redistribution review is separate.",
+    "This snapshot is configuration-specific and does not imply release packaging completeness.",
+    "Compiler/OS SDK and system libraries are outside this project dependency-source scope."
+  ]
+}

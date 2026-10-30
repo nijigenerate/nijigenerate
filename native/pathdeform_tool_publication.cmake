@@ -1,0 +1,23 @@
+# Publish the existing actual body after mesh_editor_grid_bezier.cmake selection.
+function(ng_publish_pathdeform_tool)
+    if(NOT TARGET nijigenerate_mesh_editor_tools)
+        message(FATAL_ERROR "PathDeformTool publication requires the actual mesh editor tools producer")
+    endif()
+    get_target_property(tool_sources nijigenerate_mesh_editor_tools SOURCES)
+    set(body_selected FALSE)
+    foreach(source IN LISTS tool_sources)
+        if(source MATCHES "(^|/)pathdeform[.]cpp$")
+            set(body_selected TRUE)
+        endif()
+    endforeach()
+    if(NOT body_selected)
+        message(FATAL_ERROR "PathDeformTool publication requires the actual pathdeform.cpp body")
+    endif()
+    get_target_property(published nijigenerate_mesh_editor_tools NG_PATHDEFORM_HEADER_PUBLISHED)
+    if(NOT published)
+        target_sources(nijigenerate_mesh_editor_tools PUBLIC FILE_SET pathdeform_headers TYPE HEADERS
+            BASE_DIRS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src"
+            FILES "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/nijigenerate/viewport/common/mesheditor/tools/pathdeform.hpp")
+        set_property(TARGET nijigenerate_mesh_editor_tools PROPERTY NG_PATHDEFORM_HEADER_PUBLISHED TRUE)
+    endif()
+endfunction()

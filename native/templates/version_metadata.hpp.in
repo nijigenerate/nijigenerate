@@ -1,0 +1,13 @@
+#pragma once
+#include <string_view>
+
+namespace nijigenerate {
+struct VersionMetadata {
+    std::string_view version;
+    std::string_view revision;
+    std::string_view channel;
+};
+inline constexpr VersionMetadata ngVersionMetadata() noexcept {
+    return {"@NG_METADATA_VERSION@", "@NG_METADATA_REVISION@", "@NG_METADATA_CHANNEL@"};
+}
+}

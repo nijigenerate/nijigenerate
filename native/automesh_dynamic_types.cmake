@@ -1,0 +1,6 @@
+if(TARGET nijigenerate_core AND NOT TARGET nijigenerate_automesh_dynamic_types)
+    add_library(nijigenerate_automesh_dynamic_types INTERFACE)
+    target_include_directories(nijigenerate_automesh_dynamic_types INTERFACE "${CMAKE_CURRENT_LIST_DIR}/src")
+    target_compile_features(nijigenerate_automesh_dynamic_types INTERFACE cxx_std_20)
+    target_link_libraries(nijigenerate_automesh_dynamic_types INTERFACE nijigenerate_core)
+endif()

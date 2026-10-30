@@ -1,0 +1,23 @@
+# Attach the canonical public header to the existing actual production body.
+function(ng_publish_point_tool)
+    if(NOT TARGET nijigenerate_mesh_editor_tools)
+        message(FATAL_ERROR "PointTool publication requires the actual mesh editor tools producer")
+    endif()
+    get_target_property(tool_sources nijigenerate_mesh_editor_tools SOURCES)
+    set(body_selected FALSE)
+    foreach(source IN LISTS tool_sources)
+        if(source MATCHES "(^|/)point[.]cpp$")
+            set(body_selected TRUE)
+        endif()
+    endforeach()
+    if(NOT body_selected)
+        message(FATAL_ERROR "PointTool publication requires the actual point.cpp body")
+    endif()
+    get_target_property(published nijigenerate_mesh_editor_tools NG_POINT_HEADER_PUBLISHED)
+    if(NOT published)
+        target_sources(nijigenerate_mesh_editor_tools PUBLIC FILE_SET point_headers TYPE HEADERS
+            BASE_DIRS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src"
+            FILES "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/nijigenerate/viewport/common/mesheditor/tools/point.hpp")
+        set_property(TARGET nijigenerate_mesh_editor_tools PROPERTY NG_POINT_HEADER_PUBLISHED TRUE)
+    endif()
+endfunction()

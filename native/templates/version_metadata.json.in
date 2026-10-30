@@ -1,0 +1,8 @@
+{
+  "application": "nijigenerate",
+  "version": "@NG_METADATA_VERSION@",
+  "revision": "@NG_METADATA_REVISION@",
+  "channel": "@NG_METADATA_CHANNEL@",
+  "version_source": "@NG_METADATA_VERSION_SOURCE@",
+  "version_source_sha256": "@NG_METADATA_VERSION_SOURCE_SHA256@"
+}

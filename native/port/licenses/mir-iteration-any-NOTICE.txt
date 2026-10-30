@@ -1,0 +1,6 @@
+Native any/anyImpl traversal adapted from Mir algorithm.iteration.
+Copyright 2020 Ilia Ki, Kaleidic Associates Advisory Limited, Symmetry Investments.
+Authors: Ilia Ki, John Michael Hall, Andrei Alexandrescu (original Phobos code).
+The native callable/range bridge is independently authored for this project.
+This adaptation does not include the unrelated Ryu code mentioned in the
+upstream package-level NOTICE.

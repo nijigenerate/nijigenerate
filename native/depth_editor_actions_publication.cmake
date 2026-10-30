@@ -1,0 +1,27 @@
+# Include/call after actual depth_editor_completion.cmake producer selection.
+function(ng_publish_depth_editor_actions)
+    foreach(provider IN ITEMS nijigenerate_runtime_core nijigenerate_depth_mesh_editor
+            nijigenerate_depth_mesh_node nijigenerate_depth_operations)
+        if(NOT TARGET "${provider}")
+            message(FATAL_ERROR "Depth editor actions require actual provider ${provider}")
+        endif()
+    endforeach()
+    get_target_property(action_sources nijigenerate_runtime_core SOURCES)
+    set(action_body_selected FALSE)
+    foreach(source IN LISTS action_sources)
+        if(source MATCHES "(^|/)viewport/depth/mesheditor/action[.]cpp$")
+            set(action_body_selected TRUE)
+        endif()
+    endforeach()
+    if(NOT action_body_selected)
+        message(FATAL_ERROR "Depth editor actions publication requires the actual action.cpp body")
+    endif()
+    get_target_property(published nijigenerate_runtime_core NG_DEPTH_EDITOR_ACTIONS_PUBLISHED)
+    if(NOT published)
+        target_sources(nijigenerate_runtime_core PUBLIC FILE_SET depth_editor_action_headers TYPE HEADERS
+            BASE_DIRS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src"
+            FILES "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/nijigenerate/viewport/depth/mesheditor/action.hpp")
+        target_compile_features(nijigenerate_runtime_core PUBLIC cxx_std_20)
+        set_property(TARGET nijigenerate_runtime_core PROPERTY NG_DEPTH_EDITOR_ACTIONS_PUBLISHED TRUE)
+    endif()
+endfunction()

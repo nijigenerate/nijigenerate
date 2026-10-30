@@ -1,0 +1,7 @@
+if(BUILD_TESTING)
+    add_library(nijigenerate_depth_bone_status_types_probe OBJECT tests/depth_bone_status_types_probe.cpp)
+    target_link_libraries(nijigenerate_depth_bone_status_types_probe PRIVATE nijigenerate_core)
+    if(MSVC)
+        target_compile_options(nijigenerate_depth_bone_status_types_probe PRIVATE /Z7)
+    endif()
+endif()

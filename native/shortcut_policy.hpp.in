@@ -1,0 +1,5 @@
+#pragma once
+
+namespace nijigenerate::platform {
+inline constexpr bool shortcutAppleLabels = @NIJIGENERATE_SHORTCUT_APPLE@;
+}

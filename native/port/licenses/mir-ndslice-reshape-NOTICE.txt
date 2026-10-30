@@ -1,0 +1,9 @@
+Used contiguous 1D-to-2D byte reshape and indexStride specialization adapted from
+Mir algorithm 3.22.4, mir.ndslice.topology, mir.ndslice.slice and mir.ndslice.internal.
+Copyright 2020 Ilia Ki, Kaleidic Associates Advisory Limited, Symmetry Investments.
+Authors: Ilia Ki, John Michael Hall, Shigeki Karita (original numir code).
+Apache License, Version 2.0: see the existing identical full license text in
+mir-iteration-any-LICENSE.txt.
+The retained C++ byte owner and native canonical Error/fault connection are
+independently authored for the actual nijigenerate core.math.path consumer.
+This adaptation excludes the unrelated Ryu implementation in the upstream NOTICE.

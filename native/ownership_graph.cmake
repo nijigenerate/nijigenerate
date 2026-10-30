@@ -1,0 +1,5 @@
+if(BUILD_TESTING)
+    add_executable(nijigenerate_ownership_graph_probe tests/ownership_graph_probe.cpp)
+    target_link_libraries(nijigenerate_ownership_graph_probe PRIVATE nijigenerate_runtime_core)
+    add_test(NAME native_ownership_graph_contract COMMAND nijigenerate_ownership_graph_probe)
+endif()

@@ -1,0 +1,7 @@
+if(BUILD_TESTING)
+    add_library(nijigenerate_mesh_vertex_declaration_probe OBJECT tests/mesh_vertex_declaration_probe.cpp)
+    target_link_libraries(nijigenerate_mesh_vertex_declaration_probe PRIVATE nijigenerate_core)
+    if(MSVC)
+        target_compile_options(nijigenerate_mesh_vertex_declaration_probe PRIVATE /Z7)
+    endif()
+endif()

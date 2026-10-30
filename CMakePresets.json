@@ -1,0 +1,32 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "windows-local",
+      "displayName": "Windows x64 local dependency integration",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-native",
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"},
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
+        "BUILD_TESTING": true,
+        "NIJIGENERATE_RUNTIME_PROBE": true,
+        "NIJIGENERATE_STACKFUL_TASKS": true,
+        "NIJIGENERATE_IMGUI": true,
+        "NIJIGENERATE_NICXLIVE_SOURCE_DIR": "${sourceDir}/../nicxlive",
+        "NICXLIVE_ENABLE_FAST_MATH": false,
+        "NICXLIVE_ENABLE_AVX2": false
+      }
+    }
+  ],
+  "buildPresets": [
+    {"name": "windows-debug", "configurePreset": "windows-local", "configuration": "Debug", "jobs": 1, "nativeToolOptions": ["/nr:false"]},
+    {"name": "windows-release", "configurePreset": "windows-local", "configuration": "Release", "jobs": 1, "nativeToolOptions": ["/nr:false"]}
+  ],
+  "testPresets": [
+    {"name": "windows-debug", "configurePreset": "windows-local", "configuration": "Debug", "output": {"outputOnFailure": true}},
+    {"name": "windows-release", "configurePreset": "windows-local", "configuration": "Release", "output": {"outputOnFailure": true}}
+  ]
+}

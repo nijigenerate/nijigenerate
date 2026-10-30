@@ -1,0 +1,68 @@
+{
+  "at": "2026-10-27T00:32:12.655241+00:00",
+  "scope": "Explicit current independent source coordination overlay; legacy WBS untouched",
+  "cards": [
+    {
+      "id": 22572,
+      "reference": "M185.H",
+      "title": "M185.H M185 source/nijigenerate/panels/parameters.d",
+      "owner_id": 19,
+      "username": "kanban-review-01a17264",
+      "status": "In Progress",
+      "dependency_links": [
+        {
+          "link_id": 2,
+          "task_id": 41,
+          "opposite_task_id": 22572,
+          "reference": "B001",
+          "owner_id": 0,
+          "status": "Done"
+        },
+        {
+          "link_id": 3,
+          "task_id": 22572,
+          "opposite_task_id": 41,
+          "reference": "B001",
+          "owner_id": 0,
+          "status": "Done"
+        },
+        {
+          "link_id": 2,
+          "task_id": 22571,
+          "opposite_task_id": 22572,
+          "reference": "M185.A",
+          "owner_id": 9,
+          "status": "Done"
+        },
+        {
+          "link_id": 3,
+          "task_id": 22572,
+          "opposite_task_id": 22571,
+          "reference": "M185.A",
+          "owner_id": 9,
+          "status": "Done"
+        },
+        {
+          "link_id": 2,
+          "task_id": 22572,
+          "opposite_task_id": 22573,
+          "reference": "M185.T",
+          "owner_id": 0,
+          "status": "Backlog"
+        },
+        {
+          "link_id": 3,
+          "task_id": 22573,
+          "opposite_task_id": 22572,
+          "reference": "M185.T",
+          "owner_id": 0,
+          "status": "Backlog"
+        }
+      ],
+      "unblocks_modules": [
+        "M166"
+      ],
+      "source_completion_count": 0
+    }
+  ]
+}
